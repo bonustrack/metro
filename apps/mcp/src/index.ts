@@ -103,7 +103,9 @@ async function blobToBase64Block(blob: Blob, mimeType: string): Promise<ContentB
 // documents pass through as image blocks (Claude reads them natively). Voice
 // and audio get transcribed via OpenAI to text. Captions become text blocks
 // alongside images. Returns `null` for unsupported message types.
-async function messageToContent(m: any): Promise<ContentBlock[] | null> {
+// `notify` streams milestone log messages back to the MCP client before each
+// blocking operation (download, transcription).
+async function messageToContent(m: any, notify: Notify = () => {}): Promise<ContentBlock[] | null> {
   const blocks: ContentBlock[] = [];
 
   if (m.caption) blocks.push({ type: "text", text: m.caption });
@@ -113,6 +115,7 @@ async function messageToContent(m: any): Promise<ContentBlock[] | null> {
   }
 
   if (Array.isArray(m.photo) && m.photo.length > 0) {
+    notify("downloading image…");
     // Telegram returns multiple sizes; the last entry is the largest.
     const photo = m.photo[m.photo.length - 1];
     const blob = await downloadTelegramFile(photo.file_id);
@@ -121,12 +124,14 @@ async function messageToContent(m: any): Promise<ContentBlock[] | null> {
   }
 
   if (m.document?.mime_type?.startsWith("image/")) {
+    notify("downloading image…");
     const blob = await downloadTelegramFile(m.document.file_id);
     blocks.push(await blobToBase64Block(blob, m.document.mime_type));
     return blocks;
   }
 
   if (m.voice) {
+    notify("transcribing voice note…");
     const blob = await downloadTelegramFile(m.voice.file_id);
     const text = await transcribe(blob, "voice.ogg");
     await sendMessage(`📝 ${text}`);
@@ -135,6 +140,7 @@ async function messageToContent(m: any): Promise<ContentBlock[] | null> {
   }
 
   if (m.audio) {
+    notify("transcribing audio…");
     const ext = (m.audio.mime_type ?? "audio/mpeg").split("/")[1] ?? "mp3";
     const blob = await downloadTelegramFile(m.audio.file_id);
     const text = await transcribe(blob, `audio.${ext}`);
@@ -148,9 +154,11 @@ async function messageToContent(m: any): Promise<ContentBlock[] | null> {
 
 // Telegram only allows one consumer of getUpdates at a time, so all Ask calls
 // share a single polling loop and matching is done by reply_to_message_id.
+type Notify = (text: string) => void;
+type Waiter = { resolve: (content: ContentBlock[]) => void; notify: Notify };
 let pollingOffset = 0;
 let pollingStarted = false;
-const waiters = new Map<number, (content: ContentBlock[]) => void>();
+const waiters = new Map<number, Waiter>();
 
 async function startPolling() {
   if (pollingStarted) return;
@@ -190,19 +198,21 @@ async function startPolling() {
           // Resolve text/voice/audio/image asynchronously so download +
           // transcription don't block the polling loop.
           const id = waiterId;
+          const waiter = waiters.get(id)!;
+          waiter.notify("reply received — processing…");
           void (async () => {
             let content: ContentBlock[];
             try {
-              const c = await messageToContent(m);
+              const c = await messageToContent(m, waiter.notify);
               if (c === null) return; // unsupported type — leave waiter pending
               content = c;
             } catch (err: any) {
               content = [{ type: "text", text: `[reply processing failed: ${err?.message ?? err}]` }];
             }
-            const cb = waiters.get(id);
-            if (cb) {
+            const w = waiters.get(id);
+            if (w) {
               waiters.delete(id);
-              cb(content);
+              w.resolve(content);
             }
           })();
         }
@@ -214,17 +224,18 @@ async function startPolling() {
   })();
 }
 
-async function ask(question: string): Promise<ContentBlock[]> {
+async function ask(question: string, notify: Notify): Promise<ContentBlock[]> {
   await startPolling();
   const messageId = await sendMessage(question);
-  return new Promise<ContentBlock[]>(resolve => waiters.set(messageId, resolve));
+  notify("message delivered to user — waiting for reply");
+  return new Promise<ContentBlock[]>(resolve => waiters.set(messageId, { resolve, notify }));
 }
 
 function buildServer(): McpServer {
-  const s = new McpServer({
-    name: "@metro-labs/mcp",
-    version: "0.1.0",
-  });
+  const s = new McpServer(
+    { name: "@metro-labs/mcp", version: "0.1.0" },
+    { capabilities: { logging: {} } },
+  );
 
   s.registerTool(
     "metro-notify",
@@ -244,8 +255,17 @@ function buildServer(): McpServer {
       description: "Send a question to the user via Telegram and wait for their reply. The reply may be text, a transcribed voice note, or an image (with optional caption). Returns the user's reply as MCP content blocks.",
       inputSchema: { question: z.string().describe("The question to ask the user.") },
     },
-    async ({ question }) => {
-      const content = await ask(question);
+    async ({ question }, extra) => {
+      // Stream milestone log lines back to the client so the long wait isn't a
+      // silent black box. Swallow errors: if the client disconnected mid-call
+      // we still want the waiter to resolve when the Telegram reply arrives.
+      const notify: Notify = (text) => {
+        void extra.sendNotification({
+          method: "notifications/message",
+          params: { level: "info", logger: "metro-ask", data: text },
+        }).catch(() => {});
+      };
+      const content = await ask(question, notify);
       return { content };
     },
   );
@@ -296,9 +316,9 @@ if (HTTP_PORT) {
       // between concurrent clients. Tool handlers still close over the
       // shared polling/waiters state, so per-request server creation only
       // costs an in-memory tool-registration pass (sub-ms).
-      const transport = new WebStandardStreamableHTTPServerTransport({
-        enableJsonResponse: true,
-      });
+      // SDK default is SSE (enableJsonResponse: false); we want SSE so
+      // metro-ask can stream progress notifications during the wait.
+      const transport = new WebStandardStreamableHTTPServerTransport({});
       const reqServer = buildServer();
       await reqServer.connect(transport);
       return withCors(await transport.handleRequest(req));
