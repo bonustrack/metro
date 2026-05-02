@@ -10,6 +10,10 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck"
   },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.23.0"
+  },
   "devDependencies": {
     "turbo": "^2"
   },
