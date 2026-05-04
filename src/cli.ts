@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// metro CLI: small client for the Metro MCP server. Two subcommands:
+// metro CLI: small client for the Metro MCP server. Three subcommands:
 //
 //   metro login   Run the OAuth 2.1 / PKCE flow against $METRO_BASE_URL,
 //                 print Bearer access token to stdout when done. Pipe into
@@ -13,9 +13,16 @@
 //                 + Monitor) so messages surface at the next agent decision
 //                 boundary without polling.
 //
+//   metro watch   Standalone Telegram → log bridge: long-polls getUpdates
+//                 with TELEGRAM_BOT_TOKEN, filters to TELEGRAM_CHAT_ID,
+//                 prints one human-readable line per message. Used to feed
+//                 `tail -F` into another agent. See watch.ts for the
+//                 conflict caveat with the MCP server's polling.
+//
 // Config (env): METRO_BASE_URL defaults to the hosted instance; override
 // for a self-hosted server. METRO_TOKEN is required for `metro inbox` —
-// run `metro login` to mint one.
+// run `metro login` to mint one. `metro watch` reads TELEGRAM_BOT_TOKEN
+// and TELEGRAM_CHAT_ID instead.
 
 export {};
 
@@ -30,8 +37,13 @@ if (cmd === "login") {
   process.exit(0);
 } else if (cmd === "inbox") {
   await runInbox(BASE_URL);
+} else if (cmd === "watch") {
+  // Dynamic import: watch.ts requires TELEGRAM_BOT_TOKEN at module load
+  // (via telegram.ts), and we don't want login/inbox to fail when that
+  // token isn't set.
+  await import("./watch.ts");
 } else {
-  console.error("usage: metro <login|inbox>");
+  console.error("usage: metro <login|inbox|watch>");
   process.exit(cmd ? 1 : 0);
 }
 

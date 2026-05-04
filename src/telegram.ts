@@ -79,7 +79,7 @@ export async function getMe(): Promise<{ id: number; username: string; first_nam
 }
 
 // ----- file download / transcription -----
-async function downloadTelegramFile(fileId: string): Promise<Blob> {
+export async function downloadTelegramFile(fileId: string): Promise<Blob> {
   const file = await tg<{ file_path: string }>("getFile", { file_id: fileId });
   const res = await fetchT(`https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`, {
     timeoutMs: 30_000,
@@ -88,7 +88,7 @@ async function downloadTelegramFile(fileId: string): Promise<Blob> {
   return res.blob();
 }
 
-async function transcribe(blob: Blob, filename: string): Promise<string> {
+export async function transcribe(blob: Blob, filename: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is required to transcribe voice messages");
