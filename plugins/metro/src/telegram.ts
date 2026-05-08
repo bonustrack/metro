@@ -109,6 +109,10 @@ export function onInbound(handler: (msg: InboundMessage) => void): void {
 }
 
 export async function startPolling(): Promise<void> {
+  // A registered webhook short-circuits getUpdates — clear it defensively so
+  // the user doesn't have to know about that gotcha.
+  await tg("deleteWebhook", { drop_pending_updates: false }).catch(() => {});
+
   let offset = 0;
   const initial = await tg<Array<{ update_id: number }>>("getUpdates", { timeout: 0 });
   if (initial.length) offset = initial[initial.length - 1].update_id + 1;
