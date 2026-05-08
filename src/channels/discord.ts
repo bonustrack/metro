@@ -73,6 +73,12 @@ export async function editMessage(channelId: string, messageId: string, text: st
   await (await fetchMessage(channelId, messageId)).edit(text);
 }
 
+export async function sendTyping(channelId: string): Promise<void> {
+  const channel = await getClient().channels.fetch(channelId);
+  if (!channel?.isTextBased() || !('sendTyping' in channel)) return;
+  await channel.sendTyping();
+}
+
 export async function setReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
   const target = await fetchMessage(channelId, messageId);
   if (emoji) {

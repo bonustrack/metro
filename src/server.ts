@@ -1,16 +1,30 @@
 #!/usr/bin/env bun
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import pkg from '../package.json' with { type: 'json' };
-import { configuredPlatforms, loadMetroEnv, requireConfiguredPlatform } from './config.js';
 import * as discord from './channels/discord.js';
 import * as telegram from './channels/telegram.js';
 import { buildSendBody, tg } from './channels/telegram.js';
+import { configuredPlatforms, loadMetroEnv, REPO_ROOT, requireConfiguredPlatform } from './config.js';
+import { errMsg, log } from './log.js';
 
 loadMetroEnv();
 const platforms = configuredPlatforms();
 requireConfiguredPlatform(platforms);
+
+// Tell tail.ts to stop refreshing typing for this chat (the agent has replied).
+const TYPING_DIR = join(REPO_ROOT, '.typing-stop');
+function signalReplyComplete(platform: 'telegram' | 'discord', chat: string): void {
+  try {
+    mkdirSync(TYPING_DIR, { recursive: true });
+    writeFileSync(join(TYPING_DIR, `${platform}_${chat}`), '');
+  } catch (err) {
+    log.warn({ err: errMsg(err) }, 'typing stop-signal write failed');
+  }
+}
 
 // Discord tools need a logged-in client for REST calls; pre-warm the gateway.
 if (platforms.discord) await discord.startGateway();
@@ -60,6 +74,11 @@ if (platforms.telegram) {
       const body = buildSendBody(chatId, text, { parseMode, disableLinkPreview, buttons });
       body.reply_parameters = { message_id: messageId, allow_sending_without_reply: true };
       await tg('sendMessage', body);
+      signalReplyComplete('telegram', String(chatId));
+      // Clear the auto-acknowledgement emoji on the specific message we replied to.
+      await tg('setMessageReaction', { chat_id: chatId, message_id: messageId, reaction: [] }).catch(
+        err => log.warn({ err: errMsg(err) }, 'telegram clear-reaction failed'),
+      );
       return ok('sent');
     },
   );
@@ -122,6 +141,11 @@ if (platforms.discord) {
     },
     async ({ channelId, messageId, text }) => {
       await discord.replyToMessage(channelId, messageId, text);
+      signalReplyComplete('discord', channelId);
+      // Clear the auto-acknowledgement emoji on the specific message we replied to.
+      await discord
+        .setReaction(channelId, messageId, '')
+        .catch(err => log.warn({ err: errMsg(err) }, 'discord clear-reaction failed'));
       return ok('sent');
     },
   );

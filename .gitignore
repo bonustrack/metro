@@ -5,3 +5,4 @@ dist
 .env
 .env.*
 telegram-attachments.json
+.typing-stop/

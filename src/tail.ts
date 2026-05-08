@@ -4,14 +4,16 @@
 // an agent and observed via Bash+Monitor (Claude Code) or unified_exec
 // polling (Codex).
 //
-// Each inbound also fires a 👀 reaction on the source platform — instant
-// server-side acknowledgement, independent of the agent. Override with
-// METRO_ACK_EMOJI; set empty to disable.
+// On every inbound: fires the METRO_ACK_EMOJI reaction (default 👀) and
+// starts a typing indicator that refreshes until the agent replies (signaled
+// by server.ts touching .typing-stop/<key>) or the 60s safety cap is hit.
 
-import { configuredPlatforms, loadMetroEnv, requireConfiguredPlatform } from './config.js';
+import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import * as discord from './channels/discord.js';
 import * as telegram from './channels/telegram.js';
 import { tg } from './channels/telegram.js';
+import { configuredPlatforms, loadMetroEnv, REPO_ROOT, requireConfiguredPlatform } from './config.js';
 import { errMsg, log } from './log.js';
 
 loadMetroEnv();
@@ -19,7 +21,58 @@ const platforms = configuredPlatforms();
 requireConfiguredPlatform(platforms);
 
 const ACK = process.env.METRO_ACK_EMOJI ?? '👀';
+const TYPING_DIR = join(REPO_ROOT, '.typing-stop');
+const TYPING_REFRESH_MS = 4_000;
+const TYPING_MAX_MS = 60_000;
+
+mkdirSync(TYPING_DIR, { recursive: true });
+
 const emit = (line: Record<string, unknown>) => process.stdout.write(`${JSON.stringify(line)}\n`);
+
+type Platform = 'telegram' | 'discord';
+const typingActive = new Map<string, number>();
+const typingKey = (platform: Platform, chat: string) => `${platform}_${chat}`;
+
+function fireTyping(platform: Platform, chat: string): void {
+  if (platform === 'telegram') {
+    void tg('sendChatAction', { chat_id: chat, action: 'typing' }).catch(err =>
+      log.warn({ err: errMsg(err) }, 'telegram typing failed'),
+    );
+  } else {
+    void discord.sendTyping(chat).catch(err => log.warn({ err: errMsg(err) }, 'discord typing failed'));
+  }
+}
+
+function startTyping(platform: Platform, chat: string): void {
+  const k = typingKey(platform, chat);
+  typingActive.set(k, Date.now());
+  // Clear any stale stop signal so the new typing actually fires.
+  const stopFile = join(TYPING_DIR, k);
+  if (existsSync(stopFile)) {
+    try { unlinkSync(stopFile); } catch { /* benign race */ }
+  }
+  fireTyping(platform, chat);
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, started] of typingActive) {
+    const stopFile = join(TYPING_DIR, k);
+    if (existsSync(stopFile)) {
+      try { unlinkSync(stopFile); } catch { /* benign race */ }
+      typingActive.delete(k);
+      continue;
+    }
+    if (now - started > TYPING_MAX_MS) {
+      typingActive.delete(k);
+      continue;
+    }
+    const sep = k.indexOf('_');
+    const platform = k.slice(0, sep) as Platform;
+    const chat = k.slice(sep + 1);
+    fireTyping(platform, chat);
+  }
+}, TYPING_REFRESH_MS);
 
 if (platforms.telegram) {
   const me = await telegram.getMe();
@@ -32,6 +85,7 @@ if (platforms.telegram) {
         reaction: [{ type: 'emoji', emoji: ACK }],
       }).catch(err => log.warn({ err: errMsg(err) }, 'telegram auto-react failed'));
     }
+    startTyping('telegram', String(m.chat_id));
     emit({ platform: 'telegram', chat_id: String(m.chat_id), message_id: m.message_id, text: m.text });
   });
   void telegram.startPolling();
@@ -47,6 +101,7 @@ if (platforms.discord) {
         .setReaction(m.channel_id, m.message_id, ACK)
         .catch(err => log.warn({ err: errMsg(err) }, 'discord auto-react failed'));
     }
+    startTyping('discord', m.channel_id);
     emit({ platform: 'discord', channel_id: m.channel_id, message_id: m.message_id, text: m.text });
   });
 }
