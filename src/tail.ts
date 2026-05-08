@@ -8,31 +8,31 @@
 // server-side acknowledgement, independent of the agent. Override with
 // METRO_ACK_EMOJI; set empty to disable.
 
-import { configuredPlatforms, loadMetroEnv, requireConfiguredPlatform } from "./config.js";
-import * as discord from "./discord.js";
-import { log } from "./log.js";
-import * as telegram from "./telegram.js";
-import { tg } from "./telegram.js";
+import { configuredPlatforms, loadMetroEnv, requireConfiguredPlatform } from './config.js';
+import * as discord from './discord.js';
+import { errMsg, log } from './log.js';
+import * as telegram from './telegram.js';
+import { tg } from './telegram.js';
 
 loadMetroEnv();
 const platforms = configuredPlatforms();
 requireConfiguredPlatform(platforms);
 
-const ACK = process.env.METRO_ACK_EMOJI ?? "👀";
+const ACK = process.env.METRO_ACK_EMOJI ?? '👀';
 const emit = (line: Record<string, unknown>) => process.stdout.write(`${JSON.stringify(line)}\n`);
 
 if (platforms.telegram) {
   const me = await telegram.getMe();
-  log.info({ bot: `@${me.username}` }, "telegram ready");
+  log.info({ bot: `@${me.username}` }, 'telegram ready');
   telegram.onInbound(m => {
     if (ACK) {
-      void tg("setMessageReaction", {
+      void tg('setMessageReaction', {
         chat_id: m.chat_id,
         message_id: m.message_id,
-        reaction: [{ type: "emoji", emoji: ACK }],
-      }).catch(err => log.warn({ err: err?.message ?? err }, "telegram auto-react failed"));
+        reaction: [{ type: 'emoji', emoji: ACK }],
+      }).catch(err => log.warn({ err: errMsg(err) }, 'telegram auto-react failed'));
     }
-    emit({ platform: "telegram", chat_id: String(m.chat_id), message_id: m.message_id, text: m.text });
+    emit({ platform: 'telegram', chat_id: String(m.chat_id), message_id: m.message_id, text: m.text });
   });
   void telegram.startPolling();
 }
@@ -40,18 +40,18 @@ if (platforms.telegram) {
 if (platforms.discord) {
   await discord.startGateway();
   const me = await discord.getMe();
-  log.info({ bot: me.username }, "discord ready");
+  log.info({ bot: me.username }, 'discord ready');
   discord.onInbound(m => {
     if (ACK) {
       void discord
         .setReaction(m.channel_id, m.message_id, ACK)
-        .catch(err => log.warn({ err: err?.message ?? err }, "discord auto-react failed"));
+        .catch(err => log.warn({ err: errMsg(err) }, 'discord auto-react failed'));
     }
-    emit({ platform: "discord", channel_id: m.channel_id, message_id: m.message_id, text: m.text });
+    emit({ platform: 'discord', channel_id: m.channel_id, message_id: m.message_id, text: m.text });
   });
 }
 
-process.stdin.on("end", () => process.exit(0));
-process.stdin.on("close", () => process.exit(0));
-process.on("SIGINT", () => process.exit(0));
-process.on("SIGTERM", () => process.exit(0));
+process.stdin.on('end', () => process.exit(0));
+process.stdin.on('close', () => process.exit(0));
+process.on('SIGINT', () => process.exit(0));
+process.on('SIGTERM', () => process.exit(0));
