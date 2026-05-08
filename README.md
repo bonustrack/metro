@@ -1,87 +1,121 @@
 # Metro
 
-Telegram + Discord channel for Claude Code and Codex. Sub-second inbound delivery, same setup on both runtimes: register an MCP server, run a tail script in the background, react to JSON lines. The agent responds with `reply` / `react` / `edit-message` per platform. One local stdio MCP, no hosted infra.
+Live Telegram + Discord ↔ Claude Code or Codex. The agent reacts to your DMs in real time, replies, edits messages, and shows a typing indicator while it works. One local stdio MCP, no hosted infra.
 
-## Install
+```
+You (Telegram) ───────────────────────────────────────────────────────
+  "what's on this branch?"
+  👀                                            ← Metro reacts in <1s
+  Bot is typing…                                ← typing while agent works
+  Bot:  "5 files changed since main:
+         src/server.ts, src/tail.ts, …"
+```
+
+## Quickstart
+
+Requires [Bun](https://bun.sh) at runtime. Use any package manager you prefer to install + link:
 
 ```bash
 git clone https://github.com/bonustrack/metro && cd metro
-bun install
-bun link             # exposes `metro` on PATH (~/.bun/bin/metro)
 
-cp .env.example .env
-chmod 600 .env
-$EDITOR .env          # fill in TELEGRAM_BOT_TOKEN and/or DISCORD_BOT_TOKEN
+# pick one:
+bun install   && bun link              #
+npm install   && npm link              #  → exposes `metro` on PATH
+pnpm install  && pnpm link --global    #
+yarn install  && yarn link             #
+
+cp .env.example .env && chmod 600 .env
+$EDITOR .env   # paste TELEGRAM_BOT_TOKEN and/or DISCORD_BOT_TOKEN
 ```
 
-**Discord gotcha**: enable **Message Content Intent** in the Developer Portal → Bot → Privileged Gateway Intents.
-
-## Claude Code
+Register with whichever agent(s) you use:
 
 ```bash
-claude mcp add metro -- metro mcp
-claude
+claude mcp add metro -- metro mcp     # Claude Code
+codex  mcp add metro -- metro mcp     # Codex
 ```
 
-In your session, prompt the agent:
+In your agent session, ask it to start the inbound stream:
 
-> Run `metro tail` in the background and Monitor its stdout. Each line is a JSON inbound message — when one arrives, echo `[telegram chat_id=X] <content>` (or `[discord channel_id=X] <content>`) in your reply, then call the matching `*-reply` tool.
+> Run `metro tail` in the background and Monitor its stdout for inbound Telegram/Discord messages.
 
-DM either bot. Sub-second delivery. A CLAUDE.md line can make this automatic on every session:
+DM your bot. The agent reacts within ~1 second.
 
-```md
-On session start, run `metro tail` in the background and Monitor its stdout
-for Telegram/Discord messages.
-```
+## Bot setup
 
-## Codex
+### Telegram
+1. DM [@BotFather](https://t.me/BotFather), `/newbot`, copy the token
+2. Paste into `.env` as `TELEGRAM_BOT_TOKEN`
 
-Same MCP registration, same tail pattern:
+### Discord
+1. [discord.com/developers/applications](https://discord.com/developers/applications) → New Application → Bot → Reset Token, copy
+2. Paste into `.env` as `DISCORD_BOT_TOKEN`
+3. **Toggle Message Content Intent** in the same Bot tab (Privileged Gateway Intents) — without it, message bodies arrive empty
+4. Generate an OAuth invite link with the `bot` scope and invite to your server (or just DM the bot directly)
 
-```bash
-codex mcp add metro -- metro mcp
-codex
-```
+## Tools the agent gets
 
-Same prompt. Codex uses `unified_exec` + `write_stdin` polling under the hood — sub-second when messages arrive (server-side long-poll, ~1 round-trip per actual message), ~5s yield when idle.
+|  | Telegram | Discord |
+|---|---|---|
+| Reply | `telegram-reply` | `discord-reply` |
+| React | `telegram-react` | `discord-react` |
+| Edit message | `telegram-edit-message` | `discord-edit-message` |
+| Download attachment | `telegram-download-attachment` | `discord-download-attachment` |
+| Fetch recent messages | — | `discord-fetch-messages` |
 
-## Tools
-
-| Platform | Tools |
-|---|---|
-| Telegram | `telegram-reply`, `telegram-react`, `telegram-edit-message`, `telegram-download-attachment` |
-| Discord  | `discord-reply`, `discord-react`, `discord-edit-message`, `discord-download-attachment`, `discord-fetch-messages` |
-
-`*-download-attachment` returns image content blocks. Telegram persists recent `file_id`s on disk at `<repo-root>/telegram-attachments.json` so the writer (`metro tail`) and the reader (`metro mcp`) share state. Voice/audio surface as opaque `[voice]` / `[audio]` placeholders. `discord-fetch-messages` is Discord-only — Discord exposes no search API for bots.
+The agent reads `chat_id` / `channel_id` and `message_id` from the inbound JSON and threads them through. Voice / audio surface as `[voice]` / `[audio]` placeholders. `discord-fetch-messages` is the only lookback path on Discord — Discord exposes no search API for bots.
 
 ## Config
 
 `<repo-root>/.env`:
 
-```
+```bash
 TELEGRAM_BOT_TOKEN=123456:ABC…
 DISCORD_BOT_TOKEN=MTIz…
+
+METRO_LOG_LEVEL=info     # trace|debug|info|warn|error|fatal — default info
+METRO_ACK_EMOJI=👀       # auto-react on every inbound; empty disables.
+                         # Telegram restricts the bot reaction whitelist.
 ```
 
-- `METRO_LOG_LEVEL` (trace|debug|info|warn|error|fatal) — log verbosity, default `info`. Logs go to stderr (captured by Claude Code under `~/Library/Caches/claude-cli-nodejs/…/mcp-logs-plugin-metro-metro/*.jsonl`).
-- `METRO_ACK_EMOJI` — auto-react emoji `metro tail` fires on every inbound, default `👀`. Empty disables. Telegram restricts the [bot reaction set](https://core.telegram.org/bots/api#reactiontypeemoji).
+Logs go to stderr. Claude Code captures them at `~/Library/Caches/claude-cli-nodejs/…/mcp-logs-plugin-metro-metro/*.jsonl`.
 
 ## Architecture
 
 ```
 Telegram ─poll(getUpdates)──┐
-                            ├─▶  metro tail  ─stdout JSON lines─▶  agent (Monitor / unified_exec)
+                            ├─▶ metro tail ─stdout JSONL─▶ agent (Monitor / unified_exec)
 Discord  ─gateway WS────────┘
-                                      │
-                                      └─▶  metro mcp  ◀─ tool calls
+                                                    │
+                                                    └─▶ metro mcp (MCP) ◀─ tool calls
+                                                       reply / react / edit / download / fetch
 ```
 
-Two commands: `metro tail` is the inbound stream (agent runs it in the background, observes stdout), `metro mcp` is the outbound MCP server (registered once with `claude mcp add` / `codex mcp add`). Both runtimes use the same approach. While the agent is working on a reply, both platforms show a typing indicator; when the agent replies, the indicator stops and the auto-acknowledgement reaction is cleared on the exact message replied to.
+Two commands, same approach on both runtimes. While the agent works on a reply, both platforms show a typing indicator; when the agent replies, the indicator stops and the auto-acknowledgement reaction is cleared on the exact message replied to.
+
+## Troubleshooting
+
+```bash
+# Sanity-check the binary:
+which metro                                              # → e.g. ~/.bun/bin/metro
+metro                                                    # prints usage
+
+# What's running right now:
+ps aux | grep metro | grep -v grep
+# expect: one `metro mcp`, optionally one `metro tail` (if agent has spawned it)
+
+# Clean stuck state — safe to run anytime:
+rm -f .tail-lock telegram-attachments.json
+rm -rf .typing-stop/
+
+# Tail the latest agent-side log (Claude Code):
+ls -t ~/Library/Caches/claude-cli-nodejs/-Users-*-metro/mcp-logs-plugin-metro-metro/*.jsonl | head -1 | xargs cat
+```
 
 ## Caveats
 
-- **Discord Message Content Intent** required (privileged) — see install gotcha above.
-- **Telegram single-poller.** Two `metro tail` instances on the same token would fight for the `getUpdates` slot, so the second-comer detects the existing owner (via `.tail-lock`) and exits cleanly. Re-run `metro tail` to take over after the owner exits.
-- **No pairing/allowlist.** Anyone who can DM your bot or @-mention it in a channel can talk to your session. Run against bots you own.
-- **UI visibility.** Claude Code's `Monitor` collapses stdout into a card; Codex dims MCP tool args. The MCP `instructions` direct the agent to echo each inbound message in its visible reply so you can see what arrived without expanding cards.
-- **Mid-task latency.** When the agent is mid-tool-call, new messages surface at the next decision boundary — typically sub-second on Claude Code, longer on Codex turns. Neither runtime can interrupt an in-progress LLM generation.
+- **Discord Message Content Intent** is privileged — toggle it in the Developer Portal. See above.
+- **Telegram single-poller.** Telegram allows one `getUpdates` consumer per bot token. If two `metro tail` instances start, the second-comer detects the lockfile (`.tail-lock`) and exits cleanly. Re-run `metro tail` to take over after the previous one exits.
+- **No allowlist.** Anyone who can DM your bot or @-mention it can talk to your session. Run against bots you own.
+- **Mid-task latency.** New messages surface at the next agent decision boundary — sub-second on Claude Code (lots of small tool calls), longer on Codex turns. Neither runtime can interrupt an in-progress LLM generation.
+- **UI visibility.** Claude Code's `Monitor` collapses stdout into a card; Codex dims MCP tool args. Metro's MCP `instructions` direct the agent to echo each inbound in its visible reply so you see what arrived without expanding cards.
