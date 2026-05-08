@@ -21,7 +21,7 @@ chmod 600 ~/.claude/channels/metro/.env
 
 ```bash
 # Register the outbound tools (reply, react, edit-message, download, fetch).
-claude mcp add metro -- bun run --cwd /path/to/metro/plugins/metro --silent start
+claude mcp add metro -- bun run --cwd /path/to/metro --silent start
 
 # Plain claude — no --channels flag needed.
 claude
@@ -29,14 +29,14 @@ claude
 
 In your session, prompt the agent:
 
-> Run `bun /path/to/metro/plugins/metro/src/tail.ts` in the background and Monitor its stdout. Each line is a JSON inbound message — when one arrives, echo `[telegram chat_id=X] <content>` (or `[discord channel_id=X] <content>`) in your reply, then call the matching `*-reply` tool.
+> Run `bun /path/to/metro/src/tail.ts` in the background and Monitor its stdout. Each line is a JSON inbound message — when one arrives, echo `[telegram chat_id=X] <content>` (or `[discord channel_id=X] <content>`) in your reply, then call the matching `*-reply` tool.
 
 DM either bot. Sub-second delivery. The agent reacts at the next tool-call boundary.
 
 A CLAUDE.md line can make this automatic on every session:
 
 ```md
-On session start, run `bun /path/to/metro/plugins/metro/src/tail.ts` in
+On session start, run `bun /path/to/metro/src/tail.ts` in
 the background and Monitor its stdout for Telegram/Discord messages.
 ```
 
@@ -45,7 +45,7 @@ the background and Monitor its stdout for Telegram/Discord messages.
 Same MCP registration, same tail pattern:
 
 ```bash
-codex mcp add metro -- bun run --cwd /path/to/metro/plugins/metro --silent start
+codex mcp add metro -- bun run --cwd /path/to/metro --silent start
 
 # Plain codex.
 codex
@@ -66,7 +66,7 @@ Tools are namespaced per platform; only the families you've configured get regis
 
 ## Config
 
-Plugin reads `~/.claude/channels/metro/.env` (canonical), with two dev fallbacks: `<repo-root>/.env` and `plugins/metro/.env`. First reader wins per key.
+Plugin reads `~/.claude/channels/metro/.env` (canonical), with a `<repo-root>/.env` fallback for development. First reader wins per key.
 
 ```
 TELEGRAM_BOT_TOKEN=123456:ABC…

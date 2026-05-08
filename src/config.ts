@@ -17,17 +17,14 @@ export function metroHome(): string {
   return process.env.METRO_CHANNEL_HOME ?? join(homedir(), ".claude", "channels", "metro");
 }
 
-// Load env from the canonical home, falling back to in-repo .env files for
+// Load env from the canonical home, falling back to a repo-root .env for
 // development. First reader wins per key — so the home file takes precedence
 // when both are present, and existing process.env is never overwritten.
 export function loadMetroEnv(): string {
   const homeEnv = join(metroHome(), ".env");
-  const pluginRootEnv = fileURLToPath(new URL("../.env", import.meta.url));
-  const repoRootEnv = fileURLToPath(new URL("../../../.env", import.meta.url));
+  const repoRootEnv = fileURLToPath(new URL("../.env", import.meta.url));
 
-  for (const path of [homeEnv, pluginRootEnv, repoRootEnv]) {
-    loadEnvFile(path);
-  }
+  for (const path of [homeEnv, repoRootEnv]) loadEnvFile(path);
   return homeEnv;
 }
 
