@@ -75,6 +75,8 @@ DISCORD_BOT_TOKEN=MTIz…
 
 `METRO_LOG_LEVEL` (trace|debug|info|warn|error|fatal) controls verbosity; default `info`. Logs go to stderr (Claude Code captures them in `~/Library/Caches/claude-cli-nodejs/.../mcp-logs-plugin-metro-metro/*.jsonl`).
 
+`METRO_ACK_EMOJI` controls the auto-acknowledgement reaction `tail.ts` fires on every inbound message — default `👀`, set empty to disable. Telegram restricts the bot reaction set; pick one from the [allowed list](https://core.telegram.org/bots/api#reactiontypeemoji).
+
 ## Architecture
 
 ```
