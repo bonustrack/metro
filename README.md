@@ -1,15 +1,6 @@
 # Metro
 
-Chat with your Claude Code or Codex agent over Telegram and Discord. Messages land in the session live, the agent reacts in <1s, types while it works, and replies — ~700 lines of TypeScript, one stdio MCP, no hosted infra.
-
-```
-You (Telegram) ───────────────────────────────────────────────────────
-  "what's on this branch?"
-  👀                                            ← Metro reacts in <1s
-  Bot is typing…                                ← typing while agent works
-  Bot:  "5 files changed since main:
-         src/server.ts, src/tail.ts, …"
-```
+Chat with your Claude Code or Codex agent over Telegram and Discord. Messages land in the session live, the agent reacts, types while it works, and replies — ~700 lines of TypeScript, one stdio MCP, no hosted infra.
 
 ## Quickstart
 
@@ -34,7 +25,7 @@ In your agent session, ask it to start the inbound stream:
 
 > Run `metro tail` in the background and Monitor its stdout for inbound Telegram/Discord messages.
 
-DM your bot. The agent reacts within ~1 second.
+DM your bot. The agent reacts on its next decision boundary (see Caveats for latency notes).
 
 ## Bot tokens
 
@@ -46,16 +37,7 @@ DM your bot. The agent reacts within ~1 second.
 Metro ships two commands:
 
 - **`metro mcp`** — a stdio MCP server. Registers the tools below so the agent can reply, react, edit, and download attachments. Started once when the agent boots (via `claude mcp add` / `codex mcp add` above).
-- **`metro tail`** — the inbound runtime. Polls Telegram and connects to Discord's WebSocket gateway, then prints one JSON line per inbound message to stdout. The agent watches that stdout (Bash+Monitor in Claude Code, unified_exec in Codex) and acts on each line within ~1s. Started on demand from inside an agent session.
-
-```
-Telegram ─poll(getUpdates)──┐
-                            ├─▶ metro tail ─stdout JSONL─▶ agent (Monitor / unified_exec)
-Discord  ─gateway WS────────┘
-                                                    │
-                                                    └─▶ metro mcp (MCP) ◀─ tool calls
-                                                       reply / react / edit / download / fetch
-```
+- **`metro tail`** — the inbound runtime. Polls Telegram and connects to Discord's WebSocket gateway, then prints one JSON line per inbound message to stdout. The agent watches that stdout (Bash+Monitor in Claude Code, unified_exec in Codex) and acts on each line at its next decision boundary. Started on demand from inside an agent session.
 
 While the agent works on a reply, both platforms show a typing indicator; when it replies, the indicator stops and the auto-ack reaction (👀) is cleared on the exact message replied to.
 
