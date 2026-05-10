@@ -1,6 +1,6 @@
 # Metro
 
-Chat with your Claude Code or Codex agent over Telegram and Discord. Inbound messages stream into the session live; the agent reacts, types while it works, and replies — pure CLI, ~900 lines of TypeScript, no MCP, no hosted infra.
+Chat with your Claude Code or Codex agent over Telegram and Discord. Inbound messages stream into the session live; the agent reacts, types while it works, and replies — pure CLI, ~1.2K lines of TypeScript, no MCP, no hosted infra.
 
 ## Quickstart
 
@@ -39,7 +39,7 @@ While the agent is working on a reply, both platforms show a typing indicator; w
 | `metro setup telegram\|discord <token>` | Save a bot token to `$METRO_CONFIG_DIR/.env`. Validates the token via `getMe` before writing; `--no-validate` skips. |
 | `metro setup clear [telegram\|discord\|all]` | Remove tokens. |
 | `metro setup skill [--project] [--clear]` | Install (or remove) the agent skill in both Claude Code (`~/.claude/skills/metro/`) and Codex (`~/.agents/skills/metro/`). `--project` writes to the cwd instead of `$HOME`. |
-| `metro doctor` | Health check: tokens, gateway reachability, tail process, skill install state. |
+| `metro doctor` | Health check: tokens, gateway reachability, stream process, skill install state (with bundled-vs-installed freshness check). |
 | `metro reply --to=<addr> --text=<t>` | Quote-reply. Clears 👀. |
 | `metro react --to=<addr> --emoji=<e>` | Set or clear (`''`) a reaction. |
 | `metro edit --to=<addr> --text=<t>` | Edit a message the bot previously sent. |
@@ -49,7 +49,7 @@ While the agent is working on a reply, both platforms show a typing indicator; w
 | `metro update` | Check npm and upgrade in place (npm/bun/pnpm auto-detected). |
 | `metro --version`, `metro --help` | Version, full reference. |
 
-Append `--json` to any non-tail command for a single-line/array JSON result on stdout, with `{"ok":false,"error":"…","code":N}` on failure. Useful when the agent needs to capture `sent_message_id`, downloaded paths, or a fetch array for downstream calls.
+Append `--json` to any subcommand for a single-line/array JSON result on stdout, with `{"ok":false,"error":"…","code":N}` on failure. Useful when the agent needs to capture `sent_message_id`, downloaded paths, or a fetch array for downstream calls. (The bare `metro` stream already emits one JSON line per inbound, no flag needed.)
 
 `reply` and `edit` accept `--text` either as a flag or via stdin (heredoc-friendly). Telegram-only options: `--parse-mode=HTML|MarkdownV2`, `--no-link-preview`, `--buttons-json='[[{"text":"x","url":"https://…"}]]'`. Voice/audio attachments surface as `[voice]` / `[audio]` placeholders — the agent sees them but can't download.
 

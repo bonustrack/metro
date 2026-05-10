@@ -355,15 +355,15 @@ async function cmdDoctor(flags: Flags): Promise<void> {
   // tail process state
   const lockFile = join(STATE_DIR, '.tail-lock');
   if (!existsSync(lockFile)) {
-    checks.push({ name: 'tail', ok: null, detail: 'not running' });
+    checks.push({ name: 'stream', ok: null, detail: 'not running' });
   } else {
     try {
       const pid = Number(readFileSync(lockFile, 'utf8').trim());
       if (!Number.isInteger(pid) || pid <= 0) throw new Error('invalid pid');
       process.kill(pid, 0);
-      checks.push({ name: 'tail', ok: true, detail: `running (pid ${pid})` });
+      checks.push({ name: 'stream', ok: true, detail: `running (pid ${pid})` });
     } catch {
-      checks.push({ name: 'tail', ok: false, detail: 'stale lockfile (process gone)' });
+      checks.push({ name: 'stream', ok: false, detail: 'stale lockfile (process gone)' });
     }
   }
 

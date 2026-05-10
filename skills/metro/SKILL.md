@@ -58,9 +58,9 @@ When `text` contains `[image]`:
 2. `Read` each path with the Read tool — the image enters your context as a vision input.
 3. Reply normally with `metro reply`.
 
-## Voice / audio
+## Opaque attachment markers
 
-`[voice]` / `[audio]` markers are opaque. Acknowledge in text (e.g., "got your voice note — could you type it out?") or, if your runtime supports audio input via attached files, the user can resend as a regular file.
+`[voice]`, `[audio: <name>]`, and `[file: <name>]` are opaque — `metro download` only handles images. Acknowledge in text (e.g., "got your voice note — could you type it out?") or, if your runtime accepts audio/file input directly, ask the user to resend as a regular file.
 
 ## Exit codes
 
