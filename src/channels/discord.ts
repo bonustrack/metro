@@ -57,7 +57,15 @@ function getClient(): Client {
   return client;
 }
 
-export type InboundMessage = { channel_id: string; message_id: string; text: string };
+export type InboundMessage = {
+  channel_id: string;
+  message_id: string;
+  text: string;
+  /** True for guild text channels / threads; false for DMs. */
+  in_guild: boolean;
+  /** True when the bot user was @-mentioned in this message. */
+  mentions_bot: boolean;
+};
 
 let onInboundHandler: (msg: InboundMessage) => void = () => {};
 export function onInbound(handler: (msg: InboundMessage) => void): void {
@@ -75,13 +83,10 @@ export async function startGateway(): Promise<void> {
 
   c.on(Events.MessageCreate, m => {
     if (m.author.bot) return;
-    // Guild messages: only forward when the bot is mentioned. DMs always pass.
-    // The bot's own @-mention is preserved in `m.content` — stripping it would
-    // lose mid-sentence position ("Wdyt @Metro is this good?" → "Wdyt is this
-    // good?") and silently drop bare-mention pings. The agent recognizes
-    // `<@bot_id>` and acts on the request as a whole.
-    if (m.guildId && c.user && !m.mentions.has(c.user.id)) return;
-
+    // Forward every human message; the orchestrator decides what to route
+    // where (scoped thread vs new bootstrap mention vs ignore). The bot's
+    // own @-mention is preserved in `m.content` so the orchestrator can
+    // make that decision from the same payload.
     const tags = [...m.attachments.values()]
       .map(a => {
         if (a.contentType?.startsWith('image/')) return '[image]';
@@ -91,7 +96,13 @@ export async function startGateway(): Promise<void> {
       .join(' ');
     const text = [m.content, tags].filter(Boolean).join(' ').trim();
     if (!text) return;
-    onInboundHandler({ channel_id: m.channelId, message_id: m.id, text });
+    onInboundHandler({
+      channel_id: m.channelId,
+      message_id: m.id,
+      text,
+      in_guild: !!m.guildId,
+      mentions_bot: c.user ? m.mentions.has(c.user.id) : false,
+    });
   });
   c.on(Events.Error, err => log.error({ err: errMsg(err) }, 'discord error'));
 
@@ -118,6 +129,19 @@ type RawMessage = {
 export async function sendMessage(channelId: string, text: string): Promise<string> {
   const sent = await rest<{ id: string }>('POST', `/channels/${channelId}/messages`, { content: text });
   return sent.id;
+}
+
+/**
+ * Create a public thread anchored to an existing message. The user's
+ * @-mention becomes the thread's starter, so the thread is visually
+ * tied to the request that opened it. Returns the new thread's channel id.
+ */
+export async function createThreadFromMessage(channelId: string, messageId: string, name: string): Promise<string> {
+  const created = await rest<{ id: string }>('POST', `/channels/${channelId}/messages/${messageId}/threads`, {
+    name,
+    auto_archive_duration: 1440,
+  });
+  return created.id;
 }
 
 export async function replyToMessage(channelId: string, messageId: string, text: string): Promise<string> {
