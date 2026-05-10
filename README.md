@@ -4,6 +4,8 @@ Chat with your Claude Code or Codex agent over Telegram and Discord.
 
 ## Quickstart
 
+In your shell:
+
 ```bash
 npm install -g @stage-labs/metro@beta    # or: bun add -g @stage-labs/metro@beta
 
@@ -12,12 +14,15 @@ metro setup discord  <token>             # https://discord.com/developers/applic
 
 metro setup skill                        # writes SKILL.md so Claude Code + Codex auto-onboard
 metro doctor                             # verify
-metro                                    # run the bridge in the background
 ```
 
-DM your bot. Done.
+> **Discord setup:** toggle **Message Content Intent** in Developer Portal → Bot → Privileged Gateway Intents.
 
-> **Discord setup:** toggle **Message Content Intent** in Developer Portal → Bot → Privileged Gateway Intents, or message bodies arrive empty.
+Open Claude Code (`claude`) or Codex (`codex`), and tell it:
+
+> Run `metro` in the background.
+
+DM your bot. The agent picks up the next inbound and replies — the bundled skill handles launching, stdout watching, reactions, and replies.
 
 ## Config
 

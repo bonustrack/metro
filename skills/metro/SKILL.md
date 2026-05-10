@@ -1,11 +1,19 @@
 ---
 name: metro
-description: Handle inbound Telegram and Discord messages from `metro` running in the background. Use whenever you see JSON lines on stdout shaped `{"platform":..., "to":..., "text":...}`, or when the user asks you to reply/react/edit/download/fetch on a chat message.
+description: Run the metro Telegram/Discord bridge in this session — launch `metro` in the background, watch its stdout for inbound JSON lines, and act on each. Use when the user asks to start/run/launch metro, when you see JSON lines on stdout shaped `{"platform":..., "to":..., "text":...}`, or when handling a chat reply/react/edit/send/download/fetch.
 ---
 
-# Metro — handling inbound Telegram & Discord messages
+# Metro — running the Telegram & Discord bridge
 
-Metro is a CLI bridge between your agent session and Telegram/Discord. The user runs `metro` in the background; one JSON line lands on stdout for every inbound message. You react, decide, and act with `metro <subcommand>`.
+Metro is a CLI bridge between this agent session and Telegram/Discord. You launch `metro` once when the user asks, then act on each inbound JSON line via `metro <subcommand>`.
+
+## Starting the bridge
+
+When the user asks to run/start/launch metro (or "start the bridge"):
+
+1. Launch `metro` as a backgrounded Bash command (Claude Code: `run_in_background: true`; Codex: equivalent background spawn). Don't block on it.
+2. Attach a stdout watcher: `Monitor` on Claude Code, `unified_exec` polling on Codex. Each stdout line is one inbound JSON. Stderr is logs — don't act on it.
+3. If `metro` exits immediately or no inbounds arrive within a minute of a known DM, run `metro doctor` to diagnose. Common causes: missing tokens (tell the user to run `metro setup telegram <token>` and/or `metro setup discord <token>` in their shell), Discord Message Content Intent not toggled, or a stale lockfile from a previous session.
 
 ## Inbound shape
 
