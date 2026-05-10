@@ -1,6 +1,6 @@
 # Metro
 
-Chat with your Claude Code or Codex agent over Telegram and Discord. Messages land in the session live, the agent reacts, types while it works, and replies — ~700 lines of TypeScript, one stdio MCP, no hosted infra.
+Chat with your Claude Code or Codex agent over Telegram and Discord. Inbound messages stream into the session live; the agent reacts, types while it works, and replies — pure CLI, ~700 lines of TypeScript, no MCP, no hosted infra.
 
 ## Quickstart
 
@@ -10,20 +10,16 @@ npm install -g @stage-labs/metro@beta    # or: bun add -g @stage-labs/metro@beta
 
 > The `@beta` tag is required while Metro is in prerelease.
 
-Register Metro with your agent (use `claude` or `codex` interchangeably):
+Set tokens (export, your shell rc, or `./.env`):
 
 ```bash
-claude mcp add metro \
-  --env TELEGRAM_BOT_TOKEN=123:ABC… \
-  --env DISCORD_BOT_TOKEN=MTIz… \
-  -- metro mcp
+export TELEGRAM_BOT_TOKEN=123:ABC…
+export DISCORD_BOT_TOKEN=MTIz…
 ```
 
-Both `--env` flags are optional — configure at least one of Telegram or Discord.
+Both are optional — configure at least one of Telegram or Discord. Then in your agent session:
 
-In your agent session, ask it to start the inbound stream:
-
-> Run `metro tail` in the background and Monitor its stdout for inbound Telegram/Discord messages.
+> Run `metro tail` in the background and Monitor its stdout for inbound messages. Each line is `{"platform":…, "to":…, "text":…}`. For each one: echo `[<to>] <text>` so I see it, then act with `metro reply --to=<to> --text=<reply>` (or `metro react`, `metro edit`, `metro download`, `metro fetch`). Run `metro` for the full reference.
 
 DM your bot. The agent reacts on its next decision boundary (see Caveats for latency notes).
 
@@ -34,41 +30,39 @@ DM your bot. The agent reacts on its next decision boundary (see Caveats for lat
 
 ## How it works
 
-Metro ships two commands:
+Two subcommands:
 
-- **`metro mcp`** — a stdio MCP server. Registers the tools below so the agent can reply, react, edit, and download attachments. Started once when the agent boots (via `claude mcp add` / `codex mcp add` above).
-- **`metro tail`** — the inbound runtime. Polls Telegram and connects to Discord's WebSocket gateway, then prints one JSON line per inbound message to stdout. The agent watches that stdout (Bash+Monitor in Claude Code, unified_exec in Codex) and acts on each line at its next decision boundary. Started on demand from inside an agent session.
+- **`metro tail`** — long-running inbound stream. Polls Telegram and connects to Discord's gateway, then prints one JSON line per inbound message on stdout: `{"platform": "telegram"|"discord", "to": "<platform>:<chat>/<message_id>", "text": "…"}`. The agent watches that stdout (Bash+Monitor in Claude Code, unified_exec in Codex) and acts on each line at its next decision boundary.
+- **`metro <reply|react|edit|download|fetch>`** — one-shot subcommands the agent invokes via Bash to act on those inbounds. All of them take a single `--to=<platform>:<chat>/<message_id>` address that the agent copies verbatim from the inbound line.
 
 While the agent works on a reply, both platforms show a typing indicator; when it replies, the indicator stops and the auto-ack reaction (👀) is cleared on the exact message replied to.
 
-## MCP tools
+## Subcommands
 
-Registered by `metro mcp` — the agent calls these to act on the messages it sees from `metro tail`:
+| Command | Purpose |
+|---|---|
+| `metro reply --to=<addr> --text=<t>` | Quote-reply, threading under the original. Clears the 👀 auto-ack. |
+| `metro react --to=<addr> --emoji=<e>` | Set or clear (`''`) an emoji reaction. |
+| `metro edit --to=<addr> --text=<t>` | Edit a message the bot previously sent. |
+| `metro download --to=<addr> [--out=<dir>]` | Pull image attachments to disk; prints absolute paths (one per line) so the agent can `Read` them. |
+| `metro fetch --to=<addr> [--limit=N]` | Recent-message lookback. Discord only — pass channel-only `discord:<channel_id>`. (Discord exposes no search API for bots; Telegram has none either.) |
 
-| Tool | Telegram | Discord | Purpose |
-|---|---|---|---|
-| Reply | `telegram-reply` | `discord-reply` | Quote-reply, threading under the original message. Clears the 👀 auto-ack. |
-| React | `telegram-react` | `discord-react` | Set or clear an emoji reaction. |
-| Edit | `telegram-edit-message` | `discord-edit-message` | Edit a message the bot previously sent. |
-| Download attachment | `telegram-download-attachment` | `discord-download-attachment` | Pull image attachments back as `image` content blocks. |
-| Fetch recent messages | — | `discord-fetch-messages` | Lookback for context. (Discord exposes no search API for bots; Telegram has none either.) |
+Address format: `telegram:<chat_id>/<message_id>` or `discord:<channel_id>/<message_id>` (or `discord:<channel_id>` for `fetch`). All of these come straight off the inbound line.
 
-The agent reads `chat_id` / `channel_id` and `message_id` from the inbound JSON and threads them through. Voice / audio surface as `[voice]` / `[audio]` text placeholders — the agent sees them but can't download.
+`reply` and `edit` take `--text` either as a flag or via stdin (heredoc-friendly for multi-line replies). Telegram-only options: `--parse-mode=HTML|MarkdownV2`, `--no-link-preview`, `--buttons-json='[[{"text":"x","url":"https://…"}]]'`.
+
+Voice / audio surface as `[voice]` / `[audio]` text placeholders — the agent sees them but can't download.
 
 ## Config
-
-All settings come from environment variables passed via the MCP server's `--env` block:
 
 | Variable | Default | Description |
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | — | Telegram bot token. Required for the Telegram channel. |
 | `DISCORD_BOT_TOKEN` | — | Discord bot token. Required for the Discord channel. |
 | `METRO_LOG_LEVEL` | `info` | `trace`/`debug`/`info`/`warn`/`error`/`fatal`. |
-| `METRO_STATE_DIR` | `~/.cache/metro` | Where the lockfile, typing-stop signals, and the Telegram attachment cache live. |
+| `METRO_STATE_DIR` | `~/.cache/metro` | Where the lockfile, typing-stop signals, and the Telegram attachment cache live. Also the default `--out` for `metro download` (`<state-dir>/attachments/`). |
 
-Logs go to stderr. Claude Code captures them at `~/Library/Caches/claude-cli-nodejs/…/mcp-logs-plugin-metro-metro/*.jsonl`.
-
-For local dev (cloned repo, no host agent): `cp .env.example .env && chmod 600 .env`, then run `metro tail` / `metro mcp` from the repo dir — `.env` is read as a fallback when env vars aren't set.
+Tokens come from the process environment. For local dev: `cp .env.example .env && chmod 600 .env`, then run `metro tail` from the repo dir — `.env` is read as a fallback when env vars aren't set. Logs go to stderr.
 
 ## Troubleshooting
 
@@ -76,12 +70,9 @@ For local dev (cloned repo, no host agent): `cp .env.example .env && chmod 600 .
 which metro                                # → e.g. ~/.bun/bin/metro
 metro                                      # prints usage
 
-ps aux | grep metro | grep -v grep         # one `metro mcp`, optionally one `metro tail`
+ps aux | grep metro | grep -v grep         # one `metro tail` running
 
 rm -rf ~/.cache/metro/                     # clean stuck state — or whatever METRO_STATE_DIR points at
-
-# Latest agent-side log (Claude Code):
-ls -t ~/Library/Caches/claude-cli-nodejs/-Users-*-metro/mcp-logs-plugin-metro-metro/*.jsonl | head -1 | xargs cat
 ```
 
 ## Caveats
@@ -90,4 +81,4 @@ ls -t ~/Library/Caches/claude-cli-nodejs/-Users-*-metro/mcp-logs-plugin-metro-me
 - **Telegram single-poller.** Telegram allows one `getUpdates` consumer per bot token. If two `metro tail` instances start, the second-comer detects the lockfile (`$METRO_STATE_DIR/.tail-lock`) and exits cleanly. Re-run after the first exits to take over.
 - **No allowlist.** Anyone who can DM your bot or @-mention it can talk to your session. Run against bots you own.
 - **Mid-task latency.** New messages surface at the next agent decision boundary — sub-second on Claude Code (lots of small tool calls), longer on Codex turns. Neither runtime can interrupt an in-progress LLM generation.
-- **UI visibility.** Claude Code's `Monitor` collapses stdout into a card; Codex dims MCP tool args. Metro's MCP `instructions` direct the agent to echo each inbound in its visible reply so you see what arrived without expanding cards.
+- **UI visibility.** Claude Code's `Monitor` collapses stdout into a card; Codex dims tool args. Have the agent echo each inbound on its own visible line so you see what arrived without expanding cards (see the Quickstart prompt).

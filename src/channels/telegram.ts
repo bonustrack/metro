@@ -43,7 +43,7 @@ export async function getMe(): Promise<{ username: string }> {
   return tg('getMe', {});
 }
 
-// FIFO-bounded disk cache, shared between tail.ts (writer) and server.ts (reader).
+// FIFO-bounded disk cache, shared between tail.ts (writer) and cli.ts (reader).
 type Attachment = { file_id: string; mime: string };
 const CACHE_MAX = 200;
 const cacheFile = join(STATE_DIR, 'telegram-attachments.json');

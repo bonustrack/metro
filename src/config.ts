@@ -11,7 +11,7 @@ export const STATE_DIR = process.env.METRO_STATE_DIR ?? join(homedir(), '.cache'
 mkdirSync(STATE_DIR, { recursive: true });
 
 // Optional .env in cwd — convenience for local development. In production,
-// env vars come from the MCP server's `env` block.
+// env vars come from the agent's process environment (e.g. shell rc, systemd unit).
 export function loadMetroEnv(): void {
   const envFile = join(process.cwd(), '.env');
   if (!existsSync(envFile)) return;
@@ -32,6 +32,6 @@ export function configuredPlatforms(): Platforms {
 
 export function requireConfiguredPlatform(p: Platforms): void {
   if (p.telegram || p.discord) return;
-  log.fatal('set TELEGRAM_BOT_TOKEN and/or DISCORD_BOT_TOKEN — pass via the MCP server `env` block, or in ./.env for local dev');
+  log.fatal('set TELEGRAM_BOT_TOKEN and/or DISCORD_BOT_TOKEN in the environment, or in ./.env for local dev');
   process.exit(1);
 }

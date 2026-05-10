@@ -4,7 +4,7 @@
 // polling (Codex).
 //
 // On every inbound: fires a 👀 reaction and starts a typing indicator that
-// refreshes until the agent replies (signaled by server.ts touching
+// refreshes until the agent replies (signaled by `metro reply` touching
 // .typing-stop/<key>) or the 60s safety cap is hit.
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -108,7 +108,11 @@ if (platforms.telegram) {
       reaction: [{ type: 'emoji', emoji: '👀' }],
     }).catch(err => log.warn({ err: errMsg(err) }, 'telegram auto-react failed'));
     startTyping('telegram', String(m.chat_id));
-    emit({ platform: 'telegram', chat_id: String(m.chat_id), message_id: m.message_id, text: m.text });
+    emit({
+      platform: 'telegram',
+      to: `telegram:${m.chat_id}/${m.message_id}`,
+      text: m.text,
+    });
   });
   void telegram.startPolling();
 }
@@ -122,7 +126,11 @@ if (platforms.discord) {
       .setReaction(m.channel_id, m.message_id, '👀')
       .catch(err => log.warn({ err: errMsg(err) }, 'discord auto-react failed'));
     startTyping('discord', m.channel_id);
-    emit({ platform: 'discord', channel_id: m.channel_id, message_id: m.message_id, text: m.text });
+    emit({
+      platform: 'discord',
+      to: `discord:${m.channel_id}/${m.message_id}`,
+      text: m.text,
+    });
   });
 }
 
