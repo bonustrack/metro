@@ -94,10 +94,13 @@ async function onDiscordInbound(m: discord.InboundMessage): Promise<void> {
   }
   if (bootstrapped.has(m.message_id)) return;
   bootstrapped.add(m.message_id);
-  const sessionName = `metro-${new Date().toISOString().slice(0, 10)}-${m.message_id.slice(-4)}`;
-  log.info({ parent: m.channel_id, sessionName }, 'discord: bootstrapping new scope from @-mention');
-  const threadId = await discord.createThreadFromMessage(m.channel_id, m.message_id, sessionName);
+  // Create the codex thread first so its id can name the Discord thread.
+  // Lets you cross-reference scopes.json / logs from the Discord UI at a
+  // glance instead of decoding our own naming convention.
   const codexThreadId = await codex.createThread();
+  const threadName = codexThreadId.length <= 100 ? codexThreadId : codexThreadId.slice(0, 100);
+  log.info({ parent: m.channel_id, codex: codexThreadId }, 'discord: bootstrapping new scope from @-mention');
+  const threadId = await discord.createThreadFromMessage(m.channel_id, m.message_id, threadName);
   setCodexThread(discordScopeKey(threadId), codexThreadId);
   log.info({ discord: threadId, codex: codexThreadId }, 'scope created');
 
