@@ -9,14 +9,43 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { errMsg, log } from '../log.js';
+import { STATE_DIR } from '../paths.js';
 import type { Agent, AgentTurnCallbacks } from './types.js';
+
+// Persisted across metro restarts. Without this, the first message after
+// a restart would call `claude -p --session-id <uuid>` on an existing
+// session, which fails silently (no result event) and leaves the user
+// staring at "Thinking…" forever. Codex doesn't have this problem
+// because codex app-server is the state authority and reads its on-disk
+// thread store on spawn.
+const STARTED_FILE = join(STATE_DIR, 'claude-sessions.json');
+
+function loadStarted(): Set<string> {
+  if (!existsSync(STARTED_FILE)) return new Set();
+  try {
+    return new Set(JSON.parse(readFileSync(STARTED_FILE, 'utf8')) as string[]);
+  } catch (err) {
+    log.warn({ err: errMsg(err), path: STARTED_FILE }, 'claude agent: started cache read failed; treating as empty');
+    return new Set();
+  }
+}
 
 export class ClaudeAgent implements Agent {
   // Threads that have had at least one turn run (so `--session-id` was
   // already consumed and subsequent turns must use `--resume`).
-  private started = new Set<string>();
+  private started = loadStarted();
   private children = new Set<ChildProcess>();
+
+  private persistStarted(): void {
+    try {
+      writeFileSync(STARTED_FILE, JSON.stringify([...this.started]));
+    } catch (err) {
+      log.warn({ err: errMsg(err), path: STARTED_FILE }, 'claude agent: started cache write failed');
+    }
+  }
 
   async start(): Promise<void> {
     // No daemon to bring up — sanity-check that `claude` is on PATH so we
@@ -85,7 +114,10 @@ export class ClaudeAgent implements Agent {
     child.stderr?.on('data', d => log.trace({ src: 'claude-stderr' }, String(d).trim()));
     child.on('exit', code => {
       this.children.delete(child);
-      this.started.add(threadId);
+      if (!this.started.has(threadId)) {
+        this.started.add(threadId);
+        this.persistStarted();
+      }
       // If the subprocess exits without a `result` event (crash, OOM, kill),
       // surface that as an error so the orchestrator unsticks the thread.
       if (!session.done) {
