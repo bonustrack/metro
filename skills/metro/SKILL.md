@@ -19,23 +19,30 @@ Each `metro tail` line on stdout:
 
 ## Required flow on every inbound
 
-1. **React 👀 first.** Your very first tool call after seeing an inbound line must be `metro react --to=<to> --emoji=👀`. The user sees this on their phone immediately — proof you noticed before you started thinking.
-2. **Echo to the visible reply.** Write `[<to>] <text>` on its own line in your visible output. Both Claude Code's Monitor and Codex dim/collapse tool output, so this echo is the only way the user sees what arrived without expanding cards.
-3. **Decide and act.** Pick the matching subcommand below.
+1. **Echo to the visible reply.** Write `[<to>] <text>` on its own line in your visible output. Both Claude Code's Monitor and Codex dim/collapse tool output, so this echo is the only way the user sees what arrived without expanding cards.
+2. **Decide and act.** Pick the matching subcommand below.
+
+> 👀 is already on the message — `metro` auto-reacts server-side on every inbound and clears the reaction when you reply. Don't call `metro react --emoji=👀` yourself; you'd just flicker it on/off and waste a tool call.
 
 ## Subcommands
 
-All take `--to=<platform>:<chat>/<message_id>` copied verbatim from the inbound `to` field. Append `--json` to any of them for a single JSON result line you can parse.
+`reply` / `react` / `edit` / `download` take `--to=<platform>:<chat>/<message_id>` copied verbatim from the inbound `to` field. `send` and `fetch` take a channel-only `--to=<platform>:<chat>` (no message id). Append `--json` to any of them for a single JSON result line you can parse.
 
 | Action | Command |
 |---|---|
 | Quote-reply (threads under original; clears 👀) | `metro reply --to=<to> --text=<reply>` |
-| Quick ack | `metro react --to=<to> --emoji=👍` |
+| Quick ack reaction | `metro react --to=<to> --emoji=👍` |
 | Edit your previous bot message | `metro edit --to=<to> --text=<new text>` |
+| Send a proactive message (no reply context) | `metro send --to=<platform>:<chat_id> --text=<msg>` |
 | Download `[image]` attachments → file paths | `metro download --to=<to>` |
 | Fetch recent channel history (Discord only) | `metro fetch --to=discord:<channel_id> --limit=20` |
 
-`reply` and `edit` accept multi-line `--text` via stdin (heredoc).
+`reply` / `edit` / `send` accept multi-line `--text` via stdin (heredoc).
+
+## When to use `send` vs `reply`
+
+- **`reply`** — responding to a specific inbound message. Threads under it. This is the default when handling a `metro tail` line.
+- **`send`** — initiating without a triggering message: a long task you kicked off finished, a scheduled job fired, a follow-up the user asked you to deliver later. The chat/channel id you target must be one the bot can reach (existing DM, joined guild channel).
 
 ## Address format
 
