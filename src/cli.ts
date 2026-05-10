@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
 import * as discord from './channels/discord.js';
@@ -11,9 +12,10 @@ import { errMsg, log } from './log.js';
 const USAGE = `metro — Telegram + Discord bridge for your agent
 
 Usage:
-  metro tail
-      Long-running inbound stream. Polls Telegram and connects to Discord's
-      gateway, then prints one JSON line per inbound message on stdout:
+  metro [tail]
+      Long-running inbound stream (the default — bare \`metro\` is an alias
+      for \`metro tail\`). Polls Telegram and connects to Discord's gateway,
+      then prints one JSON line per inbound message on stdout:
         {"platform":"telegram"|"discord","to":"<platform>:<chat>/<msg>","text":"…"}
       Run in the background; the agent monitors stdout and acts on each line.
 
@@ -37,6 +39,11 @@ Usage:
       Recent-message lookback. Discord only — pass channel-only
       \`discord:<channel_id>\`. 1 ≤ N ≤ 100, default 10.
 
+  metro update
+      Check the npm registry for a newer release and run the matching
+      global-install command (npm / bun / pnpm — auto-detected from the
+      binary's install path).
+
 Address format:
   telegram:<chat_id>/<message_id>      e.g. telegram:-100123456789/4567
   discord:<channel_id>/<message_id>    e.g. discord:1234567890/9876543210
@@ -50,30 +57,39 @@ Tokens (env or ./.env): TELEGRAM_BOT_TOKEN, DISCORD_BOT_TOKEN.
 Configure at least one.
 `;
 
-function tailStatus(): string {
-  const lockFile = join(STATE_DIR, '.tail-lock');
-  if (!existsSync(lockFile)) return 'not running';
-  const pid = Number(readFileSync(lockFile, 'utf8').trim());
-  if (!Number.isInteger(pid) || pid <= 0) return 'not running (stale lockfile)';
-  try {
-    process.kill(pid, 0);
-    return `running (pid ${pid})`;
-  } catch {
-    return 'not running (stale lockfile)';
+async function cmdUpdate(): Promise<void> {
+  // While metro is in prerelease, the @beta dist-tag is what we publish.
+  // After GA, swap to 'latest' (or auto-pick from current version's prerelease tag).
+  const tag = pkg.version.includes('-') ? 'beta' : 'latest';
+  const res = await fetch('https://registry.npmjs.org/@stage-labs/metro', {
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`npm registry: ${res.status}`);
+  const data = (await res.json()) as { 'dist-tags'?: Record<string, string> };
+  const latest = data['dist-tags']?.[tag];
+  if (!latest) throw new Error(`no '${tag}' dist-tag for @stage-labs/metro`);
+  if (latest === pkg.version) {
+    process.stdout.write(`already on ${pkg.version} (latest ${tag})\n`);
+    return;
   }
-}
 
-function printStatus(): void {
-  loadMetroEnv();
-  const cfg = configuredPlatforms();
-  const platforms = [cfg.telegram && 'telegram', cfg.discord && 'discord'].filter(Boolean).join(', ') || 'none';
-  process.stdout.write(
-    `metro ${pkg.version} — Telegram + Discord bridge for your agent\n\n` +
-      `configured:  ${platforms}\n` +
-      `tail:        ${tailStatus()}\n` +
-      `state dir:   ${STATE_DIR}\n\n` +
-      'Run `metro tail` to start the inbound stream, or `metro --help` for all commands.\n',
-  );
+  // Detect installer from the resolved binary path. argv[1] points at
+  // dist/cli.js inside the install root, so the path tells us which
+  // package manager owns this metro.
+  const argv1 = process.argv[1] ?? '';
+  const spec = `@stage-labs/metro@${tag}`;
+  let argv: string[];
+  if (argv1.includes('/.bun/') || argv1.includes('\\bun\\')) argv = ['bun', 'add', '-g', spec];
+  else if (argv1.includes('/pnpm/') || argv1.includes('\\pnpm\\')) argv = ['pnpm', 'add', '-g', spec];
+  else argv = ['npm', 'install', '-g', spec];
+
+  process.stdout.write(`metro ${pkg.version} → ${latest}\n$ ${argv.join(' ')}\n`);
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(argv[0], argv.slice(1), { stdio: 'inherit' });
+    child.on('exit', code => (code === 0 ? resolve() : reject(new Error(`${argv[0]} exited with code ${code}`))));
+    child.on('error', reject);
+  });
 }
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
@@ -289,14 +305,21 @@ async function main(): Promise<void> {
     process.stdout.write(USAGE);
     return;
   }
-  if (!cmd) {
-    printStatus();
+
+  // Bare `metro` is an alias for `metro tail` — the inbound stream is the
+  // primary action; one-shot subcommands are the secondary surface.
+  if (!cmd || cmd === 'tail') {
+    await import('./tail.js');
     return;
   }
 
-  if (cmd === 'tail') {
-    await import('./tail.js');
-    return;
+  if (cmd === 'update') {
+    try {
+      return await cmdUpdate();
+    } catch (err) {
+      process.stderr.write(`error: ${errMsg(err)}\n`);
+      process.exit(1);
+    }
   }
 
   loadMetroEnv();
