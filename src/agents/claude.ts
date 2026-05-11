@@ -80,9 +80,7 @@ export class ClaudeAgent implements Agent {
       while ((nl = buffer.indexOf('\n')) !== -1) {
         const line = buffer.slice(0, nl).trim();
         buffer = buffer.slice(nl + 1);
-        if (!line) continue;
-        try { session.handle(JSON.parse(line)); }
-        catch (err) { log.warn({ err: errMsg(err) }, 'claude agent: malformed event'); }
+        if (line) try { session.handle(JSON.parse(line)); } catch (err) { log.warn({ err: errMsg(err) }, 'claude agent: malformed event'); }
       }
     });
     child.stderr?.on('data', d => log.trace({ src: 'claude-stderr' }, String(d).trim()));
@@ -90,9 +88,10 @@ export class ClaudeAgent implements Agent {
       this.children.delete(child);
       if (this.byThread.get(threadId) === child) this.byThread.delete(threadId);
       if (!this.started.has(threadId)) { this.started.add(threadId); this.persistStarted(); }
+      /** 143 = 128 + SIGTERM(15); we only send it via `cancelTurn`. */
       if (!session.done) {
         if (code === 0) session.fireComplete();
-        else session.fireError(new Error(`claude exited with code ${code}`));
+        else session.fireError(new Error(code === 143 ? 'Interrupted' : `claude exited with code ${code}`));
       }
     });
     child.on('error', err => { this.children.delete(child); if (!session.done) session.fireError(err); });

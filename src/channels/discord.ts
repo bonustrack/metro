@@ -141,7 +141,7 @@ const SUPPRESS_EMBEDS = 1 << 2;
 
 /** ActionRow + danger-style Button keyed by `custom_id=stopId`; empty array when stopId is null. */
 const stopComponents = (stopId: string | null): unknown[] =>
-  stopId ? [{ type: 1, components: [{ type: 2, style: 4, label: '⏹ Stop', custom_id: stopId }] }] : [];
+  stopId ? [{ type: 1, components: [{ type: 2, style: 4, label: '⏹', custom_id: stopId }] }] : [];
 
 export async function sendMessage(channelId: string, text: string, stopId: string | null = null): Promise<string> {
   const sent = await rest<{ id: string }>('POST', `/channels/${channelId}/messages`, { content: text, flags: SUPPRESS_EMBEDS, components: stopComponents(stopId) });

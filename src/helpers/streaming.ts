@@ -78,9 +78,10 @@ export class StreamingMessage {
     this.scheduler.request(this);
   }
 
+  /** Transient status (Thinking…, Reasoning…). Italic+bold so it reads as ambient, not a header. */
   setStatus(status: string | null): void {
     if (this.finalized) return;
-    this.statusLine = status; this.scheduler.request(this);
+    this.statusLine = status ? `_**${status}**_` : null; this.scheduler.request(this);
   }
 
   /** Set/clear the stop-button id rendered on the last segment by the adapter. */
@@ -104,10 +105,12 @@ export class StreamingMessage {
     if (tool) tool.result = result; this.scheduler.request(this);
   }
 
+  /** "Interrupted" is a user-triggered stop — render as a calm italic+bold notice, not a `⚠️` crash. */
   appendError(message: string): void {
     if (this.finalized) return;
     this.statusLine = null;
-    this.blocks.push({ kind: 'text', text: `⚠️ ${message}` }); this.scheduler.request(this);
+    this.blocks.push({ kind: 'text', text: message === 'Interrupted' ? '_**Interrupted**_' : `⚠️ ${message}` });
+    this.scheduler.request(this);
   }
 
   async finalize(): Promise<void> {
@@ -135,7 +138,6 @@ export class StreamingMessage {
     return parts.join('\n');
   }
 
-
   /** Redistribute the rendered body across segments, keeping existing segment ids stable. */
   private redistribute(): void {
     const chunks = this.chunkify(this.renderBody(), MAX_BODY_LEN - STATUS_RESERVE);
@@ -149,10 +151,8 @@ export class StreamingMessage {
   private chunkify(s: string, cap: number): string[] {
     if (s.length <= cap) return [s];
     const out: string[] = [];
-    for (let r = s; r.length > 0; ) {
-      const take = r.length > cap ? this.sliceAtBoundary(r, cap) : r;
-      out.push(take);
-      r = r.slice(take.length);
+    for (let r = s; r.length > 0; r = r.slice(out.at(-1)!.length)) {
+      out.push(r.length > cap ? this.sliceAtBoundary(r, cap) : r);
     }
     return out;
   }
