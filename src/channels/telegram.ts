@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { STATE_DIR } from '../paths.js';
 import { errMsg, log } from '../log.js';
+import { mdToTelegramHtml } from '../lib/telegram-format.js';
 
 const API_BASE = 'https://api.telegram.org';
 
@@ -235,20 +236,48 @@ export async function createForumTopic(chatId: ChatId, name: string): Promise<nu
   return r.message_thread_id;
 }
 
+/**
+ * Send `text` as agent-style markdown — converted to Telegram HTML so
+ * `**bold**`, `` `code` ``, fenced blocks, links, blockquotes, etc. render
+ * as formatted text instead of literal characters. On the rare case
+ * Telegram rejects the resulting HTML (`can't parse entities`), retry as
+ * plain text so message delivery isn't blocked.
+ */
 export async function sendMessage(chatId: ChatId, threadId: number | undefined, text: string): Promise<number> {
-  const body: Record<string, unknown> = { chat_id: chatId, text };
+  const html = mdToTelegramHtml(text);
+  const body: Record<string, unknown> = { chat_id: chatId, text: html, parse_mode: 'HTML' };
   if (threadId !== undefined) body.message_thread_id = threadId;
-  const r = await tg<{ message_id: number }>('sendMessage', body);
-  return r.message_id;
+  try {
+    const r = await tg<{ message_id: number }>('sendMessage', body);
+    return r.message_id;
+  } catch (err) {
+    if (!isParseError(err)) throw err;
+    log.warn({ err: errMsg(err) }, 'telegram: HTML parse rejected, falling back to plain text');
+    const plain: Record<string, unknown> = { chat_id: chatId, text };
+    if (threadId !== undefined) plain.message_thread_id = threadId;
+    const r = await tg<{ message_id: number }>('sendMessage', plain);
+    return r.message_id;
+  }
 }
 
 export async function editMessageText(chatId: ChatId, messageId: number, text: string): Promise<void> {
+  const html = mdToTelegramHtml(text);
   try {
-    await tg('editMessageText', { chat_id: chatId, message_id: messageId, text });
+    await tg('editMessageText', { chat_id: chatId, message_id: messageId, text: html, parse_mode: 'HTML' });
   } catch (err) {
-    // Telegram rejects edits that match the existing content — ignore that
-    // specific case so debounced no-op flushes don't surface as errors.
     if (errMsg(err).includes('message is not modified')) return;
-    throw err;
+    if (!isParseError(err)) throw err;
+    log.warn({ err: errMsg(err) }, 'telegram: HTML edit rejected, falling back to plain text');
+    try {
+      await tg('editMessageText', { chat_id: chatId, message_id: messageId, text });
+    } catch (err2) {
+      if (errMsg(err2).includes('message is not modified')) return;
+      throw err2;
+    }
   }
+}
+
+function isParseError(err: unknown): boolean {
+  const m = errMsg(err);
+  return m.includes("can't parse entities") || m.includes('Bad Request: can\'t parse entities');
 }

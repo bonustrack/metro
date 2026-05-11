@@ -78,6 +78,14 @@ export class StreamScheduler {
   }
 }
 
+// Backticks inside a detail string (e.g. an embedded shell quote) would
+// terminate the surrounding inline-code span. Replace each one with a
+// look-alike grave-accent variant so it survives the round-trip without
+// ever escaping the code span.
+function escapeBackticks(s: string): string {
+  return s.replace(/`/g, 'ˋ');
+}
+
 type Segment = {
   id: string | null;
   text: string;
@@ -85,12 +93,18 @@ type Segment = {
   dirty: boolean;
 };
 
+// Tracks what was last appended to the body so tool-call lines land with
+// correct spacing: blank line between prose↔tools, single newline between
+// consecutive tools.
+type LastBlock = 'empty' | 'text' | 'tool';
+
 export class StreamingMessage {
   private segments: Segment[] = [{ id: null, text: '', dirty: false }];
   private statusLine: string | null = null;
   private flushing = false;
   private flushAgain = false;
   private finalized = false;
+  private lastBlock: LastBlock = 'empty';
 
   constructor(
     private adapter: StreamAdapter,
@@ -99,7 +113,13 @@ export class StreamingMessage {
 
   appendDelta(delta: string): void {
     if (this.finalized || !delta) return;
+    // If a tool just landed and prose follows, leave a blank line between
+    // them so the resumed prose doesn't visually crash into the tool note.
+    if (this.lastBlock === 'tool') {
+      this.appendToLast('\n\n');
+    }
     this.appendToLast(delta);
+    this.lastBlock = 'text';
     this.scheduler.request(this);
   }
 
@@ -111,6 +131,27 @@ export class StreamingMessage {
   }
 
   /**
+   * Persist a tool-call entry inline in the message body. Renders as
+   * `> 🛠 **<name>** \`<detail>\`` on its own blockquote line, which Discord
+   * styles as a quoted line and Telegram (via mdToHtml) turns into a
+   * `<blockquote>`. The user keeps seeing the full sequence of agent
+   * actions in chat scroll-back rather than a status that flickers and
+   * vanishes.
+   */
+  appendToolCall(name: string, detail?: string): void {
+    if (this.finalized) return;
+    const lead = this.lastBlock === 'empty' ? '' : this.lastBlock === 'text' ? '\n\n' : '\n';
+    // Detail (path/command) sits inside backticks so Discord and Telegram
+    // both render it as monospace — important because file paths, shell
+    // commands, and grep patterns get mangled by autoformatting otherwise.
+    const safeDetail = detail ? escapeBackticks(detail) : '';
+    const body = detail ? `**${name}** \`${safeDetail}\`` : `**${name}**`;
+    this.appendToLast(`${lead}> 🛠 ${body}`);
+    this.lastBlock = 'tool';
+    this.scheduler.request(this);
+  }
+
+  /**
    * Append an error notice to the visible message. Renders as `⚠️ <msg>`
    * either on its own (no prior text) or after a blank line (preserves
    * whatever streamed before the failure). Clears any pending status
@@ -118,10 +159,10 @@ export class StreamingMessage {
    */
   appendError(message: string): void {
     if (this.finalized) return;
-    const last = this.segments[this.segments.length - 1];
-    const sep = last.text ? '\n\n' : '';
+    const sep = this.lastBlock === 'empty' ? '' : '\n\n';
     this.statusLine = null;
     this.appendToLast(`${sep}⚠️ ${message}`);
+    this.lastBlock = 'text';
     this.scheduler.request(this);
   }
 

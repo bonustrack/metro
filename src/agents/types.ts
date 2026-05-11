@@ -1,12 +1,29 @@
 // Shared interface so the orchestrator can talk to either Codex or Claude
 // Code (or future agents) through the same surface.
 
+/**
+ * Structured tool activity. `kind` is the agent-native identifier used to
+ * pair start/end events (e.g. `'Bash'`, `'commandExecution'`, `'thinking'`).
+ * `name` is the user-facing label rendered in chat. `detail` is an optional
+ * one-line argument summary (path, command, query).
+ *
+ * `transient: true` flags the activity as a "still alive" placeholder
+ * (e.g. Thinking…/Reasoning…) that should be cleared as soon as real
+ * content arrives, never persisted in the transcript.
+ */
+export interface ToolActivity {
+  kind: string;
+  name: string;
+  detail?: string;
+  transient?: boolean;
+}
+
 export interface AgentTurnCallbacks {
   /** Streaming text delta from the agent's response. */
   onDelta(text: string): void;
-  /** Tool call started; show a status line (e.g. "Running: ls"). */
-  onToolStart(kind: string, summary: string): void;
-  /** Tool call ended; clear the status line if it matches. */
+  /** Tool call started — persists in the transcript unless `transient`. */
+  onToolStart(activity: ToolActivity): void;
+  /** Tool call ended; only meaningful for `transient` activities. */
   onToolEnd(kind: string): void;
   /** Turn fully complete. */
   onComplete(): void;

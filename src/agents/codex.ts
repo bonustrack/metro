@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { WebSocket, type RawData } from 'ws';
 import { errMsg, log } from '../log.js';
 import { STATE_DIR } from '../paths.js';
-import type { Agent, AgentTurnCallbacks } from './types.js';
+import type { Agent, AgentTurnCallbacks, ToolActivity } from './types.js';
 
 export type { AgentTurnCallbacks };
 
@@ -218,10 +218,8 @@ export class CodexAgent implements Agent {
       cb.onDelta(p.delta);
     } else if (msg.method === 'item/started') {
       const p = msg.params as { item: ThreadItem };
-      const summary = summarizeItem(p.item);
-      if (summary && p.item.type !== 'agentMessage' && p.item.type !== 'userMessage') {
-        cb.onToolStart(p.item.type, summary);
-      }
+      const activity = summarizeItem(p.item);
+      if (activity) cb.onToolStart(activity);
     } else if (msg.method === 'item/completed') {
       const p = msg.params as { item: ThreadItem };
       if (p.item.type !== 'agentMessage' && p.item.type !== 'userMessage') cb.onToolEnd(p.item.type);
@@ -270,17 +268,22 @@ export class CodexAgent implements Agent {
   }
 }
 
-function summarizeItem(item: ThreadItem): string {
+function summarizeItem(item: ThreadItem): ToolActivity | null {
   if (item.type === 'commandExecution' && 'command' in item) {
-    return `Running: ${truncate(item.command ?? '', 60)}`;
+    return { kind: 'commandExecution', name: 'Bash', detail: item.command ? truncate(item.command, 80) : undefined };
   }
   if (item.type === 'fileChange' && 'changes' in item) {
-    const n = item.changes?.length ?? 0;
-    return n > 0 ? `Editing ${n} file${n === 1 ? '' : 's'}` : 'Editing files';
+    const paths = (item.changes ?? []).map(c => c.path).filter((p): p is string => !!p);
+    const detail = paths.length === 1
+      ? paths[0]
+      : paths.length > 1
+        ? `${paths.length} files`
+        : undefined;
+    return { kind: 'fileChange', name: 'Edit', detail };
   }
-  if (item.type === 'reasoning') return 'Thinking…';
-  if (item.type === 'agentMessage') return ''; // text deltas handled separately
-  return item.type;
+  if (item.type === 'reasoning') return { kind: 'reasoning', name: 'Thinking…', transient: true };
+  if (item.type === 'agentMessage' || item.type === 'userMessage') return null;
+  return { kind: item.type, name: item.type };
 }
 
 function truncate(s: string, n: number): string {

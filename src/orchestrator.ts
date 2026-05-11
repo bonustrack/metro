@@ -402,7 +402,14 @@ async function handleTurn(
 
   const callbacks: AgentTurnCallbacks = {
     onDelta: d => stream.appendDelta(d),
-    onToolStart: (_kind, summary) => stream.setStatus(summary),
+    onToolStart: activity => {
+      // Transient activities (Thinking…/Reasoning…) are "still alive"
+      // placeholders — show as a status line that vanishes the moment
+      // real content arrives. Everything else (Bash, Read, Edit, …) is
+      // persisted inline so the user sees the full action trail.
+      if (activity.transient) stream.setStatus(activity.name);
+      else stream.appendToolCall(activity.name, activity.detail);
+    },
     onToolEnd: () => stream.setStatus(null),
     onComplete: () => { void finishAndDrain(); },
     onError: err => {

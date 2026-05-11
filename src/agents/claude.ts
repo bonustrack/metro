@@ -146,7 +146,7 @@ class TurnSession {
   private tools = new Map<number, string>();
 
   constructor(private cb: AgentTurnCallbacks) {
-    cb.onToolStart('thinking', 'Thinking…');
+    cb.onToolStart({ kind: 'thinking', name: 'Thinking…', transient: true });
   }
 
   fireComplete(): void {
@@ -179,11 +179,10 @@ class TurnSession {
     const e = ev.event;
     if (e.type === 'content_block_start' && e.content_block?.type === 'tool_use') {
       this.clearThinking();
-      this.tools.set(e.index ?? -1, e.content_block.name ?? 'tool');
-      this.cb.onToolStart(
-        e.content_block.name ?? 'tool',
-        summarizeTool(e.content_block.name, e.content_block.input),
-      );
+      const kind = e.content_block.name ?? 'tool';
+      this.tools.set(e.index ?? -1, kind);
+      const { name, detail } = summarizeTool(e.content_block.name, e.content_block.input);
+      this.cb.onToolStart({ kind, name, detail });
     } else if (e.type === 'content_block_delta' && e.delta?.type === 'text_delta') {
       this.clearThinking();
       this.cb.onDelta(e.delta.text ?? '');
@@ -209,27 +208,31 @@ type ClaudeEvent = {
   };
 };
 
-function summarizeTool(name: string | undefined, input: Record<string, unknown> | undefined): string {
-  const n = (name ?? 'Tool')[0].toUpperCase() + (name ?? 'Tool').slice(1);
-  if (!input) return n;
+function summarizeTool(
+  name: string | undefined,
+  input: Record<string, unknown> | undefined,
+): { name: string; detail?: string } {
+  const display = (name ?? 'Tool')[0].toUpperCase() + (name ?? 'Tool').slice(1);
+  if (!input) return { name: display };
   const path = (input.file_path ?? input.path) as string | undefined;
   const cmd = input.command as string | undefined;
   const pattern = input.pattern as string | undefined;
   const url = input.url as string | undefined;
+  const query = input.query as string | undefined;
   switch (name) {
-    case 'Bash': return cmd ? `Running: ${truncate(cmd, 60)}` : n;
+    case 'Bash': return { name: 'Bash', detail: cmd ? truncate(cmd, 80) : undefined };
     case 'Edit':
     case 'Write':
     case 'NotebookEdit':
-      return path ? `Editing ${path}` : n;
-    case 'Read': return path ? `Reading ${path}` : n;
+      return { name: display, detail: path };
+    case 'Read': return { name: 'Read', detail: path };
     case 'Grep':
     case 'Glob':
-      return pattern ? `Searching: ${truncate(pattern, 60)}` : n;
-    case 'WebFetch': return url ? `Fetching ${url}` : n;
-    case 'WebSearch': return 'Searching the web';
-    case 'Task': return 'Spawning subagent';
-    default: return n;
+      return { name: display, detail: pattern ? truncate(pattern, 80) : undefined };
+    case 'WebFetch': return { name: 'WebFetch', detail: url };
+    case 'WebSearch': return { name: 'WebSearch', detail: query };
+    case 'Task': return { name: 'Task', detail: (input.description ?? input.subagent_type) as string | undefined };
+    default: return { name: display };
   }
 }
 
