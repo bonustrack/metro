@@ -225,50 +225,34 @@ async function onDiscordInbound(m: discord.InboundMessage): Promise<void> {
 
 async function onTelegramInbound(m: telegram.InboundMessage): Promise<void> {
   // Allow DMs and any chat in a forum supergroup (custom topics + General).
-  // Plain (non-forum) groups are skipped — no thread boundary, so per-scope
-  // routing would lump every conversation together.
+  // Plain (non-forum) groups are skipped — no thread boundary.
   if (!m.is_private && !m.in_forum) {
     log.debug({ chat: m.chat_id }, 'telegram: dropped — non-private, non-forum chat');
     return;
   }
 
-  let replyTopicId = m.message_thread_id;
-  let scopeKey = telegramScopeKey(m.chat_id, replyTopicId);
+  // General topic of a forum is a *launcher*, never a session. Every
+  // @-mention spawns a fresh topic + scope. Any stale scope previously
+  // bound to General is ignored deliberately.
+  if (m.in_forum && !m.is_forum_topic) {
+    await bootstrapForumTopic(m);
+    return;
+  }
+
+  // DM or custom topic: route via the existing scope, allocating fresh
+  // agent sessions per-kind on first use.
+  const scopeKey = telegramScopeKey(m.chat_id, m.message_thread_id);
   const cachedHasAnyAgent = !!(getAgentThread(scopeKey, 'codex') ?? getAgentThread(scopeKey, 'claude'));
 
-  // No scope yet, not a DM, and no @-mention → drop. (DMs implicitly count
-  // as mentions, so they always bootstrap.)
   if (!cachedHasAnyAgent && !m.is_private && !m.mentions_bot) {
     log.debug({ chat: m.chat_id, topic: m.message_thread_id }, 'telegram: dropped — no scope, no @-mention');
     return;
   }
 
   const parsed = parseAgentSuffix(m.text);
-
-  // Bootstrap in General topic of a forum: spin up a fresh topic and run
-  // the conversation there. Mirrors Discord's "thread from message" flow.
-  if (!cachedHasAnyAgent && m.in_forum && !m.is_forum_topic) {
-    const topicName = makeThreadName(parsed.cleanText, 'metro');
-    try {
-      replyTopicId = await telegram.createForumTopic(m.chat_id, topicName);
-      scopeKey = telegramScopeKey(m.chat_id, replyTopicId);
-      log.info({ chat: m.chat_id, topic: replyTopicId, name: topicName }, 'telegram: created forum topic for bootstrap');
-    } catch (err) {
-      // Most common cause: bot lacks `can_manage_topics`. Tell the user
-      // in General so they can fix the perm rather than wondering why
-      // nothing happened.
-      await postTelegramError(
-        m.chat_id,
-        m.message_thread_id,
-        `couldn't create a new topic — make the bot a forum admin with "Manage Topics" permission. (${errMsg(err)})`,
-      );
-      return;
-    }
-  }
-
   const choice = pickAgent(cachedHasAnyAgent ? scopeKey : null, parsed.kind);
   if ('error' in choice) {
-    await postTelegramError(m.chat_id, replyTopicId, choice.error);
+    await postTelegramError(m.chat_id, m.message_thread_id, choice.error);
     return;
   }
 
@@ -286,7 +270,51 @@ async function onTelegramInbound(m: telegram.InboundMessage): Promise<void> {
     parsed.cleanText,
     choice.kind,
     agentThreadId,
-    telegramAdapter(m.chat_id, replyTopicId),
+    telegramAdapter(m.chat_id, m.message_thread_id),
+    telegramScheduler,
+  );
+}
+
+async function bootstrapForumTopic(m: telegram.InboundMessage): Promise<void> {
+  if (!m.mentions_bot) {
+    log.debug({ chat: m.chat_id }, 'telegram: General msg ignored — no @-mention');
+    return;
+  }
+  if (bootstrapped.has(String(m.message_id))) return;
+  bootstrapped.add(String(m.message_id));
+
+  const parsed = parseAgentSuffix(m.text);
+  const choice = pickAgent(null, parsed.kind);
+  if ('error' in choice) {
+    await postTelegramError(m.chat_id, undefined, choice.error);
+    return;
+  }
+
+  const topicName = makeThreadName(parsed.cleanText, 'metro');
+  let newTopicId: number;
+  try {
+    newTopicId = await telegram.createForumTopic(m.chat_id, topicName);
+    log.info({ chat: m.chat_id, topic: newTopicId, name: topicName }, 'telegram: created topic from @-mention');
+  } catch (err) {
+    await postTelegramError(
+      m.chat_id,
+      undefined,
+      `couldn't create a new topic — make the bot a forum admin with "Manage Topics" permission. (${errMsg(err)})`,
+    );
+    return;
+  }
+
+  const agentThreadId = await available[choice.kind]!.createThread();
+  const newScopeKey = telegramScopeKey(m.chat_id, newTopicId);
+  setAgentThread(newScopeKey, choice.kind, agentThreadId);
+  setLastSeen(newScopeKey, String(m.message_id));
+  log.info({ scope: newScopeKey, agent: choice.kind, thread: agentThreadId }, 'telegram: scope created');
+
+  await handleTurn(
+    parsed.cleanText,
+    choice.kind,
+    agentThreadId,
+    telegramAdapter(m.chat_id, newTopicId),
     telegramScheduler,
   );
 }
