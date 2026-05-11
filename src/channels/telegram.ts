@@ -166,8 +166,9 @@ const isParseError = (err: unknown): boolean => errMsg(err).includes("can't pars
 const NO_PREVIEW = { link_preview_options: { is_disabled: true } };
 
 /** Inline keyboard with one Stop button keyed by `callback_data=stopId`; undefined removes any keyboard. */
-const stopKeyboard = (stopId: string | null): { inline_keyboard: { text: string; callback_data: string }[][] } | undefined =>
-  stopId ? { inline_keyboard: [[{ text: '⏹', callback_data: stopId }]] } : undefined;
+/** Always returns an object — `inline_keyboard: []` is required to *clear* an existing keyboard; `undefined` keeps it. */
+const stopKeyboard = (stopId: string | null): { inline_keyboard: { text: string; callback_data: string }[][] } =>
+  ({ inline_keyboard: stopId ? [[{ text: '⏹', callback_data: stopId }]] : [] });
 
 /** Send agent-style markdown as Telegram HTML, falling back to plain text on parse errors. */
 export async function sendMessage(chatId: ChatId, threadId: number | undefined, text: string, replyToMessageId?: number, stopId: string | null = null): Promise<number> {
