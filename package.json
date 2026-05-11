@@ -1,7 +1,7 @@
 {
   "name": "@stage-labs/metro",
-  "version": "0.1.0-beta.2",
-  "description": "Chat with your Claude Code or Codex agent over Telegram and Discord. Ultra-lightweight: ~1.2K lines of TypeScript, pure CLI, no hosted infra.",
+  "version": "0.1.0-beta.3",
+  "description": "Orchestrator daemon that bridges Codex / Claude Code agent sessions with Telegram and Discord. Each chat thread gets its own agent session, with streaming responses and tool-call visibility.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -18,7 +18,6 @@
   },
   "files": [
     "dist",
-    "skills",
     "README.md",
     "LICENSE"
   ],

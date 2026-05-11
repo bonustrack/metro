@@ -1,50 +1,70 @@
 # Metro
 
-Chat with your Claude Code or Codex agent over Telegram and Discord.
+Run a long-lived daemon that bridges Discord and Telegram to your Codex + Claude Code agents. Each chat thread/topic gets its own agent session with streaming responses and live tool-call status. Both agents run side-by-side — pick per-message with a `with claude` / `with codex` suffix.
+
+## Prereqs
+
+- **Node ≥ 22** (or Bun ≥ 1.3).
+- **One or both agent CLIs** installed and authenticated:
+  - **Claude Code** — run `claude` once interactively to log in. Metro shells out per turn and inherits your auth, plugins, settings.
+  - **Codex** — run `codex` once interactively to log in. Metro spawns `codex app-server` and inherits your auth, MCPs, sandboxing.
+- **Discord bot** (optional) with **Message Content Intent** enabled (Developer Portal → Bot → Privileged Gateway Intents).
+- **Telegram bot** (optional). In supergroup forums, the bot also needs the **Manage Topics** admin permission so it can auto-create topics on @-mention.
 
 ## Quickstart
-
-In your shell:
 
 ```bash
 npm install -g @stage-labs/metro@beta    # or: bun add -g @stage-labs/metro@beta
 
-metro setup telegram <token>    # https://t.me/BotFather
-metro setup discord <token>     # https://discord.com/developers/applications
+metro setup discord <token>              # https://discord.com/developers/applications
+metro setup telegram <token>             # https://t.me/BotFather
 
-metro setup skill                        # writes SKILL.md so Claude Code + Codex auto-onboard
 metro doctor                             # verify
+metro                                    # run the orchestrator
 ```
 
-> **Discord setup:** toggle **Message Content Intent** in Developer Portal → Bot → Privileged Gateway Intents.
+Metro starts both agents at boot and listens on whichever platforms are configured. Each scope defaults to **Claude** for the first turn; once you've used an agent there, follow-up messages stick with it. Switch per-message by suffixing `with claude` or `with codex` (any casing):
 
-### Run with Claude Code
+```
+@Metro draft a release note
+   → uses Claude (default for a new scope)
 
-```bash
-claude
-> Run metro in the background.
+How would Codex have done this? with codex
+   → routes this turn to Codex; stays Codex on subsequent turns
 ```
 
-Then DM your bot. The bundled skill auto-triggers — the agent launches metro via Bash + Monitor, watches stdout, and replies.
+### Discord
 
-### Run with Codex
+@-mention the bot in any channel:
+1. Metro creates a thread anchored on your message (named after the message).
+2. Spins up an agent session for that thread.
+3. Streams the agent's reply with tool-call status (`Running: <command>`, `Editing 3 files`, `Thinking…`).
 
-Codex's `unified_exec` is poll-only ([#4751](https://github.com/openai/codex/issues/4751)) — there's no Monitor equivalent. Metro instead pushes each inbound into the agent's history via JSON-RPC. Two terminals plus a prompt — the TUI's `--remote` flag only accepts `ws://`, so daemon and TUI share one URL:
+Follow-ups in the thread route automatically — no @-mention needed.
 
-```bash
-# Terminal 1 — daemon (must be running first)
-codex app-server --listen ws://127.0.0.1:8421
+### Telegram
 
-# Terminal 2 — TUI attached to the daemon
-codex --remote ws://127.0.0.1:8421
-> Run metro in the background.
+- **DM the bot** — every message is implicitly addressed to it; one scope per chat.
+- **@-mention the bot in a forum supergroup's General topic** — metro auto-creates a new topic for the conversation (Discord-style "thread from message"). Subsequent messages in that topic route automatically.
+- **Inside an existing custom topic** — routes to that topic's scope on every message.
+
+Regular (non-forum) groups are not routed — they have no thread boundary.
+
+## How it works
+
+```
+Discord gateway ──┐                       ┌─▶ codex app-server   (long-lived subprocess, UDS JSON-RPC)
+                  ├─▶ metro orchestrator ─┤
+Telegram poller ──┘                       └─▶ claude -p ...      (per-turn subprocess, stream-json)
+                            │
+                            └──── scope map (scopes.json)
 ```
 
-The agent launches `metro` (with `METRO_CODEX_RC=ws://127.0.0.1:8421` set) via its shell tool. Metro connects to the daemon and pushes each inbound as a `turn/start` on the active thread — the agent in terminal 2 reacts on its next turn. `codex remote-control` is stdio-only (no listener), so don't use it for this flow.
-
-Bare `codex` (no `--remote`) can't work with metro — the agent has no daemon to push to. The TUI must be attached to a running app-server.
-
-`METRO_CODEX_RC` accepts `ws://host:port` (required for use with the codex TUI) or `unix:///abs/path` (headless only — the daemon supports UDS but the TUI doesn't).
+- **One metro = one daemon.** Lockfile at `$METRO_STATE_DIR/.tail-lock` keeps things singleton.
+- **Both agents side-by-side.** A scope can have up to one session per agent — independent histories. Routing is per-message: explicit `with claude` / `with codex` suffix, otherwise the scope's last-used agent, otherwise Claude.
+- **Streaming.** Replies edit one message every ~1500 ms while deltas stream in (leading-edge first flush for fast initial feedback). Tool calls show as a status line; long replies split past ~1900 chars onto a follow-up message.
+- **Queueing.** Messages that arrive while a turn is running are buffered per-scope and answered together in the next reply.
+- **Catchup-on-restart.** Discord uses a per-scope `lastSeenMessageId` watermark and REST-fetches anything newer when metro comes back up. Telegram leans on its own update-id queue (persisted offset in `telegram-offset.json`).
 
 ## Config
 
@@ -52,27 +72,43 @@ Bare `codex` (no `--remote`) can't work with metro — the agent has no daemon t
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN` | — | Bot tokens. `metro setup` writes them here. |
 | `METRO_CONFIG_DIR` | `~/.config/metro` | Where the global `.env` lives. |
-| `METRO_STATE_DIR` | `~/.cache/metro` | Lockfile, attachment cache, default download dir. |
+| `METRO_STATE_DIR` | `~/.cache/metro` | Lockfile, scope cache, codex socket, telegram offset, claude session set. |
 | `METRO_LOG_LEVEL` | `info` | `trace` / `debug` / `info` / `warn` / `error` / `fatal`. |
-| `METRO_CODEX_RC` | — | Codex app-server URL (e.g. `ws://127.0.0.1:8421`). When set, metro pushes each inbound into the agent's history via JSON-RPC `turn/start` — the Codex equivalent of Claude Code's Monitor. Accepts `ws://host:port` (required for use with the codex TUI) or `unix:///abs/path` (headless only). See [Codex setup](#codex-setup). |
 
 Token precedence: process env → `./.env` → `$METRO_CONFIG_DIR/.env`. Logs to stderr.
+
+## Develop locally
+
+```bash
+git clone https://github.com/bonustrack/metro && cd metro
+bun install && bun run build
+bun link                                 # makes `metro` resolve to this checkout
+METRO_LOG_LEVEL=debug metro
+```
 
 ## Reference
 
 - `metro --help` — command surface
-- `metro doctor` — health check
-- [SKILL.md](skills/metro/SKILL.md) — agent-facing flow
+- `metro doctor` — health check (tokens + gateway/poller reachability + orchestrator status)
+- State files (`$METRO_STATE_DIR`, defaults to `~/.cache/metro/`):
+  - `scopes.json` — Discord-thread / Telegram-topic ↔ agent-session map
+  - `.tail-lock` — orchestrator pid
+  - `codex-app-server.sock` — codex's UDS
+  - `telegram-offset.json` — last processed update id (used for catchup on restart)
+  - `claude-sessions.json` — set of started Claude session uuids (so restarts use `--resume` instead of `--session-id`)
 
 ## Uninstall
 
 ```bash
-metro setup clear; metro setup skill --clear
+metro setup clear
 rm -rf ~/.cache/metro/
 npm uninstall -g @stage-labs/metro
 ```
 
 ## Caveats
 
-- **No allowlist.** Anyone who can DM your bot or @-mention it can talk to your session. Run against bots you own.
-- **Latency.** Inbounds surface at the next agent decision boundary — sub-second on Claude Code, longer on Codex turns.
+- **No allowlist.** Anyone who can DM/@-mention your bot can spawn an agent session. Run against bots you own.
+- **Per-agent histories are separate.** Switching with `with codex` mid-scope spins up a fresh Codex session — it has no idea what you discussed with Claude in the same scope. Each agent only sees what was sent to it.
+- **One agent missing is OK.** If only `claude` or only `codex` is installed/authenticated, metro still starts; messages asking for the missing one surface an error in chat.
+- **Telegram non-forum groups are skipped.** Without a per-topic thread boundary the routing model breaks down. DMs and forum topics (incl. auto-created ones from General) work normally.
+- **Telegram bot privacy.** Default Telegram bot privacy is *enabled*, which can block group messages even with @-mentions. Disable in [@BotFather](https://t.me/BotFather) → Bot Settings → Group Privacy → Turn off, then kick + re-invite the bot.
