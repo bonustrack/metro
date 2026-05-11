@@ -10,9 +10,9 @@ import type { Agent } from './agents/types.js';
 import {
   type AgentKind, discordChannelFromScopeKey, discordScopeKey, getAgentThread,
   getLastAgent, listScopes, setAgentThread, setLastAgent, setLastSeen, telegramScopeKey,
-} from './lib/scope-cache.js';
-import { StreamScheduler, type StreamAdapter } from './lib/streaming.js';
-import { runTurn } from './lib/turn.js';
+} from './helpers/scope-cache.js';
+import { StreamScheduler, type StreamAdapter } from './helpers/streaming.js';
+import { runTurn } from './helpers/turn.js';
 import { errMsg, log } from './log.js';
 import { acquireLock, configuredPlatforms, loadMetroEnv, STATE_DIR, requireConfiguredPlatform } from './paths.js';
 
