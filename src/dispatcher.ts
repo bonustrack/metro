@@ -72,9 +72,9 @@ async function dispatch(line: LineT, text: string, attachments: InboundMessage['
   await runTurn(available[kind]!, threadId, withContext(line, text), attachments, adapter, scheduler);
 }
 
-/** Tell the agent its own line + how to discover/post to others. Full guide at AGENTS_MD. */
+/** Tell the agent its line + the one rule: write normally to reply here, only use `metro send` for OTHER lines. */
 const withContext = (line: LineT, text: string): string =>
-  `[metro: on ${line}. CLI: metro lines, metro send <line> <text>, metro stations. Guide: ${AGENTS_MD}]\n\n${text}`;
+  `[metro: this turn is on ${line}. To reply HERE just write text — metro streams it back automatically; do NOT use \`metro send\` for this line. Use \`metro send <other-line> <text>\` only to post to a DIFFERENT conversation (list with \`metro lines\`). Full guide: ${AGENTS_MD}]\n\n${text}`;
 
 const adapterFor = <TMeta>(station: ChatStation<TMeta>, line: LineT): StreamAdapter => ({
   send: (t, stopId) => station.send(line, t, { stopId }),
