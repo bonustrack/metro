@@ -43,10 +43,12 @@ Every event carries `id` (`msg_…`), `ts`, `from` (a universal participant URI)
 
 ### `payload` by station
 
-- **`discord`** — projected discord.js `Message`: `{ id, channelId, guildId, content, author, attachments[], mentions: { everyone, users[], roles[] }, messageReference, referencedMessage }`. `referencedMessage` is auto-fetched on replies, so you see the message being replied to.
-- **`telegram`** — raw Bot API `Message`: `{ message_id, chat, from, text, caption, entities[], photo[], document, voice, audio, reply_to_message, … }`. `reply_to_message` is included inline when the user replied to an older message.
+`payload` is the raw platform message — the shape Discord/Telegram themselves use. Narrow on `event.station`:
 
-Use `payload` to read fields the universal envelope doesn't carry (mentions, reply chains, custom embeds, sticker IDs, …). Narrow on `event.station` to type-discriminate.
+- **`discord`** — raw API `Message` (gateway-format), with `referenced_message` inline (auto-fetched on replies).
+- **`telegram`** — raw Bot API `Message`, with `reply_to_message` inline.
+
+Use it for anything the envelope doesn't surface — mentions, reply chains, embeds, stickers, entities.
 
 Both `from` and `to` are **participant URIs** (the conversation lives in `line`): `metro://<station>/user/<id>` for a person, `metro://claude/<topic>` / `metro://codex/<topic>` for an agent, `metro://<station>/<channelId>` as a fallback `to` when sending to a group with no single recipient.
 
@@ -64,12 +66,12 @@ When **you** call `metro send`/`reply`/`edit`/`react`, metro auto-stamps `from` 
 
 ## Detecting "is this for me?"
 
-The envelope no longer carries `mentionsBot` — you derive it from `payload`. The bot's identity for each station is in `$METRO_STATE_DIR/bot-ids.json` (written by the daemon on start). Pattern per station:
+Derive from `payload`. Bot id per station is in `$METRO_STATE_DIR/bot-ids.json`.
 
-- **`discord`** — DM if `payload.guildId === null`; otherwise pinged if `payload.mentions.users` contains the bot id.
-- **`telegram`** — DM if `payload.chat.type === 'private'`; otherwise pinged if any entity in `payload.entities` (or `caption_entities`) is `{type:"mention"}` with text matching `@<bot-username>`, or `{type:"text_mention", user:{id:<bot-id>}}`.
+- **`discord`** — DM if `payload.guild_id == null`; otherwise pinged if any `payload.mentions[].id` is the bot id.
+- **`telegram`** — DM if `payload.chat.type === 'private'`; otherwise pinged if any `payload.entities[]` is `{type:"mention"}` matching `@<bot-username>` or `{type:"text_mention", user:{id:<bot-id>}}`.
 
-Default behavior: only reply on a DM or a ping; otherwise stay silent or `metro react` to acknowledge.
+Default: only reply on DM or ping; otherwise stay silent or `metro react` to ack.
 
 ## Subcommands
 

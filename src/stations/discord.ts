@@ -11,7 +11,9 @@ import {
   Line, type Button, type Capabilities, type ChatStation, type EditOpts, type FetchedMessage,
   type InboundMessage, type Line as LineT, type SendOpts,
 } from './index.js';
-import { buildDiscordPayload, type DiscordPayload } from './discord-payload.js';
+
+/** Raw Discord API message via discord.js `toJSON()` + auto-fetched `referenced_message`. */
+export type DiscordPayload = Record<string, unknown> & { referenced_message?: unknown };
 
 const API_BASE = 'https://discord.com/api/v10';
 const SUPPRESS_EMBEDS = 1 << 2;
@@ -196,21 +198,22 @@ export class DiscordStation implements ChatStation<DiscordPayload> {
 
   private async handleMessage(m: import('discord.js').Message): Promise<void> {
     if (m.author.bot) return;
-    const attachmentTags: string[] = [];
-    for (const a of m.attachments.values()) {
-      if (a.contentType?.startsWith('image/')) attachmentTags.push('[image]');
-      else attachmentTags.push(a.contentType?.startsWith('audio/') ? `[audio: ${a.name}]` : `[file: ${a.name}]`);
-    }
-    const body = m.content.trim();
-    if (!body && !attachmentTags.length) return;
-    const text = [body, ...attachmentTags].filter(Boolean).join(' ');
+    const tags = [...m.attachments.values()].map(a =>
+      a.contentType?.startsWith('image/') ? '[image]'
+        : a.contentType?.startsWith('audio/') ? `[audio: ${a.name}]` : `[file: ${a.name}]`);
+    const text = [m.content.trim(), ...tags].filter(Boolean).join(' ');
+    if (!text) return;
     log.info(
       { from: m.author.username, channel: m.channelId, text: text.slice(0, 80) },
       'discord: inbound',
     );
     const lineName = m.channel && 'name' in m.channel
       ? (m.channel as { name: string | null }).name ?? undefined : undefined;
-    const payload = await buildDiscordPayload(m);
+    const payload = m.toJSON() as DiscordPayload;
+    if (!payload.referenced_message && m.reference?.messageId) {
+      try { payload.referenced_message = (await m.fetchReference()).toJSON(); }
+      catch (err) { log.debug({ err: errMsg(err) }, 'discord: fetchReference failed'); }
+    }
     this.messageHandler({
       id: mintId(), ts: new Date(m.createdTimestamp).toISOString(),
       station: 'discord', line: Line.discord(m.channelId), lineName,

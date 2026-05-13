@@ -60,19 +60,21 @@ Every line on stdout is one JSON object. Each event carries:
 
 ### `payload` by station
 
-- **`discord`** — projected discord.js `Message`: `{ id, channelId, guildId, content, author, attachments[], mentions: { everyone, users[], roles[] }, messageReference, referencedMessage }`. `referencedMessage` is auto-fetched on replies.
-- **`telegram`** — raw Bot API `Message`: `{ message_id, chat, from, text, caption, entities[], photo[], document, voice, audio, reply_to_message, … }`. `reply_to_message` is inline when the user replied to an older message.
+`payload` is the raw platform message. Narrow on `event.station`:
 
-Narrow on `event.station` before reading `payload`. Use it for mentions, reply chains, custom embeds — anything the universal envelope doesn't carry.
+- **`discord`** — raw API `Message`, with `referenced_message` inline (auto-fetched on replies).
+- **`telegram`** — raw Bot API `Message`, with `reply_to_message` inline.
+
+Use it for anything the envelope doesn't surface — mentions, reply chains, embeds, entities.
 
 ## Detecting "is this for me?"
 
-There is no `mentionsBot` field — derive it from `payload`. The bot's identity per station is cached in `$METRO_STATE_DIR/bot-ids.json` (written by the daemon on start: `{discord: "<userId>", telegram: "<userId>"}`).
+Derive from `payload`. Bot id per station lives in `$METRO_STATE_DIR/bot-ids.json`.
 
-- **discord** — DM when `payload.guildId === null`; otherwise pinged when `payload.mentions.users` contains the bot id.
-- **telegram** — DM when `payload.chat.type === 'private'`; otherwise pinged when any entity in `payload.entities` (or `caption_entities`) is `{type:"mention"}` matching `@<bot-username>`, or `{type:"text_mention", user:{id:<bot-id>}}`.
+- **discord** — DM when `payload.guild_id == null`; otherwise pinged when any `payload.mentions[].id` is the bot id.
+- **telegram** — DM when `payload.chat.type === 'private'`; otherwise pinged when an entity in `payload.entities` is `{type:"mention"}` matching `@<bot-username>` or `{type:"text_mention", user:{id:<bot-id>}}`.
 
-Default: only reply on DM or ping; otherwise stay silent or `metro react` to acknowledge.
+Default: only reply on DM or ping; otherwise stay silent or `metro react` to ack.
 
 Both `from` and `to` are **participant URIs** (the conversation context lives in `line`):
 - `metro://<station>/user/<id>` — a person on a chat platform

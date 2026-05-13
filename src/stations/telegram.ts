@@ -50,8 +50,7 @@ export type TelegramPayload = {
   from?: { id?: number; is_bot?: boolean; username?: string; first_name?: string };
   reply_to_message?: TelegramPayload;
 };
-type RawMessage = TelegramPayload;
-type RawUpdate = { update_id: number; message?: RawMessage };
+type RawUpdate = { update_id: number; message?: TelegramPayload };
 
 const isParseError = (err: unknown): boolean => errMsg(err).includes("can't parse entities");
 const isNoopEdit = (err: unknown): boolean => errMsg(err).includes('message is not modified');
@@ -62,7 +61,7 @@ const targetOf = (line: LineT): { chatId: number; topicId?: number } => {
   return t;
 };
 
-function attachmentTags(m: RawMessage): string[] {
+function attachmentTags(m: TelegramPayload): string[] {
   const out: string[] = [];
   if (m.photo?.length) out.push('[image]');
   if (m.document?.mime_type?.startsWith('image/')) out.push('[image]');
@@ -86,7 +85,7 @@ export class TelegramStation implements ChatStation<TelegramPayload> {
   private messageHandler: (m: InboundMessage<TelegramPayload>) => void = () => {};
   private offsetFile = join(STATE_DIR, 'telegram-offset.json');
   /** Snapshot recent inbounds in memory so `metro download <line> <id>` can resolve them. */
-  private recent = new Map<string, RawMessage>();
+  private recent = new Map<string, TelegramPayload>();
 
   onMessage(handler: (m: InboundMessage<TelegramPayload>) => void): void { this.messageHandler = handler; }
 
@@ -192,10 +191,8 @@ export class TelegramStation implements ChatStation<TelegramPayload> {
   private dispatchUpdate(u: RawUpdate): void {
     const m = u.message;
     if (!m?.chat?.id || typeof m.message_id !== 'number' || m.from?.is_bot) return;
-    const tags = attachmentTags(m);
-    const body = m.text ?? m.caption ?? '';
-    if (!body && !tags.length) return;
-    const text = [body, ...tags].filter(Boolean).join(' ');
+    const text = [m.text ?? m.caption, ...attachmentTags(m)].filter(Boolean).join(' ');
+    if (!text) return;
     const topicId = m.is_topic_message ? m.message_thread_id : undefined;
     const fromName = m.from?.username ? `@${m.from.username}` : m.from?.first_name;
     const fromUri = Line.user('telegram', m.from?.id ?? 'unknown');
