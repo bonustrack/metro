@@ -1,20 +1,17 @@
-/** Telegram station: long-poll bot API; sends agent-style markdown as HTML with plain-text fallback. */
+/** Telegram station: long-poll bot API; inbound only — outbound goes through `metro raw`. */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { errMsg, log } from '../log.js';
 import { mintId } from '../history.js';
-import { mdToTelegramHtml } from './telegram-md.js';
-import { inlineKeyboard, tgSendRich } from './telegram-upload.js';
 import {
-  Line, type Capabilities, type ChatStation, type EditOpts,
-  type InboundMessage, type Line as LineT, type SendOpts,
+  Line, type Capabilities, type ChatStation,
+  type InboundMessage, type Line as LineT,
 } from './index.js';
 import { STATE_DIR } from '../paths.js';
 
 const API_BASE = 'https://api.telegram.org';
-const NO_PREVIEW = { link_preview_options: { is_disabled: true } };
 const MAX_BYTES = 20 * 1024 * 1024;
 
 const token = (): string => {
@@ -49,9 +46,6 @@ export type TelegramPayload = Record<string, unknown> & {
 };
 type RawUpdate = { update_id: number; message?: TelegramPayload };
 
-const isParseError = (err: unknown): boolean => errMsg(err).includes("can't parse entities");
-const isNoopEdit = (err: unknown): boolean => errMsg(err).includes('message is not modified');
-
 const targetOf = (line: LineT): { chatId: number; topicId?: number } => {
   const t = Line.parseTelegram(line);
   if (!t) throw new Error(`not a telegram line: ${line}`);
@@ -60,7 +54,7 @@ const targetOf = (line: LineT): { chatId: number; topicId?: number } => {
 
 const CAPS: Capabilities = {
   in: ['text', 'image'], out: ['text'],
-  features: ['reply', 'send', 'edit', 'react', 'download', 'fetch'],
+  features: ['download', 'fetch', 'raw'],
 };
 
 export class TelegramStation implements ChatStation<TelegramPayload> {
@@ -95,35 +89,6 @@ export class TelegramStation implements ChatStation<TelegramPayload> {
 
   async getMe(): Promise<{ id: number; username: string }> {
     return tg<{ id: number; username: string }>('getMe', {});
-  }
-
-  async send(line: LineT, text: string, opts?: SendOpts): Promise<string> {
-    const { chatId, topicId } = targetOf(line);
-    const base: Record<string, unknown> = { chat_id: chatId };
-    if (topicId !== undefined) base.message_thread_id = topicId;
-    if (opts?.replyTo) base.reply_parameters = { message_id: Number(opts.replyTo) };
-    return tgSendRich(token(), tg, base, text, opts);
-  }
-
-  async edit(line: LineT, messageId: string, text: string, opts?: EditOpts): Promise<void> {
-    const { chatId } = targetOf(line);
-    const base: Record<string, unknown> = { chat_id: chatId, message_id: Number(messageId), ...NO_PREVIEW };
-    if (opts?.buttons) base.reply_markup = opts.buttons.length ? inlineKeyboard(opts.buttons) : { inline_keyboard: [] };
-    try { await tg('editMessageText', { ...base, text: mdToTelegramHtml(text), parse_mode: 'HTML' }); }
-    catch (err) {
-      if (isNoopEdit(err)) return;
-      if (!isParseError(err)) throw err;
-      log.warn({ err: errMsg(err) }, 'telegram: HTML edit rejected, retrying plain');
-      try { await tg('editMessageText', { ...base, text }); }
-      catch (e) { if (!isNoopEdit(e)) throw e; }
-    }
-  }
-
-  async react(line: LineT, messageId: string, emoji: string): Promise<void> {
-    await tg('setMessageReaction', {
-      chat_id: targetOf(line).chatId, message_id: Number(messageId),
-      reaction: emoji ? [{ type: 'emoji', emoji }] : [],
-    });
   }
 
   async download(line: LineT, messageId: string, outDir: string): Promise<{ path: string; mediaType: string }[]> {

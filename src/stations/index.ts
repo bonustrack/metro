@@ -1,7 +1,7 @@
 /** Line URI scheme + ChatStation interface + station listing. The whole station surface. */
 
 export type Modality = 'text' | 'image';
-export type Feature = 'reply' | 'send' | 'edit' | 'react' | 'download' | 'fetch' | 'notify';
+export type Feature = 'download' | 'fetch' | 'notify' | 'raw';
 export interface Capabilities { in: Modality[]; out: Modality[]; features: Feature[] }
 
 export type Line = string & { readonly __line: unique symbol };
@@ -30,25 +30,12 @@ export interface InboundMessage<TPayload = unknown> {
   payload: TPayload;
 }
 
-export type Button = { text: string; url: string };
-export type SendOpts = {
-  replyTo?: string;
-  images?: string[];      // 1+ photo file paths (album when >1)
-  documents?: string[];   // 1+ file paths
-  voice?: string;         // single voice/audio file
-  buttons?: Button[][];
-};
-export type EditOpts = { buttons?: Button[][] };
-
 export interface ChatStation<TMeta = Record<string, unknown>> {
   readonly name: string;
   readonly capabilities: Capabilities;
   start(): Promise<void>;
   stop(): Promise<void>;
   onMessage(handler: (m: InboundMessage<TMeta>) => void): void;
-  send(line: Line, text: string, opts?: SendOpts): Promise<string>;
-  edit(line: Line, messageId: string, text: string, opts?: EditOpts): Promise<void>;
-  react(line: Line, messageId: string, emoji: string): Promise<void>;
   download(line: Line, messageId: string, outDir: string): Promise<{ path: string; mediaType: string }[]>;
   fetch(line: Line, limit: number): Promise<FetchedMessage[]>;
 }
@@ -102,7 +89,7 @@ const AGENT_CAPS: Capabilities = { in: ['text'], out: [], features: ['notify'] }
 const CHAT_CAPS: Capabilities = {
   in: ['text', 'image'],
   out: ['text'],
-  features: ['reply', 'send', 'edit', 'react', 'download', 'fetch'],
+  features: ['download', 'fetch', 'raw'],
 };
 
 export type StationRow = {

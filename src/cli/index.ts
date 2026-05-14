@@ -8,14 +8,12 @@ import { fmtCapabilities, listStations } from '../stations/index.js';
 import { loadMetroEnv } from '../paths.js';
 import { readHistory, type HistoryKind } from '../history.js';
 import { cmdDoctor, cmdSetup, cmdUpdate } from './config.js';
-import {
-  cmdDownload, cmdEdit, cmdFetch, cmdReact, cmdReply, cmdSend,
-} from './actions.js';
+import { cmdDownload, cmdFetch, cmdNotify, cmdRaw } from './actions.js';
 import {
   flagOne, isJson, parseArgs, writeJson, type ExitErr, type Flags,
 } from './util.js';
 
-const USAGE = `metro — Telegram + Discord stream for your Claude Code / Codex agent
+const USAGE = `metro — multi-source event stream for your Claude Code / Codex agent
 
 Usage:
   metro                                       Run the dispatcher (emits JSON events on stdout).
@@ -25,13 +23,11 @@ Usage:
   metro doctor                                Health check.
   metro stations                              List stations + capabilities.
   metro lines                                 List recently-seen conversations.
-  metro send <line> <text> [--image=<path>]… [--document=<path>]… [--voice=<path>] [--buttons=<json>]
-                                              Post a fresh message; repeat --image/--document for multi-file albums.
-  metro reply <line> <message_id> <text> [--image=… --document=… --voice=… --buttons=…]
-                                              Threaded reply (same flags as send).
-  metro edit <line> <message_id> <text> [--buttons=<json>]
-                                              Edit a previously-sent message (text + buttons).
-  metro react <line> <message_id> <emoji>     Set or clear ('') a reaction.
+  metro raw <station> <method> <path> [--body=<json>]
+                                              Issue a raw platform-API request with the daemon's token.
+                                              Example: metro raw discord POST /channels/123/messages --body='{"content":"hi"}'
+                                              Example: metro raw telegram POST /sendMessage --body='{"chat_id":456,"text":"hi"}'
+  metro notify <agent-line> <text>            Ping another agent (metro://claude/<topic> or metro://codex/<topic>).
   metro download <line> <message_id> [--out=<dir>]
                                               Download image attachments to disk.
   metro fetch <line> [--limit=N]              Recent-message lookback (Discord only).
@@ -41,7 +37,7 @@ Usage:
   metro --version | --help
 
 Lines: metro://<station>/<path>. See docs/uri-scheme.md.
-Multi-line --text: pipe on stdin in place of the positional arg.
+Multi-line --body: pipe on stdin in place of --body=.
 Exit codes: 0 success · 1 usage · 2 config · 3 upstream
 `;
 
@@ -124,7 +120,7 @@ const pad = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 
 
 const COMMANDS: Record<string, (positional: string[], flags: Flags) => Promise<void>> = {
   setup: cmdSetup, doctor: cmdDoctor, stations: cmdStations, lines: cmdLines,
-  send: cmdSend, reply: cmdReply, edit: cmdEdit, react: cmdReact,
+  raw: cmdRaw, notify: cmdNotify,
   download: cmdDownload, fetch: cmdFetch,
   history: cmdHistory, update: cmdUpdate,
 };

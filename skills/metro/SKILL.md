@@ -1,11 +1,11 @@
 ---
 name: metro
-description: Run the metro Telegram/Discord bridge in this session — launch `metro` in the background, watch its stdout for inbound JSON events, and act on each. Use when the user asks to start/run/launch metro, when you see JSON lines on stdout shaped `{"kind":"inbound","station":...,"line":"metro://...","messageId":...,"text":...}`, or when handling a chat reply/edit/react/send/download/fetch/notify.
+description: Run the metro Telegram/Discord bridge in this session — launch `metro` in the background, watch its stdout for inbound JSON events, and act on each. Use when the user asks to start/run/launch metro, when you see JSON lines on stdout shaped `{"kind":"inbound","station":...,"line":"metro://...","messageId":...,"text":...}`, or when handling chat messages, attachments, or cross-agent notifications.
 ---
 
 # Metro — running the Telegram & Discord bridge
 
-Metro is a CLI bridge between this agent session and Telegram/Discord. You launch `metro` once when the user asks, then act on each inbound JSON line via `metro <subcommand>`.
+Metro is a CLI that unifies inbound events from chat platforms (Telegram, Discord) into a single JSON stream for your agent session. Outbound is handled by `metro raw`: a thin pass-through to the platform's native REST API using the daemon's stored bot tokens. You build the platform-shaped request body; metro authenticates and dispatches it.
 
 ## Starting the bridge
 
@@ -41,15 +41,15 @@ If something seems off, run `metro doctor`. Common causes: missing tokens (`metr
 ## Event shape
 
 Every line on stdout is one **history entry** — the same record appended to `history.jsonl`. Fields:
-- `kind` — `"inbound"`, `"notification"`, `"outbound"`, `"edit"`, or `"react"`
+- `kind` — `"inbound"`, `"outbound"`, or `"notification"`
 - `id` (`msg_…`) — universal message ID minted by metro
 - `ts` — ISO timestamp
 - `station` — `"discord"`, `"telegram"`, `"claude"`, `"codex"`
 - `line` — conversation URI; `lineName?` is the channel/topic display name
 - `from` / `fromName?` — sender participant URI + optional display name
-- `to` — recipient participant URI (agent for inbound, line for notification, original sender for replies/reacts)
+- `to` — recipient participant URI (agent for inbound, line for notification)
 - `text` — the literal text content (Telegram `text`/`caption`, Discord `content`). May be empty for attachment-only messages — inspect `payload` for everything else.
-- `messageId?` — platform-side id (Discord snowflake, Telegram int). Set on inbound/outbound.
+- `messageId?` — platform-side id (Discord snowflake, Telegram int). Set on inbound.
 - `payload?` — raw platform-native message object. Set on inbound only. Shape varies per `station`.
 
 ```json
@@ -76,73 +76,107 @@ Derive from `payload`. Bot id per station is cached in `$METRO_STATE_DIR/bot-ids
 - **discord** — DM when `payload.guildId == null`; otherwise pinged when `payload.mentions.users.includes(<bot-id>)`.
 - **telegram** — DM when `payload.chat.type === 'private'`; otherwise pinged when any entity in `payload.entities` (or `caption_entities`) is `{type:"mention"}` matching `@<bot-username>` or `{type:"text_mention", user:{id:<bot-id>}}`.
 
-Default: only reply on DM or ping; otherwise stay silent or `metro react` to ack.
+Default: only reply on DM or ping; otherwise stay silent.
 
 Both `from` and `to` are **participant URIs** (the conversation context lives in `line`):
 - `metro://<station>/user/<id>` — a person on a chat platform
 - `metro://claude/<topic>` / `metro://codex/<topic>` — an agent
-- `metro://<station>/<channelId>` — a channel (used as `to` for fresh sends to a group, where no single recipient)
-
-When **you** send via `metro send`/`reply`/`edit`/`react`, metro auto-stamps `from = metro://claude/agent` (from `$CLAUDECODE`) or `metro://codex/agent` (from `$METRO_CODEX_RC` / `$CODEX_HOME`). Override with `--from=<uri>` or `$METRO_FROM`. When replying/reacting, `to` is automatically the original sender (looked up via the universal id).
 
 The `id` is the **canonical handle** for that message across all stations — store it if you want to refer back to it later.
 
 - `kind: "inbound"` — a human (or another bot) posted on a chat platform.
-- `kind: "notification"` — another agent called `metro send` against your agent line. This is how Codex pings Claude Code and vice versa.
+- `kind: "notification"` — another agent called `metro notify` against your agent line. This is how Codex pings Claude Code and vice versa.
 
 Attachments live on `payload`, not in `text`. Telegram shows `photo[]`, `document`, `voice`, `audio`; Discord shows `attachments[]` (with `contentType`). Use `metro download` to materialize images to disk.
 
 ## Required flow on every event
 
 1. **Echo to your visible output**: `[<line>#<messageId>] <text>` on its own line. Both Claude Code's Monitor and Codex collapse tool output, so this echo is the only way the user sees what arrived without expanding cards.
-2. **Decide and act** using the subcommands below.
+2. **Decide and act** using `metro raw` (or one of the helpers below).
 
-No server-side auto-reaction — don't expect 👀 to be on the user's message; add one yourself with `metro react` if you want to ack quickly.
+## Sending messages — `metro raw`
 
-## Subcommands
+There is no `metro send` / `metro reply` / `metro edit` / `metro react`. To send, edit, react, or do anything the platform supports, you call its native REST API through `metro raw`:
 
-All take positional args (no `--to=`/`--text=` flags). Append `--json` to any for a parseable single-line result.
-
-| Action | Command |
-|---|---|
-| Quote-reply (threads under original) | `metro reply <line> <messageId> <text>` |
-| Send a fresh message (no reply context) | `metro send <line> <text>` |
-| Edit a message you previously sent | `metro edit <line> <messageId> <text>` |
-| Reaction (empty emoji clears) | `metro react <line> <messageId> <emoji>` |
-| Download image attachments → paths | `metro download <line> <messageId> [--out=<dir>]` |
-| Recent channel history (Discord only) | `metro fetch <line> [--limit=20]` |
-| Ping another agent (cross-agent line) | `metro send metro://claude/<topic> <text> [--from=<line>]` |
-
-`reply` / `send` / `edit` accept multi-line text via stdin (heredoc).
-
-### Rich content flags
-
-`send` and `reply` accept these extra flags; `edit` accepts `--buttons` only.
-
-- `--image=<path>` — upload a local image. **Repeatable** for albums: `--image=a.png --image=b.png`. Comma-separated also works: `--image='a.png,b.png'`. Up to 10 / message. Text becomes the caption (on the first image for albums).
-- `--document=<path>` — upload any local file (PDF, log, csv, …). Same repeat/comma syntax.
-- `--voice=<path>` — single voice message (`.ogg` Opus or `.mp3`). On Telegram renders as a voice bubble via `sendVoice`; on Discord uploaded as an audio attachment.
-- `--buttons='[[{"text":"…","url":"https://…"}]]'` — attach an inline URL-button keyboard. 2D array: outer = rows, inner = buttons on that row.
-
-```bash
-metro send <line> "screenshot"                     --image=/tmp/build.png
-metro send <line> "before/after"                   --image=/tmp/before.png --image=/tmp/after.png
-metro reply <line> <id> "log + transcript"          --document=/tmp/run.log --document=/tmp/transcript.txt
-metro send <line> "have a listen"                  --voice=/tmp/note.ogg
-metro send <line> "approve?" --buttons='[[{"text":"Open PR","url":"https://github.com/x/y/pull/1"}]]'
-metro edit <line> <id> "still working…" --buttons='[]'    # clears buttons
+```
+metro raw <station> <method> <path> [--body=<json>]
 ```
 
-Limits / quirks:
-- 20 MB per file (both platforms).
-- Telegram albums are single-type (all photos OR all documents in one album). Mixing kinds in one send still works — metro splits into two album messages and returns the first id.
-- Telegram drops `--buttons` when multiple attachments are sent (the bot API doesn't allow `reply_markup` on media groups).
-- URL buttons only (no callback / interactive components yet).
+`<station>` is `discord` or `telegram`. The daemon attaches auth automatically — no token in your call. `--body` can also come from stdin (heredoc) for multi-line payloads.
 
-## When to use `reply` vs `send`
+### Telegram
 
-- **`reply`** — responding to a specific inbound message. Threads under it. Default for handling an `inbound` event.
-- **`send`** — initiating without a triggering message: a long task finished, a follow-up the user asked you to deliver later, or posting to an agent line (`metro://claude/...`, `metro://codex/...`) to notify a peer.
+Base URL: `https://api.telegram.org/bot<TOKEN>`. See the [Bot API docs](https://core.telegram.org/bots/api).
+
+```bash
+# Send a fresh message
+metro raw telegram POST /sendMessage --body='{"chat_id":25220238,"text":"hello"}'
+
+# Reply (threaded)
+metro raw telegram POST /sendMessage --body='{"chat_id":25220238,"text":"ack","reply_parameters":{"message_id":641}}'
+
+# Edit
+metro raw telegram POST /editMessageText --body='{"chat_id":25220238,"message_id":642,"text":"updated"}'
+
+# React
+metro raw telegram POST /setMessageReaction --body='{"chat_id":25220238,"message_id":641,"reaction":[{"type":"emoji","emoji":"👍"}]}'
+
+# Topic / forum reply: include "message_thread_id" in the body
+```
+
+The `chat_id` comes from `payload.chat.id` on the inbound. Topic id from `payload.message_thread_id`. Reply target from `payload.message_id`.
+
+### Discord
+
+Base URL: `https://discord.com/api/v10`. See the [Discord REST docs](https://discord.com/developers/docs/reference).
+
+```bash
+# Send to a channel
+metro raw discord POST /channels/1504226489359401221/messages --body='{"content":"hello"}'
+
+# Reply (threaded)
+metro raw discord POST /channels/<channelId>/messages --body='{"content":"ack","message_reference":{"message_id":"<id>"}}'
+
+# Edit
+metro raw discord PATCH /channels/<channelId>/messages/<messageId> --body='{"content":"updated"}'
+
+# React
+metro raw discord PUT /channels/<channelId>/messages/<messageId>/reactions/%F0%9F%91%8D/@me
+```
+
+The `channelId` comes from `payload.channelId` on the inbound. Reply target from `payload.id`. `flags: 4` (1 << 2) suppresses link previews if you want that.
+
+### Heredoc for long bodies
+
+```bash
+metro raw discord POST /channels/123/messages --body="$(cat <<'EOF'
+{"content":"line one\nline two\nline three"}
+EOF
+)"
+```
+
+### What `metro raw` does
+
+1. Loads the station's bot token from the daemon's config.
+2. Issues the request with the right base URL + auth header.
+3. Prints the response (status line + JSON body). With `--json` you get `{"status":200,"ok":true,"body":{...}}`.
+4. For write methods (POST/PATCH/PUT/DELETE), appends an `outbound` row to `history.jsonl` so the universal log stays unified.
+
+It does **not** support multipart file uploads yet. For images and other files, host them somewhere and pass the URL (Discord and Telegram both accept URLs in the relevant endpoints).
+
+## Other subcommands
+
+| Command | Purpose |
+|---|---|
+| `metro notify <agent-line> <text>` | Ping another agent (`metro://claude/<topic>` or `metro://codex/<topic>`). |
+| `metro download <line> <messageId> [--out=<dir>]` | Materialize image attachments to disk. |
+| `metro fetch <line> [--limit=20]` | Recent-channel-history lookback (Discord only). |
+| `metro history` | Read the universal message log. Filters: `--limit`, `--line`, `--station`, `--kind`, `--from`, `--text`, `--since`, `--json`. |
+| `metro lines` | List recently-seen conversations. |
+| `metro stations` | List stations + capabilities. |
+| `metro doctor` | Health check. |
+
+All commands accept `--json` for parseable output.
 
 ## Line URI scheme
 
@@ -155,85 +189,40 @@ Limits / quirks:
 | `claude`   | `metro://claude/<topic>`                  | `metro://claude/deploys`             |
 | `codex`    | `metro://codex/<topic>`                   | `metro://codex/ci`                   |
 
-The `messageId` is **not** part of the URI — it's a separate positional arg for `reply` / `edit` / `react` / `download`.
-
 ## Image attachments
 
 When `payload.photo` (Telegram) or `payload.attachments[].contentType?.startsWith('image/')` (Discord) is present:
 
 1. `metro download <line> <messageId>` — writes images to disk and prints absolute paths.
 2. `Read` each path with your Read tool — the image enters your context as a vision input.
-3. Reply normally with `metro reply`.
+3. Reply via `metro raw`.
 
-Non-image attachments (voice, audio, documents) are not materialized by `metro download` — inspect `payload` for the file metadata and ask the user to resend as a regular file if you need the bytes.
+Non-image attachments are not materialized by `metro download` — inspect `payload` for the file metadata. On Discord the full attachment objects (with `url`) are on `payload.attachments`. On Telegram you have `voice.file_id` / `document.file_id` and can resolve to a URL via `metro raw telegram POST /getFile --body='{"file_id":"..."}'`.
 
 ## Cross-agent notification
 
-Both agents can post to each other's "agent line":
+Use `metro notify` to ping another agent's "agent line":
 
 ```bash
-metro send metro://claude/deploys "build green, ready to ship"
-metro send metro://codex/ci "build green" --from=metro://claude/deploys   # override sender
+metro notify metro://claude/deploys "build green, ready to ship"
+metro notify metro://codex/ci "build green" --from=metro://claude/deploys   # override sender
 ```
 
-The daemon re-emits the post on its stdout stream (and pushes via codex-rc if configured), so the peer agent sees a `{"kind":"notification",...}` event. Requires the metro daemon to be running on the machine — agent-line sends error with `metro daemon is not running` otherwise.
+The daemon re-emits the post on its stdout stream (and pushes via codex-rc if configured), so the peer agent sees a `{"kind":"notification",...}` event. Requires the metro daemon to be running on the machine.
 
-## Discoverability
+## Identity stamping
 
-- `metro lines` — list recently-seen conversations (sorted by recency).
-- `metro stations` — list stations + capability matrix.
-- `metro history` — universal message log (every inbound + outbound + notification across all stations). Newest first. Filters:
-  - `--limit=N` (default 50)
-  - `--line=<metro://…>` — only this conversation
-  - `--station=<discord|telegram|claude|codex>`
-  - `--kind=<inbound|outbound|edit|react|notification>`
-  - `--from=<sender>`
-  - `--text=<substring>`
-  - `--since=<iso>` — e.g. `--since=2026-05-14T00:00:00Z`
-  - `--json` — machine-parseable
-
-Every action you take is logged automatically — `metro send`/`reply`/`edit`/`react` append outbound entries, daemon-side inbounds + notifications append on arrival. Stored at `$METRO_STATE_DIR/history.jsonl`.
-
-## Universal message IDs
-
-The `id` from `metro history` or an event JSON works **anywhere a `<message_id>` argument is expected**:
-
-```bash
-# Either form works for reply/edit/react/download:
-metro reply <line> 4567                "ack"     # platform messageId (Telegram int)
-metro reply <line> msg_aB3xY7zP        "ack"     # universal — resolves via history
-```
-
-Use universal IDs when chaining commands or referring back to a specific message across stations.
+When you call `metro raw` or `metro notify`, the outbound history row's `from` is auto-stamped to `metro://claude/agent` (from `$CLAUDECODE`) or `metro://codex/agent` (from `$METRO_CODEX_RC` / `$CODEX_HOME`). Override with `--from=<uri>` or `$METRO_FROM`.
 
 ## Exit codes
 
 - `0` success
-- `1` usage error (bad args, unknown subcommand)
+- `1` usage error (bad args, unknown subcommand, malformed `--body`)
 - `2` configuration error (no tokens — tell the user to run `metro setup`)
-- `3` upstream error (rate limit, auth, network) — retry once after a few seconds before surfacing
-
-`metro doctor` diagnoses tokens, gateways, dispatcher liveness, and codex-rc target.
-
-## --json output
-
-Every command supports `--json` for stable parseable output:
-
-```bash
-metro reply <line> <messageId> "ack" --json
-# {"ok":true,"line":"metro://discord/...","replyTo":"...","messageId":"..."}
-
-metro fetch metro://discord/1234 --limit=10 --json
-# {"ok":true,"line":"...","messages":[{"messageId":"...","author":"...","text":"...","timestamp":"..."},...]}
-
-metro download <line> <messageId> --json
-# {"ok":true,"line":"...","files":[{"path":"/abs/...png","mediaType":"image/png"}]}
-```
-
-Use `--json` when you need to chain calls or capture the new `messageId` for a later edit.
+- `3` upstream error (rate limit, auth, network)
 
 ## Don'ts
 
 - ❌ Spawning a second metro daemon — there's one per machine (lockfile-enforced).
-- ❌ Posting to a line that isn't in `metro lines` unless the user gave it to you explicitly.
-- ❌ Narrating the tool ("I'll now use metro reply to…"). The tool call is already visible to the user.
+- ❌ Calling the Telegram or Discord API directly with your own HTTP client. Use `metro raw` so the daemon manages auth and history logging.
+- ❌ Narrating the tool ("I'll now use metro raw to…"). The tool call is already visible to the user.

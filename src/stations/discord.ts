@@ -1,22 +1,19 @@
-/** Discord station: receive via discord.js gateway; send/edit/react/download/fetch via REST. */
+/** Discord station: receive via discord.js gateway; inbound + read-only REST (download/fetch). */
 
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
-import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
 import { errMsg, log } from '../log.js';
 import { mintId } from '../history.js';
 import {
-  Line, type Button, type Capabilities, type ChatStation, type EditOpts, type FetchedMessage,
-  type InboundMessage, type Line as LineT, type SendOpts,
+  Line, type Capabilities, type ChatStation, type FetchedMessage,
+  type InboundMessage, type Line as LineT,
 } from './index.js';
 
 /** discord.js `Message.toJSON()` output + auto-fetched `referencedMessage` on replies. */
 export type DiscordPayload = Record<string, unknown> & { referencedMessage?: unknown };
 
 const API_BASE = 'https://discord.com/api/v10';
-const SUPPRESS_EMBEDS = 1 << 2;
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 const token = (): string => {
@@ -25,65 +22,21 @@ const token = (): string => {
   return t;
 };
 
-async function rest<T = unknown>(
-  method: string, path: string, body?: unknown, timeoutMs = 30_000, retriesLeft = 2,
-): Promise<T> {
+async function restGet<T = unknown>(path: string, timeoutMs = 30_000): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    method,
+    method: 'GET',
     headers: {
       'Authorization': `Bot ${token()}`,
       'User-Agent': 'metro (https://github.com/bonustrack/metro, dev)',
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (res.status === 429 && retriesLeft > 0) {
-    const retryAfter = Number(res.headers.get('retry-after')) || 1;
-    log.debug({ path, retryAfter }, 'discord 429; backing off');
-    await new Promise(r => setTimeout(r, Math.max(retryAfter * 1000, 250)));
-    return rest<T>(method, path, body, timeoutMs, retriesLeft - 1);
-  }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`discord ${method} ${path}: ${res.status} ${text}`);
-  }
-  return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
-}
-
-/** Multipart upload (payload_json + files[N]). Same retry semantics as `rest`. */
-async function restMultipart<T = unknown>(
-  method: string, path: string, payload: unknown, files: { path: string; data: Buffer }[],
-): Promise<T> {
-  const form = new FormData();
-  form.append('payload_json', JSON.stringify(payload));
-  for (const [i, f] of files.entries()) {
-    form.append(`files[${i}]`, new Blob([new Uint8Array(f.data)]), basename(f.path));
-  }
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      'Authorization': `Bot ${token()}`,
-      'User-Agent': 'metro (https://github.com/bonustrack/metro, dev)',
-    },
-    body: form, signal: AbortSignal.timeout(60_000),
-  });
-  if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    throw new Error(`discord ${method} ${path}: ${res.status} ${t}`);
+    throw new Error(`discord GET ${path}: ${res.status} ${text}`);
   }
   return (await res.json()) as T;
 }
-
-const collectFiles = async (opts?: SendOpts): Promise<{ path: string; data: Buffer }[]> => {
-  const paths = [...(opts?.images ?? []), ...(opts?.documents ?? []), ...(opts?.voice ? [opts.voice] : [])];
-  return Promise.all(paths.map(async p => ({ path: p, data: await readFile(p) })));
-};
-
-/** Convert button rows to Discord component arrays (URL buttons only — style=5). */
-const discordButtons = (rows: Button[][]): unknown[] => rows.map(row => ({
-  type: 1, components: row.map(b => ({ type: 2, style: 5, label: b.text, url: b.url })),
-}));
 
 type RawAttachment = { id: string; filename: string; content_type?: string; url: string; size: number };
 type RawMessage = {
@@ -100,7 +53,7 @@ const channelOf = (line: LineT): string => {
 
 const CAPS: Capabilities = {
   in: ['text', 'image'], out: ['text'],
-  features: ['reply', 'send', 'edit', 'react', 'download', 'fetch'],
+  features: ['download', 'fetch', 'raw'],
 };
 
 export class DiscordStation implements ChatStation<DiscordPayload> {
@@ -139,36 +92,12 @@ export class DiscordStation implements ChatStation<DiscordPayload> {
   }
 
   async getMe(): Promise<{ id: string; username: string }> {
-    return rest<{ id: string; username: string }>('GET', '/users/@me');
-  }
-
-  async send(line: LineT, text: string, opts?: SendOpts): Promise<string> {
-    const payload: Record<string, unknown> = { content: text, flags: SUPPRESS_EMBEDS };
-    if (opts?.replyTo) payload.message_reference = { message_id: opts.replyTo };
-    if (opts?.buttons?.length) payload.components = discordButtons(opts.buttons);
-    const path = `/channels/${channelOf(line)}/messages`;
-    const files = await collectFiles(opts);
-    const sent = files.length
-      ? await restMultipart<{ id: string }>('POST', path, payload, files)
-      : await rest<{ id: string }>('POST', path, payload);
-    return sent.id;
-  }
-
-  async edit(line: LineT, messageId: string, text: string, opts?: EditOpts): Promise<void> {
-    const payload: Record<string, unknown> = { content: text, flags: SUPPRESS_EMBEDS };
-    payload.components = opts?.buttons?.length ? discordButtons(opts.buttons) : [];
-    await rest('PATCH', `/channels/${channelOf(line)}/messages/${messageId}`, payload);
-  }
-
-  async react(line: LineT, messageId: string, emoji: string): Promise<void> {
-    const ch = channelOf(line);
-    if (!emoji) { await rest('DELETE', `/channels/${ch}/messages/${messageId}/reactions/@me`); return; }
-    await rest('PUT', `/channels/${ch}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`);
+    return restGet<{ id: string; username: string }>('/users/@me');
   }
 
   async download(line: LineT, messageId: string, outDir: string): Promise<{ path: string; mediaType: string }[]> {
     const ch = channelOf(line);
-    const msg = await rest<RawMessage>('GET', `/channels/${ch}/messages/${messageId}`);
+    const msg = await restGet<RawMessage>(`/channels/${ch}/messages/${messageId}`);
     const out: { path: string; mediaType: string }[] = [];
     for (const [i, a] of (msg.attachments ?? []).entries()) {
       if (!a.content_type?.startsWith('image/')) continue;
@@ -190,7 +119,7 @@ export class DiscordStation implements ChatStation<DiscordPayload> {
 
   async fetch(line: LineT, limit: number): Promise<FetchedMessage[]> {
     const capped = Math.max(1, Math.min(100, limit | 0));
-    const msgs = await rest<RawMessage[]>('GET', `/channels/${channelOf(line)}/messages?limit=${capped}`);
+    const msgs = await restGet<RawMessage[]>(`/channels/${channelOf(line)}/messages?limit=${capped}`);
     return [...msgs].reverse().map(m => ({
       messageId: m.id, author: m.author.username, text: m.content, timestamp: m.timestamp,
     }));

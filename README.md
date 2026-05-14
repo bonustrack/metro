@@ -2,7 +2,7 @@
 
 > **A live JSON stream of Telegram + Discord messages for your local Claude Code / Codex session.**
 
-Metro is a small daemon you launch from inside your agent. It connects to Discord and Telegram, emits each inbound as one JSON line on stdout (which Claude Code's `Monitor` consumes natively, and Codex picks up via an app-server WebSocket push), and exposes a tiny CLI — `metro reply`, `metro send`, `metro edit`, `metro react`, `metro download`, `metro fetch` — for posting back. Cross-agent: any agent can ping any other via `metro send metro://claude/<topic>` and the daemon re-emits it on the stream.
+Metro is a small daemon you launch from inside your agent. It connects to Discord and Telegram, emits each inbound as one JSON line on stdout (which Claude Code's `Monitor` consumes natively, and Codex picks up via an app-server WebSocket push), and exposes a `metro raw` pass-through for outbound: you build the platform-native request body, the daemon attaches auth. Cross-agent: any agent can ping any other via `metro notify metro://claude/<topic>` and the daemon re-emits it on the stream.
 
 ```
 [Claude Code session]
@@ -16,7 +16,8 @@ $ Monitor( … metro's stdout … )
                 "mentions":{"users":["<bot-id>"],"roles":[],"everyone":false},…}}
 
   [I'd run git log + read services/sync.ts, then…]
-  Bash: metro reply metro://discord/123… 9876 "three deploys in the last 24h…"
+  Bash: metro raw discord POST /channels/123…/messages \
+          --body='{"content":"three deploys in the last 24h…","message_reference":{"message_id":"9876"}}'
 ```
 
 The agent owns its own streaming, tool calls, and reply timing. Metro is the wire.
@@ -48,15 +49,15 @@ Telegram poller ──┤
                   │
                   ├─▶ metro daemon ───▶ stdout (JSON events; Claude Code's Monitor reads here)
                   │                ───▶ codex-rc WebSocket (Codex turn/start; opt-in)
-                  │                ◀── IPC Unix socket  (metro send to agent lines)
+                  │                ◀── IPC Unix socket  (metro notify to agent lines)
                   │
-agent CLI calls ──┴── REST → Discord / Telegram   (metro reply / send / edit / react / download / fetch)
+agent CLI calls ──┴── REST → Discord / Telegram   (metro raw — pass-through with auth attached)
 ```
 
 - **Inversion of control.** The agent (Claude Code, Codex) launches `metro`, not the other way around. Metro never spawns an agent process.
 - **Single daemon per machine.** Lockfile at `$METRO_STATE_DIR/.tail-lock` enforces singleton.
 - **Codex push (opt-in).** Set `METRO_CODEX_RC=ws://127.0.0.1:8421` and metro pushes each event via JSON-RPC `turn/start` to the Codex app-server. Codex's TUI must be attached with `--remote` to the same URL.
-- **Cross-agent notification.** `metro send metro://claude/<topic>` (or `metro://codex/<topic>`) routes through the daemon's IPC socket; the daemon re-emits on its stdout (and pushes to codex-rc), so the peer agent sees it.
+- **Cross-agent notification.** `metro notify metro://claude/<topic>` (or `metro://codex/<topic>`) routes through the daemon's IPC socket; the daemon re-emits on its stdout (and pushes to codex-rc), so the peer agent sees it.
 
 ---
 
@@ -64,20 +65,18 @@ agent CLI calls ──┴── REST → Discord / Telegram   (metro reply / sen
 
 Each endpoint is a **station** with declared capabilities:
 
-| Station    | Kind  | Modalities    | Features                                              | Config                                                      |
-|------------|-------|---------------|-------------------------------------------------------|-------------------------------------------------------------|
-| `discord`  | chat  | text + image  | reply, send, edit, react, download, fetch             | `DISCORD_BOT_TOKEN` + Message Content Intent                |
-| `telegram` | chat  | text + image  | reply, send, edit, react, download                    | `TELEGRAM_BOT_TOKEN`                                        |
-| `claude`   | agent | text          | notify                                                | watches metro stdout via Claude Code's `Monitor`            |
-| `codex`    | agent | text          | notify                                                | set `METRO_CODEX_RC=ws://…` to push                         |
+| Station    | Kind  | Modalities    | Features                | Config                                                      |
+|------------|-------|---------------|-------------------------|-------------------------------------------------------------|
+| `discord`  | chat  | text + image  | download, fetch, raw    | `DISCORD_BOT_TOKEN` + Message Content Intent                |
+| `telegram` | chat  | text + image  | download, raw           | `TELEGRAM_BOT_TOKEN`                                        |
+| `claude`   | agent | text          | notify                  | watches metro stdout via Claude Code's `Monitor`            |
+| `codex`    | agent | text          | notify                  | set `METRO_CODEX_RC=ws://…` to push                         |
 
 Run `metro stations` to see live config status (`✓` configured, `✗` not, `·` informational).
 
 Behaviors worth knowing:
-- **No streaming / no edit machinery in metro.** The agent runs the show; metro is one-shot REST.
-- **No link previews.** Outgoing messages set `link_preview_options.is_disabled` on Telegram and `SUPPRESS_EMBEDS` on Discord.
-- **Image attachments inbound** — surfaced as raw platform fields on `payload` (Telegram `photo[]`, Discord `attachments[]`); the agent calls `metro download` to materialize them. 20 MB cap.
-- **Rich content outbound.** `metro send` / `reply` accept `--image=<path>` (repeatable: albums of up to 10), `--document=<path>` (repeatable), `--voice=<path>` (single voice message — Telegram renders the voice bubble), and `--buttons='[[{"text":"…","url":"…"}]]'` for inline URL-button keyboards. `metro edit` accepts `--buttons` (pass `'[]'` to clear). 20 MB / file. URL buttons only for now — no callback/interactive components.
+- **Outbound is pass-through.** Metro doesn't have `send`/`reply`/`edit`/`react` commands. The agent uses `metro raw <station> <method> <path> [--body=<json>]` and writes the platform-native body itself. No format inversion, no abstraction drift when Telegram or Discord adds new features.
+- **Image attachments inbound** — surfaced as raw platform fields on `payload` (Telegram `photo[]`, Discord `attachments[]` grafted to full objects with URL); the agent calls `metro download` to materialize them. 20 MB cap.
 - **Telegram non-forum groups are skipped.** No thread boundary to scope on.
 
 ---
@@ -94,7 +93,7 @@ metro://claude/deploys                          # agent notification sink
 metro://codex/ci
 ```
 
-Anyone can post to a line via [`metro send`](#cli) — daemon required only for agent lines. Full grammar in [`docs/uri-scheme.md`](docs/uri-scheme.md).
+Send to a chat line via `metro raw`; ping an agent line via `metro notify`. Full grammar in [`docs/uri-scheme.md`](docs/uri-scheme.md).
 
 ---
 
@@ -107,13 +106,11 @@ metro setup clear [telegram|discord|all]    Remove tokens.
 metro doctor                                Health check.
 metro stations                              List stations + capabilities.
 metro lines                                 List recently-seen conversations.
-metro send <line> <text> [--image=…]… [--document=…]… [--voice=…] [--buttons=…]
-                                            Post a fresh message; --image/--document repeat for albums.
-metro reply <line> <message_id> <text> [--image|--document|--voice|--buttons]
-                                            Threaded reply (same flags as send).
-metro edit <line> <message_id> <text> [--buttons=<json>]
-                                            Edit a previously-sent message (text + URL-button keyboard).
-metro react <line> <message_id> <emoji>     Set or clear ('') a reaction.
+metro raw <station> <method> <path> [--body=<json>]
+                                            Pass-through to the platform's REST API with the daemon's token attached.
+                                            Example: metro raw discord POST /channels/123/messages --body='{"content":"hi"}'
+                                            Example: metro raw telegram POST /sendMessage --body='{"chat_id":456,"text":"hi"}'
+metro notify <agent-line> <text>            Ping another agent (metro://claude/<topic> | metro://codex/<topic>).
 metro download <line> <message_id> [--out=<dir>]
                                             Download image attachments to disk.
 metro fetch <line> [--limit=N]              Recent-message lookback (Discord only).
@@ -122,7 +119,7 @@ metro history [--limit=N] [--line=…] [--station=…] [--kind=…] [--from=…]
 metro update                                Upgrade in place.
 ```
 
-All commands accept `--json`. `reply` / `send` / `edit` read multi-line `<text>` from stdin if no positional is given.
+All commands accept `--json`. `metro raw` reads `--body` from stdin if the flag is omitted (heredoc-friendly).
 
 **State files** in `$METRO_STATE_DIR` (default `~/.cache/metro`):
 - `AGENTS.md` — agent skill copied from the package on every start (so the path is stable across upgrades)
@@ -165,7 +162,7 @@ Source map:
 
 - [`src/cli/`](src/cli/) — `metro` binary entry ([`index.ts`](src/cli/index.ts)) + admin commands ([`config.ts`](src/cli/config.ts): setup/doctor/update) + shared CLI primitives ([`util.ts`](src/cli/util.ts)).
 - [`src/dispatcher.ts`](src/dispatcher.ts) — the daemon: starts each chat station, emits events on stdout, listens on the IPC socket, optionally pushes to codex-rc.
-- [`src/stations/`](src/stations/) — Line URI scheme + ChatStation interface + listing ([`index.ts`](src/stations/index.ts)), the two chat-station impls (`discord.ts`, `telegram.ts`), plus the Telegram markdown→HTML helper ([`telegram-md.ts`](src/stations/telegram-md.ts)). Agent stations have no impl — they're notification sinks expressed only as URI prefixes.
+- [`src/stations/`](src/stations/) — Line URI scheme + ChatStation interface + listing ([`index.ts`](src/stations/index.ts)) and the two chat-station impls (`discord.ts`, `telegram.ts`). Inbound only — outbound is `metro raw` (in [`src/cli/actions.ts`](src/cli/actions.ts)). Agent stations have no impl — they're notification sinks expressed only as URI prefixes.
 - [`src/codex-rc.ts`](src/codex-rc.ts) — Codex app-server WebSocket push client.
 - [`src/ipc.ts`](src/ipc.ts) — Unix-socket IPC between the daemon and one-shot CLI commands.
 - [`src/cache.ts`](src/cache.ts) — in-memory line cache with debounced flush to `lines.json`.
