@@ -203,6 +203,8 @@ export class DiscordStation implements ChatStation<DiscordPayload> {
     const lineName = m.channel && 'name' in m.channel
       ? (m.channel as { name: string | null }).name ?? undefined : undefined;
     const payload = m.toJSON() as DiscordPayload;
+    /** toJSON() collapses attachments to IDs — graft full objects (url, contentType, name, size). */
+    if (m.attachments.size) payload.attachments = [...m.attachments.values()].map(a => a.toJSON());
     if (m.reference?.messageId) {
       try { payload.referencedMessage = (await m.fetchReference()).toJSON(); }
       catch (err) { log.debug({ err: errMsg(err) }, 'discord: fetchReference failed'); }

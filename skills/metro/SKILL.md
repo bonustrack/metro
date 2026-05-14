@@ -64,7 +64,7 @@ Every line on stdout is one **history entry** — the same record appended to `h
 
 `payload` is the platform's native message shape. Narrow on `event.station`:
 
-- **`discord`** — discord.js `Message.toJSON()`: camelCase fields (`channelId`, `guildId`, `content`, `author`, `mentions: { users[], roles[], everyone }`, `attachments[]`, `reference`, …). Collections come back as **arrays of IDs**. `referencedMessage` is added inline on replies (auto-fetched).
+- **`discord`** — discord.js `Message.toJSON()`: camelCase fields (`channelId`, `guildId`, `content`, `author`, `mentions: { users[], roles[], everyone }`, `attachments[]`, `reference`, …). Most collections come back as **arrays of IDs**; `attachments[]` is grafted to full objects (`{ id, name, url, contentType, size, ... }`). `referencedMessage` is added inline on replies (auto-fetched).
 - **`telegram`** — raw Bot API `Message` (snake_case): `{ message_id, chat, from, text, caption, entities[], photo[], document, voice, audio, reply_to_message, … }`. `reply_to_message` is inline on replies.
 
 Use `payload` for anything the envelope doesn't surface — mentions, reply chains, embeds, entities.
