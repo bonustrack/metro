@@ -53,8 +53,8 @@ const tunnelCfg = loadTunnelConfig();
 const tunnel = tunnelCfg ? new Tunnel(tunnelCfg, webhookPort()) : null;
 
 function emit(entry: HistoryEntry): void {
-  /** `display` is the pre-rendered chat-bubble the agent echoes verbatim — centralizing the format here. */
-  const enriched: HistoryEntry = { ...entry, display: formatDisplay(entry) };
+  /** `display` first so it survives Monitor's ~500-char body truncation — the agent must see it to echo it. */
+  const enriched: HistoryEntry = { display: formatDisplay(entry), ...entry };
   const json = JSON.stringify(enriched);
   process.stdout.write(json + '\n');
   codexRc?.push(json);
