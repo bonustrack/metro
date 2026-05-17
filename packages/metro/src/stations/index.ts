@@ -49,9 +49,16 @@ export interface InboundReaction {
   fromName?: string;
   /** Platform-side id of the message that got reacted to. */
   messageId: string;
+  /** Empty string means "reaction removed/cleared" — same convention as outbound react. */
   emoji: string;
   /** True when the conversation has a single human counterpart (DM / private chat). */
   isPrivate?: boolean;
+}
+
+/** A message was edited or deleted upstream. Deletes surface with `text: ''`. */
+export interface InboundEdit<TPayload = unknown> extends InboundMessage<TPayload> {
+  /** True when the upstream event was a delete (text will be ''); false on edit. */
+  deleted?: boolean;
 }
 
 export type Button = { text: string; url: string };
@@ -70,6 +77,8 @@ export interface ChatStation<TMeta = Record<string, unknown>> {
   stop(): Promise<void>;
   onMessage(handler: (m: InboundMessage<TMeta>) => void): void;
   onReaction(handler: (r: InboundReaction) => void): void;
+  /** Edits + deletes surface here; deletes carry `text: '' deleted: true`. Optional — stations may skip. */
+  onEdit?(handler: (e: InboundEdit<TMeta>) => void): void;
   send(line: Line, text: string, opts?: SendOpts): Promise<string>;
   edit(line: Line, messageId: string, text: string, opts?: EditOpts): Promise<void>;
   react(line: Line, messageId: string, emoji: string): Promise<void>;
