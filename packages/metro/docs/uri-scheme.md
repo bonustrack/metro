@@ -87,9 +87,9 @@ After setup, `metro webhook list` prints `https://webhook.yourdomain.com/wh/<id>
 Messages on chat lines are referenced by **line + message id** (two args), not as part of the URI. So:
 
 ```bash
-metro reply  metro://discord/123…  4567  "ack"
-metro edit   metro://discord/123…  9876  "fixed typo"
-metro react  metro://telegram/-100…/42  4567  👍
+metro call discord send '{"line":"metro://discord/123","text":"ack","replyTo":"4567"}'
+metro call discord edit '{"line":"metro://discord/123","messageId":"9876","text":"fixed typo"}'
+metro call telegram react '{"line":"metro://telegram/-100/42","messageId":"4567","emoji":"👍"}'
 ```
 
 ## Properties
@@ -102,7 +102,7 @@ metro react  metro://telegram/-100…/42  4567  👍
 ## API
 
 ```ts
-import { Line } from './stations/index.js';            // value namespace + type
+import { Line } from './lines.js';            // value namespace + type
 
 const l: Line = Line.discord('1234567890');     // typed Line
 Line.parse(l);                                   // { station: 'discord', path: ['1234567890'] } | null
@@ -119,6 +119,9 @@ Line.isLocal(l);                                 // true for any metro://{claude
 
 ## Adding a new station
 
+A "station" in this URI scheme is just a namespace — anything a worker emits with
+`metro://<name>/<path>` works. There is no required registration with core:
+
 1. Pick a lowercase station name (`slack`, `matrix`, …).
-2. Add a `Line.<station>(...)` formatter and a parser that returns your typed payload.
-3. Document the path grammar in the table above.
+2. In your worker, emit envelopes with `line: "metro://<name>/<id>"`.
+3. Optionally add a `Line.<station>(...)` formatter to `src/lines.ts` for type-safe construction.

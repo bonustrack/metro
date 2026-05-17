@@ -1,21 +1,24 @@
-/** Unix-socket IPC: `notify` re-emits on daemon stdout; `download` resolves Telegram attachments. */
+/** Unix-socket IPC: `notify` re-emits a cross-user message, `forward-call` reaches a worker's */
+/** stdin and awaits its response, `workers-list` snapshots supervisor state. */
 
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
 import { existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { STATE_DIR } from './paths.js';
+import type { WorkerCallResponse, WorkerInfo } from './workers.js';
 
 const SOCKET_PATH = join(STATE_DIR, 'metro.sock');
 
 export type IpcRequest =
   | { op: 'notify'; line: string; from?: string; text: string }
-  | { op: 'download'; line: string; messageId: string; outDir: string };
+  | { op: 'forward-call'; worker: string; action: string; args: unknown }
+  | { op: 'workers-list' };
 
-export type DownloadedFile = { path: string; mediaType: string };
 export type IpcResponse =
   | { ok: true }
-  | { ok: true; files: DownloadedFile[] }
+  | { ok: true; response: WorkerCallResponse }
+  | { ok: true; workers: WorkerInfo[] }
   | { ok: false; error: string };
 
 type Handler = (req: IpcRequest) => Promise<IpcResponse> | IpcResponse;
@@ -50,7 +53,7 @@ async function handleConnection(socket: Socket, handler: Handler): Promise<void>
 }
 
 /** CLI-side: send one request, get one response. Throws if the daemon isn't running. */
-export function ipcCall(req: IpcRequest, timeoutMs = 30_000): Promise<IpcResponse> {
+export function ipcCall(req: IpcRequest, timeoutMs = 60_000): Promise<IpcResponse> {
   return new Promise((resolve, reject) => {
     if (!existsSync(SOCKET_PATH)) {
       reject(new Error('metro daemon is not running (start it with `metro`)'));

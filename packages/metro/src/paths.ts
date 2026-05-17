@@ -3,13 +3,14 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { log } from './log.js';
 
-export type Platforms = { telegram: boolean; discord: boolean };
-
 export const STATE_DIR = process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
 mkdirSync(STATE_DIR, { recursive: true });
 
 const CONFIG_DIR = process.env.METRO_CONFIG_DIR ?? join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'metro');
 export const CONFIG_ENV_FILE = join(CONFIG_DIR, '.env');
+
+/** Worker-owned env file. Workers read their tokens from here (passed through via process.env). */
+export const WORKERS_ENV_FILE = join(homedir(), '.metro', '.env');
 
 const LINE_RE = /^\s*([A-Za-z_]\w*)\s*=\s*(.*?)\s*$/;
 const QUOTED_RE = /^(['"])(.*)\1$/;
@@ -30,23 +31,14 @@ export function writeDotenv(path: string, env: Record<string, string>): void {
   chmodSync(path, 0o600);
 }
 
-/** Precedence: process.env > cwd/.env > $METRO_CONFIG_DIR/.env. First-set wins. */
+/** Precedence: process.env > cwd/.env > ~/.metro/.env > $METRO_CONFIG_DIR/.env. First-set wins. */
+/** ~/.metro/.env is the canonical location for worker credentials. */
 export function loadMetroEnv(): void {
-  for (const path of [join(process.cwd(), '.env'), CONFIG_ENV_FILE]) {
+  for (const path of [join(process.cwd(), '.env'), WORKERS_ENV_FILE, CONFIG_ENV_FILE]) {
     for (const [k, v] of Object.entries(readDotenv(path))) {
       if (process.env[k] === undefined) process.env[k] = v;
     }
   }
-}
-
-export function configuredPlatforms(): Platforms {
-  return { telegram: !!process.env.TELEGRAM_BOT_TOKEN, discord: !!process.env.DISCORD_BOT_TOKEN };
-}
-
-export function requireConfiguredPlatform(p: Platforms, hasWebhooks: boolean): void {
-  if (p.telegram || p.discord || hasWebhooks) return;
-  log.fatal('no inputs configured — run `metro setup telegram <token>`, `metro setup discord <token>`, or `metro webhook add <label>`');
-  process.exit(2);
 }
 
 /** Singleton pidfile. Exits if another instance owns it; reclaims stale locks. */

@@ -5,9 +5,8 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { STATE_DIR } from './paths.js';
-import { Line } from './stations/index.js';
-import { claudeUserId, claudeSessionId } from './stations/claude.js';
-import { codexUserId, codexSessionId } from './stations/codex.js';
+import { Line } from './lines.js';
+import { claudeUserId, claudeSessionId, codexUserId, codexSessionId } from './local-identity.js';
 
 export type HistoryKind = 'inbound' | 'outbound' | 'edit' | 'react';
 

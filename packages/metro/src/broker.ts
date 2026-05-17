@@ -7,7 +7,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { STATE_DIR } from './paths.js';
-import { Line } from './stations/index.js';
+import { Line } from './lines.js';
 import type { HistoryEntry } from './history.js';
 
 export const CLAIMS_FILE = join(STATE_DIR, 'claims.json');
@@ -76,6 +76,44 @@ export type AutoClaimResult =
 
 /** Coarse classification of a chat line's topology — DM (1:1) vs group (shared). */
 export type LineKind = 'dm' | 'group' | 'unknown';
+
+/** Classify a chat line as DM/group/unknown for the auto-claim group-skip rule. */
+/** TG: chatId<0⇒group. Discord: peek payload.guildId on most-recent inbound. Claude/Codex⇒dm. */
+export function classifyLine(line: Line): LineKind {
+  const station = Line.station(line);
+  if (station === 'telegram') {
+    const parsed = Line.parseTelegram(line);
+    if (!parsed) return 'unknown';
+    return parsed.chatId < 0 ? 'group' : 'dm';
+  }
+  if (station === 'claude' || station === 'codex') return 'dm';
+  if (station === 'webhook') return 'group';
+  if (station === 'discord') {
+    /** Lazy tail-scan of history.jsonl to avoid a static dep on the history filter helpers. */
+    const recent = readRecentInbound(line);
+    if (!recent) return 'unknown';
+    const payload = recent.payload as { guildId?: string | null } | undefined;
+    if (!payload || !('guildId' in payload)) {
+      /** Older entries may not have a guildId — fall back to the `to` field: DMs route to a user URI. */
+      if (recent.to && recent.to !== recent.line) return 'dm';
+      return 'unknown';
+    }
+    return payload.guildId == null ? 'dm' : 'group';
+  }
+  return 'unknown';
+}
+
+/** Most-recent inbound on `line`. Walks `history.jsonl` from the tail; returns undefined if missing. */
+function readRecentInbound(line: Line): HistoryEntry | undefined {
+  if (!existsSync(HISTORY_FILE)) return undefined;
+  const lines = readFileSync(HISTORY_FILE, 'utf8').split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].trim()) continue;
+    try { const e = JSON.parse(lines[i]) as HistoryEntry; if (e.line === line && e.kind === 'inbound') return e; }
+    catch { /* skip */ }
+  }
+  return undefined;
+}
 
 /** Per-line decision: should auto-claim run on a successful outbound? */
 function shouldAutoClaim(line: Line, kind: LineKind): { ok: true } | { ok: false; reason: 'group' | 'webhook' } {
@@ -208,6 +246,5 @@ export function passesMode(
   if (isWebhook && !opts.includeWebhooks) return false;
   const owner = claims[event.line];
   if (mode === 'mine-only') return owner === self;
-  /** mode === 'mine-or-unclaimed' */
-  return !owner || owner === self;
+  return !owner || owner === self;  /** mode === 'mine-or-unclaimed' */
 }
