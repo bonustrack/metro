@@ -31,10 +31,10 @@ Run `metro doctor` if anything seems off.
 
 ## Event shape
 
-Every event is a **history entry** — the same record that's appended to `history.jsonl`. Fields: `kind` (`inbound`/`outbound`/`edit`/`react`), `id` (`msg_…`), `ts`, `station`, `line` (conversation), `lineName?`, `from` (participant URI), `fromName?`, `to`, `text`, `messageId?` (platform-side id; inbound/outbound only), `payload?` (raw platform message; inbound only).
+Every event is a **history entry** — the same record that's appended to `history.jsonl`. Fields: `kind` (`inbound`/`outbound`/`edit`/`react`), `id` (`msg_…`), `ts`, `station`, `line` (conversation), `lineName?`, `from` (participant URI), `fromName?`, `to`, `text` (platform-native body, empty string for media-only messages), `messageId?` (platform-side id; inbound/outbound only), `payload?` (raw platform message; inbound only).
 
 ```json
-{"kind":"inbound","id":"msg_aB3xY7zP","ts":"2026-05-14T12:00:00Z","station":"telegram","line":"metro://telegram/-100…/247","lineName":"infra","from":"metro://telegram/user/12345","fromName":"@alice","to":"metro://claude/user/9bfc7af0-…","messageId":"4567","text":"hello [image]","payload":{"message_id":4567,"chat":{"id":-100,"type":"supergroup","is_forum":true},"from":{"id":12345,"username":"alice"},"text":"hello","entities":[{"type":"mention","offset":0,"length":6}],"photo":[{"file_id":"…"}],"reply_to_message":{"message_id":4500,"text":"earlier","from":{"id":99,"username":"bob"}}}}
+{"kind":"inbound","id":"msg_aB3xY7zP","ts":"2026-05-14T12:00:00Z","station":"telegram","line":"metro://telegram/-100…/247","lineName":"infra","from":"metro://telegram/user/12345","fromName":"@alice","to":"metro://claude/user/9bfc7af0-…","messageId":"4567","text":"hello","payload":{"message_id":4567,"chat":{"id":-100,"type":"supergroup","is_forum":true},"from":{"id":12345,"username":"alice"},"text":"hello","entities":[{"type":"mention","offset":0,"length":6}],"photo":[{"file_id":"…"}],"reply_to_message":{"message_id":4500,"text":"earlier","from":{"id":99,"username":"bob"}}}}
 ```
 
 ```json
@@ -60,18 +60,21 @@ When **you** call `metro send`/`reply`/`edit`/`react`, metro auto-stamps `from` 
   - a third-party service POSTing to a registered webhook endpoint (`station: "webhook"`, `payload: { headers, body }`),
   - another Claude / Codex user posting cross-process via `metro send` against your line.
 
-`text` may include `[image]` / `[voice]` / `[audio]` / `[file: <name>]` placeholders alongside the real text — non-image attachments are opaque markers, images can be materialized via `metro download`.
+`text` is the platform-native body (Discord: `payload.content`; Telegram: `payload.text ?? payload.caption`). Media-only messages — stickers, voice, photos, polls, dice, forwards — arrive with `text: ""`; narrow on `payload` for those. Images can be materialized via `metro download`.
 
 ## Required flow on every event
 
-1. **Echo `event.display` verbatim as your first chat output.** Every event ships a pre-rendered chat-bubble in `event.display` — bold header (icon + station + sender) and a markdown blockquote body. Paste it as-is before any commentary or tool calls. Monitor's notification chip is a CLI-only UI and won't surface visibly in VSCode/Cursor, so your own echo is the only cross-surface signal:
+1. **Render your own chat-bubble preview as your first chat output.** Monitor's notification chip is CLI-only and won't surface visibly in VSCode/Cursor, so your own echo is the only cross-surface signal. One line of composition:
+
+   ```ts
+   const body = e.text || (e.emoji ? `reacted ${e.emoji}` : '(no text — check payload)');
+   console.log(`**${e.station} · ${e.fromName ?? e.from}**\n> ${body}`);
+   ```
 
    ```
-   **📩 telegram · @bonustrack**
+   **telegram · @bonustrack**
    > Hey
    ```
-
-   The format is centralized in metro's dispatcher (`formatDisplay()` in `src/history.ts`) — don't compose your own.
 
 2. **Decide and act** using the subcommands below.
 
@@ -93,7 +96,7 @@ Default for chat: only reply on DM or ping; otherwise stay silent or `metro reac
 | Send a fresh message (no reply context) | `metro send <line> <text>` |
 | Edit a message you previously sent | `metro edit <line> <messageId> <text>` |
 | Reaction (empty emoji clears it) | `metro react <line> <messageId> <emoji>` |
-| Download `[image]` attachments | `metro download <line> <messageId> [--out=<dir>]` |
+| Download image attachments | `metro download <line> <messageId> [--out=<dir>]` |
 | Recent-message lookback (Discord only) | `metro fetch <line> [--limit=20]` |
 | Cross-user ping | `metro send <user-line> <text> [--from=<line>]` |
 | Register webhook endpoint | `metro webhook add <label> [--secret=<hmac-secret>]` |
@@ -197,7 +200,7 @@ Each POST becomes an inbound event:
 
 ## Image attachments
 
-When an inbound has an `[image]` tag in `text`:
+When `payload` has an image (Discord: any `payload.attachments[].contentType` starts with `image/`; Telegram: `payload.photo` is non-empty, or `payload.document.mime_type` starts with `image/`):
 
 1. `metro download <line> <messageId>` → prints absolute paths.
 2. `Read` each path with your `Read` tool — the image enters your context as a vision input.

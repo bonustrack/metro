@@ -48,12 +48,12 @@ Every line on stdout is one **history entry** — the same record appended to `h
 - `line` — conversation URI; `lineName?` is the channel/topic display name (for webhooks: the label you gave it)
 - `from` / `fromName?` — sender participant URI + optional display name
 - `to` — recipient participant URI (local user for DMs, conversation `line` for groups, original sender for replies/reacts)
-- `text` — universal display projection. Includes `[image]`/`[file: …]`/`[voice]`/`[audio]` tags inline.
+- `text` — the platform-native message body (Discord: `payload.content`; Telegram: `payload.text ?? payload.caption`). Empty string for media-only messages (stickers, voice, photos, polls, …) — narrow on `payload` for those.
 - `messageId?` — platform-side id (Discord snowflake, Telegram int). Set on inbound/outbound.
 - `payload?` — raw platform-native message object. Set on inbound only. Shape varies per `station`.
 
 ```json
-{"kind":"inbound","id":"msg_aB3xY7zP","ts":"2026-05-14T12:00:00Z","station":"telegram","line":"metro://telegram/-100…/247","lineName":"infra","from":"metro://telegram/user/12345","fromName":"@alice","to":"metro://claude/user/9bfc7af0-…","messageId":"4567","text":"hi [image]","payload":{"message_id":4567,"chat":{"id":-100,"type":"supergroup","is_forum":true},"from":{"id":12345,"username":"alice"},"text":"hi","photo":[{"file_id":"…"}],"reply_to_message":{"message_id":4500,"text":"earlier","from":{"id":99,"username":"bob"}}}}
+{"kind":"inbound","id":"msg_aB3xY7zP","ts":"2026-05-14T12:00:00Z","station":"telegram","line":"metro://telegram/-100…/247","lineName":"infra","from":"metro://telegram/user/12345","fromName":"@alice","to":"metro://claude/user/9bfc7af0-…","messageId":"4567","text":"hi","payload":{"message_id":4567,"chat":{"id":-100,"type":"supergroup","is_forum":true},"from":{"id":12345,"username":"alice"},"text":"hi","photo":[{"file_id":"…"}],"reply_to_message":{"message_id":4500,"text":"earlier","from":{"id":99,"username":"bob"}}}}
 ```
 
 ```json
@@ -93,18 +93,23 @@ The `id` is the **canonical handle** for that message across all stations — st
 
 - `kind: "inbound"` — a message arrived. Source can be a human on Discord/Telegram, a webhook POST, or another Claude / Codex user posting to your line via `metro send` (cross-process).
 
-`text` may contain `[image]`, `[voice]`, `[audio]`, or `[file: <name>]` placeholders alongside the real text — non-image attachments are opaque markers; images can be materialized via `metro download`.
+`text` is whatever the platform gave natively. Media-only messages (sticker, voice, image, poll, dice, forward, …) arrive with `text: ""` — read `payload` to see what's actually there. Images can be materialized via `metro download`.
 
 ## Required flow on every event
 
-1. **Echo `event.display` verbatim as your first chat output.** Every event ships a pre-rendered chat-bubble in `event.display` — bold header (icon + station + sender) and a markdown blockquote body. Render this string as-is, before any commentary or tool calls. Monitor's notification chip is a CLI-only UI and won't surface visibly in VSCode/Cursor, so this echo is the only cross-surface signal the user has. Example:
+1. **Render your own chat-bubble preview as your first chat output.** Monitor's notification chip is CLI-only and won't surface in VSCode/Cursor, so the echo is the only cross-surface signal the user has. One line of composition:
+
+   ```ts
+   const body = e.text || (e.emoji ? `reacted ${e.emoji}` : '(no text — check payload)');
+   console.log(`**${e.station} · ${e.fromName ?? e.from}${e.lineName ? ` · ${e.lineName}` : ''}**\n> ${body}`);
+   ```
+
+   Example output:
 
    ```
-   **📩 telegram · @bonustrack**
+   **telegram · @bonustrack**
    > Hey
    ```
-
-   Don't compose your own bubble — the format is centralized in metro's dispatcher; just paste the string.
 
 2. **Decide and act** using the subcommands below.
 
@@ -120,7 +125,7 @@ All take positional args (no `--to=`/`--text=` flags). Append `--json` to any fo
 | Send a fresh message (no reply context) | `metro send <line> <text>` |
 | Edit a message you previously sent | `metro edit <line> <messageId> <text>` |
 | Reaction (empty emoji clears) | `metro react <line> <messageId> <emoji>` |
-| Download `[image]` attachments → paths | `metro download <line> <messageId> [--out=<dir>]` |
+| Download image attachments → paths | `metro download <line> <messageId> [--out=<dir>]` |
 | Recent channel history (Discord only) | `metro fetch <line> [--limit=20]` |
 | Ping another user (cross-user line) | `metro send metro://claude/<user-id>/<session-id> <text> [--from=<line>]` |
 | Register webhook endpoint | `metro webhook add <label> [--secret=<hmac-secret>]` |
@@ -174,15 +179,15 @@ The `messageId` is **not** part of the URI — it's a separate positional arg fo
 
 ## Image attachments
 
-When an event's `text` contains `[image]`:
+When `payload` has an image (Discord: `payload.attachments[].contentType` starts with `image/`; Telegram: `payload.photo` is a non-empty array, or `payload.document.mime_type` starts with `image/`):
 
 1. `metro download <line> <messageId>` — writes images to disk and prints absolute paths.
 2. `Read` each path with your Read tool — the image enters your context as a vision input.
 3. Reply normally with `metro reply`.
 
-## Opaque attachment markers
+## Other attachments
 
-`[voice]`, `[audio]`, and `[file: <name>]` are opaque — `metro download` only handles images. Acknowledge in text or ask the user to resend as a regular file.
+Voice, audio, documents, stickers, polls, dice, etc. live in `payload`. `metro download` only handles images. Acknowledge in text or ask the user to resend as a regular file.
 
 ## Cross-user notification
 
