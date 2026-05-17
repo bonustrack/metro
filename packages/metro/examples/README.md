@@ -1,86 +1,30 @@
-# Example workers
+# Example trains
 
-Workers in this directory are **examples**, not runtime code. Metro core doesn't import them.
-
-To use one: copy it to `~/.metro/workers/` and edit it. The agent (or you) is expected to rewrite
-these files whenever you want different functionality — they're starting points, not a stable API.
-
-## Worker protocol
-
-A worker is a single Bun-runnable script (`*.ts | *.js | *.mjs`) placed in `~/.metro/workers/`.
-Metro spawns it as a long-running subprocess with stdio piped:
+`discord.ts` and `telegram.ts` are starting points, not runtime code. Copy to
+`~/.metro/trains/<name>.ts`, edit, save, restart the daemon:
 
 ```
-metro core  ──── stdin (one JSON line per outbound action call) ───>  worker
-            <─── stdout (one JSON line per inbound event OR response) ──── worker
-```
-
-### Inbound event line (worker → metro)
-
-```json
-{
-  "kind": "inbound",
-  "station": "discord",
-  "line": "metro://discord/123",
-  "from": "metro://discord/user/456",
-  "fromName": "alice",
-  "messageId": "789",
-  "text": "hi",
-  "isPrivate": false,
-  "ts": "2026-05-17T18:00:00Z",
-  "payload": { /* raw platform message */ }
-}
-```
-
-Metro mints an `id` and a pre-rendered `display` if the worker doesn't supply them. The full
-shape mirrors the `HistoryEntry` type in `src/history.ts`.
-
-### Outbound action call (metro → worker)
-
-```json
-{ "op": "call", "id": "req_abc", "action": "send", "args": { "line": "metro://discord/123", "text": "hi" } }
-```
-
-Worker responds on stdout:
-
-```json
-{ "op": "response", "id": "req_abc", "result": { "messageId": "999" } }
-```
-
-Or on error:
-
-```json
-{ "op": "response", "id": "req_abc", "error": "channel not found" }
-```
-
-Anything without an `op` (or `op:"event"`) is treated as an inbound event.
-
-### CLI: `metro call <worker> <action> [args]`
-
-The CLI forwards a call to the named worker via the daemon's IPC socket and prints the response.
-
-```
-metro call discord send '{"line":"metro://discord/123","text":"hi"}'
-metro call telegram react '{"line":"metro://telegram/-100/1","messageId":"42","emoji":"👀"}'
-```
-
-`[args]` accepts JSON, `@path/to/args.json`, `-` (read from stdin), or a bare string.
-
-## First-time setup
-
-```
-cd ~/.metro
-bun init -y
-bun add discord.js              # only if you're using the discord worker
-cp <your-package>/examples/discord.ts  ~/.metro/workers/
+cp discord.ts  ~/.metro/trains/discord.ts
 echo 'DISCORD_BOT_TOKEN=…' >> ~/.metro/.env
+cd ~/.metro && bun add discord.js
+metro
 ```
 
-Then start metro. Workers come up automatically.
+Rewrite freely — action names and payload shapes are entirely up to you.
 
-## Worker lifecycle
+## Protocol (JSON lines over stdio)
 
-- Metro scans `~/.metro/workers/*.{ts,js,mjs}` at boot. One subprocess per file.
-- Workers that crash are restarted with backoff (1s → 5s → 30s, up to 5 consecutive failures).
-- `metro workers list` shows current state. `metro` daemon restart picks up new workers.
-- `~/.metro/.env` is auto-loaded into worker `process.env`.
+```
+metro  ─── stdin (one JSON line per action call) ──>  train
+       <── stdout (one JSON line per event OR response) ── train
+```
+
+- **Inbound event** (train → metro): `{ kind, station, line, from, fromName?, messageId?, text?, isPrivate?, payload? }`. Metro mints `id` + `display` if absent. Full shape: `HistoryEntry` in `src/history.ts`.
+- **Call** (metro → train): `{ "op": "call", "id": "req_abc", "action": "send", "args": {...} }`.
+- **Response** (train → metro): `{ "op": "response", "id": "req_abc", "result": {...} }` or `{ ..., "error": "..." }`.
+
+Anything on stdout without an `op` is treated as an inbound event.
+
+## Lifecycle
+
+Metro scans `~/.metro/trains/*.{ts,js,mjs}` at boot — one subprocess per file. Crashed trains restart with backoff (1s → 5s → 30s, up to 5 consecutive failures). `metro trains list` shows state. Restart the daemon to pick up edits. `~/.metro/.env` is auto-loaded into each train's `process.env`.

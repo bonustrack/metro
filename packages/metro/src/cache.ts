@@ -47,7 +47,7 @@ export function noteSeen(line: Line, name?: string): void {
 export const listLines = (): Array<{ line: Line; entry: Entry }> =>
   Object.entries(read()).map(([line, entry]) => ({ line: line as Line, entry }));
 
-/** Bot identity cache: `{discord: "<userId>", telegram: "<userId>"}`. Daemon writes after getMe(). */
+/** Bot identity cache: `{discord: "<userId>", telegram: "<userId>"}`. Trains may populate this. */
 const botIdsFile = join(STATE_DIR, 'bot-ids.json');
 type BotIds = Record<string, string>;
 
@@ -55,11 +55,3 @@ export const readBotIds = (): BotIds => {
   try { return existsSync(botIdsFile) ? JSON.parse(readFileSync(botIdsFile, 'utf8')) as BotIds : {}; }
   catch { return {}; }
 };
-
-export function saveBotId(station: string, id: string): void {
-  const cur = readBotIds();
-  if (cur[station] === id) return;
-  cur[station] = id;
-  try { writeFileSync(botIdsFile, JSON.stringify(cur, null, 2)); }
-  catch (err) { log.warn({ err: errMsg(err) }, 'bot-ids cache write failed'); }
-}

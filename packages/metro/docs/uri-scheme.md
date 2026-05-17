@@ -58,7 +58,7 @@ Override either segment with `METRO_USER_ID` / `METRO_USER_SESSION_ID` env vars.
 
 ### User registry
 
-The daemon persists every `(station, user-id, session)` tuple it sees to `$METRO_STATE_DIR/user-registry.json`. `metro stations` prints the count of seen users and sessions per station. Run it to discover what's reachable rather than guessing topic names.
+The daemon persists every `(station, user-id, session)` tuple it sees to `$METRO_STATE_DIR/user-registry.json`. `metro lines` lists the recently-seen conversation URIs.
 
 ## Webhook station
 
@@ -119,9 +119,9 @@ Line.isLocal(l);                                 // true for any metro://{claude
 
 ## Adding a new station
 
-A "station" in this URI scheme is just a namespace — anything a worker emits with
+A "station" in this URI scheme is just a namespace — anything a train emits with
 `metro://<name>/<path>` works. There is no required registration with core:
 
 1. Pick a lowercase station name (`slack`, `matrix`, …).
-2. In your worker, emit envelopes with `line: "metro://<name>/<id>"`.
+2. In your train, emit envelopes with `line: "metro://<name>/<id>"`.
 3. Optionally add a `Line.<station>(...)` formatter to `src/lines.ts` for type-safe construction.

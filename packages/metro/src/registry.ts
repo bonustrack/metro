@@ -8,8 +8,8 @@ import { errMsg, log } from './log.js';
 
 const REGISTRY_FILE = join(STATE_DIR, 'user-registry.json');
 
-export type UserInstance = { userId: string; sessions: string[]; lastSeen: string };
-export type Registry = Record<string, UserInstance[]>;
+type UserInstance = { userId: string; sessions: string[]; lastSeen: string };
+type Registry = Record<string, UserInstance[]>;
 
 function readRegistry(): Registry {
   if (!existsSync(REGISTRY_FILE)) return {};
@@ -36,6 +36,3 @@ export function noteUserFromLine(line: string): void {
   if (p) record(station, p.userId, p.sessionId);
 }
 
-export function listUsers(station: 'claude' | 'codex'): UserInstance[] {
-  return readRegistry()[station] ?? [];
-}

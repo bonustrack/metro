@@ -11,7 +11,7 @@ import { STATE_DIR } from './paths.js';
 const TTL_MS = 5_000;
 let claudeCache: { id: string; at: number } | null = null;
 
-export function claudeAccountId(): string {
+function claudeAccountId(): string {
   if (claudeCache && Date.now() - claudeCache.at < TTL_MS) return claudeCache.id;
   let raw: string;
   try {
@@ -29,10 +29,6 @@ export function claudeAccountId(): string {
   return parsed.orgId;
 }
 
-export function tryClaudeAccountId(): string | null {
-  try { return claudeAccountId(); } catch { return null; }
-}
-
 export function claudeUserId(): string {
   return process.env.METRO_USER_ID || claudeAccountId();
 }
@@ -47,7 +43,7 @@ function codexAuthPath(): string {
   return join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'auth.json');
 }
 
-export function codexAccountId(): string {
+function codexAccountId(): string {
   if (codexCache && Date.now() - codexCache.at < TTL_MS) return codexCache.id;
   const path = codexAuthPath();
   let raw: string;
@@ -62,10 +58,6 @@ export function codexAccountId(): string {
   }
   codexCache = { id, at: Date.now() };
   return id;
-}
-
-export function tryCodexAccountId(): string | null {
-  try { return codexAccountId(); } catch { return null; }
 }
 
 export function codexUserId(): string {

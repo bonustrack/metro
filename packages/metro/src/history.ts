@@ -107,20 +107,6 @@ function matches(e: HistoryEntry, f: HistoryFilter): boolean {
   return true;
 }
 
-/** Find an entry by universal id OR platform message id. */
-export function lookupEntry(id: string): HistoryEntry | undefined {
-  const entries = readHistory({ limit: 5_000 });
-  return entries.find(e => e.id === id || e.messageId === id);
-}
-
-/** Look up the platform messageId for a universal `msg_*` id; returns the input unchanged otherwise. */
-export function resolvePlatformId(id: string): string {
-  if (!id.startsWith('msg_')) return id;
-  const hit = lookupEntry(id);
-  if (hit?.messageId) return hit.messageId;
-  throw new Error(`unknown universal id: ${id} (run \`metro history --limit=50\` to see recent ids)`);
-}
-
 /** The current user's **participant** URI for `from`/`to`. Precedence: METRO_FROM > runtime env > generic. */
 export function userSelf(): Line {
   const explicit = process.env.METRO_FROM;

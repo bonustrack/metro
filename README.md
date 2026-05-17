@@ -1,6 +1,6 @@
 # Metro
 
-Monorepo for **Metro** — a live JSON stream of Telegram + Discord messages for your local Claude Code / Codex session.
+Monorepo for **Metro** — an event-interception wire that supervises train subprocesses in `~/.metro/trains/` and multiplexes their JSON event streams onto stdout. Per-platform code is written as train scripts outside this repo.
 
 ## Layout
 
@@ -13,7 +13,7 @@ apps/
 
 ## Packages
 
-- [`@stage-labs/metro`](packages/metro/README.md) — install with `npm i -g @stage-labs/metro`. Run `metro` to get inbound Telegram + Discord messages on stdout and reply via CLI subcommands.
+- [`@stage-labs/metro`](packages/metro/README.md) — install with `npm i -g @stage-labs/metro`. Run `metro` to multiplex train events onto stdout and forward action calls via `metro call <train> <action> <args>`.
 - [`@stage-labs/metro-app`](apps/app/README.md) — Expo / React Native mobile companion. View live activity + claimed lines from your phone via the daemon's bearer-token-gated monitor endpoints. Run with `bun --cwd apps/app start`.
 
 The daemon's monitor endpoints (`/api/state`, `/api/tail`) are spec'd in
@@ -31,12 +31,6 @@ bun run lint        # turbo run lint
 ```
 
 Tasks are orchestrated by [Turbo](https://turbo.build). See `turbo.json` for the pipeline.
-
-## Roadmap
-
-- **Phase 1**: monorepo conversion, no behavior change to the published CLI.
-- **Phase 2** (this PR, ref [#36](https://github.com/bonustrack/metro/issues/36)): `apps/app` Expo mobile app + new `/api/state` + `/api/tail` SSE endpoints on the daemon, plus `monitor.metro.box` hostname (cloudflared config note in [`packages/metro/docs/monitor.md`](packages/metro/docs/monitor.md)).
-- **Phase 3** (future): replies/reactions from the app, push notifications, multi-account.
 
 ## License
 
