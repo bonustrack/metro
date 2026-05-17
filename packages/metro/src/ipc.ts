@@ -1,4 +1,4 @@
-/** Unix-socket IPC: `notify` re-emits on daemon stdout; `download` resolves Telegram attachments. */
+/** Unix-socket IPC: `notify` re-emits the message on daemon stdout for cross-process delivery. */
 
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
 import { existsSync, unlinkSync } from 'node:fs';
@@ -8,14 +8,10 @@ import { STATE_DIR } from './paths.js';
 
 const SOCKET_PATH = join(STATE_DIR, 'metro.sock');
 
-export type IpcRequest =
-  | { op: 'notify'; line: string; from?: string; text: string }
-  | { op: 'download'; line: string; messageId: string; outDir: string };
+export type IpcRequest = { op: 'notify'; line: string; from?: string; text: string };
 
-export type DownloadedFile = { path: string; mediaType: string };
 export type IpcResponse =
   | { ok: true }
-  | { ok: true; files: DownloadedFile[] }
   | { ok: false; error: string };
 
 type Handler = (req: IpcRequest) => Promise<IpcResponse> | IpcResponse;

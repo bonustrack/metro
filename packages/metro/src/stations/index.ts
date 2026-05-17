@@ -1,22 +1,21 @@
-/** Line URI scheme + ChatStation interface + station listing. The whole station surface. */
+/** Line URI scheme + envelope types + minimal station listing. Used by everything in the daemon. */
 
 import { tryClaudeAccountId } from './claude.js';
 import { tryCodexAccountId } from './codex.js';
+import { readHistory } from '../history.js';
 import { listUsers } from '../registry.js';
 import { listEndpoints, webhookPort } from '../webhooks.js';
 import { loadTunnelConfig } from '../tunnel.js';
-
-export type Modality = 'text' | 'image';
-export type Feature = 'reply' | 'send' | 'edit' | 'react' | 'download' | 'fetch';
-export interface Capabilities { in: Modality[]; out: Modality[]; features: Feature[] }
+import type { LineKind } from '../broker.js';
 
 export type Line = string & { readonly __line: unique symbol };
 export const asLine = (s: string): Line => s as Line;
 
-export interface InboundMessage<TPayload = unknown> {
-  /** Universal metro ID (`msg_…`). Minted by the dispatcher on every inbound. */
+/** Universal envelope — what the daemon emits on stdout / appends to history.jsonl. */
+export interface Envelope<TPayload = unknown> {
+  /** Universal metro ID (`msg_…`). Minted by the dispatcher. */
   id: string;
-  /** ISO timestamp from the platform (or `new Date().toISOString()` if unavailable). */
+  /** ISO timestamp from the transport. */
   ts: string;
   station: string;
   /** The conversation URI (channel / chat / topic). */
@@ -24,21 +23,25 @@ export interface InboundMessage<TPayload = unknown> {
   lineName?: string;
   /** Universal participant URI of the sender: `metro://<station>/user/<id>`. */
   from: Line;
-  /** Display name (`@alice`, `bonustrack_`) — for humans. Optional. */
+  /** Display name (`@alice`, `bonustrack_`) — optional. */
   fromName?: string;
   /** Universal participant URI of the recipient — the user consuming metro. */
   to?: Line;
-  /** Platform-side message id (Discord snowflake, Telegram int, etc.). */
-  messageId: string;
-  /** Universal display projection. Includes `[image]`/`[file: …]` tags inline. */
-  text: string;
+  /** Platform-side message id. Distinct from universal `id`. */
+  messageId?: string;
+  /** Universal display projection. Includes `[image]` / `[file: …]` inline. */
+  text?: string;
+  emoji?: string;
   /** True when the conversation has a single human counterpart (DM / private chat). */
   isPrivate?: boolean;
-  /** Station-native message object. Shape is per-station; consumers narrow on `station`. */
+  /** Station-native raw object. Shape varies per `station`. */
   payload: TPayload;
 }
 
-/** Someone added an emoji reaction to a message on a chat platform. */
+/** Inbound chat message — alias kept for backward source compat. New code uses `Envelope`. */
+export type InboundMessage<TPayload = unknown> = Envelope<TPayload>;
+
+/** Reaction event — same shape as Envelope minus `text`, plus required `emoji`. */
 export interface InboundReaction {
   id: string;
   ts: string;
@@ -47,37 +50,10 @@ export interface InboundReaction {
   lineName?: string;
   from: Line;
   fromName?: string;
-  /** Platform-side id of the message that got reacted to. */
   messageId: string;
   emoji: string;
-  /** True when the conversation has a single human counterpart (DM / private chat). */
   isPrivate?: boolean;
 }
-
-export type Button = { text: string; url: string };
-export type SendOpts = {
-  replyTo?: string;
-  images?: string[];      // 1+ photo file paths (album when >1)
-  documents?: string[];   // 1+ file paths
-  voice?: string;         // single voice/audio file
-  buttons?: Button[][];
-};
-export type EditOpts = { buttons?: Button[][] };
-
-export interface ChatStation<TMeta = Record<string, unknown>> {
-  readonly name: string;
-  start(): Promise<void>;
-  stop(): Promise<void>;
-  onMessage(handler: (m: InboundMessage<TMeta>) => void): void;
-  onReaction(handler: (r: InboundReaction) => void): void;
-  send(line: Line, text: string, opts?: SendOpts): Promise<string>;
-  edit(line: Line, messageId: string, text: string, opts?: EditOpts): Promise<void>;
-  react(line: Line, messageId: string, emoji: string): Promise<void>;
-  download(line: Line, messageId: string, outDir: string): Promise<{ path: string; mediaType: string }[]>;
-  fetch(line: Line, limit: number): Promise<FetchedMessage[]>;
-}
-
-export type FetchedMessage = { messageId: string; author: string; text: string; timestamp: string };
 
 const PREFIX = 'metro://';
 const build = (station: string, ...seg: (string | number)[]): Line =>
@@ -90,18 +66,14 @@ function parseLocalSession(line: Line | string, station: 'claude' | 'codex'): { 
   return { userId: p.path[0], sessionId: p.path[1] };
 }
 
-/** URI helpers. Lives on a const that doubles as the `Line` type's value-side namespace. */
+/** URI helpers. Const that doubles as the `Line` type's value-side namespace. */
 export const Line = {
   discord: (channelId: string): Line => build('discord', channelId),
   telegram: (chatId: number | string, topicId?: number): Line =>
     topicId !== undefined ? build('telegram', chatId, topicId) : build('telegram', chatId),
-  /** `metro://claude/<orgId>/<sessionId>` — orgId from `claude auth status`, session from `CLAUDE_CODE_SESSION_ID`. */
   claude: (orgId: string, sessionId: string): Line => build('claude', orgId, sessionId),
-  /** `metro://codex/<accountId>/<threadId>` — accountId from auth.json, thread from codex-rc handshake. */
   codex: (accountId: string, threadId: string): Line => build('codex', accountId, threadId),
-  /** `metro://webhook/<endpoint-id>` — one HTTP receive endpoint, registered via `metro webhook add`. */
   webhook: (endpointId: string): Line => build('webhook', endpointId),
-  /** Participant URI — `metro://<station>/user/<id>`. */
   user: (station: string, id: string | number): Line => build(station, 'user', id),
 
   parse(line: Line | string): { station: string; path: string[] } | null {
@@ -138,11 +110,37 @@ export const Line = {
   },
 };
 
+/** Classify a chat line as DM / group / unknown — feeds the auto-claim group-skip rule. */
+/** Telegram: chat-id sign is authoritative (id < 0 ⇒ group). Discord: peek `payload.guildId` on */
+/** the most-recent inbound (null ⇒ DM, set ⇒ group, none seen ⇒ unknown). Claude/Codex ⇒ dm. */
+export function classifyLine(line: Line): LineKind {
+  const station = Line.station(line);
+  if (station === 'telegram') {
+    const parsed = Line.parseTelegram(line);
+    if (!parsed) return 'unknown';
+    return parsed.chatId < 0 ? 'group' : 'dm';
+  }
+  if (station === 'claude' || station === 'codex') return 'dm';
+  if (station === 'webhook') return 'group';
+  if (station === 'discord') {
+    /** Look at the most recent inbound on this line; the dispatcher stored the raw message in `payload`. */
+    const recent = readHistory({ line, kind: 'inbound', limit: 1 })[0];
+    if (!recent) return 'unknown';
+    const payload = recent.payload as { guildId?: string | null } | undefined;
+    if (!payload || !('guildId' in payload)) {
+      /** Older entries may not have a guildId — fall back to the `to` field: DMs route to a user URI. */
+      if (recent.to && recent.to !== recent.line) return 'dm';
+      return 'unknown';
+    }
+    return payload.guildId == null ? 'dm' : 'group';
+  }
+  return 'unknown';
+}
+
 export type StationRow = {
   name: string;
   configured: boolean | null;
   detail: string;
-  capabilities: Capabilities;
 };
 
 function seenSummary(station: 'claude' | 'codex'): string {
@@ -170,37 +168,6 @@ function codexStationDetail(): string {
   return `${parts.join(' · ')}${seen}`;
 }
 
-export const listStations = (): StationRow[] => [
-  {
-    name: 'discord',
-    capabilities: { in: ['text', 'image'], out: ['text'], features: ['reply', 'send', 'edit', 'react', 'download', 'fetch'] },
-    configured: !!process.env.DISCORD_BOT_TOKEN, detail: 'DISCORD_BOT_TOKEN',
-  },
-  {
-    name: 'telegram',
-    capabilities: { in: ['text', 'image'], out: ['text'], features: ['reply', 'send', 'edit', 'react', 'download', 'fetch'] },
-    configured: !!process.env.TELEGRAM_BOT_TOKEN, detail: 'TELEGRAM_BOT_TOKEN',
-  },
-  {
-    name: 'claude',
-    capabilities: { in: ['text'], out: ['text'], features: ['send'] },
-    configured: !!process.env.CLAUDECODE,
-    detail: claudeStationDetail(),
-  },
-  {
-    name: 'codex',
-    capabilities: { in: ['text'], out: ['text'], features: ['send'] },
-    configured: !!(process.env.METRO_CODEX_RC || process.env.CODEX_HOME),
-    detail: codexStationDetail(),
-  },
-  {
-    name: 'webhook',
-    capabilities: { in: ['text'], out: [], features: [] },
-    configured: listEndpoints().length > 0,
-    detail: webhookStationDetail(),
-  },
-];
-
 function webhookStationDetail(): string {
   const eps = listEndpoints();
   const t = loadTunnelConfig();
@@ -209,5 +176,18 @@ function webhookStationDetail(): string {
   return `${eps.length} endpoint${eps.length === 1 ? '' : 's'} · base ${base}${t ? '' : ' (no tunnel — run `metro tunnel setup`)'}`;
 }
 
-export const fmtCapabilities = (c: Capabilities): string =>
-  `in: ${c.in.join('+') || '–'} · out: ${c.out.join('+') || '–'} · features: ${c.features.join(', ') || '–'}`;
+export const listStations = (): StationRow[] => [
+  { name: 'discord', configured: !!process.env.DISCORD_BOT_TOKEN, detail: 'DISCORD_BOT_TOKEN' },
+  { name: 'telegram', configured: !!process.env.TELEGRAM_BOT_TOKEN, detail: 'TELEGRAM_BOT_TOKEN' },
+  { name: 'claude', configured: !!process.env.CLAUDECODE, detail: claudeStationDetail() },
+  {
+    name: 'codex',
+    configured: !!(process.env.METRO_CODEX_RC || process.env.CODEX_HOME),
+    detail: codexStationDetail(),
+  },
+  {
+    name: 'webhook',
+    configured: listEndpoints().length > 0,
+    detail: webhookStationDetail(),
+  },
+];

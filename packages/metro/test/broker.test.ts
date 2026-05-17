@@ -87,9 +87,8 @@ import {
   cursorKey,
   readClaims as brokerReadClaims,
 } from '../src/broker.ts';
-import { asLine } from '../src/stations/index.ts';
+import { asLine, classifyLine } from '../src/stations/index.ts';
 import type { HistoryEntry } from '../src/history.ts';
-import { classifyLine } from '../src/cli/actions.ts';
 import { unlinkSync } from 'node:fs';
 import { CLAIMS_FILE, HISTORY_FILE } from '../src/broker.ts';
 

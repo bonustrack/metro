@@ -1,66 +1,54 @@
 #!/usr/bin/env node
-/** Metro CLI entry: parses argv, dispatches to subcommands, owns action + info commands. */
+/** Metro CLI entry: parses argv, dispatches to subcommands, owns info commands. */
 
 import pkg from '../../package.json' with { type: 'json' };
 import { errMsg } from '../log.js';
 import { listLines } from '../cache.js';
-import { fmtCapabilities, listStations } from '../stations/index.js';
+import { listStations } from '../stations/index.js';
 import { listUsers } from '../registry.js';
 import { loadMetroEnv } from '../paths.js';
 import { readHistory, type HistoryKind } from '../history.js';
 import { cmdDoctor, cmdSetup, cmdUpdate } from './config.js';
-import {
-  cmdDownload, cmdEdit, cmdFetch, cmdReact, cmdReply, cmdSend,
-} from './actions.js';
 import { cmdClaim, cmdClaims, cmdRelease, cmdTail } from './tail.js';
 import { cmdTunnel, cmdWebhook } from './webhook.js';
+import { cmdCall } from './call.js';
+import { cmdAdapters } from './adapters.js';
 import {
   flagOne, isJson, parseArgs, writeJson, type ExitErr, type Flags,
 } from './util.js';
 
-const USAGE = `metro — Telegram + Discord stream for your Claude Code / Codex user
+const USAGE = `metro — Telegram + Discord + webhook stream for your Claude Code / Codex user
 
 Usage:
-  metro                                       Run the dispatcher (emits JSON events on stdout).
-  metro setup [telegram|discord <token>]      Save token, or show status with no args.
-  metro setup clear [telegram|discord|all]    Remove tokens.
-  metro setup skill [clear]                   Install the metro skill into ~/.claude / ~/.codex.
-  metro doctor                                Health check.
-  metro stations                              List stations + capabilities.
-  metro lines                                 List recently-seen conversations.
-  metro send <line> <text> [--image=<path>]… [--document=<path>]… [--voice=<path>] [--buttons=<json>] [--no-claim] [--claim]
-                                              Post a fresh message; repeat --image/--document for multi-file albums.
-                                              First outbound on a DM auto-claims; --no-claim or METRO_NO_AUTO_CLAIM=1 opts out;
-                                              --claim forces auto-claim even on group/public lines.
-                                              Note: send/reply/edit/react read bot tokens from ~/.config/metro/.env and post
-                                              directly to the platform — METRO_STATE_DIR isolates claims/history but NOT creds.
-  metro reply <line> <message_id> <text> [--image=… --document=… --voice=… --buttons=…] [--no-claim] [--claim]
-                                              Threaded reply (same flags as send).
-  metro edit <line> <message_id> <text> [--buttons=<json>] [--no-claim] [--claim]
-                                              Edit a previously-sent message (text + buttons).
-  metro react <line> <message_id> <emoji> [--no-claim] [--claim]
-                                              Set or clear ('') a reaction.
-  metro download <line> <message_id> [--out=<dir>]
-                                              Download image attachments to disk.
-  metro fetch <line> [--limit=N]              Recent-message lookback (Discord only).
+  metro                                          Run the dispatcher (emits JSON events on stdout).
+  metro setup [telegram|discord <token>]         Save token, or show status with no args.
+  metro setup clear [telegram|discord|all]       Remove tokens.
+  metro setup skill [clear]                      Install the metro skill into ~/.claude / ~/.codex.
+  metro doctor                                   Health check.
+  metro stations                                 List configured stations.
+  metro lines                                    List recently-seen conversations.
+  metro call <station> <METHOD> <path> [body]    Raw REST shim (body = JSON literal | @file | -).
+                                                 Examples:
+                                                   metro call discord POST /channels/<id>/messages '{"content":"hi"}'
+                                                   metro call telegram POST /sendMessage '{"chat_id":...,"text":"hi"}'
+  metro adapters [list|install]                  Manage ~/.metro/adapters/<station>/map.ts.
   metro history [--limit=N] [--line=…] [--station=…] [--kind=…] [--from=…] [--text=…] [--since=…]
-                                              Read the universal message log (newest first).
+                                                 Read the universal message log (newest first).
   metro tail [--as=<user-uri>] [--follow] [--strict | --unclaimed | --all] [--include-webhooks]
              [--chat=<line>] [--station=…] [--since=<offset|tail>] [--limit=N]
-                                              Subscribe to the event log; claim-aware by default. See docs/broker.md.
-                                              Webhooks are hidden in personal modes unless --include-webhooks is set.
-  metro claim <line> [--as=<user-uri>]        Take exclusive ownership of a line (so only you receive its events).
-  metro release <line>                        Release a line (it returns to broadcast).
-  metro claims                                Print the current claims map.
-  metro webhook add <label> [--secret=…]      Register an HTTP receive endpoint (GitHub, Intercom, …).
-  metro webhook list | remove <id>            List or remove webhook endpoints.
-  metro tunnel setup <name> <hostname>        Configure a Cloudflare named tunnel (run cloudflared tunnel login first).
-  metro tunnel status                         Show current tunnel config.
-  metro update                                Upgrade in place.
+                                                 Subscribe to the event log; claim-aware by default.
+  metro claim <line> [--as=<user-uri>]           Take exclusive ownership of a line.
+  metro release <line>                           Release a line.
+  metro claims                                   Print the current claims map.
+  metro webhook add <label> [--secret=…]         Register an HTTP receive endpoint.
+  metro webhook list | remove <id>               List or remove webhook endpoints.
+  metro tunnel setup <name> <hostname>           Configure a Cloudflare named tunnel.
+  metro tunnel status                            Show current tunnel config.
+  metro update                                   Upgrade in place.
   metro --version | --help
 
-Lines: metro://<station>/<path>. See docs/uri-scheme.md.
-Multi-line --text: pipe on stdin in place of the positional arg.
+Outbound actions: build the JSON yourself and use \`metro call\`. See skills/metro/SKILL.md.
+Multi-line \`metro call\` body: pipe JSON on stdin in place of the positional arg ('-').
 Exit codes: 0 success · 1 usage · 2 config · 3 upstream
 `;
 
@@ -75,9 +63,7 @@ async function cmdStations(_: string[], f: Flags): Promise<void> {
   process.stdout.write('metro stations\n\n');
   for (const s of rows) {
     const mark = s.configured === true ? '✓' : s.configured === false ? '✗' : '·';
-    process.stdout.write(
-      `  ${mark} ${s.name.padEnd(10)} ${fmtCapabilities(s.capabilities)}\n        ${s.detail}\n`,
-    );
+    process.stdout.write(`  ${mark} ${s.name.padEnd(10)} ${s.detail}\n`);
     const seen = (usersByStation as Record<string, typeof usersByStation.claude>)[s.name] ?? [];
     for (const inst of seen) {
       const sessionsTxt = inst.sessions.length ? ` · sessions: ${inst.sessions.length}` : '';
@@ -151,8 +137,7 @@ const pad = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 
 
 const COMMANDS: Record<string, (positional: string[], flags: Flags) => Promise<void>> = {
   setup: cmdSetup, doctor: cmdDoctor, stations: cmdStations, lines: cmdLines,
-  send: cmdSend, reply: cmdReply, edit: cmdEdit, react: cmdReact,
-  download: cmdDownload, fetch: cmdFetch,
+  call: cmdCall, adapters: cmdAdapters,
   webhook: cmdWebhook, tunnel: cmdTunnel,
   history: cmdHistory, tail: cmdTail,
   claim: cmdClaim, release: cmdRelease, claims: cmdClaims,

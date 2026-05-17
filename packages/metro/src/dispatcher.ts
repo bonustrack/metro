@@ -1,25 +1,26 @@
-/**
- * Daemon: chat inbound → JSON on stdout; optional codex-rc push; cross-user `notify` over Unix socket.
- */
+/** Daemon: transports emit raw events → adapter `map(raw)` → envelope on stdout + history. */
+/** Adapter returns null / throws → quarantine to `$STATE_DIR/unmatched/<station>/<id>.json`. */
 
-import { copyFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pkg from '../package.json' with { type: 'json' };
-import { DiscordStation } from './stations/discord.js';
-import { TelegramStation } from './stations/telegram.js';
-import { WebhookStation } from './stations/webhook.js';
-import { asLine, Line, type InboundMessage, type InboundReaction } from './stations/index.js';
 import { CodexRC } from './codex-rc.js';
 import { startIpcServer, stopIpcServer } from './ipc.js';
-import { userSelf, appendHistory, formatDisplay, mintId, selfLine, type HistoryEntry } from './history.js';
+import { userSelf, appendHistory, formatDisplay, mintId, selfLine, type HistoryEntry, type HistoryKind } from './history.js';
 import { noteSeen, saveBotId } from './cache.js';
 import { errMsg, log } from './log.js';
 import { acquireLock, configuredPlatforms, loadMetroEnv, STATE_DIR, requireConfiguredPlatform } from './paths.js';
 import { setCodexSessionId } from './stations/codex.js';
+import { asLine, Line } from './stations/index.js';
 import { noteUserFromLine } from './registry.js';
 import { listEndpoints, webhookPort } from './webhooks.js';
 import { loadTunnelConfig, Tunnel } from './tunnel.js';
+import { installTemplates, loadAdapter, metro, type Envelope as MapEnvelope } from './adapters.js';
+import { DiscordTransport } from './transports/discord.js';
+import { TelegramTransport } from './transports/telegram.js';
+import { WebhookTransport } from './transports/webhook.js';
+import type { RawEvent, Transport } from './transports/index.js';
 
 loadMetroEnv();
 const platforms = configuredPlatforms();
@@ -27,7 +28,13 @@ const endpoints = listEndpoints();
 requireConfiguredPlatform(platforms, endpoints.length > 0);
 acquireLock(join(STATE_DIR, '.tail-lock'));
 
-// Fail fast if launched from Claude Code without a logged-in account.
+/** Install adapter templates on first run — never overwrites existing files. */
+try {
+  const { copied } = installTemplates();
+  if (copied.length) log.info({ copied: copied.length }, 'adapters: installed templates');
+} catch (err) { log.warn({ err: errMsg(err) }, 'adapter template install failed'); }
+
+/** Fail fast if launched from Claude Code without a logged-in account. */
 const self = userSelf();
 log.info({ self, line: selfLine() }, 'user identity');
 const seedSelf = (): void => { const l = selfLine(); if (l) noteUserFromLine(l); };
@@ -46,14 +53,28 @@ const codexRc = process.env.METRO_CODEX_RC ? new CodexRC(process.env.METRO_CODEX
 codexRc?.onThread(id => { setCodexSessionId(id); seedSelf(); });
 codexRc?.start();
 
-const discord = new DiscordStation();
-const telegram = new TelegramStation();
-const webhook = new WebhookStation();
+const discord = new DiscordTransport();
+const telegram = new TelegramTransport();
+const webhook = new WebhookTransport();
 const tunnelCfg = loadTunnelConfig();
 const tunnel = tunnelCfg ? new Tunnel(tunnelCfg, webhookPort()) : null;
 
+const UNMATCHED_DIR = join(STATE_DIR, 'unmatched');
+
+/** Write raw event + reason to `$STATE_DIR/unmatched/<station>/<id>.json` for later inspection. */
+function quarantine(raw: RawEvent, reason: string): void {
+  try {
+    const dir = join(UNMATCHED_DIR, raw.station);
+    mkdirSync(dir, { recursive: true });
+    const id = mintId();
+    const path = join(dir, `${id}.json`);
+    writeFileSync(path, JSON.stringify({ id, ts: raw.ts, kind: raw.kind, reason, payload: raw.payload }, null, 2));
+    log.warn({ station: raw.station, kind: raw.kind, reason, path }, 'adapter dropped event; quarantined');
+  } catch (err) { log.warn({ err: errMsg(err), station: raw.station }, 'quarantine write failed'); }
+}
+
 function emit(entry: HistoryEntry): void {
-  /** `display` first so it survives Monitor's ~500-char body truncation — the user must see it to echo it. */
+  /** `display` first so it survives Monitor's ~500-char body truncation — the user must see it. */
   const enriched: HistoryEntry = { display: formatDisplay(entry), ...entry };
   const json = JSON.stringify(enriched);
   process.stdout.write(json + '\n');
@@ -65,8 +86,43 @@ function emit(entry: HistoryEntry): void {
 
 const destinationFor = (m: { line: Line; isPrivate?: boolean }): Line =>
   m.isPrivate ? userSelf() : m.line;
-const onInbound = (m: InboundMessage): void => emit({ ...m, kind: 'inbound', to: destinationFor(m) });
-const onReaction = (r: InboundReaction): void => emit({ ...r, kind: 'react', to: destinationFor(r) });
+
+/** Coerce envelope `kind` (from map.ts) into the constrained HistoryKind. Defaults to `'inbound'`. */
+function asHistoryKind(k: string | undefined): HistoryKind {
+  if (k === 'outbound' || k === 'edit' || k === 'react' || k === 'inbound') return k;
+  return 'inbound';
+}
+
+async function onRawEvent(raw: RawEvent): Promise<void> {
+  let map;
+  try { map = await loadAdapter(raw.station); }
+  catch (err) { quarantine(raw, `loadAdapter: ${errMsg(err)}`); return; }
+  let env: MapEnvelope | null;
+  try { env = await map(raw, metro); }
+  catch (err) { quarantine(raw, `map threw: ${errMsg(err)}`); return; }
+  if (!env) { quarantine(raw, 'map returned null'); return; }
+
+  const kind = asHistoryKind(env.kind);
+  const line = asLine(env.line);
+  const isPrivate = env.isPrivate;
+  const to = env.to ? asLine(env.to) : destinationFor({ line, isPrivate });
+
+  emit({
+    id: mintId(),
+    ts: raw.ts,
+    kind,
+    station: raw.station,
+    line,
+    lineName: env.lineName,
+    from: asLine(env.from),
+    fromName: env.fromName,
+    to,
+    text: env.text,
+    emoji: env.emoji,
+    messageId: env.messageId,
+    payload: raw.payload,
+  });
+}
 
 const ipc = startIpcServer(async req => {
   if (req.op === 'notify') {
@@ -78,34 +134,34 @@ const ipc = startIpcServer(async req => {
     });
     return { ok: true };
   }
-  if (req.op === 'download') {
-    const line = asLine(req.line);
-    const station = req.line.startsWith('metro://telegram/') ? telegram : discord;
-    const files = await station.download(line, req.messageId, req.outDir);
-    return { ok: true, files };
-  }
-  return { ok: false, error: 'unknown op' };
+  return { ok: false, error: `unknown op: ${(req as { op?: string }).op ?? '?'}` };
 });
+
+async function startTransport(t: Transport, label: string): Promise<void> {
+  try {
+    await t.start(raw => { void onRawEvent(raw); });
+    log.info({ station: t.station }, `${label} ready`);
+  } catch (err) {
+    log.error({ err: errMsg(err), station: t.station }, `${label} failed to start`);
+    throw err;
+  }
+}
 
 async function main(): Promise<void> {
   if (platforms.discord) {
-    discord.onMessage(onInbound);
-    discord.onReaction(onReaction);
-    const [, me] = await Promise.all([discord.start(), discord.getMe()]);
-    saveBotId('discord', me.id);
-    log.info({ bot: me.username }, 'discord ready');
+    await startTransport(discord, 'discord transport');
+    /** Cache the bot user id so claim-aware filters know who "we" are. */
+    const me = await discord.getMe();
+    if (me) saveBotId('discord', me.id);
   }
   if (platforms.telegram) {
-    telegram.onMessage(onInbound);
-    telegram.onReaction(onReaction);
-    const [me] = await Promise.all([telegram.getMe(), telegram.start()]);
-    saveBotId('telegram', String(me.id));
-    log.info({ bot: `@${me.username}` }, 'telegram ready');
+    await startTransport(telegram, 'telegram transport');
+    const me = await telegram.getMe();
+    if (me) saveBotId('telegram', String(me.id));
   }
   /** Start the HTTP receiver only when ≥1 endpoint is registered — no point binding a port nobody listens to. */
   if (endpoints.length) {
-    webhook.onMessage(onInbound);
-    await webhook.start();
+    await startTransport(webhook, 'webhook transport');
     tunnel?.start();
   }
   log.info({ codexRc: !!codexRc, tunnel: !!tunnel }, 'dispatcher ready');
