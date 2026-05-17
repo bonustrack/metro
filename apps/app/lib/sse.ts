@@ -156,9 +156,31 @@ export async function fetchState(
   daemonUrl: string,
   token: string,
 ): Promise<{ ok: true; data: unknown } | { ok: false; status: number; error: string }> {
+  return getJson(`${daemonUrl.replace(/\/$/, '')}/api/state`, token);
+}
+
+/** Fetch an older page of history via `/api/state?before=N&limit=M`. Newest-first. */
+export async function fetchHistoryPage(
+  daemonUrl: string,
+  token: string,
+  before: number,
+  limit: number,
+): Promise<{ ok: true; entries: HistoryEntry[] } | { ok: false; status: number; error: string }> {
+  const url = `${daemonUrl.replace(/\/$/, '')}/api/state?before=${before}&limit=${limit}`;
+  const r = await getJson(url, token);
+  if (!r.ok) return r;
+  const entries = (r.data as { recent_history?: HistoryEntry[] }).recent_history ?? [];
+  return { ok: true, entries };
+}
+
+/** Bearer-authed GET → JSON. XHR for RN/Expo-Go Android reliability. */
+function getJson(
+  url: string,
+  token: string,
+): Promise<{ ok: true; data: unknown } | { ok: false; status: number; error: string }> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('GET', `${daemonUrl.replace(/\/$/, '')}/api/state`);
+    xhr.open('GET', url);
     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.onload = (): void => {
       if (xhr.status >= 200 && xhr.status < 300) {
