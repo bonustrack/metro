@@ -1,15 +1,17 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { log } from './log.js';
-
-export type Platforms = { telegram: boolean; discord: boolean };
+import { errMsg, log } from './log.js';
+import type { Line } from './lines.js';
 
 export const STATE_DIR = process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
 mkdirSync(STATE_DIR, { recursive: true });
 
 const CONFIG_DIR = process.env.METRO_CONFIG_DIR ?? join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'metro');
 export const CONFIG_ENV_FILE = join(CONFIG_DIR, '.env');
+
+/** Train-owned env file. Trains read their tokens from here (passed through via process.env). */
+const TRAINS_ENV_FILE = join(homedir(), '.metro', '.env');
 
 const LINE_RE = /^\s*([A-Za-z_]\w*)\s*=\s*(.*?)\s*$/;
 const QUOTED_RE = /^(['"])(.*)\1$/;
@@ -30,23 +32,14 @@ export function writeDotenv(path: string, env: Record<string, string>): void {
   chmodSync(path, 0o600);
 }
 
-/** Precedence: process.env > cwd/.env > $METRO_CONFIG_DIR/.env. First-set wins. */
+/** Precedence: process.env > cwd/.env > ~/.metro/.env > $METRO_CONFIG_DIR/.env. First-set wins. */
+/** ~/.metro/.env is the canonical location for train credentials. */
 export function loadMetroEnv(): void {
-  for (const path of [join(process.cwd(), '.env'), CONFIG_ENV_FILE]) {
+  for (const path of [join(process.cwd(), '.env'), TRAINS_ENV_FILE, CONFIG_ENV_FILE]) {
     for (const [k, v] of Object.entries(readDotenv(path))) {
       if (process.env[k] === undefined) process.env[k] = v;
     }
   }
-}
-
-export function configuredPlatforms(): Platforms {
-  return { telegram: !!process.env.TELEGRAM_BOT_TOKEN, discord: !!process.env.DISCORD_BOT_TOKEN };
-}
-
-export function requireConfiguredPlatform(p: Platforms, hasWebhooks: boolean): void {
-  if (p.telegram || p.discord || hasWebhooks) return;
-  log.fatal('no inputs configured — run `metro setup telegram <token>`, `metro setup discord <token>`, or `metro webhook add <label>`');
-  process.exit(2);
 }
 
 /** Singleton pidfile. Exits if another instance owns it; reclaims stale locks. */
@@ -61,3 +54,51 @@ export function acquireLock(lockFile: string): void {
   writeFileSync(lockFile, String(process.pid));
   process.on('exit', () => { try { if (readFileSync(lockFile, 'utf8').trim() === String(process.pid)) unlinkSync(lockFile); } catch { /* ignore */ } });
 }
+
+/* ──────────── caches: seen lines (lines.json) + bot ids (bot-ids.json) ──────────── */
+
+type Entry = { createdAt: string; lastSeenAt?: string; name?: string };
+type Cache = Record<string, Entry>;
+
+const cacheFile = join(STATE_DIR, 'lines.json');
+const FLUSH_DELAY_MS = 5_000;
+let cache: Cache | null = null;
+let dirty = false;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function readCache(): Cache {
+  if (cache) return cache;
+  if (!existsSync(cacheFile)) return cache = {};
+  try { cache = JSON.parse(readFileSync(cacheFile, 'utf8')) as Cache; }
+  catch (err) {
+    log.warn({ err: errMsg(err), path: cacheFile }, 'lines cache read failed; treating as empty');
+    cache = {};
+  }
+  return cache;
+}
+
+function flush(): void {
+  if (!dirty || !cache) return;
+  try { writeFileSync(cacheFile, JSON.stringify(cache, null, 2)); dirty = false; }
+  catch (err) { log.warn({ err: errMsg(err), path: cacheFile }, 'lines cache write failed'); }
+}
+process.on('exit', flush);
+
+export function noteSeen(line: Line, name?: string): void {
+  const c = readCache();
+  const entry = c[line] ??= { createdAt: new Date().toISOString() };
+  entry.lastSeenAt = new Date().toISOString();
+  if (name && entry.name !== name) entry.name = name;
+  dirty = true;
+  if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush(); }, FLUSH_DELAY_MS);
+}
+
+export const listLines = (): Array<{ line: Line; entry: Entry }> =>
+  Object.entries(readCache()).map(([line, entry]) => ({ line: line as Line, entry }));
+
+/** Bot identity cache: `{discord: "<userId>", telegram: "<userId>"}`. Trains may populate this. */
+const botIdsFile = join(STATE_DIR, 'bot-ids.json');
+export const readBotIds = (): Record<string, string> => {
+  try { return existsSync(botIdsFile) ? JSON.parse(readFileSync(botIdsFile, 'utf8')) : {}; }
+  catch { return {}; }
+};

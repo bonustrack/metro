@@ -1,122 +1,113 @@
-/** Setup / doctor / update — config-side commands consumed by cli.ts. */
+/** `metro setup` / `metro doctor` / `metro update` / `metro setup skill`. */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pkg from '../../package.json' with { type: 'json' };
-import { DiscordStation } from '../stations/discord.js';
-import { TelegramStation } from '../stations/telegram.js';
 import { errMsg } from '../log.js';
-import {
-  CONFIG_ENV_FILE, configuredPlatforms, loadMetroEnv, readDotenv, STATE_DIR, writeDotenv,
-} from '../paths.js';
+import { CONFIG_ENV_FILE, loadMetroEnv, STATE_DIR } from '../paths.js';
+import { TRAINS_DIR } from '../trains/supervisor.js';
+import { listEndpoints, loadTunnelConfig, webhookPort } from '../tunnel.js';
 import { emit, exitErr, isJson, writeJson, type Flags } from './util.js';
-import { cmdSetupSkill, skillStatus } from './skill.js';
 
-const TOKEN_KEYS = { telegram: 'TELEGRAM_BOT_TOKEN', discord: 'DISCORD_BOT_TOKEN' } as const;
-type Platform = keyof typeof TOKEN_KEYS;
-const stationFor = (p: Platform) => p === 'telegram' ? new TelegramStation() : new DiscordStation();
-const maskToken = (t: string): string =>
-  !t ? '' : t.length <= 8 ? '••••' : `${t.slice(0, 6)}…${t.slice(-2)}`;
+/* ──────────── setup skill: install/clear SKILL.md into ~/.claude or ~/.codex ──────────── */
 
-/** Apply token across CONFIG_ENV_FILE (always set/cleared) AND cwd/.env (only if it exists). */
-function applyToken(key: string, value: string | null): string[] {
-  const out: string[] = [];
-  for (const path of [CONFIG_ENV_FILE, join(process.cwd(), '.env')]) {
-    if (path !== CONFIG_ENV_FILE && !existsSync(path)) continue;
-    const env = readDotenv(path);
-    if (value === null) { if (!(key in env)) continue; delete env[key]; } else env[key] = value;
-    writeDotenv(path, env); out.push(path);
+type Runtime = 'claude-code' | 'codex';
+const RUNTIME_DIRS: Record<Runtime, string> = {
+  'claude-code': join(homedir(), '.claude', 'skills', 'metro'),
+  codex: join(homedir(), '.codex', 'skills', 'metro'),
+};
+const skillDest = (r: Runtime): string => join(RUNTIME_DIRS[r], 'SKILL.md');
+/** dist/cli/config.js → <package-root>/skills/metro/SKILL.md */
+const bundledSkill = (): string =>
+  join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'skills', 'metro', 'SKILL.md');
+
+const skillStatus = (): Record<Runtime, boolean> => ({
+  'claude-code': existsSync(skillDest('claude-code')), codex: existsSync(skillDest('codex')),
+});
+
+async function cmdSetupSkill(p: string[], f: Flags): Promise<void> {
+  const sub = p[0];
+  if (sub === 'clear') {
+    const removed: string[] = [];
+    for (const r of Object.keys(RUNTIME_DIRS) as Runtime[]) {
+      const path = skillDest(r);
+      if (existsSync(path)) { try { unlinkSync(path); removed.push(path); } catch { /* ignore */ } }
+    }
+    return emit(f, removed.length ? `removed metro skill from ${removed.join(', ')}` : 'no installed skill found',
+      { ok: true, removed });
   }
-  return out;
+  if (sub && sub !== 'install') throw exitErr(`unknown skill subcommand '${sub}' (try: install, clear)`, 1);
+  const src = bundledSkill();
+  if (!existsSync(src)) throw exitErr(`bundled SKILL.md missing at ${src} (broken install?)`, 2);
+  const installed: string[] = [];
+  for (const r of Object.keys(RUNTIME_DIRS) as Runtime[]) {
+    if (!existsSync(join(homedir(), r === 'claude-code' ? '.claude' : '.codex'))) continue;
+    const dest = skillDest(r);
+    try { mkdirSync(RUNTIME_DIRS[r], { recursive: true }); copyFileSync(src, dest); installed.push(dest); }
+    catch (err) { throw exitErr(`failed to install skill for ${r}: ${errMsg(err)}`, 2); }
+  }
+  if (!installed.length) throw exitErr('no user runtime detected (~/.claude or ~/.codex). Install one and rerun.', 2);
+  emit(f, `installed metro skill → ${installed.join(', ')}`, { ok: true, installed });
 }
 
-async function cmdSetupStatus(f: Flags): Promise<void> {
-  loadMetroEnv();
-  const tg = process.env.TELEGRAM_BOT_TOKEN ?? '', dc = process.env.DISCORD_BOT_TOKEN ?? '';
-  if (isJson(f)) return writeJson({
-    version: pkg.version, config_env_file: CONFIG_ENV_FILE,
-    tokens: { telegram: { set: !!tg, masked: maskToken(tg) }, discord: { set: !!dc, masked: maskToken(dc) } },
-  });
-  const cfgState = existsSync(CONFIG_ENV_FILE) ? '' : ' (not yet written)';
-  const getStarted = !tg && !dc
-    ? 'Get started:\n  1. metro setup telegram <token>   # https://t.me/BotFather'
-    + '\n     metro setup discord <token>     # https://discord.com/developers/applications'
-    + '\n  2. metro doctor\n  3. metro\n'
-    : 'Run `metro` to start the dispatcher, or `metro doctor` to verify.\n';
-  process.stdout.write(`metro ${pkg.version}\n\nconfig:  ${CONFIG_ENV_FILE}${cfgState}\n\n`
-    + `  TELEGRAM_BOT_TOKEN  ${tg ? `set (${maskToken(tg)})` : 'not set'}\n`
-    + `  DISCORD_BOT_TOKEN   ${dc ? `set (${maskToken(dc)})` : 'not set'}\n\n${getStarted}`);
+/* ──────────── doctor: env-var discovery ──────────── */
+
+type Check = { name: string; ok: boolean | null; detail: string };
+
+/** Scan ~/.metro/trains/*.{ts,js,mjs} for `process.env.<NAME>` refs; report set/unset status. */
+function envCheck(): Check[] {
+  if (!existsSync(TRAINS_DIR)) return [];
+  const names = new Set<string>();
+  for (const f of readdirSync(TRAINS_DIR).filter(n => /\.(ts|js|mjs)$/.test(n) && !/^[._]/.test(n))) {
+    try {
+      const src = readFileSync(join(TRAINS_DIR, f), 'utf8');
+      for (const m of src.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)/g)) names.add(m[1]);
+    } catch { /* ignore */ }
+  }
+  /** METRO_* are internal — don't surface them as "missing credentials". */
+  const interesting = [...names].filter(n => !n.startsWith('METRO_')).sort();
+  if (!interesting.length) return [];
+  const set = interesting.filter(n => process.env[n]);
+  const missing = interesting.filter(n => !process.env[n]);
+  return [{ name: 'env-vars', ok: missing.length ? false : true,
+    detail: `set: ${set.join(', ') || '(none)'}${missing.length ? ` · missing: ${missing.join(', ')}` : ''}` }];
 }
+
+/* ──────────── setup / doctor / update ──────────── */
 
 export async function cmdSetup(p: string[], f: Flags): Promise<void> {
-  const [sub, value] = p;
-  if (!sub) return cmdSetupStatus(f);
+  const [sub] = p;
   if (sub === 'skill') return cmdSetupSkill(p.slice(1), f);
-
-  if (sub === 'telegram' || sub === 'discord') {
-    if (!value) throw new Error(`metro setup ${sub} <token> — token is required`);
-    const trimmed = value.trim();
-    let identity: string | undefined;
-    if (!f['no-validate']) {
-      process.env[TOKEN_KEYS[sub]] = trimmed;
-      try {
-        const me = await stationFor(sub).getMe();
-        identity = sub === 'telegram' ? `@${me.username}` : me.username;
-      } catch (err) {
-        delete process.env[TOKEN_KEYS[sub]];
-        throw exitErr(`token rejected by ${sub}: ${errMsg(err)} (use --no-validate to save anyway)`, 3);
-      }
-    }
-    const paths = applyToken(TOKEN_KEYS[sub], trimmed);
-    const verified = identity ? ` (verified as ${identity})` : '';
-    emit(f, `saved ${TOKEN_KEYS[sub]}${verified} to ${paths.join(', ')}\nrestart metro for the new token to take effect.`,
-      { ok: true, saved: TOKEN_KEYS[sub], paths, verified_as: identity ?? null });
-    return;
-  }
-
-  if (sub === 'clear') {
-    const target = value ?? 'all';
-    if (target !== 'all' && target !== 'telegram' && target !== 'discord')
-      throw new Error(`metro setup clear <telegram|discord|all> — got '${target}'`);
-    const keys = target === 'all' ? Object.values(TOKEN_KEYS) : [TOKEN_KEYS[target]];
-    const paths = new Set<string>();
-    for (const k of keys) for (const path of applyToken(k, null)) paths.add(path);
-    const label = target === 'all' ? 'all metro tokens' : TOKEN_KEYS[target];
-    emit(f, `cleared ${label} from ${[...paths].join(', ') || '(no files had it)'}\nrestart metro for changes to take effect.`,
-      { ok: true, cleared: target, paths: [...paths] });
-    return;
-  }
-  throw new Error(`unknown setup subcommand '${sub}' (try: telegram, discord, clear, skill)`);
-}
-
-function tokenSource(key: string): string {
-  const val = process.env[key]; if (!val) return '';
-  for (const path of [join(process.cwd(), '.env'), CONFIG_ENV_FILE]) {
-    if (existsSync(path) && readDotenv(path)[key] === val) return path;
-  }
-  return 'process env';
+  if (sub) throw new Error(`unknown setup subcommand '${sub}' (try: skill)`);
+  loadMetroEnv();
+  const cfgExists = existsSync(CONFIG_ENV_FILE), trainsExists = existsSync(TRAINS_DIR);
+  if (isJson(f)) return writeJson({
+    version: pkg.version,
+    config_env_file: CONFIG_ENV_FILE, config_env_exists: cfgExists,
+    trains_dir: TRAINS_DIR, trains_dir_exists: trainsExists,
+  });
+  process.stdout.write(
+    `metro ${pkg.version}\n\nconfig dir:  ${CONFIG_ENV_FILE}${cfgExists ? '' : ' (not yet written)'}\n`
+    + `trains dir:  ${TRAINS_DIR}${trainsExists ? '' : ' (will be created on first run)'}\n\n`
+    + 'Get started: see @stage-labs/metro/examples; drop train scripts in ~/.metro/trains/.\n');
 }
 
 export async function cmdDoctor(_: string[], f: Flags): Promise<void> {
   loadMetroEnv();
-  const cfg = configuredPlatforms();
-  type Check = { name: string; ok: boolean | null; detail: string };
   const checks: Check[] = [];
-  const sources: string[] = [];
-  for (const p of ['telegram', 'discord'] as const) {
-    if (!cfg[p]) { checks.push({ name: p, ok: null, detail: 'not configured' }); continue; }
-    sources.push(`${p}←${tokenSource(TOKEN_KEYS[p])}`);
-    try {
-      const me = await stationFor(p).getMe();
-      checks.push({ name: p, ok: true, detail: `getMe → ${p === 'telegram' ? '@' : ''}${me.username}` });
-    } catch (err) { checks.push({ name: p, ok: false, detail: errMsg(err) }); }
+  if (!existsSync(TRAINS_DIR)) {
+    checks.push({ name: 'trains', ok: null, detail: `${TRAINS_DIR} (not created — \`mkdir -p\` it and drop in train files)` });
+  } else {
+    const files = readdirSync(TRAINS_DIR).filter(n => /\.(ts|js|mjs)$/.test(n) && !/^[._]/.test(n));
+    checks.push({ name: 'trains', ok: files.length > 0,
+      detail: files.length ? `${files.length} train${files.length === 1 ? '' : 's'}: ${files.join(', ')}` : '(empty — no trains configured)' });
   }
-  checks.unshift({
-    name: 'tokens', ok: cfg.telegram || cfg.discord,
-    detail: sources.length ? sources.join(', ') : 'no platform configured — run `metro setup telegram|discord <token>`',
-  });
-
+  const metroPkg = join(homedir(), '.metro', 'package.json');
+  checks.push({ name: 'trains-pkg', ok: existsSync(metroPkg) ? true : null,
+    detail: existsSync(metroPkg) ? metroPkg : `${metroPkg} not found (run \`cd ~/.metro && bun init\` if any train needs deps)` });
   const lockFile = join(STATE_DIR, '.tail-lock');
   if (!existsSync(lockFile)) checks.push({ name: 'dispatcher', ok: null, detail: 'not running' });
   else try {
@@ -125,21 +116,21 @@ export async function cmdDoctor(_: string[], f: Flags): Promise<void> {
     process.kill(pid, 0);
     checks.push({ name: 'dispatcher', ok: true, detail: `running (pid ${pid})` });
   } catch { checks.push({ name: 'dispatcher', ok: null, detail: 'stale lockfile (auto-reclaims)' }); }
-
-  checks.push({
-    name: 'codex-rc', ok: null,
-    detail: process.env.METRO_CODEX_RC
-      ? `push enabled → ${process.env.METRO_CODEX_RC}`
-      : 'not configured (set METRO_CODEX_RC=ws://… to enable Codex push)',
-  });
-
-  const sk = skillStatus();
-  const installed = Object.entries(sk).filter(([, ok]) => ok).map(([r]) => r);
-  checks.push({
-    name: 'skill', ok: installed.length ? true : null,
-    detail: installed.length ? `installed for ${installed.join(', ')}` : 'not installed (run `metro setup skill`)',
-  });
-
+  checks.push({ name: 'codex-rc', ok: null,
+    detail: process.env.METRO_CODEX_RC ? `push enabled → ${process.env.METRO_CODEX_RC}`
+      : 'not configured (set METRO_CODEX_RC=ws://… to enable Codex push)' });
+  const tunnel = loadTunnelConfig();
+  checks.push({ name: 'tunnel', ok: tunnel ? true : null,
+    detail: tunnel ? `${tunnel.hostname} → 127.0.0.1:${webhookPort()}`
+      : 'not configured (run `metro tunnel setup <name> <hostname>`)' });
+  const eps = listEndpoints();
+  checks.push({ name: 'webhooks', ok: eps.length ? true : null,
+    detail: eps.length ? `${eps.length} endpoint${eps.length === 1 ? '' : 's'}: ${eps.map(e => e.label).join(', ')}`
+      : 'none (run `metro webhook add <label>`)' });
+  for (const c of envCheck()) checks.push(c);
+  const installed = Object.entries(skillStatus()).filter(([, ok]) => ok).map(([r]) => r);
+  checks.push({ name: 'skill', ok: installed.length ? true : null,
+    detail: installed.length ? `installed for ${installed.join(', ')}` : 'not installed (run `metro setup skill`)' });
   if (isJson(f)) return writeJson({ checks });
   process.stdout.write('metro doctor\n\n');
   for (const c of checks) {

@@ -1,13 +1,12 @@
 /** Append-only JSONL history of every message that flows through metro (inbound + outbound). */
 
 import { randomBytes } from 'node:crypto';
-import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { STATE_DIR } from './paths.js';
-import { Line } from './stations/index.js';
-import { claudeUserId, claudeSessionId } from './stations/claude.js';
-import { codexUserId, codexSessionId } from './stations/codex.js';
+import { Line } from './lines.js';
+import { claudeUserId, claudeSessionId, codexUserId, codexSessionId } from './local-identity.js';
 
 export type HistoryKind = 'inbound' | 'outbound' | 'edit' | 'react';
 
@@ -108,20 +107,6 @@ function matches(e: HistoryEntry, f: HistoryFilter): boolean {
   return true;
 }
 
-/** Find an entry by universal id OR platform message id. */
-export function lookupEntry(id: string): HistoryEntry | undefined {
-  const entries = readHistory({ limit: 5_000 });
-  return entries.find(e => e.id === id || e.messageId === id);
-}
-
-/** Look up the platform messageId for a universal `msg_*` id; returns the input unchanged otherwise. */
-export function resolvePlatformId(id: string): string {
-  if (!id.startsWith('msg_')) return id;
-  const hit = lookupEntry(id);
-  if (hit?.messageId) return hit.messageId;
-  throw new Error(`unknown universal id: ${id} (run \`metro history --limit=50\` to see recent ids)`);
-}
-
 /** The current user's **participant** URI for `from`/`to`. Precedence: METRO_FROM > runtime env > generic. */
 export function userSelf(): Line {
   const explicit = process.env.METRO_FROM;
@@ -142,4 +127,36 @@ export function selfLine(): Line | null {
     return s ? Line.codex(codexUserId(), s) : null;
   }
   return null;
+}
+
+/* ──────────── user-registry: append-only (station, userId, sessions[]) tuples ──────────── */
+
+const REGISTRY_FILE = join(STATE_DIR, 'user-registry.json');
+
+type UserInstance = { userId: string; sessions: string[]; lastSeen: string };
+type Registry = Record<string, UserInstance[]>;
+
+function readRegistry(): Registry {
+  if (!existsSync(REGISTRY_FILE)) return {};
+  try { return JSON.parse(readFileSync(REGISTRY_FILE, 'utf8')) as Registry; }
+  catch (err) { log.warn({ err: errMsg(err) }, 'user-registry: malformed, resetting'); return {}; }
+}
+
+function record(station: 'claude' | 'codex', userId: string, sessionId: string | null): void {
+  const reg = readRegistry();
+  const rows = (reg[station] ??= []);
+  let row = rows.find(r => r.userId === userId);
+  if (!row) { row = { userId, sessions: [], lastSeen: '' }; rows.push(row); }
+  if (sessionId && !row.sessions.includes(sessionId)) row.sessions.push(sessionId);
+  row.lastSeen = new Date().toISOString();
+  try { writeFileSync(REGISTRY_FILE, JSON.stringify(reg, null, 2)); }
+  catch (err) { log.warn({ err: errMsg(err) }, 'user-registry: write failed'); }
+}
+
+/** Scan a line URI for `(station, userId, sessionId)` and record it. No-op on non-user or participant URIs. */
+export function noteUserFromLine(line: string): void {
+  const station = Line.station(line);
+  if (station !== 'claude' && station !== 'codex') return;
+  const p = station === 'claude' ? Line.parseClaude(line) : Line.parseCodex(line);
+  if (p) record(station, p.userId, p.sessionId);
 }

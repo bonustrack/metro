@@ -1,12 +1,13 @@
 /**
- * Subprocess harness for monitor tests: imports `src/monitor.ts`, mounts it on an
- * ephemeral 127.0.0.1 port, then prints the port number on stdout and waits forever.
+ * Subprocess harness for monitor tests: imports `handleMonitorRequest` from
+ * `src/cli/tail.ts`, mounts it on an ephemeral 127.0.0.1 port, then prints the
+ * port number on stdout and waits forever.
  *
  * Run via `bun monitor-harness.mjs` so the TypeScript import works without compilation.
  */
 
 import { createServer } from 'node:http';
-import { handleMonitorRequest } from '../src/monitor.ts';
+import { handleMonitorRequest } from '../src/cli/tail.ts';
 
 const server = createServer((req, res) => {
   if (!handleMonitorRequest(req, res)) {

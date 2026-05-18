@@ -1,24 +1,29 @@
 # Metro
 
-Monorepo for **Metro** — a live JSON stream of Telegram + Discord messages for your local Claude Code / Codex session.
+Monorepo for **Metro** — an event-interception wire. The daemon supervises train
+subprocesses in `~/.metro/trains/`, multiplexes their JSON event streams onto stdout,
+and forwards outbound action calls back into the matching train's stdin. Per-platform
+code lives in train scripts outside this repo, written on demand by the user or agent.
 
 ## Layout
 
 ```
 packages/
-  metro/        # @stage-labs/metro — the CLI + daemon (see packages/metro/README.md)
+  metro/        # @stage-labs/metro — the daemon + CLI (see packages/metro/README.md)
 apps/
-  app/          # Metro mobile app — read-only activity monitor (Expo + RN, see apps/app/README.md)
+  app/          # @stage-labs/metro-app — read-only mobile activity monitor (Expo + RN)
 ```
 
 ## Packages
 
-- [`@stage-labs/metro`](packages/metro/README.md) — install with `npm i -g @stage-labs/metro`. Run `metro` to get inbound Telegram + Discord messages on stdout and reply via CLI subcommands.
-- [`@stage-labs/metro-app`](apps/app/README.md) — Expo / React Native mobile companion. View live activity + claimed lines from your phone via the daemon's bearer-token-gated monitor endpoints. Run with `bun --cwd apps/app start`.
+- [`@stage-labs/metro`](packages/metro/README.md) — install with `npm i -g @stage-labs/metro`. Run `metro` to multiplex train events onto stdout, forward action calls via `metro call <train> <action> <args>`.
+- [`@stage-labs/metro-app`](apps/app/README.md) — Expo / React Native companion. View live activity + claimed lines from your phone over the daemon's bearer-token-gated monitor endpoints. Start with `bun --cwd apps/app start`.
 
-The daemon's monitor endpoints (`/api/state`, `/api/tail`) are spec'd in
-[`packages/metro/docs/monitor.md`](packages/metro/docs/monitor.md) — set
-`METRO_MONITOR_TOKEN` in `~/.config/metro/.env` to enable them.
+The monitor endpoints (`/api/state`, `/api/tail` SSE) are documented in
+[`packages/metro/docs/monitor.md`](packages/metro/docs/monitor.md); enable them by setting
+`METRO_MONITOR_TOKEN` in `~/.config/metro/.env`. Broker semantics (claims, multi-user
+fan-out) are in [`packages/metro/docs/broker.md`](packages/metro/docs/broker.md); the
+`metro://` URI scheme is in [`packages/metro/docs/uri-scheme.md`](packages/metro/docs/uri-scheme.md).
 
 ## Development
 
@@ -31,12 +36,6 @@ bun run lint        # turbo run lint
 ```
 
 Tasks are orchestrated by [Turbo](https://turbo.build). See `turbo.json` for the pipeline.
-
-## Roadmap
-
-- **Phase 1**: monorepo conversion, no behavior change to the published CLI.
-- **Phase 2** (this PR, ref [#36](https://github.com/bonustrack/metro/issues/36)): `apps/app` Expo mobile app + new `/api/state` + `/api/tail` SSE endpoints on the daemon, plus `monitor.metro.box` hostname (cloudflared config note in [`packages/metro/docs/monitor.md`](packages/metro/docs/monitor.md)).
-- **Phase 3** (future): replies/reactions from the app, push notifications, multi-account.
 
 ## License
 

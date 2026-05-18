@@ -1,21 +1,26 @@
-/** Unix-socket IPC: `notify` re-emits on daemon stdout; `download` resolves Telegram attachments. */
+/** Unix-socket IPC: `notify` re-emits a cross-user message, `forward-call` reaches a train's */
+/** stdin and awaits its response, `trains-list` snapshots supervisor state. */
 
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
 import { existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { STATE_DIR } from './paths.js';
+import type { TrainCallResponse } from './trains/protocol.js';
+import type { TrainInfo } from './trains/supervisor.js';
 
 const SOCKET_PATH = join(STATE_DIR, 'metro.sock');
 
 export type IpcRequest =
   | { op: 'notify'; line: string; from?: string; text: string }
-  | { op: 'download'; line: string; messageId: string; outDir: string };
+  | { op: 'forward-call'; train: string; action: string; args: unknown }
+  | { op: 'trains-list' }
+  | { op: 'train-restart'; name: string };
 
-export type DownloadedFile = { path: string; mediaType: string };
 export type IpcResponse =
   | { ok: true }
-  | { ok: true; files: DownloadedFile[] }
+  | { ok: true; response: TrainCallResponse }
+  | { ok: true; trains: TrainInfo[] }
   | { ok: false; error: string };
 
 type Handler = (req: IpcRequest) => Promise<IpcResponse> | IpcResponse;
@@ -35,22 +40,28 @@ export async function stopIpcServer(server: Server): Promise<void> {
 }
 
 async function handleConnection(socket: Socket, handler: Handler): Promise<void> {
+  /** Newline-delimited request/response. Avoids races between `end()` writes and FIN under Bun. */
   let buf = '';
   socket.setEncoding('utf8');
-  socket.on('data', chunk => { buf += chunk; });
-  socket.on('end', async () => {
+  socket.on('data', async chunk => {
+    buf += chunk;
+    const nl = buf.indexOf('\n');
+    if (nl === -1) return;
+    const line = buf.slice(0, nl).trim();
+    buf = buf.slice(nl + 1);
     let resp: IpcResponse;
     try {
-      const req = JSON.parse(buf.trim()) as IpcRequest;
+      const req = JSON.parse(line) as IpcRequest;
       resp = await handler(req);
     } catch (err) { resp = { ok: false, error: errMsg(err) }; }
-    socket.end(JSON.stringify(resp) + '\n');
+    socket.write(JSON.stringify(resp) + '\n');
+    socket.end();
   });
   socket.on('error', err => log.debug({ err: errMsg(err) }, 'ipc connection error'));
 }
 
 /** CLI-side: send one request, get one response. Throws if the daemon isn't running. */
-export function ipcCall(req: IpcRequest, timeoutMs = 30_000): Promise<IpcResponse> {
+export function ipcCall(req: IpcRequest, timeoutMs = 60_000): Promise<IpcResponse> {
   return new Promise((resolve, reject) => {
     if (!existsSync(SOCKET_PATH)) {
       reject(new Error('metro daemon is not running (start it with `metro`)'));
@@ -62,12 +73,20 @@ export function ipcCall(req: IpcRequest, timeoutMs = 30_000): Promise<IpcRespons
       socket.destroy();
       reject(new Error(`ipc timeout after ${timeoutMs}ms`));
     }, timeoutMs);
-    socket.on('connect', () => { socket.end(JSON.stringify(req)); });
-    socket.on('data', chunk => { buf += chunk.toString('utf8'); });
+    socket.on('connect', () => { socket.write(JSON.stringify(req) + '\n'); });
+    socket.on('data', chunk => {
+      buf += chunk.toString('utf8');
+      const nl = buf.indexOf('\n');
+      if (nl === -1) return;
+      clearTimeout(timer);
+      const line = buf.slice(0, nl).trim();
+      socket.end();
+      try { resolve(JSON.parse(line) as IpcResponse); }
+      catch (err) { reject(new Error(`ipc bad response: ${errMsg(err)}`)); }
+    });
     socket.on('end', () => {
       clearTimeout(timer);
-      try { resolve(JSON.parse(buf.trim()) as IpcResponse); }
-      catch (err) { reject(new Error(`ipc bad response: ${errMsg(err)}`)); }
+      if (!buf) reject(new Error('ipc connection closed without response'));
     });
     socket.on('error', err => { clearTimeout(timer); reject(err); });
   });

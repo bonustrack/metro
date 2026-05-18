@@ -1,33 +1,18 @@
-/**
- * JSON-RPC/WS client for codex app-server: each event → `turn/start` (Codex's Monitor equivalent).
- */
+/** JSON-RPC/WS client for codex app-server: each event → `turn/start`. */
 
-import { createConnection } from 'node:net';
 import { WebSocket, type RawData } from 'ws';
-import { errMsg, log } from './log.js';
+import { errMsg, log } from '../log.js';
+import {
+  buildTurnInput, encodeRpc, extractThreadStartedId, isStatusActive, openSocket, parseUrl,
+  type Endpoint, type RpcMessage,
+} from './protocol.js';
 
 type Pending = { resolve: (result: unknown) => void; reject: (err: Error) => void };
-type Endpoint = { kind: 'tcp'; url: string } | { kind: 'unix'; path: string };
 
 const RECONNECT_DELAY_MS = 2_000;
 const MAX_QUEUE = 100;
 /** Backstop in case `turn/completed` never arrives — unstick the single-flight gate. */
 const TURN_TIMEOUT_MS = 120_000;
-
-/** Accept ws://, wss://, unix:///abs/path, or /abs/path (shorthand for unix). */
-function parseUrl(input: string): Endpoint {
-  if (input.startsWith('ws://') || input.startsWith('wss://')) return { kind: 'tcp', url: input };
-  if (input.startsWith('unix://')) return { kind: 'unix', path: input.replace(/^unix:\/+/, '/') };
-  if (input.startsWith('/')) return { kind: 'unix', path: input };
-  throw new Error(`unsupported METRO_CODEX_RC: ${input} (expected ws://, wss://, unix://, or abs path)`);
-}
-
-function openSocket(endpoint: Endpoint): WebSocket {
-  if (endpoint.kind === 'tcp') return new WebSocket(endpoint.url);
-  return new WebSocket('ws://localhost/', {
-    createConnection: () => createConnection({ path: endpoint.path }),
-  });
-}
 
 export class CodexRC {
   private ws: WebSocket | null = null;
@@ -100,7 +85,7 @@ export class CodexRC {
   }
 
   private onMessage(raw: RawData): void {
-    let msg: { id?: number; method?: string; params?: unknown; result?: unknown; error?: { message?: string } };
+    let msg: RpcMessage;
     try { msg = JSON.parse(raw.toString()); }
     catch (err) { log.warn({ err: errMsg(err) }, 'codex-rc malformed message'); return; }
 
@@ -111,19 +96,20 @@ export class CodexRC {
       else p.resolve(msg.result);
       return;
     }
+    this.handleNotification(msg);
+  }
 
+  private handleNotification(msg: RpcMessage): void {
     switch (msg.method) {
       case 'thread/started': {
-        const id = (msg.params as { thread?: { id: string } } | undefined)?.thread?.id;
+        const id = extractThreadStartedId(msg.params);
         if (id) { this.setThreadId(id); log.info({ thread: id }, 'codex-rc thread started'); void this.drainQueue(); }
         break;
       }
       case 'thread/status/changed': {
-        /* Codex 0.130+: status `{active}` means in-flight; anything else is idle. */
-        const p = msg.params as { threadId?: string; status?: string | { active?: unknown } } | undefined;
-        if (p?.threadId !== this.threadId) break;
-        const active = typeof p.status === 'object' && p.status !== null && 'active' in p.status;
-        if (active) this.turnInFlight = true;
+        const s = isStatusActive(msg.params, this.threadId);
+        if (!s.match) break;
+        if (s.active) this.turnInFlight = true;
         else { this.clearTurnTimeout(); this.turnInFlight = false; void this.drainQueue(); }
         break;
       }
@@ -173,8 +159,7 @@ export class CodexRC {
     this.turnInFlight = true;
     this.armTurnTimeout();
     try {
-      const input = [{ type: 'text', text: line, textElements: [] }];
-      await this.call('turn/start', { threadId: this.threadId, input });
+      await this.call('turn/start', { threadId: this.threadId, input: buildTurnInput(line) });
       this.queue.shift();
     } catch (err) {
       const dead = errMsg(err).includes('thread not found');
@@ -188,10 +173,8 @@ export class CodexRC {
   private armTurnTimeout(): void {
     this.clearTurnTimeout();
     this.turnTimeout = setTimeout(() => {
-      log.warn(
-        { thread: this.threadId, queue: this.queue.length },
-        `codex-rc turn/completed not received within ${TURN_TIMEOUT_MS}ms; force-clearing gate`,
-      );
+      log.warn({ thread: this.threadId, queue: this.queue.length },
+        `codex-rc turn/completed not received within ${TURN_TIMEOUT_MS}ms; force-clearing gate`);
       this.turnInFlight = false; this.turnTimeout = null;
       void this.drainQueue();
     }, TURN_TIMEOUT_MS);
@@ -207,7 +190,7 @@ export class CodexRC {
     const ws = this.ws;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (r: unknown) => void, reject });
-      ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+      ws.send(encodeRpc(id, method, params));
     });
   }
 }
