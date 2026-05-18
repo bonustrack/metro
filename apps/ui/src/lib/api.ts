@@ -4,17 +4,18 @@ import type { HistoryEntry } from './types';
 
 type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string };
 
+async function readErr(r: Response): Promise<string> {
+  const body = await r.text().catch(() => '');
+  try { return (JSON.parse(body) as { error?: string }).error ?? `HTTP ${r.status}`; }
+  catch { return `HTTP ${r.status}`; }
+}
+
 async function getJson<T>(daemonUrl: string, token: string, path: string): Promise<JsonResult<T>> {
   try {
     const r = await fetch(`${daemonUrl.replace(/\/$/, '')}${path}`, {
       headers: { authorization: `Bearer ${token}` },
     });
-    if (!r.ok) {
-      const body = await r.text().catch(() => '');
-      let msg = `HTTP ${r.status}`;
-      try { msg = (JSON.parse(body) as { error?: string }).error ?? msg; } catch { /* keep msg */ }
-      return { ok: false, status: r.status, error: msg };
-    }
+    if (!r.ok) return { ok: false, status: r.status, error: await readErr(r) };
     return { ok: true, data: await r.json() as T };
   } catch (err) {
     return { ok: false, status: 0, error: err instanceof Error ? err.message : String(err) };
@@ -44,22 +45,15 @@ export async function sendCall(
       body: JSON.stringify({ args }),
     });
     if (r.ok) return { ok: true };
-    const body = await r.text().catch(() => '');
-    let msg = `HTTP ${r.status}`;
-    try { msg = (JSON.parse(body) as { error?: string }).error ?? msg; } catch { /* keep msg */ }
-    return { ok: false, error: msg };
+    return { ok: false, error: await readErr(r) };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
 export interface TailOptions {
-  daemonUrl: string;
-  token: string;
-  as?: string;
-  chat?: string;
-  station?: string;
-  includeWebhooks?: boolean;
+  daemonUrl: string; token: string;
+  as?: string; chat?: string; station?: string; includeWebhooks?: boolean;
   signal: AbortSignal;
   onOpen: () => void;
   onEntry: (e: HistoryEntry) => void;
@@ -101,10 +95,7 @@ export async function openTail(opts: TailOptions): Promise<void> {
   const qs = params.toString();
   const url = `${opts.daemonUrl.replace(/\/$/, '')}/api/tail${qs ? `?${qs}` : ''}`;
   try {
-    const r = await fetch(url, {
-      headers: { authorization: `Bearer ${opts.token}` },
-      signal: opts.signal,
-    });
+    const r = await fetch(url, { headers: { authorization: `Bearer ${opts.token}` }, signal: opts.signal });
     if (!r.ok || !r.body) { opts.onError(`HTTP ${r.status}`); return; }
     opts.onOpen();
     const reader = r.body.getReader();

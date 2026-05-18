@@ -9,10 +9,6 @@ defineProps<{
   filterActive?: boolean;
 }>();
 defineEmits<{ (e: 'clearChat'): void; (e: 'filter'): void }>();
-
-function shortLine(line: string): string {
-  return line.replace(/^metro:\/\//, '');
-}
 </script>
 
 <template>
@@ -20,12 +16,9 @@ function shortLine(line: string): string {
     <div class="flex items-center gap-3 px-4 py-2">
       <span
         class="inline-block w-2 h-2 rounded-full"
-        :class="status === 'open'
-          ? 'bg-metro-ok'
-          : status === 'connecting'
-            ? 'bg-metro-warn'
-            : status
-              ? 'bg-metro-err'
+        :class="status === 'open' ? 'bg-metro-ok'
+          : status === 'connecting' ? 'bg-metro-warn'
+            : status ? 'bg-metro-err'
               : 'bg-metro-sub-light dark:bg-metro-sub-dark'"
       />
       <span class="text-xs text-metro-sub-light dark:text-metro-sub-dark">
@@ -34,27 +27,18 @@ function shortLine(line: string): string {
       </span>
       <div class="flex-1" />
       <button
-        v-if="$slots.actions || filterActive !== undefined"
+        v-if="filterActive !== undefined"
         type="button"
         class="text-sm font-semibold text-metro-accent hover:underline"
         :class="filterActive ? 'text-metro-ok font-bold' : ''"
         @click="$emit('filter')"
-      >
-        Filter{{ filterActive ? ' •' : '' }}
-      </button>
+      >Filter{{ filterActive ? ' •' : '' }}</button>
       <RouterLink to="/lines" class="text-sm font-semibold text-metro-accent hover:underline">Lines</RouterLink>
       <RouterLink to="/settings" class="text-sm font-semibold text-metro-accent hover:underline">Settings</RouterLink>
     </div>
-    <div
-      v-if="chat"
-      class="flex items-center gap-2 px-4 pb-2 text-xs text-metro-sub-light dark:text-metro-sub-dark"
-    >
-      <span class="truncate">filter: {{ shortLine(chat) }}</span>
-      <button
-        type="button"
-        class="font-semibold text-metro-accent hover:underline"
-        @click="$emit('clearChat')"
-      >clear</button>
+    <div v-if="chat" class="flex items-center gap-2 px-4 pb-2 text-xs text-metro-sub-light dark:text-metro-sub-dark">
+      <span class="truncate">filter: {{ chat.replace(/^metro:\/\//, '') }}</span>
+      <button type="button" class="font-semibold text-metro-accent hover:underline" @click="$emit('clearChat')">clear</button>
     </div>
   </header>
 </template>

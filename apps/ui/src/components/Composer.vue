@@ -7,11 +7,7 @@ const props = defineProps<{ daemonUrl: string; token: string; line: string }>();
 const text = ref('');
 const sending = ref(false);
 const err = ref<string | null>(null);
-
-const train = computed(() => {
-  const m = props.line.match(/^metro:\/\/([^/]+)/);
-  return m ? m[1] : null;
-});
+const train = computed(() => props.line.match(/^metro:\/\/([^/]+)/)?.[1] ?? null);
 
 async function send(): Promise<void> {
   const body = text.value.trim();
@@ -21,10 +17,6 @@ async function send(): Promise<void> {
   sending.value = false;
   if (r.ok) { text.value = ''; return; }
   err.value = r.error;
-}
-
-function onKeydown(ev: KeyboardEvent): void {
-  if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); void send(); }
 }
 </script>
 
@@ -40,7 +32,7 @@ function onKeydown(ev: KeyboardEvent): void {
         class="flex-1 resize-none min-h-[40px] max-h-[120px] bg-metro-bg-light dark:bg-metro-bg-dark
           border border-metro-border-light dark:border-metro-border-dark rounded-2xl px-4 py-2 text-sm outline-none
           focus:ring-2 focus:ring-metro-accent"
-        @keydown="onKeydown"
+        @keydown.enter.exact.prevent="send"
       />
       <button
         type="button"

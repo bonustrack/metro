@@ -15,22 +15,15 @@ const STATIONS: string[] = ['discord', 'telegram', 'webhook', 'claude', 'codex']
 const props = defineProps<{ open: boolean; filters: Filters }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'update', f: Filters): void }>();
 
-function toggleKind(k: HistoryKind): void {
-  const next = new Set(props.filters.kinds);
-  if (next.has(k)) next.delete(k); else next.add(k);
-  emit('update', { ...props.filters, kinds: next });
+function toggle<K extends 'kinds' | 'stations'>(key: K, v: K extends 'kinds' ? HistoryKind : string): void {
+  const next = new Set(props.filters[key]) as Filters[K];
+  if (next.has(v as never)) next.delete(v as never); else next.add(v as never);
+  emit('update', { ...props.filters, [key]: next });
 }
-function toggleStation(s: string): void {
-  const next = new Set(props.filters.stations);
-  if (next.has(s)) next.delete(s); else next.add(s);
-  emit('update', { ...props.filters, stations: next });
-}
-function toggleWebhooks(): void {
-  emit('update', { ...props.filters, includeWebhooks: !props.filters.includeWebhooks });
-}
-function reset(): void {
-  emit('update', { kinds: new Set(), stations: new Set(), includeWebhooks: true });
-}
+
+const chipClass = (on: boolean): string => on
+  ? 'bg-metro-accent border-metro-accent text-white'
+  : 'bg-metro-hover-light dark:bg-metro-hover-dark border-metro-border-light dark:border-metro-border-dark';
 </script>
 
 <template>
@@ -39,7 +32,11 @@ function reset(): void {
       border-t border-metro-border-light dark:border-metro-border-dark p-4 max-h-[85vh] overflow-y-auto">
       <div class="flex items-center gap-3 mb-4">
         <h2 class="font-bold text-lg flex-1">Filter events</h2>
-        <button type="button" class="text-sm font-semibold text-metro-accent hover:underline" @click="reset">Reset</button>
+        <button
+          type="button"
+          class="text-sm font-semibold text-metro-accent hover:underline"
+          @click="emit('update', { kinds: new Set(), stations: new Set(), includeWebhooks: true })"
+        >Reset</button>
         <button type="button" class="text-sm font-bold text-metro-accent hover:underline" @click="$emit('close')">Done</button>
       </div>
       <section class="mb-4">
@@ -50,10 +47,8 @@ function reset(): void {
             :key="k"
             type="button"
             class="px-3 py-1.5 rounded-full text-sm font-semibold border"
-            :class="filters.kinds.has(k)
-              ? 'bg-metro-accent border-metro-accent text-white'
-              : 'bg-metro-hover-light dark:bg-metro-hover-dark border-metro-border-light dark:border-metro-border-dark'"
-            @click="toggleKind(k)"
+            :class="chipClass(filters.kinds.has(k))"
+            @click="toggle('kinds', k)"
           >{{ k }}</button>
         </div>
       </section>
@@ -65,10 +60,8 @@ function reset(): void {
             :key="s"
             type="button"
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border"
-            :class="filters.stations.has(s)
-              ? 'bg-metro-accent border-metro-accent text-white'
-              : 'bg-metro-hover-light dark:bg-metro-hover-dark border-metro-border-light dark:border-metro-border-dark'"
-            @click="toggleStation(s)"
+            :class="chipClass(filters.stations.has(s))"
+            @click="toggle('stations', s)"
           >
             <StationIcon :station="s" />
             {{ stationLabel(s) }}
@@ -80,10 +73,8 @@ function reset(): void {
         <button
           type="button"
           class="px-3 py-1.5 rounded-full text-sm font-semibold border"
-          :class="filters.includeWebhooks
-            ? 'bg-metro-accent border-metro-accent text-white'
-            : 'bg-metro-hover-light dark:bg-metro-hover-dark border-metro-border-light dark:border-metro-border-dark'"
-          @click="toggleWebhooks"
+          :class="chipClass(filters.includeWebhooks)"
+          @click="emit('update', { ...filters, includeWebhooks: !filters.includeWebhooks })"
         >{{ filters.includeWebhooks ? 'Included' : 'Hidden' }}</button>
       </section>
     </div>

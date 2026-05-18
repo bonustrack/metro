@@ -3,16 +3,17 @@
 
 import { ref, watch, type Ref } from 'vue';
 import { fetchHistoryPage, fetchState, openTail } from './api';
-import type { Config } from './config';
-import { isConfigured } from './config';
+import { isConfigured, type Config } from './config';
 import type { HistoryEntry } from './types';
+
+type Status = 'idle' | 'connecting' | 'open' | 'error' | 'closed';
 
 export interface UseTailHandle {
   events: Ref<HistoryEntry[]>;
   older: Ref<HistoryEntry[]>;
   olderDone: Ref<boolean>;
   loadingOlder: Ref<boolean>;
-  status: Ref<'idle' | 'connecting' | 'open' | 'error' | 'closed'>;
+  status: Ref<Status>;
   errMsg: Ref<string | null>;
   reconnect: () => void;
   loadOlder: () => Promise<void>;
@@ -24,36 +25,27 @@ export function useTail(cfg: Ref<Config>, chat: Ref<string | undefined>): UseTai
   const older = ref<HistoryEntry[]>([]);
   const olderDone = ref(false);
   const loadingOlder = ref(false);
-  const status = ref<'idle' | 'connecting' | 'open' | 'error' | 'closed'>('idle');
+  const status = ref<Status>('idle');
   const errMsg = ref<string | null>(null);
   let abort: AbortController | null = null;
 
   const reconnect = (): void => {
     abort?.abort();
-    events.value = [];
-    older.value = [];
-    olderDone.value = false;
-    errMsg.value = null;
+    events.value = []; older.value = []; olderDone.value = false; errMsg.value = null;
     if (!isConfigured(cfg.value)) { status.value = 'idle'; return; }
     status.value = 'connecting';
     void fetchState(cfg.value.daemonUrl, cfg.value.token).then(r => {
       if (!r.ok) return;
       const seed = (r.data as { recent_history?: HistoryEntry[] }).recent_history ?? [];
-      const filtered = chat.value ? seed.filter(e => e.line === chat.value) : seed;
-      events.value = filtered.slice(0, 500);
+      events.value = (chat.value ? seed.filter(e => e.line === chat.value) : seed).slice(0, 500);
     });
     abort = new AbortController();
     void openTail({
-      daemonUrl: cfg.value.daemonUrl,
-      token: cfg.value.token,
-      as: cfg.value.userId || undefined,
-      chat: chat.value,
-      includeWebhooks: true,
+      daemonUrl: cfg.value.daemonUrl, token: cfg.value.token,
+      as: cfg.value.userId || undefined, chat: chat.value, includeWebhooks: true,
       signal: abort.signal,
       onOpen: () => { status.value = 'open'; },
-      onEntry: e => {
-        events.value = [e, ...events.value.filter(x => x.id !== e.id)].slice(0, 500);
-      },
+      onEntry: e => { events.value = [e, ...events.value.filter(x => x.id !== e.id)].slice(0, 500); },
       onError: m => { status.value = 'error'; errMsg.value = m; },
       onClose: () => { status.value = 'closed'; },
     });
