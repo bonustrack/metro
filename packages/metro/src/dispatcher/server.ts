@@ -32,6 +32,13 @@ export function makeEmit(codexRc: CodexRC | null): Emit {
 
 /** Translate the snake_case train wire envelope to a camelCase `HistoryEntry`. */
 /** Trains can omit `id`/`station`/`to`; metro fills sensible defaults. */
+/** Forgive trains that use platform-flavored kinds (`message`, `reaction`) — map to the canonical enum. */
+function normalizeKind(k: unknown): HistoryEntry['kind'] {
+  if (k === 'message' || k === undefined || k === null) return 'inbound';
+  if (k === 'reaction') return 'react';
+  return k as HistoryEntry['kind'];
+}
+
 export function trainEventToHistoryEntry(env: TrainEvent, trainName: string): HistoryEntry | null {
   const line = env.line;
   if (typeof line !== 'string') {
@@ -43,7 +50,7 @@ export function trainEventToHistoryEntry(env: TrainEvent, trainName: string): Hi
   return {
     id: env.id ?? mintId(),
     ts: env.ts ?? new Date().toISOString(),
-    kind: (env.kind as HistoryEntry['kind'] | undefined) ?? 'inbound',
+    kind: normalizeKind(env.kind),
     station,
     line: line as HistoryEntry['line'],
     lineName: env.line_name,
