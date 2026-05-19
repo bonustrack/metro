@@ -116,7 +116,12 @@ export async function handleMessengerSend(
   emit(entry);
   /** Agent → user: push to registered tokens. User → agent: their own message; skip. */
   if (fromAgent) {
-    const summary = text || `[${attachments[0]?.kind ?? 'attachment'}]`;
+    const a = attachments[0];
+    const kindLabel = a?.kind === 'image' ? '📷 Photo'
+      : a?.kind === 'audio' ? '🎤 Voice message'
+        : a?.kind === 'video' ? '🎬 Video'
+          : a ? `📎 ${a.name ?? 'File'}` : '';
+    const summary = text || kindLabel || '(empty)';
     void pushExpo(readPushTokens(), 'Metro', summary.slice(0, 200));
   }
   /** Fire-and-forget: transcribe any audio attachments and emit a follow-up event. */
