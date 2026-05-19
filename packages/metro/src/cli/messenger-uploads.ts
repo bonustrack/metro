@@ -1,16 +1,34 @@
 /** Messenger upload + serve: POST /api/messenger/upload, GET /api/messenger/files/:name. */
 
-import { createReadStream, createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { extname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { mintId } from '../history.js';
-import { errMsg } from '../log.js';
+import { errMsg, log } from '../log.js';
 import { STATE_DIR } from '../paths.js';
 
 const UPLOADS_DIR = join(STATE_DIR, 'messenger-uploads');
 const UPLOAD_MAX = 25 * 1024 * 1024;
+/** Tunable via env: how long uploaded files stick around before they're pruned (ms). */
+const UPLOAD_TTL_MS = Number(process.env.METRO_UPLOAD_TTL_MS ?? String(90 * 24 * 60 * 60 * 1000));
 mkdirSync(UPLOADS_DIR, { recursive: true });
+
+/** Best-effort: delete uploads older than UPLOAD_TTL_MS. Called once at module load + periodically. */
+function pruneOldUploads(): void {
+  const cutoff = Date.now() - UPLOAD_TTL_MS;
+  let removed = 0;
+  try {
+    for (const name of readdirSync(UPLOADS_DIR)) {
+      const path = join(UPLOADS_DIR, name);
+      try { if (statSync(path).mtimeMs < cutoff) { unlinkSync(path); removed += 1; } }
+      catch { /* ignore individual file errors */ }
+    }
+  } catch { /* dir missing — nothing to prune */ }
+  if (removed > 0) log.info({ removed, dir: UPLOADS_DIR }, 'messenger-uploads: pruned old files');
+}
+pruneOldUploads();
+setInterval(pruneOldUploads, 12 * 60 * 60 * 1000).unref();
 
 type Send = (res: ServerResponse, req: IncomingMessage, status: number, body: unknown) => void;
 
