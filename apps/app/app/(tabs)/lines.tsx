@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, Text, View, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
+import { StationIcon } from '../../components/StationIcon';
 import { loadConfig, isConfigured } from '../../lib/config';
 import { fetchState } from '../../lib/sse';
 import type { StateSnapshot } from '../../lib/types';
 
 type Row = { line: string; owner: string | null };
+
+const stationOf = (uri: string): string => uri.match(/^metro:\/\/([^/]+)/)?.[1] ?? 'webhook';
 
 export default function Lines(): React.ReactElement {
   const router = useRouter();
@@ -62,16 +65,20 @@ export default function Lines(): React.ReactElement {
           onPress={() => router.push({ pathname: '/', params: { chat: item.line } })}
           style={({ pressed }) => ({
             backgroundColor: pressed ? border : rowBg,
+            flexDirection: 'row', alignItems: 'center', gap: 10,
             paddingHorizontal: 14, paddingVertical: 12,
             borderBottomWidth: 1, borderBottomColor: border,
           })}
         >
-          <Text style={{ color: fg, fontSize: 14, fontFamily: 'monospace' }} numberOfLines={1}>
-            {item.line.replace(/^metro:\/\//, '')}
-          </Text>
-          <Text style={{ color: item.owner ? '#83c989' : sub, fontSize: 12, marginTop: 4 }}>
-            {item.owner ? `claimed by ${item.owner.replace(/^metro:\/\//, '')}` : 'unclaimed'}
-          </Text>
+          <StationIcon station={stationOf(item.line)} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ color: fg, fontSize: 14, fontFamily: 'monospace' }} numberOfLines={1}>
+              {item.line.replace(/^metro:\/\//, '')}
+            </Text>
+            <Text style={{ color: item.owner ? '#83c989' : sub, fontSize: 12, marginTop: 4 }}>
+              {item.owner ? `claimed by ${item.owner.replace(/^metro:\/\//, '')}` : 'unclaimed'}
+            </Text>
+          </View>
         </Pressable>
       )}
     />
