@@ -22,6 +22,7 @@ declare global {
   const inject: typeof import('vue').inject
   const isConfigured: typeof import('./lib/config').isConfigured
   const isProxy: typeof import('vue').isProxy
+  const isReaction: typeof import('./lib/messenger').isReaction
   const isReactive: typeof import('vue').isReactive
   const isReadonly: typeof import('vue').isReadonly
   const isRef: typeof import('vue').isRef
@@ -47,13 +48,17 @@ declare global {
   const onUpdated: typeof import('vue').onUpdated
   const onWatcherCleanup: typeof import('vue').onWatcherCleanup
   const openTail: typeof import('./lib/api').openTail
+  const parseRichText: typeof import('./lib/rich-text').parseRichText
   const provide: typeof import('vue').provide
+  const reactMessenger: typeof import('./lib/messenger').reactMessenger
+  const reactionsByMessage: typeof import('./lib/messenger').reactionsByMessage
   const reactive: typeof import('vue').reactive
   const readonly: typeof import('vue').readonly
   const ref: typeof import('vue').ref
   const resolveComponent: typeof import('vue').resolveComponent
   const saveConfig: typeof import('./lib/config').saveConfig
   const sendCall: typeof import('./lib/api').sendCall
+  const sendMessenger: typeof import('./lib/messenger').sendMessenger
   const shallowReactive: typeof import('vue').shallowReactive
   const shallowReadonly: typeof import('vue').shallowReadonly
   const shallowRef: typeof import('vue').shallowRef
@@ -63,6 +68,7 @@ declare global {
   const toValue: typeof import('vue').toValue
   const triggerRef: typeof import('vue').triggerRef
   const unref: typeof import('vue').unref
+  const uploadAttachment: typeof import('./lib/messenger').uploadAttachment
   const useAttrs: typeof import('vue').useAttrs
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
@@ -91,7 +97,10 @@ declare global {
   export type { Config } from './lib/config'
   import('./lib/config')
   // @ts-ignore
-  export type { HistoryKind, HistoryEntry } from './lib/types'
+  export type { Attachment, HistoryLike } from './lib/messenger'
+  import('./lib/messenger')
+  // @ts-ignore
+  export type { HistoryEntry } from './lib/types'
   import('./lib/types')
   // @ts-ignore
   export type { UseTailHandle } from './lib/useTail'
@@ -119,6 +128,7 @@ declare module 'vue' {
     readonly inject: UnwrapRef<typeof import('vue')['inject']>
     readonly isConfigured: UnwrapRef<typeof import('./lib/config')['isConfigured']>
     readonly isProxy: UnwrapRef<typeof import('vue')['isProxy']>
+    readonly isReaction: UnwrapRef<typeof import('./lib/messenger')['isReaction']>
     readonly isReactive: UnwrapRef<typeof import('vue')['isReactive']>
     readonly isReadonly: UnwrapRef<typeof import('vue')['isReadonly']>
     readonly isRef: UnwrapRef<typeof import('vue')['isRef']>
@@ -145,12 +155,15 @@ declare module 'vue' {
     readonly onWatcherCleanup: UnwrapRef<typeof import('vue')['onWatcherCleanup']>
     readonly openTail: UnwrapRef<typeof import('./lib/api')['openTail']>
     readonly provide: UnwrapRef<typeof import('vue')['provide']>
+    readonly reactMessenger: UnwrapRef<typeof import('./lib/messenger')['reactMessenger']>
+    readonly reactionsByMessage: UnwrapRef<typeof import('./lib/messenger')['reactionsByMessage']>
     readonly reactive: UnwrapRef<typeof import('vue')['reactive']>
     readonly readonly: UnwrapRef<typeof import('vue')['readonly']>
     readonly ref: UnwrapRef<typeof import('vue')['ref']>
     readonly resolveComponent: UnwrapRef<typeof import('vue')['resolveComponent']>
     readonly saveConfig: UnwrapRef<typeof import('./lib/config')['saveConfig']>
     readonly sendCall: UnwrapRef<typeof import('./lib/api')['sendCall']>
+    readonly sendMessenger: UnwrapRef<typeof import('./lib/messenger')['sendMessenger']>
     readonly shallowReactive: UnwrapRef<typeof import('vue')['shallowReactive']>
     readonly shallowReadonly: UnwrapRef<typeof import('vue')['shallowReadonly']>
     readonly shallowRef: UnwrapRef<typeof import('vue')['shallowRef']>
@@ -160,6 +173,7 @@ declare module 'vue' {
     readonly toValue: UnwrapRef<typeof import('vue')['toValue']>
     readonly triggerRef: UnwrapRef<typeof import('vue')['triggerRef']>
     readonly unref: UnwrapRef<typeof import('vue')['unref']>
+    readonly uploadAttachment: UnwrapRef<typeof import('./lib/messenger')['uploadAttachment']>
     readonly useAttrs: UnwrapRef<typeof import('vue')['useAttrs']>
     readonly useCssModule: UnwrapRef<typeof import('vue')['useCssModule']>
     readonly useCssVars: UnwrapRef<typeof import('vue')['useCssVars']>
