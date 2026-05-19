@@ -1,5 +1,6 @@
 <script setup lang="ts">
 /** ChatGPT-dark-inspired bubble with inline attachment rendering. */
+import { parseRichText } from '../lib/rich-text';
 import type { HistoryEntry } from '../lib/types';
 
 interface Attachment { id: string; url: string; kind: string; mime: string; size: number; name?: string }
@@ -12,6 +13,7 @@ const attachments = computed<Attachment[]>(() => {
   const p = props.entry.payload as { attachments?: Attachment[] } | undefined;
   return Array.isArray(p?.attachments) ? p!.attachments : [];
 });
+const parts = computed(() => props.entry.text ? parseRichText(props.entry.text) : []);
 
 function fullUrl(att: Attachment): string {
   return `${props.daemonUrl.replace(/\/$/, '')}${att.url}?token=${encodeURIComponent(props.token)}`;
@@ -68,7 +70,18 @@ function fmtSize(n: number): string {
           <span class="text-[11px] opacity-60">{{ fmtSize(att.size) }}</span>
         </a>
       </template>
-      <div v-if="entry.text">{{ entry.text }}</div>
+      <div v-if="parts.length" class="select-text break-words whitespace-pre-wrap">
+        <template v-for="(p, i) in parts" :key="i">
+          <a
+            v-if="p.kind === 'link'"
+            :href="p.href"
+            target="_blank"
+            rel="noopener"
+            class="underline text-current"
+          >{{ p.label }}</a>
+          <template v-else>{{ p.value }}</template>
+        </template>
+      </div>
       <div
         class="text-[10px] opacity-60"
         :class="mine ? 'text-right' : 'text-left'"

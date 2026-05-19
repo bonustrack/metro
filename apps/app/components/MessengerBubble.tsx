@@ -1,6 +1,7 @@
 /** ChatGPT-dark-style chat bubble — right for owner, left for everyone else. */
 
 import { Image, Linking, Pressable, Text, View } from 'react-native';
+import { parseRichText } from '../lib/rich-text';
 import type { HistoryEntry } from '../lib/types';
 
 const MESSENGER_USER = 'metro://messenger/user/owner';
@@ -83,7 +84,15 @@ export function MessengerBubble({ entry, dark, unread, onPress, daemonUrl, token
           />
         ))}
         {entry.text ? (
-          <Text style={{ color: fg, fontSize: 15, lineHeight: 20 }}>{entry.text}</Text>
+          <Text selectable style={{ color: fg, fontSize: 15, lineHeight: 20 }}>
+            {parseRichText(entry.text).map((p, i) => p.kind === 'link' ? (
+              <Text
+                key={i}
+                style={{ textDecorationLine: 'underline' }}
+                onPress={() => void Linking.openURL(p.href)}
+              >{p.label}</Text>
+            ) : <Text key={i}>{p.value}</Text>)}
+          </Text>
         ) : null}
         <Text style={{
           color: fg, opacity: 0.55, fontSize: 10, marginTop: 3,

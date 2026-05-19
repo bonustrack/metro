@@ -47,6 +47,7 @@ declare global {
   const onUpdated: typeof import('vue').onUpdated
   const onWatcherCleanup: typeof import('vue').onWatcherCleanup
   const openTail: typeof import('./lib/api').openTail
+  const parseRichText: typeof import('./lib/rich-text').parseRichText
   const provide: typeof import('vue').provide
   const reactive: typeof import('vue').reactive
   const readonly: typeof import('vue').readonly
@@ -95,6 +96,9 @@ declare global {
   // @ts-ignore
   export type { Attachment } from './lib/messenger'
   import('./lib/messenger')
+  // @ts-ignore
+  export type { TextPart, LinkPart, Part } from './lib/rich-text'
+  import('./lib/rich-text')
   // @ts-ignore
   export type { HistoryEntry } from './lib/types'
   import('./lib/types')
@@ -149,6 +153,7 @@ declare module 'vue' {
     readonly onUpdated: UnwrapRef<typeof import('vue')['onUpdated']>
     readonly onWatcherCleanup: UnwrapRef<typeof import('vue')['onWatcherCleanup']>
     readonly openTail: UnwrapRef<typeof import('./lib/api')['openTail']>
+    readonly parseRichText: UnwrapRef<typeof import('./lib/rich-text')['parseRichText']>
     readonly provide: UnwrapRef<typeof import('vue')['provide']>
     readonly reactive: UnwrapRef<typeof import('vue')['reactive']>
     readonly readonly: UnwrapRef<typeof import('vue')['readonly']>
