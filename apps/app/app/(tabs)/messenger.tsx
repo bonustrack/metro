@@ -8,6 +8,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { EventRow } from '../../components/EventRow';
 import { loadConfig, isConfigured, type Config } from '../../lib/config';
+import { registerForPush } from '../../lib/push';
 import { useTail } from '../../lib/sse';
 
 const MESSENGER_LINE = 'metro://messenger/owner';
@@ -46,7 +47,12 @@ export default function Messenger(): React.ReactElement {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  useFocusEffect(useCallback(() => { void loadConfig().then(setCfg); }, []));
+  useFocusEffect(useCallback(() => {
+    void loadConfig().then(c => {
+      setCfg(c);
+      if (c && isConfigured(c)) void registerForPush(c.daemonUrl, c.token).catch(() => { /* ignore */ });
+    });
+  }, []));
 
   const tailOpts = useMemo(() => ({
     daemonUrl: cfg?.daemonUrl ?? '', token: cfg?.token ?? '',
@@ -111,7 +117,7 @@ export default function Messenger(): React.ReactElement {
         </Text>
       ) : null}
       <View style={{
-        flexDirection: 'row', gap: 8, padding: 10, paddingBottom: 14, alignItems: 'flex-end',
+        flexDirection: 'row', gap: 8, padding: 10, paddingBottom: 24, alignItems: 'flex-end',
         borderTopWidth: 1, borderTopColor: border,
       }}>
         <TextInput

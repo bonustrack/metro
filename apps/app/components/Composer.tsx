@@ -65,7 +65,7 @@ export function Composer({ daemonUrl, token, line }: {
           send failed: {err}
         </Text>
       ) : null}
-      <View style={{ flexDirection: 'row', gap: 8, padding: 10, paddingBottom: 14, alignItems: 'flex-end' }}>
+      <View style={{ flexDirection: 'row', gap: 8, padding: 10, paddingBottom: 24, alignItems: 'flex-end' }}>
         <TextInput
           value={text}
           onChangeText={setText}
