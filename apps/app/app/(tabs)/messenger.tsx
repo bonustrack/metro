@@ -1,39 +1,21 @@
 /** Messenger — direct chat with the assistant via `POST /api/messenger/send`. */
 
-import { useCallback, useMemo, useState } from 'react';
-import {
-  ActivityIndicator, FlatList, Pressable, Text, TextInput, View,
-  useColorScheme,
-} from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, Text, View, useColorScheme } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { EventRow } from '../../components/EventRow';
+import { MessengerBubble } from '../../components/MessengerBubble';
+import { MessengerComposer } from '../../components/MessengerComposer';
 import { loadConfig, isConfigured, type Config } from '../../lib/config';
+import {
+  isReaction, isTranscript, reactMessenger, reactionsByMessage, transcriptsByMessage,
+} from '../../lib/messenger';
 import { getMessengerLastRead, markMessengerRead } from '../../lib/messenger-unread';
 import { registerForPush } from '../../lib/push';
 import { useTail } from '../../lib/sse';
+import type { HistoryEntry } from '../../lib/types';
 
 const MESSENGER_LINE = 'metro://messenger/owner';
-
-async function postMessenger(daemonUrl: string, token: string, text: string):
-  Promise<{ ok: true } | { ok: false; error: string }>
-{
-  return new Promise(resolve => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${daemonUrl.replace(/\/$/, '')}/api/messenger/send`);
-    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.onload = (): void => {
-      if (xhr.status >= 200 && xhr.status < 300) return resolve({ ok: true });
-      let msg = `HTTP ${xhr.status}`;
-      try { msg = (JSON.parse(xhr.responseText) as { error?: string }).error ?? msg; } catch { /* */ }
-      resolve({ ok: false, error: msg });
-    };
-    xhr.onerror = (): void => resolve({ ok: false, error: 'network error' });
-    xhr.ontimeout = (): void => resolve({ ok: false, error: 'timeout' });
-    xhr.timeout = 15_000;
-    xhr.send(JSON.stringify({ text, as: 'user' }));
-  });
-}
+const MESSENGER_USER = 'metro://messenger/user/owner';
 
 export default function Messenger(): React.ReactElement {
   const router = useRouter();
@@ -41,34 +23,18 @@ export default function Messenger(): React.ReactElement {
   const fg = dark ? '#e8ecf2' : '#1a1f29';
   const sub = dark ? '#8a94a6' : '#5a6477';
   const bg = dark ? '#000000' : '#ffffff';
-  const border = dark ? '#262c38' : '#e3e7ef';
 
   const [cfg, setCfg] = useState<Config | null>(null);
-  const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [pushStatus, setPushStatus] = useState<string>('not registered');
   /** Captured once on mount → entries newer than this render with the unread style. */
   const [unreadCutoff] = useState(() => getMessengerLastRead());
-
-  const tryRegister = useCallback(async (c: Config): Promise<void> => {
-    setPushStatus('registering…');
-    try {
-      const r = await registerForPush(c.daemonUrl, c.token);
-      if ('error' in r) setPushStatus(`error: ${r.error}`);
-      else setPushStatus(`registered: ${r.pushToken.slice(0, 30)}…`);
-    } catch (e) {
-      setPushStatus(`threw: ${(e as Error).message}`);
-    }
-  }, []);
 
   useFocusEffect(useCallback(() => {
     void loadConfig().then(c => {
       setCfg(c);
-      if (c && isConfigured(c)) void tryRegister(c);
+      if (c && isConfigured(c)) void registerForPush(c.daemonUrl, c.token).catch(() => { /* ignore */ });
     });
     void markMessengerRead();
-  }, [tryRegister]));
+  }, []));
 
   const tailOpts = useMemo(() => ({
     daemonUrl: cfg?.daemonUrl ?? '', token: cfg?.token ?? '',
@@ -76,9 +42,34 @@ export default function Messenger(): React.ReactElement {
   }), [cfg]);
 
   const enabled = !!cfg && isConfigured(cfg);
-  const { events, reconnect } = useTail(tailOpts, enabled);
+  const { events, reconnect, status } = useTail(tailOpts, enabled);
   /** Re-fetch the seed every time the tab regains focus so stale events get refreshed. */
   useFocusEffect(useCallback(() => { if (enabled) reconnect(); }, [enabled, reconnect]));
+  const [refreshing, setRefreshing] = useState(false);
+  const [showJump, setShowJump] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<{ id: string; preview: string } | null>(null);
+  const listRef = useRef<FlatList<HistoryEntry>>(null);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    reconnect();
+    /** useTail.reconnect is sync; brief spinner pretends until the next render delivers seed. */
+    setTimeout(() => setRefreshing(false), 600);
+  }, [reconnect]);
+
+  /** Reaction + transcript events decorate their target msg — don't render as their own bubbles. */
+  const reactions = useMemo(() => reactionsByMessage(events), [events]);
+  const transcripts = useMemo(() => transcriptsByMessage(events), [events]);
+  const bubbleEvents = useMemo(
+    () => events.filter(e => !isReaction(e) && !isTranscript(e)),
+    [events],
+  );
+  const previewOf = (e: HistoryEntry): string =>
+    e.text?.slice(0, 80) || `[${(e.payload as { attachments?: { kind: string }[] } | undefined)?.attachments?.[0]?.kind ?? 'attachment'}]`;
+  const onReact = useCallback((messageId: string, emoji: string) => {
+    if (!cfg) return;
+    void reactMessenger(cfg.daemonUrl, cfg.token, messageId, emoji)
+      .catch((e: unknown) => { console.warn('react failed', e); });
+  }, [cfg]);
 
   if (cfg && !isConfigured(cfg)) {
     return (
@@ -97,27 +88,30 @@ export default function Messenger(): React.ReactElement {
     );
   }
 
-  const canSend = !sending && !!text.trim();
-  const send = async (): Promise<void> => {
-    const body = text.trim();
-    if (!body || !cfg) return;
-    setSending(true); setErr(null);
-    const r = await postMessenger(cfg.daemonUrl, cfg.token, body);
-    setSending(false);
-    if (r.ok) { setText(''); return; }
-    setErr(r.error);
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       <FlatList
-        data={events}
+        ref={listRef}
+        data={bubbleEvents}
         inverted
         keyExtractor={e => e.id}
+        /** Inverted list: paddingTop is visually the BOTTOM — leave room for the floating composer
+         *  plus a comfortable gap so the latest message doesn't hug the composer card. */
+        contentContainerStyle={{ paddingTop: 140, paddingBottom: 6 }}
+        onScroll={(ev) => { setShowJump(ev.nativeEvent.contentOffset.y > 200); }}
+        scrollEventThrottle={32}
         renderItem={({ item }) => (
-          <EventRow
+          <MessengerBubble
             entry={item}
-            unread={item.kind === 'outbound' && item.station === 'messenger' && item.ts > unreadCutoff}
+            dark={dark}
+            unread={item.from !== MESSENGER_USER && item.station === 'messenger' && item.ts > unreadCutoff}
+            daemonUrl={cfg?.daemonUrl ?? ''}
+            token={cfg?.token ?? ''}
+            reactions={reactions.get(item.id)}
+            transcript={transcripts.get(item.id)}
+            replyPreview={item.replyTo ? previewOf(events.find(e => e.id === item.replyTo) ?? item) : undefined}
+            onReact={(emoji) => onReact(item.id, emoji)}
+            onReply={() => setReplyingTo({ id: item.id, preview: previewOf(item) })}
             onPress={() => router.push({ pathname: '/event/[id]', params: { id: item.id, data: JSON.stringify(item) } })}
           />
         )}
@@ -127,51 +121,48 @@ export default function Messenger(): React.ReactElement {
           </View>
         }
         keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={sub} />}
       />
-      {err ? (
-        <Text style={{ color: '#d96868', fontSize: 12, paddingHorizontal: 14, paddingTop: 8 }}>
-          send failed: {err}
-        </Text>
+      {status !== 'open' && enabled ? (
+        <View style={{
+          position: 'absolute', top: 8, alignSelf: 'center',
+          flexDirection: 'row', alignItems: 'center', gap: 6,
+          paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+          backgroundColor: dark ? 'rgba(40,46,58,0.92)' : 'rgba(238,241,247,0.95)',
+        }}>
+          <View style={{
+            width: 6, height: 6, borderRadius: 999,
+            backgroundColor: status === 'connecting' ? '#c0a06e' : '#d96868',
+          }} />
+          <Text style={{ color: sub, fontSize: 11 }}>
+            {status === 'connecting' ? 'Connecting…' : status === 'error' ? 'Reconnecting…' : 'Offline'}
+          </Text>
+        </View>
       ) : null}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 4 }}>
-        <Text style={{ color: sub, fontSize: 11, flex: 1 }} numberOfLines={1}>push: {pushStatus}</Text>
-        <Pressable onPress={() => cfg && void tryRegister(cfg)} hitSlop={8}>
-          <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '600' }}>retry</Text>
-        </Pressable>
-      </View>
-      <View style={{
-        flexDirection: 'row', gap: 8, padding: 10, paddingBottom: 24, alignItems: 'flex-end',
-        borderTopWidth: 1, borderTopColor: border,
-      }}>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder="Message the assistant…"
-          placeholderTextColor={sub}
-          multiline
-          style={{
-            flex: 1,
-            backgroundColor: dark ? '#16191f' : '#f3f5f9',
-            color: fg, borderRadius: 18,
-            paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
-            fontSize: 15, maxHeight: 120,
-          }}
-        />
+      {showJump ? (
         <Pressable
-          onPress={() => void send()}
-          disabled={!canSend}
-          style={({ pressed }) => ({
-            backgroundColor: pressed ? '#cccccc' : '#ffffff',
-            opacity: canSend ? 1 : 0.5,
-            paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999,
-            alignItems: 'center', justifyContent: 'center', minWidth: 60,
-          })}
+          onPress={() => listRef.current?.scrollToOffset({ offset: 0, animated: true })}
+          style={{
+            position: 'absolute', right: 14, bottom: 150,
+            width: 36, height: 36, borderRadius: 999,
+            backgroundColor: dark ? '#1d2230' : '#ffffff',
+            alignItems: 'center', justifyContent: 'center',
+            shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, elevation: 4,
+          }}
         >
-          {sending ? <ActivityIndicator color="#000" /> : (
-            <Text style={{ color: '#000', fontWeight: '700' }}>Send</Text>
-          )}
+          <Text style={{ color: fg, fontSize: 18 }}>↓</Text>
         </Pressable>
-      </View>
+      ) : null}
+      {cfg ? (
+        /** Absolute-positioned so messages flow under it (Claude-mobile style). */
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }} pointerEvents="box-none">
+          <MessengerComposer
+            daemonUrl={cfg.daemonUrl} token={cfg.token} dark={dark}
+            replyingTo={replyingTo ?? undefined}
+            onClearReply={() => setReplyingTo(null)}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
