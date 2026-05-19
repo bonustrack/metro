@@ -9,7 +9,7 @@ export default function EventDetail(): React.ReactElement {
   const dark = useColorScheme() === 'dark';
   const fg = dark ? '#e8ecf2' : '#1a1f29';
   const sub = dark ? '#8a94a6' : '#5a6477';
-  const bg = dark ? '#0f1115' : '#ffffff';
+  const bg = dark ? '#000000' : '#ffffff';
 
   let entry: HistoryEntry | null = null;
   if (data) { try { entry = JSON.parse(data) as HistoryEntry; } catch { /* leave null */ } }
@@ -53,6 +53,24 @@ export default function EventDetail(): React.ReactElement {
           </View>
         </View>
       ) : null}
+      {entry.payload ? (
+        <View style={{ marginTop: 12 }}>
+          <Text style={{ color: sub, fontSize: 11, marginBottom: 4 }}>payload</Text>
+          <View style={{ backgroundColor: dark ? '#161a22' : '#f3f5f9', padding: 10, borderRadius: 6 }}>
+            <Text style={{ color: fg, fontSize: 12, fontFamily: 'monospace' }} selectable>
+              {JSON.stringify(entry.payload, null, 2)}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+      <View style={{ marginTop: 12 }}>
+        <Text style={{ color: sub, fontSize: 11, marginBottom: 4 }}>raw</Text>
+        <View style={{ backgroundColor: dark ? '#161a22' : '#f3f5f9', padding: 10, borderRadius: 6 }}>
+          <Text style={{ color: fg, fontSize: 12, fontFamily: 'monospace' }} selectable>
+            {JSON.stringify(entry, null, 2)}
+          </Text>
+        </View>
+      </View>
     </ScrollView>
   );
 }

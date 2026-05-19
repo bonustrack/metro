@@ -23,7 +23,7 @@ const rows = computed<[string, string][]>(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen">
+  <div class="flex flex-col min-h-screen">
     <AppHeader />
     <div v-if="!entry" class="p-6 text-metro-sub-light dark:text-metro-sub-dark">Event data unavailable.</div>
     <div v-else class="flex-1 overflow-y-auto p-4 space-y-4 max-w-3xl w-full mx-auto">
@@ -38,6 +38,14 @@ const rows = computed<[string, string][]>(() => {
       <section v-if="entry.display">
         <div class="text-xs text-metro-sub-light dark:text-metro-sub-dark mb-1">display</div>
         <pre class="bg-metro-surface-light dark:bg-metro-surface-dark p-3 rounded text-xs font-mono whitespace-pre-wrap">{{ entry.display }}</pre>
+      </section>
+      <section v-if="entry.payload">
+        <div class="text-xs text-metro-sub-light dark:text-metro-sub-dark mb-1">payload</div>
+        <pre class="bg-metro-surface-light dark:bg-metro-surface-dark p-3 rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">{{ JSON.stringify(entry.payload, null, 2) }}</pre>
+      </section>
+      <section>
+        <div class="text-xs text-metro-sub-light dark:text-metro-sub-dark mb-1">raw</div>
+        <pre class="bg-metro-surface-light dark:bg-metro-surface-dark p-3 rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">{{ JSON.stringify(entry, null, 2) }}</pre>
       </section>
     </div>
   </div>

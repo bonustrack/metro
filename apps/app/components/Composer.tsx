@@ -27,6 +27,9 @@ async function sendCall(
   });
 }
 
+/** Stations with an actual outbound REST train. `claude`/`codex`/`webhook` are pseudo-lines. */
+const CHAT_TRAINS = new Set(['discord', 'telegram']);
+
 export function Composer({ daemonUrl, token, line }: {
   daemonUrl: string;
   token: string;
@@ -37,7 +40,7 @@ export function Composer({ daemonUrl, token, line }: {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  if (!train) return null;
+  if (!train || !CHAT_TRAINS.has(train)) return null;
 
   const sub = dark ? '#8a94a6' : '#5a6477';
   const border = dark ? '#262c38' : '#e3e7ef';
@@ -54,7 +57,7 @@ export function Composer({ daemonUrl, token, line }: {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={{ borderTopWidth: 1, borderTopColor: border, backgroundColor: dark ? '#161a22' : '#fafbfd' }}
     >
       {err ? (
@@ -62,7 +65,7 @@ export function Composer({ daemonUrl, token, line }: {
           send failed: {err}
         </Text>
       ) : null}
-      <View style={{ flexDirection: 'row', gap: 8, padding: 10, alignItems: 'flex-end' }}>
+      <View style={{ flexDirection: 'row', gap: 8, padding: 10, paddingBottom: 24, alignItems: 'flex-end' }}>
         <TextInput
           value={text}
           onChangeText={setText}
@@ -71,7 +74,7 @@ export function Composer({ daemonUrl, token, line }: {
           multiline
           style={{
             flex: 1,
-            backgroundColor: dark ? '#0f1115' : '#ffffff',
+            backgroundColor: dark ? '#000000' : '#ffffff',
             color: dark ? '#e8ecf2' : '#1a1f29',
             borderWidth: 1, borderColor: border, borderRadius: 18,
             paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
@@ -82,14 +85,14 @@ export function Composer({ daemonUrl, token, line }: {
           onPress={() => void send()}
           disabled={!canSend}
           style={({ pressed }) => ({
-            backgroundColor: pressed ? '#4a8fdf' : '#5aa9ff',
+            backgroundColor: pressed ? '#cccccc' : '#ffffff',
             opacity: canSend ? 1 : 0.5,
-            paddingHorizontal: 16, paddingVertical: 10, borderRadius: 18,
+            paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999,
             alignItems: 'center', justifyContent: 'center', minWidth: 60,
           })}
         >
-          {sending ? <ActivityIndicator color="#fff" /> : (
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Send</Text>
+          {sending ? <ActivityIndicator color="#000" /> : (
+            <Text style={{ color: '#000', fontWeight: '700' }}>Send</Text>
           )}
         </Pressable>
       </View>

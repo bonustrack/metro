@@ -5,17 +5,16 @@ import {
   ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View, useColorScheme,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityChart } from '../components/ActivityChart';
-import { ActivityHeader } from '../components/ActivityHeader';
-import { Composer } from '../components/Composer';
-import { EventRow } from '../components/EventRow';
+import { ActivityChart } from '../../components/ActivityChart';
+import { ActivityHeader } from '../../components/ActivityHeader';
+import { Composer } from '../../components/Composer';
+import { EventRow } from '../../components/EventRow';
 import {
   FilterSheet, emptyFilters, filtersAreEmpty, matchesFilters, type Filters,
-} from '../components/FilterSheet';
-import { SearchBar, matchesSearch } from '../components/SearchBar';
-import { loadConfig, isConfigured, type Config } from '../lib/config';
-import { fetchHistoryPage, useTail } from '../lib/sse';
-import type { HistoryEntry } from '../lib/types';
+} from '../../components/FilterSheet';
+import { loadConfig, isConfigured, type Config } from '../../lib/config';
+import { fetchHistoryPage, useTail } from '../../lib/sse';
+import type { HistoryEntry } from '../../lib/types';
 
 const PAGE_SIZE = 20;
 
@@ -25,11 +24,10 @@ export default function Activity(): React.ReactElement {
   const dark = useColorScheme() === 'dark';
   const fg = dark ? '#e8ecf2' : '#1a1f29';
   const sub = dark ? '#8a94a6' : '#5a6477';
-  const bg = dark ? '#0f1115' : '#ffffff';
+  const bg = dark ? '#000000' : '#ffffff';
   const [cfg, setCfg] = useState<Config | null>(null);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [older, setOlder] = useState<HistoryEntry[]>([]);
   const [olderExhausted, setOlderExhausted] = useState(false);
@@ -57,8 +55,8 @@ export default function Activity(): React.ReactElement {
   }, [events, older]);
 
   const filtered = useMemo(
-    () => allEvents.filter(e => matchesFilters(e, filters) && matchesSearch(e, search)),
-    [allEvents, filters, search],
+    () => allEvents.filter(e => matchesFilters(e, filters)),
+    [allEvents, filters],
   );
   const visible = filtered.slice(0, visibleCount);
 
@@ -100,11 +98,11 @@ export default function Activity(): React.ReactElement {
         <Pressable
           onPress={() => router.push('/settings')}
           style={({ pressed }) => ({
-            backgroundColor: pressed ? '#4a8fdf' : '#5aa9ff',
-            paddingVertical: 14, borderRadius: 8, alignItems: 'center',
+            backgroundColor: pressed ? '#cccccc' : '#ffffff',
+            paddingVertical: 14, borderRadius: 999, alignItems: 'center',
           })}
         >
-          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Open Settings</Text>
+          <Text style={{ color: '#000', fontWeight: '700', fontSize: 16 }}>Open Settings</Text>
         </Pressable>
       </View>
     );
@@ -118,12 +116,9 @@ export default function Activity(): React.ReactElement {
         status={status} error={error} count={filtered.length} chat={chat}
         filterActive={filterActive}
         onClearChat={() => router.setParams({ chat: undefined })}
-        onSettings={() => router.push('/settings')}
-        onLines={() => router.push('/lines')}
         onFilter={() => setFilterOpen(true)}
       />
       <ActivityChart events={filtered} />
-      <SearchBar value={search} onChange={v => { setSearch(v); setVisibleCount(PAGE_SIZE); }} />
       <FlatList
         data={visible}
         keyExtractor={(e: HistoryEntry) => e.id}

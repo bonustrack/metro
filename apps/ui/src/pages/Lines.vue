@@ -20,10 +20,11 @@ function open(line: string): void {
   void router.push({ name: 'activity', query: { chat: line } });
 }
 function short(s: string): string { return s.replace(/^metro:\/\//, ''); }
+function stationOf(uri: string): string { return uri.match(/^metro:\/\/([^/]+)/)?.[1] ?? 'webhook'; }
 </script>
 
 <template>
-  <div class="flex flex-col h-screen">
+  <div class="flex flex-col min-h-screen">
     <AppHeader />
     <div v-if="errMsg" class="flex-1 flex items-center justify-center p-6">
       <span>{{ errMsg }}</span>
@@ -34,7 +35,7 @@ function short(s: string): string { return s.replace(/^metro:\/\//, ''); }
     <div v-else-if="rows.length === 0" class="flex-1 flex items-center justify-center p-6 text-metro-sub-light dark:text-metro-sub-dark">
       No lines seen yet.
     </div>
-    <ul v-else class="flex-1 overflow-y-auto">
+    <ul v-else class="flex-1">
       <li
         v-for="r in rows"
         :key="r.line"
@@ -43,9 +44,14 @@ function short(s: string): string { return s.replace(/^metro:\/\//, ''); }
           cursor-pointer"
         @click="open(r.line)"
       >
-        <div class="font-mono text-sm truncate">{{ short(r.line) }}</div>
-        <div :class="r.owner ? 'text-metro-ok' : 'text-metro-sub-light dark:text-metro-sub-dark'" class="text-xs mt-1">
-          {{ r.owner ? `claimed by ${short(r.owner)}` : 'unclaimed' }}
+        <div class="flex items-center gap-2.5">
+          <StationIcon :station="stationOf(r.line)" />
+          <div class="min-w-0 flex-1">
+            <div class="font-mono text-sm truncate">{{ short(r.line) }}</div>
+            <div :class="r.owner ? 'text-metro-ok' : 'text-metro-sub-light dark:text-metro-sub-dark'" class="text-xs mt-0.5">
+              {{ r.owner ? `claimed by ${short(r.owner)}` : 'unclaimed' }}
+            </div>
+          </div>
         </div>
       </li>
     </ul>
