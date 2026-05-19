@@ -24,14 +24,14 @@ const TABS = [
     >
       <a
         :href="tab.to"
-        class="flex flex-col items-center gap-0.5 px-4 py-1.5 transition-colors"
+        :aria-label="tab.label"
+        class="flex items-center justify-center px-5 py-2 transition-colors"
         :class="isActive
-          ? 'text-metro-accent font-bold'
+          ? 'text-metro-accent'
           : 'text-metro-sub-light dark:text-metro-sub-dark hover:text-metro-fg-light dark:hover:text-metro-fg-dark'"
         @click.prevent="$router.push(tab.to)"
       >
-        <HeroIcon :name="tab.icon" :size="24" :focused="isActive" />
-        <span class="text-[11px] font-semibold">{{ tab.label }}</span>
+        <HeroIcon :name="tab.icon" :size="26" :focused="isActive" />
       </a>
     </RouterLink>
   </nav>
