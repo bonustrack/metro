@@ -8,6 +8,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { EventRow } from '../../components/EventRow';
 import { loadConfig, isConfigured, type Config } from '../../lib/config';
+import { getMessengerLastRead, markMessengerRead } from '../../lib/messenger-unread';
 import { registerForPush } from '../../lib/push';
 import { useTail } from '../../lib/sse';
 
@@ -47,6 +48,8 @@ export default function Messenger(): React.ReactElement {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [pushStatus, setPushStatus] = useState<string>('not registered');
+  /** Captured once on mount → entries newer than this render with the unread style. */
+  const [unreadCutoff] = useState(() => getMessengerLastRead());
 
   const tryRegister = useCallback(async (c: Config): Promise<void> => {
     setPushStatus('registering…');
@@ -64,6 +67,7 @@ export default function Messenger(): React.ReactElement {
       setCfg(c);
       if (c && isConfigured(c)) void tryRegister(c);
     });
+    void markMessengerRead();
   }, [tryRegister]));
 
   const tailOpts = useMemo(() => ({
@@ -113,6 +117,7 @@ export default function Messenger(): React.ReactElement {
         renderItem={({ item }) => (
           <EventRow
             entry={item}
+            unread={item.kind === 'outbound' && item.station === 'messenger' && item.ts > unreadCutoff}
             onPress={() => router.push({ pathname: '/event/[id]', params: { id: item.id, data: JSON.stringify(item) } })}
           />
         )}

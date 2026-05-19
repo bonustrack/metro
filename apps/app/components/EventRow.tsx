@@ -10,8 +10,8 @@ function fmtTs(ts: string): string {
   catch { return ts.slice(11, 19); }
 }
 
-export function EventRow({ entry, onPress }: {
-  entry: HistoryEntry; onPress: () => void;
+export function EventRow({ entry, onPress, unread = false }: {
+  entry: HistoryEntry; onPress: () => void; unread?: boolean;
 }): React.ReactElement {
   const dark = useColorScheme() === 'dark';
   const sub = dark ? '#8a94a6' : '#5a6477';
@@ -27,6 +27,8 @@ export function EventRow({ entry, onPress }: {
         backgroundColor: pressed ? (dark ? '#1d2230' : '#eef1f7') : (dark ? '#161a22' : '#fafbfd'),
         paddingHorizontal: 14, paddingVertical: 10,
         borderBottomWidth: 1, borderBottomColor: dark ? '#262c38' : '#e3e7ef',
+        borderLeftWidth: unread ? 3 : 0,
+        borderLeftColor: unread ? '#ffffff' : 'transparent',
       })}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>

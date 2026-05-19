@@ -19,7 +19,7 @@ const props = defineProps<{ name: keyof typeof PATHS; size?: number; focused?: b
       :d="PATHS[props.name]"
       fill="none"
       stroke="currentColor"
-      :stroke-width="props.focused ? 2.4 : 1.7"
+      stroke-width="1.8"
       stroke-linecap="round"
       stroke-linejoin="round"
     />

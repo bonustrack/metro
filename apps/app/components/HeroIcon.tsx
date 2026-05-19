@@ -26,14 +26,14 @@ interface Props {
   focused?: boolean;
 }
 
-export function HeroIcon({ name, size = 24, color = 'currentColor', focused = false }: Props): React.ReactElement {
+export function HeroIcon({ name, size = 24, color = 'currentColor' }: Props): React.ReactElement {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
         d={PATHS[name]}
         fill="none"
         stroke={color}
-        strokeWidth={focused ? 2.4 : 1.7}
+        strokeWidth={1.8}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
