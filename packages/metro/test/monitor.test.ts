@@ -475,6 +475,23 @@ describe('messenger endpoints', () => {
     expect(j.line).toBe('metro://messenger/owner');
   });
 
+  test('POST /api/messenger/send carries replyTo through the envelope', async () => {
+    const stateDir = freshStateDir();
+    server = await startServer({ METRO_STATE_DIR: stateDir, METRO_MONITOR_TOKEN: TOKEN });
+    const r = await fetch(`${server.url}/api/messenger/send`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'reply text', replyTo: 'msg_target', as: 'user' }),
+    });
+    expect(r.status).toBe(200);
+    const j = await r.json() as { id: string };
+    /** /api/state should now include the entry with replyTo intact. */
+    const snap = await fetch(`${server.url}/api/state`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const data = await snap.json() as { recent_history: { id: string; replyTo?: string }[] };
+    const found = data.recent_history.find(e => e.id === j.id);
+    expect(found?.replyTo).toBe('msg_target');
+  });
+
   test('POST /api/messenger/send 400 without text or attachments', async () => {
     const stateDir = freshStateDir();
     server = await startServer({ METRO_STATE_DIR: stateDir, METRO_MONITOR_TOKEN: TOKEN });
