@@ -6,13 +6,14 @@ import {
   useColorScheme,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { EventRow } from '../../components/EventRow';
+import { MessengerBubble } from '../../components/MessengerBubble';
 import { loadConfig, isConfigured, type Config } from '../../lib/config';
 import { getMessengerLastRead, markMessengerRead } from '../../lib/messenger-unread';
 import { registerForPush } from '../../lib/push';
 import { useTail } from '../../lib/sse';
 
 const MESSENGER_LINE = 'metro://messenger/owner';
+const MESSENGER_USER = 'metro://messenger/user/owner';
 
 async function postMessenger(daemonUrl: string, token: string, text: string):
   Promise<{ ok: true } | { ok: false; error: string }>
@@ -47,28 +48,16 @@ export default function Messenger(): React.ReactElement {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [pushStatus, setPushStatus] = useState<string>('not registered');
   /** Captured once on mount → entries newer than this render with the unread style. */
   const [unreadCutoff] = useState(() => getMessengerLastRead());
-
-  const tryRegister = useCallback(async (c: Config): Promise<void> => {
-    setPushStatus('registering…');
-    try {
-      const r = await registerForPush(c.daemonUrl, c.token);
-      if ('error' in r) setPushStatus(`error: ${r.error}`);
-      else setPushStatus(`registered: ${r.pushToken.slice(0, 30)}…`);
-    } catch (e) {
-      setPushStatus(`threw: ${(e as Error).message}`);
-    }
-  }, []);
 
   useFocusEffect(useCallback(() => {
     void loadConfig().then(c => {
       setCfg(c);
-      if (c && isConfigured(c)) void tryRegister(c);
+      if (c && isConfigured(c)) void registerForPush(c.daemonUrl, c.token).catch(() => { /* ignore */ });
     });
     void markMessengerRead();
-  }, [tryRegister]));
+  }, []));
 
   const tailOpts = useMemo(() => ({
     daemonUrl: cfg?.daemonUrl ?? '', token: cfg?.token ?? '',
@@ -114,10 +103,14 @@ export default function Messenger(): React.ReactElement {
         data={events}
         inverted
         keyExtractor={e => e.id}
+        contentContainerStyle={{ paddingVertical: 6 }}
         renderItem={({ item }) => (
-          <EventRow
+          <MessengerBubble
             entry={item}
-            unread={item.kind === 'outbound' && item.station === 'messenger' && item.ts > unreadCutoff}
+            dark={dark}
+            unread={item.from !== MESSENGER_USER && item.station === 'messenger' && item.ts > unreadCutoff}
+            daemonUrl={cfg?.daemonUrl ?? ''}
+            token={cfg?.token ?? ''}
             onPress={() => router.push({ pathname: '/event/[id]', params: { id: item.id, data: JSON.stringify(item) } })}
           />
         )}
@@ -133,12 +126,6 @@ export default function Messenger(): React.ReactElement {
           send failed: {err}
         </Text>
       ) : null}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 4 }}>
-        <Text style={{ color: sub, fontSize: 11, flex: 1 }} numberOfLines={1}>push: {pushStatus}</Text>
-        <Pressable onPress={() => cfg && void tryRegister(cfg)} hitSlop={8}>
-          <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '600' }}>retry</Text>
-        </Pressable>
-      </View>
       <View style={{
         flexDirection: 'row', gap: 8, padding: 10, paddingBottom: 24, alignItems: 'flex-end',
         borderTopWidth: 1, borderTopColor: border,
