@@ -1,0 +1,30 @@
+{
+  "name": "metro-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Monorepo for the Metro protocol — event-interception wire (packages/metro) and the Claude Code Channel MCP bridge (packages/mcp).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bonustrack/metro.git"
+  },
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5"
+  },
+  "packageManager": "bun@1.3.9",
+  "engines": {
+    "node": ">=22"
+  }
+}

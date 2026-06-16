@@ -1,0 +1,10 @@
+node_modules
+.claude
+.turbo
+dist
+*.tgz
+*.log
+.env
+.env.*
+!.env.example
+.tail-lock
