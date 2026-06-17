@@ -609,6 +609,55 @@ const shortId = (id: string) => (id.length > 10 ? `${id.slice(0, 6)}…` : id)
 // (a line an allowed sender already drives) for any orphan attachmentSaved.
 const allowedLines = new Set<string>()
 
+// --- Inbound dedupe ----------------------------------------------------------
+// The daemon runs multiple booted accounts (e.g. tony + codex) that sit in the
+// SAME channels, so ONE real inbound message is written to history.jsonl ONCE
+// PER ACCOUNT: distinct top-level event `id`s, but identical station +
+// messageId + channel, differing only in the account segment of the `line`
+// (metro://discord/tony/<chan> vs metro://discord/codex/<chan>). The shared
+// /api/tail stream replays every entry, so without dedupe the model sees each
+// message twice (verified in history.jsonl: same messageId, two `line`s).
+//
+// We dedupe on a stable identity that IGNORES the account segment: station +
+// the account-stripped line (so different channels/DMs stay distinct) + the
+// per-event kind + the station-native message id. Text is NOT part of the key
+// (same text in different channels must stay distinct; and a message vs its
+// later react carry the same messageId but a different kind, so both surface).
+// A genuinely distinct message (new messageId) or a true per-account DM
+// (different channel segment) yields a different key and is never dropped.
+//
+// Bounded short-TTL seen-set: the two duplicate entries arrive back-to-back, so
+// a small window suffices; entries self-expire and the set is capped to avoid
+// unbounded growth on this long-lived process.
+const DEDUPE_TTL_MS = 30_000
+const DEDUPE_MAX = 2_000
+const seenEvents = new Map<string, number>()
+
+// Strip the account segment from a line: metro://<station>/<account>/<rest>
+// -> metro://<station>/<rest>. Lines without an account segment pass through.
+const accountStrippedLine = (line: string): string => {
+  const parts = line.split('/')
+  // ['metro:', '', '<station>', '<account>', '<rest>...']
+  if (parts.length < 5) return line
+  return [parts[0], parts[1], parts[2], ...parts.slice(4)].join('/')
+}
+
+// True if this event was already surfaced (and should be skipped as a per-account dupe).
+const isDuplicateEvent = (station: string, line: string, kind: string, messageId: string): boolean => {
+  // No station-native id to key on -> can't safely dedupe; let it through.
+  if (!messageId) return false
+  const key = `${station} ${accountStrippedLine(line)} ${kind} ${messageId}`
+  const now = Date.now()
+  // Opportunistic prune of expired entries when the cap is hit (amortised, cheap).
+  if (seenEvents.size >= DEDUPE_MAX) {
+    for (const [k, t] of seenEvents) { if (now - t > DEDUPE_TTL_MS) seenEvents.delete(k) }
+  }
+  const prev = seenEvents.get(key)
+  if (prev !== undefined && now - prev < DEDUPE_TTL_MS) return true
+  seenEvents.set(key, now)
+  return false
+}
+
 const ATTACH_TIMEOUT_MS = 15_000
 // Gate base64/Read inlining at 4MB to stay clear of the ~5MB channels/API cap.
 const MAX_INLINE_BYTES = 4 * 1024 * 1024
@@ -757,6 +806,16 @@ async function handleEvent(ev: Record<string, unknown>) {
 
   const line = String(ev.line ?? '')
   const text = String(ev.text ?? '')
+  // Per-account dedupe: the daemon writes the same inbound message once per
+  // booted account (tony/codex) that shares the channel, so /api/tail replays
+  // it twice with only the account segment of `line` differing. Drop the second
+  // copy, keyed on station + account-stripped line + kind + messageId. Done here
+  // (after the allowlist guard, before any surfacing/buffering) so it covers
+  // plain text, reactions, AND attachment-carrying msgs uniformly.
+  if (isDuplicateEvent(station, line, evType ?? 'msg', String(ev.messageId ?? ''))) {
+    log('drop: duplicate (per-account) event', evType, station, String(ev.messageId ?? ''))
+    return
+  }
   lastLine = line
   // Remember this conversation so the daemon's follow-up attachmentSaved event
   // (which carries no real sender) can be gated/surfaced on the same line.
