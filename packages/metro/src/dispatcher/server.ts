@@ -20,24 +20,37 @@ import { findEndpoint, listEndpoints, webhookPort, type Endpoint } from '../tunn
 import { sessionOwner } from '../sessions.js';
 import { makeDedupSeq, type DedupSeq } from './dedup-seq.js';
 import { HISTORY_FILE } from '../paths.js';
+import { formatGitHubEvent, githubFrom, GITHUB_FROM_NAME } from '../github-webhook.js';
 
 type Emit = (entry: HistoryEntry) => void;
 
 /** Build the HistoryEntry minted for an inbound webhook hit. Pure so the */
 /** session-attribution rule is unit-testable. `to` is the endpoint's bound */
 /** session owner when `endpoint.session` is set, else the webhook line itself */
-/** (today's behavior — ADDITIVE: no binding ⇒ identical event). */
+/** (today's behavior — ADDITIVE: no binding ⇒ identical event). GitHub events */
+/** (`x-github-event`) are parsed into a readable one-liner authored by the */
+/** synthetic `github` account; `null` ⇒ skip (ping / low-signal) so the caller */
+/** drops it. Webhook station stays feed-excluded, so flood stays contained. */
 export function webhookEntry(
   endpoint: Endpoint, headers: Record<string, string>, body: unknown, method: string, url: string,
-): HistoryEntry {
+): HistoryEntry | null {
   const line = Line.webhook(endpoint.id);
-  return {
+  const ghEvent = headers['x-github-event'];
+  const base = {
     id: mintId(), ts: new Date().toISOString(), station: 'webhook',
-    line, lineName: endpoint.label, from: line,
+    line, lineName: endpoint.label,
     to: endpoint.session ? sessionOwner(endpoint.session) : line,
     messageId: headers['x-github-delivery'] || headers['x-request-id'] || randomUUID(),
-    text: `${headers['x-github-event'] ?? headers['x-intercom-topic'] ?? 'event'} ${method} ${url}`,
     payload: { headers, body },
+  };
+  if (ghEvent) {
+    const text = formatGitHubEvent(ghEvent, body);
+    if (text === null) return null; // skipped GitHub event — drop, don't post noise
+    return { ...base, from: githubFrom(), fromName: GITHUB_FROM_NAME, text };
+  }
+  return {
+    ...base, from: line,
+    text: `${headers['x-intercom-topic'] ?? 'event'} ${method} ${url}`,
   };
 }
 
@@ -161,7 +174,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse, emit: Em
   let body: unknown = raw.toString('utf8');
   try { body = JSON.parse(body as string); } catch { /* keep as string */ }
 
-  emit(webhookEntry(endpoint, headers, body, req.method ?? 'POST', req.url ?? ''));
+  const entry = webhookEntry(endpoint, headers, body, req.method ?? 'POST', req.url ?? '');
+  /** Skipped GitHub events (ping, low-signal sub-actions) ⇒ ack but post nothing. */
+  if (entry) emit(entry);
   res.writeHead(200).end('ok');
 }
 
