@@ -347,6 +347,52 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['line'],
       },
     },
+    {
+      name: 'create_channel',
+      description:
+        'Create a new XMTP group conversation (channel). Args: addresses (required, array of ' +
+        'Ethereum 0x addresses to add as members), name (required, the group name), labels? ' +
+        '(optional string[] status labels applied after creation via setLabels), account? ' +
+        '(default "tony"). Calls the daemon xmtp `newGroup`, then `setLabels` if labels are ' +
+        'given. Returns the new metro:// line and convId. This is an xmtp-only operation. ' +
+        'NOTE: there is no add-members verb on the daemon, so members must be supplied at ' +
+        'creation time.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          addresses: {
+            type: 'array',
+            description: 'Ethereum 0x addresses to add as group members.',
+            items: { type: 'string' },
+          },
+          name: { type: 'string', description: 'The group/channel name.' },
+          labels: { type: 'array', description: 'Optional status labels to apply after creation.', items: { type: 'string' } },
+          account: { type: 'string', description: 'XMTP account to create under (default "tony").' },
+        },
+        required: ['addresses', 'name'],
+      },
+    },
+    {
+      name: 'set_channel_metadata',
+      description:
+        'Update an existing channel\'s metadata. Args: line (required, the metro:// line), and ' +
+        'any of labels? (string[]), github? (url), preview? (url), name? (string). Each provided ' +
+        'field is applied via its matching daemon verb: labels via setLabels (also carrying ' +
+        'name as setName when both are given), github via setGithub, preview via setPreview, ' +
+        'and name (when not already applied with labels) via updateChannelMeta. xmtp-only ' +
+        '(channel metadata lives on xmtp groups). Returns the updated channel info.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          line: lineProp,
+          labels: { type: 'array', description: 'Status labels to set.', items: { type: 'string' } },
+          github: { type: 'string', description: 'Linked GitHub URL ("" to clear).' },
+          preview: { type: 'string', description: 'Linked preview URL ("" to clear).' },
+          name: { type: 'string', description: 'New channel name.' },
+        },
+        required: ['line'],
+      },
+    },
   ],
 }))
 
@@ -362,10 +408,64 @@ const WEBHOOK_REJECT = 'webhook lines do not support outbound messaging (send/re
 mcp.setRequestHandler(CallToolRequestSchema, async req => {
   const name = req.params.name
   const a = (req.params.arguments ?? {}) as Record<string, unknown>
+
+  // create_channel has no `line` yet (it mints one) and is xmtp-only, so it is
+  // handled before the line-first guard below.
+  if (name === 'create_channel') {
+    try {
+      const addresses = (a.addresses as unknown[] | undefined)?.map(String).filter(Boolean) ?? []
+      const channelName = String(a.name ?? '')
+      const labels = (a.labels as unknown[] | undefined)?.map(String).filter(Boolean) ?? []
+      const account = a.account ? String(a.account) : undefined
+      if (!addresses.length) return errResult('create_channel requires a non-empty `addresses` array')
+      if (!channelName) return errResult('create_channel requires `name`')
+      const groupArgs: Record<string, unknown> = { addresses, name: channelName }
+      if (account) groupArgs.account = account
+      const created = await metroCall('xmtp', 'newGroup', groupArgs) as { line?: string; id?: string; account?: string } | null
+      const newLine = created?.line ?? ''
+      let labelResult: unknown
+      if (labels.length && newLine) {
+        labelResult = await metroCall('xmtp', 'setLabels', { line: newLine, labels })
+      }
+      return okJson({ line: newLine, convId: created?.id, account: created?.account, labels: labels.length ? labelResult : undefined })
+    } catch (e) {
+      if (e instanceof MetroCallError) return errResult(e.detail)
+      return errResult(`metro create_channel failed: ${String(e)}`)
+    }
+  }
+
   const line = String(a.line ?? '')
   if (!line) return errResult(`${name} requires \`line\``)
   const train = trainOf(line)
   if (train === 'webhook') return errResult(WEBHOOK_REJECT)
+
+  if (name === 'set_channel_metadata') {
+    try {
+      const labels = a.labels as unknown[] | undefined
+      const github = a.github as string | undefined
+      const preview = a.preview as string | undefined
+      const metaName = a.name as string | undefined
+      let nameApplied = false
+      let info: unknown
+      // labels via setLabels (carry name as setName so both land in one mutation).
+      if (Array.isArray(labels)) {
+        const setArgs: Record<string, unknown> = { line, labels: labels.map(String) }
+        if (typeof metaName === 'string' && metaName) { setArgs.setName = metaName; nameApplied = true }
+        info = await metroCall(train, 'setLabels', setArgs)
+      }
+      if (typeof github === 'string') info = await metroCall(train, 'setGithub', { line, url: github })
+      if (typeof preview === 'string') info = await metroCall(train, 'setPreview', { line, preview })
+      // name not yet applied via setLabels -> updateChannelMeta.
+      if (typeof metaName === 'string' && metaName && !nameApplied) {
+        info = await metroCall(train, 'updateChannelMeta', { line, name: metaName })
+      }
+      if (info === undefined) return errResult('set_channel_metadata requires at least one of `labels`, `github`, `preview`, `name`')
+      return okJson(info)
+    } catch (e) {
+      if (e instanceof MetroCallError) return errResult(e.detail)
+      return errResult(`metro set_channel_metadata failed: ${String(e)}`)
+    }
+  }
 
   try {
     switch (name) {
