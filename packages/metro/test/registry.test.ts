@@ -15,7 +15,6 @@ import {
   VERB_REGISTRY, verbsFor, lookupVerb, mutateVerbs, guardedVerbs,
   validateCallArgs, SchemaError, type VerbOwner,
 } from '../src/registry.ts';
-import { GUARDED_XMTP_ACTIONS } from '../src/cli/send-guard.ts';
 
 /* Live verb names, mirrored from the station dispatchers. If a station adds or
  * removes a handler, these lists must change too — that is the completeness
@@ -101,13 +100,6 @@ describe('registry — send-guard parity', () => {
     }
   });
 
-  test('send-guard derives its set from the registry (no drift)', () => {
-    // GUARDED_XMTP_ACTIONS is now `guardedVerbs("xmtp")` by construction — assert
-    // the live export equals the registry derivation and the historical set.
-    expect([...GUARDED_XMTP_ACTIONS].sort()).toEqual([...HISTORICAL_GUARDED].sort());
-    expect([...GUARDED_XMTP_ACTIONS].sort()).toEqual([...guardedVerbs('xmtp')].sort());
-  });
-
   test('every guarded xmtp action is also mutate in the registry', () => {
     const mut = mutateVerbs('xmtp');
     for (const a of guardedVerbs('xmtp')) {
@@ -160,44 +152,5 @@ describe('registry — inputSchema-driven call validation', () => {
   test('unknown verb is a no-op pass-through (routing unchanged)', () => {
     const args = { x: 1 };
     expect(validateCallArgs('xmtp', 'nope', args)).toBe(args);
-  });
-});
-
-describe('metro schema command', () => {
-  test('--json emits the registry as parseable JSON', async () => {
-    const { cmdSchema } = await import('../src/cli/schema-cmd.ts');
-    let out = '';
-    const orig = process.stdout.write.bind(process.stdout);
-    // @ts-expect-error narrow override for capture
-    process.stdout.write = (s: string) => { out += s; return true; };
-    try { await cmdSchema([], { json: true }); } finally { process.stdout.write = orig; }
-    const parsed = JSON.parse(out) as { verbs: Array<{ name: string; owner: string; kind: string }> };
-    expect(Array.isArray(parsed.verbs)).toBe(true);
-    expect(parsed.verbs.length).toBe(VERB_REGISTRY.length);
-    expect(parsed.verbs.every(v => v.name && v.owner && v.kind)).toBe(true);
-  });
-
-  test('station filter narrows the output', async () => {
-    const { cmdSchema } = await import('../src/cli/schema-cmd.ts');
-    let out = '';
-    const orig = process.stdout.write.bind(process.stdout);
-    // @ts-expect-error narrow override for capture
-    process.stdout.write = (s: string) => { out += s; return true; };
-    try { await cmdSchema(['xmtp'], { json: true }); } finally { process.stdout.write = orig; }
-    const parsed = JSON.parse(out) as { verbs: Array<{ owner: string }> };
-    expect(parsed.verbs.length).toBe(verbsFor('xmtp').length);
-    expect(parsed.verbs.every(v => v.owner === 'xmtp')).toBe(true);
-  });
-
-  test('human table mode prints owner headings', async () => {
-    const { cmdSchema } = await import('../src/cli/schema-cmd.ts');
-    let out = '';
-    const orig = process.stdout.write.bind(process.stdout);
-    // @ts-expect-error narrow override for capture
-    process.stdout.write = (s: string) => { out += s; return true; };
-    try { await cmdSchema([], {}); } finally { process.stdout.write = orig; }
-    expect(out).toContain('metro verbs');
-    expect(out).toContain('xmtp');
-    expect(out).toContain('send');
   });
 });

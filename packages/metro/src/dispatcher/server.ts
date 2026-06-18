@@ -11,7 +11,7 @@ import {
   appendHistory, classifyEvent, codexSelf, formatDisplay, mintId, noteUserFromLine, userSelf,
   type HistoryEntry,
 } from '../history.js';
-import { handleMonitorRequest } from '../cli/tail.js';
+import { handleMonitorRequest } from '../monitor-api.js';
 import { passesMode } from '../broker/history-stream.js';
 import { readClaims } from '../broker/claims.js';
 import type { TrainEvent } from '../trains/protocol.js';

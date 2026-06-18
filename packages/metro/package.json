@@ -15,11 +15,10 @@
     "node": ">=22"
   },
   "bin": {
-    "metro": "./dist/cli/index.js",
     "metro-daemon": "./dist/server.js"
   },
   "exports": {
-    ".": "./dist/cli/index.js",
+    ".": "./dist/server.js",
     "./server": "./dist/server.js",
     "./define-train": "./dist/define-train.js",
     "./schema": "./dist/schema.js"

@@ -2,16 +2,16 @@
 
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import pkg from '../../package.json' with { type: 'json' };
-import { readClaims } from '../broker/claims.js';
+import pkg from '../package.json' with { type: 'json' };
+import { readClaims } from './broker/claims.js';
 import {
   drainTail, followTail, historySize, type Mode, type TailOpts,
-} from '../broker/history-stream.js';
-import { readHistory, type HistoryEntry } from '../history.js';
-import { ipcCall } from '../ipc.js';
-import { asLine, Line } from '../lines.js';
-import { errMsg, log } from '../log.js';
-import { readBotIds } from '../paths.js';
+} from './broker/history-stream.js';
+import { readHistory, type HistoryEntry } from './history.js';
+import { ipcCall } from './ipc.js';
+import { asLine, Line } from './lines.js';
+import { errMsg, log } from './log.js';
+import { readBotIds } from './paths.js';
 
 /** Monitor endpoints answer only on dedicated hostnames so webhook tunnel can't double-serve them. */
 const MONITOR_HOSTS = new Set(
