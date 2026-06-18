@@ -38,7 +38,7 @@ DAEMON_PID=$!
 sleep 2
 
 echo "entrypoint: starting metro-channel MCP (http :$METRO_MCP_HTTP_PORT -> $METRO_BASE_URL)"
-bun /app/packages/mcp/metro-channel.ts &
+bun /app/packages/metro/src/mcp/index.ts &
 MCP_PID=$!
 
 # Exit if either process dies (let the orchestrator restart the container).

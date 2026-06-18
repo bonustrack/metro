@@ -61,5 +61,5 @@ Telegram ids, addresses, usernames; never tokens/keys/mnemonic). The image's
 
 - **Cloud**: MCP over Streamable HTTP (`METRO_MCP_TRANSPORT=http`, the image
   default). Clients connect to `https://<host>/mcp`.
-- **Local dev**: run `bun packages/mcp/index.ts` with no `METRO_MCP_TRANSPORT`
+- **Local dev**: run `bun packages/metro/src/mcp/index.ts` with no `METRO_MCP_TRANSPORT`
   (defaults to stdio) for a single local Claude Code / Codex client.

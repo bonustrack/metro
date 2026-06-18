@@ -15,7 +15,6 @@ WORKDIR /app
 # package manifest, then install the whole workspace.
 COPY package.json bun.lock turbo.json ./
 COPY packages/metro/package.json packages/metro/package.json
-COPY packages/mcp/package.json packages/mcp/package.json
 RUN bun install --frozen-lockfile
 
 # Source. Bun runs the TS directly (no separate build step needed to boot).

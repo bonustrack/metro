@@ -2,7 +2,7 @@
   "name": "metro-monorepo",
   "private": true,
   "version": "0.0.0",
-  "description": "Monorepo for the Metro protocol — event-interception wire (packages/metro) and the Claude Code Channel MCP bridge (packages/mcp).",
+  "description": "The Metro protocol — an event-interception wire for live chat into AI sessions, as a cloud MCP server (single package: packages/metro).",
   "license": "MIT",
   "repository": {
     "type": "git",

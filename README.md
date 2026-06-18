@@ -1,19 +1,20 @@
 # Metro
 
-Monorepo for the **Metro protocol** — an event-interception wire for live chat
-streams into local AI coding sessions (Claude Code / Codex).
+The **Metro protocol** — an event-interception wire for live chat streams into AI
+coding sessions, exposed as a cloud **MCP server**.
 
-## Packages
+## Package
 
 - **[`packages/metro`](packages/metro)** — [`@metro-labs/metro`](https://www.npmjs.com/package/@metro-labs/metro)
-  The core transport. Supervises train subprocesses in `~/.metro/trains/`,
-  multiplexes their JSON event stream onto stdout, and routes outbound action
-  calls back via stdin. Per-platform logic lives in train scripts; metro core is
-  pure transport. Ships the `metro` CLI.
+  The single Metro package. It contains:
+  - the **daemon** (`metro-daemon`, `src/server.ts`): supervises train
+    subprocesses in `~/.metro/trains/` (or `METRO_TRAINS_DIR`), multiplexes their
+    JSON event stream, runs the durable outbox, and serves the webhook + monitor
+    HTTP/SSE API (`/api/call`, `/api/tail`, `/api/accounts`, `/health`);
+  - the **MCP server** (`metro-channel`, `src/mcp/index.ts`): bridges Metro chat
+    into AI sessions over **stdio** (local) or **Streamable HTTP** (cloud).
 
-- **[`packages/mcp`](packages/mcp)** — `@metro-labs/metro-channel` (private)
-  Claude Code Channel MCP server that bridges Metro inbound chat into a running
-  CC session.
+  Deploy with the root [`Dockerfile`](Dockerfile) — see [`deploy/`](deploy).
 
 ## Development
 
