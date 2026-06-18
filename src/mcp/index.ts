@@ -18,35 +18,14 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { readFile, stat } from 'node:fs/promises'
-import { readFileSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 
-// Read a single KEY=value from ~/.config/metro/.env. This is a fallback for env
-// vars because Claude Code's env injection can race the ~/.claude.json rewrite
-// at launch, transiently leaving METRO_MONITOR_TOKEN unset in process.env.
-const envFileVar = (key: string): string => {
-  try {
-    const text = readFileSync(join(homedir(), '.config/metro/.env'), 'utf8')
-    for (const raw of text.split('\n')) {
-      const line = raw.trim()
-      if (!line || line.startsWith('#')) continue
-      const eq = line.indexOf('=')
-      if (eq < 0) continue
-      if (line.slice(0, eq).trim() !== key) continue
-      let v = line.slice(eq + 1).trim()
-      if (v.length >= 2 && ((v[0] === '"' && v.endsWith('"')) || (v[0] === "'" && v.endsWith("'")))) {
-        v = v.slice(1, -1)
-      }
-      return v
-    }
-  } catch { /* missing file = ignore */ }
-  return ''
-}
-
-// --- Config (all via env, with ~/.config/metro/.env fallback) ----------------
-const BASE = ((process.env.METRO_BASE_URL || envFileVar('METRO_BASE_URL')) || 'http://127.0.0.1:8420').replace(/\/$/, '')
-const TOKEN = process.env.METRO_MONITOR_TOKEN || envFileVar('METRO_MONITOR_TOKEN')
+// --- Config (ENV ONLY — the MCP server is stateless) -------------------------
+// Every knob comes from process.env; the server keeps NO on-disk state and reads
+// no config/secret files, so it runs on an ephemeral or read-only filesystem.
+// (Inbound attachment paths are still read on demand below — that is request
+// payload the caller hands us, not server state.)
+const BASE = (process.env.METRO_BASE_URL || 'http://127.0.0.1:8420').replace(/\/$/, '')
+const TOKEN = process.env.METRO_MONITOR_TOKEN || ''
 // Comma-separated sender URIs or bare inbox/user ids that are allowed to drive
 // the session. Default: Less's primary tony-account XMTP inbox. A `*` disables
 // gating (NOT recommended - this is a prompt-injection surface).
@@ -57,54 +36,16 @@ const parseAllowlist = (raw: string): string[] =>
 const parseStations = (raw: string): Set<string> =>
   new Set(raw.split(',').map(s => s.trim()).filter(Boolean))
 
-// --- Runtime config override -------------------------------------------------
-// IMPORTANT: a running process's `process.env` is FIXED at spawn. Editing
-// ~/.claude.json (where Claude Code injects these vars from) does NOT update an
-// already-running server - so env/defaults below are only re-evaluated at launch.
-// For the CURRENT change to ALLOWLIST/STATIONS you must still relaunch ONCE.
-// AFTERWARDS, to change the allowlist/stations of a running server WITHOUT a
-// relaunch, write ~/.config/metro/metro-channel.json, e.g.
-//   { "allowlist": "*", "stations": "xmtp,telegram,discord" }
-// Keys are optional; a missing key/file falls back to env then the defaults.
-// The file is re-read only when its mtime changes (cheap stat per event).
-const OVERRIDE_PATH = join(homedir(), '.config/metro/metro-channel.json')
-let overrideMtime = -1
-let overrideAllowlist: string[] | null = null
-let overrideStations: Set<string> | null = null
-
-const refreshOverride = (): void => {
-  let mtime: number
-  try {
-    mtime = statSync(OVERRIDE_PATH).mtimeMs
-  } catch {
-    // file absent/inaccessible -> no override, fall back to env/defaults
-    if (overrideMtime !== -1) { overrideMtime = -1; overrideAllowlist = null; overrideStations = null }
-    return
-  }
-  if (mtime === overrideMtime) return
-  overrideMtime = mtime
-  overrideAllowlist = null
-  overrideStations = null
-  try {
-    const cfg = JSON.parse(readFileSync(OVERRIDE_PATH, 'utf8')) as { allowlist?: string; stations?: string }
-    if (typeof cfg.allowlist === 'string') overrideAllowlist = parseAllowlist(cfg.allowlist)
-    if (typeof cfg.stations === 'string') overrideStations = parseStations(cfg.stations)
-  } catch (e) {
-    log('override file parse failed, ignoring', e)
-  }
-}
-
-// Resolve effective config: override file (if present) wins, else env, else default.
-const getAllowlist = (): string[] => {
-  refreshOverride()
-  if (overrideAllowlist) return overrideAllowlist
-  return parseAllowlist(process.env.METRO_CHANNEL_ALLOWLIST ?? ALLOWLIST_DEFAULT)
-}
-const getStations = (): Set<string> => {
-  refreshOverride()
-  if (overrideStations) return overrideStations
-  return parseStations(process.env.METRO_CHANNEL_STATIONS ?? STATIONS_DEFAULT)
-}
+// --- Effective config (env-resolved, no disk override) -----------------------
+// A running process's `process.env` is FIXED at spawn, so allowlist/stations are
+// evaluated from the environment at launch. To change them, set
+// METRO_CHANNEL_ALLOWLIST / METRO_CHANNEL_STATIONS and relaunch. (The previous
+// on-disk ~/.config/metro/metro-channel.json hot-reload was removed to keep the
+// server stateless — there are no config files on disk.)
+const getAllowlist = (): string[] =>
+  parseAllowlist(process.env.METRO_CHANNEL_ALLOWLIST ?? ALLOWLIST_DEFAULT)
+const getStations = (): Set<string> =>
+  parseStations(process.env.METRO_CHANNEL_STATIONS ?? STATIONS_DEFAULT)
 const log = (...a: unknown[]): void => console.error('[metro-channel]', ...a)
 
 if (!TOKEN) { log('FATAL: METRO_MONITOR_TOKEN unset'); process.exit(2) }
@@ -182,12 +123,12 @@ const isImageMime = (mime: string) => mime.toLowerCase().startsWith('image/')
 const isImageExt = (path: string) => /\.(png|jpe?g|gif|webp|heic|bmp|svg)$/i.test(path)
 
 // Images -> sendImage {line, path}: the daemon reads the file itself (no base64
-// round-trip). Confirmed in packages/metro/src/stations/xmtp/actions.ts:103-121.
+// round-trip). Confirmed in src/stations/xmtp/actions.ts:103-121.
 async function metroSendImage(line: string, path: string) {
   await metroCall(trainOf(line), 'sendImage', { line, path })
 }
 // Non-images -> sendAttachment {line, name, mime, dataB64}: read + base64 here.
-// Confirmed in packages/metro/src/stations/xmtp/actions.ts:92-101.
+// Confirmed in src/stations/xmtp/actions.ts:92-101.
 async function metroSendAttachment(line: string, path: string, mime?: string, name?: string) {
   const buf = await readFile(path)
   if (buf.byteLength > XMTP_ATTACH_MAX_BYTES) {
@@ -204,7 +145,7 @@ async function metroSendAttachment(line: string, path: string, mime?: string, na
 }
 
 // Canonical attachment descriptor as accepted by the `send` action for
-// telegram/discord (matches packages/metro/src/messaging.ts Attachment +
+// telegram/discord (matches src/messaging.ts Attachment +
 // cli/messaging.ts toAttachments: {kind,url:<path>,name}). The daemon's
 // normalize layer turns these into the station-native multipart inputs.
 type CanonicalAttachment = { path?: string; url?: string; mime?: string; name?: string }

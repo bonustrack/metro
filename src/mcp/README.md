@@ -91,15 +91,14 @@ the ~190 KiB cap). See **CLI parity tools** above for the full matrix.
 
 - Claude Code **v2.1.80+** (permission relay needs **v2.1.81+**)
 - [Bun](https://bun.sh)
-- A running Metro daemon with `METRO_MONITOR_TOKEN` set (in `~/.config/metro/.env`)
+- A running Metro daemon, with `METRO_MONITOR_TOKEN` exported in the MCP server's environment
 - Anthropic auth via claude.ai or Console API key (channels are not on Bedrock/Vertex/Foundry).
   On Team/Enterprise an admin must set `channelsEnabled: true`.
 
 ## Install
 
 ```bash
-cd packages/mcp
-bun install        # only @modelcontextprotocol/sdk + zod (both in Bun cache; no heavy install)
+bun install        # from the repo root (@modelcontextprotocol/sdk + zod)
 ```
 
 ## Configure (env vars)
@@ -115,39 +114,25 @@ The allowlist gates on the **sender** (`from`), never the conversation - prompt-
 defense per the Channels spec. Only allowlisted senders can drive tools or answer
 permission prompts.
 
-### Token .env fallback
+### Stateless: config is ENV ONLY
 
-`METRO_MONITOR_TOKEN` and `METRO_BASE_URL` fall back to reading `~/.config/metro/.env`
-when the env var is unset at launch. Claude Code rewrites `~/.claude.json` on session
-start/exit and can race the env injection, transiently leaving the token unset in
-`process.env`; the `.env` read is the safety net so the server still authenticates.
-
-### Live-reload override file (no restart)
-
-A running process's `process.env` is fixed at spawn, so editing env later does nothing
-for the current process. To change the allowlist or stations of an already-running
-server **without a relaunch**, write `~/.config/metro/metro-channel.json`:
-
-```json
-{ "allowlist": "*", "stations": "xmtp,telegram,discord" }
-```
-
-This file **wins** over env vars and the built-in defaults. It is mtime-cached (re-read
-only when the file changes) and applies on the fly to the SSE gate - no restart needed.
-Delete the file to fall back to env/defaults. Note: the very first change to
-allowlist/stations after a code update still needs one relaunch; the override file only
-avoids restarts thereafter. The SSE subscribe no longer hard-filters `station=` at
-connect time; it uses a dynamic `getStations()` gate so override changes take effect live.
+The MCP server holds **no on-disk state** and reads **no config or secret files**.
+`METRO_MONITOR_TOKEN`, `METRO_BASE_URL`, `METRO_CHANNEL_ALLOWLIST` and
+`METRO_CHANNEL_STATIONS` all come from the environment, evaluated at launch. A
+running process's `process.env` is fixed at spawn, so to change the allowlist or
+stations you set the env var and **relaunch**. (Earlier builds read a
+`~/.config/metro/.env` token fallback and a hot-reloadable
+`~/.config/metro/metro-channel.json` override; both were removed to make the
+server stateless — there are no config files on disk.)
 
 ## Run
 
 The server is registered in this directory's `.mcp.json` as server name `metro`.
-Start Claude Code from `packages/mcp/` with the development-channel flag
+Start Claude Code from the repo root with the development-channel flag
 (custom channels aren't on the Anthropic allowlist during the research preview):
 
 ```bash
-cd packages/mcp
-METRO_MONITOR_TOKEN=$(grep METRO_MONITOR_TOKEN ~/.config/metro/.env | cut -d= -f2) \
+METRO_MONITOR_TOKEN=... \
   claude --dangerously-load-development-channels server:metro
 ```
 
@@ -156,13 +141,13 @@ A dim banner confirms: `Channels (experimental) messages from server:metro injec
 
 Registering the server globally in `~/.claude.json` (`mcpServers.metro`) with an absolute
 launch command lets you start the channel from **any directory**, not just
-`packages/mcp/`. A `metro-cc` convenience launcher wraps the long
+`the repo root`. A `metro-cc` convenience launcher wraps the long
 `claude --dangerously-load-development-channels server:metro` invocation.
 
 ## Live test plan
 
 1. **Daemon up**: `metro doctor` (dispatcher running, xmtp train healthy). Do NOT restart it.
-2. **Start CC as a channel** (command above) from `packages/mcp/`.
+2. **Start CC as a channel** (command above) from `the repo root`.
    Run `/mcp` - `metro` should show connected.
 3. **Inbound**: from your phone, send an XMTP message on the channel line. It arrives in
    the CC session as `<channel source="metro" line="metro://xmtp/tony/..." from="..."
@@ -181,14 +166,14 @@ launch command lets you start the channel from **any directory**, not just
   + `notifications/claude/channel/permission` (relay). Meta keys are identifiers only
   (underscores), so the metro line rides as `line` (no scheme issues - it's a value, not a key).
 - **A local `.mcp.json` shadows the global `~/.claude.json` server entry.** When CC is
-  launched from a directory containing `.mcp.json` (e.g. `packages/mcp/`), that
+  launched from a directory containing `.mcp.json` (e.g. `the repo root`), that
   file's `env` block wins over the global `mcpServers.metro` entry. If the local
   `.mcp.json` omits `METRO_CHANNEL_ALLOWLIST`/`METRO_CHANNEL_STATIONS`, the server falls
   back to the hardcoded single-id default allowlist and **drops every message**. Fix: set
   `METRO_CHANNEL_ALLOWLIST` and `METRO_CHANNEL_STATIONS` in whichever `.mcp.json` actually
   launches the server (this package's `.mcp.json` now sets `"*"` and
-  `"xmtp,telegram,discord"`). At runtime you can also drop a
-  `~/.config/metro/metro-channel.json` override (see above) which beats both.
+  `"xmtp,telegram,discord"`). The server is stateless, so there is no on-disk
+  override — change the env in whichever launcher starts the server and relaunch.
 - Permission relay routes to the **last inbound line** seen. With a single active
   conversation that is exact; multi-conversation routing would need per-request line capture
   (CC's `permission_request` doesn't carry a conversation id, so last-line is the documented pattern).

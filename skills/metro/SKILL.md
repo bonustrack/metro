@@ -211,7 +211,7 @@ Trains are throwaway — if the user asks for new functionality, rewrite the tra
 to use `metro call`), accept the canonical envelope
 (`{line,text?,replyTo?,attachments?,emoji?,messageId?,limit?,before?,since?}`) for
 those action names. The first-party stations (xmtp/discord/telegram) live in the
-repo at `packages/metro/src/stations/<name>/` and translate the envelope to their
+repo at `src/stations/<name>/` and translate the envelope to their
 native actions via `src/stations/messaging-normalize.ts` — copy that pattern.
 
 ## First-run setup (once per machine)
