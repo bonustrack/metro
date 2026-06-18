@@ -146,10 +146,9 @@ async function buildGroupInfo(
     members: inboxIds.map(iid => ({ inboxId: iid, address: addresses[iid] ?? null })) };
 }
 
-/** Add members (by Ethereum address and/or XMTP inboxId) to an existing group,
- *  then respond with the refreshed groupInfo. Resolves the group from `line`.
- *  Mirrors newGroup/closeGroup; uses Group.addMembersByIdentifiers for addresses
- *  and Group.addMembers for inboxIds (node-sdk). */
+/** Add members (by address and/or inboxId) to a group, then respond with the
+ *  refreshed groupInfo. Mirrors newGroup/closeGroup; uses addMembersByIdentifiers
+ *  for addresses and addMembers for inboxIds (node-sdk). Resolves from `line`. */
 async function addMembers(id: string, args: Args): Promise<void> {
   const { line, addresses, inboxIds } = args as {
     line: string; addresses?: string[]; inboxIds?: string[] };
@@ -186,6 +185,47 @@ async function addMembers(id: string, args: Args): Promise<void> {
   }
   const info = await buildGroupInfo(line, acct, conv as object & typeof conv);
   respond(id, { result: { ...info, added: { addresses: addrs, inboxIds: inboxes } } });
+}
+
+/** Remove members (by address and/or inboxId) from a group, then respond with the
+ *  refreshed groupInfo. Symmetric with addMembers; uses removeMembersByIdentifiers
+ *  for addresses and removeMembers for inboxIds (node-sdk). Resolves from `line`. */
+async function removeMembers(id: string, args: Args): Promise<void> {
+  const { line, addresses, inboxIds } = args as {
+    line: string; addresses?: string[]; inboxIds?: string[] };
+  if (!line || typeof line !== 'string') {
+    throw new TrainError('INVALID_ARGS', 'removeMembers requires a `line`');
+  }
+  const addrs = (addresses ?? []).filter(a => typeof a === 'string' && a.length > 0);
+  const inboxes = (inboxIds ?? []).filter(a => typeof a === 'string' && a.length > 0);
+  if (addrs.length === 0 && inboxes.length === 0) {
+    throw new TrainError('INVALID_ARGS', 'removeMembers requires addresses[] or inboxIds[]');
+  }
+  const { acct, conv } = await convOf(line);
+  if (!conv) throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
+  const group = conv as unknown as GroupLike & {
+    removeMembers?: (ids: string[]) => Promise<unknown>;
+    removeMembersByIdentifiers?: (ids: { identifier: string; identifierKind: IdentifierKind }[]) => Promise<unknown>;
+  };
+  if (typeof group.removeMembers !== 'function' && typeof group.removeMembersByIdentifiers !== 'function') {
+    throw new TrainError('INVALID_ARGS', 'removeMembers target is not a group (no removeMembers)');
+  }
+  await group.sync?.().catch(() => undefined);
+  if (addrs.length) {
+    if (typeof group.removeMembersByIdentifiers !== 'function') {
+      throw new TrainError('INVALID_ARGS', 'group does not support removeMembersByIdentifiers; pass inboxIds instead');
+    }
+    await group.removeMembersByIdentifiers(
+      addrs.map(a => ({ identifier: a, identifierKind: IdentifierKind.Ethereum })));
+  }
+  if (inboxes.length) {
+    if (typeof group.removeMembers !== 'function') {
+      throw new TrainError('INVALID_ARGS', 'group does not support removeMembers by inboxId');
+    }
+    await group.removeMembers(inboxes);
+  }
+  const info = await buildGroupInfo(line, acct, conv as object & typeof conv);
+  respond(id, { result: { ...info, removed: { addresses: addrs, inboxIds: inboxes } } });
 }
 
 async function groupInfo(id: string, args: Args): Promise<void> {
@@ -256,7 +296,7 @@ async function listConvs(id: string, args: Args): Promise<void> {
 }
 
 export const convHandlers: Record<string, Handler> = {
-  newDm, newGroup, createRequestGroup, addMembers, setLabels, setGithub, setPreview, updateChannelMeta,
+  newDm, newGroup, createRequestGroup, addMembers, removeMembers, setLabels, setGithub, setPreview, updateChannelMeta,
   closeGroup, query, groupInfo, listConvs,
   ...pushHandlers,
 };

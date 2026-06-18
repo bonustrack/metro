@@ -68,16 +68,33 @@ export function pickMode(
 
 export function handleMonitorRequest(req: IncomingMessage, res: ServerResponse): boolean {
   const url = req.url ?? '';
+  const [path, qs = ''] = url.split('?', 2);
+  /** /health is PUBLIC (no auth, any host): liveness + configured accounts (public
+   *  ids only, never tokens/keys/mnemonic). Handled FIRST — before the /api/ prefix,
+   *  host allowlist, and Bearer auth — so a cloud LB/uptime probe can hit it. */
+  if (req.method === 'GET' && (path === '/health' || path === '/api/health')) {
+    handleHealth(res, req).catch(err => {
+      log.warn({ err: errMsg(err) }, 'monitor: health handler error');
+      try { send(res, req, 500, { ok: false, error: errMsg(err) }); } catch { /* ignore */ }
+    });
+    return true;
+  }
   if (!url.startsWith('/api/')) return false;
   const host = (req.headers[':authority' as keyof typeof req.headers] as string | undefined) ?? req.headers.host;
   if (host && !MONITOR_HOSTS.has(host.split(':')[0].toLowerCase())) return false;
   /** CORS preflight — short-circuit before auth so browsers can OPTIONS without a token. */
   if (req.method === 'OPTIONS') { res.writeHead(204, cors(req)); res.end(); return true; }
-  const [path, qs = ''] = url.split('?', 2);
   const q = new URLSearchParams(qs);
   const auth = authorized(req, q);
   if (auth) { send(res, req, auth.status, { error: auth.msg }); return true; }
   if (req.method === 'GET' && path === '/api/state') { handleState(res, req, q); return true; }
+  if (req.method === 'GET' && path === '/api/accounts') {
+    gatherAccounts().then(accounts => send(res, req, 200, { accounts })).catch(err => {
+      log.warn({ err: errMsg(err) }, 'monitor: accounts handler error');
+      try { send(res, req, 500, { error: errMsg(err) }); } catch { /* ignore */ }
+    });
+    return true;
+  }
   if (req.method === 'GET' && path === '/api/tail') {
     handleTail(req, res, q).catch(err => {
       log.warn({ err: errMsg(err) }, 'monitor: tail handler error');
@@ -107,6 +124,42 @@ export function handleMonitorRequest(req: IncomingMessage, res: ServerResponse):
 function nonNegInt(raw: string | null): number | null {
   const n = raw == null ? NaN : Number(raw);
   return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+/** Stations queried for the public accounts view. Each exposes an `accounts`
+ *  read action returning PUBLIC identity only (ids + addresses/usernames/botIds,
+ *  never tokens/keys/mnemonic). A station that is down/unknown contributes []. */
+const ACCOUNT_STATIONS = ['xmtp', 'discord', 'telegram'] as const;
+
+/** Fan the `accounts` read action out to every station via the daemon IPC and
+ *  collect the public account descriptors keyed by station. Best-effort: a down
+ *  train yields [] rather than failing the response (keeps /health reliable). */
+async function gatherAccounts(): Promise<Record<string, unknown[]>> {
+  const out: Record<string, unknown[]> = {};
+  await Promise.all(ACCOUNT_STATIONS.map(async station => {
+    try {
+      const resp = await ipcCall({ op: 'forward-call', train: station, action: 'accounts', args: {} });
+      const accounts = resp.ok && 'response' in resp
+        ? (resp.response.result as { accounts?: unknown[] } | undefined)?.accounts
+        : undefined;
+      out[station] = Array.isArray(accounts) ? accounts : [];
+    } catch { out[station] = []; }
+  }));
+  return out;
+}
+
+/** GET /health (and /api/health) — PUBLIC liveness + configured-accounts view.
+ *  Exposes ONLY non-secret identity (XMTP/Discord/Telegram ids, addresses,
+ *  usernames). NEVER tokens, private keys, or the mnemonic. */
+async function handleHealth(res: ServerResponse, req: IncomingMessage): Promise<void> {
+  const accounts = await gatherAccounts();
+  send(res, req, 200, {
+    ok: true,
+    service: 'metro',
+    version: pkg.version,
+    uptime_s: Math.round(process.uptime()),
+    accounts,
+  });
 }
 
 function handleState(res: ServerResponse, req: IncomingMessage, q: URLSearchParams): void {

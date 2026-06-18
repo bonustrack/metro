@@ -53,10 +53,29 @@ async function media(
 const KNOWN = 'accounts, send, react, edit, delete, send_photo, send_document, '
   + 'send_voice, send_sticker, send_dice, send_location, download';
 
+/** Best-effort getMe cache so the `accounts` action (and the daemon /health page)
+ *  can surface a bot's username/id without a token. Cached forever per account
+ *  (a bot's identity is stable); a failed lookup just yields nulls. */
+const meCache = new Map<string, { id: number; username: string | null }>();
+async function getMe(accountId: string): Promise<{ id: number; username: string | null } | null> {
+  const cached = meCache.get(accountId);
+  if (cached) return cached;
+  try {
+    const me = await tg<{ id: number; username?: string }>(accountId, 'getMe', {}, 10_000);
+    const v = { id: me.id, username: me.username ?? null };
+    meCache.set(accountId, v);
+    return v;
+  } catch { return null; }
+}
+
 async function dispatch({ id, action, args }: CallMsg): Promise<void> {
   if (action === 'accounts') {
-    respond(id, { result: { accounts: [...accounts.values()].map(a => ({
-      id: a.cfg.id, owner: a.cfg.owner ?? null })) } });
+    const list = await Promise.all([...accounts.values()].map(async a => {
+      const me = await getMe(a.cfg.id);
+      return { id: a.cfg.id, owner: a.cfg.owner ?? null,
+        botId: me?.id ?? null, username: me?.username ?? null };
+    }));
+    respond(id, { result: { accounts: list } });
   } else if (action === 'send') {
     const { line, text, replyTo, parseMode, buttons, account, attachments } = args as {
       line: string; text: string; replyTo?: string; parseMode?: string;

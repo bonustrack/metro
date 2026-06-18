@@ -373,6 +373,111 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: 'ask',
+      description:
+        'Ask a question as a poll in an XMTP conversation (mirrors Claude AskUserQuestion). ' +
+        'Single-question form: question (required), options? (string[]), header?, multiSelect?, ' +
+        'open? (true => free-text answer, options optional). Multi-question form: questions ' +
+        '(array of {question, options?, header?, multiSelect?, open?}). Args: line (required) + ' +
+        'the above. xmtp-only (the daemon `ask` action). Returns the poll messageId + pollId.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          line: lineProp,
+          question: { type: 'string', description: 'The question text (single-question form).' },
+          options: { type: 'array', description: 'Answer options for a single question.', items: { type: 'string' } },
+          header: { type: 'string', description: 'Optional header/title for the poll.' },
+          multiSelect: { type: 'boolean', description: 'Allow selecting multiple options.' },
+          open: { type: 'boolean', description: 'Free-text answer (options optional).' },
+          questions: {
+            type: 'array',
+            description: 'Multiple questions (multi-question form). Each is {question, options?, header?, multiSelect?, open?}.',
+            items: { type: 'object' },
+          },
+        },
+        required: ['line'],
+      },
+    },
+    {
+      name: 'dm',
+      description:
+        'Open (or reuse) a 1:1 XMTP DM with an Ethereum address. Args: address (required, 0x...), ' +
+        'account? (default "tony"). Returns the new metro:// line and convId. xmtp-only ' +
+        '(daemon `newDm`). Use this instead of create_channel when there is a single recipient.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          address: { type: 'string', description: 'Recipient Ethereum 0x address.' },
+          account: { type: 'string', description: 'XMTP account to DM from (default "tony").' },
+        },
+        required: ['address'],
+      },
+    },
+    {
+      name: 'group_info',
+      description:
+        'Read an XMTP channel\'s current metadata + membership. Args: line (required). Returns ' +
+        '{line, id, account, version (dm|group), name, memberCount, labels, github, preview, ' +
+        'members:[{inboxId, address}]}. xmtp-only (daemon `groupInfo`). Use before ' +
+        'set_channel_metadata/add_members to see current state.',
+      inputSchema: {
+        type: 'object',
+        properties: { line: lineProp },
+        required: ['line'],
+      },
+    },
+    {
+      name: 'add_members',
+      description:
+        'Add members to an existing XMTP group. Args: line (required), addresses? (0x[] ) and/or ' +
+        'inboxIds? (string[]); at least one of the two is required. Returns the refreshed ' +
+        'group_info plus `added`. xmtp-only (daemon `addMembers`).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          line: lineProp,
+          addresses: { type: 'array', description: 'Ethereum 0x addresses to add.', items: { type: 'string' } },
+          inboxIds: { type: 'array', description: 'XMTP inboxIds to add.', items: { type: 'string' } },
+        },
+        required: ['line'],
+      },
+    },
+    {
+      name: 'remove_members',
+      description:
+        'Remove members from an existing XMTP group. Args: line (required), addresses? (0x[]) ' +
+        'and/or inboxIds? (string[]); at least one required. Returns the refreshed group_info. ' +
+        'xmtp-only (daemon `removeMembers`).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          line: lineProp,
+          addresses: { type: 'array', description: 'Ethereum 0x addresses to remove.', items: { type: 'string' } },
+          inboxIds: { type: 'array', description: 'XMTP inboxIds to remove.', items: { type: 'string' } },
+        },
+        required: ['line'],
+      },
+    },
+    {
+      name: 'close_channel',
+      description:
+        'Archive/close an XMTP group (removes members). Args: line (required). xmtp-only ' +
+        '(daemon `closeGroup`). Irreversible-ish: members are removed from the group.',
+      inputSchema: {
+        type: 'object',
+        properties: { line: lineProp },
+        required: ['line'],
+      },
+    },
+    {
+      name: 'list_accounts',
+      description:
+        'List the configured bot/messaging accounts across all stations (PUBLIC identity only: ' +
+        'XMTP inbox/eth addresses, Discord & Telegram bot ids/usernames). No args. Never returns ' +
+        'tokens, private keys, or the mnemonic. Reads the daemon /api/accounts view.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
       name: 'set_channel_metadata',
       description:
         'Update an existing channel\'s metadata. Args: line (required, the metro:// line), and ' +
@@ -431,6 +536,33 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     } catch (e) {
       if (e instanceof MetroCallError) return errResult(e.detail)
       return errResult(`metro create_channel failed: ${String(e)}`)
+    }
+  }
+
+  // dm mints a new line from an address (xmtp-only); handle before the line guard.
+  if (name === 'dm') {
+    try {
+      const address = String(a.address ?? '')
+      if (!address) return errResult('dm requires `address`')
+      const dmArgs: Record<string, unknown> = { address }
+      if (a.account) dmArgs.account = String(a.account)
+      const created = await metroCall('xmtp', 'newDm', dmArgs)
+      return okJson(created)
+    } catch (e) {
+      if (e instanceof MetroCallError) return errResult(e.detail)
+      return errResult(`metro dm failed: ${String(e)}`)
+    }
+  }
+
+  // list_accounts reads the daemon /api/accounts view (no line, all stations).
+  if (name === 'list_accounts') {
+    try {
+      const r = await fetch(`${BASE}/api/accounts`, { headers: { authorization: `Bearer ${TOKEN}` } })
+      const body = await r.text()
+      if (!r.ok) return errResult(`metro list_accounts ${r.status}: ${body.slice(0, 400)}`)
+      return okJson(body ? JSON.parse(body) : null)
+    } catch (e) {
+      return errResult(`metro list_accounts failed: ${String(e)}`)
     }
   }
 
@@ -533,6 +665,41 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
         if (a.before) args.before = String(a.before)
         if (a.since) args.since = String(a.since)
         const result = await metroCall(train, 'read', args)
+        return okJson(result)
+      }
+      case 'ask': {
+        // Pass the poll args through to the xmtp `ask` action verbatim (it accepts
+        // single {question, options?, header?, multiSelect?, open?} or {questions:[…]}).
+        const args: Record<string, unknown> = { line }
+        for (const k of ['question', 'options', 'header', 'multiSelect', 'open', 'questions'] as const) {
+          if (a[k] !== undefined) args[k] = a[k]
+        }
+        if (a.question === undefined && a.questions === undefined) {
+          return errResult('ask requires `question` (single) or `questions` (multi)')
+        }
+        const result = await metroCall(train, 'ask', args)
+        return okJson(result)
+      }
+      case 'group_info': {
+        const result = await metroCall(train, 'groupInfo', { line })
+        return okJson(result)
+      }
+      case 'close_channel': {
+        const result = await metroCall(train, 'closeGroup', { line })
+        return okJson(result)
+      }
+      case 'add_members':
+      case 'remove_members': {
+        const addresses = (a.addresses as unknown[] | undefined)?.map(String).filter(Boolean) ?? []
+        const inboxIds = (a.inboxIds as unknown[] | undefined)?.map(String).filter(Boolean) ?? []
+        if (!addresses.length && !inboxIds.length) {
+          return errResult(`${name} requires \`addresses\` or \`inboxIds\``)
+        }
+        const args: Record<string, unknown> = { line }
+        if (addresses.length) args.addresses = addresses
+        if (inboxIds.length) args.inboxIds = inboxIds
+        const action = name === 'add_members' ? 'addMembers' : 'removeMembers'
+        const result = await metroCall(train, action, args)
         return okJson(result)
       }
       default:
