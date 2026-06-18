@@ -24,7 +24,7 @@ const LIVE: Record<Exclude<VerbOwner, 'core'>, string[]> = {
   xmtp: [
     'accounts', 'send', 'ask', 'sendPoll', 'react', 'reply', 'sendAttachment',
     'sendImage', 'sendTxRequest', 'sendSignatureRequest', 'edit', 'delete',
-    'newDm', 'newGroup', 'createRequestGroup', 'setLabels', 'setGithub',
+    'newDm', 'newGroup', 'createRequestGroup', 'addMembers', 'setLabels', 'setGithub',
     'setPreview', 'updateChannelMeta', 'closeGroup', 'query', 'groupInfo',
     'listConvs', 'register-push', 'list-push', 'test-push', 'unregister-push',
     'disable-push',
