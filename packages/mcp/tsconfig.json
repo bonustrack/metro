@@ -7,7 +7,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "lib": ["ES2022", "DOM"],
-    "types": ["node"]
+    "types": ["node", "bun"]
   },
-  "include": ["metro-channel.ts"]
+  "include": ["index.ts"]
 }

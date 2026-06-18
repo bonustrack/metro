@@ -5,7 +5,7 @@
   "description": "Claude Code Channel MCP server bridging Metro inbound chat into a running CC session",
   "type": "module",
   "bin": {
-    "metro-channel": "./metro-channel.ts"
+    "metro-channel": "./index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -15,6 +15,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/bun": "^1.2.0",
     "@types/node": "^25.9.3",
     "typescript": "^5.5.0"
   }

@@ -8,7 +8,7 @@ exposed as tools to send responses back, and tool-approval prompts are relayed t
 so you can approve/deny from your phone.
 
 ```
- XMTP/TG/Discord ──▶ metro daemon ──SSE /api/tail──▶ metro-channel.ts ──stdio──▶ Claude Code
+ XMTP/TG/Discord ──▶ metro daemon ──SSE /api/tail──▶ index.ts (MCP) ──stdio|http──▶ AI clients
        ▲                  ▲                                                          │
        └── reply ─────────┴────────────── POST /api/call/<train>/send ◀─────────────┘
 ```
