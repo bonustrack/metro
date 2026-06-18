@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CODECS } from './codecs.js';
-import { makeAccountStore } from '../account-store.js';
+import { makeAccountStore, deriveIndices } from '../account-store.js';
 import { chmodIfExists } from '../../secure-fs.js';
 import { Line } from '../../lines.js';
 
@@ -47,11 +47,16 @@ export const { die, loadAccounts } = makeAccountStore<AccountConfig>({
       seen.add(a.id);
     }
   },
-  /** Back-compat: single account from env. */
+  /** Env fallback (no accounts file). Precedence: XMTP_DERIVE_INDICES=0,3,7 →
+   *  those HD indices; else XMTP_DERIVE_COUNT=N → 0..N-1; else XMTP_PRIVATE_KEY →
+   *  single `default`. Derived ids are x<index> (path m/44'/60'/0'/0/<index>). */
   fallback(die) {
+    const env = (process.env.XMTP_ENV as XmtpEnv) ?? 'production';
+    const indices = deriveIndices(process.env.XMTP_DERIVE_INDICES, process.env.XMTP_DERIVE_COUNT, die);
+    if (indices.length) return indices.map((i) => ({ id: `x${i}`, derive: i, env }));
     const pk = process.env.XMTP_PRIVATE_KEY;
-    if (!pk) die(`no ${ACCOUNTS_FILE} and XMTP_PRIVATE_KEY unset`);
-    return [{ id: 'default', privateKey: pk, env: (process.env.XMTP_ENV as XmtpEnv) ?? 'production' }];
+    if (!pk) die(`no ${ACCOUNTS_FILE} and none of XMTP_PRIVATE_KEY / XMTP_DERIVE_COUNT / XMTP_DERIVE_INDICES set`);
+    return [{ id: 'default', privateKey: pk, env }];
   },
 });
 
