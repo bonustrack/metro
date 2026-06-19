@@ -1,17 +1,17 @@
 /** Metro-custom XMTP content codecs (poll + signature request/reference). */
 
-import { ReactionCodec } from '@xmtp/content-type-reaction';
-import { ReplyCodec } from '@xmtp/content-type-reply';
-import { AttachmentCodec, RemoteAttachmentCodec } from '@xmtp/content-type-remote-attachment';
-import { ContentTypeId, type ContentCodec, type EncodedContent } from '@xmtp/content-type-primitives';
-import { WalletSendCallsCodec } from '@xmtp/content-type-wallet-send-calls';
-import { TransactionReferenceCodec } from '@xmtp/content-type-transaction-reference';
+// node-sdk@6 builds in the standard content types (text, reaction, reply,
+// attachment, remote-attachment, wallet-send-calls, transaction-reference) — they
+// decode natively and are always present — so only Metro's CUSTOM codecs (poll +
+// signature) are registered below. ContentTypeId is now a structural type (from
+// @xmtp/node-bindings, re-exported by primitives), not a constructible class.
+import type { ContentTypeId, ContentCodec, EncodedContent } from '@xmtp/content-type-primitives';
 
 const enc = (o: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(o));
 const dec = <T>(e: EncodedContent): T => JSON.parse(new TextDecoder().decode(e.content)) as T;
 
-export const ContentTypePoll = new ContentTypeId(
-  { authorityId: 'metro.box', typeId: 'poll', versionMajor: 1, versionMinor: 0 });
+export const ContentTypePoll: ContentTypeId =
+  { authorityId: 'metro.box', typeId: 'poll', versionMajor: 1, versionMinor: 0 };
 // Poll wire schema modeled on Claude Code's AskUserQuestion tool: a question
 // plus a short `header` chip, a `multiSelect` flag, and `options` as
 // {label, description}. Kept structurally compatible with the shared schema in
@@ -97,8 +97,8 @@ export function buildPollContent(
 // Metro signature content types — `metro.box/signatureRequest:1.0` (a request to
 // sign EIP-712 typed data or a personal_sign string) + `…/signatureReference:1.0`
 // (the signature posted back). JSON encode/decode like PollCodec.
-export const ContentTypeSignatureRequest = new ContentTypeId(
-  { authorityId: 'metro.box', typeId: 'signatureRequest', versionMajor: 1, versionMinor: 0 });
+export const ContentTypeSignatureRequest: ContentTypeId =
+  { authorityId: 'metro.box', typeId: 'signatureRequest', versionMajor: 1, versionMinor: 0 };
 export type SignatureRequestContent = {
   id?: string; kind?: 'eip712' | 'personal'; eip712?: unknown;
   message?: string; description?: string; [k: string]: unknown;
@@ -116,8 +116,8 @@ export class SignatureRequestCodec implements ContentCodec<SignatureRequestConte
   shouldPush() { return true; }
 }
 
-export const ContentTypeSignatureReference = new ContentTypeId(
-  { authorityId: 'metro.box', typeId: 'signatureReference', versionMajor: 1, versionMinor: 0 });
+export const ContentTypeSignatureReference: ContentTypeId =
+  { authorityId: 'metro.box', typeId: 'signatureReference', versionMajor: 1, versionMinor: 0 };
 export type SignatureReferenceContent = {
   requestId?: string; signature: string; signer?: string; [k: string]: unknown;
 };
@@ -132,8 +132,7 @@ export class SignatureReferenceCodec implements ContentCodec<SignatureReferenceC
   shouldPush() { return true; }
 }
 
-export const CODECS = () => [
-  new ReactionCodec(), new ReplyCodec(), new AttachmentCodec(), new RemoteAttachmentCodec(),
-  new PollCodec(), new WalletSendCallsCodec(), new TransactionReferenceCodec(),
-  new SignatureRequestCodec(), new SignatureReferenceCodec(),
+// Only Metro's custom content types — the standard codecs are built into node-sdk@6.
+export const CODECS = (): ContentCodec[] => [
+  new PollCodec(), new SignatureRequestCodec(), new SignatureReferenceCodec(),
 ];

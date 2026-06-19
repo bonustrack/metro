@@ -18,9 +18,9 @@ const maxCommentLines = {
 };
 
 export default tseslint.config(
-  // src/mcp/** is the MCP server entry — a self-contained bun-run file (its own
-  // tsconfig.mcp.json typechecks it) written in MCP-SDK idiom (no semicolons,
-  // long header comments). It is not part of the compiled daemon lint surface.
+  // src/mcp/** is the in-process MCP surface, written in MCP-SDK idiom (no
+  // semicolons, long header comments) and longer than the daemon's max-lines cap,
+  // so it stays out of the lint surface. It IS typechecked + built with the daemon.
   { ignores: ["node_modules/**", "dist/**", "src/mcp/**"] },
   ...tseslint.configs.recommended,
   {

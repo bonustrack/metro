@@ -134,7 +134,7 @@ const ACCOUNT_STATIONS = ['xmtp', 'discord', 'telegram'] as const;
 /** Fan the `accounts` read action out to every station via the daemon IPC and
  *  collect the public account descriptors keyed by station. Best-effort: a down
  *  train yields [] rather than failing the response (keeps /health reliable). */
-async function gatherAccounts(): Promise<Record<string, unknown[]>> {
+export async function gatherAccounts(): Promise<Record<string, unknown[]>> {
   const out: Record<string, unknown[]> = {};
   await Promise.all(ACCOUNT_STATIONS.map(async station => {
     try {

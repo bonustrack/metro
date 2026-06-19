@@ -119,10 +119,13 @@ export function trainEventToHistoryEntry(env: TrainEvent, trainName: string): Hi
   };
 }
 
-export async function startWebhookServer(emit: Emit): Promise<Server> {
+/** Handler for the in-process MCP surface mounted at /mcp (see src/mcp/index.ts). */
+type McpHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+
+export async function startWebhookServer(emit: Emit, mcp?: McpHandler): Promise<Server> {
   const port = webhookPort();
   const server = createServer((req, res) => {
-    handleRequest(req, res, emit).catch(err => {
+    handleRequest(req, res, emit, mcp).catch(err => {
       log.warn({ err: errMsg(err) }, 'webhook handler error');
       if (!res.headersSent) res.writeHead(500).end();
     });
@@ -130,15 +133,22 @@ export async function startWebhookServer(emit: Emit): Promise<Server> {
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, '127.0.0.1', () => {
-      log.info({ port, endpoints: listEndpoints().length }, 'webhook + monitor ready');
+      log.info({ port, endpoints: listEndpoints().length, mcp: mcp ? '/' : 'off' }, 'webhook + monitor + mcp ready');
       resolve();
     });
   });
   return server;
 }
 
-async function handleRequest(req: IncomingMessage, res: ServerResponse, emit: Emit): Promise<void> {
+async function handleRequest(req: IncomingMessage, res: ServerResponse, emit: Emit, mcp?: McpHandler): Promise<void> {
   if (handleMonitorRequest(req, res)) return;
+  /** The MCP surface lives at the ROOT path (POST = JSON-RPC, GET = server→client
+   *  SSE) so it can sit behind its own host, e.g. https://mcp.metro.box. `/mcp`
+   *  stays as an alias. /health + /api/* (above) and /wh/* (below) match around it. */
+  if (mcp) {
+    const path = (req.url ?? '').split('?')[0];
+    if (path === '/' || path === '/mcp') { await mcp(req, res); return; }
+  }
   const m = req.url?.match(/^\/wh\/([A-Za-z0-9_-]+)/);
   if (!m) { res.writeHead(404).end(); return; }
   const endpointId = m[1];

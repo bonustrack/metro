@@ -17,6 +17,13 @@ import {
 
 export const TRAINS_DIR = process.env.METRO_TRAINS_DIR ?? join(homedir(), '.metro', 'trains');
 
+/** macOS: @xmtp/node-bindings ships a Nix-built darwin binary linking a dead
+ *  /nix/store/…/libiconv path; set the dyld fallback to the system libiconv so the
+ *  xmtp train's dlopen resolves it. Must be in the spawn env, not a runtime mutation. */
+const DYLD_FALLBACK_ENV: Record<string, string> = process.platform === 'darwin'
+  ? { DYLD_FALLBACK_LIBRARY_PATH: ['/usr/lib', process.env.DYLD_FALLBACK_LIBRARY_PATH].filter(Boolean).join(':') }
+  : {};
+
 export type TrainInfo = {
   name: string; path: string; running: boolean; pid: number | null;
   startedAt: string | null; failCount: number;
@@ -120,7 +127,7 @@ export class TrainSupervisor {
     try {
       const proc = Bun.spawn(['bun', 'run', state.path], {
         stdin: 'pipe', stdout: 'pipe', stderr: 'pipe',
-        env: { ...process.env, METRO_TRAIN_NAME: state.name, METRO_SELF_URI: daemonSelf() },
+        env: { ...process.env, ...DYLD_FALLBACK_ENV, METRO_TRAIN_NAME: state.name, METRO_SELF_URI: daemonSelf() },
       });
       state.proc = proc; state.startedAt = new Date().toISOString();
       state.buf = ''; state.errBuf = '';

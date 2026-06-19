@@ -1,23 +1,41 @@
 # @metro-labs/metro
 
-> Event-interception wire for live chat streams into AI coding sessions, exposed as a **stateless root MCP server**.
+> Event-interception wire for live chat streams into AI coding sessions, served as a **single-process MCP server**.
 
 Metro bridges real chat platforms — XMTP, Telegram, Discord, and inbound webhooks —
-into an AI coding session as Model Context Protocol tools. It is a **single package
-at the repository root** (no monorepo, no CLI, no Docker). There are two entries:
-
-- **MCP server** (`metro-channel`, [`src/mcp/index.ts`](src/mcp/index.ts)) — the
-  primary entry. It surfaces Metro chat to an MCP client (Claude Code, Codex, …) as
-  `mcp__metro__*` tools over **Streamable HTTP**. It is
-  **stateless**: all config and secrets come from the environment and it reads/writes
-  no state files (the only filesystem reads are inbound attachment paths handed to it
-  in a tool call). Exposes `GET /health` (no auth) plus the MCP tool surface.
-- **Daemon** (`metro-daemon`, [`src/server.ts`](src/server.ts)) — supervises the
-  per-platform "station" subprocesses, multiplexes the JSON events they emit onto a
-  single stream, runs the durable outbox, and serves the webhook receiver. The daemon
-  keeps a small amount of local state on disk — see [State & volumes](#state--volumes).
+into an AI coding session as Model Context Protocol tools. It is a **single package at
+the repository root** (no monorepo, no CLI, no Docker) that runs as **one process**: a
+daemon that supervises the per-platform "station" subprocesses, runs the durable
+outbox and webhook receiver, and **serves the MCP surface in-process** on the same
+HTTP server. Inbound chat reaches the MCP straight off the in-process history tail;
+outbound tool calls go straight to the stations over the in-process IPC — there is no
+HTTP bridge between the two and no shared secret to configure.
 
 Metro requires the [Bun](https://bun.sh) runtime.
+
+## Running
+
+```sh
+bun run start   # one process: stations + outbox + webhooks + MCP, on http://127.0.0.1:8420
+```
+
+That's the whole thing — one process, one port, configuration from the environment
+only (copy [`.env.example`](.env.example) → `.env` and configure at least one station).
+
+The single HTTP server (default `127.0.0.1:8420`, override `METRO_WEBHOOK_PORT`) serves:
+
+| Path | Purpose |
+| --- | --- |
+| `/` (`/mcp` alias) | the **MCP** endpoint — `POST` = JSON-RPC, `GET` = server→client SSE. Served at the root so it can sit behind its own host, e.g. `https://mcp.metro.box`. |
+| `GET /health` | liveness + configured accounts (no auth, no secrets) |
+| `POST /wh/<id>` | inbound webhook receiver |
+| `/api/state`, `/api/tail`, `/api/call/<station>/<action>` | optional external monitor API (token-gated; the in-process MCP does not use it) |
+
+Register the MCP with a client:
+
+```sh
+claude mcp add --transport http metro http://127.0.0.1:8420
+```
 
 ## The MCP tool surface
 
@@ -52,9 +70,9 @@ unsupported on a station.
 
 ## Configuration (environment only)
 
-Both entries take **all** configuration from the environment — no config files are
-required. Copy [`.env.example`](.env.example) to `.env` and fill in the stations you
-want. Configure at least one station.
+All configuration comes from the environment — no config files are required. Copy
+[`.env.example`](.env.example) to `.env` and fill in the stations you want. Configure
+at least one station.
 
 ### XMTP identity
 
@@ -66,10 +84,10 @@ on the production XMTP network.
 | `MNEMONIC` | BIP-39 mnemonic the HD accounts derive from (`m/44'/60'/0'/0/<index>`) |
 | `DERIVE_COUNT` | How many HD accounts to derive (indices `0..N-1`). Default `1` |
 
-If `MNEMONIC` is unset the daemon exits with a clear error. Accounts derive at indices
-`0..DERIVE_COUNT-1` with ids `x0..xN`. For richer setups, a `~/.metro/xmtp-accounts.json`
-file (path overridable via `XMTP_ACCOUNTS_FILE`) lists accounts explicitly — each entry
-sets a `derive` index.
+If `MNEMONIC` is unset the XMTP station exits with a clear error. Accounts derive at
+indices `0..DERIVE_COUNT-1` with ids `x0..xN`. For richer setups, a
+`~/.metro/xmtp-accounts.json` file (path overridable via `XMTP_ACCOUNTS_FILE`) lists
+accounts explicitly — each entry sets a `derive` index.
 
 ### Multi-bot Discord / Telegram
 
@@ -90,55 +108,48 @@ Optional per-station controls: `*_ACCOUNTS_FILE` (explicit accounts JSON),
 `*_ONLY_ACCOUNTS` (allowlist a subset of file accounts), and the
 `*_LEGACY_DEFAULT_LINES` toggles.
 
-### MCP server env
+### MCP & server env
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `METRO_MONITOR_TOKEN` | — (REQUIRED) | Bearer for the daemon HTTP API the bridge calls |
-| `METRO_BASE_URL` | `http://127.0.0.1:8420` | Daemon webhook/monitor HTTP base |
-| `METRO_CHANNEL_ALLOWLIST` | (built-in) | Comma list of allowed sender ids; `*` disables gating (unsafe) |
-| `METRO_CHANNEL_STATIONS` | `xmtp,telegram,discord` | Stations to surface (`webhook` always excluded) |
-| `METRO_MCP_HTTP_PORT` | `8421` | Streamable-HTTP port |
-| `METRO_MCP_HTTP_HOST` | `0.0.0.0` | Streamable-HTTP bind host |
-| `METRO_MCP_HTTP_TOKEN` | — (off) | Optional bearer gating `POST /mcp` |
+| `METRO_CHANNEL_ALLOWLIST` | (built-in) | Comma list of allowed sender ids; inbound from senders not on the list is dropped. `*` disables gating (unsafe — prompt-injection surface). |
+| `METRO_CHANNEL_STATIONS` | `xmtp,telegram,discord` | Stations to surface to the MCP (`webhook` always excluded) |
+| `METRO_WEBHOOK_PORT` | `8420` | The single HTTP server port |
+| `METRO_MCP_HTTP_TOKEN` | — (off) | Optional bearer gating the MCP endpoint for external clients |
+| `METRO_MONITOR_TOKEN` | — (off) | Optional bearer gating the external `/api/*` monitor endpoints. **Not required** — the MCP runs in-process. |
 
 ### Logging
 
 `METRO_LOG_LEVEL` — one of `trace|debug|info|warn|error|fatal` (default `info`).
 Logs go to stderr.
 
-## Running
-
-Run both entries directly with Bun — no Docker, no argv parsing.
-
-```sh
-# 1) the daemon (stations + outbox + webhook receiver)
-bun src/server.ts
-
-# 2) the MCP server — Streamable HTTP (hostable, multi-client, behind a load balancer)
-METRO_MCP_HTTP_PORT=8421 \
-METRO_MONITOR_TOKEN=... METRO_BASE_URL=http://127.0.0.1:8420 \
-  bun src/mcp/index.ts
-# liveness : GET  http://<host>:8421/health   (no auth, no secrets)
-# MCP      : POST http://<host>:8421/mcp       (optional METRO_MCP_HTTP_TOKEN bearer)
-```
-
 ## State & volumes
 
-The **MCP server is stateless**. The **daemon is not**, and the XMTP station in
-particular needs a **persistent local volume**:
+Metro is **stateful** and needs a **persistent local volume**:
 
 - **XMTP MLS encryption databases** — the node SDK stores each account's MLS group
   state in a SQLite DB under `~/.metro/` (`xmtp-<env>-<id>.db3`, path overridable per
   account via `dbPath`). These must persist: losing them re-installs the inbox and
   drops decryption keys for existing groups.
 - **Outbox / journal / IPC** under `$METRO_STATE_DIR` (default `~/.cache/metro`) — the
-  durable outbox (at-least-once outbound delivery), the append-only history journal,
-  the line/bot caches, the IPC unix socket, and the singleton lockfile.
+  durable outbox (at-least-once outbound delivery), the append-only history journal
+  (which the in-process MCP tails for inbound), the line/bot caches, the IPC unix
+  socket, and the singleton lockfile.
 
-This persistent volume is the accepted design for the daemon: the supervisor/transport
-role is inherently stateful even though the *server* is not. Mount a durable volume at
-`~/.metro` (and `$METRO_STATE_DIR`) when deploying. All secrets still come from env.
+Mount a durable volume at `~/.metro` (and `$METRO_STATE_DIR`) when deploying. All
+secrets still come from the environment.
+
+## Stations & trains
+
+Stations do **not** start automatically. The daemon's train supervisor spawns the
+scripts in `~/.metro/trains/*.{ts,js,mjs}` (hot-reloaded) and multiplexes their event
+streams. The built-in stations live in [`src/stations/`](src/stations) and **boot on
+import**, so a one-line train file runs one:
+
+```ts
+// ~/.metro/trains/xmtp.ts
+import '<path-to-repo>/src/stations/xmtp/index.ts';
+```
 
 ## The Line scheme
 
@@ -156,6 +167,15 @@ emoji?, payload?, account?}`. Stations emit via `ctx.emit` / `ctx.emitInbound` /
 `ctx.emitOutbound`; the daemon stamps `id`/`ts`/`station` when missing and routes the
 result onward.
 
+## macOS: XMTP native binding
+
+`@xmtp/node-bindings` (bundled by `@xmtp/node-sdk`) ships a darwin binary built under
+Nix that hardcodes a dead `/nix/store/…/libiconv.2.dylib` load path, so `dlopen` fails
+with a misleading "Cannot find native binding". The train supervisor sets
+`DYLD_FALLBACK_LIBRARY_PATH=/usr/lib` in each station subprocess's environment
+([`src/trains/supervisor.ts`](src/trains/supervisor.ts)) so dyld resolves the system
+libiconv. No binary patching, no postinstall; a no-op off macOS.
+
 ## Development
 
 A single Bun package — no workspaces.
@@ -163,7 +183,7 @@ A single Bun package — no workspaces.
 ```sh
 bun install
 bun run build      # tsc -> dist/
-bun run typecheck  # daemon (tsconfig.json) + MCP entry (tsconfig.mcp.json)
+bun run typecheck  # tsc --noEmit (daemon + in-process MCP)
 bun run test       # tsc + bun test
 bun run lint       # eslint
 ```
@@ -172,12 +192,13 @@ bun run lint       # eslint
 
 ```
 src/
-  mcp/            # the MCP server (primary entry: src/mcp/index.ts) — stateless
-  server.ts       # daemon entry (re-exports dispatcher.ts)
-  dispatcher*.ts  # dispatcher boot + outbound routing + webhook attribution
+  server.ts       # entry — boots the daemon, which serves the MCP in-process
+  dispatcher*.ts  # dispatcher boot + outbound routing + webhook attribution + MCP mount
+  mcp/            # the MCP surface (createMetroMcp) — mounted in-process at the root path
+  monitor-api.ts  # the optional external /api/* monitor endpoints (+ /health)
   trains/         # station supervisor + the station<->daemon protocol
   stations/       # built-in stations (xmtp, telegram, discord) + account loaders
-  broker/         # claims + history streaming between daemon and clients
+  broker/         # claims + history streaming (the tail the in-process MCP follows)
   codex-rc/       # codex bridge (protocol, client)
   registry*.ts    # the verb registry (single source of truth) + types
   sessions.ts     # sessions.json binding layer
