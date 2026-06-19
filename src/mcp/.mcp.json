@@ -1,13 +1,8 @@
 {
   "mcpServers": {
     "metro": {
-      "command": "bun",
-      "args": ["./index.ts"],
-      "env": {
-        "METRO_BASE_URL": "http://127.0.0.1:8420",
-        "METRO_CHANNEL_ALLOWLIST": "*",
-        "METRO_CHANNEL_STATIONS": "xmtp,telegram,discord"
-      }
+      "type": "http",
+      "url": "http://127.0.0.1:8421/mcp"
     }
   }
 }

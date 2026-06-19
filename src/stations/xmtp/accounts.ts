@@ -3,31 +3,27 @@
 import { Client, IdentifierKind, type Conversation, type Signer } from '@xmtp/node-sdk';
 import { privateKeyToAccount, mnemonicToAccount } from 'viem/accounts';
 import { toHex } from 'viem';
-import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CODECS } from './codecs.js';
-import { makeAccountStore, deriveIndices } from '../account-store.js';
-import { chmodIfExists } from '../../secure-fs.js';
+import { makeAccountStore } from '../account-store.js';
 import { Line } from '../../lines.js';
 
 const ACCOUNTS_FILE = process.env.XMTP_ACCOUNTS_FILE ?? join(homedir(), '.metro', 'xmtp-accounts.json');
 
-export type XmtpEnv = 'production' | 'dev' | 'local';
+// Identity is ALWAYS an HD account derived from MNEMONIC (m/44'/60'/0'/0/<index>),
+// on the production XMTP network.
+const XMTP_ENV = 'production' as const;
+
 export interface AccountConfig {
   id: string;
-  /** Signing key, EXACTLY ONE of `privateKey` (raw 0x EOA) or `derive`
-   *  (HD index into the stored mnemonic, m/44'/60'/0'/0/<index>). */
-  privateKey?: string;
-  derive?: number;
-  env?: XmtpEnv;
+  /** HD index into the MNEMONIC: m/44'/60'/0'/0/<derive>. */
+  derive: number;
   /** Default `to` for this account's inbound events → feed isolation. */
   owner?: string;
   /** node-sdk local MLS db; defaults to per-account path. */
   dbPath?: string;
 }
-
-const MNEMONIC_FILE = process.env.XMTP_MNEMONIC_FILE ?? join(homedir(), '.metro', 'xmtp-mnemonic');
 
 export const { die, loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'xmtp',
@@ -37,52 +33,36 @@ export const { die, loadAccounts } = makeAccountStore<AccountConfig>({
     const seen = new Set<string>();
     for (const a of raw) {
       if (!a.id) die('account missing id');
-      const hasKey = typeof a.privateKey === 'string' && a.privateKey.length > 0;
-      const hasDerive = typeof a.derive === 'number';
-      if (hasKey === hasDerive) die(`account '${a.id}' must set EXACTLY ONE of privateKey or derive`);
-      if (hasDerive && (a.derive! < 0 || !Number.isInteger(a.derive))) {
+      if (typeof a.derive !== 'number' || a.derive < 0 || !Number.isInteger(a.derive)) {
         die(`account '${a.id}' derive must be a non-negative integer`);
       }
       if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
       seen.add(a.id);
     }
   },
-  /** Env fallback (no accounts file). Precedence: XMTP_DERIVE_INDICES=0,3,7 →
-   *  those HD indices; else XMTP_DERIVE_COUNT=N → 0..N-1; else XMTP_PRIVATE_KEY →
-   *  single `default`. Derived ids are x<index> (path m/44'/60'/0'/0/<index>). */
+  /** Env fallback (no accounts file): derive indices 0..DERIVE_COUNT-1 (default 1)
+   *  from the MNEMONIC. Ids are x<index> (path m/44'/60'/0'/0/<index>). */
   fallback(die) {
-    const env = (process.env.XMTP_ENV as XmtpEnv) ?? 'production';
-    const indices = deriveIndices(process.env.XMTP_DERIVE_INDICES, process.env.XMTP_DERIVE_COUNT, die);
-    if (indices.length) return indices.map((i) => ({ id: `x${i}`, derive: i, env }));
-    const pk = process.env.XMTP_PRIVATE_KEY;
-    if (!pk) die(`no ${ACCOUNTS_FILE} and none of XMTP_PRIVATE_KEY / XMTP_DERIVE_COUNT / XMTP_DERIVE_INDICES set`);
-    return [{ id: 'default', privateKey: pk, env }];
+    const raw = process.env.DERIVE_COUNT?.trim();
+    const n = raw ? Number(raw) : 1;
+    if (!Number.isInteger(n) || n <= 0) die(`DERIVE_COUNT must be a positive integer (got '${raw}')`);
+    return Array.from({ length: n }, (_, i) => ({ id: `x${i}`, derive: i }));
   },
 });
 
 let cachedMnemonic: string | null = null;
 function loadMnemonic(): string {
   if (cachedMnemonic) return cachedMnemonic;
-  const inline = process.env.XMTP_MNEMONIC?.trim();
-  if (inline) { cachedMnemonic = inline; return inline; }
-  if (!existsSync(MNEMONIC_FILE)) {
-    die(`an account uses "derive" but no mnemonic found (set XMTP_MNEMONIC or place ${MNEMONIC_FILE})`);
-  }
-  chmodIfExists(MNEMONIC_FILE); // harden perms on load (MODE only, content untouched)
-  const m = readFileSync(MNEMONIC_FILE, 'utf8').trim();
-  if (!m) die(`${MNEMONIC_FILE} is empty`);
+  const m = process.env.MNEMONIC?.trim();
+  if (!m) die('MNEMONIC unset (identity derives from a BIP-39 mnemonic)');
   cachedMnemonic = m;
   return m;
 }
 
-/** Resolve an account's raw 0x private key from either `privateKey` or `derive`. */
+/** Resolve an account's raw 0x private key by HD-deriving from the MNEMONIC. */
 function resolvePrivateKey(cfg: AccountConfig): string {
-  if (typeof cfg.derive === 'number') {
-    const acct = mnemonicToAccount(loadMnemonic(), { addressIndex: cfg.derive });
-    return toHex(acct.getHdKey().privateKey!); // HD path m/44'/60'/0'/0/<derive>
-  }
-  if (cfg.privateKey) return cfg.privateKey;
-  throw new Error(`account '${cfg.id}' has neither privateKey nor derive`);
+  const acct = mnemonicToAccount(loadMnemonic(), { addressIndex: cfg.derive });
+  return toHex(acct.getHdKey().privateKey!); // HD path m/44'/60'/0'/0/<derive>
 }
 
 // Set XMTP_LEGACY_DEFAULT_LINES=1 to keep the default account emitting legacy
@@ -116,13 +96,12 @@ function signerFor(privateKey: string): { signer: Signer; address: string } {
 }
 
 export async function bootAccount(cfg: AccountConfig): Promise<void> {
-  const env = (cfg.env ?? 'production') as XmtpEnv;
   const { signer, address } = signerFor(resolvePrivateKey(cfg));
-  const dbPath = expandHome(cfg.dbPath ?? join(homedir(), '.metro', `xmtp-${env}-${cfg.id}.db3`));
-  const client = await Client.create(signer, { env, codecs: CODECS(), dbPath });
+  const dbPath = expandHome(cfg.dbPath ?? join(homedir(), '.metro', `xmtp-${XMTP_ENV}-${cfg.id}.db3`));
+  const client = await Client.create(signer, { env: XMTP_ENV, codecs: CODECS(), dbPath });
   accounts.set(cfg.id, { cfg, client, inboxId: client.inboxId, address });
   process.stderr.write(
-    `xmtp[${cfg.id}] ready — inbox ${client.inboxId} (${address}, env=${env}, owner=${cfg.owner ?? '(broadcast)'})\n`);
+    `xmtp[${cfg.id}] ready — inbox ${client.inboxId} (${address}, owner=${cfg.owner ?? '(broadcast)'})\n`);
 }
 
 /** Per-account line. The default account may emit legacy lines for migration. */

@@ -179,9 +179,9 @@ async function sendSignatureRequest(id: string, args: Args): Promise<void> {
 async function accountsAction(id: string): Promise<void> {
   const { accounts } = await import('./accounts.js');
   respond(id, { result: { accounts: [...accounts.values()].map(a => ({
-    id: a.cfg.id, address: a.address, inboxId: a.inboxId, env: a.cfg.env ?? 'production',
+    id: a.cfg.id, address: a.address, inboxId: a.inboxId, env: 'production',
     owner: a.cfg.owner ?? null,
-    keySource: typeof a.cfg.derive === 'number' ? `derive:${a.cfg.derive}` : 'privateKey' })) } });
+    keySource: `derive:${a.cfg.derive}` })) } });
 }
 
 // XMTP has no native edit/delete (immutable message log) — answer the canonical

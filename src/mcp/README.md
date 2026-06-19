@@ -8,7 +8,7 @@ exposed as tools to send responses back, and tool-approval prompts are relayed t
 so you can approve/deny from your phone.
 
 ```
- XMTP/TG/Discord ──▶ metro daemon ──SSE /api/tail──▶ index.ts (MCP) ──stdio|http──▶ AI clients
+ XMTP/TG/Discord ──▶ metro daemon ──SSE /api/tail──▶ index.ts (MCP) ──http──▶ AI clients
        ▲                  ▲                                                          │
        └── reply ─────────┴────────────── POST /api/call/<train>/send ◀─────────────┘
 ```
@@ -127,21 +127,28 @@ server stateless — there are no config files on disk.)
 
 ## Run
 
-The server is registered in this directory's `.mcp.json` as server name `metro`.
-Start Claude Code from the repo root with the development-channel flag
+The server runs over **Streamable HTTP**. Launch it with the daemon reachable at
+`METRO_BASE_URL` and a `METRO_MONITOR_TOKEN`:
+
+```bash
+METRO_MCP_HTTP_PORT=8421 METRO_MONITOR_TOKEN=... \
+METRO_BASE_URL=http://127.0.0.1:8420 \
+  bun src/mcp/index.ts
+# liveness : GET  http://<host>:8421/health   (no auth)
+# MCP      : POST http://<host>:8421/mcp       (optional METRO_MCP_HTTP_TOKEN bearer)
+```
+
+Register it in an MCP client (this directory's `.mcp.json` points `metro` at
+`http://127.0.0.1:8421/mcp`). For Claude Code add the development-channel flag
 (custom channels aren't on the Anthropic allowlist during the research preview):
 
 ```bash
-METRO_MONITOR_TOKEN=... \
-  claude --dangerously-load-development-channels server:metro
+claude --dangerously-load-development-channels server:metro
 ```
 
-On first run CC asks to trust the new `.mcp.json` server - choose **Use this MCP server**.
 A dim banner confirms: `Channels (experimental) messages from server:metro inject directly...`.
 
-Registering the server globally in `~/.claude.json` (`mcpServers.metro`) with an absolute
-launch command lets you start the channel from **any directory**, not just
-`the repo root`. A `metro-cc` convenience launcher wraps the long
+A `metro-cc` convenience launcher wraps the long
 `claude --dangerously-load-development-channels server:metro` invocation.
 
 ## Live test plan

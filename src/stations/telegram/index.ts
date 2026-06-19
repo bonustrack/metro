@@ -14,8 +14,8 @@
 // SAME token or a webhook is set on a polled token. We therefore reject duplicate
 // tokens at load and clear any stale webhook per token at boot.
 //
-// Back-compat: if telegram-accounts.json is absent, synthesizes one `default`
-// account from $TELEGRAM_BOT_TOKEN (legacy lines).
+// If telegram-accounts.json is absent, accounts are synthesized from
+// $TELEGRAM_BOT_TOKENS (one bot per comma-separated token, ids t0..tN).
 
 import { accounts, loadAccounts, tg, type Account } from './accounts.js';
 import { emit } from './wire.js';

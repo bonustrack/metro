@@ -8,8 +8,8 @@
 // is set to it so a session tailing `--as <owner> --strict` sees only that bot's
 // feed (feed isolation). Outbound actions take an optional `account`.
 //
-// Back-compat: if discord-accounts.json is absent, synthesizes one `default`
-// account from $DISCORD_BOT_TOKEN (legacy lines).
+// If discord-accounts.json is absent, accounts are synthesized from
+// $DISCORD_BOT_TOKENS (one bot per comma-separated token, ids d0..dN).
 
 import {
   Client, Events, GatewayIntentBits, Partials, type Message, type MessageReaction, type User,
