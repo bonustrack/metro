@@ -3,7 +3,7 @@
 import { Client } from 'discord.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { makeAccountStore, idsFor, tokensFromEnv } from '../account-store.js';
+import { makeAccountStore, csv, genIds } from '../account-store.js';
 import { Line } from '../../lines.js';
 
 export const API = 'https://discord.com/api/v10';
@@ -37,13 +37,11 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
     }
   },
   /** Env fallback when no accounts file. DISCORD_BOT_TOKENS=tok1,tok2 registers
-   *  multiple bots (ids from DISCORD_BOT_IDS or d0..dN); DISCORD_BOT_TOKEN stays
-   *  a back-compat alias for a single `default` account with legacy lines. */
+   *  one bot per token, ids d0..dN. */
   fallback(die) {
-    const tokens = tokensFromEnv(['DISCORD_BOT_TOKENS'], 'DISCORD_BOT_TOKEN');
-    if (!tokens.length) return die(`no ${ACCOUNTS_FILE} and DISCORD_BOT_TOKEN(S) unset`);
-    const ids = idsFor('d', tokens.length, process.env.DISCORD_BOT_IDS, die);
-    if (ids.length === 1 && ids[0] === 'default') legacy.defaultLines = true;
+    const tokens = csv(process.env.DISCORD_BOT_TOKENS);
+    if (!tokens.length) return die(`no ${ACCOUNTS_FILE} and DISCORD_BOT_TOKENS unset`);
+    const ids = genIds('d', tokens.length);
     return tokens.map((token, i) => ({ id: ids[i], token }));
   },
 });

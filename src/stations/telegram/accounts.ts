@@ -2,7 +2,7 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { makeAccountStore, idsFor, tokensFromEnv } from '../account-store.js';
+import { makeAccountStore, csv, genIds } from '../account-store.js';
 
 const ACCOUNTS_FILE = process.env.TELEGRAM_ACCOUNTS_FILE
   ?? join(homedir(), '.metro', 'telegram-accounts.json');
@@ -34,15 +34,12 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
       seenId.add(a.id); seenTok.add(a.token);
     }
   },
-  /** Env fallback (no accounts file). TELEGRAM_BOT_TOKENS=a,b registers many bots
-   *  (ids from TELEGRAM_BOT_IDS or t0..tN); TELEGRAM_BOT_TOKEN = single `default`
-   *  legacy alias. Reused tokens 409 on getUpdates, so reject duplicates early. */
+  /** Env fallback (no accounts file). TELEGRAM_BOT_TOKENS=a,b registers one bot
+   *  per token, ids t0..tN. Tokens are deduped (reused tokens 409 on getUpdates). */
   fallback(die) {
-    const tokens = tokensFromEnv(['TELEGRAM_BOT_TOKENS'], 'TELEGRAM_BOT_TOKEN');
-    if (!tokens.length) return die(`no ${ACCOUNTS_FILE} and TELEGRAM_BOT_TOKEN(S) unset`);
-    if (new Set(tokens).size !== tokens.length) die('TELEGRAM_BOT_TOKENS has a duplicate token (409 on getUpdates)');
-    const ids = idsFor('t', tokens.length, process.env.TELEGRAM_BOT_IDS, die);
-    if (ids.length === 1 && ids[0] === 'default') legacy.defaultLines = true;
+    const tokens = csv(process.env.TELEGRAM_BOT_TOKENS);
+    if (!tokens.length) return die(`no ${ACCOUNTS_FILE} and TELEGRAM_BOT_TOKENS unset`);
+    const ids = genIds('t', tokens.length);
     return tokens.map((token, i) => ({ id: ids[i], token }));
   },
 });

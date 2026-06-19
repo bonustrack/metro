@@ -13,7 +13,6 @@
  * Spec: https://code.claude.com/docs/en/channels-reference
  */
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
@@ -685,58 +684,43 @@ mcp.setNotificationHandler(PermissionRequestSchema as never, async (n: Permissio
   try { await metroSend(line, body) } catch (e) { log('relay send failed', e) }
 })
 
-// --- Transport selection (stdio for local, Streamable HTTP for cloud) --------
-// Default = stdio (a single local client over the process pipes, the legacy
-// Claude-Code launch path). Set METRO_MCP_TRANSPORT=http (or just provide
-// METRO_MCP_HTTP_PORT) to instead serve the MCP over Streamable HTTP so the
-// server is hostable in the cloud and reachable by multiple clients.
-//
-// HTTP mode runs STATELESS (no session id): each POST /mcp is a self-contained
-// request/response (or SSE stream), which is the simplest cloud-friendly shape
-// and needs no sticky sessions behind a load balancer. An optional bearer token
-// (METRO_MCP_HTTP_TOKEN) gates /mcp; the inbound Metro SSE subscription below is
-// shared across all clients (it drives channel push, same as stdio mode).
-const TRANSPORT = (process.env.METRO_MCP_TRANSPORT
-  || (process.env.METRO_MCP_HTTP_PORT ? 'http' : 'stdio')).toLowerCase()
+// --- Transport: Streamable HTTP (stateless, cloud-friendly) ------------------
+// Each POST /mcp is a self-contained request/response (or SSE stream) — no
+// session id, so no sticky sessions behind a load balancer. An optional bearer
+// token (METRO_MCP_HTTP_TOKEN) gates /mcp; the inbound Metro SSE subscription
+// below is shared across all clients (it drives channel push).
+const port = Number(process.env.METRO_MCP_HTTP_PORT || 8421)
+const host = process.env.METRO_MCP_HTTP_HOST || '0.0.0.0'
+// Optional bearer gate for the MCP endpoint itself (distinct from the daemon
+// METRO_MONITOR_TOKEN, which gates the daemon HTTP API the bridge calls).
+const httpToken = process.env.METRO_MCP_HTTP_TOKEN || ''
+const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined })
+await mcp.connect(transport)
 
-if (TRANSPORT === 'http') {
-  const port = Number(process.env.METRO_MCP_HTTP_PORT || 8421)
-  const host = process.env.METRO_MCP_HTTP_HOST || '0.0.0.0'
-  // Optional bearer gate for the MCP endpoint itself (distinct from the daemon
-  // METRO_MONITOR_TOKEN, which gates the daemon HTTP API the bridge calls).
-  const httpToken = process.env.METRO_MCP_HTTP_TOKEN || ''
-  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined })
-  await mcp.connect(transport)
-
-  const authOk = (req: Request): boolean => {
-    if (!httpToken) return true
-    const h = req.headers.get('authorization') || ''
-    return h.startsWith('Bearer ') && h.slice(7) === httpToken
-  }
-
-  Bun.serve({
-    port, hostname: host,
-    idleTimeout: 0, // SSE streams are long-lived; don't let Bun time them out.
-    async fetch(req) {
-      const url = new URL(req.url)
-      // Liveness probe (no auth) so cloud LBs/uptime checks can reach the MCP box.
-      if (url.pathname === '/health' && req.method === 'GET') {
-        return Response.json({ ok: true, service: 'metro-mcp', transport: 'http', base: BASE })
-      }
-      if (url.pathname === '/mcp' || url.pathname === '/') {
-        if (!authOk(req)) return new Response('unauthorized', { status: 401 })
-        return transport.handleRequest(req)
-      }
-      return new Response('not found', { status: 404 })
-    },
-  })
-  log('connected (streamable-http). listening=', `${host}:${port}/mcp`, 'base=', BASE,
-    'auth=', httpToken ? 'on' : 'off')
-} else {
-  await mcp.connect(new StdioServerTransport())
-  log('connected (stdio). base=', BASE, 'allowlist=', getAllowlist().length,
-    'stations=', [...getStations()].join(','))
+const authOk = (req: Request): boolean => {
+  if (!httpToken) return true
+  const h = req.headers.get('authorization') || ''
+  return h.startsWith('Bearer ') && h.slice(7) === httpToken
 }
+
+Bun.serve({
+  port, hostname: host,
+  idleTimeout: 0, // SSE streams are long-lived; don't let Bun time them out.
+  async fetch(req) {
+    const url = new URL(req.url)
+    // Liveness probe (no auth) so cloud LBs/uptime checks can reach the MCP box.
+    if (url.pathname === '/health' && req.method === 'GET') {
+      return Response.json({ ok: true, service: 'metro-mcp', transport: 'http', base: BASE })
+    }
+    if (url.pathname === '/mcp' || url.pathname === '/') {
+      if (!authOk(req)) return new Response('unauthorized', { status: 401 })
+      return transport.handleRequest(req)
+    }
+    return new Response('not found', { status: 404 })
+  },
+})
+log('connected (streamable-http). listening=', `${host}:${port}/mcp`, 'base=', BASE,
+  'auth=', httpToken ? 'on' : 'off')
 
 // --- Inbound: subscribe to Metro SSE ----------------------------------------
 const senderAllowed = (from: string) => {

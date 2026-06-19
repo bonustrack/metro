@@ -8,7 +8,7 @@ at the repository root** (no monorepo, no CLI, no Docker). There are two entries
 
 - **MCP server** (`metro-channel`, [`src/mcp/index.ts`](src/mcp/index.ts)) — the
   primary entry. It surfaces Metro chat to an MCP client (Claude Code, Codex, …) as
-  `mcp__metro__*` tools over **stdio** (local) or **Streamable HTTP** (cloud). It is
+  `mcp__metro__*` tools over **Streamable HTTP**. It is
   **stateless**: all config and secrets come from the environment and it reads/writes
   no state files (the only filesystem reads are inbound attachment paths handed to it
   in a tool call). Exposes `GET /health` (no auth) plus the MCP tool surface.
@@ -58,46 +58,33 @@ want. Configure at least one station.
 
 ### XMTP identity
 
-The XMTP station can derive its account(s) from a **BIP-39 mnemonic** or from raw
-private keys. Resolution, per account:
+The XMTP station derives its account(s) from a **BIP-39 mnemonic** and always runs
+on the production XMTP network.
 
 | Var | Meaning |
 | --- | --- |
-| `XMTP_MNEMONIC` | BIP-39 mnemonic the HD accounts derive from (`m/44'/60'/0'/0/<index>`) |
-| `XMTP_MNEMONIC_FILE` | File holding the mnemonic (default `~/.metro/xmtp-mnemonic`, kept `0600`) — used when `XMTP_MNEMONIC` is unset |
-| `XMTP_DERIVE_INDICES` | Comma list of HD indices to derive (e.g. `0,3,7`); wins over count |
-| `XMTP_DERIVE_COUNT` | Derive indices `0..N-1` |
-| `XMTP_PRIVATE_KEY` | Raw `0x` EOA key → a single `default` account (back-compat) |
-| `XMTP_ENV` | `production` \| `dev` \| `local` (default `production`) |
+| `MNEMONIC` | BIP-39 mnemonic the HD accounts derive from (`m/44'/60'/0'/0/<index>`) |
+| `DERIVE_COUNT` | How many HD accounts to derive (indices `0..N-1`). Default `1` |
 
-If a derived account is configured but no mnemonic is available, or no key/derive
-source is set at all, the daemon exits with a clear error. A raw key takes precedence
-when set; otherwise the account is derived from the mnemonic. For richer setups, a
-`~/.metro/xmtp-accounts.json` file (path overridable via `XMTP_ACCOUNTS_FILE`) lists
-accounts explicitly — each entry sets exactly one of `privateKey` or `derive`.
+If `MNEMONIC` is unset the daemon exits with a clear error. Accounts derive at indices
+`0..DERIVE_COUNT-1` with ids `x0..xN`. For richer setups, a `~/.metro/xmtp-accounts.json`
+file (path overridable via `XMTP_ACCOUNTS_FILE`) lists accounts explicitly — each entry
+sets a `derive` index.
 
 ### Multi-bot Discord / Telegram
 
 Both bot stations accept a **comma-separated list of tokens** and start one bot
-instance per token. Values are trimmed and empties dropped; a single token is just a
-one-item list (unchanged from before).
+instance per token. Values are trimmed, deduped, and empties dropped.
 
 | Var | Meaning |
 | --- | --- |
-| `DISCORD_BOT_TOKENS` | Comma list of Discord bot tokens → one bot each |
-| `DISCORD_BOT_TOKEN` | Single token (back-compat alias for a `default` bot) |
-| `DISCORD_BOT_IDS` | Optional comma list of account ids (else `d0..dN`, or `default` for one) |
-| `TELEGRAM_BOT_TOKENS` | Comma list of Telegram bot tokens → one bot each |
-| `TELEGRAM_BOT_TOKEN` | Single token (back-compat alias for a `default` bot) |
-| `TELEGRAM_BOT_IDS` | Optional comma list of account ids (else `t0..tN`, or `default` for one) |
+| `DISCORD_BOT_TOKENS` | Comma list of Discord bot tokens → one bot each (ids `d0..dN`) |
+| `TELEGRAM_BOT_TOKENS` | Comma list of Telegram bot tokens → one bot each (ids `t0..tN`) |
 
 Each bot is an **account** with its own id. Inbound events are tagged with the
 account they belong to, and lines are account-scoped —
 `metro://discord/<account>/<channelId>`, `metro://telegram/<account>/<chatId>` — so
-routing and replies always go back out the same bot identity. The single-token case
-keeps emitting legacy un-scoped lines (`metro://discord/<channelId>`) for
-zero-migration back-compat. Telegram rejects a reused token early (two pollers on one
-token would 409 on `getUpdates`).
+routing and replies always go back out the same bot identity.
 
 Optional per-station controls: `*_ACCOUNTS_FILE` (explicit accounts JSON),
 `*_ONLY_ACCOUNTS` (allowlist a subset of file accounts), and the
@@ -111,7 +98,6 @@ Optional per-station controls: `*_ACCOUNTS_FILE` (explicit accounts JSON),
 | `METRO_BASE_URL` | `http://127.0.0.1:8420` | Daemon webhook/monitor HTTP base |
 | `METRO_CHANNEL_ALLOWLIST` | (built-in) | Comma list of allowed sender ids; `*` disables gating (unsafe) |
 | `METRO_CHANNEL_STATIONS` | `xmtp,telegram,discord` | Stations to surface (`webhook` always excluded) |
-| `METRO_MCP_TRANSPORT` | `stdio` (`http` if `METRO_MCP_HTTP_PORT` set) | `stdio` or `http` |
 | `METRO_MCP_HTTP_PORT` | `8421` | Streamable-HTTP port |
 | `METRO_MCP_HTTP_HOST` | `0.0.0.0` | Streamable-HTTP bind host |
 | `METRO_MCP_HTTP_TOKEN` | — (off) | Optional bearer gating `POST /mcp` |
@@ -129,12 +115,8 @@ Run both entries directly with Bun — no Docker, no argv parsing.
 # 1) the daemon (stations + outbox + webhook receiver)
 bun src/server.ts
 
-# 2) the MCP server — stdio (local: one client over the process pipes)
-METRO_MONITOR_TOKEN=... METRO_BASE_URL=http://127.0.0.1:8420 \
-  bun src/mcp/index.ts
-
-# 2b) or Streamable HTTP (cloud: hostable, multi-client, behind a load balancer)
-METRO_MCP_TRANSPORT=http METRO_MCP_HTTP_PORT=8421 \
+# 2) the MCP server — Streamable HTTP (hostable, multi-client, behind a load balancer)
+METRO_MCP_HTTP_PORT=8421 \
 METRO_MONITOR_TOKEN=... METRO_BASE_URL=http://127.0.0.1:8420 \
   bun src/mcp/index.ts
 # liveness : GET  http://<host>:8421/health   (no auth, no secrets)

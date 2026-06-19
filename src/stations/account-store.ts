@@ -65,60 +65,12 @@ export function makeAccountStore<T extends { id: string }>(opts: MakeLoaderOpts<
   return { die, loadAccounts };
 }
 
-/** Split a comma-separated env list into trimmed, non-empty items. */
+/** Split a comma-separated env list into trimmed, non-empty, deduped items. */
 export function csv(raw: string | undefined): string[] {
-  return (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  return [...new Set((raw ?? '').split(',').map((s) => s.trim()).filter(Boolean))];
 }
 
-/** Plural-then-singular token env → token list. First non-empty plural var wins
- *  (e.g. DISCORD_BOT_TOKENS=a,b → many bots); else the singular var as a one-item
- *  legacy list; else []. */
-export function tokensFromEnv(pluralEnv: string[], singularEnv: string): string[] {
-  for (const k of pluralEnv) {
-    const list = csv(process.env[k]);
-    if (list.length) return list;
-  }
-  const one = process.env[singularEnv]?.trim();
-  return one ? [one] : [];
-}
-
-/** Parse HD derive indices from env: XMTP_DERIVE_INDICES (explicit comma list,
- *  wins) or XMTP_DERIVE_COUNT (→ 0..N-1). Deduped non-negative list, or [] when
- *  neither is set. Pure (no xmtp deps) so it's unit testable without the client. */
-export function deriveIndices(
-  indicesEnv: string | undefined, countEnv: string | undefined, die: Die,
-): number[] {
-  const explicit = csv(indicesEnv);
-  if (explicit.length) {
-    const idx = explicit.map((s) => Number(s));
-    for (const n of idx) {
-      if (!Number.isInteger(n) || n < 0) die(`XMTP_DERIVE_INDICES must be non-negative integers (got '${indicesEnv}')`);
-    }
-    if (new Set(idx).size !== idx.length) die('XMTP_DERIVE_INDICES has a duplicate index');
-    return idx;
-  }
-  const raw = countEnv?.trim();
-  if (raw) {
-    const n = Number(raw);
-    if (!Number.isInteger(n) || n <= 0) die(`XMTP_DERIVE_COUNT must be a positive integer (got '${raw}')`);
-    return Array.from({ length: n }, (_, i) => i);
-  }
-  return [];
-}
-
-/** Build ids for a token list: explicit `idsEnv` (comma list) wins position-wise;
- *  else single token keeps `default`, N tokens get `<prefix>0..N-1`. `die`s on a
- *  duplicate or short id list. */
-export function idsFor(
-  prefix: string, count: number, idsEnv: string | undefined, die: Die,
-): string[] {
-  const explicit = csv(idsEnv);
-  if (explicit.length) {
-    if (explicit.length < count) die(`${count} tokens but only ${explicit.length} ids`);
-    const ids = explicit.slice(0, count);
-    if (new Set(ids).size !== ids.length) die(`duplicate id in list (${ids.join(', ')})`);
-    return ids;
-  }
-  if (count === 1) return ['default'];
+/** Generated account ids for a token list: `<prefix>0..N-1` (e.g. d0, d1). */
+export function genIds(prefix: string, count: number): string[] {
   return Array.from({ length: count }, (_, i) => `${prefix}${i}`);
 }

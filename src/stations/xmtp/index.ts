@@ -7,9 +7,8 @@
 // Lines are account-scoped metro://xmtp/<acct>/<conv>; legacy metro://xmtp/<conv>
 // still parses (→ default account). Inbound events carry payload.account; an
 // account with an `owner` sets `to`=owner so `--as=<owner>` sees only its feed.
-// Outbound actions take an optional `account`. Account keys: { privateKey } (raw
-// EOA; account 0 = existing XMTP_PRIVATE_KEY) or { derive:<i> } (HD index into a
-// stored mnemonic; NOT the daemon key, index >= 1 by convention).
+// Outbound actions take an optional `account`. Identity is always an HD account
+// { derive:<i> } (m/44'/60'/0'/0/<i>) derived from the MNEMONIC.
 //
 // PUSH (LIVE 2026-05-29): the wire format is the SINGLE SOURCE OF TRUTH from
 // apps/app/lib/pushRegister.ts. A control DM `METRO_CTRL:register-push:{json}` is
