@@ -28,7 +28,6 @@
     "dist",
     "src/mcp",
     "docs",
-    "examples",
     "skills",
     "README.md",
     "LICENSE"
@@ -39,8 +38,8 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "tsc",
-    "lint": "eslint src/ examples/",
-    "lint:fix": "eslint src/ examples/ --fix",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.mcp.json",
     "test": "tsc && METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
   },

@@ -23,9 +23,7 @@ is a `<name>.ts` file under `~/.metro/trains/`; the supervisor spawns it, restar
 it with backoff on crash, and pipes a newline-delimited JSON protocol over
 stdin/stdout. The agent-facing playbook is [`skills/metro/SKILL.md`](skills/metro/SKILL.md);
 the URI scheme is [`docs/uri-scheme.md`](docs/uri-scheme.md); broker and monitor
-internals are in [`docs/broker.md`](docs/broker.md) and [`docs/monitor.md`](docs/monitor.md);
-the cloud-MCP refactor notes (multi-bot env, mnemonic derivation) are in
-[`docs/cloud-mcp-refactor.md`](docs/cloud-mcp-refactor.md).
+internals are in [`docs/broker.md`](docs/broker.md) and [`docs/monitor.md`](docs/monitor.md).
 
 Metro requires the [Bun](https://bun.sh) runtime (trains are spawned with `Bun.spawn`).
 
@@ -80,7 +78,7 @@ bun src/server.ts        # boots the dispatcher (no CLI, no argv parsing)
 
 Station secrets (XMTP mnemonic, Discord / Telegram bot tokens) come from **env**
 (comma-separated multi-bot lists, mnemonic-derived XMTP accounts). See
-[`.env.example`](.env.example) and [`docs/cloud-mcp-refactor.md`](docs/cloud-mcp-refactor.md).
+[`.env.example`](.env.example).
 
 ## State
 
@@ -146,9 +144,8 @@ src/
   lines.ts        # the typed metro:// Line parser
   schema.ts       # the metro-call validator
   define-train.ts # public helper for authoring trains
-docs/             # uri-scheme, broker, monitor, cloud-mcp-refactor
+docs/             # uri-scheme, broker, monitor
 skills/metro/     # the agent-facing SKILL.md
-examples/         # example train scripts
 ```
 
 ## License

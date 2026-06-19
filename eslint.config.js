@@ -24,7 +24,7 @@ export default tseslint.config(
   { ignores: ["node_modules/**", "dist/**", "src/mcp/**"] },
   ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.ts", "examples/**/*.ts"],
+    files: ["src/**/*.ts"],
     plugins: { local: { rules: { "max-comment-lines": maxCommentLines } } },
     rules: {
       quotes: ["error", "single", { avoidEscape: true }],
