@@ -1,53 +1,47 @@
-#!/usr/bin/env bun
 /**
- * Metro Channel - a Claude Code Channel MCP server.
+ * Metro MCP — the Claude Code Channel MCP surface, served IN-PROCESS by the daemon.
  *
- * Bridges Metro's inbound chat stream into a running Claude Code session as
- * channel push events, exposes a `reply` tool for outbound (text + media), and
- * relays tool-approval permission prompts out via Metro so they can be answered
- * from a phone.
+ * Bridges Metro's inbound chat stream into a running coding session as channel
+ * push events, exposes messaging tools for outbound (text + media), and relays
+ * tool-approval permission prompts out via Metro so they can be answered from a
+ * phone.
  *
- * Inbound source : Metro monitor SSE  GET /api/tail   (METRO_MONITOR_TOKEN gated)
- * Outbound sink  : Metro call  POST /api/call/<train>/<action>
+ * Mounted at the ROOT path `/` on the daemon's HTTP server (see
+ * dispatcher/server.ts) so it can sit behind its own host, e.g. https://mcp.metro.box.
+ * Inbound comes straight from the in-process history tail (followTail); outbound
+ * goes straight to the in-process call dispatch (ipcCall forward-call) — there is
+ * no HTTP bridge and no METRO_MONITOR_TOKEN. The daemon calls createMetroMcp()
+ * once to get the request handler + the inbound pump.
  *
  * Spec: https://code.claude.com/docs/en/channels-reference
  */
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { randomUUID } from 'node:crypto'
+import { readFile, stat } from 'node:fs/promises'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { readFile, stat } from 'node:fs/promises'
+import { ipcCall } from '../ipc.js'
+import { drainTail, followTail, historySize, type TailOpts } from '../broker/history-stream.js'
+import { gatherAccounts } from '../monitor-api.js'
+import type { HistoryEntry } from '../history.js'
 
-// --- Config (ENV ONLY — the MCP server is stateless) -------------------------
-// Every knob comes from process.env; the server keeps NO on-disk state and reads
-// no config/secret files, so it runs on an ephemeral or read-only filesystem.
-// (Inbound attachment paths are still read on demand below — that is request
-// payload the caller hands us, not server state.)
-const BASE = (process.env.METRO_BASE_URL || 'http://127.0.0.1:8420').replace(/\/$/, '')
-const TOKEN = process.env.METRO_MONITOR_TOKEN || ''
-// Comma-separated sender URIs or bare inbox/user ids that are allowed to drive
-// the session. Default: Less's primary tony-account XMTP inbox. A `*` disables
-// gating (NOT recommended - this is a prompt-injection surface).
+// --- Config ------------------------------------------------------------------
+// Sender allowlist + station gate come from the environment (the daemon loads
+// .env). Default allowlist: Less's primary tony-account XMTP inbox. A `*`
+// disables gating (NOT recommended — this is a prompt-injection surface).
 const ALLOWLIST_DEFAULT = 'bee7314f7127ef53b4e3bf5256e54b0a1acdc3698d064fb1029bd8f83ecc1186'
 const STATIONS_DEFAULT = 'xmtp,telegram,discord'
 const parseAllowlist = (raw: string): string[] =>
   raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 const parseStations = (raw: string): Set<string> =>
   new Set(raw.split(',').map(s => s.trim()).filter(Boolean))
-
-// --- Effective config (env-resolved, no disk override) -----------------------
-// A running process's `process.env` is FIXED at spawn, so allowlist/stations are
-// evaluated from the environment at launch. To change them, set
-// METRO_CHANNEL_ALLOWLIST / METRO_CHANNEL_STATIONS and relaunch. (The previous
-// on-disk ~/.config/metro/metro-channel.json hot-reload was removed to keep the
-// server stateless — there are no config files on disk.)
 const getAllowlist = (): string[] =>
   parseAllowlist(process.env.METRO_CHANNEL_ALLOWLIST ?? ALLOWLIST_DEFAULT)
 const getStations = (): Set<string> =>
   parseStations(process.env.METRO_CHANNEL_STATIONS ?? STATIONS_DEFAULT)
-const log = (...a: unknown[]): void => console.error('[metro-channel]', ...a)
-
-if (!TOKEN) { log('FATAL: METRO_MONITOR_TOKEN unset'); process.exit(2) }
+const log = (...a: unknown[]): void => console.error('[metro-mcp]', ...a)
 
 // --- MCP server (two-way channel + permission relay) ------------------------
 const mcp = new Server(
@@ -80,18 +74,16 @@ class MetroCallError extends Error {
   constructor(detail: string) { super(detail); this.name = 'MetroCallError'; this.detail = detail }
 }
 
-// POST to the daemon call endpoint. Returns the parsed JSON body (or raw text)
-// on success; throws MetroCallError carrying the daemon's status + body on
-// failure so callers can relay the reason verbatim.
+// Dispatch an outbound call to a station IN-PROCESS via the daemon's forward-call
+// IPC — the exact path POST /api/call used (handleCall in monitor-api.ts). Returns
+// `{ result }` on success (the same shape the HTTP endpoint returned) and throws
+// MetroCallError carrying the station's reason on failure so callers relay it.
 async function metroCall(train: string, action: string, args: Record<string, unknown>): Promise<unknown> {
-  const r = await fetch(`${BASE}/api/call/${train}/${action}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
-    body: JSON.stringify({ args }),
-  })
-  const body = await r.text()
-  if (!r.ok) throw new MetroCallError(`metro ${action} ${train} ${r.status}: ${body.slice(0, 400)}`)
-  try { return body ? JSON.parse(body) : null } catch { return body }
+  const resp = await ipcCall({ op: 'forward-call', train, action, args })
+  if (!resp.ok) throw new MetroCallError(`metro ${action} ${train}: ${resp.error}`)
+  if (!('response' in resp)) throw new MetroCallError(`metro ${action} ${train}: malformed daemon response`)
+  if (resp.response.error) throw new MetroCallError(`metro ${action} ${train}: ${resp.response.error}`)
+  return { result: resp.response.result ?? null }
 }
 
 const trainOf = (line: string): string => line.split('/')[2] ?? ''
@@ -495,13 +487,10 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     }
   }
 
-  // list_accounts reads the daemon /api/accounts view (no line, all stations).
+  // list_accounts: the in-process accounts view (all stations, public ids only).
   if (name === 'list_accounts') {
     try {
-      const r = await fetch(`${BASE}/api/accounts`, { headers: { authorization: `Bearer ${TOKEN}` } })
-      const body = await r.text()
-      if (!r.ok) return errResult(`metro list_accounts ${r.status}: ${body.slice(0, 400)}`)
-      return okJson(body ? JSON.parse(body) : null)
+      return okJson({ accounts: await gatherAccounts() })
     } catch (e) {
       return errResult(`metro list_accounts failed: ${String(e)}`)
     }
@@ -684,45 +673,7 @@ mcp.setNotificationHandler(PermissionRequestSchema as never, async (n: Permissio
   try { await metroSend(line, body) } catch (e) { log('relay send failed', e) }
 })
 
-// --- Transport: Streamable HTTP (stateless, cloud-friendly) ------------------
-// Each POST /mcp is a self-contained request/response (or SSE stream) — no
-// session id, so no sticky sessions behind a load balancer. An optional bearer
-// token (METRO_MCP_HTTP_TOKEN) gates /mcp; the inbound Metro SSE subscription
-// below is shared across all clients (it drives channel push).
-const port = Number(process.env.METRO_MCP_HTTP_PORT || 8421)
-const host = process.env.METRO_MCP_HTTP_HOST || '0.0.0.0'
-// Optional bearer gate for the MCP endpoint itself (distinct from the daemon
-// METRO_MONITOR_TOKEN, which gates the daemon HTTP API the bridge calls).
-const httpToken = process.env.METRO_MCP_HTTP_TOKEN || ''
-const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined })
-await mcp.connect(transport)
-
-const authOk = (req: Request): boolean => {
-  if (!httpToken) return true
-  const h = req.headers.get('authorization') || ''
-  return h.startsWith('Bearer ') && h.slice(7) === httpToken
-}
-
-Bun.serve({
-  port, hostname: host,
-  idleTimeout: 0, // SSE streams are long-lived; don't let Bun time them out.
-  async fetch(req) {
-    const url = new URL(req.url)
-    // Liveness probe (no auth) so cloud LBs/uptime checks can reach the MCP box.
-    if (url.pathname === '/health' && req.method === 'GET') {
-      return Response.json({ ok: true, service: 'metro-mcp', transport: 'http', base: BASE })
-    }
-    if (url.pathname === '/mcp' || url.pathname === '/') {
-      if (!authOk(req)) return new Response('unauthorized', { status: 401 })
-      return transport.handleRequest(req)
-    }
-    return new Response('not found', { status: 404 })
-  },
-})
-log('connected (streamable-http). listening=', `${host}:${port}/mcp`, 'base=', BASE,
-  'auth=', httpToken ? 'on' : 'off')
-
-// --- Inbound: subscribe to Metro SSE ----------------------------------------
+// --- Inbound: sender allowlist ----------------------------------------------
 const senderAllowed = (from: string) => {
   const allowlist = getAllowlist()
   if (allowlist.includes('*')) return true
@@ -1055,44 +1006,70 @@ async function handleEvent(ev: Record<string, unknown>) {
   })
 }
 
-// SSE reader with auto-reconnect. since=tail -> only new events.
-async function subscribe() {
-  for (;;) {
-    try {
-      // Subscribe WITHOUT a station filter: the SSE filter is fixed at connect
-      // time, but the effective station set can change at runtime via the
-      // override file. We pull all stations and let getStations() (in
-      // handleEvent) be the authoritative, dynamic gate. webhook is still
-      // hard-dropped in handleEvent (flood/crash risk).
-      const res = await fetch(
-        `${BASE}/api/tail?since=tail&mode=all`,
-        { headers: { authorization: `Bearer ${TOKEN}`, accept: 'text/event-stream' } },
-      )
-      if (!res.ok || !res.body) throw new Error(`tail ${res.status}`)
-      log('subscribed to', `${BASE}/api/tail`)
-      const reader = res.body.getReader()
-      const dec = new TextDecoder()
-      let buf = ''
-      for (;;) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buf += dec.decode(value, { stream: true })
-        let nl: number
-        while ((nl = buf.indexOf('\n')) >= 0) {
-          const line = buf.slice(0, nl).trimEnd()
-          buf = buf.slice(nl + 1)
-          if (!line.startsWith('data:')) continue // skip comments/keepalives
-          const json = line.slice(5).trim()
-          if (!json) continue
-          try { await handleEvent(JSON.parse(json)) } catch (e) { log('event err', e) }
-        }
-      }
-      log('stream ended, reconnecting')
-    } catch (e) {
-      log('subscribe error, retry in 3s', String(e))
-    }
-    await new Promise(r => setTimeout(r, 3000))
+// --- In-process wiring -------------------------------------------------------
+// Build the /mcp request handler + the inbound pump. The daemon calls this once
+// (dispatcher.ts), mounts `httpHandler` at /mcp on its HTTP server, and calls
+// `startInbound()` to begin driving channel push from the history tail.
+export async function createMetroMcp(): Promise<{
+  httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>
+  startInbound: () => void
+}> {
+  // Stateful streamable HTTP: a session (mcp-session-id) spans the connection so
+  // server→client notifications (channel push) can ride the standalone GET /mcp
+  // SSE stream. One transport serves one client; a fresh `initialize` mints a new
+  // session (and reconnects the single server), so a reconnecting client is never
+  // rejected by an already-initialized transport.
+  let transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() })
+  await mcp.connect(transport)
+  const reconnect = async (): Promise<void> => {
+    try { await transport.close() } catch { /* ignore */ }
+    transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() })
+    await mcp.connect(transport)
   }
-}
+  const isInitialize = (b: unknown): boolean =>
+    !!b && typeof b === 'object' && (b as { method?: string }).method === 'initialize'
+  const readBody = async (req: IncomingMessage): Promise<unknown> => {
+    const chunks: Buffer[] = []
+    for await (const c of req) chunks.push(c as Buffer)
+    const raw = Buffer.concat(chunks).toString('utf8')
+    try { return raw ? JSON.parse(raw) : undefined } catch { return undefined }
+  }
 
-void subscribe()
+  // Optional bearer gate for /mcp. The daemon↔MCP link is in-process now, so no
+  // METRO_MONITOR_TOKEN is involved — this only gates external MCP clients.
+  const httpToken = process.env.METRO_MCP_HTTP_TOKEN || ''
+  const httpHandler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    if (httpToken) {
+      const h = ([] as string[]).concat(req.headers['authorization'] ?? [])[0] ?? ''
+      if (!(h.startsWith('Bearer ') && h.slice(7) === httpToken)) {
+        res.writeHead(401).end('unauthorized'); return
+      }
+    }
+    // POST carries the JSON-RPC body; read it so we can spot a fresh `initialize`
+    // (→ new session) and hand the parsed body to the transport. GET/DELETE drive
+    // the SSE stream / teardown and have no body.
+    if (req.method === 'POST') {
+      const body = await readBody(req)
+      if (isInitialize(body)) await reconnect()
+      await transport.handleRequest(req, res, body)
+      return
+    }
+    await transport.handleRequest(req, res)
+  }
+
+  // Inbound: follow the in-process history journal from EOF (== the old SSE
+  // `since=tail`), driving handleEvent with the SAME entries /api/tail streamed.
+  // No station filter at the source — getStations() in handleEvent is the dynamic
+  // gate, and webhook is hard-dropped there (flood/crash risk).
+  const startInbound = (): void => {
+    const opts: TailOpts = { mode: 'all', self: null }
+    const onEntry = (e: HistoryEntry): void => {
+      void handleEvent(e as unknown as Record<string, unknown>).catch(err => log('event err', err))
+    }
+    const offset = drainTail(historySize(), opts, onEntry) // start at EOF: new events only
+    followTail(offset, opts, onEntry, 1_000)
+    log('inbound: following history tail (mode=all)')
+  }
+
+  return { httpHandler, startInbound }
+}

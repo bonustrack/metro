@@ -16,6 +16,7 @@ import { loadTunnelConfig, Tunnel, webhookPort } from './tunnel.js';
 import { TrainSupervisor, TRAINS_DIR } from './trains/supervisor.js';
 import { makeEmit, startWebhookServer, trainEventToHistoryEntry } from './dispatcher/server.js';
 import { OutboxDriver } from './outbox-driver.js';
+import { createMetroMcp } from './mcp/index.js';
 
 loadMetroEnv();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -88,12 +89,16 @@ const ipc = startIpcServer(async (req: IpcRequest): Promise<IpcResponse> => {
 
 async function main(): Promise<void> {
   supervisor.start();
-  webhookServer = await startWebhookServer(emit);
+  /** The MCP surface runs IN-PROCESS: mounted at /mcp on the HTTP server below,
+   *  fed inbound from the history tail and outbound via the same forward-call IPC. */
+  const metroMcp = await createMetroMcp();
+  webhookServer = await startWebhookServer(emit, metroMcp.httpHandler);
+  metroMcp.startInbound();
   tunnel?.start();
   /** Restart recovery: re-dispatch only never-sent entries (conservative — see */
   /** outbox.ts). Trains must be up first, so this runs after supervisor.start(). */
   outbox.recover();
-  log.info({ codexRc: !!codexRc, tunnel: !!tunnel, trainsDir: TRAINS_DIR }, 'dispatcher ready');
+  log.info({ codexRc: !!codexRc, tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' }, 'dispatcher ready');
 }
 
 let shuttingDown = false;

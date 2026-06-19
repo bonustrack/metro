@@ -1,25 +1,30 @@
-# Metro Channel (Claude Code Channel MCP server)
+# Metro MCP (Claude Code Channel surface)
 
 Pushes Metro inbound chat (XMTP/Telegram/Discord) into a **running** Claude Code
-session as [channel](https://code.claude.com/docs/en/channels) events, so CC reacts
-to messages while you're away - no more fragile Monitor/`tail` transport. Two-way:
-the full Metro CLI messaging verb set (send/reply/react/unreact/edit/delete/read) is
-exposed as tools to send responses back, and tool-approval prompts are relayed to chat
-so you can approve/deny from your phone.
+session as [channel](https://code.claude.com/docs/en/channels) events, so CC reacts to
+messages while you're away. Two-way: the full messaging verb set
+(send/reply/react/unreact/edit/delete/read) is exposed as tools to send responses back,
+and tool-approval prompts are relayed to chat so you can approve/deny from your phone.
+
+The MCP is **served in-process by the metro daemon** — it is not a separate server.
+`createMetroMcp()` ([`index.ts`](index.ts)) is mounted at the **root path** of the
+daemon's HTTP server. Inbound comes straight off the in-process history tail
+(`followTail`); outbound tool calls go straight to the stations over the in-process IPC
+(`ipcCall` forward-call) — no HTTP bridge, no shared token.
 
 ```
- XMTP/TG/Discord ──▶ metro daemon ──SSE /api/tail──▶ index.ts (MCP) ──http──▶ AI clients
-       ▲                  ▲                                                          │
-       └── reply ─────────┴────────────── POST /api/call/<train>/send ◀─────────────┘
+ XMTP/TG/Discord ──▶ stations ──▶ daemon history journal ──followTail──▶ MCP ──▶ AI client
+       ▲                 ▲                                                  │
+       └── reply ────────┴────────────────── ipcCall forward-call ◀────────┘
 ```
 
 ## CLI parity tools
 
-The server exposes the full Metro CLI messaging verb set as MCP tools (one tool per
-verb). Every tool takes the `line` from the inbound `<channel>` tag; the station is
-derived from the line, so there is no station argument. Each tool POSTs the canonical
-action to `POST /api/call/<train>/<action>`; the daemon's normalize layer translates
-to each station's native action.
+The server exposes the full messaging verb set as MCP tools (one tool per verb). Every
+tool takes the `line` from the inbound `<channel>` tag; the station is derived from the
+line, so there is no station argument. Each tool dispatches the canonical action
+**in-process** (`ipcCall` forward-call); the daemon's normalize layer translates to each
+station's native action.
 
 | Tool | Args | Action sent |
 | --- | --- | --- |
@@ -30,6 +35,9 @@ to each station's native action.
 | `edit` | `line, message_id, text` | `edit {messageId, text}` |
 | `delete` | `line, message_id` | `delete {messageId}` |
 | `read` | `line, limit?, before?, since?` | `read` (returns raw history JSON) |
+
+(Plus the XMTP channel/group tools: `create_channel`, `dm`, `group_info`, `add_members`,
+`remove_members`, `close_channel`, `set_channel_metadata`, `ask`, and `list_accounts`.)
 
 ### Per-station support matrix
 
@@ -60,9 +68,8 @@ the raw history JSON (shapes differ per station and are not normalized).
 - **xmtp**: the `send` action ignores canonical attachments, so each attachment is
   dispatched natively - images (by mime or extension) via `sendImage {line, path}` (the
   daemon reads the file, no base64 round-trip), other files via `sendAttachment` with the
-  bytes base64-encoded in the server. Because the monitor request body is capped at
-  ~256 KiB, an xmtp non-image file over ~190 KiB (which inflates past the cap once
-  base64-encoded) is rejected with a clear error.
+  bytes base64-encoded in the server. An xmtp non-image file over ~190 KiB is rejected
+  with a clear error (a guard in the server, since base64 inflates large payloads).
 - `reply` carries no attachments (matches the CLI); use `send` for media.
 - MIME is inferred from the file extension when not provided (covers image/*, audio/*,
   video/*, application/pdf, and others).
@@ -83,64 +90,46 @@ the path inline in the text.
 
 **Outbound media**: the `send` tool takes an optional `attachments` array
 (`[{path|url, mime?, name?}]`). On telegram/discord they ride the canonical `send` action
-(daemon reads the local path); on xmtp images route to `sendImage` (daemon reads the file,
-no base64 round-trip) and other files to `sendAttachment` (read + base64 in the server, with
-the ~190 KiB cap). See **CLI parity tools** above for the full matrix.
+(daemon reads the local path); on xmtp images route to `sendImage` and other files to
+`sendAttachment` (read + base64 in the server, with the ~190 KiB cap).
 
 ## Requirements
 
 - Claude Code **v2.1.80+** (permission relay needs **v2.1.81+**)
 - [Bun](https://bun.sh)
-- A running Metro daemon, with `METRO_MONITOR_TOKEN` exported in the MCP server's environment
+- The metro daemon running (`bun run start`) — the MCP is served by it, in-process.
 - Anthropic auth via claude.ai or Console API key (channels are not on Bedrock/Vertex/Foundry).
   On Team/Enterprise an admin must set `channelsEnabled: true`.
 
-## Install
-
-```bash
-bun install        # from the repo root (@modelcontextprotocol/sdk + zod)
-```
-
 ## Configure (env vars)
+
+The MCP reads only the sender allowlist + station gate from the environment (the daemon
+loads `.env`), evaluated at launch.
 
 | Var | Default | Purpose |
 | --- | --- | --- |
-| `METRO_MONITOR_TOKEN` | (required) | Bearer for the daemon monitor endpoints |
-| `METRO_BASE_URL` | `http://127.0.0.1:8420` | Metro webhook/monitor HTTP base |
-| `METRO_CHANNEL_ALLOWLIST` | Less's tony-account inbox id | Comma-separated allowed sender URIs or trailing ids. `*` disables gating (unsafe) |
-| `METRO_CHANNEL_STATIONS` | `xmtp,telegram,discord` | Stations to surface. **`webhook` is always excluded** (flood/crash risk) |
+| `METRO_CHANNEL_ALLOWLIST` | Less's tony-account inbox id | Comma-separated allowed sender URIs or trailing ids. Inbound from senders not on the list is dropped. `*` disables gating (unsafe). |
+| `METRO_CHANNEL_STATIONS` | `xmtp,telegram,discord` | Stations to surface. **`webhook` is always excluded** (flood/crash risk). |
+| `METRO_MCP_HTTP_TOKEN` | (off) | Optional bearer gating the MCP endpoint for external clients. |
 
 The allowlist gates on the **sender** (`from`), never the conversation - prompt-injection
 defense per the Channels spec. Only allowlisted senders can drive tools or answer
-permission prompts.
-
-### Stateless: config is ENV ONLY
-
-The MCP server holds **no on-disk state** and reads **no config or secret files**.
-`METRO_MONITOR_TOKEN`, `METRO_BASE_URL`, `METRO_CHANNEL_ALLOWLIST` and
-`METRO_CHANNEL_STATIONS` all come from the environment, evaluated at launch. A
-running process's `process.env` is fixed at spawn, so to change the allowlist or
-stations you set the env var and **relaunch**. (Earlier builds read a
-`~/.config/metro/.env` token fallback and a hot-reloadable
-`~/.config/metro/metro-channel.json` override; both were removed to make the
-server stateless — there are no config files on disk.)
+permission prompts. Both are read from `process.env` at launch; to change them, update
+the daemon's `.env` and **relaunch**.
 
 ## Run
 
-The server runs over **Streamable HTTP**. Launch it with the daemon reachable at
-`METRO_BASE_URL` and a `METRO_MONITOR_TOKEN`:
+The MCP comes up with the daemon — one process, one port:
 
 ```bash
-METRO_MCP_HTTP_PORT=8421 METRO_MONITOR_TOKEN=... \
-METRO_BASE_URL=http://127.0.0.1:8420 \
-  bun src/mcp/index.ts
-# liveness : GET  http://<host>:8421/health   (no auth)
-# MCP      : POST http://<host>:8421/mcp       (optional METRO_MCP_HTTP_TOKEN bearer)
+bun run start
+# MCP : http://127.0.0.1:8420   (root path; POST = JSON-RPC, GET = server→client SSE)
+#       optional METRO_MCP_HTTP_TOKEN bearer
 ```
 
 Register it in an MCP client (this directory's `.mcp.json` points `metro` at
-`http://127.0.0.1:8421/mcp`). For Claude Code add the development-channel flag
-(custom channels aren't on the Anthropic allowlist during the research preview):
+`http://127.0.0.1:8420`). For Claude Code add the development-channel flag (custom
+channels aren't on the Anthropic allowlist during the research preview):
 
 ```bash
 claude --dangerously-load-development-channels server:metro
@@ -148,39 +137,29 @@ claude --dangerously-load-development-channels server:metro
 
 A dim banner confirms: `Channels (experimental) messages from server:metro inject directly...`.
 
-A `metro-cc` convenience launcher wraps the long
-`claude --dangerously-load-development-channels server:metro` invocation.
-
 ## Live test plan
 
-1. **Daemon up**: `metro doctor` (dispatcher running, xmtp train healthy). Do NOT restart it.
-2. **Start CC as a channel** (command above) from `the repo root`.
-   Run `/mcp` - `metro` should show connected.
-3. **Inbound**: from your phone, send an XMTP message on the channel line. It arrives in
-   the CC session as `<channel source="metro" line="metro://xmtp/tony/..." from="..."
-   station="xmtp" message_id="...">your text</channel>`.
+1. **Daemon up**: `bun run start`; confirm stations via `GET http://127.0.0.1:8420/health`.
+2. **Start CC as a channel** (command above) from the repo root. Run `/mcp` - `metro`
+   should show connected.
+3. **Inbound**: from your phone, send a message on an allowlisted line. It arrives in the
+   CC session as `<channel source="metro" line="metro://xmtp/..." from="..." station="..."
+   message_id="...">your text</channel>`.
 4. **Reply**: tell CC to answer. It calls the `reply` tool with that `line`; the message
-   lands back in the XMTP conversation on your phone. The CC terminal shows only `sent`.
-5. **Permission relay**: ask CC to do something needing approval (e.g. run a write/Bash).
-   The local dialog opens AND a `Claude wants to run ... Reply "yes <id>"/"no <id>"`
-   prompt arrives in the chat. Reply `yes <id>` from your phone - the tool proceeds.
-   (Answer in the terminal too; first answer wins.)
+   lands back in the conversation on your phone. The CC terminal shows only `sent`.
+5. **Permission relay**: ask CC to do something needing approval (e.g. a write/Bash). The
+   local dialog opens AND a `Claude wants to run ... Reply "yes <id>"/"no <id>"` prompt
+   arrives in the chat. Reply `yes <id>` from your phone - the tool proceeds. (Answer in
+   the terminal too; first answer wins.)
 
 ## Notes / spec uncertainties
 
 - Built to the [Channels reference](https://code.claude.com/docs/en/channels-reference):
   `notifications/claude/channel` (push), `reply` tool, `notifications/claude/channel/permission_request`
   + `notifications/claude/channel/permission` (relay). Meta keys are identifiers only
-  (underscores), so the metro line rides as `line` (no scheme issues - it's a value, not a key).
-- **A local `.mcp.json` shadows the global `~/.claude.json` server entry.** When CC is
-  launched from a directory containing `.mcp.json` (e.g. `the repo root`), that
-  file's `env` block wins over the global `mcpServers.metro` entry. If the local
-  `.mcp.json` omits `METRO_CHANNEL_ALLOWLIST`/`METRO_CHANNEL_STATIONS`, the server falls
-  back to the hardcoded single-id default allowlist and **drops every message**. Fix: set
-  `METRO_CHANNEL_ALLOWLIST` and `METRO_CHANNEL_STATIONS` in whichever `.mcp.json` actually
-  launches the server (this package's `.mcp.json` now sets `"*"` and
-  `"xmtp,telegram,discord"`). The server is stateless, so there is no on-disk
-  override — change the env in whichever launcher starts the server and relaunch.
+  (underscores), so the metro line rides as `line` (it's a value, not a key).
+- The allowlist + station gate come from the **daemon's `.env`** (the MCP runs in its
+  process). The client's `.mcp.json` only carries the URL — no env block is needed.
 - Permission relay routes to the **last inbound line** seen. With a single active
   conversation that is exact; multi-conversation routing would need per-request line capture
   (CC's `permission_request` doesn't carry a conversation id, so last-line is the documented pattern).
