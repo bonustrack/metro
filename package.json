@@ -27,8 +27,6 @@
   "files": [
     "dist",
     "src/mcp",
-    "docs",
-    "skills",
     "README.md",
     "LICENSE"
   ],
