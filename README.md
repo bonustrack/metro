@@ -2,7 +2,7 @@
 
 > Bridge live chat — XMTP, Telegram, Discord, inbound webhooks — into an AI coding session as MCP tools.
 
-metro lets an AI coding agent (Claude Code, Codex, …) hold real conversations on chat
+metro lets an AI coding agent (Claude Code) hold real conversations on chat
 platforms while it works: inbound messages arrive in the session as events, and the
 agent sends, replies, reacts, and manages channels through `mcp__metro__*` tools. It
 runs as a single [Bun](https://bun.sh) process that serves the Model Context Protocol

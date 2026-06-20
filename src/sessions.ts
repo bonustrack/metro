@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { asLine, type Line } from './lines.js';
 import { STATIONS, type Station } from './messaging.js';
-import { claudeSessionId, codexSessionId } from './local-identity.js';
+import { claudeSessionId } from './local-identity.js';
 
 /** Stations a session can bind to an account (the canonical platform set). */
 export type SessionStation = Station;
@@ -93,12 +93,11 @@ export function accountForSession(sessionId: string, station: SessionStation): s
 }
 
 /** The session id active for this process, for binding lookup. Precedence: */
-/** explicit `METRO_SESSION` override > the CLI's own claude/codex session id. */
+/** explicit `METRO_SESSION` override > the CLI's own claude session id. */
 /** Null when none is known — callers then keep today's env-derived behavior. */
 export function activeSessionId(): string | null {
   if (process.env.METRO_SESSION) return process.env.METRO_SESSION;
   if (process.env.CLAUDECODE) return claudeSessionId();
-  if (process.env.METRO_CODEX_RC || process.env.CODEX_HOME) return codexSessionId();
   return null;
 }
 

@@ -17,7 +17,7 @@ describe('xmtp account-scoped lines (per-CLI feed isolation)', () => {
    */
   test('account-scoped form splits into [account, conv]', () => {
     expect(Line.parse('metro://xmtp/tony/0xconv')).toEqual({ station: 'xmtp', path: ['tony', '0xconv'] });
-    expect(Line.parse('metro://xmtp/codex/0xabc')).toEqual({ station: 'xmtp', path: ['codex', '0xabc'] });
+    expect(Line.parse('metro://xmtp/ben/0xabc')).toEqual({ station: 'xmtp', path: ['ben', '0xabc'] });
   });
   test('account is the first path segment', () => {
     const p = Line.parse('metro://xmtp/tony/0xconv');

@@ -12,7 +12,7 @@ import { Line } from '../src/lines.ts';
 describe('Line.parseXmtp', () => {
   test('new account-scoped form → {accountId, resource}', () => {
     expect(Line.parseXmtp('metro://xmtp/tony/0xconv')).toEqual({ accountId: 'tony', resource: '0xconv' });
-    expect(Line.parseXmtp('metro://xmtp/codex/0xabc')).toEqual({ accountId: 'codex', resource: '0xabc' });
+    expect(Line.parseXmtp('metro://xmtp/ben/0xabc')).toEqual({ accountId: 'ben', resource: '0xabc' });
   });
 
   test('legacy single-segment form → default account', () => {

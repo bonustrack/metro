@@ -6,7 +6,7 @@ import { errMsg, log } from './log.js';
 import { HISTORY_FILE } from './paths.js';
 import { Line } from './lines.js';
 
-export { userSelf, daemonSelf, codexSelf, selfLine, noteUserFromLine } from './history-identity.js';
+export { userSelf, daemonSelf, selfLine, noteUserFromLine } from './history-identity.js';
 export type { StructuredEvent, WireEvent, HistoryEntry } from './history-types.js';
 
 import type { HistoryEntry, StructuredEvent } from './history-types.js';

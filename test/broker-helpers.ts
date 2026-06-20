@@ -36,8 +36,6 @@ export function runCli(args: string[], opts: RunOpts = {}): { stdout: string; st
     METRO_CONFIG_DIR: join(env.STATE_DIR, 'config'),
     /** prevent userSelf() autodetect from picking up host env */
     CLAUDECODE: '',
-    METRO_CODEX_RC: '',
-    CODEX_HOME: '',
     /**
      * Short-circuit claudeUserId() — without these, CLAUDECODE=1 in test
      * env triggers `claude auth status --json` which fails in CI (no claude

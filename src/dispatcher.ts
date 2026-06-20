@@ -6,12 +6,10 @@ import { join } from 'node:path';
 import { type Server } from 'node:http';
 import pkg from '../package.json' with { type: 'json' };
 import { Line } from './lines.js';
-import { CodexRC } from './codex-rc/client.js';
 import { startIpcServer, stopIpcServer, type IpcRequest, type IpcResponse } from './ipc.js';
 import { mintId, noteUserFromLine, selfLine, userSelf, type HistoryEntry } from './history.js';
 import { errMsg, log } from './log.js';
 import { acquireLock, loadMetroEnv, STATE_DIR } from './paths.js';
-import { setCodexSessionId } from './local-identity.js';
 import { loadTunnelConfig, Tunnel, webhookPort } from './tunnel.js';
 import { TrainSupervisor, TRAINS_DIR } from './trains/supervisor.js';
 import { makeEmit, startWebhookServer, trainEventToHistoryEntry } from './dispatcher/server.js';
@@ -31,15 +29,11 @@ process.stdout.on('error', err => {
   if ((err as NodeJS.ErrnoException).code !== 'EPIPE') log.warn({ err: errMsg(err) }, 'stdout error');
 });
 
-const codexRc = process.env.METRO_CODEX_RC ? new CodexRC(process.env.METRO_CODEX_RC, pkg.version) : null;
-codexRc?.onThread(id => { setCodexSessionId(id); seedSelf(); });
-codexRc?.start();
-
 const supervisor = new TrainSupervisor();
 /** Durable outbox: journals MUTATE forward-calls, retries transient failures with
  *  backoff, dead-letters terminal ones. READ calls pass straight through. */
 const outbox = new OutboxDriver((train, action, args) => supervisor.call(train, action, args));
-const emit = makeEmit(codexRc);
+const emit = makeEmit();
 
 supervisor.onTrainEvent((env, train) => {
   const entry = trainEventToHistoryEntry(env, train);
@@ -98,7 +92,7 @@ async function main(): Promise<void> {
   /** Restart recovery: re-dispatch only never-sent entries (conservative — see */
   /** outbox.ts). Trains must be up first, so this runs after supervisor.start(). */
   outbox.recover();
-  log.info({ codexRc: !!codexRc, tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' }, 'dispatcher ready');
+  log.info({ tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' }, 'dispatcher ready');
 }
 
 let shuttingDown = false;
@@ -106,7 +100,6 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   log.info('dispatcher shutting down');
-  codexRc?.stop();
   tunnel?.stop();
   outbox.stop();
   await stopIpcServer(ipc).catch(() => {});

@@ -43,7 +43,7 @@ describe('cursorKey (issue #34: mode-derived cursor key)', () => {
   });
 
   test('_-prefixed mode keys never collide with a real userSlug', () => {
-    /** userSlug always contains a station prefix (claude-…, codex-…, discord-…); none start with `_`. */
+    /** userSlug always contains a station prefix (claude-…, discord-…, xmtp-…); none start with `_`. */
     const k = cursorKey('all', asLine('metro://claude/user/abc'));
     expect(k?.startsWith('_')).toBe(true);
     const u = cursorKey('mine-or-unclaimed', asLine('metro://claude/user/abc'));
@@ -92,33 +92,32 @@ describe('passesMode webhook gating', () => {
   });
 });
 
-/** Per-CLI feed isolation contract that makeEmit (Codex bridge gate) and the */
-/** standalone bridge both rely on: the xmtp train owner-routes inbound by */
-/** stamping `to = <owner>`, so a `mine-only` predicate keyed on a CLI's self */
-/** accepts ONLY that CLI's account feed (fixes the "combined" bug). */
-describe('per-CLI feed isolation (Codex bridge gate)', () => {
-  const CODEX_SELF = asLine('metro://codex/user/codex-acct');
+/** Per-self feed isolation contract that `metro tail --as=<self> --strict` relies */
+/** on: the xmtp train owner-routes inbound by stamping `to = <owner>`, so a */
+/** `mine-only` predicate keyed on a given self accepts ONLY that self's feed. */
+describe('per-self feed isolation (mine-only / --as)', () => {
+  const BEN_SELF = asLine('metro://xmtp/ben/user/ben-acct');
   const CLAUDE_SELF = asLine('metro://claude/user/claude-org');
-  /** tony account → routed to Claude owner */
+  /** tony account → routed to the Claude owner */
   const tonyEvent: HistoryEntry = {
     id: 'msg_t1', ts: '2026-05-29T00:00:00Z', kind: 'inbound', station: 'xmtp',
     line: asLine('metro://xmtp/tony/conv1'), from: asLine('metro://xmtp/tony/user/alice'),
     to: CLAUDE_SELF, text: 'for claude',
   };
-  /** codex account → routed to Codex owner */
-  const codexEvent: HistoryEntry = {
+  /** ben account → routed to the ben owner */
+  const benEvent: HistoryEntry = {
     id: 'msg_x1', ts: '2026-05-29T00:00:01Z', kind: 'inbound', station: 'xmtp',
-    line: asLine('metro://xmtp/codex/conv2'), from: asLine('metro://xmtp/codex/user/bob'),
-    to: CODEX_SELF, text: 'for codex',
+    line: asLine('metro://xmtp/ben/conv2'), from: asLine('metro://xmtp/ben/user/bob'),
+    to: BEN_SELF, text: 'for ben',
   };
 
-  test('Codex bridge (mine-only, self=codex) gets ONLY codex feed', () => {
-    expect(passesMode(codexEvent, 'mine-only', CODEX_SELF, {})).toBe(true);
-    expect(passesMode(tonyEvent, 'mine-only', CODEX_SELF, {})).toBe(false);
+  test('mine-only (self=ben) gets ONLY the ben feed', () => {
+    expect(passesMode(benEvent, 'mine-only', BEN_SELF, {})).toBe(true);
+    expect(passesMode(tonyEvent, 'mine-only', BEN_SELF, {})).toBe(false);
   });
 
-  test('Claude tail (mine-only, self=claude) gets ONLY tony feed', () => {
+  test('mine-only (self=claude) gets ONLY the tony feed', () => {
     expect(passesMode(tonyEvent, 'mine-only', CLAUDE_SELF, {})).toBe(true);
-    expect(passesMode(codexEvent, 'mine-only', CLAUDE_SELF, {})).toBe(false);
+    expect(passesMode(benEvent, 'mine-only', CLAUDE_SELF, {})).toBe(false);
   });
 });

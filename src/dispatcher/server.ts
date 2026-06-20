@@ -7,14 +7,11 @@ import { Line } from '../lines.js';
 import { errMsg, log } from '../log.js';
 import { noteSeen } from '../paths.js';
 import {
-  appendHistory, classifyEvent, codexSelf, formatDisplay, mintId, noteUserFromLine, userSelf,
+  appendHistory, classifyEvent, formatDisplay, mintId, noteUserFromLine, userSelf,
   type HistoryEntry,
 } from '../history.js';
 import { handleMonitorRequest } from '../monitor-api.js';
-import { passesMode } from '../broker/history-stream.js';
-import { readClaims } from '../broker/claims.js';
 import type { TrainEvent } from '../trains/protocol.js';
-import type { CodexRC } from '../codex-rc/client.js';
 import { findEndpoint, listEndpoints, webhookPort } from '../tunnel.js';
 import { webhookEntry, verifyWebhookSig } from '../stations/webhook/receive.js';
 import { makeDedupSeq, type DedupSeq } from './dedup-seq.js';
@@ -22,27 +19,10 @@ import { HISTORY_FILE } from '../paths.js';
 
 type Emit = (entry: HistoryEntry) => void;
 
-export function makeEmit(codexRc: CodexRC | null, dedupSeq?: DedupSeq): Emit {
+export function makeEmit(dedupSeq?: DedupSeq): Emit {
   /** Inbound dedup + per-line seq. Seeded from the history tail (warm-start) so a */
   /** daemon restart doesn't re-admit train replays. Injectable for tests. */
   const tracker = dedupSeq ?? makeDedupSeq(HISTORY_FILE);
-  /** Resolve the Codex participant URI once. The bridge must only receive the */
-  /** Codex CLI's own feed — NOT every event (the historical "combined" bug: */
-  /** `codexRc.push` was unconditional, so Codex also saw tony's events). */
-  /** Null ⇒ no Codex identity resolvable ⇒ bridge receives nothing. */
-  const cxSelf: Line | null = codexRc ? codexSelf() : null;
-  if (codexRc && !cxSelf) {
-    log.warn({}, 'codex bridge: no Codex identity resolvable — bridge will receive no events');
-  }
-  /** Short-TTL claims cache so we don't re-read claims.json per event in the */
-  /** emit hot path (claims change rarely; 1s staleness is harmless). */
-  let claimsCache: ReturnType<typeof readClaims> | null = null;
-  let claimsAt = 0;
-  const claims = (): ReturnType<typeof readClaims> => {
-    const now = Date.now();
-    if (!claimsCache || now - claimsAt > 1_000) { claimsCache = readClaims(); claimsAt = now; }
-    return claimsCache;
-  };
   return function emit(entry: HistoryEntry): void {
     /** Dedup inbound train replays + assign this line's next seq. A duplicate (same */
     /** platform messageId within the LRU window) returns null ⇒ drop before any I/O. */
@@ -55,14 +35,7 @@ export function makeEmit(codexRc: CodexRC | null, dedupSeq?: DedupSeq): Emit {
       display: entry.display ?? formatDisplay(entry),
       event: entry.event ?? classifyEvent(entry),
     };
-    const json = JSON.stringify(enriched);
-    process.stdout.write(json + '\n');
-    /** Feed isolation: only forward to the Codex bridge what a */
-    /** `metro tail --as=<codex-self> --strict` would receive — events routed to */
-    /** the Codex owner (`to === cxSelf`) or claimed by it. Same predicate as CLI tail. */
-    if (codexRc && cxSelf && passesMode(enriched, 'mine-only', cxSelf, claims())) {
-      codexRc.push(json);
-    }
+    process.stdout.write(JSON.stringify(enriched) + '\n');
     noteSeen(entry.line, entry.lineName);
     for (const l of [entry.line, entry.from, entry.to]) if (l) noteUserFromLine(l);
     appendHistory(enriched);
