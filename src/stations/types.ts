@@ -10,6 +10,19 @@ export type Verb = 'send' | 'reply' | 'react' | 'unreact' | 'edit' | 'delete' | 
 /** An MCP tool result (text content, optionally flagged as an error). */
 export type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
 
+/** Raised when the daemon rejects an outbound call (e.g. "unsupported verb 'edit'").
+ *  Tool handlers let it propagate; the MCP surfaces `.detail` as an isError result
+ *  so the model sees WHY a call failed rather than an opaque throw. */
+export class MetroCallError extends Error {
+  detail: string;
+  constructor(detail: string) { super(detail); this.name = 'MetroCallError'; this.detail = detail; }
+}
+
+/** A file to attach on a `send` call: a local `path` (preferred) or `url`, with
+ *  optional `mime`/`name`. Canonical-mode stations ride these on `send`; native-mode
+ *  stations dispatch them one native action per file via `sendAttachments`. */
+export type CanonicalAttachment = { path?: string; url?: string; mime?: string; name?: string };
+
 /** What a station tool's handler is given: a bound dispatcher to this station plus
  *  the result helpers, so a manifest never imports the MCP server internals. */
 export interface ToolContext {
@@ -45,6 +58,9 @@ export interface Station {
   supports: ReadonlySet<Verb>;
   /** How outbound `send` attachments are dispatched. */
   attachmentMode: AttachmentMode;
+  /** Native-mode attachment dispatch (one native action per file). Only stations
+   *  with `attachmentMode: 'native'` implement it; canonical/none leave it unset. */
+  sendAttachments?(line: string, atts: CanonicalAttachment[], ctx: ToolContext): Promise<string[]>;
   /** Parse a line for this station → `{ accountId, resource }`, or null if not ours. */
   parseLine(line: string): { accountId: string; resource: string } | null;
   /** This station's daemon verb declarations — aggregated into the verb registry. */
