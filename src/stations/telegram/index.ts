@@ -22,23 +22,26 @@ import { emit } from './wire.js';
 import {
   emitInbound, envelope, reactionEnvelope, saveMediaAndEmit, type TgMsg, type TgReaction,
 } from './format.js';
-import { handleCall } from './actions.js';
+import { handleCall, type CallMsg } from './actions.js';
 
 let buf = '';
 process.stdin.setEncoding('utf8');
-process.stdin.on('data', chunk => {
-  buf += chunk;
-  let nl;
+process.stdin.on('data', (chunk: Buffer | string) => {
+  buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+  let nl: number;
   while ((nl = buf.indexOf('\n')) !== -1) {
     const line = buf.slice(0, nl).trim();
     buf = buf.slice(nl + 1);
     if (!line) continue;
-    try { const msg = JSON.parse(line); if (msg.op === 'call') void handleCall(msg); }
-    catch (err) { process.stderr.write(`bad stdin line: ${(err as Error).message}\n`); }
+    try {
+      const msg = JSON.parse(line) as Partial<CallMsg>;
+      if (msg.op === 'call') void handleCall(msg as CallMsg);
+    }
+    catch (err: unknown) { process.stderr.write(`bad stdin line: ${(err as Error).message}\n`); }
   }
 });
 
-type Update = { update_id: number; message?: TgMsg; message_reaction?: TgReaction };
+interface Update { update_id: number; message?: TgMsg; message_reaction?: TgReaction }
 
 /** One account's poll loop, isolated so a crash in one bot doesn't down the train. */
 async function runAccount(acct: Account): Promise<void> {

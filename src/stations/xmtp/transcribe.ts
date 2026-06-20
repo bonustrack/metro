@@ -14,14 +14,16 @@ export async function transcribeAndEmit(
 ): Promise<void> {
   const { existsSync: ex, readFileSync: rf, writeFileSync: wf, unlinkSync, mkdtempSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
-  const { join: j } = await import('node:path');
+  const path = await import('node:path');
+  const j = (...parts: string[]): string => path.join(...parts);
   const { spawn } = await import('node:child_process');
   if (!ex(WHISPER_MODEL)) return;
   const dir = mkdtempSync(j(tmpdir(), 'xmtp-tx-'));
   const inFile = j(dir, 'in.m4a'); const wav = j(dir, 'in.wav'); const out = j(dir, 'in');
   const run = (bin: string, args: string[]): Promise<void> => new Promise((res, rej) => {
     const p = spawn(bin, args, { stdio: 'ignore' });
-    p.on('error', rej); p.on('exit', c => c === 0 ? res() : rej(new Error(`${bin} ${c}`)));
+    p.on('error', rej);
+    p.on('exit', c => { if (c === 0) res(); else rej(new Error(`${bin} ${String(c)}`)); });
   });
   try {
     wf(inFile, audio);

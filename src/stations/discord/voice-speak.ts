@@ -18,18 +18,21 @@ const TTS_VOICE = 'Samantha';
 
 function clientFor(account?: string): { accountId: string; client: Client } {
   const accountId = accountFor({ account });
-  return { accountId, client: accounts.get(accountId)!.client };
+  const acct = accounts.get(accountId);
+  if (!acct) throw new Error(`unknown account '${accountId}'`);
+  return { accountId, client: acct.client };
 }
 
 function run(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: ['ignore', 'ignore', 'pipe'] });
     let err = '';
-    p.stderr?.on('data', d => { err += d.toString(); });
+    p.stderr?.on('data', (d: Buffer) => { err += d.toString(); });
     p.on('error', reject);
-    p.on('close', code => code === 0
-      ? resolve()
-      : reject(new Error(`${cmd} exited ${code}: ${err.slice(-400)}`)));
+    p.on('close', code => {
+      if (code === 0) resolve();
+      else reject(new Error(`${cmd} exited ${code}: ${err.slice(-400)}`));
+    });
   });
 }
 

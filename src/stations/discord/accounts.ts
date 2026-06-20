@@ -64,7 +64,7 @@ export async function rest<T = unknown>(
   if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   const res = await fetch(`${API}${path}`, {
     method, headers,
-    body: body === undefined ? undefined : isForm ? (body as BodyInit) : JSON.stringify(body),
+    body: body === undefined ? undefined : isForm ? (body as RequestInit['body']) : JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
@@ -94,7 +94,7 @@ export function parseLine(line: string): { accountId: string; channelId: string 
 export function accountFor(args: { account?: string; line?: string }): string {
   let id = args.account;
   if (!id && args.line) id = parseLine(args.line)?.accountId;
-  if (!id) id = accounts.size === 1 ? [...accounts.keys()][0] : 'default';
+  id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';
   if (!accounts.has(id)) throw new Error(`unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`);
   return id;
 }

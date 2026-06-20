@@ -15,15 +15,15 @@ function emitOutbound(accountId: string, line: string, messageId: string, text: 
   });
 }
 
-type MediaArgs = {
+interface MediaArgs {
   line: string; path: string; caption?: string; replyTo?: string;
   parseMode?: string; account?: string; name?: string;
-};
+}
 
 async function sendMedia(
   method: string, fieldName: string, args: Record<string, unknown>,
 ): Promise<{ accountId: string; message_id: number }> {
-  const { line, path, caption, replyTo, parseMode, account, name: fileName } = args as MediaArgs;
+  const { line, path, caption, replyTo, parseMode, account, name: fileName } = args as unknown as MediaArgs;
   const { accountId, chatId, topicId } = targetOf(line, account);
   const form = new FormData();
   form.append('chat_id', String(chatId));
@@ -38,7 +38,7 @@ async function sendMedia(
   return { accountId, message_id: r.message_id };
 }
 
-export type CallMsg = { op: 'call'; id: string; action: string; args: Record<string, unknown> };
+export interface CallMsg { op: 'call'; id: string; action: string; args: Record<string, unknown> }
 
 /** A media send action: dispatch, emit outbound bubble, respond. */
 async function media(
@@ -79,8 +79,8 @@ async function dispatch({ id, action, args }: CallMsg): Promise<void> {
   } else if (action === 'send') {
     const { line, text, replyTo, parseMode, buttons, account, attachments } = args as {
       line: string; text: string; replyTo?: string; parseMode?: string;
-      buttons?: Array<Array<{ text: string; url: string }>>; account?: string;
-      attachments?: Array<{ kind?: string; url?: string; mime?: string; name?: string }>;
+      buttons?: { text: string; url: string }[][]; account?: string;
+      attachments?: { kind?: string; url?: string; mime?: string; name?: string }[];
     };
     if (attachments?.length) {
       // Fan out per attachment as native media; caption goes on the first item only.
@@ -97,7 +97,8 @@ async function dispatch({ id, action, args }: CallMsg): Promise<void> {
         emitOutbound(last.accountId, line, String(last.message_id),
           i === 0 ? (text || `[${kind}]`) : `[${kind}]`, replyTo);
       }
-      respond(id, { result: { messageId: String(last!.message_id), account: last!.accountId } });
+      if (!last) throw new Error('no attachments were sent');
+      respond(id, { result: { messageId: String(last.message_id), account: last.accountId } });
       return;
     }
     const { accountId, chatId, topicId } = targetOf(line, account);
@@ -162,8 +163,10 @@ async function dispatch({ id, action, args }: CallMsg): Promise<void> {
     // `account` selects which bot's file API (file_ids are per-bot); else sole/default.
     const { fileId, outDir = '/tmp', account } = args as { fileId: string; outDir?: string; account?: string };
     const accountId = accountFor({ account });
+    const acct = accounts.get(accountId);
+    if (!acct) throw new Error(`unknown account '${accountId}'`);
     const meta = await tg<{ file_path: string }>(accountId, 'getFile', { file_id: fileId });
-    const data = await fetch(`${accounts.get(accountId)!.fileApi}/${meta.file_path}`).then(r => r.arrayBuffer());
+    const data = await fetch(`${acct.fileApi}/${meta.file_path}`).then(r => r.arrayBuffer());
     const filename = meta.file_path.split('/').pop() ?? `${fileId}.bin`;
     const path = `${outDir}/${Date.now()}-${filename}`;
     await Bun.write(path, data);

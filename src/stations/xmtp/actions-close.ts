@@ -12,7 +12,7 @@ type Args = Record<string, unknown>;
 export async function closeGroup(id: string, args: Args): Promise<void> {
   const { line, groupId, removeInboxIds, removeSelf } = args as {
     line?: string; groupId?: string; removeInboxIds?: string[]; removeSelf?: boolean };
-  const acct = accountForCall(args as { account?: string; line?: string });
+  const acct = accountForCall(args);
   const resolvedLine = line ?? (groupId ? lineOf(acct.cfg.id, groupId) : undefined);
   if (!resolvedLine) { respond(id, { error: 'closeGroup requires `line` or `groupId`' }); return; }
 

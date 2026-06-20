@@ -22,12 +22,12 @@ const claudeAccountId = memo(() => {
   try { raw = execFileSync('claude', ['auth', 'status', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }
   catch (e) { throw new Error(`metro: failed to run 'claude auth status --json' — is Claude Code installed? (${(e as Error).message})`); }
   let p: { loggedIn?: boolean; orgId?: string };
-  try { p = JSON.parse(raw); } catch { throw new Error(`metro: 'claude auth status --json' returned non-JSON: ${raw.slice(0, 200)}`); }
+  try { p = JSON.parse(raw) as { loggedIn?: boolean; orgId?: string }; } catch { throw new Error(`metro: 'claude auth status --json' returned non-JSON: ${raw.slice(0, 200)}`); }
   if (!p.loggedIn || !p.orgId) throw new Error('metro: Claude Code is not logged in — run \'claude auth login\'');
   return p.orgId;
 });
 
-export const claudeUserId = (): string => process.env.METRO_USER_ID || claudeAccountId();
+export const claudeUserId = (): string => process.env.METRO_USER_ID ?? claudeAccountId();
 
 export const claudeSessionId = (): string | null =>
-  process.env.METRO_USER_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID || null;
+  process.env.METRO_USER_SESSION_ID ?? process.env.CLAUDE_CODE_SESSION_ID ?? null;

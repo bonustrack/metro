@@ -1,7 +1,7 @@
 /** XMTP outbound action handler: send-family actions + handleCall dispatch. */
 
 import { ReactionAction, ReactionSchema } from '@xmtp/node-sdk';
-import type { Reply } from '@xmtp/content-type-reply';
+import type { Reply } from '@xmtp/node-bindings';
 import { AttachmentCodec, type Attachment } from '@xmtp/content-type-remote-attachment';
 import { WalletSendCallsCodec, type WalletSendCallsParams } from '@xmtp/content-type-wallet-send-calls';
 import { toHex } from 'viem';
@@ -58,7 +58,7 @@ async function react(id: string, args: Args): Promise<void> {
   let refInbox = (args as { referenceInboxId?: string }).referenceInboxId;
   if (!refInbox) {
     /** #9: bounded — search recent messages (newest first), not the whole history. */
-    const recent = await conv.messages({ limit: 200, direction: 1 } as Parameters<typeof conv.messages>[0]);
+    const recent = await conv.messages({ limit: 200, direction: 1 });
     refInbox = recent.find(m => m.id === xmtpMsgId)?.senderInboxId;
     if (!refInbox) throw new TrainError('NOT_FOUND', `could not resolve referenceInboxId for ${xmtpMsgId}`);
   }
@@ -95,7 +95,7 @@ async function sendAttachment(id: string, args: Args): Promise<void> {
   if (!conv) throw noConv(line);
   const sentId = await conv.sendAttachment({
     filename: name, mimeType: mime, content: new Uint8Array(Buffer.from(dataB64, 'base64')),
-  } as unknown as Attachment);
+  });
   emitOutbound(acct.cfg.id, line, sentId, `[${mime.split('/')[0]}: ${name}]`);
   respond(id, { result: { messageId: sentId } });
 }
@@ -113,7 +113,8 @@ async function sendImage(id: string, args: Args): Promise<void> {
   const mime = mimeType ?? (
     ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'gif' ? 'image/gif'
       : ext === 'webp' ? 'image/webp' : 'image/png');
-  const fname = filename ?? (path ? (path.split('/').pop() || 'image.png') : 'image.png');
+  const baseName = path ? path.split('/').pop() : undefined;
+  const fname = filename ?? (baseName != null && baseName !== '' ? baseName : 'image.png');
   const attachment: Attachment = { filename: fname, mimeType: mime, data: bytes };
   const sentId = await conv.send(new AttachmentCodec().encode(attachment));
   emitOutbound(acct.cfg.id, line, sentId, `[${mime.split('/')[0]}: ${fname}]`);
@@ -186,8 +187,9 @@ async function accountsAction(id: string): Promise<void> {
 
 // XMTP has no native edit/delete (immutable message log) — answer the canonical
 // verb with a uniform unsupported error rather than an "unknown action".
-async function unsupportedVerb(id: string, verb: string): Promise<void> {
+function unsupportedVerb(id: string, verb: string): Promise<void> {
   respond(id, { error: unsupported(verb, 'xmtp') });
+  return Promise.resolve();
 }
 
 const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
@@ -202,7 +204,7 @@ const KNOWN = 'accounts, send, ask, sendImage, sendTxRequest, react, reply, send
   + 'newDm, newGroup, createRequestGroup, addMembers, removeMembers, setLabels, setGithub, setPreview, updateChannelMeta, closeGroup, query, groupInfo, listConvs, '
   + 'register-push, list-push, test-push, unregister-push';
 
-type CallMsg = { op: 'call'; id: string; action: string; args: Args };
+export interface CallMsg { op: 'call'; id: string; action: string; args: Args }
 
 export async function handleCall(msg: CallMsg): Promise<void> {
   const { id } = msg;

@@ -17,6 +17,6 @@ export async function setPreview(id: string, args: Args): Promise<void> {
   if (typeof value !== 'string') throw new Error('setPreview requires a `preview` string');
   const result = await applyChannelMeta({ line, appData: { preview: value } }, 'setPreview');
   respond(id, { result: {
-    line: result['line'], id: result['id'], account: result['account'],
-    preview: result['preview'] } });
+    line: result.line, id: result.id, account: result.account,
+    preview: result.preview } });
 }

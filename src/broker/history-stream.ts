@@ -118,18 +118,18 @@ export function passesMode(
   return !owner || owner === self;  /** mode === 'mine-or-unclaimed' */
 }
 
-export type TailOpts = {
+export interface TailOpts {
   mode: Mode; self: Line | null;
   chatFilter?: string; stationFilter?: string; includeWebhooks?: boolean;
   /** Skip entries whose `from` matches any of these URIs — self-echo
    *  suppression so an agent doesn't see its own outbound replayed. */
   excludeFrom?: string[];
-};
+}
 
 /** Drain matching entries from `offset` to EOF, returning the new offset. */
 /** Caller `onEntry` may return `true` to stop draining early (e.g. tail --limit). */
 export function drainTail(
-  offset: number, opts: TailOpts, onEntry: (e: HistoryEntry) => void | boolean,
+  offset: number, opts: TailOpts, onEntry: (e: HistoryEntry) => unknown,
 ): number {
   const claims = readClaims();
   for (const { entry, offset: next } of readEntriesFrom(offset)) {
@@ -138,7 +138,7 @@ export function drainTail(
     if (!entry) continue;
     if (opts.chatFilter && entry.line !== opts.chatFilter) continue;
     if (opts.stationFilter && entry.station !== opts.stationFilter) continue;
-    if (opts.excludeFrom && opts.excludeFrom.includes(entry.from)) continue;
+    if (opts.excludeFrom?.includes(entry.from)) continue;
     if (!passesMode(entry, opts.mode, opts.self, claims, { includeWebhooks: opts.includeWebhooks })) continue;
     if (onEntry(entry) === true) return offset;
   }
@@ -148,12 +148,12 @@ export function drainTail(
 /** Follow history.jsonl: drain on change + poll backstop (macOS fs.watch coalesces). */
 /** Caller invokes the returned `stop()` to clean up the watcher/timer. */
 export function followTail(
-  startOffset: number, opts: TailOpts, onEntry: (e: HistoryEntry) => void, pollMs: number,
+  startOffset: number, opts: TailOpts, onEntry: (e: HistoryEntry) => unknown, pollMs: number,
 ): () => void {
   let offset = startOffset;
   const tick = (): void => { offset = drainTail(offset, opts, onEntry); };
   let watcher: ReturnType<typeof watch> | null = null;
-  try { watcher = watch(HISTORY_FILE, () => tick()); } catch { /* file may not exist yet */ }
+  try { watcher = watch(HISTORY_FILE, () => { tick(); }); } catch { /* file may not exist yet */ }
   const poll = setInterval(tick, pollMs);
   return () => {
     clearInterval(poll);

@@ -36,10 +36,10 @@ export function mediaKindOf(
   return 'document';
 }
 
-export type SavedAttachment = { path: string; mime?: string; name?: string; bytes: number };
+export interface SavedAttachment { path: string; mime?: string; name?: string; bytes: number }
 
 /** A single downloadable media reference extracted from a Telegram message. */
-export type TgMediaRef = { fileId: string; name?: string; mime?: string };
+export interface TgMediaRef { fileId: string; name?: string; mime?: string }
 
 /** Pick the downloadable media from a message: largest photo size, or doc/video/
  *  audio/voice/animation/sticker. Returns null for non-media messages. */
@@ -69,11 +69,11 @@ export async function saveTelegramMedia(
   if (!res.ok) throw new Error(`telegram file download ${res.status} for ${file.file_path}`);
   const data = new Uint8Array(await res.arrayBuffer());
   const { mkdir, writeFile } = await import('node:fs/promises');
-  const { join } = await import('node:path');
+  const nodePath = await import('node:path');
   await mkdir(ATT_DIR, { recursive: true });
   const safeId = messageId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) || 'unknown';
   const ext = extFromPath(file.file_path, ref.name, ref.mime);
-  const path = join(ATT_DIR, `msg_${safeId}_${index}.${ext}`);
+  const path = nodePath.join(ATT_DIR, `msg_${safeId}_${index}.${ext}`);
   await writeFile(path, data);
   return { path, mime: ref.mime, name: ref.name, bytes: data.length };
 }

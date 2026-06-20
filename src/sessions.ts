@@ -76,7 +76,7 @@ export function loadSessions(): Sessions {
     const b = v as Record<string, unknown>;
     const binding: SessionBinding = {};
     for (const k of [...SESSION_STATIONS, 'default'] as const) {
-      if (typeof b[k] === 'string' && b[k]) binding[k] = b[k] as string;
+      if (typeof b[k] === 'string' && b[k]) binding[k] = b[k];
     }
     out[id] = binding;
   }
@@ -102,6 +102,6 @@ export function activeSessionId(): string | null {
 }
 
 /** List session ids present in sessions.json (empty when absent). */
-export function listSessions(): Array<{ id: string; owner: Line; binding: SessionBinding }> {
+export function listSessions(): { id: string; owner: Line; binding: SessionBinding }[] {
   return Object.entries(loadSessions()).map(([id, binding]) => ({ id, owner: sessionOwner(id), binding }));
 }

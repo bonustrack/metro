@@ -10,7 +10,7 @@ import { errMsg, log } from './log.js';
 const FILE = join(STATE_DIR, 'tunnel.json');
 const RESTART_DELAY_MS = 2_000;
 
-export type TunnelConfig = { name: string; hostname: string };
+export interface TunnelConfig { name: string; hostname: string }
 
 /** Read tunnel.json. Null if missing or malformed — guarded like readWebhooks so a bad file can't crash boot. */
 export const loadTunnelConfig = (): TunnelConfig | null => {
@@ -52,14 +52,16 @@ export class Tunnel {
       ? { ...process.env, TUNNEL_TOKEN: this.token }
       : process.env;
     this.child = spawn('cloudflared', args, { stdio: ['ignore', 'pipe', 'pipe'], env });
-    this.child.stderr?.on('data', d => log.debug({ cloudflared: d.toString().trim() }, 'cloudflared'));
+    this.child.stderr?.on('data', (d: Buffer | string) => {
+      log.debug({ cloudflared: (typeof d === 'string' ? d : d.toString('utf8')).trim() }, 'cloudflared');
+    });
     this.child.on('exit', code => {
       this.child = null;
       if (this.closed) return;
       log.warn({ code }, 'cloudflared exited; restarting');
-      setTimeout(() => this.start(), RESTART_DELAY_MS);
+      setTimeout(() => { this.start(); }, RESTART_DELAY_MS);
     });
-    this.child.on('error', err => log.warn({ err: errMsg(err) }, 'cloudflared spawn error'));
+    this.child.on('error', err => { log.warn({ err: errMsg(err) }, 'cloudflared spawn error'); });
   }
 
   stop(): void {
@@ -75,8 +77,8 @@ const WEBHOOKS_FILE = join(STATE_DIR, 'webhooks.json');
 
 /** `session`, when set, binds this endpoint to a sessions.json id so its inbound */
 /** events are attributed to that session's owner. Absent ⇒ today's behavior. */
-export type Endpoint = { id: string; label: string; secret?: string; session?: string; createdAt: string };
-type Store = { endpoints: Endpoint[] };
+export interface Endpoint { id: string; label: string; secret?: string; session?: string; createdAt: string }
+interface Store { endpoints: Endpoint[] }
 
 /** Local listener port — `127.0.0.1` only; expose publicly via Cloudflare tunnel. */
 export const webhookPort = (): number => Number(process.env.METRO_WEBHOOK_PORT) || 8420;
@@ -86,7 +88,7 @@ function readWebhooks(): Store {
   try { return JSON.parse(readFileSync(WEBHOOKS_FILE, 'utf8')) as Store; }
   catch { return { endpoints: [] }; }
 }
-const writeWebhooks = (s: Store): void => writeFileSync(WEBHOOKS_FILE, JSON.stringify(s, null, 2));
+const writeWebhooks = (s: Store): void => { writeFileSync(WEBHOOKS_FILE, JSON.stringify(s, null, 2)); };
 
 export const listEndpoints = (): Endpoint[] => readWebhooks().endpoints;
 export const findEndpoint = (id: string): Endpoint | undefined =>

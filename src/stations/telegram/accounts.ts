@@ -77,7 +77,7 @@ export async function tgForm<T>(accountId: string, method: string, form: FormDat
 export function accountFor(args: { account?: string; line?: string }): string {
   let id = args.account;
   if (!id && args.line) { try { id = targetOf(args.line).accountId; } catch { /* ignore */ } }
-  if (!id) id = accounts.size === 1 ? [...accounts.keys()][0] : 'default';
+  id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';
   if (!accounts.has(id)) throw new Error(`unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`);
   return id;
 }
@@ -94,14 +94,14 @@ export function lineOf(accountId: string, chatId: number | string, topicId?: num
 export function targetOf(
   line: string, accountOverride?: string,
 ): { accountId: string; chatId: number; topicId?: number } {
-  const mNew = line.match(/^metro:\/\/telegram\/([^/]+)\/(-?\d+)(?:\/(\d+))?$/);
+  const mNew = /^metro:\/\/telegram\/([^/]+)\/(-?\d+)(?:\/(\d+))?$/.exec(line);
   if (mNew && !/^-?\d+$/.test(mNew[1])) {
     return {
       accountId: accountOverride ?? mNew[1], chatId: Number(mNew[2]),
       topicId: mNew[3] ? Number(mNew[3]) : undefined,
     };
   }
-  const mLegacy = line.match(/^metro:\/\/telegram\/(-?\d+)(?:\/(\d+))?$/);
+  const mLegacy = /^metro:\/\/telegram\/(-?\d+)(?:\/(\d+))?$/.exec(line);
   if (mLegacy) {
     return {
       accountId: accountOverride ?? 'default', chatId: Number(mLegacy[1]),

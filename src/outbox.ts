@@ -49,7 +49,7 @@ export type OutboxState = 'pending' | 'sent' | 'failed' | 'dead';
  *  Treated as a loose shape: only `retryable` is consulted, and only if present. */
 export type ErrorInfo = { retryable?: boolean } & Record<string, unknown>;
 
-export type OutboxEntry = {
+export interface OutboxEntry {
   outboxId: string;
   idempotencyKey: string;
   train: string;
@@ -60,7 +60,7 @@ export type OutboxEntry = {
   ts: string;
   updatedAt?: string;
   lastError?: string;
-};
+}
 
 /** Mint a globally-unique idempotency key for one logical send. */
 export const mintIdempotencyKey = (): string => `idem_${randomUUID()}`;
@@ -69,8 +69,8 @@ export const mintIdempotencyKey = (): string => `idem_${randomUUID()}`;
  *  the error classification. Terminal when: errorInfo.retryable===false, the
  *  error string looks non-retryable, or the attempt cap is reached. */
 export function isRetryable(error: string | undefined, info: ErrorInfo | undefined): boolean {
-  if (info && info.retryable === false) return false;
-  if (info && info.retryable === true) return true;
+  if (info?.retryable === false) return false;
+  if (info?.retryable === true) return true;
   // No structured hint: classify the error string. Validation / unsupported /
   // not-found / auth failures are terminal; everything else (timeout, transient
   // platform/network errors) is retryable.

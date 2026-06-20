@@ -32,7 +32,7 @@ interface Session {
   active: Set<string>;       // userIds currently being captured (dedup concurrent subs)
   tmp: string;               // temp dir for this session
   enabled: boolean;
-  onStart: (userId: string) => void;
+  onStart?: (userId: string) => void;
 }
 
 const sessions = new Map<string, Session>(); // key: guildId
@@ -41,7 +41,7 @@ function run(bin: string, args: string[]): Promise<number> {
   return new Promise((resolve, reject) => {
     const p = spawn(bin, args, { stdio: ['ignore', 'ignore', 'ignore'] });
     p.on('error', reject);
-    p.on('close', code => resolve(code ?? 0));
+    p.on('close', code => { resolve(code ?? 0); });
   });
 }
 
@@ -75,8 +75,8 @@ function transcribe(wavPath: string): Promise<string> {
       '-m', WHISPER_MODEL, '-f', wavPath, '-otxt', '-of', ofBase, '-np', '-nt',
     ], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
-    p.stdout.on('data', d => { out += d.toString(); });
-    p.on('error', () => resolve(''));
+    p.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+    p.on('error', () => { resolve(''); });
     p.on('close', () => {
       // -np prints only the transcript to stdout; fall back to the .txt file.
       let text = out.trim();
@@ -130,7 +130,7 @@ export function startTranscription(
   const s: Session = {
     receiver, accountId, guildId, channelId, client,
     active: new Set(), tmp: mkdtempSync(join(tmpdir(), 'metro-voice-')),
-    enabled: true, onStart: () => {},
+    enabled: true,
   };
   s.onStart = (userId: string) => { void handleSpeaker(s, userId); };
   receiver.speaking.on('start', s.onStart);
@@ -150,7 +150,7 @@ export function setTranscription(guildId: string, on: boolean): boolean {
 export function stopTranscription(guildId: string): void {
   const s = sessions.get(guildId);
   if (!s) return;
-  try { s.receiver.speaking.removeListener('start', s.onStart); } catch { /* ignore */ }
+  try { if (s.onStart) s.receiver.speaking.removeListener('start', s.onStart); } catch { /* ignore */ }
   s.enabled = false;
   try { rmSync(s.tmp, { recursive: true, force: true }); } catch { /* ignore */ }
   sessions.delete(guildId);

@@ -24,10 +24,10 @@ const DYLD_FALLBACK_ENV: Record<string, string> = process.platform === 'darwin'
   ? { DYLD_FALLBACK_LIBRARY_PATH: ['/usr/lib', process.env.DYLD_FALLBACK_LIBRARY_PATH].filter(Boolean).join(':') }
   : {};
 
-export type TrainInfo = {
+export interface TrainInfo {
   name: string; path: string; running: boolean; pid: number | null;
   startedAt: string | null; failCount: number;
-};
+}
 
 export class TrainSupervisor {
   private trains = new Map<string, TrainState>();
@@ -50,7 +50,7 @@ export class TrainSupervisor {
 
   private watchForReloads(): void {
     this.watcher = startWatcher(this.dir, this.reloadTimers,
-      (name, path) => this.handleSourceChange(name, path));
+      (name, path) => { this.handleSourceChange(name, path); });
   }
 
   /** A train source file changed (or appeared). Restart it if known, else spawn it. */
@@ -60,7 +60,7 @@ export class TrainSupervisor {
       /** Deleted file: leave the running process; nothing to reload onto. */
       try { if (!statSync(path).isFile()) return; } catch { return; }
       log.info({ name }, 'train hot-reload: source changed, restarting');
-      void this.restart(name).catch(err => log.warn({ name, err: errMsg(err) }, 'train hot-reload: restart failed'));
+      void this.restart(name).catch((err: unknown) => { log.warn({ name, err: errMsg(err) }, 'train hot-reload: restart failed'); });
       return;
     }
     try { if (!statSync(path).isFile()) return; } catch { return; }
@@ -86,7 +86,7 @@ export class TrainSupervisor {
 
   list(): TrainInfo[] {
     return [...this.trains.values()].map(t => ({
-      name: t.name, path: t.path, running: !!(t.proc && t.proc.exitCode === null),
+      name: t.name, path: t.path, running: t.proc?.exitCode === null,
       pid: t.proc?.pid ?? null, startedAt: t.startedAt, failCount: t.failCount,
     }));
   }
@@ -108,7 +108,7 @@ export class TrainSupervisor {
   async call(name: string, action: string, args: unknown): Promise<TrainCallResponse> {
     const t = this.trains.get(name);
     if (!t) throw new Error(`no train named '${name}' (have: ${[...this.trains.keys()].join(', ') || '(none)'})`);
-    if (!t.proc || t.proc.exitCode !== null) throw new Error(`train '${name}' is not running`);
+    if (t.proc?.exitCode !== null) throw new Error(`train '${name}' is not running`);
     return sendCall(t as never, mintCallId(this.nextCallId++), action, args);
   }
 
@@ -133,7 +133,7 @@ export class TrainSupervisor {
       state.buf = ''; state.errBuf = '';
       log.info({ name: state.name, pid: proc.pid }, 'train: spawned');
       void this.pumpStdout(state); void this.pumpStderr(state);
-      void proc.exited.then(code => this.onExit(state, code ?? 0));
+      void proc.exited.then(code => { this.onExit(state, code ?? 0); });
     } catch (err) {
       log.warn({ name: state.name, err: errMsg(err) }, 'train: spawn failed');
       this.scheduleRestart(state);
@@ -143,7 +143,7 @@ export class TrainSupervisor {
   private pumpStdout(state: TrainState): Promise<void> {
     return pumpStream(state.proc?.stdout, state.name, 'stdout', chunk => {
       state.buf += chunk;
-      state.buf = drainLines(state.name, state.buf, line => this.handleLine(state, line));
+      state.buf = drainLines(state.name, state.buf, line => { this.handleLine(state, line); });
     });
   }
 
@@ -199,7 +199,7 @@ export class TrainSupervisor {
       state.restartTimer = null;
       /** Any subprocess that survives 30s resets its consecutive-fail counter. */
       this.spawn(state);
-      setTimeout(() => { if (state.proc && state.proc.exitCode === null) state.failCount = 0; }, 30_000);
+      setTimeout(() => { if (state.proc?.exitCode === null) state.failCount = 0; }, 30_000);
     }, delay);
   }
 }

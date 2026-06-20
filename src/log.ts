@@ -7,10 +7,10 @@ const stream = process.stderr.isTTY
   : pino.destination(2);
 
 /** `base: { name }` strips pino's default pid+hostname from JSON output too (not just from the TTY pretty stream). */
-export const log = pino({ base: { name: 'metro' }, level: process.env.METRO_LOG_LEVEL || 'info' }, stream);
+export const log = pino({ base: { name: 'metro' }, level: process.env.METRO_LOG_LEVEL ?? 'info' }, stream);
 
 export const errMsg = (err: unknown): string => {
   if (err instanceof Error) return err.message;
-  if (err && typeof err === 'object' && 'message' in err) return String((err as { message: unknown }).message);
+  if (err && typeof err === 'object' && 'message' in err) return String((err).message);
   return String(err);
 };

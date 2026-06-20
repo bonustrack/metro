@@ -102,15 +102,19 @@ async function shutdown(): Promise<void> {
   log.info('dispatcher shutting down');
   tunnel?.stop();
   outbox.stop();
-  await stopIpcServer(ipc).catch(() => {});
-  if (webhookServer) await new Promise<void>(r => webhookServer!.close(() => r()));
+  await stopIpcServer(ipc).catch(() => { /* best-effort */ });
+  if (webhookServer) {
+    const server = webhookServer;
+    await new Promise<void>(r => server.close(() => { r(); }));
+  }
   await supervisor.stop();
   process.exit(0);
 }
 /** Opt-in: shut down when stdin closes (supervised mode). OFF by default so a
  *  standalone/containerized daemon (Fly, `docker run -d`, stdin EOF at start) stays
  *  up — SIGINT/SIGTERM still shut down gracefully. */
-if (process.env.METRO_STDIN_SHUTDOWN === '1') process.stdin.on('end', shutdown).on('close', shutdown);
-for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, shutdown);
+const onShutdown = (): void => { void shutdown(); };
+if (process.env.METRO_STDIN_SHUTDOWN === '1') process.stdin.on('end', onShutdown).on('close', onShutdown);
+for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, onShutdown);
 
 await main();

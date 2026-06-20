@@ -25,7 +25,7 @@ async function sendMessage(
   return rest<{ id: string }>(accountId, 'POST', `/channels/${channel}/messages`, form, true);
 }
 
-export type CallMsg = { op: 'call'; id: string; action: string; args: Record<string, unknown> };
+export interface CallMsg { op: 'call'; id: string; action: string; args: Record<string, unknown> }
 
 const KNOWN = 'accounts, send, reply, react, edit, delete, fetch, download, '
   + 'thread_create, pin, typing, channel, set_presence, joinVoice, leaveVoice, '
@@ -62,14 +62,16 @@ async function reply(id: string, args: Record<string, unknown>): Promise<void> {
   respond(id, { result: { messageId: res.id, account: accountId } });
 }
 
-async function presence(id: string, args: Record<string, unknown>): Promise<void> {
+function presence(id: string, args: Record<string, unknown>): void {
   // text: custom-status string; status: online|idle|dnd|invisible. Empty text clears
   // the activity. Optional `account` selects the bot (else sole/default).
   const { text, status = 'online', account } = args as {
     text?: string; status?: PresenceStatusData; account?: string;
   };
   const accountId = accountFor({ account });
-  const client = accounts.get(accountId)!.client;
+  const acct = accounts.get(accountId);
+  if (!acct) { respond(id, { error: `unknown account '${accountId}'` }); return; }
+  const client = acct.client;
   if (!client.user) { respond(id, { error: `gateway not ready for account '${accountId}'` }); return; }
   // Discord needs the literal name "Custom Status" with the visible text in `state`;
   // passing text as `name` renders a stray "·" separator, so only set state.
@@ -122,16 +124,16 @@ async function dispatch({ id, action, args }: CallMsg): Promise<void> {
     };
     const { accountId, channelId } = routeOf(line, account);
     const qs = new URLSearchParams({ limit: String(limit), ...(before ? { before } : {}) });
-    const msgs = await rest<Array<Message>>(accountId, 'GET', `/channels/${channelId}/messages?${qs}`);
+    const msgs = await rest<Message[]>(accountId, 'GET', `/channels/${channelId}/messages?${qs}`);
     respond(id, { result: { messages: msgs, account: accountId } });
   } else if (action === 'download') {
     const { line, messageId, outDir = '/tmp', account } = args as {
       line: string; messageId: string; outDir?: string; account?: string;
     };
     const { accountId, channelId } = routeOf(line, account);
-    const msg = await rest<{ attachments: Array<{ url: string; content_type?: string; filename: string }> }>(
+    const msg = await rest<{ attachments: { url: string; content_type?: string; filename: string }[] }>(
       accountId, 'GET', `/channels/${channelId}/messages/${messageId}`);
-    const files: Array<{ path: string; mediaType: string }> = [];
+    const files: { path: string; mediaType: string }[] = [];
     for (const att of msg.attachments) {
       const buf = await fetch(att.url).then(r => r.arrayBuffer());
       const path = `${outDir}/${messageId}-${att.filename}`;
@@ -166,17 +168,17 @@ async function dispatch({ id, action, args }: CallMsg): Promise<void> {
     const res = await rest(accountId, 'GET', `/channels/${channelId}`);
     respond(id, { result: res });
   } else if (action === 'set_presence') {
-    await presence(id, args);
+    presence(id, args);
   } else if (action === 'joinVoice') {
     await joinVoice(id, args);
   } else if (action === 'leaveVoice') {
-    await leaveVoice(id, args);
+    leaveVoice(id, args);
   } else if (action === 'speak') {
     await speak(id, args);
   } else if (action === 'voiceDebug') {
-    await voiceDebug(id, args);
+    voiceDebug(id, args);
   } else if (action === 'voiceTranscribe') {
-    await voiceTranscribe(id, args);
+    voiceTranscribe(id, args);
   } else {
     respond(id, { error: `unknown action '${action}' (have: ${KNOWN})` });
   }

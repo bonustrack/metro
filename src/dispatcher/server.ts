@@ -79,7 +79,7 @@ type McpHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 export async function startWebhookServer(emit: Emit, mcp?: McpHandler): Promise<Server> {
   const port = webhookPort();
   const server = createServer((req, res) => {
-    handleRequest(req, res, emit, mcp).catch(err => {
+    handleRequest(req, res, emit, mcp).catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'webhook handler error');
       if (!res.headersSent) res.writeHead(500).end();
     });

@@ -4,13 +4,13 @@ import { accounts, lineOf } from './accounts.js';
 import { mintId, SELF_URI } from './wire.js';
 import { mediaRefOf, saveTelegramMedia } from './attachments.js';
 
-export type TgMsg = {
+export interface TgMsg {
   message_id: number; date: number;
   chat: { id: number; type: string; title?: string; first_name?: string };
   from?: { id: number; username?: string; first_name?: string; is_bot?: boolean };
   text?: string; caption?: string;
   message_thread_id?: number; is_topic_message?: boolean;
-  photo?: Array<{ file_id: string; file_size?: number }>;
+  photo?: { file_id: string; file_size?: number }[];
   document?: { file_name?: string; file_id?: string };
   voice?: { file_id?: string; duration?: number };
   audio?: { file_id?: string; file_name?: string };
@@ -19,16 +19,16 @@ export type TgMsg = {
   sticker?: { file_id?: string; emoji?: string; set_name?: string };
   location?: { latitude: number; longitude: number };
   dice?: { emoji: string; value: number };
-};
+}
 
-export type TgReaction = {
+export interface TgReaction {
   chat: { id: number; type: string };
   message_id: number;
   user?: { id: number; username?: string; first_name?: string; is_bot?: boolean };
   date: number;
-  old_reaction: Array<{ type: string; emoji?: string }>;
-  new_reaction: Array<{ type: string; emoji?: string }>;
-};
+  old_reaction: { type: string; emoji?: string }[];
+  new_reaction: { type: string; emoji?: string }[];
+}
 
 function lineForMsg(accountId: string, m: TgMsg): { line: string; topicId?: number } {
   const topicId = m.is_topic_message ? m.message_thread_id : undefined;
@@ -107,5 +107,5 @@ export function saveMediaAndEmit(
         attachmentPath: saved.path, localPath: saved.path, mime: saved.mime, name: saved.name,
       },
     });
-  }).catch(err => process.stderr.write(`telegram media save failed: ${(err as Error).message}\n`));
+  }).catch((err: unknown) => process.stderr.write(`telegram media save failed: ${(err as Error).message}\n`));
 }

@@ -1,6 +1,6 @@
 /** XMTP multi-account config, key resolution, client boot, and line routing. */
 
-import { Client, IdentifierKind, type Conversation, type Signer } from '@xmtp/node-sdk';
+import { Client, IdentifierKind, type ClientOptions, type Conversation, type Signer } from '@xmtp/node-sdk';
 import { privateKeyToAccount, mnemonicToAccount } from 'viem/accounts';
 import { toHex } from 'viem';
 import { homedir } from 'node:os';
@@ -54,7 +54,10 @@ let cachedMnemonic: string | null = null;
 function loadMnemonic(): string {
   if (cachedMnemonic) return cachedMnemonic;
   const m = process.env.MNEMONIC?.trim();
-  if (!m) die('MNEMONIC unset (identity derives from a BIP-39 mnemonic)');
+  if (!m) {
+    die('MNEMONIC unset (identity derives from a BIP-39 mnemonic)');
+    throw new Error('unreachable');
+  }
   cachedMnemonic = m;
   return m;
 }
@@ -62,7 +65,9 @@ function loadMnemonic(): string {
 /** Resolve an account's raw 0x private key by HD-deriving from the MNEMONIC. */
 function resolvePrivateKey(cfg: AccountConfig): string {
   const acct = mnemonicToAccount(loadMnemonic(), { addressIndex: cfg.derive });
-  return toHex(acct.getHdKey().privateKey!); // HD path m/44'/60'/0'/0/<derive>
+  const { privateKey } = acct.getHdKey(); // HD path m/44'/60'/0'/0/<derive>
+  if (!privateKey) throw new Error(`HD key has no private key for derive index ${cfg.derive}`);
+  return toHex(privateKey);
 }
 
 // Set XMTP_LEGACY_DEFAULT_LINES=1 to keep the default account emitting legacy
@@ -73,7 +78,7 @@ const expandHome = (p: string): string => p.startsWith('~') ? join(homedir(), p.
 
 export interface Account {
   cfg: AccountConfig;
-  client: Client;
+  client: Client<unknown>;
   inboxId: string;
   address: string;
 }
@@ -83,7 +88,7 @@ function signerFor(privateKey: string): { signer: Signer; address: string } {
   const acct = privateKeyToAccount(privateKey as `0x${string}`);
   const signer: Signer = {
     type: 'EOA',
-    getIdentifier: async () => ({ identifier: acct.address, identifierKind: IdentifierKind.Ethereum }),
+    getIdentifier: () => Promise.resolve({ identifier: acct.address, identifierKind: IdentifierKind.Ethereum }),
     signMessage: async (msg: string) => {
       const sig = await acct.signMessage({ message: msg });
       const hex = sig.slice(2);
@@ -98,7 +103,8 @@ function signerFor(privateKey: string): { signer: Signer; address: string } {
 export async function bootAccount(cfg: AccountConfig): Promise<void> {
   const { signer, address } = signerFor(resolvePrivateKey(cfg));
   const dbPath = expandHome(cfg.dbPath ?? join(homedir(), '.metro', `xmtp-${XMTP_ENV}-${cfg.id}.db3`));
-  const client = await Client.create(signer, { env: XMTP_ENV, codecs: CODECS(), dbPath });
+  const options: ClientOptions = { env: XMTP_ENV, codecs: CODECS(), dbPath };
+  const client: Client<unknown> = await Client.create(signer, options);
   accounts.set(cfg.id, { cfg, client, inboxId: client.inboxId, address });
   process.stderr.write(
     `xmtp[${cfg.id}] ready — inbox ${client.inboxId} (${address}, owner=${cfg.owner ?? '(broadcast)'})\n`);
@@ -120,8 +126,8 @@ export function parseLine(line: string): { accountId: string; convId: string } |
 
 export function accountForCall(args: { account?: string; line?: string }): Account {
   let id = args.account;
-  if (!id && args.line) id = parseLine(args.line)?.accountId;
-  if (!id) id = accounts.size === 1 ? [...accounts.keys()][0] : 'default';
+  id ??= args.line ? parseLine(args.line)?.accountId : undefined;
+  id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';
   const acct = accounts.get(id);
   if (!acct) throw new Error(`unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`);
   return acct;

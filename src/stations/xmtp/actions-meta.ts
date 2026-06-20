@@ -15,7 +15,7 @@ export function resolveLine(args: Args, verb: string): string {
   if (line) return line;
   const groupId = (args as { groupId?: string }).groupId;
   if (groupId) {
-    const acct = accountForCall(args as { account?: string });
+    const acct = accountForCall(args);
     return lineOf(acct.cfg.id, groupId);
   }
   throw new TrainError('INVALID_ARGS', `${verb} requires \`line\` or \`groupId\``);
@@ -48,15 +48,15 @@ export async function applyChannelMeta(
   let merged: Record<string, unknown> | undefined;
   if (appData && typeof appData === 'object' && !Array.isArray(appData)) {
     const res = mergeAppData(group.appData, appData);
-    await group.updateAppData!(res.blob);
+    await group.updateAppData(res.blob);
     merged = res.merged;
   } else {
-    merged = readAppData(group.appData) as unknown as Record<string, unknown>;
+    merged = readAppData(group.appData);
   }
 
-  const labels = Array.isArray(merged['labels']) ? (merged['labels'] as string[]) : [];
-  const github = typeof merged['github'] === 'string' ? (merged['github'] as string) : undefined;
-  const preview = typeof merged['preview'] === 'string' ? (merged['preview'] as string) : undefined;
+  const labels = Array.isArray(merged.labels) ? (merged.labels as string[]) : [];
+  const github = typeof merged.github === 'string' ? (merged.github) : undefined;
+  const preview = typeof merged.preview === 'string' ? (merged.preview) : undefined;
   return {
     line, id: group.id, account: acct.cfg.id,
     ...(typeof name === 'string' && name ? { name } : {}),

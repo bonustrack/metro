@@ -38,23 +38,23 @@ type Handler = (req: IpcRequest) => Promise<IpcResponse> | IpcResponse;
 export function startIpcServer(handler: Handler): Server {
   if (existsSync(SOCKET_PATH)) { try { unlinkSync(SOCKET_PATH); } catch { /* ignore */ } }
   /** allowHalfOpen: any `await` in the handler races Node's auto-end-on-client-FIN, dropping the response. */
-  const server = createServer({ allowHalfOpen: true }, s => handleConnection(s, handler));
-  server.on('error', err => log.warn({ err: errMsg(err) }, 'ipc server error'));
-  server.listen(SOCKET_PATH, () => log.debug({ path: SOCKET_PATH }, 'ipc socket listening'));
+  const server = createServer({ allowHalfOpen: true }, s => { handleConnection(s, handler); });
+  server.on('error', err => { log.warn({ err: errMsg(err) }, 'ipc server error'); });
+  server.listen(SOCKET_PATH, () => { log.debug({ path: SOCKET_PATH }, 'ipc socket listening'); });
   return server;
 }
 
 export async function stopIpcServer(server: Server): Promise<void> {
-  await new Promise<void>(resolve => server.close(() => resolve()));
+  await new Promise<void>(resolve => server.close(() => { resolve(); }));
   try { if (existsSync(SOCKET_PATH)) unlinkSync(SOCKET_PATH); } catch { /* ignore */ }
 }
 
-async function handleConnection(socket: Socket, handler: Handler): Promise<void> {
+function handleConnection(socket: Socket, handler: Handler): void {
   /** Newline-delimited request/response. Avoids races between `end()` writes and FIN under Bun. */
   let buf = '';
   socket.setEncoding('utf8');
-  socket.on('data', async chunk => {
-    buf += chunk;
+  const onData = async (chunk: Buffer | string): Promise<void> => {
+    buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     const nl = buf.indexOf('\n');
     if (nl === -1) return;
     const line = buf.slice(0, nl).trim();
@@ -66,8 +66,9 @@ async function handleConnection(socket: Socket, handler: Handler): Promise<void>
     } catch (err) { resp = { ok: false, error: errMsg(err) }; }
     socket.write(JSON.stringify(resp) + '\n');
     socket.end();
-  });
-  socket.on('error', err => log.debug({ err: errMsg(err) }, 'ipc connection error'));
+  };
+  socket.on('data', chunk => { void onData(chunk); });
+  socket.on('error', err => { log.debug({ err: errMsg(err) }, 'ipc connection error'); });
 }
 
 /** CLI-side: send one request, get one response. Throws if the daemon isn't running. */

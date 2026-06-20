@@ -8,7 +8,7 @@ import type { VerbDecl } from '../registry-types.js';
 export type Verb = 'send' | 'reply' | 'react' | 'unreact' | 'edit' | 'delete' | 'read';
 
 /** An MCP tool result (text content, optionally flagged as an error). */
-export type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
+export interface ToolResult { content: { type: 'text'; text: string }[]; isError?: boolean }
 
 /** Raised when the daemon rejects an outbound call (e.g. "unsupported verb 'edit'").
  *  Tool handlers let it propagate; the MCP surfaces `.detail` as an isError result
@@ -21,7 +21,7 @@ export class MetroCallError extends Error {
 /** A file to attach on a `send` call: a local `path` (preferred) or `url`, with
  *  optional `mime`/`name`. Canonical-mode stations ride these on `send`; native-mode
  *  stations dispatch them one native action per file via `sendAttachments`. */
-export type CanonicalAttachment = { path?: string; url?: string; mime?: string; name?: string };
+export interface CanonicalAttachment { path?: string; url?: string; mime?: string; name?: string }
 
 /** What a station tool's handler is given: a bound dispatcher to this station plus
  *  the result helpers, so a manifest never imports the MCP server internals. */

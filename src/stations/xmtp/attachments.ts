@@ -12,9 +12,8 @@ const ATT_DIR = process.env.METRO_XMTP_ATTACH_DIR
 // decodes to an inner `attachment` EncodedContent, so only that codec is needed.
 const attachmentCodec = new AttachmentCodec();
 const loadRegistry = {
-  codecFor(ct: { typeId?: string }) {
-    return ct?.typeId === ContentTypeAttachment.typeId ? attachmentCodec : undefined;
-  },
+  codecFor: (ct: { typeId?: string }) =>
+    ct.typeId === ContentTypeAttachment.typeId ? attachmentCodec : undefined,
 };
 
 const MIME_EXT: Record<string, string> = {
@@ -41,22 +40,22 @@ function fileName(messageId: string, index: number, filename: string | undefined
 }
 
 /** A remote-attachment entry as the train already shaped it (decoded fields). */
-export type RemoteEntry = {
+export interface RemoteEntry {
   url: string; filename?: string; contentDigest?: string;
   nonce?: Uint8Array; salt?: Uint8Array; secret?: Uint8Array;
   scheme?: string; contentLength?: number;
-};
+}
 
-export type SavedAttachment = { path: string; mime?: string; name?: string; bytes: number };
+export interface SavedAttachment { path: string; mime?: string; name?: string; bytes: number }
 
 async function writeBytes(
   data: Uint8Array, messageId: string, index: number,
   filename: string | undefined, mime: string | undefined,
 ): Promise<SavedAttachment> {
   const { mkdir, writeFile } = await import('node:fs/promises');
-  const { join } = await import('node:path');
+  const nodePath = await import('node:path');
   await mkdir(ATT_DIR, { recursive: true });
-  const path = join(ATT_DIR, fileName(messageId, index, filename, mime));
+  const path = nodePath.join(ATT_DIR, fileName(messageId, index, filename, mime));
   await writeFile(path, data);
   return { path, mime, name: filename, bytes: data.length };
 }

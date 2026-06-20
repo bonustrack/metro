@@ -240,7 +240,10 @@ const makeCtx = (station: string): ToolContext => ({
 const STATION_TOOLS = new Map<string, { station: Station; tool: StationTool }>()
 for (const s of STATIONS) for (const t of s.tools) STATION_TOOLS.set(t.name, { station: s, tool: t })
 
-mcp.setRequestHandler(CallToolRequestSchema, async req => {
+// The MCP SDK's CallTool result type is a union whose task-augmented member
+// trips up inference for a plain content result; ToolResult is a valid
+// (non-task) CallToolResult, so we widen the handler's return at the boundary.
+const callToolHandler = async (req: { params: { name: string; arguments?: Record<string, unknown> } }): Promise<ToolResult> => {
   const name = req.params.name
   const a = (req.params.arguments ?? {}) as Record<string, unknown>
 
@@ -344,7 +347,8 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     // size cap) as an isError result so the model can read and explain it.
     return toErr(name, e)
   }
-})
+}
+mcp.setRequestHandler(CallToolRequestSchema, callToolHandler as Parameters<typeof mcp.setRequestHandler>[1])
 
 // --- Permission relay -------------------------------------------------------
 // Map request_id -> the line to send the verdict prompt to (last-seen inbound).

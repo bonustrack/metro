@@ -94,7 +94,11 @@ export function makeDedupSeq(historyPath: string): DedupSeq {
     if (k) {
       seen.delete(k);
       seen.set(k, true);
-      while (seen.size > LRU_CAP) seen.delete(seen.keys().next().value as string);
+      while (seen.size > LRU_CAP) {
+        const oldest = seen.keys().next();
+        if (oldest.done) break;
+        seen.delete(oldest.value);
+      }
     }
     if (typeof e.seq === 'number' && e.line) {
       const prev = seqByLine.get(e.line) ?? 0;
@@ -116,7 +120,11 @@ export function makeDedupSeq(historyPath: string): DedupSeq {
           return null;
         }
         seen.set(key, true);
-        while (seen.size > LRU_CAP) seen.delete(seen.keys().next().value as string);
+        while (seen.size > LRU_CAP) {
+        const oldest = seen.keys().next();
+        if (oldest.done) break;
+        seen.delete(oldest.value);
+      }
       }
       const next = (seqByLine.get(entry.line) ?? 0) + 1;
       seqByLine.set(entry.line, next);

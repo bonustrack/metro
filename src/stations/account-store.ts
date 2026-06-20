@@ -38,7 +38,7 @@ export function makeAccountStore<T extends { id: string }>(opts: MakeLoaderOpts<
   // Preserve `<PREFIX>_ONLY_ACCOUNTS ?? <PREFIX>_ACCOUNTS ?? ''` precedence:
   // `??` only falls through on undefined, so an empty-string env var still wins.
   let allowlistRaw: string | undefined;
-  for (const k of opts.allowlistEnv) { if (allowlistRaw === undefined) allowlistRaw = process.env[k]; }
+  for (const k of opts.allowlistEnv) { allowlistRaw ??= process.env[k]; }
   const allowlist = new Set(
     (allowlistRaw ?? '').split(',').map((s) => s.trim()).filter(Boolean),
   );

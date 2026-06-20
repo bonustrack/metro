@@ -17,7 +17,7 @@ type Handler = (id: string, args: Args) => Promise<void>;
 
 async function newDm(id: string, args: Args): Promise<void> {
   const { address } = args as { address: string };
-  const acct = accountForCall(args as { account?: string });
+  const acct = accountForCall(args);
   const dm = await acct.client.conversations.createDmWithIdentifier({
     identifier: address, identifierKind: IdentifierKind.Ethereum });
   respond(id, { result: { line: lineOf(acct.cfg.id, dm.id), id: dm.id, account: acct.cfg.id } });
@@ -26,7 +26,7 @@ async function newDm(id: string, args: Args): Promise<void> {
 async function newGroup(id: string, args: Args): Promise<void> {
   const { addresses, name, permissions } = args as {
     addresses: string[]; name?: string; permissions?: 'admin-only' | 'default' };
-  const acct = accountForCall(args as { account?: string });
+  const acct = accountForCall(args);
   const opts: { groupName?: string; permissions?: number } = {};
   if (name) opts.groupName = name;
   if (permissions === 'admin-only') opts.permissions = 1;
@@ -43,7 +43,7 @@ async function createRequestGroup(id: string, args: Args): Promise<void> {
   const { memberAddresses, memberInboxIds, name, description, labels } = args as {
     memberAddresses?: string[]; memberInboxIds?: string[];
     name: string; description?: string; labels?: string[] };
-  const acct = accountForCall(args as { account?: string });
+  const acct = accountForCall(args);
   if (!name || typeof name !== 'string') throw new TrainError('INVALID_ARGS', 'createRequestGroup requires a `name`');
   const addrs = (memberAddresses ?? []).filter(a => typeof a === 'string' && a.length > 0);
   const inboxes = (memberInboxIds ?? []).filter(a => typeof a === 'string' && a.length > 0);
@@ -60,16 +60,16 @@ async function createRequestGroup(id: string, args: Args): Promise<void> {
     // members are added after via addMembers (node-sdk Group.addMembers(inboxIds)).
     const created = await acct.client.conversations.createGroupWithIdentifiers(
       addrs.map(a => ({ identifier: a, identifierKind: IdentifierKind.Ethereum })),
-      opts as unknown as Parameters<typeof acct.client.conversations.createGroupWithIdentifiers>[1]);
-    group = created as unknown as GroupLike;
+      opts);
+    group = created;
     if (inboxes.length) {
       await (created as unknown as { addMembers: (ids: string[]) => Promise<unknown> }).addMembers(inboxes);
     }
   } else {
     // inboxId-only path: createGroup(inboxIds, options).
     const created = await acct.client.conversations.createGroup(
-      inboxes, opts as unknown as Parameters<typeof acct.client.conversations.createGroup>[1]);
-    group = created as unknown as GroupLike;
+      inboxes, opts);
+    group = created;
   }
 
   warmGroupName(group.id, name);
@@ -87,11 +87,11 @@ async function setLabels(id: string, args: Args): Promise<void> {
   const resolvedLine = resolveLine(args, 'setLabels');
   if (!Array.isArray(labels)) throw new TrainError('INVALID_ARGS', 'setLabels requires a `labels` array');
   const appData: Record<string, unknown> = { labels };
-  if (typeof setGithub === 'string') appData['github'] = setGithub;
+  if (typeof setGithub === 'string') appData.github = setGithub;
   const result = await applyChannelMeta(
     { line: resolvedLine, name: setName, description: setDescription, appData }, 'setLabels');
   respond(id, { result: {
-    line: result['line'], id: result['id'], account: result['account'], labels: result['labels'] } });
+    line: result.line, id: result.id, account: result.account, labels: result.labels } });
 }
 
 async function query(id: string, args: Args): Promise<void> {
@@ -102,7 +102,9 @@ async function query(id: string, args: Args): Promise<void> {
   await conv.sync().catch(() => undefined);
   const all = await conv.messages();
   const slice = all.slice(-lim);
-  const acctId = parseLine(line)!.accountId;
+  const parsed = parseLine(line);
+  if (!parsed) throw new TrainError('NOT_FOUND', `could not parse line ${line}`);
+  const acctId = parsed.accountId;
   const messages = slice.map(m => {
     let text = '';
     try { const cc: unknown = m.content; text = typeof cc === 'string' ? cc : `[${m.contentType?.typeId ?? 'unknown'}]`; }
@@ -131,8 +133,8 @@ async function buildGroupInfo(
         const eth = states[i]?.identifiers.find(
           (it: { identifierKind: IdentifierKind }) => it.identifierKind === IdentifierKind.Ethereum);
         if (eth?.identifier) {
-          addresses[missing[i]!] = eth.identifier;
-          inboxEthCache.set(missing[i]!, eth.identifier);
+          addresses[missing[i]] = eth.identifier;
+          inboxEthCache.set(missing[i], eth.identifier);
         }
       }
     } catch { /* best-effort */ }
@@ -183,7 +185,7 @@ async function addMembers(id: string, args: Args): Promise<void> {
     }
     await group.addMembers(inboxes);
   }
-  const info = await buildGroupInfo(line, acct, conv as object & typeof conv);
+  const info = await buildGroupInfo(line, acct, conv);
   respond(id, { result: { ...info, added: { addresses: addrs, inboxIds: inboxes } } });
 }
 
@@ -224,7 +226,7 @@ async function removeMembers(id: string, args: Args): Promise<void> {
     }
     await group.removeMembers(inboxes);
   }
-  const info = await buildGroupInfo(line, acct, conv as object & typeof conv);
+  const info = await buildGroupInfo(line, acct, conv);
   respond(id, { result: { ...info, removed: { addresses: addrs, inboxIds: inboxes } } });
 }
 
@@ -247,8 +249,8 @@ async function groupInfo(id: string, args: Args): Promise<void> {
         const eth = states[i]?.identifiers.find(
           (it: { identifierKind: IdentifierKind }) => it.identifierKind === IdentifierKind.Ethereum);
         if (eth?.identifier) {
-          addresses[missing[i]!] = eth.identifier;
-          inboxEthCache.set(missing[i]!, eth.identifier);
+          addresses[missing[i]] = eth.identifier;
+          inboxEthCache.set(missing[i], eth.identifier);
         }
       }
     } catch { /* best-effort */ }
@@ -265,7 +267,7 @@ async function groupInfo(id: string, args: Args): Promise<void> {
 
 async function summarizeConv(acct: Account, c: Awaited<ReturnType<typeof convOf>>['conv'] & object): Promise<unknown> {
   /** #9: bounded — fetch only the newest message instead of the whole history. */
-  const recent = await c.messages({ limit: 1, direction: 1 } as Parameters<typeof c.messages>[0]).catch(() => []);
+  const recent = await c.messages({ limit: 1, direction: 1 }).catch(() => []);
   const last = recent[0];
   let preview = '';
   if (last) {
@@ -283,12 +285,14 @@ async function summarizeConv(acct: Account, c: Awaited<ReturnType<typeof convOf>
 async function listConvs(id: string, args: Args): Promise<void> {
   const { limit, account } = args as { limit?: number; account?: string };
   const lim = Math.min(Math.max(1, limit ?? 50), 200);
-  const targets = account ? [accounts.get(account)!].filter(Boolean) : [...accounts.values()];
+  const targets = account
+    ? [accounts.get(account)].filter((a): a is Account => a !== undefined)
+    : [...accounts.values()];
   const summaries: unknown[] = [];
   for (const acct of targets) {
     await acct.client.conversations.syncAll();
     const all = await acct.client.conversations.list();
-    for (const c of all.slice(0, lim)) summaries.push(await summarizeConv(acct, c as object & typeof c));
+    for (const c of all.slice(0, lim)) summaries.push(await summarizeConv(acct, c));
   }
   summaries.sort((a, b) =>
     ((b as { lastTs?: string }).lastTs ?? '').localeCompare((a as { lastTs?: string }).lastTs ?? ''));

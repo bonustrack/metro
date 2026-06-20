@@ -5,6 +5,11 @@ import type { CanonicalAttachment, StationTool, ToolContext } from '../types.js'
 import { MetroCallError } from '../types.js';
 import { guessMime, isImageMime, isImageExt } from '../attachments.js';
 
+/** Coerce an MCP wire arg (typed `unknown`) to a string. Non-string values
+ *  (objects/numbers/absent) collapse to '' — these tools only accept strings, so
+ *  this avoids '[object Object]' from stringifying a stray object arg. */
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+
 // Shared schema fragment: every line-bearing tool takes the metro line.
 const lineProp = { type: 'string', description: 'The metro:// line (from the inbound <channel> tag). The station is derived from it.' } as const;
 
@@ -71,9 +76,9 @@ export const XMTP_TOOLS: StationTool[] = [
     },
     async handle(a, ctx) {
       const addresses = (a.addresses as unknown[] | undefined)?.map(String).filter(Boolean) ?? [];
-      const channelName = String(a.name ?? '');
+      const channelName = str(a.name);
       const labels = (a.labels as unknown[] | undefined)?.map(String).filter(Boolean) ?? [];
-      const account = a.account ? String(a.account) : undefined;
+      const account = str(a.account) || undefined;
       if (!addresses.length) return ctx.err('create_channel requires a non-empty `addresses` array');
       if (!channelName) return ctx.err('create_channel requires `name`');
       const groupArgs: Record<string, unknown> = { addresses, name: channelName };
@@ -114,7 +119,7 @@ export const XMTP_TOOLS: StationTool[] = [
       required: ['line'],
     },
     async handle(a, ctx) {
-      const line = String(a.line ?? '');
+      const line = str(a.line);
       if (!line) return ctx.err('ask requires `line`');
       // Pass the poll args through to the xmtp `ask` action verbatim (it accepts
       // single {question, options?, header?, multiSelect?, open?} or {questions:[…]}).
@@ -143,10 +148,10 @@ export const XMTP_TOOLS: StationTool[] = [
       required: ['address'],
     },
     async handle(a, ctx) {
-      const address = String(a.address ?? '');
+      const address = str(a.address);
       if (!address) return ctx.err('dm requires `address`');
       const dmArgs: Record<string, unknown> = { address };
-      if (a.account) dmArgs.account = String(a.account);
+      if (a.account) dmArgs.account = str(a.account);
       return ctx.okJson(await ctx.call('newDm', dmArgs));
     },
   },
@@ -159,7 +164,7 @@ export const XMTP_TOOLS: StationTool[] = [
       'set_channel_metadata/add_members to see current state.',
     inputSchema: { type: 'object', properties: { line: lineProp }, required: ['line'] },
     async handle(a, ctx) {
-      const line = String(a.line ?? '');
+      const line = str(a.line);
       if (!line) return ctx.err('group_info requires `line`');
       return ctx.okJson(await ctx.call('groupInfo', { line }));
     },
@@ -205,7 +210,7 @@ export const XMTP_TOOLS: StationTool[] = [
       '(daemon `closeGroup`). Irreversible-ish: members are removed from the group.',
     inputSchema: { type: 'object', properties: { line: lineProp }, required: ['line'] },
     async handle(a, ctx) {
-      const line = String(a.line ?? '');
+      const line = str(a.line);
       if (!line) return ctx.err('close_channel requires `line`');
       return ctx.okJson(await ctx.call('closeGroup', { line }));
     },
@@ -231,7 +236,7 @@ export const XMTP_TOOLS: StationTool[] = [
       required: ['line'],
     },
     async handle(a, ctx) {
-      const line = String(a.line ?? '');
+      const line = str(a.line);
       if (!line) return ctx.err('set_channel_metadata requires `line`');
       const labels = a.labels as unknown[] | undefined;
       const github = a.github as string | undefined;
@@ -259,7 +264,7 @@ export const XMTP_TOOLS: StationTool[] = [
 
 /** Shared add/remove implementation (line + at least one of addresses/inboxIds). */
 async function memberOp(tool: string, action: string, a: Record<string, unknown>, ctx: ToolContext) {
-  const line = String(a.line ?? '');
+  const line = str(a.line);
   if (!line) return ctx.err(`${tool} requires \`line\``);
   const addresses = (a.addresses as unknown[] | undefined)?.map(String).filter(Boolean) ?? [];
   const inboxIds = (a.inboxIds as unknown[] | undefined)?.map(String).filter(Boolean) ?? [];

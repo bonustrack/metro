@@ -42,7 +42,7 @@ export function labelsBlob(
   github?: string,
 ): string {
   let existing: Record<string, unknown> = {};
-  if (existingAppData && existingAppData.trim()) {
+  if (existingAppData?.trim()) {
     try {
       const p: unknown = JSON.parse(existingAppData);
       if (p && typeof p === 'object' && !Array.isArray(p)) existing = p as Record<string, unknown>;
@@ -50,8 +50,8 @@ export function labelsBlob(
   }
   const blob: Record<string, unknown> = { ...existing, v: 1, labels: cleanLabels(labels) };
   if (typeof github === 'string') {
-    if (github.trim()) blob['github'] = github.trim();
-    else delete blob['github'];
+    if (github.trim()) blob.github = github.trim();
+    else delete blob.github;
   }
   return JSON.stringify(blob);
 }
@@ -59,16 +59,16 @@ export function labelsBlob(
 /** Parse the {labels, github} we own out of a raw appData string. Tolerant:
  *  empty / old / malformed → { labels: [], github: undefined }. */
 export function readAppData(appData: string | undefined): { labels: string[]; github?: string; preview?: string } {
-  if (!appData || !appData.trim()) return { labels: [] };
+  if (!appData?.trim()) return { labels: [] };
   try {
     const p: unknown = JSON.parse(appData);
     if (!p || typeof p !== 'object' || Array.isArray(p)) return { labels: [] };
     const rec = p as Record<string, unknown>;
-    const github = typeof rec['github'] === 'string' && (rec['github'] as string).trim()
-      ? (rec['github'] as string).trim() : undefined;
-    const preview = typeof rec['preview'] === 'string' && (rec['preview'] as string).trim()
-      ? (rec['preview'] as string).trim() : undefined;
-    return { labels: cleanLabels(rec['labels']), github, preview };
+    const github = typeof rec.github === 'string' && (rec.github).trim()
+      ? (rec.github).trim() : undefined;
+    const preview = typeof rec.preview === 'string' && (rec.preview).trim()
+      ? (rec.preview).trim() : undefined;
+    return { labels: cleanLabels(rec.labels), github, preview };
   } catch {
     return { labels: [] };
   }
@@ -82,7 +82,7 @@ export function mergeAppData(
   patch: Record<string, unknown>,
 ): { blob: string; merged: Record<string, unknown> } {
   let existing: Record<string, unknown> = {};
-  if (existingAppData && existingAppData.trim()) {
+  if (existingAppData?.trim()) {
     try {
       const p: unknown = JSON.parse(existingAppData);
       if (p && typeof p === 'object' && !Array.isArray(p)) existing = p as Record<string, unknown>;
@@ -90,18 +90,18 @@ export function mergeAppData(
   }
   const merged: Record<string, unknown> = { ...existing, v: 1 };
   for (const [k, v] of Object.entries(patch)) {
-    if (k === 'labels') { merged['labels'] = cleanLabels(v); continue; }
+    if (k === 'labels') { merged.labels = cleanLabels(v); continue; }
     if (k === 'github') {
       const g = normalizeGithubUrl(v); // throws on bad url; '' = clear
-      if (g) merged['github'] = g; else delete merged['github'];
+      if (g) merged.github = g; else delete merged.github;
       continue;
     }
     if (k === 'preview') {
       const p = normalizePreviewUrl(v); // throws on bad url; '' = clear
-      if (p) merged['preview'] = p; else delete merged['preview'];
+      if (p) merged.preview = p; else delete merged.preview;
       continue;
     }
-    if (v === undefined || v === null) delete merged[k]; // null = clear over the wire
+    if (v === undefined || v === null) Reflect.deleteProperty(merged, k); // null = clear over the wire
     else merged[k] = v;
   }
   return { blob: JSON.stringify(merged), merged };

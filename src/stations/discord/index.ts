@@ -17,19 +17,21 @@ import {
 import { accounts, loadAccounts, lineOf, type AccountConfig } from './accounts.js';
 import { emitInbound, messageEnvelope, reactionEnvelope } from './format.js';
 import { mintId } from './wire.js';
-import { handleCall } from './actions.js';
+import { handleCall, type CallMsg } from './actions.js';
 
 let buf = '';
 process.stdin.setEncoding('utf8');
-process.stdin.on('data', chunk => {
+process.stdin.on('data', (chunk: string) => {
   buf += chunk;
   let nl;
   while ((nl = buf.indexOf('\n')) !== -1) {
     const line = buf.slice(0, nl).trim();
     buf = buf.slice(nl + 1);
     if (!line) continue;
-    try { const msg = JSON.parse(line); if (msg.op === 'call') void handleCall(msg); }
-    catch (err) { process.stderr.write(`bad stdin line: ${(err as Error).message}\n`); }
+    try {
+      const msg = JSON.parse(line) as CallMsg;
+      if (msg.op === 'call') void handleCall(msg);
+    } catch (err) { process.stderr.write(`bad stdin line: ${(err as Error).message}\n`); }
   }
 });
 
@@ -68,21 +70,21 @@ async function bootAccount(cfg: AccountConfig): Promise<void> {
     if (env) emitInbound(accountId, env);
   });
 
-  client.on(Events.MessageReactionAdd, async (r, u) => {
+  client.on(Events.MessageReactionAdd, (r, u) => { void (async () => {
     try {
       if (r.partial) await r.fetch();
       if (u.partial) await u.fetch();
     } catch { /* ignore partial fetch failures */ }
     const env = reactionEnvelope(accountId, r as MessageReaction, u as User);
     if (env) emitInbound(accountId, env);
-  });
+  })(); });
 
-  client.on(Events.MessageUpdate, async (_old, _new) => {
-    try { onEdit(accountId, _new.partial ? await _new.fetch() : _new as Message); }
+  client.on(Events.MessageUpdate, (_old, _new) => { void (async () => {
+    try { onEdit(accountId, _new.partial ? await _new.fetch() : _new); }
     catch (err) {
       process.stderr.write(`discord[${accountId}] message update fetch failed: ${(err as Error).message}\n`);
     }
-  });
+  })(); });
 
   accounts.set(accountId, { cfg, client });
   await client.login(cfg.token);

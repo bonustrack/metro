@@ -11,12 +11,12 @@ export const MAX_CONSECUTIVE_FAILS = 5;
 export const HOT_RELOAD_DEBOUNCE_MS = 300;
 export const TRAIN_EXT = /\.(ts|js|mjs)$/;
 
-export type TrainState = {
+export interface TrainState {
   name: string; path: string; proc: ReturnType<typeof Bun.spawn> | null;
   pending: Map<string, Pending>; buf: string; errBuf: string; failCount: number;
   restartTimer: ReturnType<typeof setTimeout> | null;
   startedAt: string | null; stopped: boolean;
-};
+}
 
 // Hot-reload (#15): watch `dir`, debounce per-train, hand the changed file to
 // `onChange`. New file ⇒ fresh train; deleted file ⇒ caller leaves the process.
@@ -28,7 +28,7 @@ export function startWatcher(
   try {
     const w = watch(dir, (_event, filename) => {
       if (!filename) return;
-      const base = filename.toString();
+      const base = filename;
       if (!TRAIN_EXT.test(base) || base.startsWith('_') || base.startsWith('.')) return;
       const name = parsePath(base).name;
       const existing = timers.get(name);
@@ -38,7 +38,7 @@ export function startWatcher(
         onChange(name, join(dir, base));
       }, HOT_RELOAD_DEBOUNCE_MS));
     });
-    w.on('error', err => log.warn({ err: errMsg(err) }, 'train hot-reload: watcher error'));
+    w.on('error', err => { log.warn({ err: errMsg(err) }, 'train hot-reload: watcher error'); });
     log.info({ dir }, 'train hot-reload: watching');
     return w;
   } catch (err) {
@@ -48,10 +48,10 @@ export function startWatcher(
 }
 
 export function killGracefully(proc: ReturnType<typeof Bun.spawn> | null): Promise<unknown> | null {
-  if (!proc || proc.exitCode !== null) return null;
+  if (proc?.exitCode !== null) return null;
   try { proc.kill('SIGTERM'); } catch { /* ignore */ }
   const grace = setTimeout(() => { try { proc.kill('SIGKILL'); } catch { /* ignore */ } }, 2_000);
-  return proc.exited.finally(() => clearTimeout(grace));
+  return proc.exited.finally(() => { clearTimeout(grace); });
 }
 
 export async function pumpStream(

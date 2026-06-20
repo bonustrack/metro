@@ -16,7 +16,7 @@ export type VerbOwner = 'core' | (string & {});
 /** One declared verb. `inputSchema` is an optional runtime validator (the same
  *  tiny combinator the control verbs use). `idempotent` answers "does presenting
  *  the same call twice produce the same effect" (reads are trivially idempotent). */
-export type VerbDecl = {
+export interface VerbDecl {
   /** Action name as passed to `metro call <station> <name>` (or the CLI token for core). */
   readonly name: string;
   /** Owning station, or 'core' for daemon-level CLI verbs. */
@@ -35,7 +35,7 @@ export type VerbDecl = {
   readonly example: string;
   /** Re-presenting the same call is safe (no duplicate side effect). */
   readonly idempotent: boolean;
-};
+}
 
 /** Shared `line` field validator (non-empty string). */
 export const line = v.string({ min: 1 });

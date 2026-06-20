@@ -7,7 +7,7 @@ import { fcmPushToAll, loadPushTokens, removePushToken, savePushTokens, storePus
 type Args = Record<string, unknown>;
 type Handler = (id: string, args: Args) => Promise<void>;
 
-async function registerPush(id: string, args: Args): Promise<void> {
+function registerPush(id: string, args: Args): Promise<void> {
   const { token, account, platform, inboxId } = args as {
     token?: string; account?: string; platform?: string; inboxId?: string };
   if (!token || typeof token !== 'string' || token.length < 20) {
@@ -15,14 +15,16 @@ async function registerPush(id: string, args: Args): Promise<void> {
   }
   const total = storePushToken({ token, account, platform, inboxId });
   respond(id, { result: { stored: true, total, account: account ?? null } });
+  return Promise.resolve();
 }
 
-async function listPush(id: string): Promise<void> {
+function listPush(id: string): Promise<void> {
   const tokens = loadPushTokens();
   respond(id, { result: { count: tokens.length, tokens: tokens.map(t => ({
     token: `${t.token.slice(0, 12)}…${t.token.slice(-6)}`, registeredAt: t.registeredAt,
     lastSeenAt: t.lastSeenAt ?? null, account: t.account ?? null,
     platform: t.platform ?? null, inboxId: t.inboxId ?? null })) } });
+  return Promise.resolve();
 }
 
 async function testPush(id: string, args: Args): Promise<void> {
@@ -34,17 +36,19 @@ async function testPush(id: string, args: Args): Promise<void> {
   respond(id, { result: { sent, account: acctId } });
 }
 
-async function unregisterPush(id: string, args: Args): Promise<void> {
+function unregisterPush(id: string, args: Args): Promise<void> {
   const { token } = args as { token: string };
   savePushTokens(loadPushTokens().filter(t => t.token !== token));
   respond(id, { result: { removed: true } });
+  return Promise.resolve();
 }
 
-async function disablePush(id: string, args: Args): Promise<void> {
+function disablePush(id: string, args: Args): Promise<void> {
   const { token } = args as { token?: string };
   if (!token || typeof token !== 'string') throw new Error('disable-push requires a token');
   const remaining = removePushToken(token);
   respond(id, { result: { removed: remaining !== -1, remaining: remaining === -1 ? null : remaining } });
+  return Promise.resolve();
 }
 
 export const pushHandlers: Record<string, Handler> = {

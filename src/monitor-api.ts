@@ -24,7 +24,7 @@ const CALL_BODY_MAX = 256 * 1024;
 /** Reflect request Origin so browsers (Netlify, custom domains, file://) can call cross-origin. */
 function cors(req: IncomingMessage): Record<string, string> {
   return {
-    'access-control-allow-origin': (req.headers.origin as string | undefined) ?? '*',
+    'access-control-allow-origin': (req.headers.origin) ?? '*',
     'access-control-allow-methods': 'GET, POST, OPTIONS',
     'access-control-allow-headers': 'Authorization, Content-Type',
     'access-control-max-age': '86400',
@@ -45,7 +45,7 @@ function tokenEq(given: string, want: string): boolean {
 function authorized(req: IncomingMessage, q?: URLSearchParams): { status: number; msg: string } | null {
   const token = process.env.METRO_MONITOR_TOKEN;
   if (!token) return { status: 503, msg: 'monitor endpoints not configured (METRO_MONITOR_TOKEN unset)' };
-  const header = ([] as string[]).concat(req.headers['authorization'] ?? [])[0];
+  const header = ([] as string[]).concat(req.headers.authorization ?? [])[0];
   if (header?.startsWith('Bearer ') && tokenEq(header.slice(7), token)) return null;
   /** Query-token path is for media tags (img/audio) that can't send Authorization headers. */
   const qt = q?.get('token');
@@ -74,7 +74,7 @@ export function handleMonitorRequest(req: IncomingMessage, res: ServerResponse):
    *  ids only, never tokens/keys/mnemonic). Handled FIRST — before the /api/ prefix,
    *  host allowlist, and Bearer auth — so a cloud LB/uptime probe can hit it. */
   if (req.method === 'GET' && (path === '/health' || path === '/api/health')) {
-    handleHealth(res, req).catch(err => {
+    handleHealth(res, req).catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'monitor: health handler error');
       try { send(res, req, 500, { ok: false, error: errMsg(err) }); } catch { /* ignore */ }
     });
@@ -90,24 +90,24 @@ export function handleMonitorRequest(req: IncomingMessage, res: ServerResponse):
   if (auth) { send(res, req, auth.status, { error: auth.msg }); return true; }
   if (req.method === 'GET' && path === '/api/state') { handleState(res, req, q); return true; }
   if (req.method === 'GET' && path === '/api/accounts') {
-    gatherAccounts().then(accounts => send(res, req, 200, { accounts })).catch(err => {
+    gatherAccounts().then(accounts => { send(res, req, 200, { accounts }); }).catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'monitor: accounts handler error');
       try { send(res, req, 500, { error: errMsg(err) }); } catch { /* ignore */ }
     });
     return true;
   }
   if (req.method === 'GET' && path === '/api/tail') {
-    handleTail(req, res, q).catch(err => {
+    try { handleTail(req, res, q); } catch (err) {
       log.warn({ err: errMsg(err) }, 'monitor: tail handler error');
       try { if (!res.headersSent) res.writeHead(500).end(); else res.end(); } catch { /* ignore */ }
-    });
+    }
     return true;
   }
   /** POST /api/call/<train>/<action> — JSON body {args} forwarded to train via IPC forward-call. */
-  const callMatch = path.match(/^\/api\/call\/([^/]+)\/([^/]+)$/);
+  const callMatch = /^\/api\/call\/([^/]+)\/([^/]+)$/.exec(path);
   if (callMatch) {
     if (req.method !== 'POST') { send(res, req, 405, { error: 'method not allowed' }); return true; }
-    handleCall(req, res, callMatch[1], callMatch[2]).catch(err => {
+    handleCall(req, res, callMatch[1], callMatch[2]).catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'monitor: call handler error');
       try { send(res, req, 500, { error: errMsg(err) }); } catch { /* ignore */ }
     });
@@ -161,7 +161,7 @@ async function handleHealth(res: ServerResponse, req: IncomingMessage): Promise<
 function handleState(res: ServerResponse, req: IncomingMessage, q: URLSearchParams): void {
   const before = nonNegInt(q.get('before'));
   const limit = Math.min(nonNegInt(q.get('limit')) ?? 100, 500);
-  if (before !== null) return send(res, req, 200, { recent_history: readHistory({ limit, skip: before }) });
+  if (before !== null) { send(res, req, 200, { recent_history: readHistory({ limit, skip: before }) }); return; }
   const recent = readHistory({ limit }), claims = readClaims();
   const lines = new Set<string>([...recent.map(e => e.line), ...Object.keys(claims)]);
   send(res, req, 200, {
@@ -169,7 +169,7 @@ function handleState(res: ServerResponse, req: IncomingMessage, q: URLSearchPara
   });
 }
 
-async function handleTail(req: IncomingMessage, res: ServerResponse, q: URLSearchParams): Promise<void> {
+function handleTail(req: IncomingMessage, res: ServerResponse, q: URLSearchParams): void {
   const asParam = q.get('as');
   const self = asParam ? asLine(asParam) : null;
   const isOn = (k: string): boolean => q.get(k) === 'true' || q.get('mode') === k;
@@ -178,7 +178,7 @@ async function handleTail(req: IncomingMessage, res: ServerResponse, q: URLSearc
   const since = q.get('since');
   const sinceN = since !== null && since !== 'tail' ? Number(since) : NaN;
   if (since !== null && since !== 'tail' && (!Number.isFinite(sinceN) || sinceN < 0)) {
-    return send(res, req, 400, { error: `since must be a byte offset or 'tail' (got '${since}')` });
+    send(res, req, 400, { error: `since must be a byte offset or 'tail' (got '${since}')` }); return;
   }
   const excludeFromCsv = q.get('exclude_from');
   const opts: TailOpts = {
@@ -225,11 +225,11 @@ async function handleCall(req: IncomingMessage, res: ServerResponse, train: stri
     try {
       const parsed = JSON.parse(raw) as { args?: unknown };
       args = parsed && typeof parsed === 'object' && 'args' in parsed ? parsed.args : parsed;
-    } catch (err) { return send(res, req, 400, { error: `bad JSON body: ${errMsg(err)}` }); }
+    } catch (err) { send(res, req, 400, { error: `bad JSON body: ${errMsg(err)}` }); return; }
   }
   const resp = await ipcCall({ op: 'forward-call', train, action, args });
-  if (!resp.ok) return send(res, req, 502, { error: resp.error });
-  if (!('response' in resp)) return send(res, req, 502, { error: 'malformed daemon response' });
-  if (resp.response.error) return send(res, req, 502, { error: resp.response.error });
+  if (!resp.ok) { send(res, req, 502, { error: resp.error }); return; }
+  if (!('response' in resp)) { send(res, req, 502, { error: 'malformed daemon response' }); return; }
+  if (resp.response.error) { send(res, req, 502, { error: resp.response.error }); return; }
   send(res, req, 200, { result: resp.response.result ?? null });
 }

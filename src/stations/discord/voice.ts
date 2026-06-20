@@ -7,7 +7,7 @@ import {
   joinVoiceChannel, getVoiceConnection, VoiceConnectionStatus, entersState,
   type VoiceConnection,
 } from '@discordjs/voice';
-import type { Client, Guild, VoiceBasedChannel } from 'discord.js';
+import type { Client, VoiceBasedChannel } from 'discord.js';
 import { accountFor, accounts } from './accounts.js';
 import { respond } from './wire.js';
 import { startTranscription, stopTranscription, setTranscription } from './voice-transcribe.js';
@@ -17,8 +17,9 @@ const DEFAULT_USERNAME = 'bonustrack_';
 
 function clientFor(account?: string): { accountId: string; client: Client } {
   const accountId = accountFor({ account });
-  const client = accounts.get(accountId)!.client;
-  return { accountId, client };
+  const acct = accounts.get(accountId);
+  if (!acct) throw new Error(`unknown account '${accountId}'`);
+  return { accountId, client: acct.client };
 }
 
 /** Find the voice channel a given user (by id or username) is currently connected to. */
@@ -46,7 +47,7 @@ async function resolveTarget(
     if (!ch || !('guild' in ch) || !ch.isVoiceBased()) {
       throw new Error(`channel ${args.channelId} is not a voice channel`);
     }
-    return ch as VoiceBasedChannel;
+    return ch;
   }
   // Otherwise locate by user (explicit id/username, else default bonustrack_).
   const ch = findUserVoiceChannel(client, {
@@ -71,7 +72,7 @@ export async function joinVoice(id: string, rawArgs: Record<string, unknown>): P
   if (!client.isReady()) { respond(id, { error: `gateway not ready for '${accountId}'` }); return; }
 
   const channel = await resolveTarget(client, args);
-  const guild = channel.guild as Guild;
+  const guild = channel.guild;
 
   const connection: VoiceConnection = joinVoiceChannel({
     channelId: channel.id,
@@ -101,7 +102,7 @@ export async function joinVoice(id: string, rawArgs: Record<string, unknown>): P
 }
 
 /** TEMP diagnostic: list voice channels + occupants across shared guilds. */
-export async function voiceDebug(id: string, rawArgs: Record<string, unknown>): Promise<void> {
+export function voiceDebug(id: string, rawArgs: Record<string, unknown>): void {
   const args = rawArgs as { account?: string };
   const { accountId, client } = clientFor(args.account);
   const guilds = [...client.guilds.cache.values()].map(g => {
@@ -121,7 +122,7 @@ export async function voiceDebug(id: string, rawArgs: Record<string, unknown>): 
   respond(id, { result: { ok: true, account: accountId, ready: client.isReady(), guilds } });
 }
 
-export async function leaveVoice(id: string, rawArgs: Record<string, unknown>): Promise<void> {
+export function leaveVoice(id: string, rawArgs: Record<string, unknown>): void {
   const args = rawArgs as { account?: string; guildId?: string };
   const { accountId, client } = clientFor(args.account);
 
@@ -137,7 +138,7 @@ export async function leaveVoice(id: string, rawArgs: Record<string, unknown>): 
 }
 
 /** Toggle live transcription on/off for an active session without leaving the call. */
-export async function voiceTranscribe(id: string, rawArgs: Record<string, unknown>): Promise<void> {
+export function voiceTranscribe(id: string, rawArgs: Record<string, unknown>): void {
   const args = rawArgs as { account?: string; guildId?: string; on?: boolean };
   const { accountId, client } = clientFor(args.account);
   const on = args.on !== false;

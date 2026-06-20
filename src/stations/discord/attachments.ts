@@ -26,12 +26,12 @@ function fileName(messageId: string, index: number, filename: string | undefined
   return `msg_${safeId}_${index}.${extFor(filename, mime)}`;
 }
 
-export type SavedAttachment = { path: string; mime?: string; name?: string; bytes: number };
+export interface SavedAttachment { path: string; mime?: string; name?: string; bytes: number }
 
 /** A Discord attachment as the train shaped it (url + metadata). */
-export type DiscordAttachmentRef = {
+export interface DiscordAttachmentRef {
   url: string; name?: string | null; contentType?: string | null;
-};
+}
 
 /** Fetch a public Discord CDN URL and write the bytes to disk. */
 export async function saveDiscordAttachment(
@@ -41,11 +41,11 @@ export async function saveDiscordAttachment(
   if (!res.ok) throw new Error(`discord attachment fetch ${res.status} for ${a.url}`);
   const data = new Uint8Array(await res.arrayBuffer());
   const { mkdir, writeFile } = await import('node:fs/promises');
-  const { join } = await import('node:path');
+  const path = await import('node:path');
   await mkdir(ATT_DIR, { recursive: true });
   const mime = a.contentType ?? undefined;
   const name = a.name ?? undefined;
-  const path = join(ATT_DIR, fileName(messageId, index, name, mime));
-  await writeFile(path, data);
-  return { path, mime, name, bytes: data.length };
+  const outPath = path.join(ATT_DIR, fileName(messageId, index, name, mime));
+  await writeFile(outPath, data);
+  return { path: outPath, mime, name, bytes: data.length };
 }

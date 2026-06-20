@@ -29,7 +29,8 @@ function emitAttachmentSaved(
         url: ref.url,
       },
     });
-  }).catch(err => process.stderr.write(`discord attachment save failed: ${(err as Error).message}\n`));
+  }).catch((err: unknown) =>
+    process.stderr.write(`discord attachment save failed: ${err instanceof Error ? err.message : String(err)}\n`));
 }
 
 function tagFor(att: { contentType?: string | null; name?: string | null; url?: string }): string {
@@ -53,7 +54,7 @@ export function messageEnvelope(accountId: string, m: Message): Record<string, u
     id: a.id, url: a.url, proxyURL: a.proxyURL, name: a.name, contentType: a.contentType, size: a.size,
   }));
   attachments.forEach((a, i) =>
-    emitAttachmentSaved(accountId, line, envId, i, { url: a.url, name: a.name, contentType: a.contentType }, m.id));
+    { emitAttachmentSaved(accountId, line, envId, i, { url: a.url, name: a.name, contentType: a.contentType }, m.id); });
   return {
     kind: 'inbound', id: envId, ts: new Date(m.createdTimestamp).toISOString(),
     station: 'discord', line,
@@ -62,7 +63,7 @@ export function messageEnvelope(accountId: string, m: Message): Record<string, u
     message_id: m.id, text, is_private: m.guildId == null,
     reply_to: m.reference?.messageId ?? undefined,
     ...(m.reference?.messageId ? { event: { type: 'reply', replyTo: m.reference.messageId } } : {}),
-    payload: { ...m.toJSON(), attachments },
+    payload: { ...(m.toJSON() as Record<string, unknown>), attachments },
   };
 }
 

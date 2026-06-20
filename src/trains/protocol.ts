@@ -10,14 +10,14 @@ export { TrainError, serializeTrainError, type TrainErrorInfo } from '../train-e
 
 export const CALL_TIMEOUT_MS = 60_000;
 
-export type Pending = {
+export interface Pending {
   resolve: (r: TrainCallResponse) => void; reject: (err: Error) => void;
   timer: ReturnType<typeof setTimeout>;
-};
-export type CallTarget = {
+}
+export interface CallTarget {
   name: string; pending: Map<string, Pending>;
   proc: { stdin?: unknown } & Record<string, unknown> | null;
-};
+}
 
 export const STDOUT_LINE_MAX = 4 * 1024 * 1024; // 4 MiB safeguard per line
 
@@ -33,7 +33,7 @@ export type TrainEvent = {
   event?: WireEvent;
 } & Record<string, unknown>;
 
-export type TrainCallResponse = { result?: unknown; error?: string; errorInfo?: TrainErrorInfo };
+export interface TrainCallResponse { result?: unknown; error?: string; errorInfo?: TrainErrorInfo }
 
 export type TrainMessage =
   | { op: 'response'; id: string; result?: unknown; error?: string; errorInfo?: TrainErrorInfo }
@@ -46,7 +46,7 @@ export function parseTrainLine(name: string, line: string): TrainMessage | null 
   let msg: {
     op?: string; id?: string; result?: unknown; error?: string; errorInfo?: unknown; text?: string;
   } & Record<string, unknown>;
-  try { msg = JSON.parse(line); }
+  try { msg = JSON.parse(line) as typeof msg; }
   catch (err) {
     log.warn({ name, err: errMsg(err), line: line.slice(0, 200) }, 'train: bad JSON');
     return null;
@@ -62,7 +62,7 @@ export function parseTrainLine(name: string, line: string): TrainMessage | null 
     log.warn({ name, line: line.slice(0, 200) }, 'train: event missing `line` (string) — dropped');
     return { op: 'ignore' };
   }
-  return { op: 'event', event: msg as TrainEvent };
+  return { op: 'event', event: msg };
 }
 
 /** Consume complete `\n`-terminated lines from a rolling buffer; invoke `onLine` for each. */

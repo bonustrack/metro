@@ -9,12 +9,12 @@
 /** `code` — stable machine token (e.g. RATE_LIMITED, NOT_FOUND, INVALID_ARGS);
  *  callers branch on this, never on prose. `message` — human detail (mirrors the
  *  legacy `error` string). `retryable`/`retryAfterMs` — back-off hints. */
-export type TrainErrorInfo = {
+export interface TrainErrorInfo {
   code: string;
   message: string;
   retryable?: boolean;
   retryAfterMs?: number;
-};
+}
 
 /** A typed error a handler may throw. Serializes (via {@link serializeTrainError})
  *  to the `op:response` `errorInfo` channel AND the legacy `error` string. Plain

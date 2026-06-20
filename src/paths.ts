@@ -12,7 +12,7 @@ mkdirSync(STATE_DIR, { recursive: true });
 /** Append-only JSONL message log. Single source of truth — import everywhere, never re-derive. */
 export const HISTORY_FILE = join(STATE_DIR, 'history.jsonl');
 
-export const CONFIG_DIR = process.env.METRO_CONFIG_DIR ?? join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'metro');
+export const CONFIG_DIR = process.env.METRO_CONFIG_DIR ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'metro');
 export const CONFIG_ENV_FILE = join(CONFIG_DIR, '.env');
 
 /** Train-owned env file. Trains read their tokens from here (passed through via process.env). */
@@ -20,7 +20,7 @@ export const TRAINS_ENV_FILE = join(homedir(), '.metro', '.env');
 
 /** Ordered env sources, lowest index = highest precedence (first-set wins in loadMetroEnv). */
 /** Mirrors the loadMetroEnv loop so `metro doctor` can report WHICH file defines each key. */
-export const envSources = (): ReadonlyArray<{ label: string; path: string }> => [
+export const envSources = (): readonly { label: string; path: string }[] => [
   { label: 'cwd/.env', path: join(process.cwd(), '.env') },
   { label: '~/.metro/.env', path: TRAINS_ENV_FILE },
   { label: '$CONFIG/.env', path: CONFIG_ENV_FILE },
@@ -33,7 +33,7 @@ export function readDotenv(path: string): Record<string, string> {
   if (!existsSync(path)) return {};
   const out: Record<string, string> = {};
   for (const line of readFileSync(path, 'utf8').split('\n')) {
-    const m = line.match(LINE_RE);
+    const m = LINE_RE.exec(line);
     if (m) out[m[1]] = m[2].replace(QUOTED_RE, '$2');
   }
   return out;
@@ -44,7 +44,7 @@ export function readDotenv(path: string): Record<string, string> {
 export function loadMetroEnv(): void {
   for (const { path } of envSources()) {
     for (const [k, v] of Object.entries(readDotenv(path))) {
-      if (process.env[k] === undefined) process.env[k] = v;
+      process.env[k] ??= v;
     }
   }
 }
@@ -85,7 +85,7 @@ export function acquireLock(lockFile: string): void {
 
 /* ──────────── caches: seen lines (lines.json) + bot ids (bot-ids.json) ──────────── */
 
-type Entry = { createdAt: string; lastSeenAt?: string; name?: string };
+interface Entry { createdAt: string; lastSeenAt?: string; name?: string }
 type Cache = Record<string, Entry>;
 
 const cacheFile = join(STATE_DIR, 'lines.json');
@@ -118,15 +118,15 @@ export function noteSeen(line: Line, name?: string): void {
   entry.lastSeenAt = new Date().toISOString();
   if (name && entry.name !== name) entry.name = name;
   dirty = true;
-  if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush(); }, FLUSH_DELAY_MS);
+  flushTimer ??= setTimeout(() => { flushTimer = null; flush(); }, FLUSH_DELAY_MS);
 }
 
-export const listLines = (): Array<{ line: Line; entry: Entry }> =>
+export const listLines = (): { line: Line; entry: Entry }[] =>
   Object.entries(readCache()).map(([line, entry]) => ({ line: line as Line, entry }));
 
 /** Bot identity cache: `{discord: "<userId>", telegram: "<userId>"}`. Trains may populate this. */
 const botIdsFile = join(STATE_DIR, 'bot-ids.json');
 export const readBotIds = (): Record<string, string> => {
-  try { return existsSync(botIdsFile) ? JSON.parse(readFileSync(botIdsFile, 'utf8')) : {}; }
+  try { return existsSync(botIdsFile) ? JSON.parse(readFileSync(botIdsFile, 'utf8')) as Record<string, string> : {}; }
   catch { return {}; }
 };

@@ -103,7 +103,7 @@ export const isKnownCtrlVerb = (verb: string): verb is CtrlVerb =>
 // value or throws SchemaError. Unknown verbs throw — gate on `isKnownCtrlVerb` first.
 export function validateCtrl(verb: string, payload: unknown): unknown {
   if (!isKnownCtrlVerb(verb)) throw new Error(`unknown control verb '${verb}'`);
-  const obj = typeof payload === 'string' ? (payload ? JSON.parse(payload) : {}) : payload;
+  const obj: unknown = typeof payload === 'string' ? (payload ? JSON.parse(payload) : {}) : payload;
   return CTRL_SCHEMAS[verb](obj, verb);
 }
 

@@ -56,7 +56,8 @@ export function claimLine(line: Line, owner: Line): ClaimsMap {
 export function releaseLine(line: Line): { released: boolean; claims: ClaimsMap } {
   return withClaimsLock(m => {
     const released = line in m;
-    delete m[line];
-    return { released, claims: m };
+    const next: ClaimsMap = {};
+    for (const [k, v] of Object.entries(m)) if (k !== line) next[k] = v;
+    return { released, claims: next };
   });
 }

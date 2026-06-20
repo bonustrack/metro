@@ -36,7 +36,7 @@ function emitAttachmentSaved(
         attachmentPath: saved.path, localPath: saved.path, mime: saved.mime, name: saved.name,
       },
     });
-  }).catch(err => process.stderr.write(`xmtp attachment save failed: ${(err as Error).message}\n`));
+  }).catch((err: unknown) => process.stderr.write(`xmtp attachment save failed: ${err instanceof Error ? err.message : String(err)}\n`));
 }
 
 function reactionPayload(base: Record<string, unknown>, r: Reaction): Record<string, unknown> {
@@ -66,12 +66,16 @@ function reactionPayload(base: Record<string, unknown>, r: Reaction): Record<str
   };
 }
 
-type RemoteAtt = {
+interface RemoteAtt {
   url: string; filename?: string; contentDigest?: string; nonce?: Uint8Array;
   salt?: Uint8Array; secret?: Uint8Array; scheme?: string; contentLength?: number;
-};
+}
 const b64 = (u?: Uint8Array): string | undefined => u ? Buffer.from(u).toString('base64') : undefined;
-function remoteAtt(r: RemoteAtt, kind: string): Record<string, unknown> {
+interface AttView {
+  kind: string; url: string; name?: string; size?: number;
+  remote: { contentDigest?: string; nonce?: string; salt?: string; secret?: string; scheme?: string };
+}
+function remoteAtt(r: RemoteAtt, kind: string): AttView {
   return {
     kind, url: r.url, name: r.filename, size: r.contentLength,
     remote: {
@@ -96,8 +100,8 @@ function multiRemotePayload(base: Record<string, unknown>, typeId: string, c: ob
   const one = attachments[0];
   const text = imgCount === attachments.length && imgCount > 1 ? `📷 ${imgCount} photos`
     : vidCount === attachments.length && vidCount > 1 ? `🎥 ${vidCount} videos`
-      : attachments.length === 1
-        ? (one!.kind === 'video' ? `🎥 ${one!.name ?? 'video'}` : `[${one!.kind}: ${one!.name ?? one!.url}]`)
+      : attachments.length === 1 && one
+        ? (one.kind === 'video' ? `🎥 ${one.name ?? 'video'}` : `[${one.kind}: ${one.name ?? one.url}]`)
         : `📎 ${attachments.length} attachments`;
   return { ...base, text, payload: { contentType: typeId, attachments } };
 }
@@ -141,7 +145,7 @@ export function envelope(
   if (typeId === 'remoteStaticAttachment' && c && typeof c === 'object') {
     const r = c as RemoteAtt;
     const kind = IMG_RE.test(r.url) ? 'image' : 'file';
-    emitAttachmentSaved(accountId, line, base.id, 0, saveRemoteAttachment(r as RemoteEntry, msg.id, 0));
+    emitAttachmentSaved(accountId, line, base.id, 0, saveRemoteAttachment(r, msg.id, 0));
     return { ...base, text: `[${kind}: ${r.filename ?? r.url}]`,
       payload: { contentType: typeId, attachments: [remoteAtt(r, kind)] } };
   }
@@ -149,7 +153,7 @@ export function envelope(
     && c && typeof c === 'object') {
     const m = c as { attachments?: RemoteEntry[] };
     (Array.isArray(m.attachments) ? m.attachments : []).forEach((r, i) =>
-      emitAttachmentSaved(accountId, line, base.id, i, saveRemoteAttachment(r, msg.id, i)));
+      { emitAttachmentSaved(accountId, line, base.id, i, saveRemoteAttachment(r, msg.id, i)); });
     return multiRemotePayload(base, typeId, c);
   }
   if (typeId === 'poll' && c && typeof c === 'object') {

@@ -19,7 +19,7 @@ export function userSelf(): Line {
 // per-CLI identity leaks one account's `from` onto another, so propagate only an
 // EXPLICIT self; else hand trains neutral `metro://user` to stamp `from` per account.
 export function daemonSelf(): Line {
-  const explicit = process.env.METRO_FROM || process.env.METRO_SELF_URI;
+  const explicit = process.env.METRO_FROM ?? process.env.METRO_SELF_URI;
   return (explicit ?? 'metro://user') as Line;
 }
 
@@ -36,7 +36,7 @@ export function selfLine(): Line | null {
 
 const REGISTRY_FILE = join(STATE_DIR, 'user-registry.json');
 
-type UserInstance = { userId: string; sessions: string[]; lastSeen: string };
+interface UserInstance { userId: string; sessions: string[]; lastSeen: string }
 type Registry = Record<string, UserInstance[]>;
 
 function readRegistry(): Registry {
