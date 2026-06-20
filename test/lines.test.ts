@@ -1,9 +1,9 @@
 /**
  * Unit tests for `src/lines.ts` — the `metro://` URI vocabulary.
  *
- * Covers builders (discord/telegram/claude/codex/webhook/user), the generic
- * `parse`/`station` split, the local-session parsers (`parseClaude`/`parseCodex`
- * — participant `/user/<id>` URIs vs full `<userId>/<sessionId>` sessions),
+ * Covers builders (discord/telegram/claude/webhook/user), the generic
+ * `parse`/`station` split, the local-session parser (`parseClaude` —
+ * participant `/user/<id>` URIs vs full `<userId>/<sessionId>` sessions),
  * `isLocal`, round-trips, and malformed input.
  *
  * Pure in-process; no fs / network.
@@ -28,9 +28,8 @@ describe('Line builders', () => {
     expect(Line.telegram(-100, 0)).toBe(asLine('metro://telegram/-100/0'));
   });
 
-  test('claude / codex full-session builders', () => {
+  test('claude full-session builder', () => {
     expect(Line.claude('org1', 'sess1')).toBe(asLine('metro://claude/org1/sess1'));
-    expect(Line.codex('acct1', 'thread1')).toBe(asLine('metro://codex/acct1/thread1'));
   });
 
   test('webhook', () => {
@@ -83,30 +82,25 @@ describe('Line.station', () => {
   });
 });
 
-describe('parseClaude / parseCodex — participant vs full-session URIs', () => {
+describe('parseClaude — participant vs full-session URIs', () => {
   test('full session URI parses to {userId, sessionId}', () => {
     expect(Line.parseClaude('metro://claude/org1/sess1')).toEqual({ userId: 'org1', sessionId: 'sess1' });
-    expect(Line.parseCodex('metro://codex/acct1/thread1')).toEqual({ userId: 'acct1', sessionId: 'thread1' });
   });
 
   test('participant URI (/user/<id>) is skipped — returns null', () => {
     expect(Line.parseClaude('metro://claude/user/abc')).toBeNull();
-    expect(Line.parseCodex('metro://codex/user/xyz')).toBeNull();
   });
 
   test('single-segment (userId only, no session) returns null', () => {
     expect(Line.parseClaude('metro://claude/org1')).toBeNull();
-    expect(Line.parseCodex('metro://codex/acct1')).toBeNull();
   });
 
-  test('wrong station returns null (claude parser rejects codex and vice versa)', () => {
-    expect(Line.parseClaude('metro://codex/acct1/thread1')).toBeNull();
-    expect(Line.parseCodex('metro://claude/org1/sess1')).toBeNull();
+  test('wrong station returns null (claude parser rejects non-claude lines)', () => {
+    expect(Line.parseClaude('metro://xmtp/acct1/thread1')).toBeNull();
   });
 
   test('malformed input returns null', () => {
     expect(Line.parseClaude('garbage')).toBeNull();
-    expect(Line.parseCodex('metro://')).toBeNull();
   });
 
   test('extra trailing segments still parse to first two', () => {
@@ -116,9 +110,8 @@ describe('parseClaude / parseCodex — participant vs full-session URIs', () => 
 });
 
 describe('isLocal', () => {
-  test('claude + codex are local', () => {
+  test('claude is local', () => {
     expect(Line.isLocal('metro://claude/org1/sess1')).toBe(true);
-    expect(Line.isLocal('metro://codex/acct1/thread1')).toBe(true);
   });
   test('discord/telegram/webhook are not local', () => {
     expect(Line.isLocal('metro://discord/456')).toBe(false);

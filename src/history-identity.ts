@@ -1,18 +1,17 @@
-/** Self-identity URIs (claude/codex/daemon) + the append-only user registry. */
+/** Self-identity URIs (claude/daemon) + the append-only user registry. */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { STATE_DIR } from './paths.js';
 import { Line } from './lines.js';
-import { claudeUserId, claudeSessionId, codexUserId, codexSessionId, codexUserIdOrNull } from './local-identity.js';
+import { claudeUserId, claudeSessionId } from './local-identity.js';
 
 /** The current user's **participant** URI for `from`/`to`. Precedence: METRO_FROM > runtime env > generic. */
 export function userSelf(): Line {
   const explicit = process.env.METRO_FROM;
   if (explicit) return explicit as Line;
   if (process.env.CLAUDECODE) return Line.user('claude', claudeUserId());
-  if (process.env.METRO_CODEX_RC || process.env.CODEX_HOME) return Line.user('codex', codexUserId());
   return 'metro://user' as Line;
 }
 
@@ -24,23 +23,11 @@ export function daemonSelf(): Line {
   return (explicit ?? 'metro://user') as Line;
 }
 
-// Codex user's participant URI, independent of the daemon's own `self`; lets the
-// dispatcher gate the Codex bridge to its feed even when the daemon runs neutral.
-// Null if no Codex identity resolves — caller should then push nothing.
-export function codexSelf(): Line | null {
-  const id = codexUserIdOrNull();
-  return id ? Line.user('codex', id) : null;
-}
-
-/** The current user's **line** URI `<user-id>/<session>`. Null until session is known (rc thread pending). */
+/** The current user's **line** URI `<user-id>/<session>`. Null until the session is known. */
 export function selfLine(): Line | null {
   if (process.env.CLAUDECODE) {
     const s = claudeSessionId();
     return s ? Line.claude(claudeUserId(), s) : null;
-  }
-  if (process.env.METRO_CODEX_RC || process.env.CODEX_HOME) {
-    const s = codexSessionId();
-    return s ? Line.codex(codexUserId(), s) : null;
   }
   return null;
 }
@@ -58,7 +45,7 @@ function readRegistry(): Registry {
   catch (err) { log.warn({ err: errMsg(err) }, 'user-registry: malformed, resetting'); return {}; }
 }
 
-function record(station: 'claude' | 'codex', userId: string, sessionId: string | null): void {
+function record(station: 'claude', userId: string, sessionId: string | null): void {
   const reg = readRegistry();
   const rows = (reg[station] ??= []);
   let row = rows.find(r => r.userId === userId);
@@ -71,8 +58,7 @@ function record(station: 'claude' | 'codex', userId: string, sessionId: string |
 
 /** Scan a line URI for `(station, userId, sessionId)` and record it. No-op on non-user or participant URIs. */
 export function noteUserFromLine(line: string): void {
-  const station = Line.station(line);
-  if (station !== 'claude' && station !== 'codex') return;
-  const p = station === 'claude' ? Line.parseClaude(line) : Line.parseCodex(line);
-  if (p) record(station, p.userId, p.sessionId);
+  if (Line.station(line) !== 'claude') return;
+  const p = Line.parseClaude(line);
+  if (p) record('claude', p.userId, p.sessionId);
 }

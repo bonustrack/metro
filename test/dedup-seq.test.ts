@@ -32,7 +32,7 @@ function emitAll(entries: HistoryEntry[], historyPath: string): HistoryEntry[] {
   process.stdout.write = (chunk: string) => { lines.push(chunk); return true; };
   const prevHist = process.env.METRO_STATE_DIR;
   try {
-    const emit = makeEmit(null, makeDedupSeq(historyPath));
+    const emit = makeEmit(makeDedupSeq(historyPath));
     for (const e of entries) emit(e);
   } finally {
     process.stdout.write = orig;

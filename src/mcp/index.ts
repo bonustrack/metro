@@ -406,11 +406,11 @@ const shortId = (id: string) => (id.length > 10 ? `${id.slice(0, 6)}…` : id)
 const allowedLines = new Set<string>()
 
 // --- Inbound dedupe ----------------------------------------------------------
-// The daemon runs multiple booted accounts (e.g. tony + codex) that sit in the
+// The daemon may run multiple booted accounts (e.g. tony + ben) that sit in the
 // SAME channels, so ONE real inbound message is written to history.jsonl ONCE
 // PER ACCOUNT: distinct top-level event `id`s, but identical station +
 // messageId + channel, differing only in the account segment of the `line`
-// (metro://discord/tony/<chan> vs metro://discord/codex/<chan>). The shared
+// (metro://discord/tony/<chan> vs metro://discord/ben/<chan>). The shared
 // /api/tail stream replays every entry, so without dedupe the model sees each
 // message twice (verified in history.jsonl: same messageId, two `line`s).
 //
@@ -603,7 +603,7 @@ async function handleEvent(ev: Record<string, unknown>) {
   const line = String(ev.line ?? '')
   const text = String(ev.text ?? '')
   // Per-account dedupe: the daemon writes the same inbound message once per
-  // booted account (tony/codex) that shares the channel, so /api/tail replays
+  // booted account (e.g. tony/ben) that shares the channel, so /api/tail replays
   // it twice with only the account segment of `line` differing. Drop the second
   // copy, keyed on station + account-stripped line + kind + messageId. Done here
   // (after the allowlist guard, before any surfacing/buffering) so it covers

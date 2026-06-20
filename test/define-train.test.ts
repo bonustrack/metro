@@ -76,12 +76,12 @@ describe('account boot', () => {
   test('boot populates ctx.accounts and actions can read them', async () => {
     const h = harness({
       name: 'multi',
-      accounts: () => [{ id: 'tony', client: 1 }, { id: 'codex', client: 2 }],
+      accounts: () => [{ id: 'tony', client: 1 }, { id: 'ben', client: 2 }],
       actions: { who: (_a, ctx) => [...ctx.accounts.keys()] },
     });
     await h.boot();
-    expect([...h.ctx.accounts.keys()]).toEqual(['tony', 'codex']);
+    expect([...h.ctx.accounts.keys()]).toEqual(['tony', 'ben']);
     await h.dispatch({ op: 'call', id: 'r5', action: 'who', args: {} });
-    expect((h.lines[0] as { result: string[] }).result).toEqual(['tony', 'codex']);
+    expect((h.lines[0] as { result: string[] }).result).toEqual(['tony', 'ben']);
   });
 });

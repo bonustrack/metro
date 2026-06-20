@@ -7,8 +7,8 @@ const PREFIX = 'metro://';
 const build = (station: string, ...seg: (string | number)[]): Line =>
   asLine(`${PREFIX}${station}/${seg.map(String).join('/')}`);
 
-/** Shared parser for `metro://{claude,codex}/<userId>/<sessionId>`. Skips the `/user/…` participant URI. */
-function parseLocalSession(line: Line | string, station: 'claude' | 'codex'): { userId: string; sessionId: string } | null {
+/** Parser for `metro://claude/<userId>/<sessionId>`. Skips the `/user/…` participant URI. */
+function parseLocalSession(line: Line | string, station: 'claude'): { userId: string; sessionId: string } | null {
   const p = Line.parse(line);
   if (p?.station !== station || p.path[0] === 'user' || p.path.length < 2) return null;
   return { userId: p.path[0], sessionId: p.path[1] };
@@ -42,7 +42,6 @@ export const Line = {
   telegram: (chatId: number | string, topicId?: number): Line =>
     topicId !== undefined ? build('telegram', chatId, topicId) : build('telegram', chatId),
   claude: (orgId: string, sessionId: string): Line => build('claude', orgId, sessionId),
-  codex: (accountId: string, threadId: string): Line => build('codex', accountId, threadId),
   webhook: (endpointId: string): Line => build('webhook', endpointId),
   /** Participant URI — `metro://<station>/user/<id>`. */
   user: (station: string, id: string | number): Line => build(station, 'user', id),
@@ -57,11 +56,7 @@ export const Line = {
   },
   station: (line: Line | string): string | null => Line.parse(line)?.station ?? null,
   parseClaude: (line: Line | string) => parseLocalSession(line, 'claude'),
-  parseCodex: (line: Line | string) => parseLocalSession(line, 'codex'),
-  isLocal: (line: Line | string): boolean => {
-    const s = Line.station(line);
-    return s === 'claude' || s === 'codex';
-  },
+  isLocal: (line: Line | string): boolean => Line.station(line) === 'claude',
 
   /** Split an xmtp line → `{accountId, resource}` (resource = conv id). New */
   /** `metro://xmtp/<account>/<conv>`; legacy `metro://xmtp/<conv>` → `default`. */
