@@ -1,6 +1,5 @@
 /** Dispatcher's plumbing: outbound event emission + train-envelope translation + HTTP receiver. */
 
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   createServer, type IncomingMessage, type Server, type ServerResponse,
 } from 'node:http';
@@ -16,30 +15,12 @@ import { passesMode } from '../broker/history-stream.js';
 import { readClaims } from '../broker/claims.js';
 import type { TrainEvent } from '../trains/protocol.js';
 import type { CodexRC } from '../codex-rc/client.js';
-import { findEndpoint, listEndpoints, webhookPort, type Endpoint } from '../tunnel.js';
-import { sessionOwner } from '../sessions.js';
+import { findEndpoint, listEndpoints, webhookPort } from '../tunnel.js';
+import { webhookEntry, verifyWebhookSig } from '../stations/webhook/receive.js';
 import { makeDedupSeq, type DedupSeq } from './dedup-seq.js';
 import { HISTORY_FILE } from '../paths.js';
 
 type Emit = (entry: HistoryEntry) => void;
-
-/** Build the HistoryEntry minted for an inbound webhook hit. Pure so the */
-/** session-attribution rule is unit-testable. `to` is the endpoint's bound */
-/** session owner when `endpoint.session` is set, else the webhook line itself */
-/** (today's behavior — ADDITIVE: no binding ⇒ identical event). */
-export function webhookEntry(
-  endpoint: Endpoint, headers: Record<string, string>, body: unknown, method: string, url: string,
-): HistoryEntry {
-  const line = Line.webhook(endpoint.id);
-  return {
-    id: mintId(), ts: new Date().toISOString(), station: 'webhook',
-    line, lineName: endpoint.label, from: line,
-    to: endpoint.session ? sessionOwner(endpoint.session) : line,
-    messageId: headers['x-github-delivery'] || headers['x-request-id'] || randomUUID(),
-    text: `${headers['x-github-event'] ?? headers['x-intercom-topic'] ?? 'event'} ${method} ${url}`,
-    payload: { headers, body },
-  };
-}
 
 export function makeEmit(codexRc: CodexRC | null, dedupSeq?: DedupSeq): Emit {
   /** Inbound dedup + per-line seq. Seeded from the history tail (warm-start) so a */
@@ -166,7 +147,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse, emit: Em
   const headers = Object.fromEntries(
     Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : v ?? '']),
   );
-  if (endpoint.secret && !verifySig(endpoint.secret, raw, headers['x-hub-signature-256'])) {
+  if (endpoint.secret && !verifyWebhookSig(endpoint.secret, raw, headers['x-hub-signature-256'])) {
     log.warn({ endpoint: endpointId }, 'webhook signature mismatch — rejecting');
     res.writeHead(401).end('signature mismatch');
     return;
@@ -176,11 +157,4 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse, emit: Em
 
   emit(webhookEntry(endpoint, headers, body, req.method ?? 'POST', req.url ?? ''));
   res.writeHead(200).end('ok');
-}
-
-function verifySig(secret: string, raw: Buffer, header?: string): boolean {
-  if (!header?.startsWith('sha256=')) return false;
-  const given = Buffer.from(header.slice(7), 'hex');
-  const want = createHmac('sha256', secret).update(raw).digest();
-  return given.length === want.length && timingSafeEqual(given, want);
 }
