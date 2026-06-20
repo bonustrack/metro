@@ -9,6 +9,12 @@ set -e
 
 mkdir -p "$HOME/.metro" "$HOME/.cache/metro" "$METRO_TRAINS_DIR"
 
+# Clear any stale singleton lock from an ungraceful stop. Safe on Fly: the
+# single-attach volume guarantees one machine (one metro) at a time, so there's
+# never a real concurrent holder — but the PID-liveness check is unreliable across
+# container restarts (PIDs get reused), so a leftover lock would wrongly block boot.
+rm -f "${METRO_STATE_DIR:-$HOME/.cache/metro}/.tail-lock"
+
 if [ -n "$MNEMONIC" ]; then
   echo "import '/app/src/stations/xmtp/index.ts';" > "$METRO_TRAINS_DIR/xmtp.ts"
 fi
