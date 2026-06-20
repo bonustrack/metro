@@ -114,7 +114,10 @@ async function shutdown(): Promise<void> {
   await supervisor.stop();
   process.exit(0);
 }
-process.stdin.on('end', shutdown).on('close', shutdown);
+/** Opt-in: shut down when stdin closes (supervised mode). OFF by default so a
+ *  standalone/containerized daemon (Fly, `docker run -d`, stdin EOF at start) stays
+ *  up — SIGINT/SIGTERM still shut down gracefully. */
+if (process.env.METRO_STDIN_SHUTDOWN === '1') process.stdin.on('end', shutdown).on('close', shutdown);
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, shutdown);
 
 await main();
