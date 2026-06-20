@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { webhookEntry } from '../src/dispatcher/server.ts';
+import { webhookEntry } from '../src/stations/webhook/receive.ts';
 import { passesMode } from '../src/broker/history-stream.ts';
 import { sessionOwner } from '../src/sessions.ts';
 import { Line, asLine } from '../src/lines.ts';
