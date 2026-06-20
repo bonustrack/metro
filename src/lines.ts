@@ -19,7 +19,7 @@ function parseLocalSession(line: Line | string, station: 'claude' | 'codex'): { 
 /** `metro://<station>/<resource>` → the `default` account. Two segments → new; */
 /** one → legacy; anything else → null (matches the old anchored `^…/<a>/<b>$` / */
 /** `^…/<b>$` regexes). `validate(resource)` lets discord require a snowflake. */
-function parseAccountScoped(
+export function parseAccountScoped(
   line: Line | string,
   station: string,
   validate?: (resource: string) => boolean,

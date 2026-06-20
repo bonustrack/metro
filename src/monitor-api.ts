@@ -12,6 +12,7 @@ import { ipcCall } from './ipc.js';
 import { asLine, Line } from './lines.js';
 import { errMsg, log } from './log.js';
 import { readBotIds } from './paths.js';
+import { accountStationNames } from './stations/registry.js';
 
 /** Monitor endpoints answer only on dedicated hostnames so webhook tunnel can't double-serve them. */
 const MONITOR_HOSTS = new Set(
@@ -126,17 +127,12 @@ function nonNegInt(raw: string | null): number | null {
   return Number.isInteger(n) && n >= 0 ? n : null;
 }
 
-/** Stations queried for the public accounts view. Each exposes an `accounts`
- *  read action returning PUBLIC identity only (ids + addresses/usernames/botIds,
- *  never tokens/keys/mnemonic). A station that is down/unknown contributes []. */
-const ACCOUNT_STATIONS = ['xmtp', 'discord', 'telegram'] as const;
-
-/** Fan the `accounts` read action out to every station via the daemon IPC and
- *  collect the public account descriptors keyed by station. Best-effort: a down
- *  train yields [] rather than failing the response (keeps /health reliable). */
+/** Fan the `accounts` read out to every account-bearing station (from the registry)
+ *  and collect PUBLIC descriptors keyed by station (ids/addresses/usernames only,
+ *  never tokens/keys). Best-effort: a down train yields [] (keeps /health reliable). */
 export async function gatherAccounts(): Promise<Record<string, unknown[]>> {
   const out: Record<string, unknown[]> = {};
-  await Promise.all(ACCOUNT_STATIONS.map(async station => {
+  await Promise.all(accountStationNames().map(async station => {
     try {
       const resp = await ipcCall({ op: 'forward-call', train: station, action: 'accounts', args: {} });
       const accounts = resp.ok && 'response' in resp
@@ -149,8 +145,8 @@ export async function gatherAccounts(): Promise<Record<string, unknown[]>> {
 }
 
 /** GET /health (and /api/health) — PUBLIC liveness + configured-accounts view.
- *  Exposes ONLY non-secret identity (XMTP/Discord/Telegram ids, addresses,
- *  usernames). NEVER tokens, private keys, or the mnemonic. */
+ *  Exposes ONLY non-secret station identity (ids, addresses, usernames). NEVER
+ *  tokens, private keys, or the mnemonic. */
 async function handleHealth(res: ServerResponse, req: IncomingMessage): Promise<void> {
   const accounts = await gatherAccounts();
   send(res, req, 200, {

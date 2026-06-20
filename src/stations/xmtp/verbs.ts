@@ -7,8 +7,8 @@
 // channel-meta writes, closeGroup, push) also change remote state but are not
 // identity-send-guarded.
 
-import { v } from './schema.js';
-import { line, type VerbDecl } from './registry-types.js';
+import { v } from '../../schema.js';
+import { line, type VerbDecl } from '../../registry-types.js';
 
 const acct = v.optional(v.string());
 
