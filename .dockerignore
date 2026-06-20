@@ -4,9 +4,10 @@
 # Rebuilt in the image.
 node_modules
 dist
-# Not needed at runtime.
+# Not needed at runtime. (*.md excluded so docs-only pushes don't rebuild/redeploy.)
 .git
 .github
 test
+*.md
 *.log
 .DS_Store
