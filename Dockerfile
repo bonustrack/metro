@@ -5,6 +5,11 @@ FROM oven/bun:1.3.9
 
 WORKDIR /app
 
+# The XMTP native (Rust) binding uses the SYSTEM cert store for its gRPC TLS, but the
+# oven/bun image ships without ca-certificates — install them or XMTP can't connect.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # 1) Runtime deps only (cached unless package.json/bun.lock change). Bun transpiles
 #    TS at runtime, so devDeps (tsc/eslint) are not needed in the image.
 COPY package.json bun.lock ./
