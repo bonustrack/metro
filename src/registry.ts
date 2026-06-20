@@ -1,7 +1,8 @@
 // VERB REGISTRY — single source of truth for Metro station/core verbs.
 //
-// Each verb is declared once (in registry-xmtp.ts / registry-chat.ts / below)
-// with {name, owner, kind:read|mutate, inputSchema, description, example,
+// Each verb is declared once — in its station's module (src/stations/<name>/verbs.ts,
+// aggregated via the station registry) or in CORE_VERBS below — with
+// {name, owner, kind:read|mutate, inputSchema, description, example,
 // idempotent}. That ONE declaration feeds:
 //   - `metro schema` / `metro verbs` introspection (human table + --json),
 //   - the send-guard's guarded-action set (DERIVED here via guardedVerbs() — the
@@ -14,8 +15,7 @@
 // ADDITIVE + behavior-preserving: the registry now drives the guard set and call
 // validation, but the guarded set and accepted/rejected args are unchanged.
 
-import { XMTP_VERBS } from './registry-xmtp.js';
-import { DISCORD_VERBS, TELEGRAM_VERBS } from './registry-chat.js';
+import { STATIONS } from './stations/registry.js';
 import { SchemaError } from './schema.js';
 import type { VerbDecl, VerbOwner } from './registry-types.js';
 
@@ -54,7 +54,7 @@ const CORE_VERBS: VerbDecl[] = [
 
 /** The full registry: the single source of truth for station + core verbs. */
 export const VERB_REGISTRY: readonly VerbDecl[] = Object.freeze([
-  ...XMTP_VERBS, ...DISCORD_VERBS, ...TELEGRAM_VERBS, ...CORE_VERBS,
+  ...STATIONS.flatMap(s => s.verbs), ...CORE_VERBS,
 ]);
 
 /** All verbs for a given owner (station or 'core'). */

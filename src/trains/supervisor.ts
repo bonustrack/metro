@@ -17,9 +17,9 @@ import {
 
 export const TRAINS_DIR = process.env.METRO_TRAINS_DIR ?? join(homedir(), '.metro', 'trains');
 
-/** macOS: @xmtp/node-bindings ships a Nix-built darwin binary linking a dead
- *  /nix/store/…/libiconv path; set the dyld fallback to the system libiconv so the
- *  xmtp train's dlopen resolves it. Must be in the spawn env, not a runtime mutation. */
+/** macOS: some station native bindings ship a Nix-built darwin binary linking a dead
+ *  /nix/store/…/libiconv path; point the dyld fallback at the system libiconv so the
+ *  train's dlopen resolves it. Must be in the spawn env, not a runtime mutation. */
 const DYLD_FALLBACK_ENV: Record<string, string> = process.platform === 'darwin'
   ? { DYLD_FALLBACK_LIBRARY_PATH: ['/usr/lib', process.env.DYLD_FALLBACK_LIBRARY_PATH].filter(Boolean).join(':') }
   : {};

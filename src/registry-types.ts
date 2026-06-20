@@ -8,8 +8,10 @@ import { v, type Validator } from './schema.js';
 /** Read vs mutate. `mutate` = sends/changes remote state under an identity. */
 export type VerbKind = 'read' | 'mutate';
 
-/** Where a verb runs: a platform station, or Metro core (the daemon itself). */
-export type VerbOwner = 'xmtp' | 'discord' | 'telegram' | 'core';
+/** Where a verb runs: a station name (e.g. the `metro://<owner>/…` host), or the
+ *  literal `'core'` for daemon-level verbs. Station-neutral by design — core never
+ *  enumerates the platforms; each station declares its own verbs (see registry.ts). */
+export type VerbOwner = 'core' | (string & {});
 
 /** One declared verb. `inputSchema` is an optional runtime validator (the same
  *  tiny combinator the control verbs use). `idempotent` answers "does presenting
@@ -21,9 +23,9 @@ export type VerbDecl = {
   readonly owner: VerbOwner;
   /** read = no remote write; mutate = writes/sends under an account identity. */
   readonly kind: VerbKind;
-  /** Identity send-guard flag (xmtp only): true for send-bearing verbs that emit
-   *  under an account's identity. NARROWER than `mutate` (channel-meta/push are
-   *  mutate but not guarded). cli/send-guard.ts derives its set from this flag. */
+  /** Identity send-guard flag: true for send-bearing verbs that emit under an
+   *  account's identity. NARROWER than `mutate` (some mutates aren't guarded). The
+   *  send-guard derives its guarded-action set from this flag. */
   readonly guarded?: boolean;
   /** Optional arg validator. Omitted where args are free-form / not yet typed. */
   readonly inputSchema?: Validator<unknown>;
