@@ -1,0 +1,48 @@
+# Fly.io deployment for metro.
+#
+# ONE always-on machine + a single-attach volume. The volume can attach to only one
+# machine, which ENFORCES XMTP's single-writer rule for free; disk-backed deploys
+# replace the machine in place (the old one stops before the new starts), so there is
+# never a moment with two writers on the same inbox.
+#
+# Change `app` to your own unique name (or run `fly launch` to generate one).
+
+app = "metro"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HOME = "/data"
+  METRO_HTTP_HOST = "0.0.0.0"
+  METRO_TRAINS_DIR = "/app/trains"
+  METRO_LOG_LEVEL = "info"
+  # METRO_STATE_DIR defaults to $HOME/.cache/metro → persisted on the volume.
+
+# Secrets are NOT stored here — set them with `fly secrets set` (see DEPLOY.md):
+#   MNEMONIC, TELEGRAM_BOT_TOKENS, DISCORD_BOT_TOKENS, METRO_MCP_HTTP_TOKEN
+
+[http_service]
+  internal_port = 8420
+  force_https = true
+  # ALWAYS-ON: metro holds XMTP streams + Telegram long-poll; never let Fly stop the
+  # machine, and never run more than one (single-writer).
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "45s"
+
+[mounts]
+  source = "metro_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"   # bump (2gb+) as you add XMTP accounts — each is a live client

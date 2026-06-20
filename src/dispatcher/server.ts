@@ -132,8 +132,11 @@ export async function startWebhookServer(emit: Emit, mcp?: McpHandler): Promise<
   });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, '127.0.0.1', () => {
-      log.info({ port, endpoints: listEndpoints().length, mcp: mcp ? '/' : 'off' }, 'webhook + monitor + mcp ready');
+    /** Bind 127.0.0.1 by default (local safety); set METRO_HTTP_HOST=0.0.0.0 when a
+     *  platform proxy (Fly, etc.) must reach the app on the machine's network. */
+    const host = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
+    server.listen(port, host, () => {
+      log.info({ host, port, endpoints: listEndpoints().length, mcp: mcp ? '/' : 'off' }, 'webhook + monitor + mcp ready');
       resolve();
     });
   });
