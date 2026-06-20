@@ -1,26 +1,12 @@
-/** Telegram train — MULTI-BOT (mirrors the live multi-account xmtp train). */
-//
-// Boots N bots from ~/.metro/telegram-accounts.json (one long-poll loop per
-// token). Lines are account-scoped metro://telegram/<acct>/<chatId>[/<topic>];
-// legacy metro://telegram/<chatId> still parses (→ default/first account).
-//
-// Inbound events carry payload.account; if the account declares an `owner`, `to`
-// is set to it so a session tailing `--as <owner> --strict` sees only that bot's
-// feed (feed isolation). Outbound actions take an optional `account`.
-//
-// MULTI-BOT POLLING: getUpdates is scoped to one token, and different bots have
-// different tokens, so N poll loops don't conflict — each sees only its bot. A
-// 409 ("terminated by other getUpdates") happens only when two clients poll the
-// SAME token or a webhook is set on a polled token. We therefore reject duplicate
-// tokens at load and clear any stale webhook per token at boot.
-//
-// If telegram-accounts.json is absent, accounts are synthesized from
-// $TELEGRAM_BOT_TOKENS (one bot per comma-separated token, ids t0..tN).
-
 import { accounts, loadAccounts, tg, type Account } from './accounts.js';
 import { emit } from './wire.js';
 import {
-  emitInbound, envelope, reactionEnvelope, saveMediaAndEmit, type TgMsg, type TgReaction,
+  emitInbound,
+  envelope,
+  reactionEnvelope,
+  saveMediaAndEmit,
+  type TgMsg,
+  type TgReaction,
 } from './format.js';
 import { handleCall, type CallMsg } from './actions.js';
 
@@ -36,25 +22,40 @@ process.stdin.on('data', (chunk: Buffer | string) => {
     try {
       const msg = JSON.parse(line) as Partial<CallMsg>;
       if (msg.op === 'call') void handleCall(msg as CallMsg);
+    } catch (err: unknown) {
+      process.stderr.write(`bad stdin line: ${(err as Error).message}\n`);
     }
-    catch (err: unknown) { process.stderr.write(`bad stdin line: ${(err as Error).message}\n`); }
   }
 });
 
-interface Update { update_id: number; message?: TgMsg; message_reaction?: TgReaction }
+interface Update {
+  update_id: number;
+  message?: TgMsg;
+  message_reaction?: TgReaction;
+}
 
-/** One account's poll loop, isolated so a crash in one bot doesn't down the train. */
 async function runAccount(acct: Account): Promise<void> {
   const { id } = acct.cfg;
-  // Clear any stale webhook so getUpdates won't 409. Each bot's token owns its own
-  // webhook state, so this is per-account and safe.
-  try { await tg(id, 'deleteWebhook', { drop_pending_updates: false }); }
-  catch (err) { process.stderr.write(`telegram[${id}] deleteWebhook: ${(err as Error).message}\n`); }
+  try {
+    await tg(id, 'deleteWebhook', { drop_pending_updates: false });
+  } catch (err) {
+    process.stderr.write(
+      `telegram[${id}] deleteWebhook: ${(err as Error).message}\n`,
+    );
+  }
 
   for (;;) {
     try {
-      const updates = await tg<Update[]>(id, 'getUpdates',
-        { offset: acct.offset, timeout: 25, allowed_updates: ['message', 'message_reaction'] }, 60_000);
+      const updates = await tg<Update[]>(
+        id,
+        'getUpdates',
+        {
+          offset: acct.offset,
+          timeout: 25,
+          allowed_updates: ['message', 'message_reaction'],
+        },
+        60_000,
+      );
       for (const u of updates) {
         acct.offset = u.update_id + 1;
         if (u.message && !u.message.from?.is_bot) {
@@ -68,8 +69,10 @@ async function runAccount(acct: Account): Promise<void> {
         }
       }
     } catch (err) {
-      process.stderr.write(`telegram[${id}] poll error: ${(err as Error).message}\n`);
-      await new Promise(r => setTimeout(r, 2_000));
+      process.stderr.write(
+        `telegram[${id}] poll error: ${(err as Error).message}\n`,
+      );
+      await new Promise((r) => setTimeout(r, 2_000));
     }
   }
 }
@@ -83,8 +86,12 @@ for (const cfg of cfgs) {
     offset: 0,
   });
 }
-if (accounts.size === 0) { process.stderr.write('telegram: no accounts booted, exiting\n'); process.exit(2); }
+if (accounts.size === 0) {
+  process.stderr.write('telegram: no accounts booted, exiting\n');
+  process.exit(2);
+}
 process.stderr.write(
-  `telegram train ready (multi) — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`);
+  `telegram train ready (multi) — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
+);
 
 for (const acct of accounts.values()) void runAccount(acct);

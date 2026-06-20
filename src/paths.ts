@@ -1,25 +1,31 @@
 import {
-  closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync, writeSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+  writeSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import type { Line } from './lines.js';
 
-export const STATE_DIR = process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
+export const STATE_DIR =
+  process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
 mkdirSync(STATE_DIR, { recursive: true });
 
-/** Append-only JSONL message log. Single source of truth — import everywhere, never re-derive. */
 export const HISTORY_FILE = join(STATE_DIR, 'history.jsonl');
 
-export const CONFIG_DIR = process.env.METRO_CONFIG_DIR ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'metro');
+export const CONFIG_DIR =
+  process.env.METRO_CONFIG_DIR ??
+  join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'metro');
 export const CONFIG_ENV_FILE = join(CONFIG_DIR, '.env');
 
-/** Train-owned env file. Trains read their tokens from here (passed through via process.env). */
 export const TRAINS_ENV_FILE = join(homedir(), '.metro', '.env');
 
-/** Ordered env sources, lowest index = highest precedence (first-set wins in loadMetroEnv). */
-/** Mirrors the loadMetroEnv loop so `metro doctor` can report WHICH file defines each key. */
 export const envSources = (): readonly { label: string; path: string }[] => [
   { label: 'cwd/.env', path: join(process.cwd(), '.env') },
   { label: '~/.metro/.env', path: TRAINS_ENV_FILE },
@@ -39,8 +45,6 @@ export function readDotenv(path: string): Record<string, string> {
   return out;
 }
 
-/** Precedence: process.env > cwd/.env > ~/.metro/.env > $METRO_CONFIG_DIR/.env. First-set wins. */
-/** ~/.metro/.env is the canonical location for train credentials. */
 export function loadMetroEnv(): void {
   for (const { path } of envSources()) {
     for (const [k, v] of Object.entries(readDotenv(path))) {
@@ -49,43 +53,58 @@ export function loadMetroEnv(): void {
   }
 }
 
-/** Singleton pidfile. Exits if a live instance owns it; reclaims stale locks. */
-/** Uses O_EXCL create so two near-simultaneous starts can't BOTH win the lock */
-/** (the old check-then-write TOCTOU let two dispatchers race onto one socket). */
-/** On EEXIST inspect the holder: alive ⇒ exit, stale ⇒ reclaim + retry. */
 export function acquireLock(lockFile: string): void {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const fd = openSync(lockFile, 'wx'); // O_CREAT | O_EXCL — fails if it exists
+      const fd = openSync(lockFile, 'wx');
       writeSync(fd, String(process.pid));
       closeSync(fd);
       process.on('exit', () => {
-        try { if (readFileSync(lockFile, 'utf8').trim() === String(process.pid)) unlinkSync(lockFile); }
-        catch { /* ignore */ }
+        try {
+          if (readFileSync(lockFile, 'utf8').trim() === String(process.pid))
+            unlinkSync(lockFile);
+        } catch {
+          /* ignore */
+        }
       });
       return;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
-      /** Someone holds the lock — is it alive? */
       let pid = NaN;
-      try { pid = Number(readFileSync(lockFile, 'utf8').trim()); } catch { /* unreadable — treat as stale */ }
+      try {
+        pid = Number(readFileSync(lockFile, 'utf8').trim());
+      } catch {
+        /* unreadable — treat as stale */
+      }
       try {
         if (Number.isInteger(pid) && pid > 0) {
-          process.kill(pid, 0); // throws if dead
-          log.info({ pid }, 'a healthy `metro` daemon is already running; exiting (no second dispatcher)');
+          process.kill(pid, 0);
+          log.info(
+            { pid },
+            'a healthy `metro` daemon is already running; exiting (no second dispatcher)',
+          );
           process.exit(0);
         }
-      } catch { /* dead/unreadable → stale */ }
-      /** Stale lock — reclaim and retry the O_EXCL create on the next loop. */
-      try { unlinkSync(lockFile); } catch { /* lost the race to another reclaimer; retry */ }
+      } catch {
+        /* dead/unreadable → stale */
+      }
+      try {
+        unlinkSync(lockFile);
+      } catch {
+        /* lost the race to another reclaimer; retry */
+      }
     }
   }
-  throw new Error(`metro: could not acquire dispatcher lock (${lockFile}) after retries`);
+  throw new Error(
+    `metro: could not acquire dispatcher lock (${lockFile}) after retries`,
+  );
 }
 
-/* ──────────── caches: seen lines (lines.json) + bot ids (bot-ids.json) ──────────── */
-
-interface Entry { createdAt: string; lastSeenAt?: string; name?: string }
+interface Entry {
+  createdAt: string;
+  lastSeenAt?: string;
+  name?: string;
+}
 type Cache = Record<string, Entry>;
 
 const cacheFile = join(STATE_DIR, 'lines.json');
@@ -96,10 +115,14 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 function readCache(): Cache {
   if (cache) return cache;
-  if (!existsSync(cacheFile)) return cache = {};
-  try { cache = JSON.parse(readFileSync(cacheFile, 'utf8')) as Cache; }
-  catch (err) {
-    log.warn({ err: errMsg(err), path: cacheFile }, 'lines cache read failed; treating as empty');
+  if (!existsSync(cacheFile)) return (cache = {});
+  try {
+    cache = JSON.parse(readFileSync(cacheFile, 'utf8')) as Cache;
+  } catch (err) {
+    log.warn(
+      { err: errMsg(err), path: cacheFile },
+      'lines cache read failed; treating as empty',
+    );
     cache = {};
   }
   return cache;
@@ -107,26 +130,40 @@ function readCache(): Cache {
 
 function flush(): void {
   if (!dirty || !cache) return;
-  try { writeFileSync(cacheFile, JSON.stringify(cache, null, 2)); dirty = false; }
-  catch (err) { log.warn({ err: errMsg(err), path: cacheFile }, 'lines cache write failed'); }
+  try {
+    writeFileSync(cacheFile, JSON.stringify(cache, null, 2));
+    dirty = false;
+  } catch (err) {
+    log.warn({ err: errMsg(err), path: cacheFile }, 'lines cache write failed');
+  }
 }
 process.on('exit', flush);
 
 export function noteSeen(line: Line, name?: string): void {
   const c = readCache();
-  const entry = c[line] ??= { createdAt: new Date().toISOString() };
+  const entry = (c[line] ??= { createdAt: new Date().toISOString() });
   entry.lastSeenAt = new Date().toISOString();
   if (name && entry.name !== name) entry.name = name;
   dirty = true;
-  flushTimer ??= setTimeout(() => { flushTimer = null; flush(); }, FLUSH_DELAY_MS);
+  flushTimer ??= setTimeout(() => {
+    flushTimer = null;
+    flush();
+  }, FLUSH_DELAY_MS);
 }
 
 export const listLines = (): { line: Line; entry: Entry }[] =>
-  Object.entries(readCache()).map(([line, entry]) => ({ line: line as Line, entry }));
+  Object.entries(readCache()).map(([line, entry]) => ({
+    line: line as Line,
+    entry,
+  }));
 
-/** Bot identity cache: `{discord: "<userId>", telegram: "<userId>"}`. Trains may populate this. */
 const botIdsFile = join(STATE_DIR, 'bot-ids.json');
 export const readBotIds = (): Record<string, string> => {
-  try { return existsSync(botIdsFile) ? JSON.parse(readFileSync(botIdsFile, 'utf8')) as Record<string, string> : {}; }
-  catch { return {}; }
+  try {
+    return existsSync(botIdsFile)
+      ? (JSON.parse(readFileSync(botIdsFile, 'utf8')) as Record<string, string>)
+      : {};
+  } catch {
+    return {};
+  }
 };

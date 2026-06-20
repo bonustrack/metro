@@ -1,6 +1,3 @@
-/** updateChannelMeta — ONE generic action to update a channel's name /
- *  description / appData. setLabels + setGithub are thin wrappers over this. */
-
 import { accountForCall, convOf, lineOf } from './accounts.js';
 import { respond } from './wire.js';
 import { warmGroupName } from './conv-name.js';
@@ -9,7 +6,6 @@ import { TrainError } from '../../train-error.js';
 
 type Args = Record<string, unknown>;
 
-/** Resolve a `line` from explicit line|groupId (groupId scoped to the call's account). */
 export function resolveLine(args: Args, verb: string): string {
   const line = (args as { line?: string }).line;
   if (line) return line;
@@ -18,30 +14,46 @@ export function resolveLine(args: Args, verb: string): string {
     const acct = accountForCall(args);
     return lineOf(acct.cfg.id, groupId);
   }
-  throw new TrainError('INVALID_ARGS', `${verb} requires \`line\` or \`groupId\``);
+  throw new TrainError(
+    'INVALID_ARGS',
+    `${verb} requires \`line\` or \`groupId\``,
+  );
 }
 
-/** Core mutation shared by updateChannelMeta + the setLabels/setGithub wrappers.
- *  Resolves the group, optionally updates name/description, and merges `appData`
- *  (validating/cleaning github + labels). Returns the result payload. */
 export async function applyChannelMeta(
-  args: { line: string; name?: string; description?: string; appData?: Record<string, unknown> },
+  args: {
+    line: string;
+    name?: string;
+    description?: string;
+    appData?: Record<string, unknown>;
+  },
   verb: string,
 ): Promise<Record<string, unknown>> {
   const { line, name, description, appData } = args;
   const { acct, conv } = await convOf(line);
-  if (!conv) throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
+  if (!conv)
+    throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
   const group = conv as unknown as GroupLike;
   if (typeof group.updateAppData !== 'function') {
-    throw new TrainError('INVALID_ARGS', `${verb} target is not a group (no updateAppData)`);
+    throw new TrainError(
+      'INVALID_ARGS',
+      `${verb} target is not a group (no updateAppData)`,
+    );
   }
   await group.sync?.().catch(() => undefined);
 
-  if (typeof name === 'string' && name && typeof group.updateName === 'function') {
+  if (
+    typeof name === 'string' &&
+    name &&
+    typeof group.updateName === 'function'
+  ) {
     await group.updateName(name);
     warmGroupName(group.id, name);
   }
-  if (typeof description === 'string' && typeof group.updateDescription === 'function') {
+  if (
+    typeof description === 'string' &&
+    typeof group.updateDescription === 'function'
+  ) {
     await group.updateDescription(description);
   }
 
@@ -54,21 +66,34 @@ export async function applyChannelMeta(
     merged = readAppData(group.appData);
   }
 
-  const labels = Array.isArray(merged.labels) ? (merged.labels as string[]) : [];
-  const github = typeof merged.github === 'string' ? (merged.github) : undefined;
-  const preview = typeof merged.preview === 'string' ? (merged.preview) : undefined;
+  const labels = Array.isArray(merged.labels)
+    ? (merged.labels as string[])
+    : [];
+  const github = typeof merged.github === 'string' ? merged.github : undefined;
+  const preview =
+    typeof merged.preview === 'string' ? merged.preview : undefined;
   return {
-    line, id: group.id, account: acct.cfg.id,
+    line,
+    id: group.id,
+    account: acct.cfg.id,
     ...(typeof name === 'string' && name ? { name } : {}),
-    labels, github, preview, appData: merged,
+    labels,
+    github,
+    preview,
+    appData: merged,
   };
 }
 
-/** Generic channel-metadata update: name, description, and/or a merged appData patch. */
 export async function updateChannelMeta(id: string, args: Args): Promise<void> {
   const line = resolveLine(args, 'updateChannelMeta');
   const { name, description, appData } = args as {
-    name?: string; description?: string; appData?: Record<string, unknown> };
-  const result = await applyChannelMeta({ line, name, description, appData }, 'updateChannelMeta');
+    name?: string;
+    description?: string;
+    appData?: Record<string, unknown>;
+  };
+  const result = await applyChannelMeta(
+    { line, name, description, appData },
+    'updateChannelMeta',
+  );
   respond(id, { result });
 }

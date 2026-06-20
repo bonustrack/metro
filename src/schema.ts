@@ -1,12 +1,10 @@
-// Typed metro-call + METRO_CTRL schema (#16). One runtime-validated schema for the
-// control verbs (both call-arg and `METRO_CTRL:verb:{json}` paths) so CLI and trains
-// validate identically. Zero-dependency: a tiny validator combinator (no zod).
-
-/* ──────────── tiny runtime validator ──────────── */
-
 export type Validator<T> = (v: unknown, path?: string) => T;
 export class SchemaError extends Error {
-  constructor(public path: string, public expected: string, public got: unknown) {
+  constructor(
+    public path: string,
+    public expected: string,
+    public got: unknown,
+  ) {
     super(`${path || 'value'}: expected ${expected}, got ${describe(got)}`);
     this.name = 'SchemaError';
   }
@@ -18,49 +16,72 @@ function describe(v: unknown): string {
 }
 
 export const v = {
-  string: (opts?: { min?: number; max?: number }): Validator<string> => (val, path = '') => {
-    if (typeof val !== 'string') throw new SchemaError(path, 'string', val);
-    if (opts?.min !== undefined && val.length < opts.min) throw new SchemaError(path, `string ≥ ${opts.min} chars`, val);
-    if (opts?.max !== undefined && val.length > opts.max) throw new SchemaError(path, `string ≤ ${opts.max} chars`, val);
-    return val;
-  },
-  number: (): Validator<number> => (val, path = '') => {
-    if (typeof val !== 'number' || !Number.isFinite(val)) throw new SchemaError(path, 'finite number', val);
-    return val;
-  },
-  boolean: (): Validator<boolean> => (val, path = '') => {
-    if (typeof val !== 'boolean') throw new SchemaError(path, 'boolean', val);
-    return val;
-  },
-  literal: <const L extends string>(...lits: L[]): Validator<L> => (val, path = '') => {
-    if (typeof val !== 'string' || !lits.includes(val as L)) throw new SchemaError(path, `one of ${lits.map(l => `'${l}'`).join(', ')}`, val);
-    return val as L;
-  },
-  array: <T>(item: Validator<T>): Validator<T[]> => (val, path = '') => {
-    if (!Array.isArray(val)) throw new SchemaError(path, 'array', val);
-    return val.map((x, i) => item(x, `${path}[${i}]`));
-  },
-  optional: <T>(inner: Validator<T>): Validator<T | undefined> => (val, path = '') =>
-    val === undefined || val === null ? undefined : inner(val, path),
-  /** Object with a fixed shape. Unknown keys are dropped. */
-  object: <S extends Record<string, Validator<unknown>>>(shape: S): Validator<{ [K in keyof S]: ReturnType<S[K]> }> =>
+  string:
+    (opts?: { min?: number; max?: number }): Validator<string> =>
     (val, path = '') => {
-      if (typeof val !== 'object' || val === null || Array.isArray(val)) throw new SchemaError(path, 'object', val);
+      if (typeof val !== 'string') throw new SchemaError(path, 'string', val);
+      if (opts?.min !== undefined && val.length < opts.min)
+        throw new SchemaError(path, `string ≥ ${opts.min} chars`, val);
+      if (opts?.max !== undefined && val.length > opts.max)
+        throw new SchemaError(path, `string ≤ ${opts.max} chars`, val);
+      return val;
+    },
+  number:
+    (): Validator<number> =>
+    (val, path = '') => {
+      if (typeof val !== 'number' || !Number.isFinite(val))
+        throw new SchemaError(path, 'finite number', val);
+      return val;
+    },
+  boolean:
+    (): Validator<boolean> =>
+    (val, path = '') => {
+      if (typeof val !== 'boolean') throw new SchemaError(path, 'boolean', val);
+      return val;
+    },
+  literal:
+    <const L extends string>(...lits: L[]): Validator<L> =>
+    (val, path = '') => {
+      if (typeof val !== 'string' || !lits.includes(val as L))
+        throw new SchemaError(
+          path,
+          `one of ${lits.map((l) => `'${l}'`).join(', ')}`,
+          val,
+        );
+      return val as L;
+    },
+  array:
+    <T>(item: Validator<T>): Validator<T[]> =>
+    (val, path = '') => {
+      if (!Array.isArray(val)) throw new SchemaError(path, 'array', val);
+      return val.map((x, i) => item(x, `${path}[${i}]`));
+    },
+  optional:
+    <T>(inner: Validator<T>): Validator<T | undefined> =>
+    (val, path = '') =>
+      val === undefined || val === null ? undefined : inner(val, path),
+  object:
+    <S extends Record<string, Validator<unknown>>>(
+      shape: S,
+    ): Validator<{ [K in keyof S]: ReturnType<S[K]> }> =>
+    (val, path = '') => {
+      if (typeof val !== 'object' || val === null || Array.isArray(val))
+        throw new SchemaError(path, 'object', val);
       const src = val as Record<string, unknown>;
       const out: Record<string, unknown> = {};
-      for (const k of Object.keys(shape)) out[k] = shape[k](src[k], path ? `${path}.${k}` : k);
+      for (const k of Object.keys(shape))
+        out[k] = shape[k](src[k], path ? `${path}.${k}` : k);
       return out as { [K in keyof S]: ReturnType<S[K]> };
     },
 };
-
-/* ──────────── METRO_CTRL prefix (shared with apps/app/lib/pushRegister.ts) ──────────── */
 
 export const METRO_CTRL_PREFIX = 'METRO_CTRL:';
 export const isControlPayload = (text: unknown): text is string =>
   typeof text === 'string' && text.startsWith(METRO_CTRL_PREFIX);
 
-/** Split a `METRO_CTRL:<verb>:<json>` body into `{ verb, json }`. Returns null if not a control payload. */
-export function parseControl(text: unknown): { verb: string; rawJson: string } | null {
+export function parseControl(
+  text: unknown,
+): { verb: string; rawJson: string } | null {
   if (!isControlPayload(text)) return null;
   const rest = text.slice(METRO_CTRL_PREFIX.length);
   const colon = rest.indexOf(':');
@@ -68,9 +89,6 @@ export function parseControl(text: unknown): { verb: string; rawJson: string } |
   return { verb: rest.slice(0, colon), rawJson: rest.slice(colon + 1) };
 }
 
-/* ──────────── verb schemas ──────────── */
-
-/** register-push payload — identical shape whether sent as a call arg or a METRO_CTRL DM. */
 export const RegisterPushSchema = v.object({
   token: v.string({ min: 20 }),
   account: v.optional(v.string()),
@@ -88,7 +106,6 @@ export const TestPushSchema = v.object({
   account: v.optional(v.string()),
 });
 
-/** Map of control verb → validator. Trains + CLI both look verbs up here. */
 export const CTRL_SCHEMAS = {
   'register-push': RegisterPushSchema,
   'unregister-push': UnregisterPushSchema,
@@ -99,17 +116,24 @@ export type CtrlVerb = keyof typeof CTRL_SCHEMAS;
 export const isKnownCtrlVerb = (verb: string): verb is CtrlVerb =>
   Object.prototype.hasOwnProperty.call(CTRL_SCHEMAS, verb);
 
-// Validate a control payload (parsed object or raw JSON string). Returns the typed
-// value or throws SchemaError. Unknown verbs throw — gate on `isKnownCtrlVerb` first.
 export function validateCtrl(verb: string, payload: unknown): unknown {
   if (!isKnownCtrlVerb(verb)) throw new Error(`unknown control verb '${verb}'`);
-  const obj: unknown = typeof payload === 'string' ? (payload ? JSON.parse(payload) : {}) : payload;
+  const obj: unknown =
+    typeof payload === 'string'
+      ? payload
+        ? JSON.parse(payload)
+        : {}
+      : payload;
   return CTRL_SCHEMAS[verb](obj, verb);
 }
 
-/** Convenience: parse + validate a `METRO_CTRL:…` DM body in one step. */
-export function parseAndValidateControl(text: unknown): { verb: CtrlVerb; value: unknown } | null {
+export function parseAndValidateControl(
+  text: unknown,
+): { verb: CtrlVerb; value: unknown } | null {
   const parsed = parseControl(text);
   if (!parsed || !isKnownCtrlVerb(parsed.verb)) return null;
-  return { verb: parsed.verb, value: validateCtrl(parsed.verb, parsed.rawJson) };
+  return {
+    verb: parsed.verb,
+    value: validateCtrl(parsed.verb, parsed.rawJson),
+  };
 }

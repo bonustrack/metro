@@ -1,7 +1,13 @@
-/** Per-user byte-offset cursors over history.jsonl + claim-aware mode filter. */
-
 import {
-  closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, watch, writeFileSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  watch,
+  writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from '../log.js';
@@ -14,16 +20,10 @@ const CURSORS_DIR = join(STATE_DIR, 'cursors');
 
 export type Mode = 'all' | 'mine-or-unclaimed' | 'mine-only' | 'unclaimed';
 
-/** Filename-safe slug for a participant URI. `metro://claude/user/9bfc…` → `claude-user-9bfc…`. */
 export function userSlug(uri: Line): string {
   return uri.replace(/^metro:\/+/, '').replace(/[^A-Za-z0-9_.-]/g, '-');
 }
 
-/** Cursor key for a tail invocation. Derived from the *effective mode*, NOT from `userSelf()`. */
-/** Keeps `--all` / `--unclaimed` from trampling a `--as=<id>` cursor in a CLAUDECODE shell. */
-/** Keys: `--as=<id>`→slug(id); `+--strict`→slug+`--strict`; `--unclaimed`→`_unclaimed`; `--all`→`_all`. */
-/** The `_` prefix can't collide with a userSlug (always has a station prefix like `claude-user-…`). */
-/** `--include-webhooks` adds `--with-webhooks` so toggling mid-stream doesn't re-emit/skip events. */
 export function cursorKey(
   mode: Mode,
   self: Line | null,
@@ -55,15 +55,18 @@ export function writeCursor(key: string, offset: number): void {
   renameSync(tmp, p);
 }
 
-/** Byte size of history.jsonl right now (for `--since=tail`). */
 export function historySize(): number {
   if (!existsSync(HISTORY_FILE)) return 0;
-  try { return readFileSync(HISTORY_FILE).length; }
-  catch { return 0; }
+  try {
+    return readFileSync(HISTORY_FILE).length;
+  } catch {
+    return 0;
+  }
 }
 
-/** Yield each complete JSONL line from `offset` to EOF; the returned offset is the position right after the `\n`. */
-function* readEntriesFrom(offset: number): Generator<{ entry: HistoryEntry; offset: number }> {
+function* readEntriesFrom(
+  offset: number,
+): Generator<{ entry: HistoryEntry; offset: number }> {
   if (!existsSync(HISTORY_FILE)) return;
   const fd = openSync(HISTORY_FILE, 'r');
   try {
@@ -80,15 +83,15 @@ function* readEntriesFrom(offset: number): Generator<{ entry: HistoryEntry; offs
         const raw = pending.subarray(0, nl).toString('utf8').trim();
         pending = pending.subarray(nl + 1);
         if (!raw) continue;
-        /** offsetAfter = file read-cursor minus bytes still in the pending
-         *  buffer. Captured outside the try so malformed lines also advance
-         *  the cursor (otherwise the poll backstop re-reads them forever). */
         const offsetAfter = pos - pending.length;
         try {
           const entry = JSON.parse(raw) as HistoryEntry;
           yield { entry, offset: offsetAfter };
         } catch (err) {
-          log.warn({ err: errMsg(err), offset: offsetAfter }, 'broker: skipped malformed history line');
+          log.warn(
+            { err: errMsg(err), offset: offsetAfter },
+            'broker: skipped malformed history line',
+          );
           yield { entry: null as unknown as HistoryEntry, offset: offsetAfter };
         }
       }
@@ -98,8 +101,6 @@ function* readEntriesFrom(offset: number): Generator<{ entry: HistoryEntry; offs
   }
 }
 
-/** Claim-aware filter. Webhooks excluded from personal modes unless
- *  `includeWebhooks` is set. */
 export function passesMode(
   event: HistoryEntry,
   mode: Mode,
@@ -111,52 +112,71 @@ export function passesMode(
   if (mode === 'all') return true;
   const isWebhook = event.station === 'webhook';
   if (mode === 'unclaimed') return !claims[event.line];
-  /** webhooks are filtered out of personal modes unless opted in */
   if (isWebhook && !opts.includeWebhooks) return false;
   const owner = claims[event.line];
   if (mode === 'mine-only') return owner === self;
-  return !owner || owner === self;  /** mode === 'mine-or-unclaimed' */
+  return !owner || owner === self;
 }
 
 export interface TailOpts {
-  mode: Mode; self: Line | null;
-  chatFilter?: string; stationFilter?: string; includeWebhooks?: boolean;
-  /** Skip entries whose `from` matches any of these URIs — self-echo
-   *  suppression so an agent doesn't see its own outbound replayed. */
+  mode: Mode;
+  self: Line | null;
+  chatFilter?: string;
+  stationFilter?: string;
+  includeWebhooks?: boolean;
   excludeFrom?: string[];
 }
 
-/** Drain matching entries from `offset` to EOF, returning the new offset. */
-/** Caller `onEntry` may return `true` to stop draining early (e.g. tail --limit). */
 export function drainTail(
-  offset: number, opts: TailOpts, onEntry: (e: HistoryEntry) => unknown,
+  offset: number,
+  opts: TailOpts,
+  onEntry: (e: HistoryEntry) => unknown,
 ): number {
   const claims = readClaims();
   for (const { entry, offset: next } of readEntriesFrom(offset)) {
     offset = next;
-    /** A null entry signals a malformed line — cursor's already advanced past it; skip filtering. */
     if (!entry) continue;
     if (opts.chatFilter && entry.line !== opts.chatFilter) continue;
     if (opts.stationFilter && entry.station !== opts.stationFilter) continue;
     if (opts.excludeFrom?.includes(entry.from)) continue;
-    if (!passesMode(entry, opts.mode, opts.self, claims, { includeWebhooks: opts.includeWebhooks })) continue;
+    if (
+      !passesMode(entry, opts.mode, opts.self, claims, {
+        includeWebhooks: opts.includeWebhooks,
+      })
+    )
+      continue;
     if (onEntry(entry) === true) return offset;
   }
   return offset;
 }
 
-/** Follow history.jsonl: drain on change + poll backstop (macOS fs.watch coalesces). */
-/** Caller invokes the returned `stop()` to clean up the watcher/timer. */
 export function followTail(
-  startOffset: number, opts: TailOpts, onEntry: (e: HistoryEntry) => unknown, pollMs: number,
+  startOffset: number,
+  opts: TailOpts,
+  onEntry: (e: HistoryEntry) => unknown,
+  pollMs: number,
 ): () => void {
   let offset = startOffset;
-  const tick = (): void => { offset = drainTail(offset, opts, onEntry); };
+  const tick = (): void => {
+    offset = drainTail(offset, opts, onEntry);
+  };
   let watcher: ReturnType<typeof watch> | null = null;
-  try { watcher = watch(HISTORY_FILE, () => { tick(); }); } catch { /* file may not exist yet */ }
+  try {
+    watcher = watch(HISTORY_FILE, () => {
+      tick();
+    });
+  } catch {
+    /* file may not exist yet */
+  }
   const poll = setInterval(tick, pollMs);
   return () => {
     clearInterval(poll);
-    if (watcher) { try { watcher.close(); } catch { /* ignore */ } }
+    if (watcher) {
+      try {
+        watcher.close();
+      } catch {
+        /* ignore */
+      }
+    }
   };
 }

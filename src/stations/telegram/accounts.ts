@@ -1,22 +1,20 @@
-/** Telegram multi-bot account config + per-account Bot API clients. */
-
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { makeAccountStore, csv, genIds } from '../account-store.js';
 
-const ACCOUNTS_FILE = process.env.TELEGRAM_ACCOUNTS_FILE
-  ?? join(homedir(), '.metro', 'telegram-accounts.json');
+const ACCOUNTS_FILE =
+  process.env.TELEGRAM_ACCOUNTS_FILE ??
+  join(homedir(), '.metro', 'telegram-accounts.json');
 
 export interface AccountConfig {
   id: string;
-  /** Telegram bot token for this identity. */
   token: string;
-  /** Default `to` for this account's inbound events → feed isolation. */
   owner?: string;
 }
 
-/** Legacy metro://telegram/<chatId> lines for the default account (migration). */
-export const legacy = { defaultLines: process.env.TELEGRAM_LEGACY_DEFAULT_LINES === '1' };
+export const legacy = {
+  defaultLines: process.env.TELEGRAM_LEGACY_DEFAULT_LINES === '1',
+};
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'telegram',
@@ -27,18 +25,21 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
     const seenTok = new Set<string>();
     for (const a of raw) {
       if (!a.id) die('account missing id');
-      if (!a.token || typeof a.token !== 'string') die(`account '${a.id}' missing token`);
+      if (!a.token || typeof a.token !== 'string')
+        die(`account '${a.id}' missing token`);
       if (seenId.has(a.id)) die(`duplicate account id '${a.id}'`);
-      // Two loops polling the SAME token => 409 Conflict. Reject early.
-      if (seenTok.has(a.token)) die(`account '${a.id}' reuses a token used by another account (409 on getUpdates)`);
-      seenId.add(a.id); seenTok.add(a.token);
+      if (seenTok.has(a.token))
+        die(
+          `account '${a.id}' reuses a token used by another account (409 on getUpdates)`,
+        );
+      seenId.add(a.id);
+      seenTok.add(a.token);
     }
   },
-  /** Env fallback (no accounts file). TELEGRAM_BOT_TOKENS=a,b registers one bot
-   *  per token, ids t0..tN. Tokens are deduped (reused tokens 409 on getUpdates). */
   fallback(die) {
     const tokens = csv(process.env.TELEGRAM_BOT_TOKENS);
-    if (!tokens.length) return die(`no ${ACCOUNTS_FILE} and TELEGRAM_BOT_TOKENS unset`);
+    if (!tokens.length)
+      return die(`no ${ACCOUNTS_FILE} and TELEGRAM_BOT_TOKENS unset`);
     const ids = genIds('t', tokens.length);
     return tokens.map((token, i) => ({ id: ids[i], token }));
   },
@@ -52,59 +53,98 @@ export interface Account {
 }
 export const accounts = new Map<string, Account>();
 
-export async function tg<T>(accountId: string, method: string, body: unknown, timeoutMs = 30_000): Promise<T> {
+export async function tg<T>(
+  accountId: string,
+  method: string,
+  body: unknown,
+  timeoutMs = 30_000,
+): Promise<T> {
   const acct = accounts.get(accountId);
   if (!acct) throw new Error(`unknown account '${accountId}'`);
   const res = await fetch(`${acct.api}/${method}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
   });
-  const json = (await res.json()) as { ok: boolean; description?: string; result?: T };
-  if (!json.ok) throw new Error(`telegram ${method}: ${json.description ?? 'unknown'}`);
+  const json = (await res.json()) as {
+    ok: boolean;
+    description?: string;
+    result?: T;
+  };
+  if (!json.ok)
+    throw new Error(`telegram ${method}: ${json.description ?? 'unknown'}`);
   return json.result as T;
 }
 
-export async function tgForm<T>(accountId: string, method: string, form: FormData, timeoutMs = 60_000): Promise<T> {
+export async function tgForm<T>(
+  accountId: string,
+  method: string,
+  form: FormData,
+  timeoutMs = 60_000,
+): Promise<T> {
   const acct = accounts.get(accountId);
   if (!acct) throw new Error(`unknown account '${accountId}'`);
-  const res = await fetch(`${acct.api}/${method}`,
-    { method: 'POST', body: form, signal: AbortSignal.timeout(timeoutMs) });
-  const json = (await res.json()) as { ok: boolean; description?: string; result?: T };
-  if (!json.ok) throw new Error(`telegram ${method}: ${json.description ?? 'unknown'}`);
+  const res = await fetch(`${acct.api}/${method}`, {
+    method: 'POST',
+    body: form,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const json = (await res.json()) as {
+    ok: boolean;
+    description?: string;
+    result?: T;
+  };
+  if (!json.ok)
+    throw new Error(`telegram ${method}: ${json.description ?? 'unknown'}`);
   return json.result as T;
 }
 
 export function accountFor(args: { account?: string; line?: string }): string {
   let id = args.account;
-  if (!id && args.line) { try { id = targetOf(args.line).accountId; } catch { /* ignore */ } }
+  if (!id && args.line) {
+    try {
+      id = targetOf(args.line).accountId;
+    } catch {
+      /* ignore */
+    }
+  }
   id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';
-  if (!accounts.has(id)) throw new Error(`unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`);
+  if (!accounts.has(id))
+    throw new Error(
+      `unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`,
+    );
   return id;
 }
 
-/** Account-scoped line. The default account may emit legacy lines for migration. */
-export function lineOf(accountId: string, chatId: number | string, topicId?: number): string {
+export function lineOf(
+  accountId: string,
+  chatId: number | string,
+  topicId?: number,
+): string {
   const tail = topicId !== undefined ? `${chatId}/${topicId}` : `${chatId}`;
-  if (accountId === 'default' && legacy.defaultLines) return `metro://telegram/${tail}`;
+  if (accountId === 'default' && legacy.defaultLines)
+    return `metro://telegram/${tail}`;
   return `metro://telegram/${accountId}/${tail}`;
 }
 
-/** Parse a line back to {accountId, chatId, topicId}. Accepts new + legacy forms.
- *  chatId is signed; accountId is non-numeric, disambiguating legacy from new. */
 export function targetOf(
-  line: string, accountOverride?: string,
+  line: string,
+  accountOverride?: string,
 ): { accountId: string; chatId: number; topicId?: number } {
   const mNew = /^metro:\/\/telegram\/([^/]+)\/(-?\d+)(?:\/(\d+))?$/.exec(line);
   if (mNew && !/^-?\d+$/.test(mNew[1])) {
     return {
-      accountId: accountOverride ?? mNew[1], chatId: Number(mNew[2]),
+      accountId: accountOverride ?? mNew[1],
+      chatId: Number(mNew[2]),
       topicId: mNew[3] ? Number(mNew[3]) : undefined,
     };
   }
   const mLegacy = /^metro:\/\/telegram\/(-?\d+)(?:\/(\d+))?$/.exec(line);
   if (mLegacy) {
     return {
-      accountId: accountOverride ?? 'default', chatId: Number(mLegacy[1]),
+      accountId: accountOverride ?? 'default',
+      chatId: Number(mLegacy[1]),
       topicId: mLegacy[2] ? Number(mLegacy[2]) : undefined,
     };
   }

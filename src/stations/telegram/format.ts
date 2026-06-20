@@ -1,15 +1,21 @@
-/** Telegram message types + projection into metro inbound envelopes. */
-
 import { accounts, lineOf } from './accounts.js';
 import { mintId, SELF_URI } from './wire.js';
 import { mediaRefOf, saveTelegramMedia } from './attachments.js';
 
 export interface TgMsg {
-  message_id: number; date: number;
+  message_id: number;
+  date: number;
   chat: { id: number; type: string; title?: string; first_name?: string };
-  from?: { id: number; username?: string; first_name?: string; is_bot?: boolean };
-  text?: string; caption?: string;
-  message_thread_id?: number; is_topic_message?: boolean;
+  from?: {
+    id: number;
+    username?: string;
+    first_name?: string;
+    is_bot?: boolean;
+  };
+  text?: string;
+  caption?: string;
+  message_thread_id?: number;
+  is_topic_message?: boolean;
   photo?: { file_id: string; file_size?: number }[];
   document?: { file_name?: string; file_id?: string };
   voice?: { file_id?: string; duration?: number };
@@ -24,13 +30,21 @@ export interface TgMsg {
 export interface TgReaction {
   chat: { id: number; type: string };
   message_id: number;
-  user?: { id: number; username?: string; first_name?: string; is_bot?: boolean };
+  user?: {
+    id: number;
+    username?: string;
+    first_name?: string;
+    is_bot?: boolean;
+  };
   date: number;
   old_reaction: { type: string; emoji?: string }[];
   new_reaction: { type: string; emoji?: string }[];
 }
 
-function lineForMsg(accountId: string, m: TgMsg): { line: string; topicId?: number } {
+function lineForMsg(
+  accountId: string,
+  m: TgMsg,
+): { line: string; topicId?: number } {
   const topicId = m.is_topic_message ? m.message_thread_id : undefined;
   return { line: lineOf(accountId, m.chat.id, topicId), topicId };
 }
@@ -46,8 +60,10 @@ function projectText(m: TgMsg): string {
     const set = m.sticker.set_name ? ` · ${m.sticker.set_name}` : '';
     tags.push(`[sticker${m.sticker.emoji ? ` ${m.sticker.emoji}` : ''}${set}]`);
   }
-  if (m.document && !m.animation) tags.push(`[file: ${m.document.file_name ?? 'doc'}]`);
-  if (m.location) tags.push(`[location: ${m.location.latitude}, ${m.location.longitude}]`);
+  if (m.document && !m.animation)
+    tags.push(`[file: ${m.document.file_name ?? 'doc'}]`);
+  if (m.location)
+    tags.push(`[location: ${m.location.latitude}, ${m.location.longitude}]`);
   if (m.dice) tags.push(`[dice ${m.dice.emoji} = ${m.dice.value}]`);
   return [m.text ?? m.caption, ...tags].filter(Boolean).join(' ');
 }
@@ -55,57 +71,96 @@ function projectText(m: TgMsg): string {
 export function envelope(accountId: string, m: TgMsg): Record<string, unknown> {
   const { line } = lineForMsg(accountId, m);
   return {
-    kind: 'inbound', id: mintId(), ts: new Date(m.date * 1000).toISOString(),
-    station: 'telegram', line,
+    kind: 'inbound',
+    id: mintId(),
+    ts: new Date(m.date * 1000).toISOString(),
+    station: 'telegram',
+    line,
     line_name: m.chat.title ?? m.chat.first_name ?? undefined,
     from: `metro://telegram/${accountId}/user/${m.from?.id ?? 'unknown'}`,
     from_name: m.from?.username ? `@${m.from.username}` : m.from?.first_name,
-    message_id: String(m.message_id), text: projectText(m), payload: m,
+    message_id: String(m.message_id),
+    text: projectText(m),
+    payload: m,
     is_private: m.chat.type === 'private',
   };
 }
 
-export function reactionEnvelope(accountId: string, r: TgReaction): Record<string, unknown> | null {
+export function reactionEnvelope(
+  accountId: string,
+  r: TgReaction,
+): Record<string, unknown> | null {
   if (r.user?.is_bot) return null;
-  const newEmojis = r.new_reaction.filter(x => x.type === 'emoji').map(x => x.emoji ?? '');
-  const oldEmojis = r.old_reaction.filter(x => x.type === 'emoji').map(x => x.emoji ?? '');
-  const added = newEmojis.filter(e => !oldEmojis.includes(e));
+  const newEmojis = r.new_reaction
+    .filter((x) => x.type === 'emoji')
+    .map((x) => x.emoji ?? '');
+  const oldEmojis = r.old_reaction
+    .filter((x) => x.type === 'emoji')
+    .map((x) => x.emoji ?? '');
+  const added = newEmojis.filter((e) => !oldEmojis.includes(e));
   if (!added.length) return null;
   return {
-    kind: 'react', id: mintId(), ts: new Date(r.date * 1000).toISOString(),
-    station: 'telegram', line: lineOf(accountId, r.chat.id),
+    kind: 'react',
+    id: mintId(),
+    ts: new Date(r.date * 1000).toISOString(),
+    station: 'telegram',
+    line: lineOf(accountId, r.chat.id),
     from: `metro://telegram/${accountId}/user/${r.user?.id ?? 'unknown'}`,
     from_name: r.user?.username ? `@${r.user.username}` : r.user?.first_name,
-    message_id: String(r.message_id), emoji: added[0],
+    message_id: String(r.message_id),
+    emoji: added[0],
     event: { type: 'react', emoji: added[0], targetId: String(r.message_id) },
-    is_private: r.chat.type === 'private', payload: r,
+    is_private: r.chat.type === 'private',
+    payload: r,
   };
 }
 
-/** Tag an inbound event with its account and (if configured) owner-route it. */
-export function emitInbound(emit: (e: unknown) => void, accountId: string, e: Record<string, unknown>): void {
+export function emitInbound(
+  emit: (e: unknown) => void,
+  accountId: string,
+  e: Record<string, unknown>,
+): void {
   const owner = accounts.get(accountId)?.cfg.owner;
-  const payload = { ...(e.payload as Record<string, unknown> | undefined), account: accountId };
+  const payload = {
+    ...(e.payload as Record<string, unknown> | undefined),
+    account: accountId,
+  };
   emit({ ...e, ...(owner ? { to: owner } : {}), account: accountId, payload });
 }
 
-/** If the message carries downloadable media, fetch it via the Bot API, write it
- *  to disk, and emit a follow-up `attachmentSaved` event (payload.attachmentPath
- *  / localPath). Mirrors the XMTP convention. Fires async; logs on failure. */
 export function saveMediaAndEmit(
-  emit: (e: unknown) => void, accountId: string, m: TgMsg, sourceEnvId: string,
+  emit: (e: unknown) => void,
+  accountId: string,
+  m: TgMsg,
+  sourceEnvId: string,
 ): void {
   const ref = mediaRefOf(m);
   if (!ref) return;
   const line = lineForMsg(accountId, m).line;
-  void saveTelegramMedia(accountId, ref, String(m.message_id), 0).then(saved => {
-    emitInbound(emit, accountId, {
-      kind: 'inbound', id: mintId(), ts: new Date().toISOString(), station: 'telegram', line,
-      from: SELF_URI || `metro://telegram/${accountId}/self`, text: `📎 saved: ${saved.path}`,
-      payload: {
-        contentType: 'attachmentSaved', attachmentFor: sourceEnvId, index: 0,
-        attachmentPath: saved.path, localPath: saved.path, mime: saved.mime, name: saved.name,
-      },
-    });
-  }).catch((err: unknown) => process.stderr.write(`telegram media save failed: ${(err as Error).message}\n`));
+  void saveTelegramMedia(accountId, ref, String(m.message_id), 0)
+    .then((saved) => {
+      emitInbound(emit, accountId, {
+        kind: 'inbound',
+        id: mintId(),
+        ts: new Date().toISOString(),
+        station: 'telegram',
+        line,
+        from: SELF_URI || `metro://telegram/${accountId}/self`,
+        text: `📎 saved: ${saved.path}`,
+        payload: {
+          contentType: 'attachmentSaved',
+          attachmentFor: sourceEnvId,
+          index: 0,
+          attachmentPath: saved.path,
+          localPath: saved.path,
+          mime: saved.mime,
+          name: saved.name,
+        },
+      });
+    })
+    .catch((err: unknown) =>
+      process.stderr.write(
+        `telegram media save failed: ${(err as Error).message}\n`,
+      ),
+    );
 }
