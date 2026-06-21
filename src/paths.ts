@@ -11,6 +11,7 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
+import { readJson } from './json-store.js';
 import type { Line } from './lines.js';
 
 export const STATE_DIR =
@@ -154,12 +155,5 @@ export const listLines = (): { line: Line; entry: Entry }[] =>
   }));
 
 const botIdsFile = join(STATE_DIR, 'bot-ids.json');
-export const readBotIds = (): Record<string, string> => {
-  try {
-    return existsSync(botIdsFile)
-      ? (JSON.parse(readFileSync(botIdsFile, 'utf8')) as Record<string, string>)
-      : {};
-  } catch {
-    return {};
-  }
-};
+export const readBotIds = (): Record<string, string> =>
+  readJson<Record<string, string>>(botIdsFile, {});
