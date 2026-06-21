@@ -1,9 +1,9 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { STATE_DIR } from './paths.js';
 import { errMsg, log } from './log.js';
+import { readJson, writeJson } from './json-store.js';
 
 const FILE = join(STATE_DIR, 'tunnel.json');
 const RESTART_DELAY_MS = 2_000;
@@ -13,21 +13,13 @@ export interface TunnelConfig {
   hostname: string;
 }
 
-export const loadTunnelConfig = (): TunnelConfig | null => {
-  if (!existsSync(FILE)) return null;
-  try {
-    return JSON.parse(readFileSync(FILE, 'utf8')) as TunnelConfig;
-  } catch (err) {
-    log.warn(
-      { err: errMsg(err), path: FILE },
-      'tunnel.json: malformed, ignoring',
-    );
-    return null;
-  }
-};
+export const loadTunnelConfig = (): TunnelConfig | null =>
+  readJson<TunnelConfig | null>(FILE, null, {
+    warn: 'tunnel.json: malformed, ignoring',
+  });
 
 export function saveTunnelConfig(c: TunnelConfig): void {
-  writeFileSync(FILE, JSON.stringify(c, null, 2));
+  writeJson(FILE, c);
 }
 
 function fetchTunnelToken(name: string): string | null {
@@ -126,15 +118,10 @@ export const webhookPort = (): number =>
   Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 
 function readWebhooks(): Store {
-  if (!existsSync(WEBHOOKS_FILE)) return { endpoints: [] };
-  try {
-    return JSON.parse(readFileSync(WEBHOOKS_FILE, 'utf8')) as Store;
-  } catch {
-    return { endpoints: [] };
-  }
+  return readJson<Store>(WEBHOOKS_FILE, { endpoints: [] });
 }
 const writeWebhooks = (s: Store): void => {
-  writeFileSync(WEBHOOKS_FILE, JSON.stringify(s, null, 2));
+  writeJson(WEBHOOKS_FILE, s);
 };
 
 export const listEndpoints = (): Endpoint[] => readWebhooks().endpoints;

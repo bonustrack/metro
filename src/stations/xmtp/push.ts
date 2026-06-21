@@ -1,7 +1,8 @@
 import { errMsg } from '../../log.js';
 import { type DecodedMessage } from '@xmtp/node-sdk';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { readJson, writeJson } from '../../json-store.js';
 
 const FCM_SVC_PATH = `${process.env.HOME}/.config/metro/firebase-service-account.json`;
 const FCM_TOKENS_PATH = `${process.env.HOME}/.cache/metro/xmtp-push-tokens.json`;
@@ -34,18 +35,11 @@ function loadFcmSvc(): FcmServiceAccount | null {
   }
 }
 export function loadPushTokens(): StoredPushToken[] {
-  if (!existsSync(FCM_TOKENS_PATH)) return [];
-  try {
-    return JSON.parse(
-      readFileSync(FCM_TOKENS_PATH, 'utf8'),
-    ) as StoredPushToken[];
-  } catch {
-    return [];
-  }
+  return readJson<StoredPushToken[]>(FCM_TOKENS_PATH, []);
 }
 export function savePushTokens(tokens: StoredPushToken[]): void {
   mkdirSync(dirname(FCM_TOKENS_PATH), { recursive: true });
-  writeFileSync(FCM_TOKENS_PATH, JSON.stringify(tokens, null, 2));
+  writeJson(FCM_TOKENS_PATH, tokens);
 }
 
 function collectInboxIds(

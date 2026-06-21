@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
+import { readJson, writeJson } from './json-store.js';
 import { STATE_DIR } from './paths.js';
 import { Line } from './lines.js';
 import { claudeUserId, claudeSessionId } from './local-identity.js';
@@ -35,13 +35,11 @@ interface UserInstance {
 type Registry = Record<string, UserInstance[]>;
 
 function readRegistry(): Registry {
-  if (!existsSync(REGISTRY_FILE)) return {};
-  try {
-    return JSON.parse(readFileSync(REGISTRY_FILE, 'utf8')) as Registry;
-  } catch (err) {
-    log.warn({ err: errMsg(err) }, 'user-registry: malformed, resetting');
-    return {};
-  }
+  return readJson<Registry>(
+    REGISTRY_FILE,
+    {},
+    { warn: 'user-registry: malformed, resetting' },
+  );
 }
 
 function record(
@@ -60,7 +58,7 @@ function record(
     row.sessions.push(sessionId);
   row.lastSeen = new Date().toISOString();
   try {
-    writeFileSync(REGISTRY_FILE, JSON.stringify(reg, null, 2));
+    writeJson(REGISTRY_FILE, reg);
   } catch (err) {
     log.warn({ err: errMsg(err) }, 'user-registry: write failed');
   }
