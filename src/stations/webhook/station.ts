@@ -12,6 +12,6 @@ export const webhookStation: Station = {
       ? { accountId: 'default', resource: p.path.join('/') }
       : null;
   },
-  verbs: [],
+  mutates: new Set<string>(),
   tools: [],
 };

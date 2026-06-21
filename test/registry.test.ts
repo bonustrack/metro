@@ -1,156 +1,65 @@
 /**
- * Tests for the VERB REGISTRY (src/registry.ts) and the `metro schema` command.
+ * Tests for the per-station mutate registry (src/registry.ts).
  *
- *   - completeness : every live station handler is declared in the registry,
- *                    and the registry declares no phantom verbs.
- *   - schema output: `cmdSchema` emits valid JSON under --json and a table
- *                    otherwise; the JSON round-trips the registry.
- *   - send-guard parity: the live send-guard's guarded-action set is a subset
- *                    of the registry's xmtp mutate set (the registry MIRRORS the
- *                    guard — it never silently un-guards an action).
+ *   - mutate sets: each station's MUTATE verbs are reported, and known READ
+ *     verbs are excluded (the outbox only durably journals MUTATE sends).
+ *   - core: the core MUTATE verbs (claim/release/webhook/tunnel) are reported.
+ *   - send-guard parity: the historical hand-maintained guard set is a strict
+ *     subset of the xmtp mutate set (the outbox must never under-cover a guarded
+ *     send-bearing verb).
+ *   - unknown owner: an owner with no station yields an empty set.
  */
 
 import { describe, expect, test } from 'bun:test';
-import {
-  VERB_REGISTRY, verbsFor, lookupVerb, mutateVerbs, guardedVerbs,
-  validateCallArgs, SchemaError, type VerbOwner,
-} from '../src/registry.ts';
+import { mutateVerbs } from '../src/registry.ts';
 
-/* Live verb names, mirrored from the station dispatchers. If a station adds or
- * removes a handler, these lists must change too — that is the completeness
- * contract the registry exists to enforce. */
-const LIVE: Record<Exclude<VerbOwner, 'core'>, string[]> = {
-  xmtp: [
-    'accounts', 'send', 'ask', 'sendPoll', 'react', 'reply', 'sendAttachment',
-    'sendImage', 'sendTxRequest', 'sendSignatureRequest', 'edit', 'delete',
-    'newDm', 'newGroup', 'createRequestGroup', 'addMembers', 'setLabels', 'setGithub',
-    'setPreview', 'updateChannelMeta', 'closeGroup', 'query', 'groupInfo',
-    'listConvs', 'register-push', 'list-push', 'test-push', 'unregister-push',
-    'disable-push',
-  ],
-  discord: [
-    'accounts', 'send', 'reply', 'react', 'edit', 'delete', 'fetch', 'download',
-    'thread_create', 'pin', 'typing', 'channel', 'set_presence', 'joinVoice',
-    'leaveVoice', 'speak', 'voiceDebug', 'voiceTranscribe',
-  ],
-  telegram: [
-    'accounts', 'send', 'react', 'edit', 'delete', 'send_photo', 'send_document',
-    'send_voice', 'send_sticker', 'send_dice', 'send_location', 'read', 'download',
-  ],
-};
-
-describe('registry — completeness', () => {
-  for (const owner of Object.keys(LIVE) as Array<keyof typeof LIVE>) {
-    test(`${owner}: every live handler is declared`, () => {
-      const declared = new Set(verbsFor(owner).map(d => d.name));
-      for (const name of LIVE[owner]) {
-        expect(lookupVerb(owner, name), `missing registry entry: ${owner}.${name}`).toBeDefined();
-        expect(declared.has(name)).toBe(true);
-      }
-    });
-
-    test(`${owner}: no phantom verbs (registry ⊆ live)`, () => {
-      const live = new Set(LIVE[owner]);
-      for (const d of verbsFor(owner)) {
-        expect(live.has(d.name), `phantom registry entry: ${owner}.${d.name}`).toBe(true);
-      }
-    });
-  }
-
-  test('every declaration has the required fields', () => {
-    for (const d of VERB_REGISTRY) {
-      expect(typeof d.name).toBe('string');
-      expect(d.name.length).toBeGreaterThan(0);
-      expect(['read', 'mutate']).toContain(d.kind);
-      expect(typeof d.description).toBe('string');
-      expect(d.description.length).toBeGreaterThan(0);
-      expect(typeof d.example).toBe('string');
-      expect(typeof d.idempotent).toBe('boolean');
-    }
+describe('mutateVerbs — station mutate sets', () => {
+  test('xmtp reports its mutate verbs and excludes reads', () => {
+    const m = mutateVerbs('xmtp');
+    for (const a of ['send', 'reply', 'react', 'sendAttachment', 'newDm', 'newGroup', 'closeGroup', 'register-push'])
+      expect(m.has(a), `xmtp missing mutate: ${a}`).toBe(true);
+    for (const r of ['accounts', 'query', 'groupInfo', 'listConvs', 'list-push'])
+      expect(m.has(r), `xmtp should not mutate read verb: ${r}`).toBe(false);
   });
 
-  test('reads are always idempotent', () => {
-    for (const d of VERB_REGISTRY) {
-      if (d.kind === 'read') expect(d.idempotent, `${d.owner}.${d.name}`).toBe(true);
-    }
+  test('telegram reports its mutate verbs and excludes reads', () => {
+    const m = mutateVerbs('telegram');
+    for (const a of ['send', 'react', 'edit', 'delete', 'send_photo', 'send_location'])
+      expect(m.has(a), `telegram missing mutate: ${a}`).toBe(true);
+    for (const r of ['accounts', 'read', 'download'])
+      expect(m.has(r), `telegram should not mutate read verb: ${r}`).toBe(false);
   });
 
-  test('no duplicate (owner, name) pairs', () => {
-    const seen = new Set<string>();
-    for (const d of VERB_REGISTRY) {
-      const key = `${d.owner}:${d.name}`;
-      expect(seen.has(key), `duplicate: ${key}`).toBe(false);
-      seen.add(key);
-    }
+  test('discord reports its mutate verbs and excludes reads', () => {
+    const m = mutateVerbs('discord');
+    for (const a of ['send', 'reply', 'react', 'edit', 'delete', 'thread_create', 'pin', 'voiceTranscribe'])
+      expect(m.has(a), `discord missing mutate: ${a}`).toBe(true);
+    for (const r of ['accounts', 'fetch', 'download', 'channel', 'voiceDebug'])
+      expect(m.has(r), `discord should not mutate read verb: ${r}`).toBe(false);
+  });
+
+  test('core mutate verbs are claim/release/webhook/tunnel', () => {
+    const m = mutateVerbs('core');
+    expect([...m].sort()).toEqual(['claim', 'release', 'tunnel', 'webhook']);
+  });
+
+  test('an unknown owner yields an empty mutate set', () => {
+    expect(mutateVerbs('nope').size).toBe(0);
   });
 });
 
-describe('registry — send-guard parity', () => {
-  /* The historical hand-maintained guard set (was cli/send-guard.ts's literal
-   * GUARDED_XMTP_ACTIONS before the registry became the single source of truth).
-   * Behavior must be IDENTICAL after deriving the set from the registry, so the
-   * registry-derived set must equal this exact set — no more, no fewer. */
+describe('mutateVerbs — send-guard parity', () => {
   const HISTORICAL_GUARDED = ['send', 'reply', 'react', 'sendAttachment', 'newDm', 'newGroup'];
 
-  test('registry guardedVerbs("xmtp") == the historical hand-maintained set', () => {
-    const g = guardedVerbs('xmtp');
-    expect(g.size).toBe(HISTORICAL_GUARDED.length);
-    for (const a of HISTORICAL_GUARDED) {
-      expect(g.has(a), `registry missing guarded action: ${a}`).toBe(true);
-    }
+  test('every historically-guarded xmtp action is an xmtp mutate', () => {
+    const m = mutateVerbs('xmtp');
+    for (const a of HISTORICAL_GUARDED)
+      expect(m.has(a), `guarded action not registry-mutate: ${a}`).toBe(true);
   });
 
-  test('every guarded xmtp action is also mutate in the registry', () => {
-    const mut = mutateVerbs('xmtp');
-    for (const a of guardedVerbs('xmtp')) {
-      expect(mut.has(a), `guarded action not registry-mutate: ${a}`).toBe(true);
-    }
-  });
-
-  test('guard set is a strict subset of registry xmtp mutates', () => {
-    const mut = mutateVerbs('xmtp');
-    // The registry classifies MORE actions as mutate than the identity guard
-    // covers (e.g. channel-meta writes) — the guard intentionally only protects
-    // send-bearing identity verbs. The registry must never be SMALLER.
-    expect([...guardedVerbs('xmtp')].every(a => mut.has(a))).toBe(true);
-    expect(mut.size).toBeGreaterThan(guardedVerbs('xmtp').size);
-  });
-});
-
-describe('registry — inputSchema-driven call validation', () => {
-  test('validateCallArgs accepts a well-formed send', () => {
-    const ok = { line: 'metro://xmtp/tony/abc', text: 'hi', account: 'tony' };
-    expect(validateCallArgs('xmtp', 'send', ok)).toBeDefined();
-  });
-
-  test('validateCallArgs rejects a send missing required text', () => {
-    expect(() => validateCallArgs('xmtp', 'send', { line: 'metro://xmtp/tony/abc' }))
-      .toThrow(SchemaError);
-  });
-
-  test('validateCallArgs rejects an empty line (min:1)', () => {
-    expect(() => validateCallArgs('xmtp', 'send', { line: '', text: 'hi' }))
-      .toThrow(SchemaError);
-  });
-
-  test('validateCallArgs rejects wrong-typed react emoji', () => {
-    expect(() => validateCallArgs('xmtp', 'react', { line: 'l', messageId: 'm', emoji: 5 }))
-      .toThrow(SchemaError);
-  });
-
-  test('validateCallArgs rejects a non-number amountEth on sendTxRequest', () => {
-    expect(() => validateCallArgs('xmtp', 'sendTxRequest', { line: 'l', to: '0x', amountEth: 'lots' }))
-      .toThrow(SchemaError);
-  });
-
-  test('verbs without an inputSchema pass through unchanged', () => {
-    const args = { anything: true };
-    expect(validateCallArgs('xmtp', 'newDm', args)).toBe(args);
-    expect(validateCallArgs('xmtp', 'listConvs', args)).toBe(args);
-  });
-
-  test('unknown verb is a no-op pass-through (routing unchanged)', () => {
-    const args = { x: 1 };
-    expect(validateCallArgs('xmtp', 'nope', args)).toBe(args);
+  test('the guard set is a strict subset of xmtp mutates', () => {
+    const m = mutateVerbs('xmtp');
+    expect(HISTORICAL_GUARDED.every(a => m.has(a))).toBe(true);
+    expect(m.size).toBeGreaterThan(HISTORICAL_GUARDED.length);
   });
 });

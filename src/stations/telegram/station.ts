@@ -1,6 +1,18 @@
 import type { Station, Verb } from '../types.js';
 import { Line } from '../../lines.js';
-import { TELEGRAM_VERBS } from './verbs.js';
+
+const MUTATES: ReadonlySet<string> = new Set([
+  'send',
+  'react',
+  'edit',
+  'delete',
+  'send_photo',
+  'send_document',
+  'send_voice',
+  'send_sticker',
+  'send_dice',
+  'send_location',
+]);
 
 export const telegramStation: Station = {
   name: 'telegram',
@@ -21,6 +33,6 @@ export const telegramStation: Station = {
       ? { accountId: p.path[0], resource: p.path.slice(1).join('/') }
       : { accountId: 'default', resource: p.path[0] };
   },
-  verbs: TELEGRAM_VERBS,
+  mutates: MUTATES,
   tools: [],
 };

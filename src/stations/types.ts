@@ -1,5 +1,3 @@
-import type { VerbDecl } from '../registry-types.js';
-
 export type Verb =
   | 'send'
   | 'reply'
@@ -61,6 +59,6 @@ export interface Station {
     ctx: ToolContext,
   ): Promise<string[]>;
   parseLine(line: string): { accountId: string; resource: string } | null;
-  verbs: VerbDecl[];
+  mutates: ReadonlySet<string>;
   tools: StationTool[];
 }
