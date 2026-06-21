@@ -18,7 +18,6 @@
 
 import { describe, expect, test, beforeAll } from 'bun:test';
 import type { TrainEvent } from '../src/trains/protocol.ts';
-import type { Envelope } from '../src/define-train.ts';
 import type { StructuredEvent, WireEvent, HistoryEntry } from '../src/history-types.ts';
 
 let trainEventToHistoryEntry: typeof import('../src/dispatcher/server.ts').trainEventToHistoryEntry;
@@ -122,10 +121,7 @@ describe('shared shape — no envelope drift', () => {
 
   test('one event value satisfies both wire envelope definitions', () => {
     const ev: WireEvent = { type: 'edit', targetId: 'm' };
-    /** Both Envelope (define-train) and TrainEvent (protocol) accept the SAME shape. */
-    const fromDefineTrain: Envelope = { line: 'metro://x/1', event: ev };
     const fromProtocol: TrainEvent = { line: 'metro://x/1', event: ev };
-    expect(fromDefineTrain.event).toBe(ev);
     expect(fromProtocol.event).toBe(ev);
     /** And it lands on the entry verbatim through the dispatcher. */
     const e = trainEventToHistoryEntry(fromProtocol, 'x')!;

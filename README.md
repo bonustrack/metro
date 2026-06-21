@@ -147,7 +147,7 @@ host, the path is platform-specific (account-scoped for multi-bot). One parser
 
 **Envelope.** Inbound and outbound events share one shape (`{kind?, id?, ts?, station?,
 line, from?, to?, message_id?, text?, payload?, …}`, see
-[`src/define-train.ts`](src/define-train.ts)).
+[`src/trains/protocol.ts`](src/trains/protocol.ts)).
 
 **State.** metro is stateful and needs a persistent volume: the XMTP MLS databases under
 `~/.metro/` and the outbox / history journal / IPC socket under `$METRO_STATE_DIR`
@@ -175,7 +175,6 @@ src/
   broker/         # claims + history streaming (the tail the MCP follows)
   lines.ts        # the metro:// Line parser
   schema.ts       # the metro-call validator
-  define-train.ts # helper for authoring stations
 ```
 
 ## License
