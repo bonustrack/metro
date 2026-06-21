@@ -23,6 +23,17 @@ function clientFor(account?: string): { accountId: string; client: Client } {
   return { accountId, client: acct.client };
 }
 
+function voiceStateMatches(
+  vs: { id: string; member?: { user: { username?: string } } | null },
+  opts: { userId?: string; username?: string },
+): boolean {
+  if (opts.userId && vs.id === opts.userId) return true;
+  return Boolean(
+    opts.username &&
+      vs.member?.user.username?.toLowerCase() === opts.username.toLowerCase(),
+  );
+}
+
 function findUserVoiceChannel(
   client: Client,
   opts: { userId?: string; username?: string },
@@ -30,11 +41,7 @@ function findUserVoiceChannel(
   for (const guild of client.guilds.cache.values()) {
     for (const vs of guild.voiceStates.cache.values()) {
       if (!vs.channelId) continue;
-      const matchId = opts.userId && vs.id === opts.userId;
-      const matchName =
-        opts.username &&
-        vs.member?.user.username?.toLowerCase() === opts.username.toLowerCase();
-      if (matchId || matchName) return vs.channel ?? null;
+      if (voiceStateMatches(vs, opts)) return vs.channel ?? null;
     }
   }
   return null;
@@ -96,7 +103,7 @@ export async function joinVoice(
     guildId: guild.id,
     adapterCreator: guild.voiceAdapterCreator,
     selfDeaf: false,
-    selfMute: true, // no audio pipeline yet; stay muted so we don't broadcast silence noise
+    selfMute: true,
   });
 
   try {

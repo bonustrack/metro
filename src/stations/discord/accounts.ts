@@ -49,6 +49,21 @@ export interface Account {
 }
 export const accounts = new Map<string, Account>();
 
+function restBody(
+  body: unknown,
+  isForm: boolean,
+): RequestInit['body'] | undefined {
+  if (body === undefined) return undefined;
+  return isForm ? (body as RequestInit['body']) : JSON.stringify(body);
+}
+
+async function restResult<T>(res: Response): Promise<T> {
+  if (res.status === 204) return undefined as T;
+  const ctype = res.headers.get('content-type') ?? '';
+  if (ctype.includes('application/json')) return res.json() as Promise<T>;
+  return res.arrayBuffer().then((b) => Buffer.from(b) as unknown as T);
+}
+
 export async function rest<T = unknown>(
   accountId: string,
   method: string,
@@ -67,22 +82,14 @@ export async function rest<T = unknown>(
   const res = await fetch(`${API}${path}`, {
     method,
     headers,
-    body:
-      body === undefined
-        ? undefined
-        : isForm
-          ? (body as RequestInit['body'])
-          : JSON.stringify(body),
+    body: restBody(body, isForm),
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`discord ${method} ${path}: ${res.status} ${text}`);
   }
-  if (res.status === 204) return undefined as T;
-  const ctype = res.headers.get('content-type') ?? '';
-  if (ctype.includes('application/json')) return res.json() as Promise<T>;
-  return res.arrayBuffer().then((b) => Buffer.from(b) as unknown as T);
+  return restResult<T>(res);
 }
 
 export function lineOf(accountId: string, channelId: string): string {

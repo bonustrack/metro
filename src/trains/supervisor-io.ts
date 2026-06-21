@@ -64,13 +64,11 @@ export function killGracefully(
   try {
     proc.kill('SIGTERM');
   } catch {
-    /* ignore */
   }
   const grace = setTimeout(() => {
     try {
       proc.kill('SIGKILL');
     } catch {
-      /* ignore */
     }
   }, 2_000);
   return proc.exited.finally(() => {

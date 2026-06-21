@@ -147,189 +147,229 @@ function presence(id: string, args: Record<string, unknown>): void {
   });
 }
 
-async function dispatch({ id, action, args }: CallMsg): Promise<void> {
-  if (action === 'accounts') {
-    respond(id, {
-      result: {
-        accounts: [...accounts.values()].map((a) => ({
-          id: a.cfg.id,
-          userId: a.client.user?.id ?? null,
-          username: a.client.user?.username ?? null,
-          owner: a.cfg.owner ?? null,
-          ready: a.client.isReady(),
-        })),
-      },
-    });
-  } else if (action === 'send') {
-    await send(id, args);
-  } else if (action === 'reply') {
-    await reply(id, args);
-  } else if (action === 'react') {
-    const { line, messageId, emoji, account } = args as {
-      line: string;
-      messageId: string;
-      emoji: string;
-      account?: string;
-    };
-    const { accountId, channelId } = routeOf(line, account);
-    if (emoji) {
-      const e = encodeEmoji(emoji);
-      await rest(
-        accountId,
-        'PUT',
-        `/channels/${channelId}/messages/${messageId}/reactions/${e}/@me`,
-      );
-      emitOutboundReact(accountId, line, messageId, emoji);
-    } else {
-      await rest(
-        accountId,
-        'DELETE',
-        `/channels/${channelId}/messages/${messageId}/reactions/@me`,
-      );
-    }
-    respond(id, { result: { ok: true, account: accountId } });
-  } else if (action === 'edit') {
-    const { line, messageId, text, account } = args as {
-      line: string;
-      messageId: string;
-      text: string;
-      account?: string;
-    };
-    const { accountId, channelId } = routeOf(line, account);
+function listAccounts(id: string): void {
+  respond(id, {
+    result: {
+      accounts: [...accounts.values()].map((a) => ({
+        id: a.cfg.id,
+        userId: a.client.user?.id ?? null,
+        username: a.client.user?.username ?? null,
+        owner: a.cfg.owner ?? null,
+        ready: a.client.isReady(),
+      })),
+    },
+  });
+}
+
+async function react(id: string, args: Record<string, unknown>): Promise<void> {
+  const { line, messageId, emoji, account } = args as {
+    line: string;
+    messageId: string;
+    emoji: string;
+    account?: string;
+  };
+  const { accountId, channelId } = routeOf(line, account);
+  if (emoji) {
+    const e = encodeEmoji(emoji);
     await rest(
       accountId,
-      'PATCH',
-      `/channels/${channelId}/messages/${messageId}`,
-      { content: text },
+      'PUT',
+      `/channels/${channelId}/messages/${messageId}/reactions/${e}/@me`,
     );
-    emitOutboundEdit(accountId, line, messageId, text);
-    respond(id, { result: { ok: true, account: accountId } });
-  } else if (action === 'delete') {
-    const { line, messageId, account } = args as {
-      line: string;
-      messageId: string;
-      account?: string;
-    };
-    const { accountId, channelId } = routeOf(line, account);
+    emitOutboundReact(accountId, line, messageId, emoji);
+  } else {
     await rest(
       accountId,
       'DELETE',
-      `/channels/${channelId}/messages/${messageId}`,
+      `/channels/${channelId}/messages/${messageId}/reactions/@me`,
     );
-    respond(id, { result: { ok: true, account: accountId } });
-  } else if (action === 'fetch') {
-    const {
-      line,
-      limit = 20,
-      before,
-      account,
-    } = args as {
-      line: string;
-      limit?: number;
-      before?: string;
-      account?: string;
-    };
-    const { accountId, channelId } = routeOf(line, account);
-    const qs = new URLSearchParams({
-      limit: String(limit),
-      ...(before ? { before } : {}),
-    });
-    const msgs = await rest<Message[]>(
-      accountId,
-      'GET',
-      `/channels/${channelId}/messages?${qs}`,
-    );
-    respond(id, { result: { messages: msgs, account: accountId } });
-  } else if (action === 'download') {
-    const {
-      line,
-      messageId,
-      outDir = '/tmp',
-      account,
-    } = args as {
-      line: string;
-      messageId: string;
-      outDir?: string;
-      account?: string;
-    };
-    const { accountId, channelId } = routeOf(line, account);
-    const msg = await rest<{
-      attachments: { url: string; content_type?: string; filename: string }[];
-    }>(accountId, 'GET', `/channels/${channelId}/messages/${messageId}`);
-    const files: { path: string; mediaType: string }[] = [];
-    for (const att of msg.attachments) {
-      const buf = await fetch(att.url).then((r) => r.arrayBuffer());
-      const path = `${outDir}/${messageId}-${att.filename}`;
-      await Bun.write(path, buf);
-      files.push({
-        path,
-        mediaType: att.content_type ?? 'application/octet-stream',
-      });
-    }
-    respond(id, { result: { files, account: accountId } });
-  } else if (action === 'thread_create') {
-    const {
-      line,
-      messageId,
-      name,
-      autoArchiveDuration = 1440,
-      account,
-    } = args as {
-      line: string;
-      messageId?: string;
-      name: string;
-      autoArchiveDuration?: number;
-      account?: string;
-    };
-    const { accountId, channelId } = routeOf(line, account);
-    const path = messageId
-      ? `/channels/${channelId}/messages/${messageId}/threads`
-      : `/channels/${channelId}/threads`;
-    const res = await rest<{ id: string }>(accountId, 'POST', path, {
-      name,
-      auto_archive_duration: autoArchiveDuration,
-    });
-    respond(id, {
-      result: {
-        threadId: res.id,
-        line: lineOf(accountId, res.id),
-        account: accountId,
-      },
-    });
-  } else if (action === 'pin') {
-    const { line, messageId, account } = args as {
-      line: string;
-      messageId: string;
-      account?: string;
-    };
-    const { accountId, channelId } = routeOf(line, account);
-    await rest(accountId, 'PUT', `/channels/${channelId}/pins/${messageId}`);
-    respond(id, { result: { ok: true, account: accountId } });
-  } else if (action === 'typing') {
-    const { line, account } = args as { line: string; account?: string };
-    const { accountId, channelId } = routeOf(line, account);
-    await rest(accountId, 'POST', `/channels/${channelId}/typing`);
-    respond(id, { result: { ok: true, account: accountId } });
-  } else if (action === 'channel') {
-    const { line, account } = args as { line: string; account?: string };
-    const { accountId, channelId } = routeOf(line, account);
-    const res = await rest(accountId, 'GET', `/channels/${channelId}`);
-    respond(id, { result: res });
-  } else if (action === 'set_presence') {
-    presence(id, args);
-  } else if (action === 'joinVoice') {
-    await joinVoice(id, args);
-  } else if (action === 'leaveVoice') {
-    leaveVoice(id, args);
-  } else if (action === 'speak') {
-    await speak(id, args);
-  } else if (action === 'voiceDebug') {
-    voiceDebug(id, args);
-  } else if (action === 'voiceTranscribe') {
-    voiceTranscribe(id, args);
-  } else {
-    respond(id, { error: `unknown action '${action}' (have: ${KNOWN})` });
   }
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
+async function edit(id: string, args: Record<string, unknown>): Promise<void> {
+  const { line, messageId, text, account } = args as {
+    line: string;
+    messageId: string;
+    text: string;
+    account?: string;
+  };
+  const { accountId, channelId } = routeOf(line, account);
+  await rest(accountId, 'PATCH', `/channels/${channelId}/messages/${messageId}`, {
+    content: text,
+  });
+  emitOutboundEdit(accountId, line, messageId, text);
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
+async function remove(
+  id: string,
+  args: Record<string, unknown>,
+): Promise<void> {
+  const { line, messageId, account } = args as {
+    line: string;
+    messageId: string;
+    account?: string;
+  };
+  const { accountId, channelId } = routeOf(line, account);
+  await rest(accountId, 'DELETE', `/channels/${channelId}/messages/${messageId}`);
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
+async function fetchMessages(
+  id: string,
+  args: Record<string, unknown>,
+): Promise<void> {
+  const {
+    line,
+    limit = 20,
+    before,
+    account,
+  } = args as {
+    line: string;
+    limit?: number;
+    before?: string;
+    account?: string;
+  };
+  const { accountId, channelId } = routeOf(line, account);
+  const qs = new URLSearchParams({
+    limit: String(limit),
+    ...(before ? { before } : {}),
+  });
+  const msgs = await rest<Message[]>(
+    accountId,
+    'GET',
+    `/channels/${channelId}/messages?${qs}`,
+  );
+  respond(id, { result: { messages: msgs, account: accountId } });
+}
+
+async function download(
+  id: string,
+  args: Record<string, unknown>,
+): Promise<void> {
+  const {
+    line,
+    messageId,
+    outDir = '/tmp',
+    account,
+  } = args as {
+    line: string;
+    messageId: string;
+    outDir?: string;
+    account?: string;
+  };
+  const { accountId, channelId } = routeOf(line, account);
+  const msg = await rest<{
+    attachments: { url: string; content_type?: string; filename: string }[];
+  }>(accountId, 'GET', `/channels/${channelId}/messages/${messageId}`);
+  const files: { path: string; mediaType: string }[] = [];
+  for (const att of msg.attachments) {
+    const buf = await fetch(att.url).then((r) => r.arrayBuffer());
+    const path = `${outDir}/${messageId}-${att.filename}`;
+    await Bun.write(path, buf);
+    files.push({
+      path,
+      mediaType: att.content_type ?? 'application/octet-stream',
+    });
+  }
+  respond(id, { result: { files, account: accountId } });
+}
+
+async function threadCreate(
+  id: string,
+  args: Record<string, unknown>,
+): Promise<void> {
+  const {
+    line,
+    messageId,
+    name,
+    autoArchiveDuration = 1440,
+    account,
+  } = args as {
+    line: string;
+    messageId?: string;
+    name: string;
+    autoArchiveDuration?: number;
+    account?: string;
+  };
+  const { accountId, channelId } = routeOf(line, account);
+  const path = messageId
+    ? `/channels/${channelId}/messages/${messageId}/threads`
+    : `/channels/${channelId}/threads`;
+  const res = await rest<{ id: string }>(accountId, 'POST', path, {
+    name,
+    auto_archive_duration: autoArchiveDuration,
+  });
+  respond(id, {
+    result: {
+      threadId: res.id,
+      line: lineOf(accountId, res.id),
+      account: accountId,
+    },
+  });
+}
+
+async function pin(id: string, args: Record<string, unknown>): Promise<void> {
+  const { line, messageId, account } = args as {
+    line: string;
+    messageId: string;
+    account?: string;
+  };
+  const { accountId, channelId } = routeOf(line, account);
+  await rest(accountId, 'PUT', `/channels/${channelId}/pins/${messageId}`);
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
+async function typing(id: string, args: Record<string, unknown>): Promise<void> {
+  const { line, account } = args as { line: string; account?: string };
+  const { accountId, channelId } = routeOf(line, account);
+  await rest(accountId, 'POST', `/channels/${channelId}/typing`);
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
+async function channel(
+  id: string,
+  args: Record<string, unknown>,
+): Promise<void> {
+  const { line, account } = args as { line: string; account?: string };
+  const { accountId, channelId } = routeOf(line, account);
+  const res = await rest(accountId, 'GET', `/channels/${channelId}`);
+  respond(id, { result: res });
+}
+
+type Handler = (id: string, args: Record<string, unknown>) => void | Promise<void>;
+
+const HANDLERS: Record<string, Handler> = {
+  accounts: (id) => {
+    listAccounts(id);
+  },
+  send,
+  reply,
+  react,
+  edit,
+  delete: remove,
+  fetch: fetchMessages,
+  download,
+  thread_create: threadCreate,
+  pin,
+  typing,
+  channel,
+  set_presence: presence,
+  joinVoice,
+  leaveVoice,
+  speak,
+  voiceDebug,
+  voiceTranscribe,
+};
+
+async function dispatch({ id, action, args }: CallMsg): Promise<void> {
+  const handler = HANDLERS[action];
+  if (!handler) {
+    respond(id, { error: `unknown action '${action}' (have: ${KNOWN})` });
+    return;
+  }
+  await handler(id, args);
 }
 
 export async function handleCall(msg: CallMsg): Promise<void> {

@@ -16,8 +16,6 @@ const SOCKET_PATH = join(STATE_DIR, 'metro.sock');
 
 export type IpcRequest =
   | { op: 'notify'; line: string; from?: string; text: string }
-  /** `idempotencyKey` is optional + additive: minted CLI-side per logical send and
-   *  threaded into the outbox journal so a daemon restart can't double-dispatch. */
   | {
       op: 'forward-call';
       train: string;
@@ -27,8 +25,6 @@ export type IpcRequest =
     }
   | { op: 'trains-list' }
   | { op: 'train-restart'; name: string }
-  /** Read-only liveness probe: the running daemon reports its package version so */
-  /** `metro doctor` can flag a restart-pending mismatch vs the installed code. */
   | { op: 'version' }
   | { op: 'outbox-list'; state?: OutboxState; limit?: number }
   | { op: 'outbox-retry'; outboxId: string };
@@ -48,7 +44,6 @@ export function startIpcServer(handler: Handler): Server {
     try {
       unlinkSync(SOCKET_PATH);
     } catch {
-      /* ignore */
     }
   }
   const server = createServer({ allowHalfOpen: true }, (s) => {
@@ -72,7 +67,6 @@ export async function stopIpcServer(server: Server): Promise<void> {
   try {
     if (existsSync(SOCKET_PATH)) unlinkSync(SOCKET_PATH);
   } catch {
-    /* ignore */
   }
 }
 

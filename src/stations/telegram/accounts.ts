@@ -106,7 +106,6 @@ export function accountFor(args: { account?: string; line?: string }): string {
     try {
       id = targetOf(args.line).accountId;
     } catch {
-      /* ignore */
     }
   }
   id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';

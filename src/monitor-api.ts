@@ -5,7 +5,6 @@ import { readClaims } from './broker/claims.js';
 import {
   drainTail,
   followTail,
-  historySize,
   type Mode,
   type TailOpts,
 } from './broker/history-stream.js';
@@ -13,6 +12,13 @@ import { readHistory, type HistoryEntry } from './history.js';
 import { ipcCall } from './ipc.js';
 import { asLine, Line } from './lines.js';
 import { errMsg, log } from './log.js';
+import {
+  buildTailOpts,
+  nonNegInt,
+  parseCallArgs,
+  readCallBody,
+  resolveSince,
+} from './monitor-api-helpers.js';
 import { readBotIds } from './paths.js';
 import { accountStationNames } from './stations/registry.js';
 
@@ -23,7 +29,6 @@ const MONITOR_HOSTS = new Set(
     .map((s) => s.trim())
     .filter(Boolean),
 );
-const CALL_BODY_MAX = 256 * 1024;
 
 function cors(req: IncomingMessage): Record<string, string> {
   return {
@@ -34,7 +39,6 @@ function cors(req: IncomingMessage): Record<string, string> {
     vary: 'Origin',
   };
 }
-
 function send(
   res: ServerResponse,
   req: IncomingMessage,
@@ -44,13 +48,11 @@ function send(
   res.writeHead(status, { 'content-type': 'application/json', ...cors(req) });
   res.end(JSON.stringify(body));
 }
-
 function tokenEq(given: string, want: string): boolean {
   const g = Buffer.from(given),
     w = Buffer.from(want);
   return g.length === w.length && timingSafeEqual(g, w);
 }
-
 function authorized(
   req: IncomingMessage,
   q?: URLSearchParams,
@@ -68,7 +70,6 @@ function authorized(
   if (qt && tokenEq(qt, token)) return null;
   return { status: 401, msg: 'unauthorized' };
 }
-
 export function pickMode(
   strict: boolean,
   unclaimed: boolean,
@@ -85,7 +86,93 @@ export function pickMode(
   if (all || !self) return 'all';
   return 'mine-or-unclaimed';
 }
-
+function reportError(
+  res: ServerResponse,
+  req: IncomingMessage,
+  context: string,
+  err: unknown,
+): void {
+  log.warn({ err: errMsg(err) }, context);
+  try {
+    if (!res.headersSent) send(res, req, 500, { error: errMsg(err) });
+    else res.end();
+  } catch {}
+}
+function handleAccounts(res: ServerResponse, req: IncomingMessage): void {
+  gatherAccounts()
+    .then((accounts) => {
+      send(res, req, 200, { accounts });
+    })
+    .catch((err: unknown) => {
+      reportError(res, req, 'monitor: accounts handler error', err);
+    });
+}
+function handleTailRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  q: URLSearchParams,
+): void {
+  try {
+    handleTail(req, res, q);
+  } catch (err) {
+    log.warn({ err: errMsg(err) }, 'monitor: tail handler error');
+    try {
+      if (!res.headersSent) res.writeHead(500).end();
+      else res.end();
+    } catch {}
+  }
+}
+function routeGet(
+  req: IncomingMessage,
+  res: ServerResponse,
+  path: string,
+  q: URLSearchParams,
+): boolean {
+  if (path === '/api/state') handleState(res, req, q);
+  else if (path === '/api/accounts') handleAccounts(res, req);
+  else if (path === '/api/tail') handleTailRoute(req, res, q);
+  else return false;
+  return true;
+}
+function routeApi(
+  req: IncomingMessage,
+  res: ServerResponse,
+  path: string,
+  q: URLSearchParams,
+): void {
+  const callMatch = /^\/api\/call\/([^/]+)\/([^/]+)$/.exec(path);
+  if (callMatch && req.method !== 'POST') {
+    send(res, req, 405, { error: 'method not allowed' });
+    return;
+  }
+  if (callMatch) {
+    handleCall(req, res, callMatch[1], callMatch[2]).catch((err: unknown) => {
+      reportError(res, req, 'monitor: call handler error', err);
+    });
+    return;
+  }
+  if (req.method === 'GET' && routeGet(req, res, path, q)) return;
+  if (req.method !== 'GET' && (path === '/api/state' || path === '/api/tail')) {
+    send(res, req, 405, { error: 'method not allowed' });
+    return;
+  }
+  send(res, req, 404, { error: 'not found' });
+}
+function runHealth(res: ServerResponse, req: IncomingMessage): void {
+  handleHealth(res, req).catch((err: unknown) => {
+    log.warn({ err: errMsg(err) }, 'monitor: health handler error');
+    try {
+      send(res, req, 500, { ok: false, error: errMsg(err) });
+    } catch {}
+  });
+}
+function hostAllowed(req: IncomingMessage): boolean {
+  const host =
+    (req.headers[':authority' as keyof typeof req.headers] as
+      | string
+      | undefined) ?? req.headers.host;
+  return !host || MONITOR_HOSTS.has(host.split(':')[0].toLowerCase());
+}
 export function handleMonitorRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -93,23 +180,11 @@ export function handleMonitorRequest(
   const url = req.url ?? '';
   const [path, qs = ''] = url.split('?', 2);
   if (req.method === 'GET' && (path === '/health' || path === '/api/health')) {
-    handleHealth(res, req).catch((err: unknown) => {
-      log.warn({ err: errMsg(err) }, 'monitor: health handler error');
-      try {
-        send(res, req, 500, { ok: false, error: errMsg(err) });
-      } catch {
-        /* ignore */
-      }
-    });
+    runHealth(res, req);
     return true;
   }
   if (!url.startsWith('/api/')) return false;
-  const host =
-    (req.headers[':authority' as keyof typeof req.headers] as
-      | string
-      | undefined) ?? req.headers.host;
-  if (host && !MONITOR_HOSTS.has(host.split(':')[0].toLowerCase()))
-    return false;
+  if (!hostAllowed(req)) return false;
   if (req.method === 'OPTIONS') {
     res.writeHead(204, cors(req));
     res.end();
@@ -121,68 +196,9 @@ export function handleMonitorRequest(
     send(res, req, auth.status, { error: auth.msg });
     return true;
   }
-  if (req.method === 'GET' && path === '/api/state') {
-    handleState(res, req, q);
-    return true;
-  }
-  if (req.method === 'GET' && path === '/api/accounts') {
-    gatherAccounts()
-      .then((accounts) => {
-        send(res, req, 200, { accounts });
-      })
-      .catch((err: unknown) => {
-        log.warn({ err: errMsg(err) }, 'monitor: accounts handler error');
-        try {
-          send(res, req, 500, { error: errMsg(err) });
-        } catch {
-          /* ignore */
-        }
-      });
-    return true;
-  }
-  if (req.method === 'GET' && path === '/api/tail') {
-    try {
-      handleTail(req, res, q);
-    } catch (err) {
-      log.warn({ err: errMsg(err) }, 'monitor: tail handler error');
-      try {
-        if (!res.headersSent) res.writeHead(500).end();
-        else res.end();
-      } catch {
-        /* ignore */
-      }
-    }
-    return true;
-  }
-  const callMatch = /^\/api\/call\/([^/]+)\/([^/]+)$/.exec(path);
-  if (callMatch) {
-    if (req.method !== 'POST') {
-      send(res, req, 405, { error: 'method not allowed' });
-      return true;
-    }
-    handleCall(req, res, callMatch[1], callMatch[2]).catch((err: unknown) => {
-      log.warn({ err: errMsg(err) }, 'monitor: call handler error');
-      try {
-        send(res, req, 500, { error: errMsg(err) });
-      } catch {
-        /* ignore */
-      }
-    });
-    return true;
-  }
-  if (req.method !== 'GET' && (path === '/api/state' || path === '/api/tail')) {
-    send(res, req, 405, { error: 'method not allowed' });
-    return true;
-  }
-  send(res, req, 404, { error: 'not found' });
+  routeApi(req, res, path, q);
   return true;
 }
-
-function nonNegInt(raw: string | null): number | null {
-  const n = raw == null ? NaN : Number(raw);
-  return Number.isInteger(n) && n >= 0 ? n : null;
-}
-
 export async function gatherAccounts(): Promise<Record<string, unknown[]>> {
   const out: Record<string, unknown[]> = {};
   await Promise.all(
@@ -207,7 +223,6 @@ export async function gatherAccounts(): Promise<Record<string, unknown[]>> {
   );
   return out;
 }
-
 async function handleHealth(
   res: ServerResponse,
   req: IncomingMessage,
@@ -221,7 +236,6 @@ async function handleHealth(
     accounts,
   });
 }
-
 function handleState(
   res: ServerResponse,
   req: IncomingMessage,
@@ -249,7 +263,41 @@ function handleState(
     version: pkg.version,
   });
 }
-
+function startTailStream(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: TailOpts,
+  self: Line | null,
+  startOffset: number,
+): void {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache, no-transform',
+    connection: 'keep-alive',
+    ...cors(req),
+    'x-accel-buffering': 'no',
+  });
+  res.write(
+    `: metro monitor tail (mode=${opts.mode}${self ? `, as=${self}` : ''})\n: ${'-'.repeat(4096)}\n\n`,
+  );
+  const sse = (e: HistoryEntry, offsetAfter: number): void => {
+    res.write(
+      `id: ${offsetAfter}\nevent: history\ndata: ${JSON.stringify(e)}\n\n`,
+    );
+  };
+  const offset = drainTail(startOffset, opts, sse);
+  const stop = followTail(offset, opts, sse, 1_000);
+  const keepalive = setInterval(() => res.write(': keepalive\n\n'), 25_000);
+  const cleanup = (): void => {
+    stop();
+    clearInterval(keepalive);
+    try {
+      res.end();
+    } catch {}
+  };
+  req.on('close', cleanup);
+  req.on('error', cleanup);
+}
 function handleTail(
   req: IncomingMessage,
   res: ServerResponse,
@@ -266,111 +314,44 @@ function handleTail(
     self,
     () => 'all',
   );
-  const since = q.get('since');
-  let sinceN = since !== null && since !== 'tail' ? Number(since) : NaN;
-  if (
-    since !== null &&
-    since !== 'tail' &&
-    (!Number.isFinite(sinceN) || sinceN < 0)
-  ) {
-    send(res, req, 400, {
-      error: `since must be a byte offset or 'tail' (got '${since}')`,
-    });
+  const since = resolveSince(req, q);
+  if ('error' in since) {
+    send(res, req, 400, { error: since.error });
     return;
   }
-  if (!Number.isFinite(sinceN)) {
-    const leid = req.headers['last-event-id'];
-    const leidStr = Array.isArray(leid) ? leid[0] : leid;
-    const leidN = leidStr !== undefined ? Number(leidStr) : NaN;
-    if (Number.isFinite(leidN) && leidN >= 0) sinceN = leidN;
-  }
-  const excludeFromCsv = q.get('exclude_from');
-  const opts: TailOpts = {
-    mode,
-    self,
-    chatFilter: q.get('chat') ?? undefined,
-    stationFilter: q.get('station') ?? undefined,
-    includeWebhooks: q.get('include_webhooks') === 'true',
-    excludeFrom: excludeFromCsv
-      ? excludeFromCsv
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : undefined,
-  };
-  res.writeHead(200, {
-    'content-type': 'text/event-stream',
-    'cache-control': 'no-cache, no-transform',
-    connection: 'keep-alive',
-    ...cors(req),
-    'x-accel-buffering': 'no',
-  });
-  let offset = Number.isFinite(sinceN) && sinceN >= 0 ? sinceN : historySize();
-  res.write(
-    `: metro monitor tail (mode=${opts.mode}${self ? `, as=${self}` : ''})\n: ${'-'.repeat(4096)}\n\n`,
-  );
-  const sse = (e: HistoryEntry, offsetAfter: number): void => {
-    res.write(
-      `id: ${offsetAfter}\nevent: history\ndata: ${JSON.stringify(e)}\n\n`,
-    );
-  };
-  offset = drainTail(offset, opts, sse);
-  const stop = followTail(offset, opts, sse, 1_000);
-  const keepalive = setInterval(() => res.write(': keepalive\n\n'), 25_000);
-  const cleanup = (): void => {
-    stop();
-    clearInterval(keepalive);
-    try {
-      res.end();
-    } catch {
-      /* ignore */
-    }
-  };
-  req.on('close', cleanup);
-  req.on('error', cleanup);
+  const opts: TailOpts = buildTailOpts(q, mode, self);
+  startTailStream(req, res, opts, self, since.offset);
 }
-
+type IpcResp = Awaited<ReturnType<typeof ipcCall>>;
+function callError(resp: IpcResp): string | null {
+  if (!resp.ok) return resp.error;
+  if (!('response' in resp)) return 'malformed daemon response';
+  return resp.response.error ?? null;
+}
+function callResult(resp: IpcResp): unknown {
+  return 'response' in resp ? (resp.response.result ?? null) : null;
+}
 async function handleCall(
   req: IncomingMessage,
   res: ServerResponse,
   train: string,
   action: string,
 ): Promise<void> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of req) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
-    total += buf.length;
-    if (total > CALL_BODY_MAX)
-      throw new Error(`request body exceeds ${CALL_BODY_MAX} bytes`);
-    chunks.push(buf);
-  }
-  const raw = Buffer.concat(chunks).toString('utf8').trim();
+  const raw = await readCallBody(req);
   let args: unknown = {};
   if (raw) {
     try {
-      const parsed = JSON.parse(raw) as { args?: unknown };
-      args =
-        parsed && typeof parsed === 'object' && 'args' in parsed
-          ? parsed.args
-          : parsed;
+      args = parseCallArgs(raw);
     } catch (err) {
       send(res, req, 400, { error: `bad JSON body: ${errMsg(err)}` });
       return;
     }
   }
   const resp = await ipcCall({ op: 'forward-call', train, action, args });
-  if (!resp.ok) {
-    send(res, req, 502, { error: resp.error });
+  const err = callError(resp);
+  if (err !== null) {
+    send(res, req, 502, { error: err });
     return;
   }
-  if (!('response' in resp)) {
-    send(res, req, 502, { error: 'malformed daemon response' });
-    return;
-  }
-  if (resp.response.error) {
-    send(res, req, 502, { error: resp.response.error });
-    return;
-  }
-  send(res, req, 200, { result: resp.response.result ?? null });
+  send(res, req, 200, { result: callResult(resp) });
 }

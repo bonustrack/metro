@@ -64,7 +64,6 @@ export function acquireLock(lockFile: string): void {
           if (readFileSync(lockFile, 'utf8').trim() === String(process.pid))
             unlinkSync(lockFile);
         } catch {
-          /* ignore */
         }
       });
       return;
@@ -74,7 +73,6 @@ export function acquireLock(lockFile: string): void {
       try {
         pid = Number(readFileSync(lockFile, 'utf8').trim());
       } catch {
-        /* unreadable — treat as stale */
       }
       try {
         if (Number.isInteger(pid) && pid > 0) {
@@ -86,12 +84,10 @@ export function acquireLock(lockFile: string): void {
           process.exit(0);
         }
       } catch {
-        /* dead/unreadable → stale */
       }
       try {
         unlinkSync(lockFile);
       } catch {
-        /* lost the race to another reclaimer; retry */
       }
     }
   }

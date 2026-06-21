@@ -38,44 +38,65 @@ function run(cmd: string, args: string[]): Promise<void> {
   });
 }
 
-function resolveConnection(
+function channelName(ch: unknown, fallback: string): string {
+  return ch && typeof ch === 'object' && 'name' in ch
+    ? String((ch as { name?: string }).name)
+    : fallback;
+}
+
+function resolveChannelId(args: {
+  channelId?: string;
+  line?: string;
+  account?: string;
+}): string | undefined {
+  if (args.channelId) return args.channelId;
+  if (!args.line) return undefined;
+  try {
+    return routeOf(args.line, args.account).channelId;
+  } catch {
+    return undefined;
+  }
+}
+
+function connByChannel(
   client: Client,
-  args: { channelId?: string; line?: string; account?: string },
-): { conn: VoiceConnection; channelName: string } | { error: string } {
-  let channelId = args.channelId;
-  if (!channelId && args.line) {
-    try {
-      channelId = routeOf(args.line, args.account).channelId;
-    } catch {
-      /* ignore */
-    }
-  }
-  if (channelId) {
-    const ch = client.channels.cache.get(channelId);
-    const gid =
-      ch && 'guildId' in ch ? (ch as { guildId: string }).guildId : undefined;
-    if (gid) {
-      const conn = getVoiceConnection(gid);
-      if (conn) {
-        const name =
-          ch && 'name' in ch ? String((ch as { name?: string }).name) : gid;
-        return { conn, channelName: name };
-      }
-    }
-  }
+  channelId: string | undefined,
+): { conn: VoiceConnection; channelName: string } | null {
+  if (!channelId) return null;
+  const ch = client.channels.cache.get(channelId);
+  const gid =
+    ch && 'guildId' in ch ? (ch as { guildId: string }).guildId : undefined;
+  if (!gid) return null;
+  const conn = getVoiceConnection(gid);
+  if (!conn) return null;
+  return { conn, channelName: channelName(ch, gid) };
+}
+
+function connByGuildScan(
+  client: Client,
+): { conn: VoiceConnection; channelName: string } | null {
   for (const guild of client.guilds.cache.values()) {
     const conn = getVoiceConnection(guild.id);
     if (conn) {
       const chId = (conn.joinConfig as { channelId?: string }).channelId;
       const ch = chId ? client.channels.cache.get(chId) : undefined;
-      const name =
-        ch && 'name' in ch
-          ? String((ch as { name?: string }).name)
-          : guild.name;
-      return { conn, channelName: name };
+      return { conn, channelName: channelName(ch, guild.name) };
     }
   }
-  return { error: 'no active voice connection — run joinVoice first' };
+  return null;
+}
+
+function resolveConnection(
+  client: Client,
+  args: { channelId?: string; line?: string; account?: string },
+): { conn: VoiceConnection; channelName: string } | { error: string } {
+  const channelId = resolveChannelId(args);
+  return (
+    connByChannel(client, channelId) ??
+    connByGuildScan(client) ?? {
+      error: 'no active voice connection — run joinVoice first',
+    }
+  );
 }
 
 export async function speak(
@@ -149,7 +170,6 @@ export async function speak(
     try {
       (conn as { rejoin: (c: object) => void }).rejoin({ selfMute: false });
     } catch {
-      /* ignore */
     }
     player.play(resource);
 
@@ -159,7 +179,6 @@ export async function speak(
     try {
       (conn as { rejoin: (c: object) => void }).rejoin({ selfMute: true });
     } catch {
-      /* ignore */
     }
 
     respond(id, {

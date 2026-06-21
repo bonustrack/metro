@@ -24,7 +24,6 @@ export function readClaims(): ClaimsMap {
     try {
       return JSON.parse(readFileSync(CLAIMS_FILE, 'utf8')) as ClaimsMap;
     } catch {
-      /* race with writer — retry once */
     }
   }
   log.warn({ path: CLAIMS_FILE }, 'claims: malformed, treating as empty');
@@ -54,7 +53,6 @@ function withClaimsLock<T>(fn: (m: ClaimsMap) => T): T {
     try {
       unlinkSync(CLAIMS_LOCK);
     } catch {
-      /* ignore */
     }
   }
 }

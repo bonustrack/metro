@@ -18,14 +18,23 @@ export type {
 
 import type { HistoryEntry, StructuredEvent } from './history-types.js';
 
+function isExternalWebhook(e: HistoryEntry): boolean {
+  return e.station === 'webhook' && !Line.isLocal(e.from);
+}
+
+function webhookEventName(e: HistoryEntry): string | undefined {
+  const headers = (e.payload as { headers?: Record<string, string> } | undefined)
+    ?.headers;
+  return headers?.['x-github-event'] ?? headers?.['x-intercom-topic'];
+}
+
 export function classifyEvent(e: HistoryEntry): StructuredEvent {
-  if (e.station === 'webhook' && !Line.isLocal(e.from)) {
-    const headers = (
-      e.payload as { headers?: Record<string, string> } | undefined
-    )?.headers;
-    const eventName =
-      headers?.['x-github-event'] ?? headers?.['x-intercom-topic'];
-    return { type: 'system', source: 'webhook', eventName };
+  if (isExternalWebhook(e)) {
+    return {
+      type: 'system',
+      source: 'webhook',
+      eventName: webhookEventName(e),
+    };
   }
   const emoji =
     (e.payload as { emoji?: string } | undefined)?.emoji ??
@@ -39,12 +48,8 @@ export function formatDisplay(e: HistoryEntry): string {
   const headerFor = (icon: string, parts: (string | undefined)[]): string =>
     `**${icon} ${parts.filter(Boolean).join(' · ')}**`;
   const body = e.text ?? '';
-  if (e.station === 'webhook' && !Line.isLocal(e.from)) {
-    const ev =
-      (e.payload as { headers?: Record<string, string> } | undefined)
-        ?.headers?.['x-github-event'] ??
-      (e.payload as { headers?: Record<string, string> } | undefined)
-        ?.headers?.['x-intercom-topic'];
+  if (isExternalWebhook(e)) {
+    const ev = webhookEventName(e);
     return `${headerFor('🪝', ['webhook', e.lineName, ev])}\n> ${body}`;
   }
   if (Line.isLocal(e.from)) {
@@ -74,6 +79,21 @@ export interface HistoryFilter {
   skip?: number;
 }
 
+function parseEntry(raw: string): HistoryEntry | null {
+  try {
+    return JSON.parse(raw) as HistoryEntry;
+  } catch {
+    return null;
+  }
+}
+
+function matchingEntry(raw: string, filter: HistoryFilter): HistoryEntry | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const e = parseEntry(trimmed);
+  return e && matches(e, filter) ? e : null;
+}
+
 export function readHistory(filter: HistoryFilter = {}): HistoryEntry[] {
   if (!existsSync(HISTORY_FILE)) return [];
   const lines = readFileSync(HISTORY_FILE, 'utf8').split('\n');
@@ -81,15 +101,8 @@ export function readHistory(filter: HistoryFilter = {}): HistoryEntry[] {
   const skip = filter.skip ?? 0;
   let skipped = 0;
   for (let i = lines.length - 1; i >= 0; i--) {
-    const raw = lines[i].trim();
-    if (!raw) continue;
-    let e: HistoryEntry;
-    try {
-      e = JSON.parse(raw) as HistoryEntry;
-    } catch {
-      continue;
-    }
-    if (!matches(e, filter)) continue;
+    const e = matchingEntry(lines[i], filter);
+    if (!e) continue;
     if (skipped < skip) {
       skipped++;
       continue;
@@ -100,15 +113,21 @@ export function readHistory(filter: HistoryFilter = {}): HistoryEntry[] {
   return out;
 }
 
+function textMatches(e: HistoryEntry, needle: string): boolean {
+  return (e.text ?? '').toLowerCase().includes(needle.toLowerCase());
+}
+
+function fieldMismatch(e: HistoryEntry, f: HistoryFilter): boolean {
+  return (
+    (!!f.line && e.line !== f.line) ||
+    (!!f.station && e.station !== f.station) ||
+    (!!f.from && e.from !== f.from)
+  );
+}
+
 function matches(e: HistoryEntry, f: HistoryFilter): boolean {
-  if (f.line && e.line !== f.line) return false;
-  if (f.station && e.station !== f.station) return false;
-  if (f.from && e.from !== f.from) return false;
-  if (
-    f.textContains &&
-    !(e.text ?? '').toLowerCase().includes(f.textContains.toLowerCase())
-  )
-    return false;
+  if (fieldMismatch(e, f)) return false;
+  if (f.textContains && !textMatches(e, f.textContains)) return false;
   if (f.since && new Date(e.ts) < f.since) return false;
   return true;
 }

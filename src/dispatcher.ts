@@ -58,63 +58,77 @@ let webhookServer: Server | null = null;
 const tunnelCfg = loadTunnelConfig();
 const tunnel = tunnelCfg ? new Tunnel(tunnelCfg, webhookPort()) : null;
 
-const ipc = startIpcServer(async (req: IpcRequest): Promise<IpcResponse> => {
-  if (req.op === 'notify') {
-    const line = req.line as HistoryEntry['line'];
-    emit({
-      id: mintId(),
-      ts: new Date().toISOString(),
-      station: Line.station(line) ?? '?',
-      line,
-      from: (req.from ?? userSelf()) as HistoryEntry['from'],
-      to: line,
-      text: req.text,
-    });
+function ipcNotify(req: Extract<IpcRequest, { op: 'notify' }>): IpcResponse {
+  const line = req.line as HistoryEntry['line'];
+  emit({
+    id: mintId(),
+    ts: new Date().toISOString(),
+    station: Line.station(line) ?? '?',
+    line,
+    from: (req.from ?? userSelf()) as HistoryEntry['from'],
+    to: line,
+    text: req.text,
+  });
+  return { ok: true };
+}
+
+async function ipcForwardCall(
+  req: Extract<IpcRequest, { op: 'forward-call' }>,
+): Promise<IpcResponse> {
+  try {
+    const r = await outbox.forward(
+      req.train,
+      req.action,
+      req.args,
+      req.idempotencyKey,
+    );
+    return { ok: true, response: r };
+  } catch (err) {
+    return { ok: false, error: errMsg(err) };
+  }
+}
+
+async function ipcTrainRestart(
+  req: Extract<IpcRequest, { op: 'train-restart' }>,
+): Promise<IpcResponse> {
+  try {
+    await supervisor.restart(req.name);
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errMsg(err) };
   }
-  if (req.op === 'forward-call') {
-    try {
-      const r = await outbox.forward(
-        req.train,
-        req.action,
-        req.args,
-        req.idempotencyKey,
-      );
-      return { ok: true, response: r };
-    } catch (err) {
-      return { ok: false, error: errMsg(err) };
-    }
+}
+
+async function handleIpc(req: IpcRequest): Promise<IpcResponse> {
+  switch (req.op) {
+    case 'notify':
+      return ipcNotify(req);
+    case 'forward-call':
+      return ipcForwardCall(req);
+    case 'trains-list':
+      return { ok: true, trains: supervisor.list() };
+    case 'train-restart':
+      return ipcTrainRestart(req);
+    case 'version':
+      return { ok: true, version: pkg.version };
+    case 'outbox-list':
+      return {
+        ok: true,
+        entries: outbox.list({ state: req.state, limit: req.limit }),
+      };
+    case 'outbox-retry':
+      return outbox.retry(req.outboxId)
+        ? { ok: true }
+        : { ok: false, error: `no outbox entry with id '${req.outboxId}'` };
+    default:
+      return {
+        ok: false,
+        error: `unknown op: ${(req as { op?: string }).op ?? '(none)'}`,
+      };
   }
-  if (req.op === 'trains-list') {
-    return { ok: true, trains: supervisor.list() };
-  }
-  if (req.op === 'train-restart') {
-    try {
-      await supervisor.restart(req.name);
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: errMsg(err) };
-    }
-  }
-  if (req.op === 'version') {
-    return { ok: true, version: pkg.version };
-  }
-  if (req.op === 'outbox-list') {
-    return {
-      ok: true,
-      entries: outbox.list({ state: req.state, limit: req.limit }),
-    };
-  }
-  if (req.op === 'outbox-retry') {
-    return outbox.retry(req.outboxId)
-      ? { ok: true }
-      : { ok: false, error: `no outbox entry with id '${req.outboxId}'` };
-  }
-  return {
-    ok: false,
-    error: `unknown op: ${(req as { op?: string }).op ?? '(none)'}`,
-  };
-});
+}
+
+const ipc = startIpcServer(handleIpc);
 
 async function main(): Promise<void> {
   supervisor.start();
@@ -136,9 +150,7 @@ async function shutdown(): Promise<void> {
   log.info('dispatcher shutting down');
   tunnel?.stop();
   outbox.stop();
-  await stopIpcServer(ipc).catch(() => {
-    /* best-effort */
-  });
+  await stopIpcServer(ipc).catch(() => undefined);
   if (webhookServer) {
     const server = webhookServer;
     await new Promise<void>((r) =>

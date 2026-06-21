@@ -44,6 +44,11 @@ export function makeEmit(dedupSeq?: DedupSeq): Emit {
   };
 }
 
+function eventText(env: TrainEvent): string | undefined {
+  if (env.text !== undefined) return env.text;
+  return env.emoji ? `[react ${env.emoji}]` : undefined;
+}
+
 export function trainEventToHistoryEntry(
   env: TrainEvent,
   trainName: string,
@@ -55,7 +60,7 @@ export function trainEventToHistoryEntry(
   }
   const station = env.station ?? Line.station(line) ?? trainName;
   const isPrivate = env.is_private === true;
-  const text = env.text ?? (env.emoji ? `[react ${env.emoji}]` : undefined);
+  const text = eventText(env);
   return {
     event: env.event,
     id: env.id ?? mintId(),
@@ -105,6 +110,59 @@ export async function startWebhookServer(
   return server;
 }
 
+function isMcpPath(req: IncomingMessage): boolean {
+  const path = (req.url ?? '').split('?')[0];
+  return path === '/' || path === '/mcp';
+}
+
+async function readBody(req: IncomingMessage): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const c of req) chunks.push(c as Buffer);
+  return Buffer.concat(chunks);
+}
+
+function flatHeaders(req: IncomingMessage): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(req.headers).map(([k, v]) => [
+      k,
+      Array.isArray(v) ? v.join(',') : (v ?? ''),
+    ]),
+  );
+}
+
+function parseBody(raw: Buffer): unknown {
+  const text = raw.toString('utf8');
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+async function handleWebhookPost(
+  req: IncomingMessage,
+  res: ServerResponse,
+  emit: Emit,
+  endpointId: string,
+  endpoint: ReturnType<typeof findEndpoint> & object,
+): Promise<void> {
+  const raw = await readBody(req);
+  const headers = flatHeaders(req);
+  if (
+    endpoint.secret &&
+    !verifyWebhookSig(endpoint.secret, raw, headers['x-hub-signature-256'])
+  ) {
+    log.warn({ endpoint: endpointId }, 'webhook signature mismatch — rejecting');
+    res.writeHead(401).end('signature mismatch');
+    return;
+  }
+  const body = parseBody(raw);
+  emit(
+    webhookEntry(endpoint, headers, body, req.method ?? 'POST', req.url ?? ''),
+  );
+  res.writeHead(200).end('ok');
+}
+
 async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -112,12 +170,9 @@ async function handleRequest(
   mcp?: McpHandler,
 ): Promise<void> {
   if (handleMonitorRequest(req, res)) return;
-  if (mcp) {
-    const path = (req.url ?? '').split('?')[0];
-    if (path === '/' || path === '/mcp') {
-      await mcp(req, res);
-      return;
-    }
+  if (mcp && isMcpPath(req)) {
+    await mcp(req, res);
+    return;
   }
   const m = req.url?.match(/^\/wh\/([A-Za-z0-9_-]+)/);
   if (!m) {
@@ -138,36 +193,5 @@ async function handleRequest(
     res.writeHead(405).end();
     return;
   }
-
-  const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
-  const raw = Buffer.concat(chunks);
-  const headers = Object.fromEntries(
-    Object.entries(req.headers).map(([k, v]) => [
-      k,
-      Array.isArray(v) ? v.join(',') : (v ?? ''),
-    ]),
-  );
-  if (
-    endpoint.secret &&
-    !verifyWebhookSig(endpoint.secret, raw, headers['x-hub-signature-256'])
-  ) {
-    log.warn(
-      { endpoint: endpointId },
-      'webhook signature mismatch — rejecting',
-    );
-    res.writeHead(401).end('signature mismatch');
-    return;
-  }
-  let body: unknown = raw.toString('utf8');
-  try {
-    body = JSON.parse(body as string);
-  } catch {
-    /* keep as string */
-  }
-
-  emit(
-    webhookEntry(endpoint, headers, body, req.method ?? 'POST', req.url ?? ''),
-  );
-  res.writeHead(200).end('ok');
+  await handleWebhookPost(req, res, emit, endpointId, endpoint);
 }

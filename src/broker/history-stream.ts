@@ -127,6 +127,19 @@ export interface TailOpts {
   excludeFrom?: string[];
 }
 
+function tailIncludes(
+  entry: HistoryEntry,
+  opts: TailOpts,
+  claims: ClaimsMap,
+): boolean {
+  if (opts.chatFilter && entry.line !== opts.chatFilter) return false;
+  if (opts.stationFilter && entry.station !== opts.stationFilter) return false;
+  if (opts.excludeFrom?.includes(entry.from)) return false;
+  return passesMode(entry, opts.mode, opts.self, claims, {
+    includeWebhooks: opts.includeWebhooks,
+  });
+}
+
 export function drainTail(
   offset: number,
   opts: TailOpts,
@@ -136,15 +149,7 @@ export function drainTail(
   for (const { entry, offset: next } of readEntriesFrom(offset)) {
     offset = next;
     if (!entry) continue;
-    if (opts.chatFilter && entry.line !== opts.chatFilter) continue;
-    if (opts.stationFilter && entry.station !== opts.stationFilter) continue;
-    if (opts.excludeFrom?.includes(entry.from)) continue;
-    if (
-      !passesMode(entry, opts.mode, opts.self, claims, {
-        includeWebhooks: opts.includeWebhooks,
-      })
-    )
-      continue;
+    if (!tailIncludes(entry, opts, claims)) continue;
     if (onEntry(entry, offset) === true) return offset;
   }
   return offset;
@@ -166,7 +171,6 @@ export function followTail(
       tick();
     });
   } catch {
-    /* file may not exist yet */
   }
   const poll = setInterval(tick, pollMs);
   return () => {
@@ -175,7 +179,6 @@ export function followTail(
       try {
         watcher.close();
       } catch {
-        /* ignore */
       }
     }
   };

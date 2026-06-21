@@ -1,0 +1,171 @@
+import { IdentifierKind } from '@xmtp/node-sdk';
+import { convOf, type Account } from './accounts.js';
+import { inboxEthCache } from './wire.js';
+import { TrainError } from '../../train-error.js';
+import { readAppData, type GroupLike } from './labels.js';
+
+type Args = Record<string, unknown>;
+type Conv = Awaited<ReturnType<typeof convOf>>['conv'] & object;
+export interface EthId {
+  identifier: string;
+  identifierKind: IdentifierKind;
+}
+
+export function filterStrings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((a) => typeof a === 'string' && a.length > 0) as string[];
+}
+
+export function ethIdentifiers(addrs: string[]): EthId[] {
+  return addrs.map((a) => ({
+    identifier: a,
+    identifierKind: IdentifierKind.Ethereum,
+  }));
+}
+
+async function resolveAddresses(
+  acct: Account,
+  inboxIds: string[],
+): Promise<Record<string, string>> {
+  const addresses: Record<string, string> = {};
+  const missing = inboxIds.filter((iid) => {
+    const cached = inboxEthCache.get(iid);
+    if (cached) {
+      addresses[iid] = cached;
+      return false;
+    }
+    return true;
+  });
+  if (!missing.length) return addresses;
+  try {
+    const states = await acct.client.preferences.fetchInboxStates(missing);
+    for (let i = 0; i < missing.length; i++) {
+      const eth = states[i]?.identifiers.find(
+        (it: { identifierKind: IdentifierKind }) =>
+          it.identifierKind === IdentifierKind.Ethereum,
+      );
+      if (eth?.identifier) {
+        addresses[missing[i]] = eth.identifier;
+        inboxEthCache.set(missing[i], eth.identifier);
+      }
+    }
+  } catch {
+    return addresses;
+  }
+  return addresses;
+}
+
+export async function buildGroupInfo(
+  line: string,
+  acct: Account,
+  conv: Conv,
+): Promise<Record<string, unknown>> {
+  const inboxIds = (await conv.members()).map((m) => m.inboxId);
+  const addresses = await resolveAddresses(acct, inboxIds);
+  const isDm =
+    typeof (conv as unknown as { peerInboxId?: unknown }).peerInboxId ===
+    'function';
+  const gn = (conv as unknown as { name?: string | (() => Promise<string>) })
+    .name;
+  const resolvedName = typeof gn === 'function' ? await gn() : (gn ?? '');
+  const { labels, github, preview } = readAppData(
+    (conv as unknown as GroupLike).appData,
+  );
+  return {
+    line,
+    id: conv.id,
+    account: acct.cfg.id,
+    version: isDm ? 'dm' : 'group',
+    name: resolvedName ?? '',
+    memberCount: inboxIds.length,
+    labels,
+    github,
+    preview,
+    members: inboxIds.map((iid) => ({
+      inboxId: iid,
+      address: addresses[iid] ?? null,
+    })),
+  };
+}
+
+export function parseMemberArgs(
+  args: Args,
+  verb: string,
+): { line: string; addrs: string[]; inboxes: string[] } {
+  const { line, addresses, inboxIds } = args as {
+    line: string;
+    addresses?: string[];
+    inboxIds?: string[];
+  };
+  if (!line || typeof line !== 'string')
+    throw new TrainError('INVALID_ARGS', `${verb} requires a \`line\``);
+  const addrs = filterStrings(addresses);
+  const inboxes = filterStrings(inboxIds);
+  if (addrs.length === 0 && inboxes.length === 0)
+    throw new TrainError(
+      'INVALID_ARGS',
+      `${verb} requires addresses[] or inboxIds[]`,
+    );
+  return { line, addrs, inboxes };
+}
+
+interface MemberGroup {
+  sync?: () => Promise<unknown>;
+  addMembers?: (ids: string[]) => Promise<unknown>;
+  addMembersByIdentifiers?: (ids: EthId[]) => Promise<unknown>;
+  removeMembers?: (ids: string[]) => Promise<unknown>;
+  removeMembersByIdentifiers?: (ids: EthId[]) => Promise<unknown>;
+}
+
+async function applyByIdentifiers(
+  group: MemberGroup,
+  byIdent: ((ids: EthId[]) => Promise<unknown>) | undefined,
+  addrs: string[],
+  verb: string,
+): Promise<void> {
+  if (!addrs.length) return;
+  if (typeof byIdent !== 'function')
+    throw new TrainError(
+      'INVALID_ARGS',
+      `group does not support ${verb}ByIdentifiers; pass inboxIds instead`,
+    );
+  await byIdent.call(group, ethIdentifiers(addrs));
+}
+
+async function applyByInboxId(
+  group: MemberGroup,
+  byId: ((ids: string[]) => Promise<unknown>) | undefined,
+  inboxes: string[],
+  verb: string,
+): Promise<void> {
+  if (!inboxes.length) return;
+  if (typeof byId !== 'function')
+    throw new TrainError(
+      'INVALID_ARGS',
+      `group does not support ${verb} by inboxId`,
+    );
+  await byId.call(group, inboxes);
+}
+
+export async function applyMemberOp(
+  conv: Conv,
+  addrs: string[],
+  inboxes: string[],
+  mode: 'add' | 'remove',
+): Promise<void> {
+  const group = conv as unknown as MemberGroup;
+  const byId = mode === 'add' ? group.addMembers : group.removeMembers;
+  const byIdent =
+    mode === 'add'
+      ? group.addMembersByIdentifiers
+      : group.removeMembersByIdentifiers;
+  const verb = mode === 'add' ? 'addMembers' : 'removeMembers';
+  if (typeof byId !== 'function' && typeof byIdent !== 'function')
+    throw new TrainError(
+      'INVALID_ARGS',
+      `${verb} target is not a group (no ${verb})`,
+    );
+  await group.sync?.().catch(() => undefined);
+  await applyByIdentifiers(group, byIdent, addrs, verb);
+  await applyByInboxId(group, byId, inboxes, verb);
+}
