@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
@@ -588,10 +588,14 @@ export async function createMetroMcp(): Promise<{
   }
 
   const httpToken = process.env.METRO_MCP_HTTP_TOKEN || ''
+  const tokenEq = (given: string): boolean => {
+    const g = Buffer.from(given), w = Buffer.from(httpToken)
+    return g.length === w.length && timingSafeEqual(g, w)
+  }
   const httpHandler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (httpToken) {
-      const h = ([] as string[]).concat(req.headers['authorization'] ?? [])[0] ?? ''
-      if (!(h.startsWith('Bearer ') && h.slice(7) === httpToken)) {
+      const qt = new URL(req.url ?? '/', 'http://localhost').searchParams.get('token')
+      if (qt == null || !tokenEq(qt)) {
         res.writeHead(401).end('unauthorized'); return
       }
     }

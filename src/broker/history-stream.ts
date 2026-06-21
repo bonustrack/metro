@@ -130,7 +130,7 @@ export interface TailOpts {
 export function drainTail(
   offset: number,
   opts: TailOpts,
-  onEntry: (e: HistoryEntry) => unknown,
+  onEntry: (e: HistoryEntry, offsetAfter: number) => unknown,
 ): number {
   const claims = readClaims();
   for (const { entry, offset: next } of readEntriesFrom(offset)) {
@@ -145,7 +145,7 @@ export function drainTail(
       })
     )
       continue;
-    if (onEntry(entry) === true) return offset;
+    if (onEntry(entry, offset) === true) return offset;
   }
   return offset;
 }
@@ -153,7 +153,7 @@ export function drainTail(
 export function followTail(
   startOffset: number,
   opts: TailOpts,
-  onEntry: (e: HistoryEntry) => unknown,
+  onEntry: (e: HistoryEntry, offsetAfter: number) => unknown,
   pollMs: number,
 ): () => void {
   let offset = startOffset;

@@ -267,7 +267,7 @@ function handleTail(
     () => 'all',
   );
   const since = q.get('since');
-  const sinceN = since !== null && since !== 'tail' ? Number(since) : NaN;
+  let sinceN = since !== null && since !== 'tail' ? Number(since) : NaN;
   if (
     since !== null &&
     since !== 'tail' &&
@@ -277,6 +277,12 @@ function handleTail(
       error: `since must be a byte offset or 'tail' (got '${since}')`,
     });
     return;
+  }
+  if (!Number.isFinite(sinceN)) {
+    const leid = req.headers['last-event-id'];
+    const leidStr = Array.isArray(leid) ? leid[0] : leid;
+    const leidN = leidStr !== undefined ? Number(leidStr) : NaN;
+    if (Number.isFinite(leidN) && leidN >= 0) sinceN = leidN;
   }
   const excludeFromCsv = q.get('exclude_from');
   const opts: TailOpts = {
@@ -303,8 +309,10 @@ function handleTail(
   res.write(
     `: metro monitor tail (mode=${opts.mode}${self ? `, as=${self}` : ''})\n: ${'-'.repeat(4096)}\n\n`,
   );
-  const sse = (e: HistoryEntry): void => {
-    res.write(`id: ${e.id}\nevent: history\ndata: ${JSON.stringify(e)}\n\n`);
+  const sse = (e: HistoryEntry, offsetAfter: number): void => {
+    res.write(
+      `id: ${offsetAfter}\nevent: history\ndata: ${JSON.stringify(e)}\n\n`,
+    );
   };
   offset = drainTail(offset, opts, sse);
   const stop = followTail(offset, opts, sse, 1_000);
