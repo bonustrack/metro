@@ -22,3 +22,10 @@ export const stationForLine = (line: string): Station | undefined => {
 
 export const accountStationNames = (): string[] =>
   STATIONS.filter((s) => s.hasAccounts).map((s) => s.name);
+
+export const accountStationCapabilities = (): Record<string, string[]> => {
+  const out: Record<string, string[]> = {};
+  for (const s of STATIONS)
+    if (s.hasAccounts) out[s.name] = [...s.messageVerbs].sort();
+  return out;
+};

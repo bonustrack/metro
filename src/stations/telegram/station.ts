@@ -17,7 +17,7 @@ const MUTATES: ReadonlySet<string> = new Set([
 export const telegramStation: Station = {
   name: 'telegram',
   hasAccounts: true,
-  supports: new Set<Verb>([
+  messageVerbs: new Set<Verb>([
     'send',
     'reply',
     'react',

@@ -125,7 +125,7 @@ export async function dispatchMessageTool(
   const line = str(a.line);
   if (!line) return errResult(`${name} requires \`line\``);
   const station = stationForLine(line);
-  if (!station || station.supports.size === 0) {
+  if (!station || station.messageVerbs.size === 0) {
     return errResult(
       `${station?.name ?? 'these'} lines do not support outbound messaging (send/reply/react/unreact/edit/delete/read).`,
     );

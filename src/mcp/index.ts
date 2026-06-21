@@ -15,7 +15,11 @@ import {
 } from '../broker/history-stream.js';
 import { gatherAccounts } from '../monitor-api.js';
 import type { HistoryEntry } from '../history.js';
-import { STATIONS, accountStationNames } from '../stations/registry.js';
+import {
+  STATIONS,
+  accountStationNames,
+  accountStationCapabilities,
+} from '../stations/registry.js';
 import type { Station, StationTool, ToolResult } from '../stations/types.js';
 import {
   COMMON_TOOLS,
@@ -110,7 +114,10 @@ async function callToolHandler(req: {
 
   if (name === 'list_accounts') {
     try {
-      return okJson({ accounts: await gatherAccounts() });
+      return okJson({
+        accounts: await gatherAccounts(),
+        capabilities: accountStationCapabilities(),
+      });
     } catch (e) {
       return errResult(`metro list_accounts failed: ${String(e)}`);
     }

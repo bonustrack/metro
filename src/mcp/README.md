@@ -41,6 +41,10 @@ station's native action.
 
 ### Per-station support matrix
 
+The single source of truth is each station's `messageVerbs` set (`stations/<station>/station.ts`).
+This table is generated to mirror those sets; the `list_accounts` tool returns the same data
+at runtime under `capabilities`, so an agent never has to discover support by trial and error.
+
 | Verb | xmtp | telegram | discord | webhook |
 | --- | --- | --- | --- | --- |
 | send | yes | yes | yes | N/A |
@@ -51,14 +55,17 @@ station's native action.
 | delete | no | yes | yes | N/A |
 | read | yes | no | yes | N/A |
 
-- **webhook**: no outbound at all. Every verb is rejected up front with a clear message.
+- **webhook**: no outbound at all (empty `messageVerbs`). Every verb is rejected up front
+  with a clear message.
 - **xmtp**: no `edit`/`delete` - the daemon returns `unsupported verb '<verb>' on xmtp`,
   surfaced verbatim as the tool error.
 - **telegram**: no `read` - the daemon returns an unsupported-verb error, surfaced verbatim.
 
-Unsupported verbs are not pre-blocked (except webhook); the daemon's reason is returned as
-the tool result with `isError` semantics so the model sees why it failed. `read` returns
-the raw history JSON (shapes differ per station and are not normalized).
+The `messageVerbs` set gates only the all-or-nothing case (a station with no outbound verbs,
+i.e. webhook, is rejected up front). Per-verb unsupported cases are not pre-blocked: the
+daemon's reason is returned as the tool result with `isError` semantics so the model sees why
+it failed. `read` returns the raw history JSON (shapes differ per station and are not
+normalized).
 
 ### File support notes
 
