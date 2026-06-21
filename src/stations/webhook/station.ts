@@ -4,7 +4,7 @@ import { Line } from '../../lines.js';
 export const webhookStation: Station = {
   name: 'webhook',
   hasAccounts: false,
-  supports: new Set<Verb>(),
+  messageVerbs: new Set<Verb>(),
   attachmentMode: 'none',
   parseLine: (line) => {
     const p = Line.parse(line);

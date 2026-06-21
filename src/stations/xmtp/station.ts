@@ -32,7 +32,7 @@ const MUTATES: ReadonlySet<string> = new Set([
 export const xmtpStation: Station = {
   name: 'xmtp',
   hasAccounts: true,
-  supports: new Set<Verb>(['send', 'reply', 'react', 'unreact', 'read']),
+  messageVerbs: new Set<Verb>(['send', 'reply', 'react', 'unreact', 'read']),
   attachmentMode: 'native',
   sendAttachments: xmtpSendAttachments,
   parseLine: (line) => parseAccountScoped(line, 'xmtp'),

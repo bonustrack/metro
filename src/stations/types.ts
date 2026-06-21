@@ -42,7 +42,7 @@ export type AttachmentMode = 'canonical' | 'native' | 'none';
 export interface Station {
   name: string;
   hasAccounts: boolean;
-  supports: ReadonlySet<Verb>;
+  messageVerbs: ReadonlySet<Verb>;
   attachmentMode: AttachmentMode;
   sendAttachments?(
     line: string,

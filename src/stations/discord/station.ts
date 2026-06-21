@@ -22,7 +22,7 @@ const MUTATES: ReadonlySet<string> = new Set([
 export const discordStation: Station = {
   name: 'discord',
   hasAccounts: true,
-  supports: new Set<Verb>([
+  messageVerbs: new Set<Verb>([
     'send',
     'reply',
     'react',
