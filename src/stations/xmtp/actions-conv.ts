@@ -9,7 +9,6 @@ import {
 } from './accounts.js';
 import { respond } from './wire.js';
 import { TrainError } from '../../train-error.js';
-import { warmGroupName } from './conv-name.js';
 import { pushHandlers } from './actions-push.js';
 import { cleanLabels, labelsBlob, type GroupLike } from './labels.js';
 import {
@@ -18,14 +17,15 @@ import {
   ethIdentifiers,
   parseMemberArgs,
   resolveMembers,
+  warmGroupName,
 } from './conv-helpers.js';
 import { closeGroup } from './actions-close.js';
-import { setGithub } from './actions-github.js';
-import { setPreview } from './actions-preview.js';
 import {
   updateChannelMeta,
   applyChannelMeta,
   resolveLine,
+  setGithub,
+  setPreview,
 } from './actions-meta.js';
 
 type Args = Record<string, unknown>;

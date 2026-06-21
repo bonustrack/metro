@@ -1,5 +1,5 @@
 import { errMsg, log } from './log.js';
-import { mutateVerbs, type VerbOwner } from './registry.js';
+import { mutateVerbs, type VerbOwner } from './stations/registry.js';
 import { Outbox, type ErrorInfo, type OutboxEntry } from './outbox.js';
 import type { TrainCallResponse } from './trains/protocol.js';
 

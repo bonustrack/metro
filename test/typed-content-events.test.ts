@@ -18,7 +18,7 @@
 
 import { describe, expect, test, beforeAll } from 'bun:test';
 import type { TrainEvent } from '../src/trains/protocol.ts';
-import type { StructuredEvent, WireEvent, MetroEvent } from '../src/event-types.ts';
+import type { StructuredEvent, WireEvent, MetroEvent } from '../src/events.ts';
 
 let trainEventToMetroEvent: typeof import('../src/dispatcher/server.ts').trainEventToMetroEvent;
 let classifyEvent: typeof import('../src/events.ts').classifyEvent;

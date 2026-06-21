@@ -1,5 +1,5 @@
 /**
- * Tests for the per-station mutate registry (src/registry.ts).
+ * Tests for the per-station mutate registry (src/stations/registry.ts).
  *
  *   - mutate sets: each station's MUTATE verbs are reported, and known READ
  *     verbs are excluded (the outbox only durably journals MUTATE sends).
@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { mutateVerbs } from '../src/registry.ts';
+import { mutateVerbs } from '../src/stations/registry.ts';
 
 describe('mutateVerbs — station mutate sets', () => {
   test('xmtp reports its mutate verbs and excludes reads', () => {

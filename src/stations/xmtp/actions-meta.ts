@@ -1,6 +1,6 @@
 import { accountForCall, convOf, lineOf } from './accounts.js';
 import { respond } from './wire.js';
-import { warmGroupName } from './conv-name.js';
+import { warmGroupName } from './conv-helpers.js';
 import { mergeAppData, readAppData, type GroupLike } from './labels.js';
 import { TrainError } from '../../train-error.js';
 
@@ -115,4 +115,43 @@ export async function updateChannelMeta(id: string, args: Args): Promise<void> {
     'updateChannelMeta',
   );
   respond(id, { result });
+}
+
+export async function setGithub(id: string, args: Args): Promise<void> {
+  const line = resolveLine(args, 'setGithub');
+  const { url } = args as { url: string };
+  if (typeof url !== 'string')
+    throw new Error('setGithub requires a `url` string');
+  const result = await applyChannelMeta(
+    { line, appData: { github: url } },
+    'setGithub',
+  );
+  respond(id, {
+    result: {
+      line: result.line,
+      id: result.id,
+      account: result.account,
+      github: result.github,
+    },
+  });
+}
+
+export async function setPreview(id: string, args: Args): Promise<void> {
+  const line = resolveLine(args, 'setPreview');
+  const a = args as { preview?: unknown; url?: unknown };
+  const value = typeof a.preview === 'string' ? a.preview : a.url;
+  if (typeof value !== 'string')
+    throw new Error('setPreview requires a `preview` string');
+  const result = await applyChannelMeta(
+    { line, appData: { preview: value } },
+    'setPreview',
+  );
+  respond(id, {
+    result: {
+      line: result.line,
+      id: result.id,
+      account: result.account,
+      preview: result.preview,
+    },
+  });
 }

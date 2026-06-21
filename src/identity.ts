@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
-import { readJson, writeJson } from './json-store.js';
+import { readJson, writeJson } from './secure-fs.js';
 import { STATE_DIR } from './paths.js';
 import { Line } from './lines.js';
 import { claudeUserId, claudeSessionId } from './local-identity.js';
