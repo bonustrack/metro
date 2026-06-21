@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { STATE_DIR } from './paths.js';
 import { errMsg, log } from './log.js';
-import { readJson, writeJson } from './json-store.js';
+import { readJson, writeJson } from './secure-fs.js';
 
 const FILE = join(STATE_DIR, 'tunnel.json');
 const RESTART_DELAY_MS = 2_000;

@@ -2,12 +2,14 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   renameSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { errMsg, log } from './log.js';
 
 export const METRO_HOME =
   process.env.METRO_HOME_DIR ?? join(homedir(), '.metro');
@@ -38,4 +40,22 @@ export function writeSecure(path: string, data: string): void {
   }
   renameSync(tmp, path);
   chmodIfExists(path, 0o600);
+}
+
+export function readJson<T>(
+  path: string,
+  fallback: T,
+  opts?: { warn?: string },
+): T {
+  if (!existsSync(path)) return fallback;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as T;
+  } catch (err) {
+    if (opts?.warn) log.warn({ err: errMsg(err), path }, opts.warn);
+    return fallback;
+  }
+}
+
+export function writeJson(path: string, value: unknown): void {
+  writeFileSync(path, JSON.stringify(value, null, 2));
 }

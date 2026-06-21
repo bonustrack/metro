@@ -1,4 +1,4 @@
-import type { MetroEvent } from './event-types.js';
+import type { MetroEvent } from './events.js';
 import { Line } from './lines.js';
 import type { ClaimsMap } from './broker/claims.js';
 
