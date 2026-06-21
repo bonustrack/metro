@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import {
   Client,
   Events,
@@ -30,7 +31,7 @@ process.stdin.on('data', (chunk: string) => {
       const msg = JSON.parse(line) as CallMsg;
       if (msg.op === 'call') void handleCall(msg);
     } catch (err) {
-      process.stderr.write(`bad stdin line: ${(err as Error).message}\n`);
+      process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
     }
   }
 });
@@ -100,7 +101,7 @@ async function bootAccount(cfg: AccountConfig): Promise<void> {
         onEdit(accountId, _new.partial ? await _new.fetch() : _new);
       } catch (err) {
         process.stderr.write(
-          `discord[${accountId}] message update fetch failed: ${(err as Error).message}\n`,
+          `discord[${accountId}] message update fetch failed: ${errMsg(err)}\n`,
         );
       }
     })();
@@ -119,7 +120,7 @@ for (const cfg of cfgs) {
     await bootAccount(cfg);
   } catch (err) {
     process.stderr.write(
-      `discord[${cfg.id}] boot FAILED: ${(err as Error).message}\n`,
+      `discord[${cfg.id}] boot FAILED: ${errMsg(err)}\n`,
     );
   }
 }

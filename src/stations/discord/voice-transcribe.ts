@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import {
   EndBehaviorType,
   type VoiceConnection,
@@ -209,7 +210,7 @@ async function handleSpeaker(s: Session, userId: string): Promise<void> {
     await transcribeUtterance(s, userId, pcmPath, wavPath, stamp);
   } catch (err) {
     process.stderr.write(
-      `discord voice transcribe error (${userId}): ${(err as Error).message}\n`,
+      `discord voice transcribe error (${userId}): ${errMsg(err)}\n`,
     );
   } finally {
     s.active.delete(userId);

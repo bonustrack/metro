@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import { spawn } from 'node:child_process';
 import { unlink } from 'node:fs/promises';
 import {
@@ -186,7 +187,7 @@ export async function speak(
     });
   } catch (err) {
     respond(id, {
-      result: { ok: false, error: (err as Error).message, account: accountId },
+      result: { ok: false, error: errMsg(err), account: accountId },
     });
   } finally {
     await cleanup();

@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import { type DecodedMessage } from '@xmtp/node-sdk';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -27,7 +28,7 @@ function loadFcmSvc(): FcmServiceAccount | null {
     return JSON.parse(readFileSync(FCM_SVC_PATH, 'utf8')) as FcmServiceAccount;
   } catch (err) {
     process.stderr.write(
-      `fcm: bad service account: ${(err as Error).message}\n`,
+      `fcm: bad service account: ${errMsg(err)}\n`,
     );
     return null;
   }
@@ -312,7 +313,7 @@ export function handleControlDm(
     }
   } catch (err) {
     process.stderr.write(
-      `xmtp[${accountId}]: control DM '${verb}' FAILED: ${(err as Error).message}\n`,
+      `xmtp[${accountId}]: control DM '${verb}' FAILED: ${errMsg(err)}\n`,
     );
   }
   return true;

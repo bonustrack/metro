@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { errMsg } from './log.js';
 
 const TTL_MS = 5_000;
 type Cache = { id: string; at: number } | null;
@@ -22,7 +23,7 @@ const claudeAccountId = memo(() => {
     });
   } catch (e) {
     throw new Error(
-      `metro: failed to run 'claude auth status --json' — is Claude Code installed? (${(e as Error).message})`,
+      `metro: failed to run 'claude auth status --json' — is Claude Code installed? (${errMsg(e)})`,
     );
   }
   let p: { loggedIn?: boolean; orgId?: string };

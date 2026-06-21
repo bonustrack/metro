@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { errMsg } from '../log.js';
 import { chmodIfExists } from '../secure-fs.js';
 
 export type Die = (msg: string) => never;
@@ -42,7 +43,7 @@ export function makeAccountStore<T extends { id: string }>(
       try {
         raw = JSON.parse(readFileSync(opts.file, 'utf8')) as T[];
       } catch (e) {
-        return die(`bad ${opts.file}: ${(e as Error).message}`);
+        return die(`bad ${opts.file}: ${errMsg(e)}`);
       }
       if (!Array.isArray(raw) || raw.length === 0)
         die(`${opts.file} must be a non-empty array`);

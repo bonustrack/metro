@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import { ConsentState, type DecodedMessage } from '@xmtp/node-sdk';
 import {
   accounts,
@@ -24,7 +25,7 @@ process.stdin.on('data', (chunk: Buffer | string) => {
       const msg = JSON.parse(line) as Partial<CallMsg>;
       if (msg.op === 'call') void handleCall(msg as CallMsg);
     } catch (err: unknown) {
-      process.stderr.write(`bad stdin line: ${(err as Error).message}\n`);
+      process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
     }
   }
 });
@@ -51,7 +52,7 @@ async function bootSync(acct: Account): Promise<void> {
     );
   } catch (err) {
     process.stderr.write(
-      `xmtp[${id}] boot sync error: ${(err as Error).message}\n`,
+      `xmtp[${id}] boot sync error: ${errMsg(err)}\n`,
     );
   }
 }
@@ -67,7 +68,7 @@ function startPeriodicSync(acct: Account): void {
         ]);
       } catch (err) {
         process.stderr.write(
-          `xmtp[${id}] sync error: ${(err as Error).message}\n`,
+          `xmtp[${id}] sync error: ${errMsg(err)}\n`,
         );
       }
     })();
@@ -114,7 +115,7 @@ async function runAccount(acct: Account): Promise<void> {
       }
     } catch (err) {
       process.stderr.write(
-        `xmtp[${id}] stream error (retry 5s): ${(err as Error).message}\n`,
+        `xmtp[${id}] stream error (retry 5s): ${errMsg(err)}\n`,
       );
     }
     await new Promise((r) => setTimeout(r, 5000));
@@ -127,7 +128,7 @@ for (const cfg of cfgs) {
     await bootAccount(cfg);
   } catch (err) {
     process.stderr.write(
-      `xmtp[${cfg.id}] boot FAILED: ${(err as Error).message}\n`,
+      `xmtp[${cfg.id}] boot FAILED: ${errMsg(err)}\n`,
     );
   }
 }

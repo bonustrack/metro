@@ -12,15 +12,6 @@ export interface ToolResult {
   isError?: boolean;
 }
 
-export class MetroCallError extends Error {
-  detail: string;
-  constructor(detail: string) {
-    super(detail);
-    this.name = 'MetroCallError';
-    this.detail = detail;
-  }
-}
-
 export interface CanonicalAttachment {
   path?: string;
   url?: string;

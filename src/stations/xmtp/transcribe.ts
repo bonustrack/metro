@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import { mintId, SELF_URI } from './wire.js';
 
 type EmitInbound = (accountId: string, e: Record<string, unknown>) => void;
@@ -77,7 +78,7 @@ export async function transcribeAndEmit(
       },
     });
   } catch (err) {
-    process.stderr.write(`xmtp transcribe failed: ${(err as Error).message}\n`);
+    process.stderr.write(`xmtp transcribe failed: ${errMsg(err)}\n`);
   } finally {
     for (const f of [inFile, wav, `${out}.txt`]) {
       try {

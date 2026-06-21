@@ -1,5 +1,5 @@
 import type { CanonicalAttachment, ToolContext } from '../types.js';
-import { MetroCallError } from '../types.js';
+import { TrainError } from '../../train-error.js';
 import { guessMime, isImageMime, isImageExt } from '../attachments.js';
 
 const XMTP_ATTACH_MAX_BYTES = 190 * 1024;
@@ -12,7 +12,8 @@ async function sendFileAttachment(
 ): Promise<void> {
   const buf = await ctx.readFile(src);
   if (buf.byteLength > XMTP_ATTACH_MAX_BYTES) {
-    throw new MetroCallError(
+    throw new TrainError(
+      'attachment_too_large',
       `attachment '${src}' is ${(buf.byteLength / 1024).toFixed(0)} KiB; xmtp non-image files ` +
         'over ~190 KiB (256 KiB once base64-encoded) cannot be sent via this MCP path. ' +
         'Send it as an image, host it elsewhere, or use the metro CLI directly.',

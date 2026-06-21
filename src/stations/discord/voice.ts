@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import {
   joinVoiceChannel,
   getVoiceConnection,
@@ -111,7 +112,7 @@ export async function joinVoice(
   } catch (err) {
     connection.destroy();
     throw new Error(
-      `voice connection failed to become Ready: ${(err as Error).message}`,
+      `voice connection failed to become Ready: ${errMsg(err)}`,
     );
   }
 
@@ -119,7 +120,7 @@ export async function joinVoice(
     startTranscription(guild.id, channel.id, accountId, client, connection);
   } catch (err) {
     process.stderr.write(
-      `voice transcription arm failed: ${(err as Error).message}\n`,
+      `voice transcription arm failed: ${errMsg(err)}\n`,
     );
   }
 
