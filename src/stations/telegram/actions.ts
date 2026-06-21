@@ -1,5 +1,6 @@
 import { accountFor, accounts, tg, targetOf } from './accounts.js';
 import { respond } from './wire.js';
+import { serializeTrainError } from '../../train-error.js';
 import { normalizeTelegram } from '../messaging-normalize.js';
 import { unsupported } from '../../messaging.js';
 import { mediaKindOf } from './attachments.js';
@@ -233,6 +234,6 @@ export async function handleCall(msg: CallMsg): Promise<void> {
   try {
     await dispatch({ ...msg, action, args });
   } catch (err) {
-    respond(msg.id, { error: (err as Error).message });
+    respond(msg.id, serializeTrainError(err));
   }
 }

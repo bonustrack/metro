@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import { accounts, lineOf } from './accounts.js';
 import { mintId, SELF_URI } from './wire.js';
 import { mediaRefOf, saveTelegramMedia } from './attachments.js';
@@ -135,7 +136,7 @@ export function saveMediaAndEmit(
     })
     .catch((err: unknown) =>
       process.stderr.write(
-        `telegram media save failed: ${(err as Error).message}\n`,
+        `telegram media save failed: ${errMsg(err)}\n`,
       ),
     );
 }

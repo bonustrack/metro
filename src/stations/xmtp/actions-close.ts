@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import { accountForCall, convOf, lineOf, type Account } from './accounts.js';
 import { respond } from './wire.js';
 import type { GroupLike } from './labels.js';
@@ -22,7 +23,7 @@ async function removeSelfFromGroup(
         account: acct.cfg.id,
         removed,
         leftSelf: false,
-        selfRemovalError: `self-removal not supported: ${(e as Error).message}`,
+        selfRemovalError: `self-removal not supported: ${errMsg(e)}`,
       },
     });
     return false;
@@ -93,7 +94,7 @@ export async function closeGroup(id: string, args: Args): Promise<void> {
       if (!leftSelf) return;
     }
   } catch (err) {
-    respond(id, { error: (err as Error).message });
+    respond(id, { error: errMsg(err) });
     return;
   }
 

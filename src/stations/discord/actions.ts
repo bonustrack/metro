@@ -13,6 +13,7 @@ import {
 } from './accounts.js';
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
 import { respond } from './wire.js';
+import { serializeTrainError } from '../../train-error.js';
 import { normalizeDiscord } from '../messaging-normalize.js';
 import { joinVoice, leaveVoice, voiceDebug, voiceTranscribe } from './voice.js';
 import { speak } from './voice-speak.js';
@@ -377,6 +378,6 @@ export async function handleCall(msg: CallMsg): Promise<void> {
   try {
     await dispatch({ ...msg, action, args });
   } catch (err) {
-    respond(msg.id, { error: (err as Error).message });
+    respond(msg.id, serializeTrainError(err));
   }
 }

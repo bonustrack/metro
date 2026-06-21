@@ -1,3 +1,4 @@
+import { errMsg } from '../../log.js';
 import { accounts, loadAccounts, tg, type Account } from './accounts.js';
 import { emit } from './wire.js';
 import {
@@ -23,7 +24,7 @@ process.stdin.on('data', (chunk: Buffer | string) => {
       const msg = JSON.parse(line) as Partial<CallMsg>;
       if (msg.op === 'call') void handleCall(msg as CallMsg);
     } catch (err: unknown) {
-      process.stderr.write(`bad stdin line: ${(err as Error).message}\n`);
+      process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
     }
   }
 });
@@ -40,7 +41,7 @@ async function runAccount(acct: Account): Promise<void> {
     await tg(id, 'deleteWebhook', { drop_pending_updates: false });
   } catch (err) {
     process.stderr.write(
-      `telegram[${id}] deleteWebhook: ${(err as Error).message}\n`,
+      `telegram[${id}] deleteWebhook: ${errMsg(err)}\n`,
     );
   }
 
@@ -70,7 +71,7 @@ async function runAccount(acct: Account): Promise<void> {
       }
     } catch (err) {
       process.stderr.write(
-        `telegram[${id}] poll error: ${(err as Error).message}\n`,
+        `telegram[${id}] poll error: ${errMsg(err)}\n`,
       );
       await new Promise((r) => setTimeout(r, 2_000));
     }

@@ -1,10 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { ipcCall } from '../ipc.js';
-import {
-  MetroCallError,
-  type ToolContext,
-  type ToolResult,
-} from '../stations/types.js';
+import { TrainError } from '../train-error.js';
+import { type ToolContext, type ToolResult } from '../stations/types.js';
 
 export async function metroCall(
   train: string,
@@ -13,13 +10,18 @@ export async function metroCall(
 ): Promise<{ result: unknown }> {
   const resp = await ipcCall({ op: 'forward-call', train, action, args });
   if (!resp.ok)
-    throw new MetroCallError(`metro ${action} ${train}: ${resp.error}`);
+    throw new TrainError(
+      'metro_call_failed',
+      `metro ${action} ${train}: ${resp.error}`,
+    );
   if (!('response' in resp))
-    throw new MetroCallError(
+    throw new TrainError(
+      'metro_call_malformed',
       `metro ${action} ${train}: malformed daemon response`,
     );
   if (resp.response.error)
-    throw new MetroCallError(
+    throw new TrainError(
+      'metro_call_error',
       `metro ${action} ${train}: ${resp.response.error}`,
     );
   return { result: resp.response.result ?? null };
@@ -36,8 +38,8 @@ export const errResult = (text: string): ToolResult => ({
   isError: true,
 });
 export const toErr = (name: string, e: unknown): ToolResult =>
-  e instanceof MetroCallError
-    ? errResult(e.detail)
+  e instanceof TrainError
+    ? errResult(e.message)
     : errResult(`metro ${name} failed: ${String(e)}`);
 
 export const makeCtx = (station: string): ToolContext => ({
