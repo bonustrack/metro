@@ -21,7 +21,8 @@ import {
 import { convHandlers } from './actions-conv.js';
 import { normalizeXmtp } from '../messaging-normalize.js';
 import { unsupported } from '../../messaging.js';
-import { TrainError, serializeTrainError } from '../../train-error.js';
+import { TrainError } from '../../train-error.js';
+import { makeStation, type CallMsg } from '../station-runtime.js';
 
 type Args = Record<string, unknown>;
 
@@ -365,26 +366,9 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   ...convHandlers,
 };
 
-const KNOWN =
-  'accounts, send, ask, sendImage, sendTxRequest, react, reply, sendAttachment, ' +
-  'newDm, newGroup, createRequestGroup, addMembers, removeMembers, setLabels, setGithub, setPreview, updateChannelMeta, closeGroup, query, groupInfo, listConvs, ' +
-  'register-push, list-push, test-push, unregister-push';
+export type { CallMsg };
 
-export interface CallMsg {
-  op: 'call';
-  id: string;
-  action: string;
-  args: Args;
-}
-
-export async function handleCall(msg: CallMsg): Promise<void> {
-  const { id } = msg;
-  const { action, args } = normalizeXmtp(msg.action, msg.args);
-  try {
-    const h = handlers[action];
-    if (h) await h(id, args);
-    else respond(id, { error: `unknown action '${action}' (have: ${KNOWN})` });
-  } catch (err) {
-    respond(id, serializeTrainError(err));
-  }
-}
+export const handleCall = makeStation({
+  handlers,
+  normalize: normalizeXmtp,
+});

@@ -1,8 +1,12 @@
 import { accountFor, accounts, tg, targetOf } from './accounts.js';
 import { respond } from './wire.js';
-import { serializeTrainError } from '../../train-error.js';
 import { normalizeTelegram } from '../messaging-normalize.js';
 import { unsupported } from '../../messaging.js';
+import {
+  makeStation,
+  type CallMsg,
+  type StationHandler,
+} from '../station-runtime.js';
 import { mediaKindOf } from './attachments.js';
 import {
   emitOutbound,
@@ -16,17 +20,7 @@ import {
 
 
 
-export interface CallMsg {
-  op: 'call';
-  id: string;
-  action: string;
-  args: Record<string, unknown>;
-}
-
-
-const KNOWN =
-  'accounts, send, react, edit, delete, send_photo, send_document, ' +
-  'send_voice, send_sticker, send_dice, send_location, download';
+export type { CallMsg };
 
 const meCache = new Map<string, { id: number; username: string | null }>();
 async function getMe(
@@ -198,8 +192,7 @@ async function download(id: string, args: Record<string, unknown>): Promise<void
   });
 }
 
-type Handler = (id: string, args: Record<string, unknown>) => Promise<void>;
-const HANDLERS: Record<string, Handler> = {
+const HANDLERS: Record<string, StationHandler> = {
   accounts: (id) => listAccounts(id),
   send,
   react,
@@ -216,24 +209,14 @@ const HANDLERS: Record<string, Handler> = {
   download,
 };
 
-async function dispatch({ id, action, args }: CallMsg): Promise<void> {
-  if (action === 'read') {
-    respond(id, { error: unsupported('read', 'telegram') });
-    return;
-  }
-  const handler = HANDLERS[action];
-  if (!handler) {
-    respond(id, { error: `unknown action '${action}' (have: ${KNOWN})` });
-    return;
-  }
-  await handler(id, args);
-}
-
-export async function handleCall(msg: CallMsg): Promise<void> {
-  const { action, args } = normalizeTelegram(msg.action, msg.args);
-  try {
-    await dispatch({ ...msg, action, args });
-  } catch (err) {
-    respond(msg.id, serializeTrainError(err));
-  }
-}
+export const handleCall = makeStation({
+  handlers: HANDLERS,
+  normalize: normalizeTelegram,
+  preDispatch: (id, action) => {
+    if (action === 'read') {
+      respond(id, { error: unsupported('read', 'telegram') });
+      return true;
+    }
+    return false;
+  },
+});
