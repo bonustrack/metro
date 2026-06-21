@@ -18,7 +18,7 @@ async function applyCreateLabels(
   ctx: ToolContext,
 ): Promise<unknown> {
   if (!labels.length) return undefined;
-  return ctx.call('setLabels', { line, labels });
+  return ctx.call('updateChannelMeta', { line, appData: { labels } });
 }
 
 export async function createChannel(
@@ -47,18 +47,6 @@ export async function createChannel(
   });
 }
 
-async function applyLabelMeta(
-  line: string,
-  labels: unknown[],
-  metaName: string | undefined,
-  ctx: ToolContext,
-): Promise<{ info: unknown; nameApplied: boolean }> {
-  const setArgs: Record<string, unknown> = { line, labels: labels.map(String) };
-  const nameApplied = typeof metaName === 'string' && metaName.length > 0;
-  if (nameApplied) setArgs.setName = metaName;
-  return { info: await ctx.call('setLabels', setArgs), nameApplied };
-}
-
 export async function setChannelMetadata(
   a: Record<string, unknown>,
   ctx: ToolContext,
@@ -69,24 +57,18 @@ export async function setChannelMetadata(
   const github = a.github as string | undefined;
   const preview = a.preview as string | undefined;
   const metaName = a.name as string | undefined;
-  let nameApplied = false;
-  let info: unknown;
-  if (Array.isArray(labels)) {
-    const res = await applyLabelMeta(line, labels, metaName, ctx);
-    info = res.info;
-    nameApplied = res.nameApplied;
-  }
-  if (typeof github === 'string')
-    info = await ctx.call('setGithub', { line, url: github });
-  if (typeof preview === 'string')
-    info = await ctx.call('setPreview', { line, preview });
-  if (typeof metaName === 'string' && metaName && !nameApplied)
-    info = await ctx.call('updateChannelMeta', { line, name: metaName });
-  if (info === undefined)
+  const appData: Record<string, unknown> = {};
+  if (Array.isArray(labels)) appData.labels = labels.map(String);
+  if (typeof github === 'string') appData.github = github;
+  if (typeof preview === 'string') appData.preview = preview;
+  const hasName = typeof metaName === 'string' && metaName.length > 0;
+  if (!hasName && Object.keys(appData).length === 0)
     return ctx.err(
       'set_channel_metadata requires at least one of `labels`, `github`, `preview`, `name`',
     );
-  return ctx.okJson(info);
+  const callArgs: Record<string, unknown> = { line, appData };
+  if (hasName) callArgs.name = metaName;
+  return ctx.okJson(await ctx.call('updateChannelMeta', callArgs));
 }
 
 export async function memberOp(
