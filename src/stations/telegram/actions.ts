@@ -10,6 +10,7 @@ import {
 import { mediaKindOf } from './attachments.js';
 import {
   emitOutbound,
+  finishSend,
   media,
   MEDIA_METHOD_FIELD,
   sendDice,
@@ -113,10 +114,7 @@ async function send(id: string, args: Record<string, unknown>): Promise<void> {
   if (parseMode) body.parse_mode = parseMode;
   if (buttons) body.reply_markup = { inline_keyboard: buttons };
   const sent = await tg<{ message_id: number }>(accountId, 'sendMessage', body);
-  emitOutbound(accountId, line, String(sent.message_id), text, replyTo);
-  respond(id, {
-    result: { messageId: String(sent.message_id), account: accountId },
-  });
+  finishSend(id, accountId, line, String(sent.message_id), text, replyTo);
 }
 
 async function react(id: string, args: Record<string, unknown>): Promise<void> {

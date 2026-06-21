@@ -25,10 +25,10 @@ export function normalizeDiscord(action: string, env: Args): Normalized {
     return { action: 'send', args: { ...env, ...discordAttachments(att) } };
   }
   if (action === 'reply') {
-    const messageId = env.replyTo ?? env.messageId;
+    const replyTo = env.replyTo ?? env.messageId;
     return {
-      action: 'reply',
-      args: { ...env, messageId, ...discordAttachments(att) },
+      action: 'send',
+      args: { ...env, replyTo, ...discordAttachments(att) },
     };
   }
   if (action === 'unreact')
