@@ -1,55 +1,13 @@
 /**
- * In-process tests for the broker predicates `cursorKey` / `passesMode`
- * (mode-derived cursor keys, webhook gating, per-CLI feed isolation).
- * CLI end-to-end coverage lives in `broker-cli.test.ts`.
+ * In-process tests for the broker predicate `passesMode`
+ * (webhook gating, per-CLI feed isolation).
  */
 
 import { describe, expect, test } from 'bun:test';
-import { passesMode, cursorKey } from '../src/broker/history-stream.ts';
+import { passesMode } from '../src/event-bus.ts';
 import { asLine } from '../src/lines.ts';
 import type { HistoryEntry } from '../src/history.ts';
 import { WORKER_A, CHAT_LINE, WEBHOOK_LINE } from './broker-helpers.ts';
-
-describe('cursorKey (issue #34: mode-derived cursor key)', () => {
-  test('--as=<id> mine-or-unclaimed → userSlug(id)', () => {
-    expect(cursorKey('mine-or-unclaimed', asLine('metro://claude/user/abc')))
-      .toBe('claude-user-abc');
-  });
-
-  test('--as=<id> --strict adds suffix', () => {
-    expect(cursorKey('mine-only', asLine('metro://claude/user/abc')))
-      .toBe('claude-user-abc--strict');
-  });
-
-  test('--as=<id> --include-webhooks adds suffix', () => {
-    expect(cursorKey('mine-or-unclaimed', asLine('metro://claude/user/abc'), { includeWebhooks: true }))
-      .toBe('claude-user-abc--with-webhooks');
-  });
-
-  test('--unclaimed → _unclaimed', () => {
-    expect(cursorKey('unclaimed', null)).toBe('_unclaimed');
-    /** even with self set, mode trumps */
-    expect(cursorKey('unclaimed', asLine('metro://claude/user/abc'))).toBe('_unclaimed');
-  });
-
-  test('--all → _all', () => {
-    expect(cursorKey('all', null)).toBe('_all');
-    expect(cursorKey('all', asLine('metro://claude/user/abc'))).toBe('_all');
-  });
-
-  test('no mode, no self → null (no cursor)', () => {
-    /** mine-only without self can't be constructed; this matches "no self" path */
-    expect(cursorKey('mine-or-unclaimed', null)).toBe(null);
-  });
-
-  test('_-prefixed mode keys never collide with a real userSlug', () => {
-    /** userSlug always contains a station prefix (claude-…, discord-…, xmtp-…); none start with `_`. */
-    const k = cursorKey('all', asLine('metro://claude/user/abc'));
-    expect(k?.startsWith('_')).toBe(true);
-    const u = cursorKey('mine-or-unclaimed', asLine('metro://claude/user/abc'));
-    expect(u?.startsWith('_')).toBe(false);
-  });
-});
 
 describe('passesMode webhook gating', () => {
   const webhookEvent: HistoryEntry = {

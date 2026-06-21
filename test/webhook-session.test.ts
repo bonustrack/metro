@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { webhookEntry } from '../src/stations/webhook/receive.ts';
-import { passesMode } from '../src/broker/history-stream.ts';
+import { passesMode } from '../src/event-bus.ts';
 import { sessionOwner } from '../src/sessions.ts';
 import { Line, asLine } from '../src/lines.ts';
 import type { Endpoint } from '../src/tunnel.ts';

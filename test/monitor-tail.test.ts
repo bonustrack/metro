@@ -1,28 +1,30 @@
 /**
  * Tests for the monitor's `GET /api/tail` SSE stream + misc `/api/*` paths.
  * Companion to monitor.test.ts (auth + /api/state); shared harness in monitor-helpers.ts.
+ *
+ * The tail now subscribes to the in-process bus. `?since=0` replays the bounded
+ * ring backlog then streams live; default (`since=tail`) streams live-only.
+ * Events are injected via the harness `/seed` endpoint.
  */
 
 import { describe, test } from 'bun:test';
-import { appendFileSync } from 'node:fs';
-import { join } from 'node:path';
 import {
-  TOKEN, expect, makeCtx, registerCleanup, startServer, freshStateDir, seedHistory,
+  TOKEN, expect, makeCtx, registerCleanup, startServer, freshStateDir, seedEvents,
 } from './monitor-helpers.ts';
 
 const ctx = makeCtx();
 registerCleanup(ctx);
 
 describe('GET /api/tail (SSE)', () => {
-  test('streams initial backlog with ?since=0', async () => {
+  test('replays ring backlog with ?since=0', async () => {
     const stateDir = freshStateDir(ctx);
-    seedHistory(stateDir, [
+    ctx.server = await startServer({ METRO_STATE_DIR: stateDir, METRO_MONITOR_TOKEN: TOKEN });
+    await seedEvents(ctx.server, [
       {
-        id: 'msg_111', ts: '2026-05-17T00:00:00.000Z', kind: 'inbound', station: 'discord',
+        id: 'msg_111', ts: '2026-05-17T00:00:00.000Z', station: 'discord',
         line: 'metro://discord/1', from: 'metro://discord/user/x', to: 'metro://discord/1', text: 'first',
       },
     ]);
-    ctx.server = await startServer({ METRO_STATE_DIR: stateDir, METRO_MONITOR_TOKEN: TOKEN });
 
     const ctrl = new AbortController();
     const r = await fetch(`${ctx.server.url}/api/tail?since=0`, {
@@ -67,18 +69,19 @@ describe('GET /api/tail (SSE)', () => {
     expect(r.status).toBe(400);
   });
 
-  test('appended events arrive after initial drain', async () => {
+  test('live events arrive on a default (live-only) tail; backlog NOT replayed', async () => {
     const stateDir = freshStateDir(ctx);
-    seedHistory(stateDir, [
+    ctx.server = await startServer({ METRO_STATE_DIR: stateDir, METRO_MONITOR_TOKEN: TOKEN });
+    /** This pre-connect event must NOT be replayed on a default tail. */
+    await seedEvents(ctx.server, [
       {
-        id: 'msg_old', ts: '2026-05-17T00:00:00.000Z', kind: 'inbound', station: 'discord',
+        id: 'msg_old', ts: '2026-05-17T00:00:00.000Z', station: 'discord',
         line: 'metro://discord/1', from: 'metro://discord/user/x', to: 'metro://discord/1', text: 'pre',
       },
     ]);
-    ctx.server = await startServer({ METRO_STATE_DIR: stateDir, METRO_MONITOR_TOKEN: TOKEN });
 
     const ctrl = new AbortController();
-    /** Default since=tail — EOF cursor; backlog NOT replayed. */
+    /** Default since=tail — live-only; backlog NOT replayed. */
     const r = await fetch(`${ctx.server.url}/api/tail`, {
       headers: { authorization: `Bearer ${TOKEN}` },
       signal: ctrl.signal,
@@ -87,15 +90,14 @@ describe('GET /api/tail (SSE)', () => {
     const reader = r.body!.getReader();
     const dec = new TextDecoder();
 
-    /** Give the handler a moment to install its watcher, then append a fresh entry. */
+    /** Give the handler a moment to subscribe, then publish a fresh event. */
     await new Promise(res => setTimeout(res, 200));
-    appendFileSync(
-      join(stateDir, 'history.jsonl'),
-      JSON.stringify({
-        id: 'msg_new', ts: '2026-05-17T00:01:00.000Z', kind: 'inbound', station: 'discord',
+    await seedEvents(ctx.server, [
+      {
+        id: 'msg_new', ts: '2026-05-17T00:01:00.000Z', station: 'discord',
         line: 'metro://discord/1', from: 'metro://discord/user/x', to: 'metro://discord/1', text: 'live',
-      }) + '\n',
-    );
+      },
+    ]);
 
     let buf = '';
     const deadline = Date.now() + 5_000;

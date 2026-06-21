@@ -7,16 +7,8 @@ import {
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import {
-  drainTail,
-  followTail,
-  historySize,
-  readCursor,
-  writeCursor,
-  type TailOpts,
-} from '../broker/history-stream.js';
+import { subscribeEvents } from '../event-bus.js';
 import { gatherAccounts } from '../monitor-api.js';
-import type { HistoryEntry } from '../history.js';
 import {
   STATIONS,
   accountStationNames,
@@ -244,30 +236,14 @@ export async function createMetroMcp(): Promise<{
   };
 
   const startInbound = (): void => {
-    const opts: TailOpts = { mode: 'all', self: null };
-    const cursorKeyName = '_inbound_mcp';
-    const onEntry = (e: HistoryEntry): void => {
+    subscribeEvents((e) => {
       void relay
         .handleEvent(e as unknown as Record<string, unknown>)
         .catch((err: unknown) => {
           log('event err', err);
         });
-    };
-    const saved = readCursor(cursorKeyName);
-    const size = historySize();
-    const resume = saved > 0 && saved <= size;
-    const start = resume ? saved : size;
-    const persist = (offset: number): void => {
-      writeCursor(cursorKeyName, offset);
-    };
-    const offset = drainTail(start, opts, onEntry);
-    persist(offset);
-    followTail(offset, opts, onEntry, 1_000, persist);
-    log(
-      `inbound: following history tail (mode=all, ${
-        resume ? `resumed@${start}` : `fresh@${start}`
-      })`,
-    );
+    });
+    log('inbound: subscribed to in-process event bus (live-from-boot)');
   };
 
   return { httpHandler, startInbound };

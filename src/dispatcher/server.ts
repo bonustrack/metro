@@ -8,7 +8,6 @@ import { Line } from '../lines.js';
 import { errMsg, log } from '../log.js';
 import { noteSeen } from '../paths.js';
 import {
-  appendHistory,
   classifyEvent,
   formatDisplay,
   mintId,
@@ -16,17 +15,17 @@ import {
   userSelf,
   type HistoryEntry,
 } from '../history.js';
+import { publishEvent } from '../event-bus.js';
 import { handleMonitorRequest } from '../monitor-api.js';
 import type { TrainEvent } from '../trains/protocol.js';
 import { findEndpoint, listEndpoints, webhookPort } from '../tunnel.js';
 import { webhookEntry, verifyWebhookSig } from '../stations/webhook/receive.js';
 import { makeDedupSeq, type DedupSeq } from './dedup-seq.js';
-import { HISTORY_FILE } from '../paths.js';
 
 type Emit = (entry: HistoryEntry) => void;
 
 export function makeEmit(dedupSeq?: DedupSeq): Emit {
-  const tracker = dedupSeq ?? makeDedupSeq(HISTORY_FILE);
+  const tracker = dedupSeq ?? makeDedupSeq();
   return function emit(entry: HistoryEntry): void {
     const seq = tracker.admit(entry);
     if (seq === null) return;
@@ -40,7 +39,7 @@ export function makeEmit(dedupSeq?: DedupSeq): Emit {
     noteSeen(entry.line, entry.lineName);
     for (const l of [entry.line, entry.from, entry.to])
       if (l) noteUserFromLine(l);
-    appendHistory(enriched);
+    publishEvent(enriched);
   };
 }
 

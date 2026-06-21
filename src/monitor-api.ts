@@ -3,12 +3,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import pkg from '../package.json' with { type: 'json' };
 import { readClaims } from './broker/claims.js';
 import {
-  drainTail,
-  followTail,
+  recentEvents,
+  subscribeEvents,
+  tailIncludes,
   type Mode,
   type TailOpts,
-} from './broker/history-stream.js';
-import { readHistory, type HistoryEntry } from './history.js';
+} from './event-bus.js';
+import type { HistoryEntry } from './history.js';
 import { ipcCall } from './ipc.js';
 import { asLine, Line } from './lines.js';
 import { errMsg, log } from './log.js';
@@ -241,15 +242,8 @@ function handleState(
   req: IncomingMessage,
   q: URLSearchParams,
 ): void {
-  const before = nonNegInt(q.get('before'));
   const limit = Math.min(nonNegInt(q.get('limit')) ?? 100, 500);
-  if (before !== null) {
-    send(res, req, 200, {
-      recent_history: readHistory({ limit, skip: before }),
-    });
-    return;
-  }
-  const recent = readHistory({ limit }),
+  const recent = recentEvents(limit),
     claims = readClaims();
   const lines = new Set<string>([
     ...recent.map((e) => e.line),
@@ -268,7 +262,7 @@ function startTailStream(
   res: ServerResponse,
   opts: TailOpts,
   self: Line | null,
-  startOffset: number,
+  replayBacklog: boolean,
 ): void {
   res.writeHead(200, {
     'content-type': 'text/event-stream',
@@ -280,13 +274,16 @@ function startTailStream(
   res.write(
     `: metro monitor tail (mode=${opts.mode}${self ? `, as=${self}` : ''})\n: ${'-'.repeat(4096)}\n\n`,
   );
-  const sse = (e: HistoryEntry, offsetAfter: number): void => {
-    res.write(
-      `id: ${offsetAfter}\nevent: history\ndata: ${JSON.stringify(e)}\n\n`,
-    );
+  let id = 0;
+  const claims = readClaims();
+  const sse = (e: HistoryEntry): void => {
+    if (!tailIncludes(e, opts, claims)) return;
+    id += 1;
+    res.write(`id: ${id}\nevent: history\ndata: ${JSON.stringify(e)}\n\n`);
   };
-  const offset = drainTail(startOffset, opts, sse);
-  const stop = followTail(offset, opts, sse, 1_000);
+  if (replayBacklog)
+    for (const e of recentEvents(500).slice().reverse()) sse(e);
+  const stop = subscribeEvents(sse);
   const keepalive = setInterval(() => res.write(': keepalive\n\n'), 25_000);
   const cleanup = (): void => {
     stop();
@@ -314,13 +311,13 @@ function handleTail(
     self,
     () => 'all',
   );
-  const since = resolveSince(req, q);
+  const since = resolveSince(q);
   if ('error' in since) {
     send(res, req, 400, { error: since.error });
     return;
   }
   const opts: TailOpts = buildTailOpts(q, mode, self);
-  startTailStream(req, res, opts, self, since.offset);
+  startTailStream(req, res, opts, self, since.replayBacklog);
 }
 type IpcResp = Awaited<ReturnType<typeof ipcCall>>;
 function callError(resp: IpcResp): string | null {
