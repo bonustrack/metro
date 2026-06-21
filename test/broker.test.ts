@@ -6,16 +6,16 @@
 import { describe, expect, test } from 'bun:test';
 import { passesMode } from '../src/event-bus.ts';
 import { asLine } from '../src/lines.ts';
-import type { HistoryEntry } from '../src/history.ts';
+import type { MetroEvent } from '../src/events.ts';
 import { WORKER_A, CHAT_LINE, WEBHOOK_LINE } from './broker-helpers.ts';
 
 describe('passesMode webhook gating', () => {
-  const webhookEvent: HistoryEntry = {
+  const webhookEvent: MetroEvent = {
     id: 'msg_w1', ts: '2026-05-16T00:00:00Z', kind: 'inbound', station: 'webhook',
     line: asLine(WEBHOOK_LINE), from: asLine('metro://webhook/gh-main'), to: asLine(WEBHOOK_LINE),
     text: 'push to main',
   };
-  const chatEvent: HistoryEntry = {
+  const chatEvent: MetroEvent = {
     id: 'msg_c1', ts: '2026-05-16T00:00:01Z', kind: 'inbound', station: 'discord',
     line: asLine(CHAT_LINE), from: asLine('metro://discord/u/alice'), to: asLine(CHAT_LINE),
     text: 'hi',
@@ -57,13 +57,13 @@ describe('per-self feed isolation (mine-only / --as)', () => {
   const BEN_SELF = asLine('metro://xmtp/ben/user/ben-acct');
   const CLAUDE_SELF = asLine('metro://claude/user/claude-org');
   /** tony account → routed to the Claude owner */
-  const tonyEvent: HistoryEntry = {
+  const tonyEvent: MetroEvent = {
     id: 'msg_t1', ts: '2026-05-29T00:00:00Z', kind: 'inbound', station: 'xmtp',
     line: asLine('metro://xmtp/tony/conv1'), from: asLine('metro://xmtp/tony/user/alice'),
     to: CLAUDE_SELF, text: 'for claude',
   };
   /** ben account → routed to the ben owner */
-  const benEvent: HistoryEntry = {
+  const benEvent: MetroEvent = {
     id: 'msg_x1', ts: '2026-05-29T00:00:01Z', kind: 'inbound', station: 'xmtp',
     line: asLine('metro://xmtp/ben/conv2'), from: asLine('metro://xmtp/ben/user/bob'),
     to: BEN_SELF, text: 'for ben',

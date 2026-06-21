@@ -2,7 +2,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join, parse as parsePath } from 'node:path';
 import { errMsg, log } from '../log.js';
 import { coerceErrorInfo, type TrainErrorInfo } from '../train-error.js';
-import type { WireEvent } from '../history-types.js';
+import type { WireEvent } from '../event-types.js';
 
 export {
   TrainError,

@@ -9,7 +9,7 @@ import {
   type Mode,
   type TailOpts,
 } from './event-bus.js';
-import type { HistoryEntry } from './history.js';
+import type { MetroEvent } from './events.js';
 import { ipcCall } from './ipc.js';
 import { asLine, Line } from './lines.js';
 import { errMsg, log } from './log.js';
@@ -276,7 +276,7 @@ function startTailStream(
   );
   let id = 0;
   const claims = readClaims();
-  const sse = (e: HistoryEntry): void => {
+  const sse = (e: MetroEvent): void => {
     if (!tailIncludes(e, opts, claims)) return;
     id += 1;
     res.write(`id: ${id}\nevent: history\ndata: ${JSON.stringify(e)}\n\n`);

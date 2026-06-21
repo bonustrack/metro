@@ -11,7 +11,7 @@ export type StructuredEvent =
 
 export type WireEvent = StructuredEvent;
 
-export interface HistoryEntry {
+export interface MetroEvent {
   id: string;
   ts: string;
   station: string;

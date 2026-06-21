@@ -2,8 +2,8 @@
  * Tests for typed content events on the wire (#2).
  *
  * The canonical content-type now rides the envelope as `event` (a {@link WireEvent}):
- * a station emits it, the dispatcher (`trainEventToHistoryEntry`) carries it
- * verbatim onto `HistoryEntry.event`, and the emit wrapper prefers it over the
+ * a station emits it, the dispatcher (`trainEventToMetroEvent`) carries it
+ * verbatim onto `MetroEvent.event`, and the emit wrapper prefers it over the
  * legacy `classifyEvent` regex (`entry.event ?? classifyEvent(entry)`).
  *
  * Covers:
@@ -18,19 +18,19 @@
 
 import { describe, expect, test, beforeAll } from 'bun:test';
 import type { TrainEvent } from '../src/trains/protocol.ts';
-import type { StructuredEvent, WireEvent, HistoryEntry } from '../src/history-types.ts';
+import type { StructuredEvent, WireEvent, MetroEvent } from '../src/event-types.ts';
 
-let trainEventToHistoryEntry: typeof import('../src/dispatcher/server.ts').trainEventToHistoryEntry;
-let classifyEvent: typeof import('../src/history.ts').classifyEvent;
+let trainEventToMetroEvent: typeof import('../src/dispatcher/server.ts').trainEventToMetroEvent;
+let classifyEvent: typeof import('../src/events.ts').classifyEvent;
 
 beforeAll(async () => {
   process.env.METRO_FROM = 'metro://user/me';
-  ({ trainEventToHistoryEntry } = await import('../src/dispatcher/server.ts'));
-  ({ classifyEvent } = await import('../src/history.ts'));
+  ({ trainEventToMetroEvent } = await import('../src/dispatcher/server.ts'));
+  ({ classifyEvent } = await import('../src/events.ts'));
 });
 
 /** Mirror the dispatcher emit wrapper: typed event wins, classify is the fallback. */
-const resolved = (e: HistoryEntry): StructuredEvent => e.event ?? classifyEvent(e);
+const resolved = (e: MetroEvent): StructuredEvent => e.event ?? classifyEvent(e);
 
 describe('typed event carried verbatim through the dispatcher', () => {
   test('react: typed event survives + legacy [react] text kept', () => {
@@ -38,7 +38,7 @@ describe('typed event carried verbatim through the dispatcher', () => {
       line: 'metro://discord/1', kind: 'react', emoji: '👍',
       text: '[react 👍]', event: { type: 'react', emoji: '👍', targetId: 'mid-1' },
     };
-    const e = trainEventToHistoryEntry(env, 'discord')!;
+    const e = trainEventToMetroEvent(env, 'discord')!;
     expect(e.event).toEqual({ type: 'react', emoji: '👍', targetId: 'mid-1' });
     expect(e.text).toBe('[react 👍]');
     expect(resolved(e)).toEqual({ type: 'react', emoji: '👍', targetId: 'mid-1' });
@@ -49,7 +49,7 @@ describe('typed event carried verbatim through the dispatcher', () => {
       line: 'metro://telegram/1', kind: 'edit', text: 'fixed typo',
       event: { type: 'edit', targetId: 'mid-9' },
     };
-    const e = trainEventToHistoryEntry(env, 'telegram')!;
+    const e = trainEventToMetroEvent(env, 'telegram')!;
     expect(e.event).toEqual({ type: 'edit', targetId: 'mid-9' });
     expect(e.text).toBe('fixed typo');
     expect(resolved(e)).toEqual({ type: 'edit', targetId: 'mid-9' });
@@ -60,7 +60,7 @@ describe('typed event carried verbatim through the dispatcher', () => {
       line: 'metro://xmtp/a/c', text: 'sure', reply_to: 'mid-3',
       event: { type: 'reply', replyTo: 'mid-3' },
     };
-    const e = trainEventToHistoryEntry(env, 'xmtp')!;
+    const e = trainEventToMetroEvent(env, 'xmtp')!;
     expect(e.event).toEqual({ type: 'reply', replyTo: 'mid-3' });
     expect(e.replyTo).toBe('mid-3');
     expect(resolved(e)).toEqual({ type: 'reply', replyTo: 'mid-3' });
@@ -70,7 +70,7 @@ describe('typed event carried verbatim through the dispatcher', () => {
     const env: TrainEvent = {
       line: 'metro://discord/1', event: { type: 'delete', targetId: 'mid-7' },
     };
-    const e = trainEventToHistoryEntry(env, 'discord')!;
+    const e = trainEventToMetroEvent(env, 'discord')!;
     expect(e.event).toEqual({ type: 'delete', targetId: 'mid-7' });
     expect(resolved(e)).toEqual({ type: 'delete', targetId: 'mid-7' });
   });
@@ -78,31 +78,31 @@ describe('typed event carried verbatim through the dispatcher', () => {
 
 describe('legacy parity — no `event` on the wire classifies exactly as before', () => {
   test('absent event ⇒ entry.event is undefined (key omitted on the wire)', () => {
-    const e = trainEventToHistoryEntry({ line: 'metro://discord/1', text: 'hi' }, 'discord')!;
+    const e = trainEventToMetroEvent({ line: 'metro://discord/1', text: 'hi' }, 'discord')!;
     expect(e.event).toBeUndefined();
     expect(JSON.stringify(e)).not.toContain('"event"');
   });
 
   test('legacy [react X] text still classifies as react (regex fallback)', () => {
-    const e = trainEventToHistoryEntry({ line: 'metro://discord/1', emoji: '🎉' }, 'discord')!;
+    const e = trainEventToMetroEvent({ line: 'metro://discord/1', emoji: '🎉' }, 'discord')!;
     expect(e.event).toBeUndefined();
     expect(e.text).toBe('[react 🎉]');
     expect(resolved(e)).toEqual({ type: 'react', emoji: '🎉', targetId: undefined });
   });
 
   test('legacy reply (reply_to, no event) classifies as reply', () => {
-    const e = trainEventToHistoryEntry({ line: 'metro://discord/1', text: 'yo', reply_to: 'mid-2' }, 'discord')!;
+    const e = trainEventToMetroEvent({ line: 'metro://discord/1', text: 'yo', reply_to: 'mid-2' }, 'discord')!;
     expect(e.event).toBeUndefined();
     expect(resolved(e)).toEqual({ type: 'reply', replyTo: 'mid-2' });
   });
 
   test('legacy plain message classifies as msg', () => {
-    const e = trainEventToHistoryEntry({ line: 'metro://discord/1', text: 'plain' }, 'discord')!;
+    const e = trainEventToMetroEvent({ line: 'metro://discord/1', text: 'plain' }, 'discord')!;
     expect(resolved(e)).toEqual({ type: 'msg' });
   });
 
   test('legacy webhook classifies as system (regex fallback unchanged)', () => {
-    const e = trainEventToHistoryEntry({
+    const e = trainEventToMetroEvent({
       line: 'metro://webhook/gh', station: 'webhook', from: 'metro://webhook/gh',
       text: 'push POST /x', payload: { headers: { 'x-github-event': 'push' } },
     }, 'webhook')!;
@@ -124,7 +124,7 @@ describe('shared shape — no envelope drift', () => {
     const fromProtocol: TrainEvent = { line: 'metro://x/1', event: ev };
     expect(fromProtocol.event).toBe(ev);
     /** And it lands on the entry verbatim through the dispatcher. */
-    const e = trainEventToHistoryEntry(fromProtocol, 'x')!;
+    const e = trainEventToMetroEvent(fromProtocol, 'x')!;
     expect(e.event).toBe(ev);
   });
 });

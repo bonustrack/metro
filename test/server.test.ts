@@ -8,11 +8,11 @@
 
 import { describe, expect, test } from 'bun:test';
 import { makeEmit } from '../src/dispatcher/server.ts';
-import { formatDisplay, type HistoryEntry } from '../src/history.ts';
+import { formatDisplay, type MetroEvent } from '../src/events.ts';
 import { Line } from '../src/lines.ts';
 
 /** Capture the JSON line `makeEmit` writes to stdout for a single entry. */
-function emitOne(entry: HistoryEntry): HistoryEntry {
+function emitOne(entry: MetroEvent): MetroEvent {
   const orig = process.stdout.write.bind(process.stdout);
   let captured = '';
   // @ts-expect-error narrow override for the test
@@ -22,10 +22,10 @@ function emitOne(entry: HistoryEntry): HistoryEntry {
   } finally {
     process.stdout.write = orig;
   }
-  return JSON.parse(captured.trim()) as HistoryEntry;
+  return JSON.parse(captured.trim()) as MetroEvent;
 }
 
-const base = (overrides: Partial<HistoryEntry> = {}): HistoryEntry => ({
+const base = (overrides: Partial<MetroEvent> = {}): MetroEvent => ({
   id: 'msg_x', ts: '2026-05-29T00:00:00.000Z', station: 'discord',
   line: 'metro://discord/1' as Line,
   from: 'metro://discord/user/9' as Line,

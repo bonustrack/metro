@@ -1,6 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Line } from '../../lines.js';
-import { mintId, type HistoryEntry } from '../../history.js';
+import { mintId, type MetroEvent } from '../../events.js';
 import { sessionOwner } from '../../sessions.js';
 import type { Endpoint } from '../../tunnel.js';
 
@@ -10,7 +10,7 @@ export function webhookEntry(
   body: unknown,
   method: string,
   url: string,
-): HistoryEntry {
+): MetroEvent {
   const line = Line.webhook(endpoint.id);
   return {
     id: mintId(),

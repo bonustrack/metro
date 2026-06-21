@@ -2,7 +2,7 @@ import { mkdirSync, statSync, type FSWatcher } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from '../log.js';
-import { daemonSelf } from '../history.js';
+import { daemonSelf } from '../events.js';
 import {
   drainLines,
   failAllPending,

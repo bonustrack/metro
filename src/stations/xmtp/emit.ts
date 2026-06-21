@@ -4,7 +4,7 @@ import { emit, mintId, rememberUid, SELF_URI } from './wire.js';
 import { fcmPushToAll } from './push.js';
 import { emitInbound, emitAttachmentSaved } from './emit-core.js';
 import { typedEnvelope, type EnvelopeCtx } from './emit-payloads.js';
-import type { WireEvent } from '../../history-types.js';
+import type { WireEvent } from '../../event-types.js';
 
 export { emitInbound, emitAttachmentSaved };
 

@@ -10,10 +10,10 @@
 import { describe, expect, test } from 'bun:test';
 import { makeDedupSeq } from '../src/dispatcher/dedup-seq.ts';
 import { makeEmit } from '../src/dispatcher/server.ts';
-import type { HistoryEntry } from '../src/history.ts';
+import type { MetroEvent } from '../src/events.ts';
 import { Line } from '../src/lines.ts';
 
-const inbound = (overrides: Partial<HistoryEntry> = {}): HistoryEntry => ({
+const inbound = (overrides: Partial<MetroEvent> = {}): MetroEvent => ({
   id: 'msg_x', ts: '2026-06-10T00:00:00.000Z', station: 'discord',
   line: 'metro://discord/1' as Line,
   from: 'metro://discord/user/9' as Line,
@@ -23,7 +23,7 @@ const inbound = (overrides: Partial<HistoryEntry> = {}): HistoryEntry => ({
 });
 
 /** Capture every JSON line `makeEmit` writes to stdout for a batch of entries. */
-function emitAll(entries: HistoryEntry[]): HistoryEntry[] {
+function emitAll(entries: MetroEvent[]): MetroEvent[] {
   const orig = process.stdout.write.bind(process.stdout);
   const lines: string[] = [];
   // @ts-expect-error narrow override for the test
@@ -34,7 +34,7 @@ function emitAll(entries: HistoryEntry[]): HistoryEntry[] {
   } finally {
     process.stdout.write = orig;
   }
-  return lines.map(l => JSON.parse(l.trim()) as HistoryEntry);
+  return lines.map(l => JSON.parse(l.trim()) as MetroEvent);
 }
 
 describe('dedup-seq tracker', () => {
