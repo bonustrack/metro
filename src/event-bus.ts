@@ -1,15 +1,15 @@
-import type { HistoryEntry } from './history-types.js';
+import type { MetroEvent } from './event-types.js';
 import { Line } from './lines.js';
 import type { ClaimsMap } from './broker/claims.js';
 
-export type BusListener = (event: HistoryEntry) => void;
+export type BusListener = (event: MetroEvent) => void;
 
 const RING_CAP = 500;
 
 const listeners = new Set<BusListener>();
-const ring: HistoryEntry[] = [];
+const ring: MetroEvent[] = [];
 
-export function publishEvent(event: HistoryEntry): void {
+export function publishEvent(event: MetroEvent): void {
   ring.push(event);
   if (ring.length > RING_CAP) ring.shift();
   for (const fn of [...listeners]) {
@@ -27,7 +27,7 @@ export function subscribeEvents(fn: BusListener): () => void {
   };
 }
 
-export function recentEvents(limit: number): HistoryEntry[] {
+export function recentEvents(limit: number): MetroEvent[] {
   const n = Math.max(0, Math.min(limit, ring.length));
   return ring.slice(ring.length - n).reverse();
 }
@@ -35,7 +35,7 @@ export function recentEvents(limit: number): HistoryEntry[] {
 export type Mode = 'all' | 'mine-or-unclaimed' | 'mine-only' | 'unclaimed';
 
 export function passesMode(
-  event: HistoryEntry,
+  event: MetroEvent,
   mode: Mode,
   self: Line | null,
   claims: ClaimsMap,
@@ -61,7 +61,7 @@ export interface TailOpts {
 }
 
 export function tailIncludes(
-  entry: HistoryEntry,
+  entry: MetroEvent,
   opts: TailOpts,
   claims: ClaimsMap,
 ): boolean {

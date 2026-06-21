@@ -6,26 +6,26 @@ export {
   daemonSelf,
   selfLine,
   noteUserFromLine,
-} from './history-identity.js';
+} from './identity.js';
 export type {
   StructuredEvent,
   WireEvent,
-  HistoryEntry,
-} from './history-types.js';
+  MetroEvent,
+} from './event-types.js';
 
-import type { HistoryEntry, StructuredEvent } from './history-types.js';
+import type { MetroEvent, StructuredEvent } from './event-types.js';
 
-function isExternalWebhook(e: HistoryEntry): boolean {
+function isExternalWebhook(e: MetroEvent): boolean {
   return e.station === 'webhook' && !Line.isLocal(e.from);
 }
 
-function webhookEventName(e: HistoryEntry): string | undefined {
+function webhookEventName(e: MetroEvent): string | undefined {
   const headers = (e.payload as { headers?: Record<string, string> } | undefined)
     ?.headers;
   return headers?.['x-github-event'] ?? headers?.['x-intercom-topic'];
 }
 
-export function classifyEvent(e: HistoryEntry): StructuredEvent {
+export function classifyEvent(e: MetroEvent): StructuredEvent {
   if (isExternalWebhook(e)) {
     return {
       type: 'system',
@@ -41,7 +41,7 @@ export function classifyEvent(e: HistoryEntry): StructuredEvent {
   return { type: 'msg' };
 }
 
-export function formatDisplay(e: HistoryEntry): string {
+export function formatDisplay(e: MetroEvent): string {
   const headerFor = (icon: string, parts: (string | undefined)[]): string =>
     `**${icon} ${parts.filter(Boolean).join(' · ')}**`;
   const body = e.text ?? '';

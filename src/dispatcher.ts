@@ -13,8 +13,8 @@ import {
   noteUserFromLine,
   selfLine,
   userSelf,
-  type HistoryEntry,
-} from './history.js';
+  type MetroEvent,
+} from './events.js';
 import { errMsg, log } from './log.js';
 import { acquireLock, loadMetroEnv, STATE_DIR } from './paths.js';
 import { loadTunnelConfig, Tunnel, webhookPort } from './tunnel.js';
@@ -22,7 +22,7 @@ import { TrainSupervisor, TRAINS_DIR } from './trains/supervisor.js';
 import {
   makeEmit,
   startWebhookServer,
-  trainEventToHistoryEntry,
+  trainEventToMetroEvent,
 } from './dispatcher/server.js';
 import { OutboxDriver } from './outbox-driver.js';
 import { createMetroMcp } from './mcp/index.js';
@@ -50,7 +50,7 @@ const outbox = new OutboxDriver((train, action, args) =>
 const emit = makeEmit();
 
 supervisor.onTrainEvent((env, train) => {
-  const entry = trainEventToHistoryEntry(env, train);
+  const entry = trainEventToMetroEvent(env, train);
   if (entry) emit(entry);
 });
 
@@ -59,13 +59,13 @@ const tunnelCfg = loadTunnelConfig();
 const tunnel = tunnelCfg ? new Tunnel(tunnelCfg, webhookPort()) : null;
 
 function ipcNotify(req: Extract<IpcRequest, { op: 'notify' }>): IpcResponse {
-  const line = req.line as HistoryEntry['line'];
+  const line = req.line as MetroEvent['line'];
   emit({
     id: mintId(),
     ts: new Date().toISOString(),
     station: Line.station(line) ?? '?',
     line,
-    from: (req.from ?? userSelf()) as HistoryEntry['from'],
+    from: (req.from ?? userSelf()) as MetroEvent['from'],
     to: line,
     text: req.text,
   });

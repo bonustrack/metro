@@ -1,18 +1,18 @@
 import { Line } from '../lines.js';
 import { log } from '../log.js';
-import type { HistoryEntry } from '../history.js';
+import type { MetroEvent } from '../events.js';
 
 const LRU_CAP = 2_000;
 
 function dedupKey(
-  e: Pick<HistoryEntry, 'station' | 'line' | 'messageId'>,
+  e: Pick<MetroEvent, 'station' | 'line' | 'messageId'>,
 ): string | null {
   if (!e.messageId) return null;
   return `${e.station} ${e.line} ${e.messageId}`;
 }
 
 export interface DedupSeq {
-  admit(entry: HistoryEntry): number | null;
+  admit(entry: MetroEvent): number | null;
 }
 
 export function makeDedupSeq(): DedupSeq {
@@ -21,10 +21,10 @@ export function makeDedupSeq(): DedupSeq {
 
   log.info('dedup+seq: live-from-boot (no persisted seed)');
 
-  const isInbound = (e: HistoryEntry): boolean => !Line.isLocal(e.from);
+  const isInbound = (e: MetroEvent): boolean => !Line.isLocal(e.from);
 
   return {
-    admit(entry: HistoryEntry): number | null {
+    admit(entry: MetroEvent): number | null {
       const key = dedupKey(entry);
       if (key && isInbound(entry)) {
         if (seen.has(key)) {

@@ -13,8 +13,8 @@ import {
   mintId,
   noteUserFromLine,
   userSelf,
-  type HistoryEntry,
-} from '../history.js';
+  type MetroEvent,
+} from '../events.js';
 import { publishEvent } from '../event-bus.js';
 import { handleMonitorRequest } from '../monitor-api.js';
 import type { TrainEvent } from '../trains/protocol.js';
@@ -22,14 +22,14 @@ import { findEndpoint, listEndpoints, webhookPort } from '../tunnel.js';
 import { webhookEntry, verifyWebhookSig } from '../stations/webhook/receive.js';
 import { makeDedupSeq, type DedupSeq } from './dedup-seq.js';
 
-type Emit = (entry: HistoryEntry) => void;
+type Emit = (entry: MetroEvent) => void;
 
 export function makeEmit(dedupSeq?: DedupSeq): Emit {
   const tracker = dedupSeq ?? makeDedupSeq();
-  return function emit(entry: HistoryEntry): void {
+  return function emit(entry: MetroEvent): void {
     const seq = tracker.admit(entry);
     if (seq === null) return;
-    const enriched: HistoryEntry = {
+    const enriched: MetroEvent = {
       ...entry,
       seq,
       display: entry.display ?? formatDisplay(entry),
@@ -48,10 +48,10 @@ function eventText(env: TrainEvent): string | undefined {
   return env.emoji ? `[react ${env.emoji}]` : undefined;
 }
 
-export function trainEventToHistoryEntry(
+export function trainEventToMetroEvent(
   env: TrainEvent,
   trainName: string,
-): HistoryEntry | null {
+): MetroEvent | null {
   const line = env.line;
   if (typeof line !== 'string') {
     log.warn({ train: trainName }, 'train: dropped event without `line`');
@@ -65,11 +65,11 @@ export function trainEventToHistoryEntry(
     id: env.id ?? mintId(),
     ts: env.ts ?? new Date().toISOString(),
     station,
-    line: line as HistoryEntry['line'],
+    line: line as MetroEvent['line'],
     lineName: env.line_name,
-    from: (env.from ?? `metro://${station}`) as HistoryEntry['from'],
+    from: (env.from ?? `metro://${station}`) as MetroEvent['from'],
     fromName: env.from_name,
-    to: (env.to ?? (isPrivate ? userSelf() : line)) as HistoryEntry['to'],
+    to: (env.to ?? (isPrivate ? userSelf() : line)) as MetroEvent['to'],
     text,
     messageId: env.message_id,
     replyTo: env.reply_to,
