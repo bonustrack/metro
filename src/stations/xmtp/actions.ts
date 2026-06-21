@@ -152,6 +152,44 @@ async function sendAttachment(id: string, args: Args): Promise<void> {
   respond(id, { result: { messageId: sentId } });
 }
 
+const IMG_MIME_BY_EXT: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+};
+
+async function loadImageBytes(
+  path: string | undefined,
+  dataB64: string | undefined,
+): Promise<Uint8Array> {
+  if (path) {
+    const { readFileSync } = await import('node:fs');
+    return new Uint8Array(readFileSync(path));
+  }
+  if (dataB64) return new Uint8Array(Buffer.from(dataB64, 'base64'));
+  throw badArgs('sendImage requires path or dataB64');
+}
+
+function imageMime(
+  mimeType: string | undefined,
+  filename: string | undefined,
+  path: string | undefined,
+): string {
+  if (mimeType) return mimeType;
+  const ext = (filename ?? path ?? '').toLowerCase().split('.').pop() ?? '';
+  return IMG_MIME_BY_EXT[ext] ?? 'image/png';
+}
+
+function imageFilename(
+  filename: string | undefined,
+  path: string | undefined,
+): string {
+  if (filename) return filename;
+  const baseName = path ? path.split('/').pop() : undefined;
+  return baseName != null && baseName !== '' ? baseName : 'image.png';
+}
+
 async function sendImage(id: string, args: Args): Promise<void> {
   const { line, path, dataB64, filename, mimeType } = args as {
     line: string;
@@ -162,25 +200,9 @@ async function sendImage(id: string, args: Args): Promise<void> {
   };
   const { acct, conv } = await convOf(line);
   if (!conv) throw noConv(line);
-  let bytes: Uint8Array;
-  if (path) {
-    const { readFileSync } = await import('node:fs');
-    bytes = new Uint8Array(readFileSync(path));
-  } else if (dataB64) bytes = new Uint8Array(Buffer.from(dataB64, 'base64'));
-  else throw badArgs('sendImage requires path or dataB64');
-  const ext = (filename ?? path ?? '').toLowerCase().split('.').pop() ?? '';
-  const mime =
-    mimeType ??
-    (ext === 'jpg' || ext === 'jpeg'
-      ? 'image/jpeg'
-      : ext === 'gif'
-        ? 'image/gif'
-        : ext === 'webp'
-          ? 'image/webp'
-          : 'image/png');
-  const baseName = path ? path.split('/').pop() : undefined;
-  const fname =
-    filename ?? (baseName != null && baseName !== '' ? baseName : 'image.png');
+  const bytes = await loadImageBytes(path, dataB64);
+  const mime = imageMime(mimeType, filename, path);
+  const fname = imageFilename(filename, path);
   const attachment: Attachment = {
     filename: fname,
     mimeType: mime,
@@ -191,17 +213,27 @@ async function sendImage(id: string, args: Args): Promise<void> {
   respond(id, { result: { messageId: sentId } });
 }
 
-async function sendTxRequest(id: string, args: Args): Promise<void> {
-  const { line, to, amountEth, data, note, chainId } = args as {
-    line: string;
-    to: string;
-    amountEth?: number;
-    data?: string;
-    note?: string;
-    chainId?: number;
-  };
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
+interface TxRequestArgs {
+  to: string;
+  amountEth?: number;
+  data?: string;
+  note?: string;
+  chainId?: number;
+}
+
+function validateTxAmount(amountEth: number | undefined, hasData: boolean): void {
+  if (!hasData && (typeof amountEth !== 'number' || !(amountEth > 0))) {
+    throw badArgs(
+      'sendTxRequest requires a positive `amountEth` (or `data` for a contract call)',
+    );
+  }
+  if (amountEth != null && (typeof amountEth !== 'number' || amountEth < 0)) {
+    throw badArgs('sendTxRequest `amountEth` must be a non-negative number');
+  }
+}
+
+function validateTxRequest(a: TxRequestArgs): boolean {
+  const { to, amountEth, data } = a;
   if (!to || typeof to !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(to)) {
     throw badArgs('sendTxRequest requires a valid 0x `to` address');
   }
@@ -212,21 +244,23 @@ async function sendTxRequest(id: string, args: Args): Promise<void> {
   ) {
     throw badArgs('sendTxRequest `data` must be 0x-prefixed hex calldata');
   }
-  if (!hasData && (typeof amountEth !== 'number' || !(amountEth > 0))) {
-    throw badArgs(
-      'sendTxRequest requires a positive `amountEth` (or `data` for a contract call)',
-    );
-  }
-  if (amountEth != null && (typeof amountEth !== 'number' || amountEth < 0)) {
-    throw badArgs('sendTxRequest `amountEth` must be a non-negative number');
-  }
+  validateTxAmount(amountEth, hasData);
+  return hasData;
+}
+
+function buildTxContent(
+  a: TxRequestArgs,
+  from: string,
+  hasData: boolean,
+): WalletSendCallsParams {
+  const { to, amountEth, data, note, chainId } = a;
   const weiHex = amountEth
     ? '0x' + BigInt(Math.round(amountEth * 1e18)).toString(16)
     : '0x0';
-  const content: WalletSendCallsParams = {
+  return {
     version: '1.0',
     chainId: toHex(chainId ?? 1),
-    from: acct.address as `0x${string}`,
+    from: from as `0x${string}`,
     calls: [
       {
         to: to as `0x${string}`,
@@ -239,11 +273,24 @@ async function sendTxRequest(id: string, args: Args): Promise<void> {
       },
     ],
   };
-  const sentId = await conv.send(new WalletSendCallsCodec().encode(content));
-  const label = hasData
+}
+
+function txRequestLabel(a: TxRequestArgs, hasData: boolean): string {
+  const { amountEth, note } = a;
+  return hasData
     ? `📝 ${note ?? 'Contract call'}${amountEth ? ` (${amountEth} ETH)` : ''}`
     : `💸 ${note ?? 'Payment request'} (${amountEth} ETH)`;
-  emitOutbound(acct.cfg.id, line, sentId, label);
+}
+
+async function sendTxRequest(id: string, args: Args): Promise<void> {
+  const { line } = args as { line: string };
+  const txArgs = args as Args & TxRequestArgs;
+  const { acct, conv } = await convOf(line);
+  if (!conv) throw noConv(line);
+  const hasData = validateTxRequest(txArgs);
+  const content = buildTxContent(txArgs, acct.address, hasData);
+  const sentId = await conv.send(new WalletSendCallsCodec().encode(content));
+  emitOutbound(acct.cfg.id, line, sentId, txRequestLabel(txArgs, hasData));
   respond(id, { result: { messageId: sentId } });
 }
 

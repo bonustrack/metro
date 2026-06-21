@@ -142,6 +142,63 @@ const NOISE = new Set([
   'Thank you.',
 ]);
 
+function speakerName(s: Session, userId: string): string {
+  const member = s.client.guilds.cache
+    .get(s.guildId)
+    ?.members.cache.get(userId);
+  return member?.displayName ?? member?.user.username ?? userId;
+}
+
+function emitTranscript(
+  s: Session,
+  userId: string,
+  stamp: string,
+  text: string,
+): void {
+  emitInbound(s.accountId, {
+    kind: 'inbound',
+    id: mintId(),
+    ts: new Date().toISOString(),
+    station: 'discord',
+    line: `metro://discord/${s.accountId}/voice/${s.channelId}`,
+    line_name: 'voice',
+    from: `metro://discord/${s.accountId}/user/${userId}`,
+    from_name: speakerName(s, userId),
+    message_id: stamp,
+    text,
+    is_private: false,
+    payload: {
+      kind: 'voice_transcript',
+      channel_id: s.channelId,
+      user_id: userId,
+    },
+  });
+}
+
+function cleanupFiles(pcmPath: string, wavPath: string): void {
+  for (const f of [pcmPath, wavPath, `${wavPath.replace(/\.wav$/, '')}.txt`]) {
+    try {
+      rmSync(f, { force: true });
+    } catch {
+    }
+  }
+}
+
+async function transcribeUtterance(
+  s: Session,
+  userId: string,
+  pcmPath: string,
+  wavPath: string,
+  stamp: string,
+): Promise<void> {
+  const bytes = await captureUtterance(s, userId, pcmPath);
+  if (bytes < MIN_PCM_BYTES) return;
+  await pcmToWav(pcmPath, wavPath);
+  const text = await transcribe(wavPath);
+  if (NOISE.has(text) || text.length < 2) return;
+  emitTranscript(s, userId, stamp, text);
+}
+
 async function handleSpeaker(s: Session, userId: string): Promise<void> {
   if (!s.enabled || s.active.has(userId)) return;
   s.active.add(userId);
@@ -149,49 +206,14 @@ async function handleSpeaker(s: Session, userId: string): Promise<void> {
   const pcmPath = join(s.tmp, `${stamp}.pcm`);
   const wavPath = join(s.tmp, `${stamp}.wav`);
   try {
-    const bytes = await captureUtterance(s, userId, pcmPath);
-    if (bytes < MIN_PCM_BYTES) return;
-    await pcmToWav(pcmPath, wavPath);
-    const text = await transcribe(wavPath);
-    if (NOISE.has(text) || text.length < 2) return;
-    const member = s.client.guilds.cache
-      .get(s.guildId)
-      ?.members.cache.get(userId);
-    const name = member?.displayName ?? member?.user.username ?? userId;
-    emitInbound(s.accountId, {
-      kind: 'inbound',
-      id: mintId(),
-      ts: new Date().toISOString(),
-      station: 'discord',
-      line: `metro://discord/${s.accountId}/voice/${s.channelId}`,
-      line_name: 'voice',
-      from: `metro://discord/${s.accountId}/user/${userId}`,
-      from_name: name,
-      message_id: stamp,
-      text,
-      is_private: false,
-      payload: {
-        kind: 'voice_transcript',
-        channel_id: s.channelId,
-        user_id: userId,
-      },
-    });
+    await transcribeUtterance(s, userId, pcmPath, wavPath, stamp);
   } catch (err) {
     process.stderr.write(
       `discord voice transcribe error (${userId}): ${(err as Error).message}\n`,
     );
   } finally {
     s.active.delete(userId);
-    for (const f of [
-      pcmPath,
-      wavPath,
-      `${wavPath.replace(/\.wav$/, '')}.txt`,
-    ]) {
-      try {
-        rmSync(f, { force: true });
-      } catch {
-      }
-    }
+    cleanupFiles(pcmPath, wavPath);
   }
 }
 

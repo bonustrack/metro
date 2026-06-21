@@ -47,6 +47,16 @@ export function savePushTokens(tokens: StoredPushToken[]): void {
   writeFileSync(FCM_TOKENS_PATH, JSON.stringify(tokens, null, 2));
 }
 
+function collectInboxIds(
+  existing: StoredPushToken | undefined,
+  entryInboxId: string | undefined,
+): Set<string> {
+  const inboxIds = new Set<string>(existing?.inboxIds ?? []);
+  if (existing?.inboxId) inboxIds.add(existing.inboxId);
+  if (entryInboxId) inboxIds.add(entryInboxId);
+  return inboxIds;
+}
+
 export function storePushToken(entry: {
   token: string;
   account?: string;
@@ -57,9 +67,7 @@ export function storePushToken(entry: {
   const all = loadPushTokens();
   const existing = all.find((t) => t.token === entry.token);
   const remaining = all.filter((t) => t.token !== entry.token);
-  const inboxIds = new Set<string>(existing?.inboxIds ?? []);
-  if (existing?.inboxId) inboxIds.add(existing.inboxId);
-  if (entry.inboxId) inboxIds.add(entry.inboxId);
+  const inboxIds = collectInboxIds(existing, entry.inboxId);
   const row: StoredPushToken = {
     token: entry.token,
     registeredAt: existing?.registeredAt ?? now,
@@ -237,6 +245,51 @@ interface DisablePushPayload {
   inboxId?: string;
 }
 
+function isValidPushToken(token: unknown): token is string {
+  return typeof token === 'string' && token.length >= 20;
+}
+
+function handleRegisterPushCtrl(
+  accountId: string,
+  msg: DecodedMessage,
+  arg: string,
+): void {
+  const obj = JSON.parse(arg) as Partial<RegisterPushPayload>;
+  if (!obj || !isValidPushToken(obj.token)) {
+    process.stderr.write(
+      `xmtp[${accountId}]: register-push (ctrl-dm) ignored — bad/short token\n`,
+    );
+    return;
+  }
+  const total = storePushToken({
+    token: obj.token,
+    account: accountId,
+    inboxId: msg.senderInboxId,
+    platform: typeof obj.platform === 'string' ? obj.platform : undefined,
+  });
+  process.stderr.write(
+    `xmtp[${accountId}]: register-push (ctrl-dm) stored token ${obj.token.slice(0, 12)}… ` +
+      `from inbox ${msg.senderInboxId.slice(0, 10)}… (v=${obj.v ?? '?'}, ${total} total)\n`,
+  );
+}
+
+function handleDisablePushCtrl(accountId: string, arg: string): void {
+  const obj = JSON.parse(arg) as Partial<DisablePushPayload>;
+  if (!obj || !isValidPushToken(obj.token)) {
+    process.stderr.write(
+      `xmtp[${accountId}]: disable-push (ctrl-dm) ignored — bad/short token\n`,
+    );
+    return;
+  }
+  const remaining = removePushToken(obj.token);
+  process.stderr.write(
+    `xmtp[${accountId}]: disable-push (ctrl-dm) token ${obj.token.slice(0, 12)}… ` +
+      (remaining === -1
+        ? 'not found (already gone)\n'
+        : `removed (v=${obj.v ?? '?'}, ${remaining} remain)\n`),
+  );
+}
+
 export function handleControlDm(
   accountId: string,
   msg: DecodedMessage,
@@ -249,38 +302,9 @@ export function handleControlDm(
   const arg = sep === -1 ? '' : rest.slice(sep + 1);
   try {
     if (verb === CTRL_REGISTER_PUSH) {
-      const obj = JSON.parse(arg) as Partial<RegisterPushPayload>;
-      if (!obj || typeof obj.token !== 'string' || obj.token.length < 20) {
-        process.stderr.write(
-          `xmtp[${accountId}]: register-push (ctrl-dm) ignored — bad/short token\n`,
-        );
-        return true;
-      }
-      const total = storePushToken({
-        token: obj.token,
-        account: accountId,
-        inboxId: msg.senderInboxId,
-        platform: typeof obj.platform === 'string' ? obj.platform : undefined,
-      });
-      process.stderr.write(
-        `xmtp[${accountId}]: register-push (ctrl-dm) stored token ${obj.token.slice(0, 12)}… ` +
-          `from inbox ${msg.senderInboxId.slice(0, 10)}… (v=${obj.v ?? '?'}, ${total} total)\n`,
-      );
+      handleRegisterPushCtrl(accountId, msg, arg);
     } else if (verb === CTRL_DISABLE_PUSH) {
-      const obj = JSON.parse(arg) as Partial<DisablePushPayload>;
-      if (!obj || typeof obj.token !== 'string' || obj.token.length < 20) {
-        process.stderr.write(
-          `xmtp[${accountId}]: disable-push (ctrl-dm) ignored — bad/short token\n`,
-        );
-        return true;
-      }
-      const remaining = removePushToken(obj.token);
-      process.stderr.write(
-        `xmtp[${accountId}]: disable-push (ctrl-dm) token ${obj.token.slice(0, 12)}… ` +
-          (remaining === -1
-            ? 'not found (already gone)\n'
-            : `removed (v=${obj.v ?? '?'}, ${remaining} remain)\n`),
-      );
+      handleDisablePushCtrl(accountId, arg);
     } else {
       process.stderr.write(
         `xmtp[${accountId}]: unknown control verb '${verb}' — swallowed\n`,

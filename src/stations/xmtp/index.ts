@@ -1,4 +1,4 @@
-import { ConsentState } from '@xmtp/node-sdk';
+import { ConsentState, type DecodedMessage } from '@xmtp/node-sdk';
 import {
   accounts,
   bootAccount,
@@ -38,7 +38,7 @@ const SILENT_TYPES = new Set([
   'group_updated',
 ]);
 
-async function runAccount(acct: Account): Promise<void> {
+async function bootSync(acct: Account): Promise<void> {
   const { id } = acct.cfg;
   try {
     await acct.client.conversations.syncAll([
@@ -54,7 +54,10 @@ async function runAccount(acct: Account): Promise<void> {
       `xmtp[${id}] boot sync error: ${(err as Error).message}\n`,
     );
   }
+}
 
+function startPeriodicSync(acct: Account): void {
+  const { id } = acct.cfg;
   setInterval(() => {
     void (async () => {
       try {
@@ -69,6 +72,36 @@ async function runAccount(acct: Account): Promise<void> {
       }
     })();
   }, SYNC_MS).unref();
+}
+
+async function handleStreamMessage(
+  acct: Account,
+  msg: DecodedMessage,
+): Promise<void> {
+  const { id } = acct.cfg;
+  if (msg.senderInboxId === acct.client.inboxId) return;
+  if (SILENT_TYPES.has(msg.contentType?.typeId ?? '')) return;
+  if (handleControlDm(id, msg)) return;
+  const conv = await acct.client.conversations.getConversationById(
+    msg.conversationId,
+  );
+  if (!conv) return;
+  const env = envelope(id, msg, conv);
+  const name = await groupNameFor(msg.conversationId, conv);
+  if (name) {
+    env.line_name = name;
+    env.lineName = name;
+    const p = (env.payload ?? {}) as Record<string, unknown>;
+    env.payload = { ...p, lineName: name };
+  }
+  emitInbound(id, env);
+  pushInbound(id, env, msg, conv);
+}
+
+async function runAccount(acct: Account): Promise<void> {
+  const { id } = acct.cfg;
+  await bootSync(acct);
+  startPeriodicSync(acct);
 
   for (;;) {
     try {
@@ -77,23 +110,7 @@ async function runAccount(acct: Account): Promise<void> {
       });
       for await (const msg of stream) {
         if (!msg) continue;
-        if (msg.senderInboxId === acct.client.inboxId) continue;
-        if (SILENT_TYPES.has(msg.contentType?.typeId ?? '')) continue;
-        if (handleControlDm(id, msg)) continue;
-        const conv = await acct.client.conversations.getConversationById(
-          msg.conversationId,
-        );
-        if (!conv) continue;
-        const env = envelope(id, msg, conv);
-        const name = await groupNameFor(msg.conversationId, conv);
-        if (name) {
-          env.line_name = name;
-          env.lineName = name;
-          const p = (env.payload ?? {}) as Record<string, unknown>;
-          env.payload = { ...p, lineName: name };
-        }
-        emitInbound(id, env);
-        pushInbound(id, env, msg, conv);
+        await handleStreamMessage(acct, msg);
       }
     } catch (err) {
       process.stderr.write(

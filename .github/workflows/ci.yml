@@ -7,4 +7,4 @@ on:
 
 jobs:
   ci:
-    uses: bonustrack/stage/.github/workflows/_ci.yml@v0.1.0-beta.15
+    uses: ./.github/workflows/_ci.yml

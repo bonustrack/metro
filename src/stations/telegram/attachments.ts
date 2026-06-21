@@ -20,20 +20,29 @@ const MIME_EXT: Record<string, string> = {
   'application/pdf': 'pdf',
 };
 
+function extFromName(name: string | undefined): string | undefined {
+  const ext = name?.split('?')[0]?.split('.').pop()?.toLowerCase();
+  return ext && ext.length >= 1 && ext.length <= 5 ? ext : undefined;
+}
+
+function extFromMime(mime: string | undefined): string | undefined {
+  if (!mime) return undefined;
+  if (MIME_EXT[mime]) return MIME_EXT[mime];
+  if (mime.startsWith('image/')) return mime.slice(6).replace('jpeg', 'jpg');
+  return undefined;
+}
+
 function extFromPath(
   filePath: string | undefined,
   fileName: string | undefined,
   mime: string | undefined,
 ): string {
-  const fromName = (fileName ?? filePath)
-    ?.split('?')[0]
-    ?.split('.')
-    .pop()
-    ?.toLowerCase();
-  if (fromName && fromName.length >= 1 && fromName.length <= 5) return fromName;
-  if (mime && MIME_EXT[mime]) return MIME_EXT[mime];
-  if (mime?.startsWith('image/')) return mime.slice(6).replace('jpeg', 'jpg');
-  return 'bin';
+  return extFromName(fileName ?? filePath) ?? extFromMime(mime) ?? 'bin';
+}
+
+function isOggRef(mime: string | undefined, ref: string | undefined): boolean {
+  const ext = ref?.split('?')[0]?.split('.').pop()?.toLowerCase();
+  return mime === 'audio/ogg' || ext === 'ogg' || ext === 'oga';
 }
 
 export function mediaKindOf(
@@ -42,8 +51,7 @@ export function mediaKindOf(
   ref: string | undefined,
 ): 'image' | 'voice' | 'document' {
   if (kind === 'image' || mime?.startsWith('image/')) return 'image';
-  const ext = ref?.split('?')[0]?.split('.').pop()?.toLowerCase();
-  const isOgg = mime === 'audio/ogg' || ext === 'ogg' || ext === 'oga';
+  const isOgg = isOggRef(mime, ref);
   if (kind === 'voice' || (kind === 'audio' && isOgg)) return 'voice';
   if (!kind && isOgg) return 'voice';
   return 'document';
@@ -62,26 +70,39 @@ export interface TgMediaRef {
   mime?: string;
 }
 
+const MEDIA_EXTRACTORS: ((m: TgMsg) => TgMediaRef | null)[] = [
+  (m) =>
+    m.photo?.length
+      ? { fileId: m.photo[m.photo.length - 1].file_id, mime: 'image/jpeg' }
+      : null,
+  (m) =>
+    m.document?.file_id
+      ? { fileId: m.document.file_id, name: m.document.file_name }
+      : null,
+  (m) =>
+    m.video?.file_id
+      ? { fileId: m.video.file_id, name: m.video.file_name, mime: 'video/mp4' }
+      : null,
+  (m) =>
+    m.animation?.file_id
+      ? { fileId: m.animation.file_id, name: m.animation.file_name }
+      : null,
+  (m) =>
+    m.audio?.file_id
+      ? { fileId: m.audio.file_id, name: m.audio.file_name }
+      : null,
+  (m) => (m.voice?.file_id ? { fileId: m.voice.file_id, mime: 'audio/ogg' } : null),
+  (m) =>
+    m.sticker?.file_id
+      ? { fileId: m.sticker.file_id, mime: 'image/webp' }
+      : null,
+];
+
 export function mediaRefOf(m: TgMsg): TgMediaRef | null {
-  if (m.photo?.length) {
-    const largest = m.photo[m.photo.length - 1];
-    return { fileId: largest.file_id, mime: 'image/jpeg' };
+  for (const extract of MEDIA_EXTRACTORS) {
+    const ref = extract(m);
+    if (ref) return ref;
   }
-  if (m.document?.file_id)
-    return { fileId: m.document.file_id, name: m.document.file_name };
-  if (m.video?.file_id)
-    return {
-      fileId: m.video.file_id,
-      name: m.video.file_name,
-      mime: 'video/mp4',
-    };
-  if (m.animation?.file_id)
-    return { fileId: m.animation.file_id, name: m.animation.file_name };
-  if (m.audio?.file_id)
-    return { fileId: m.audio.file_id, name: m.audio.file_name };
-  if (m.voice?.file_id) return { fileId: m.voice.file_id, mime: 'audio/ogg' };
-  if (m.sticker?.file_id)
-    return { fileId: m.sticker.file_id, mime: 'image/webp' };
   return null;
 }
 

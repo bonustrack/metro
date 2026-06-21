@@ -19,20 +19,28 @@ const MIME_EXT: Record<string, string> = {
   'application/pdf': 'pdf',
 };
 
-function extFor(
-  filename: string | undefined,
-  mime: string | undefined,
-): string {
-  const fromName = filename
+function extFromName(filename: string | undefined): string | undefined {
+  const ext = filename
     ?.split('?')[0]
     ?.split('#')[0]
     ?.split('.')
     .pop()
     ?.toLowerCase();
-  if (fromName && fromName.length >= 1 && fromName.length <= 5) return fromName;
-  if (mime && MIME_EXT[mime]) return MIME_EXT[mime];
-  if (mime?.startsWith('image/')) return mime.slice(6).replace('jpeg', 'jpg');
-  return 'bin';
+  return ext && ext.length >= 1 && ext.length <= 5 ? ext : undefined;
+}
+
+function extFromMime(mime: string | undefined): string | undefined {
+  if (!mime) return undefined;
+  if (MIME_EXT[mime]) return MIME_EXT[mime];
+  if (mime.startsWith('image/')) return mime.slice(6).replace('jpeg', 'jpg');
+  return undefined;
+}
+
+function extFor(
+  filename: string | undefined,
+  mime: string | undefined,
+): string {
+  return extFromName(filename) ?? extFromMime(mime) ?? 'bin';
 }
 
 function fileName(

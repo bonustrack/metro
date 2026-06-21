@@ -1,74 +1,19 @@
-import { accountFor, accounts, tg, tgForm, targetOf } from './accounts.js';
-import { emit, mintId, respond, SELF_URI } from './wire.js';
+import { accountFor, accounts, tg, targetOf } from './accounts.js';
+import { respond } from './wire.js';
 import { normalizeTelegram } from '../messaging-normalize.js';
 import { unsupported } from '../../messaging.js';
 import { mediaKindOf } from './attachments.js';
+import {
+  emitOutbound,
+  media,
+  MEDIA_METHOD_FIELD,
+  sendDice,
+  sendLocation,
+  sendMedia,
+} from './media-actions.js';
 
-function emitOutbound(
-  accountId: string,
-  line: string,
-  messageId: string,
-  text: string,
-  replyTo?: string,
-): void {
-  emit({
-    kind: 'outbound',
-    id: mintId(),
-    ts: new Date().toISOString(),
-    station: 'telegram',
-    line,
-    from: SELF_URI,
-    to: line,
-    message_id: messageId,
-    text,
-    reply_to: replyTo,
-    ...(replyTo ? { event: { type: 'reply', replyTo } } : {}),
-    account: accountId,
-    payload: { account: accountId },
-  });
-}
 
-interface MediaArgs {
-  line: string;
-  path: string;
-  caption?: string;
-  replyTo?: string;
-  parseMode?: string;
-  account?: string;
-  name?: string;
-}
 
-async function sendMedia(
-  method: string,
-  fieldName: string,
-  args: Record<string, unknown>,
-): Promise<{ accountId: string; message_id: number }> {
-  const {
-    line,
-    path,
-    caption,
-    replyTo,
-    parseMode,
-    account,
-    name: fileName,
-  } = args as unknown as MediaArgs;
-  const { accountId, chatId, topicId } = targetOf(line, account);
-  const form = new FormData();
-  form.append('chat_id', String(chatId));
-  if (topicId !== undefined) form.append('message_thread_id', String(topicId));
-  if (caption) form.append('caption', caption);
-  if (parseMode) form.append('parse_mode', parseMode);
-  if (replyTo)
-    form.append(
-      'reply_parameters',
-      JSON.stringify({ message_id: Number(replyTo) }),
-    );
-  const data = await Bun.file(path).arrayBuffer();
-  const name = fileName ?? path.split('/').pop() ?? fieldName;
-  form.append(fieldName, new Blob([data]), name);
-  const r = await tgForm<{ message_id: number }>(accountId, method, form);
-  return { accountId, message_id: r.message_id };
-}
 
 export interface CallMsg {
   op: 'call';
@@ -77,26 +22,6 @@ export interface CallMsg {
   args: Record<string, unknown>;
 }
 
-async function media(
-  id: string,
-  method: string,
-  field: string,
-  label: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const { accountId, message_id } = await sendMedia(method, field, args);
-  const line = (args as { line: string }).line;
-  emitOutbound(
-    accountId,
-    line,
-    String(message_id),
-    label,
-    args.replyTo as string | undefined,
-  );
-  respond(id, {
-    result: { messageId: String(message_id), account: accountId },
-  });
-}
 
 const KNOWN =
   'accounts, send, react, edit, delete, send_photo, send_document, ' +
@@ -123,225 +48,184 @@ async function getMe(
   }
 }
 
-async function dispatch({ id, action, args }: CallMsg): Promise<void> {
-  if (action === 'accounts') {
-    const list = await Promise.all(
-      [...accounts.values()].map(async (a) => {
-        const me = await getMe(a.cfg.id);
-        return {
-          id: a.cfg.id,
-          owner: a.cfg.owner ?? null,
-          botId: me?.id ?? null,
-          username: me?.username ?? null,
-        };
-      }),
-    );
-    respond(id, { result: { accounts: list } });
-  } else if (action === 'send') {
-    const { line, text, replyTo, parseMode, buttons, account, attachments } =
-      args as {
-        line: string;
-        text: string;
-        replyTo?: string;
-        parseMode?: string;
-        buttons?: { text: string; url: string }[][];
-        account?: string;
-        attachments?: {
-          kind?: string;
-          url?: string;
-          mime?: string;
-          name?: string;
-        }[];
+async function listAccounts(id: string): Promise<void> {
+  const list = await Promise.all(
+    [...accounts.values()].map(async (a) => {
+      const me = await getMe(a.cfg.id);
+      return {
+        id: a.cfg.id,
+        owner: a.cfg.owner ?? null,
+        botId: me?.id ?? null,
+        username: me?.username ?? null,
       };
-    if (attachments?.length) {
-      let last: { accountId: string; message_id: number } | undefined;
-      for (let i = 0; i < attachments.length; i++) {
-        const a = attachments[i];
-        const kind = mediaKindOf(a.kind, a.mime, a.url ?? a.name);
-        const method =
-          kind === 'image'
-            ? 'sendPhoto'
-            : kind === 'voice'
-              ? 'sendVoice'
-              : 'sendDocument';
-        const field =
-          kind === 'image' ? 'photo' : kind === 'voice' ? 'voice' : 'document';
-        const caption = i === 0 ? text : undefined;
-        last = await sendMedia(method, field, {
-          line,
-          path: a.url,
-          caption,
-          replyTo,
-          parseMode,
-          account,
-          name: a.name,
-        });
-        emitOutbound(
-          last.accountId,
-          line,
-          String(last.message_id),
-          i === 0 ? text || `[${kind}]` : `[${kind}]`,
-          replyTo,
-        );
-      }
-      if (!last) throw new Error('no attachments were sent');
-      respond(id, {
-        result: { messageId: String(last.message_id), account: last.accountId },
-      });
-      return;
-    }
-    const { accountId, chatId, topicId } = targetOf(line, account);
-    const body: Record<string, unknown> = { chat_id: chatId, text };
-    if (topicId !== undefined) body.message_thread_id = topicId;
-    if (replyTo) body.reply_parameters = { message_id: Number(replyTo) };
-    if (parseMode) body.parse_mode = parseMode;
-    if (buttons) body.reply_markup = { inline_keyboard: buttons };
-    const sent = await tg<{ message_id: number }>(
-      accountId,
-      'sendMessage',
-      body,
-    );
-    emitOutbound(accountId, line, String(sent.message_id), text, replyTo);
-    respond(id, {
-      result: { messageId: String(sent.message_id), account: accountId },
-    });
-  } else if (action === 'react') {
-    const { line, messageId, emoji, account } = args as {
-      line: string;
-      messageId: string;
-      emoji: string;
-      account?: string;
-    };
-    const { accountId, chatId } = targetOf(line, account);
-    await tg(accountId, 'setMessageReaction', {
-      chat_id: chatId,
-      message_id: Number(messageId),
-      reaction: emoji ? [{ type: 'emoji', emoji }] : [],
-    });
-    respond(id, { result: { ok: true, account: accountId } });
-  } else if (action === 'edit') {
-    const { line, messageId, text, parseMode, account } = args as {
-      line: string;
-      messageId: string;
-      text: string;
-      parseMode?: string;
-      account?: string;
-    };
-    const { accountId, chatId } = targetOf(line, account);
-    await tg(accountId, 'editMessageText', {
-      chat_id: chatId,
-      message_id: Number(messageId),
-      text,
-      parse_mode: parseMode,
-    });
-    respond(id, { result: { ok: true, account: accountId } });
-  } else if (action === 'delete') {
-    const { line, messageId, account } = args as {
-      line: string;
-      messageId: string;
-      account?: string;
-    };
-    const { accountId, chatId } = targetOf(line, account);
-    await tg(accountId, 'deleteMessage', {
-      chat_id: chatId,
-      message_id: Number(messageId),
-    });
-    respond(id, { result: { ok: true, account: accountId } });
-  } else if (action === 'send_photo') {
-    await media(
-      id,
-      'sendPhoto',
-      'photo',
-      ((args.caption as string) ?? '') + ' [image]',
-      args,
-    );
-  } else if (action === 'send_document') {
-    await media(
-      id,
-      'sendDocument',
-      'document',
-      ((args.caption as string) ?? '') + ' [file]',
-      args,
-    );
-  } else if (action === 'send_voice') {
-    await media(id, 'sendVoice', 'voice', '[voice]', args);
-  } else if (action === 'send_sticker') {
-    await media(id, 'sendSticker', 'sticker', '[sticker]', args);
-  } else if (action === 'send_dice') {
-    const {
+    }),
+  );
+  respond(id, { result: { accounts: list } });
+}
+
+interface SendArgs {
+  line: string;
+  text: string;
+  replyTo?: string;
+  parseMode?: string;
+  buttons?: { text: string; url: string }[][];
+  account?: string;
+  attachments?: { kind?: string; url?: string; mime?: string; name?: string }[];
+}
+
+
+async function sendAttachments(id: string, a: SendArgs): Promise<void> {
+  const { line, text, replyTo, parseMode, account, attachments = [] } = a;
+  let last: { accountId: string; message_id: number } | undefined;
+  for (let i = 0; i < attachments.length; i++) {
+    const att = attachments[i];
+    const kind = mediaKindOf(att.kind, att.mime, att.url ?? att.name);
+    const { method, field } = MEDIA_METHOD_FIELD[kind];
+    last = await sendMedia(method, field, {
       line,
-      emoji = '🎲',
+      path: att.url,
+      caption: i === 0 ? text : undefined,
+      replyTo,
+      parseMode,
       account,
-    } = args as { line: string; emoji?: string; account?: string };
-    const { accountId, chatId, topicId } = targetOf(line, account);
-    const body: Record<string, unknown> = { chat_id: chatId, emoji };
-    if (topicId !== undefined) body.message_thread_id = topicId;
-    const r = await tg<{ message_id: number; dice?: { value: number } }>(
-      accountId,
-      'sendDice',
-      body,
-    );
-    emitOutbound(
-      accountId,
-      line,
-      String(r.message_id),
-      `[dice ${emoji} = ${r.dice?.value ?? '?'}]`,
-    );
-    respond(id, {
-      result: {
-        messageId: String(r.message_id),
-        value: r.dice?.value,
-        account: accountId,
-      },
-    });
-  } else if (action === 'send_location') {
-    const { line, latitude, longitude, account } = args as {
-      line: string;
-      latitude: number;
-      longitude: number;
-      account?: string;
-    };
-    const { accountId, chatId } = targetOf(line, account);
-    const r = await tg<{ message_id: number }>(accountId, 'sendLocation', {
-      chat_id: chatId,
-      latitude,
-      longitude,
+      name: att.name,
     });
     emitOutbound(
-      accountId,
+      last.accountId,
       line,
-      String(r.message_id),
-      `[location: ${latitude}, ${longitude}]`,
+      String(last.message_id),
+      i === 0 ? text || `[${kind}]` : `[${kind}]`,
+      replyTo,
     );
-    respond(id, {
-      result: { messageId: String(r.message_id), account: accountId },
-    });
-  } else if (action === 'read') {
-    respond(id, { error: unsupported('read', 'telegram') });
-  } else if (action === 'download') {
-    const {
-      fileId,
-      outDir = '/tmp',
-      account,
-    } = args as { fileId: string; outDir?: string; account?: string };
-    const accountId = accountFor({ account });
-    const acct = accounts.get(accountId);
-    if (!acct) throw new Error(`unknown account '${accountId}'`);
-    const meta = await tg<{ file_path: string }>(accountId, 'getFile', {
-      file_id: fileId,
-    });
-    const data = await fetch(`${acct.fileApi}/${meta.file_path}`).then((r) =>
-      r.arrayBuffer(),
-    );
-    const filename = meta.file_path.split('/').pop() ?? `${fileId}.bin`;
-    const path = `${outDir}/${Date.now()}-${filename}`;
-    await Bun.write(path, data);
-    respond(id, {
-      result: { path, fileSize: data.byteLength, account: accountId },
-    });
-  } else {
-    respond(id, { error: `unknown action '${action}' (have: ${KNOWN})` });
   }
+  if (!last) throw new Error('no attachments were sent');
+  respond(id, {
+    result: { messageId: String(last.message_id), account: last.accountId },
+  });
+}
+
+async function send(id: string, args: Record<string, unknown>): Promise<void> {
+  const a = args as unknown as SendArgs;
+  if (a.attachments?.length) {
+    await sendAttachments(id, a);
+    return;
+  }
+  const { line, text, replyTo, parseMode, buttons, account } = a;
+  const { accountId, chatId, topicId } = targetOf(line, account);
+  const body: Record<string, unknown> = { chat_id: chatId, text };
+  if (topicId !== undefined) body.message_thread_id = topicId;
+  if (replyTo) body.reply_parameters = { message_id: Number(replyTo) };
+  if (parseMode) body.parse_mode = parseMode;
+  if (buttons) body.reply_markup = { inline_keyboard: buttons };
+  const sent = await tg<{ message_id: number }>(accountId, 'sendMessage', body);
+  emitOutbound(accountId, line, String(sent.message_id), text, replyTo);
+  respond(id, {
+    result: { messageId: String(sent.message_id), account: accountId },
+  });
+}
+
+async function react(id: string, args: Record<string, unknown>): Promise<void> {
+  const { line, messageId, emoji, account } = args as {
+    line: string;
+    messageId: string;
+    emoji: string;
+    account?: string;
+  };
+  const { accountId, chatId } = targetOf(line, account);
+  await tg(accountId, 'setMessageReaction', {
+    chat_id: chatId,
+    message_id: Number(messageId),
+    reaction: emoji ? [{ type: 'emoji', emoji }] : [],
+  });
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
+async function edit(id: string, args: Record<string, unknown>): Promise<void> {
+  const { line, messageId, text, parseMode, account } = args as {
+    line: string;
+    messageId: string;
+    text: string;
+    parseMode?: string;
+    account?: string;
+  };
+  const { accountId, chatId } = targetOf(line, account);
+  await tg(accountId, 'editMessageText', {
+    chat_id: chatId,
+    message_id: Number(messageId),
+    text,
+    parse_mode: parseMode,
+  });
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
+async function remove(id: string, args: Record<string, unknown>): Promise<void> {
+  const { line, messageId, account } = args as {
+    line: string;
+    messageId: string;
+    account?: string;
+  };
+  const { accountId, chatId } = targetOf(line, account);
+  await tg(accountId, 'deleteMessage', {
+    chat_id: chatId,
+    message_id: Number(messageId),
+  });
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
+
+
+async function download(id: string, args: Record<string, unknown>): Promise<void> {
+  const {
+    fileId,
+    outDir = '/tmp',
+    account,
+  } = args as { fileId: string; outDir?: string; account?: string };
+  const accountId = accountFor({ account });
+  const acct = accounts.get(accountId);
+  if (!acct) throw new Error(`unknown account '${accountId}'`);
+  const meta = await tg<{ file_path: string }>(accountId, 'getFile', {
+    file_id: fileId,
+  });
+  const data = await fetch(`${acct.fileApi}/${meta.file_path}`).then((r) =>
+    r.arrayBuffer(),
+  );
+  const filename = meta.file_path.split('/').pop() ?? `${fileId}.bin`;
+  const path = `${outDir}/${Date.now()}-${filename}`;
+  await Bun.write(path, data);
+  respond(id, {
+    result: { path, fileSize: data.byteLength, account: accountId },
+  });
+}
+
+type Handler = (id: string, args: Record<string, unknown>) => Promise<void>;
+const HANDLERS: Record<string, Handler> = {
+  accounts: (id) => listAccounts(id),
+  send,
+  react,
+  edit,
+  delete: remove,
+  send_photo: (id, args) =>
+    media(id, 'sendPhoto', 'photo', ((args.caption as string) ?? '') + ' [image]', args),
+  send_document: (id, args) =>
+    media(id, 'sendDocument', 'document', ((args.caption as string) ?? '') + ' [file]', args),
+  send_voice: (id, args) => media(id, 'sendVoice', 'voice', '[voice]', args),
+  send_sticker: (id, args) => media(id, 'sendSticker', 'sticker', '[sticker]', args),
+  send_dice: sendDice,
+  send_location: sendLocation,
+  download,
+};
+
+async function dispatch({ id, action, args }: CallMsg): Promise<void> {
+  if (action === 'read') {
+    respond(id, { error: unsupported('read', 'telegram') });
+    return;
+  }
+  const handler = HANDLERS[action];
+  if (!handler) {
+    respond(id, { error: `unknown action '${action}' (have: ${KNOWN})` });
+    return;
+  }
+  await handler(id, args);
 }
 
 export async function handleCall(msg: CallMsg): Promise<void> {

@@ -13,22 +13,33 @@ function lineForMsg(
   return { line: lineOf(accountId, m.chat.id, topicId), topicId };
 }
 
+function stickerTag(s: NonNullable<TgMsg['sticker']>): string {
+  const set = s.set_name ? ` · ${s.set_name}` : '';
+  return `[sticker${s.emoji ? ` ${s.emoji}` : ''}${set}]`;
+}
+
+const TAG_EXTRACTORS: ((m: TgMsg) => string | null)[] = [
+  (m) => (m.photo?.length ? '[image]' : null),
+  (m) => (m.voice ? '[voice]' : null),
+  (m) => (m.audio ? `[audio: ${m.audio.file_name ?? 'audio'}]` : null),
+  (m) => (m.video ? `[video: ${m.video.file_name ?? 'video'}]` : null),
+  (m) => (m.animation ? `[gif: ${m.animation.file_name ?? 'gif'}]` : null),
+  (m) => (m.sticker ? stickerTag(m.sticker) : null),
+  (m) =>
+    m.document && !m.animation
+      ? `[file: ${m.document.file_name ?? 'doc'}]`
+      : null,
+  (m) =>
+    m.location
+      ? `[location: ${m.location.latitude}, ${m.location.longitude}]`
+      : null,
+  (m) => (m.dice ? `[dice ${m.dice.emoji} = ${m.dice.value}]` : null),
+];
+
 function projectText(m: TgMsg): string {
-  const tags: string[] = [];
-  if (m.photo?.length) tags.push('[image]');
-  if (m.voice) tags.push('[voice]');
-  if (m.audio) tags.push(`[audio: ${m.audio.file_name ?? 'audio'}]`);
-  if (m.video) tags.push(`[video: ${m.video.file_name ?? 'video'}]`);
-  if (m.animation) tags.push(`[gif: ${m.animation.file_name ?? 'gif'}]`);
-  if (m.sticker) {
-    const set = m.sticker.set_name ? ` · ${m.sticker.set_name}` : '';
-    tags.push(`[sticker${m.sticker.emoji ? ` ${m.sticker.emoji}` : ''}${set}]`);
-  }
-  if (m.document && !m.animation)
-    tags.push(`[file: ${m.document.file_name ?? 'doc'}]`);
-  if (m.location)
-    tags.push(`[location: ${m.location.latitude}, ${m.location.longitude}]`);
-  if (m.dice) tags.push(`[dice ${m.dice.emoji} = ${m.dice.value}]`);
+  const tags = TAG_EXTRACTORS.map((f) => f(m)).filter(
+    (t): t is string => t !== null,
+  );
   return [m.text ?? m.caption, ...tags].filter(Boolean).join(' ');
 }
 

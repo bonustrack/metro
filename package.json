@@ -50,7 +50,6 @@
     "@xmtp/content-type-reaction": "^2.0.2",
     "@xmtp/content-type-remote-attachment": "^2.0.4",
     "@xmtp/content-type-reply": "^2.0.3",
-    "@xmtp/content-type-transaction-reference": "^2.0.2",
     "@xmtp/content-type-wallet-send-calls": "^2.0.0",
     "@xmtp/node-bindings": "1.9.1",
     "@xmtp/node-sdk": "^6.0.0",

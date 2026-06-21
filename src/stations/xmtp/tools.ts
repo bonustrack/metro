@@ -1,54 +1,18 @@
-import type {
-  CanonicalAttachment,
-  StationTool,
-  ToolContext,
-} from '../types.js';
-import { MetroCallError } from '../types.js';
-import { guessMime, isImageMime, isImageExt } from '../attachments.js';
+import type { StationTool } from '../types.js';
+import {
+  str,
+  createChannel,
+  setChannelMetadata,
+  memberOp,
+} from './tools-handlers.js';
 
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+export { xmtpSendAttachments } from './tools-attachments.js';
 
 const lineProp = {
   type: 'string',
   description:
     'The metro:// line (from the inbound <channel> tag). The station is derived from it.',
 } as const;
-
-const XMTP_ATTACH_MAX_BYTES = 190 * 1024;
-
-export async function xmtpSendAttachments(
-  line: string,
-  atts: CanonicalAttachment[],
-  ctx: ToolContext,
-): Promise<string[]> {
-  const sent: string[] = [];
-  for (const a of atts) {
-    const src = a.path ?? a.url ?? '';
-    if (!src) continue;
-    const mime = a.mime ?? guessMime(src);
-    if (isImageMime(mime) || isImageExt(src)) {
-      await ctx.call('sendImage', { line, path: src });
-      sent.push('image');
-    } else {
-      const buf = await ctx.readFile(src);
-      if (buf.byteLength > XMTP_ATTACH_MAX_BYTES) {
-        throw new MetroCallError(
-          `attachment '${src}' is ${(buf.byteLength / 1024).toFixed(0)} KiB; xmtp non-image files ` +
-            'over ~190 KiB (256 KiB once base64-encoded) cannot be sent via this MCP path. ' +
-            'Send it as an image, host it elsewhere, or use the metro CLI directly.',
-        );
-      }
-      await ctx.call('sendAttachment', {
-        line,
-        name: a.name ?? src.split('/').pop() ?? 'attachment',
-        mime: a.mime ?? guessMime(src),
-        dataB64: buf.toString('base64'),
-      });
-      sent.push('file');
-    }
-  }
-  return sent;
-}
 
 export const XMTP_TOOLS: StationTool[] = [
   {
@@ -82,38 +46,7 @@ export const XMTP_TOOLS: StationTool[] = [
       },
       required: ['addresses', 'name'],
     },
-    async handle(a, ctx) {
-      const addresses =
-        (a.addresses as unknown[] | undefined)?.map(String).filter(Boolean) ??
-        [];
-      const channelName = str(a.name);
-      const labels =
-        (a.labels as unknown[] | undefined)?.map(String).filter(Boolean) ?? [];
-      const account = str(a.account) || undefined;
-      if (!addresses.length)
-        return ctx.err('create_channel requires a non-empty `addresses` array');
-      if (!channelName) return ctx.err('create_channel requires `name`');
-      const groupArgs: Record<string, unknown> = {
-        addresses,
-        name: channelName,
-      };
-      if (account) groupArgs.account = account;
-      const created = (await ctx.call('newGroup', groupArgs)) as {
-        line?: string;
-        id?: string;
-        account?: string;
-      } | null;
-      const newLine = created?.line ?? '';
-      let labelResult: unknown;
-      if (labels.length && newLine)
-        labelResult = await ctx.call('setLabels', { line: newLine, labels });
-      return ctx.okJson({
-        line: newLine,
-        convId: created?.id,
-        account: created?.account,
-        labels: labels.length ? labelResult : undefined,
-      });
-    },
+    handle: (a, ctx) => createChannel(a, ctx),
   },
   {
     name: 'ask',
@@ -321,58 +254,7 @@ export const XMTP_TOOLS: StationTool[] = [
       },
       required: ['line'],
     },
-    async handle(a, ctx) {
-      const line = str(a.line);
-      if (!line) return ctx.err('set_channel_metadata requires `line`');
-      const labels = a.labels as unknown[] | undefined;
-      const github = a.github as string | undefined;
-      const preview = a.preview as string | undefined;
-      const metaName = a.name as string | undefined;
-      let nameApplied = false;
-      let info: unknown;
-      if (Array.isArray(labels)) {
-        const setArgs: Record<string, unknown> = {
-          line,
-          labels: labels.map(String),
-        };
-        if (typeof metaName === 'string' && metaName) {
-          setArgs.setName = metaName;
-          nameApplied = true;
-        }
-        info = await ctx.call('setLabels', setArgs);
-      }
-      if (typeof github === 'string')
-        info = await ctx.call('setGithub', { line, url: github });
-      if (typeof preview === 'string')
-        info = await ctx.call('setPreview', { line, preview });
-      if (typeof metaName === 'string' && metaName && !nameApplied) {
-        info = await ctx.call('updateChannelMeta', { line, name: metaName });
-      }
-      if (info === undefined)
-        return ctx.err(
-          'set_channel_metadata requires at least one of `labels`, `github`, `preview`, `name`',
-        );
-      return ctx.okJson(info);
-    },
+    handle: (a, ctx) => setChannelMetadata(a, ctx),
   },
 ];
 
-async function memberOp(
-  tool: string,
-  action: string,
-  a: Record<string, unknown>,
-  ctx: ToolContext,
-) {
-  const line = str(a.line);
-  if (!line) return ctx.err(`${tool} requires \`line\``);
-  const addresses =
-    (a.addresses as unknown[] | undefined)?.map(String).filter(Boolean) ?? [];
-  const inboxIds =
-    (a.inboxIds as unknown[] | undefined)?.map(String).filter(Boolean) ?? [];
-  if (!addresses.length && !inboxIds.length)
-    return ctx.err(`${tool} requires \`addresses\` or \`inboxIds\``);
-  const args: Record<string, unknown> = { line };
-  if (addresses.length) args.addresses = addresses;
-  if (inboxIds.length) args.inboxIds = inboxIds;
-  return ctx.okJson(await ctx.call(action, args));
-}

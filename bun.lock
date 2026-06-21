@@ -11,7 +11,6 @@
         "@xmtp/content-type-reaction": "^2.0.2",
         "@xmtp/content-type-remote-attachment": "^2.0.4",
         "@xmtp/content-type-reply": "^2.0.3",
-        "@xmtp/content-type-transaction-reference": "^2.0.2",
         "@xmtp/content-type-wallet-send-calls": "^2.0.0",
         "@xmtp/node-bindings": "1.9.1",
         "@xmtp/node-sdk": "^6.0.0",
@@ -316,8 +315,6 @@
     "@xmtp/content-type-remote-attachment": ["@xmtp/content-type-remote-attachment@2.0.4", "", { "dependencies": { "@noble/secp256k1": "^2.2.3", "@xmtp/content-type-primitives": "^2.0.2", "@xmtp/proto": "3.78.0" } }, "sha512-dHXXIsbn1y+PbNMXbQPkfjXr9LQ0QfQS8tIu/Hz6nL4h5QG5ECHsHfHVzVWE3P0eHlGfLVnQaKqg2dFiP8uwXw=="],
 
     "@xmtp/content-type-reply": ["@xmtp/content-type-reply@2.0.3", "", { "dependencies": { "@xmtp/content-type-primitives": "^2.0.2", "@xmtp/proto": "3.78.0" } }, "sha512-b7oi6Hh48MRBpq3w/XWzUwH2O8np/IodP5x1mHZK+21d/zWPRx/o/6640+G+qWg/nXUF05eb/cnfE50CjD4eoQ=="],
-
-    "@xmtp/content-type-transaction-reference": ["@xmtp/content-type-transaction-reference@2.0.2", "", { "dependencies": { "@xmtp/content-type-primitives": "^2.0.2" } }, "sha512-7JwqZ3phX/XIZByY4XnteW/0c/XtPOeuEG3GayLOMELyEBJxoVog4evxFidoWb/vtEm9JuqqKqh8VtUaekhXYA=="],
 
     "@xmtp/content-type-wallet-send-calls": ["@xmtp/content-type-wallet-send-calls@2.0.0", "", { "dependencies": { "@xmtp/content-type-primitives": "^2.0.2" } }, "sha512-212g68DjwFMh3gaAwULJvrhpuje6Tp4rF94oy3lQRvnXCQ+xLkyDi8pT5Pyw3Dm6jW+ke1U0hauzV7sLCgIFSw=="],
 
@@ -924,8 +921,6 @@
     "@xmtp/content-type-remote-attachment/@xmtp/content-type-primitives": ["@xmtp/content-type-primitives@2.0.3", "", { "dependencies": { "@xmtp/proto": "3.78.0" } }, "sha512-JOTaNHhcqNO1uAZV9wE8TLEtEgMApuzuoAKMuMRXsKXfAb86G7Pe84moVsr20r7VaIqDjhDlzPw1GYYs7DMODw=="],
 
     "@xmtp/content-type-reply/@xmtp/content-type-primitives": ["@xmtp/content-type-primitives@2.0.3", "", { "dependencies": { "@xmtp/proto": "3.78.0" } }, "sha512-JOTaNHhcqNO1uAZV9wE8TLEtEgMApuzuoAKMuMRXsKXfAb86G7Pe84moVsr20r7VaIqDjhDlzPw1GYYs7DMODw=="],
-
-    "@xmtp/content-type-transaction-reference/@xmtp/content-type-primitives": ["@xmtp/content-type-primitives@2.0.3", "", { "dependencies": { "@xmtp/proto": "3.78.0" } }, "sha512-JOTaNHhcqNO1uAZV9wE8TLEtEgMApuzuoAKMuMRXsKXfAb86G7Pe84moVsr20r7VaIqDjhDlzPw1GYYs7DMODw=="],
 
     "@xmtp/content-type-wallet-send-calls/@xmtp/content-type-primitives": ["@xmtp/content-type-primitives@2.0.3", "", { "dependencies": { "@xmtp/proto": "3.78.0" } }, "sha512-JOTaNHhcqNO1uAZV9wE8TLEtEgMApuzuoAKMuMRXsKXfAb86G7Pe84moVsr20r7VaIqDjhDlzPw1GYYs7DMODw=="],
 

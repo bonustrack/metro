@@ -49,10 +49,7 @@ function checkPerms(path: string): void {
   }
 }
 
-export function loadSessions(): Sessions {
-  const file = sessionsFile();
-  if (!existsSync(file)) return {};
-  checkPerms(file);
+function readSessionsRaw(file: string): Record<string, unknown> | null {
   let raw: unknown;
   try {
     raw = JSON.parse(readFileSync(file, 'utf8'));
@@ -61,21 +58,35 @@ export function loadSessions(): Sessions {
       { err: errMsg(err), path: file },
       'sessions.json: malformed, ignoring',
     );
-    return {};
+    return null;
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     log.warn({ path: file }, 'sessions.json: not an object, ignoring');
-    return {};
+    return null;
   }
+  return raw as Record<string, unknown>;
+}
+
+function parseBinding(v: unknown): SessionBinding | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const b = v as Record<string, unknown>;
+  const binding: SessionBinding = {};
+  for (const k of [...SESSION_STATIONS, 'default'] as const) {
+    if (typeof b[k] === 'string' && b[k]) binding[k] = b[k];
+  }
+  return binding;
+}
+
+export function loadSessions(): Sessions {
+  const file = sessionsFile();
+  if (!existsSync(file)) return {};
+  checkPerms(file);
+  const raw = readSessionsRaw(file);
+  if (!raw) return {};
   const out: Sessions = {};
-  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
-    if (!v || typeof v !== 'object' || Array.isArray(v)) continue;
-    const b = v as Record<string, unknown>;
-    const binding: SessionBinding = {};
-    for (const k of [...SESSION_STATIONS, 'default'] as const) {
-      if (typeof b[k] === 'string' && b[k]) binding[k] = b[k];
-    }
-    out[id] = binding;
+  for (const [id, v] of Object.entries(raw)) {
+    const binding = parseBinding(v);
+    if (binding) out[id] = binding;
   }
   return out;
 }

@@ -20,6 +20,39 @@ export function resolveLine(args: Args, verb: string): string {
   );
 }
 
+async function applyNameAndDescription(
+  group: GroupLike,
+  name: string | undefined,
+  description: string | undefined,
+): Promise<void> {
+  if (
+    typeof name === 'string' &&
+    name &&
+    typeof group.updateName === 'function'
+  ) {
+    await group.updateName(name);
+    warmGroupName(group.id, name);
+  }
+  if (
+    typeof description === 'string' &&
+    typeof group.updateDescription === 'function'
+  ) {
+    await group.updateDescription(description);
+  }
+}
+
+async function applyMergedAppData(
+  group: GroupLike & { updateAppData: (s: string) => Promise<void> },
+  appData: Record<string, unknown> | undefined,
+): Promise<Record<string, unknown>> {
+  if (appData && typeof appData === 'object' && !Array.isArray(appData)) {
+    const res = mergeAppData(group.appData, appData);
+    await group.updateAppData(res.blob);
+    return res.merged;
+  }
+  return readAppData(group.appData);
+}
+
 export async function applyChannelMeta(
   args: {
     line: string;
@@ -42,45 +75,31 @@ export async function applyChannelMeta(
   }
   await group.sync?.().catch(() => undefined);
 
-  if (
-    typeof name === 'string' &&
-    name &&
-    typeof group.updateName === 'function'
-  ) {
-    await group.updateName(name);
-    warmGroupName(group.id, name);
-  }
-  if (
-    typeof description === 'string' &&
-    typeof group.updateDescription === 'function'
-  ) {
-    await group.updateDescription(description);
-  }
+  await applyNameAndDescription(group, name, description);
+  const merged = await applyMergedAppData(
+    group as GroupLike & { updateAppData: (s: string) => Promise<void> },
+    appData,
+  );
 
-  let merged: Record<string, unknown> | undefined;
-  if (appData && typeof appData === 'object' && !Array.isArray(appData)) {
-    const res = mergeAppData(group.appData, appData);
-    await group.updateAppData(res.blob);
-    merged = res.merged;
-  } else {
-    merged = readAppData(group.appData);
-  }
-
-  const labels = Array.isArray(merged.labels)
-    ? (merged.labels as string[])
-    : [];
-  const github = typeof merged.github === 'string' ? merged.github : undefined;
-  const preview =
-    typeof merged.preview === 'string' ? merged.preview : undefined;
   return {
     line,
     id: group.id,
     account: acct.cfg.id,
     ...(typeof name === 'string' && name ? { name } : {}),
-    labels,
-    github,
-    preview,
+    ...metaFields(merged),
     appData: merged,
+  };
+}
+
+function metaFields(merged: Record<string, unknown>): {
+  labels: string[];
+  github: string | undefined;
+  preview: string | undefined;
+} {
+  return {
+    labels: Array.isArray(merged.labels) ? (merged.labels as string[]) : [],
+    github: typeof merged.github === 'string' ? merged.github : undefined,
+    preview: typeof merged.preview === 'string' ? merged.preview : undefined,
   };
 }
 
