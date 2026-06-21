@@ -1,5 +1,5 @@
 import { tg, accounts } from './accounts.js';
-import type { TgMsg } from './format.js';
+import type { TgMsg } from './types.js';
 
 const ATT_DIR =
   process.env.METRO_XMTP_ATTACH_DIR ??

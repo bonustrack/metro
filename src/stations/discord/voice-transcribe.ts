@@ -125,7 +125,6 @@ function transcribe(wavPath: string): Promise<string> {
         try {
           text = readFileSync(`${ofBase}.txt`, 'utf8').trim();
         } catch {
-          /* ignore */
         }
       }
       resolve(text);
@@ -191,7 +190,6 @@ async function handleSpeaker(s: Session, userId: string): Promise<void> {
       try {
         rmSync(f, { force: true });
       } catch {
-        /* ignore */
       }
     }
   }
@@ -239,13 +237,11 @@ export function stopTranscription(guildId: string): void {
   try {
     if (s.onStart) s.receiver.speaking.removeListener('start', s.onStart);
   } catch {
-    /* ignore */
   }
   s.enabled = false;
   try {
     rmSync(s.tmp, { recursive: true, force: true });
   } catch {
-    /* ignore */
   }
   sessions.delete(guildId);
 }

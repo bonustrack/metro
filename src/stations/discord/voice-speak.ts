@@ -47,7 +47,6 @@ function resolveConnection(
     try {
       channelId = routeOf(args.line, args.account).channelId;
     } catch {
-      /* ignore */
     }
   }
   if (channelId) {
@@ -149,7 +148,6 @@ export async function speak(
     try {
       (conn as { rejoin: (c: object) => void }).rejoin({ selfMute: false });
     } catch {
-      /* ignore */
     }
     player.play(resource);
 
@@ -159,7 +157,6 @@ export async function speak(
     try {
       (conn as { rejoin: (c: object) => void }).rejoin({ selfMute: true });
     } catch {
-      /* ignore */
     }
 
     respond(id, {

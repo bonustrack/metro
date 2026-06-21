@@ -136,9 +136,7 @@ async function shutdown(): Promise<void> {
   log.info('dispatcher shutting down');
   tunnel?.stop();
   outbox.stop();
-  await stopIpcServer(ipc).catch(() => {
-    /* best-effort */
-  });
+  await stopIpcServer(ipc).catch(() => undefined);
   if (webhookServer) {
     const server = webhookServer;
     await new Promise<void>((r) =>

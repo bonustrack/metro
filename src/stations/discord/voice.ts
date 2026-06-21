@@ -96,7 +96,7 @@ export async function joinVoice(
     guildId: guild.id,
     adapterCreator: guild.voiceAdapterCreator,
     selfDeaf: false,
-    selfMute: true, // no audio pipeline yet; stay muted so we don't broadcast silence noise
+    selfMute: true,
   });
 
   try {

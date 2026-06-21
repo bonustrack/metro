@@ -88,7 +88,6 @@ async function bootAccount(cfg: AccountConfig): Promise<void> {
         if (r.partial) await r.fetch();
         if (u.partial) await u.fetch();
       } catch {
-        /* ignore partial fetch failures */
       }
       const env = reactionEnvelope(accountId, r as MessageReaction, u as User);
       if (env) emitInbound(accountId, env);

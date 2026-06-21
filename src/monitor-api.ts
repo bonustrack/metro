@@ -98,7 +98,6 @@ export function handleMonitorRequest(
       try {
         send(res, req, 500, { ok: false, error: errMsg(err) });
       } catch {
-        /* ignore */
       }
     });
     return true;
@@ -135,7 +134,6 @@ export function handleMonitorRequest(
         try {
           send(res, req, 500, { error: errMsg(err) });
         } catch {
-          /* ignore */
         }
       });
     return true;
@@ -149,7 +147,6 @@ export function handleMonitorRequest(
         if (!res.headersSent) res.writeHead(500).end();
         else res.end();
       } catch {
-        /* ignore */
       }
     }
     return true;
@@ -165,7 +162,6 @@ export function handleMonitorRequest(
       try {
         send(res, req, 500, { error: errMsg(err) });
       } catch {
-        /* ignore */
       }
     });
     return true;
@@ -323,7 +319,6 @@ function handleTail(
     try {
       res.end();
     } catch {
-      /* ignore */
     }
   };
   req.on('close', cleanup);

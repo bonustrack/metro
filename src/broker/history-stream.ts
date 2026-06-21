@@ -166,7 +166,6 @@ export function followTail(
       tick();
     });
   } catch {
-    /* file may not exist yet */
   }
   const poll = setInterval(tick, pollMs);
   return () => {
@@ -175,7 +174,6 @@ export function followTail(
       try {
         watcher.close();
       } catch {
-        /* ignore */
       }
     }
   };

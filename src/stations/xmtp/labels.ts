@@ -39,7 +39,6 @@ export function labelsBlob(
       if (p && typeof p === 'object' && !Array.isArray(p))
         existing = p as Record<string, unknown>;
     } catch {
-      /* tolerate malformed */
     }
   }
   const blob: Record<string, unknown> = {
@@ -89,7 +88,6 @@ export function mergeAppData(
       if (p && typeof p === 'object' && !Array.isArray(p))
         existing = p as Record<string, unknown>;
     } catch {
-      /* tolerate malformed */
     }
   }
   const merged: Record<string, unknown> = { ...existing, v: 1 };

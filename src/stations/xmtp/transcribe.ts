@@ -83,7 +83,6 @@ export async function transcribeAndEmit(
       try {
         unlinkSync(f);
       } catch {
-        /* ignore */
       }
     }
   }

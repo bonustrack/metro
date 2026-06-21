@@ -233,7 +233,6 @@ async function buildGroupInfo(
         }
       }
     } catch {
-      /* best-effort */
     }
   }
   const isDm =
@@ -431,7 +430,6 @@ async function groupInfo(id: string, args: Args): Promise<void> {
         }
       }
     } catch {
-      /* best-effort */
     }
   }
   const isDm =

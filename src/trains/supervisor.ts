@@ -106,7 +106,6 @@ export class TrainSupervisor {
       try {
         this.watcher.close();
       } catch {
-        /* ignore */
       }
       this.watcher = null;
     }

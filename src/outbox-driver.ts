@@ -94,9 +94,7 @@ export class OutboxDriver {
   private scheduleRetry(entry: OutboxEntry, delay: number): void {
     const timer = setTimeout(() => {
       this.timers.delete(timer);
-      void this.attempt(entry).catch(() => {
-        /* failure already journaled */
-      });
+      void this.attempt(entry).catch(() => undefined);
     }, delay);
     this.timers.add(timer);
   }
@@ -109,17 +107,13 @@ export class OutboxDriver {
       'outbox: replaying never-dispatched entries after restart',
     );
     for (const e of replay)
-      void this.attempt(e).catch(() => {
-        /* journaled */
-      });
+      void this.attempt(e).catch(() => undefined);
   }
 
   retry(outboxId: string): boolean {
     const e = this.outbox.requeue(outboxId);
     if (!e) return false;
-    void this.attempt(e).catch(() => {
-      /* journaled */
-    });
+    void this.attempt(e).catch(() => undefined);
     return true;
   }
 

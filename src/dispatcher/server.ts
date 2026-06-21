@@ -163,7 +163,6 @@ async function handleRequest(
   try {
     body = JSON.parse(body as string);
   } catch {
-    /* keep as string */
   }
 
   emit(

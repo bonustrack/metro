@@ -46,7 +46,6 @@ function checkPerms(path: string): void {
       );
     }
   } catch {
-    /* stat failure is non-fatal */
   }
 }
 

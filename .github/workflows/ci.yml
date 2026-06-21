@@ -7,19 +7,4 @@ on:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.9
-      - run: bun install --frozen-lockfile
-      # Single root package (@metro-labs/metro): lint/typecheck/build/test.
-      - name: Lint
-        run: bun run lint
-      - name: Typecheck
-        run: bun run typecheck
-      - name: Build
-        run: bun run build
-      - name: Test
-        run: bun run test
+    uses: bonustrack/stage/.github/workflows/_ci.yml@v0.1.0-beta.15

@@ -17,7 +17,6 @@ export function ensureSecureDir(dir: string): void {
   try {
     chmodSync(dir, 0o700);
   } catch {
-    /* not ours / not present — best effort */
   }
 }
 
@@ -26,7 +25,6 @@ export function chmodIfExists(path: string, mode = 0o600): void {
   try {
     if ((statSync(path).mode & 0o777) !== mode) chmodSync(path, mode);
   } catch {
-    /* best effort */
   }
 }
 
@@ -37,7 +35,6 @@ export function writeSecure(path: string, data: string): void {
   try {
     chmodSync(tmp, 0o600);
   } catch {
-    /* mode arg above already covers it */
   }
   renameSync(tmp, path);
   chmodIfExists(path, 0o600);
