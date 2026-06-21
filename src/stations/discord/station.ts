@@ -1,8 +1,23 @@
 import type { Station, Verb } from '../types.js';
 import { parseAccountScoped } from '../../lines.js';
-import { DISCORD_VERBS } from './verbs.js';
 
 const isSnowflake = (s: string): boolean => /^\d+$/.test(s);
+
+const MUTATES: ReadonlySet<string> = new Set([
+  'send',
+  'reply',
+  'react',
+  'edit',
+  'delete',
+  'thread_create',
+  'pin',
+  'typing',
+  'set_presence',
+  'joinVoice',
+  'leaveVoice',
+  'speak',
+  'voiceTranscribe',
+]);
 
 export const discordStation: Station = {
   name: 'discord',
@@ -18,6 +33,6 @@ export const discordStation: Station = {
   ]),
   attachmentMode: 'canonical',
   parseLine: (line) => parseAccountScoped(line, 'discord', isSnowflake),
-  verbs: DISCORD_VERBS,
+  mutates: MUTATES,
   tools: [],
 };
