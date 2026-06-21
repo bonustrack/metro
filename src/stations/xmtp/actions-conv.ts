@@ -16,8 +16,8 @@ import {
   applyMemberOp,
   buildGroupInfo,
   ethIdentifiers,
-  filterStrings,
   parseMemberArgs,
+  resolveMembers,
 } from './conv-helpers.js';
 import { closeGroup } from './actions-close.js';
 import { setGithub } from './actions-github.js';
@@ -92,23 +92,19 @@ async function createGroupWithMembers(
 }
 
 async function createRequestGroup(id: string, args: Args): Promise<void> {
-  const { memberAddresses, memberInboxIds, name, description, labels } =
-    args as {
-      memberAddresses?: string[];
-      memberInboxIds?: string[];
-      name: string;
-      description?: string;
-      labels?: string[];
-    };
+  const { name, description, labels } = args as {
+    name: string;
+    description?: string;
+    labels?: string[];
+  };
   const acct = accountForCall(args);
   if (!name || typeof name !== 'string')
     throw new TrainError('INVALID_ARGS', 'createRequestGroup requires a `name`');
-  const addrs = filterStrings(memberAddresses);
-  const inboxes = filterStrings(memberInboxIds);
+  const { addrs, inboxes } = resolveMembers(args);
   if (addrs.length === 0 && inboxes.length === 0)
     throw new TrainError(
       'INVALID_ARGS',
-      'createRequestGroup requires memberAddresses[] or memberInboxIds[]',
+      'createRequestGroup requires addresses[] or inboxIds[]',
     );
   const opts: {
     groupName: string;
