@@ -13,8 +13,12 @@ import {
 } from './accounts.js';
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
 import { respond } from './wire.js';
-import { serializeTrainError } from '../../train-error.js';
 import { normalizeDiscord } from '../messaging-normalize.js';
+import {
+  makeStation,
+  type CallMsg,
+  type StationHandler,
+} from '../station-runtime.js';
 import { joinVoice, leaveVoice, voiceDebug, voiceTranscribe } from './voice.js';
 import { speak } from './voice-speak.js';
 
@@ -49,17 +53,7 @@ async function sendMessage(
   );
 }
 
-export interface CallMsg {
-  op: 'call';
-  id: string;
-  action: string;
-  args: Record<string, unknown>;
-}
-
-const KNOWN =
-  'accounts, send, reply, react, edit, delete, fetch, download, ' +
-  'thread_create, pin, typing, channel, set_presence, joinVoice, leaveVoice, ' +
-  'speak, voiceDebug, voiceTranscribe';
+export type { CallMsg };
 
 async function send(id: string, args: Record<string, unknown>): Promise<void> {
   const { line, text, replyTo, embeds, stickerIds, images, files, account } =
@@ -339,9 +333,7 @@ async function channel(
   respond(id, { result: res });
 }
 
-type Handler = (id: string, args: Record<string, unknown>) => void | Promise<void>;
-
-const HANDLERS: Record<string, Handler> = {
+const HANDLERS: Record<string, StationHandler> = {
   accounts: (id) => {
     listAccounts(id);
   },
@@ -364,20 +356,7 @@ const HANDLERS: Record<string, Handler> = {
   voiceTranscribe,
 };
 
-async function dispatch({ id, action, args }: CallMsg): Promise<void> {
-  const handler = HANDLERS[action];
-  if (!handler) {
-    respond(id, { error: `unknown action '${action}' (have: ${KNOWN})` });
-    return;
-  }
-  await handler(id, args);
-}
-
-export async function handleCall(msg: CallMsg): Promise<void> {
-  const { action, args } = normalizeDiscord(msg.action, msg.args);
-  try {
-    await dispatch({ ...msg, action, args });
-  } catch (err) {
-    respond(msg.id, serializeTrainError(err));
-  }
-}
+export const handleCall = makeStation({
+  handlers: HANDLERS,
+  normalize: normalizeDiscord,
+});
