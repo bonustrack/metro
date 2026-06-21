@@ -2,15 +2,14 @@ import type { HistoryEntry } from './history-types.js';
 import { Line } from './lines.js';
 import type { ClaimsMap } from './broker/claims.js';
 
-export type BusEvent = HistoryEntry & { seq?: number };
-export type BusListener = (event: BusEvent) => void;
+export type BusListener = (event: HistoryEntry) => void;
 
 const RING_CAP = 500;
 
 const listeners = new Set<BusListener>();
-const ring: BusEvent[] = [];
+const ring: HistoryEntry[] = [];
 
-export function publishEvent(event: BusEvent): void {
+export function publishEvent(event: HistoryEntry): void {
   ring.push(event);
   if (ring.length > RING_CAP) ring.shift();
   for (const fn of [...listeners]) {
@@ -28,7 +27,7 @@ export function subscribeEvents(fn: BusListener): () => void {
   };
 }
 
-export function recentEvents(limit: number): BusEvent[] {
+export function recentEvents(limit: number): HistoryEntry[] {
   const n = Math.max(0, Math.min(limit, ring.length));
   return ring.slice(ring.length - n).reverse();
 }
