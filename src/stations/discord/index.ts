@@ -16,24 +16,21 @@ import {
 } from './accounts.js';
 import { emitInbound, messageEnvelope, reactionEnvelope } from './format.js';
 import { mintId } from './wire.js';
+import { drainLines } from '../../trains/protocol.js';
 import { handleCall, type CallMsg } from './actions.js';
 
 let buf = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk: string) => {
   buf += chunk;
-  let nl;
-  while ((nl = buf.indexOf('\n')) !== -1) {
-    const line = buf.slice(0, nl).trim();
-    buf = buf.slice(nl + 1);
-    if (!line) continue;
+  buf = drainLines('discord', buf, (line) => {
     try {
       const msg = JSON.parse(line) as CallMsg;
       if (msg.op === 'call') void handleCall(msg);
     } catch (err) {
       process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
     }
-  }
+  });
 });
 
 function makeClient(): Client {

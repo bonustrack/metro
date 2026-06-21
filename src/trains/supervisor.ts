@@ -231,12 +231,9 @@ export class TrainSupervisor {
   private pumpStderr(state: TrainState): Promise<void> {
     return pumpStream(state.proc?.stderr, state.name, 'stderr', (chunk) => {
       state.errBuf += chunk;
-      let nl;
-      while ((nl = state.errBuf.indexOf('\n')) !== -1) {
-        const line = state.errBuf.slice(0, nl).trimEnd();
-        state.errBuf = state.errBuf.slice(nl + 1);
-        if (line) log.warn({ train: state.name }, line);
-      }
+      state.errBuf = drainLines(state.name, state.errBuf, (line) => {
+        log.warn({ train: state.name }, line);
+      });
     });
   }
 
