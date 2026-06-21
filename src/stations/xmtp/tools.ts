@@ -20,9 +20,9 @@ export const XMTP_TOOLS: StationTool[] = [
     description:
       'Create a new XMTP group conversation (channel). Args: addresses (required, array of ' +
       'Ethereum 0x addresses to add as members), name (required, the group name), labels? ' +
-      '(optional string[] status labels applied after creation via setLabels), account? ' +
-      '(default "tony"). Calls the daemon xmtp `newGroup`, then `setLabels` if labels are ' +
-      'given. Returns the new metro:// line and convId. This is an xmtp-only operation. ' +
+      '(optional string[] status labels applied after creation), account? ' +
+      '(default "tony"). Calls the daemon xmtp `newGroup`, then `updateChannelMeta` if labels ' +
+      'are given. Returns the new metro:// line and convId. This is an xmtp-only operation. ' +
       'NOTE: there is no add-members verb on the daemon, so members must be supplied at ' +
       'creation time.',
     inputSchema: {
@@ -228,10 +228,9 @@ export const XMTP_TOOLS: StationTool[] = [
     name: 'set_channel_metadata',
     description:
       "Update an existing channel's metadata. Args: line (required, the metro:// line), and " +
-      'any of labels? (string[]), github? (url), preview? (url), name? (string). Each provided ' +
-      'field is applied via its matching daemon verb: labels via setLabels (also carrying ' +
-      'name as setName when both are given), github via setGithub, preview via setPreview, ' +
-      'and name (when not already applied with labels) via updateChannelMeta. xmtp-only ' +
+      'any of labels? (string[]), github? (url), preview? (url), name? (string). All provided ' +
+      'fields are applied together in one atomic updateChannelMeta daemon call (a single ' +
+      'appData merge plus name update). xmtp-only ' +
       '(channel metadata lives on xmtp groups). Returns the updated channel info.',
     inputSchema: {
       type: 'object',
