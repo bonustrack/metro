@@ -4,16 +4,12 @@ import { inboxEthCache } from './wire.js';
 import { TrainError } from '../../train-error.js';
 import { readAppData, type GroupLike } from './labels.js';
 
-type Args = Record<string, unknown>;
+export { filterStrings, parseMemberArgs, resolveMembers } from './member-args.js';
+
 type Conv = Awaited<ReturnType<typeof convOf>>['conv'] & object;
 export interface EthId {
   identifier: string;
   identifierKind: IdentifierKind;
-}
-
-export function filterStrings(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((a) => typeof a === 'string' && a.length > 0) as string[];
 }
 
 export function ethIdentifiers(addrs: string[]): EthId[] {
@@ -86,27 +82,6 @@ export async function buildGroupInfo(
       address: addresses[iid] ?? null,
     })),
   };
-}
-
-export function parseMemberArgs(
-  args: Args,
-  verb: string,
-): { line: string; addrs: string[]; inboxes: string[] } {
-  const { line, addresses, inboxIds } = args as {
-    line: string;
-    addresses?: string[];
-    inboxIds?: string[];
-  };
-  if (!line || typeof line !== 'string')
-    throw new TrainError('INVALID_ARGS', `${verb} requires a \`line\``);
-  const addrs = filterStrings(addresses);
-  const inboxes = filterStrings(inboxIds);
-  if (addrs.length === 0 && inboxes.length === 0)
-    throw new TrainError(
-      'INVALID_ARGS',
-      `${verb} requires addresses[] or inboxIds[]`,
-    );
-  return { line, addrs, inboxes };
 }
 
 interface MemberGroup {
