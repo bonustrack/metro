@@ -1,5 +1,86 @@
 import type { CanonicalAttachment } from './types.js';
 
+const ATT_DIR =
+  process.env.METRO_XMTP_ATTACH_DIR ??
+  `${process.env.HOME}/.cache/metro/messenger-uploads`;
+
+const MIME_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'audio/mp4': 'm4a',
+  'audio/mpeg': 'mp3',
+  'audio/ogg': 'ogg',
+  'audio/wav': 'wav',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+  'application/pdf': 'pdf',
+};
+
+const extFromName = (filename: string | undefined): string | undefined => {
+  const ext = filename
+    ?.split('?')[0]
+    ?.split('#')[0]
+    ?.split('.')
+    .pop()
+    ?.toLowerCase();
+  return ext !== undefined && ext.length >= 1 && ext.length <= 5
+    ? ext
+    : undefined;
+};
+
+const extFromMime = (mime: string | undefined): string | undefined => {
+  if (mime === undefined) return undefined;
+  const mapped = MIME_EXT[mime];
+  if (mapped) return mapped;
+  if (mime.startsWith('image/')) return mime.slice(6).replace('jpeg', 'jpg');
+  return undefined;
+};
+
+const extFor = (
+  filename: string | undefined,
+  mime: string | undefined,
+): string => extFromName(filename) ?? extFromMime(mime) ?? 'bin';
+
+const cacheFileName = (
+  messageId: string,
+  index: number,
+  filename: string | undefined,
+  mime: string | undefined,
+): string => {
+  const safeId =
+    messageId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) || 'unknown';
+  return `msg_${safeId}_${index}.${extFor(filename, mime)}`;
+};
+
+export interface SavedAttachment {
+  path: string;
+  mime?: string;
+  name?: string;
+  bytes: number;
+}
+
+export const saveBufferToCache = async (
+  data: Uint8Array,
+  messageId: string,
+  index: number,
+  meta: { mime?: string; name?: string },
+): Promise<SavedAttachment> => {
+  const { mkdir, writeFile } = await import('node:fs/promises');
+  const nodePath = await import('node:path');
+  await mkdir(ATT_DIR, { recursive: true });
+  const path = nodePath.join(
+    ATT_DIR,
+    cacheFileName(messageId, index, meta.name, meta.mime),
+  );
+  await writeFile(path, data);
+  return { path, mime: meta.mime, name: meta.name, bytes: data.length };
+};
+
 export const guessMime = (path: string): string => {
   const ext = (path.split('.').pop() ?? '').toLowerCase();
   const map: Record<string, string> = {

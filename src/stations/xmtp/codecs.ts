@@ -9,6 +9,33 @@ const enc = (o: unknown): Uint8Array =>
 const dec = (e: EncodedContent): unknown =>
   JSON.parse(new TextDecoder().decode(e.content));
 
+const makeJsonCodec = <T>(
+  contentType: ContentTypeId,
+  fallbackFn: (c: T) => string,
+) =>
+  class {
+    get contentType() {
+      return contentType;
+    }
+    encode(c: T): EncodedContent {
+      return {
+        type: contentType,
+        parameters: {},
+        fallback: fallbackFn(c),
+        content: enc(c),
+      };
+    }
+    decode(e: EncodedContent): T {
+      return dec(e) as T;
+    }
+    fallback(c: T) {
+      return fallbackFn(c);
+    }
+    shouldPush() {
+      return true;
+    }
+  };
+
 export const ContentTypePoll: ContentTypeId = {
   authorityId: 'metro.box',
   typeId: 'poll',
@@ -37,28 +64,10 @@ export interface PollContent {
 }
 const pollTitle = (c: PollContent): string =>
   c.questions?.[0]?.question ?? c.question ?? 'Poll';
-export class PollCodec implements ContentCodec<PollContent> {
-  get contentType() {
-    return ContentTypePoll;
-  }
-  encode(c: PollContent): EncodedContent {
-    return {
-      type: ContentTypePoll,
-      parameters: {},
-      fallback: `📊 Poll: ${pollTitle(c)}`,
-      content: enc(c),
-    };
-  }
-  decode(e: EncodedContent): PollContent {
-    return dec(e) as PollContent;
-  }
-  fallback(c: PollContent) {
-    return `📊 Poll: ${pollTitle(c)}`;
-  }
-  shouldPush() {
-    return true;
-  }
-}
+export const PollCodec = makeJsonCodec<PollContent>(
+  ContentTypePoll,
+  (c) => `📊 Poll: ${pollTitle(c)}`,
+);
 
 const normOpts = (o: (string | PollOption)[]): PollOption[] =>
   o.map((x) =>
@@ -128,33 +137,13 @@ export interface SignatureRequestContent {
   description?: string;
   [k: string]: unknown;
 }
-export class SignatureRequestCodec implements ContentCodec<SignatureRequestContent> {
-  get contentType() {
-    return ContentTypeSignatureRequest;
-  }
-  private fb(c: SignatureRequestContent) {
-    return c.description
+export const SignatureRequestCodec = makeJsonCodec<SignatureRequestContent>(
+  ContentTypeSignatureRequest,
+  (c) =>
+    c.description
       ? `[Signature request] ${c.description}`
-      : '[Signature request]';
-  }
-  encode(c: SignatureRequestContent): EncodedContent {
-    return {
-      type: ContentTypeSignatureRequest,
-      parameters: {},
-      fallback: this.fb(c),
-      content: enc(c),
-    };
-  }
-  decode(e: EncodedContent): SignatureRequestContent {
-    return dec(e) as SignatureRequestContent;
-  }
-  fallback(c: SignatureRequestContent) {
-    return this.fb(c);
-  }
-  shouldPush() {
-    return true;
-  }
-}
+      : '[Signature request]',
+);
 
 export const ContentTypeSignatureReference: ContentTypeId = {
   authorityId: 'metro.box',
@@ -168,31 +157,10 @@ export interface SignatureReferenceContent {
   signer?: string;
   [k: string]: unknown;
 }
-export class SignatureReferenceCodec implements ContentCodec<SignatureReferenceContent> {
-  get contentType() {
-    return ContentTypeSignatureReference;
-  }
-  private fb(c: SignatureReferenceContent) {
-    return c.signature ? `[Signature] ${c.signature}` : '[Signature]';
-  }
-  encode(c: SignatureReferenceContent): EncodedContent {
-    return {
-      type: ContentTypeSignatureReference,
-      parameters: {},
-      fallback: this.fb(c),
-      content: enc(c),
-    };
-  }
-  decode(e: EncodedContent): SignatureReferenceContent {
-    return dec(e) as SignatureReferenceContent;
-  }
-  fallback(c: SignatureReferenceContent) {
-    return this.fb(c);
-  }
-  shouldPush() {
-    return true;
-  }
-}
+export const SignatureReferenceCodec =
+  makeJsonCodec<SignatureReferenceContent>(ContentTypeSignatureReference, (c) =>
+    c.signature ? `[Signature] ${c.signature}` : '[Signature]',
+  );
 
 export const CODECS = (): ContentCodec[] => [
   new PollCodec(),

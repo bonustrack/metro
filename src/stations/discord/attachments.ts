@@ -1,65 +1,7 @@
-const ATT_DIR =
-  process.env.METRO_XMTP_ATTACH_DIR ??
-  `${process.env.HOME}/.cache/metro/messenger-uploads`;
+import { saveBufferToCache } from '../attachments.js';
+import type { SavedAttachment } from '../attachments.js';
 
-const MIME_EXT: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/jpg': 'jpg',
-  'image/png': 'png',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/heic': 'heic',
-  'audio/mp4': 'm4a',
-  'audio/mpeg': 'mp3',
-  'audio/ogg': 'ogg',
-  'audio/wav': 'wav',
-  'video/mp4': 'mp4',
-  'video/quicktime': 'mov',
-  'video/webm': 'webm',
-  'application/pdf': 'pdf',
-};
-
-function extFromName(filename: string | undefined): string | undefined {
-  const ext = filename
-    ?.split('?')[0]
-    ?.split('#')[0]
-    ?.split('.')
-    .pop()
-    ?.toLowerCase();
-  return ext && ext.length >= 1 && ext.length <= 5 ? ext : undefined;
-}
-
-function extFromMime(mime: string | undefined): string | undefined {
-  if (!mime) return undefined;
-  if (MIME_EXT[mime]) return MIME_EXT[mime];
-  if (mime.startsWith('image/')) return mime.slice(6).replace('jpeg', 'jpg');
-  return undefined;
-}
-
-function extFor(
-  filename: string | undefined,
-  mime: string | undefined,
-): string {
-  return extFromName(filename) ?? extFromMime(mime) ?? 'bin';
-}
-
-function fileName(
-  messageId: string,
-  index: number,
-  filename: string | undefined,
-  mime: string | undefined,
-): string {
-  const safeId =
-    messageId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) || 'unknown';
-  return `msg_${safeId}_${index}.${extFor(filename, mime)}`;
-}
-
-export interface SavedAttachment {
-  path: string;
-  mime?: string;
-  name?: string;
-  bytes: number;
-}
+export type { SavedAttachment };
 
 export interface DiscordAttachmentRef {
   url: string;
@@ -76,12 +18,8 @@ export async function saveDiscordAttachment(
   if (!res.ok)
     throw new Error(`discord attachment fetch ${res.status} for ${a.url}`);
   const data = new Uint8Array(await res.arrayBuffer());
-  const { mkdir, writeFile } = await import('node:fs/promises');
-  const path = await import('node:path');
-  await mkdir(ATT_DIR, { recursive: true });
-  const mime = a.contentType ?? undefined;
-  const name = a.name ?? undefined;
-  const outPath = path.join(ATT_DIR, fileName(messageId, index, name, mime));
-  await writeFile(outPath, data);
-  return { path: outPath, mime, name, bytes: data.length };
+  return saveBufferToCache(data, messageId, index, {
+    mime: a.contentType ?? undefined,
+    name: a.name ?? undefined,
+  });
 }
