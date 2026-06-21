@@ -20,7 +20,6 @@
   "exports": {
     ".": "./src/mcp/index.ts",
     "./server": "./dist/server.js",
-    "./define-train": "./dist/define-train.js",
     "./schema": "./dist/schema.js"
   },
   "files": [
