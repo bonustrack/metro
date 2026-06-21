@@ -78,47 +78,44 @@ async function handleRead({ line, a, ctx }: MessageArgs): Promise<ToolResult> {
 
 type MessageHandler = (m: MessageArgs) => Promise<ToolResult>;
 
+interface VerbSpec {
+  args: readonly (readonly [string, string])[];
+  success: string;
+}
+
+const MESSAGE_VERBS: Record<string, VerbSpec> = {
+  reply: { args: [['message_id', 'replyTo'], ['text', 'text']], success: 'replied' },
+  react: { args: [['message_id', 'messageId'], ['emoji', 'emoji']], success: 'reacted' },
+  unreact: {
+    args: [['message_id', 'messageId'], ['emoji', 'emoji']],
+    success: 'reaction removed',
+  },
+  edit: { args: [['message_id', 'messageId'], ['text', 'text']], success: 'edited' },
+  delete: { args: [['message_id', 'messageId']], success: 'deleted' },
+};
+
+function makeVerbHandler(verb: string, spec: VerbSpec): MessageHandler {
+  return async ({ line, a, ctx }) => {
+    const payload: Record<string, unknown> = { line };
+    for (const [snake, camel] of spec.args) {
+      const value = str(a[snake]);
+      if (!value) {
+        const fields = spec.args.map(([snakeName]) => `\`${snakeName}\``).join(' and ');
+        return errResult(`${verb} requires ${fields}`);
+      }
+      payload[camel] = value;
+    }
+    await ctx.call(verb, payload);
+    return ok(spec.success);
+  };
+}
+
 const MESSAGE_HANDLERS: Record<string, MessageHandler> = {
   send: handleSend,
   read: handleRead,
-  reply: async ({ line, a, ctx }) => {
-    const messageId = str(a.message_id);
-    const text = str(a.text);
-    if (!messageId || !text)
-      return errResult('reply requires `message_id` and `text`');
-    await ctx.call('reply', { line, replyTo: messageId, text });
-    return ok('replied');
-  },
-  react: async ({ line, a, ctx }) => {
-    const messageId = str(a.message_id);
-    const emoji = str(a.emoji);
-    if (!messageId || !emoji)
-      return errResult('react requires `message_id` and `emoji`');
-    await ctx.call('react', { line, messageId, emoji });
-    return ok('reacted');
-  },
-  unreact: async ({ line, a, ctx }) => {
-    const messageId = str(a.message_id);
-    const emoji = str(a.emoji);
-    if (!messageId || !emoji)
-      return errResult('unreact requires `message_id` and `emoji`');
-    await ctx.call('unreact', { line, messageId, emoji });
-    return ok('reaction removed');
-  },
-  edit: async ({ line, a, ctx }) => {
-    const messageId = str(a.message_id);
-    const text = str(a.text);
-    if (!messageId || !text)
-      return errResult('edit requires `message_id` and `text`');
-    await ctx.call('edit', { line, messageId, text });
-    return ok('edited');
-  },
-  delete: async ({ line, a, ctx }) => {
-    const messageId = str(a.message_id);
-    if (!messageId) return errResult('delete requires `message_id`');
-    await ctx.call('delete', { line, messageId });
-    return ok('deleted');
-  },
+  ...Object.fromEntries(
+    Object.entries(MESSAGE_VERBS).map(([verb, spec]) => [verb, makeVerbHandler(verb, spec)]),
+  ),
 };
 
 export async function dispatchMessageTool(

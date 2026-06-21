@@ -84,32 +84,6 @@ async function send(id: string, args: Record<string, unknown>): Promise<void> {
   respond(id, { result: { messageId: res.id, account: accountId } });
 }
 
-async function reply(id: string, args: Record<string, unknown>): Promise<void> {
-  const { line, messageId, text, images, files, account } = args as {
-    line: string;
-    messageId: string;
-    text: string;
-    images?: string[];
-    files?: string[];
-    account?: string;
-  };
-  const { accountId, channelId } = routeOf(line, account);
-  const body = {
-    content: text,
-    message_reference: { message_id: messageId },
-    flags: 4,
-  };
-  const attachments = [...(images ?? []), ...(files ?? [])];
-  const res = await sendMessage(
-    accountId,
-    channelId,
-    body,
-    attachments.length ? attachments : undefined,
-  );
-  emitOutbound(accountId, line, res.id, text, messageId);
-  respond(id, { result: { messageId: res.id, account: accountId } });
-}
-
 function presence(id: string, args: Record<string, unknown>): void {
   const {
     text,
@@ -338,7 +312,6 @@ const HANDLERS: Record<string, StationHandler> = {
     listAccounts(id);
   },
   send,
-  reply,
   react,
   edit,
   delete: remove,

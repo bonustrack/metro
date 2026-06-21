@@ -25,6 +25,21 @@ export function emitOutbound(
   });
 }
 
+export function finishSend(
+  id: string,
+  accountId: string,
+  line: string,
+  messageId: string,
+  label: string,
+  replyTo?: string,
+  extra?: Record<string, unknown>,
+): void {
+  emitOutbound(accountId, line, messageId, label, replyTo);
+  respond(id, {
+    result: { messageId, account: accountId, ...extra },
+  });
+}
+
 interface MediaArgs {
   line: string;
   path: string;
@@ -76,16 +91,14 @@ export async function media(
 ): Promise<void> {
   const { accountId, message_id } = await sendMedia(method, field, args);
   const line = (args as { line: string }).line;
-  emitOutbound(
+  finishSend(
+    id,
     accountId,
     line,
     String(message_id),
     label,
     args.replyTo as string | undefined,
   );
-  respond(id, {
-    result: { messageId: String(message_id), account: accountId },
-  });
 }
 
 export const MEDIA_METHOD_FIELD: Record<
@@ -114,19 +127,15 @@ export async function sendDice(
     'sendDice',
     body,
   );
-  emitOutbound(
+  finishSend(
+    id,
     accountId,
     line,
     String(r.message_id),
     `[dice ${emoji} = ${r.dice?.value ?? '?'}]`,
+    undefined,
+    { value: r.dice?.value },
   );
-  respond(id, {
-    result: {
-      messageId: String(r.message_id),
-      value: r.dice?.value,
-      account: accountId,
-    },
-  });
 }
 
 export async function sendLocation(
@@ -145,13 +154,11 @@ export async function sendLocation(
     latitude,
     longitude,
   });
-  emitOutbound(
+  finishSend(
+    id,
     accountId,
     line,
     String(r.message_id),
     `[location: ${latitude}, ${longitude}]`,
   );
-  respond(id, {
-    result: { messageId: String(r.message_id), account: accountId },
-  });
 }
