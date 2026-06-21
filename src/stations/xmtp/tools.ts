@@ -4,9 +4,10 @@ import {
   createChannel,
   setChannelMetadata,
   memberOp,
+  xmtpSendAttachments,
 } from './tools-handlers.js';
 
-export { xmtpSendAttachments } from './tools-attachments.js';
+export { xmtpSendAttachments };
 
 const lineProp = {
   type: 'string',

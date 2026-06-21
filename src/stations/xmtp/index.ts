@@ -7,9 +7,8 @@ import {
   type Account,
 } from './accounts.js';
 import { emitInbound, envelope } from './emit.js';
-import { groupNameFor } from './conv-name.js';
-import { handleControlDm } from './push.js';
-import { pushInbound } from './push-title.js';
+import { groupNameFor } from './conv-helpers.js';
+import { handleControlDm, pushInbound } from './push.js';
 import { drainLines } from '../../trains/protocol.js';
 import { handleCall, type CallMsg } from './actions.js';
 

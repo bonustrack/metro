@@ -3,6 +3,7 @@ import { type DecodedMessage } from '@xmtp/node-sdk';
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { readJson, writeJson } from '../../json-store.js';
+import { parseLine } from './accounts.js';
 
 const FCM_SVC_PATH = `${process.env.HOME}/.config/metro/firebase-service-account.json`;
 const FCM_TOKENS_PATH = `${process.env.HOME}/.cache/metro/xmtp-push-tokens.json`;
@@ -311,4 +312,36 @@ export function handleControlDm(
     );
   }
   return true;
+}
+
+export function pushInbound(
+  accountId: string,
+  env: Record<string, unknown>,
+  msg: DecodedMessage,
+  conv?: unknown,
+): void {
+  const line = typeof env.line === 'string' ? env.line : '';
+  const messageId =
+    typeof env.message_id === 'string'
+      ? env.message_id
+      : typeof env.id === 'string'
+        ? env.id
+        : '';
+  void (async (): Promise<void> => {
+    const data: Record<string, string> = {
+      line,
+      messageId,
+      account: accountId,
+    };
+    {
+      const p = parseLine(line);
+      if (p) data.convId = p.convId.toLowerCase();
+    }
+    if (conv) {
+      const isDm =
+        typeof (conv as { peerInboxId?: unknown }).peerInboxId === 'function';
+      if (!isDm) data.isGroup = 'true';
+    }
+    await fcmPushToAll(accountId, data, msg.senderInboxId);
+  })().catch(() => undefined);
 }
