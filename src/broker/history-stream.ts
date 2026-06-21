@@ -160,10 +160,15 @@ export function followTail(
   opts: TailOpts,
   onEntry: (e: HistoryEntry, offsetAfter: number) => unknown,
   pollMs: number,
+  onProgress?: (offset: number) => void,
 ): () => void {
   let offset = startOffset;
   const tick = (): void => {
-    offset = drainTail(offset, opts, onEntry);
+    const next = drainTail(offset, opts, onEntry);
+    if (next !== offset) {
+      offset = next;
+      onProgress?.(offset);
+    }
   };
   let watcher: ReturnType<typeof watch> | null = null;
   try {
