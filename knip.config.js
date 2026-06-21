@@ -11,7 +11,6 @@ const knipConfig = {
   ignoreBinaries: ['mktemp', 'claude'],
   ignore: [
     'src/broker/claims.ts',
-    'src/broker/history-stream.ts',
     'src/tunnel.ts',
     'src/paths.ts',
     'src/secure-fs.ts',

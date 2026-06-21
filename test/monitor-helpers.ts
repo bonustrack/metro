@@ -7,7 +7,7 @@
  */
 
 import { afterEach, expect } from 'bun:test';
-import { mkdtempSync, rmSync, appendFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -69,9 +69,14 @@ export function freshStateDir(ctx: Ctx): string {
   return d;
 }
 
-export function seedHistory(stateDir: string, entries: object[]): void {
-  mkdirSync(stateDir, { recursive: true });
-  appendFileSync(join(stateDir, 'history.jsonl'), entries.map(e => JSON.stringify(e)).join('\n') + '\n');
+/** Publish events into the running server's in-process bus via the test seed endpoint. */
+export async function seedEvents(server: Server, entries: object[]): Promise<void> {
+  const r = await fetch(`${server.url}/seed`, {
+    method: 'POST',
+    body: JSON.stringify(entries),
+  });
+  if (!r.ok) throw new Error(`seed failed: ${r.status}`);
+  await r.text();
 }
 
 export function seedClaims(stateDir: string, claims: Record<string, string>): void {

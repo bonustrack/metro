@@ -2,11 +2,14 @@
  * Tests for the read-only monitor HTTP endpoints (auth + `/api/state`).
  * Shared subprocess harness lives in `monitor-helpers.ts`; `/api/tail` lives in
  * `monitor-tail.test.ts` and POST /api/call in `monitor-call.test.ts`.
+ *
+ * `recent_history` is now backed by the in-process bus ring buffer (events are
+ * pushed in via the harness `/seed` endpoint), not a durable history.jsonl.
  */
 
 import { describe, test } from 'bun:test';
 import {
-  TOKEN, expect, makeCtx, registerCleanup, startServer, freshStateDir, seedHistory, seedClaims, seedBotIds,
+  TOKEN, expect, makeCtx, registerCleanup, startServer, freshStateDir, seedEvents, seedClaims, seedBotIds,
 } from './monitor-helpers.ts';
 
 const ctx = makeCtx();
@@ -56,20 +59,21 @@ describe('monitor auth', () => {
 describe('GET /api/state', () => {
   test('200 with claims, lines, recent_history, bot_ids', async () => {
     const stateDir = freshStateDir(ctx);
-    seedHistory(stateDir, [
-      {
-        id: 'msg_aaa', ts: '2026-05-17T00:00:00.000Z', kind: 'inbound', station: 'discord',
-        line: 'metro://discord/123', from: 'metro://discord/user/9', to: 'metro://discord/123', text: 'hi',
-      },
-      {
-        id: 'msg_bbb', ts: '2026-05-17T00:00:01.000Z', kind: 'inbound', station: 'telegram',
-        line: 'metro://telegram/456', from: 'metro://telegram/user/2', to: 'metro://telegram/456', text: 'ho',
-      },
-    ]);
     seedClaims(stateDir, { 'metro://discord/123': 'metro://claude/user/abc' });
     seedBotIds(stateDir, { discord: '999', telegram: '888' });
 
     ctx.server = await startServer({ METRO_STATE_DIR: stateDir, METRO_MONITOR_TOKEN: TOKEN });
+    await seedEvents(ctx.server, [
+      {
+        id: 'msg_aaa', ts: '2026-05-17T00:00:00.000Z', station: 'discord',
+        line: 'metro://discord/123', from: 'metro://discord/user/9', to: 'metro://discord/123', text: 'hi',
+      },
+      {
+        id: 'msg_bbb', ts: '2026-05-17T00:00:01.000Z', station: 'telegram',
+        line: 'metro://telegram/456', from: 'metro://telegram/user/2', to: 'metro://telegram/456', text: 'ho',
+      },
+    ]);
+
     const r = await fetch(`${ctx.server.url}/api/state`, {
       headers: { authorization: `Bearer ${TOKEN}` },
     });
@@ -88,47 +92,6 @@ describe('GET /api/state', () => {
     /** Most-recent-first. */
     expect(body.recent_history[0].id).toBe('msg_bbb');
     expect(body.bot_ids).toEqual({ discord: '999', telegram: '888' });
-  });
-
-  test('?before=N&limit=M returns the next page (newest-first, slice [N..N+M))', async () => {
-    const stateDir = freshStateDir(ctx);
-    /** Seed 5 entries — oldest first in the file (newest-first when read). */
-    seedHistory(stateDir, [0, 1, 2, 3, 4].map(i => ({
-      id: `msg_${i}`,
-      ts: `2026-05-17T00:00:0${i}.000Z`,
-      kind: 'inbound',
-      station: 'discord',
-      line: 'metro://discord/1',
-      from: 'metro://discord/user/x',
-      to: 'metro://discord/1',
-      text: `e${i}`,
-    })));
-    ctx.server = await startServer({ METRO_STATE_DIR: stateDir, METRO_MONITOR_TOKEN: TOKEN });
-
-    /** Page 2: skip 2 newest, return next 2 → msg_2, msg_1. */
-    const r = await fetch(`${ctx.server.url}/api/state?before=2&limit=2`, {
-      headers: { authorization: `Bearer ${TOKEN}` },
-    });
-    expect(r.status).toBe(200);
-    const body = await r.json() as { recent_history: Array<{ id: string }>; claims?: unknown };
-    expect(body.recent_history.map(e => e.id)).toEqual(['msg_2', 'msg_1']);
-    /** Pagination response is history-only — no claims/lines/bot_ids. */
-    expect(body.claims).toBeUndefined();
-  });
-
-  test('?before past end returns empty page', async () => {
-    const stateDir = freshStateDir(ctx);
-    seedHistory(stateDir, [{
-      id: 'msg_only', ts: '2026-05-17T00:00:00.000Z', kind: 'inbound', station: 'discord',
-      line: 'metro://discord/1', from: 'metro://discord/user/x', to: 'metro://discord/1', text: 'x',
-    }]);
-    ctx.server = await startServer({ METRO_STATE_DIR: stateDir, METRO_MONITOR_TOKEN: TOKEN });
-    const r = await fetch(`${ctx.server.url}/api/state?before=99&limit=20`, {
-      headers: { authorization: `Bearer ${TOKEN}` },
-    });
-    expect(r.status).toBe(200);
-    const body = await r.json() as { recent_history: unknown[] };
-    expect(body.recent_history).toEqual([]);
   });
 
   test('empty state — 200 with empty maps', async () => {

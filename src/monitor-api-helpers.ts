@@ -1,5 +1,5 @@
 import type { IncomingMessage } from 'node:http';
-import { historySize, type Mode, type TailOpts } from './broker/history-stream.js';
+import { type Mode, type TailOpts } from './event-bus.js';
 import { Line } from './lines.js';
 
 const CALL_BODY_MAX = 256 * 1024;
@@ -7,13 +7,6 @@ const CALL_BODY_MAX = 256 * 1024;
 export function nonNegInt(raw: string | null): number | null {
   const n = raw == null ? NaN : Number(raw);
   return Number.isInteger(n) && n >= 0 ? n : null;
-}
-
-export function leidOffset(req: IncomingMessage): number {
-  const leid = req.headers['last-event-id'];
-  const leidStr = Array.isArray(leid) ? leid[0] : leid;
-  const leidN = leidStr !== undefined ? Number(leidStr) : NaN;
-  return Number.isFinite(leidN) && leidN >= 0 ? leidN : NaN;
 }
 
 export function parseExcludeFrom(csv: string | null): string[] | undefined {
@@ -40,26 +33,16 @@ export function buildTailOpts(
   };
 }
 
-function parseSince(since: string | null): { value: number } | { error: string } {
-  const hasSince = since !== null && since !== 'tail';
-  const sinceN = hasSince ? Number(since) : NaN;
-  if (hasSince && (!Number.isFinite(sinceN) || sinceN < 0)) {
+export function resolveSince(
+  q: URLSearchParams,
+): { replayBacklog: boolean } | { error: string } {
+  const since = q.get('since');
+  if (since === null || since === 'tail') return { replayBacklog: false };
+  const sinceN = Number(since);
+  if (!Number.isFinite(sinceN) || sinceN < 0) {
     return { error: `since must be a byte offset or 'tail' (got '${since}')` };
   }
-  return { value: sinceN };
-}
-
-export function resolveSince(
-  req: IncomingMessage,
-  q: URLSearchParams,
-): { offset: number } | { error: string } {
-  const parsed = parseSince(q.get('since'));
-  if ('error' in parsed) return parsed;
-  let sinceN = parsed.value;
-  if (!Number.isFinite(sinceN)) sinceN = leidOffset(req);
-  return {
-    offset: Number.isFinite(sinceN) && sinceN >= 0 ? sinceN : historySize(),
-  };
+  return { replayBacklog: sinceN === 0 };
 }
 
 export async function readCallBody(req: IncomingMessage): Promise<string> {

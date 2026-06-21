@@ -8,14 +8,16 @@ and tool-approval prompts are relayed to chat so you can approve/deny from your 
 
 The MCP is **served in-process by the metro daemon** — it is not a separate server.
 `createMetroMcp()` ([`index.ts`](index.ts)) is mounted at the **root path** of the
-daemon's HTTP server. Inbound comes straight off the in-process history tail
-(`followTail`); outbound tool calls go straight to the stations over the in-process IPC
-(`ipcCall` forward-call) — no HTTP bridge, no shared token.
+daemon's HTTP server. Inbound is an in-process push: the dispatcher's `emit()`
+publishes each event to the in-process event bus ([`event-bus.ts`](../event-bus.ts)),
+which the MCP `InboundRelay` subscribes to directly. Outbound tool calls go straight
+to the stations over the in-process IPC (`ipcCall` forward-call) — no HTTP bridge,
+no shared token, no on-disk journal.
 
 ```
- XMTP/TG/Discord ──▶ stations ──▶ daemon history journal ──followTail──▶ MCP ──▶ AI client
-       ▲                 ▲                                                  │
-       └── reply ────────┴────────────────── ipcCall forward-call ◀────────┘
+ XMTP/TG/Discord ──▶ stations ──▶ dispatcher emit ──▶ event bus ──subscribe──▶ MCP ──▶ AI client
+       ▲                 ▲                                                       │
+       └── reply ────────┴───────────────────── ipcCall forward-call ◀──────────┘
 ```
 
 ## CLI parity tools

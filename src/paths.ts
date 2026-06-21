@@ -18,8 +18,6 @@ export const STATE_DIR =
   process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
 mkdirSync(STATE_DIR, { recursive: true });
 
-export const HISTORY_FILE = join(STATE_DIR, 'history.jsonl');
-
 export const CONFIG_DIR =
   process.env.METRO_CONFIG_DIR ??
   join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'metro');
