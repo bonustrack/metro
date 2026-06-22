@@ -173,16 +173,36 @@ mcp.setNotificationHandler(
   },
 );
 
-function makeTransport(): StreamableHTTPServerTransport {
-  return new StreamableHTTPServerTransport({
+interface AdoptableInner {
+  sessionId?: string;
+  _initialized?: boolean;
+}
+
+function makeTransport(adoptId?: string): StreamableHTTPServerTransport {
+  const t = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
   });
+  if (adoptId !== undefined) {
+    const inner = (t as unknown as { _webStandardTransport?: AdoptableInner })
+      ._webStandardTransport;
+    if (inner) {
+      inner.sessionId = adoptId;
+      inner._initialized = true;
+    }
+  }
+  return t;
 }
 
 const isInitialize = (b: unknown): boolean =>
   !!b &&
   typeof b === 'object' &&
   (b as { method?: string }).method === 'initialize';
+
+const headerSessionId = (req: IncomingMessage): string | undefined => {
+  const raw = req.headers['mcp-session-id'];
+  if (Array.isArray(raw)) return raw[0];
+  return typeof raw === 'string' ? raw : undefined;
+};
 
 async function readBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -201,10 +221,14 @@ export async function createMetroMcp(): Promise<{
 }> {
   let transport = makeTransport();
   await mcp.connect(transport);
-  const reconnect = async (): Promise<void> => {
+  const rebind = async (adoptId?: string): Promise<void> => {
     await transport.close().catch(() => undefined);
-    transport = makeTransport();
+    transport = makeTransport(adoptId);
     await mcp.connect(transport);
+  };
+  const currentSessionId = (): string | undefined => {
+    const id = (transport as { sessionId?: unknown }).sessionId;
+    return typeof id === 'string' ? id : undefined;
   };
 
   const httpToken = process.env.METRO_MCP_HTTP_TOKEN ?? '';
@@ -213,26 +237,36 @@ export async function createMetroMcp(): Promise<{
     const w = Buffer.from(httpToken);
     return g.length === w.length && timingSafeEqual(g, w);
   };
+  const authorized = (req: IncomingMessage): boolean => {
+    if (!httpToken) return true;
+    const qt = new URL(req.url ?? '/', 'http://localhost').searchParams.get(
+      'token',
+    );
+    return qt != null && tokenEq(qt);
+  };
+  const syncSession = async (
+    req: IncomingMessage,
+    body: unknown,
+  ): Promise<void> => {
+    if (isInitialize(body)) {
+      await rebind();
+      return;
+    }
+    const presented = headerSessionId(req);
+    if (presented !== undefined && presented !== currentSessionId())
+      await rebind(presented);
+  };
   const httpHandler = async (
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> => {
-    if (httpToken) {
-      const qt = new URL(req.url ?? '/', 'http://localhost').searchParams.get(
-        'token',
-      );
-      if (qt == null || !tokenEq(qt)) {
-        res.writeHead(401).end('unauthorized');
-        return;
-      }
-    }
-    if (req.method === 'POST') {
-      const body = await readBody(req);
-      if (isInitialize(body)) await reconnect();
-      await transport.handleRequest(req, res, body);
+    if (!authorized(req)) {
+      res.writeHead(401).end('unauthorized');
       return;
     }
-    await transport.handleRequest(req, res);
+    const body = req.method === 'POST' ? await readBody(req) : undefined;
+    await syncSession(req, body);
+    await transport.handleRequest(req, res, body);
   };
 
   const startInbound = (): void => {
