@@ -23,7 +23,6 @@ import {
   startWebhookServer,
   trainEventToMetroEvent,
 } from './server.js';
-import { OutboxDriver } from '../outbox-driver.js';
 import { createMetroMcp } from '../mcp/index.js';
 
 loadMetroEnv();
@@ -38,9 +37,6 @@ process.stdout.on('error', (err) => {
 });
 
 const supervisor = new TrainSupervisor();
-const outbox = new OutboxDriver((train, action, args) =>
-  supervisor.call(train, action, args),
-);
 const emit = makeEmit();
 
 supervisor.onTrainEvent((env, train) => {
@@ -70,12 +66,7 @@ async function ipcForwardCall(
   req: Extract<IpcRequest, { op: 'forward-call' }>,
 ): Promise<IpcResponse> {
   try {
-    const r = await outbox.forward(
-      req.train,
-      req.action,
-      req.args,
-      req.idempotencyKey,
-    );
+    const r = await supervisor.call(req.train, req.action, req.args);
     return { ok: true, response: r };
   } catch (err) {
     return { ok: false, error: errMsg(err) };
@@ -105,15 +96,6 @@ async function handleIpc(req: IpcRequest): Promise<IpcResponse> {
       return ipcTrainRestart(req);
     case 'version':
       return { ok: true, version: pkg.version };
-    case 'outbox-list':
-      return {
-        ok: true,
-        entries: outbox.list({ state: req.state, limit: req.limit }),
-      };
-    case 'outbox-retry':
-      return outbox.retry(req.outboxId)
-        ? { ok: true }
-        : { ok: false, error: `no outbox entry with id '${req.outboxId}'` };
     default:
       return {
         ok: false,
@@ -130,7 +112,6 @@ async function main(): Promise<void> {
   webhookServer = await startWebhookServer(emit, metroMcp.httpHandler);
   metroMcp.startInbound();
   tunnel?.start();
-  outbox.recover();
   log.info(
     { tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' },
     'dispatcher ready',
@@ -143,7 +124,6 @@ async function shutdown(): Promise<void> {
   shuttingDown = true;
   log.info('dispatcher shutting down');
   tunnel?.stop();
-  outbox.stop();
   await stopIpcServer(ipc).catch(() => undefined);
   if (webhookServer) {
     const server = webhookServer;

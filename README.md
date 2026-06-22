@@ -137,7 +137,6 @@ Console API auth.)
 One process does everything:
 
 - a **supervisor** spawns and multiplexes the station subprocesses,
-- a **durable outbox** gives outbound messages at-least-once delivery,
 - the **MCP** is served in the same process — the dispatcher publishes inbound
   events to an in-process event bus, the MCP's inbound relay subscribes and pushes
   `notifications/claude/channel`, and outbound dispatches straight to the stations.
@@ -156,7 +155,7 @@ line, from?, to?, message_id?, text?, payload?, …}`, see
 [`src/trains/protocol.ts`](src/trains/protocol.ts)).
 
 **State.** metro is stateful and needs a persistent volume: the XMTP MLS databases under
-`~/.metro/` and the outbox / IPC socket under `$METRO_STATE_DIR`
+`~/.metro/` and the IPC socket under `$METRO_STATE_DIR`
 (default `~/.cache/metro`).
 
 ## Development
