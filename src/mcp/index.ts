@@ -23,6 +23,7 @@ import {
 import { errResult, makeCtx, metroCall, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool } from './call-tools.js';
 import { InboundRelay } from './inbound.js';
+import { Keepalive } from './keepalive.js';
 
 const ALLOWLIST_DEFAULT =
   'bee7314f7127ef53b4e3bf5256e54b0a1acdc3698d064fb1029bd8f83ecc1186';
@@ -219,12 +220,18 @@ export async function createMetroMcp(): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
 }> {
+  const keepalive = new Keepalive({
+    ping: () => mcp.ping(),
+    log,
+  });
   let transport = makeTransport();
   await mcp.connect(transport);
   const rebind = async (adoptId?: string): Promise<void> => {
+    keepalive.stop();
     await transport.close().catch(() => undefined);
     transport = makeTransport(adoptId);
     await mcp.connect(transport);
+    keepalive.start();
   };
   const currentSessionId = (): string | undefined => {
     const id = (transport as { sessionId?: unknown }).sessionId;
@@ -277,6 +284,7 @@ export async function createMetroMcp(): Promise<{
           log('event err', err);
         });
     });
+    keepalive.start();
     log('inbound: subscribed to in-process event bus (live-from-boot)');
   };
 
