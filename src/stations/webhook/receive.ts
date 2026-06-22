@@ -3,6 +3,22 @@ import { Line } from '../../lines.js';
 import { mintId, type MetroEvent } from '../../events.js';
 import { sessionOwner } from '../../sessions.js';
 import type { Endpoint } from '../../tunnel.js';
+import type { Station, Verb } from '../types.js';
+
+export const webhookStation: Station = {
+  name: 'webhook',
+  hasAccounts: false,
+  messageVerbs: new Set<Verb>(),
+  attachmentMode: 'none',
+  parseLine: (line) => {
+    const p = Line.parse(line);
+    return p?.station === 'webhook' && p.path.length
+      ? { accountId: 'default', resource: p.path.join('/') }
+      : null;
+  },
+  mutates: new Set<string>(),
+  tools: [],
+};
 
 export function webhookEntry(
   endpoint: Endpoint,

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { asLine, type Line } from './lines.js';
 import { STATIONS, type Station } from './messaging.js';
-import { claudeSessionId } from './local-identity.js';
+import { claudeSessionId } from './identity.js';
 
 export type SessionStation = Station;
 export const SESSION_STATIONS: readonly SessionStation[] = STATIONS;
