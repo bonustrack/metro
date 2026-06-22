@@ -8,9 +8,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { log } from '../log.js';
-import { STATE_DIR } from '../paths.js';
-import { Line } from '../lines.js';
+import { log } from './log.js';
+import { STATE_DIR } from './paths.js';
+import { Line } from './lines.js';
 
 export const CLAIMS_FILE = join(STATE_DIR, 'claims.json');
 const CLAIMS_LOCK = join(STATE_DIR, 'claims.json.lock');

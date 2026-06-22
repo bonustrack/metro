@@ -10,7 +10,7 @@ const knipConfig = {
   project: ['src/**/*.ts', 'scripts/**/*.{mjs,js}'],
   ignoreBinaries: ['mktemp', 'claude'],
   ignore: [
-    'src/broker/claims.ts',
+    'src/claims.ts',
     'src/tunnel.ts',
     'src/paths.ts',
     'src/secure-fs.ts',

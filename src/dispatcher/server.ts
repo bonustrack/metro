@@ -19,7 +19,7 @@ import { publishEvent } from '../event-bus.js';
 import { handleMonitorRequest } from '../monitor-api.js';
 import type { TrainEvent } from '../trains/protocol.js';
 import { findEndpoint, listEndpoints, webhookPort } from '../tunnel.js';
-import { webhookEntry, verifyWebhookSig } from '../stations/webhook/receive.js';
+import { webhookEntry, verifyWebhookSig } from '../stations/webhook.js';
 
 const LRU_CAP = 2_000;
 
