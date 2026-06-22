@@ -3,7 +3,7 @@ import { Line } from '../lines.js';
 import { xmtpStation } from './xmtp/station.js';
 import { telegramStation } from './telegram/station.js';
 import { discordStation } from './discord/station.js';
-import { webhookStation } from './webhook/station.js';
+import { webhookStation } from './webhook/receive.js';
 
 export const STATIONS: readonly Station[] = [
   xmtpStation,

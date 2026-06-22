@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { makeDedupSeq } from '../src/dispatcher/dedup-seq.ts';
+import { makeDedupSeq } from '../src/dispatcher/server.ts';
 import { makeEmit } from '../src/dispatcher/server.ts';
 import type { MetroEvent } from '../src/events.ts';
 import { Line } from '../src/lines.ts';

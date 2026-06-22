@@ -1,9 +1,57 @@
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { readJson, writeJson } from './secure-fs.js';
 import { STATE_DIR } from './paths.js';
 import { Line } from './lines.js';
-import { claudeUserId, claudeSessionId } from './local-identity.js';
+
+const TTL_MS = 5_000;
+type Cache = { id: string; at: number } | null;
+
+function memo(loader: () => string): () => string {
+  let cache: Cache = null;
+  return () => {
+    if (cache && Date.now() - cache.at < TTL_MS) return cache.id;
+    const id = loader();
+    cache = { id, at: Date.now() };
+    return id;
+  };
+}
+
+const claudeAccountId = memo(() => {
+  let raw: string;
+  try {
+    raw = execFileSync('claude', ['auth', 'status', '--json'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (e) {
+    throw new Error(
+      `metro: failed to run 'claude auth status --json' — is Claude Code installed? (${errMsg(e)})`,
+    );
+  }
+  let p: { loggedIn?: boolean; orgId?: string };
+  try {
+    p = JSON.parse(raw) as { loggedIn?: boolean; orgId?: string };
+  } catch {
+    throw new Error(
+      `metro: 'claude auth status --json' returned non-JSON: ${raw.slice(0, 200)}`,
+    );
+  }
+  if (!p.loggedIn || !p.orgId)
+    throw new Error(
+      "metro: Claude Code is not logged in — run 'claude auth login'",
+    );
+  return p.orgId;
+});
+
+export const claudeUserId = (): string =>
+  process.env.METRO_USER_ID ?? claudeAccountId();
+
+export const claudeSessionId = (): string | null =>
+  process.env.METRO_USER_SESSION_ID ??
+  process.env.CLAUDE_CODE_SESSION_ID ??
+  null;
 
 export function userSelf(): Line {
   const explicit = process.env.METRO_FROM;
