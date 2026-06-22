@@ -137,16 +137,14 @@ Console API auth.)
 One process does everything:
 
 - a **supervisor** spawns and multiplexes the station subprocesses,
-- a **durable outbox** gives outbound messages at-least-once delivery,
 - the **MCP** is served in the same process — the dispatcher publishes inbound
   events to an in-process event bus, the MCP's inbound relay subscribes and pushes
   `notifications/claude/channel`, and outbound dispatches straight to the stations.
 
 Inbound is never journaled to disk: the dispatcher publishes each event to an
-in-memory event bus ([`src/event-bus.ts`](src/event-bus.ts)) that keeps a small ring
-of recent events. The MCP relay subscribes to push channel notifications, the monitor
-streams it at `/api/tail`, and `/api/state` reads the ring. The MCP HTTP transport is
-also session-tolerant: it survives a daemon restart so connected sessions auto-resume.
+in-memory event bus ([`src/event-bus.ts`](src/event-bus.ts)) and the MCP relay
+subscribes to push channel notifications. The MCP HTTP transport is also
+session-tolerant: it survives a daemon restart so connected sessions auto-resume.
 
 **Lines.** Every conversation is a `metro://<station>/<path>` URI — the station is the
 host, the path is platform-specific (account-scoped for multi-bot). One parser
@@ -157,7 +155,7 @@ line, from?, to?, message_id?, text?, payload?, …}`, see
 [`src/trains/protocol.ts`](src/trains/protocol.ts)).
 
 **State.** metro is stateful and needs a persistent volume: the XMTP MLS databases under
-`~/.metro/` and the outbox / IPC socket under `$METRO_STATE_DIR`
+`~/.metro/` and the IPC socket under `$METRO_STATE_DIR`
 (default `~/.cache/metro`).
 
 ## Development
@@ -176,13 +174,10 @@ src/
   server.ts       # entry — boots the daemon, which serves the MCP in-process
   dispatcher/     # supervisor boot + outbound routing + webhook receiver + MCP mount
   mcp/            # the MCP surface (createMetroMcp), mounted at the root path
-  monitor-api.ts  # /health + the optional /api/* monitor endpoints
   trains/         # station supervisor + the station<->daemon protocol
   stations/       # built-in stations (xmtp, telegram, discord)
-  event-bus.ts    # in-memory event bus + ring the MCP relay and monitor read
-  claims.ts       # outbound claim coordination
+  event-bus.ts    # in-memory event bus the MCP relay subscribes to
   lines.ts        # the metro:// Line parser
-  schema.ts       # the metro-call validator
 ```
 
 ## License

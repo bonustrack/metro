@@ -11,12 +11,10 @@ import {
   classifyEvent,
   formatDisplay,
   mintId,
-  noteUserFromLine,
   userSelf,
   type MetroEvent,
 } from '../events.js';
 import { publishEvent } from '../event-bus.js';
-import { handleMonitorRequest } from '../monitor-api.js';
 import type { TrainEvent } from '../trains/protocol.js';
 import { findEndpoint, listEndpoints, webhookPort } from '../tunnel.js';
 import { webhookEntry, verifyWebhookSig } from '../stations/webhook.js';
@@ -86,8 +84,6 @@ export function makeEmit(dedupSeq?: DedupSeq): Emit {
     };
     process.stdout.write(JSON.stringify(enriched) + '\n');
     noteSeen(entry.line, entry.lineName);
-    for (const l of [entry.line, entry.from, entry.to])
-      if (l) noteUserFromLine(l);
     publishEvent(enriched);
   };
 }
@@ -150,7 +146,7 @@ export async function startWebhookServer(
           endpoints: listEndpoints().length,
           mcp: mcp ? '/' : 'off',
         },
-        'webhook + monitor + mcp ready',
+        'webhook + mcp ready',
       );
       resolve();
     });
@@ -217,7 +213,6 @@ async function handleRequest(
   emit: Emit,
   mcp?: McpHandler,
 ): Promise<void> {
-  if (handleMonitorRequest(req, res)) return;
   if (mcp && isMcpPath(req)) {
     await mcp(req, res);
     return;

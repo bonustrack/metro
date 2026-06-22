@@ -8,7 +8,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { subscribeEvents } from '../event-bus.js';
-import { gatherAccounts } from '../monitor-api.js';
+import { gatherAccounts } from '../accounts.js';
 import {
   STATIONS,
   accountStationNames,

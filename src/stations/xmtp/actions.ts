@@ -20,7 +20,6 @@ import {
 } from './codecs.js';
 import { convHandlers } from './actions-conv.js';
 import { normalizeXmtp } from '../messaging-normalize.js';
-import { unsupported } from '../../messaging.js';
 import { TrainError } from '../../train-error.js';
 import { makeStation, type CallMsg } from '../station-runtime.js';
 
@@ -346,7 +345,7 @@ async function accountsAction(id: string): Promise<void> {
 }
 
 function unsupportedVerb(id: string, verb: string): Promise<void> {
-  respond(id, { error: unsupported(verb, 'xmtp') });
+  respond(id, { error: `unsupported verb '${verb}' on xmtp` });
   return Promise.resolve();
 }
 

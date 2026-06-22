@@ -160,7 +160,7 @@ export const LIST_ACCOUNTS_TOOL = {
   description:
     'List the configured messaging accounts across all stations (PUBLIC identity only: ' +
     'addresses, bot ids/usernames). No args. Never returns tokens, private keys, or the ' +
-    'mnemonic. Reads the daemon /api/accounts view. Also returns `capabilities`: the ' +
+    'mnemonic. Also returns `capabilities`: the ' +
     'message verbs (send/reply/react/unreact/edit/delete/read) each station honors, so a ' +
     'verb need not be discovered by trial and error.',
   inputSchema: { type: 'object', properties: {} },

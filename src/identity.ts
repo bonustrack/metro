@@ -1,8 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { join } from 'node:path';
-import { errMsg, log } from './log.js';
-import { readJson, writeJson } from './secure-fs.js';
-import { STATE_DIR } from './paths.js';
+import { errMsg } from './log.js';
 import { Line } from './lines.js';
 
 const TTL_MS = 5_000;
@@ -71,49 +68,4 @@ export function selfLine(): Line | null {
     return s ? Line.claude(claudeUserId(), s) : null;
   }
   return null;
-}
-
-const REGISTRY_FILE = join(STATE_DIR, 'user-registry.json');
-
-interface UserInstance {
-  userId: string;
-  sessions: string[];
-  lastSeen: string;
-}
-type Registry = Record<string, UserInstance[]>;
-
-function readRegistry(): Registry {
-  return readJson<Registry>(
-    REGISTRY_FILE,
-    {},
-    { warn: 'user-registry: malformed, resetting' },
-  );
-}
-
-function record(
-  station: 'claude',
-  userId: string,
-  sessionId: string | null,
-): void {
-  const reg = readRegistry();
-  const rows = (reg[station] ??= []);
-  let row = rows.find((r) => r.userId === userId);
-  if (!row) {
-    row = { userId, sessions: [], lastSeen: '' };
-    rows.push(row);
-  }
-  if (sessionId && !row.sessions.includes(sessionId))
-    row.sessions.push(sessionId);
-  row.lastSeen = new Date().toISOString();
-  try {
-    writeJson(REGISTRY_FILE, reg);
-  } catch (err) {
-    log.warn({ err: errMsg(err) }, 'user-registry: write failed');
-  }
-}
-
-export function noteUserFromLine(line: string): void {
-  if (Line.station(line) !== 'claude') return;
-  const p = Line.parseClaude(line);
-  if (p) record('claude', p.userId, p.sessionId);
 }

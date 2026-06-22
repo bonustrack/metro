@@ -1,7 +1,6 @@
 import { accountFor, accounts, tg, targetOf } from './accounts.js';
 import { respond } from './wire.js';
 import { normalizeTelegram } from '../messaging-normalize.js';
-import { unsupported } from '../../messaging.js';
 import {
   makeStation,
   type CallMsg,
@@ -212,7 +211,7 @@ export const handleCall = makeStation({
   normalize: normalizeTelegram,
   preDispatch: (id, action) => {
     if (action === 'read') {
-      respond(id, { error: unsupported('read', 'telegram') });
+      respond(id, { error: "unsupported verb 'read' on telegram" });
       return true;
     }
     return false;
