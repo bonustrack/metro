@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import pkg from '../package.json' with { type: 'json' };
-import { readClaims } from './broker/claims.js';
+import { readClaims } from './claims.js';
 import {
   recentEvents,
   subscribeEvents,

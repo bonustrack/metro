@@ -1,6 +1,6 @@
 import type { MetroEvent } from './events.js';
 import { Line } from './lines.js';
-import type { ClaimsMap } from './broker/claims.js';
+import type { ClaimsMap } from './claims.js';
 
 export type BusListener = (event: MetroEvent) => void;
 

@@ -1,31 +1,31 @@
 import { join } from 'node:path';
 import { type Server } from 'node:http';
-import pkg from '../package.json' with { type: 'json' };
-import { Line } from './lines.js';
+import pkg from '../../package.json' with { type: 'json' };
+import { Line } from '../lines.js';
 import {
   startIpcServer,
   stopIpcServer,
   type IpcRequest,
   type IpcResponse,
-} from './ipc.js';
+} from '../ipc.js';
 import {
   mintId,
   noteUserFromLine,
   selfLine,
   userSelf,
   type MetroEvent,
-} from './events.js';
-import { errMsg, log } from './log.js';
-import { acquireLock, loadMetroEnv, STATE_DIR } from './paths.js';
-import { loadTunnelConfig, Tunnel, webhookPort } from './tunnel.js';
-import { TrainSupervisor, TRAINS_DIR } from './trains/supervisor.js';
+} from '../events.js';
+import { errMsg, log } from '../log.js';
+import { acquireLock, loadMetroEnv, STATE_DIR } from '../paths.js';
+import { loadTunnelConfig, Tunnel, webhookPort } from '../tunnel.js';
+import { TrainSupervisor, TRAINS_DIR } from '../trains/supervisor.js';
 import {
   makeEmit,
   startWebhookServer,
   trainEventToMetroEvent,
-} from './dispatcher/server.js';
-import { OutboxDriver } from './outbox-driver.js';
-import { createMetroMcp } from './mcp/index.js';
+} from './server.js';
+import { OutboxDriver } from '../outbox-driver.js';
+import { createMetroMcp } from '../mcp/index.js';
 
 loadMetroEnv();
 acquireLock(join(STATE_DIR, '.tail-lock'));
