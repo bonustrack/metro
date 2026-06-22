@@ -1,9 +1,11 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { Line } from '../lines.js';
+import { Line, asLine } from '../lines.js';
 import { mintId, type MetroEvent } from '../events.js';
-import { sessionOwner } from '../sessions.js';
 import type { Endpoint } from '../tunnel.js';
 import type { Station, Verb } from './types.js';
+
+const sessionOwner = (sessionId: string): Line =>
+  asLine(`metro://session/${sessionId}`);
 
 export const webhookStation: Station = {
   name: 'webhook',

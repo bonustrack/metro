@@ -10,7 +10,6 @@ import {
 } from '../ipc.js';
 import {
   mintId,
-  noteUserFromLine,
   selfLine,
   userSelf,
   type MetroEvent,
@@ -32,11 +31,6 @@ acquireLock(join(STATE_DIR, '.tail-lock'));
 
 const self = userSelf();
 log.info({ self, line: selfLine() }, 'user identity');
-const seedSelf = (): void => {
-  const l = selfLine();
-  if (l) noteUserFromLine(l);
-};
-seedSelf();
 
 process.stdout.on('error', (err) => {
   if ((err as NodeJS.ErrnoException).code !== 'EPIPE')

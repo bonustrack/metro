@@ -19,8 +19,7 @@
   },
   "exports": {
     ".": "./src/mcp/index.ts",
-    "./server": "./dist/server.js",
-    "./schema": "./dist/schema.js"
+    "./server": "./dist/server.js"
   },
   "files": [
     "dist",

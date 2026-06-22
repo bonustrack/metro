@@ -1,12 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Line } from './lines.js';
 
-export {
-  userSelf,
-  daemonSelf,
-  selfLine,
-  noteUserFromLine,
-} from './identity.js';
+export { userSelf, daemonSelf, selfLine } from './identity.js';
 
 export type StructuredEvent =
   | { type: 'msg' }

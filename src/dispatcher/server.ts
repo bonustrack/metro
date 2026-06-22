@@ -11,7 +11,6 @@ import {
   classifyEvent,
   formatDisplay,
   mintId,
-  noteUserFromLine,
   userSelf,
   type MetroEvent,
 } from '../events.js';
@@ -86,8 +85,6 @@ export function makeEmit(dedupSeq?: DedupSeq): Emit {
     };
     process.stdout.write(JSON.stringify(enriched) + '\n');
     noteSeen(entry.line, entry.lineName);
-    for (const l of [entry.line, entry.from, entry.to])
-      if (l) noteUserFromLine(l);
     publishEvent(enriched);
   };
 }
