@@ -3,10 +3,12 @@ import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import type { EventStore, EventId, StreamId } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { ipcCall } from '../ipc.js'
-import { drainTail, followTail, historySize, type TailOpts } from '../broker/history-stream.js'
+import { drainTail, followTail, historySize, readCursor, writeCursor, type TailOpts } from '../broker/history-stream.js'
 import { gatherAccounts } from '../monitor-api.js'
 import type { HistoryEntry } from '../history.js'
 import { STATIONS, stationForLine, accountStationNames } from '../stations/registry.js'
@@ -26,6 +28,11 @@ const getAllowlist = (): string[] =>
 const getStations = (): Set<string> =>
   parseStations(process.env.METRO_CHANNEL_STATIONS ?? accountStationNames().join(','))
 const log = (...a: unknown[]): void => console.error('[metro-mcp]', ...a)
+
+// Dedicated history cursor for the MCP inbound tail. Kept distinct from the `_all`
+// key that cursorKey() mints for other tail consumers (e.g. /api/tail) so the two
+// never clobber each other's delivery position.
+const MCP_CURSOR_KEY = 'mcp-channel'
 
 const mcp = new Server(
   { name: 'metro', version: '0.1.0' },
@@ -567,15 +574,58 @@ async function handleEvent(ev: Record<string, unknown>) {
   })
 }
 
+// Bounded in-memory event store so the SDK can replay server→client notifications
+// that were emitted while a client's standalone SSE (GET) stream was briefly down.
+// Without this, StreamableHTTPServerTransport.send() silently drops notifications
+// when no GET stream is connected (webStandardStreamableHttp send(): standalone
+// stream undefined → return), which is why a transient disconnect makes the session
+// go deaf until a manual /mcp. This survives same-process SSE blips and the internal
+// reconnect() below; cross-process restarts are covered by the persisted history
+// cursor in startInbound instead (in-memory state is wiped on restart).
+type StoredEvent = { id: number; streamId: StreamId; message: JSONRPCMessage }
+class MemoryEventStore implements EventStore {
+  private seq = 0
+  private events: StoredEvent[] = []
+  private readonly max: number
+  constructor(max = 1_000) { this.max = max }
+  async storeEvent(streamId: StreamId, message: JSONRPCMessage): Promise<EventId> {
+    const id = ++this.seq
+    this.events.push({ id, streamId, message })
+    if (this.events.length > this.max) this.events.shift()
+    return String(id)
+  }
+  async replayEventsAfter(
+    lastEventId: EventId,
+    { send }: { send: (eventId: EventId, message: JSONRPCMessage) => Promise<void> },
+  ): Promise<StreamId> {
+    const after = Number(lastEventId)
+    if (!Number.isFinite(after)) return ''
+    const first = this.events.find(e => e.id > after)
+    if (!first) return ''
+    for (const e of this.events) {
+      if (e.id > after && e.streamId === first.streamId) {
+        await send(String(e.id), e.message)
+      }
+    }
+    return first.streamId
+  }
+}
+
 export async function createMetroMcp(): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>
   startInbound: () => void
 }> {
-  let transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() })
+  const eventStore = new MemoryEventStore()
+  const newTransport = (): StreamableHTTPServerTransport =>
+    new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      eventStore,
+    })
+  let transport = newTransport()
   await mcp.connect(transport)
   const reconnect = async (): Promise<void> => {
     try { await transport.close() } catch { /* ignore */ }
-    transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() })
+    transport = newTransport()
     await mcp.connect(transport)
   }
   const isInitialize = (b: unknown): boolean =>
@@ -610,12 +660,24 @@ export async function createMetroMcp(): Promise<{
 
   const startInbound = (): void => {
     const opts: TailOpts = { mode: 'all', self: null }
-    const onEntry = (e: HistoryEntry): void => {
+    // Resume from a persisted byte offset so messages written to the (volume-backed)
+    // history file while this process was down are replayed on the next boot, instead
+    // of restarting at EOF and going deaf to the gap. handleEvent's per-account dedupe
+    // (isDuplicateEvent) makes any replay overlap safe. Fresh installs (cursor=0) would
+    // otherwise replay the entire backlog, so cap the first boot at the current EOF.
+    const eof = historySize()
+    const persisted = readCursor(MCP_CURSOR_KEY)
+    let cursor = persisted > 0 ? Math.min(persisted, eof) : eof
+    const onEntry = (e: HistoryEntry, offsetAfter: number): void => {
       void handleEvent(e as unknown as Record<string, unknown>).catch(err => log('event err', err))
+      if (offsetAfter > cursor) {
+        cursor = offsetAfter
+        try { writeCursor(MCP_CURSOR_KEY, offsetAfter) } catch (err) { log('cursor write failed', err) }
+      }
     }
-    const offset = drainTail(historySize(), opts, onEntry)
-    followTail(offset, opts, onEntry, 1_000)
-    log('inbound: following history tail (mode=all)')
+    drainTail(cursor, opts, onEntry)
+    followTail(cursor, opts, onEntry, 1_000)
+    log('inbound: following history tail (mode=all) from offset', cursor)
   }
 
   return { httpHandler, startInbound }
