@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { webhookEntry } from '../src/stations/webhook.ts';
+import { webhookEntry } from '@metro-labs/webhook';
 import { Line, asLine } from '../src/lines.ts';
 import type { Endpoint } from '../src/tunnel.ts';
 

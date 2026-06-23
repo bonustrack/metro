@@ -17,7 +17,7 @@ import {
 import { publishEvent } from '../event-bus.js';
 import type { TrainEvent } from '../trains/protocol.js';
 import { findEndpoint, listEndpoints, webhookPort } from '../tunnel.js';
-import { webhookEntry, verifyWebhookSig } from '../stations/webhook.js';
+import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
 
 const LRU_CAP = 2_000;
 
