@@ -1,10 +1,10 @@
 # @metro-labs/mcp
 
-> The metro core daemon: the MCP protocol surface, the supervised runtime, and the
+> The Metro core daemon: the MCP protocol surface, the supervised runtime, and the
 > station contract the platform packages implement.
 
 This is the entry-point package of the monorepo (see the [root README](../../README.md)
-for what metro is and how to run/deploy it). It ships the `metro-daemon` bin
+for what Metro is and how to run/deploy it). It ships the `metro-daemon` bin
 (`./dist/server.js`) and the `@metro-labs/mcp/*` exports the station packages depend on.
 `src/server.ts` just imports `daemon/boot`, which boots one in-process daemon that
 serves the MCP and supervises a subprocess ("train") per configured station.

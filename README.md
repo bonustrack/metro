@@ -2,7 +2,7 @@
 
 > Bridge live chat — XMTP, Telegram, Discord, inbound webhooks — into an AI coding session as MCP tools.
 
-metro lets an AI coding agent (Claude Code) hold real conversations on chat
+Metro lets an AI coding agent (Claude Code) hold real conversations on chat
 platforms while it works: inbound messages arrive in the session as events, and the
 agent sends, replies, reacts, and manages channels through `mcp__metro__*` tools. It
 runs as a single [Bun](https://bun.sh) process that serves the Model Context Protocol
@@ -61,7 +61,7 @@ import '@metro-labs/xmtp/train';
 ## Deploying
 
 [`Dockerfile`](Dockerfile) + [`docker-entrypoint.sh`](docker-entrypoint.sh) +
-[`fly.toml`](fly.toml) + [`.dockerignore`](.dockerignore) run metro on
+[`fly.toml`](fly.toml) + [`.dockerignore`](.dockerignore) run Metro on
 [Fly.io](https://fly.io) as **one always-on machine + a single-attach volume**. The
 volume attaches to only one machine, which enforces XMTP's **single-writer** rule for
 free, and disk-backed deploys replace the machine in place — so there's never a moment
@@ -134,7 +134,7 @@ claude mcp add --transport http metro https://mcp.metro.box \
   10-installation / 256-update budget.
 
 XMTP keeps each inbox's MLS state in a local SQLite database that **must persist**
-(losing it re-installs the inbox), and only one instance may run per inbox. metro is
+(losing it re-installs the inbox), and only one instance may run per inbox. Metro is
 therefore **single-writer**: one machine, one volume — don't scale past a single
 instance, and don't run the same identity in two places.
 
@@ -182,7 +182,7 @@ claude mcp add --transport http metro https://mcp.metro.box \
   --header "Authorization: Bearer <METRO_MCP_HTTP_TOKEN>"
 ```
 
-metro is a Claude Code **channel** — it pushes inbound chat into a running session.
+Metro is a Claude Code **channel** — it pushes inbound chat into a running session.
 Start Claude Code with the channel flag:
 
 ```sh
@@ -216,7 +216,7 @@ host, the path is platform-specific (account-scoped for multi-bot). One parser
 line, from?, to?, message_id?, text?, payload?, …}`, see
 [`src/daemon/protocol.ts`](apps/mcp/src/daemon/protocol.ts)).
 
-**State.** metro is stateful and needs a persistent volume: the XMTP MLS databases under
+**State.** Metro is stateful and needs a persistent volume: the XMTP MLS databases under
 `~/.metro/` and the IPC socket under `$METRO_STATE_DIR`
 (default `~/.cache/metro`).
 

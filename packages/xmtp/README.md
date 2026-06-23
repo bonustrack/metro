@@ -1,9 +1,9 @@
 # @metro-labs/xmtp
 
-> The metro **xmtp** station: bridges end-to-end-encrypted XMTP DMs and groups into the
+> The Metro **xmtp** station: bridges end-to-end-encrypted XMTP DMs and groups into the
 > core daemon.
 
-Private station package (part of the [metro monorepo](../../README.md)). It depends only
+Private station package (part of the [Metro monorepo](../../README.md)). It depends only
 on `@metro-labs/mcp` and implements the station contract from
 `@metro-labs/mcp/stations/*`. The core consumes it two ways:
 

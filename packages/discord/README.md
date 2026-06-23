@@ -1,9 +1,9 @@
 # @metro-labs/discord
 
-> The metro **discord** station: bridges the Discord bot gateway + REST into the core
+> The Metro **discord** station: bridges the Discord bot gateway + REST into the core
 > daemon.
 
-Private station package (part of the [metro monorepo](../../README.md)). It depends on
+Private station package (part of the [Metro monorepo](../../README.md)). It depends on
 `@metro-labs/mcp` (plus `discord.js`, `@discordjs/voice`, `prism-media`) and implements
 the station contract from `@metro-labs/mcp/stations/*`. The core consumes it two ways:
 

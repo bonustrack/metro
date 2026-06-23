@@ -1,8 +1,8 @@
 # @metro-labs/telegram
 
-> The metro **telegram** station: bridges the Telegram Bot API into the core daemon.
+> The Metro **telegram** station: bridges the Telegram Bot API into the core daemon.
 
-Private station package (part of the [metro monorepo](../../README.md)). It depends only
+Private station package (part of the [Metro monorepo](../../README.md)). It depends only
 on `@metro-labs/mcp` and implements the station contract from
 `@metro-labs/mcp/stations/*`. The core consumes it two ways:
 

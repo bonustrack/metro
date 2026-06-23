@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-## What metro is
+## What Metro is
 
-metro is a relay that bridges chat networks (XMTP, Telegram, Discord, generic webhooks) to an MCP server. Runs as one always-on Fly process; serves MCP in-process over HTTP; supervises one subprocess ("train") per configured station. Inbound chat messages become MCP events for an agent to act on; the agent's outbound tool calls fan back out to the right network.
+Metro is a relay that bridges chat networks (XMTP, Telegram, Discord, generic webhooks) to an MCP server. Runs as one always-on Fly process; serves MCP in-process over HTTP; supervises one subprocess ("train") per configured station. Inbound chat messages become MCP events for an agent to act on; the agent's outbound tool calls fan back out to the right network.
 
 ## Monorepo layout
 

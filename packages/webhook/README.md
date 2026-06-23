@@ -1,9 +1,9 @@
 # @metro-labs/webhook
 
-> The metro **webhook** station: turns inbound HTTP webhooks (GitHub, Intercom, …) into
-> metro events.
+> The Metro **webhook** station: turns inbound HTTP webhooks (GitHub, Intercom, …) into
+> Metro events.
 
-Private station package (part of the [metro monorepo](../../README.md)). It depends only
+Private station package (part of the [Metro monorepo](../../README.md)). It depends only
 on `@metro-labs/mcp` and implements the station contract from
 `@metro-labs/mcp/stations/*`.
 
