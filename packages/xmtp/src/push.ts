@@ -1,8 +1,8 @@
-import { errMsg } from '../../log.js';
+import { errMsg } from '@metro-labs/metro/log';
 import { type DecodedMessage } from '@xmtp/node-sdk';
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { readJson, writeJson } from '../../secure-fs.js';
+import { readJson, writeJson } from '@metro-labs/metro/secure-fs';
 import { parseLine } from './accounts.js';
 
 const FCM_SVC_PATH = `${process.env.HOME}/.config/metro/firebase-service-account.json`;

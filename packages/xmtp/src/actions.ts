@@ -20,7 +20,7 @@ import {
 } from './codecs.js';
 import { convHandlers } from './actions-conv.js';
 import { normalizeXmtp } from '@metro-labs/station-kit/messaging-normalize';
-import { TrainError } from '../../train-error.js';
+import { TrainError } from '@metro-labs/metro/train-error';
 import { makeStation, type CallMsg } from '@metro-labs/station-kit/station-runtime';
 
 type Args = Record<string, unknown>;

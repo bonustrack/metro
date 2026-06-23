@@ -1,5 +1,5 @@
 import type { CanonicalAttachment, ToolContext } from '@metro-labs/station-kit/types';
-import { TrainError } from '../../train-error.js';
+import { TrainError } from '@metro-labs/metro/train-error';
 import { guessMime, isImageMime, isImageExt } from '@metro-labs/station-kit/attachments';
 
 export const str = (v: unknown): string => (typeof v === 'string' ? v : '');

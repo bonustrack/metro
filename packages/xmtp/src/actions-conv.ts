@@ -8,7 +8,7 @@ import {
   type Account,
 } from './accounts.js';
 import { respond } from './wire.js';
-import { TrainError } from '../../train-error.js';
+import { TrainError } from '@metro-labs/metro/train-error';
 import { pushHandlers } from './actions-push.js';
 import { cleanLabels, labelsBlob, type GroupLike } from './labels.js';
 import {
