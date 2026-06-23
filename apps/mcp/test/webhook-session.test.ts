@@ -6,8 +6,8 @@
 
 import { describe, expect, test } from 'bun:test';
 import { webhookEntry } from '@metro-labs/webhook';
-import { Line, asLine } from '../src/lines.ts';
-import type { Endpoint } from '../src/tunnel.ts';
+import { Line, asLine } from '../src/stations/lines.ts';
+import type { Endpoint } from '../src/daemon/tunnel.ts';
 
 const sessionOwner = (id: string): Line => asLine(`metro://session/${id}`);
 

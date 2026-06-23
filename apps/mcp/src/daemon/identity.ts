@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { errMsg } from './log.js';
-import { Line } from './lines.js';
+import { Line } from '../stations/lines.js';
 
 const TTL_MS = 5_000;
 type Cache = { id: string; at: number } | null;

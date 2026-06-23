@@ -1,2 +1,2 @@
 #!/usr/bin/env bun
-import './dispatcher/index.js';
+import './daemon/boot.js';

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { errMsg } from '../log.js';
-import { chmodIfExists } from '../secure-fs.js';
+import { errMsg } from '../daemon/log.js';
+import { chmodIfExists } from '../daemon/secure-fs.js';
 
 export type Die = (msg: string) => never;
 

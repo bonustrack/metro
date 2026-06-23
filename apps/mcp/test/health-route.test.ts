@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/dispatcher/server.ts';
+import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 
 let server: Server;
 let base: string;

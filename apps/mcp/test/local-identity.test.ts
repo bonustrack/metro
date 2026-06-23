@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const ROOT = new URL('..', import.meta.url).pathname;
-const IDENT_JS = join(ROOT, 'dist', 'identity.js');
+const IDENT_JS = join(ROOT, 'dist', 'daemon', 'identity.js');
 
 const tempRoots: string[] = [];
 function freshDir(): string {
@@ -62,20 +62,20 @@ afterAll(() => {
 
 describe('claudeSessionId — env precedence', () => {
   test('METRO_USER_SESSION_ID wins', async () => {
-    const { claudeSessionId } = await import('../src/identity.ts');
+    const { claudeSessionId } = await import('../src/daemon/identity.ts');
     process.env.METRO_USER_SESSION_ID = 'sess-A';
     process.env.CLAUDE_CODE_SESSION_ID = 'sess-B';
     expect(claudeSessionId()).toBe('sess-A');
   });
 
   test('falls back to CLAUDE_CODE_SESSION_ID', async () => {
-    const { claudeSessionId } = await import('../src/identity.ts');
+    const { claudeSessionId } = await import('../src/daemon/identity.ts');
     process.env.CLAUDE_CODE_SESSION_ID = 'sess-B';
     expect(claudeSessionId()).toBe('sess-B');
   });
 
   test('null when neither set', async () => {
-    const { claudeSessionId } = await import('../src/identity.ts');
+    const { claudeSessionId } = await import('../src/daemon/identity.ts');
     expect(claudeSessionId()).toBeNull();
   });
 });

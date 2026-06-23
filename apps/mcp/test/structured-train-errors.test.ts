@@ -14,7 +14,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   TrainError, serializeTrainError, parseTrainLine,
-} from '../src/trains/protocol.ts';
+} from '../src/daemon/protocol.ts';
 
 describe('shape: single source', () => {
   test('TrainError.toErrorInfo carries code/message/retryable/retryAfterMs', () => {

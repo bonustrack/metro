@@ -7,9 +7,9 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { makeEmit } from '../src/dispatcher/server.ts';
-import { formatDisplay, type MetroEvent } from '../src/events.ts';
-import { Line } from '../src/lines.ts';
+import { makeEmit } from '../src/daemon/http.ts';
+import { formatDisplay, type MetroEvent } from '../src/daemon/events.ts';
+import { Line } from '../src/stations/lines.ts';
 
 /** Capture the JSON line `makeEmit` writes to stdout for a single entry. */
 function emitOne(entry: MetroEvent): MetroEvent {

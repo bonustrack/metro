@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { join, parse as parsePath } from 'node:path';
-import { errMsg, log } from '../log.js';
+import { errMsg, log } from './log.js';
 import type { Pending } from './protocol.js';
 
 export const RESTART_BACKOFFS_MS = [1_000, 5_000, 30_000] as const;

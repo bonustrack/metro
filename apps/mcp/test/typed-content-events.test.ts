@@ -17,16 +17,16 @@
  */
 
 import { describe, expect, test, beforeAll } from 'bun:test';
-import type { TrainEvent } from '../src/trains/protocol.ts';
-import type { StructuredEvent, WireEvent, MetroEvent } from '../src/events.ts';
+import type { TrainEvent } from '../src/daemon/protocol.ts';
+import type { StructuredEvent, WireEvent, MetroEvent } from '../src/daemon/events.ts';
 
-let trainEventToMetroEvent: typeof import('../src/dispatcher/server.ts').trainEventToMetroEvent;
-let classifyEvent: typeof import('../src/events.ts').classifyEvent;
+let trainEventToMetroEvent: typeof import('../src/daemon/http.ts').trainEventToMetroEvent;
+let classifyEvent: typeof import('../src/daemon/events.ts').classifyEvent;
 
 beforeAll(async () => {
   process.env.METRO_FROM = 'metro://user/me';
-  ({ trainEventToMetroEvent } = await import('../src/dispatcher/server.ts'));
-  ({ classifyEvent } = await import('../src/events.ts'));
+  ({ trainEventToMetroEvent } = await import('../src/daemon/http.ts'));
+  ({ classifyEvent } = await import('../src/daemon/events.ts'));
 });
 
 /** Mirror the dispatcher emit wrapper: typed event wins, classify is the fallback. */

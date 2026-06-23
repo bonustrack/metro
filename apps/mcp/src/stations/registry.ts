@@ -1,5 +1,5 @@
 import type { Station } from './types.js';
-import { Line } from '../lines.js';
+import { Line } from './lines.js';
 import { xmtpStation } from '@metro-labs/xmtp';
 import { telegramStation } from '@metro-labs/telegram';
 import { discordStation } from '@metro-labs/discord';

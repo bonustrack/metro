@@ -1,5 +1,5 @@
 /**
- * Unit tests for `loadMetroEnv` precedence (src/paths.ts).
+ * Unit tests for `loadMetroEnv` precedence (src/daemon/paths.ts).
  *
  * Precedence (first-set wins):
  *   process.env  >  <cwd>/.env  >  ~/.metro/.env  >  $METRO_CONFIG_DIR/.env
@@ -17,10 +17,10 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readDotenv } from '../src/paths.ts';
+import { readDotenv } from '../src/daemon/paths.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
-const PATHS_JS = join(ROOT, 'dist', 'paths.js');
+const PATHS_JS = join(ROOT, 'dist', 'daemon', 'paths.js');
 
 const tempRoots: string[] = [];
 function freshDir(): string {
@@ -37,7 +37,7 @@ afterAll(() => {
  *   <root>/home/.metro/.env        (TRAINS_ENV_FILE — HOME redirected here)
  *   <root>/home/.config/metro/.env (CONFIG dir default; we set METRO_CONFIG_DIR explicitly)
  *   <root>/cwd/.env                (cwd/.env)
- * then run dist/paths.js → loadMetroEnv() in a fresh process and read back the
+ * then run dist/daemon/paths.js → loadMetroEnv() in a fresh process and read back the
  * resolved value of the requested keys.
  */
 function runLoadEnv(opts: {

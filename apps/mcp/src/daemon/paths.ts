@@ -12,7 +12,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { readJson } from './secure-fs.js';
-import type { Line } from './lines.js';
+import type { Line } from '../stations/lines.js';
 
 export const STATE_DIR =
   process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');

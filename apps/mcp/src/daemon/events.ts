@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { Line } from './lines.js';
+import { Line } from '../stations/lines.js';
 
 export { userSelf, daemonSelf, selfLine } from './identity.js';
 

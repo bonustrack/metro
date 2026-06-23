@@ -1,14 +1,14 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join, parse as parsePath } from 'node:path';
-import { errMsg, log } from '../log.js';
-import { coerceErrorInfo, type TrainErrorInfo } from '../train-error.js';
-import type { WireEvent } from '../events.js';
+import { errMsg, log } from './log.js';
+import { coerceErrorInfo, type TrainErrorInfo } from './train-error.js';
+import type { WireEvent } from './events.js';
 
 export {
   TrainError,
   serializeTrainError,
   type TrainErrorInfo,
-} from '../train-error.js';
+} from './train-error.js';
 
 export const CALL_TIMEOUT_MS = 60_000;
 
