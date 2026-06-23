@@ -20,7 +20,7 @@ primary_region = "iad"
   METRO_LOG_LEVEL = "info"
   # METRO_STATE_DIR defaults to $HOME/.cache/metro → persisted on the volume.
 
-# Secrets are NOT stored here — set them with `fly secrets set` (see DEPLOY.md):
+# Secrets are NOT stored here — set them with `fly secrets set` (see README "Deploying"):
 #   MNEMONIC, TELEGRAM_BOT_TOKENS, DISCORD_BOT_TOKENS, METRO_MCP_HTTP_TOKEN
 
 [http_service]
