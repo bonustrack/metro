@@ -14,6 +14,7 @@ import {
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
 import { respond } from './wire.js';
 import { normalizeDiscord } from '@metro-labs/mcp/stations/messaging-normalize';
+import { appendFile } from '@metro-labs/mcp/stations/attachments';
 import {
   makeStation,
   type CallMsg,
@@ -40,9 +41,8 @@ async function sendMessage(
   form.append('payload_json', JSON.stringify(body));
   for (let i = 0; i < files.length; i++) {
     const path = files[i];
-    const data = await Bun.file(path).arrayBuffer();
     const name = path.split('/').pop() ?? `file-${i}`;
-    form.append(`files[${i}]`, new Blob([data]), name);
+    await appendFile(form, `files[${i}]`, path, name);
   }
   return rest<{ id: string }>(
     accountId,

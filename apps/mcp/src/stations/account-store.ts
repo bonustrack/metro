@@ -64,6 +64,21 @@ export function makeAccountStore<T extends { id: string }>(
   return { die, loadAccounts };
 }
 
+export function resolveAccountId(
+  accounts: Map<string, unknown>,
+  args: { account?: string; line?: string },
+  parseAccountId: (line: string) => string | undefined,
+): string {
+  let id = args.account;
+  id ??= args.line ? parseAccountId(args.line) : undefined;
+  id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';
+  if (!accounts.has(id))
+    throw new Error(
+      `unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`,
+    );
+  return id;
+}
+
 export function csv(raw: string | undefined): string[] {
   return [
     ...new Set(
