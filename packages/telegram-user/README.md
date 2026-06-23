@@ -17,13 +17,13 @@ out the same user identity.
 
 ## Status
 
-**WIP — scaffold only.** This package is not yet wired into the core registry or Docker
-entrypoint, so it does not deploy or run. The train entry typechecks but does not open a
-Telegram connection; every call currently responds with a `not_implemented` `TrainError`.
-Real handlers land in later PRs (auth/login → inbound → outbound → attachments+read →
-register+docker).
+**Registered.** Wired into the core registry and the Docker entrypoint. The descriptor
+always surfaces in `tools/list`; the train subprocess only spawns when a session is
+configured (`TELEGRAM_USER_SESSION` or `TELEGRAM_USER_ACCOUNTS`). With no session the
+station is dormant — calls return a "no accounts" error, like any other unconfigured
+station.
 
-## Capabilities (planned)
+## Capabilities
 
 - Message verbs: `send`, `reply`, `react`, `unreact`, `edit`, `delete`, `read`.
 - Attachments normalized to the canonical form.
@@ -48,14 +48,26 @@ Account resolution order: the accounts file (if present) → `TELEGRAM_USER_ACCO
 
 `TELEGRAM_USER_SESSION` is produced once, locally, by the maintainer — never in prod.
 `scripts/login.ts` is a dev tool (not part of the train); it runs the interactive
-MTProto sign-in (phone → code → optional 2FA password) and prints the session string.
+MTProto sign-in and prints the session string.
+
+**QR login (default).** The script starts the [QR login flow](https://core.telegram.org/api/qr-login)
+(`client.signInQr`), renders the login token as a QR code in the terminal, and waits for
+you to scan it. If the account has 2FA enabled, it prompts for the password to finish.
 
 ```sh
 export TELEGRAM_USER_API_ID=...      # from my.telegram.org
 export TELEGRAM_USER_API_HASH=...
 bun packages/telegram-user/scripts/login.ts
-# follow the prompts, then store the printed session as a Fly secret:
+# scan the QR in Telegram → Settings → Devices → Link Desktop Device
+# (or open the printed tg://… link on the logged-in device), enter 2FA if prompted,
+# then store the printed session as a Fly secret:
 fly secrets set TELEGRAM_USER_SESSION="<session>" -a metro
+```
+
+**Phone fallback.** Pass `--phone` to use the classic phone → code → optional 2FA flow:
+
+```sh
+bun packages/telegram-user/scripts/login.ts --phone
 ```
 
 The login client uses in-memory storage, so nothing is written to disk locally. Treat the
