@@ -28,7 +28,7 @@ if [ -n "$MNEMONIC" ]; then
   echo "import '@metro-labs/xmtp/train';" > "$METRO_TRAINS_DIR/xmtp.ts"
 fi
 if [ -n "$TELEGRAM_BOT_TOKENS" ]; then
-  echo "import '/app/apps/mcp/src/stations/telegram/index.ts';" > "$METRO_TRAINS_DIR/telegram.ts"
+  echo "import '@metro-labs/telegram/train';" > "$METRO_TRAINS_DIR/telegram.ts"
 fi
 if [ -n "$DISCORD_BOT_TOKENS" ]; then
   echo "import '/app/apps/mcp/src/stations/discord/index.ts';" > "$METRO_TRAINS_DIR/discord.ts"

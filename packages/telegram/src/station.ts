@@ -1,5 +1,5 @@
 import type { Station, Verb } from '@metro-labs/station-kit/types';
-import { Line } from '../../lines.js';
+import { Line } from '@metro-labs/metro/lines';
 
 const MUTATES: ReadonlySet<string> = new Set([
   'send',

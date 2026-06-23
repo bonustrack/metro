@@ -1,4 +1,4 @@
-import { errMsg } from '../../log.js';
+import { errMsg } from '@metro-labs/metro/log';
 import { accounts, lineOf } from './accounts.js';
 import { mintId, SELF_URI } from './wire.js';
 import { mediaRefOf, saveTelegramMedia } from './attachments.js';

@@ -1,7 +1,7 @@
 import type { Station } from '@metro-labs/station-kit/types';
 import { Line } from '../lines.js';
 import { xmtpStation } from '@metro-labs/xmtp';
-import { telegramStation } from './telegram/station.js';
+import { telegramStation } from '@metro-labs/telegram';
 import { discordStation } from './discord/station.js';
 import { webhookStation } from '@metro-labs/webhook';
 
