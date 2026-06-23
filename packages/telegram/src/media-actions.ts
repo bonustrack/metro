@@ -1,5 +1,6 @@
 import { tg, tgForm, targetOf } from './accounts.js';
 import { emit, mintId, respond, SELF_URI } from './wire.js';
+import { appendFile } from '@metro-labs/mcp/stations/attachments';
 
 export function emitOutbound(
   accountId: string,
@@ -75,9 +76,8 @@ export async function sendMedia(
       'reply_parameters',
       JSON.stringify({ message_id: Number(replyTo) }),
     );
-  const data = await Bun.file(path).arrayBuffer();
   const name = fileName ?? path.split('/').pop() ?? fieldName;
-  form.append(fieldName, new Blob([data]), name);
+  await appendFile(form, fieldName, path, name);
   const r = await tgForm<{ message_id: number }>(accountId, method, form);
   return { accountId, message_id: r.message_id };
 }

@@ -1,6 +1,12 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { makeAccountStore, csv, genIds } from '@metro-labs/mcp/stations/account-store';
+import {
+  makeAccountStore,
+  csv,
+  genIds,
+  resolveAccountId,
+} from '@metro-labs/mcp/stations/account-store';
+import { Line } from '@metro-labs/mcp/lines';
 
 const ACCOUNTS_FILE =
   process.env.TELEGRAM_ACCOUNTS_FILE ??
@@ -101,19 +107,11 @@ export async function tgForm<T>(
 }
 
 export function accountFor(args: { account?: string; line?: string }): string {
-  let id = args.account;
-  if (!id && args.line) {
-    try {
-      id = targetOf(args.line).accountId;
-    } catch {
-    }
-  }
-  id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';
-  if (!accounts.has(id))
-    throw new Error(
-      `unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`,
-    );
-  return id;
+  return resolveAccountId(
+    accounts,
+    args,
+    (line) => Line.parseTelegram(line)?.accountId,
+  );
 }
 
 export function lineOf(
@@ -131,21 +129,7 @@ export function targetOf(
   line: string,
   accountOverride?: string,
 ): { accountId: string; chatId: number; topicId?: number } {
-  const mNew = /^metro:\/\/telegram\/([^/]+)\/(-?\d+)(?:\/(\d+))?$/.exec(line);
-  if (mNew && !/^-?\d+$/.test(mNew[1])) {
-    return {
-      accountId: accountOverride ?? mNew[1],
-      chatId: Number(mNew[2]),
-      topicId: mNew[3] ? Number(mNew[3]) : undefined,
-    };
-  }
-  const mLegacy = /^metro:\/\/telegram\/(-?\d+)(?:\/(\d+))?$/.exec(line);
-  if (mLegacy) {
-    return {
-      accountId: accountOverride ?? 'default',
-      chatId: Number(mLegacy[1]),
-      topicId: mLegacy[2] ? Number(mLegacy[2]) : undefined,
-    };
-  }
-  throw new Error(`bad telegram line: ${line}`);
+  const parsed = Line.parseTelegram(line);
+  if (!parsed) throw new Error(`bad telegram line: ${line}`);
+  return { ...parsed, accountId: accountOverride ?? parsed.accountId };
 }

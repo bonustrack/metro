@@ -1,7 +1,12 @@
 import { Client } from 'discord.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { makeAccountStore, csv, genIds } from '@metro-labs/mcp/stations/account-store';
+import {
+  makeAccountStore,
+  csv,
+  genIds,
+  resolveAccountId,
+} from '@metro-labs/mcp/stations/account-store';
 import { Line } from '@metro-labs/mcp/lines';
 
 export const API = 'https://discord.com/api/v10';
@@ -106,14 +111,7 @@ export function parseLine(
 }
 
 export function accountFor(args: { account?: string; line?: string }): string {
-  let id = args.account;
-  if (!id && args.line) id = parseLine(args.line)?.accountId;
-  id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';
-  if (!accounts.has(id))
-    throw new Error(
-      `unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`,
-    );
-  return id;
+  return resolveAccountId(accounts, args, (line) => parseLine(line)?.accountId);
 }
 
 export function routeOf(
