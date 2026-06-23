@@ -12,10 +12,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 
 # 1) Runtime deps only (cached unless a manifest/lockfile changes). Bun transpiles
 #    TS at runtime, so devDeps (tsc/eslint) are not needed in the image. Copy the
-#    root workspace manifest + lockfile + the apps/mcp manifest so Bun resolves the
-#    workspace and hoists deps before the rest of the source is copied.
-COPY package.json bun.lock ./
+#    root workspace manifest + lockfile + turbo config + EVERY workspace manifest
+#    (apps/mcp + all packages/*) so Bun resolves the full workspace and hoists the
+#    @metro-labs/* symlinks before the rest of the source is copied. Missing a
+#    station manifest here yields an incomplete install (unresolved workspace deps).
+COPY package.json bun.lock turbo.json ./
 COPY apps/mcp/package.json ./apps/mcp/package.json
+COPY packages/xmtp/package.json ./packages/xmtp/package.json
+COPY packages/telegram/package.json ./packages/telegram/package.json
+COPY packages/discord/package.json ./packages/discord/package.json
+COPY packages/webhook/package.json ./packages/webhook/package.json
 RUN bun install --frozen-lockfile --production
 
 # 2) App source. node_modules/.env/.git/dist are excluded via .dockerignore, so the
