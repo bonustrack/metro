@@ -1,0 +1,38 @@
+{
+  "name": "@metro-labs/xmtp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/station.ts",
+    "./train": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "knip": "knip",
+    "madge": "node scripts/madge.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit && bun test test/"
+  },
+  "dependencies": {
+    "@metro-labs/metro": "workspace:*",
+    "@metro-labs/station-kit": "workspace:*",
+    "@xmtp/content-type-primitives": "^3.0.1",
+    "@xmtp/content-type-reaction": "^2.0.2",
+    "@xmtp/content-type-remote-attachment": "^2.0.4",
+    "@xmtp/content-type-reply": "^2.0.3",
+    "@xmtp/content-type-wallet-send-calls": "^2.0.0",
+    "@xmtp/node-bindings": "1.9.1",
+    "@xmtp/node-sdk": "^6.0.0",
+    "viem": "^2.52.2"
+  },
+  "devDependencies": {
+    "@stage-labs/config": "0.1.0-beta.1",
+    "eslint": "^10.3.0",
+    "knip": "^6.15.0",
+    "madge": "^8.0.0",
+    "typescript": "^5"
+  }
+}

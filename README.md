@@ -53,7 +53,7 @@ Stations run as subprocesses the supervisor spawns from `~/.metro/trains/*.{ts,j
 
 ```ts
 // ~/.metro/trains/xmtp.ts
-import '/path/to/metro/src/stations/xmtp/index.ts';
+import '@metro-labs/xmtp/train';
 ```
 
 (The container image generates these automatically — see [Deploying](#deploying).)

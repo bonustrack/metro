@@ -1,4 +1,4 @@
-import { TrainError } from '../../train-error.js';
+import { TrainError } from '@metro-labs/metro/train-error';
 
 type Args = Record<string, unknown>;
 

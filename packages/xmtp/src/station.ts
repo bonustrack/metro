@@ -1,5 +1,5 @@
 import type { Station, Verb } from '@metro-labs/station-kit/types';
-import { parseAccountScoped } from '../../lines.js';
+import { parseAccountScoped } from '@metro-labs/metro/lines';
 import { XMTP_TOOLS, xmtpSendAttachments } from './tools.js';
 
 const MUTATES: ReadonlySet<string> = new Set([

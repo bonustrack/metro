@@ -1,7 +1,7 @@
 import { IdentifierKind } from '@xmtp/node-sdk';
 import { convOf, type Account } from './accounts.js';
 import { inboxEthCache } from './wire.js';
-import { TrainError } from '../../train-error.js';
+import { TrainError } from '@metro-labs/metro/train-error';
 import { readAppData, type GroupLike } from './labels.js';
 
 export { filterStrings, parseMemberArgs, resolveMembers } from './member-args.js';

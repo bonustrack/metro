@@ -1,4 +1,4 @@
-import { errMsg } from '../../log.js';
+import { errMsg } from '@metro-labs/metro/log';
 import { accountForCall, convOf, lineOf, type Account } from './accounts.js';
 import { respond } from './wire.js';
 import type { GroupLike } from './labels.js';

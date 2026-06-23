@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   parseMemberArgs,
   resolveMembers,
-} from '../src/stations/xmtp/member-args.ts';
+} from '../src/member-args.ts';
 
 describe('group-membership vocabulary (addresses/inboxIds) with back-compat', () => {
   const ADDR = '0x839d5980bAca12822Dd3365A9f1b6Ba5B636a464';
