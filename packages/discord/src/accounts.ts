@@ -21,10 +21,6 @@ export interface AccountConfig {
   owner?: string;
 }
 
-export const legacy = {
-  defaultLines: process.env.DISCORD_LEGACY_DEFAULT_LINES === '1',
-};
-
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'discord',
   file: ACCOUNTS_FILE,
@@ -98,8 +94,6 @@ export async function rest<T = unknown>(
 }
 
 export function lineOf(accountId: string, channelId: string): string {
-  if (accountId === 'default' && legacy.defaultLines)
-    return `metro://discord/${channelId}`;
   return `metro://discord/${accountId}/${channelId}`;
 }
 

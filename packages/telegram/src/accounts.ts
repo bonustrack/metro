@@ -18,10 +18,6 @@ export interface AccountConfig {
   owner?: string;
 }
 
-export const legacy = {
-  defaultLines: process.env.TELEGRAM_LEGACY_DEFAULT_LINES === '1',
-};
-
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'telegram',
   file: ACCOUNTS_FILE,
@@ -120,8 +116,6 @@ export function lineOf(
   topicId?: number,
 ): string {
   const tail = topicId !== undefined ? `${chatId}/${topicId}` : `${chatId}`;
-  if (accountId === 'default' && legacy.defaultLines)
-    return `metro://telegram/${tail}`;
   return `metro://telegram/${accountId}/${tail}`;
 }
 
