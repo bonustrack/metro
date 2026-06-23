@@ -3,8 +3,8 @@ import {
   RemoteAttachmentCodec,
   ContentTypeAttachment,
 } from '@xmtp/content-type-remote-attachment';
-import { saveBufferToCache } from '@metro-labs/metro/stations/attachments';
-import type { SavedAttachment } from '@metro-labs/metro/stations/attachments';
+import { saveBufferToCache } from '@metro-labs/mcp/stations/attachments';
+import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
 
 export type { SavedAttachment };
 

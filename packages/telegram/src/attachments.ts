@@ -1,5 +1,5 @@
-import { saveBufferToCache } from '@metro-labs/metro/stations/attachments';
-import type { SavedAttachment } from '@metro-labs/metro/stations/attachments';
+import { saveBufferToCache } from '@metro-labs/mcp/stations/attachments';
+import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
 import { tg, accounts } from './accounts.js';
 import type { TgMsg } from './types.js';
 

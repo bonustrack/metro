@@ -1,4 +1,4 @@
-import { TrainError } from '@metro-labs/metro/train-error';
+import { TrainError } from '@metro-labs/mcp/train-error';
 
 type Args = Record<string, unknown>;
 

@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/metro/log';
+import { errMsg } from '@metro-labs/mcp/log';
 import {
   EndBehaviorType,
   type VoiceConnection,

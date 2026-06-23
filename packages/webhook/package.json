@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@metro-labs/metro": "workspace:*"
+    "@metro-labs/mcp": "workspace:*"
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.1",

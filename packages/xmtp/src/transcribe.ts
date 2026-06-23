@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/metro/log';
+import { errMsg } from '@metro-labs/mcp/log';
 import { mintId, SELF_URI } from './wire.js';
 
 type EmitInbound = (accountId: string, e: Record<string, unknown>) => void;

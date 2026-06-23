@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/metro/log';
+import { errMsg } from '@metro-labs/mcp/log';
 import { accounts, loadAccounts, tg, type Account } from './accounts.js';
 import { emit } from './wire.js';
 import {
@@ -9,7 +9,7 @@ import {
   type TgMsg,
   type TgReaction,
 } from './format.js';
-import { drainLines } from '@metro-labs/metro/trains/protocol';
+import { drainLines } from '@metro-labs/mcp/trains/protocol';
 import { handleCall, type CallMsg } from './actions.js';
 
 let buf = '';
