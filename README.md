@@ -1,4 +1,4 @@
-# @metro-labs/metro
+# @metro-labs/mcp
 
 > Bridge live chat — XMTP, Telegram, Discord, inbound webhooks — into an AI coding session as MCP tools.
 
@@ -174,7 +174,7 @@ each external messaging platform is a private station package under `packages/`.
 
 ```
 apps/
-  mcp/                  # @metro-labs/metro — the core daemon + MCP surface + station contract
+  mcp/                  # @metro-labs/mcp — the core daemon + MCP surface + station contract
     src/
       server.ts         # entry — boots the daemon, which serves the MCP in-process
       dispatcher/       # supervisor boot + outbound routing + webhook receiver + MCP mount
@@ -191,15 +191,15 @@ apps/
       lines.ts          # the metro:// Line parser
 
 packages/               # private station packages — each implements the station contract
-  xmtp/                 #   and imports it from @metro-labs/metro/stations/*
+  xmtp/                 #   and imports it from @metro-labs/mcp/stations/*
   telegram/
   discord/
   webhook/
 ```
 
 The station contract and runtime live in the core (`apps/mcp/src/stations`) and are
-re-exported via `@metro-labs/metro/stations/*`; the platform packages depend only on
-`@metro-labs/metro` and stay isolated (e.g. the XMTP node SDK never enters the core graph).
+re-exported via `@metro-labs/mcp/stations/*`; the platform packages depend only on
+`@metro-labs/mcp` and stay isolated (e.g. the XMTP node SDK never enters the core graph).
 
 ## License
 

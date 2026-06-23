@@ -10,8 +10,8 @@ import { toHex } from 'viem';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CODECS } from './codecs.js';
-import { makeAccountStore } from '@metro-labs/metro/stations/account-store';
-import { Line } from '@metro-labs/metro/lines';
+import { makeAccountStore } from '@metro-labs/mcp/stations/account-store';
+import { Line } from '@metro-labs/mcp/lines';
 
 const ACCOUNTS_FILE =
   process.env.XMTP_ACCOUNTS_FILE ??

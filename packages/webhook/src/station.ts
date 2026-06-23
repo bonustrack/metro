@@ -1,8 +1,8 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { Line, asLine } from '@metro-labs/metro/lines';
-import { mintId, type MetroEvent } from '@metro-labs/metro/events';
-import type { Endpoint } from '@metro-labs/metro/endpoints';
-import type { Station, Verb } from '@metro-labs/metro/stations/types';
+import { Line, asLine } from '@metro-labs/mcp/lines';
+import { mintId, type MetroEvent } from '@metro-labs/mcp/events';
+import type { Endpoint } from '@metro-labs/mcp/endpoints';
+import type { Station, Verb } from '@metro-labs/mcp/stations/types';
 
 const sessionOwner = (sessionId: string): Line =>
   asLine(`metro://session/${sessionId}`);

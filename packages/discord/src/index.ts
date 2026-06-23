@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/metro/log';
+import { errMsg } from '@metro-labs/mcp/log';
 import {
   Client,
   Events,
@@ -16,7 +16,7 @@ import {
 } from './accounts.js';
 import { emitInbound, messageEnvelope, reactionEnvelope } from './format.js';
 import { mintId } from './wire.js';
-import { drainLines } from '@metro-labs/metro/trains/protocol';
+import { drainLines } from '@metro-labs/mcp/trains/protocol';
 import { handleCall, type CallMsg } from './actions.js';
 
 let buf = '';

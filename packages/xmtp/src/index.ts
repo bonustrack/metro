@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/metro/log';
+import { errMsg } from '@metro-labs/mcp/log';
 import { ConsentState, type DecodedMessage } from '@xmtp/node-sdk';
 import {
   accounts,
@@ -9,7 +9,7 @@ import {
 import { emitInbound, envelope } from './emit.js';
 import { groupNameFor } from './conv-helpers.js';
 import { handleControlDm, pushInbound } from './push.js';
-import { drainLines } from '@metro-labs/metro/trains/protocol';
+import { drainLines } from '@metro-labs/mcp/trains/protocol';
 import { handleCall, type CallMsg } from './actions.js';
 
 let buf = '';

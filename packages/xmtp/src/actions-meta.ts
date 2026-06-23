@@ -2,7 +2,7 @@ import { accountForCall, convOf, lineOf } from './accounts.js';
 import { respond } from './wire.js';
 import { warmGroupName } from './conv-helpers.js';
 import { mergeAppData, readAppData, type GroupLike } from './labels.js';
-import { TrainError } from '@metro-labs/metro/train-error';
+import { TrainError } from '@metro-labs/mcp/train-error';
 
 type Args = Record<string, unknown>;
 
