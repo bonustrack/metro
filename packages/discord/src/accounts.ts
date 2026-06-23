@@ -44,7 +44,7 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
     if (!tokens.length)
       return die(`no ${ACCOUNTS_FILE} and DISCORD_BOT_TOKENS unset`);
     const ids = genIds('d', tokens.length);
-    return tokens.map((token, i) => ({ id: ids[i], token }));
+    return tokens.map((token, i) => ({ id: ids[i] ?? `d${i}`, token }));
   },
 });
 

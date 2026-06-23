@@ -71,7 +71,7 @@ export function resolveAccountId(
 ): string {
   let id = args.account;
   id ??= args.line ? parseAccountId(args.line) : undefined;
-  id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';
+  id ??= (accounts.size === 1 ? [...accounts.keys()][0] : 'default') ?? 'default';
   if (!accounts.has(id))
     throw new Error(
       `unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`,

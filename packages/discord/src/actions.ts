@@ -41,6 +41,7 @@ async function sendMessage(
   form.append('payload_json', JSON.stringify(body));
   for (let i = 0; i < files.length; i++) {
     const path = files[i];
+    if (path === undefined) continue;
     const name = path.split('/').pop() ?? `file-${i}`;
     await appendFile(form, `files[${i}]`, path, name);
   }

@@ -105,7 +105,9 @@ export function buildPollContent(
         ...(q.header ? { header: q.header } : {}),
       };
     });
-    return { poll: { questions: norm, pollId }, title: norm[0].question };
+    const first = norm[0];
+    if (!first) throw new Error('ask requires at least one question');
+    return { poll: { questions: norm, pollId }, title: first.question };
   }
   if (!question || typeof question !== 'string')
     throw new Error('ask requires a question (or a questions[] array)');

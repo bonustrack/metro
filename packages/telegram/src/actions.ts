@@ -74,8 +74,11 @@ async function sendAttachments(id: string, a: SendArgs): Promise<void> {
   let last: { accountId: string; message_id: number } | undefined;
   for (let i = 0; i < attachments.length; i++) {
     const att = attachments[i];
+    if (!att) continue;
     const kind = mediaKindOf(att.kind, att.mime, att.url ?? att.name);
-    const { method, field } = MEDIA_METHOD_FIELD[kind];
+    const mf = MEDIA_METHOD_FIELD[kind];
+    if (!mf) continue;
+    const { method, field } = mf;
     last = await sendMedia(method, field, {
       line,
       path: att.url,

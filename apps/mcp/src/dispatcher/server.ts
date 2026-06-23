@@ -234,7 +234,7 @@ async function handleRequest(
     return;
   }
   const m = req.url?.match(/^\/wh\/([A-Za-z0-9_-]+)/);
-  if (!m) {
+  if (m?.[1] === undefined) {
     res.writeHead(404).end();
     return;
   }

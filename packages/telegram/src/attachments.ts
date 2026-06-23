@@ -29,10 +29,10 @@ export interface TgMediaRef {
 }
 
 const MEDIA_EXTRACTORS: ((m: TgMsg) => TgMediaRef | null)[] = [
-  (m) =>
-    m.photo?.length
-      ? { fileId: m.photo[m.photo.length - 1].file_id, mime: 'image/jpeg' }
-      : null,
+  (m) => {
+    const largest = m.photo?.[m.photo.length - 1];
+    return largest ? { fileId: largest.file_id, mime: 'image/jpeg' } : null;
+  },
   (m) =>
     m.document?.file_id
       ? { fileId: m.document.file_id, name: m.document.file_name }
