@@ -19,9 +19,9 @@ import {
   type SignatureRequestContent,
 } from './codecs.js';
 import { convHandlers } from './actions-conv.js';
-import { normalizeXmtp } from '@metro-labs/station-kit/messaging-normalize';
+import { normalizeXmtp } from '@metro-labs/metro/stations/messaging-normalize';
 import { TrainError } from '@metro-labs/metro/train-error';
-import { makeStation, type CallMsg } from '@metro-labs/station-kit/station-runtime';
+import { makeStation, type CallMsg } from '@metro-labs/metro/stations/station-runtime';
 
 type Args = Record<string, unknown>;
 

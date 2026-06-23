@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { errMsg } from '@metro-labs/metro/log';
-import { chmodIfExists } from '@metro-labs/metro/secure-fs';
+import { errMsg } from '../log.js';
+import { chmodIfExists } from '../secure-fs.js';
 
 export type Die = (msg: string) => never;
 

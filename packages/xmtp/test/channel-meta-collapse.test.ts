@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { mergeAppData } from '../src/labels.ts';
 import { setChannelMetadata } from '../src/tools-handlers.ts';
-import type { ToolContext } from '@metro-labs/station-kit/types';
+import type { ToolContext } from '@metro-labs/metro/stations/types';
 
 function sequentialMerge(
   start: string | undefined,

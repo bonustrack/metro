@@ -1,5 +1,5 @@
-import { saveBufferToCache } from '@metro-labs/station-kit/attachments';
-import type { SavedAttachment } from '@metro-labs/station-kit/attachments';
+import { saveBufferToCache } from '@metro-labs/metro/stations/attachments';
+import type { SavedAttachment } from '@metro-labs/metro/stations/attachments';
 
 export type { SavedAttachment };
 

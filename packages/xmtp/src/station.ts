@@ -1,4 +1,4 @@
-import type { Station, Verb } from '@metro-labs/station-kit/types';
+import type { Station, Verb } from '@metro-labs/metro/stations/types';
 import { parseAccountScoped } from '@metro-labs/metro/lines';
 import { XMTP_TOOLS, xmtpSendAttachments } from './tools.js';
 

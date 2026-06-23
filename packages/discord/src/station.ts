@@ -1,4 +1,4 @@
-import type { Station, Verb } from '@metro-labs/station-kit/types';
+import type { Station, Verb } from '@metro-labs/metro/stations/types';
 import { parseAccountScoped } from '@metro-labs/metro/lines';
 
 const isSnowflake = (s: string): boolean => /^\d+$/.test(s);

@@ -18,7 +18,6 @@
   },
   "dependencies": {
     "@metro-labs/metro": "workspace:*",
-    "@metro-labs/station-kit": "workspace:*",
     "@xmtp/content-type-primitives": "^3.0.1",
     "@xmtp/content-type-reaction": "^2.0.2",
     "@xmtp/content-type-remote-attachment": "^2.0.4",
