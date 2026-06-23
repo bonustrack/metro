@@ -108,6 +108,16 @@ export const isImageMime = (mime: string): boolean =>
 export const isImageExt = (path: string): boolean =>
   /\.(png|jpe?g|gif|webp|heic|bmp|svg)$/i.test(path);
 
+export const appendFile = async (
+  form: FormData,
+  field: string,
+  path: string,
+  name: string,
+): Promise<void> => {
+  const data = await Bun.file(path).arrayBuffer();
+  form.append(field, new Blob([data]), name);
+};
+
 export const toCanonical = (
   a: CanonicalAttachment,
 ): Record<string, unknown> => {

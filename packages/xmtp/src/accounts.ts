@@ -10,7 +10,10 @@ import { toHex } from 'viem';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CODECS } from './codecs.js';
-import { makeAccountStore } from '@metro-labs/mcp/stations/account-store';
+import {
+  makeAccountStore,
+  resolveAccountId,
+} from '@metro-labs/mcp/stations/account-store';
 import { Line } from '@metro-labs/mcp/lines';
 
 const ACCOUNTS_FILE =
@@ -138,14 +141,13 @@ export function accountForCall(args: {
   account?: string;
   line?: string;
 }): Account {
-  let id = args.account;
-  id ??= args.line ? parseLine(args.line)?.accountId : undefined;
-  id ??= accounts.size === 1 ? [...accounts.keys()][0] : 'default';
+  const id = resolveAccountId(
+    accounts,
+    args,
+    (line) => parseLine(line)?.accountId,
+  );
   const acct = accounts.get(id);
-  if (!acct)
-    throw new Error(
-      `unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`,
-    );
+  if (!acct) throw new Error(`unknown account '${id}'`);
   return acct;
 }
 

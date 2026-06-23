@@ -35,6 +35,29 @@ export function parseAccountScoped(
 }
 
 const isSnowflake = (s: string): boolean => /^\d+$/.test(s);
+const isSignedInt = (s: string): boolean => /^-?\d+$/.test(s);
+
+function splitTelegramAccount(path: string[]): { accountId: string; rest: string[] } {
+  if (path.length >= 2 && !isSignedInt(path[0]))
+    return { accountId: path[0], rest: path.slice(1) };
+  return { accountId: 'default', rest: path };
+}
+
+function parseTelegramLine(
+  line: Line | string,
+): { accountId: string; chatId: number; topicId?: number } | null {
+  const p = Line.parse(line);
+  if (p?.station !== 'telegram') return null;
+  const { accountId, rest } = splitTelegramAccount(p.path);
+  const [chatId, topicId] = rest;
+  if (rest.length < 1 || rest.length > 2 || !isSignedInt(chatId)) return null;
+  if (topicId !== undefined && !isSnowflake(topicId)) return null;
+  return {
+    accountId,
+    chatId: Number(chatId),
+    ...(topicId !== undefined ? { topicId: Number(topicId) } : {}),
+  };
+}
 
 export const Line = {
   discord: (channelId: string): Line => build('discord', channelId),
@@ -68,4 +91,6 @@ export const Line = {
 
   parseDiscord: (line: Line | string) =>
     parseAccountScoped(line, 'discord', isSnowflake),
+
+  parseTelegram: (line: Line | string) => parseTelegramLine(line),
 };
