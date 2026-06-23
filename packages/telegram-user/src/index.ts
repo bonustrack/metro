@@ -16,6 +16,7 @@ import {
   targetOf,
 } from './accounts.js';
 import { createClient, type UserClient } from './client.js';
+import { startInbound } from './inbound.js';
 
 type Args = Record<string, unknown>;
 
@@ -83,9 +84,9 @@ process.stdin.on('data', (chunk: Buffer | string) => {
 
 function boot(): void {
   for (const cfg of loadAccounts()) accounts.set(cfg.id, cfg);
-  for (const id of accounts.keys()) clientFor(id);
+  for (const id of accounts.keys()) void startInbound(clientFor(id));
   process.stderr.write(
-    `telegram-user train ready (scaffold) — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
+    `telegram-user train ready (inbound) — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
   );
 }
 
