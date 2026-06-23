@@ -14,7 +14,7 @@ import {
   accountStationNames,
   accountStationCapabilities,
 } from '../stations/registry.js';
-import type { Station, StationTool, ToolResult } from '@metro-labs/station-kit/types';
+import type { Station, StationTool, ToolResult } from '../stations/types.js';
 import {
   COMMON_TOOLS,
   LIST_ACCOUNTS_TOOL,

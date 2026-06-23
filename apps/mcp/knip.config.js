@@ -2,7 +2,6 @@ const knipConfig = {
   $schema: 'https://unpkg.com/knip@6/schema.json',
   ignoreExportsUsedInFile: true,
   entry: [
-    'src/stations/**/index.ts',
     'src/trains/**/*.ts',
     'scripts/**/*.{mjs,js}',
     'test/**/*.{ts,mjs}',
@@ -12,7 +11,6 @@ const knipConfig = {
   ignore: [
     'src/tunnel.ts',
     'src/paths.ts',
-    'src/secure-fs.ts',
   ],
 };
 

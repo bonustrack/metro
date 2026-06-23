@@ -1,7 +1,6 @@
 const knipConfig = {
   $schema: 'https://unpkg.com/knip@6/schema.json',
   ignoreExportsUsedInFile: true,
-  entry: ['src/station.ts', 'src/index.ts'],
   project: ['src/**/*.ts'],
 };
 

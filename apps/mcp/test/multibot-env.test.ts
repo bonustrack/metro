@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { csv, genIds } from '@metro-labs/station-kit/account-store';
+import { csv, genIds } from '../src/stations/account-store.ts';
 
 describe('account-store helpers', () => {
   test('csv trims, drops empties, and dedupes', () => {

@@ -25,7 +25,6 @@
       },
       "dependencies": {
         "@metro-labs/discord": "workspace:*",
-        "@metro-labs/station-kit": "workspace:*",
         "@metro-labs/telegram": "workspace:*",
         "@metro-labs/webhook": "workspace:*",
         "@metro-labs/xmtp": "workspace:*",
@@ -48,23 +47,8 @@
       "dependencies": {
         "@discordjs/voice": "^0.19.2",
         "@metro-labs/metro": "workspace:*",
-        "@metro-labs/station-kit": "workspace:*",
         "discord.js": "^14.26.4",
         "prism-media": "^1.3.5",
-      },
-      "devDependencies": {
-        "@stage-labs/config": "0.1.0-beta.1",
-        "eslint": "^10.3.0",
-        "knip": "^6.15.0",
-        "madge": "^8.0.0",
-        "typescript": "^5",
-      },
-    },
-    "packages/station-kit": {
-      "name": "@metro-labs/station-kit",
-      "version": "0.1.0",
-      "dependencies": {
-        "@metro-labs/metro": "workspace:*",
       },
       "devDependencies": {
         "@stage-labs/config": "0.1.0-beta.1",
@@ -79,7 +63,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@metro-labs/metro": "workspace:*",
-        "@metro-labs/station-kit": "workspace:*",
       },
       "devDependencies": {
         "@stage-labs/config": "0.1.0-beta.1",
@@ -94,7 +77,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@metro-labs/metro": "workspace:*",
-        "@metro-labs/station-kit": "workspace:*",
       },
       "devDependencies": {
         "@stage-labs/config": "0.1.0-beta.1",
@@ -109,7 +91,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@metro-labs/metro": "workspace:*",
-        "@metro-labs/station-kit": "workspace:*",
         "@xmtp/content-type-primitives": "^3.0.1",
         "@xmtp/content-type-reaction": "^2.0.2",
         "@xmtp/content-type-remote-attachment": "^2.0.4",
@@ -196,8 +177,6 @@
     "@metro-labs/discord": ["@metro-labs/discord@workspace:packages/discord"],
 
     "@metro-labs/metro": ["@metro-labs/metro@workspace:apps/mcp"],
-
-    "@metro-labs/station-kit": ["@metro-labs/station-kit@workspace:packages/station-kit"],
 
     "@metro-labs/telegram": ["@metro-labs/telegram@workspace:packages/telegram"],
 

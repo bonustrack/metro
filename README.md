@@ -169,16 +169,37 @@ bun run lint
 
 ## Project structure
 
+A bun-workspaces + turborepo monorepo: the core daemon lives in `apps/mcp`, and
+each external messaging platform is a private station package under `packages/`.
+
 ```
-src/
-  server.ts       # entry — boots the daemon, which serves the MCP in-process
-  dispatcher/     # supervisor boot + outbound routing + webhook receiver + MCP mount
-  mcp/            # the MCP surface (createMetroMcp), mounted at the root path
-  trains/         # station supervisor + the station<->daemon protocol
-  stations/       # built-in stations (xmtp, telegram, discord)
-  event-bus.ts    # in-memory event bus the MCP relay subscribes to
-  lines.ts        # the metro:// Line parser
+apps/
+  mcp/                  # @metro-labs/metro — the core daemon + MCP surface + station contract
+    src/
+      server.ts         # entry — boots the daemon, which serves the MCP in-process
+      dispatcher/       # supervisor boot + outbound routing + webhook receiver + MCP mount
+      mcp/              # the MCP surface (createMetroMcp), mounted at the root path
+      trains/           # station supervisor + the station<->daemon protocol
+      stations/         # the station contract + runtime + registry the core builds on:
+                        #   types.ts            — Station/StationTool/Verb/ToolContext contract
+                        #   station-runtime.ts  — makeStation, CallMsg, emit/respond/mintId
+                        #   account-store.ts     — multi-bot account store (csv, genIds)
+                        #   attachments.ts       — saveBufferToCache, toCanonical, MIME table
+                        #   messaging-normalize.ts
+                        #   registry.ts          — discovers + dispatches the station packages
+      event-bus.ts      # in-memory event bus the MCP relay subscribes to
+      lines.ts          # the metro:// Line parser
+
+packages/               # private station packages — each implements the station contract
+  xmtp/                 #   and imports it from @metro-labs/metro/stations/*
+  telegram/
+  discord/
+  webhook/
 ```
+
+The station contract and runtime live in the core (`apps/mcp/src/stations`) and are
+re-exported via `@metro-labs/metro/stations/*`; the platform packages depend only on
+`@metro-labs/metro` and stay isolated (e.g. the XMTP node SDK never enters the core graph).
 
 ## License
 
