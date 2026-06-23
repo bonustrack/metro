@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { Keepalive } from '../src/mcp/keepalive.ts';
+import { Keepalive } from '../src/keepalive.ts';
 
 const noop = (): void => undefined;
 

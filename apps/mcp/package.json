@@ -18,7 +18,7 @@
     "metro-daemon": "./dist/server.js"
   },
   "exports": {
-    ".": "./src/mcp/index.ts",
+    ".": "./src/index.ts",
     "./server": "./dist/server.js",
     "./log": "./src/log.ts",
     "./train-error": "./src/train-error.ts",

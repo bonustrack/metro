@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { createMetroMcp } from '../src/mcp/index.ts';
+import { createMetroMcp } from '../src/index.ts';
 import { publishEvent } from '../src/event-bus.ts';
 import { asLine } from '../src/lines.ts';
 import type { MetroEvent } from '../src/events.ts';
