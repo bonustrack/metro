@@ -21,6 +21,8 @@ import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
 
 const LRU_CAP = 2_000;
 
+const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
+
 function dedupKey(
   e: Pick<MetroEvent, 'station' | 'line' | 'messageId'>,
 ): string | null {
@@ -207,12 +209,26 @@ async function handleWebhookPost(
   res.writeHead(200).end('ok');
 }
 
+function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
+  const reqPath = (req.url ?? '').split('?')[0];
+  if (reqPath !== '/health' && reqPath !== '/healthz') return false;
+  res.writeHead(200, { 'content-type': 'application/json' }).end(
+    JSON.stringify({
+      status: 'ok',
+      version: METRO_VERSION,
+      uptime: Math.round(process.uptime()),
+    }),
+  );
+  return true;
+}
+
 async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
   emit: Emit,
   mcp?: McpHandler,
 ): Promise<void> {
+  if (handleHealth(req, res)) return;
   if (mcp && isMcpPath(req)) {
     await mcp(req, res);
     return;
