@@ -1,4 +1,5 @@
 import type { Chat, Message, Peer, User } from '@mtcute/bun';
+import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
 import { lineOf } from './accounts.js';
 import { mintId } from './wire.js';
 
@@ -59,6 +60,34 @@ export function envelope(
     is_private: isPrivate,
     has_media: m.media !== null,
     payload: { account: accountId, message_id: String(m.id) },
+  };
+}
+
+export function attachmentSavedEnvelope(
+  accountId: string,
+  line: string,
+  sourceEnvId: string,
+  saved: SavedAttachment,
+  index = 0,
+): Record<string, unknown> {
+  return {
+    kind: 'inbound',
+    id: mintId(),
+    ts: new Date().toISOString(),
+    station: 'telegram-user',
+    line,
+    from: `metro://telegram-user/${accountId}/self`,
+    text: `📎 saved: ${saved.path}`,
+    payload: {
+      account: accountId,
+      contentType: 'attachmentSaved',
+      attachmentFor: sourceEnvId,
+      index,
+      attachmentPath: saved.path,
+      localPath: saved.path,
+      mime: saved.mime,
+      name: saved.name,
+    },
   };
 }
 
