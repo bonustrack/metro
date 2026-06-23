@@ -11,6 +11,7 @@ export function normalizeTelegramUser(action: string, env: Args): Normalized {
         text: env.text,
         replyTo: env.replyTo,
         account: env.account,
+        attachments: env.attachments,
       },
     };
   }

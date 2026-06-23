@@ -32,6 +32,29 @@ function fakeClient(calls: Captured[]): UserClient {
       calls.push({ method: 'deleteMessagesById', args });
       return Promise.resolve();
     },
+    getHistory: (...args: unknown[]): Promise<unknown[]> => {
+      calls.push({ method: 'getHistory', args });
+      return Promise.resolve([
+        {
+          id: 9,
+          date: new Date('2026-06-21T00:00:00.000Z'),
+          text: 'newest',
+          sender: { id: 222 },
+          media: null,
+        },
+        {
+          id: 8,
+          date: new Date('2026-06-21T00:00:00.000Z'),
+          text: 'older',
+          sender: { id: 111 },
+          media: null,
+        },
+      ]);
+    },
+    sendMedia: (...args: unknown[]): Promise<{ id: number }> => {
+      calls.push({ method: 'sendMedia', args });
+      return Promise.resolve({ id: 777 });
+    },
   };
   return { account: { id: 'default', session: 's' }, tg } as unknown as UserClient;
 }
@@ -132,16 +155,53 @@ describe('telegram-user outbound handlers', () => {
     });
   });
 
-  test('read responds not_implemented', async () => {
+  test('read calls getHistory and returns the xmtp-shaped result', async () => {
     const client = fakeClient(calls);
     const handle = makeHandleCall(() => client);
     const cap = captureResponses();
-    await handle({ op: 'call', id: 'g', action: 'read', args: { line: LINE } });
+    await handle({
+      op: 'call',
+      id: 'g',
+      action: 'read',
+      args: { line: LINE, limit: 5 },
+    });
     cap.restore();
+    expect(calls).toContainEqual({ method: 'getHistory', args: [12345, { limit: 5 }] });
     expect(cap.responses[0]).toMatchObject({
       op: 'response',
       id: 'g',
-      errorInfo: { code: 'not_implemented' },
+      result: {
+        line: LINE,
+        count: 2,
+        messages: [
+          { id: '8', from: 'metro://telegram-user/default/user/111', text: 'older' },
+          { id: '9', from: 'metro://telegram-user/default/user/222', text: 'newest' },
+        ],
+      },
+    });
+  });
+
+  test('send with canonical attachment calls sendMedia and returns its id', async () => {
+    const client = fakeClient(calls);
+    const handle = makeHandleCall(() => client);
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'h',
+      action: 'send',
+      args: {
+        line: LINE,
+        text: 'cap',
+        attachments: [{ url: '/cache/a.jpg', mime: 'image/jpeg', name: 'a.jpg' }],
+      },
+    });
+    cap.restore();
+    const media = calls.find((c) => c.method === 'sendMedia');
+    expect(media).toBeDefined();
+    expect(cap.responses[0]).toMatchObject({
+      op: 'response',
+      id: 'h',
+      result: { messageId: '777', account: 'default' },
     });
   });
 });

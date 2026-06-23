@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import type { Message } from '@mtcute/bun';
-import { envelope, isOwnEcho, reactionEnvelope } from '../src/format.js';
+import {
+  attachmentSavedEnvelope,
+  envelope,
+  isOwnEcho,
+  reactionEnvelope,
+} from '../src/format.js';
 
 interface FakeUser {
   type: 'user';
@@ -111,6 +116,32 @@ describe('isOwnEcho', () => {
 
   test('incoming from other user is not an echo', () => {
     expect(isOwnEcho(asMessage(dmMessage()))).toBe(false);
+  });
+});
+
+describe('attachmentSavedEnvelope', () => {
+  test('mirrors the canonical attachmentSaved follow-up shape', () => {
+    const e = attachmentSavedEnvelope(
+      'default',
+      'metro://telegram-user/default/111',
+      'envid-123',
+      { path: '/cache/msg_42_0.jpg', mime: 'image/jpeg', name: 'pic.jpg', bytes: 9 },
+    );
+    expect(e.kind).toBe('inbound');
+    expect(e.station).toBe('telegram-user');
+    expect(e.line).toBe('metro://telegram-user/default/111');
+    expect(e.from).toBe('metro://telegram-user/default/self');
+    expect(e.text).toBe('📎 saved: /cache/msg_42_0.jpg');
+    expect(e.payload).toEqual({
+      account: 'default',
+      contentType: 'attachmentSaved',
+      attachmentFor: 'envid-123',
+      index: 0,
+      attachmentPath: '/cache/msg_42_0.jpg',
+      localPath: '/cache/msg_42_0.jpg',
+      mime: 'image/jpeg',
+      name: 'pic.jpg',
+    });
   });
 });
 

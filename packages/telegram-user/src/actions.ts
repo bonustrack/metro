@@ -9,6 +9,11 @@ import {
 import { accountFor, targetOf } from './accounts.js';
 import type { UserClient } from './client.js';
 import { normalizeTelegramUser } from './normalize.js';
+import {
+  sendAttachments,
+  type CanonicalAttachment,
+} from './media-actions.js';
+import { clampLimit, shapeHistory } from './history.js';
 
 type Args = Record<string, unknown>;
 
@@ -49,17 +54,33 @@ async function guard<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+function attachmentsOf(args: Args): CanonicalAttachment[] {
+  const raw = args.attachments;
+  return Array.isArray(raw) ? (raw as CanonicalAttachment[]) : [];
+}
+
 function makeSend(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
     const { accountId, client, chatId } = resolve(args, clientFor);
     const text = str(args.text) ?? '';
     const replyTo = str(args.replyTo);
+    const replyParam = replyTo ? Number(replyTo) : undefined;
+    const attachments = attachmentsOf(args);
+    if (attachments.length) {
+      const sent = await guard(() =>
+        sendAttachments({ client, chatId, replyTo: replyParam }, attachments, text),
+      );
+      respond(id, {
+        result: { messageId: String(sent.id), account: accountId },
+      });
+      return;
+    }
     const peer = await guard(() => client.tg.resolvePeer(chatId));
     const sent = await guard(() =>
       client.tg.sendText(
         peer,
         text,
-        replyTo ? { replyTo: Number(replyTo) } : undefined,
+        replyParam !== undefined ? { replyTo: replyParam } : undefined,
       ),
     );
     respond(id, {
@@ -102,9 +123,14 @@ function makeDelete(clientFor: ClientFor): StationHandler {
   };
 }
 
-const readStub: StationHandler = () => {
-  throw new TrainError('not_implemented', 'read lands in PR5');
-};
+function makeRead(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const { accountId, client, chatId } = resolve(args, clientFor);
+    const limit = clampLimit(args.limit);
+    const page = await guard(() => client.tg.getHistory(chatId, { limit }));
+    respond(id, { result: shapeHistory(accountId, chatId, page) });
+  };
+}
 
 export function makeHandleCall(
   clientFor: ClientFor,
@@ -115,7 +141,7 @@ export function makeHandleCall(
       react: makeReact(clientFor),
       edit: makeEdit(clientFor),
       delete: makeDelete(clientFor),
-      read: readStub,
+      read: makeRead(clientFor),
     },
     normalize: normalizeTelegramUser,
   });
