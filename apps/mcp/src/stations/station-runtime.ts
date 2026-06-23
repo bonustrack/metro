@@ -1,4 +1,4 @@
-import { serializeTrainError, type TrainErrorInfo } from '../train-error.js';
+import { serializeTrainError, type TrainErrorInfo } from '../daemon/train-error.js';
 import type { Normalized } from './messaging-normalize.js';
 
 export const emit = (e: unknown): void =>

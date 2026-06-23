@@ -4,9 +4,9 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
-import { Line } from '../lines.js';
-import { errMsg, log } from '../log.js';
-import { noteSeen } from '../paths.js';
+import { Line } from '../stations/lines.js';
+import { errMsg, log } from './log.js';
+import { noteSeen } from './paths.js';
 import {
   classifyEvent,
   formatDisplay,
@@ -14,9 +14,9 @@ import {
   publishEvent,
   userSelf,
   type MetroEvent,
-} from '../events.js';
-import type { TrainEvent } from '../trains/protocol.js';
-import { findEndpoint, listEndpoints, webhookPort } from '../tunnel.js';
+} from './events.js';
+import type { TrainEvent } from './protocol.js';
+import { findEndpoint, listEndpoints, webhookPort } from './tunnel.js';
 import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
 
 const LRU_CAP = 2_000;

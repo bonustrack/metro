@@ -7,14 +7,14 @@ import {
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { subscribeEvents } from './events.js';
+import { subscribeEvents } from '../daemon/events.js';
 import { gatherAccounts } from './accounts.js';
 import {
   STATIONS,
   accountStationNames,
   accountStationCapabilities,
-} from './stations/registry.js';
-import type { Station, StationTool, ToolResult } from './stations/types.js';
+} from '../stations/registry.js';
+import type { Station, StationTool, ToolResult } from '../stations/types.js';
 import {
   COMMON_TOOLS,
   LIST_ACCOUNTS_TOOL,

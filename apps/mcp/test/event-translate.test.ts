@@ -1,5 +1,5 @@
 /**
- * Unit tests for `trainEventToMetroEvent` (src/dispatcher/server.ts) — the
+ * Unit tests for `trainEventToMetroEvent` (src/daemon/http.ts) — the
  * snake_case wire → camelCase `MetroEvent` translation every train event
  * flows through.
  *
@@ -12,14 +12,14 @@
  */
 
 import { describe, expect, test, beforeAll } from 'bun:test';
-import type { TrainEvent } from '../src/trains/protocol.ts';
+import type { TrainEvent } from '../src/daemon/protocol.ts';
 
-let trainEventToMetroEvent: typeof import('../src/dispatcher/server.ts').trainEventToMetroEvent;
+let trainEventToMetroEvent: typeof import('../src/daemon/http.ts').trainEventToMetroEvent;
 
 beforeAll(async () => {
   /** Pin self so the is_private default is deterministic and no host autodetect runs. */
   process.env.METRO_FROM = 'metro://user/me';
-  ({ trainEventToMetroEvent } = await import('../src/dispatcher/server.ts'));
+  ({ trainEventToMetroEvent } = await import('../src/daemon/http.ts'));
 });
 
 describe('trainEventToMetroEvent — required line', () => {

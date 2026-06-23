@@ -1,5 +1,5 @@
 /**
- * Tests for src/secure-fs.ts: credential files must end up 0600 and the
+ * Tests for src/daemon/secure-fs.ts: credential files must end up 0600 and the
  * containing dir 0700, idempotently, without ever altering CONTENT.
  */
 
@@ -7,7 +7,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, statSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chmodIfExists, ensureSecureDir, writeSecure } from '../src/secure-fs.js';
+import { chmodIfExists, ensureSecureDir, writeSecure } from '../src/daemon/secure-fs.js';
 
 const mode = (p: string): number => statSync(p).mode & 0o777;
 const tmp = (): string => mkdtempSync(join(tmpdir(), 'metro-secfs-'));

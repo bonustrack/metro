@@ -1,5 +1,5 @@
-import { ipcCall } from './ipc.js';
-import { accountStationNames } from './stations/registry.js';
+import { ipcCall } from '../daemon/ipc.js';
+import { accountStationNames } from '../stations/registry.js';
 
 export async function gatherAccounts(): Promise<Record<string, unknown[]>> {
   const out: Record<string, unknown[]> = {};

@@ -1,10 +1,10 @@
 /**
- * `src/lines.ts` — XMTP account-scoped line splitting + build→parse round-trips.
+ * `src/stations/lines.ts` — XMTP account-scoped line splitting + build→parse round-trips.
  * Companion to lines.test.ts (builders/parsers); split out for the 200-line cap.
  */
 
 import { describe, expect, test } from 'bun:test';
-import { Line } from '../src/lines.ts';
+import { Line } from '../src/stations/lines.ts';
 
 describe('xmtp account-scoped lines (per-CLI feed isolation)', () => {
   /**

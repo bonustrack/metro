@@ -8,10 +8,10 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { makeDedupSeq } from '../src/dispatcher/server.ts';
-import { makeEmit } from '../src/dispatcher/server.ts';
-import type { MetroEvent } from '../src/events.ts';
-import { Line } from '../src/lines.ts';
+import { makeDedupSeq } from '../src/daemon/http.ts';
+import { makeEmit } from '../src/daemon/http.ts';
+import type { MetroEvent } from '../src/daemon/events.ts';
+import { Line } from '../src/stations/lines.ts';
 
 const inbound = (overrides: Partial<MetroEvent> = {}): MetroEvent => ({
   id: 'msg_x', ts: '2026-06-10T00:00:00.000Z', station: 'discord',

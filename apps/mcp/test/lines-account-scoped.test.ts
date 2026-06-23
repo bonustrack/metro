@@ -1,5 +1,5 @@
 /**
- * `src/lines.ts` — canonical account-scoped parsers `Line.parseXmtp` /
+ * `src/stations/lines.ts` — canonical account-scoped parsers `Line.parseXmtp` /
  * `Line.parseDiscord`. These are the single source of truth the
  * per-station `parseLine()` helpers (stations/xmtp/accounts.ts,
  * stations/discord/accounts.ts) and cli/send-guard.ts now delegate to, so the
@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { Line } from '../src/lines.ts';
+import { Line } from '../src/stations/lines.ts';
 
 describe('Line.parseXmtp', () => {
   test('new account-scoped form → {accountId, resource}', () => {

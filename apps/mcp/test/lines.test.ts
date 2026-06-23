@@ -1,5 +1,5 @@
 /**
- * Unit tests for `src/lines.ts` — the `metro://` URI vocabulary.
+ * Unit tests for `src/stations/lines.ts` — the `metro://` URI vocabulary.
  *
  * Covers builders (discord/telegram/claude/webhook/user), the generic
  * `parse`/`station` split, the local-session parser (`parseClaude` —
@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { Line, asLine } from '../src/lines.ts';
+import { Line, asLine } from '../src/stations/lines.ts';
 
 describe('Line builders', () => {
   test('discord', () => {
