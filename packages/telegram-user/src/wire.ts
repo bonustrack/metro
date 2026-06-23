@@ -1,3 +1,1 @@
-export { emit, respond, mintId } from '@metro-labs/mcp/stations/station-runtime';
-
-export const SELF_URI = process.env.METRO_SELF_URI ?? 'metro://telegram-user/self';
+export { emit, mintId } from '@metro-labs/mcp/stations/station-runtime';
