@@ -36,3 +36,13 @@ export interface TgReaction {
   old_reaction: { type: string; emoji?: string }[];
   new_reaction: { type: string; emoji?: string }[];
 }
+
+export interface TgReactionCount {
+  chat: { id: number; type: string };
+  message_id: number;
+  date: number;
+  reactions: {
+    type: { type: string; emoji?: string };
+    total_count: number;
+  }[];
+}

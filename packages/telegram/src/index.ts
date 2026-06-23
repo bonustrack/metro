@@ -4,10 +4,12 @@ import { emit } from './wire.js';
 import {
   emitInbound,
   envelope,
+  reactionCountEnvelope,
   reactionEnvelope,
   saveMediaAndEmit,
   type TgMsg,
   type TgReaction,
+  type TgReactionCount,
 } from './format.js';
 import { drainLines } from '@metro-labs/mcp/trains/protocol';
 import { handleCall, type CallMsg } from './actions.js';
@@ -30,6 +32,23 @@ interface Update {
   update_id: number;
   message?: TgMsg;
   message_reaction?: TgReaction;
+  message_reaction_count?: TgReactionCount;
+}
+
+function handleUpdate(id: string, u: Update): void {
+  if (u.message && !u.message.from?.is_bot) {
+    const env = envelope(id, u.message);
+    emitInbound(emit, id, env);
+    saveMediaAndEmit(emit, id, u.message, env.id as string);
+  }
+  if (u.message_reaction) {
+    const env = reactionEnvelope(id, u.message_reaction);
+    if (env) emitInbound(emit, id, env);
+  }
+  if (u.message_reaction_count) {
+    const env = reactionCountEnvelope(id, u.message_reaction_count);
+    if (env) emitInbound(emit, id, env);
+  }
 }
 
 async function runAccount(acct: Account): Promise<void> {
@@ -50,21 +69,17 @@ async function runAccount(acct: Account): Promise<void> {
         {
           offset: acct.offset,
           timeout: 25,
-          allowed_updates: ['message', 'message_reaction'],
+          allowed_updates: [
+            'message',
+            'message_reaction',
+            'message_reaction_count',
+          ],
         },
         60_000,
       );
       for (const u of updates) {
         acct.offset = u.update_id + 1;
-        if (u.message && !u.message.from?.is_bot) {
-          const env = envelope(id, u.message);
-          emitInbound(emit, id, env);
-          saveMediaAndEmit(emit, id, u.message, env.id as string);
-        }
-        if (u.message_reaction) {
-          const env = reactionEnvelope(id, u.message_reaction);
-          if (env) emitInbound(emit, id, env);
-        }
+        handleUpdate(id, u);
       }
     } catch (err) {
       process.stderr.write(
