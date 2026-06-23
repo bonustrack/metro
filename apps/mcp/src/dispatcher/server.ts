@@ -11,10 +11,10 @@ import {
   classifyEvent,
   formatDisplay,
   mintId,
+  publishEvent,
   userSelf,
   type MetroEvent,
 } from '../events.js';
-import { publishEvent } from '../event-bus.js';
 import type { TrainEvent } from '../trains/protocol.js';
 import { findEndpoint, listEndpoints, webhookPort } from '../tunnel.js';
 import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';

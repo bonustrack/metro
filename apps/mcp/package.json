@@ -25,7 +25,7 @@
     "./secure-fs": "./src/secure-fs.ts",
     "./lines": "./src/lines.ts",
     "./events": "./src/events.ts",
-    "./endpoints": "./src/endpoints.ts",
+    "./endpoints": "./src/tunnel.ts",
     "./trains/protocol": "./src/trains/protocol.ts",
     "./stations/types": "./src/stations/types.ts",
     "./stations/station-runtime": "./src/stations/station-runtime.ts",
