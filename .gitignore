@@ -7,4 +7,8 @@ dist
 .env
 .env.*
 !.env.example
+!.env.local.example
 .tail-lock
+
+# telegram-user local-test harness (scripts/dev-local.ts) throwaway state
+.dev-telegram-user/

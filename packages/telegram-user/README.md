@@ -73,6 +73,58 @@ bun packages/telegram-user/scripts/login.ts --phone
 The login client uses in-memory storage, so nothing is written to disk locally. Treat the
 printed session like a password: it is a full login credential. Never commit or log it.
 
+## Local testing
+
+Test this station against your own Telegram account on your machine — **without
+deploying** and **without touching the real `~/.metro`** (prod XMTP/MLS state).
+`scripts/dev-local.ts` boots an isolated metro daemon that runs **only** the
+telegram-user train: it overrides `HOME` and every metro path
+(`METRO_STATE_DIR` / `METRO_TRAINS_DIR` / `METRO_CONFIG_DIR`) to a throwaway
+`packages/telegram-user/.dev-telegram-user/` root, binds the webhook server to a
+non-default port (`8430`), and clears sibling-station creds so XMTP/bots stay
+dormant.
+
+1. **Get `api_id` / `api_hash`** from [my.telegram.org](https://my.telegram.org)
+   → *API development tools*.
+2. **Get a session string** via the QR login (in-memory storage, writes nothing
+   to disk):
+
+   ```sh
+   export TELEGRAM_USER_API_ID=...
+   export TELEGRAM_USER_API_HASH=...
+   bun packages/telegram-user/scripts/login.ts
+   # scan the QR in Telegram → Settings → Devices → Link Desktop Device
+   ```
+
+3. **Put the three values in `.env.local`** (gitignored):
+
+   ```sh
+   cp packages/telegram-user/.env.local.example packages/telegram-user/.env.local
+   # then fill in TELEGRAM_USER_API_ID / API_HASH / SESSION
+   ```
+
+4. **Run the harness** and watch inbound events stream in:
+
+   ```sh
+   bun packages/telegram-user/scripts/dev-local.ts
+   ```
+
+   With no creds it prints a "set `.env.local`" message and exits. With creds it
+   boots the isolated daemon, the supervisor spawns the telegram-user train, and
+   the train connects with your session. Send yourself a Telegram message and you
+   will see the inbound `metro://telegram-user/default/<peer>` event in the logs.
+
+5. **Fire a test outbound call.** The local MCP runs in-process on the harness
+   webhook port (`http://127.0.0.1:8430/`). Drive a `send`/`read` verb against it
+   (MCP `tools/call`) targeting a `metro://telegram-user/default/<chatId>` line —
+   e.g. send yourself a message, then `read` it back.
+
+   When done, stop with Ctrl-C and remove the throwaway state:
+
+   ```sh
+   rm -rf packages/telegram-user/.dev-telegram-user
+   ```
+
 ## Constraints
 
 - **Telegram ToS.** A user account is a real person's identity; automation must respect
