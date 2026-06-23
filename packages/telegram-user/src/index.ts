@@ -1,4 +1,3 @@
-import type { TelegramClient } from '@mtcute/bun';
 import { TrainError } from '@metro-labs/mcp/train-error';
 import { errMsg } from '@metro-labs/mcp/log';
 import { drainLines } from '@metro-labs/mcp/trains/protocol';
@@ -9,12 +8,30 @@ import {
 } from '@metro-labs/mcp/stations/station-runtime';
 import type { Normalized } from '@metro-labs/mcp/stations/messaging-normalize';
 import { SELF_URI } from './wire.js';
-import type { UserAccount } from './types.js';
+import {
+  accounts,
+  loadAccounts,
+  accountFor,
+  lineOf,
+  targetOf,
+} from './accounts.js';
+import { createClient, type UserClient } from './client.js';
 
 type Args = Record<string, unknown>;
 
-const clients = new Map<string, TelegramClient>();
-const accounts = new Map<string, UserAccount>();
+const clients = new Map<string, UserClient>();
+
+function clientFor(accountId: string): UserClient {
+  let client = clients.get(accountId);
+  if (!client) {
+    const account = accounts.get(accountId);
+    if (!account)
+      throw new TrainError('not_implemented', `unknown account '${accountId}'`);
+    client = createClient(account);
+    clients.set(accountId, client);
+  }
+  return client;
+}
 
 const notImplemented = (id: string): void => {
   const err = new TrainError('not_implemented', `telegram-user is scaffold-only (${SELF_URI})`);
@@ -64,4 +81,21 @@ process.stdin.on('data', (chunk: Buffer | string) => {
   });
 });
 
-export { clients, accounts };
+function boot(): void {
+  for (const cfg of loadAccounts()) accounts.set(cfg.id, cfg);
+  for (const id of accounts.keys()) clientFor(id);
+  process.stderr.write(
+    `telegram-user train ready (scaffold) — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
+  );
+}
+
+boot();
+
+export {
+  clients,
+  accounts,
+  clientFor,
+  accountFor,
+  lineOf,
+  targetOf,
+};
