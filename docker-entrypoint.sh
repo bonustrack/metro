@@ -31,7 +31,7 @@ if [ -n "$TELEGRAM_BOT_TOKENS" ]; then
   echo "import '@metro-labs/telegram/train';" > "$METRO_TRAINS_DIR/telegram.ts"
 fi
 if [ -n "$DISCORD_BOT_TOKENS" ]; then
-  echo "import '/app/apps/mcp/src/stations/discord/index.ts';" > "$METRO_TRAINS_DIR/discord.ts"
+  echo "import '@metro-labs/discord/train';" > "$METRO_TRAINS_DIR/discord.ts"
 fi
 
 exec bun /app/apps/mcp/src/server.ts

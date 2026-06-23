@@ -2,7 +2,7 @@ import type { Station } from '@metro-labs/station-kit/types';
 import { Line } from '../lines.js';
 import { xmtpStation } from '@metro-labs/xmtp';
 import { telegramStation } from '@metro-labs/telegram';
-import { discordStation } from './discord/station.js';
+import { discordStation } from '@metro-labs/discord';
 import { webhookStation } from '@metro-labs/webhook';
 
 export const STATIONS: readonly Station[] = [

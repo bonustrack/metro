@@ -1,4 +1,4 @@
-import { errMsg } from '../../log.js';
+import { errMsg } from '@metro-labs/metro/log';
 import {
   joinVoiceChannel,
   getVoiceConnection,

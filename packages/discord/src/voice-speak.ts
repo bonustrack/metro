@@ -1,4 +1,4 @@
-import { errMsg } from '../../log.js';
+import { errMsg } from '@metro-labs/metro/log';
 import { spawn } from 'node:child_process';
 import { unlink } from 'node:fs/promises';
 import {
