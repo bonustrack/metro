@@ -1,4 +1,4 @@
-import type { StationTool } from '../types.js';
+import type { StationTool } from '@metro-labs/station-kit/types';
 import {
   str,
   createChannel,

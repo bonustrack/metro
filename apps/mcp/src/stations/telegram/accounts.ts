@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { makeAccountStore, csv, genIds } from '../account-store.js';
+import { makeAccountStore, csv, genIds } from '@metro-labs/station-kit/account-store';
 
 const ACCOUNTS_FILE =
   process.env.TELEGRAM_ACCOUNTS_FILE ??

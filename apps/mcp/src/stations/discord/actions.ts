@@ -13,12 +13,12 @@ import {
 } from './accounts.js';
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
 import { respond } from './wire.js';
-import { normalizeDiscord } from '../messaging-normalize.js';
+import { normalizeDiscord } from '@metro-labs/station-kit/messaging-normalize';
 import {
   makeStation,
   type CallMsg,
   type StationHandler,
-} from '../station-runtime.js';
+} from '@metro-labs/station-kit/station-runtime';
 import { joinVoice, leaveVoice, voiceDebug, voiceTranscribe } from './voice.js';
 import { speak } from './voice-speak.js';
 

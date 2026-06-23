@@ -2,7 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Line, asLine } from '../lines.js';
 import { mintId, type MetroEvent } from '../events.js';
 import type { Endpoint } from '../tunnel.js';
-import type { Station, Verb } from './types.js';
+import type { Station, Verb } from '@metro-labs/station-kit/types';
 
 const sessionOwner = (sessionId: string): Line =>
   asLine(`metro://session/${sessionId}`);

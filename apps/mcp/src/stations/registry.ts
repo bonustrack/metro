@@ -1,4 +1,4 @@
-import type { Station } from './types.js';
+import type { Station } from '@metro-labs/station-kit/types';
 import { Line } from '../lines.js';
 import { xmtpStation } from './xmtp/station.js';
 import { telegramStation } from './telegram/station.js';

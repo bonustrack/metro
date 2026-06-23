@@ -1,6 +1,6 @@
 import { stationForLine } from '../stations/registry.js';
-import { toCanonical } from '../stations/attachments.js';
-import type { CanonicalAttachment, ToolResult } from '../stations/types.js';
+import { toCanonical } from '@metro-labs/station-kit/attachments';
+import type { CanonicalAttachment, ToolResult } from '@metro-labs/station-kit/types';
 import { errResult, makeCtx, ok, okJson, toErr } from './ctx.js';
 import { str } from './inbound.js';
 

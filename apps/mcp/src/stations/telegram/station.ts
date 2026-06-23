@@ -1,4 +1,4 @@
-import type { Station, Verb } from '../types.js';
+import type { Station, Verb } from '@metro-labs/station-kit/types';
 import { Line } from '../../lines.js';
 
 const MUTATES: ReadonlySet<string> = new Set([

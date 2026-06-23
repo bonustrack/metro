@@ -1,11 +1,11 @@
 import { accountFor, accounts, tg, targetOf } from './accounts.js';
 import { respond } from './wire.js';
-import { normalizeTelegram } from '../messaging-normalize.js';
+import { normalizeTelegram } from '@metro-labs/station-kit/messaging-normalize';
 import {
   makeStation,
   type CallMsg,
   type StationHandler,
-} from '../station-runtime.js';
+} from '@metro-labs/station-kit/station-runtime';
 import { mediaKindOf } from './attachments.js';
 import {
   emitOutbound,
