@@ -2,9 +2,9 @@ import { errMsg } from '@metro-labs/mcp/log';
 import { accounts, lineOf } from './accounts.js';
 import { mintId, SELF_URI } from './wire.js';
 import { mediaRefOf, saveTelegramMedia } from './attachments.js';
-import type { TgMsg, TgReaction } from './types.js';
+import type { TgMsg, TgReaction, TgReactionCount } from './types.js';
 
-export type { TgMsg, TgReaction };
+export type { TgMsg, TgReaction, TgReactionCount };
 
 function lineForMsg(
   accountId: string,
@@ -88,6 +88,34 @@ export function reactionEnvelope(
     event: { type: 'react', emoji: added[0], targetId: String(r.message_id) },
     is_private: r.chat.type === 'private',
     payload: r,
+  };
+}
+
+export function reactionCountEnvelope(
+  accountId: string,
+  rc: TgReactionCount,
+): Record<string, unknown> | null {
+  const emojiReactions = rc.reactions.filter(
+    (r) => r.type.type === 'emoji' && r.type.emoji,
+  );
+  if (!emojiReactions.length) return null;
+  const top = emojiReactions.reduce((a, b) =>
+    b.total_count > a.total_count ? b : a,
+  );
+  const emoji = top.type.emoji ?? '';
+  if (!emoji) return null;
+  return {
+    kind: 'react',
+    id: mintId(),
+    ts: new Date(rc.date * 1000).toISOString(),
+    station: 'telegram',
+    line: lineOf(accountId, rc.chat.id),
+    from: `metro://telegram/${accountId}/user/unknown`,
+    message_id: String(rc.message_id),
+    emoji,
+    event: { type: 'react', emoji, targetId: String(rc.message_id) },
+    is_private: rc.chat.type === 'private',
+    payload: rc,
   };
 }
 
