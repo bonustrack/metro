@@ -1,8 +1,8 @@
 /**
- * Multi-bot env config. Verifies the comma-separated *_BOT_TOKENS env fallbacks
- * for discord/telegram and the MNEMONIC/DERIVE_COUNT derivation for xmtp, plus
- * the shared csv/genIds helpers in account-store. No accounts file is present, so
- * the `fallback` path is exercised; account ids are the generated d0/t0/x0 form.
+ * Multi-bot env config. Verifies the comma-separated DISCORD_BOT_TOKENS env
+ * fallback plus the shared csv/genIds helpers in account-store. No accounts file
+ * is present, so the `fallback` path is exercised; account ids are the generated
+ * d0/d1 form. (Telegram's fallback lives in @metro-labs/telegram's own tests.)
  */
 
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
@@ -13,8 +13,6 @@ import { csv, genIds } from '@metro-labs/station-kit/account-store';
 
 const ENV_KEYS = [
   'DISCORD_ACCOUNTS_FILE', 'DISCORD_BOT_TOKENS',
-  'TELEGRAM_ACCOUNTS_FILE', 'TELEGRAM_BOT_TOKENS',
-  'XMTP_ACCOUNTS_FILE', 'MNEMONIC', 'DERIVE_COUNT',
 ] as const;
 let saved: Record<string, string | undefined> = {};
 
@@ -24,8 +22,6 @@ beforeEach(() => {
   // Point the *_ACCOUNTS_FILE at a fresh empty dir so no file exists → fallback path.
   const dir = mkdtempSync(join(tmpdir(), 'metro-multibot-'));
   process.env.DISCORD_ACCOUNTS_FILE = join(dir, 'discord.json');
-  process.env.TELEGRAM_ACCOUNTS_FILE = join(dir, 'telegram.json');
-  process.env.XMTP_ACCOUNTS_FILE = join(dir, 'xmtp.json');
 });
 afterEach(() => {
   for (const k of ENV_KEYS) {
@@ -57,13 +53,5 @@ describe('discord fallback', () => {
     expect(loadAccounts()).toEqual([
       { id: 'd0', token: 't1' }, { id: 'd1', token: 't2' }, { id: 'd2', token: 't3' },
     ]);
-  });
-});
-
-describe('telegram fallback', () => {
-  test('many tokens → t0..tN', async () => {
-    process.env.TELEGRAM_BOT_TOKENS = 'a,b';
-    const { loadAccounts } = await import('../src/stations/telegram/accounts.js?t1');
-    expect(loadAccounts()).toEqual([{ id: 't0', token: 'a' }, { id: 't1', token: 'b' }]);
   });
 });

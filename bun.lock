@@ -26,6 +26,7 @@
       "dependencies": {
         "@discordjs/voice": "^0.19.2",
         "@metro-labs/station-kit": "workspace:*",
+        "@metro-labs/telegram": "workspace:*",
         "@metro-labs/webhook": "workspace:*",
         "@metro-labs/xmtp": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.12.0",
@@ -48,6 +49,21 @@
       "version": "0.1.0",
       "dependencies": {
         "@metro-labs/metro": "workspace:*",
+      },
+      "devDependencies": {
+        "@stage-labs/config": "0.1.0-beta.1",
+        "eslint": "^10.3.0",
+        "knip": "^6.15.0",
+        "madge": "^8.0.0",
+        "typescript": "^5",
+      },
+    },
+    "packages/telegram": {
+      "name": "@metro-labs/telegram",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metro-labs/metro": "workspace:*",
+        "@metro-labs/station-kit": "workspace:*",
       },
       "devDependencies": {
         "@stage-labs/config": "0.1.0-beta.1",
@@ -164,6 +180,8 @@
     "@metro-labs/metro": ["@metro-labs/metro@workspace:apps/mcp"],
 
     "@metro-labs/station-kit": ["@metro-labs/station-kit@workspace:packages/station-kit"],
+
+    "@metro-labs/telegram": ["@metro-labs/telegram@workspace:packages/telegram"],
 
     "@metro-labs/webhook": ["@metro-labs/webhook@workspace:packages/webhook"],
 

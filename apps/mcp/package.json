@@ -47,6 +47,7 @@
     "prism-media": "^1.3.5",
     "zod": "^3.23.8",
     "@metro-labs/station-kit": "workspace:*",
+    "@metro-labs/telegram": "workspace:*",
     "@metro-labs/webhook": "workspace:*",
     "@metro-labs/xmtp": "workspace:*"
   },
