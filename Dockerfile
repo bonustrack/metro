@@ -1,6 +1,6 @@
 # metro — one process (stations + outbox + webhooks + MCP) on :8420.
 # Debian-based Bun image (glibc) so @xmtp/node-bindings loads the linux-x64-gnu
-# binary. No build step: metro runs from source via `bun src/server.ts`.
+# binary. No build step: metro runs from source via `bun apps/mcp/src/server.ts`.
 FROM oven/bun:1.3.9
 
 WORKDIR /app
@@ -10,9 +10,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 1) Runtime deps only (cached unless package.json/bun.lock change). Bun transpiles
-#    TS at runtime, so devDeps (tsc/eslint) are not needed in the image.
+# 1) Runtime deps only (cached unless a manifest/lockfile changes). Bun transpiles
+#    TS at runtime, so devDeps (tsc/eslint) are not needed in the image. Copy the
+#    root workspace manifest + lockfile + the apps/mcp manifest so Bun resolves the
+#    workspace and hoists deps before the rest of the source is copied.
 COPY package.json bun.lock ./
+COPY apps/mcp/package.json ./apps/mcp/package.json
 RUN bun install --frozen-lockfile --production
 
 # 2) App source. node_modules/.env/.git/dist are excluded via .dockerignore, so the
