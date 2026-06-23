@@ -77,8 +77,6 @@ function resolvePrivateKey(cfg: AccountConfig): string {
   return toHex(privateKey);
 }
 
-const LEGACY_DEFAULT_LINES = process.env.XMTP_LEGACY_DEFAULT_LINES === '1';
-
 const expandHome = (p: string): string =>
   p.startsWith('~') ? join(homedir(), p.slice(1)) : p;
 
@@ -125,8 +123,6 @@ export async function bootAccount(cfg: AccountConfig): Promise<void> {
 }
 
 export function lineOf(accountId: string, convId: string): string {
-  if (accountId === 'default' && LEGACY_DEFAULT_LINES)
-    return `metro://xmtp/${convId}`;
   return `metro://xmtp/${accountId}/${convId}`;
 }
 
