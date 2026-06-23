@@ -209,23 +209,26 @@ async function handleWebhookPost(
   res.writeHead(200).end('ok');
 }
 
+function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
+  const reqPath = (req.url ?? '').split('?')[0];
+  if (reqPath !== '/health' && reqPath !== '/healthz') return false;
+  res.writeHead(200, { 'content-type': 'application/json' }).end(
+    JSON.stringify({
+      status: 'ok',
+      version: METRO_VERSION,
+      uptime: Math.round(process.uptime()),
+    }),
+  );
+  return true;
+}
+
 async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
   emit: Emit,
   mcp?: McpHandler,
 ): Promise<void> {
-  const reqPath = (req.url ?? '').split('?')[0];
-  if (reqPath === '/health' || reqPath === '/healthz') {
-    res.writeHead(200, { 'content-type': 'application/json' }).end(
-      JSON.stringify({
-        status: 'ok',
-        version: METRO_VERSION,
-        uptime: Math.round(process.uptime()),
-      }),
-    );
-    return;
-  }
+  if (handleHealth(req, res)) return;
   if (mcp && isMcpPath(req)) {
     await mcp(req, res);
     return;
