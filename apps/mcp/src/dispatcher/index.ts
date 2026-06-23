@@ -23,7 +23,7 @@ import {
   startWebhookServer,
   trainEventToMetroEvent,
 } from './server.js';
-import { createMetroMcp } from '../mcp/index.js';
+import { createMetroMcp } from '../index.js';
 
 loadMetroEnv();
 acquireLock(join(STATE_DIR, '.tail-lock'));
