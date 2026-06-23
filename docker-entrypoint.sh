@@ -16,13 +16,13 @@ mkdir -p "$HOME/.metro" "$HOME/.cache/metro" "$METRO_TRAINS_DIR"
 rm -f "${METRO_STATE_DIR:-$HOME/.cache/metro}/.tail-lock"
 
 if [ -n "$MNEMONIC" ]; then
-  echo "import '/app/src/stations/xmtp/index.ts';" > "$METRO_TRAINS_DIR/xmtp.ts"
+  echo "import '/app/apps/mcp/src/stations/xmtp/index.ts';" > "$METRO_TRAINS_DIR/xmtp.ts"
 fi
 if [ -n "$TELEGRAM_BOT_TOKENS" ]; then
-  echo "import '/app/src/stations/telegram/index.ts';" > "$METRO_TRAINS_DIR/telegram.ts"
+  echo "import '/app/apps/mcp/src/stations/telegram/index.ts';" > "$METRO_TRAINS_DIR/telegram.ts"
 fi
 if [ -n "$DISCORD_BOT_TOKENS" ]; then
-  echo "import '/app/src/stations/discord/index.ts';" > "$METRO_TRAINS_DIR/discord.ts"
+  echo "import '/app/apps/mcp/src/stations/discord/index.ts';" > "$METRO_TRAINS_DIR/discord.ts"
 fi
 
-exec bun /app/src/server.ts
+exec bun /app/apps/mcp/src/server.ts
