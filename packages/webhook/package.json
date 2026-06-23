@@ -12,7 +12,8 @@
     "lint:fix": "eslint src/ --fix",
     "knip": "knip",
     "madge": "node scripts/madge.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit"
   },
   "dependencies": {
     "@metro-labs/mcp": "workspace:*"
