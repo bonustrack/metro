@@ -7,7 +7,7 @@ import {
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { subscribeEvents } from './event-bus.js';
+import { subscribeEvents } from './events.js';
 import { gatherAccounts } from './accounts.js';
 import {
   STATIONS,

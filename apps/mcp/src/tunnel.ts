@@ -5,12 +5,35 @@ import { errMsg, log } from './log.js';
 import { readJson } from './secure-fs.js';
 
 const FILE = join(STATE_DIR, 'tunnel.json');
+const WEBHOOKS_FILE = join(STATE_DIR, 'webhooks.json');
 const RESTART_DELAY_MS = 2_000;
 
 export interface TunnelConfig {
   name: string;
   hostname: string;
 }
+
+export interface Endpoint {
+  id: string;
+  label: string;
+  secret?: string;
+  session?: string;
+  createdAt: string;
+}
+interface Store {
+  endpoints: Endpoint[];
+}
+
+export const webhookPort = (): number =>
+  Number(process.env.METRO_WEBHOOK_PORT) || 8420;
+
+function readWebhooks(): Store {
+  return readJson<Store>(WEBHOOKS_FILE, { endpoints: [] });
+}
+
+export const listEndpoints = (): Endpoint[] => readWebhooks().endpoints;
+export const findEndpoint = (id: string): Endpoint | undefined =>
+  readWebhooks().endpoints.find((e) => e.id === id);
 
 export const loadTunnelConfig = (): TunnelConfig | null =>
   readJson<TunnelConfig | null>(FILE, null, {
@@ -95,10 +118,3 @@ export class Tunnel {
     this.child = null;
   }
 }
-
-export {
-  type Endpoint,
-  webhookPort,
-  listEndpoints,
-  findEndpoint,
-} from './endpoints.js';

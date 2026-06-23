@@ -3,9 +3,8 @@ import { createServer, type Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { createMetroMcp } from '../src/index.ts';
-import { publishEvent } from '../src/event-bus.ts';
 import { asLine } from '../src/lines.ts';
-import type { MetroEvent } from '../src/events.ts';
+import { publishEvent, type MetroEvent } from '../src/events.ts';
 
 process.env.METRO_CHANNEL_ALLOWLIST = '*';
 process.env.METRO_CHANNEL_STATIONS = 'discord';
