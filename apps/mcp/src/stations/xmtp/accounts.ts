@@ -10,7 +10,7 @@ import { toHex } from 'viem';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CODECS } from './codecs.js';
-import { makeAccountStore } from '../account-store.js';
+import { makeAccountStore } from '@metro-labs/station-kit/account-store';
 import { Line } from '../../lines.js';
 
 const ACCOUNTS_FILE =

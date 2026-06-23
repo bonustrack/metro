@@ -1,7 +1,7 @@
 import { Client } from 'discord.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { makeAccountStore, csv, genIds } from '../account-store.js';
+import { makeAccountStore, csv, genIds } from '@metro-labs/station-kit/account-store';
 import { Line } from '../../lines.js';
 
 export const API = 'https://discord.com/api/v10';

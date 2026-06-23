@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { ipcCall } from '../ipc.js';
 import { TrainError } from '../train-error.js';
-import { type ToolContext, type ToolResult } from '../stations/types.js';
+import { type ToolContext, type ToolResult } from '@metro-labs/station-kit/types';
 
 export async function metroCall(
   train: string,

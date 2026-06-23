@@ -9,7 +9,7 @@ import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { csv, genIds } from '../src/stations/account-store.js';
+import { csv, genIds } from '@metro-labs/station-kit/account-store';
 
 const ENV_KEYS = [
   'DISCORD_ACCOUNTS_FILE', 'DISCORD_BOT_TOKENS',
