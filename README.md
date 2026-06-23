@@ -142,17 +142,17 @@ One process does everything:
   `notifications/claude/channel`, and outbound dispatches straight to the stations.
 
 Inbound is never journaled to disk: the dispatcher publishes each event to an
-in-memory event bus ([`src/event-bus.ts`](src/event-bus.ts)) and the MCP relay
+in-memory event bus ([`src/event-bus.ts`](apps/mcp/src/event-bus.ts)) and the MCP relay
 subscribes to push channel notifications. The MCP HTTP transport is also
 session-tolerant: it survives a daemon restart so connected sessions auto-resume.
 
 **Lines.** Every conversation is a `metro://<station>/<path>` URI — the station is the
 host, the path is platform-specific (account-scoped for multi-bot). One parser
-([`src/lines.ts`](src/lines.ts)) owns the scheme.
+([`src/lines.ts`](apps/mcp/src/lines.ts)) owns the scheme.
 
 **Envelope.** Inbound and outbound events share one shape (`{kind?, id?, ts?, station?,
 line, from?, to?, message_id?, text?, payload?, …}`, see
-[`src/trains/protocol.ts`](src/trains/protocol.ts)).
+[`src/trains/protocol.ts`](apps/mcp/src/trains/protocol.ts)).
 
 **State.** metro is stateful and needs a persistent volume: the XMTP MLS databases under
 `~/.metro/` and the IPC socket under `$METRO_STATE_DIR`
