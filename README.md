@@ -60,16 +60,78 @@ import '@metro-labs/xmtp/train';
 
 ## Deploying
 
-[`Dockerfile`](Dockerfile) + [`fly.toml`](fly.toml) run metro on [Fly.io](https://fly.io)
-as one always-on machine with a persistent volume. The entrypoint generates a train per
-configured station and keeps state on the volume. The full walkthrough — volume,
-secrets, custom domain — is in [`DEPLOY.md`](DEPLOY.md):
+[`Dockerfile`](Dockerfile) + [`docker-entrypoint.sh`](docker-entrypoint.sh) +
+[`fly.toml`](fly.toml) + [`.dockerignore`](.dockerignore) run metro on
+[Fly.io](https://fly.io) as **one always-on machine + a single-attach volume**. The
+volume attaches to only one machine, which enforces XMTP's **single-writer** rule for
+free, and disk-backed deploys replace the machine in place — so there's never a moment
+with two writers on the same inbox (which would corrupt MLS state). The entrypoint
+generates a train per configured station and keeps state on the volume.
+
+### 1. Create the app + volume
 
 ```sh
-fly volumes create metro_data --size 10 --region <region>
-fly secrets set MNEMONIC="…" TELEGRAM_BOT_TOKENS="…" METRO_MCP_HTTP_TOKEN="$(openssl rand -hex 32)"
-fly deploy
+fly auth login                       # https://fly.io/docs/flyctl/install/
+# edit app = "metro" in fly.toml to a unique name first
+fly apps create <your-app-name>
+fly volumes create metro_data --app <your-app-name> --region iad --size 10   # GB
 ```
+
+One volume = one machine. Don't create a second volume/machine — XMTP forbids
+concurrent writers.
+
+### 2. Set secrets
+
+Secrets live in Fly, never in `fly.toml` or the image:
+
+```sh
+fly secrets set --app <your-app-name> \
+  MNEMONIC="your twelve word ..." \
+  TELEGRAM_BOT_TOKENS="123:abc,456:def" \
+  METRO_MCP_HTTP_TOKEN="$(openssl rand -hex 32)"
+# optional: DISCORD_BOT_TOKENS, and METRO_CHANNEL_ALLOWLIST to allow
+# Telegram/Discord sender ids (default allowlist is XMTP-only; "*" = allow all).
+```
+
+`METRO_MCP_HTTP_TOKEN` gates the public `/mcp` endpoint — set it (the app is
+internet-facing through Fly). `/health` stays public for Fly's health check.
+
+### 3. Deploy
+
+```sh
+fly deploy --app <your-app-name>
+fly logs --app <your-app-name>     # watch the stations boot
+fly status --app <your-app-name>   # should show ONE machine, running
+```
+
+### 4. Custom domain + MCP client (optional)
+
+```sh
+fly certs add mcp.metro.box --app <your-app-name>
+# then add the CNAME / A+AAAA records Fly prints, at your DNS provider
+
+claude mcp add --transport http metro https://mcp.metro.box \
+  --header "Authorization: Bearer <METRO_MCP_HTTP_TOKEN>"
+# or the default host: https://<your-app-name>.fly.dev
+```
+
+### Persistence & operating notes
+
+- **Live data** lives on the volume at `/data` (`HOME=/data`): XMTP MLS DBs under
+  `/data/.metro/*.db3`, outbox/IPC under `/data/.cache/metro`. It survives restarts,
+  deploys, and machine moves. A Fly volume is host-local SSD (durable, daily
+  snapshots, 5-day default); for a real safety net add off-box backup (e.g. Litestream
+  replicating the SQLite DBs to object storage — restoring rebuilds the *same* DB,
+  costing 0 XMTP installation slots).
+- **Keep it to one machine.** `fly scale count 1`. Two machines = two XMTP writers =
+  corruption. The single-attach volume makes this hard to do by accident.
+- **Always-on.** `auto_stop_machines = false` keeps the XMTP streams / Telegram
+  long-poll alive. Don't enable autostop.
+- **Memory.** Each XMTP account is a live client; bump `[[vm]] memory` in `fly.toml`
+  (2gb+) as you add accounts.
+- **Dev vs prod.** Use a *separate* MNEMONIC for testing — redeploys/restarts are safe
+  (the DB persists), but creating fresh DBs elsewhere burns the inbox's
+  10-installation / 256-update budget.
 
 XMTP keeps each inbox's MLS state in a local SQLite database that **must persist**
 (losing it re-installs the inbox), and only one instance may run per inbox. metro is
@@ -142,17 +204,17 @@ One process does everything:
   `notifications/claude/channel`, and outbound dispatches straight to the stations.
 
 Inbound is never journaled to disk: the dispatcher publishes each event to an
-in-memory event bus ([`src/event-bus.ts`](apps/mcp/src/event-bus.ts)) and the MCP relay
-subscribes to push channel notifications. The MCP HTTP transport is also
+in-memory event bus ([`src/daemon/events.ts`](apps/mcp/src/daemon/events.ts)) and the
+MCP relay subscribes to push channel notifications. The MCP HTTP transport is also
 session-tolerant: it survives a daemon restart so connected sessions auto-resume.
 
 **Lines.** Every conversation is a `metro://<station>/<path>` URI — the station is the
 host, the path is platform-specific (account-scoped for multi-bot). One parser
-([`src/lines.ts`](apps/mcp/src/lines.ts)) owns the scheme.
+([`src/stations/lines.ts`](apps/mcp/src/stations/lines.ts)) owns the scheme.
 
 **Envelope.** Inbound and outbound events share one shape (`{kind?, id?, ts?, station?,
 line, from?, to?, message_id?, text?, payload?, …}`, see
-[`src/trains/protocol.ts`](apps/mcp/src/trains/protocol.ts)).
+[`src/daemon/protocol.ts`](apps/mcp/src/daemon/protocol.ts)).
 
 **State.** metro is stateful and needs a persistent volume: the XMTP MLS databases under
 `~/.metro/` and the IPC socket under `$METRO_STATE_DIR`
@@ -174,25 +236,23 @@ each external messaging platform is a private station package under `packages/`.
 
 ```
 apps/
-  mcp/                  # @metro-labs/mcp — the core daemon + MCP surface + station contract
+  mcp/                  # @metro-labs/mcp — the core daemon (see apps/mcp/README.md)
     src/
-      server.ts         # entry — boots the daemon, which serves the MCP in-process
-      dispatcher/       # supervisor boot + outbound routing + webhook receiver + MCP mount
-      mcp/              # the MCP surface (createMetroMcp), mounted at the root path
-      trains/           # station supervisor + the station<->daemon protocol
-      stations/         # the station contract + runtime + registry the core builds on:
-                        #   types.ts            — Station/StationTool/Verb/ToolContext contract
-                        #   station-runtime.ts  — makeStation, CallMsg, emit/respond/mintId
-                        #   account-store.ts     — multi-bot account store (csv, genIds)
-                        #   attachments.ts       — saveBufferToCache, toCanonical, MIME table
-                        #   messaging-normalize.ts
-                        #   registry.ts          — discovers + dispatches the station packages
-      event-bus.ts      # in-memory event bus the MCP relay subscribes to
-      lines.ts          # the metro:// Line parser
+      server.ts         # entry (bin: metro-daemon) — imports daemon/boot
+      daemon/           # the supervised runtime: supervisor + dispatcher HTTP
+                        #   (/health, /mcp, /wh/<id>) + IPC + event bus + paths/tunnel
+      mcp/              # the MCP protocol surface (createMetroMcp) at the root path
+      stations/         # the station contract + runtime + registry the core reads:
+                        #   types.ts            — Station/StationTool/Verb contract
+                        #   station-runtime.ts  — makeStation, CallMsg, emit/respond
+                        #   account-store.ts    — multi-bot account store (csv, genIds)
+                        #   attachments.ts      — saveBufferToCache, toCanonical, MIME
+                        #   registry.ts         — the static list of station descriptors
+                        #   lines.ts            — the metro:// Line parser
 
-packages/               # private station packages — each implements the station contract
-  xmtp/                 #   and imports it from @metro-labs/mcp/stations/*
-  telegram/
+packages/               # private station packages — each implements the contract
+  xmtp/                 #   imported from @metro-labs/mcp/stations/*
+  telegram/             #   (see each package's README.md)
   discord/
   webhook/
 ```
@@ -200,6 +260,9 @@ packages/               # private station packages — each implements the stati
 The station contract and runtime live in the core (`apps/mcp/src/stations`) and are
 re-exported via `@metro-labs/mcp/stations/*`; the platform packages depend only on
 `@metro-labs/mcp` and stay isolated (e.g. the XMTP node SDK never enters the core graph).
+See the per-package READMEs: [apps/mcp](apps/mcp/README.md),
+[xmtp](packages/xmtp/README.md), [telegram](packages/telegram/README.md),
+[discord](packages/discord/README.md), [webhook](packages/webhook/README.md).
 
 ## License
 
