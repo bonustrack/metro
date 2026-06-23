@@ -36,13 +36,15 @@ async function resolveAddresses(
   try {
     const states = await acct.client.preferences.fetchInboxStates(missing);
     for (let i = 0; i < missing.length; i++) {
+      const key = missing[i];
+      if (key === undefined) continue;
       const eth = states[i]?.identifiers.find(
         (it: { identifierKind: IdentifierKind }) =>
           it.identifierKind === IdentifierKind.Ethereum,
       );
       if (eth?.identifier) {
-        addresses[missing[i]] = eth.identifier;
-        inboxEthCache.set(missing[i], eth.identifier);
+        addresses[key] = eth.identifier;
+        inboxEthCache.set(key, eth.identifier);
       }
     }
   } catch {

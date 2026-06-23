@@ -245,7 +245,8 @@ export class InboundRelay {
 
   private async handlePermissionReply(text: string): Promise<boolean> {
     const m = PERMISSION_REPLY_RE.exec(text);
-    if (!m || !this.pendingPermissions.size) return false;
+    if (m?.[1] === undefined || m[2] === undefined || !this.pendingPermissions.size)
+      return false;
     const id = m[2].toLowerCase();
     if (!this.pendingPermissions.has(id)) return false;
     this.pendingPermissions.delete(id);

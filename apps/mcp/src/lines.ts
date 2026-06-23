@@ -12,7 +12,9 @@ function parseLocalSession(
   const p = Line.parse(line);
   if (p?.station !== station || p.path[0] === 'user' || p.path.length < 2)
     return null;
-  return { userId: p.path[0], sessionId: p.path[1] };
+  const [userId, sessionId] = p.path;
+  if (userId === undefined || sessionId === undefined) return null;
+  return { userId, sessionId };
 }
 
 export function parseAccountScoped(
@@ -23,10 +25,10 @@ export function parseAccountScoped(
   const p = Line.parse(line);
   if (p?.station !== station) return null;
   let accountId: string, resource: string;
-  if (p.path.length === 2) {
+  if (p.path.length === 2 && p.path[0] !== undefined && p.path[1] !== undefined) {
     accountId = p.path[0];
     resource = p.path[1];
-  } else if (p.path.length === 1) {
+  } else if (p.path.length === 1 && p.path[0] !== undefined) {
     accountId = 'default';
     resource = p.path[0];
   } else return null;
@@ -38,8 +40,9 @@ const isSnowflake = (s: string): boolean => /^\d+$/.test(s);
 const isSignedInt = (s: string): boolean => /^-?\d+$/.test(s);
 
 function splitTelegramAccount(path: string[]): { accountId: string; rest: string[] } {
-  if (path.length >= 2 && !isSignedInt(path[0]))
-    return { accountId: path[0], rest: path.slice(1) };
+  const first = path[0];
+  if (path.length >= 2 && first !== undefined && !isSignedInt(first))
+    return { accountId: first, rest: path.slice(1) };
   return { accountId: 'default', rest: path };
 }
 
@@ -50,7 +53,8 @@ function parseTelegramLine(
   if (p?.station !== 'telegram') return null;
   const { accountId, rest } = splitTelegramAccount(p.path);
   const [chatId, topicId] = rest;
-  if (rest.length < 1 || rest.length > 2 || !isSignedInt(chatId)) return null;
+  if (rest.length < 1 || rest.length > 2 || chatId === undefined || !isSignedInt(chatId))
+    return null;
   if (topicId !== undefined && !isSnowflake(topicId)) return null;
   return {
     accountId,

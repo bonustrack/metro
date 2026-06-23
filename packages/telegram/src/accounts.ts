@@ -47,7 +47,7 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
     if (!tokens.length)
       return die(`no ${ACCOUNTS_FILE} and TELEGRAM_BOT_TOKENS unset`);
     const ids = genIds('t', tokens.length);
-    return tokens.map((token, i) => ({ id: ids[i], token }));
+    return tokens.map((token, i) => ({ id: ids[i] ?? `t${i}`, token }));
   },
 });
 

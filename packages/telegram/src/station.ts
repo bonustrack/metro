@@ -29,9 +29,11 @@ export const telegramStation: Station = {
   parseLine: (line) => {
     const p = Line.parse(line);
     if (p?.station !== 'telegram' || !p.path.length) return null;
-    return p.path.length >= 2
-      ? { accountId: p.path[0], resource: p.path.slice(1).join('/') }
-      : { accountId: 'default', resource: p.path[0] };
+    const [first, ...rest] = p.path;
+    if (first === undefined) return null;
+    return rest.length
+      ? { accountId: first, resource: rest.join('/') }
+      : { accountId: 'default', resource: first };
   },
   mutates: MUTATES,
   tools: [],

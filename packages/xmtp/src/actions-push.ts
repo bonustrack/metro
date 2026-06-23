@@ -47,7 +47,9 @@ function listPush(id: string): Promise<void> {
 async function testPush(id: string, args: Args): Promise<void> {
   const { account } = args as { account?: string };
   const acctId =
-    account ?? (accounts.size === 1 ? [...accounts.keys()][0] : 'default');
+    account ??
+    (accounts.size === 1 ? [...accounts.keys()][0] : 'default') ??
+    'default';
   await fcmPushToAll(acctId, { channelId: 'xmtp', source: 'test-push' });
   const sent = loadPushTokens().filter(
     (t) => !t.account || t.account === acctId,

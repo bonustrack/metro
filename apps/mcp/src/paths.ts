@@ -39,7 +39,8 @@ export function readDotenv(path: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of readFileSync(path, 'utf8').split('\n')) {
     const m = LINE_RE.exec(line);
-    if (m) out[m[1]] = m[2].replace(QUOTED_RE, '$2');
+    if (m?.[1] !== undefined && m[2] !== undefined)
+      out[m[1]] = m[2].replace(QUOTED_RE, '$2');
   }
   return out;
 }

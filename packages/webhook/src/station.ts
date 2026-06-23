@@ -39,7 +39,7 @@ export function webhookEntry(
     from: line,
     to: endpoint.session ? sessionOwner(endpoint.session) : line,
     messageId:
-      headers['x-github-delivery'] || headers['x-request-id'] || randomUUID(),
+      headers['x-github-delivery'] ?? headers['x-request-id'] ?? randomUUID(),
     text: `${headers['x-github-event'] ?? headers['x-intercom-topic'] ?? 'event'} ${method} ${url}`,
     payload: { headers, body },
   };
