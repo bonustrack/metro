@@ -6,7 +6,7 @@ import {
   type CallMsg,
   type StationHandler,
 } from '@metro-labs/mcp/stations/station-runtime';
-import { accountFor, targetOf } from './accounts.js';
+import { accountFor, accounts, targetOf } from './accounts.js';
 import type { UserClient } from './client.js';
 import { normalizeTelegramUser } from './normalize.js';
 import {
@@ -132,11 +132,23 @@ function makeRead(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeAccounts(): StationHandler {
+  return (id) => {
+    const list = [...accounts.values()].map((a) => ({
+      id: a.id,
+      owner: a.owner ?? null,
+    }));
+    respond(id, { result: { accounts: list } });
+    return Promise.resolve();
+  };
+}
+
 export function makeHandleCall(
   clientFor: ClientFor,
 ): (msg: CallMsg) => Promise<void> {
   return makeStation({
     handlers: {
+      accounts: makeAccounts(),
       send: makeSend(clientFor),
       react: makeReact(clientFor),
       edit: makeEdit(clientFor),
