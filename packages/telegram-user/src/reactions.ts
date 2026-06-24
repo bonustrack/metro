@@ -1,6 +1,6 @@
 import type { tl } from '@mtcute/bun';
 import { getBarePeerId, getMarkedPeerId } from '@mtcute/bun';
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg, log } from '@metro-labs/mcp/log';
 import { emit } from './wire.js';
 import { reactionEnvelope } from './format.js';
 import type { UserClient } from './client.js';
@@ -146,11 +146,45 @@ function handleUpdate(
   );
 }
 
+const DEBUG_SEEN_TYPES = new Set<string>();
+
+function debugLogRawUpdate(update: tl.TypeUpdate): void {
+  const type = update._;
+  const lower = type.toLowerCase();
+  if (lower.includes('reaction') || type === 'updateMessageReactions')
+    log.info({ train: 'telegram-user', updateType: type }, 'raw update (reaction-candidate)');
+  if (!DEBUG_SEEN_TYPES.has(type)) {
+    DEBUG_SEEN_TYPES.add(type);
+    log.info({ train: 'telegram-user', updateType: type }, 'raw update (first-seen type)');
+  }
+}
+
+function debugLogMessageReactions(update: tl.RawUpdateMessageReactions): void {
+  const results = update.reactions.results.map((r) => ({
+    emoji: emojiOf(r.reaction),
+    count: r.count,
+    chosen: r.chosenOrder !== undefined,
+  }));
+  log.info(
+    {
+      train: 'telegram-user',
+      peerType: update.peer._,
+      msgId: update.msgId,
+      resultCount: results.length,
+      results,
+      recentLen: update.reactions.recentReactions?.length ?? 0,
+    },
+    'updateMessageReactions received',
+  );
+}
+
 export function subscribeReactions(client: UserClient): void {
   const accountId = client.account.id;
   client.tg.onRawUpdate.add((info) => {
     const { update } = info;
+    debugLogRawUpdate(update);
     if (update._ !== 'updateMessageReactions') return;
+    debugLogMessageReactions(update);
     try {
       handleUpdate(client, update);
     } catch (e) {
@@ -159,4 +193,5 @@ export function subscribeReactions(client: UserClient): void {
       );
     }
   });
+  log.info({ train: 'telegram-user' }, 'reaction subscription wired');
 }
