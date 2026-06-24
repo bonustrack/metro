@@ -4,10 +4,6 @@
     "build": {
       "outputs": ["dist/**"]
     },
-    "lint": {},
-    "typecheck": {},
-    "test": {},
-    "knip": {},
-    "madge": {}
+    "test": {}
   }
 }

@@ -9,11 +9,6 @@
   },
   "scripts": {
     "build": "tsc",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
-    "knip": "knip",
-    "madge": "node scripts/madge.mjs",
-    "typecheck": "tsc --noEmit",
     "test": "tsc --noEmit && bun test test/"
   },
   "dependencies": {
@@ -21,7 +16,7 @@
     "@mtcute/bun": "0.30.1"
   },
   "devDependencies": {
-    "@stage-labs/config": "0.1.0-beta.1",
+    "@stage-labs/config": "0.1.0-beta.2",
     "@types/qrcode-terminal": "^0.12.2",
     "eslint": "^10.3.0",
     "knip": "^6.15.0",
