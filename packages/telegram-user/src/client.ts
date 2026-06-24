@@ -13,6 +13,7 @@ export interface UserClient {
   account: UserAccount;
   tg: TelegramClient;
   connect: () => Promise<void>;
+  startUpdates: () => Promise<void>;
   disconnect: () => Promise<void>;
 }
 
@@ -48,9 +49,13 @@ export function createClient(account: UserAccount): UserClient {
     }
   };
 
+  const startUpdates = async (): Promise<void> => {
+    await tg.startUpdatesLoop();
+  };
+
   const disconnect = async (): Promise<void> => {
     await tg.disconnect();
   };
 
-  return { account, tg, connect, disconnect };
+  return { account, tg, connect, startUpdates, disconnect };
 }

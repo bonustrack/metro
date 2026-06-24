@@ -1,5 +1,5 @@
 import type { Message } from '@mtcute/bun';
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg, log } from '@metro-labs/mcp/log';
 import { emit } from './wire.js';
 import { envelope, isOwnEcho, attachmentSavedEnvelope } from './format.js';
 import { downloadMedia, isDownloadable } from './attachments.js';
@@ -31,6 +31,10 @@ async function saveMediaAndEmit(
 }
 
 function emitMessage(client: UserClient, m: Message): void {
+  log.debug(
+    { train: 'telegram-user', account: client.account.id, messageId: m.id },
+    'inbound message received',
+  );
   if (isOwnEcho(m)) return;
   const env = envelope(client.account.id, m);
   emit(env);
@@ -57,6 +61,7 @@ export async function startInbound(client: UserClient): Promise<void> {
   try {
     subscribe(client);
     await client.connect();
+    await client.startUpdates();
     process.stderr.write(`telegram-user[${accountId}] inbound connected\n`);
   } catch (e) {
     process.stderr.write(
