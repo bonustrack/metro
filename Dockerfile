@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7-labs
 # metro — one process (stations + outbox + webhooks + MCP) on :8420.
 # Debian-based Bun image (glibc) so @xmtp/node-bindings loads the linux-x64-gnu
 # binary. No build step: metro runs from source via `bun apps/mcp/src/server.ts`.
@@ -13,15 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 # 1) Runtime deps only (cached unless a manifest/lockfile changes). Bun transpiles
 #    TS at runtime, so devDeps (tsc/eslint) are not needed in the image. Copy the
 #    root workspace manifest + lockfile + turbo config + EVERY workspace manifest
-#    (apps/mcp + all packages/*) so Bun resolves the full workspace and hoists the
-#    @metro-labs/* symlinks before the rest of the source is copied. Missing a
-#    station manifest here yields an incomplete install (unresolved workspace deps).
+#    (apps/* + packages/*) so Bun resolves the full workspace and hoists the
+#    @metro-labs/* symlinks before the rest of the source is copied. The
+#    `COPY --parents` glob (BuildKit/dockerfile:1.7-labs) preserves each manifest's
+#    path and matches new workspace packages automatically, so adding a station can
+#    never again silently break the frozen install / Fly auto-deploy.
 COPY package.json bun.lock turbo.json ./
-COPY apps/mcp/package.json ./apps/mcp/package.json
-COPY packages/xmtp/package.json ./packages/xmtp/package.json
-COPY packages/telegram/package.json ./packages/telegram/package.json
-COPY packages/discord/package.json ./packages/discord/package.json
-COPY packages/webhook/package.json ./packages/webhook/package.json
+COPY --parents apps/*/package.json packages/*/package.json ./
 RUN bun install --frozen-lockfile --production
 
 # 2) App source. node_modules/.env/.git/dist are excluded via .dockerignore, so the
