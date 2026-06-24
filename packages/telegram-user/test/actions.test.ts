@@ -181,6 +181,23 @@ describe('telegram-user outbound handlers', () => {
     });
   });
 
+  test('read with before pages older history via getHistory offset', async () => {
+    const client = fakeClient(calls);
+    const handle = makeHandleCall(() => client);
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'g2',
+      action: 'read',
+      args: { line: LINE, limit: 5, before: '8' },
+    });
+    cap.restore();
+    expect(calls).toContainEqual({
+      method: 'getHistory',
+      args: [12345, { limit: 5, offset: { id: 8, date: 0 } }],
+    });
+  });
+
   test('send with canonical attachment calls sendMedia and returns its id', async () => {
     const client = fakeClient(calls);
     const handle = makeHandleCall(() => client);

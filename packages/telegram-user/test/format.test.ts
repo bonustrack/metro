@@ -161,5 +161,28 @@ describe('reactionEnvelope', () => {
     expect(e.line).toBe('metro://telegram-user/default/-1009');
     expect(e.message_id).toBe('99');
     expect(e.event).toEqual({ type: 'react', emoji: '👍', targetId: '99' });
+    expect(e.payload).toEqual({
+      account: 'default',
+      message_id: '99',
+      removed: false,
+    });
+  });
+
+  test('removed reaction sets payload.removed = true', () => {
+    const e = reactionEnvelope({
+      accountId: 'default',
+      chatId: -1009,
+      messageId: 99,
+      emoji: '👍',
+      senderId: 222,
+      date: new Date('2026-06-21T00:00:00.000Z'),
+      isPrivate: false,
+      removed: true,
+    });
+    expect(e.payload).toEqual({
+      account: 'default',
+      message_id: '99',
+      removed: true,
+    });
   });
 });

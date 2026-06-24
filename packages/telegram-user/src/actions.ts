@@ -127,7 +127,15 @@ function makeRead(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
     const { accountId, client, chatId } = resolve(args, clientFor);
     const limit = clampLimit(args.limit);
-    const page = await guard(() => client.tg.getHistory(chatId, { limit }));
+    const before = str(args.before);
+    const beforeId = before ? Number(before) : undefined;
+    const offset =
+      beforeId !== undefined && Number.isFinite(beforeId)
+        ? { offset: { id: beforeId, date: 0 } }
+        : {};
+    const page = await guard(() =>
+      client.tg.getHistory(chatId, { limit, ...offset }),
+    );
     respond(id, { result: shapeHistory(accountId, chatId, page) });
   };
 }
