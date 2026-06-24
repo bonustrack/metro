@@ -40,6 +40,32 @@ function reactionUpdate(
   };
 }
 
+function aggregateUpdate(
+  results: Array<Record<string, unknown>>,
+  msgId = 50,
+): unknown {
+  return {
+    update: {
+      _: 'updateMessageReactions',
+      peer: { _: 'peerUser', userId: 111 },
+      msgId,
+      reactions: { _: 'messageReactions', results, recentReactions: [] },
+    },
+    peers: {},
+  };
+}
+
+const count = (
+  emoticon: string,
+  n: number,
+  chosenOrder?: number,
+): Record<string, unknown> => ({
+  _: 'reactionCount',
+  reaction: { _: 'reactionEmoji', emoticon },
+  count: n,
+  ...(chosenOrder === undefined ? {} : { chosenOrder }),
+});
+
 const reactor = (userId: number, emoticon: string, my = false) => ({
   _: 'messagePeerReaction',
   peerId: { _: 'peerUser', userId },
@@ -105,5 +131,57 @@ describe('inbound reactions', () => {
     emitter.fire(reactionUpdate([reactor(999, '❤️', true)], 44));
     cap.restore();
     expect(cap.events).toHaveLength(0);
+  });
+
+  test('emits a DM add via aggregate results when recentReactions is empty', () => {
+    subscribeReactions(fakeClient(emitter));
+    const cap = captureEmits();
+    emitter.fire(aggregateUpdate([count('👍', 1)], 50));
+    cap.restore();
+    expect(cap.events).toHaveLength(1);
+    expect(cap.events[0]).toMatchObject({
+      kind: 'react',
+      line: 'metro://telegram-user/default/111',
+      from: 'metro://telegram-user/default/user/111',
+      message_id: '50',
+      event: { type: 'react', emoji: '👍', targetId: '50' },
+      payload: { removed: false },
+    });
+  });
+
+  test('emits a DM removed via aggregate results when the count falls', () => {
+    subscribeReactions(fakeClient(emitter));
+    const cap = captureEmits();
+    emitter.fire(aggregateUpdate([count('👍', 2)], 51));
+    emitter.fire(aggregateUpdate([count('👍', 1)], 51));
+    cap.restore();
+    expect(cap.events).toHaveLength(2);
+    expect(cap.events[1]).toMatchObject({
+      kind: 'react',
+      from: 'metro://telegram-user/default/user/111',
+      message_id: '51',
+      payload: { removed: true },
+    });
+  });
+
+  test('excludes the session own aggregate reaction via chosenOrder', () => {
+    subscribeReactions(fakeClient(emitter));
+    const cap = captureEmits();
+    emitter.fire(aggregateUpdate([count('❤️', 1, 1)], 52));
+    cap.restore();
+    expect(cap.events).toHaveLength(0);
+  });
+
+  test('counts the peer reaction even when the session also reacted', () => {
+    subscribeReactions(fakeClient(emitter));
+    const cap = captureEmits();
+    emitter.fire(aggregateUpdate([count('👍', 2, 1)], 53));
+    cap.restore();
+    expect(cap.events).toHaveLength(1);
+    expect(cap.events[0]).toMatchObject({
+      from: 'metro://telegram-user/default/user/111',
+      message_id: '53',
+      payload: { removed: false },
+    });
   });
 });

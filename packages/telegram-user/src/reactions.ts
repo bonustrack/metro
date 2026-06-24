@@ -10,9 +10,14 @@ interface SeenReaction {
   emoji: string;
 }
 
-type SeenMap = Map<string, SeenReaction[]>;
+type CountMap = Map<string, number>;
 
-const seenByKey: SeenMap = new Map();
+interface SeenState {
+  recent: SeenReaction[];
+  counts: CountMap;
+}
+
+const seenByKey = new Map<string, SeenState>();
 
 function emojiOf(reaction: tl.TypeReaction): string | undefined {
   if (reaction._ === 'reactionEmoji') return reaction.emoticon;
@@ -34,6 +39,17 @@ function recentOf(reactions: tl.TypeMessageReactions): SeenReaction[] {
   return out;
 }
 
+function countsOf(reactions: tl.TypeMessageReactions): CountMap {
+  const out: CountMap = new Map();
+  for (const r of reactions.results) {
+    const emoji = emojiOf(r.reaction);
+    if (emoji === undefined) continue;
+    const count = r.chosenOrder === undefined ? r.count : r.count - 1;
+    if (count > 0) out.set(emoji, count);
+  }
+  return out;
+}
+
 function has(list: SeenReaction[], item: SeenReaction): boolean {
   return list.some(
     (r) => r.reactorId === item.reactorId && r.emoji === item.emoji,
@@ -45,11 +61,28 @@ interface DiffResult {
   removed: SeenReaction[];
 }
 
-function diff(prev: SeenReaction[], next: SeenReaction[]): DiffResult {
+function diffRecent(prev: SeenReaction[], next: SeenReaction[]): DiffResult {
   return {
     added: next.filter((n) => !has(prev, n)),
     removed: prev.filter((p) => !has(next, p)),
   };
+}
+
+function diffCounts(
+  prev: CountMap,
+  next: CountMap,
+  reactorId: number,
+): DiffResult {
+  const added: SeenReaction[] = [];
+  const removed: SeenReaction[] = [];
+  const emojis = new Set([...prev.keys(), ...next.keys()]);
+  for (const emoji of emojis) {
+    const before = prev.get(emoji) ?? 0;
+    const after = next.get(emoji) ?? 0;
+    if (after > before) added.push({ reactorId, emoji });
+    else if (after < before) removed.push({ reactorId, emoji });
+  }
+  return { added, removed };
 }
 
 interface ReactionContext {
@@ -80,6 +113,18 @@ function emitDiff(ctx: ReactionContext, change: DiffResult): void {
     );
 }
 
+function computeChange(
+  update: tl.RawUpdateMessageReactions,
+  prev: SeenState,
+  next: SeenState,
+  isPrivate: boolean,
+): DiffResult {
+  if (next.recent.length > 0 || prev.recent.length > 0)
+    return diffRecent(prev.recent, next.recent);
+  if (!isPrivate) return { added: [], removed: [] };
+  return diffCounts(prev.counts, next.counts, getBarePeerId(update.peer));
+}
+
 function handleUpdate(
   client: UserClient,
   update: tl.RawUpdateMessageReactions,
@@ -87,9 +132,12 @@ function handleUpdate(
   const chatId = getMarkedPeerId(update.peer);
   const isPrivate = update.peer._ === 'peerUser';
   const key = `${chatId}:${update.msgId}`;
-  const next = recentOf(update.reactions);
-  const prev = seenByKey.get(key) ?? [];
-  const change = diff(prev, next);
+  const next: SeenState = {
+    recent: recentOf(update.reactions),
+    counts: countsOf(update.reactions),
+  };
+  const prev = seenByKey.get(key) ?? { recent: [], counts: new Map() };
+  const change = computeChange(update, prev, next, isPrivate);
   seenByKey.set(key, next);
   if (change.added.length === 0 && change.removed.length === 0) return;
   emitDiff(
