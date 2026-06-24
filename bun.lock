@@ -5,7 +5,7 @@
     "": {
       "name": "metro-monorepo",
       "devDependencies": {
-        "@stage-labs/config": "0.1.0-beta.1",
+        "@stage-labs/config": "0.1.0-beta.2",
         "@types/bun": "^1.2.0",
         "@types/node": "^22.10.0",
         "@types/ws": "^8.5.0",
@@ -35,7 +35,7 @@
         "zod": "^3.23.8",
       },
       "devDependencies": {
-        "@stage-labs/config": "0.1.0-beta.1",
+        "@stage-labs/config": "0.1.0-beta.2",
         "eslint": "^10.3.0",
         "knip": "^6.15.0",
         "madge": "^8.0.0",
@@ -52,7 +52,7 @@
         "prism-media": "^1.3.5",
       },
       "devDependencies": {
-        "@stage-labs/config": "0.1.0-beta.1",
+        "@stage-labs/config": "0.1.0-beta.2",
         "eslint": "^10.3.0",
         "knip": "^6.15.0",
         "madge": "^8.0.0",
@@ -66,7 +66,7 @@
         "@metro-labs/mcp": "workspace:*",
       },
       "devDependencies": {
-        "@stage-labs/config": "0.1.0-beta.1",
+        "@stage-labs/config": "0.1.0-beta.2",
         "eslint": "^10.3.0",
         "knip": "^6.15.0",
         "madge": "^8.0.0",
@@ -81,7 +81,7 @@
         "@mtcute/bun": "0.30.1",
       },
       "devDependencies": {
-        "@stage-labs/config": "0.1.0-beta.1",
+        "@stage-labs/config": "0.1.0-beta.2",
         "@types/qrcode-terminal": "^0.12.2",
         "eslint": "^10.3.0",
         "knip": "^6.15.0",
@@ -97,7 +97,7 @@
         "@metro-labs/mcp": "workspace:*",
       },
       "devDependencies": {
-        "@stage-labs/config": "0.1.0-beta.1",
+        "@stage-labs/config": "0.1.0-beta.2",
         "eslint": "^10.3.0",
         "knip": "^6.15.0",
         "madge": "^8.0.0",
@@ -119,7 +119,7 @@
         "viem": "^2.52.2",
       },
       "devDependencies": {
-        "@stage-labs/config": "0.1.0-beta.1",
+        "@stage-labs/config": "0.1.0-beta.2",
         "eslint": "^10.3.0",
         "knip": "^6.15.0",
         "madge": "^8.0.0",
@@ -380,7 +380,7 @@
 
     "@snazzah/davey-win32-x64-msvc": ["@snazzah/davey-win32-x64-msvc@0.1.11", "", { "os": "win32", "cpu": "x64" }, "sha512-muNhc8UKXtknzsH/w4AIkbPR2I8BuvApn0pDXar0IEvY8PCjqU/M8MPbOOEYwQVvQRMwVTgExtxzrkBPSXB4nA=="],
 
-    "@stage-labs/config": ["@stage-labs/config@0.1.0-beta.1", "", { "peerDependencies": { "eslint": "*", "typescript": "*", "typescript-eslint": "*" } }, "sha512-xb5ZZWSd/9vTEycqLaAdRS+7x2QocCSxsi4aX6k/pnz3pS5X3FswIv/kmAcmmwD3I5AjlHBPd/5djQ4t/IbfXA=="],
+    "@stage-labs/config": ["@stage-labs/config@0.1.0-beta.2", "", { "peerDependencies": { "eslint": "*", "knip": "*", "madge": "*", "typescript": "*", "typescript-eslint": "*" }, "optionalPeers": ["knip", "madge"], "bin": { "stage": "bin/stage.js", "stage-madge": "bin/stage-madge.js" } }, "sha512-JwgH0EApO/ZKOacZqHi6v6EVA9it90hIx4m7Ug65mcRubYDLnkY/Wx+TSrh65QbQhK/4H6dcYXZ/kh5VE7cLng=="],
 
     "@ts-graphviz/adapter": ["@ts-graphviz/adapter@2.0.6", "", { "dependencies": { "@ts-graphviz/common": "^2.1.5" } }, "sha512-kJ10lIMSWMJkLkkCG5gt927SnGZcBuG0s0HHswGzcHTgvtUe7yk5/3zTEr0bafzsodsOq5Gi6FhQeV775nC35Q=="],
 

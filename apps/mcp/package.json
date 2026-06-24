@@ -36,11 +36,6 @@
   "scripts": {
     "start": "bun src/server.ts",
     "build": "tsc",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
-    "knip": "knip",
-    "madge": "node scripts/madge.mjs",
-    "typecheck": "tsc --noEmit",
     "test": "tsc && METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
   },
   "dependencies": {
@@ -55,7 +50,7 @@
     "@metro-labs/xmtp": "workspace:*"
   },
   "devDependencies": {
-    "@stage-labs/config": "0.1.0-beta.1",
+    "@stage-labs/config": "0.1.0-beta.2",
     "eslint": "^10.3.0",
     "knip": "^6.15.0",
     "madge": "^8.0.0",
