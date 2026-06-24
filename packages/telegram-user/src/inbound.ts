@@ -3,6 +3,7 @@ import { errMsg, log } from '@metro-labs/mcp/log';
 import { emit } from './wire.js';
 import { envelope, isOwnEcho, attachmentSavedEnvelope } from './format.js';
 import { downloadMedia, isDownloadable } from './attachments.js';
+import { subscribeReactions } from './reactions.js';
 import type { UserClient } from './client.js';
 
 async function saveMediaAndEmit(
@@ -54,6 +55,7 @@ function subscribe(client: UserClient): void {
   };
   client.tg.onNewMessage.add(onMessage);
   client.tg.onEditMessage.add(onMessage);
+  subscribeReactions(client);
 }
 
 export async function startInbound(client: UserClient): Promise<void> {

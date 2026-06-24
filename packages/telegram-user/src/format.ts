@@ -100,6 +100,7 @@ export interface ReactionInput {
   date: Date;
   isPrivate: boolean;
   senderName?: string;
+  removed?: boolean;
 }
 
 export function reactionEnvelope(r: ReactionInput): Record<string, unknown> {
@@ -115,5 +116,10 @@ export function reactionEnvelope(r: ReactionInput): Record<string, unknown> {
     emoji: r.emoji,
     event: { type: 'react', emoji: r.emoji, targetId: String(r.messageId) },
     is_private: r.isPrivate,
+    payload: {
+      account: r.accountId,
+      message_id: String(r.messageId),
+      removed: r.removed === true,
+    },
   };
 }
