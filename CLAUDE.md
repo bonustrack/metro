@@ -12,7 +12,7 @@ Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
   - `src/mcp/` — MCP server, tool dispatch, inbound event handling, keepalive.
   - `src/daemon/` — boot, HTTP server, tunnel/endpoints, train supervisor, logging, errors, secure-fs, protocol, the in-process event bus.
   - `src/stations/` — station registry, types, runtime, account-store, attachments, lines, messaging-normalize.
-- `packages/*` — four station packages: `@metro-labs/xmtp`, `@metro-labs/telegram`, `@metro-labs/discord`, `@metro-labs/webhook`.
+- `packages/*` — five station packages: `@metro-labs/xmtp`, `@metro-labs/telegram`, `@metro-labs/telegram-user`, `@metro-labs/discord`, `@metro-labs/webhook`.
 
 Flow: inbound network message → station → in-process bus → MCP event for the agent. Outbound: agent MCP tool call → station verb → network. The daemon hosts both the MCP server and the stations in one process; the bus connects them.
 
@@ -40,7 +40,7 @@ Flow: inbound network message → station → in-process bus → MCP event for t
 - In-process bus (`src/daemon/events.ts`): inbound flows station → bus → MCP event in one process. It is a bus, not a journal — there is no persistence, replay, backfill, or on-disk history.
 - Static seam: stations are wired through the registry in `src/stations/`; core dispatches generically over station defs (verbs/attachment modes), no per-network branching in core.
 - Tolerated package cycle: there is a known dependency cycle between core and station packages. It is intentional and tolerated — do NOT "fix" it; madge is configured around it.
-- Three out-of-process trains (XMTP, Telegram, Discord) + webhook handled in-core (no subprocess; `hasAccounts: false`).
+- Four out-of-process trains (XMTP, Telegram, Telegram-user, Discord) + webhook handled in-core (no subprocess; `hasAccounts: false`). The telegram-user train only spawns when its session is configured.
 - Permission replies (human-in-the-loop): a pending MCP `permission_request` is relayed to chat as `yes <request_id>` / `no <request_id>`; `inbound.ts` matches the chat reply with `PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i`. The 5-char-code format is a contract with the relayed prompt — never change one side only.
 - REMOVED / don't resurrect: `history.jsonl`, on-disk journal/outbox, HTTP bridge, the Codex integration (dropped in #16). Don't reintroduce these.
 
@@ -50,6 +50,7 @@ Flow: inbound network message → station → in-process bus → MCP event for t
 |---|---|---|---|---|
 | xmtp | out-of-process train (`./train`) | message: `send`/`reply`/`react`/`unreact`/`read`; push: `register-push`/`test-push`/`unregister-push`/`disable-push`; + mutating verbs | `XMTP_ONLY_ACCOUNTS`, `XMTP_ACCOUNTS` | Production XMTP/MLS net. DB `~/.metro/xmtp-production-<id>.db3`, env `production`. Single-writer (see Deploy). Use a separate `MNEMONIC` for dev. |
 | telegram | out-of-process train | message: `send`/`reply`/`react`/`unreact`/`edit`/`delete` (NO `read`); + six `send_*` verbs | `TELEGRAM_ONLY_ACCOUNTS`, `TELEGRAM_ACCOUNTS` | |
+| telegram-user | out-of-process train (`./train`) | message: `send`/`reply`/`react`/`unreact`/`edit`/`delete`/`read` | `TELEGRAM_USER_ONLY_ACCOUNTS`, `TELEGRAM_USER_ACCOUNTS` | Telegram **user account** (MTProto via `@mtcute/bun`), not the bot API. Env `TELEGRAM_USER_API_ID`/`API_HASH`/`SESSION`/`ACCOUNTS`/`ONLY_ACCOUNTS`. Dormant until a session is set (the entrypoint only writes the train stub when `TELEGRAM_USER_SESSION`/`_ACCOUNTS` is configured). Constraints: Telegram ToS / ban risk; `TELEGRAM_USER_SESSION` is a full-account secret; single-writer per account. |
 | discord | out-of-process train | message: `send`/`reply`/`react`/`unreact`/`read`/…; + thread/pin/typing/presence/voice verbs | `DISCORD_ONLY_ACCOUNTS`, `DISCORD_ACCOUNTS` | Voice via `@discordjs/voice`/`prism-media`. |
 | webhook | in-core (`.` only, `hasAccounts: false`) | `webhookEntry` / `verifyWebhookSig` | — | Constant-time HMAC-SHA256: `createHmac('sha256')` + `timingSafeEqual`, `sha256=` prefix. |
 

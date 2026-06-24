@@ -50,6 +50,7 @@
     "zod": "^3.23.8",
     "@metro-labs/discord": "workspace:*",
     "@metro-labs/telegram": "workspace:*",
+    "@metro-labs/telegram-user": "workspace:*",
     "@metro-labs/webhook": "workspace:*",
     "@metro-labs/xmtp": "workspace:*"
   },

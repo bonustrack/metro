@@ -30,6 +30,9 @@ fi
 if [ -n "$TELEGRAM_BOT_TOKENS" ]; then
   echo "import '@metro-labs/telegram/train';" > "$METRO_TRAINS_DIR/telegram.ts"
 fi
+if [ -n "$TELEGRAM_USER_SESSION" ] || [ -n "$TELEGRAM_USER_ACCOUNTS" ]; then
+  echo "import '@metro-labs/telegram-user/train';" > "$METRO_TRAINS_DIR/telegram-user.ts"
+fi
 if [ -n "$DISCORD_BOT_TOKENS" ]; then
   echo "import '@metro-labs/discord/train';" > "$METRO_TRAINS_DIR/discord.ts"
 fi

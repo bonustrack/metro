@@ -1,4 +1,5 @@
 import { TelegramClient } from '@mtcute/bun';
+import qrcode from 'qrcode-terminal';
 
 const out = (s: string) => process.stdout.write(s);
 
@@ -18,11 +19,27 @@ const tg = new TelegramClient({
   storage: ':memory:',
 });
 
-const user = await tg.start({
-  phone: () => tg.input('phone number (international format): '),
-  code: () => tg.input('login code: '),
-  password: () => tg.input('2FA password (blank if none): '),
-});
+const usePhone = process.argv.includes('--phone');
+
+const signInWithPhone = () =>
+  tg.start({
+    phone: () => tg.input('phone number (international format): '),
+    code: () => tg.input('login code: '),
+    password: () => tg.input('2FA password (blank if none): '),
+  });
+
+const signInWithQr = () =>
+  tg.signInQr({
+    onUrlUpdated: (url) => {
+      out('\nscan this QR in Telegram → Settings → Devices → Link Desktop Device:\n\n');
+      qrcode.generate(url, { small: true }, (qr) => out(`${qr}\n`));
+      out(`or open this link on the logged-in device:\n  ${url}\n\n`);
+    },
+    onQrScanned: () => out('QR scanned, finalizing...\n'),
+    password: () => tg.input('2FA password: '),
+  });
+
+const user = usePhone ? await signInWithPhone() : await signInWithQr();
 
 const session = await tg.exportSession();
 
