@@ -11,7 +11,6 @@ export type MonitorCall = (
 
 const KEEPALIVE_MS = 25_000;
 const CALL_BODY_MAX = 256 * 1024;
-const DEFAULT_HOSTS = 'monitor.metro.box,localhost,127.0.0.1';
 const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
 
 function monitorToken(): string {
@@ -51,18 +50,6 @@ function authorized(req: IncomingMessage, q: URLSearchParams): boolean {
     return true;
   const qt = q.get('token');
   return Boolean(qt && tokenEq(qt, token));
-}
-
-function hostAllowed(req: IncomingMessage): boolean {
-  const host = req.headers.host;
-  const allowed = new Set(
-    (process.env.METRO_MONITOR_HOSTS ?? DEFAULT_HOSTS)
-      .toLowerCase()
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
-  );
-  return !host || allowed.has((host.split(':')[0] ?? '').toLowerCase());
 }
 
 function parseCallArgs(raw: string): Record<string, unknown> {
@@ -183,7 +170,7 @@ function preflight(
   path: string,
   qs: string,
 ): boolean {
-  if (!monitorToken() || !hostAllowed(req)) {
+  if (!monitorToken()) {
     sendJson(res, req, 404, { error: 'not found' });
     return true;
   }

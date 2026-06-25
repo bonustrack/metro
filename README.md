@@ -170,7 +170,6 @@ Each bot is an account with its own id; lines are account-scoped
 | `METRO_WEBHOOK_PORT` | `8420` | HTTP port |
 | `METRO_MCP_HTTP_TOKEN` | — | Optional bearer gating the MCP endpoint |
 | `METRO_MONITOR_TOKEN` | — | Bearer gating the Monitor transport (`/api/*`). Unset → Monitor disabled (404). Separate from `METRO_MCP_HTTP_TOKEN`. |
-| `METRO_MONITOR_HOSTS` | `monitor.metro.box,localhost,127.0.0.1` | Host allowlist for the Monitor transport |
 | `METRO_LOG_LEVEL` | `info` | `trace`–`fatal`; logs go to stderr |
 
 ## Connecting a client
@@ -205,8 +204,7 @@ want to observe and drive Metro over plain HTTP (no MCP client needed). It is
 mid-session.
 
 Set `METRO_MONITOR_TOKEN` to enable it; while unset the `/api/*` surface stays
-disabled (returns 404), so there is no unauthenticated surface. Requests are also
-host-gated by `METRO_MONITOR_HOSTS`.
+disabled (returns 404), so there is no unauthenticated surface.
 
 | Endpoint | Purpose |
 | --- | --- |
