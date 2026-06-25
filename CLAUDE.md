@@ -8,8 +8,10 @@ Metro is a relay that bridges chat networks (XMTP, Telegram, Discord, generic we
 
 Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
 
-- `apps/mcp` — the core. Package `@metro-labs/mcp`, bin `metro-daemon` → `./dist/server.js`. Three source dirs:
-  - `src/mcp/` — MCP server, tool dispatch, inbound event handling, keepalive.
+- `apps/mcp` — the core. Package `@metro-labs/mcp`, bin `metro-daemon` → `./dist/server.js`. Source dirs:
+  - `src/mcp/` — generic MCP core: server, tool dispatch, keepalive, the `str()` helper (`str.ts`). No per-channel transport logic.
+  - `src/channels/` — Channel transport: the `InboundRelay` (`inbound.ts`) that turns bus events into `notifications/claude/channel` MCP notifications. Depends on core (`mcp/str.js`), not vice-versa.
+  - `src/monitor/` — the lightweight live Monitor transport (`api.ts`): SSE tail + call/health endpoints.
   - `src/daemon/` — boot, HTTP server, tunnel/endpoints, train supervisor, logging, errors, secure-fs, protocol, the in-process event bus.
   - `src/stations/` — station registry, types, runtime, account-store, attachments, lines, messaging-normalize.
 - `packages/*` — five station packages: `@metro-labs/xmtp`, `@metro-labs/telegram`, `@metro-labs/telegram-user`, `@metro-labs/discord`, `@metro-labs/webhook`.
