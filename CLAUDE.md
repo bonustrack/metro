@@ -42,7 +42,7 @@ Flow: inbound network message → station → in-process bus → MCP event for t
 - Tolerated package cycle: there is a known dependency cycle between core and station packages. It is intentional and tolerated — do NOT "fix" it; madge is configured around it.
 - Four out-of-process trains (XMTP, Telegram, Telegram-user, Discord) + webhook handled in-core (no subprocess; `hasAccounts: false`). The telegram-user train only spawns when its session is configured.
 - Permission replies (human-in-the-loop): a pending MCP `permission_request` is relayed to chat as `yes <request_id>` / `no <request_id>`; `inbound.ts` matches the chat reply with `PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i`. The 5-char-code format is a contract with the relayed prompt — never change one side only.
-- REMOVED / don't resurrect: `history.jsonl`, on-disk journal/outbox, HTTP bridge, the Codex integration (dropped in #16). Don't reintroduce these.
+- REMOVED / don't resurrect: `history.jsonl`, on-disk journal/outbox, the Codex integration (dropped in #16). Don't reintroduce these. The old read-only HTTP "Monitor dashboard" (ring-buffer/backlog replay, `/api/state`, claims/owner-mode filtering) was removed in #40 — do NOT bring those parts back. A deliberately-scoped **lightweight Monitor transport** was reintroduced (`daemon/monitor-api.ts`): live-only `GET /api/tail` SSE (no replay), `POST /api/call/:train/:action`, `GET /api/health`, gated by `METRO_MONITOR_TOKEN` + `METRO_MONITOR_HOSTS`, mounted before the MCP auth gate. Keep it minimal — no history/ring buffer/claims.
 
 ## Stations
 

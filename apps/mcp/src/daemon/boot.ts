@@ -24,6 +24,7 @@ import {
   trainEventToMetroEvent,
 } from './http.js';
 import { createMetroMcp } from '../mcp/index.js';
+import { metroCall } from '../mcp/ctx.js';
 
 loadMetroEnv();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -109,7 +110,11 @@ const ipc = startIpcServer(handleIpc);
 async function main(): Promise<void> {
   supervisor.start();
   const metroMcp = await createMetroMcp();
-  webhookServer = await startWebhookServer(emit, metroMcp.httpHandler);
+  webhookServer = await startWebhookServer(
+    emit,
+    metroMcp.httpHandler,
+    metroCall,
+  );
   metroMcp.startInbound();
   tunnel?.start();
   log.info(
