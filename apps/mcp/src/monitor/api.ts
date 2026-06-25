@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { errMsg, log } from './log.js';
-import { subscribeEvents, type MetroEvent } from './events.js';
+import { errMsg, log } from '../daemon/log.js';
+import { subscribeEvents, type MetroEvent } from '../daemon/events.js';
 import {
   authorized,
   cors,
@@ -10,7 +10,7 @@ import {
   parseCallArgs,
   readCallBody,
   sendJson,
-} from './monitor-api-helpers.js';
+} from './helpers.js';
 
 export type MonitorCall = (
   train: string,

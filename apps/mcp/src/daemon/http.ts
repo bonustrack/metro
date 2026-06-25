@@ -21,7 +21,7 @@ import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
 import {
   handleMonitorRequest,
   type MonitorCall,
-} from './monitor-api.js';
+} from '../monitor/api.js';
 
 const LRU_CAP = 2_000;
 

@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { publishEvent, type MetroEvent } from '../src/daemon/events.ts';
-import type { MonitorCall } from '../src/daemon/monitor-api.ts';
+import type { MonitorCall } from '../src/monitor/api.ts';
 
 const TOKEN = 'monitor-test-token';
 
