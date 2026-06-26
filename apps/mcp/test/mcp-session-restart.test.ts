@@ -91,8 +91,10 @@ describe('MCP session survives daemon restart', () => {
     });
     expect(sseRes.status).not.toBe(404);
     expect(sseRes.status).toBe(200);
+    expect(sseRes.headers.get('x-accel-buffering')).toBe('no');
 
     const received: Record<string, unknown>[] = [];
+    let raw = '';
     const reader = sseRes.body?.getReader();
     const decoder = new TextDecoder();
     const pump = (async () => {
@@ -101,8 +103,9 @@ describe('MCP session survives daemon restart', () => {
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
-          for (const f of sseFrames(decoder.decode(value, { stream: true })))
-            received.push(f);
+          const text = decoder.decode(value, { stream: true });
+          raw += text;
+          for (const f of sseFrames(text)) received.push(f);
         }
       } catch {
         // aborted on teardown
@@ -128,6 +131,7 @@ describe('MCP session survives daemon restart', () => {
     ac.abort();
     await pump;
 
+    expect(raw.includes(':\n\n')).toBe(true);
     expect(
       received.some(
         (f) =>
