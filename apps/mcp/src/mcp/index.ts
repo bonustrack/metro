@@ -24,6 +24,7 @@ import { dispatchMessageTool } from './call-tools.js';
 import { InboundRelay } from '../channels/inbound.js';
 import { ChannelRelay } from '../channels/relay.js';
 import { Keepalive } from './keepalive.js';
+import { BoundedEventStore } from './event-store.js';
 
 const ALLOWLIST_DEFAULT =
   'bee7314f7127ef53b4e3bf5256e54b0a1acdc3698d064fb1029bd8f83ecc1186';
@@ -179,9 +180,13 @@ interface AdoptableInner {
   _initialized?: boolean;
 }
 
-function makeTransport(adoptId?: string): StreamableHTTPServerTransport {
+function makeTransport(
+  eventStore: BoundedEventStore,
+  adoptId?: string,
+): StreamableHTTPServerTransport {
   const t = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
+    eventStore,
   });
   if (adoptId !== undefined) {
     const inner = (t as unknown as { _webStandardTransport?: AdoptableInner })
@@ -242,14 +247,15 @@ export async function createMetroMcp(): Promise<{
     ping: () => mcp.ping(),
     log,
   });
-  let transport = makeTransport();
+  const eventStore = new BoundedEventStore();
+  let transport = makeTransport(eventStore);
   await mcp.connect(transport);
   const channel = new ChannelRelay({ relay, log });
   let adoptedSessionId: string | undefined;
   const rebind = async (adoptId?: string): Promise<void> => {
     keepalive.stop();
     await transport.close().catch(() => undefined);
-    transport = makeTransport(adoptId);
+    transport = makeTransport(eventStore, adoptId);
     await mcp.connect(transport);
     adoptedSessionId = adoptId;
     keepalive.start();
