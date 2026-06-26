@@ -270,7 +270,8 @@ export class InboundRelay {
     ev: Record<string, unknown>,
     replay: boolean,
   ): EventBase | null {
-    const evType = ev.event ? (ev.event as { type?: string }).type : 'msg';
+    const rawType = ev.event ? (ev.event as { type?: string }).type : 'msg';
+    const evType = rawType === 'reply' ? 'msg' : rawType;
     if (evType !== 'msg' && evType !== 'react') return null;
     const station = str(ev.station);
     if (station === 'webhook' || !this.deps.getStations().has(station))
