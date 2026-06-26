@@ -39,12 +39,12 @@ Flow: inbound network message → station → in-process bus → MCP event for t
 
 ## Architecture notes
 
-- In-process bus (`src/daemon/events.ts`): inbound flows station → bus → MCP event in one process. It is a bus, not a journal — there is no persistence, replay, backfill, or on-disk history.
+- In-process bus (`src/daemon/events.ts`): inbound flows station → bus → MCP event in one process. It is a bus, not a journal — no on-disk persistence/history. It keeps a small bounded in-memory ring buffer (`BUS_BUFFER_MAX = 500`) keyed by a monotonic `busSeq`; the Channel relay (`src/channels/relay.ts`) tracks the highest contiguously-delivered `busSeq` and replays missed events on transport rebind so the Claude channel does not drop messages across reconnects. Bounded + in-memory only — do NOT add an on-disk journal/history.
 - Static seam: stations are wired through the registry in `src/stations/`; core dispatches generically over station defs (verbs/attachment modes), no per-network branching in core.
 - Tolerated package cycle: there is a known dependency cycle between core and station packages. It is intentional and tolerated — do NOT "fix" it; madge is configured around it.
 - Four out-of-process trains (XMTP, Telegram, Telegram-user, Discord) + webhook handled in-core (no subprocess; `hasAccounts: false`). The telegram-user train only spawns when its session is configured.
 - Permission replies (human-in-the-loop): a pending MCP `permission_request` is relayed to chat as `yes <request_id>` / `no <request_id>`; `inbound.ts` matches the chat reply with `PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i`. The 5-char-code format is a contract with the relayed prompt — never change one side only.
-- REMOVED / don't resurrect: `history.jsonl`, on-disk journal/outbox, the Codex integration (dropped in #16). Don't reintroduce these. The old read-only HTTP "Monitor dashboard" (ring-buffer/backlog replay, `/api/state`, claims/owner-mode filtering) was removed in #40 — do NOT bring those parts back. A deliberately-scoped **lightweight Monitor transport** was reintroduced (`daemon/monitor-api.ts`): live-only `GET /api/tail` SSE (no replay), `POST /api/call/:train/:action`, `GET /api/health`, gated by `METRO_MONITOR_TOKEN`, mounted before the MCP auth gate. Keep it minimal — no history/ring buffer/claims.
+- REMOVED / don't resurrect: `history.jsonl`, on-disk journal/outbox, the Codex integration (dropped in #16). Don't reintroduce these. The old read-only HTTP "Monitor dashboard" (ring-buffer/backlog replay, `/api/state`, claims/owner-mode filtering) was removed in #40 — do NOT bring those parts back. A deliberately-scoped **lightweight Monitor transport** was reintroduced (`daemon/monitor-api.ts`): live-only `GET /api/tail` SSE (no replay), `POST /api/call/:train/:action`, `GET /api/health`, gated by the shared `METRO_MCP_HTTP_TOKEN` (same `?token=`/Bearer as the MCP/Channel endpoint; unset → 404), mounted before the MCP auth gate. Keep it minimal — no history/ring buffer/claims.
 
 ## Stations
 
@@ -66,7 +66,7 @@ Allowlists resolve via account-store `allowlistEnv` (`_ONLY_ACCOUNTS` restricts;
 - /health coupling: `daemon/http.ts` serves `GET /health` and `/healthz` — 200, unauthenticated, checked BEFORE the MCP auth gate. Body is `{status:'ok',version,uptime}` (uptime = `Math.round(process.uptime())` seconds; version = `npm_package_version ?? '0.1.0-beta.15'`). Fly health-check hits `GET /health` (interval 30s, timeout 5s, grace 45s). Breaking/gating this route → machine marked unhealthy → outage. A test guards it; keep it passing.
 - Single-writer XMTP: only ONE instance may write the XMTP/MLS inbox. A second writer burns the 10-install / 256-update budget (exhaustion = permanently dead inbox). This is why `min_machines_running=1` and machines never auto-stop/start. Never run a second prod writer.
 - Entrypoint (Docker): mkdir state, symlink `node_modules`, `rm -f .tail-lock`, write per-configured-station stubs, then `exec bun /app/apps/mcp/src/server.ts`.
-- MCP reconnect reality: keepalive ping every `KEEPALIVE_INTERVAL_MS = 25_000`. When a client reconnects there is NO backfill/replay — the bus is live-only, so events emitted while disconnected are lost. Don't assume missed events are recoverable.
+- MCP reconnect reality: keepalive ping every `KEEPALIVE_INTERVAL_MS = 25_000`. On reconnect the Channel relay replays events from the bounded in-memory ring buffer (busSeq > last contiguously-delivered) — recovery is best-effort and bounded to the last `BUS_BUFFER_MAX` events, not guaranteed across a long disconnect or a buffer overflow.
 
 ## Working discipline
 

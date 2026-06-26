@@ -14,7 +14,7 @@ const CALL_BODY_MAX = 256 * 1024;
 const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
 
 function monitorToken(): string {
-  return process.env.METRO_MONITOR_TOKEN ?? '';
+  return process.env.METRO_MCP_HTTP_TOKEN ?? '';
 }
 
 function cors(req: IncomingMessage): Record<string, string> {

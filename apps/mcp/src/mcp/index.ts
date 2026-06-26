@@ -7,7 +7,6 @@ import {
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { subscribeEvents } from '../daemon/events.js';
 import { gatherAccounts } from './accounts.js';
 import {
   STATIONS,
@@ -23,6 +22,7 @@ import {
 import { errResult, makeCtx, metroCall, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool } from './call-tools.js';
 import { InboundRelay } from '../channels/inbound.js';
+import { ChannelRelay } from '../channels/relay.js';
 import { Keepalive } from './keepalive.js';
 
 const ALLOWLIST_DEFAULT =
@@ -199,6 +199,24 @@ const isInitialize = (b: unknown): boolean =>
   typeof b === 'object' &&
   (b as { method?: string }).method === 'initialize';
 
+export interface RebindDecision {
+  rebind: boolean;
+  adoptId?: string;
+}
+
+export function rebindDecision(input: {
+  isInitialize: boolean;
+  presented: string | undefined;
+  current: string | undefined;
+  adopted: string | undefined;
+}): RebindDecision {
+  if (input.isInitialize) return { rebind: true };
+  const { presented, current, adopted } = input;
+  if (presented !== undefined && presented !== current && presented !== adopted)
+    return { rebind: true, adoptId: presented };
+  return { rebind: false };
+}
+
 const headerSessionId = (req: IncomingMessage): string | undefined => {
   const raw = req.headers['mcp-session-id'];
   if (Array.isArray(raw)) return raw[0];
@@ -226,12 +244,16 @@ export async function createMetroMcp(): Promise<{
   });
   let transport = makeTransport();
   await mcp.connect(transport);
+  const channel = new ChannelRelay({ relay, log });
+  let adoptedSessionId: string | undefined;
   const rebind = async (adoptId?: string): Promise<void> => {
     keepalive.stop();
     await transport.close().catch(() => undefined);
     transport = makeTransport(adoptId);
     await mcp.connect(transport);
+    adoptedSessionId = adoptId;
     keepalive.start();
+    channel.replayMissed();
   };
   const currentSessionId = (): string | undefined => {
     const id = (transport as { sessionId?: unknown }).sessionId;
@@ -255,13 +277,13 @@ export async function createMetroMcp(): Promise<{
     req: IncomingMessage,
     body: unknown,
   ): Promise<void> => {
-    if (isInitialize(body)) {
-      await rebind();
-      return;
-    }
-    const presented = headerSessionId(req);
-    if (presented !== undefined && presented !== currentSessionId())
-      await rebind(presented);
+    const decision = rebindDecision({
+      isInitialize: isInitialize(body),
+      presented: headerSessionId(req),
+      current: currentSessionId(),
+      adopted: adoptedSessionId,
+    });
+    if (decision.rebind) await rebind(decision.adoptId);
   };
   const httpHandler = async (
     req: IncomingMessage,
@@ -277,15 +299,9 @@ export async function createMetroMcp(): Promise<{
   };
 
   const startInbound = (): void => {
-    subscribeEvents((e) => {
-      void relay
-        .handleEvent(e as unknown as Record<string, unknown>)
-        .catch((err: unknown) => {
-          log('event err', err);
-        });
-    });
+    channel.start();
     keepalive.start();
-    log('inbound: subscribed to in-process event bus (live-from-boot)');
+    log('inbound: subscribed to in-process event bus (bounded replay on reconnect)');
   };
 
   return { httpHandler, startInbound };

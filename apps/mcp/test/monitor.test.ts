@@ -47,18 +47,18 @@ afterEach(async () => {
     await new Promise<void>((r) => s.close(() => r()));
     active = undefined;
   }
-  delete process.env.METRO_MONITOR_TOKEN;
+  delete process.env.METRO_MCP_HTTP_TOKEN;
 });
 
 describe('monitor transport', () => {
-  test('disabled (404) when METRO_MONITOR_TOKEN unset', async () => {
-    const h = await start({ METRO_MONITOR_TOKEN: undefined });
+  test('disabled (404) when METRO_MCP_HTTP_TOKEN unset', async () => {
+    const h = await start({ METRO_MCP_HTTP_TOKEN: undefined });
     const res = await fetch(`${h.base}/api/health`);
     expect(res.status).toBe(404);
   });
 
   test('/api/call requires a bearer token', async () => {
-    const h = await start({ METRO_MONITOR_TOKEN: TOKEN });
+    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
     const res = await fetch(`${h.base}/api/call/discord/send`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -68,7 +68,7 @@ describe('monitor transport', () => {
   });
 
   test('/api/health returns ok/version snapshot', async () => {
-    const h = await start({ METRO_MONITOR_TOKEN: TOKEN });
+    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
     const res = await fetch(`${h.base}/api/health`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; version: string };
@@ -77,7 +77,7 @@ describe('monitor transport', () => {
   });
 
   test('/api/call dispatches to a station and returns the result', async () => {
-    const h = await start({ METRO_MONITOR_TOKEN: TOKEN });
+    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
     const res = await fetch(`${h.base}/api/call/discord/send`, {
       method: 'POST',
       headers: {
@@ -97,7 +97,7 @@ describe('monitor transport', () => {
   });
 
   test('/api/call surfaces a dispatch error as 502', async () => {
-    const h = await start({ METRO_MONITOR_TOKEN: TOKEN }, async () => {
+    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN }, async () => {
       throw new Error('train said no');
     });
     const res = await fetch(`${h.base}/api/call/discord/send`, {
@@ -114,7 +114,7 @@ describe('monitor transport', () => {
   });
 
   test('/api/call rejects GET with 405', async () => {
-    const h = await start({ METRO_MONITOR_TOKEN: TOKEN });
+    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
     const res = await fetch(`${h.base}/api/call/discord/send`, {
       headers: { authorization: `Bearer ${TOKEN}` },
     });
@@ -122,7 +122,7 @@ describe('monitor transport', () => {
   });
 
   test('/api/tail streams a live event published after connect', async () => {
-    const h = await start({ METRO_MONITOR_TOKEN: TOKEN });
+    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
     const ac = new AbortController();
     const res = await fetch(`${h.base}/api/tail?token=${TOKEN}`, {
       signal: ac.signal,
