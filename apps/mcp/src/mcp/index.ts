@@ -24,6 +24,7 @@ import { dispatchMessageTool } from './call-tools.js';
 import { InboundRelay } from '../channels/inbound.js';
 import { ChannelRelay } from '../channels/relay.js';
 import { Keepalive } from './keepalive.js';
+import { primeGetStream } from './get-stream-prime.js';
 import { BoundedEventStore } from './event-store.js';
 
 const ALLOWLIST_DEFAULT =
@@ -301,6 +302,10 @@ export async function createMetroMcp(): Promise<{
     }
     const body = req.method === 'POST' ? await readBody(req) : undefined;
     await syncSession(req, body);
+    if (req.method === 'GET') {
+      res.setHeader('X-Accel-Buffering', 'no');
+      primeGetStream({ transport, res, req, log });
+    }
     await transport.handleRequest(req, res, body);
   };
 
