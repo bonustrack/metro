@@ -22,7 +22,7 @@ import {
 } from './tool-schemas.js';
 import { errResult, makeCtx, metroCall, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool } from './call-tools.js';
-import { InboundRelay } from './inbound.js';
+import { InboundRelay } from '../channels/inbound.js';
 import { Keepalive } from './keepalive.js';
 
 const ALLOWLIST_DEFAULT =

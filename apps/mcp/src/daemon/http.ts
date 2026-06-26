@@ -18,6 +18,10 @@ import {
 import type { TrainEvent } from './protocol.js';
 import { findEndpoint, listEndpoints, webhookPort } from './tunnel.js';
 import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
+import {
+  handleMonitorRequest,
+  type MonitorCall,
+} from '../monitor/api.js';
 
 const LRU_CAP = 2_000;
 
@@ -129,10 +133,11 @@ type McpHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 export async function startWebhookServer(
   emit: Emit,
   mcp?: McpHandler,
+  monitorCall?: MonitorCall,
 ): Promise<Server> {
   const port = webhookPort();
   const server = createServer((req, res) => {
-    handleRequest(req, res, emit, mcp).catch((err: unknown) => {
+    handleRequest(req, res, emit, mcp, monitorCall).catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'webhook handler error');
       if (!res.headersSent) res.writeHead(500).end();
     });
@@ -222,17 +227,11 @@ function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
   return true;
 }
 
-async function handleRequest(
+async function handleWebhookRoute(
   req: IncomingMessage,
   res: ServerResponse,
   emit: Emit,
-  mcp?: McpHandler,
 ): Promise<void> {
-  if (handleHealth(req, res)) return;
-  if (mcp && isMcpPath(req)) {
-    await mcp(req, res);
-    return;
-  }
   const m = req.url?.match(/^\/wh\/([A-Za-z0-9_-]+)/);
   if (m?.[1] === undefined) {
     res.writeHead(404).end();
@@ -253,4 +252,20 @@ async function handleRequest(
     return;
   }
   await handleWebhookPost(req, res, emit, endpointId, endpoint);
+}
+
+async function handleRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  emit: Emit,
+  mcp?: McpHandler,
+  monitorCall?: MonitorCall,
+): Promise<void> {
+  if (handleHealth(req, res)) return;
+  if (monitorCall && handleMonitorRequest(req, res, monitorCall)) return;
+  if (mcp && isMcpPath(req)) {
+    await mcp(req, res);
+    return;
+  }
+  await handleWebhookRoute(req, res, emit);
 }

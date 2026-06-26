@@ -8,8 +8,10 @@ Metro is a relay that bridges chat networks (XMTP, Telegram, Discord, generic we
 
 Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
 
-- `apps/mcp` — the core. Package `@metro-labs/mcp`, bin `metro-daemon` → `./dist/server.js`. Three source dirs:
-  - `src/mcp/` — MCP server, tool dispatch, inbound event handling, keepalive.
+- `apps/mcp` — the core. Package `@metro-labs/mcp`, bin `metro-daemon` → `./dist/server.js`. Source dirs:
+  - `src/mcp/` — generic MCP core: server, tool dispatch, keepalive, the `str()` helper (`str.ts`). No per-channel transport logic.
+  - `src/channels/` — Channel transport: the `InboundRelay` (`inbound.ts`) that turns bus events into `notifications/claude/channel` MCP notifications. Depends on core (`mcp/str.js`), not vice-versa.
+  - `src/monitor/` — the lightweight live Monitor transport (`api.ts`): SSE tail + call/health endpoints.
   - `src/daemon/` — boot, HTTP server, tunnel/endpoints, train supervisor, logging, errors, secure-fs, protocol, the in-process event bus.
   - `src/stations/` — station registry, types, runtime, account-store, attachments, lines, messaging-normalize.
 - `packages/*` — five station packages: `@metro-labs/xmtp`, `@metro-labs/telegram`, `@metro-labs/telegram-user`, `@metro-labs/discord`, `@metro-labs/webhook`.
@@ -42,7 +44,7 @@ Flow: inbound network message → station → in-process bus → MCP event for t
 - Tolerated package cycle: there is a known dependency cycle between core and station packages. It is intentional and tolerated — do NOT "fix" it; madge is configured around it.
 - Four out-of-process trains (XMTP, Telegram, Telegram-user, Discord) + webhook handled in-core (no subprocess; `hasAccounts: false`). The telegram-user train only spawns when its session is configured.
 - Permission replies (human-in-the-loop): a pending MCP `permission_request` is relayed to chat as `yes <request_id>` / `no <request_id>`; `inbound.ts` matches the chat reply with `PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i`. The 5-char-code format is a contract with the relayed prompt — never change one side only.
-- REMOVED / don't resurrect: `history.jsonl`, on-disk journal/outbox, HTTP bridge, the Codex integration (dropped in #16). Don't reintroduce these.
+- REMOVED / don't resurrect: `history.jsonl`, on-disk journal/outbox, the Codex integration (dropped in #16). Don't reintroduce these. The old read-only HTTP "Monitor dashboard" (ring-buffer/backlog replay, `/api/state`, claims/owner-mode filtering) was removed in #40 — do NOT bring those parts back. A deliberately-scoped **lightweight Monitor transport** was reintroduced (`daemon/monitor-api.ts`): live-only `GET /api/tail` SSE (no replay), `POST /api/call/:train/:action`, `GET /api/health`, gated by `METRO_MONITOR_TOKEN`, mounted before the MCP auth gate. Keep it minimal — no history/ring buffer/claims.
 
 ## Stations
 

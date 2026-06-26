@@ -1,11 +1,6 @@
 import { stat } from 'node:fs/promises';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
-
-export function str(v: unknown): string {
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return '';
-}
+import { str } from '../mcp/str.js';
 
 interface InboundDeps {
   mcp: Server;

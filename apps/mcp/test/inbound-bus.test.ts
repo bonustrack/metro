@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { InboundRelay } from '../src/mcp/inbound.ts';
+import { InboundRelay } from '../src/channels/inbound.ts';
 import { publishEvent, subscribeEvents } from '../src/daemon/events.ts';
 
 type Notif = { method: string; params: Record<string, unknown> };

@@ -2,7 +2,7 @@ import { stationForLine } from '../stations/registry.js';
 import { toCanonical } from '../stations/attachments.js';
 import type { CanonicalAttachment, ToolResult } from '../stations/types.js';
 import { errResult, makeCtx, ok, okJson, toErr } from './ctx.js';
-import { str } from './inbound.js';
+import { str } from './str.js';
 
 type Station = NonNullable<ReturnType<typeof stationForLine>>;
 
