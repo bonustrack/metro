@@ -266,7 +266,10 @@ export class InboundRelay {
     return false;
   }
 
-  private routable(ev: Record<string, unknown>): EventBase | null {
+  private routable(
+    ev: Record<string, unknown>,
+    replay: boolean,
+  ): EventBase | null {
     const evType = ev.event ? (ev.event as { type?: string }).type : 'msg';
     if (evType !== 'msg' && evType !== 'react') return null;
     const station = str(ev.station);
@@ -276,7 +279,7 @@ export class InboundRelay {
     if (this.droppedSender(from)) return null;
     const line = str(ev.line);
     const text = str(ev.text);
-    if (this.isDuplicate(station, line, evType, str(ev.messageId))) {
+    if (!replay && this.isDuplicate(station, line, evType, str(ev.messageId))) {
       this.deps.log(
         'drop: duplicate (per-account) event',
         evType,
@@ -305,14 +308,17 @@ export class InboundRelay {
     });
   }
 
-  async handleEvent(ev: Record<string, unknown>): Promise<void> {
+  async handleEvent(
+    ev: Record<string, unknown>,
+    replay = false,
+  ): Promise<void> {
     const payload = ev.payload as SavedMedia | undefined;
     if (payload?.contentType === 'attachmentSaved') {
       await this.handleAttachmentSaved(ev, payload);
       return;
     }
 
-    const base = this.routable(ev);
+    const base = this.routable(ev, replay);
     if (!base) return;
     this.lastLine = base.line;
     if (base.line) this.allowedLines.add(base.line);

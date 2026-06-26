@@ -168,8 +168,7 @@ Each bot is an account with its own id; lines are account-scoped
 | `METRO_CHANNEL_STATIONS` | `xmtp,telegram,discord` | Stations surfaced to the MCP |
 | `METRO_HTTP_HOST` | `127.0.0.1` | HTTP bind host; set `0.0.0.0` behind a platform proxy |
 | `METRO_WEBHOOK_PORT` | `8420` | HTTP port |
-| `METRO_MCP_HTTP_TOKEN` | — | Optional bearer gating the MCP endpoint |
-| `METRO_MONITOR_TOKEN` | — | Bearer gating the Monitor transport (`/api/*`). Unset → Monitor disabled (404). Separate from `METRO_MCP_HTTP_TOKEN`. |
+| `METRO_MCP_HTTP_TOKEN` | — | Optional bearer gating the MCP endpoint; the same token also gates the Monitor transport (`/api/*`). Unset → Monitor disabled (404). |
 | `METRO_LOG_LEVEL` | `info` | `trace`–`fatal`; logs go to stderr |
 
 ## Connecting a client
@@ -203,8 +202,11 @@ want to observe and drive Metro over plain HTTP (no MCP client needed). It is
 **live-only by design** — no history, backlog, or replay — and can be attached
 mid-session.
 
-Set `METRO_MONITOR_TOKEN` to enable it; while unset the `/api/*` surface stays
-disabled (returns 404), so there is no unauthenticated surface.
+The Monitor reuses the MCP HTTP token: set `METRO_MCP_HTTP_TOKEN` to enable it,
+and reach `/api/*` with the same `?token=<METRO_MCP_HTTP_TOKEN>` (or
+`Authorization: Bearer`) as the MCP/Channel endpoint. While the token is unset
+the `/api/*` surface stays disabled (returns 404), so there is no
+unauthenticated surface.
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -212,11 +214,11 @@ disabled (returns 404), so there is no unauthenticated surface.
 | `POST /api/call/:train/:action` | Invoke a station verb (`send`/`reply`/`react`/…) over HTTP; routes through the station registry and returns the dispatch result as JSON. |
 | `GET /api/health` | `{ ok, service, version, uptime_s }` snapshot. |
 
-Auth is `Authorization: Bearer <METRO_MONITOR_TOKEN>` (or `?token=`):
+Auth is `Authorization: Bearer <METRO_MCP_HTTP_TOKEN>` (or `?token=`):
 
 ```sh
-curl -N -H "Authorization: Bearer $METRO_MONITOR_TOKEN" http://127.0.0.1:8420/api/tail
-curl -X POST -H "Authorization: Bearer $METRO_MONITOR_TOKEN" \
+curl -N -H "Authorization: Bearer $METRO_MCP_HTTP_TOKEN" http://127.0.0.1:8420/api/tail
+curl -X POST -H "Authorization: Bearer $METRO_MCP_HTTP_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"args":{"line":"metro://discord/1","text":"hi"}}' \
   http://127.0.0.1:8420/api/call/discord/send

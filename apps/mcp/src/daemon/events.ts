@@ -75,17 +75,39 @@ export function formatDisplay(e: MetroEvent): string {
 export const mintId = (): string =>
   `msg_${randomBytes(6).toString('base64url')}`;
 
-export type BusListener = (event: MetroEvent) => void;
+export type BusListener = (event: MetroEvent, busSeq: number) => void;
+
+export interface BufferedEvent {
+  busSeq: number;
+  event: MetroEvent;
+}
+
+export const BUS_BUFFER_MAX = 500;
 
 const listeners = new Set<BusListener>();
+const buffer: BufferedEvent[] = [];
+let busSeq = 0;
 
 export function publishEvent(event: MetroEvent): void {
+  busSeq += 1;
+  const seq = busSeq;
+  buffer.push({ busSeq: seq, event });
+  if (buffer.length > BUS_BUFFER_MAX) buffer.shift();
   for (const fn of [...listeners]) {
     try {
-      fn(event);
-    } catch {
+      fn(event, seq);
+    } catch (err) {
+      console.error('[metro-bus] listener threw for busSeq', seq, err);
     }
   }
+}
+
+export function currentBusSeq(): number {
+  return busSeq;
+}
+
+export function bufferedSince(afterBusSeq: number): BufferedEvent[] {
+  return buffer.filter((b) => b.busSeq > afterBusSeq);
 }
 
 export function subscribeEvents(fn: BusListener): () => void {
