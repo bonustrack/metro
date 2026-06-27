@@ -24,8 +24,13 @@ import { dispatchMessageTool } from './call-tools.js';
 import { InboundRelay } from '../channels/inbound.js';
 import { ChannelRelay } from '../channels/relay.js';
 import { Keepalive } from './keepalive.js';
-import { primeGetStream } from './get-stream-prime.js';
 import { BoundedEventStore } from './event-store.js';
+import {
+  isStandaloneGet,
+  serveStandaloneGet,
+  validateStandaloneSession,
+  type RawGetSink,
+} from './raw-get-stream.js';
 
 const ALLOWLIST_DEFAULT =
   'bee7314f7127ef53b4e3bf5256e54b0a1acdc3698d064fb1029bd8f83ecc1186';
@@ -250,15 +255,19 @@ export async function createMetroMcp(): Promise<{
   });
   const eventStore = new BoundedEventStore();
   let transport = makeTransport(eventStore);
+  if ((mcp as { transport?: unknown }).transport !== undefined)
+    await mcp.close().catch(() => undefined);
   await mcp.connect(transport);
   const channel = new ChannelRelay({ relay, log });
   let adoptedSessionId: string | undefined;
+  let rawGetSink: RawGetSink | undefined;
   const rebind = async (adoptId?: string): Promise<void> => {
     keepalive.stop();
     await transport.close().catch(() => undefined);
     transport = makeTransport(eventStore, adoptId);
     await mcp.connect(transport);
     adoptedSessionId = adoptId;
+    if (rawGetSink && !rawGetSink.closed) rawGetSink.attach(transport);
     keepalive.start();
     channel.replayMissed();
   };
@@ -302,9 +311,24 @@ export async function createMetroMcp(): Promise<{
     }
     const body = req.method === 'POST' ? await readBody(req) : undefined;
     await syncSession(req, body);
-    if (req.method === 'GET') {
-      res.setHeader('X-Accel-Buffering', 'no');
-      primeGetStream({ transport, res, req, log });
+    if (isStandaloneGet(req)) {
+      const check = validateStandaloneSession(transport, req);
+      if (!check.ok) {
+        res.writeHead(check.status ?? 400).end(check.message ?? 'bad request');
+        return;
+      }
+      if (rawGetSink && !rawGetSink.closed) rawGetSink.closed = true;
+      await serveStandaloneGet({
+        transport,
+        eventStore,
+        req,
+        res,
+        log,
+        registerSink: (sink) => {
+          rawGetSink = sink;
+        },
+      });
+      return;
     }
     await transport.handleRequest(req, res, body);
   };
