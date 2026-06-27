@@ -23,7 +23,6 @@ import { errResult, makeCtx, metroCall, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool } from './call-tools.js';
 import { InboundRelay } from '../channels/inbound.js';
 import { ChannelRelay } from '../channels/relay.js';
-import { Keepalive } from './keepalive.js';
 import { BoundedEventStore } from './event-store.js';
 import {
   isStandaloneGet,
@@ -249,10 +248,6 @@ export async function createMetroMcp(): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
 }> {
-  const keepalive = new Keepalive({
-    ping: () => mcp.ping(),
-    log,
-  });
   const eventStore = new BoundedEventStore();
   let transport = makeTransport(eventStore);
   if ((mcp as { transport?: unknown }).transport !== undefined)
@@ -262,13 +257,11 @@ export async function createMetroMcp(): Promise<{
   let adoptedSessionId: string | undefined;
   let rawGetSink: RawGetSink | undefined;
   const rebind = async (adoptId?: string): Promise<void> => {
-    keepalive.stop();
     await transport.close().catch(() => undefined);
     transport = makeTransport(eventStore, adoptId);
     await mcp.connect(transport);
     adoptedSessionId = adoptId;
     if (rawGetSink && !rawGetSink.closed) rawGetSink.attach(transport);
-    keepalive.start();
     channel.replayMissed();
   };
   const currentSessionId = (): string | undefined => {
@@ -335,7 +328,6 @@ export async function createMetroMcp(): Promise<{
 
   const startInbound = (): void => {
     channel.start();
-    keepalive.start();
     log('inbound: subscribed to in-process event bus (bounded replay on reconnect)');
   };
 

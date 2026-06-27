@@ -9,7 +9,7 @@ Metro is a relay that bridges chat networks (XMTP, Telegram, Discord, generic we
 Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
 
 - `apps/mcp` — the core. Package `@metro-labs/mcp`, bin `metro-daemon` → `./dist/server.js`. Source dirs:
-  - `src/mcp/` — generic MCP core: server, tool dispatch, keepalive, the `str()` helper (`str.ts`). No per-channel transport logic.
+  - `src/mcp/` — generic MCP core: server, tool dispatch, the `str()` helper (`str.ts`). No per-channel transport logic.
   - `src/channels/` — Channel transport: the `InboundRelay` (`inbound.ts`) that turns bus events into `notifications/claude/channel` MCP notifications. Depends on core (`mcp/str.js`), not vice-versa.
   - `src/monitor/` — the lightweight live Monitor transport (`api.ts`): SSE tail + call/health endpoints.
   - `src/daemon/` — boot, HTTP server, tunnel/endpoints, train supervisor, logging, errors, secure-fs, protocol, the in-process event bus.
@@ -66,7 +66,7 @@ Allowlists resolve via account-store `allowlistEnv` (`_ONLY_ACCOUNTS` restricts;
 - /health coupling: `daemon/http.ts` serves `GET /health` and `/healthz` — 200, unauthenticated, checked BEFORE the MCP auth gate. Body is `{status:'ok',version,uptime}` (uptime = `Math.round(process.uptime())` seconds; version = `npm_package_version ?? '0.1.0-beta.15'`). Fly health-check hits `GET /health` (interval 30s, timeout 5s, grace 45s). Breaking/gating this route → machine marked unhealthy → outage. A test guards it; keep it passing.
 - Single-writer XMTP: only ONE instance may write the XMTP/MLS inbox. A second writer burns the 10-install / 256-update budget (exhaustion = permanently dead inbox). This is why `min_machines_running=1` and machines never auto-stop/start. Never run a second prod writer.
 - Entrypoint (Docker): mkdir state, symlink `node_modules`, `rm -f .tail-lock`, write per-configured-station stubs, then `exec bun /app/apps/mcp/src/server.ts`.
-- MCP reconnect reality: keepalive ping every `KEEPALIVE_INTERVAL_MS = 25_000`. On reconnect the Channel relay replays events from the bounded in-memory ring buffer (busSeq > last contiguously-delivered) — recovery is best-effort and bounded to the last `BUS_BUFFER_MAX` events, not guaranteed across a long disconnect or a buffer overflow.
+- MCP reconnect reality: the MCP channel GET SSE stream is kept open by a 15s SSE-comment keepalive in `src/mcp/raw-get-stream.ts`. On reconnect the Channel relay replays events from the bounded in-memory ring buffer (busSeq > last contiguously-delivered) — recovery is best-effort and bounded to the last `BUS_BUFFER_MAX` events, not guaranteed across a long disconnect or a buffer overflow.
 
 ## Working discipline
 
