@@ -109,6 +109,7 @@ async function fcmAccessToken(): Promise<string | null> {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `grant_type=${grant}&assertion=${jwt}`,
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
     process.stderr.write(
@@ -150,6 +151,7 @@ async function fcmPushTo(
         data: payloadData,
       },
     }),
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
     const txt = await res.text().catch(() => '');

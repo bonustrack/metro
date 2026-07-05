@@ -6,7 +6,6 @@ export default defineConfig({
   },
   knip: {
     ignore: ['stage.config.js'],
-    ignoreDependencies: ['@types/ws'],
   },
   workspaces: {
     'apps/mcp': {

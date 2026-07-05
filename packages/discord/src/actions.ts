@@ -14,7 +14,10 @@ import {
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
 import { respond } from './wire.js';
 import { normalizeDiscord } from '@metro-labs/mcp/stations/messaging-normalize';
-import { appendFile } from '@metro-labs/mcp/stations/attachments';
+import {
+  appendFile,
+  assertContentLength,
+} from '@metro-labs/mcp/stations/attachments';
 import {
   makeStation,
   type CallMsg,
@@ -235,7 +238,11 @@ async function download(
   }>(accountId, 'GET', `/channels/${channelId}/messages/${messageId}`);
   const files: { path: string; mediaType: string }[] = [];
   for (const att of msg.attachments) {
-    const buf = await fetch(att.url).then((r) => r.arrayBuffer());
+    const res = await fetch(att.url, { signal: AbortSignal.timeout(60_000) });
+    if (!res.ok)
+      throw new Error(`discord download ${res.status} for ${att.url}`);
+    assertContentLength(res.headers.get('content-length'));
+    const buf = await res.arrayBuffer();
     const path = `${outDir}/${messageId}-${att.filename}`;
     await Bun.write(path, buf);
     files.push({

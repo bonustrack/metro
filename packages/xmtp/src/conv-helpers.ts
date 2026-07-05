@@ -1,10 +1,10 @@
 import { IdentifierKind } from '@xmtp/node-sdk';
 import { convOf, type Account } from './accounts.js';
-import { inboxEthCache } from './wire.js';
+import { inboxEthCache, cacheInboxEth } from './wire.js';
 import { TrainError } from '@metro-labs/mcp/train-error';
 import { readAppData, type GroupLike } from './labels.js';
 
-export { filterStrings, parseMemberArgs, resolveMembers } from './member-args.js';
+export { parseMemberArgs, resolveMembers } from './member-args.js';
 
 type Conv = Awaited<ReturnType<typeof convOf>>['conv'] & object;
 export interface EthId {
@@ -44,7 +44,7 @@ async function resolveAddresses(
       );
       if (eth?.identifier) {
         addresses[key] = eth.identifier;
-        inboxEthCache.set(key, eth.identifier);
+        cacheInboxEth(key, eth.identifier);
       }
     }
   } catch {

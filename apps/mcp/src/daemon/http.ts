@@ -69,6 +69,11 @@ export function makeDedupSeq(): DedupSeq {
       }
       const next = (seqByLine.get(entry.line) ?? 0) + 1;
       seqByLine.set(entry.line, next);
+      while (seqByLine.size > LRU_CAP) {
+        const oldest = seqByLine.keys().next();
+        if (oldest.done) break;
+        seqByLine.delete(oldest.value);
+      }
       return next;
     },
   };

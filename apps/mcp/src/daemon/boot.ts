@@ -57,6 +57,7 @@ async function main(): Promise<void> {
   );
 }
 
+const SHUTDOWN_TIMEOUT_MS = 3_000;
 let shuttingDown = false;
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
@@ -65,11 +66,16 @@ async function shutdown(): Promise<void> {
   tunnel?.stop();
   if (webhookServer) {
     const server = webhookServer;
-    await new Promise<void>((r) =>
-      server.close(() => {
-        r();
+    await Promise.race([
+      new Promise<void>((r) => {
+        server.close(() => {
+          r();
+        });
       }),
-    );
+      new Promise<void>((r) => {
+        setTimeout(r, SHUTDOWN_TIMEOUT_MS).unref();
+      }),
+    ]);
   }
   await supervisor.stop();
   process.exit(0);
