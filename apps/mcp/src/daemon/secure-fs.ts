@@ -7,12 +7,8 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { errMsg, log } from './log.js';
-
-export const METRO_HOME =
-  process.env.METRO_HOME_DIR ?? join(homedir(), '.metro');
 
 export function ensureSecureDir(dir: string): void {
   mkdirSync(dir, { recursive: true, mode: 0o700 });

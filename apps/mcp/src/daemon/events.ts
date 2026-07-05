@@ -9,10 +9,7 @@ export type StructuredEvent =
   | { type: 'edit'; targetId?: string }
   | { type: 'delete'; targetId?: string }
   | { type: 'reply'; replyTo?: string }
-  | { type: 'system'; source?: string; eventName?: string }
-  | { type: 'push-ack'; targetId?: string };
-
-export type WireEvent = StructuredEvent;
+  | { type: 'system'; source?: string; eventName?: string };
 
 export interface MetroEvent {
   id: string;

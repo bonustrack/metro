@@ -21,6 +21,7 @@ import {
 } from './tool-schemas.js';
 import { errResult, makeCtx, metroCall, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool } from './call-tools.js';
+import { BodyTooLargeError } from '../daemon/http.js';
 import { InboundRelay } from '../channels/inbound.js';
 import { ChannelRelay } from '../channels/relay.js';
 import { BoundedEventStore } from './event-store.js';
@@ -144,7 +145,6 @@ const relay = new InboundRelay({
   log,
   getStations,
   senderAllowed,
-  metroSend,
 });
 
 const PermissionRequestSchema = z.object({
@@ -167,7 +167,7 @@ mcp.setNotificationHandler(
       log('permission_request but no known line to relay to', params.request_id);
       return;
     }
-    relay.registerPermission(params.request_id, line);
+    relay.registerPermission(params.request_id);
     const body =
       `Claude wants to run ${params.tool_name}: ${params.description}\n` +
       (params.input_preview ? `\n${params.input_preview}\n` : '') +
@@ -233,9 +233,17 @@ const headerSessionId = (req: IncomingMessage): string | undefined => {
   return typeof raw === 'string' ? raw : undefined;
 };
 
+const MCP_BODY_MAX = 32 * 1024 * 1024;
+
 async function readBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
+  let total = 0;
+  for await (const c of req) {
+    const buf = c as Buffer;
+    total += buf.length;
+    if (total > MCP_BODY_MAX) throw new BodyTooLargeError(MCP_BODY_MAX);
+    chunks.push(buf);
+  }
   const raw = Buffer.concat(chunks).toString('utf8');
   try {
     return raw ? JSON.parse(raw) : undefined;
@@ -294,6 +302,27 @@ export async function createMetroMcp(): Promise<{
     });
     if (decision.rebind) await rebind(decision.adoptId);
   };
+  const serveGet = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> => {
+    const check = validateStandaloneSession(transport, req);
+    if (!check.ok) {
+      res.writeHead(check.status ?? 400).end(check.message ?? 'bad request');
+      return;
+    }
+    if (rawGetSink && !rawGetSink.closed) rawGetSink.closed = true;
+    await serveStandaloneGet({
+      transport,
+      eventStore,
+      req,
+      res,
+      log,
+      registerSink: (sink) => {
+        rawGetSink = sink;
+      },
+    });
+  };
   const httpHandler = async (
     req: IncomingMessage,
     res: ServerResponse,
@@ -302,25 +331,17 @@ export async function createMetroMcp(): Promise<{
       res.writeHead(401).end('unauthorized');
       return;
     }
-    const body = req.method === 'POST' ? await readBody(req) : undefined;
+    let body: unknown;
+    try {
+      body = req.method === 'POST' ? await readBody(req) : undefined;
+    } catch (err) {
+      if (!(err instanceof BodyTooLargeError)) throw err;
+      res.writeHead(413).end('payload too large');
+      return;
+    }
     await syncSession(req, body);
     if (isStandaloneGet(req)) {
-      const check = validateStandaloneSession(transport, req);
-      if (!check.ok) {
-        res.writeHead(check.status ?? 400).end(check.message ?? 'bad request');
-        return;
-      }
-      if (rawGetSink && !rawGetSink.closed) rawGetSink.closed = true;
-      await serveStandaloneGet({
-        transport,
-        eventStore,
-        req,
-        res,
-        log,
-        registerSink: (sink) => {
-          rawGetSink = sink;
-        },
-      });
+      await serveGet(req, res);
       return;
     }
     await transport.handleRequest(req, res, body);

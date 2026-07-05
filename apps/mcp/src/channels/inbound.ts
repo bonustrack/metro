@@ -7,7 +7,6 @@ interface InboundDeps {
   log: (...a: unknown[]) => void;
   getStations: () => Set<string>;
   senderAllowed: (from: string) => boolean;
-  metroSend: (line: string, text: string, replyTo?: string) => Promise<void>;
 }
 
 interface PendingAtt {
@@ -42,6 +41,16 @@ const ATTACH_TIMEOUT_MS = 15_000;
 const MAX_INLINE_BYTES = 4 * 1024 * 1024;
 const DEDUPE_TTL_MS = 30_000;
 const DEDUPE_MAX = 2_000;
+const ALLOWED_LINES_MAX = 2_000;
+const PENDING_PERMISSIONS_MAX = 500;
+
+function capSet(set: Set<string>, max: number): void {
+  while (set.size > max) {
+    const oldest = set.values().next();
+    if (oldest.done) break;
+    set.delete(oldest.value);
+  }
+}
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
 function mediaKind(mime?: string, name?: string): string {
@@ -70,7 +79,7 @@ export class InboundRelay {
   private readonly pendingAttachments = new Map<string, PendingMsg>();
   private readonly seenEvents = new Map<string, number>();
   private readonly allowedLines = new Set<string>();
-  private readonly pendingPermissions = new Map<string, string>();
+  private readonly pendingPermissions = new Set<string>();
   private lastLine: string | undefined;
 
   constructor(deps: InboundDeps) {
@@ -81,8 +90,9 @@ export class InboundRelay {
     return this.lastLine;
   }
 
-  registerPermission(requestId: string, line: string): void {
-    this.pendingPermissions.set(requestId, line);
+  registerPermission(requestId: string): void {
+    this.pendingPermissions.add(requestId);
+    capSet(this.pendingPermissions, PENDING_PERMISSIONS_MAX);
   }
 
   private notify(method: string, params: Record<string, unknown>): Promise<void> {
@@ -322,7 +332,10 @@ export class InboundRelay {
     const base = this.routable(ev, replay);
     if (!base) return;
     this.lastLine = base.line;
-    if (base.line) this.allowedLines.add(base.line);
+    if (base.line) {
+      this.allowedLines.add(base.line);
+      capSet(this.allowedLines, ALLOWED_LINES_MAX);
+    }
 
     const atts = (ev.payload as { attachments?: PendingAtt[] } | undefined)
       ?.attachments;

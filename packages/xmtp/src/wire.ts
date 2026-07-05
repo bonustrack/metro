@@ -5,7 +5,16 @@ export const SELF_URI = process.env.METRO_SELF_URI ?? '';
 const UID_MAP_MAX = 5000;
 const uidToXmtp = new Map<string, string>();
 
+const INBOX_ETH_CACHE_MAX = 5000;
 export const inboxEthCache = new Map<string, string>();
+
+export function cacheInboxEth(inboxId: string, eth: string): void {
+  inboxEthCache.set(inboxId, eth);
+  if (inboxEthCache.size > INBOX_ETH_CACHE_MAX) {
+    const oldest = inboxEthCache.keys().next().value;
+    if (oldest !== undefined) inboxEthCache.delete(oldest);
+  }
+}
 
 export function rememberUid(
   uid: string | undefined,

@@ -4,7 +4,7 @@ import { emit, mintId, rememberUid, SELF_URI } from './wire.js';
 import { fcmPushToAll } from './push.js';
 import { emitInbound, emitAttachmentSaved } from './emit-core.js';
 import { typedEnvelope, type EnvelopeCtx } from './emit-payloads.js';
-import type { WireEvent } from '@metro-labs/mcp/events';
+import type { StructuredEvent } from '@metro-labs/mcp/events';
 
 export { emitInbound, emitAttachmentSaved };
 
@@ -49,7 +49,7 @@ export function emitOutbound(
   line: string,
   messageId: string,
   text: string,
-  event?: WireEvent,
+  event?: StructuredEvent,
 ): void {
   const uid = mintId();
   rememberUid(uid, messageId);

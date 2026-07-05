@@ -1,4 +1,7 @@
-import { saveBufferToCache } from '@metro-labs/mcp/stations/attachments';
+import {
+  saveBufferToCache,
+  assertContentLength,
+} from '@metro-labs/mcp/stations/attachments';
 import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
 import { tg, accounts } from './accounts.js';
 import type { TgMsg } from './types.js';
@@ -84,6 +87,7 @@ export async function saveTelegramMedia(
     throw new Error(
       `telegram file download ${res.status} for ${file.file_path}`,
     );
+  assertContentLength(res.headers.get('content-length'));
   const data = new Uint8Array(await res.arrayBuffer());
   const saved = await saveBufferToCache(data, messageId, index, {
     mime: ref.mime,

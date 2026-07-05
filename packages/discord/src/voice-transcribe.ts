@@ -5,7 +5,7 @@ import {
   type VoiceReceiver,
 } from '@discordjs/voice';
 import type { Client } from 'discord.js';
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import {
   createWriteStream,
   existsSync,
@@ -26,6 +26,16 @@ const WHISPER_MODEL =
   join(process.env.HOME ?? '', '.whisper-models', 'ggml-base.en.bin');
 const FFMPEG_BIN = process.env.FFMPEG_BIN ?? 'ffmpeg';
 const MIN_PCM_BYTES = 0.5 * 48000 * 2 * 2;
+const TRANSCRIBE_TIMEOUT_MS = 120_000;
+
+function killAfter(p: ChildProcess, ms: number): () => void {
+  const t = setTimeout(() => {
+    p.kill('SIGKILL');
+  }, ms);
+  return () => {
+    clearTimeout(t);
+  };
+}
 
 interface Session {
   receiver: VoiceReceiver;
@@ -44,8 +54,13 @@ const sessions = new Map<string, Session>();
 function run(bin: string, args: string[]): Promise<number> {
   return new Promise((resolve, reject) => {
     const p = spawn(bin, args, { stdio: ['ignore', 'ignore', 'ignore'] });
-    p.on('error', reject);
+    const cancel = killAfter(p, TRANSCRIBE_TIMEOUT_MS);
+    p.on('error', (e) => {
+      cancel();
+      reject(e);
+    });
     p.on('close', (code) => {
+      cancel();
       resolve(code ?? 0);
     });
   });
@@ -113,14 +128,17 @@ function transcribe(wavPath: string): Promise<string> {
       ],
       { stdio: ['ignore', 'pipe', 'ignore'] },
     );
+    const cancel = killAfter(p, TRANSCRIBE_TIMEOUT_MS);
     let out = '';
     p.stdout.on('data', (d: Buffer) => {
       out += d.toString();
     });
     p.on('error', () => {
+      cancel();
       resolve('');
     });
     p.on('close', () => {
+      cancel();
       let text = out.trim();
       if (!text && existsSync(`${ofBase}.txt`)) {
         try {

@@ -17,6 +17,7 @@ interface SeenState {
   counts: CountMap;
 }
 
+const SEEN_BY_KEY_MAX = 5000;
 const seenByKey = new Map<string, SeenState>();
 
 function emojiOf(reaction: tl.TypeReaction): string | undefined {
@@ -139,6 +140,10 @@ function handleUpdate(
   const prev = seenByKey.get(key) ?? { recent: [], counts: new Map() };
   const change = computeChange(update, prev, next, isPrivate);
   seenByKey.set(key, next);
+  if (seenByKey.size > SEEN_BY_KEY_MAX) {
+    const oldest = seenByKey.keys().next().value;
+    if (oldest !== undefined) seenByKey.delete(oldest);
+  }
   if (change.added.length === 0 && change.removed.length === 0) return;
   emitDiff(
     { accountId: client.account.id, chatId, messageId: update.msgId, isPrivate },

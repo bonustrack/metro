@@ -1,4 +1,7 @@
-import { saveBufferToCache } from '@metro-labs/mcp/stations/attachments';
+import {
+  saveBufferToCache,
+  assertContentLength,
+} from '@metro-labs/mcp/stations/attachments';
 import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
 
 export type { SavedAttachment };
@@ -17,6 +20,7 @@ export async function saveDiscordAttachment(
   const res = await fetch(a.url, { signal: AbortSignal.timeout(60_000) });
   if (!res.ok)
     throw new Error(`discord attachment fetch ${res.status} for ${a.url}`);
+  assertContentLength(res.headers.get('content-length'));
   const data = new Uint8Array(await res.arrayBuffer());
   return saveBufferToCache(data, messageId, index, {
     mime: a.contentType ?? undefined,

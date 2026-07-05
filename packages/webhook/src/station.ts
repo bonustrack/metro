@@ -12,13 +12,6 @@ export const webhookStation: Station = {
   hasAccounts: false,
   messageVerbs: new Set<Verb>(),
   attachmentMode: 'none',
-  parseLine: (line) => {
-    const p = Line.parse(line);
-    return p?.station === 'webhook' && p.path.length
-      ? { accountId: 'default', resource: p.path.join('/') }
-      : null;
-  },
-  mutates: new Set<string>(),
   tools: [],
 };
 

@@ -22,7 +22,6 @@ function makeRelay(
     log: () => {},
     getStations: () => new Set(stations),
     senderAllowed: () => true,
-    metroSend: () => Promise.resolve(),
   });
   return { relay, notifs };
 }

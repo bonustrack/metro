@@ -7,6 +7,7 @@ import {
   type StationHandler,
 } from '@metro-labs/mcp/stations/station-runtime';
 import { mediaKindOf } from './attachments.js';
+import { assertContentLength } from '@metro-labs/mcp/stations/attachments';
 import {
   emitOutbound,
   finishSend,
@@ -181,9 +182,12 @@ async function download(id: string, args: Record<string, unknown>): Promise<void
   const meta = await tg<{ file_path: string }>(accountId, 'getFile', {
     file_id: fileId,
   });
-  const data = await fetch(`${acct.fileApi}/${meta.file_path}`).then((r) =>
-    r.arrayBuffer(),
-  );
+  const res = await fetch(`${acct.fileApi}/${meta.file_path}`, {
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) throw new Error(`telegram download ${res.status}`);
+  assertContentLength(res.headers.get('content-length'));
+  const data = await res.arrayBuffer();
   const filename = meta.file_path.split('/').pop() ?? `${fileId}.bin`;
   const path = `${outDir}/${Date.now()}-${filename}`;
   await Bun.write(path, data);

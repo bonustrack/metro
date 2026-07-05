@@ -37,15 +37,6 @@ const DYLD_FALLBACK_ENV: Record<string, string> =
       }
     : {};
 
-export interface TrainInfo {
-  name: string;
-  path: string;
-  running: boolean;
-  pid: number | null;
-  startedAt: string | null;
-  failCount: number;
-}
-
 export class TrainSupervisor {
   private trains = new Map<string, TrainState>();
   private onEvent: ((event: TrainEvent, train: string) => void) | null = null;
@@ -123,17 +114,6 @@ export class TrainSupervisor {
       if (wait) tasks.push(wait);
     }
     await Promise.all(tasks);
-  }
-
-  list(): TrainInfo[] {
-    return [...this.trains.values()].map((t) => ({
-      name: t.name,
-      path: t.path,
-      running: t.proc?.exitCode === null,
-      pid: t.proc?.pid ?? null,
-      startedAt: t.startedAt,
-      failCount: t.failCount,
-    }));
   }
 
   async restart(name: string): Promise<void> {

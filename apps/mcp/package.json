@@ -36,7 +36,7 @@
   "scripts": {
     "start": "bun src/server.ts",
     "build": "tsc",
-    "test": "tsc && METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
+    "test": "tsc --noEmit && METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
