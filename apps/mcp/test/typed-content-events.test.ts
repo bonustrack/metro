@@ -1,24 +1,25 @@
 /**
  * Tests for typed content events on the wire (#2).
  *
- * The canonical content-type now rides the envelope as `event` (a {@link WireEvent}):
- * a station emits it, the dispatcher (`trainEventToMetroEvent`) carries it
- * verbatim onto `MetroEvent.event`, and the emit wrapper prefers it over the
- * legacy `classifyEvent` regex (`entry.event ?? classifyEvent(entry)`).
+ * The canonical content-type now rides the envelope as `event` (a
+ * `StructuredEvent`): a station emits it, the dispatcher
+ * (`trainEventToMetroEvent`) carries it verbatim onto `MetroEvent.event`, and
+ * the emit wrapper prefers it over the legacy `classifyEvent` regex
+ * (`entry.event ?? classifyEvent(entry)`).
  *
  * Covers:
  *  - per-station round-trip: emit react/edit/reply → entry has the typed `event`
  *    AND keeps the legacy text encoding;
  *  - legacy parity: an envelope WITHOUT `event` classifies exactly as before;
- *  - shared shape / no drift: `WireEvent` === `StructuredEvent`, and both wire
- *    type definitions accept the same `event` value.
+ *  - shared shape / no drift: a `StructuredEvent` value flows through the
+ *    protocol envelope onto the dispatched entry verbatim.
  *
  * In-process; METRO_FROM pinned so `userSelf()`/`classifyEvent` are deterministic.
  */
 
 import { describe, expect, test, beforeAll } from 'bun:test';
 import type { TrainEvent } from '../src/daemon/protocol.ts';
-import type { StructuredEvent, WireEvent, MetroEvent } from '../src/daemon/events.ts';
+import type { StructuredEvent, MetroEvent } from '../src/daemon/events.ts';
 
 let trainEventToMetroEvent: typeof import('../src/daemon/http.ts').trainEventToMetroEvent;
 let classifyEvent: typeof import('../src/daemon/events.ts').classifyEvent;
@@ -112,15 +113,8 @@ describe('legacy parity — no `event` on the wire classifies exactly as before'
 });
 
 describe('shared shape — no envelope drift', () => {
-  test('WireEvent and StructuredEvent are the same type (assignable both ways)', () => {
-    const a: WireEvent = { type: 'react', emoji: '👍' };
-    const b: StructuredEvent = a;
-    const c: WireEvent = b;
-    expect(c).toBe(a);
-  });
-
   test('one event value satisfies both wire envelope definitions', () => {
-    const ev: WireEvent = { type: 'edit', targetId: 'm' };
+    const ev: StructuredEvent = { type: 'edit', targetId: 'm' };
     const fromProtocol: TrainEvent = { line: 'metro://x/1', event: ev };
     expect(fromProtocol.event).toBe(ev);
     /** And it lands on the entry verbatim through the dispatcher. */

@@ -49,7 +49,5 @@ export interface Station {
     atts: CanonicalAttachment[],
     ctx: ToolContext,
   ): Promise<string[]>;
-  parseLine(line: string): { accountId: string; resource: string } | null;
-  mutates: ReadonlySet<string>;
   tools: StationTool[];
 }

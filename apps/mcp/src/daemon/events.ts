@@ -12,8 +12,6 @@ export type StructuredEvent =
   | { type: 'system'; source?: string; eventName?: string }
   | { type: 'push-ack'; targetId?: string };
 
-export type WireEvent = StructuredEvent;
-
 export interface MetroEvent {
   id: string;
   ts: string;

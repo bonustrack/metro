@@ -27,7 +27,6 @@ function makeRelay(cap: Capture): InboundRelay {
     log: () => {},
     getStations: () => new Set(['discord']),
     senderAllowed: () => true,
-    metroSend: () => Promise.resolve(),
   });
 }
 

@@ -6,7 +6,6 @@ import {
 } from 'node:http';
 import { Line } from '../stations/lines.js';
 import { errMsg, log } from './log.js';
-import { noteSeen } from './paths.js';
 import {
   classifyEvent,
   formatDisplay,
@@ -89,7 +88,6 @@ export function makeEmit(dedupSeq?: DedupSeq): Emit {
       event: entry.event ?? classifyEvent(entry),
     };
     process.stdout.write(JSON.stringify(enriched) + '\n');
-    noteSeen(entry.line, entry.lineName);
     publishEvent(enriched);
   };
 }

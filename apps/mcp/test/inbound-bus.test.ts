@@ -25,7 +25,6 @@ function makeRelay(): { relay: InboundRelay; notifs: Notif[] } {
     log: () => {},
     getStations: () => new Set(['discord']),
     senderAllowed: () => true,
-    metroSend: () => Promise.resolve(),
   });
   return { relay, notifs };
 }

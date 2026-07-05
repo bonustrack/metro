@@ -19,13 +19,4 @@ describe('telegram-user station descriptor', () => {
       'unreact',
     ]);
   });
-
-  test('mutating verbs', () => {
-    expect([...telegramUserStation.mutates].sort()).toEqual([
-      'delete',
-      'edit',
-      'react',
-      'send',
-    ]);
-  });
 });

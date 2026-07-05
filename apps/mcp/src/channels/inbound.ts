@@ -7,7 +7,6 @@ interface InboundDeps {
   log: (...a: unknown[]) => void;
   getStations: () => Set<string>;
   senderAllowed: (from: string) => boolean;
-  metroSend: (line: string, text: string, replyTo?: string) => Promise<void>;
 }
 
 interface PendingAtt {
@@ -70,7 +69,7 @@ export class InboundRelay {
   private readonly pendingAttachments = new Map<string, PendingMsg>();
   private readonly seenEvents = new Map<string, number>();
   private readonly allowedLines = new Set<string>();
-  private readonly pendingPermissions = new Map<string, string>();
+  private readonly pendingPermissions = new Set<string>();
   private lastLine: string | undefined;
 
   constructor(deps: InboundDeps) {
@@ -81,8 +80,8 @@ export class InboundRelay {
     return this.lastLine;
   }
 
-  registerPermission(requestId: string, line: string): void {
-    this.pendingPermissions.set(requestId, line);
+  registerPermission(requestId: string): void {
+    this.pendingPermissions.add(requestId);
   }
 
   private notify(method: string, params: Record<string, unknown>): Promise<void> {

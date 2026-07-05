@@ -144,7 +144,6 @@ const relay = new InboundRelay({
   log,
   getStations,
   senderAllowed,
-  metroSend,
 });
 
 const PermissionRequestSchema = z.object({
@@ -167,7 +166,7 @@ mcp.setNotificationHandler(
       log('permission_request but no known line to relay to', params.request_id);
       return;
     }
-    relay.registerPermission(params.request_id, line);
+    relay.registerPermission(params.request_id);
     const body =
       `Claude wants to run ${params.tool_name}: ${params.description}\n` +
       (params.input_preview ? `\n${params.input_preview}\n` : '') +

@@ -2,7 +2,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join, parse as parsePath } from 'node:path';
 import { errMsg, log } from './log.js';
 import { coerceErrorInfo, type TrainErrorInfo } from './train-error.js';
-import type { WireEvent } from './events.js';
+import type { StructuredEvent } from './events.js';
 
 export {
   TrainError,
@@ -40,7 +40,7 @@ export type TrainEvent = {
   payload?: unknown;
   ts?: string;
   id?: string;
-  event?: WireEvent;
+  event?: StructuredEvent;
 } & Record<string, unknown>;
 
 export interface TrainCallResponse {

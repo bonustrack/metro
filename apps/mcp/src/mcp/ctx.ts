@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import { ipcCall } from '../daemon/ipc.js';
+import { forwardTrainCall } from '../daemon/train-call.js';
+import { errMsg } from '../daemon/log.js';
 import { TrainError } from '../daemon/train-error.js';
 import { type ToolContext, type ToolResult } from '../stations/types.js';
 
@@ -8,23 +9,21 @@ export async function metroCall(
   action: string,
   args: Record<string, unknown>,
 ): Promise<{ result: unknown }> {
-  const resp = await ipcCall({ op: 'forward-call', train, action, args });
-  if (!resp.ok)
+  let response;
+  try {
+    response = await forwardTrainCall(train, action, args);
+  } catch (err) {
     throw new TrainError(
       'metro_call_failed',
-      `metro ${action} ${train}: ${resp.error}`,
+      `metro ${action} ${train}: ${errMsg(err)}`,
     );
-  if (!('response' in resp))
-    throw new TrainError(
-      'metro_call_malformed',
-      `metro ${action} ${train}: malformed daemon response`,
-    );
-  if (resp.response.error)
+  }
+  if (response.error)
     throw new TrainError(
       'metro_call_error',
-      `metro ${action} ${train}: ${resp.response.error}`,
+      `metro ${action} ${train}: ${response.error}`,
     );
-  return { result: resp.response.result ?? null };
+  return { result: response.result ?? null };
 }
 
 export const ok = (text: string): ToolResult => ({
