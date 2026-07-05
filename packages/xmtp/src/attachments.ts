@@ -3,7 +3,10 @@ import {
   RemoteAttachmentCodec,
   ContentTypeAttachment,
 } from '@xmtp/content-type-remote-attachment';
-import { saveBufferToCache } from '@metro-labs/mcp/stations/attachments';
+import {
+  saveBufferToCache,
+  assertAttachmentSize,
+} from '@metro-labs/mcp/stations/attachments';
 import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
 
 export type { SavedAttachment };
@@ -36,12 +39,17 @@ export async function saveInlineAttachment(
   });
 }
 
-export async function saveRemoteAttachment(
-  r: RemoteEntry,
-  messageId: string,
-  index = 0,
-): Promise<SavedAttachment> {
-  const remote = {
+function toRemoteDescriptor(r: RemoteEntry): {
+  url: string;
+  contentDigest: string;
+  salt: Uint8Array;
+  nonce: Uint8Array;
+  secret: Uint8Array;
+  scheme: string;
+  contentLength: number;
+  filename: string;
+} {
+  return {
     url: r.url,
     contentDigest: r.contentDigest ?? '',
     salt: r.salt ?? new Uint8Array(),
@@ -51,11 +59,19 @@ export async function saveRemoteAttachment(
     contentLength: r.contentLength ?? 0,
     filename: r.filename ?? '',
   };
+}
+
+export async function saveRemoteAttachment(
+  r: RemoteEntry,
+  messageId: string,
+  index = 0,
+): Promise<SavedAttachment> {
+  if (r.contentLength) assertAttachmentSize(r.contentLength);
   const decoded = await RemoteAttachmentCodec.load<{
     filename?: string;
     mimeType?: string;
     data: Uint8Array;
-  }>(remote, loadRegistry);
+  }>(toRemoteDescriptor(r), loadRegistry);
   return saveBufferToCache(decoded.data, messageId, index, {
     mime: decoded.mimeType,
     name: decoded.filename ?? r.filename,

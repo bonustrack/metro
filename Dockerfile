@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7-labs
-# metro — one process (stations + outbox + webhooks + MCP) on :8420.
+# metro — one process (stations + webhooks + MCP) on :8420.
 # Debian-based Bun image (glibc) so @xmtp/node-bindings loads the linux-x64-gnu
 # binary. No build step: metro runs from source via `bun apps/mcp/src/server.ts`.
 FROM oven/bun:1.3.9
@@ -28,7 +28,7 @@ RUN bun install --frozen-lockfile --production
 COPY . .
 RUN chmod +x /app/docker-entrypoint.sh
 
-# HOME=/data → ~/.metro (XMTP MLS DBs) and ~/.cache/metro (outbox/journal/IPC) live
+# HOME=/data → ~/.metro (XMTP MLS DBs) and ~/.cache/metro (state dir) live
 # on the mounted volume. Train scripts are generated per configured station at boot.
 # METRO_HTTP_HOST=0.0.0.0 so Fly's proxy can reach the app.
 ENV HOME=/data \

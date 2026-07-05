@@ -22,10 +22,10 @@ Flow: inbound network message → station → in-process bus → MCP event for t
 
 - `bun install` — install. CI and Docker use `bun install --frozen-lockfile`; always commit `bun.lock` changes or CI/deploy breaks.
 - Local run: `bun apps/mcp/src/server.ts` (`server.ts` is just `import './daemon/boot.js'`). Prod and `start` run TS from source — `dist/` is built only by the gate's `build` task and is not used at runtime.
-- The gate (turbo): `build` (tsc), `typecheck`, `lint` (eslint), `knip`, `madge`, `test`. Run the full set before any PR; gate must be green.
+- The gate: `build` + `test` run through turbo; `typecheck`, `lint` (eslint), `knip`, `madge` run through `stage` (`@stage-labs/config`). Run the full set (`bun run build && bun run typecheck && bun run lint && bun run knip && bun run madge && bun run test`) before any PR; gate must be green.
 - Single package: run the same scripts inside the package (e.g. `bun --filter @metro-labs/mcp test`).
-- Tests: `apps/mcp` test script is `tsc --noEmit && bun test test/`; the real command runs with `METRO_STATE_DIR="$(mktemp -d …)"`. Run the full `bun test` suite — don't assert an exact test count.
-- madge runs per-package via each package's `scripts/madge.mjs`.
+- Tests: `apps/mcp` test script is `tsc --noEmit && bun test test/`; the real command runs with `METRO_STATE_DIR="$(mktemp -d …)"`. The turbo `test` task `dependsOn ["^build"]` so a core (`apps/mcp/src`) edit invalidates the station packages' cached test results. Run the full `bun test` suite — don't assert an exact test count.
+- madge runs via `stage madge` (`@stage-labs/config`), configured through `stage.config.js`.
 
 ## Conventions (strict `@stage-labs/config` preset — HARD constraints)
 

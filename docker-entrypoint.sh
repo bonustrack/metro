@@ -4,7 +4,7 @@
 #  - generates one train script per CONFIGURED station (the supervisor spawns
 #    ~/.metro/trains-style scripts; unconfigured stations are skipped so they
 #    don't crash-loop)
-#  - execs the single metro process (stations + outbox + webhooks + MCP, :8420)
+#  - execs the single metro process (stations + webhooks + MCP, :8420)
 set -e
 
 mkdir -p "$HOME/.metro" "$HOME/.cache/metro" "$METRO_TRAINS_DIR"

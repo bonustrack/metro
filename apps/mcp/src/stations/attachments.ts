@@ -64,12 +64,30 @@ export interface SavedAttachment {
   bytes: number;
 }
 
+export const MAX_ATTACHMENT_BYTES = Number(
+  process.env.METRO_ATTACH_MAX_BYTES ?? 100 * 1024 * 1024,
+);
+
+export function assertAttachmentSize(bytes: number): void {
+  if (bytes > MAX_ATTACHMENT_BYTES)
+    throw new Error(
+      `attachment size ${bytes} exceeds limit of ${MAX_ATTACHMENT_BYTES} bytes`,
+    );
+}
+
+export function assertContentLength(header: string | null | undefined): void {
+  if (header == null) return;
+  const n = Number(header);
+  if (Number.isFinite(n)) assertAttachmentSize(n);
+}
+
 export const saveBufferToCache = async (
   data: Uint8Array,
   messageId: string,
   index: number,
   meta: { mime?: string; name?: string },
 ): Promise<SavedAttachment> => {
+  assertAttachmentSize(data.length);
   const { mkdir, writeFile } = await import('node:fs/promises');
   const nodePath = await import('node:path');
   await mkdir(ATT_DIR, { recursive: true });

@@ -164,9 +164,23 @@ function isMcpPath(req: IncomingMessage): boolean {
   return path === '/' || path === '/mcp';
 }
 
-async function readBody(req: IncomingMessage): Promise<Buffer> {
+export const WEBHOOK_BODY_MAX = 25 * 1024 * 1024;
+
+export class BodyTooLargeError extends Error {
+  constructor(readonly limit: number) {
+    super(`request body exceeds ${limit} bytes`);
+  }
+}
+
+async function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
+  let total = 0;
+  for await (const c of req) {
+    const buf = c as Buffer;
+    total += buf.length;
+    if (total > maxBytes) throw new BodyTooLargeError(maxBytes);
+    chunks.push(buf);
+  }
   return Buffer.concat(chunks);
 }
 
@@ -195,7 +209,15 @@ async function handleWebhookPost(
   endpointId: string,
   endpoint: ReturnType<typeof findEndpoint> & object,
 ): Promise<void> {
-  const raw = await readBody(req);
+  let raw: Buffer;
+  try {
+    raw = await readBody(req, WEBHOOK_BODY_MAX);
+  } catch (err) {
+    if (!(err instanceof BodyTooLargeError)) throw err;
+    log.warn({ endpoint: endpointId, limit: err.limit }, 'webhook body too large — rejecting');
+    res.writeHead(413).end('payload too large');
+    return;
+  }
   const headers = flatHeaders(req);
   if (
     endpoint.secret &&
