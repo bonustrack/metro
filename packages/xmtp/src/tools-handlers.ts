@@ -36,15 +36,17 @@ export async function createChannel(
   if (!channelName) return ctx.err('create_channel requires `name`');
   const groupArgs: Record<string, unknown> = { addresses, name: channelName };
   if (account) groupArgs.account = account;
-  const created = (await ctx.call('newGroup', groupArgs)) as CreatedGroup | null;
-  const newLine = created?.line ?? '';
+  const { result } = (await ctx.call('newGroup', groupArgs)) as {
+    result: CreatedGroup | null;
+  };
+  const newLine = result?.line ?? '';
   const labelResult = newLine.length
     ? await applyCreateLabels(newLine, labels, ctx)
     : undefined;
   return ctx.okJson({
     line: newLine,
-    convId: created?.id,
-    account: created?.account,
+    convId: result?.id,
+    account: result?.account,
     labels: labelResult,
   });
 }
