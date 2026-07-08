@@ -26,7 +26,7 @@ process.stdin.on('data', (chunk: Buffer | string) => {
   });
 });
 
-const SYNC_MS = Number(process.env.XMTP_SYNC_MS ?? '15000');
+const SYNC_MS = Number(process.env.XMTP_SYNC_MS ?? '60000');
 const SILENT_TYPES = new Set([
   'readReceipt',
   'transactionReference',
