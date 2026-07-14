@@ -1,8 +1,13 @@
 import type { CanonicalAttachment } from './types.js';
 
-const ATT_DIR =
+export const attachDir = (): string =>
   process.env.METRO_XMTP_ATTACH_DIR ??
   `${process.env.HOME}/.cache/metro/messenger-uploads`;
+
+const CACHE_NAME_RE = /^msg_[A-Za-z0-9]{1,16}_\d+\.[A-Za-z0-9]{1,5}$/;
+
+export const resolveCachedAttachment = (name: string): string | null =>
+  CACHE_NAME_RE.test(name) ? `${attachDir()}/${name}` : null;
 
 const MIME_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -90,9 +95,10 @@ export const saveBufferToCache = async (
   assertAttachmentSize(data.length);
   const { mkdir, writeFile } = await import('node:fs/promises');
   const nodePath = await import('node:path');
-  await mkdir(ATT_DIR, { recursive: true });
+  const dir = attachDir();
+  await mkdir(dir, { recursive: true });
   const path = nodePath.join(
-    ATT_DIR,
+    dir,
     cacheFileName(messageId, index, meta.name, meta.mime),
   );
   await writeFile(path, data);
