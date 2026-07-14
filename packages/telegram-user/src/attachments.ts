@@ -18,11 +18,19 @@ interface MediaMeta {
   name?: string;
 }
 
+function fallbackMime(media: DownloadableMedia): string | undefined {
+  const type = (media as { type?: unknown }).type;
+  if (type === 'photo') return 'image/jpeg';
+  if (type === 'sticker') return 'image/webp';
+  return undefined;
+}
+
 function metaOf(media: DownloadableMedia): MediaMeta {
   const withMime = media as { mimeType?: unknown };
   const withName = media as { fileName?: unknown };
   const mime =
-    typeof withMime.mimeType === 'string' ? withMime.mimeType : undefined;
+    (typeof withMime.mimeType === 'string' ? withMime.mimeType : undefined) ??
+    fallbackMime(media);
   const name =
     typeof withName.fileName === 'string' ? withName.fileName : undefined;
   return {

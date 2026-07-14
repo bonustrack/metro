@@ -16,6 +16,7 @@ import {
 } from './events.js';
 import type { TrainEvent } from './protocol.js';
 import { findEndpoint, listEndpoints, webhookPort } from './tunnel.js';
+import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
 import {
   handleMonitorRequest,
@@ -79,6 +80,14 @@ export function makeDedupSeq(): DedupSeq {
   };
 }
 
+function withAttachmentUrl(entry: MetroEvent): MetroEvent {
+  const payload = entry.payload;
+  if (!payload || typeof payload !== 'object') return entry;
+  const url = attachmentEventUrl(payload as Record<string, unknown>);
+  if (!url) return entry;
+  return { ...entry, payload: { ...payload, url } };
+}
+
 type Emit = (entry: MetroEvent) => void;
 
 export function makeEmit(dedupSeq?: DedupSeq): Emit {
@@ -86,12 +95,12 @@ export function makeEmit(dedupSeq?: DedupSeq): Emit {
   return function emit(entry: MetroEvent): void {
     const seq = tracker.admit(entry);
     if (seq === null) return;
-    const enriched: MetroEvent = {
+    const enriched: MetroEvent = withAttachmentUrl({
       ...entry,
       seq,
       display: entry.display ?? formatDisplay(entry),
       event: entry.event ?? classifyEvent(entry),
-    };
+    });
     process.stdout.write(JSON.stringify(enriched) + '\n');
     publishEvent(enriched);
   };
@@ -287,6 +296,7 @@ async function handleRequest(
   monitorCall?: MonitorCall,
 ): Promise<void> {
   if (handleHealth(req, res)) return;
+  if (handleAttachRequest(req, res)) return;
   if (monitorCall && handleMonitorRequest(req, res, monitorCall)) return;
   if (mcp && isMcpPath(req)) {
     await mcp(req, res);
