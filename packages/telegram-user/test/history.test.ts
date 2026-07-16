@@ -58,17 +58,18 @@ describe('shapeHistory', () => {
     ]);
   });
 
-  test('includes from_name alongside the id-based from', () => {
+  test('includes from_name and from_display_name alongside the id-based from', () => {
     const named = {
       id: 7,
       date: new Date('2026-06-21T00:00:00.000Z'),
       text: 'hi',
-      sender: { type: 'user', id: 333, username: 'alice' },
+      sender: { type: 'user', id: 333, username: 'alice', firstName: 'Alice' },
       media: null,
     };
     const out = shapeHistory('default', 5, [named as unknown as Message]);
     expect(out.messages[0]?.from).toBe('metro://telegram-user/default/user/333');
     expect(out.messages[0]?.from_name).toBe('@alice');
+    expect(out.messages[0]?.from_display_name).toBe('Alice');
   });
 
   test('media-only message projects a media tag', () => {

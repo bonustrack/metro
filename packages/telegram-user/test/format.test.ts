@@ -76,6 +76,7 @@ describe('envelope', () => {
     expect(e.line).toBe('metro://telegram-user/default/111');
     expect(e.from).toBe('metro://telegram-user/default/user/111');
     expect(e.from_name).toBe('@alice');
+    expect(e.from_display_name).toBe('Alice');
     expect(e.message_id).toBe('42');
     expect(e.text).toBe('hello');
     expect(e.is_private).toBe(true);
@@ -88,6 +89,7 @@ describe('envelope', () => {
     expect(e.line_name).toBe('Devs');
     expect(e.from).toBe('metro://telegram-user/work/user/222');
     expect(e.from_name).toBe('Bob');
+    expect(e.from_display_name).toBe('Bob');
     expect(e.is_private).toBe(false);
   });
 

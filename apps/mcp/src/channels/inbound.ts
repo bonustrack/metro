@@ -22,6 +22,7 @@ interface PendingMsg {
   messageId: string;
   lineName: string;
   fromName: string;
+  fromDisplayName: string;
   attachments: PendingAtt[];
   saved: Set<number>;
   timer: ReturnType<typeof setTimeout>;
@@ -68,6 +69,11 @@ function mediaKind(mime?: string, name?: string): string {
 
 const shortId = (id: string): string =>
   id.length > 10 ? `${id.slice(0, 6)}…` : id;
+
+const displayNameMeta = (v: unknown): Record<string, string> => {
+  const name = str(v);
+  return name ? { from_display_name: name } : {};
+};
 
 const accountStrippedLine = (line: string): string => {
   const parts = line.split('/');
@@ -172,6 +178,7 @@ export class InboundRelay {
         message_id: e.messageId,
         line_name: e.lineName,
         from_name: e.fromName,
+        ...displayNameMeta(e.fromDisplayName),
       },
     });
   }
@@ -216,6 +223,7 @@ export class InboundRelay {
       messageId: str(ev.messageId),
       lineName: str(ev.lineName),
       fromName: str(ev.fromName),
+      fromDisplayName: str(ev.fromDisplayName),
       attachments: atts.map((a) => ({ kind: a.kind, name: a.name })),
       saved: new Set<number>(),
       timer: setTimeout(() => {
@@ -246,6 +254,7 @@ export class InboundRelay {
         message_id: str(ev.messageId),
         line_name: str(ev.lineName),
         from_name: str(ev.fromName),
+        ...displayNameMeta(ev.fromDisplayName),
         reaction: emoji,
         target_id: target,
       },
@@ -320,6 +329,7 @@ export class InboundRelay {
         message_id: str(ev.messageId),
         line_name: str(ev.lineName),
         from_name: str(ev.fromName),
+        ...displayNameMeta(ev.fromDisplayName),
       },
     });
   }

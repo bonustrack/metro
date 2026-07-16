@@ -19,6 +19,7 @@ export interface MetroEvent {
   lineName?: string;
   from: Line;
   fromName?: string;
+  fromDisplayName?: string;
   to: Line;
   text?: string;
   messageId?: string;

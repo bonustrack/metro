@@ -11,6 +11,11 @@ export function senderName(peer: Peer): string | undefined {
   return peer.title;
 }
 
+export function displayName(peer: Peer): string | undefined {
+  if (isUser(peer)) return peer.firstName;
+  return peer.title;
+}
+
 function chatName(peer: Peer): string | undefined {
   if (isChat(peer)) return peer.title;
   if (isUser(peer)) return peer.username ? `@${peer.username}` : peer.firstName;
@@ -55,6 +60,7 @@ export function envelope(
     line_name: chatName(m.chat),
     from: `metro://telegram-user/${accountId}/user/${m.sender.id}`,
     from_name: senderName(m.sender),
+    from_display_name: displayName(m.sender),
     message_id: String(m.id),
     text: projectText(m),
     is_private: isPrivate,
