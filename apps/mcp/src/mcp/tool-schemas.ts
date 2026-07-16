@@ -153,6 +153,29 @@ export const COMMON_TOOLS = [
       required: ['line'],
     },
   },
+  {
+    name: 'list_members',
+    description:
+      'List the members of a Metro group/channel in a station-agnostic shape. Args: line, ' +
+      'limit?. The station is derived from the line. Returns {line, station, memberCount, ' +
+      'members:[{id, name?, display_name?, address?, roles?, is_admin?, is_bot?}], capability:' +
+      '{supported, complete, reason?, total?}}. Each station fills the fields it has (xmtp: id=' +
+      'inboxId + address; discord: id + username/nick + roles + is_bot; telegram/telegram-user: ' +
+      'id + username/first_name). Never throws on "not supported": stations that cannot ' +
+      'enumerate (e.g. the Telegram Bot API) return an empty or partial list with a reason in ' +
+      '`capability`. Check `capability.complete` before assuming the roster is exhaustive.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        line: lineProp,
+        limit: {
+          type: 'number',
+          description: 'Max members to return (best-effort; capped per station).',
+        },
+      },
+      required: ['line'],
+    },
+  },
 ];
 
 export const LIST_ACCOUNTS_TOOL = {

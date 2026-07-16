@@ -21,6 +21,7 @@ import {
 } from './tool-schemas.js';
 import { errResult, makeCtx, metroCall, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool } from './call-tools.js';
+import { dispatchListMembers } from './member-tools.js';
 import { BodyTooLargeError } from '../daemon/http.js';
 import { InboundRelay } from '../channels/inbound.js';
 import { ChannelRelay } from '../channels/relay.js';
@@ -113,6 +114,8 @@ async function callToolHandler(req: {
       return toErr(name, e);
     }
   }
+
+  if (name === 'list_members') return dispatchListMembers(a);
 
   if (name === 'list_accounts') {
     try {

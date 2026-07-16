@@ -37,6 +37,28 @@ export interface StationTool {
   handle(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
 }
 
+export interface MetroMember {
+  id: string;
+  name?: string;
+  display_name?: string;
+  address?: string;
+  roles?: string[];
+  is_admin?: boolean;
+  is_bot?: boolean;
+}
+
+export interface MemberCapability {
+  supported: boolean;
+  complete: boolean;
+  reason?: string;
+  total?: number;
+}
+
+export interface MemberList {
+  members: MetroMember[];
+  capability: MemberCapability;
+}
+
 export type AttachmentMode = 'canonical' | 'native' | 'none';
 
 export interface Station {

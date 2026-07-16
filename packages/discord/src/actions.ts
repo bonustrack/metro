@@ -25,6 +25,7 @@ import {
 } from '@metro-labs/mcp/stations/station-runtime';
 import { joinVoice, leaveVoice, voiceDebug, voiceTranscribe } from './voice.js';
 import { speak } from './voice-speak.js';
+import { discordMembers } from './members.js';
 
 async function sendMessage(
   accountId: string,
@@ -315,6 +316,20 @@ async function channel(
   respond(id, { result: res });
 }
 
+async function listMembers(
+  id: string,
+  args: Record<string, unknown>,
+): Promise<void> {
+  const { line, limit, account } = args as {
+    line: string;
+    limit?: number;
+    account?: string;
+  };
+  const { accountId, channelId } = routeOf(line, account);
+  const result = await discordMembers(accountId, channelId, limit);
+  respond(id, { result });
+}
+
 const HANDLERS: Record<string, StationHandler> = {
   accounts: (id) => {
     listAccounts(id);
@@ -329,6 +344,7 @@ const HANDLERS: Record<string, StationHandler> = {
   pin,
   typing,
   channel,
+  listMembers,
   set_presence: presence,
   joinVoice,
   leaveVoice,

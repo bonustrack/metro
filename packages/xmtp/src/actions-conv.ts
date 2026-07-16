@@ -14,6 +14,7 @@ import { cleanLabels, labelsBlob, type GroupLike } from './labels.js';
 import {
   applyMemberOp,
   buildGroupInfo,
+  buildMemberList,
   ethIdentifiers,
   parseMemberArgs,
   resolveMembers,
@@ -222,6 +223,14 @@ async function groupInfo(id: string, args: Args): Promise<void> {
   respond(id, { result: await buildGroupInfo(line, acct, conv) });
 }
 
+async function listMembers(id: string, args: Args): Promise<void> {
+  const { line } = args as { line: string };
+  const { acct, conv } = await convOf(line);
+  if (!conv)
+    throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
+  respond(id, { result: await buildMemberList(acct, conv) });
+}
+
 async function summarizeConv(acct: Account, c: Conv): Promise<unknown> {
   const recent = await c.messages({ limit: 1, direction: 1 }).catch(() => []);
   const last = recent[0];
@@ -288,6 +297,7 @@ export const convHandlers: Record<string, Handler> = {
   closeGroup,
   query,
   groupInfo,
+  listMembers,
   listConvs,
   ...pushHandlers,
 };

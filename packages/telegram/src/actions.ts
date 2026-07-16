@@ -1,6 +1,12 @@
 import { accountFor, accounts, tg, targetOf } from './accounts.js';
 import { respond } from './wire.js';
+import { errMsg } from '@metro-labs/mcp/log';
 import { normalizeTelegram } from '@metro-labs/mcp/stations/messaging-normalize';
+import {
+  adminMemberList,
+  inaccessibleMemberList,
+  type TgChatMember,
+} from './members.js';
 import {
   makeStation,
   type CallMsg,
@@ -196,12 +202,39 @@ async function download(id: string, args: Record<string, unknown>): Promise<void
   });
 }
 
+async function listMembers(
+  id: string,
+  args: Record<string, unknown>,
+): Promise<void> {
+  const { line, account } = args as { line: string; account?: string };
+  const { accountId, chatId } = targetOf(line, account);
+  let admins: TgChatMember[];
+  try {
+    admins = await tg<TgChatMember[]>(accountId, 'getChatAdministrators', {
+      chat_id: chatId,
+    });
+  } catch (e) {
+    respond(id, { result: inaccessibleMemberList(errMsg(e)) });
+    return;
+  }
+  let total: number | null = null;
+  try {
+    total = await tg<number>(accountId, 'getChatMemberCount', {
+      chat_id: chatId,
+    });
+  } catch {
+    total = null;
+  }
+  respond(id, { result: adminMemberList(admins, total) });
+}
+
 const HANDLERS: Record<string, StationHandler> = {
   accounts: (id) => listAccounts(id),
   send,
   react,
   edit,
   delete: remove,
+  listMembers,
   send_photo: (id, args) =>
     media(id, 'sendPhoto', 'photo', ((args.caption as string) ?? '') + ' [image]', args),
   send_document: (id, args) =>
