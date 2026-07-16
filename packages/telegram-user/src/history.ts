@@ -1,5 +1,6 @@
 import type { Message } from '@mtcute/bun';
 import { lineOf } from './accounts.js';
+import { senderName } from './format.js';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -24,6 +25,7 @@ export interface ReadMessage {
   id: string;
   ts: string;
   from: string;
+  from_name?: string;
   text: string;
 }
 
@@ -37,6 +39,7 @@ export function shapeHistory(
     id: String(m.id),
     ts: m.date.toISOString(),
     from: senderUri(accountId, m),
+    from_name: senderName(m.sender),
     text: textOf(m),
   }));
   return {

@@ -21,6 +21,7 @@ interface PendingMsg {
   text: string;
   messageId: string;
   lineName: string;
+  fromName: string;
   attachments: PendingAtt[];
   saved: Set<number>;
   timer: ReturnType<typeof setTimeout>;
@@ -170,6 +171,7 @@ export class InboundRelay {
         station: e.station,
         message_id: e.messageId,
         line_name: e.lineName,
+        from_name: e.fromName,
       },
     });
   }
@@ -213,6 +215,7 @@ export class InboundRelay {
       ...base,
       messageId: str(ev.messageId),
       lineName: str(ev.lineName),
+      fromName: str(ev.fromName),
       attachments: atts.map((a) => ({ kind: a.kind, name: a.name })),
       saved: new Set<number>(),
       timer: setTimeout(() => {
@@ -242,6 +245,7 @@ export class InboundRelay {
         station: base.station,
         message_id: str(ev.messageId),
         line_name: str(ev.lineName),
+        from_name: str(ev.fromName),
         reaction: emoji,
         target_id: target,
       },
@@ -315,6 +319,7 @@ export class InboundRelay {
         station: base.station,
         message_id: str(ev.messageId),
         line_name: str(ev.lineName),
+        from_name: str(ev.fromName),
       },
     });
   }

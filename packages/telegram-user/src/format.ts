@@ -6,7 +6,7 @@ import { mintId } from './wire.js';
 const isUser = (peer: Peer): peer is User => peer.type === 'user';
 const isChat = (peer: Peer): peer is Chat => peer.type === 'chat';
 
-function senderName(peer: Peer): string | undefined {
+export function senderName(peer: Peer): string | undefined {
   if (isUser(peer)) return peer.username ? `@${peer.username}` : peer.firstName;
   return peer.title;
 }
