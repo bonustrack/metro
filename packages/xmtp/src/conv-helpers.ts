@@ -2,6 +2,7 @@ import { IdentifierKind } from '@xmtp/node-sdk';
 import { convOf, type Account } from './accounts.js';
 import { inboxEthCache, cacheInboxEth } from './wire.js';
 import { TrainError } from '@metro-labs/mcp/train-error';
+import type { MemberList, MetroMember } from '@metro-labs/mcp/stations/types';
 import { readAppData, type GroupLike } from './labels.js';
 
 export { parseMemberArgs, resolveMembers } from './member-args.js';
@@ -83,6 +84,38 @@ export async function buildGroupInfo(
       inboxId: iid,
       address: addresses[iid] ?? null,
     })),
+  };
+}
+
+interface RawMember {
+  inboxId: string;
+  permissionLevel?: number;
+}
+
+function toMetroMember(
+  m: RawMember,
+  addresses: Record<string, string>,
+): MetroMember {
+  const member: MetroMember = { id: m.inboxId };
+  const address = addresses[m.inboxId];
+  if (address) member.address = address;
+  if (typeof m.permissionLevel === 'number')
+    member.is_admin = m.permissionLevel >= 1;
+  return member;
+}
+
+export async function buildMemberList(
+  acct: Account,
+  conv: Conv,
+): Promise<MemberList> {
+  const raw = (await conv.members()) as RawMember[];
+  const addresses = await resolveAddresses(
+    acct,
+    raw.map((m) => m.inboxId),
+  );
+  return {
+    members: raw.map((m) => toMetroMember(m, addresses)),
+    capability: { supported: true, complete: true, total: raw.length },
   };
 }
 

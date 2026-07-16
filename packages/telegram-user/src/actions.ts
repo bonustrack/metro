@@ -14,6 +14,7 @@ import {
   type CanonicalAttachment,
 } from './media-actions.js';
 import { clampLimit, shapeHistory } from './history.js';
+import { fetchMembers, isRestricted, restrictedMemberList } from './members.js';
 
 type Args = Record<string, unknown>;
 
@@ -140,6 +141,23 @@ function makeRead(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeListMembers(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const { client, chatId } = resolve(args, clientFor);
+    const limit = typeof args.limit === 'number' ? args.limit : undefined;
+    try {
+      respond(id, { result: await fetchMembers(client, chatId, limit) });
+    } catch (e) {
+      const msg = errMsg(e);
+      if (isRestricted(msg)) {
+        respond(id, { result: restrictedMemberList(msg) });
+        return;
+      }
+      throw e;
+    }
+  };
+}
+
 function makeAccounts(): StationHandler {
   return (id) => {
     const list = [...accounts.values()].map((a) => ({
@@ -162,6 +180,7 @@ export function makeHandleCall(
       edit: makeEdit(clientFor),
       delete: makeDelete(clientFor),
       read: makeRead(clientFor),
+      listMembers: makeListMembers(clientFor),
     },
     normalize: normalizeTelegramUser,
   });
