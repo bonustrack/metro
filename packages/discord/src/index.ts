@@ -63,6 +63,7 @@ function onEdit(accountId: string, m: Message): void {
     line: lineOf(accountId, m.channelId),
     from: `metro://discord/${accountId}/user/${m.author.id}`,
     from_name: m.author.username,
+    from_display_name: m.author.globalName ?? undefined,
     message_id: m.id,
     text: m.content,
     is_private: m.guildId == null,

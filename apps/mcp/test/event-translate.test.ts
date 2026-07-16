@@ -135,13 +135,15 @@ describe('trainEventToMetroEvent — passthrough fields', () => {
       line: 'metro://telegram/123',
       line_name: 'My Group',
       from: 'metro://telegram/user/bob',
-      from_name: 'Bob',
+      from_name: '@bob',
+      from_display_name: 'Bob',
       message_id: 'mid-7',
       reply_to: 'mid-3',
       payload,
     }, 'tg');
     expect(e!.lineName).toBe('My Group');
-    expect(e!.fromName).toBe('Bob');
+    expect(e!.fromName).toBe('@bob');
+    expect(e!.fromDisplayName).toBe('Bob');
     expect(e!.messageId).toBe('mid-7');
     expect(e!.replyTo).toBe('mid-3');
     expect(e!.payload).toEqual(payload);
@@ -153,6 +155,7 @@ describe('trainEventToMetroEvent — passthrough fields', () => {
     const e = trainEventToMetroEvent({ line: 'metro://discord/1' }, 'discord');
     expect(e!.lineName).toBeUndefined();
     expect(e!.fromName).toBeUndefined();
+    expect(e!.fromDisplayName).toBeUndefined();
     expect(e!.messageId).toBeUndefined();
     expect(e!.replyTo).toBeUndefined();
     expect(e!.payload).toBeUndefined();

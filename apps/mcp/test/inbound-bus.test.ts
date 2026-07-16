@@ -43,7 +43,8 @@ describe('inbound event bus → InboundRelay', () => {
       line: 'metro://discord/g/1/c/2' as never,
       lineName: 'general',
       from: 'metro://discord/u/alice' as never,
-      fromName: 'Alice',
+      fromName: 'alice_handle',
+      fromDisplayName: 'Alice',
       to: 'metro://discord/g/1/c/2' as never,
       text: 'hello from the bus',
       messageId: 'disc-1',
@@ -60,7 +61,8 @@ describe('inbound event bus → InboundRelay', () => {
     const meta = channel[0].params.meta as Record<string, unknown>;
     expect(meta.line).toBe('metro://discord/g/1/c/2');
     expect(meta.from).toBe('metro://discord/u/alice');
-    expect(meta.from_name).toBe('Alice');
+    expect(meta.from_name).toBe('alice_handle');
+    expect(meta.from_display_name).toBe('Alice');
     expect(meta.station).toBe('discord');
     expect(meta.message_id).toBe('disc-1');
   });
