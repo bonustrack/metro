@@ -3,6 +3,7 @@ import type {
   MemberOutcome,
 } from '@metro-labs/mcp/stations/types';
 import { TrainError } from '@metro-labs/mcp/train-error';
+import { errMsg } from '@metro-labs/mcp/log';
 import type { UserClient } from './client.js';
 import { lineOf } from './accounts.js';
 
@@ -46,6 +47,131 @@ const tgGroup = (client: UserClient): TgGroup => {
 const INVITE_REASON =
   'could not be direct-added (not a mutual contact or privacy-restricted); share the invite link';
 
+const ADD_FAILURE_CODES = [
+  'CHAT_MEMBER_ADD_FAILED',
+  'USER_PRIVACY_RESTRICTED',
+  'USER_NOT_MUTUAL_CONTACT',
+  'USER_CHANNELS_TOO_MUCH',
+  'USER_ALREADY_PARTICIPANT',
+  'USER_BLOCKED',
+  'USER_BOT',
+  'USER_KICKED',
+  'PEER_FLOOD',
+  'USERS_TOO_MUCH',
+];
+
+function isAddFailure(e: unknown): boolean {
+  const msg = errMsg(e).toUpperCase();
+  return ADD_FAILURE_CODES.some((code) => msg.includes(code));
+}
+
+const added = (id: string): MemberOutcome => ({ id, status: 'added' });
+const invited = (id: string): MemberOutcome => ({
+  id,
+  status: 'invited',
+  reason: INVITE_REASON,
+});
+
+function membersOf(args: Record<string, unknown>): string[] {
+  const raw = args.members;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((v) => typeof v === 'string' && v.length > 0) as string[];
+}
+
+async function addOne(
+  client: UserClient,
+  chatId: number,
+  member: string,
+): Promise<MemberOutcome> {
+  try {
+    const missing = await tgGroup(client).addChatMembers(chatId, [member], {
+      forwardCount: 0,
+    });
+    return missing.length ? invited(member) : added(member);
+  } catch (e) {
+    if (isAddFailure(e)) return invited(member);
+    throw e;
+  }
+}
+
+interface CreatedChat {
+  chatId: number;
+  outcomes: MemberOutcome[];
+}
+
+async function createWithAll(
+  client: UserClient,
+  title: string,
+  members: string[],
+): Promise<CreatedChat> {
+  const res = await tgGroup(client).createGroup({ title, users: members });
+  const missing = new Set(res.missing.map((m) => m.userId));
+  const outcomes: MemberOutcome[] = [];
+  for (const m of members) {
+    const uid = await idOf(client, m);
+    outcomes.push(
+      uid !== null && missing.has(Number(uid)) ? invited(m) : added(m),
+    );
+  }
+  return { chatId: res.chat.id, outcomes };
+}
+
+async function createPerMember(
+  client: UserClient,
+  title: string,
+  members: string[],
+): Promise<CreatedChat> {
+  let chatId: number | null = null;
+  const outcomes: MemberOutcome[] = [];
+  const pending: string[] = [];
+  for (const m of members) {
+    if (chatId !== null) {
+      pending.push(m);
+      continue;
+    }
+    try {
+      const res = await tgGroup(client).createGroup({ title, users: [m] });
+      chatId = res.chat.id;
+      outcomes.push(res.missing.length ? invited(m) : added(m));
+    } catch (e) {
+      if (!isAddFailure(e)) throw e;
+      outcomes.push(invited(m));
+    }
+  }
+  if (chatId === null)
+    throw new TrainError(
+      'telegram_user_call',
+      'could not create group: no requested member could be added',
+    );
+  for (const m of pending) outcomes.push(await addOne(client, chatId, m));
+  return { chatId, outcomes };
+}
+
+async function createChat(
+  client: UserClient,
+  title: string,
+  members: string[],
+): Promise<CreatedChat> {
+  try {
+    return await createWithAll(client, title, members);
+  } catch (e) {
+    if (!isAddFailure(e)) throw e;
+    return createPerMember(client, title, members);
+  }
+}
+
+async function finalize(
+  client: UserClient,
+  base: GroupResult,
+  chatId: number,
+  outcomes: MemberOutcome[],
+): Promise<GroupResult> {
+  const result: GroupResult = { ...base, members: outcomes };
+  if (outcomes.some((o) => o.status === 'invited'))
+    result.inviteLink = (await tgGroup(client).exportInviteLink(chatId)).link;
+  return result;
+}
+
 async function idOf(client: UserClient, member: string): Promise<string | null> {
   const trimmed = member.replace(/^@/, '');
   if (/^-?\d+$/.test(trimmed)) return trimmed;
@@ -58,31 +184,6 @@ async function idOf(client: UserClient, member: string): Promise<string | null> 
   }
 }
 
-export async function classifyMembers(
-  client: UserClient,
-  members: string[],
-  missing: MissingInvitee[],
-): Promise<MemberOutcome[]> {
-  const missingSet = new Set(missing.map((m) => String(m.userId)));
-  const outcomes: MemberOutcome[] = [];
-  for (const m of members) {
-    const uid = await idOf(client, m);
-    const invited = uid !== null && missingSet.has(uid);
-    outcomes.push(
-      invited
-        ? { id: m, status: 'invited', reason: INVITE_REASON }
-        : { id: m, status: 'added' },
-    );
-  }
-  return outcomes;
-}
-
-function membersOf(args: Record<string, unknown>): string[] {
-  const raw = args.members;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((v) => typeof v === 'string' && v.length > 0) as string[];
-}
-
 export async function groupCreate(
   client: UserClient,
   accountId: string,
@@ -91,21 +192,20 @@ export async function groupCreate(
   const name = typeof args.name === 'string' ? args.name : '';
   if (!name) throw new TrainError('bad_request', 'groupCreate requires a `name`');
   const members = membersOf(args);
-  const res = await tgGroup(client).createGroup({ title: name, users: members });
-  const chatId = res.chat.id;
-  const outcomes = await classifyMembers(client, members, res.missing);
-  const result: GroupResult = {
-    capability: { supported: true },
-    line: lineOf(accountId, chatId),
-    id: String(chatId),
-    name,
-    members: outcomes,
-  };
-  if (res.missing.length)
-    result.inviteLink = (
-      await tgGroup(client).exportInviteLink(chatId)
-    ).link;
-  return result;
+  if (!members.length)
+    throw new TrainError('bad_request', 'groupCreate requires `members`');
+  const { chatId, outcomes } = await createChat(client, name, members);
+  return finalize(
+    client,
+    {
+      capability: { supported: true },
+      line: lineOf(accountId, chatId),
+      id: String(chatId),
+      name,
+    },
+    chatId,
+    outcomes,
+  );
 }
 
 export async function groupAddMembers(
@@ -117,21 +217,14 @@ export async function groupAddMembers(
   const members = membersOf(args);
   if (!members.length)
     throw new TrainError('bad_request', 'groupAddMembers requires `members`');
-  const missing = await tgGroup(client).addChatMembers(chatId, members, {
-    forwardCount: 0,
-  });
-  const outcomes = await classifyMembers(client, members, missing);
-  const result: GroupResult = {
-    capability: { supported: true },
-    line,
-    id: String(chatId),
-    members: outcomes,
-  };
-  if (missing.length)
-    result.inviteLink = (
-      await tgGroup(client).exportInviteLink(chatId)
-    ).link;
-  return result;
+  const outcomes: MemberOutcome[] = [];
+  for (const m of members) outcomes.push(await addOne(client, chatId, m));
+  return finalize(
+    client,
+    { capability: { supported: true }, line, id: String(chatId) },
+    chatId,
+    outcomes,
+  );
 }
 
 export async function groupRemoveMembers(
