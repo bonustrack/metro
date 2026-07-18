@@ -26,6 +26,11 @@ import {
 import { joinVoice, leaveVoice, voiceDebug, voiceTranscribe } from './voice.js';
 import { speak } from './voice-speak.js';
 import { discordMembers } from './members.js';
+import {
+  groupAddHandler,
+  groupCreateHandler,
+  groupRemoveHandler,
+} from './group-actions.js';
 
 async function sendMessage(
   accountId: string,
@@ -334,6 +339,9 @@ const HANDLERS: Record<string, StationHandler> = {
   accounts: (id) => {
     listAccounts(id);
   },
+  groupCreate: groupCreateHandler,
+  groupAddMembers: groupAddHandler,
+  groupRemoveMembers: groupRemoveHandler,
   send,
   react,
   edit,

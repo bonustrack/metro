@@ -75,24 +75,6 @@ export async function setChannelMetadata(
   return ctx.okJson(await ctx.call('updateChannelMeta', callArgs));
 }
 
-export async function memberOp(
-  tool: string,
-  action: string,
-  a: Record<string, unknown>,
-  ctx: ToolContext,
-) {
-  const line = str(a.line);
-  if (!line) return ctx.err(`${tool} requires \`line\``);
-  const addresses = strList(a.addresses);
-  const inboxIds = strList(a.inboxIds);
-  if (!addresses.length && !inboxIds.length)
-    return ctx.err(`${tool} requires \`addresses\` or \`inboxIds\``);
-  const args: Record<string, unknown> = { line };
-  if (addresses.length) args.addresses = addresses;
-  if (inboxIds.length) args.inboxIds = inboxIds;
-  return ctx.okJson(await ctx.call(action, args));
-}
-
 const XMTP_ATTACH_MAX_BYTES = 190 * 1024;
 
 async function sendFileAttachment(

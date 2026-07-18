@@ -15,6 +15,12 @@ import {
 } from './media-actions.js';
 import { clampLimit, shapeHistory } from './history.js';
 import { fetchMembers, isRestricted, restrictedMemberList } from './members.js';
+import {
+  groupAddMembers,
+  groupCreate,
+  groupInviteLink,
+  groupRemoveMembers,
+} from './group.js';
 
 type Args = Record<string, unknown>;
 
@@ -158,6 +164,46 @@ function makeListMembers(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeGroupCreate(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const accountId = accountFor({ account: str(args.account) });
+    const client = clientFor(accountId);
+    respond(id, {
+      result: await guard(() => groupCreate(client, accountId, args)),
+    });
+  };
+}
+
+function makeGroupAdd(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const { client, chatId } = resolve(args, clientFor);
+    const line = lineOfArgs(args);
+    respond(id, {
+      result: await guard(() => groupAddMembers(client, chatId, line, args)),
+    });
+  };
+}
+
+function makeGroupRemove(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const { client, chatId } = resolve(args, clientFor);
+    const line = lineOfArgs(args);
+    respond(id, {
+      result: await guard(() => groupRemoveMembers(client, chatId, line, args)),
+    });
+  };
+}
+
+function makeGroupInvite(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const { client, chatId } = resolve(args, clientFor);
+    const line = lineOfArgs(args);
+    respond(id, {
+      result: await guard(() => groupInviteLink(client, chatId, line)),
+    });
+  };
+}
+
 function makeAccounts(): StationHandler {
   return (id) => {
     const list = [...accounts.values()].map((a) => ({
@@ -181,6 +227,10 @@ export function makeHandleCall(
       delete: makeDelete(clientFor),
       read: makeRead(clientFor),
       listMembers: makeListMembers(clientFor),
+      groupCreate: makeGroupCreate(clientFor),
+      groupAddMembers: makeGroupAdd(clientFor),
+      groupRemoveMembers: makeGroupRemove(clientFor),
+      groupInviteLink: makeGroupInvite(clientFor),
     },
     normalize: normalizeTelegramUser,
   });

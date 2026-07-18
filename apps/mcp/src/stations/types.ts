@@ -59,12 +59,41 @@ export interface MemberList {
   capability: MemberCapability;
 }
 
+export type GroupOp =
+  | 'create_group'
+  | 'add_members'
+  | 'remove_members'
+  | 'invite_link';
+
+export type MemberOutcomeStatus = 'added' | 'invited' | 'removed' | 'failed';
+
+export interface MemberOutcome {
+  id: string;
+  status: MemberOutcomeStatus;
+  reason?: string;
+}
+
+export interface GroupCapability {
+  supported: boolean;
+  reason?: string;
+}
+
+export interface GroupResult {
+  capability: GroupCapability;
+  line?: string;
+  id?: string;
+  name?: string;
+  members?: MemberOutcome[];
+  inviteLink?: string;
+}
+
 export type AttachmentMode = 'canonical' | 'native' | 'none';
 
 export interface Station {
   name: string;
   hasAccounts: boolean;
   messageVerbs: ReadonlySet<Verb>;
+  groupOps?: ReadonlySet<GroupOp>;
   attachmentMode: AttachmentMode;
   sendAttachments?(
     line: string,

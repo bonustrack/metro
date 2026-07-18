@@ -3,7 +3,6 @@ import {
   str,
   createChannel,
   setChannelMetadata,
-  memberOp,
   xmtpSendAttachments,
 } from './tools-handlers.js';
 
@@ -158,56 +157,6 @@ export const XMTP_TOOLS: StationTool[] = [
       if (!line) return ctx.err('group_info requires `line`');
       return ctx.okJson(await ctx.call('groupInfo', { line }));
     },
-  },
-  {
-    name: 'add_members',
-    description:
-      'Add members to an existing XMTP group. Args: line (required), addresses? (0x[] ) and/or ' +
-      'inboxIds? (string[]); at least one of the two is required. Returns the refreshed ' +
-      'group_info plus `added`. xmtp-only (daemon `addMembers`).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        line: lineProp,
-        addresses: {
-          type: 'array',
-          description: 'Ethereum 0x addresses to add.',
-          items: { type: 'string' },
-        },
-        inboxIds: {
-          type: 'array',
-          description: 'XMTP inboxIds to add.',
-          items: { type: 'string' },
-        },
-      },
-      required: ['line'],
-    },
-    handle: (a, ctx) => memberOp('add_members', 'addMembers', a, ctx),
-  },
-  {
-    name: 'remove_members',
-    description:
-      'Remove members from an existing XMTP group. Args: line (required), addresses? (0x[]) ' +
-      'and/or inboxIds? (string[]); at least one required. Returns the refreshed group_info. ' +
-      'xmtp-only (daemon `removeMembers`).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        line: lineProp,
-        addresses: {
-          type: 'array',
-          description: 'Ethereum 0x addresses to remove.',
-          items: { type: 'string' },
-        },
-        inboxIds: {
-          type: 'array',
-          description: 'XMTP inboxIds to remove.',
-          items: { type: 'string' },
-        },
-      },
-      required: ['line'],
-    },
-    handle: (a, ctx) => memberOp('remove_members', 'removeMembers', a, ctx),
   },
   {
     name: 'close_channel',

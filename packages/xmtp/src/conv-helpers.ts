@@ -20,6 +20,25 @@ export function ethIdentifiers(addrs: string[]): EthId[] {
   }));
 }
 
+export async function createGroupWithMembers(
+  acct: Account,
+  addrs: string[],
+  inboxes: string[],
+  opts: { groupName: string; groupDescription?: string; appData?: string },
+): Promise<GroupLike> {
+  if (!addrs.length)
+    return acct.client.conversations.createGroup(inboxes, opts);
+  const created = await acct.client.conversations.createGroupWithIdentifiers(
+    ethIdentifiers(addrs),
+    opts,
+  );
+  if (inboxes.length)
+    await (
+      created as unknown as { addMembers: (ids: string[]) => Promise<unknown> }
+    ).addMembers(inboxes);
+  return created;
+}
+
 async function resolveAddresses(
   acct: Account,
   inboxIds: string[],

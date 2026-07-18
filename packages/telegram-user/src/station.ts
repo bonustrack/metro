@@ -1,4 +1,4 @@
-import type { Station, Verb } from '@metro-labs/mcp/stations/types';
+import type { GroupOp, Station, Verb } from '@metro-labs/mcp/stations/types';
 
 export const telegramUserStation: Station = {
   name: 'telegram-user',
@@ -11,6 +11,12 @@ export const telegramUserStation: Station = {
     'edit',
     'delete',
     'read',
+  ]),
+  groupOps: new Set<GroupOp>([
+    'create_group',
+    'add_members',
+    'remove_members',
+    'invite_link',
   ]),
   attachmentMode: 'canonical',
   tools: [],

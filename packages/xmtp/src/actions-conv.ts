@@ -10,17 +10,23 @@ import {
 import { respond } from './wire.js';
 import { TrainError } from '@metro-labs/mcp/train-error';
 import { pushHandlers } from './actions-push.js';
-import { cleanLabels, labelsBlob, type GroupLike } from './labels.js';
+import { cleanLabels, labelsBlob } from './labels.js';
 import {
   applyMemberOp,
   buildGroupInfo,
   buildMemberList,
+  createGroupWithMembers,
   ethIdentifiers,
   parseMemberArgs,
   resolveMembers,
   warmGroupName,
 } from './conv-helpers.js';
 import { closeGroup } from './actions-close.js';
+import {
+  groupAddMembers,
+  groupCreate,
+  groupRemoveMembers,
+} from './group.js';
 import {
   updateChannelMeta,
   applyChannelMeta,
@@ -71,25 +77,6 @@ async function newGroup(id: string, args: Args): Promise<void> {
       account: acct.cfg.id,
     },
   });
-}
-
-async function createGroupWithMembers(
-  acct: Account,
-  addrs: string[],
-  inboxes: string[],
-  opts: { groupName: string; groupDescription?: string; appData?: string },
-): Promise<GroupLike> {
-  if (!addrs.length)
-    return acct.client.conversations.createGroup(inboxes, opts);
-  const created = await acct.client.conversations.createGroupWithIdentifiers(
-    ethIdentifiers(addrs),
-    opts,
-  );
-  if (inboxes.length)
-    await (
-      created as unknown as { addMembers: (ids: string[]) => Promise<unknown> }
-    ).addMembers(inboxes);
-  return created;
 }
 
 async function createRequestGroup(id: string, args: Args): Promise<void> {
@@ -299,5 +286,14 @@ export const convHandlers: Record<string, Handler> = {
   groupInfo,
   listMembers,
   listConvs,
+  groupCreate: async (id, args) => {
+    respond(id, { result: await groupCreate(args) });
+  },
+  groupAddMembers: async (id, args) => {
+    respond(id, { result: await groupAddMembers(args) });
+  },
+  groupRemoveMembers: async (id, args) => {
+    respond(id, { result: await groupRemoveMembers(args) });
+  },
   ...pushHandlers,
 };
