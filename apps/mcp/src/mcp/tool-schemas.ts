@@ -176,6 +176,120 @@ export const COMMON_TOOLS = [
       required: ['line'],
     },
   },
+  {
+    name: 'create_group',
+    description:
+      'Create a new group/channel on a station and add members, in a station-agnostic shape. ' +
+      'Args: station (required, xmtp|telegram-user|discord|telegram), name (required), members? ' +
+      '(string[]; xmtp: 0x address or inboxId, telegram-user: @username or user id, discord: ' +
+      'user id), account? (which station account), parent? (discord only: the metro:// line of ' +
+      'the channel to open the thread under). Returns {op, line (the NEW group line), station, ' +
+      'supported, reason?, id?, name?, members:[{id, status: added|invited|removed|failed, ' +
+      'reason?}], inviteLink?}. Never throws on "not supported": stations that lack the op ' +
+      '(e.g. the Telegram Bot API) return {supported:false, reason}. Telegram direct-add is ' +
+      'limited to mutual contacts / permissive privacy — members who cannot be added come back ' +
+      'as status "invited" and an `inviteLink` is returned to share with them.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        station: {
+          type: 'string',
+          description: 'The station to create the group on (xmtp|telegram-user|discord).',
+        },
+        name: { type: 'string', description: 'The group/channel name.' },
+        members: {
+          type: 'array',
+          description: 'Members to seed the group with (station-specific identifiers).',
+          items: { type: 'string' },
+        },
+        account: {
+          type: 'string',
+          description: 'Station account to create under (defaults to the station default).',
+        },
+        parent: {
+          type: 'string',
+          description:
+            'Discord only: the metro:// line of the channel to create the thread under.',
+        },
+      },
+      required: ['station', 'name'],
+    },
+  },
+  {
+    name: 'add_members',
+    description:
+      'Add members to an existing Metro group, in a station-agnostic shape. Args: line ' +
+      '(required), members? (string[]; station-specific identifiers). xmtp also accepts ' +
+      'addresses? (0x[]) and inboxIds? (string[]) for backward compatibility. The station is ' +
+      'derived from the line. Returns {op, line, station, supported, reason?, members:[{id, ' +
+      'status, reason?}], inviteLink?}. Never throws on "not supported". On Telegram, members ' +
+      'who cannot be direct-added come back status "invited" with an `inviteLink`.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        line: lineProp,
+        members: {
+          type: 'array',
+          description: 'Members to add (station-specific identifiers).',
+          items: { type: 'string' },
+        },
+        addresses: {
+          type: 'array',
+          description: 'xmtp only: Ethereum 0x addresses to add.',
+          items: { type: 'string' },
+        },
+        inboxIds: {
+          type: 'array',
+          description: 'xmtp only: XMTP inboxIds to add.',
+          items: { type: 'string' },
+        },
+      },
+      required: ['line'],
+    },
+  },
+  {
+    name: 'remove_members',
+    description:
+      'Remove members from an existing Metro group, in a station-agnostic shape. Args: line ' +
+      '(required), members? (string[]). xmtp also accepts addresses?/inboxIds? for backward ' +
+      'compatibility. The station is derived from the line. Returns {op, line, station, ' +
+      'supported, reason?, members:[{id, status, reason?}]}. Never throws on "not supported".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        line: lineProp,
+        members: {
+          type: 'array',
+          description: 'Members to remove (station-specific identifiers).',
+          items: { type: 'string' },
+        },
+        addresses: {
+          type: 'array',
+          description: 'xmtp only: Ethereum 0x addresses to remove.',
+          items: { type: 'string' },
+        },
+        inboxIds: {
+          type: 'array',
+          description: 'xmtp only: XMTP inboxIds to remove.',
+          items: { type: 'string' },
+        },
+      },
+      required: ['line'],
+    },
+  },
+  {
+    name: 'export_invite',
+    description:
+      'Get a join/invite link for a Metro group, for platforms where direct-add is not always ' +
+      'permitted. Args: line (required). The station is derived from the line. Returns {op, ' +
+      'line, station, supported, reason?, inviteLink?}. Only telegram-user supports this today; ' +
+      'other stations return {supported:false, reason}. Never throws on "not supported".',
+    inputSchema: {
+      type: 'object',
+      properties: { line: lineProp },
+      required: ['line'],
+    },
+  },
 ];
 
 export const LIST_ACCOUNTS_TOOL = {

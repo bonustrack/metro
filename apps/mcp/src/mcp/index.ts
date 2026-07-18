@@ -22,6 +22,12 @@ import {
 import { errResult, makeCtx, metroCall, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool } from './call-tools.js';
 import { dispatchListMembers } from './member-tools.js';
+import {
+  dispatchAddMembers,
+  dispatchCreateGroup,
+  dispatchInviteLink,
+  dispatchRemoveMembers,
+} from './group-tools.js';
 import { BodyTooLargeError } from '../daemon/http.js';
 import { InboundRelay } from '../channels/inbound.js';
 import { ChannelRelay } from '../channels/relay.js';
@@ -100,6 +106,17 @@ const STATION_TOOLS = new Map<
 for (const s of STATIONS)
   for (const t of s.tools) STATION_TOOLS.set(t.name, { station: s, tool: t });
 
+const CORE_DISPATCH: Record<
+  string,
+  (a: Record<string, unknown>) => Promise<ToolResult>
+> = {
+  list_members: dispatchListMembers,
+  create_group: dispatchCreateGroup,
+  add_members: dispatchAddMembers,
+  remove_members: dispatchRemoveMembers,
+  export_invite: dispatchInviteLink,
+};
+
 async function callToolHandler(req: {
   params: { name: string; arguments?: Record<string, unknown> };
 }): Promise<ToolResult> {
@@ -115,7 +132,8 @@ async function callToolHandler(req: {
     }
   }
 
-  if (name === 'list_members') return dispatchListMembers(a);
+  const core = CORE_DISPATCH[name];
+  if (core) return core(a);
 
   if (name === 'list_accounts') {
     try {
