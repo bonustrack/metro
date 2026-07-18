@@ -2,6 +2,7 @@ import type { Chat, Message, Peer, User } from '@mtcute/bun';
 import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
 import { lineOf } from './accounts.js';
 import { mintId } from './wire.js';
+import { isDownloadable, pendingDescriptorOf } from './attachments.js';
 
 const isUser = (peer: Peer): peer is User => peer.type === 'user';
 const isChat = (peer: Peer): peer is Chat => peer.type === 'chat';
@@ -51,6 +52,11 @@ export function envelope(
   const topicId = topicOf(m);
   const line = lineOf(accountId, m.chat.id, topicId);
   const isPrivate = isUser(m.chat);
+  const { media } = m;
+  const attachments =
+    media !== null && isDownloadable(media)
+      ? [pendingDescriptorOf(media)]
+      : undefined;
   return {
     kind: 'inbound',
     id: mintId(),
@@ -64,8 +70,12 @@ export function envelope(
     message_id: String(m.id),
     text: projectText(m),
     is_private: isPrivate,
-    has_media: m.media !== null,
-    payload: { account: accountId, message_id: String(m.id) },
+    has_media: media !== null,
+    payload: {
+      account: accountId,
+      message_id: String(m.id),
+      ...(attachments ? { attachments } : {}),
+    },
   };
 }
 
