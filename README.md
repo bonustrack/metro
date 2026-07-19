@@ -171,13 +171,16 @@ missing `DATABASE_URL` or an empty database is a hard, loud error.
 | `DATABASE_URL` | Postgres connection string (required). Agents + accounts load from the DB on boot and are materialized to the per-station account files the trains read. |
 | `METRO_AGENT` | Optional. Restrict this instance to one agent (by `name`). Unset → the daemon runs every agent's accounts in the one process. |
 
-Two small tables, no foreign keys — accounts reference their agent by a plain `agent`
-name (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
+Three small tables, no foreign-key constraints — accounts and keys reference their agent
+by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
-- **`agents`** — `name` (primary key).
-- **`accounts`** — `agent` (name), `station` (`xmtp` | `telegram` | `telegram-user` |
+- **`agents`** — `id` (auto-increment int, primary key), `name` (unique).
+- **`accounts`** — `agent_id`, `station` (`xmtp` | `telegram` | `telegram-user` |
   `discord`), `account_id` (the station-local id, e.g. `x0`/`t0`), `config` jsonb (the
   connection info that station needs — see below). Primary key (`station`, `account_id`).
+- **`keys`** — `agent_id`, `name`, `key`. Per-agent API keys. Primary key (`agent_id`,
+  `name`). For a single-agent daemon the first key becomes the `METRO_MCP_HTTP_TOKEN`
+  bearer at boot.
 
 Per-station `config` jsonb:
 
@@ -204,9 +207,16 @@ export DATABASE_URL=postgres://user:pass@host:5432/metro
 bun --filter @metro-labs/mcp db:migrate    # create the tables
 ```
 
-Then populate the `agents` and `accounts` tables (one row per station account, with the
-`config` jsonb above) and start Metro. `db:generate` regenerates the migration after a
-schema change.
+Then insert an agent, take its returned `id`, and insert that agent's accounts (and any
+API keys) with that `agent_id`; start Metro. `db:generate` regenerates the migration
+after a schema change.
+
+```sql
+INSERT INTO agents (name) VALUES ('Tony') RETURNING id;   -- e.g. 1
+INSERT INTO accounts (agent_id, station, account_id, config)
+  VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');
+INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
+```
 
 ### Server
 

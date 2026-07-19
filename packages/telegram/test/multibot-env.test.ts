@@ -1,8 +1,3 @@
-/**
- * Telegram accounts load from the materialized accounts file (Postgres is the runtime
- * source of truth; the daemon writes this file at boot). Ids come from the records.
- */
-
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

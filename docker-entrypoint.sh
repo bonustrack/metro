@@ -1,9 +1,5 @@
 #!/bin/sh
-# metro container entrypoint.
-#  - ensures the volume dirs exist (HOME=/data → on the mounted volume)
-#  - execs the single metro process (stations + webhooks + MCP, :8420). At boot the
-#    daemon materializes accounts from the DB (DATABASE_URL) and writes one train
-#    stub per station that has accounts — the entrypoint no longer generates stubs.
+# metro container entrypoint. Train stubs are written at boot from the DB, not here.
 set -e
 
 mkdir -p "$HOME/.metro" "$HOME/.cache/metro" "$METRO_TRAINS_DIR"

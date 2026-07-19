@@ -1,8 +1,10 @@
 import {
+  integer,
   jsonb,
   pgEnum,
   pgTable,
   primaryKey,
+  serial,
   text,
 } from 'drizzle-orm/pg-core';
 
@@ -18,16 +20,27 @@ export type StationName = (typeof STATIONS)[number];
 export const stationEnum = pgEnum('station', STATIONS);
 
 export const agents = pgTable('agents', {
-  name: text('name').primaryKey(),
+  id: serial('id').primaryKey(),
+  name: text('name').notNull().unique(),
 });
 
 export const accounts = pgTable(
   'accounts',
   {
-    agent: text('agent').notNull(),
+    agentId: integer('agent_id').notNull(),
     station: stationEnum('station').notNull(),
     accountId: text('account_id').notNull(),
     config: jsonb('config').notNull(),
   },
   (t) => [primaryKey({ columns: [t.station, t.accountId] })],
+);
+
+export const keys = pgTable(
+  'keys',
+  {
+    agentId: integer('agent_id').notNull(),
+    name: text('name').notNull(),
+    key: text('key').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.agentId, t.name] })],
 );

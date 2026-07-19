@@ -6,7 +6,7 @@ import { log } from '../daemon/log.js';
 import { writeSecure } from '../daemon/secure-fs.js';
 import { closeDb, databaseUrl, getDb } from './client.js';
 import { setAgentMap, type AgentMap } from './agent-map.js';
-import { accounts, agents, type StationName } from './schema.js';
+import { accounts, agents, keys, type StationName } from './schema.js';
 
 interface StationTarget {
   file: string;
@@ -15,10 +15,15 @@ interface StationTarget {
 }
 
 interface LoadedAccount {
-  agent: string;
   station: StationName;
   accountId: string;
   config: Record<string, unknown>;
+}
+
+interface LoadedAgent {
+  name: string;
+  accounts: LoadedAccount[];
+  keys: { name: string; key: string }[];
 }
 
 const METRO_DIR = join(homedir(), '.metro');
@@ -58,42 +63,46 @@ function agentFilter(): string | undefined {
   return v;
 }
 
-async function loadAccounts(): Promise<LoadedAccount[]> {
+async function loadAgents(): Promise<LoadedAgent[]> {
   const db = getDb();
   const only = agentFilter();
   const agentRows = only
     ? await db.select().from(agents).where(eq(agents.name, only))
     : await db.select().from(agents);
 
-  const out: LoadedAccount[] = [];
+  const out: LoadedAgent[] = [];
   for (const a of agentRows) {
-    const rows = await db
+    const acctRows = await db
       .select()
       .from(accounts)
-      .where(eq(accounts.agent, a.name));
-    for (const r of rows)
-      out.push({
-        agent: a.name,
+      .where(eq(accounts.agentId, a.id));
+    const keyRows = await db.select().from(keys).where(eq(keys.agentId, a.id));
+    out.push({
+      name: a.name,
+      accounts: acctRows.map((r) => ({
         station: r.station,
         accountId: r.accountId,
         config: r.config as Record<string, unknown>,
-      });
+      })),
+      keys: keyRows.map((k) => ({ name: k.name, key: k.key })),
+    });
   }
   return out;
 }
 
-function writeStations(list: LoadedAccount[]): string[] {
+function writeStations(list: LoadedAgent[]): string[] {
   mkdirSync(METRO_DIR, { recursive: true });
   mkdirSync(TRAINS_DIR, { recursive: true });
 
   const byStation = new Map<StationName, LoadedAccount[]>();
   const map: AgentMap = {};
-  for (const a of list) {
-    const cur = byStation.get(a.station);
-    if (cur) cur.push(a);
-    else byStation.set(a.station, [a]);
-    map[`${a.station}/${a.accountId}`] = a.agent;
-  }
+  for (const agent of list)
+    for (const a of agent.accounts) {
+      const cur = byStation.get(a.station);
+      if (cur) cur.push(a);
+      else byStation.set(a.station, [a]);
+      map[`${a.station}/${a.accountId}`] = agent.name;
+    }
   setAgentMap(map);
 
   const active: string[] = [];
@@ -109,14 +118,21 @@ function writeStations(list: LoadedAccount[]): string[] {
   return active;
 }
 
+function applyAgentKey(list: LoadedAgent[]): void {
+  if (list.length !== 1) return;
+  const key = list[0]?.keys[0]?.key;
+  if (key) process.env.METRO_MCP_HTTP_TOKEN = key;
+}
+
 export async function materializeFromDb(): Promise<void> {
   if (!databaseUrl())
     throw new Error('DATABASE_URL is not set — accounts load from Postgres');
   try {
-    const list = await loadAccounts();
-    if (list.length === 0)
-      throw new Error('no accounts found in the database');
+    const list = await loadAgents();
+    applyAgentKey(list);
     const active = writeStations(list);
+    if (active.length === 0)
+      throw new Error('no accounts found in the database');
     log.info({ stations: active }, 'db: materialized accounts from Postgres');
   } finally {
     await closeDb();
