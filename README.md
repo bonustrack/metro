@@ -60,13 +60,13 @@ import '@metro-labs/xmtp/train';
 
 ## Deploying
 
-[`Dockerfile`](Dockerfile) + [`docker-entrypoint.sh`](docker-entrypoint.sh) +
-[`fly.toml`](fly.toml) + [`.dockerignore`](.dockerignore) run Metro on
-[Fly.io](https://fly.io) as **one always-on machine + a single-attach volume**. The
-volume attaches to only one machine, which enforces XMTP's **single-writer** rule for
-free, and disk-backed deploys replace the machine in place — so there's never a moment
-with two writers on the same inbox (which would corrupt MLS state). The entrypoint
-generates a train per configured station and keeps state on the volume.
+[`Dockerfile`](Dockerfile) + [`fly.toml`](fly.toml) + [`.dockerignore`](.dockerignore)
+run Metro on [Fly.io](https://fly.io) as **one always-on machine + a single-attach
+volume**. The volume attaches to only one machine, which enforces XMTP's
+**single-writer** rule for free, and disk-backed deploys replace the machine in place —
+so there's never a moment with two writers on the same inbox (which would corrupt MLS
+state). The image runs `bun apps/mcp/src/server.ts` directly; the daemon generates a
+train per station from the DB at boot and keeps state on the volume.
 
 ### 1. Create the app + volume
 

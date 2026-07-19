@@ -50,37 +50,60 @@ export function loadMetroEnv(): void {
   }
 }
 
+function readLockPid(lockFile: string): number {
+  try {
+    return Number(readFileSync(lockFile, 'utf8').trim());
+  } catch {
+    return NaN;
+  }
+}
+
+function holderIsMetro(pid: number): boolean {
+  try {
+    const cmd = readFileSync(`/proc/${pid}/cmdline`, 'utf8');
+    return cmd.includes('server.ts') || cmd.includes('metro');
+  } catch {
+    return process.platform !== 'linux';
+  }
+}
+
+function lockHeldByLiveDaemon(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) return false;
+  try {
+    process.kill(pid, 0);
+  } catch {
+    return false;
+  }
+  return holderIsMetro(pid);
+}
+
+function writeOwnLock(lockFile: string): void {
+  const fd = openSync(lockFile, 'wx');
+  writeSync(fd, String(process.pid));
+  closeSync(fd);
+  process.on('exit', () => {
+    try {
+      if (readFileSync(lockFile, 'utf8').trim() === String(process.pid))
+        unlinkSync(lockFile);
+    } catch {
+    }
+  });
+}
+
 export function acquireLock(lockFile: string): void {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const fd = openSync(lockFile, 'wx');
-      writeSync(fd, String(process.pid));
-      closeSync(fd);
-      process.on('exit', () => {
-        try {
-          if (readFileSync(lockFile, 'utf8').trim() === String(process.pid))
-            unlinkSync(lockFile);
-        } catch {
-        }
-      });
+      writeOwnLock(lockFile);
       return;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
-      let pid = NaN;
-      try {
-        pid = Number(readFileSync(lockFile, 'utf8').trim());
-      } catch {
-      }
-      try {
-        if (Number.isInteger(pid) && pid > 0) {
-          process.kill(pid, 0);
-          log.info(
-            { pid },
-            'a healthy `metro` daemon is already running; exiting (no second dispatcher)',
-          );
-          process.exit(0);
-        }
-      } catch {
+      const pid = readLockPid(lockFile);
+      if (lockHeldByLiveDaemon(pid)) {
+        log.info(
+          { pid },
+          'a healthy `metro` daemon is already running; exiting (no second dispatcher)',
+        );
+        process.exit(0);
       }
       try {
         unlinkSync(lockFile);

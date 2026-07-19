@@ -16,7 +16,7 @@ primary_region = "iad"
 [env]
   HOME = "/data"
   METRO_HTTP_HOST = "0.0.0.0"
-  METRO_TRAINS_DIR = "/app/trains"
+  METRO_TRAINS_DIR = "/app/apps/mcp/trains"
   METRO_LOG_LEVEL = "info"
   # METRO_STATE_DIR defaults to $HOME/.cache/metro → persisted on the volume.
 
