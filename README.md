@@ -170,14 +170,14 @@ missing `DATABASE_URL` or an empty DB is a hard error, not a fallback.
 | `DATABASE_URL` | Postgres connection string (required). Agents + accounts load from the DB on boot and are materialized to the per-station account files the trains read. |
 | `METRO_AGENT` | Optional. Restrict this instance to one agent (by `name` or `id`). Unset → the daemon runs every agent's accounts in the one process. |
 
-Three tables (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
+Three small tables, no foreign keys — accounts/keys reference their agent by a plain
+`agent` name (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
-- **`agents`** — `id`, `name` (unique), timestamps.
-- **`accounts`** — `id`, `agent_id` → agents, `station` (`xmtp` | `telegram` |
-  `telegram-user` | `discord`), `account_id` (the station-local id, e.g. `x0`/`t0`),
-  `config` jsonb (the connection info that station needs — see below), `enabled`,
-  `label`. Unique on (`station`, `account_id`).
-- **`keys`** — `id`, `agent_id` → agents, `name`, `key` (the MCP bearer for that agent).
+- **`agents`** — `name` (primary key).
+- **`accounts`** — `agent` (name), `station` (`xmtp` | `telegram` | `telegram-user` |
+  `discord`), `account_id` (the station-local id, e.g. `x0`/`t0`), `config` jsonb (the
+  connection info that station needs — see below). Primary key (`station`, `account_id`).
+- **`keys`** — `agent` (name), `name`, `key`. Primary key (`agent`, `name`).
 
 Per-station `config` jsonb:
 

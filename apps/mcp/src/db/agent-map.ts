@@ -1,9 +1,4 @@
-export interface AgentTag {
-  agent: string;
-  agentId: string;
-}
-
-export type AgentMap = Record<string, AgentTag>;
+export type AgentMap = Record<string, string>;
 
 const mapKey = (station: string, accountId: string): string =>
   `${station}/${accountId}`;
@@ -14,7 +9,7 @@ export function setAgentMap(map: AgentMap): void {
   agentMap = map;
 }
 
-export function agentForLine(line: string): AgentTag | undefined {
+export function agentForLine(line: string): string | undefined {
   const parts = line.split('/');
   const station = parts[2];
   const accountId = parts[3];

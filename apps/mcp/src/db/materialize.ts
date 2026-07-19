@@ -50,10 +50,7 @@ function buildAgentMap(agentList: LoadedAgent[]): AgentMap {
   const map: AgentMap = {};
   for (const agent of agentList)
     for (const acct of agent.accounts)
-      map[`${acct.station}/${acct.accountId}`] = {
-        agent: agent.name,
-        agentId: agent.id,
-      };
+      map[`${acct.station}/${acct.accountId}`] = agent.name;
   return map;
 }
 

@@ -1,17 +1,15 @@
-import { and, eq, or, type SQL } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from './client.js';
 import { accounts, agents, type StationName } from './schema.js';
 
 export interface LoadedAccount {
-  agentId: string;
-  agentName: string;
+  agent: string;
   station: StationName;
   accountId: string;
   config: Record<string, unknown>;
 }
 
 export interface LoadedAgent {
-  id: string;
   name: string;
   accounts: LoadedAccount[];
 }
@@ -22,20 +20,11 @@ function selectedAgent(): string | undefined {
   return v;
 }
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function agentSelector(sel: string): SQL | undefined {
-  return UUID_RE.test(sel)
-    ? or(eq(agents.name, sel), eq(agents.id, sel))
-    : eq(agents.name, sel);
-}
-
 export async function loadAgents(): Promise<LoadedAgent[]> {
   const db = getDb();
   const sel = selectedAgent();
   const rows = sel
-    ? await db.select().from(agents).where(agentSelector(sel))
+    ? await db.select().from(agents).where(eq(agents.name, sel))
     : await db.select().from(agents);
 
   const out: LoadedAgent[] = [];
@@ -43,13 +32,11 @@ export async function loadAgents(): Promise<LoadedAgent[]> {
     const acctRows = await db
       .select()
       .from(accounts)
-      .where(and(eq(accounts.agentId, a.id), eq(accounts.enabled, true)));
+      .where(eq(accounts.agent, a.name));
     out.push({
-      id: a.id,
       name: a.name,
       accounts: acctRows.map((r) => ({
-        agentId: a.id,
-        agentName: a.name,
+        agent: a.name,
         station: r.station,
         accountId: r.accountId,
         config: r.config as Record<string, unknown>,

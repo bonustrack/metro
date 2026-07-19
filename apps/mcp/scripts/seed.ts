@@ -67,31 +67,24 @@ async function main(): Promise<void> {
   const db = getDb();
   const name = process.env.METRO_AGENT?.trim() || 'Tony';
 
-  const [agent] = await db
-    .insert(agents)
-    .values({ name })
-    .onConflictDoUpdate({ target: agents.name, set: { updatedAt: new Date() } })
-    .returning();
-  if (!agent) throw new Error('failed to upsert agent');
+  await db.insert(agents).values({ name }).onConflictDoNothing();
 
   const rows = collectAccounts();
   for (const r of rows)
     await db
       .insert(accounts)
-      .values({ agentId: agent.id, ...r })
-      .onConflictDoNothing({
-        target: [accounts.station, accounts.accountId],
-      });
+      .values({ agent: name, ...r })
+      .onConflictDoNothing({ target: [accounts.station, accounts.accountId] });
 
   const token = process.env.METRO_MCP_HTTP_TOKEN?.trim();
   if (token)
     await db
       .insert(keys)
-      .values({ agentId: agent.id, name: 'mcp-http', key: token })
-      .onConflictDoNothing({ target: keys.key });
+      .values({ agent: name, name: 'mcp-http', key: token })
+      .onConflictDoNothing({ target: [keys.agent, keys.name] });
 
   console.log(
-    `seeded agent '${name}' (${agent.id}) with ${rows.length} account(s): ` +
+    `seeded agent '${name}' with ${rows.length} account(s): ` +
       rows.map((r) => `${r.station}/${r.accountId}`).join(', '),
   );
   await closeDb();

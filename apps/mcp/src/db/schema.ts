@@ -1,12 +1,9 @@
 import {
-  boolean,
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
-  timestamp,
-  unique,
-  uuid,
 } from 'drizzle-orm/pg-core';
 
 export const STATIONS = [
@@ -21,50 +18,26 @@ export type StationName = (typeof STATIONS)[number];
 export const stationEnum = pgEnum('station', STATIONS);
 
 export const agents = pgTable('agents', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull().unique(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  name: text('name').primaryKey(),
 });
 
 export const accounts = pgTable(
   'accounts',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    agentId: uuid('agent_id')
-      .notNull()
-      .references(() => agents.id, { onDelete: 'cascade' }),
+    agent: text('agent').notNull(),
     station: stationEnum('station').notNull(),
     accountId: text('account_id').notNull(),
-    label: text('label'),
-    config: jsonb('config').notNull().default({}),
-    enabled: boolean('enabled').notNull().default(true),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    config: jsonb('config').notNull(),
   },
-  (t) => [unique('accounts_station_account_id_uq').on(t.station, t.accountId)],
+  (t) => [primaryKey({ columns: [t.station, t.accountId] })],
 );
 
-export const keys = pgTable('keys', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  agentId: uuid('agent_id')
-    .notNull()
-    .references(() => agents.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  key: text('key').notNull().unique(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
-export type AgentRow = typeof agents.$inferSelect;
-export type AccountRow = typeof accounts.$inferSelect;
-export type KeyRow = typeof keys.$inferSelect;
+export const keys = pgTable(
+  'keys',
+  {
+    agent: text('agent').notNull(),
+    name: text('name').notNull(),
+    key: text('key').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.agent, t.name] })],
+);

@@ -126,7 +126,7 @@ export function trainEventToMetroEvent(
   const text = eventText(env);
   return {
     event: env.event,
-    agent: agentForLine(line)?.agent,
+    agent: agentForLine(line),
     id: env.id ?? mintId(),
     ts: env.ts ?? new Date().toISOString(),
     station,
