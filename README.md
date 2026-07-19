@@ -175,8 +175,9 @@ Three small tables, no foreign-key constraints — accounts and keys reference t
 by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
 - **`agents`** — `id` (auto-increment int, primary key), `name` (unique).
-- **`accounts`** — `agent_id`, `station` (`xmtp` | `telegram` | `telegram-user` |
-  `discord`), `account_id` (the station-local id, e.g. `x0`/`t0`), `config` jsonb (the
+- **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
+  `discord` today — a plain text column, not a DB enum, so a new station is just a new
+  row), `account_id` (the station-local id, e.g. `x0`/`t0`), `config` jsonb (the
   connection info that station needs — see below). Primary key (`station`, `account_id`).
 - **`keys`** — `agent_id`, `name`, `key`. Per-agent API keys. Primary key (`agent_id`,
   `name`). For a single-agent daemon the first key becomes the `METRO_MCP_HTTP_TOKEN`

@@ -1,7 +1,6 @@
 import {
   integer,
   jsonb,
-  pgEnum,
   pgTable,
   primaryKey,
   serial,
@@ -17,8 +16,6 @@ export const STATIONS = [
 
 export type StationName = (typeof STATIONS)[number];
 
-export const stationEnum = pgEnum('station', STATIONS);
-
 export const agents = pgTable('agents', {
   id: serial('id').primaryKey(),
   name: text('name').notNull().unique(),
@@ -28,7 +25,7 @@ export const accounts = pgTable(
   'accounts',
   {
     agentId: integer('agent_id').notNull(),
-    station: stationEnum('station').notNull(),
+    station: text('station').$type<StationName>().notNull(),
     accountId: text('account_id').notNull(),
     config: jsonb('config').notNull(),
   },

@@ -1,7 +1,6 @@
-CREATE TYPE "public"."station" AS ENUM('xmtp', 'telegram', 'telegram-user', 'discord');--> statement-breakpoint
 CREATE TABLE "accounts" (
 	"agent_id" integer NOT NULL,
-	"station" "station" NOT NULL,
+	"station" text NOT NULL,
 	"account_id" text NOT NULL,
 	"config" jsonb NOT NULL,
 	CONSTRAINT "accounts_station_account_id_pk" PRIMARY KEY("station","account_id")

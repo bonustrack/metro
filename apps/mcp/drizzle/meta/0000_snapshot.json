@@ -1,5 +1,5 @@
 {
-  "id": "287f1c2e-b812-438b-be91-b892d2d6a7e3",
+  "id": "28bbcf54-931a-4ef7-98b5-0d570a658a97",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -16,8 +16,7 @@
         },
         "station": {
           "name": "station",
-          "type": "station",
-          "typeSchema": "public",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -123,18 +122,7 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {
-    "public.station": {
-      "name": "station",
-      "schema": "public",
-      "values": [
-        "xmtp",
-        "telegram",
-        "telegram-user",
-        "discord"
-      ]
-    }
-  },
+  "enums": {},
   "schemas": {},
   "sequences": {},
   "roles": {},
