@@ -24,7 +24,9 @@ const XMTP_ENV = 'production' as const;
 
 export interface AccountConfig {
   id: string;
-  derive: number;
+  derive?: number;
+  mnemonic?: string;
+  privateKey?: string;
   owner?: string;
   dbPath?: string;
 }
@@ -38,11 +40,12 @@ export const { die, loadAccounts } = makeAccountStore<AccountConfig>({
     for (const a of raw) {
       if (!a.id) die('account missing id');
       if (
-        typeof a.derive !== 'number' ||
-        a.derive < 0 ||
-        !Number.isInteger(a.derive)
+        !a.privateKey &&
+        (typeof a.derive !== 'number' ||
+          a.derive < 0 ||
+          !Number.isInteger(a.derive))
       ) {
-        die(`account '${a.id}' derive must be a non-negative integer`);
+        die(`account '${a.id}' needs a privateKey or a non-negative derive`);
       }
       if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
       seen.add(a.id);
@@ -70,10 +73,14 @@ function loadMnemonic(): string {
 }
 
 function resolvePrivateKey(cfg: AccountConfig): string {
-  const acct = mnemonicToAccount(loadMnemonic(), { addressIndex: cfg.derive });
+  if (cfg.privateKey) return cfg.privateKey;
+  const own = cfg.mnemonic?.trim();
+  const mnemonic = own && own.length > 0 ? own : loadMnemonic();
+  const derive = cfg.derive ?? 0;
+  const acct = mnemonicToAccount(mnemonic, { addressIndex: derive });
   const { privateKey } = acct.getHdKey();
   if (!privateKey)
-    throw new Error(`HD key has no private key for derive index ${cfg.derive}`);
+    throw new Error(`HD key has no private key for derive index ${derive}`);
   return toHex(privateKey);
 }
 

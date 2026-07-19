@@ -27,6 +27,7 @@ export interface MetroEvent {
   payload?: unknown;
   display?: string;
   event?: StructuredEvent;
+  agent?: string;
   seq?: number;
 }
 

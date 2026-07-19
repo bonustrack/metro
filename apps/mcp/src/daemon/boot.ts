@@ -13,6 +13,7 @@ import {
 } from './http.js';
 import { createMetroMcp } from '../mcp/index.js';
 import { metroCall } from '../mcp/ctx.js';
+import { materializeFromDb } from '../db/materialize.js';
 
 loadMetroEnv();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -42,6 +43,7 @@ setTrainCallBackend((train, action, args) =>
 );
 
 async function main(): Promise<void> {
+  await materializeFromDb();
   supervisor.start();
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(

@@ -15,6 +15,7 @@ import {
   type MetroEvent,
 } from './events.js';
 import type { TrainEvent } from './protocol.js';
+import { agentForLine } from '../db/agent-map.js';
 import { findEndpoint, listEndpoints, webhookPort } from './tunnel.js';
 import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
@@ -125,6 +126,7 @@ export function trainEventToMetroEvent(
   const text = eventText(env);
   return {
     event: env.event,
+    agent: agentForLine(line)?.agent,
     id: env.id ?? mintId(),
     ts: env.ts ?? new Date().toISOString(),
     station,

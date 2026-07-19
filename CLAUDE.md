@@ -68,6 +68,14 @@ Allowlists resolve via account-store `allowlistEnv` (`_ONLY_ACCOUNTS` restricts;
 - Entrypoint (Docker): mkdir state, symlink `node_modules`, `rm -f .tail-lock`, write per-configured-station stubs, then `exec bun /app/apps/mcp/src/server.ts`.
 - MCP reconnect reality: the MCP channel GET SSE stream is kept open by a 15s SSE-comment keepalive in `src/mcp/raw-get-stream.ts`. On reconnect the Channel relay replays events from the bounded in-memory ring buffer (busSeq > last contiguously-delivered) — recovery is best-effort and bounded to the last `BUS_BUFFER_MAX` events, not guaranteed across a long disconnect or a buffer overflow.
 
+## Database / multi-agent (Postgres + Drizzle)
+
+- Source of truth when `DATABASE_URL` is set. Three tables in `src/db/schema.ts`: `agents` (name), `accounts` (`agent_id` FK, `station` enum, `account_id`, jsonb `config`, `enabled`; unique on `station`+`account_id`), `keys` (`agent_id` FK, `key`). Drizzle-kit config `apps/mcp/drizzle.config.ts`, generated SQL in `apps/mcp/drizzle/`. Deps live ONLY in `apps/mcp` (`drizzle-orm`, `postgres`, dev `drizzle-kit`) — station packages never import the DB.
+- Loading model (deliberately small, subprocess-safe): `db/materialize.ts` runs once at boot (`boot.ts`, before `supervisor.start()`), reads the DB, and WRITES the existing per-station account files (`~/.metro/<station>-accounts.json`, via `writeSecure` 0600) + the train stubs + `agent-map.json`. The station trains are UNCHANGED — they still read those files through the account-store's file path. `loadAccounts()` stays synchronous; no pg in the trains. No `DATABASE_URL` → `materializeFromDb()` is a no-op and legacy env/file behavior is intact.
+- `METRO_AGENT` (name or id) restricts a daemon to one agent; unset loads all. Inbound is tagged with the owning agent via `db/agent-map.ts` (`agentForLine` in `http.ts` sets `MetroEvent.agent`). DEFERRED: multiplexing multiple agents into separate isolated MCP sessions with per-session inbound filtering — today run one daemon per agent for full isolation.
+- xmtp account config accepts `{ mnemonic, derive }` OR `{ privateKey }` (`packages/xmtp/src/accounts.ts`) so the identity secret moves into the DB; env `MNEMONIC` remains the fallback. Seed: `apps/mcp/scripts/seed.ts` (`db:seed`) reads current env → DB; commits no secrets. `scripts/` + `drizzle.config.ts` are outside `src/**` (not tsc/lint/knip'd); they are knip entries.
+- DO deploy: `.do/app.yaml` (App Platform, stateless Telegram/Discord agents). XMTP needs a persistent single-writer volume → Droplet + DO Volume at `/data`, not App Platform. `fly.toml` kept.
+
 ## Working discipline
 
 - Verify, then act: confirm claims against the code (rg/Read) before changing or asserting. Most "obvious" facts here have load-bearing exceptions.
