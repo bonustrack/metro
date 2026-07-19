@@ -5,11 +5,7 @@ import { join } from 'node:path';
 
 const ENV_KEYS = [
   'TELEGRAM_USER_ACCOUNTS_FILE',
-  'TELEGRAM_USER_ACCOUNTS',
   'TELEGRAM_USER_ONLY_ACCOUNTS',
-  'TELEGRAM_USER_SESSION',
-  'TELEGRAM_USER_API_ID',
-  'TELEGRAM_USER_API_HASH',
 ] as const;
 
 let saved: Record<string, string | undefined> = {};
@@ -36,25 +32,20 @@ afterEach(() => {
 const fresh = () => import(`../src/accounts.ts?t${(counter += 1)}`);
 
 describe('telegram-user account store', () => {
-  test('TELEGRAM_USER_ACCOUNTS env parses an array', async () => {
-    process.env.TELEGRAM_USER_ACCOUNTS = JSON.stringify([
-      { id: 'alice', session: 's1', apiId: 111, apiHash: 'h1' },
-      { id: 'bob', session: 's2', apiId: 222, apiHash: 'h2' },
-    ]);
+  test('loads accounts from the file', async () => {
+    const file = join(dir, 'accounts.json');
+    writeFileSync(
+      file,
+      JSON.stringify([
+        { id: 'alice', session: 's1', apiId: 111, apiHash: 'h1' },
+        { id: 'bob', session: 's2', apiId: 222, apiHash: 'h2' },
+      ]),
+    );
+    process.env.TELEGRAM_USER_ACCOUNTS_FILE = file;
     const { loadAccounts } = await fresh();
     expect(loadAccounts().map((a: { id: string }) => a.id)).toEqual([
       'alice',
       'bob',
-    ]);
-  });
-
-  test('single-account fast path from session + api id/hash', async () => {
-    process.env.TELEGRAM_USER_SESSION = 'sess';
-    process.env.TELEGRAM_USER_API_ID = '12345';
-    process.env.TELEGRAM_USER_API_HASH = 'abc';
-    const { loadAccounts } = await fresh();
-    expect(loadAccounts()).toEqual([
-      { id: 'default', session: 'sess', apiId: 12345, apiHash: 'abc' },
     ]);
   });
 

@@ -1,10 +1,9 @@
 #!/bin/sh
 # metro container entrypoint.
 #  - ensures the volume dirs exist (HOME=/data → on the mounted volume)
-#  - generates one train script per CONFIGURED station (the supervisor spawns
-#    ~/.metro/trains-style scripts; unconfigured stations are skipped so they
-#    don't crash-loop)
-#  - execs the single metro process (stations + webhooks + MCP, :8420)
+#  - execs the single metro process (stations + webhooks + MCP, :8420). At boot the
+#    daemon materializes accounts from the DB (DATABASE_URL) and writes one train
+#    stub per station that has accounts — the entrypoint no longer generates stubs.
 set -e
 
 mkdir -p "$HOME/.metro" "$HOME/.cache/metro" "$METRO_TRAINS_DIR"
@@ -23,18 +22,5 @@ fi
 # never a real concurrent holder — but the PID-liveness check is unreliable across
 # container restarts (PIDs get reused), so a leftover lock would wrongly block boot.
 rm -f "${METRO_STATE_DIR:-$HOME/.cache/metro}/.tail-lock"
-
-if [ -n "$MNEMONIC" ]; then
-  echo "import '@metro-labs/xmtp/train';" > "$METRO_TRAINS_DIR/xmtp.ts"
-fi
-if [ -n "$TELEGRAM_BOT_TOKENS" ]; then
-  echo "import '@metro-labs/telegram/train';" > "$METRO_TRAINS_DIR/telegram.ts"
-fi
-if [ -n "$TELEGRAM_USER_SESSION" ] || [ -n "$TELEGRAM_USER_ACCOUNTS" ]; then
-  echo "import '@metro-labs/telegram-user/train';" > "$METRO_TRAINS_DIR/telegram-user.ts"
-fi
-if [ -n "$DISCORD_BOT_TOKENS" ]; then
-  echo "import '@metro-labs/discord/train';" > "$METRO_TRAINS_DIR/discord.ts"
-fi
 
 exec bun /app/apps/mcp/src/server.ts

@@ -1,6 +1,7 @@
-// One-time seed: load the CURRENT single agent + its accounts from the present
-// env vars into Postgres, so an existing env-configured Metro keeps working after
-// DATABASE_URL is set. Reads secrets from env at run time; commits none.
+// ONE-TIME migration helper (not a runtime path): loads the CURRENT agent + its
+// accounts from the present env vars into Postgres, so an existing env-configured
+// Metro keeps working once it switches to DB-only. The daemon NEVER reads these env
+// vars at runtime — only this script does, once. Reads secrets from env; commits none.
 //
 //   DATABASE_URL=postgres://... \
 //   MNEMONIC=... TELEGRAM_BOT_TOKENS=... DISCORD_BOT_TOKENS=... \

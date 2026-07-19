@@ -5,7 +5,6 @@ import {
   resolveAccountId,
   type Die,
 } from '@metro-labs/mcp/stations/account-store';
-import { errMsg } from '@metro-labs/mcp/log';
 import type { UserAccount } from './types.js';
 
 const ACCOUNTS_FILE =
@@ -14,30 +13,6 @@ const ACCOUNTS_FILE =
 
 const isSignedInt = (s: string): boolean => /^-?\d+$/.test(s);
 const isTopic = (s: string): boolean => /^\d+$/.test(s);
-
-function parseEnvAccounts(die: Die): UserAccount[] {
-  const raw = process.env.TELEGRAM_USER_ACCOUNTS;
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed))
-      return die('TELEGRAM_USER_ACCOUNTS must be a JSON array');
-    return parsed as UserAccount[];
-  } catch (e) {
-    return die(`bad TELEGRAM_USER_ACCOUNTS: ${errMsg(e)}`);
-  }
-}
-
-function singleAccount(die: Die): UserAccount[] {
-  const session = process.env.TELEGRAM_USER_SESSION;
-  const apiId = Number(process.env.TELEGRAM_USER_API_ID);
-  const apiHash = process.env.TELEGRAM_USER_API_HASH;
-  if (!session || !apiHash || !Number.isInteger(apiId) || apiId <= 0)
-    return die(
-      `no ${ACCOUNTS_FILE}, TELEGRAM_USER_ACCOUNTS, or TELEGRAM_USER_SESSION+TELEGRAM_USER_API_ID+TELEGRAM_USER_API_HASH`,
-    );
-  return [{ id: 'default', session, apiId, apiHash }];
-}
 
 function validateAccount(a: UserAccount, seen: Set<string>, die: Die): void {
   if (!a.id) die('account missing id');
@@ -58,11 +33,6 @@ export const { loadAccounts } = makeAccountStore<UserAccount>({
   validate(raw, die) {
     const seen = new Set<string>();
     for (const a of raw) validateAccount(a, seen, die);
-  },
-  fallback(die) {
-    const env = parseEnvAccounts(die);
-    if (env.length) return env;
-    return singleAccount(die);
   },
 });
 

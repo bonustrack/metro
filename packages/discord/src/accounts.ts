@@ -3,8 +3,6 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   makeAccountStore,
-  csv,
-  genIds,
   resolveAccountId,
 } from '@metro-labs/mcp/stations/account-store';
 import { Line } from '@metro-labs/mcp/lines';
@@ -34,13 +32,6 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
       if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
       seen.add(a.id);
     }
-  },
-  fallback(die) {
-    const tokens = csv(process.env.DISCORD_BOT_TOKENS);
-    if (!tokens.length)
-      return die(`no ${ACCOUNTS_FILE} and DISCORD_BOT_TOKENS unset`);
-    const ids = genIds('d', tokens.length);
-    return tokens.map((token, i) => ({ id: ids[i] ?? `d${i}`, token }));
   },
 });
 

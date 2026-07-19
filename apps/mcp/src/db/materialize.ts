@@ -3,9 +3,9 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { log } from '../daemon/log.js';
 import { writeSecure } from '../daemon/secure-fs.js';
-import { closeDb, hasDatabase } from './client.js';
+import { closeDb, databaseUrl } from './client.js';
 import { accountsByStation, loadAgents, type LoadedAgent } from './load.js';
-import { writeAgentMap, type AgentMap } from './agent-map.js';
+import { setAgentMap, type AgentMap } from './agent-map.js';
 import type { StationName } from './schema.js';
 
 interface StationTarget {
@@ -57,13 +57,6 @@ function buildAgentMap(agentList: LoadedAgent[]): AgentMap {
   return map;
 }
 
-function applyMcpKey(agentList: LoadedAgent[]): void {
-  if (process.env.METRO_MCP_HTTP_TOKEN) return;
-  if (agentList.length !== 1) return;
-  const key = agentList[0]?.keys[0]?.key;
-  if (key) process.env.METRO_MCP_HTTP_TOKEN = key;
-}
-
 function writeStations(agentList: LoadedAgent[]): string[] {
   const byStation = accountsByStation(agentList);
   mkdirSync(METRO_DIR, { recursive: true });
@@ -83,22 +76,23 @@ function writeStations(agentList: LoadedAgent[]): string[] {
   return active;
 }
 
-export async function materializeFromDb(): Promise<boolean> {
-  if (!hasDatabase()) return false;
+export async function materializeFromDb(): Promise<void> {
+  if (!databaseUrl())
+    throw new Error(
+      'DATABASE_URL is not set — accounts load from Postgres; set it (and run db:migrate + db:seed once)',
+    );
   try {
     const agentList = await loadAgents();
-    if (agentList.length === 0) {
-      log.warn('db: DATABASE_URL set but no agents found');
-      return false;
-    }
+    if (agentList.length === 0)
+      throw new Error(
+        'no agents found in the database (run db:seed to load your accounts)',
+      );
     const active = writeStations(agentList);
-    writeAgentMap(buildAgentMap(agentList));
-    applyMcpKey(agentList);
+    setAgentMap(buildAgentMap(agentList));
     log.info(
       { agents: agentList.map((a) => a.name), stations: active },
       'db: materialized agents from Postgres',
     );
-    return true;
   } finally {
     await closeDb();
   }

@@ -13,10 +13,6 @@ export function databaseUrl(): string | undefined {
   return url;
 }
 
-export function hasDatabase(): boolean {
-  return databaseUrl() !== undefined;
-}
-
 export function getDb(): Db {
   const url = databaseUrl();
   if (!url) throw new Error('DATABASE_URL is not set');

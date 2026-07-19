@@ -154,18 +154,20 @@ migration target. Nothing about the app is Fly-specific beyond that file.
 
 ## Configuration
 
-Configuration comes from Postgres (the source of truth) or, when no database is
-configured, from the environment (copy [`.env.example`](.env.example) → `.env`).
-Configure at least one station.
+Account configuration lives in Postgres — it is the single source of truth. There is
+no env-var fallback: the runtime reads only `DATABASE_URL` (and optional `METRO_AGENT`)
+plus the non-account server vars below. Copy [`.env.example`](.env.example) → `.env`.
 
 ### Database / multi-agent (source of truth)
 
-Metro can manage **multiple agents** — each an identity (e.g. "Tony") with its own
-station accounts — out of a cloud Postgres database (Drizzle ORM). Set one var:
+Metro manages **one or more agents** — each an identity (e.g. "Tony") with its own
+station accounts — out of a cloud Postgres database (Drizzle ORM). At boot the daemon
+loads agents + accounts from the DB and is the only way accounts are configured; a
+missing `DATABASE_URL` or an empty DB is a hard error, not a fallback.
 
 | Var | Meaning |
 | --- | --- |
-| `DATABASE_URL` | Postgres connection string. When set, agents + accounts load from the DB and are materialized to the per-station account files on boot — the station env vars below are then unnecessary. |
+| `DATABASE_URL` | Postgres connection string (required). Agents + accounts load from the DB on boot and are materialized to the per-station account files the trains read. |
 | `METRO_AGENT` | Optional. Restrict this instance to one agent (by `name` or `id`). Unset → the daemon runs every agent's accounts in the one process. |
 
 Three tables (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
@@ -209,22 +211,14 @@ MNEMONIC="..." TELEGRAM_BOT_TOKENS="123:abc" METRO_AGENT="Tony" \
 `db:generate` regenerates the migration after a schema change. Once the DB is seeded,
 drop the station secrets from the environment — they now live in Postgres.
 
-### XMTP
+### Station accounts
 
-| Var | Meaning |
-| --- | --- |
-| `MNEMONIC` | BIP-39 mnemonic the HD accounts derive from (`m/44'/60'/0'/0/<index>`) |
-| `DERIVE_COUNT` | How many accounts to derive (ids `x0..xN`). Default `1` |
-
-### Telegram / Discord
-
-| Var | Meaning |
-| --- | --- |
-| `TELEGRAM_BOT_TOKENS` | Comma list of bot tokens → one bot each (ids `t0..tN`) |
-| `DISCORD_BOT_TOKENS` | Comma list of bot tokens → one bot each (ids `d0..dN`) |
-
-Each bot is an account with its own id; lines are account-scoped
-(`metro://telegram/<account>/<chat>`) so replies go back out the same identity.
+Each account's connection info is a row in the `accounts` table (the `config` jsonb
+fields are listed above); its `account_id` is the station-local id (`x0`, `t0`, `d0`,
+`default`). Lines are account-scoped (`metro://telegram/<account>/<chat>`) so replies go
+back out the same identity. The XMTP, Telegram, Discord and Telegram-user secrets are
+loaded into these rows once by `db:seed` — the daemon never reads them from the
+environment. See the one-time seed inputs in [`.env.example`](.env.example).
 
 ### Server
 

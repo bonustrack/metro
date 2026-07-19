@@ -1,6 +1,6 @@
 import { and, eq, or, type SQL } from 'drizzle-orm';
 import { getDb } from './client.js';
-import { accounts, agents, keys, type StationName } from './schema.js';
+import { accounts, agents, type StationName } from './schema.js';
 
 export interface LoadedAccount {
   agentId: string;
@@ -10,18 +10,10 @@ export interface LoadedAccount {
   config: Record<string, unknown>;
 }
 
-export interface LoadedKey {
-  agentId: string;
-  agentName: string;
-  name: string;
-  key: string;
-}
-
 export interface LoadedAgent {
   id: string;
   name: string;
   accounts: LoadedAccount[];
-  keys: LoadedKey[];
 }
 
 function selectedAgent(): string | undefined {
@@ -52,10 +44,6 @@ export async function loadAgents(): Promise<LoadedAgent[]> {
       .select()
       .from(accounts)
       .where(and(eq(accounts.agentId, a.id), eq(accounts.enabled, true)));
-    const keyRows = await db
-      .select()
-      .from(keys)
-      .where(eq(keys.agentId, a.id));
     out.push({
       id: a.id,
       name: a.name,
@@ -64,13 +52,7 @@ export async function loadAgents(): Promise<LoadedAgent[]> {
         agentName: a.name,
         station: r.station,
         accountId: r.accountId,
-        config: (r.config ?? {}) as Record<string, unknown>,
-      })),
-      keys: keyRows.map((k) => ({
-        agentId: a.id,
-        agentName: a.name,
-        name: k.name,
-        key: k.key,
+        config: r.config as Record<string, unknown>,
       })),
     });
   }
