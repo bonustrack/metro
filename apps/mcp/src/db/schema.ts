@@ -18,7 +18,7 @@ export type StationName = (typeof STATIONS)[number];
 
 export const agents = pgTable('agents', {
   id: serial('id').primaryKey(),
-  name: text('name').notNull().unique(),
+  name: text('name').notNull(),
 });
 
 export const accounts = pgTable(

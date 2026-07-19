@@ -8,8 +8,7 @@ CREATE TABLE "accounts" (
 --> statement-breakpoint
 CREATE TABLE "agents" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"name" text NOT NULL,
-	CONSTRAINT "agents_name_unique" UNIQUE("name")
+	"name" text NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "keys" (

@@ -57,18 +57,24 @@ function accountFilePath(station: StationName): string {
   return process.env[target.fileEnv] ?? join(METRO_DIR, target.file);
 }
 
-function agentFilter(): string | undefined {
+function agentFilter(): number | undefined {
   const v = process.env.METRO_AGENT?.trim();
   if (!v) return undefined;
-  return v;
+  const id = Number(v);
+  if (!Number.isInteger(id) || id <= 0)
+    throw new Error(`METRO_AGENT must be an agent id (positive integer), got '${v}'`);
+  return id;
 }
 
 async function loadAgents(): Promise<LoadedAgent[]> {
   const db = getDb();
   const only = agentFilter();
-  const agentRows = only
-    ? await db.select().from(agents).where(eq(agents.name, only))
-    : await db.select().from(agents);
+  const agentRows =
+    only !== undefined
+      ? await db.select().from(agents).where(eq(agents.id, only))
+      : await db.select().from(agents);
+  if (only !== undefined && agentRows.length === 0)
+    throw new Error(`METRO_AGENT=${only} does not match any agent`);
 
   const out: LoadedAgent[] = [];
   for (const a of agentRows) {

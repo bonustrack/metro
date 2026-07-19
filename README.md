@@ -169,12 +169,13 @@ missing `DATABASE_URL` or an empty database is a hard, loud error.
 | Var | Meaning |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string (required). Agents + accounts load from the DB on boot and are materialized to the per-station account files the trains read. |
-| `METRO_AGENT` | Optional. Restrict this instance to one agent (by `name`). Unset → the daemon runs every agent's accounts in the one process. |
+| `METRO_AGENT` | Optional. Restrict this instance to one agent by its numeric `id` (the `agents.id` PK). Must be a positive integer that exists, else boot fails loudly. Unset → the daemon runs every agent's accounts in the one process. |
 
 Three small tables, no foreign-key constraints — accounts and keys reference their agent
 by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
-- **`agents`** — `id` (auto-increment int, primary key), `name` (unique).
+- **`agents`** — `id` (auto-increment int, primary key — the real identity), `name`
+  (a label, not unique).
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
   row), `account_id` (the station-local id, e.g. `x0`/`t0`), `config` jsonb (the
@@ -196,7 +197,7 @@ Per-station `config` jsonb:
 account-scoped (`metro://telegram/<account>/<chat>`) so replies go back out the same
 identity. Inbound events are tagged with the owning agent (an `agent` field on the
 event), so a consumer can route by agent. Running several fully independent agents
-today means one daemon per agent (`METRO_AGENT=<name>`, same `DATABASE_URL`) — that also
+today means one daemon per agent (`METRO_AGENT=<id>`, same `DATABASE_URL`) — that also
 keeps XMTP's single-writer rule per inbox. A single daemon already loads *all* agents'
 accounts and tags inbound; multiplexing them into separate isolated MCP sessions is the
 remaining step.
