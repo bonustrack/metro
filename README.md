@@ -140,21 +140,14 @@ instance, and don't run the same identity in two places.
 
 ## Deploying to DigitalOcean
 
-The same [`Dockerfile`](Dockerfile) runs on DigitalOcean. Which product depends on
-whether the agent uses XMTP:
-
-- **App Platform** ([`.do/app.yaml`](.do/app.yaml)) — best for a **Telegram/Discord**
-  agent backed by `DATABASE_URL`. With config in Postgres the process is stateless, so
-  App Platform's ephemeral filesystem is fine. Create it with
-  `doctl apps create --spec .do/app.yaml`; set `DATABASE_URL` and
-  `METRO_MCP_HTTP_TOKEN` as encrypted env vars in the console (never commit them).
-  Health check hits `/health`.
-- **Droplet + Volume** — required if the agent runs **XMTP**. App Platform has no
-  attachable block storage, and XMTP's MLS SQLite DBs must persist with a single
-  writer. Run the image on a Droplet with a DO Block Storage Volume mounted at `/data`
-  (`HOME=/data`), exactly mirroring the Fly single-machine + single-attach-volume
-  model. `DATABASE_URL` still supplies the account config; only the XMTP local DBs
-  need the volume.
+The same [`Dockerfile`](Dockerfile) runs on DigitalOcean. The DO environment is set up
+manually (no App Platform spec is committed): run the image on a **Droplet** with a DO
+Block Storage **Volume** mounted at `/data` (`HOME=/data`), mirroring the Fly
+single-machine + single-attach-volume model. XMTP's MLS SQLite DBs live on that volume
+and must persist with a single writer — App Platform's ephemeral filesystem can't hold
+them, which is why a Droplet + Volume is the target. `DATABASE_URL` supplies the account
+config; the volume only holds the XMTP local DBs. Set `DATABASE_URL` and
+`METRO_MCP_HTTP_TOKEN` as secrets on the box (never commit them).
 
 The existing [`fly.toml`](fly.toml) is kept for the current Fly deployment; DO is the
 migration target. Nothing about the app is Fly-specific beyond that file.
