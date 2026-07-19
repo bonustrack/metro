@@ -38,7 +38,7 @@ export function makeAccountStore<T extends { id: string }>(
   function loadAccounts(): T[] {
     if (!existsSync(opts.file))
       return die(
-        `no accounts file ${opts.file} — accounts load from the database at boot; set DATABASE_URL (and run db:migrate + db:seed once)`,
+        `no accounts file ${opts.file} — the daemon writes it from the database at boot; set DATABASE_URL and populate the accounts table`,
       );
     chmodIfExists(opts.file);
     let raw: T[];

@@ -10,10 +10,3 @@ CREATE TABLE "accounts" (
 CREATE TABLE "agents" (
 	"name" text PRIMARY KEY NOT NULL
 );
---> statement-breakpoint
-CREATE TABLE "keys" (
-	"agent" text NOT NULL,
-	"name" text NOT NULL,
-	"key" text NOT NULL,
-	CONSTRAINT "keys_agent_name_pk" PRIMARY KEY("agent","name")
-);

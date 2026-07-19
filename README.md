@@ -154,30 +154,30 @@ migration target. Nothing about the app is Fly-specific beyond that file.
 
 ## Configuration
 
-Account configuration lives in Postgres — it is the single source of truth. There is
-no env-var fallback: the runtime reads only `DATABASE_URL` (and optional `METRO_AGENT`)
-plus the non-account server vars below. Copy [`.env.example`](.env.example) → `.env`.
+Account configuration lives in Postgres — it is the single source of truth. The runtime
+reads only `DATABASE_URL` (and optional `METRO_AGENT`) plus the non-account server vars
+below; no station secret is ever read from the environment. Copy
+[`.env.example`](.env.example) → `.env`.
 
 ### Database / multi-agent (source of truth)
 
 Metro manages **one or more agents** — each an identity (e.g. "Tony") with its own
 station accounts — out of a cloud Postgres database (Drizzle ORM). At boot the daemon
-loads agents + accounts from the DB and is the only way accounts are configured; a
-missing `DATABASE_URL` or an empty DB is a hard error, not a fallback.
+loads agents + accounts from the DB; that is the only way accounts are configured. A
+missing `DATABASE_URL` or an empty database is a hard, loud error.
 
 | Var | Meaning |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string (required). Agents + accounts load from the DB on boot and are materialized to the per-station account files the trains read. |
-| `METRO_AGENT` | Optional. Restrict this instance to one agent (by `name` or `id`). Unset → the daemon runs every agent's accounts in the one process. |
+| `METRO_AGENT` | Optional. Restrict this instance to one agent (by `name`). Unset → the daemon runs every agent's accounts in the one process. |
 
-Three small tables, no foreign keys — accounts/keys reference their agent by a plain
-`agent` name (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
+Two small tables, no foreign keys — accounts reference their agent by a plain `agent`
+name (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
 - **`agents`** — `name` (primary key).
 - **`accounts`** — `agent` (name), `station` (`xmtp` | `telegram` | `telegram-user` |
   `discord`), `account_id` (the station-local id, e.g. `x0`/`t0`), `config` jsonb (the
   connection info that station needs — see below). Primary key (`station`, `account_id`).
-- **`keys`** — `agent` (name), `name`, `key`. Primary key (`agent`, `name`).
 
 Per-station `config` jsonb:
 
@@ -188,37 +188,25 @@ Per-station `config` jsonb:
 | `telegram-user` | `{ session, apiId, apiHash }`; optional `owner` |
 | `discord` | `{ token }`; optional `owner` |
 
-Inbound events are tagged with the owning agent (an `agent` field on the event / a
-`list_accounts` grouping), so a consumer can route by agent. Running several fully
-independent agents today means one daemon per agent (`METRO_AGENT=<name>`, same
-`DATABASE_URL`) — that also keeps XMTP's single-writer rule per inbox. A single daemon
-already loads *all* agents' accounts and tags inbound; multiplexing them into separate
-isolated MCP sessions is the remaining step.
+`account_id` is the station-local id (`x0`, `t0`, `d0`, `default`); lines are
+account-scoped (`metro://telegram/<account>/<chat>`) so replies go back out the same
+identity. Inbound events are tagged with the owning agent (an `agent` field on the
+event), so a consumer can route by agent. Running several fully independent agents
+today means one daemon per agent (`METRO_AGENT=<name>`, same `DATABASE_URL`) — that also
+keeps XMTP's single-writer rule per inbox. A single daemon already loads *all* agents'
+accounts and tags inbound; multiplexing them into separate isolated MCP sessions is the
+remaining step.
 
-**Migrate + seed.** Provision the DB, then from the repo:
+**Set up.** Provision Postgres, then from the repo:
 
 ```sh
 export DATABASE_URL=postgres://user:pass@host:5432/metro
-bun --filter @metro-labs/mcp db:migrate         # create the tables
-
-# One-time: load your CURRENT env-configured agent into the DB. Reads secrets from
-# env (MNEMONIC, TELEGRAM_BOT_TOKENS, DISCORD_BOT_TOKENS, TELEGRAM_USER_*,
-# METRO_MCP_HTTP_TOKEN); writes nothing to disk. METRO_AGENT names the agent (default "Tony").
-MNEMONIC="..." TELEGRAM_BOT_TOKENS="123:abc" METRO_AGENT="Tony" \
-  bun --filter @metro-labs/mcp db:seed
+bun --filter @metro-labs/mcp db:migrate    # create the tables
 ```
 
-`db:generate` regenerates the migration after a schema change. Once the DB is seeded,
-drop the station secrets from the environment — they now live in Postgres.
-
-### Station accounts
-
-Each account's connection info is a row in the `accounts` table (the `config` jsonb
-fields are listed above); its `account_id` is the station-local id (`x0`, `t0`, `d0`,
-`default`). Lines are account-scoped (`metro://telegram/<account>/<chat>`) so replies go
-back out the same identity. The XMTP, Telegram, Discord and Telegram-user secrets are
-loaded into these rows once by `db:seed` — the daemon never reads them from the
-environment. See the one-time seed inputs in [`.env.example`](.env.example).
+Then populate the `agents` and `accounts` tables (one row per station account, with the
+`config` jsonb above) and start Metro. `db:generate` regenerates the migration after a
+schema change.
 
 ### Server
 

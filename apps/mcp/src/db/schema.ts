@@ -31,13 +31,3 @@ export const accounts = pgTable(
   },
   (t) => [primaryKey({ columns: [t.station, t.accountId] })],
 );
-
-export const keys = pgTable(
-  'keys',
-  {
-    agent: text('agent').notNull(),
-    name: text('name').notNull(),
-    key: text('key').notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.agent, t.name] })],
-);

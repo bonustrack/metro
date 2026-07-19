@@ -1,6 +1,6 @@
 /**
- * Telegram accounts load from the materialized accounts file (the DB is the runtime
- * source of truth; there is no env-var fallback). Ids come from the file records.
+ * Telegram accounts load from the materialized accounts file (Postgres is the runtime
+ * source of truth; the daemon writes this file at boot). Ids come from the records.
  */
 
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
