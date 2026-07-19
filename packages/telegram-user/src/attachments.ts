@@ -39,6 +39,43 @@ function metaOf(media: DownloadableMedia): MediaMeta {
   };
 }
 
+export interface PendingDescriptor {
+  kind: string;
+  name?: string;
+}
+
+const KIND_BY_TYPE: Record<string, string> = {
+  photo: 'image',
+  sticker: 'image',
+  voice: 'audio',
+  audio: 'audio',
+  video: 'video',
+  video_note: 'video',
+  animation: 'video',
+};
+
+function mediaType(media: DownloadableMedia): string {
+  const type = (media as { type?: unknown }).type;
+  return typeof type === 'string' ? type : '';
+}
+
+function kindOf(media: DownloadableMedia, mime: string | undefined): string {
+  const byType = KIND_BY_TYPE[mediaType(media)];
+  if (byType) return byType;
+  if (mime?.startsWith('image/')) return 'image';
+  if (mime?.startsWith('audio/')) return 'audio';
+  if (mime?.startsWith('video/')) return 'video';
+  return 'file';
+}
+
+export function pendingDescriptorOf(media: DownloadableMedia): PendingDescriptor {
+  const meta = metaOf(media);
+  return {
+    kind: kindOf(media, meta.mime),
+    ...(meta.name ? { name: meta.name } : {}),
+  };
+}
+
 export async function downloadMedia(
   client: UserClient,
   media: DownloadableMedia,

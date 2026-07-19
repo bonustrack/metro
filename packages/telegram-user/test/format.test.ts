@@ -1,11 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 import type { Message } from '@mtcute/bun';
+import { FileLocation } from '@mtcute/bun';
 import {
   attachmentSavedEnvelope,
   envelope,
   isOwnEcho,
   reactionEnvelope,
 } from '../src/format.js';
+
+const downloadableMedia = (over: Record<string, unknown>): { type: string } => {
+  const media = { ...over };
+  Object.setPrototypeOf(media, FileLocation.prototype);
+  return media as { type: string };
+};
 
 interface FakeUser {
   type: 'user';
@@ -100,6 +107,27 @@ describe('envelope', () => {
     const e = envelope('default', asMessage(m));
     expect(e.text).toBe('[photo]');
     expect(e.has_media).toBe(true);
+  });
+
+  test('downloadable media declares payload.attachments for inline surfacing', () => {
+    const m = dmMessage();
+    m.text = '';
+    m.media = downloadableMedia({ type: 'voice', mimeType: 'audio/ogg' });
+    const e = envelope('default', asMessage(m));
+    expect(e.has_media).toBe(true);
+    expect(e.payload).toEqual({
+      account: 'default',
+      message_id: '42',
+      attachments: [{ kind: 'audio' }],
+    });
+  });
+
+  test('non-downloadable media omits payload.attachments', () => {
+    const m = dmMessage();
+    m.media = { type: 'location' };
+    const e = envelope('default', asMessage(m));
+    expect(e.has_media).toBe(true);
+    expect(e.payload).toEqual({ account: 'default', message_id: '42' });
   });
 });
 
