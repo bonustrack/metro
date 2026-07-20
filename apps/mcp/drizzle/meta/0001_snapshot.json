@@ -1,5 +1,5 @@
 {
-  "id": "86aa9d71-5b0a-4f75-8c85-9c8b3a251716",
+  "id": "c953ca00-6864-4da3-ba2c-48dbd0010ec2",
   "prevId": "64e2b891-e86a-4a2d-b2a8-d73ed59196d2",
   "version": "7",
   "dialect": "postgresql",
@@ -30,7 +30,8 @@
           "name": "allowlist",
           "type": "text[]",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": "'{\"*\"}'"
         },
         "config": {
           "name": "config",

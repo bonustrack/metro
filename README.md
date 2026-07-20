@@ -165,7 +165,7 @@ by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
   row), `account_id` (the station-local id, e.g. `x0`/`t0`), `allowlist` text[]
-  (nullable) — the per-account channel allowlist, and `config` jsonb (the station
+  (default `['*']`) — the per-account channel allowlist, and `config` jsonb (the station
   connection secrets + optional `owner` + any extras — see below). Primary key
   (`station`, `account_id`).
 - **`keys`** — `agent_id`, `name`, `key`. Per-agent API keys. Primary key (`agent_id`,
@@ -173,8 +173,8 @@ by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
   bearer at boot.
 
 The `allowlist` column is the sender ids allowed to drive that account's session;
-inbound from anyone else is dropped. NULL → allow all senders; `{'*'}` is an explicit
-allow-all. It gates the relay only and is stripped from the train files.
+inbound from anyone else is dropped. It defaults to `['*']` (allow all senders); set a
+specific array to restrict. It gates the relay only and is stripped from the train files.
 
 Per-station `config` jsonb (connection secrets + optional `owner`):
 
@@ -208,11 +208,11 @@ after a schema change.
 ```sql
 INSERT INTO agents (name) VALUES ('Tony') RETURNING id;   -- e.g. 1
 INSERT INTO accounts (agent_id, station, account_id, config)
-  VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');   -- allowlist column defaults NULL
+  VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');   -- allowlist defaults to ['*']
 INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
 ```
 
-Restrict who can drive an account via the `allowlist` column (NULL = allow all):
+Restrict who can drive an account via the `allowlist` column (default `['*']` = allow all):
 
 ```sql
 UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND account_id='tony';
