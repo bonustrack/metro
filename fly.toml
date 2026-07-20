@@ -16,12 +16,18 @@ primary_region = "iad"
 [env]
   HOME = "/data"
   METRO_HTTP_HOST = "0.0.0.0"
+  # Ephemeral (rebuilt at boot from the DB); lives in the image, not the volume.
   METRO_TRAINS_DIR = "/app/apps/mcp/trains"
   METRO_LOG_LEVEL = "info"
-  # METRO_STATE_DIR defaults to $HOME/.cache/metro → persisted on the volume.
+  # HOME=/data puts the durable state on the mounted volume:
+  #   XMTP MLS db3s  → /data/.metro/xmtp-production-<id>.db3  (MUST persist)
+  #   state dir      → /data/.cache/metro  (METRO_STATE_DIR default: lock, IPC)
 
 # Secrets are NOT stored here — set them with `fly secrets set` (see README "Deploying"):
-#   MNEMONIC, TELEGRAM_BOT_TOKENS, DISCORD_BOT_TOKENS, METRO_MCP_HTTP_TOKEN
+#   DATABASE_URL      (required — the Postgres holding agents/accounts/keys)
+#   METRO_MCP_HTTP_TOKEN, METRO_CHANNEL_ALLOWLIST, METRO_PUBLIC_URL, and optionally
+#   METRO_AGENT (pin one agent by id).
+# Station secrets (mnemonic/keys/tokens/sessions) now live in the DB rows, NOT on Fly.
 
 [http_service]
   internal_port = 8420
@@ -39,6 +45,8 @@ primary_region = "iad"
     timeout = "5s"
     grace_period = "45s"
 
+# The single-attach volume holds the durable XMTP MLS db3s (see [env] above). Losing
+# it burns 1 of the inbox's 10 install slots, so it MUST stay mounted at /data.
 [mounts]
   source = "metro_data"
   destination = "/data"

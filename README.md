@@ -138,19 +138,25 @@ XMTP keeps each inbox's MLS state in a local SQLite database that **must persist
 therefore **single-writer**: one machine, one volume — don't scale past a single
 instance, and don't run the same identity in two places.
 
-## Deploying to DigitalOcean
+### DB-backed deploy
 
-The same [`Dockerfile`](Dockerfile) runs on DigitalOcean. The DO environment is set up
-manually (no App Platform spec is committed): run the image on a **Droplet** with a DO
-Block Storage **Volume** mounted at `/data` (`HOME=/data`), mirroring the Fly
-single-machine + single-attach-volume model. XMTP's MLS SQLite DBs live on that volume
-and must persist with a single writer — App Platform's ephemeral filesystem can't hold
-them, which is why a Droplet + Volume is the target. `DATABASE_URL` supplies the account
-config; the volume only holds the XMTP local DBs. Set `DATABASE_URL` and
-`METRO_MCP_HTTP_TOKEN` as secrets on the box (never commit them).
+Account config lives in Postgres, so a deploy is: provision the DB, migrate + populate
+it (see [Configuration](#configuration)), then set the connection + operational secrets
+and deploy:
 
-The existing [`fly.toml`](fly.toml) is kept for the current Fly deployment; DO is the
-migration target. Nothing about the app is Fly-specific beyond that file.
+```sh
+fly secrets set --app metro \
+  DATABASE_URL="postgres://user:pass@host:5432/metro" \
+  METRO_MCP_HTTP_TOKEN="$(openssl rand -hex 32)" \
+  METRO_CHANNEL_ALLOWLIST="…" METRO_PUBLIC_URL="https://mcp.metro.box"
+# optional: METRO_AGENT=<id> to pin one agent
+fly deploy --app metro
+```
+
+The station secrets (mnemonic/keys/tokens/sessions) are **not** Fly secrets anymore —
+they live in the DB rows. The mounted volume (`metro_data` → `/data`, with `HOME=/data`)
+holds the durable XMTP MLS databases at `/data/.metro/xmtp-production-<id>.db3`; losing
+the volume burns an install slot, so keep it to one machine + one volume (above).
 
 ## Configuration
 
