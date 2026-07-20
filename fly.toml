@@ -25,8 +25,9 @@ primary_region = "iad"
 
 # Secrets are NOT stored here — set them with `fly secrets set` (see README "Deploying"):
 #   DATABASE_URL      (required — the Postgres holding agents/accounts/keys)
-#   METRO_MCP_HTTP_TOKEN, METRO_CHANNEL_ALLOWLIST, METRO_PUBLIC_URL, and optionally
-#   METRO_AGENT (pin one agent by id).
+#   Optional: METRO_MCP_HTTP_TOKEN (else the single agent's first key is used),
+#   METRO_PUBLIC_URL (attachment link base; unset → tunnel hostname), METRO_AGENT
+#   (pin one agent by id). The channel allowlist is per-account in the DB config.
 # Station secrets (mnemonic/keys/tokens/sessions) now live in the DB rows, NOT on Fly.
 
 [http_service]

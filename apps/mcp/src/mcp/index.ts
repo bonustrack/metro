@@ -30,6 +30,7 @@ import {
 } from './group-tools.js';
 import { BodyTooLargeError } from '../daemon/http.js';
 import { InboundRelay } from '../channels/inbound.js';
+import { allowlistForLine, senderMatchesAllowlist } from '../db/agent-map.js';
 import { ChannelRelay } from '../channels/relay.js';
 import { BoundedEventStore } from './event-store.js';
 import {
@@ -39,15 +40,11 @@ import {
   type RawGetSink,
 } from './raw-get-stream.js';
 
-const ALLOWLIST_DEFAULT =
-  'bee7314f7127ef53b4e3bf5256e54b0a1acdc3698d064fb1029bd8f83ecc1186';
 const parseList = (raw: string, lower: boolean): string[] =>
   raw
     .split(',')
     .map((s) => (lower ? s.trim().toLowerCase() : s.trim()))
     .filter(Boolean);
-const getAllowlist = (): string[] =>
-  parseList(process.env.METRO_CHANNEL_ALLOWLIST ?? ALLOWLIST_DEFAULT, true);
 const getStations = (): Set<string> =>
   new Set(
     parseList(
@@ -153,12 +150,9 @@ mcp.setRequestHandler(
   callToolHandler as Parameters<typeof mcp.setRequestHandler>[1],
 );
 
-const senderAllowed = (from: string): boolean => {
-  const allowlist = getAllowlist();
-  if (allowlist.includes('*')) return true;
-  const f = (from ?? '').toLowerCase();
-  const id = f.split('/').pop() ?? f;
-  return allowlist.some((a) => a === f || a === id);
+const senderAllowed = (from: string, line: string): boolean => {
+  const allowlist = allowlistForLine(line);
+  return allowlist ? senderMatchesAllowlist(allowlist, from) : true;
 };
 
 const relay = new InboundRelay({

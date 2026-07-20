@@ -6,7 +6,7 @@ interface InboundDeps {
   mcp: Server;
   log: (...a: unknown[]) => void;
   getStations: () => Set<string>;
-  senderAllowed: (from: string) => boolean;
+  senderAllowed: (from: string, line: string) => boolean;
 }
 
 interface PendingAtt {
@@ -275,14 +275,14 @@ export class InboundRelay {
     return true;
   }
 
-  private droppedSender(from: string): boolean {
+  private droppedSender(from: string, line: string): boolean {
     if (
       from.startsWith('metro://claude') ||
       from === 'metro://user' ||
       !from.startsWith('metro://')
     )
       return true;
-    if (!this.deps.senderAllowed(from)) {
+    if (!this.deps.senderAllowed(from, line)) {
       this.deps.log('drop: sender not allowed', from);
       return true;
     }
@@ -300,8 +300,8 @@ export class InboundRelay {
     if (station === 'webhook' || !this.deps.getStations().has(station))
       return null;
     const from = str(ev.from);
-    if (this.droppedSender(from)) return null;
     const line = str(ev.line);
+    if (this.droppedSender(from, line)) return null;
     const text = str(ev.text);
     if (!replay && this.isDuplicate(station, line, evType, str(ev.messageId))) {
       this.deps.log(

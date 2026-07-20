@@ -5,7 +5,12 @@ import { eq } from 'drizzle-orm';
 import { log } from '../daemon/log.js';
 import { writeSecure } from '../daemon/secure-fs.js';
 import { closeDb, databaseUrl, getDb } from './client.js';
-import { setAgentMap, type AgentMap } from './agent-map.js';
+import {
+  setAgentMap,
+  setAllowlistMap,
+  type AgentMap,
+  type AllowlistMap,
+} from './agent-map.js';
 import { accounts, agents, keys, type StationName } from './schema.js';
 
 interface StationTarget {
@@ -17,6 +22,7 @@ interface StationTarget {
 interface LoadedAccount {
   station: StationName;
   accountId: string;
+  allowlist: string[] | null;
   config: Record<string, unknown>;
 }
 
@@ -88,6 +94,7 @@ async function loadAgents(): Promise<LoadedAgent[]> {
       accounts: acctRows.map((r) => ({
         station: r.station,
         accountId: r.accountId,
+        allowlist: r.allowlist,
         config: r.config as Record<string, unknown>,
       })),
       keys: keyRows.map((k) => ({ name: k.name, key: k.key })),
@@ -102,14 +109,17 @@ function writeStations(list: LoadedAgent[]): string[] {
 
   const byStation = new Map<StationName, LoadedAccount[]>();
   const map: AgentMap = {};
+  const allow: AllowlistMap = {};
   for (const agent of list)
     for (const a of agent.accounts) {
       const cur = byStation.get(a.station);
       if (cur) cur.push(a);
       else byStation.set(a.station, [a]);
       map[`${a.station}/${a.accountId}`] = agent.name;
+      if (a.allowlist) allow[`${a.station}/${a.accountId}`] = a.allowlist;
     }
   setAgentMap(map);
+  setAllowlistMap(allow);
 
   const active: string[] = [];
   for (const [station, accts] of byStation) {

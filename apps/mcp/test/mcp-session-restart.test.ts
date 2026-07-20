@@ -6,7 +6,6 @@ import { createMetroMcp } from '../src/mcp/index.ts';
 import { asLine } from '../src/stations/lines.ts';
 import { publishEvent, type MetroEvent } from '../src/daemon/events.ts';
 
-process.env.METRO_CHANNEL_ALLOWLIST = '*';
 process.env.METRO_CHANNEL_STATIONS = 'discord';
 
 const msgEvent = (text: string): MetroEvent =>

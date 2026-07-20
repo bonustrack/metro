@@ -34,9 +34,10 @@ failing silently.
 A **station** is a chat-platform integration:
 
 - **xmtp** — end-to-end-encrypted DMs and groups. Identity is an Ethereum EOA, with
-  multi-account support via an HD mnemonic. Runs on the XMTP production network.
-- **telegram** — Bot API. One or many bots from a comma-separated token list.
-- **discord** — bot gateway + REST. One or many bots.
+  multi-account support (HD mnemonic + derive index, or a raw key). Runs on the XMTP
+  production network.
+- **telegram** — Bot API. One or many bots, each a `telegram` account row in the DB.
+- **discord** — bot gateway + REST. One or many bots, each a `discord` account row.
 - **webhook** — inbound HTTP receiver (GitHub, Intercom, …). Inbound-only; events
   arrive on `metro://webhook/<id>`.
 
@@ -44,19 +45,18 @@ A **station** is a chat-platform integration:
 
 ```sh
 bun install
-cp .env.example .env     # configure at least one station
+cp .env.example .env     # set DATABASE_URL (accounts live in Postgres — see Configuration)
 bun run start            # serves on http://127.0.0.1:8420
 ```
 
-Stations run as subprocesses the supervisor spawns from `~/.metro/trains/*.{ts,js,mjs}`
-(hot-reloaded). Add a one-line file per platform you want to run:
+Accounts load from Postgres at boot. The daemon materializes them into a one-line train
+file per active station under `~/.metro/trains/*.ts`, then the supervisor spawns and
+hot-reloads one subprocess per file:
 
 ```ts
-// ~/.metro/trains/xmtp.ts
+// ~/.metro/trains/xmtp.ts   (generated from the DB — you don't hand-write these)
 import '@metro-labs/xmtp/train';
 ```
-
-(The container image generates these automatically — see [Deploying](#deploying).)
 
 ## Deploying
 
@@ -80,21 +80,21 @@ fly volumes create metro_data --app <your-app-name> --region iad --size 10   # G
 One volume = one machine. Don't create a second volume/machine — XMTP forbids
 concurrent writers.
 
-### 2. Set secrets
+### 2. Populate the DB + set `DATABASE_URL`
 
-Secrets live in Fly, never in `fly.toml` or the image:
+Account config (agents, station accounts, keys) lives in Postgres — see
+[Configuration](#configuration) to provision + populate it. The only secret Metro
+needs on Fly is the connection string:
 
 ```sh
 fly secrets set --app <your-app-name> \
-  MNEMONIC="your twelve word ..." \
-  TELEGRAM_BOT_TOKENS="123:abc,456:def" \
-  METRO_MCP_HTTP_TOKEN="$(openssl rand -hex 32)"
-# optional: DISCORD_BOT_TOKENS, and METRO_CHANNEL_ALLOWLIST to allow
-# Telegram/Discord sender ids (default allowlist is XMTP-only; "*" = allow all).
+  DATABASE_URL="postgres://user:pass@host:5432/metro"
 ```
 
-`METRO_MCP_HTTP_TOKEN` gates the public `/mcp` endpoint — set it (the app is
-internet-facing through Fly). `/health` stays public for Fly's health check.
+`DATABASE_URL` is the only required var. Station secrets (mnemonics/keys/tokens/
+sessions) are DB rows, not Fly secrets. Optionally set `METRO_MCP_HTTP_TOKEN` to gate
+the public `/mcp` endpoint (else the single agent's first `keys` row is used at boot);
+`/health` stays public for Fly's health check.
 
 ### 3. Deploy
 
@@ -129,34 +129,14 @@ claude mcp add --transport http metro https://mcp.metro.box \
   long-poll alive. Don't enable autostop.
 - **Memory.** Each XMTP account is a live client; bump `[[vm]] memory` in `fly.toml`
   (2gb+) as you add accounts.
-- **Dev vs prod.** Use a *separate* MNEMONIC for testing — redeploys/restarts are safe
-  (the DB persists), but creating fresh DBs elsewhere burns the inbox's
-  10-installation / 256-update budget.
+- **Dev vs prod.** Use a *separate* XMTP identity for testing (its own mnemonic/key in
+  the DB) — redeploys/restarts are safe (the volume persists the MLS DB), but creating
+  fresh DBs elsewhere burns the inbox's 10-installation / 256-update budget.
 
 XMTP keeps each inbox's MLS state in a local SQLite database that **must persist**
 (losing it re-installs the inbox), and only one instance may run per inbox. Metro is
 therefore **single-writer**: one machine, one volume — don't scale past a single
 instance, and don't run the same identity in two places.
-
-### DB-backed deploy
-
-Account config lives in Postgres, so a deploy is: provision the DB, migrate + populate
-it (see [Configuration](#configuration)), then set the connection + operational secrets
-and deploy:
-
-```sh
-fly secrets set --app metro \
-  DATABASE_URL="postgres://user:pass@host:5432/metro" \
-  METRO_MCP_HTTP_TOKEN="$(openssl rand -hex 32)" \
-  METRO_CHANNEL_ALLOWLIST="…" METRO_PUBLIC_URL="https://mcp.metro.box"
-# optional: METRO_AGENT=<id> to pin one agent
-fly deploy --app metro
-```
-
-The station secrets (mnemonic/keys/tokens/sessions) are **not** Fly secrets anymore —
-they live in the DB rows. The mounted volume (`metro_data` → `/data`, with `HOME=/data`)
-holds the durable XMTP MLS databases at `/data/.metro/xmtp-production-<id>.db3`; losing
-the volume burns an install slot, so keep it to one machine + one volume (above).
 
 ## Configuration
 
@@ -184,13 +164,19 @@ by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
   (a label, not unique).
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
-  row), `account_id` (the station-local id, e.g. `x0`/`t0`), `config` jsonb (the
-  connection info that station needs — see below). Primary key (`station`, `account_id`).
+  row), `account_id` (the station-local id, e.g. `x0`/`t0`), `allowlist` text[]
+  (default `['*']`) — the per-account channel allowlist, and `config` jsonb (the station
+  connection secrets + optional `owner` + any extras — see below). Primary key
+  (`station`, `account_id`).
 - **`keys`** — `agent_id`, `name`, `key`. Per-agent API keys. Primary key (`agent_id`,
   `name`). For a single-agent daemon the first key becomes the `METRO_MCP_HTTP_TOKEN`
   bearer at boot.
 
-Per-station `config` jsonb:
+The `allowlist` column is the sender ids allowed to drive that account's session;
+inbound from anyone else is dropped. It defaults to `['*']` (allow all senders); set a
+specific array to restrict. It gates the relay only and is stripped from the train files.
+
+Per-station `config` jsonb (connection secrets + optional `owner`):
 
 | station | `config` fields |
 | --- | --- |
@@ -222,16 +208,22 @@ after a schema change.
 ```sql
 INSERT INTO agents (name) VALUES ('Tony') RETURNING id;   -- e.g. 1
 INSERT INTO accounts (agent_id, station, account_id, config)
-  VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');
+  VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');   -- allowlist defaults to ['*']
 INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
+```
+
+Restrict who can drive an account via the `allowlist` column (default `['*']` = allow all):
+
+```sql
+UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND account_id='tony';
 ```
 
 ### Server
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `METRO_CHANNEL_ALLOWLIST` | (built-in) | Comma list of sender ids allowed to drive the session; inbound from others is dropped. `*` disables gating (a prompt-injection surface). |
 | `METRO_CHANNEL_STATIONS` | `xmtp,telegram,discord` | Stations surfaced to the MCP |
+| `METRO_PUBLIC_URL` | tunnel hostname | Base URL for attachment links. Unset → falls back to the tunnel hostname; with neither, attachments are surfaced by local path only. |
 | `METRO_HTTP_HOST` | `127.0.0.1` | HTTP bind host; set `0.0.0.0` behind a platform proxy |
 | `METRO_WEBHOOK_PORT` | `8420` | HTTP port |
 | `METRO_MCP_HTTP_TOKEN` | — | Optional bearer gating the MCP endpoint; the same token also gates the Monitor transport (`/api/*`). Unset → Monitor disabled (404). |

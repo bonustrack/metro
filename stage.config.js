@@ -32,7 +32,7 @@ export default defineConfig({
     'packages/telegram-user': {
       type: 'library',
       knip: {
-        entry: ['scripts/login.ts', 'scripts/dev-local.ts'],
+        entry: ['scripts/login.ts'],
         project: ['src/**/*.ts'],
       },
     },
