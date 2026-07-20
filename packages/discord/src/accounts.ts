@@ -3,11 +3,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   makeAccountStore,
-  csv,
-  genIds,
   resolveAccountId,
 } from '@metro-labs/mcp/stations/account-store';
 import { Line } from '@metro-labs/mcp/lines';
+import { emit } from './wire.js';
 
 export const API = 'https://discord.com/api/v10';
 
@@ -34,13 +33,6 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
       if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
       seen.add(a.id);
     }
-  },
-  fallback(die) {
-    const tokens = csv(process.env.DISCORD_BOT_TOKENS);
-    if (!tokens.length)
-      return die(`no ${ACCOUNTS_FILE} and DISCORD_BOT_TOKENS unset`);
-    const ids = genIds('d', tokens.length);
-    return tokens.map((token, i) => ({ id: ids[i] ?? `d${i}`, token }));
   },
 });
 
@@ -80,11 +72,16 @@ export async function rest<T = unknown>(
   };
   if (body !== undefined && !isForm)
     headers['Content-Type'] = 'application/json';
+  emit({ op: 'log', text: `discord[${accountId}] api ${method} ${path}` });
   const res = await fetch(`${API}${path}`, {
     method,
     headers,
     body: restBody(body, isForm),
     signal: AbortSignal.timeout(30_000),
+  });
+  emit({
+    op: 'log',
+    text: `discord[${accountId}] api ${method} ${path} -> ${res.status}`,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');

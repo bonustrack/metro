@@ -32,11 +32,15 @@ export interface StationConfig {
   preDispatch?: (id: string, action: string) => boolean;
 }
 
+const lineTag = (args: Args): string =>
+  typeof args.line === 'string' ? args.line : '?';
+
 export function makeStation({ handlers, normalize, preDispatch }: StationConfig) {
   const known = Object.keys(handlers).join(', ');
   return async function handleCall(msg: CallMsg): Promise<void> {
     const { id } = msg;
     const { action, args } = normalize(msg.action, msg.args);
+    emit({ op: 'log', text: `call ${action} recv (line=${lineTag(args)})` });
     try {
       if (preDispatch?.(id, action)) return;
       const handler = handlers[action];
@@ -45,8 +49,14 @@ export function makeStation({ handlers, normalize, preDispatch }: StationConfig)
         return;
       }
       await handler(id, args);
+      emit({ op: 'log', text: `call ${action} done (line=${lineTag(args)})` });
     } catch (err) {
-      respond(id, serializeTrainError(err));
+      const info = serializeTrainError(err);
+      emit({
+        op: 'log',
+        text: `call ${action} FAILED (line=${lineTag(args)}): ${info.error}`,
+      });
+      respond(id, info);
     }
   };
 }

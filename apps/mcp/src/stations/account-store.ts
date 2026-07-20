@@ -9,7 +9,6 @@ export interface MakeLoaderOpts<T> {
   file: string;
   allowlistEnv: string[];
   validate: (raw: T[], die: Die) => void;
-  fallback: (die: Die) => T[];
 }
 
 export interface Loader<T> {
@@ -37,28 +36,29 @@ export function makeAccountStore<T extends { id: string }>(
   );
 
   function loadAccounts(): T[] {
-    if (existsSync(opts.file)) {
-      chmodIfExists(opts.file);
-      let raw: T[];
-      try {
-        raw = JSON.parse(readFileSync(opts.file, 'utf8')) as T[];
-      } catch (e) {
-        return die(`bad ${opts.file}: ${errMsg(e)}`);
-      }
-      if (!Array.isArray(raw) || raw.length === 0)
-        die(`${opts.file} must be a non-empty array`);
-      opts.validate(raw, die);
-      const selected = allowlist.size
-        ? raw.filter((a) => allowlist.has(a.id))
-        : raw;
-      if (selected.length === 0) {
-        die(
-          `no accounts match ${opts.allowlistEnv[0]} (${[...allowlist].join(', ')})`,
-        );
-      }
-      return selected;
+    if (!existsSync(opts.file))
+      return die(
+        `no accounts file ${opts.file} — the daemon writes it from the database at boot; set DATABASE_URL and populate the accounts table`,
+      );
+    chmodIfExists(opts.file);
+    let raw: T[];
+    try {
+      raw = JSON.parse(readFileSync(opts.file, 'utf8')) as T[];
+    } catch (e) {
+      return die(`bad ${opts.file}: ${errMsg(e)}`);
     }
-    return opts.fallback(die);
+    if (!Array.isArray(raw) || raw.length === 0)
+      die(`${opts.file} must be a non-empty array`);
+    opts.validate(raw, die);
+    const selected = allowlist.size
+      ? raw.filter((a) => allowlist.has(a.id))
+      : raw;
+    if (selected.length === 0) {
+      die(
+        `no accounts match ${opts.allowlistEnv[0]} (${[...allowlist].join(', ')})`,
+      );
+    }
+    return selected;
   }
 
   return { die, loadAccounts };
@@ -77,19 +77,4 @@ export function resolveAccountId(
       `unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`,
     );
   return id;
-}
-
-export function csv(raw: string | undefined): string[] {
-  return [
-    ...new Set(
-      (raw ?? '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ),
-  ];
-}
-
-export function genIds(prefix: string, count: number): string[] {
-  return Array.from({ length: count }, (_, i) => `${prefix}${i}`);
 }

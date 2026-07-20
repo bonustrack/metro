@@ -63,7 +63,8 @@ function captureResponses(): { responses: unknown[]; restore: () => void } {
   const responses: unknown[] = [];
   const orig = process.stdout.write.bind(process.stdout);
   process.stdout.write = ((chunk: string | Uint8Array): boolean => {
-    responses.push(JSON.parse(String(chunk)));
+    const parsed = JSON.parse(String(chunk)) as { op?: string };
+    if (parsed.op === 'response') responses.push(parsed);
     return true;
   }) as typeof process.stdout.write;
   return { responses, restore: () => void (process.stdout.write = orig) };

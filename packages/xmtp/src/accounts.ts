@@ -24,12 +24,20 @@ const XMTP_ENV = 'production' as const;
 
 export interface AccountConfig {
   id: string;
-  derive: number;
+  derive?: number;
+  mnemonic?: string;
+  privateKey?: string;
   owner?: string;
   dbPath?: string;
 }
 
-export const { die, loadAccounts } = makeAccountStore<AccountConfig>({
+function hasValidDerive(a: AccountConfig): boolean {
+  return (
+    typeof a.derive === 'number' && a.derive >= 0 && Number.isInteger(a.derive)
+  );
+}
+
+export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'xmtp',
   file: ACCOUNTS_FILE,
   allowlistEnv: ['XMTP_ONLY_ACCOUNTS', 'XMTP_ACCOUNTS'],
@@ -37,43 +45,23 @@ export const { die, loadAccounts } = makeAccountStore<AccountConfig>({
     const seen = new Set<string>();
     for (const a of raw) {
       if (!a.id) die('account missing id');
-      if (
-        typeof a.derive !== 'number' ||
-        a.derive < 0 ||
-        !Number.isInteger(a.derive)
-      ) {
-        die(`account '${a.id}' derive must be a non-negative integer`);
-      }
+      if (!a.privateKey && !(a.mnemonic && hasValidDerive(a)))
+        die(`account '${a.id}' needs a privateKey or a mnemonic + derive`);
       if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
       seen.add(a.id);
     }
   },
-  fallback(die) {
-    const raw = process.env.DERIVE_COUNT?.trim();
-    const n = raw ? Number(raw) : 1;
-    if (!Number.isInteger(n) || n <= 0)
-      die(`DERIVE_COUNT must be a positive integer (got '${raw}')`);
-    return Array.from({ length: n }, (_, i) => ({ id: `x${i}`, derive: i }));
-  },
 });
 
-let cachedMnemonic: string | null = null;
-function loadMnemonic(): string {
-  if (cachedMnemonic) return cachedMnemonic;
-  const m = process.env.MNEMONIC?.trim();
-  if (!m) {
-    die('MNEMONIC unset (identity derives from a BIP-39 mnemonic)');
-    throw new Error('unreachable');
-  }
-  cachedMnemonic = m;
-  return m;
-}
-
 function resolvePrivateKey(cfg: AccountConfig): string {
-  const acct = mnemonicToAccount(loadMnemonic(), { addressIndex: cfg.derive });
+  if (cfg.privateKey) return cfg.privateKey;
+  const mnemonic = cfg.mnemonic?.trim();
+  if (!mnemonic) throw new Error(`account '${cfg.id}' has no privateKey/mnemonic`);
+  const derive = cfg.derive ?? 0;
+  const acct = mnemonicToAccount(mnemonic, { addressIndex: derive });
   const { privateKey } = acct.getHdKey();
   if (!privateKey)
-    throw new Error(`HD key has no private key for derive index ${cfg.derive}`);
+    throw new Error(`HD key has no private key for derive index ${derive}`);
   return toHex(privateKey);
 }
 

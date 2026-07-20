@@ -2,8 +2,6 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   makeAccountStore,
-  csv,
-  genIds,
   resolveAccountId,
 } from '@metro-labs/mcp/stations/account-store';
 import { Line } from '@metro-labs/mcp/lines';
@@ -37,13 +35,6 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
       seenId.add(a.id);
       seenTok.add(a.token);
     }
-  },
-  fallback(die) {
-    const tokens = csv(process.env.TELEGRAM_BOT_TOKENS);
-    if (!tokens.length)
-      return die(`no ${ACCOUNTS_FILE} and TELEGRAM_BOT_TOKENS unset`);
-    const ids = genIds('t', tokens.length);
-    return tokens.map((token, i) => ({ id: ids[i] ?? `t${i}`, token }));
   },
 });
 

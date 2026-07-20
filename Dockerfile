@@ -26,15 +26,15 @@ RUN bun install --frozen-lockfile --production
 # 2) App source. node_modules/.env/.git/dist are excluded via .dockerignore, so the
 #    installed deps and your secrets are never copied over / baked in.
 COPY . .
-RUN chmod +x /app/docker-entrypoint.sh
 
-# HOME=/data → ~/.metro (XMTP MLS DBs) and ~/.cache/metro (state dir) live
-# on the mounted volume. Train scripts are generated per configured station at boot.
-# METRO_HTTP_HOST=0.0.0.0 so Fly's proxy can reach the app.
+# HOME=/data → ~/.metro (XMTP MLS DBs) and ~/.cache/metro (state dir) live on the
+# mounted volume. METRO_TRAINS_DIR sits under apps/mcp so the boot-generated train
+# stubs resolve @metro-labs/* from apps/mcp/node_modules with no symlink.
+# METRO_HTTP_HOST=0.0.0.0 so the platform proxy can reach the app.
 ENV HOME=/data \
-    METRO_TRAINS_DIR=/app/trains \
+    METRO_TRAINS_DIR=/app/apps/mcp/trains \
     METRO_HTTP_HOST=0.0.0.0 \
     METRO_LOG_LEVEL=info
 
 EXPOSE 8420
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["bun", "/app/apps/mcp/src/server.ts"]
