@@ -22,6 +22,8 @@ interface StationTarget {
 interface LoadedAccount {
   station: StationName;
   accountId: string;
+  owner: string | null;
+  allowlist: string[] | null;
   config: Record<string, unknown>;
 }
 
@@ -93,6 +95,8 @@ async function loadAgents(): Promise<LoadedAgent[]> {
       accounts: acctRows.map((r) => ({
         station: r.station,
         accountId: r.accountId,
+        owner: r.owner,
+        allowlist: r.allowlist,
         config: r.config as Record<string, unknown>,
       })),
       keys: keyRows.map((k) => ({ name: k.name, key: k.key })),
@@ -114,22 +118,18 @@ function writeStations(list: LoadedAgent[]): string[] {
       if (cur) cur.push(a);
       else byStation.set(a.station, [a]);
       map[`${a.station}/${a.accountId}`] = agent.name;
-      const al = a.config.allowlist;
-      if (Array.isArray(al))
-        allow[`${a.station}/${a.accountId}`] = al.filter(
-          (x): x is string => typeof x === 'string',
-        );
+      if (a.allowlist) allow[`${a.station}/${a.accountId}`] = a.allowlist;
     }
   setAgentMap(map);
   setAllowlistMap(allow);
 
   const active: string[] = [];
   for (const [station, accts] of byStation) {
-    const records = accts.map((a) => {
-      const cfg = { ...a.config };
-      delete cfg.allowlist;
-      return { id: a.accountId, ...cfg };
-    });
+    const records = accts.map((a) => ({
+      id: a.accountId,
+      ...a.config,
+      ...(a.owner ? { owner: a.owner } : {}),
+    }));
     writeSecure(accountFilePath(station), JSON.stringify(records, null, 2));
     writeFileSync(
       join(TRAINS_DIR, `${station}.ts`),

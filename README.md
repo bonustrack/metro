@@ -90,7 +90,7 @@ fly secrets set --app <your-app-name> \
   TELEGRAM_BOT_TOKENS="123:abc,456:def" \
   METRO_MCP_HTTP_TOKEN="$(openssl rand -hex 32)"
 # optional: DISCORD_BOT_TOKENS. The channel allowlist is per-account now —
-# set an `allowlist` array on an account's DB config (unset = allow all senders).
+# it's the accounts.allowlist text[] column (unset = allow all senders).
 ```
 
 `METRO_MCP_HTTP_TOKEN` gates the public `/mcp` endpoint — set it (the app is
@@ -185,25 +185,30 @@ by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
   (a label, not unique).
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
-  row), `account_id` (the station-local id, e.g. `x0`/`t0`), `config` jsonb (the
-  connection info that station needs — see below). Primary key (`station`, `account_id`).
+  row), `account_id` (the station-local id, e.g. `x0`/`t0`). Standardized per-account
+  settings are first-class columns: `owner` text (nullable) and `allowlist` text[]
+  (nullable). Station connection secrets live in `config` jsonb (heterogeneous per
+  station — see below), which doubles as the escape hatch for any extra per-account
+  info. Primary key (`station`, `account_id`).
 - **`keys`** — `agent_id`, `name`, `key`. Per-agent API keys. Primary key (`agent_id`,
   `name`). For a single-agent daemon the first key becomes the `METRO_MCP_HTTP_TOKEN`
   bearer at boot.
 
-Per-station `config` jsonb:
+Standardized setting columns (same concept for every station):
+
+| column | type | meaning |
+| --- | --- | --- |
+| `owner` | text | The account's owner id; unset → broadcast. Surfaced to the train and set as the `to` on inbound events. |
+| `allowlist` | text[] | Sender ids allowed to drive that account's session; inbound from anyone else is dropped. NULL → allow all senders; `{'*'}` is an explicit allow-all. Gates the relay only — stripped from the train files. |
+
+Station-specific `config` jsonb (connection secrets + any extra info):
 
 | station | `config` fields |
 | --- | --- |
-| `xmtp` | `{ mnemonic, derive }` (HD account) **or** `{ privateKey }` (raw EOA key); optional `owner`, `dbPath` |
-| `telegram` | `{ token }`; optional `owner` |
-| `telegram-user` | `{ session, apiId, apiHash }`; optional `owner` |
-| `discord` | `{ token }`; optional `owner` |
-
-Every account also takes an optional `allowlist` (a JSON array of sender ids allowed
-to drive that account's session); inbound from anyone else is dropped. Unset → the
-account allows all senders; `["*"]` is an explicit allow-all. It gates the relay only —
-the trains never see it.
+| `xmtp` | `{ mnemonic, derive }` (HD account) **or** `{ privateKey }` (raw EOA key); optional `dbPath` |
+| `telegram` | `{ token }` |
+| `telegram-user` | `{ session, apiId, apiHash }` |
+| `discord` | `{ token }` |
 
 `account_id` is the station-local id (`x0`, `t0`, `d0`, `default`); lines are
 account-scoped (`metro://telegram/<account>/<chat>`) so replies go back out the same
@@ -228,8 +233,15 @@ after a schema change.
 ```sql
 INSERT INTO agents (name) VALUES ('Tony') RETURNING id;   -- e.g. 1
 INSERT INTO accounts (agent_id, station, account_id, config)
-  VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');
+  VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');   -- owner/allowlist default NULL
 INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
+```
+
+Standardized settings are set on their columns, e.g. restrict who can drive an account:
+
+```sql
+UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND account_id='tony';
+UPDATE accounts SET owner = '<owner-id>' WHERE station='telegram' AND account_id='t0';
 ```
 
 ### Server
