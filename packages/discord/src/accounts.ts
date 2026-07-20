@@ -6,6 +6,7 @@ import {
   resolveAccountId,
 } from '@metro-labs/mcp/stations/account-store';
 import { Line } from '@metro-labs/mcp/lines';
+import { emit } from './wire.js';
 
 export const API = 'https://discord.com/api/v10';
 
@@ -71,11 +72,16 @@ export async function rest<T = unknown>(
   };
   if (body !== undefined && !isForm)
     headers['Content-Type'] = 'application/json';
+  emit({ op: 'log', text: `discord[${accountId}] api ${method} ${path}` });
   const res = await fetch(`${API}${path}`, {
     method,
     headers,
     body: restBody(body, isForm),
     signal: AbortSignal.timeout(30_000),
+  });
+  emit({
+    op: 'log',
+    text: `discord[${accountId}] api ${method} ${path} -> ${res.status}`,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
