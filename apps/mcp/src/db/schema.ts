@@ -27,7 +27,6 @@ export const accounts = pgTable(
     agentId: integer('agent_id').notNull(),
     station: text('station').$type<StationName>().notNull(),
     accountId: text('account_id').notNull(),
-    owner: text('owner'),
     allowlist: text('allowlist').array(),
     config: jsonb('config').notNull(),
   },

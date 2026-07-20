@@ -1,5 +1,5 @@
 {
-  "id": "36cd0cb3-74e4-459b-b73d-8b193e7776d1",
+  "id": "86aa9d71-5b0a-4f75-8c85-9c8b3a251716",
   "prevId": "64e2b891-e86a-4a2d-b2a8-d73ed59196d2",
   "version": "7",
   "dialect": "postgresql",
@@ -25,12 +25,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "owner": {
-          "name": "owner",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "allowlist": {
           "name": "allowlist",

@@ -22,7 +22,6 @@ interface StationTarget {
 interface LoadedAccount {
   station: StationName;
   accountId: string;
-  owner: string | null;
   allowlist: string[] | null;
   config: Record<string, unknown>;
 }
@@ -95,7 +94,6 @@ async function loadAgents(): Promise<LoadedAgent[]> {
       accounts: acctRows.map((r) => ({
         station: r.station,
         accountId: r.accountId,
-        owner: r.owner,
         allowlist: r.allowlist,
         config: r.config as Record<string, unknown>,
       })),
@@ -125,11 +123,7 @@ function writeStations(list: LoadedAgent[]): string[] {
 
   const active: string[] = [];
   for (const [station, accts] of byStation) {
-    const records = accts.map((a) => ({
-      id: a.accountId,
-      ...a.config,
-      ...(a.owner ? { owner: a.owner } : {}),
-    }));
+    const records = accts.map((a) => ({ id: a.accountId, ...a.config }));
     writeSecure(accountFilePath(station), JSON.stringify(records, null, 2));
     writeFileSync(
       join(TRAINS_DIR, `${station}.ts`),

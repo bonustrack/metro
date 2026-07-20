@@ -185,30 +185,26 @@ by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
   (a label, not unique).
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
-  row), `account_id` (the station-local id, e.g. `x0`/`t0`). Standardized per-account
-  settings are first-class columns: `owner` text (nullable) and `allowlist` text[]
-  (nullable). Station connection secrets live in `config` jsonb (heterogeneous per
-  station — see below), which doubles as the escape hatch for any extra per-account
-  info. Primary key (`station`, `account_id`).
+  row), `account_id` (the station-local id, e.g. `x0`/`t0`), `allowlist` text[]
+  (nullable) — the per-account channel allowlist, and `config` jsonb (the station
+  connection secrets + optional `owner` + any extras — see below). Primary key
+  (`station`, `account_id`).
 - **`keys`** — `agent_id`, `name`, `key`. Per-agent API keys. Primary key (`agent_id`,
   `name`). For a single-agent daemon the first key becomes the `METRO_MCP_HTTP_TOKEN`
   bearer at boot.
 
-Standardized setting columns (same concept for every station):
+The `allowlist` column is the sender ids allowed to drive that account's session;
+inbound from anyone else is dropped. NULL → allow all senders; `{'*'}` is an explicit
+allow-all. It gates the relay only and is stripped from the train files.
 
-| column | type | meaning |
-| --- | --- | --- |
-| `owner` | text | The account's owner id; unset → broadcast. Surfaced to the train and set as the `to` on inbound events. |
-| `allowlist` | text[] | Sender ids allowed to drive that account's session; inbound from anyone else is dropped. NULL → allow all senders; `{'*'}` is an explicit allow-all. Gates the relay only — stripped from the train files. |
-
-Station-specific `config` jsonb (connection secrets + any extra info):
+Per-station `config` jsonb (connection secrets + optional `owner`):
 
 | station | `config` fields |
 | --- | --- |
-| `xmtp` | `{ mnemonic, derive }` (HD account) **or** `{ privateKey }` (raw EOA key); optional `dbPath` |
-| `telegram` | `{ token }` |
-| `telegram-user` | `{ session, apiId, apiHash }` |
-| `discord` | `{ token }` |
+| `xmtp` | `{ mnemonic, derive }` (HD account) **or** `{ privateKey }` (raw EOA key); optional `owner`, `dbPath` |
+| `telegram` | `{ token }`; optional `owner` |
+| `telegram-user` | `{ session, apiId, apiHash }`; optional `owner` |
+| `discord` | `{ token }`; optional `owner` |
 
 `account_id` is the station-local id (`x0`, `t0`, `d0`, `default`); lines are
 account-scoped (`metro://telegram/<account>/<chat>`) so replies go back out the same
@@ -237,11 +233,10 @@ INSERT INTO accounts (agent_id, station, account_id, config)
 INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
 ```
 
-Standardized settings are set on their columns, e.g. restrict who can drive an account:
+Restrict who can drive an account via the `allowlist` column (NULL = allow all):
 
 ```sql
 UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND account_id='tony';
-UPDATE accounts SET owner = '<owner-id>' WHERE station='telegram' AND account_id='t0';
 ```
 
 ### Server
