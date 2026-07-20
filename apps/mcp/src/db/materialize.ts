@@ -5,7 +5,12 @@ import { eq } from 'drizzle-orm';
 import { log } from '../daemon/log.js';
 import { writeSecure } from '../daemon/secure-fs.js';
 import { closeDb, databaseUrl, getDb } from './client.js';
-import { setAgentMap, type AgentMap } from './agent-map.js';
+import {
+  setAgentMap,
+  setAllowlistMap,
+  type AgentMap,
+  type AllowlistMap,
+} from './agent-map.js';
 import { accounts, agents, keys, type StationName } from './schema.js';
 
 interface StationTarget {
@@ -102,18 +107,29 @@ function writeStations(list: LoadedAgent[]): string[] {
 
   const byStation = new Map<StationName, LoadedAccount[]>();
   const map: AgentMap = {};
+  const allow: AllowlistMap = {};
   for (const agent of list)
     for (const a of agent.accounts) {
       const cur = byStation.get(a.station);
       if (cur) cur.push(a);
       else byStation.set(a.station, [a]);
       map[`${a.station}/${a.accountId}`] = agent.name;
+      const al = a.config.allowlist;
+      if (Array.isArray(al))
+        allow[`${a.station}/${a.accountId}`] = al.filter(
+          (x): x is string => typeof x === 'string',
+        );
     }
   setAgentMap(map);
+  setAllowlistMap(allow);
 
   const active: string[] = [];
   for (const [station, accts] of byStation) {
-    const records = accts.map((a) => ({ id: a.accountId, ...a.config }));
+    const records = accts.map((a) => {
+      const cfg = { ...a.config };
+      delete cfg.allowlist;
+      return { id: a.accountId, ...cfg };
+    });
     writeSecure(accountFilePath(station), JSON.stringify(records, null, 2));
     writeFileSync(
       join(TRAINS_DIR, `${station}.ts`),

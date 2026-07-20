@@ -89,8 +89,8 @@ fly secrets set --app <your-app-name> \
   MNEMONIC="your twelve word ..." \
   TELEGRAM_BOT_TOKENS="123:abc,456:def" \
   METRO_MCP_HTTP_TOKEN="$(openssl rand -hex 32)"
-# optional: DISCORD_BOT_TOKENS, and METRO_CHANNEL_ALLOWLIST to allow
-# Telegram/Discord sender ids (default allowlist is XMTP-only; "*" = allow all).
+# optional: DISCORD_BOT_TOKENS. The channel allowlist is per-account now —
+# set an `allowlist` array on an account's DB config (unset = allow all senders).
 ```
 
 `METRO_MCP_HTTP_TOKEN` gates the public `/mcp` endpoint — set it (the app is
@@ -146,10 +146,11 @@ and deploy:
 
 ```sh
 fly secrets set --app metro \
-  DATABASE_URL="postgres://user:pass@host:5432/metro" \
-  METRO_MCP_HTTP_TOKEN="$(openssl rand -hex 32)" \
-  METRO_CHANNEL_ALLOWLIST="…" METRO_PUBLIC_URL="https://mcp.metro.box"
-# optional: METRO_AGENT=<id> to pin one agent
+  DATABASE_URL="postgres://user:pass@host:5432/metro"
+# DATABASE_URL is the only required var. Optional: METRO_MCP_HTTP_TOKEN (else
+# the single agent's first key is used), METRO_PUBLIC_URL (base URL for
+# attachment links; unset → the tunnel hostname, else attachments are delivered
+# by local path only), METRO_AGENT=<id> to pin one agent.
 fly deploy --app metro
 ```
 
@@ -199,6 +200,11 @@ Per-station `config` jsonb:
 | `telegram-user` | `{ session, apiId, apiHash }`; optional `owner` |
 | `discord` | `{ token }`; optional `owner` |
 
+Every account also takes an optional `allowlist` (a JSON array of sender ids allowed
+to drive that account's session); inbound from anyone else is dropped. Unset → the
+account allows all senders; `["*"]` is an explicit allow-all. It gates the relay only —
+the trains never see it.
+
 `account_id` is the station-local id (`x0`, `t0`, `d0`, `default`); lines are
 account-scoped (`metro://telegram/<account>/<chat>`) so replies go back out the same
 identity. Inbound events are tagged with the owning agent (an `agent` field on the
@@ -230,8 +236,8 @@ INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `METRO_CHANNEL_ALLOWLIST` | (built-in) | Comma list of sender ids allowed to drive the session; inbound from others is dropped. `*` disables gating (a prompt-injection surface). |
 | `METRO_CHANNEL_STATIONS` | `xmtp,telegram,discord` | Stations surfaced to the MCP |
+| `METRO_PUBLIC_URL` | tunnel hostname | Base URL for attachment links. Unset → falls back to the tunnel hostname; with neither, attachments are surfaced by local path only. |
 | `METRO_HTTP_HOST` | `127.0.0.1` | HTTP bind host; set `0.0.0.0` behind a platform proxy |
 | `METRO_WEBHOOK_PORT` | `8420` | HTTP port |
 | `METRO_MCP_HTTP_TOKEN` | — | Optional bearer gating the MCP endpoint; the same token also gates the Monitor transport (`/api/*`). Unset → Monitor disabled (404). |
