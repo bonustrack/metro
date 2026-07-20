@@ -20,9 +20,8 @@ configured accounts (`accounts.ts`), routes each tool call to the owning station
 `line` (`call-tools.ts`), and runs the **inbound relay** (`inbound.ts`): it subscribes
 to the daemon event bus and pushes `notifications/claude/channel` to the connected AI
 client. `ctx.ts` builds the per-call `ToolContext` and the outbound `metroCall` bridge;
-`tool-schemas.ts` holds the tool/zod schemas; `keepalive.ts` keeps the session warm.
-The HTTP transport is session-tolerant — it survives a daemon restart so connected
-sessions auto-resume.
+`tool-schemas.ts` holds the tool/zod schemas. The HTTP transport is session-tolerant —
+it survives a daemon restart so connected sessions auto-resume.
 
 ### `src/daemon/` — the supervised runtime
 
@@ -36,7 +35,7 @@ sessions auto-resume.
   `makeEmit` publishes train events onto the event bus.
 - `events.ts` — the in-memory event bus (`subscribeEvents`, `mintId`, the `MetroEvent`
   shape) the MCP relay subscribes to. Inbound is never journaled to disk.
-- `ipc.ts` — the Unix-socket IPC server used to forward outbound calls to trains.
+- `train-call.ts` — the in-process backend that forwards outbound calls to trains.
 - `protocol.ts` — the station↔daemon wire protocol / envelope (`@metro-labs/mcp/trains/protocol`).
 - `paths.ts`, `tunnel.ts`, `identity.ts`, `log.ts`, `secure-fs.ts`, `train-error.ts` —
   state dirs + singleton lock, webhook port/tunnel config, user identity, pino logger,
@@ -47,7 +46,7 @@ sessions auto-resume.
 - `types.ts` — the `Station` / `StationTool` / `Verb` / `ToolContext` contract.
 - `station-runtime.ts` — `makeStation`, `CallMsg`, the emit/respond/mintId helpers a
   train uses.
-- `account-store.ts` — the multi-bot account store (csv parsing, id generation).
+- `account-store.ts` — the multi-bot account store (reads the materialized accounts file, validates, selects).
 - `attachments.ts` — `saveBufferToCache`, `toCanonical`, the MIME table.
 - `messaging-normalize.ts` — shared inbound normalization helpers.
 - `lines.ts` — the `metro://<station>/<path>` Line parser.
@@ -61,7 +60,7 @@ sessions auto-resume.
 train subprocess --(JSON event)--> dispatcher http.makeEmit
   --> daemon event bus (events.ts) --> MCP inbound relay --> AI client (channel notification)
 
-AI client --(mcp__metro__* tool call)--> mcp/call-tools --> IPC forward-call --> train subprocess
+AI client --(mcp__metro__* tool call)--> mcp/call-tools --> train-call forward --> train subprocess
 ```
 
 Everything runs in one Bun process. A station is consumed two ways: as a **descriptor**

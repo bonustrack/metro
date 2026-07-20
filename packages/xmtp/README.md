@@ -27,13 +27,17 @@ Identity is one or more Ethereum EOAs derived from a BIP-39 mnemonic
   `actions-push.ts`). Attachments are saved/normalized via `attachments.ts`; voice
   notes can be transcribed (`transcribe.ts`).
 
-## Env vars
+## Configuration
 
-| Var | Meaning |
+Account config lives in the DB (`accounts.config` jsonb): `{ mnemonic, derive }` for an
+HD account **or** `{ privateKey }` for a raw EOA key; optional `owner`, `dbPath`. The
+daemon materializes it to the accounts file the train reads. See the
+[root README "Configuration"](../../README.md#configuration).
+
+| Env var | Meaning |
 | --- | --- |
-| `MNEMONIC` | **Required.** BIP-39 mnemonic the HD accounts derive from |
-| `DERIVE_COUNT` | How many accounts to derive (indices 0..N-1). Default `1` |
-| `XMTP_ACCOUNTS_FILE` | Optional path to an accounts file (overrides derivation) |
+| `XMTP_ONLY_ACCOUNTS` / `XMTP_ACCOUNTS` | Optional comma-separated `account_id` filter — boot only these accounts |
+| `XMTP_ACCOUNTS_FILE` | Optional override for the materialized accounts file path |
 | `XMTP_SYNC_MS` | Optional conversation sync interval |
 | `METRO_WHISPER_BIN` / `METRO_WHISPER_MODEL` / `METRO_FFMPEG_BIN` | Optional binaries for voice-note transcription |
 
