@@ -45,6 +45,7 @@
     "@metro-labs/telegram": "workspace:*",
     "@metro-labs/telegram-user": "workspace:*",
     "@metro-labs/webhook": "workspace:*",
+    "@metro-labs/whatsapp": "workspace:*",
     "@metro-labs/xmtp": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "drizzle-orm": "^0.44.0",
