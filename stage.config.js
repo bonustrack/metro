@@ -36,6 +36,13 @@ export default defineConfig({
         project: ['src/**/*.ts'],
       },
     },
+    'packages/whatsapp': {
+      type: 'library',
+      knip: {
+        entry: ['scripts/login.ts'],
+        project: ['src/**/*.ts'],
+      },
+    },
     'packages/xmtp': {
       type: 'library',
       knip: { project: ['src/**/*.ts'] },

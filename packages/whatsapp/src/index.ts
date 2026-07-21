@@ -1,0 +1,50 @@
+import { TrainError } from '@metro-labs/mcp/train-error';
+import { errMsg } from '@metro-labs/mcp/log';
+import { drainLines } from '@metro-labs/mcp/trains/protocol';
+import { type CallMsg } from '@metro-labs/mcp/stations/station-runtime';
+import { accounts, loadAccounts, accountFor, lineOf, targetOf } from './accounts.js';
+import { createClient, type WAClient } from './client.js';
+import { startInbound } from './inbound.js';
+import { makeHandleCall } from './actions.js';
+
+const clients = new Map<string, WAClient>();
+
+function clientFor(accountId: string): WAClient {
+  let client = clients.get(accountId);
+  if (!client) {
+    const account = accounts.get(accountId);
+    if (!account)
+      throw new TrainError('not_implemented', `unknown account '${accountId}'`);
+    client = createClient(account);
+    clients.set(accountId, client);
+  }
+  return client;
+}
+
+const handleCall = makeHandleCall(clientFor);
+
+let buf = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk: Buffer | string) => {
+  buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+  buf = drainLines('whatsapp', buf, (line) => {
+    try {
+      const msg = JSON.parse(line) as Partial<CallMsg>;
+      if (msg.op === 'call') void handleCall(msg as CallMsg);
+    } catch (err: unknown) {
+      process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
+    }
+  });
+});
+
+function boot(): void {
+  for (const cfg of loadAccounts()) accounts.set(cfg.id, cfg);
+  for (const id of accounts.keys()) void startInbound(clientFor(id));
+  process.stderr.write(
+    `whatsapp train ready (inbound+outbound) — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
+  );
+}
+
+boot();
+
+export { clients, accounts, clientFor, accountFor, lineOf, targetOf };

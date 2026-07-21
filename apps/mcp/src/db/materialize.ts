@@ -56,6 +56,11 @@ const STATION_TARGETS: Record<StationName, StationTarget> = {
     fileEnv: 'DISCORD_ACCOUNTS_FILE',
     trainImport: '@metro-labs/discord/train',
   },
+  whatsapp: {
+    file: 'whatsapp-accounts.json',
+    fileEnv: 'WHATSAPP_ACCOUNTS_FILE',
+    trainImport: '@metro-labs/whatsapp/train',
+  },
 };
 
 function accountFilePath(station: StationName): string {

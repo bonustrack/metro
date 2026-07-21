@@ -184,8 +184,9 @@ Per-station `config` jsonb (connection secrets + optional `owner`):
 | `telegram` | `{ token }`; optional `owner` |
 | `telegram-user` | `{ session, apiId, apiHash }`; optional `owner` |
 | `discord` | `{ token }`; optional `owner` |
+| `whatsapp` | `{ phone }` (E.164 digits); optional `owner`. Auth state is not in the DB — it lives as files on the `/data` volume (see below) |
 
-`account_id` is the station-local id (`x0`, `t0`, `d0`, `default`); lines are
+`account_id` is the station-local id (`x0`, `t0`, `d0`, `w0`, `default`); lines are
 account-scoped (`metro://telegram/<account>/<chat>`) so replies go back out the same
 identity. Inbound events are tagged with the owning agent (an `agent` field on the
 event), so a consumer can route by agent. Running several fully independent agents
