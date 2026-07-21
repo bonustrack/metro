@@ -16,10 +16,15 @@ is intentionally not advertised.
 
 ## Persistence
 
-Auth state (creds + Signal keys) is **not** stored in the DB — it mutates on every
-message. It lives as files under `${METRO_STATE_DIR}/whatsapp/<account>/`
-(`~/.cache/metro/whatsapp/<account>/`). On Fly `HOME=/data`, so this sits on the mounted
-volume and survives deploys, mirroring the XMTP db3. Losing the volume forces a re-pair.
+Auth state (creds + Signal keys) lives in **Postgres**, in the `whatsapp_auth` table
+(`account_id`, `category`, `item_id`, `value` jsonb). The train reads and write-throughs
+it via the `@metro-labs/mcp/db/whatsapp-auth` adapter (`src/auth-state.ts`,
+`usePostgresAuthState`) — `saveCreds` writes immediately, `keys.set` write-throughs each
+Baileys batch. The pairing survives deploys and volume loss; no `/data` files are needed.
+
+At boot, `materializeFromDb` runs a one-time import: if `whatsapp_auth` is empty for an
+account and a legacy `creds.json` exists under `${METRO_STATE_DIR}/whatsapp/<account>/`, it
+loads the creds into the DB (logged). After that the files are dead.
 
 ## Login (once, when the number is provisioned)
 
@@ -29,8 +34,9 @@ WHATSAPP_PHONE=447700900123 bun packages/whatsapp/scripts/login.ts       # pairi
 bun packages/whatsapp/scripts/login.ts --qr                              # QR
 ```
 
-Enter the code / scan the QR in WhatsApp → Settings → Linked Devices → Link a Device.
-The auth state is written to the account dir on the volume; the running train picks it up.
+`DATABASE_URL` must be set — the pairing is written straight to `whatsapp_auth`. Enter the
+code / scan the QR in WhatsApp → Settings → Linked Devices → Link a Device; the running
+train picks it up on its next connect.
 
 ## Constraints
 

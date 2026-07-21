@@ -1,11 +1,7 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
 import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestWaWebVersion,
-  useMultiFileAuthState,
   type WAMessageKey,
   type WASocket,
 } from '@whiskeysockets/baileys';
@@ -15,9 +11,7 @@ import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 import { toInbound, toReaction, type ReactionEvent } from './parse.js';
 import { silentLogger } from './logger.js';
-
-const STATE_DIR =
-  process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
+import { usePostgresAuthState } from './auth-state.js';
 
 export interface InboundHandlers {
   onMessage(m: InboundMessage): void;
@@ -45,12 +39,6 @@ interface State {
 
 type SendOpts = Parameters<WASocket['sendMessage']>[2];
 type SendContent = Parameters<WASocket['sendMessage']>[1];
-
-function authDir(accountId: string): string {
-  const dir = join(STATE_DIR, 'whatsapp', accountId);
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
 
 const key = (jid: string, id: string, fromMe: boolean): WAMessageKey => ({
   remoteJid: jid,
@@ -116,9 +104,7 @@ function bindConnection(st: State, sock: WASocket): void {
 }
 
 async function connect(st: State): Promise<void> {
-  const { state, saveCreds } = await useMultiFileAuthState(
-    authDir(st.account.id),
-  );
+  const { state, saveCreds } = await usePostgresAuthState(st.account.id);
   const { version, error } = await fetchLatestWaWebVersion({});
   if (error) {
     throw new TrainError(

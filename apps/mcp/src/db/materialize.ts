@@ -12,6 +12,7 @@ import {
   type AllowlistMap,
 } from './agent-map.js';
 import { accounts, agents, keys, type StationName } from './schema.js';
+import { importWhatsappCredsIfEmpty } from './whatsapp-auth-import.js';
 
 interface StationTarget {
   file: string;
@@ -145,6 +146,13 @@ function applyAgentKey(list: LoadedAgent[]): void {
   if (key) process.env.METRO_MCP_HTTP_TOKEN = key;
 }
 
+async function importWhatsappCreds(list: LoadedAgent[]): Promise<void> {
+  for (const agent of list)
+    for (const a of agent.accounts)
+      if (a.station === 'whatsapp')
+        await importWhatsappCredsIfEmpty(a.accountId);
+}
+
 export async function materializeFromDb(): Promise<void> {
   if (!databaseUrl())
     throw new Error('DATABASE_URL is not set — accounts load from Postgres');
@@ -154,6 +162,7 @@ export async function materializeFromDb(): Promise<void> {
     const active = writeStations(list);
     if (active.length === 0)
       throw new Error('no accounts found in the database');
+    await importWhatsappCreds(list);
     log.info({ stations: active }, 'db: materialized accounts from Postgres');
   } finally {
     await closeDb();
