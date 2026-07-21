@@ -15,6 +15,13 @@
       "when": 1784586227422,
       "tag": "0001_fat_pete_wisdom",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784675340478,
+      "tag": "0002_young_the_fury",
+      "breakpoints": true
     }
   ]
 }

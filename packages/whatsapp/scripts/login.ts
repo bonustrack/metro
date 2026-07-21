@@ -1,15 +1,12 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
 import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestWaWebVersion,
-  useMultiFileAuthState,
   type WASocket,
 } from '@whiskeysockets/baileys';
 import { errMsg } from '@metro-labs/mcp/log';
 import qrcode from 'qrcode-terminal';
+import { usePostgresAuthState } from '../src/auth-state.js';
 
 const out = (s: string): void => void process.stdout.write(s);
 
@@ -24,12 +21,14 @@ if (!useQr && !phone) {
   process.exit(1);
 }
 
-const stateDir =
-  process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
-const dir = join(stateDir, 'whatsapp', accountId);
-mkdirSync(dir, { recursive: true });
+if (!process.env.DATABASE_URL?.trim()) {
+  process.stderr.write(
+    'DATABASE_URL is not set — WhatsApp auth state is stored in Postgres\n',
+  );
+  process.exit(1);
+}
 
-const { state, saveCreds } = await useMultiFileAuthState(dir);
+const { state, saveCreds } = await usePostgresAuthState(accountId);
 
 const { version, error } = await fetchLatestWaWebVersion({});
 if (error) {
@@ -78,8 +77,8 @@ function start(): void {
       requestPairing(sock);
     }
     if (connection === 'open') {
-      out(`\nlogged in — auth state saved to ${dir}\n`);
-      out('on Fly this dir lives on the /data volume and persists across deploys.\n\n');
+      out(`\nlogged in — auth state saved to Postgres for account '${accountId}'\n`);
+      out('the pairing lives in the DB and survives deploys and volume loss.\n\n');
       setTimeout(() => process.exit(0), 1000);
       return;
     }
@@ -88,7 +87,9 @@ function start(): void {
         lastDisconnect?.error as { output?: { statusCode?: number } } | undefined
       )?.output?.statusCode;
       if (code === DisconnectReason.loggedOut) {
-        process.stderr.write('logged out — delete auth state and re-pair\n');
+        process.stderr.write(
+          'logged out — clear the whatsapp_auth rows for this account and re-pair\n',
+        );
         process.exit(1);
       }
       start();
