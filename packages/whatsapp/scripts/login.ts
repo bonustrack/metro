@@ -3,8 +3,12 @@ import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import makeWASocket, {
   Browsers,
+  DisconnectReason,
+  fetchLatestWaWebVersion,
   useMultiFileAuthState,
+  type WASocket,
 } from '@whiskeysockets/baileys';
+import { errMsg } from '@metro-labs/mcp/log';
 import qrcode from 'qrcode-terminal';
 
 const out = (s: string): void => void process.stdout.write(s);
@@ -27,41 +31,69 @@ mkdirSync(dir, { recursive: true });
 
 const { state, saveCreds } = await useMultiFileAuthState(dir);
 
-const sock = makeWASocket({
-  auth: state,
-  browser: Browsers.appropriate('Metro'),
-  markOnlineOnConnect: false,
-  syncFullHistory: false,
-});
-
-sock.ev.on('creds.update', () => void saveCreds());
+const { version, error } = await fetchLatestWaWebVersion({});
+if (error) {
+  process.stderr.write(
+    `failed to fetch WhatsApp web version: ${errMsg(error)}\n`,
+  );
+  process.exit(1);
+}
 
 let pairingRequested = false;
 
-sock.ev.on('connection.update', (update) => {
-  const { connection, qr } = update;
-  if (qr && useQr) {
-    out('\nscan this QR in WhatsApp → Settings → Linked Devices → Link a Device:\n\n');
-    qrcode.generate(qr, { small: true }, (art) => out(`${art}\n`));
-  }
-  if (qr && !useQr && !pairingRequested && !state.creds.registered) {
-    pairingRequested = true;
-    void sock
-      .requestPairingCode(phone)
-      .then((code) => {
-        out(`\npairing code for +${phone}: ${code}\n`);
-        out(
-          'enter it in WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number\n\n',
-        );
-      })
-      .catch((e: unknown) => {
-        process.stderr.write(`requestPairingCode failed: ${String(e)}\n`);
+function requestPairing(sock: WASocket): void {
+  pairingRequested = true;
+  void sock
+    .requestPairingCode(phone)
+    .then((code) => {
+      out(`\npairing code for +${phone}: ${code}\n`);
+      out(
+        'enter it in WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number\n\n',
+      );
+    })
+    .catch((e: unknown) => {
+      process.stderr.write(`requestPairingCode failed: ${String(e)}\n`);
+      process.exit(1);
+    });
+}
+
+function showQr(qr: string): void {
+  out('\nscan this QR in WhatsApp → Settings → Linked Devices → Link a Device:\n\n');
+  qrcode.generate(qr, { small: true }, (art) => out(`${art}\n`));
+}
+
+function start(): void {
+  const sock = makeWASocket({
+    version,
+    auth: state,
+    browser: Browsers.macOS('Safari'),
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
+  });
+  sock.ev.on('creds.update', () => void saveCreds());
+  sock.ev.on('connection.update', (update) => {
+    const { connection, qr, lastDisconnect } = update;
+    if (qr && useQr) showQr(qr);
+    if (qr && !useQr && !pairingRequested && !state.creds.registered) {
+      requestPairing(sock);
+    }
+    if (connection === 'open') {
+      out(`\nlogged in — auth state saved to ${dir}\n`);
+      out('on Fly this dir lives on the /data volume and persists across deploys.\n\n');
+      setTimeout(() => process.exit(0), 1000);
+      return;
+    }
+    if (connection === 'close') {
+      const code = (
+        lastDisconnect?.error as { output?: { statusCode?: number } } | undefined
+      )?.output?.statusCode;
+      if (code === DisconnectReason.loggedOut) {
+        process.stderr.write('logged out — delete auth state and re-pair\n');
         process.exit(1);
-      });
-  }
-  if (connection === 'open') {
-    out(`\nlogged in — auth state saved to ${dir}\n`);
-    out('on Fly this dir lives on the /data volume and persists across deploys.\n\n');
-    setTimeout(() => process.exit(0), 1000);
-  }
-});
+      }
+      start();
+    }
+  });
+}
+
+start();

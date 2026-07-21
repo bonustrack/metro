@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  fetchLatestWaWebVersion,
   useMultiFileAuthState,
   type WAMessageKey,
   type WASocket,
@@ -118,9 +119,17 @@ async function connect(st: State): Promise<void> {
   const { state, saveCreds } = await useMultiFileAuthState(
     authDir(st.account.id),
   );
+  const { version, error } = await fetchLatestWaWebVersion({});
+  if (error) {
+    throw new TrainError(
+      'whatsapp_connect',
+      `failed to fetch WhatsApp web version: ${errMsg(error)}`,
+    );
+  }
   const sock = makeWASocket({
+    version,
     auth: state,
-    browser: Browsers.appropriate('Metro'),
+    browser: Browsers.macOS('Safari'),
     markOnlineOnConnect: false,
     syncFullHistory: false,
     logger: silentLogger(),
