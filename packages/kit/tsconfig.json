@@ -1,0 +1,8 @@
+{
+  "extends": "@stage-labs/config/tsconfig/base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": []
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

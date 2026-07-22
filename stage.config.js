@@ -8,6 +8,17 @@ export default defineConfig({
     ignore: ['stage.config.js'],
   },
   workspaces: {
+    'apps/ui': {
+      type: 'library',
+      knip: {
+        entry: ['index.html'],
+        project: ['src/**/*.{ts,tsx}'],
+      },
+    },
+    'packages/kit': {
+      type: 'library',
+      knip: { project: ['src/**/*.{ts,tsx}'] },
+    },
     'apps/mcp': {
       type: 'library',
       knip: {
