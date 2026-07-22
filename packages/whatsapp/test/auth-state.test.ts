@@ -1,15 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
-
-let stored: unknown = null;
-const writes: unknown[] = [];
-
-mock.module('@metro-labs/mcp/db/whatsapp-creds', () => ({
-  readWhatsappCredentials: () => Promise.resolve(stored),
-  writeWhatsappCredentials: (_a: string, credentials: unknown) => {
-    writes.push(credentials);
-    return Promise.resolve();
-  },
-}));
+import { describe, expect, test } from 'bun:test';
 
 const { inMemoryAuthState, useAccountAuthState } = await import(
   '../src/auth-state.ts'
@@ -74,31 +63,27 @@ describe('inMemoryAuthState', () => {
 });
 
 describe('useAccountAuthState', () => {
-  beforeEach(() => {
-    stored = null;
-    writes.length = 0;
+  test('throws loudly when no credentials are provided', () => {
+    expect(() => useAccountAuthState(null, 'w0')).toThrow(/no WhatsApp/);
+    expect(() => useAccountAuthState(undefined, 'w0')).toThrow(/no WhatsApp/);
   });
 
-  test('throws loudly when no credentials are stored', async () => {
-    stored = null;
-    await expect(useAccountAuthState('w0')).rejects.toThrow(/no WhatsApp/);
-  });
-
-  test('loads creds from the stored accounts blob at boot', async () => {
+  test('loads creds from the config.credentials blob', () => {
     const seed = inMemoryAuthState();
-    stored = seed.serialize();
-    const { state } = await useAccountAuthState('w0');
+    const { state } = useAccountAuthState(seed.serialize(), 'w0');
     expect(Buffer.from(state.creds.noiseKey.private)).toEqual(
       Buffer.from(seed.state.creds.noiseKey.private),
     );
   });
 
-  test('saveCreds and keys.set never write the accounts table', async () => {
-    stored = inMemoryAuthState().serialize();
-    const { state, saveCreds } = await useAccountAuthState('w0');
+  test('saveCreds and keys.set stay in-memory no-ops', async () => {
+    const { state, saveCreds } = useAccountAuthState(
+      inMemoryAuthState().serialize(),
+      'w0',
+    );
     await saveCreds();
     await state.keys.set({ session: { 'a@x': new Uint8Array([1]) } });
-    await saveCreds();
-    expect(writes.length).toBe(0);
+    const got = await state.keys.get('session', ['a@x']);
+    expect(Buffer.from(got['a@x'])).toEqual(Buffer.from(new Uint8Array([1])));
   });
 });

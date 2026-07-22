@@ -32,7 +32,7 @@
     "./stations/account-store": "./src/stations/account-store.ts",
     "./stations/attachments": "./src/stations/attachments.ts",
     "./stations/messaging-normalize": "./src/stations/messaging-normalize.ts",
-    "./db/whatsapp-creds": "./src/db/whatsapp-creds.ts"
+    "./db/whatsapp-login": "./src/db/whatsapp-login.ts"
   },
   "scripts": {
     "start": "bun src/server.ts",
