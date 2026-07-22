@@ -8,7 +8,9 @@ import type { BoundedEventStore } from './event-store.js';
 
 const STANDALONE_STREAM_ID = '_GET_stream';
 const KEEPALIVE_MS = 15_000;
+const RECONNECT_RETRY_MS = 15_000;
 const COMMENT = ':\n\n';
+const RETRY_DIRECTIVE = `retry: ${RECONNECT_RETRY_MS}\n\n`;
 
 interface StreamEntry {
   controller: { enqueue: (chunk: Uint8Array) => void };
@@ -103,6 +105,7 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
     ...(sessionId ? { 'mcp-session-id': sessionId } : {}),
   });
   res.flushHeaders?.();
+  res.write(RETRY_DIRECTIVE);
   res.write(COMMENT);
 
   let active = transport;
