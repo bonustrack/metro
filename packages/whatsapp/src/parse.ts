@@ -16,6 +16,34 @@ export function tsToDate(ts: Timestamp): Date {
 
 type Content = proto.IMessage | null | undefined;
 
+const UNWRAPPERS: ((m: proto.IMessage) => Content)[] = [
+  (m) => m.ephemeralMessage?.message,
+  (m) => m.viewOnceMessage?.message,
+  (m) => m.viewOnceMessageV2?.message,
+  (m) => m.viewOnceMessageV2Extension?.message,
+  (m) => m.deviceSentMessage?.message,
+  (m) => m.documentWithCaptionMessage?.message,
+  (m) => m.editedMessage?.message,
+];
+
+function unwrapOnce(m: proto.IMessage): Content {
+  for (const pick of UNWRAPPERS) {
+    const inner = pick(m);
+    if (inner) return inner;
+  }
+  return undefined;
+}
+
+export function unwrap(message: Content): proto.IMessage | undefined {
+  let current: Content = message;
+  for (let depth = 0; current && depth < 8; depth += 1) {
+    const inner = unwrapOnce(current);
+    if (!inner) return current;
+    current = inner;
+  }
+  return current ?? undefined;
+}
+
 function captionOf(message: proto.IMessage): string {
   const caption =
     message.imageMessage?.caption ??
@@ -25,11 +53,12 @@ function captionOf(message: proto.IMessage): string {
 }
 
 export function extractText(message: Content): string {
-  if (!message) return '';
-  if (typeof message.conversation === 'string') return message.conversation;
-  const ext = message.extendedTextMessage?.text;
+  const inner = unwrap(message);
+  if (!inner) return '';
+  if (typeof inner.conversation === 'string') return inner.conversation;
+  const ext = inner.extendedTextMessage?.text;
   if (typeof ext === 'string') return ext;
-  return captionOf(message);
+  return captionOf(inner);
 }
 
 const MEDIA_TAGS: [keyof proto.IMessage, string][] = [
@@ -40,17 +69,17 @@ const MEDIA_TAGS: [keyof proto.IMessage, string][] = [
   ['stickerMessage', '[sticker]'],
 ];
 
-function mediaTag(message: Content): string | undefined {
+function mediaTag(message: proto.IMessage | undefined): string | undefined {
   if (!message) return undefined;
   for (const [key, tag] of MEDIA_TAGS) if (message[key]) return tag;
   return undefined;
 }
 
 export function hasMedia(message: Content): boolean {
-  return mediaTag(message) !== undefined;
+  return mediaTag(unwrap(message)) !== undefined;
 }
 
-function projectText(message: Content): string {
+function projectText(message: proto.IMessage | undefined): string {
   return [extractText(message), mediaTag(message)].filter(Boolean).join(' ');
 }
 
@@ -66,16 +95,21 @@ export function toInbound(
   const chatJid = m.key.remoteJid;
   const messageId = m.key.id;
   if (!chatJid || !messageId) return undefined;
+  const inner = unwrap(m.message);
+  if (!inner || inner.reactionMessage) return undefined;
+  const text = projectText(inner);
+  const media = mediaTag(inner) !== undefined;
+  if (!text && !media) return undefined;
   return {
     accountId,
     chatJid,
     senderJid: senderJidOf(m.key, chatJid),
     messageId,
-    text: projectText(m.message),
+    text,
     date: tsToDate(m.messageTimestamp),
     isPrivate: isPrivateJid(chatJid),
     ...(m.pushName ? { pushName: m.pushName } : {}),
-    hasMedia: hasMedia(m.message),
+    hasMedia: media,
   };
 }
 
