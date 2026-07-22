@@ -9,7 +9,6 @@ import {
   type SignalKeyStore,
 } from '@whiskeysockets/baileys';
 import { TrainError } from '@metro-labs/mcp/train-error';
-import { readWhatsappCredentials } from '@metro-labs/mcp/db/whatsapp-creds';
 
 type KeyTable = Record<string, Record<string, unknown>>;
 
@@ -91,16 +90,18 @@ export function inMemoryAuthState(raw?: unknown): {
   };
 }
 
-export async function useAccountAuthState(accountId: string): Promise<{
+export function useAccountAuthState(
+  credentials: unknown,
+  accountId: string,
+): {
   state: AuthenticationState;
   saveCreds: () => Promise<void>;
-}> {
-  const raw = await readWhatsappCredentials(accountId);
-  if (raw === null)
+} {
+  if (credentials === undefined || credentials === null)
     throw new TrainError(
       'whatsapp_auth',
       `no WhatsApp credentials in accounts for '${accountId}' — run scripts/login.ts to pair`,
     );
-  const { state } = inMemoryAuthState(raw);
+  const { state } = inMemoryAuthState(credentials);
   return { state, saveCreds: () => Promise.resolve() };
 }

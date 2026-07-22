@@ -5,7 +5,7 @@ import makeWASocket, {
   type WASocket,
 } from '@whiskeysockets/baileys';
 import { errMsg } from '@metro-labs/mcp/log';
-import { writeWhatsappCredentials } from '@metro-labs/mcp/db/whatsapp-creds';
+import { writeWhatsappCredentials } from '@metro-labs/mcp/db/whatsapp-login';
 import qrcode from 'qrcode-terminal';
 import { inMemoryAuthState } from '../src/auth-state.js';
 
@@ -24,7 +24,7 @@ if (!useQr && !phone) {
 
 if (!process.env.DATABASE_URL?.trim()) {
   process.stderr.write(
-    'DATABASE_URL is not set — WhatsApp credentials are stored in the accounts row\n',
+    'DATABASE_URL is not set — WhatsApp credentials are stored in the accounts row config\n',
   );
   process.exit(1);
 }
@@ -84,7 +84,7 @@ function start(): void {
       void persist()
         .then(() => {
           out(
-            `\nlogged in — credentials saved to accounts.credentials for account '${accountId}'\n`,
+            `\nlogged in — credentials saved to accounts config.credentials for account '${accountId}'\n`,
           );
           out('the pairing lives in the DB and survives deploys and volume loss.\n\n');
           setTimeout(() => process.exit(0), 1000);
@@ -101,7 +101,7 @@ function start(): void {
       )?.output?.statusCode;
       if (code === DisconnectReason.loggedOut) {
         process.stderr.write(
-          'logged out — clear accounts.credentials for this account and re-pair\n',
+          'logged out — clear accounts config.credentials for this account and re-pair\n',
         );
         process.exit(1);
       }

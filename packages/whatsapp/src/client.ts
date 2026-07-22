@@ -104,7 +104,10 @@ function bindConnection(st: State, sock: WASocket): void {
 }
 
 async function connect(st: State): Promise<void> {
-  const { state, saveCreds } = await useAccountAuthState(st.account.id);
+  const { state, saveCreds } = useAccountAuthState(
+    st.account.credentials,
+    st.account.id,
+  );
   const { version, error } = await fetchLatestWaWebVersion({});
   if (error) {
     throw new TrainError(

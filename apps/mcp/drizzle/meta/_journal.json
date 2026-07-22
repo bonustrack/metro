@@ -36,6 +36,13 @@
       "when": 1784712209549,
       "tag": "0004_free_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784718581503,
+      "tag": "0005_wa_creds_into_config",
+      "breakpoints": true
     }
   ]
 }

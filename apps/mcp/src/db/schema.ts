@@ -30,7 +30,6 @@ export const accounts = pgTable(
     accountId: text('account_id').notNull(),
     allowlist: text('allowlist').array().default(['*']),
     config: jsonb('config').notNull(),
-    credentials: jsonb('credentials'),
   },
   (t) => [primaryKey({ columns: [t.station, t.accountId] })],
 );
