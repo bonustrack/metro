@@ -108,6 +108,56 @@ describe('telegram-user outbound handlers', () => {
     expect(calls[1]?.args[2]).toEqual({ replyTo: 42 });
   });
 
+  test('send to a forum-topic line routes into the topic via replyTo', async () => {
+    const client = fakeClient(calls);
+    const handle = makeHandleCall(() => client);
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 't',
+      action: 'send',
+      args: { line: 'metro://telegram-user/default/-1004345680824/2', text: 'hi topic' },
+    });
+    cap.restore();
+    expect(calls[1]?.method).toBe('sendText');
+    expect(calls[1]?.args[1]).toBe('hi topic');
+    expect(calls[1]?.args[2]).toEqual({ replyTo: 2 });
+  });
+
+  test('explicit replyTo wins over the topic id from the line', async () => {
+    const client = fakeClient(calls);
+    const handle = makeHandleCall(() => client);
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 't2',
+      action: 'reply',
+      args: { line: 'metro://telegram-user/default/-1004345680824/2', text: 'yo', replyTo: '55' },
+    });
+    cap.restore();
+    expect(calls[1]?.method).toBe('sendText');
+    expect(calls[1]?.args[2]).toEqual({ replyTo: 55 });
+  });
+
+  test('attachment send to a topic line passes the topic as replyTo', async () => {
+    const client = fakeClient(calls);
+    const handle = makeHandleCall(() => client);
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 't3',
+      action: 'send',
+      args: {
+        line: 'metro://telegram-user/default/-1004345680824/2',
+        text: 'cap',
+        attachments: [{ url: '/cache/a.jpg', mime: 'image/jpeg', name: 'a.jpg' }],
+      },
+    });
+    cap.restore();
+    const media = calls.find((c) => c.method === 'sendMedia');
+    expect(media?.args[2]).toEqual({ replyTo: 2 });
+  });
+
   test('react shapes chatId/message/emoji', async () => {
     const client = fakeClient(calls);
     const handle = makeHandleCall(() => client);
