@@ -28,6 +28,7 @@ interface Resolved {
   accountId: string;
   client: UserClient;
   chatId: number;
+  topicId?: number;
 }
 
 type ClientFor = (accountId: string) => UserClient;
@@ -47,7 +48,12 @@ function resolve(args: Args, clientFor: ClientFor): Resolved {
   const target = targetOf(line);
   if (!target) throw new TrainError('bad_request', `bad line '${line}'`);
   const accountId = accountFor({ account: str(args.account), line });
-  return { accountId, client: clientFor(accountId), chatId: target.chatId };
+  return {
+    accountId,
+    client: clientFor(accountId),
+    chatId: target.chatId,
+    ...(target.topicId !== undefined ? { topicId: target.topicId } : {}),
+  };
 }
 
 async function guard<T>(run: () => Promise<T>): Promise<T> {
@@ -68,10 +74,11 @@ function attachmentsOf(args: Args): CanonicalAttachment[] {
 
 function makeSend(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
-    const { accountId, client, chatId } = resolve(args, clientFor);
+    const { accountId, client, chatId, topicId } = resolve(args, clientFor);
     const text = str(args.text) ?? '';
     const replyTo = str(args.replyTo);
-    const replyParam = replyTo ? Number(replyTo) : undefined;
+    const explicitReplyTo = replyTo ? Number(replyTo) : undefined;
+    const replyParam = explicitReplyTo ?? topicId;
     const attachments = attachmentsOf(args);
     if (attachments.length) {
       const sent = await guard(() =>
