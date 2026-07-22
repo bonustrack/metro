@@ -5,8 +5,9 @@ import makeWASocket, {
   type WASocket,
 } from '@whiskeysockets/baileys';
 import { errMsg } from '@metro-labs/mcp/log';
+import { writeWhatsappCredentials } from '@metro-labs/mcp/db/whatsapp-creds';
 import qrcode from 'qrcode-terminal';
-import { usePostgresAuthState } from '../src/auth-state.js';
+import { inMemoryAuthState } from '../src/auth-state.js';
 
 const out = (s: string): void => void process.stdout.write(s);
 
@@ -23,12 +24,12 @@ if (!useQr && !phone) {
 
 if (!process.env.DATABASE_URL?.trim()) {
   process.stderr.write(
-    'DATABASE_URL is not set — WhatsApp auth state is stored in Postgres\n',
+    'DATABASE_URL is not set — WhatsApp credentials are stored in the accounts row\n',
   );
   process.exit(1);
 }
 
-const { state, saveCreds } = await usePostgresAuthState(accountId);
+const { state, serialize } = inMemoryAuthState();
 
 const { version, error } = await fetchLatestWaWebVersion({});
 if (error) {
@@ -61,6 +62,10 @@ function showQr(qr: string): void {
   qrcode.generate(qr, { small: true }, (art) => out(`${art}\n`));
 }
 
+async function persist(): Promise<void> {
+  await writeWhatsappCredentials(accountId, serialize());
+}
+
 function start(): void {
   const sock = makeWASocket({
     version,
@@ -69,7 +74,6 @@ function start(): void {
     markOnlineOnConnect: false,
     syncFullHistory: false,
   });
-  sock.ev.on('creds.update', () => void saveCreds());
   sock.ev.on('connection.update', (update) => {
     const { connection, qr, lastDisconnect } = update;
     if (qr && useQr) showQr(qr);
@@ -77,9 +81,18 @@ function start(): void {
       requestPairing(sock);
     }
     if (connection === 'open') {
-      out(`\nlogged in — auth state saved to Postgres for account '${accountId}'\n`);
-      out('the pairing lives in the DB and survives deploys and volume loss.\n\n');
-      setTimeout(() => process.exit(0), 1000);
+      void persist()
+        .then(() => {
+          out(
+            `\nlogged in — credentials saved to accounts.credentials for account '${accountId}'\n`,
+          );
+          out('the pairing lives in the DB and survives deploys and volume loss.\n\n');
+          setTimeout(() => process.exit(0), 1000);
+        })
+        .catch((e: unknown) => {
+          process.stderr.write(`failed to save credentials: ${errMsg(e)}\n`);
+          process.exit(1);
+        });
       return;
     }
     if (connection === 'close') {
@@ -88,7 +101,7 @@ function start(): void {
       )?.output?.statusCode;
       if (code === DisconnectReason.loggedOut) {
         process.stderr.write(
-          'logged out — clear the whatsapp_auth rows for this account and re-pair\n',
+          'logged out — clear accounts.credentials for this account and re-pair\n',
         );
         process.exit(1);
       }

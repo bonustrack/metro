@@ -16,15 +16,17 @@ is intentionally not advertised.
 
 ## Persistence
 
-Auth state (creds + Signal keys) lives in **Postgres**, in the `whatsapp_auth` table
-(`account_id`, `category`, `item_id`, `value` jsonb). The train reads and write-throughs
-it via the `@metro-labs/mcp/db/whatsapp-auth` adapter (`src/auth-state.ts`,
-`usePostgresAuthState`) — `saveCreds` writes immediately, `keys.set` write-throughs each
-Baileys batch. The pairing survives deploys and volume loss; no `/data` files are needed.
+The Baileys auth blob (`{ creds }`) lives in **Postgres**, in the `credentials` jsonb
+column of the account's `accounts` row. The running train is **read-only** here: at boot
+it loads `accounts.credentials` for the account via the
+`@metro-labs/mcp/db/whatsapp-creds` adapter (`src/auth-state.ts`, `useAccountAuthState`),
+holds creds + Signal keys **in memory** for the session, and never writes back —
+`saveCreds` and `keys.set` are in-memory only. Signal sessions re-establish on demand, so
+no per-key writeback is needed; the pairing survives deploys and volume loss with no
+`/data` files. If `accounts.credentials` is missing at boot the train fails loud (no
+fallback) — run the login script to pair.
 
-At boot, `materializeFromDb` runs a one-time import: if `whatsapp_auth` is empty for an
-account and a legacy `creds.json` exists under `${METRO_STATE_DIR}/whatsapp/<account>/`, it
-loads the creds into the DB (logged). After that the files are dead.
+Only the login script (a manual admin action) ever writes `accounts.credentials`.
 
 ## Login (once, when the number is provisioned)
 
@@ -34,9 +36,10 @@ WHATSAPP_PHONE=447700900123 bun packages/whatsapp/scripts/login.ts       # pairi
 bun packages/whatsapp/scripts/login.ts --qr                              # QR
 ```
 
-`DATABASE_URL` must be set — the pairing is written straight to `whatsapp_auth`. Enter the
-code / scan the QR in WhatsApp → Settings → Linked Devices → Link a Device; the running
-train picks it up on its next connect.
+`DATABASE_URL` must be set — the pairing is written straight to `accounts.credentials` for
+the account (`WHATSAPP_ACCOUNT`, default `w0`), which must already exist. Enter the code /
+scan the QR in WhatsApp → Settings → Linked Devices → Link a Device; restart the daemon to
+pick up the new creds.
 
 ## Constraints
 
