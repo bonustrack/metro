@@ -1,5 +1,10 @@
 import { type ReactNode, useState } from 'react';
-import { Button, Card, Col, Input, Row, Text } from '@metro-labs/kit';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Card } from '@stage-labs/kit/react-native/card';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 
 interface LoginProps {
   onSubmit: (apiKey: string) => void;
@@ -9,40 +14,39 @@ interface LoginProps {
 
 export function Login({ onSubmit, busy, error }: LoginProps): ReactNode {
   const [apiKey, setApiKey] = useState('');
+  const dark = useKitScheme() === 'dark';
+  const trimmed = apiKey.trim();
   const submit = (): void => {
-    const trimmed = apiKey.trim();
     if (trimmed.length > 0 && !busy) onSubmit(trimmed);
   };
   return (
     <Row justify="center" align="center" style={{ minHeight: '100%', padding: 24 }}>
-      <Card padding={28} style={{ width: '100%', maxWidth: 420 }}>
-        <form
-          onSubmit={(e) => { e.preventDefault(); submit(); }}
-        >
-          <Col gap={18}>
-            <Col gap={6}>
-              <Text as="p" size="5xl" weight="semibold" role="head">Metro</Text>
-              <Text as="p" role="sub">Enter your API key to view its accounts.</Text>
-            </Col>
-            <Col gap={8}>
-              <Text as="p" size="sm" role="sub">API key</Text>
-              <Input
-                value={apiKey}
-                onChange={setApiKey}
-                type="password"
-                placeholder="metro API key"
-                ariaLabel="Metro API key"
-                autoFocus
-              />
-            </Col>
-            {error !== null && (
-              <Text as="p" size="sm" role="danger">{error}</Text>
-            )}
-            <Button type="submit" variant="primary" disabled={busy || apiKey.trim().length === 0}>
-              {busy ? 'Unlocking…' : 'Unlock'}
-            </Button>
+      <Card dark={dark} padding={28} style={{ width: '100%', maxWidth: 420 }}>
+        <Col gap={18}>
+          <Col gap={6}>
+            <Text size="5xl" weight="semibold">Metro</Text>
+            <Text role="secondary">Enter your API key to view its accounts.</Text>
           </Col>
-        </form>
+          <Col gap={8}>
+            <Text size="sm" role="secondary">API key</Text>
+            <Input
+              value={apiKey}
+              onChangeText={setApiKey}
+              onSubmit={submit}
+              inputType="password"
+              placeholder="metro API key"
+              autoFocus
+            />
+          </Col>
+          {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+          <Button
+            color="primary"
+            onPress={submit}
+            disabled={busy || trimmed.length === 0}
+            loading={busy}
+            label="Unlock"
+          />
+        </Col>
       </Card>
     </Row>
   );

@@ -13,11 +13,8 @@ export default defineConfig({
       knip: {
         entry: ['index.html'],
         project: ['src/**/*.{ts,tsx}'],
+        ignoreDependencies: ['react-native-web'],
       },
-    },
-    'packages/kit': {
-      type: 'library',
-      knip: { project: ['src/**/*.{ts,tsx}'] },
     },
     'apps/mcp': {
       type: 'library',

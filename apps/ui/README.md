@@ -47,4 +47,4 @@ Serve `dist/` **same-origin with the daemon** (reverse proxy `/` to the static b
 
 ## Design
 
-Styling comes from `@metro-labs/kit`, a small plain-React-DOM component set (Button, Input, Card, Text, Badge, Row/Col) built on colour/typography tokens vendored from the Stage design system (`@stage-labs/kit` is private and React-Native-only, so the tokens are vendored rather than imported).
+Styling comes from `@stage-labs/kit`, the Stage design system's React Native component family (Box/Row/Col, Text, Button, Input, Card), rendered on the web via `react-native-web`. Vite aliases `react-native` to `react-native-web` and resolves `.web.tsx` first; the app uses the kit's real RN primitives (`View`/`Text`/`TextInput`/`Pressable`) rather than raw DOM.
