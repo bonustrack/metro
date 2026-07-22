@@ -11,7 +11,7 @@ import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 import { toInbound, toReaction, type ReactionEvent } from './parse.js';
 import { silentLogger } from './logger.js';
-import { usePostgresAuthState } from './auth-state.js';
+import { useAccountAuthState } from './auth-state.js';
 
 export interface InboundHandlers {
   onMessage(m: InboundMessage): void;
@@ -104,7 +104,7 @@ function bindConnection(st: State, sock: WASocket): void {
 }
 
 async function connect(st: State): Promise<void> {
-  const { state, saveCreds } = await usePostgresAuthState(st.account.id);
+  const { state, saveCreds } = await useAccountAuthState(st.account.id);
   const { version, error } = await fetchLatestWaWebVersion({});
   if (error) {
     throw new TrainError(

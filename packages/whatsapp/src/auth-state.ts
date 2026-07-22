@@ -8,16 +8,15 @@ import {
   type SignalDataTypeMap,
   type SignalKeyStore,
 } from '@whiskeysockets/baileys';
-import {
-  deleteWhatsappAuth,
-  readWhatsappAuth,
-  writeWhatsappAuth,
-  type WhatsappAuthRef,
-  type WhatsappAuthRow,
-} from '@metro-labs/mcp/db/whatsapp-auth';
+import { TrainError } from '@metro-labs/mcp/train-error';
+import { readWhatsappCredentials } from '@metro-labs/mcp/db/whatsapp-creds';
 
-const CREDS_CATEGORY = 'creds';
-const CREDS_ITEM = '';
+type KeyTable = Record<string, Record<string, unknown>>;
+
+interface AuthBlob {
+  creds: AuthenticationCreds;
+  keys: KeyTable;
+}
 
 function encode(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value, BufferJSON.replacer));
@@ -27,65 +26,81 @@ function decode(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value), BufferJSON.reviver);
 }
 
-async function getKeys<T extends keyof SignalDataTypeMap>(
-  accountId: string,
-  type: T,
-  ids: string[],
-): Promise<Record<string, SignalDataTypeMap[T]>> {
-  const stored = await readWhatsappAuth(accountId, type, ids);
-  const data: Record<string, SignalDataTypeMap[T]> = {};
-  for (const id of ids) {
-    const raw = stored.get(id);
-    if (raw === undefined || raw === null) continue;
-    const revived = decode(raw);
-    data[id] = (
-      type === 'app-state-sync-key'
-        ? proto.Message.AppStateSyncKeyData.fromObject(
-            revived as Record<string, unknown>,
-          )
-        : revived
-    ) as SignalDataTypeMap[T];
-  }
-  return data;
+function loadBlob(raw: unknown): AuthBlob {
+  const obj = raw as { creds?: unknown; keys?: KeyTable } | null;
+  const creds = obj?.creds;
+  if (creds === undefined || creds === null)
+    throw new TrainError(
+      'whatsapp_auth',
+      'stored credentials blob has no creds',
+    );
+  return {
+    creds: decode(creds) as AuthenticationCreds,
+    keys: obj?.keys ?? {},
+  };
 }
 
-async function setKeys(accountId: string, data: SignalDataSet): Promise<void> {
-  const writes: WhatsappAuthRow[] = [];
-  const deletes: WhatsappAuthRef[] = [];
-  for (const category of Object.keys(data) as (keyof SignalDataSet)[]) {
-    const items = data[category];
-    if (!items) continue;
-    for (const id of Object.keys(items)) {
-      const value = items[id];
-      if (value) writes.push({ category, itemId: id, value: encode(value) });
-      else deletes.push({ category, itemId: id });
-    }
-  }
-  await writeWhatsappAuth(accountId, writes);
-  await deleteWhatsappAuth(accountId, deletes);
+function makeKeyStore(table: KeyTable): SignalKeyStore {
+  return {
+    get: <T extends keyof SignalDataTypeMap>(type: T, ids: string[]) => {
+      const bucket = table[type] ?? {};
+      const data: Record<string, SignalDataTypeMap[T]> = {};
+      for (const id of ids) {
+        const raw = bucket[id];
+        if (raw === undefined || raw === null) continue;
+        const revived = decode(raw);
+        data[id] = (
+          type === 'app-state-sync-key'
+            ? proto.Message.AppStateSyncKeyData.fromObject(
+                revived as Record<string, unknown>,
+              )
+            : revived
+        ) as SignalDataTypeMap[T];
+      }
+      return data;
+    },
+    set: (data: SignalDataSet) => {
+      for (const category of Object.keys(data) as (keyof SignalDataSet)[]) {
+        const items = data[category];
+        if (!items) continue;
+        const bucket = (table[category] ??= {});
+        for (const id of Object.keys(items)) {
+          const value = items[id];
+          bucket[id] = value ? encode(value) : undefined;
+        }
+      }
+    },
+  };
 }
 
-async function loadCreds(accountId: string): Promise<AuthenticationCreds> {
-  const stored = (
-    await readWhatsappAuth(accountId, CREDS_CATEGORY, [CREDS_ITEM])
-  ).get(CREDS_ITEM);
-  if (stored === undefined || stored === null) return initAuthCreds();
-  return decode(stored) as AuthenticationCreds;
+export function inMemoryAuthState(raw?: unknown): {
+  state: AuthenticationState;
+  serialize: () => unknown;
+} {
+  const blob: AuthBlob =
+    raw === undefined || raw === null
+      ? { creds: initAuthCreds(), keys: {} }
+      : loadBlob(raw);
+  const state: AuthenticationState = {
+    creds: blob.creds,
+    keys: makeKeyStore(blob.keys),
+  };
+  return {
+    state,
+    serialize: () => ({ creds: encode(blob.creds), keys: blob.keys }),
+  };
 }
 
-export async function usePostgresAuthState(accountId: string): Promise<{
+export async function useAccountAuthState(accountId: string): Promise<{
   state: AuthenticationState;
   saveCreds: () => Promise<void>;
 }> {
-  const creds = await loadCreds(accountId);
-  const keys: SignalKeyStore = {
-    get: (type, ids) => getKeys(accountId, type, ids),
-    set: (data) => setKeys(accountId, data),
-  };
-  const saveCreds = async (): Promise<void> => {
-    await writeWhatsappAuth(accountId, [
-      { category: CREDS_CATEGORY, itemId: CREDS_ITEM, value: encode(creds) },
-    ]);
-  };
-  return { state: { creds, keys }, saveCreds };
+  const raw = await readWhatsappCredentials(accountId);
+  if (raw === null)
+    throw new TrainError(
+      'whatsapp_auth',
+      `no WhatsApp credentials in accounts for '${accountId}' — run scripts/login.ts to pair`,
+    );
+  const { state } = inMemoryAuthState(raw);
+  return { state, saveCreds: () => Promise.resolve() };
 }
