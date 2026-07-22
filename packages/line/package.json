@@ -1,0 +1,25 @@
+{
+  "name": "@metro-labs/line",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/station.ts",
+    "./train": "./src/index.ts",
+    "./webhook": "./src/webhook.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc --noEmit && bun test test/"
+  },
+  "dependencies": {
+    "@metro-labs/mcp": "workspace:*"
+  },
+  "devDependencies": {
+    "@stage-labs/config": "0.1.0-beta.2",
+    "eslint": "^10.3.0",
+    "knip": "^6.15.0",
+    "madge": "^8.0.0",
+    "typescript": "^5"
+  }
+}

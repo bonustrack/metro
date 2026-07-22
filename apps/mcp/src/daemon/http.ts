@@ -19,6 +19,7 @@ import { agentForLine } from '../db/agent-map.js';
 import { findEndpoint, listEndpoints, webhookPort } from './tunnel.js';
 import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
+import { handleLineWebhook, isLineWebhookPath } from './line-webhook.js';
 import {
   handleMonitorRequest,
   type MonitorCall,
@@ -300,6 +301,10 @@ async function handleRequest(
 ): Promise<void> {
   if (handleHealth(req, res)) return;
   if (handleAttachRequest(req, res)) return;
+  if (isLineWebhookPath(req)) {
+    await handleLineWebhook(req, res, emit);
+    return;
+  }
   if (monitorCall && handleMonitorRequest(req, res, monitorCall)) return;
   if (mcp && isMcpPath(req)) {
     await mcp(req, res);
