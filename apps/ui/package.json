@@ -1,0 +1,29 @@
+{
+  "name": "@metro-labs/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Metro accounts UI: an MCP-client web app that unlocks with a Metro API key and lists that key's configured accounts. Built with the Stage design system (@stage-labs/kit) rendered on the web via react-native-web.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@stage-labs/kit": "0.1.0-beta.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@stage-labs/config": "0.1.0-beta.2",
+    "@types/react": "~19.1.0",
+    "@types/react-dom": "~19.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "react-native": "0.81.5",
+    "vite": "^6.0.7"
+  }
+}

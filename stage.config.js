@@ -8,6 +8,14 @@ export default defineConfig({
     ignore: ['stage.config.js'],
   },
   workspaces: {
+    'apps/ui': {
+      type: 'library',
+      knip: {
+        entry: ['index.html'],
+        project: ['src/**/*.{ts,tsx}'],
+        ignoreDependencies: ['react-native-web'],
+      },
+    },
     'apps/mcp': {
       type: 'library',
       knip: {
