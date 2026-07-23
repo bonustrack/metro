@@ -61,6 +61,11 @@ const STATION_TARGETS: Record<StationName, StationTarget> = {
     fileEnv: 'WHATSAPP_ACCOUNTS_FILE',
     trainImport: '@metro-labs/whatsapp/train',
   },
+  line: {
+    file: 'line-accounts.json',
+    fileEnv: 'LINE_ACCOUNTS_FILE',
+    trainImport: '@metro-labs/line/train',
+  },
 };
 
 function accountFilePath(station: StationName): string {
