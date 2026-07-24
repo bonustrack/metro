@@ -4,8 +4,12 @@ import { type AccountGroup, parseListAccounts } from './accounts';
 
 export class AuthError extends Error {}
 
+const DEFAULT_MCP_URL = 'https://mcp.metro.box';
+
 function endpoint(apiKey: string): URL {
-  const base = import.meta.env.VITE_METRO_MCP_URL ?? '/mcp';
+  const configured = import.meta.env.VITE_METRO_MCP_URL?.trim();
+  const base =
+    configured !== undefined && configured !== '' ? configured : DEFAULT_MCP_URL;
   const url = new URL(base, window.location.origin);
   url.searchParams.set('token', apiKey);
   return url;
