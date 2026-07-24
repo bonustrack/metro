@@ -16,6 +16,7 @@
     "@stage-labs/kit": "0.1.0-beta.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-native-svg": "15.15.5",
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
