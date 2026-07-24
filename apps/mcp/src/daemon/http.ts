@@ -24,6 +24,7 @@ import {
   handleMonitorRequest,
   type MonitorCall,
 } from '../monitor/api.js';
+import { applyMcpCors, handleMcpPreflight } from './cors.js';
 
 const LRU_CAP = 2_000;
 
@@ -307,6 +308,8 @@ async function handleRequest(
   }
   if (monitorCall && handleMonitorRequest(req, res, monitorCall)) return;
   if (mcp && isMcpPath(req)) {
+    applyMcpCors(req, res);
+    if (handleMcpPreflight(req, res)) return;
     await mcp(req, res);
     return;
   }
