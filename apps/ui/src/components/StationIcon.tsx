@@ -11,7 +11,7 @@ export interface StationIconProps {
 export function StationIcon({ station, size = 20, color }: StationIconProps): ReactElement {
   const glyph = stationGlyph(station);
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Svg width={size} height={size} viewBox={glyph.viewBox ?? '0 0 24 24'}>
       <Path d={glyph.d} fill={color} fillRule={glyph.evenOdd === true ? 'evenodd' : 'nonzero'} />
     </Svg>
   );
