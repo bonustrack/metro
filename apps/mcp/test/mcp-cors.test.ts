@@ -58,15 +58,20 @@ describe('MCP CORS (browser cross-origin from the accounts UI)', () => {
     await res.text();
   });
 
-  test('a disallowed origin gets no CORS header', async () => {
+  test('an arbitrary foreign origin is reflected', async () => {
+    const origin = 'https://deploy-preview-107--metro-ui.netlify.app';
     const res = await fetch(`${base}/`, {
       method: 'OPTIONS',
       headers: {
-        origin: 'https://evil.example',
+        origin,
         'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization,content-type',
       },
     });
-    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-origin')).toBe(origin);
+    const allow = res.headers.get('access-control-allow-headers') ?? '';
+    expect(allow.toLowerCase()).toContain('authorization');
     await res.text();
   });
 
@@ -82,6 +87,16 @@ describe('MCP CORS (browser cross-origin from the accounts UI)', () => {
     expect(res.headers.get('access-control-allow-origin')).toBe(
       'http://localhost:5175',
     );
+    await res.text();
+  });
+
+  test('a request with no Origin falls back to *', async () => {
+    const res = await fetch(`${base}/`, {
+      method: 'OPTIONS',
+      headers: { 'access-control-request-method': 'POST' },
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
     await res.text();
   });
 });

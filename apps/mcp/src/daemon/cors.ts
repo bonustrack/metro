@@ -1,24 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-const ALLOWED_ORIGINS = new Set(['https://metro.box']);
-
-const isDevOrigin = (origin: string): boolean =>
-  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-
-const allowedOrigin = (req: IncomingMessage): string | undefined => {
-  const origin = req.headers.origin;
-  if (origin === undefined || origin === '') return undefined;
-  if (ALLOWED_ORIGINS.has(origin) || isDevOrigin(origin)) return origin;
-  return undefined;
-};
-
 export function applyMcpCors(
   req: IncomingMessage,
   res: ServerResponse,
 ): void {
-  const origin = allowedOrigin(req);
-  if (!origin) return;
-  res.setHeader('Access-Control-Allow-Origin', origin);
+  const origin = req.headers.origin;
+  res.setHeader(
+    'Access-Control-Allow-Origin',
+    origin !== undefined && origin !== '' ? origin : '*',
+  );
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader(
