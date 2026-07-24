@@ -5,6 +5,7 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { type AccountGroup, type AccountRow } from '../mcp/accounts';
+import { StationIcon } from './StationIcon';
 
 interface AccountListProps {
   groups: AccountGroup[];
@@ -44,9 +45,11 @@ function AccountCard({ row, dark }: { row: AccountRow; dark: boolean }): ReactNo
 }
 
 function Group({ group, dark }: { group: AccountGroup; dark: boolean }): ReactNode {
+  const palette = useKitPalette();
   return (
     <Col gap={10}>
       <Row gap={8} align="center">
+        <StationIcon station={group.station} color={palette.text} />
         <Text size="lg" weight="semibold">{group.station}</Text>
         <CountBadge n={group.rows.length} />
       </Row>
