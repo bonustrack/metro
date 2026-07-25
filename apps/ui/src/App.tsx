@@ -9,15 +9,17 @@ import { type AccountGroup } from './mcp/accounts';
 import {
   clearSession,
   consumeFragment,
+  sessionClaims,
   sessionIsFresh,
   storeSession,
   storedSession,
+  type SessionClaims,
 } from './auth/session';
 
 type State =
   | { phase: 'connecting'; token: string }
   | { phase: 'login'; error: string | null }
-  | { phase: 'unlocked'; groups: AccountGroup[] };
+  | { phase: 'unlocked'; claims: SessionClaims; groups: AccountGroup[] };
 
 function errorMessage(code: string): string {
   return code === 'unauthorized'
@@ -46,11 +48,17 @@ export function App(): ReactNode {
 
   const connect = (token: string): void => {
     const id = ++attempt.current;
+    const claims = sessionClaims(token);
+    if (claims === null) {
+      clearSession();
+      setState({ phase: 'login', error: 'Your session is invalid. Please sign in again.' });
+      return;
+    }
     void fetchAccounts(token)
       .then((groups) => {
         if (id !== attempt.current) return;
         storeSession(token);
-        setState({ phase: 'unlocked', groups });
+        setState({ phase: 'unlocked', claims, groups });
       })
       .catch((err: unknown) => {
         if (id !== attempt.current) return;
@@ -82,7 +90,7 @@ export function App(): ReactNode {
       ) : state.phase === 'login' ? (
         <Login error={state.error} />
       ) : (
-        <AccountList groups={state.groups} onLock={lock} />
+        <AccountList claims={state.claims} groups={state.groups} onLock={lock} />
       )}
     </Box>
   );
