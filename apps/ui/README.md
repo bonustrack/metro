@@ -8,11 +8,11 @@ A minimal web app that unlocks with a Metro API key and lists the accounts that 
 - On submit it opens an MCP session against `VITE_METRO_MCP_URL` (default `/mcp`, same-origin) using `@modelcontextprotocol/sdk`'s `StreamableHTTPClientTransport`, then calls `list_accounts`.
 - On success it renders the returned accounts grouped by station.
 - On a bad key the `/mcp` gate replies `401` during connect, and the app shows "Invalid API key" and stays on the login screen.
-- On a successful unlock the key is saved to `localStorage`, so a reload reconnects automatically (a "Connecting…" screen shows while it does) and skips the login gate. A stored key that fails auth is cleared and the login gate returns; the **Lock** button clears it on demand.
+- On a successful unlock the key is saved to `localStorage`, so a reload reconnects automatically (a centered loading spinner shows while it does, not the login form) and skips the login gate. A stored key that fails auth is cleared and the login form returns; the **Log out** button clears it on demand.
 
 ### Auth scheme
 
-Metro's `/mcp` gate authenticates with the key as a **query parameter**: `GET/POST /mcp?token=<API_KEY>` (see `apps/mcp/src/mcp/index.ts` `authorized()`). It does **not** read an `Authorization: Bearer` header on `/mcp`. The client therefore puts the key in the URL query string. The key is held in React state for the session and, on a successful unlock, persisted to `localStorage` (`metro.apiKey`) so the session survives a reload; a failed auth or the Lock button removes it.
+Metro's `/mcp` gate authenticates with the key as a **query parameter**: `GET/POST /mcp?token=<API_KEY>` (see `apps/mcp/src/mcp/index.ts` `authorized()`). It does **not** read an `Authorization: Bearer` header on `/mcp`. The client therefore puts the key in the URL query string. The key is held in React state for the session and, on a successful unlock, persisted to `localStorage` (`metro.apiKey`) so the session survives a reload; a failed auth or the Log out button removes it.
 
 ### Account scoping
 

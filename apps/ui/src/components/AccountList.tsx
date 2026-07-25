@@ -78,7 +78,7 @@ export function AccountList({ groups, onLock }: AccountListProps): ReactNode {
             {total} account{total === 1 ? '' : 's'} across {groups.length} station{groups.length === 1 ? '' : 's'}
           </Text>
         </Col>
-        <Button color="secondary" onPress={onLock} label="Lock" />
+        <Button color="secondary" onPress={onLock} label="Log out" />
       </Row>
       {groups.length === 0 ? (
         <Text role="secondary">No stations returned for this API key.</Text>

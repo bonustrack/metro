@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Box } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Login } from './components/Login';
-import { Connecting } from './components/Connecting';
+import { Loading } from './components/Loading';
 import { AccountList } from './components/AccountList';
 import { AuthError, fetchAccounts } from './mcp/client';
 import { type AccountGroup } from './mcp/accounts';
@@ -53,11 +53,6 @@ export function App(): ReactNode {
     connect(apiKey);
   };
 
-  const cancel = (): void => {
-    attempt.current += 1;
-    setState({ phase: 'login', busy: false, error: null });
-  };
-
   const lock = (): void => {
     attempt.current += 1;
     clearApiKey();
@@ -67,7 +62,7 @@ export function App(): ReactNode {
   return (
     <Box background={palette.bg} style={{ minHeight: '100%' }}>
       {state.phase === 'connecting' ? (
-        <Connecting apiKey={state.apiKey} onCancel={cancel} />
+        <Loading />
       ) : state.phase === 'login' ? (
         <Login onSubmit={unlock} busy={state.busy} error={state.error} />
       ) : (
