@@ -6,57 +6,73 @@ import { Loading } from './components/Loading';
 import { AccountList } from './components/AccountList';
 import { AuthError, fetchAccounts } from './mcp/client';
 import { type AccountGroup } from './mcp/accounts';
-import { clearApiKey, loadApiKey, saveApiKey } from './storage';
+import {
+  clearSession,
+  consumeFragment,
+  sessionIsFresh,
+  storeSession,
+  storedSession,
+} from './auth/session';
 
 type State =
-  | { phase: 'connecting'; apiKey: string }
-  | { phase: 'login'; busy: boolean; error: string | null }
+  | { phase: 'connecting'; token: string }
+  | { phase: 'login'; error: string | null }
   | { phase: 'unlocked'; groups: AccountGroup[] };
+
+function errorMessage(code: string): string {
+  return code === 'unauthorized'
+    ? 'This Google account is not authorized for Metro.'
+    : 'Sign-in failed. Please try again.';
+}
+
+function initialState(): State {
+  const frag = consumeFragment();
+  if (frag.session !== undefined) {
+    storeSession(frag.session);
+    return { phase: 'connecting', token: frag.session };
+  }
+  if (frag.error !== undefined)
+    return { phase: 'login', error: errorMessage(frag.error) };
+  const stored = storedSession();
+  return stored !== null && sessionIsFresh(stored)
+    ? { phase: 'connecting', token: stored }
+    : { phase: 'login', error: null };
+}
 
 export function App(): ReactNode {
   const palette = useKitPalette();
-  const [state, setState] = useState<State>(() => {
-    const stored = loadApiKey();
-    return stored !== null
-      ? { phase: 'connecting', apiKey: stored }
-      : { phase: 'login', busy: false, error: null };
-  });
+  const [state, setState] = useState<State>(initialState);
   const attempt = useRef(0);
 
-  const connect = (apiKey: string): void => {
+  const connect = (token: string): void => {
     const id = ++attempt.current;
-    void fetchAccounts(apiKey)
+    void fetchAccounts(token)
       .then((groups) => {
         if (id !== attempt.current) return;
-        saveApiKey(apiKey);
+        storeSession(token);
         setState({ phase: 'unlocked', groups });
       })
       .catch((err: unknown) => {
         if (id !== attempt.current) return;
-        if (err instanceof AuthError) clearApiKey();
+        if (err instanceof AuthError) clearSession();
         const error =
           err instanceof AuthError
-            ? 'Invalid API key.'
+            ? 'Your session has expired. Please sign in again.'
             : err instanceof Error
               ? err.message
               : 'Failed to reach Metro.';
-        setState({ phase: 'login', busy: false, error });
+        setState({ phase: 'login', error });
       });
   };
 
   useEffect(() => {
-    if (state.phase === 'connecting') connect(state.apiKey);
+    if (state.phase === 'connecting') connect(state.token);
   }, []);
-
-  const unlock = (apiKey: string): void => {
-    setState({ phase: 'login', busy: true, error: null });
-    connect(apiKey);
-  };
 
   const lock = (): void => {
     attempt.current += 1;
-    clearApiKey();
-    setState({ phase: 'login', busy: false, error: null });
+    clearSession();
+    setState({ phase: 'login', error: null });
   };
 
   return (
@@ -64,7 +80,7 @@ export function App(): ReactNode {
       {state.phase === 'connecting' ? (
         <Loading />
       ) : state.phase === 'login' ? (
-        <Login onSubmit={unlock} busy={state.busy} error={state.error} />
+        <Login error={state.error} />
       ) : (
         <AccountList groups={state.groups} onLock={lock} />
       )}

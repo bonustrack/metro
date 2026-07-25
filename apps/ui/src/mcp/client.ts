@@ -6,12 +6,12 @@ export class AuthError extends Error {}
 
 const DEFAULT_MCP_URL = 'https://mcp.metro.box';
 
-function endpoint(apiKey: string): URL {
+function endpoint(credential: string): URL {
   const configured = import.meta.env.VITE_METRO_MCP_URL?.trim();
   const base =
     configured !== undefined && configured !== '' ? configured : DEFAULT_MCP_URL;
   const url = new URL(base, window.location.origin);
-  url.searchParams.set('token', apiKey);
+  url.searchParams.set('token', credential);
   return url;
 }
 
@@ -20,15 +20,15 @@ function isAuthFailure(err: unknown): boolean {
   return /\b401\b|unauthorized/i.test(message);
 }
 
-export async function fetchAccounts(apiKey: string): Promise<AccountGroup[]> {
+export async function fetchAccounts(credential: string): Promise<AccountGroup[]> {
   const client = new Client({ name: 'metro-ui', version: '0.1.0' });
-  const transport = new StreamableHTTPClientTransport(endpoint(apiKey));
+  const transport = new StreamableHTTPClientTransport(endpoint(credential));
   try {
     await client.connect(transport);
     const result = await client.callTool({ name: 'list_accounts', arguments: {} });
     return parseListAccounts(result);
   } catch (err) {
-    if (isAuthFailure(err)) throw new AuthError('invalid API key');
+    if (isAuthFailure(err)) throw new AuthError('not authorized');
     throw err instanceof Error ? err : new Error(String(err));
   } finally {
     await client.close().catch(() => undefined);

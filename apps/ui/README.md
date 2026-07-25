@@ -1,42 +1,41 @@
 # @metro-labs/ui
 
-A minimal web app that unlocks with a Metro API key and lists the accounts that key can see. It is an **MCP client**, not a new REST API: it connects to Metro's existing `/mcp` streamable-HTTP endpoint and calls the `list_accounts` tool. No new server endpoints are added.
+A minimal web app that signs in with Google and lists the Metro accounts the signed-in identity is allowed to see. It is an **MCP client**, not a new REST API: it connects to Metro's `/mcp` streamable-HTTP endpoint and calls `list_accounts`. Sign-in uses the **server-side OAuth authorization-code flow** handled by the daemon — the UI ships no Google JavaScript at all.
 
 ## How it works
 
-- Login screen with a single password field, which is your Metro **API key**.
-- On submit it opens an MCP session against `VITE_METRO_MCP_URL` (default `/mcp`, same-origin) using `@modelcontextprotocol/sdk`'s `StreamableHTTPClientTransport`, then calls `list_accounts`.
-- On success it renders the returned accounts grouped by station.
-- On a bad key the `/mcp` gate replies `401` during connect, and the app shows "Invalid API key" and stays on the login screen.
-- On a successful unlock the key is saved to `localStorage`, so a reload reconnects automatically (a centered loading spinner shows while it does, not the login form) and skips the login gate. A stored key that fails auth is cleared and the login form returns; the **Log out** button clears it on demand.
+- The gate is a single **Continue with Google** button. It navigates the browser to `<daemon>/auth/google/start?return_to=<this origin+path>`.
+- The daemon runs the OAuth code flow with Google (redirect URI `https://mcp.metro.box/auth/google/callback`), verifies the returned ID token, maps the verified email to allowed agent name(s), mints a **daemon-signed session JWT** (HS256), and redirects back to `return_to` with the token in the **URL fragment** (`#session=…`).
+- On load the app reads `#session` from the fragment, stores it in `localStorage` (`metro.session`), and immediately strips the fragment from history (`history.replaceState`). It then opens an MCP session passing the token as `?token=` and calls `list_accounts`.
+- Accounts render grouped by station. **Log out** clears the stored session.
+- A returning visitor with a still-fresh stored session auto-connects (spinner, no gate). An expired/invalid session gets a `401`, is cleared, and the gate returns. If the daemon redirects back with `#error=unauthorized` (email not mapped), the gate shows that.
 
-### Auth scheme
+### Why the token comes back in the URL fragment
 
-Metro's `/mcp` gate authenticates with the key as a **query parameter**: `GET/POST /mcp?token=<API_KEY>` (see `apps/mcp/src/mcp/index.ts` `authorized()`). It does **not** read an `Authorization: Bearer` header on `/mcp`. The client therefore puts the key in the URL query string. The key is held in React state for the session and, on a successful unlock, persisted to `localStorage` (`metro.apiKey`) so the session survives a reload; a failed auth or the Log out button removes it.
+The UI (metro.box, and especially `deploy-preview-N--metro-ui.netlify.app`) is a **different origin** from the daemon (`mcp.metro.box`), so a `SameSite` cookie set by the daemon would not be sent by the UI's cross-origin MCP requests. The fragment (`#session=…`) is never sent to any server, is readable only by the destination page, and is stripped from history on arrival. `return_to` is validated server-side (metro.box, `*--metro-ui.netlify.app`, localhost only) and carried inside a signed `state`, so the callback cannot be turned into an open redirect.
 
 ### Account scoping
 
-`list_accounts` returns the accounts loaded by the daemon that answers the request (`gatherAccounts` over that daemon's stations). Metro's production model is **one daemon per agent** (`METRO_AGENT` pins the agent, and that agent's first key becomes the `?token=` value), so the accounts shown are that key's agent's accounts. If a single daemon is run without `METRO_AGENT` (all agents loaded, one shared token), `list_accounts` is scoped to the daemon, not to individual keys.
+The session JWT carries the allowed agent name(s). The daemon filters `list_accounts` to those agents and rejects `line`-addressed operations outside them. Production runs one daemon per agent (`METRO_AGENT`), so in practice the mapped agent's accounts are the daemon's accounts.
 
-### Secrets
+## Config
 
-`list_accounts` is public-identity only by contract (addresses, bot ids/usernames — never tokens, mnemonics, sessions, or creds). As defense in depth the UI additionally drops any field whose key matches secret-ish names (`token`, `secret`, `key`, `mnemonic`, `private`, `session`, `apihash`, `apiid`, `cred`, `password`, `derive`, `passphrase`, `seed`) before rendering.
+- `VITE_METRO_MCP_URL` — the daemon base URL (default `https://mcp.metro.box`); its origin is also where the sign-in redirect points. No Google client id is needed in the UI build anymore.
+
+The daemon (apps/mcp) needs `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_EMAIL_AGENTS`, and `METRO_SESSION_SECRET` (see repo `.env.example`).
 
 ## Run locally
 
-The MCP endpoint must be reached **same-origin** so the browser skips CORS. In dev, Vite proxies `/mcp` to a running daemon:
-
 ```
-# terminal 1: a Metro daemon (needs DATABASE_URL), listening on :8420
+# terminal 1: a Metro daemon on :8420 (DATABASE_URL + the Google/session envs above)
 bun apps/mcp/src/server.ts
 
 # terminal 2
 cd apps/ui
-METRO_MCP_PROXY_TARGET=http://127.0.0.1:8420 bun run dev
-# open http://localhost:5175, paste an API key from the daemon's agent
+VITE_METRO_MCP_URL=http://localhost:8420 bun run dev   # http://localhost:5175
 ```
 
-`METRO_MCP_PROXY_TARGET` defaults to `http://127.0.0.1:8420`.
+Register `http://localhost:8420/auth/google/callback` as a redirect URI on the OAuth client for local sign-in; localhost `return_to` is allowed by default.
 
 ## Build / deploy
 
@@ -44,8 +43,8 @@ METRO_MCP_PROXY_TARGET=http://127.0.0.1:8420 bun run dev
 bun run build   # -> apps/ui/dist (static SPA)
 ```
 
-Serve `dist/` **same-origin with the daemon** (reverse proxy `/` to the static build and `/mcp` to the daemon), or set `VITE_METRO_MCP_URL` to the daemon's absolute `/mcp` URL. Note: if the UI is served from a **different origin** than the daemon, the browser will send a CORS preflight to `/mcp`, and Metro's HTTP server does not currently emit CORS headers or handle `OPTIONS` on `/mcp` — same-origin is the supported path. Cross-origin would require adding CORS to the daemon (out of scope here; flagged for a follow-up decision).
+The daemon emits CORS on `/mcp`, so the UI runs cross-origin from the daemon. Deploy previews work once metro.box's daemon has the callback + envs.
 
 ## Design
 
-Styling comes from `@stage-labs/kit`, the Stage design system's React Native component family (Box/Row/Col, Text, Button, Input, Card), rendered on the web via `react-native-web`. Vite aliases `react-native` to `react-native-web` and resolves `.web.tsx` first; the app uses the kit's real RN primitives (`View`/`Text`/`TextInput`/`Pressable`) rather than raw DOM.
+Styling comes from `@stage-labs/kit`, rendered on the web via `react-native-web`.
