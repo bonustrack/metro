@@ -42,23 +42,46 @@ export function clearSession(): void {
   }
 }
 
-function sessionExpiry(token: string): number | null {
+export interface SessionClaims {
+  email: string;
+  agents: string[];
+  expiresAt: number;
+}
+
+interface RawClaims {
+  sub?: unknown;
+  agents?: unknown;
+  exp?: unknown;
+}
+
+function decodeClaims(token: string): RawClaims | null {
   const parts = token.split('.');
   const body = parts[1];
   if (parts.length !== 3 || body === undefined) return null;
   try {
-    const payload = JSON.parse(
-      atob(body.replace(/-/g, '+').replace(/_/g, '/')),
-    ) as { exp?: number };
-    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+    return JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/'))) as RawClaims;
   } catch {
     return null;
   }
 }
 
+export function sessionClaims(token: string): SessionClaims | null {
+  const raw = decodeClaims(token);
+  if (raw === null) return null;
+  const { sub, agents, exp } = raw;
+  if (typeof sub !== 'string' || typeof exp !== 'number' || !Array.isArray(agents)) {
+    return null;
+  }
+  return {
+    email: sub,
+    agents: agents.filter((a): a is string => typeof a === 'string'),
+    expiresAt: exp * 1000,
+  };
+}
+
 export function sessionIsFresh(token: string, now = Date.now()): boolean {
-  const exp = sessionExpiry(token);
-  return exp !== null && exp - EXP_SKEW_MS > now;
+  const claims = sessionClaims(token);
+  return claims !== null && claims.expiresAt - EXP_SKEW_MS > now;
 }
 
 export interface FragmentResult {
