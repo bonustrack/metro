@@ -365,7 +365,7 @@ export async function createMetroMcp(): Promise<{
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> => {
-    const identity = await authenticate(req, authConfigFromEnv());
+    const identity = authenticate(req, authConfigFromEnv());
     if (!identity) {
       res.writeHead(401).end('unauthorized');
       return;

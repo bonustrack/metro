@@ -20,6 +20,7 @@ import { findEndpoint, listEndpoints, webhookPort } from './tunnel.js';
 import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
 import { handleLineWebhook, isLineWebhookPath } from './line-webhook.js';
+import { handleGoogleAuthRequest } from './google-oauth.js';
 import {
   handleMonitorRequest,
   type MonitorCall,
@@ -301,6 +302,7 @@ async function handleRequest(
   monitorCall?: MonitorCall,
 ): Promise<void> {
   if (handleHealth(req, res)) return;
+  if (await handleGoogleAuthRequest(req, res)) return;
   if (handleAttachRequest(req, res)) return;
   if (isLineWebhookPath(req)) {
     await handleLineWebhook(req, res, emit);

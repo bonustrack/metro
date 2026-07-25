@@ -7,22 +7,35 @@ import { AccountList } from './components/AccountList';
 import { AuthError, fetchAccounts } from './mcp/client';
 import { type AccountGroup } from './mcp/accounts';
 import {
-  clearCredential,
-  credentialIsFresh,
-  signOut,
-  storeCredential,
-  storedCredential,
-} from './auth/google';
+  clearSession,
+  consumeFragment,
+  sessionIsFresh,
+  storeSession,
+  storedSession,
+} from './auth/session';
 
 type State =
-  | { phase: 'connecting'; credential: string }
+  | { phase: 'connecting'; token: string }
   | { phase: 'login'; error: string | null }
   | { phase: 'unlocked'; groups: AccountGroup[] };
 
+function errorMessage(code: string): string {
+  return code === 'unauthorized'
+    ? 'This Google account is not authorized for Metro.'
+    : 'Sign-in failed. Please try again.';
+}
+
 function initialState(): State {
-  const stored = storedCredential();
-  return stored !== null && credentialIsFresh(stored)
-    ? { phase: 'connecting', credential: stored }
+  const frag = consumeFragment();
+  if (frag.session !== undefined) {
+    storeSession(frag.session);
+    return { phase: 'connecting', token: frag.session };
+  }
+  if (frag.error !== undefined)
+    return { phase: 'login', error: errorMessage(frag.error) };
+  const stored = storedSession();
+  return stored !== null && sessionIsFresh(stored)
+    ? { phase: 'connecting', token: stored }
     : { phase: 'login', error: null };
 }
 
@@ -31,20 +44,20 @@ export function App(): ReactNode {
   const [state, setState] = useState<State>(initialState);
   const attempt = useRef(0);
 
-  const connect = (credential: string): void => {
+  const connect = (token: string): void => {
     const id = ++attempt.current;
-    void fetchAccounts(credential)
+    void fetchAccounts(token)
       .then((groups) => {
         if (id !== attempt.current) return;
-        storeCredential(credential);
+        storeSession(token);
         setState({ phase: 'unlocked', groups });
       })
       .catch((err: unknown) => {
         if (id !== attempt.current) return;
-        if (err instanceof AuthError) clearCredential();
+        if (err instanceof AuthError) clearSession();
         const error =
           err instanceof AuthError
-            ? 'This Google account is not authorized for Metro.'
+            ? 'Your session has expired. Please sign in again.'
             : err instanceof Error
               ? err.message
               : 'Failed to reach Metro.';
@@ -53,17 +66,12 @@ export function App(): ReactNode {
   };
 
   useEffect(() => {
-    if (state.phase === 'connecting') connect(state.credential);
+    if (state.phase === 'connecting') connect(state.token);
   }, []);
-
-  const onCredential = (credential: string): void => {
-    setState({ phase: 'connecting', credential });
-    connect(credential);
-  };
 
   const lock = (): void => {
     attempt.current += 1;
-    signOut();
+    clearSession();
     setState({ phase: 'login', error: null });
   };
 
@@ -72,7 +80,7 @@ export function App(): ReactNode {
       {state.phase === 'connecting' ? (
         <Loading />
       ) : state.phase === 'login' ? (
-        <Login onCredential={onCredential} error={state.error} />
+        <Login error={state.error} />
       ) : (
         <AccountList groups={state.groups} onLock={lock} />
       )}

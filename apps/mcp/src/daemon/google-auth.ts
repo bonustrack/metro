@@ -27,9 +27,14 @@ interface VerifyOptions {
   now?: number;
   fetchCerts?: () => Promise<Jwk[]>;
   clockToleranceSec?: number;
+  expectedNonce?: string;
 }
 
-const GOOGLE_CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
+const DEFAULT_CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
+const certsUrl = (): string => {
+  const v = process.env.GOOGLE_OAUTH_JWKS_URL?.trim();
+  return v !== undefined && v !== '' ? v : DEFAULT_CERTS_URL;
+};
 const GOOGLE_ISSUERS = new Set([
   'https://accounts.google.com',
   'accounts.google.com',
@@ -49,7 +54,7 @@ const decodeJson = (seg: string): unknown => {
 let certCache: { keys: Jwk[]; expiresAt: number } | null = null;
 
 async function fetchGoogleCerts(): Promise<Jwk[]> {
-  const res = await fetch(GOOGLE_CERTS_URL);
+  const res = await fetch(certsUrl());
   if (!res.ok)
     throw new GoogleAuthError(`google certs fetch failed: ${res.status}`);
   const body = (await res.json()) as { keys?: Jwk[] };
@@ -97,6 +102,7 @@ interface Payload {
   exp?: number;
   email?: string;
   email_verified?: boolean | string;
+  nonce?: string;
 }
 
 function assertHeader(header: Header): asserts header is Header & { kid: string } {
@@ -126,6 +132,8 @@ function validateClaims(payload: Payload, opts: VerifyOptions): GoogleClaims {
     throw new GoogleAuthError(`unexpected issuer ${String(payload.iss)}`);
   if (payload.aud !== opts.clientId)
     throw new GoogleAuthError('audience mismatch');
+  if (opts.expectedNonce !== undefined && payload.nonce !== opts.expectedNonce)
+    throw new GoogleAuthError('nonce mismatch');
   const exp = assertNotExpired(payload, opts);
   return {
     email: verifiedEmail(payload),

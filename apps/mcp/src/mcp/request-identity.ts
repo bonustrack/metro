@@ -1,12 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import {
-  agentsForEmail,
-  parseEmailAgentMap,
-  verifyGoogleIdToken,
-  type EmailAgentMap,
-} from '../daemon/google-auth.js';
+import { verifySession } from '../daemon/session.js';
 
 export type RequestIdentity =
   | { kind: 'key' }
@@ -27,16 +22,13 @@ export function currentIdentity(): RequestIdentity | undefined {
 
 export interface AuthConfig {
   apiKey: string;
-  googleClientId: string;
-  emailAgents: EmailAgentMap;
-  verifyToken?: (token: string, clientId: string) => Promise<{ email: string }>;
+  sessionSecret: string;
 }
 
 export function authConfigFromEnv(): AuthConfig {
   return {
     apiKey: process.env.METRO_MCP_HTTP_TOKEN ?? '',
-    googleClientId: process.env.GOOGLE_OAUTH_CLIENT_ID?.trim() ?? '',
-    emailAgents: parseEmailAgentMap(process.env.GOOGLE_EMAIL_AGENTS),
+    sessionSecret: process.env.METRO_SESSION_SECRET?.trim() ?? '',
   };
 }
 
@@ -62,26 +54,21 @@ function keyEquals(given: string, want: string): boolean {
 const looksLikeJwt = (token: string): boolean =>
   /^[\w-]+\.[\w-]+\.[\w-]+$/.test(token);
 
-export async function authenticate(
+export function authenticate(
   req: IncomingMessage,
   cfg: AuthConfig,
-): Promise<RequestIdentity | null> {
-  if (cfg.apiKey === '' && cfg.googleClientId === '') return { kind: 'key' };
+): RequestIdentity | null {
+  if (cfg.apiKey === '' && cfg.sessionSecret === '') return { kind: 'key' };
 
   const token = extractToken(req);
   if (!token) return null;
 
   if (keyEquals(token, cfg.apiKey)) return { kind: 'key' };
 
-  if (cfg.googleClientId !== '' && looksLikeJwt(token)) {
-    const verify =
-      cfg.verifyToken ??
-      ((t, clientId) => verifyGoogleIdToken(t, { clientId }));
+  if (cfg.sessionSecret !== '' && looksLikeJwt(token)) {
     try {
-      const { email } = await verify(token, cfg.googleClientId);
-      const agents = agentsForEmail(cfg.emailAgents, email);
-      if (!agents) return null;
-      return { kind: 'google', email: email.toLowerCase(), agents };
+      const { email, agents } = verifySession(token, cfg.sessionSecret);
+      return { kind: 'google', email, agents };
     } catch {
       return null;
     }
