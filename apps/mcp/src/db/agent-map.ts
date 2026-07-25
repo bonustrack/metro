@@ -30,6 +30,19 @@ export function agentForLine(line: string): string | undefined {
   return a ? agentMap[mapKey(a.station, a.accountId)] : undefined;
 }
 
+export function agentForAccount(
+  station: string,
+  accountId: string,
+): string | undefined {
+  return agentMap[mapKey(station, accountId)];
+}
+
+export function accountFromLine(
+  line: string,
+): { station: string; accountId: string } | undefined {
+  return accountOfLine(line);
+}
+
 export function allowlistForLine(line: string): string[] | undefined {
   const a = accountOfLine(line);
   return a ? allowlistMap[mapKey(a.station, a.accountId)] : undefined;

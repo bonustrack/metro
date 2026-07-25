@@ -1,51 +1,55 @@
 # @metro-labs/ui
 
-A minimal web app that unlocks with a Metro API key and lists the accounts that key can see. It is an **MCP client**, not a new REST API: it connects to Metro's existing `/mcp` streamable-HTTP endpoint and calls the `list_accounts` tool. No new server endpoints are added.
+A minimal web app that signs in with Google and lists the Metro accounts that the signed-in identity is allowed to see. It is an **MCP client**, not a new REST API: it connects to Metro's existing `/mcp` streamable-HTTP endpoint and calls the `list_accounts` tool. No new server endpoints are added.
 
 ## How it works
 
-- Login screen with a single password field, which is your Metro **API key**.
-- On submit it opens an MCP session against `VITE_METRO_MCP_URL` (default `/mcp`, same-origin) using `@modelcontextprotocol/sdk`'s `StreamableHTTPClientTransport`, then calls `list_accounts`.
+- The gate shows a **Sign in with Google** button (Google Identity Services).
+- On sign-in, GIS returns a Google **ID token** (a JWT). The app opens an MCP session against `VITE_METRO_MCP_URL` (default `https://mcp.metro.box`) using `@modelcontextprotocol/sdk`'s `StreamableHTTPClientTransport`, passing the ID token as the `?token=` credential, then calls `list_accounts`.
 - On success it renders the returned accounts grouped by station.
-- On a bad key the `/mcp` gate replies `401` during connect, and the app shows "Invalid API key" and stays on the login screen.
-- On a successful unlock the key is saved to `localStorage`, so a reload reconnects automatically (a centered loading spinner shows while it does, not the login form) and skips the login gate. A stored key that fails auth is cleared and the login form returns; the **Log out** button clears it on demand.
+- If the daemon rejects the identity (`401` — the email is not mapped to any agent, or the token is invalid/expired), the app shows "This Google account is not authorized for Metro." and returns to the gate.
+- On a successful unlock the ID token is saved to `localStorage` (`metro.google.credential`), so a reload reconnects automatically (a centered spinner shows while it does). Google ID tokens expire ~1h, so on load the app only auto-reconnects when the stored token is still fresh; GIS `auto_select` re-issues a token silently where the browser allows it, otherwise the gate is shown. **Log out** clears the token and disables auto-select.
 
 ### Auth scheme
 
-Metro's `/mcp` gate authenticates with the key as a **query parameter**: `GET/POST /mcp?token=<API_KEY>` (see `apps/mcp/src/mcp/index.ts` `authorized()`). It does **not** read an `Authorization: Bearer` header on `/mcp`. The client therefore puts the key in the URL query string. The key is held in React state for the session and, on a successful unlock, persisted to `localStorage` (`metro.apiKey`) so the session survives a reload; a failed auth or the Log out button removes it.
+Metro's `/mcp` gate authenticates the credential as a **query parameter**: `GET/POST /mcp?token=<CREDENTIAL>` (see `apps/mcp/src/mcp/request-identity.ts`). The daemon accepts two credential kinds on that same parameter: a Metro **API key** (opaque — used by CLI/agents) or a **Google ID token** (a JWT — used by this UI). A JWT-shaped token is verified against Google's JWKS (`aud` == `GOOGLE_OAUTH_CLIENT_ID`, valid signature, not expired, `email_verified`), then the verified email is mapped to allowed agent name(s) via `GOOGLE_EMAIL_AGENTS`.
 
 ### Account scoping
 
-`list_accounts` returns the accounts loaded by the daemon that answers the request (`gatherAccounts` over that daemon's stations). Metro's production model is **one daemon per agent** (`METRO_AGENT` pins the agent, and that agent's first key becomes the `?token=` value), so the accounts shown are that key's agent's accounts. If a single daemon is run without `METRO_AGENT` (all agents loaded, one shared token), `list_accounts` is scoped to the daemon, not to individual keys.
+For a Google identity, `list_accounts` is filtered to only the accounts owned by the agent name(s) the email maps to (`GOOGLE_EMAIL_AGENTS`), and `line`-addressed operations outside that scope are rejected. Metro's production model is still **one daemon per agent** (`METRO_AGENT`), so in practice the mapped agent's accounts are exactly the daemon's accounts.
 
 ### Secrets
 
-`list_accounts` is public-identity only by contract (addresses, bot ids/usernames — never tokens, mnemonics, sessions, or creds). As defense in depth the UI additionally drops any field whose key matches secret-ish names (`token`, `secret`, `key`, `mnemonic`, `private`, `session`, `apihash`, `apiid`, `cred`, `password`, `derive`, `passphrase`, `seed`) before rendering.
+`list_accounts` is public-identity only by contract (addresses, bot ids/usernames — never tokens, mnemonics, sessions, or creds). As defense in depth the UI additionally drops any field whose key matches secret-ish names before rendering.
+
+## Config
+
+Set at **build time** (Vite): `VITE_GOOGLE_CLIENT_ID` — the Google OAuth **Web** client id. Without it the gate renders a "Google sign-in is not configured" message. `VITE_METRO_MCP_URL` overrides the daemon URL (default `https://mcp.metro.box`).
+
+The daemon (apps/mcp) must have the matching `GOOGLE_OAUTH_CLIENT_ID` and a `GOOGLE_EMAIL_AGENTS` map (see repo `.env.example`).
 
 ## Run locally
 
-The MCP endpoint must be reached **same-origin** so the browser skips CORS. In dev, Vite proxies `/mcp` to a running daemon:
-
 ```
-# terminal 1: a Metro daemon (needs DATABASE_URL), listening on :8420
+# terminal 1: a Metro daemon (needs DATABASE_URL, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_EMAIL_AGENTS), on :8420
 bun apps/mcp/src/server.ts
 
 # terminal 2
 cd apps/ui
-METRO_MCP_PROXY_TARGET=http://127.0.0.1:8420 bun run dev
-# open http://localhost:5175, paste an API key from the daemon's agent
+VITE_GOOGLE_CLIENT_ID=<web-client-id> METRO_MCP_PROXY_TARGET=http://127.0.0.1:8420 bun run dev
+# open http://localhost:5175 (add http://localhost:5175 to the OAuth client's Authorized JS origins)
 ```
 
-`METRO_MCP_PROXY_TARGET` defaults to `http://127.0.0.1:8420`.
+Vite proxies `/mcp` to `METRO_MCP_PROXY_TARGET` (default `http://127.0.0.1:8420`) so same-origin dev works.
 
 ## Build / deploy
 
 ```
-bun run build   # -> apps/ui/dist (static SPA)
+VITE_GOOGLE_CLIENT_ID=<web-client-id> bun run build   # -> apps/ui/dist (static SPA)
 ```
 
-Serve `dist/` **same-origin with the daemon** (reverse proxy `/` to the static build and `/mcp` to the daemon), or set `VITE_METRO_MCP_URL` to the daemon's absolute `/mcp` URL. Note: if the UI is served from a **different origin** than the daemon, the browser will send a CORS preflight to `/mcp`, and Metro's HTTP server does not currently emit CORS headers or handle `OPTIONS` on `/mcp` — same-origin is the supported path. Cross-origin would require adding CORS to the daemon (out of scope here; flagged for a follow-up decision).
+Add the deployed origin (e.g. `https://metro.box`) to the OAuth client's Authorized JavaScript origins. The daemon emits CORS on `/mcp`, so the UI may be served cross-origin from the daemon (`VITE_METRO_MCP_URL` = absolute `/mcp` URL).
 
 ## Design
 
-Styling comes from `@stage-labs/kit`, the Stage design system's React Native component family (Box/Row/Col, Text, Button, Input, Card), rendered on the web via `react-native-web`. Vite aliases `react-native` to `react-native-web` and resolves `.web.tsx` first; the app uses the kit's real RN primitives (`View`/`Text`/`TextInput`/`Pressable`) rather than raw DOM.
+Styling comes from `@stage-labs/kit`, rendered on the web via `react-native-web`. The Google button is rendered by GIS into a leaf `<div>` inside the kit-styled card.

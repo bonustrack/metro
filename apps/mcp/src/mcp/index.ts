@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
@@ -30,7 +30,19 @@ import {
 } from './group-tools.js';
 import { BodyTooLargeError } from '../daemon/http.js';
 import { InboundRelay } from '../channels/inbound.js';
-import { allowlistForLine, senderMatchesAllowlist } from '../db/agent-map.js';
+import {
+  accountFromLine,
+  agentForAccount,
+  allowlistForLine,
+  senderMatchesAllowlist,
+} from '../db/agent-map.js';
+import {
+  authConfigFromEnv,
+  authenticate,
+  currentIdentity,
+  runWithIdentity,
+  type RequestIdentity,
+} from './request-identity.js';
 import { ChannelRelay } from '../channels/relay.js';
 import { BoundedEventStore } from './event-store.js';
 import {
@@ -114,11 +126,44 @@ const CORE_DISPATCH: Record<
   export_invite: dispatchInviteLink,
 };
 
+async function handleListAccounts(
+  identity: RequestIdentity | undefined,
+): Promise<ToolResult> {
+  try {
+    const scope =
+      identity?.kind === 'google' ? new Set(identity.agents) : undefined;
+    return okJson({
+      accounts: await gatherAccounts(scope),
+      capabilities: accountStationCapabilities(),
+    });
+  } catch (e) {
+    return errResult(`metro list_accounts failed: ${String(e)}`);
+  }
+}
+
+function scopeDenied(
+  identity: RequestIdentity | undefined,
+  args: Record<string, unknown>,
+): boolean {
+  if (identity?.kind !== 'google') return false;
+  const line = typeof args.line === 'string' ? args.line : undefined;
+  if (!line) return false;
+  const acct = accountFromLine(line);
+  const agent = acct
+    ? agentForAccount(acct.station, acct.accountId)
+    : undefined;
+  return agent === undefined || !identity.agents.includes(agent);
+}
+
 async function callToolHandler(req: {
   params: { name: string; arguments?: Record<string, unknown> };
 }): Promise<ToolResult> {
   const name = req.params.name;
   const a = req.params.arguments ?? {};
+
+  const identity = currentIdentity();
+  if (name !== 'list_accounts' && scopeDenied(identity, a))
+    return errResult('metro: this account is outside your authorized scope');
 
   const owned = STATION_TOOLS.get(name);
   if (owned) {
@@ -132,16 +177,7 @@ async function callToolHandler(req: {
   const core = CORE_DISPATCH[name];
   if (core) return core(a);
 
-  if (name === 'list_accounts') {
-    try {
-      return okJson({
-        accounts: await gatherAccounts(),
-        capabilities: accountStationCapabilities(),
-      });
-    } catch (e) {
-      return errResult(`metro list_accounts failed: ${String(e)}`);
-    }
-  }
+  if (name === 'list_accounts') return handleListAccounts(identity);
 
   return dispatchMessageTool(name, a);
 }
@@ -292,19 +328,6 @@ export async function createMetroMcp(): Promise<{
     return typeof id === 'string' ? id : undefined;
   };
 
-  const httpToken = process.env.METRO_MCP_HTTP_TOKEN ?? '';
-  const tokenEq = (given: string): boolean => {
-    const g = Buffer.from(given);
-    const w = Buffer.from(httpToken);
-    return g.length === w.length && timingSafeEqual(g, w);
-  };
-  const authorized = (req: IncomingMessage): boolean => {
-    if (!httpToken) return true;
-    const qt = new URL(req.url ?? '/', 'http://localhost').searchParams.get(
-      'token',
-    );
-    return qt != null && tokenEq(qt);
-  };
   const syncSession = async (
     req: IncomingMessage,
     body: unknown,
@@ -342,7 +365,8 @@ export async function createMetroMcp(): Promise<{
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> => {
-    if (!authorized(req)) {
+    const identity = await authenticate(req, authConfigFromEnv());
+    if (!identity) {
       res.writeHead(401).end('unauthorized');
       return;
     }
@@ -354,12 +378,14 @@ export async function createMetroMcp(): Promise<{
       res.writeHead(413).end('payload too large');
       return;
     }
-    await syncSession(req, body);
-    if (isStandaloneGet(req)) {
-      await serveGet(req, res);
-      return;
-    }
-    await transport.handleRequest(req, res, body);
+    await runWithIdentity(identity, async () => {
+      await syncSession(req, body);
+      if (isStandaloneGet(req)) {
+        await serveGet(req, res);
+        return;
+      }
+      await transport.handleRequest(req, res, body);
+    });
   };
 
   const startInbound = (): void => {
