@@ -26,6 +26,7 @@ export default defineConfig({
     port: 5175,
     proxy: {
       '/mcp': { target: proxyTarget, changeOrigin: true },
+      '/api': { target: proxyTarget, changeOrigin: true },
     },
   },
 });

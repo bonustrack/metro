@@ -161,7 +161,10 @@ Three small tables, no foreign-key constraints — accounts and keys reference t
 by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
 - **`agents`** — `id` (auto-increment int, primary key — the real identity), `name`
-  (a label, not unique).
+  (**unique** — it is the scoping key used to decide which accounts a session may see),
+  `owner_email` (nullable; the lowercased verified Google email that created the agent
+  through the web UI. `NULL` = operator-provisioned, owned by nobody, reachable only via
+  `GOOGLE_EMAIL_AGENTS`).
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
   row), `account_id` (the station-local id, e.g. `x0`/`t0`), `allowlist` text[]
@@ -170,7 +173,10 @@ by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
   (`station`, `account_id`).
 - **`keys`** — `agent_id`, `name`, `key`. Per-agent API keys. Primary key (`agent_id`,
   `name`). For a single-agent daemon the first key becomes the `METRO_MCP_HTTP_TOKEN`
-  bearer at boot.
+  bearer at boot. Every `keys` row is also a valid `?token=` on `/mcp` in its own right —
+  at boot the daemon indexes them by SHA-256 and a request presenting one is authenticated
+  as that agent and **scoped to that agent's accounts only** (`METRO_MCP_HTTP_TOKEN`
+  remains the unscoped full-access key).
 
 The `allowlist` column is the sender ids allowed to drive that account's session;
 inbound from anyone else is dropped. It defaults to `['*']` (allow all senders); set a
@@ -207,11 +213,52 @@ API keys) with that `agent_id`; start Metro. `db:generate` regenerates the migra
 after a schema change.
 
 ```sql
-INSERT INTO agents (name) VALUES ('Tony') RETURNING id;   -- e.g. 1
+INSERT INTO agents (name) VALUES ('tony') RETURNING id;   -- e.g. 1
 INSERT INTO accounts (agent_id, station, account_id, config)
   VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');   -- allowlist defaults to ['*']
 INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
 ```
+
+> `agents.name` is UNIQUE as of migration `0006`. Before migrating an existing database,
+> check for duplicates — the migration fails loudly (`could not create unique index
+> "agents_name_unique"`) and rolls back if any exist:
+>
+> ```sql
+> SELECT name, count(*) FROM agents GROUP BY name HAVING count(*) > 1;
+> ```
+
+### Self-serve agents from the web UI
+
+[`apps/ui`](apps/ui) lets a person sign in with Google and create their own agent
+without operator SQL. The daemon exposes one session-gated JSON route for it, mounted
+before the MCP auth gate:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. |
+| `POST /api/agents` `{"name":"…"}` | Create an agent owned by the signed-in email, mint its API key, and return the key **once** together with the paste-ready `claude mcp add …` command. |
+
+Auth is the daemon-signed session JWT from the Google login flow, as
+`Authorization: Bearer <session>` or `?token=<session>`. **Authorisation is per-agent:**
+a session may only see agents where `agents.owner_email` equals its verified email, plus
+any agent names granted to that email by `GOOGLE_EMAIL_AGENTS`. The response never
+contains a key value — only key *names*. The generated key is stored in `keys.key` and is
+shown exactly once, at creation.
+
+| Var | Default | Meaning |
+| --- | --- | --- |
+| `METRO_SESSION_SECRET` | — | Required for `/api/agents` and Google login. Unset → 401. |
+| `METRO_SIGNIN_DOMAINS` | — (open) | Comma-separated email domains allowed to sign in. Unset = any verified Google account may sign in and create agents. Emails in `GOOGLE_EMAIL_AGENTS` are always allowed. |
+| `METRO_MAX_AGENTS_PER_OWNER` | `5` | Cap on agents one email may create. |
+| `GOOGLE_EMAIL_AGENTS` | `{}` | Grant an email access to agents it does not own, by name. |
+
+Creating an agent does **not** create station accounts — a new agent starts empty and its
+`list_accounts` returns nothing until an operator inserts `accounts` rows for it.
+
+On a `METRO_AGENT`-pinned daemon the generated key is **not** accepted by that daemon (it
+only serves the pinned agent's keys, before and after a restart alike). The key is still
+valid in the database and starts working as soon as a daemon that serves the new agent
+runs.
 
 Restrict who can drive an account via the `allowlist` column (default `['*']` = allow all):
 
@@ -227,7 +274,7 @@ UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND ac
 | `METRO_PUBLIC_URL` | tunnel hostname | Base URL for attachment links. Unset → falls back to the tunnel hostname; with neither, attachments are surfaced by local path only. |
 | `METRO_HTTP_HOST` | `127.0.0.1` | HTTP bind host; set `0.0.0.0` behind a platform proxy |
 | `METRO_WEBHOOK_PORT` | `8420` | HTTP port |
-| `METRO_MCP_HTTP_TOKEN` | — | Optional bearer gating the MCP endpoint; the same token also gates the Monitor transport (`/api/*`). Unset → Monitor disabled (404). |
+| `METRO_MCP_HTTP_TOKEN` | — | Optional full-access bearer gating the MCP endpoint; the same token also gates the Monitor transport (`/api/tail`, `/api/call/*`, `/api/health`). Unset → Monitor disabled (404). Any `keys` row also authenticates on `/mcp`, scoped to its own agent. |
 | `METRO_LOG_LEVEL` | `info` | `trace`–`fatal`; logs go to stderr |
 
 ## Connecting a client

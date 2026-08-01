@@ -3,6 +3,8 @@ import { errMsg, log } from './log.js';
 import {
   agentsForEmail,
   parseEmailAgentMap,
+  parseSigninDomains,
+  signinAllowed,
   verifyGoogleIdToken,
   type EmailAgentMap,
 } from './google-auth.js';
@@ -16,6 +18,7 @@ export interface OAuthConfig {
   tokenUrl: string;
   sessionSecret: string;
   emailAgents: EmailAgentMap;
+  signinDomains: string[];
   sessionTtlSec: number;
 }
 
@@ -49,6 +52,7 @@ function oauthConfigFromEnv(): OAuthConfig | null {
     authUrl: envOr('GOOGLE_OAUTH_AUTH_URL', DEFAULT_AUTH_URL),
     tokenUrl: envOr('GOOGLE_OAUTH_TOKEN_URL', DEFAULT_TOKEN_URL),
     emailAgents: parseEmailAgentMap(process.env.GOOGLE_EMAIL_AGENTS),
+    signinDomains: parseSigninDomains(process.env.METRO_SIGNIN_DOMAINS),
     sessionTtlSec: sessionTtlFromEnv(),
   };
 }
@@ -121,8 +125,10 @@ export async function completeCallback(
     return withFragment(return_to, 'error=verify');
   }
 
-  const agents = agentsForEmail(cfg.emailAgents, email);
-  if (!agents) return withFragment(return_to, 'error=unauthorized');
+  const granted = agentsForEmail(cfg.emailAgents, email);
+  if (!signinAllowed(email, cfg.signinDomains, granted !== undefined))
+    return withFragment(return_to, 'error=unauthorized');
+  const agents = granted ?? [];
 
   const session = signSession({ email, agents }, cfg.sessionSecret, {
     ttlSec: cfg.sessionTtlSec,

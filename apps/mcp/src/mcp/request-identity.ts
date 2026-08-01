@@ -2,9 +2,11 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { verifySession } from '../daemon/session.js';
+import { agentForKey } from '../db/key-map.js';
 
 export type RequestIdentity =
   | { kind: 'key' }
+  | { kind: 'agent'; agent: string }
   | { kind: 'google'; email: string; agents: string[] };
 
 const storage = new AsyncLocalStorage<RequestIdentity>();
@@ -65,6 +67,9 @@ export function authenticate(
 
   if (keyEquals(token, cfg.apiKey)) return { kind: 'key' };
 
+  const agent = agentForKey(token);
+  if (agent !== undefined) return { kind: 'agent', agent };
+
   if (cfg.sessionSecret !== '' && looksLikeJwt(token)) {
     try {
       const { email, agents } = verifySession(token, cfg.sessionSecret);
@@ -74,4 +79,12 @@ export function authenticate(
     }
   }
   return null;
+}
+
+export function allowedAgents(
+  identity: RequestIdentity | undefined,
+): Set<string> | undefined {
+  if (identity?.kind === 'google') return new Set(identity.agents);
+  if (identity?.kind === 'agent') return new Set([identity.agent]);
+  return undefined;
 }

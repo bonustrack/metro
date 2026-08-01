@@ -13,7 +13,14 @@ import {
 } from './http.js';
 import { createMetroMcp } from '../mcp/index.js';
 import { metroCall } from '../mcp/ctx.js';
+import { gatherAccounts } from '../mcp/accounts.js';
+import { accountStationCapabilities } from '../stations/registry.js';
 import { materializeFromDb } from '../db/materialize.js';
+import {
+  createAgentForEmail,
+  listAgentsForEmail,
+} from '../db/agent-admin.js';
+import type { AgentApiDeps } from './agent-api.js';
 
 loadMetroEnv();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -42,6 +49,13 @@ setTrainCallBackend((train, action, args) =>
   supervisor.call(train, action, args),
 );
 
+const agentApi: AgentApiDeps = {
+  listAgents: listAgentsForEmail,
+  createAgent: createAgentForEmail,
+  gatherAccounts: (allowed) => gatherAccounts(allowed),
+  capabilities: accountStationCapabilities,
+};
+
 async function main(): Promise<void> {
   await materializeFromDb();
   supervisor.start();
@@ -50,6 +64,7 @@ async function main(): Promise<void> {
     emit,
     metroMcp.httpHandler,
     metroCall,
+    agentApi,
   );
   metroMcp.startInbound();
   tunnel?.start();

@@ -11,6 +11,7 @@ import {
   type AgentMap,
   type AllowlistMap,
 } from './agent-map.js';
+import { setKeyMap } from './key-map.js';
 import { accounts, agents, keys, type StationName } from './schema.js';
 
 interface StationTarget {
@@ -150,12 +151,21 @@ function applyAgentKey(list: LoadedAgent[]): void {
   if (key) process.env.METRO_MCP_HTTP_TOKEN = key;
 }
 
+function applyKeyMap(list: LoadedAgent[]): void {
+  setKeyMap(
+    list.flatMap((agent) =>
+      agent.keys.map((k) => ({ key: k.key, agent: agent.name })),
+    ),
+  );
+}
+
 export async function materializeFromDb(): Promise<void> {
   if (!databaseUrl())
     throw new Error('DATABASE_URL is not set — accounts load from Postgres');
   try {
     const list = await loadAgents();
     applyAgentKey(list);
+    applyKeyMap(list);
     const active = writeStations(list);
     if (active.length === 0)
       throw new Error('no accounts found in the database');

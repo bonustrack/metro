@@ -7,7 +7,7 @@ import {
   type OAuthConfig,
 } from '../src/daemon/google-oauth.ts';
 import { parseEmailAgentMap } from '../src/daemon/google-auth.ts';
-import { signState } from '../src/daemon/session.ts';
+import { signState, verifySession } from '../src/daemon/session.ts';
 
 const cfg: OAuthConfig = {
   clientId: 'client-abc',
@@ -17,8 +17,11 @@ const cfg: OAuthConfig = {
   tokenUrl: 'https://oauth2.googleapis.com/token',
   sessionSecret: 'sign-secret',
   emailAgents: parseEmailAgentMap('{"fabien@bonustrack.co":["tony"]}'),
+  signinDomains: [],
   sessionTtlSec: 3600,
 };
+
+const restricted: OAuthConfig = { ...cfg, signinDomains: ['bonustrack.co'] };
 
 const okDeps = (email: string): CallbackDeps => ({
   exchangeCode: () => Promise.resolve({ id_token: 'fake-id-token' }),
@@ -97,11 +100,48 @@ describe('completeCallback', () => {
     expect(seen).toBe(nonce ?? '');
   });
 
-  test('redirects with error=unauthorized for an unmapped email', async () => {
+  test('self-serve: an unmapped email signs in with an empty agent grant', async () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, okDeps('nobody@x.co'));
+    const token = fragment(redirect).get('session');
+    expect(token).toBeTruthy();
+    expect(verifySession(token ?? '', cfg.sessionSecret)).toEqual({
+      email: 'nobody@x.co',
+      agents: [],
+    });
+  });
+
+  test('METRO_SIGNIN_DOMAINS refuses an email outside the allowed domains', async () => {
+    const state = stateFrom(buildStartRedirect(restricted, 'https://metro.box/'));
+    const redirect = await completeCallback(
+      restricted,
+      { code: 'c', state },
+      okDeps('nobody@x.co'),
+    );
     expect(fragment(redirect).get('error')).toBe('unauthorized');
     expect(fragment(redirect).get('session')).toBeNull();
+  });
+
+  test('METRO_SIGNIN_DOMAINS admits an in-domain email', async () => {
+    const state = stateFrom(buildStartRedirect(restricted, 'https://metro.box/'));
+    const redirect = await completeCallback(
+      restricted,
+      { code: 'c', state },
+      okDeps('newbie@bonustrack.co'),
+    );
+    expect(fragment(redirect).get('session')).toBeTruthy();
+  });
+
+  test('an explicit GOOGLE_EMAIL_AGENTS grant outranks a domain restriction', async () => {
+    const other: OAuthConfig = { ...cfg, signinDomains: ['example.com'] };
+    const state = stateFrom(buildStartRedirect(other, 'https://metro.box/'));
+    const redirect = await completeCallback(
+      other,
+      { code: 'c', state },
+      okDeps('fabien@bonustrack.co'),
+    );
+    const token = fragment(redirect).get('session');
+    expect(verifySession(token ?? '', cfg.sessionSecret).agents).toEqual(['tony']);
   });
 
   test('redirects with error=verify when id-token verification fails', async () => {

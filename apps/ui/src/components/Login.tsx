@@ -21,7 +21,9 @@ export function Login({ error }: LoginProps): ReactNode {
         <Col gap={18}>
           <Col gap={6}>
             <Text size="5xl" weight="semibold">Metro</Text>
-            <Text role="secondary">Sign in with Google to view your accounts.</Text>
+            <Text role="secondary">
+              Sign in with Google to create an agent and get its MCP endpoint.
+            </Text>
           </Col>
           <Button color="primary" onPress={signIn} label="Continue with Google" />
           {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}

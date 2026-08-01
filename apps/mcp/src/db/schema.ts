@@ -1,10 +1,12 @@
 import {
+  index,
   integer,
   jsonb,
   pgTable,
   primaryKey,
   serial,
   text,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 export const STATIONS = [
@@ -18,10 +20,18 @@ export const STATIONS = [
 
 export type StationName = (typeof STATIONS)[number];
 
-export const agents = pgTable('agents', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-});
+export const agents = pgTable(
+  'agents',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    ownerEmail: text('owner_email'),
+  },
+  (t) => [
+    uniqueIndex('agents_name_unique').on(t.name),
+    index('agents_owner_email_idx').on(t.ownerEmail),
+  ],
+);
 
 export const accounts = pgTable(
   'accounts',

@@ -1,11 +1,15 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import type { IncomingMessage } from 'node:http';
 import {
+  allowedAgents,
   authenticate,
   extractToken,
   type AuthConfig,
 } from '../src/mcp/request-identity.ts';
 import { signSession } from '../src/daemon/session.ts';
+import { setKeyMap } from '../src/db/key-map.ts';
+
+afterEach(() => setKeyMap([]));
 
 const SECRET = 'session-signing-secret';
 const req = (url: string, headers: Record<string, string> = {}): IncomingMessage =>
@@ -90,5 +94,53 @@ describe('authenticate', () => {
 
   test('does not treat the API key as a JWT', () => {
     expect(authenticate(req('/mcp?token=secret-key'), cfg())).toEqual({ kind: 'key' });
+  });
+
+  test('accepts a per-agent DB key and scopes the identity to that agent', () => {
+    setKeyMap([{ key: 'mk_selfserve', agent: 'newbie' }]);
+    expect(authenticate(req('/mcp?token=mk_selfserve'), cfg())).toEqual({
+      kind: 'agent',
+      agent: 'newbie',
+    });
+  });
+
+  test('a per-agent key also works as a Bearer header', () => {
+    setKeyMap([{ key: 'mk_selfserve', agent: 'newbie' }]);
+    expect(
+      authenticate(req('/mcp', { authorization: 'Bearer mk_selfserve' }), cfg()),
+    ).toEqual({ kind: 'agent', agent: 'newbie' });
+  });
+
+  test('the full-access env key still wins over the per-agent key map', () => {
+    setKeyMap([{ key: 'secret-key', agent: 'newbie' }]);
+    expect(authenticate(req('/mcp?token=secret-key'), cfg())).toEqual({ kind: 'key' });
+  });
+
+  test('a revoked (unmapped) agent key is rejected', () => {
+    setKeyMap([{ key: 'mk_live', agent: 'newbie' }]);
+    expect(authenticate(req('/mcp?token=mk_revoked'), cfg())).toBeNull();
+  });
+});
+
+describe('allowedAgents', () => {
+  test('the full-access key identity is unscoped', () => {
+    expect(allowedAgents({ kind: 'key' })).toBeUndefined();
+    expect(allowedAgents(undefined)).toBeUndefined();
+  });
+
+  test('an agent key is scoped to exactly its own agent', () => {
+    expect(allowedAgents({ kind: 'agent', agent: 'newbie' })).toEqual(new Set(['newbie']));
+  });
+
+  test('a google session is scoped to its granted agents', () => {
+    expect(
+      allowedAgents({ kind: 'google', email: 'a@b.co', agents: ['tony', 'wan'] }),
+    ).toEqual(new Set(['tony', 'wan']));
+  });
+
+  test('a google session with no agents is scoped to nothing (not everything)', () => {
+    const scope = allowedAgents({ kind: 'google', email: 'a@b.co', agents: [] });
+    expect(scope).toEqual(new Set());
+    expect(scope?.size).toBe(0);
   });
 });

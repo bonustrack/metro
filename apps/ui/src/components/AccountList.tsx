@@ -3,17 +3,9 @@ import { Box, Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { type SessionClaims } from '../auth/session';
-import { type AccountGroup, type AccountRow } from '../mcp/accounts';
-import { AgentHeader } from './AgentHeader';
+import { type AccountGroup, type AccountRow } from '../api/accounts';
 import { Field } from './Field';
 import { StationIcon } from './StationIcon';
-
-interface AccountListProps {
-  claims: SessionClaims;
-  groups: AccountGroup[];
-  onLock: () => void;
-}
 
 function CountBadge({ n }: { n: number }): ReactNode {
   const palette = useKitPalette();
@@ -58,16 +50,20 @@ function Group({ group, dark }: { group: AccountGroup; dark: boolean }): ReactNo
   );
 }
 
-export function AccountList({ claims, groups, onLock }: AccountListProps): ReactNode {
+export function AccountList({ groups }: { groups: AccountGroup[] }): ReactNode {
   const dark = useKitScheme() === 'dark';
+  if (groups.length === 0)
+    return (
+      <Text role="secondary">
+        No stations yet. Add the agent as an MCP server, then ask an operator to attach chat
+        accounts to it.
+      </Text>
+    );
   return (
-    <Col gap={20} style={{ maxWidth: 820, marginLeft: 'auto', marginRight: 'auto', width: '100%', padding: 24 }}>
-      <AgentHeader claims={claims} groups={groups} onLock={onLock} />
-      {groups.length === 0 ? (
-        <Text role="secondary">No stations returned for this agent.</Text>
-      ) : (
-        groups.map((g) => <Group key={g.station} group={g} dark={dark} />)
-      )}
+    <Col gap={20}>
+      {groups.map((g) => (
+        <Group key={g.station} group={g} dark={dark} />
+      ))}
     </Col>
   );
 }
