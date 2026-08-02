@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { agentIdForKey, registerKey, setKeyMap } from '../src/db/key-map.ts';
+import {
+  agentIdForKey,
+  registerKey,
+  setKeyMap,
+  unregisterAgentKeys,
+} from '../src/db/key-map.ts';
 
 afterEach(() => setKeyMap([]));
 
@@ -42,6 +47,26 @@ describe('key map', () => {
     registerKey('mk_fresh', 42);
     expect(agentIdForKey('mk_fresh')).toBe(42);
     expect(agentIdForKey('mk_alpha')).toBe(1);
+  });
+
+  test('unregisterAgentKeys evicts every key of one agent and nobody else', () => {
+    setKeyMap([
+      { key: 'mk_ada_default', agentId: 7 },
+      { key: 'mk_ada_second', agentId: 7 },
+      { key: 'mk_bob', agentId: 8 },
+    ]);
+    registerKey('mk_ada_third', 7);
+    unregisterAgentKeys(7);
+    expect(agentIdForKey('mk_ada_default')).toBeUndefined();
+    expect(agentIdForKey('mk_ada_second')).toBeUndefined();
+    expect(agentIdForKey('mk_ada_third')).toBeUndefined();
+    expect(agentIdForKey('mk_bob')).toBe(8);
+  });
+
+  test('unregistering an agent with no keys is a no-op', () => {
+    setKeyMap([{ key: 'mk_bob', agentId: 8 }]);
+    unregisterAgentKeys(99);
+    expect(agentIdForKey('mk_bob')).toBe(8);
   });
 
   test('blank keys and non-positive agent ids are never registered', () => {

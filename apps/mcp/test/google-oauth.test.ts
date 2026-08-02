@@ -17,11 +17,8 @@ const cfg: OAuthConfig = {
   tokenUrl: 'https://oauth2.googleapis.com/token',
   sessionSecret: 'sign-secret',
   emailAgents: parseEmailAgentMap('{"fabien@bonustrack.co":["tony"]}'),
-  signinDomains: [],
   sessionTtlSec: 3600,
 };
-
-const restricted: OAuthConfig = { ...cfg, signinDomains: ['bonustrack.co'] };
 
 const GRANTED_IDS: Record<string, number> = { tony: 3, wan: 4 };
 let grantLookups: string[][] = [];
@@ -127,32 +124,25 @@ describe('completeCallback', () => {
     expect(grantLookups).toEqual([]);
   });
 
-  test('METRO_SIGNIN_DOMAINS refuses an email outside the allowed domains', async () => {
-    const state = stateFrom(buildStartRedirect(restricted, 'https://metro.box/'));
-    const redirect = await completeCallback(
-      restricted,
-      { code: 'c', state },
-      okDeps('nobody@x.co'),
-    );
-    expect(fragment(redirect).get('error')).toBe('unauthorized');
-    expect(fragment(redirect).get('session')).toBeNull();
+  test('sign-in is open: any verified Google account gets a session, whatever the domain', async () => {
+    for (const email of [
+      'newbie@gmail.com',
+      'someone@bonustrack.co',
+      'user@sub.example.co.uk',
+      'x@protonmail.com',
+    ]) {
+      const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
+      const redirect = await completeCallback(cfg, { code: 'c', state }, okDeps(email));
+      const token = fragment(redirect).get('session');
+      expect(fragment(redirect).get('error')).toBeNull();
+      expect(verifySession(token ?? '', cfg.sessionSecret).email).toBe(email);
+    }
   });
 
-  test('METRO_SIGNIN_DOMAINS admits an in-domain email', async () => {
-    const state = stateFrom(buildStartRedirect(restricted, 'https://metro.box/'));
+  test('a GOOGLE_EMAIL_AGENTS grant still resolves to operator agent ids', async () => {
+    const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(
-      restricted,
-      { code: 'c', state },
-      okDeps('newbie@bonustrack.co'),
-    );
-    expect(fragment(redirect).get('session')).toBeTruthy();
-  });
-
-  test('an explicit GOOGLE_EMAIL_AGENTS grant outranks a domain restriction', async () => {
-    const other: OAuthConfig = { ...cfg, signinDomains: ['example.com'] };
-    const state = stateFrom(buildStartRedirect(other, 'https://metro.box/'));
-    const redirect = await completeCallback(
-      other,
+      cfg,
       { code: 'c', state },
       okDeps('fabien@bonustrack.co'),
     );

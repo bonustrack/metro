@@ -25,6 +25,10 @@ the UI ships no Google JavaScript at all.
   and a **New agent** form. Creating one `POST`s `/api/agents` with the chosen name; the
   response carries the generated API key and the `claude mcp add …` command **once**.
   Nothing ever re-reveals that key — subsequent `GET`s return key *names* only.
+- Each agent you **own** carries a **Delete** button that asks for confirmation in place
+  before it fires `DELETE /api/agents/<id>`. Deleting revokes that agent's API key
+  immediately. Agents shown as *granted, not owned* have no delete button, and the daemon
+  refuses the call anyway.
 - **Log out** clears the stored session. A returning visitor with a still-fresh stored
   session auto-connects (spinner, no gate). An expired/invalid session gets a `401`, is
   cleared, and the gate returns.
@@ -55,14 +59,18 @@ any agent names granted to that email through the daemon's `GOOGLE_EMAIL_AGENTS`
 as not-owned). Accounts are filtered to that same set of agents, server-side. A signed-in
 user with no agents sees an empty dashboard and the create form — never anyone else's data.
 
+Sign-in is open to any Google account with a verified email, on any domain, and there is no
+cap on how many agents one email owns. Deletion is owner-only and keyed on `agents.id`:
+someone else's agent id is a `404`, and an operator-provisioned row (`owner_email IS NULL`)
+is refused even for a session that can see it through `GOOGLE_EMAIL_AGENTS`.
+
 ## Config
 
 - `VITE_METRO_MCP_URL` — the daemon base URL (default `https://mcp.metro.box`); its origin
   is also where the sign-in redirect and `/api/agents` point.
 
 The daemon (apps/mcp) needs `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` and
-`METRO_SESSION_SECRET`; `GOOGLE_EMAIL_AGENTS`, `METRO_SIGNIN_DOMAINS` and
-`METRO_MAX_AGENTS_PER_OWNER` are optional (see repo `.env.example`).
+`METRO_SESSION_SECRET`; `GOOGLE_EMAIL_AGENTS` is optional (see repo `.env.example`).
 
 ## Run locally
 

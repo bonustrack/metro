@@ -8,8 +8,6 @@ import {
   agentsForEmail,
   GoogleAuthError,
   parseEmailAgentMap,
-  parseSigninDomains,
-  signinAllowed,
   verifyGoogleIdToken,
 } from '../src/daemon/google-auth.ts';
 
@@ -131,32 +129,5 @@ describe('parseEmailAgentMap / agentsForEmail', () => {
 
   test('throws on non-string-array values', () => {
     expect(() => parseEmailAgentMap('{"a@b.co":"tony"}')).toThrow(GoogleAuthError);
-  });
-});
-
-describe('parseSigninDomains / signinAllowed', () => {
-  test('parses a comma list, lowercases, and tolerates a leading @', () => {
-    expect(parseSigninDomains(' BonusTrack.co , @example.com ,, ')).toEqual([
-      'bonustrack.co',
-      'example.com',
-    ]);
-  });
-
-  test('unset means open self-serve sign-up', () => {
-    expect(parseSigninDomains(undefined)).toEqual([]);
-    expect(signinAllowed('anyone@anywhere.io', [], false)).toBe(true);
-  });
-
-  test('a domain list restricts sign-in to those domains', () => {
-    const domains = parseSigninDomains('bonustrack.co');
-    expect(signinAllowed('fabien@bonustrack.co', domains, false)).toBe(true);
-    expect(signinAllowed('FABIEN@BonusTrack.co', domains, false)).toBe(true);
-    expect(signinAllowed('evil@bonustrack.co.attacker.com', domains, false)).toBe(false);
-    expect(signinAllowed('evil@notbonustrack.co', domains, false)).toBe(false);
-    expect(signinAllowed('nodomain', domains, false)).toBe(false);
-  });
-
-  test('an explicit GOOGLE_EMAIL_AGENTS grant is never locked out by the domain list', () => {
-    expect(signinAllowed('outsider@gmail.com', ['bonustrack.co'], true)).toBe(true);
   });
 });

@@ -1,19 +1,15 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
   AgentAdminError,
-  DEFAULT_MAX_AGENTS_PER_OWNER,
-  maxAgentsPerOwner,
   newApiKey,
   normalizeAgentName,
   normalizeEmail,
+  parseAgentId,
   servesEveryAgent,
 } from '../src/db/agent-admin.ts';
 
-const ENV = process.env.METRO_MAX_AGENTS_PER_OWNER;
 const PIN = process.env.METRO_AGENT;
 afterEach(() => {
-  if (ENV === undefined) delete process.env.METRO_MAX_AGENTS_PER_OWNER;
-  else process.env.METRO_MAX_AGENTS_PER_OWNER = ENV;
   if (PIN === undefined) delete process.env.METRO_AGENT;
   else process.env.METRO_AGENT = PIN;
 });
@@ -81,21 +77,15 @@ describe('newApiKey', () => {
   });
 });
 
-describe('maxAgentsPerOwner', () => {
-  test('defaults when unset or nonsense', () => {
-    delete process.env.METRO_MAX_AGENTS_PER_OWNER;
-    expect(maxAgentsPerOwner()).toBe(DEFAULT_MAX_AGENTS_PER_OWNER);
-    process.env.METRO_MAX_AGENTS_PER_OWNER = 'lots';
-    expect(maxAgentsPerOwner()).toBe(DEFAULT_MAX_AGENTS_PER_OWNER);
-    process.env.METRO_MAX_AGENTS_PER_OWNER = '0';
-    expect(maxAgentsPerOwner()).toBe(DEFAULT_MAX_AGENTS_PER_OWNER);
-    process.env.METRO_MAX_AGENTS_PER_OWNER = '-3';
-    expect(maxAgentsPerOwner()).toBe(DEFAULT_MAX_AGENTS_PER_OWNER);
+describe('parseAgentId', () => {
+  test('accepts a positive decimal id', () => {
+    expect(parseAgentId('1')).toBe(1);
+    expect(parseAgentId('4242')).toBe(4242);
   });
 
-  test('honours a positive integer', () => {
-    process.env.METRO_MAX_AGENTS_PER_OWNER = '25';
-    expect(maxAgentsPerOwner()).toBe(25);
+  test('rejects anything that is not a plain positive integer', () => {
+    for (const bad of ['', '0', '-1', '01', '1.0', '1e3', ' 1', '1 ', 'abc', '1;DROP', '99999999999'])
+      expect(parseAgentId(bad)).toBeNull();
   });
 });
 

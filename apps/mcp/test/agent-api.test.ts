@@ -8,6 +8,7 @@ import {
   AgentAdminError,
   normalizeAgentName,
   type AgentSummary,
+  type DeletedAgent,
 } from '../src/db/agent-admin.ts';
 
 const SECRET = 'agent-api-test-secret';
@@ -27,11 +28,38 @@ const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
   8: ['telegram', { id: 'bob-tony-tg', owner: 'bob' }],
 };
 
+interface Row {
+  id: number;
+  name: string;
+  ownerEmail: string | null;
+}
+
+const SEED: Row[] = [
+  { id: 1, name: 'ada-bot', ownerEmail: 'ada@lovelace.dev' },
+  { id: 2, name: 'bob-bot', ownerEmail: 'bob@builder.dev' },
+  { id: 5, name: 'legacy', ownerEmail: null },
+];
+
 let server: Server;
 let base: string;
 let scopes: Set<number>[] = [];
 let created: { email: string; name: string }[] = [];
+let rows: Row[] = [...SEED];
+let deleteCalls: { email: string; granted: string[]; id: number }[] = [];
 let nextId = 10;
+
+function removeAgent(email: string, granted: string[], id: number): DeletedAgent {
+  deleteCalls.push({ email, granted, id });
+  const row = rows.find((r) => r.id === id);
+  if (!row) throw new AgentAdminError('no such agent', 404);
+  if (row.ownerEmail === null) {
+    if (!granted.includes(row.name)) throw new AgentAdminError('no such agent', 404);
+    throw new AgentAdminError('operator-provisioned agents cannot be deleted here', 403);
+  }
+  if (row.ownerEmail !== email) throw new AgentAdminError('no such agent', 404);
+  rows = rows.filter((r) => r.id !== id);
+  return { id: row.id, name: row.name };
+}
 
 const deps: AgentApiDeps = {
   listAgents: (email, granted) =>
@@ -51,6 +79,13 @@ const deps: AgentApiDeps = {
     created.push({ email, name: clean });
     nextId += 1;
     return Promise.resolve({ id: nextId, name: clean, key: `mk_key_for_${clean}` });
+  },
+  deleteAgent: (email, granted, id) => {
+    try {
+      return Promise.resolve(removeAgent(email, granted, id));
+    } catch (e) {
+      return Promise.reject(e as Error);
+    }
   },
   gatherAccounts: (allowed) => {
     scopes.push(allowed);
@@ -79,6 +114,12 @@ const post = (token: string, body: unknown): Promise<Response> =>
     body: JSON.stringify(body),
   });
 
+const del = (token: string | undefined, path: string): Promise<Response> =>
+  fetch(`${base}/api/agents/${path}`, {
+    method: 'DELETE',
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+
 beforeAll(async () => {
   process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_PUBLIC_URL = PUBLIC;
@@ -98,6 +139,8 @@ afterAll(async () => {
 afterEach(() => {
   scopes = [];
   created = [];
+  rows = [...SEED];
+  deleteCalls = [];
   delete process.env.GOOGLE_EMAIL_AGENTS;
 });
 
@@ -130,12 +173,13 @@ describe('/api/agents authentication', () => {
     expect(res.headers.get('access-control-allow-methods')).toContain('POST');
   });
 
-  test('DELETE is 405', async () => {
+  test('DELETE on the collection is 405 — deletion is per-agent-id only', async () => {
     const res = await fetch(`${base}/api/agents`, {
       method: 'DELETE',
       headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
     });
     expect(res.status).toBe(405);
+    expect(deleteCalls).toEqual([]);
   });
 });
 
@@ -280,5 +324,94 @@ describe('POST /api/agents', () => {
     });
     expect(res.status).toBe(401);
     expect(created).toEqual([]);
+  });
+});
+
+describe('DELETE /api/agents/:id', () => {
+  test('an owner deletes their own agent by id', async () => {
+    const res = await del(session('ada@lovelace.dev'), '1');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: 1, name: 'ada-bot', deleted: true });
+    expect(rows.map((r) => r.id)).toEqual([2, 5]);
+  });
+
+  test('deleting someone else agent id is refused and leaves it intact', async () => {
+    const res = await del(session('ada@lovelace.dev'), '2');
+    expect(res.status).toBe(404);
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+    expect(deleteCalls).toEqual([
+      { email: 'ada@lovelace.dev', granted: [], id: 2 },
+    ]);
+  });
+
+  test('an operator row is refused even when the session can see it', async () => {
+    process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
+    const res = await del(session('ada@lovelace.dev'), '5');
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: string }).error).toContain(
+      'operator-provisioned',
+    );
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+  });
+
+  test('an operator row the session cannot see is a plain 404', async () => {
+    const res = await del(session('ada@lovelace.dev'), '5');
+    expect(res.status).toBe(404);
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+  });
+
+  test('the owner is always the session email, never anything from the request', async () => {
+    await del(session('ADA@Lovelace.dev'), '1');
+    expect(deleteCalls).toEqual([
+      { email: 'ada@lovelace.dev', granted: [], id: 1 },
+    ]);
+  });
+
+  test('deleting without a session is 401 and deletes nothing', async () => {
+    expect((await del(undefined, '1')).status).toBe(401);
+    expect(deleteCalls).toEqual([]);
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+  });
+
+  test('a session signed with another secret deletes nothing', async () => {
+    const res = await del(session('ada@lovelace.dev', 'other-secret'), '1');
+    expect(res.status).toBe(401);
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+  });
+
+  test('a non-numeric or malformed id never reaches the database', async () => {
+    for (const bad of ['abc', '0', '-1', '1.5', '1%20OR%201', 'ada-bot']) {
+      expect((await del(session('ada@lovelace.dev'), bad)).status).toBe(404);
+    }
+    expect(deleteCalls).toEqual([]);
+  });
+
+  test('an unknown id is 404', async () => {
+    expect((await del(session('ada@lovelace.dev'), '9999')).status).toBe(404);
+  });
+
+  test('GET and POST on a single agent are 405', async () => {
+    const token = session('ada@lovelace.dev');
+    const headers = { authorization: `Bearer ${token}` };
+    expect((await fetch(`${base}/api/agents/1`, { headers })).status).toBe(405);
+    expect(
+      (await fetch(`${base}/api/agents/1`, { method: 'POST', headers })).status,
+    ).toBe(405);
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+  });
+
+  test('OPTIONS preflight on a single agent advertises DELETE', async () => {
+    const res = await fetch(`${base}/api/agents/1`, { method: 'OPTIONS' });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-methods')).toContain('DELETE');
+  });
+
+  test('a second agent of the same owner survives the delete', async () => {
+    rows = [
+      ...SEED,
+      { id: 6, name: 'ada-second', ownerEmail: 'ada@lovelace.dev' },
+    ];
+    expect((await del(session('ada@lovelace.dev'), '1')).status).toBe(200);
+    expect(rows.map((r) => r.id)).toEqual([2, 5, 6]);
   });
 });

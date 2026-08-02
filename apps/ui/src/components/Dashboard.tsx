@@ -1,8 +1,14 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { createAgent, type CreatedAgent, type Dashboard as DashboardData } from '../api/client';
+import {
+  createAgent,
+  deleteAgent,
+  type CreatedAgent,
+  type Dashboard as DashboardData,
+} from '../api/client';
 import { AccountList } from './AccountList';
 import { AgentHeader } from './AgentHeader';
+import { AgentList } from './AgentList';
 import { CreateAgent } from './CreateAgent';
 import { NewAgentKey } from './NewAgentKey';
 
@@ -29,6 +35,12 @@ export function Dashboard({
     onRefresh();
   };
 
+  const onDelete = async (id: number): Promise<void> => {
+    await deleteAgent(token, id);
+    if (created?.id === id) setCreated(null);
+    onRefresh();
+  };
+
   return (
     <Col
       gap={20}
@@ -43,6 +55,7 @@ export function Dashboard({
           }}
         />
       ) : null}
+      <AgentList agents={data.agents} onDelete={onDelete} />
       <CreateAgent onCreate={onCreate} />
       <AccountList groups={data.groups} />
     </Col>

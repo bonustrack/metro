@@ -20,12 +20,6 @@ type State =
   | { phase: 'login'; error: string | null }
   | { phase: 'unlocked'; token: string; claims: SessionClaims; data: DashboardData };
 
-function errorMessage(code: string): string {
-  return code === 'unauthorized'
-    ? 'This Google account is not allowed to sign in to Metro.'
-    : 'Sign-in failed. Please try again.';
-}
-
 function initialState(): State {
   const frag = consumeFragment();
   if (frag.session !== undefined) {
@@ -33,7 +27,7 @@ function initialState(): State {
     return { phase: 'connecting', token: frag.session };
   }
   if (frag.error !== undefined)
-    return { phase: 'login', error: errorMessage(frag.error) };
+    return { phase: 'login', error: 'Sign-in failed. Please try again.' };
   const stored = storedSession();
   return stored !== null && sessionIsFresh(stored)
     ? { phase: 'connecting', token: stored }

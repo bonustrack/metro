@@ -18,6 +18,7 @@ import { accountStationCapabilities } from '../stations/registry.js';
 import { materializeFromDb } from '../db/materialize.js';
 import {
   createAgentForEmail,
+  deleteAgentForEmail,
   listAgentsForEmail,
 } from '../db/agent-admin.js';
 import type { AgentApiDeps } from './agent-api.js';
@@ -52,6 +53,7 @@ setTrainCallBackend((train, action, args) =>
 const agentApi: AgentApiDeps = {
   listAgents: listAgentsForEmail,
   createAgent: createAgentForEmail,
+  deleteAgent: deleteAgentForEmail,
   gatherAccounts: (allowed) => gatherAccounts(allowed),
   capabilities: accountStationCapabilities,
 };

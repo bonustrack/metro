@@ -234,6 +234,12 @@ before the MCP auth gate:
 | --- | --- |
 | `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. |
 | `POST /api/agents` `{"name":"…"}` | Create an agent owned by the signed-in email, mint its API key, and return the key **once** together with the paste-ready `claude mcp add …` command. |
+| `DELETE /api/agents/<id>` | Delete an agent the signed-in email **owns**, and revoke its keys. |
+
+Sign-in is **open**: any Google account whose `email_verified` claim is true may sign in and
+create agents. There is no domain allowlist and no cap on how many agents one email owns.
+The id token is still fully verified — RS256 against Google's JWKS, `iss`/`aud`/`exp` and the
+login `nonce` all checked, and an unverified email refused.
 
 Auth is the daemon-signed session JWT from the Google login flow, as
 `Authorization: Bearer <session>` or `?token=<session>`. **Authorisation is per-agent and
@@ -244,12 +250,28 @@ someone else picks can never widen a grant. The response never contains a key va
 key *names*. The generated key is stored in `keys.key` and is shown exactly once, at
 creation.
 
+**Deleting.** `DELETE /api/agents/<id>` addresses the agent by its serial id, never its name,
+and only the owner may call it: the row must have `owner_email` equal to the session email.
+An agent somebody else owns, or an id that does not exist, is a flat `404 no such agent`.
+An **operator-provisioned row (`owner_email IS NULL`) can never be deleted through this
+route** — a `GOOGLE_EMAIL_AGENTS` grantee who can *see* it gets `403 operator-provisioned
+agents cannot be deleted here`, anyone else gets the same `404`. Deleting removes the agent's
+`keys` rows in the same transaction and evicts their digests from the in-memory key map, so a
+key issued for that agent stops authenticating on `/mcp` on the very next request, with no
+restart. If that key was also the value `applyAgentKey` had put in `METRO_MCP_HTTP_TOKEN` at
+boot, that env value is cleared too.
+
+**An agent that still has `accounts` rows is refused with `409`**, listing how many. The
+`accounts` table holds every station credential and the daemon is deliberately never a writer
+of it, so deletion does not cascade — an operator detaches the station accounts first (plain
+SQL), then the owner can delete the agent. This also makes "the daemon materialises a station
+for a deleted agent" impossible by construction: an agent can only be deleted when it owns
+zero accounts. Self-serve agents are created empty, so the normal path never hits this.
+
 | Var | Default | Meaning |
 | --- | --- | --- |
 | `METRO_SESSION_SECRET` | — | Required for `/api/agents` and Google login. Unset → 401. |
-| `METRO_SIGNIN_DOMAINS` | — (open) | Comma-separated email domains allowed to sign in. Unset = any verified Google account may sign in and create agents. Emails in `GOOGLE_EMAIL_AGENTS` are always allowed. |
-| `METRO_MAX_AGENTS_PER_OWNER` | `5` | Cap on agents one email may create. |
-| `GOOGLE_EMAIL_AGENTS` | `{}` | Grant an email access to operator-provisioned (`owner_email IS NULL`) agents, by name. Never resolves to an agent someone owns. |
+| `GOOGLE_EMAIL_AGENTS` | `{}` | Grant an email access to operator-provisioned (`owner_email IS NULL`) agents, by name. Never resolves to an agent someone owns, and a granted agent can never be deleted through the API. |
 
 Creating an agent does **not** create station accounts — a new agent starts empty and its
 `list_accounts` returns nothing until an operator inserts `accounts` rows for it.

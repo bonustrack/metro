@@ -5,8 +5,10 @@ import { publicBaseUrl } from './attach-serve.js';
 import { agentsForEmail, parseEmailAgentMap } from './google-auth.js';
 import {
   AgentAdminError,
+  parseAgentId,
   type AgentSummary,
   type CreatedAgent,
+  type DeletedAgent,
 } from '../db/agent-admin.js';
 
 const PREFIX = '/api/agents';
@@ -16,8 +18,26 @@ const DEFAULT_PUBLIC_BASE = 'https://mcp.metro.box';
 export interface AgentApiDeps {
   listAgents: (email: string, granted: string[]) => Promise<AgentSummary[]>;
   createAgent: (email: string, name: string) => Promise<CreatedAgent>;
+  deleteAgent: (
+    email: string,
+    granted: string[],
+    id: number,
+  ) => Promise<DeletedAgent>;
   gatherAccounts: (allowed: Set<number>) => Promise<Record<string, unknown[]>>;
   capabilities: () => Record<string, string[]>;
+}
+
+type Target =
+  | { kind: 'collection' }
+  | { kind: 'agent'; id: number }
+  | { kind: 'unknown' }
+  | null;
+
+function target(path: string): Target {
+  if (path === PREFIX || path === `${PREFIX}/`) return { kind: 'collection' };
+  if (!path.startsWith(`${PREFIX}/`)) return null;
+  const id = parseAgentId(path.slice(PREFIX.length + 1));
+  return id === null ? { kind: 'unknown' } : { kind: 'agent', id };
 }
 
 export function mcpEndpoint(): string {
@@ -32,7 +52,7 @@ export function mcpAddCommand(name: string, key: string): string {
 function cors(req: IncomingMessage): Record<string, string> {
   return {
     'access-control-allow-origin': req.headers.origin ?? '*',
-    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
     'access-control-allow-headers': 'Authorization, Content-Type',
     'access-control-max-age': '86400',
     vary: 'Origin',
@@ -148,6 +168,21 @@ async function handleCreate(
   });
 }
 
+async function handleDelete(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: AgentApiDeps,
+  session: ApiSession,
+  id: number,
+): Promise<void> {
+  const gone = await deps.deleteAgent(session.email, session.granted, id);
+  log.info(
+    { agent: gone.name, id: gone.id, owner: session.email },
+    'agent-api: deleted agent',
+  );
+  sendJson(req, res, 200, { id: gone.id, name: gone.name, deleted: true });
+}
+
 function failure(
   req: IncomingMessage,
   res: ServerResponse,
@@ -165,6 +200,7 @@ async function route(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AgentApiDeps,
+  id: number | null,
 ): Promise<void> {
   const session = apiSession(req);
   if (!session) {
@@ -172,31 +208,44 @@ async function route(
     return;
   }
   try {
-    if (req.method === 'GET') await handleList(req, res, deps, session);
+    if (id !== null) await handleDelete(req, res, deps, session, id);
+    else if (req.method === 'GET') await handleList(req, res, deps, session);
     else await handleCreate(req, res, deps, session);
   } catch (err) {
     failure(req, res, err);
   }
 }
 
+const ALLOWED: Record<string, string[]> = {
+  collection: ['GET', 'POST'],
+  agent: ['DELETE'],
+};
+
 export function handleAgentApiRequest(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AgentApiDeps,
 ): boolean {
-  const path = (req.url ?? '').split('?')[0];
-  if (path !== PREFIX && path !== `${PREFIX}/`) return false;
+  const tgt = target((req.url ?? '').split('?')[0] ?? '');
+  if (tgt === null) return false;
   if (req.method === 'OPTIONS') {
     res.writeHead(204, cors(req)).end();
     return true;
   }
-  if (req.method !== 'GET' && req.method !== 'POST') {
+  if (tgt.kind === 'unknown') {
+    sendJson(req, res, 404, { error: 'no such agent' });
+    return true;
+  }
+  if (!(ALLOWED[tgt.kind] ?? []).includes(req.method ?? '')) {
     sendJson(req, res, 405, { error: 'method not allowed' });
     return true;
   }
-  route(req, res, deps).catch((err: unknown) => {
-    log.warn({ err: errMsg(err) }, 'agent-api: unhandled error');
-    if (!res.headersSent) sendJson(req, res, 500, { error: 'agent api failed' });
-  });
+  route(req, res, deps, tgt.kind === 'agent' ? tgt.id : null).catch(
+    (err: unknown) => {
+      log.warn({ err: errMsg(err) }, 'agent-api: unhandled error');
+      if (!res.headersSent)
+        sendJson(req, res, 500, { error: 'agent api failed' });
+    },
+  );
   return true;
 }

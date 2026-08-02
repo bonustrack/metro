@@ -33,7 +33,8 @@ function errorText(body: unknown, status: number): string {
 }
 
 interface CallInit {
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'DELETE';
+  path?: string;
   headers?: Record<string, string>;
   body?: string;
 }
@@ -41,7 +42,7 @@ interface CallInit {
 async function call(token: string, init: CallInit): Promise<unknown> {
   let res: Response;
   try {
-    res = await fetch(agentsUrl(), {
+    res = await fetch(`${agentsUrl()}${init.path ?? ''}`, {
       method: init.method,
       headers: { authorization: `Bearer ${token}`, ...init.headers },
       body: init.body,
@@ -97,4 +98,8 @@ export async function createAgent(token: string, name: string): Promise<CreatedA
     endpoint: body.endpoint,
     command: body.command,
   };
+}
+
+export async function deleteAgent(token: string, id: number): Promise<void> {
+  await call(token, { method: 'DELETE', path: `/${id}` });
 }

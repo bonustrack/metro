@@ -1,12 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { getDb } from './client.js';
-import { registerKey } from './key-map.js';
-import { agents, keys } from './schema.js';
+import { registerKey, unregisterAgentKeys } from './key-map.js';
+import { accounts, agents, keys } from './schema.js';
 
 export const AGENT_NAME_RE = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 export const DEFAULT_KEY_NAME = 'default';
-export const DEFAULT_MAX_AGENTS_PER_OWNER = 5;
 
 export class AgentAdminError extends Error {
   constructor(
@@ -30,6 +29,11 @@ export interface CreatedAgent {
   key: string;
 }
 
+export interface DeletedAgent {
+  id: number;
+  name: string;
+}
+
 export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }
@@ -46,11 +50,6 @@ export function normalizeAgentName(raw: unknown): string {
 
 export function newApiKey(): string {
   return `mk_${randomBytes(32).toString('base64url')}`;
-}
-
-export function maxAgentsPerOwner(): number {
-  const raw = Number(process.env.METRO_MAX_AGENTS_PER_OWNER);
-  return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_MAX_AGENTS_PER_OWNER;
 }
 
 export function servesEveryAgent(): boolean {
@@ -128,16 +127,6 @@ export async function createAgentForEmail(
   const owner = normalizeEmail(email);
   const name = normalizeAgentName(rawName);
   const db = getDb();
-  const limit = maxAgentsPerOwner();
-  const owned = await db
-    .select({ id: agents.id })
-    .from(agents)
-    .where(eq(agents.ownerEmail, owner));
-  if (owned.length >= limit)
-    throw new AgentAdminError(
-      `agent limit reached — ${owner} already owns ${owned.length} of ${limit} agents`,
-      403,
-    );
   const clash = await db
     .select({ id: agents.id })
     .from(agents)
@@ -149,4 +138,69 @@ export async function createAgentForEmail(
   await db.insert(keys).values({ agentId: id, name: DEFAULT_KEY_NAME, key });
   if (servesEveryAgent()) registerKey(key, id);
   return { id, name, key };
+}
+
+export function parseAgentId(raw: string): number | null {
+  if (!/^[1-9][0-9]{0,9}$/.test(raw)) return null;
+  return Number(raw);
+}
+
+async function deletableAgent(
+  owner: string,
+  granted: string[],
+  id: number,
+): Promise<DeletedAgent> {
+  const rows = await getDb().select().from(agents).where(eq(agents.id, id));
+  const row = rows[0];
+  const missing = new AgentAdminError('no such agent', 404);
+  if (!row) throw missing;
+  if (row.ownerEmail === null) {
+    if (!granted.includes(row.name)) throw missing;
+    throw new AgentAdminError(
+      'operator-provisioned agents cannot be deleted here',
+      403,
+    );
+  }
+  if (row.ownerEmail !== owner) throw missing;
+  return { id: row.id, name: row.name };
+}
+
+function revokeEnvToken(revoked: string[]): void {
+  const current = process.env.METRO_MCP_HTTP_TOKEN;
+  if (current !== undefined && revoked.includes(current))
+    delete process.env.METRO_MCP_HTTP_TOKEN;
+}
+
+export async function deleteAgentForEmail(
+  email: string,
+  granted: string[],
+  id: number,
+): Promise<DeletedAgent> {
+  const owner = normalizeEmail(email);
+  const agent = await deletableAgent(owner, granted, id);
+  const revoked = await getDb().transaction(async (tx) => {
+    const attached = await tx
+      .select({ accountId: accounts.accountId })
+      .from(accounts)
+      .where(eq(accounts.agentId, id));
+    if (attached.length > 0)
+      throw new AgentAdminError(
+        `agent '${agent.name}' still has ${attached.length} station account(s) attached — an operator must remove them first`,
+        409,
+      );
+    const held = await tx
+      .select({ key: keys.key })
+      .from(keys)
+      .where(eq(keys.agentId, id));
+    await tx.delete(keys).where(eq(keys.agentId, id));
+    const gone = await tx
+      .delete(agents)
+      .where(and(eq(agents.id, id), eq(agents.ownerEmail, owner)))
+      .returning({ id: agents.id });
+    if (gone.length === 0) throw new AgentAdminError('no such agent', 404);
+    return held.map((k) => k.key);
+  });
+  unregisterAgentKeys(id);
+  revokeEnvToken(revoked);
+  return agent;
 }

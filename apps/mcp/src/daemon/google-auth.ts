@@ -193,20 +193,3 @@ export function agentsForEmail(
   const agents = map[email.toLowerCase()];
   return agents && agents.length > 0 ? agents : undefined;
 }
-
-export function parseSigninDomains(raw: string | undefined): string[] {
-  return (raw ?? '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase().replace(/^@/, ''))
-    .filter(Boolean);
-}
-
-export function signinAllowed(
-  email: string,
-  domains: string[],
-  granted: boolean,
-): boolean {
-  if (granted || domains.length === 0) return true;
-  const at = email.lastIndexOf('@');
-  return at >= 0 && domains.includes(email.slice(at + 1).toLowerCase());
-}
