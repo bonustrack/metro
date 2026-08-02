@@ -1,6 +1,6 @@
 import { forwardTrainCall } from '../daemon/train-call.js';
 import { accountStationNames } from '../stations/registry.js';
-import { agentForAccount } from '../db/agent-map.js';
+import { agentIdForAccount } from '../db/agent-map.js';
 
 const accountId = (acc: unknown): string | undefined => {
   const id = (acc as { id?: unknown }).id;
@@ -9,22 +9,22 @@ const accountId = (acc: unknown): string | undefined => {
 
 export function scopeAccountsByAgent(
   byStation: Record<string, unknown[]>,
-  allowed: Set<string>,
+  allowed: Set<number>,
 ): Record<string, unknown[]> {
   const out: Record<string, unknown[]> = {};
   for (const [station, list] of Object.entries(byStation)) {
     out[station] = list.filter((acc) => {
       const id = accountId(acc);
       if (id === undefined) return false;
-      const agent = agentForAccount(station, id);
-      return agent !== undefined && allowed.has(agent);
+      const agentId = agentIdForAccount(station, id);
+      return agentId !== undefined && allowed.has(agentId);
     });
   }
   return out;
 }
 
 export async function gatherAccounts(
-  allowedAgents?: Set<string>,
+  allowedAgents?: Set<number>,
 ): Promise<Record<string, unknown[]>> {
   const out: Record<string, unknown[]> = {};
   await Promise.all(

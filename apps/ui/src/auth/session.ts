@@ -44,13 +44,11 @@ export function clearSession(): void {
 
 export interface SessionClaims {
   email: string;
-  agents: string[];
   expiresAt: number;
 }
 
 interface RawClaims {
   sub?: unknown;
-  agents?: unknown;
   exp?: unknown;
 }
 
@@ -68,15 +66,9 @@ function decodeClaims(token: string): RawClaims | null {
 export function sessionClaims(token: string): SessionClaims | null {
   const raw = decodeClaims(token);
   if (raw === null) return null;
-  const { sub, agents, exp } = raw;
-  if (typeof sub !== 'string' || typeof exp !== 'number' || !Array.isArray(agents)) {
-    return null;
-  }
-  return {
-    email: sub,
-    agents: agents.filter((a): a is string => typeof a === 'string'),
-    expiresAt: exp * 1000,
-  };
+  const { sub, exp } = raw;
+  if (typeof sub !== 'string' || typeof exp !== 'number') return null;
+  return { email: sub, expiresAt: exp * 1000 };
 }
 
 export function sessionIsFresh(token: string, now = Date.now()): boolean {

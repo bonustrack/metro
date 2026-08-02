@@ -95,7 +95,7 @@ export function verifyState(
 
 interface SessionClaims {
   email: string;
-  agents: string[];
+  agentIds: number[];
 }
 
 export function signSession(
@@ -108,7 +108,7 @@ export function signSession(
     {
       typ: 'session',
       sub: claims.email,
-      agents: claims.agents,
+      agent_ids: claims.agentIds,
       iat,
       exp: iat + (opts.ttlSec ?? 30 * 24 * 3600),
     },
@@ -125,12 +125,12 @@ export function verifySession(
   if (p.typ !== 'session') throw new SessionError('wrong token type');
   if (typeof p.exp !== 'number' || p.exp < nowSec(now))
     throw new SessionError('session expired');
-  const agents = p.agents;
+  const ids = p.agent_ids;
   if (
     typeof p.sub !== 'string' ||
-    !Array.isArray(agents) ||
-    agents.some((a) => typeof a !== 'string')
+    !Array.isArray(ids) ||
+    ids.some((a) => !Number.isInteger(a) || (a as number) <= 0)
   )
     throw new SessionError('malformed session');
-  return { email: p.sub, agents: agents as string[] };
+  return { email: p.sub, agentIds: ids as number[] };
 }

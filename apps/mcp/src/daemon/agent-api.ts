@@ -16,7 +16,7 @@ const DEFAULT_PUBLIC_BASE = 'https://mcp.metro.box';
 export interface AgentApiDeps {
   listAgents: (email: string, granted: string[]) => Promise<AgentSummary[]>;
   createAgent: (email: string, name: string) => Promise<CreatedAgent>;
-  gatherAccounts: (allowed: Set<string>) => Promise<Record<string, unknown[]>>;
+  gatherAccounts: (allowed: Set<number>) => Promise<Record<string, unknown[]>>;
   capabilities: () => Record<string, string[]>;
 }
 
@@ -116,7 +116,7 @@ async function handleList(
   session: ApiSession,
 ): Promise<void> {
   const list = await deps.listAgents(session.email, session.granted);
-  const accounts = await deps.gatherAccounts(new Set(list.map((a) => a.name)));
+  const accounts = await deps.gatherAccounts(new Set(list.map((a) => a.id)));
   sendJson(req, res, 200, {
     email: session.email,
     endpoint: mcpEndpoint(),

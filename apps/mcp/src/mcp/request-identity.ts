@@ -2,12 +2,12 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { verifySession } from '../daemon/session.js';
-import { agentForKey } from '../db/key-map.js';
+import { agentIdForKey } from '../db/key-map.js';
 
 export type RequestIdentity =
   | { kind: 'key' }
-  | { kind: 'agent'; agent: string }
-  | { kind: 'google'; email: string; agents: string[] };
+  | { kind: 'agent'; agentId: number }
+  | { kind: 'google'; email: string; agentIds: number[] };
 
 const storage = new AsyncLocalStorage<RequestIdentity>();
 
@@ -67,13 +67,13 @@ export function authenticate(
 
   if (keyEquals(token, cfg.apiKey)) return { kind: 'key' };
 
-  const agent = agentForKey(token);
-  if (agent !== undefined) return { kind: 'agent', agent };
+  const agentId = agentIdForKey(token);
+  if (agentId !== undefined) return { kind: 'agent', agentId };
 
   if (cfg.sessionSecret !== '' && looksLikeJwt(token)) {
     try {
-      const { email, agents } = verifySession(token, cfg.sessionSecret);
-      return { kind: 'google', email, agents };
+      const { email, agentIds } = verifySession(token, cfg.sessionSecret);
+      return { kind: 'google', email, agentIds };
     } catch {
       return null;
     }
@@ -83,8 +83,8 @@ export function authenticate(
 
 export function allowedAgents(
   identity: RequestIdentity | undefined,
-): Set<string> | undefined {
-  if (identity?.kind === 'google') return new Set(identity.agents);
-  if (identity?.kind === 'agent') return new Set([identity.agent]);
+): Set<number> | undefined {
+  if (identity?.kind === 'google') return new Set(identity.agentIds);
+  if (identity?.kind === 'agent') return new Set([identity.agentId]);
   return undefined;
 }

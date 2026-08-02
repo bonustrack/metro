@@ -9,6 +9,7 @@ import {
   setAgentMap,
   setAllowlistMap,
   type AgentMap,
+  type AgentNameMap,
   type AllowlistMap,
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
@@ -28,6 +29,7 @@ interface LoadedAccount {
 }
 
 interface LoadedAgent {
+  id: number;
   name: string;
   accounts: LoadedAccount[];
   keys: { name: string; key: string }[];
@@ -101,6 +103,7 @@ async function loadAgents(): Promise<LoadedAgent[]> {
       .where(eq(accounts.agentId, a.id));
     const keyRows = await db.select().from(keys).where(eq(keys.agentId, a.id));
     out.push({
+      id: a.id,
       name: a.name,
       accounts: acctRows.map((r) => ({
         station: r.station,
@@ -120,16 +123,19 @@ function writeStations(list: LoadedAgent[]): string[] {
 
   const byStation = new Map<StationName, LoadedAccount[]>();
   const map: AgentMap = {};
+  const names: AgentNameMap = {};
   const allow: AllowlistMap = {};
-  for (const agent of list)
+  for (const agent of list) {
+    names[agent.id] = agent.name;
     for (const a of agent.accounts) {
       const cur = byStation.get(a.station);
       if (cur) cur.push(a);
       else byStation.set(a.station, [a]);
-      map[`${a.station}/${a.accountId}`] = agent.name;
+      map[`${a.station}/${a.accountId}`] = agent.id;
       if (a.allowlist) allow[`${a.station}/${a.accountId}`] = a.allowlist;
     }
-  setAgentMap(map);
+  }
+  setAgentMap(map, names);
   setAllowlistMap(allow);
 
   const active: string[] = [];
@@ -154,7 +160,7 @@ function applyAgentKey(list: LoadedAgent[]): void {
 function applyKeyMap(list: LoadedAgent[]): void {
   setKeyMap(
     list.flatMap((agent) =>
-      agent.keys.map((k) => ({ key: k.key, agent: agent.name })),
+      agent.keys.map((k) => ({ key: k.key, agentId: agent.id })),
     ),
   );
 }

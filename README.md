@@ -160,11 +160,11 @@ missing `DATABASE_URL` or an empty database is a hard, loud error.
 Three small tables, no foreign-key constraints — accounts and keys reference their agent
 by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
-- **`agents`** — `id` (auto-increment int, primary key — the real identity), `name`
-  (**unique** — it is the scoping key used to decide which accounts a session may see),
-  `owner_email` (nullable; the lowercased verified Google email that created the agent
-  through the web UI. `NULL` = operator-provisioned, owned by nobody, reachable only via
-  `GOOGLE_EMAIL_AGENTS`).
+- **`agents`** — `id` (auto-increment int, primary key — **the identity**: every scoping
+  decision compares `agents.id`, never the name), `name` (a label; unique per owner only,
+  so two different people may both call their agent `tony`), `owner_email` (nullable; the
+  lowercased verified Google email that created the agent through the web UI. `NULL` =
+  operator-provisioned, owned by nobody, reachable only via `GOOGLE_EMAIL_AGENTS`).
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
   row), `account_id` (the station-local id, e.g. `x0`/`t0`), `allowlist` text[]
@@ -219,13 +219,10 @@ INSERT INTO accounts (agent_id, station, account_id, config)
 INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
 ```
 
-> `agents.name` is UNIQUE as of migration `0006`. Before migrating an existing database,
-> check for duplicates — the migration fails loudly (`could not create unique index
-> "agents_name_unique"`) and rolls back if any exist:
->
-> ```sql
-> SELECT name, count(*) FROM agents GROUP BY name HAVING count(*) > 1;
-> ```
+> Migration `0006` adds `owner_email` and a unique index on (`owner_email`, `name`) — one
+> person cannot own two agents with the same name, but two people can each have a `tony`.
+> Every existing row gets `owner_email = NULL`, and Postgres treats NULLs as distinct in a
+> unique index, so the migration cannot fail on existing data whatever the names are.
 
 ### Self-serve agents from the web UI
 
@@ -239,18 +236,20 @@ before the MCP auth gate:
 | `POST /api/agents` `{"name":"…"}` | Create an agent owned by the signed-in email, mint its API key, and return the key **once** together with the paste-ready `claude mcp add …` command. |
 
 Auth is the daemon-signed session JWT from the Google login flow, as
-`Authorization: Bearer <session>` or `?token=<session>`. **Authorisation is per-agent:**
-a session may only see agents where `agents.owner_email` equals its verified email, plus
-any agent names granted to that email by `GOOGLE_EMAIL_AGENTS`. The response never
-contains a key value — only key *names*. The generated key is stored in `keys.key` and is
-shown exactly once, at creation.
+`Authorization: Bearer <session>` or `?token=<session>`. **Authorisation is per-agent and
+keyed on `agents.id`:** a session may only see agents where `agents.owner_email` equals its
+verified email, plus the operator-provisioned (`owner_email IS NULL`) agents named for that
+email in `GOOGLE_EMAIL_AGENTS`. Those names are resolved to ids at sign-in, so a name
+someone else picks can never widen a grant. The response never contains a key value — only
+key *names*. The generated key is stored in `keys.key` and is shown exactly once, at
+creation.
 
 | Var | Default | Meaning |
 | --- | --- | --- |
 | `METRO_SESSION_SECRET` | — | Required for `/api/agents` and Google login. Unset → 401. |
 | `METRO_SIGNIN_DOMAINS` | — (open) | Comma-separated email domains allowed to sign in. Unset = any verified Google account may sign in and create agents. Emails in `GOOGLE_EMAIL_AGENTS` are always allowed. |
 | `METRO_MAX_AGENTS_PER_OWNER` | `5` | Cap on agents one email may create. |
-| `GOOGLE_EMAIL_AGENTS` | `{}` | Grant an email access to agents it does not own, by name. |
+| `GOOGLE_EMAIL_AGENTS` | `{}` | Grant an email access to operator-provisioned (`owner_email IS NULL`) agents, by name. Never resolves to an agent someone owns. |
 
 Creating an agent does **not** create station accounts — a new agent starts empty and its
 `list_accounts` returns nothing until an operator inserts `accounts` rows for it.

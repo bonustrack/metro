@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { createHmac } from 'node:crypto';
 import {
   SessionError,
   signSession,
@@ -8,6 +9,18 @@ import {
 } from '../src/daemon/session.ts';
 
 const SECRET = 'unit-secret';
+
+function legacyNameSession(agents: string[]): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString(
+    'base64url',
+  );
+  const body = Buffer.from(
+    JSON.stringify({ typ: 'session', sub: 'a@b.co', agents, exp: 9_999_999_999 }),
+  ).toString('base64url');
+  const data = `${header}.${body}`;
+  const sig = createHmac('sha256', SECRET).update(data).digest('base64url');
+  return `${data}.${sig}`;
+}
 
 describe('state token', () => {
   test('round-trips return_to and nonce', () => {
@@ -38,24 +51,39 @@ describe('state token', () => {
   });
 
   test('rejects a session token presented as state (typ guard)', () => {
-    const s = signSession({ email: 'a@b.co', agents: ['tony'] }, SECRET);
+    const s = signSession({ email: 'a@b.co', agentIds: [1] }, SECRET);
     expect(() => verifyState(s, SECRET)).toThrow(/token type/);
   });
 });
 
 describe('session token', () => {
-  test('round-trips email and agents', () => {
-    const t = signSession({ email: 'a@b.co', agents: ['tony', 'wan'] }, SECRET);
-    expect(verifySession(t, SECRET)).toEqual({ email: 'a@b.co', agents: ['tony', 'wan'] });
+  test('round-trips email and agent ids', () => {
+    const t = signSession({ email: 'a@b.co', agentIds: [1, 2] }, SECRET);
+    expect(verifySession(t, SECRET)).toEqual({ email: 'a@b.co', agentIds: [1, 2] });
+  });
+
+  test('rejects a correctly signed legacy session that scopes by agent NAME', () => {
+    const token = legacyNameSession(['tony']);
+    expect(() => verifySession(token, SECRET)).toThrow(/malformed session/);
+  });
+
+  test('rejects non-integer or non-positive agent ids', () => {
+    for (const bad of [['tony'], [1.5], [0], [-2], 'tony']) {
+      const t = signSession(
+        { email: 'a@b.co', agentIds: bad as unknown as number[] },
+        SECRET,
+      );
+      expect(() => verifySession(t, SECRET)).toThrow(/malformed session/);
+    }
   });
 
   test('rejects an expired session', () => {
-    const t = signSession({ email: 'a@b.co', agents: ['tony'] }, SECRET, { ttlSec: -5 });
+    const t = signSession({ email: 'a@b.co', agentIds: [1] }, SECRET, { ttlSec: -5 });
     expect(() => verifySession(t, SECRET)).toThrow(/expired/);
   });
 
   test('rejects a wrong secret', () => {
-    const t = signSession({ email: 'a@b.co', agents: ['tony'] }, SECRET);
+    const t = signSession({ email: 'a@b.co', agentIds: [1] }, SECRET);
     expect(() => verifySession(t, 'other')).toThrow(SessionError);
   });
 
@@ -65,6 +93,6 @@ describe('session token', () => {
   });
 
   test('signing with an empty secret throws', () => {
-    expect(() => signSession({ email: 'a@b.co', agents: [] }, '')).toThrow(SessionError);
+    expect(() => signSession({ email: 'a@b.co', agentIds: [] }, '')).toThrow(SessionError);
   });
 });

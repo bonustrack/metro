@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { asc, eq, inArray, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { getDb } from './client.js';
 import { registerKey } from './key-map.js';
 import { agents, keys } from './schema.js';
@@ -62,6 +62,21 @@ const isUniqueViolation = (e: unknown): boolean =>
   e !== null &&
   (e as { code?: unknown }).code === '23505';
 
+const grantedOperatorRows = (granted: string[]) =>
+  and(isNull(agents.ownerEmail), inArray(agents.name, granted));
+
+export async function operatorAgentIdsByName(
+  granted: string[],
+): Promise<number[]> {
+  if (granted.length === 0) return [];
+  const rows = await getDb()
+    .select({ id: agents.id })
+    .from(agents)
+    .where(grantedOperatorRows(granted))
+    .orderBy(asc(agents.id));
+  return rows.map((r) => r.id);
+}
+
 export async function listAgentsForEmail(
   email: string,
   granted: string[],
@@ -70,7 +85,7 @@ export async function listAgentsForEmail(
   const db = getDb();
   const where =
     granted.length > 0
-      ? or(eq(agents.ownerEmail, owner), inArray(agents.name, granted))
+      ? or(eq(agents.ownerEmail, owner), grantedOperatorRows(granted))
       : eq(agents.ownerEmail, owner);
   const rows = await db.select().from(agents).where(where).orderBy(asc(agents.id));
   if (rows.length === 0) return [];
@@ -97,7 +112,7 @@ async function insertAgent(email: string, name: string): Promise<number> {
       .returning({ id: agents.id });
   } catch (e) {
     if (isUniqueViolation(e))
-      throw new AgentAdminError(`agent name '${name}' is already taken`, 409);
+      throw new AgentAdminError(`you already have an agent named '${name}'`, 409);
     throw e;
   }
   const id = inserted[0]?.id;
@@ -126,12 +141,12 @@ export async function createAgentForEmail(
   const clash = await db
     .select({ id: agents.id })
     .from(agents)
-    .where(eq(agents.name, name));
+    .where(and(eq(agents.ownerEmail, owner), eq(agents.name, name)));
   if (clash.length > 0)
-    throw new AgentAdminError(`agent name '${name}' is already taken`, 409);
+    throw new AgentAdminError(`you already have an agent named '${name}'`, 409);
   const id = await insertAgent(owner, name);
   const key = newApiKey();
   await db.insert(keys).values({ agentId: id, name: DEFAULT_KEY_NAME, key });
-  if (servesEveryAgent()) registerKey(key, name);
+  if (servesEveryAgent()) registerKey(key, id);
   return { id, name, key };
 }

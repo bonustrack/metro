@@ -1,49 +1,60 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { agentForKey, registerKey, setKeyMap } from '../src/db/key-map.ts';
+import { agentIdForKey, registerKey, setKeyMap } from '../src/db/key-map.ts';
 
 afterEach(() => setKeyMap([]));
 
 describe('key map', () => {
-  test('resolves an agent from a materialized key', () => {
+  test('resolves an agent id from a materialized key', () => {
     setKeyMap([
-      { key: 'mk_alpha', agent: 'tony' },
-      { key: 'mk_beta', agent: 'wan' },
+      { key: 'mk_alpha', agentId: 1 },
+      { key: 'mk_beta', agentId: 2 },
     ]);
-    expect(agentForKey('mk_alpha')).toBe('tony');
-    expect(agentForKey('mk_beta')).toBe('wan');
+    expect(agentIdForKey('mk_alpha')).toBe(1);
+    expect(agentIdForKey('mk_beta')).toBe(2);
+  });
+
+  test('two agents sharing a name still resolve to their own id', () => {
+    setKeyMap([
+      { key: 'mk_ada_tony', agentId: 7 },
+      { key: 'mk_bob_tony', agentId: 8 },
+    ]);
+    expect(agentIdForKey('mk_ada_tony')).toBe(7);
+    expect(agentIdForKey('mk_bob_tony')).toBe(8);
   });
 
   test('unknown, empty and near-miss tokens resolve to nothing', () => {
-    setKeyMap([{ key: 'mk_alpha', agent: 'tony' }]);
-    expect(agentForKey('mk_alph')).toBeUndefined();
-    expect(agentForKey('mk_alpha ')).toBeUndefined();
-    expect(agentForKey('')).toBeUndefined();
-    expect(agentForKey('tony')).toBeUndefined();
+    setKeyMap([{ key: 'mk_alpha', agentId: 1 }]);
+    expect(agentIdForKey('mk_alph')).toBeUndefined();
+    expect(agentIdForKey('mk_alpha ')).toBeUndefined();
+    expect(agentIdForKey('')).toBeUndefined();
+    expect(agentIdForKey('tony')).toBeUndefined();
   });
 
   test('setKeyMap replaces the previous generation', () => {
-    setKeyMap([{ key: 'mk_alpha', agent: 'tony' }]);
-    setKeyMap([{ key: 'mk_beta', agent: 'wan' }]);
-    expect(agentForKey('mk_alpha')).toBeUndefined();
-    expect(agentForKey('mk_beta')).toBe('wan');
+    setKeyMap([{ key: 'mk_alpha', agentId: 1 }]);
+    setKeyMap([{ key: 'mk_beta', agentId: 2 }]);
+    expect(agentIdForKey('mk_alpha')).toBeUndefined();
+    expect(agentIdForKey('mk_beta')).toBe(2);
   });
 
   test('registerKey adds a key minted after boot without a restart', () => {
-    setKeyMap([{ key: 'mk_alpha', agent: 'tony' }]);
-    registerKey('mk_fresh', 'newbie');
-    expect(agentForKey('mk_fresh')).toBe('newbie');
-    expect(agentForKey('mk_alpha')).toBe('tony');
+    setKeyMap([{ key: 'mk_alpha', agentId: 1 }]);
+    registerKey('mk_fresh', 42);
+    expect(agentIdForKey('mk_fresh')).toBe(42);
+    expect(agentIdForKey('mk_alpha')).toBe(1);
   });
 
-  test('blank keys and blank agents are never registered', () => {
+  test('blank keys and non-positive agent ids are never registered', () => {
     setKeyMap([
-      { key: '', agent: 'tony' },
-      { key: 'mk_x', agent: '' },
+      { key: '', agentId: 1 },
+      { key: 'mk_x', agentId: 0 },
+      { key: 'mk_z', agentId: -1 },
     ]);
-    registerKey('', 'tony');
-    registerKey('mk_y', '');
-    expect(agentForKey('')).toBeUndefined();
-    expect(agentForKey('mk_x')).toBeUndefined();
-    expect(agentForKey('mk_y')).toBeUndefined();
+    registerKey('', 1);
+    registerKey('mk_y', 0);
+    expect(agentIdForKey('')).toBeUndefined();
+    expect(agentIdForKey('mk_x')).toBeUndefined();
+    expect(agentIdForKey('mk_z')).toBeUndefined();
+    expect(agentIdForKey('mk_y')).toBeUndefined();
   });
 });

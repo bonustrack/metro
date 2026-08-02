@@ -9,6 +9,7 @@ import {
   type EmailAgentMap,
 } from './google-auth.js';
 import { newNonce, signSession, signState, verifyState } from './session.js';
+import { operatorAgentIdsByName } from '../db/agent-admin.js';
 
 export interface OAuthConfig {
   clientId: string;
@@ -102,6 +103,7 @@ function withFragment(returnTo: string, frag: string): string {
 export interface CallbackDeps {
   exchangeCode: (code: string) => Promise<{ id_token?: string }>;
   verifyIdToken: (idToken: string, nonce: string) => Promise<{ email: string }>;
+  grantedAgentIds: (names: string[]) => Promise<number[]>;
 }
 
 export async function completeCallback(
@@ -128,9 +130,9 @@ export async function completeCallback(
   const granted = agentsForEmail(cfg.emailAgents, email);
   if (!signinAllowed(email, cfg.signinDomains, granted !== undefined))
     return withFragment(return_to, 'error=unauthorized');
-  const agents = granted ?? [];
+  const agentIds = granted ? await deps.grantedAgentIds(granted) : [];
 
-  const session = signSession({ email, agents }, cfg.sessionSecret, {
+  const session = signSession({ email, agentIds }, cfg.sessionSecret, {
     ttlSec: cfg.sessionTtlSec,
     now,
   });
@@ -164,6 +166,7 @@ function defaultDeps(cfg: OAuthConfig): CallbackDeps {
         clientId: cfg.clientId,
         expectedNonce: nonce,
       }).then((c) => ({ email: c.email })),
+    grantedAgentIds: operatorAgentIdsByName,
   };
 }
 

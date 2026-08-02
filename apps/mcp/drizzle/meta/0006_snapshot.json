@@ -1,5 +1,5 @@
 {
-  "id": "f889cd12-51fc-4577-8513-0e07ba0d5d4a",
+  "id": "3dfe6f8e-cc78-4790-bce3-6a77beaef324",
   "prevId": "54436423-424e-48ac-9571-f4a85d966cc6",
   "version": "7",
   "dialect": "postgresql",
@@ -80,9 +80,15 @@
         }
       },
       "indexes": {
-        "agents_name_unique": {
-          "name": "agents_name_unique",
+        "agents_owner_name_unique": {
+          "name": "agents_owner_name_unique",
           "columns": [
+            {
+              "expression": "owner_email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "name",
               "isExpression": false,
@@ -91,21 +97,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "agents_owner_email_idx": {
-          "name": "agents_owner_email_idx",
-          "columns": [
-            {
-              "expression": "owner_email",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

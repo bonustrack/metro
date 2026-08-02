@@ -32,7 +32,7 @@ import { BodyTooLargeError } from '../daemon/http.js';
 import { InboundRelay } from '../channels/inbound.js';
 import {
   accountFromLine,
-  agentForAccount,
+  agentIdForAccount,
   allowlistForLine,
   senderMatchesAllowlist,
 } from '../db/agent-map.js';
@@ -149,10 +149,10 @@ function scopeDenied(
   const line = typeof args.line === 'string' ? args.line : undefined;
   if (!line) return false;
   const acct = accountFromLine(line);
-  const agent = acct
-    ? agentForAccount(acct.station, acct.accountId)
+  const agentId = acct
+    ? agentIdForAccount(acct.station, acct.accountId)
     : undefined;
-  return agent === undefined || !allowed.has(agent);
+  return agentId === undefined || !allowed.has(agentId);
 }
 
 async function callToolHandler(req: {

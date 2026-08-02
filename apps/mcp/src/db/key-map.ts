@@ -3,27 +3,28 @@ import { createHash } from 'node:crypto';
 const digest = (token: string): string =>
   createHash('sha256').update(token).digest('hex');
 
-let agentByKeyHash = new Map<string, string>();
+let agentIdByKeyHash = new Map<string, number>();
 
 export interface KeyOwner {
   key: string;
-  agent: string;
+  agentId: number;
 }
 
+const usable = (e: KeyOwner): boolean =>
+  e.key !== '' && Number.isInteger(e.agentId) && e.agentId > 0;
+
 export function setKeyMap(entries: KeyOwner[]): void {
-  agentByKeyHash = new Map(
-    entries
-      .filter((e) => e.key !== '' && e.agent !== '')
-      .map((e) => [digest(e.key), e.agent]),
+  agentIdByKeyHash = new Map(
+    entries.filter(usable).map((e) => [digest(e.key), e.agentId]),
   );
 }
 
-export function registerKey(key: string, agent: string): void {
-  if (key === '' || agent === '') return;
-  agentByKeyHash.set(digest(key), agent);
+export function registerKey(key: string, agentId: number): void {
+  if (!usable({ key, agentId })) return;
+  agentIdByKeyHash.set(digest(key), agentId);
 }
 
-export function agentForKey(token: string): string | undefined {
+export function agentIdForKey(token: string): number | undefined {
   if (token === '') return undefined;
-  return agentByKeyHash.get(digest(token));
+  return agentIdByKeyHash.get(digest(token));
 }

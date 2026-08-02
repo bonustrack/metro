@@ -1,5 +1,4 @@
 import {
-  index,
   integer,
   jsonb,
   pgTable,
@@ -27,10 +26,7 @@ export const agents = pgTable(
     name: text('name').notNull(),
     ownerEmail: text('owner_email'),
   },
-  (t) => [
-    uniqueIndex('agents_name_unique').on(t.name),
-    index('agents_owner_email_idx').on(t.ownerEmail),
-  ],
+  (t) => [uniqueIndex('agents_owner_name_unique').on(t.ownerEmail, t.name)],
 );
 
 export const accounts = pgTable(

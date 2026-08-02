@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   buildStartRedirect,
   completeCallback,
@@ -23,9 +23,23 @@ const cfg: OAuthConfig = {
 
 const restricted: OAuthConfig = { ...cfg, signinDomains: ['bonustrack.co'] };
 
+const GRANTED_IDS: Record<string, number> = { tony: 3, wan: 4 };
+let grantLookups: string[][] = [];
+
+const grantedAgentIds = (names: string[]): Promise<number[]> => {
+  grantLookups.push(names);
+  const ids = names.map((n) => GRANTED_IDS[n]);
+  return Promise.resolve(ids.filter((id): id is number => id !== undefined));
+};
+
+beforeEach(() => {
+  grantLookups = [];
+});
+
 const okDeps = (email: string): CallbackDeps => ({
   exchangeCode: () => Promise.resolve({ id_token: 'fake-id-token' }),
   verifyIdToken: () => Promise.resolve({ email }),
+  grantedAgentIds,
 });
 
 const stateFrom = (url: string): string =>
@@ -90,6 +104,7 @@ describe('completeCallback', () => {
       cfg,
       { code: 'c', state: stateFrom(url) },
       {
+        grantedAgentIds,
         exchangeCode: () => Promise.resolve({ id_token: 't' }),
         verifyIdToken: (_t, n) => {
           seen = n;
@@ -107,8 +122,9 @@ describe('completeCallback', () => {
     expect(token).toBeTruthy();
     expect(verifySession(token ?? '', cfg.sessionSecret)).toEqual({
       email: 'nobody@x.co',
-      agents: [],
+      agentIds: [],
     });
+    expect(grantLookups).toEqual([]);
   });
 
   test('METRO_SIGNIN_DOMAINS refuses an email outside the allowed domains', async () => {
@@ -141,12 +157,14 @@ describe('completeCallback', () => {
       okDeps('fabien@bonustrack.co'),
     );
     const token = fragment(redirect).get('session');
-    expect(verifySession(token ?? '', cfg.sessionSecret).agents).toEqual(['tony']);
+    expect(verifySession(token ?? '', cfg.sessionSecret).agentIds).toEqual([3]);
+    expect(grantLookups.at(-1)).toEqual(['tony']);
   });
 
   test('redirects with error=verify when id-token verification fails', async () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, {
+      grantedAgentIds,
       exchangeCode: () => Promise.resolve({ id_token: 't' }),
       verifyIdToken: () => Promise.reject(new Error('bad token')),
     });
@@ -156,6 +174,7 @@ describe('completeCallback', () => {
   test('redirects with error=exchange when no id_token comes back', async () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, {
+      grantedAgentIds,
       exchangeCode: () => Promise.resolve({}),
       verifyIdToken: () => Promise.resolve({ email: 'fabien@bonustrack.co' }),
     });
