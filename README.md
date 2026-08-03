@@ -232,8 +232,8 @@ before the MCP auth gate:
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. |
-| `POST /api/agents` `{"name":"…"}` | Create an agent owned by the signed-in email, mint its API key, and return the key **once** together with the paste-ready `claude mcp add …` command. |
+| `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. For agents the email **owns**, each key also carries its value, its `?token=` endpoint and the paste-ready `claude mcp add …` command. |
+| `POST /api/agents` `{"name":"…"}` | Create an agent owned by the signed-in email, mint its API key, and return the key together with the paste-ready `claude mcp add …` command. |
 | `DELETE /api/agents/<id>` | Delete an agent the signed-in email **owns**, and revoke its keys. |
 
 Sign-in is **open**: any Google account whose `email_verified` claim is true may sign in and
@@ -246,9 +246,24 @@ Auth is the daemon-signed session JWT from the Google login flow, as
 keyed on `agents.id`:** a session may only see agents where `agents.owner_email` equals its
 verified email, plus the operator-provisioned (`owner_email IS NULL`) agents named for that
 email in `GOOGLE_EMAIL_AGENTS`. Those names are resolved to ids at sign-in, so a name
-someone else picks can never widen a grant. The response never contains a key value — only
-key *names*. The generated key is stored in `keys.key` and is shown exactly once, at
-creation.
+someone else picks can never widen a grant.
+
+**Key values are served for agents you own, and only those.** `keys.key` is stored in
+plaintext (`applyAgentKey` needs the raw value at boot), so the key can be re-served rather
+than shown once at creation — which is what lets the control panel put the key next to the
+endpoint and hand you a ready `claude mcp add …` line. The exposure is gated in two
+independent places, and both are load-bearing:
+
+1. `listAgentsForEmail` issues **two disjoint queries** — the `key` column is only ever
+   SELECTed for agent ids the session owns, so a granted agent's secret never leaves
+   Postgres.
+2. `agent-api.ts` re-checks `agent.owned` when it serialises each key, so a value that
+   somehow reached the API layer for a not-owned agent is still replaced with `null`.
+
+A `GOOGLE_EMAIL_AGENTS` grant therefore comes back `owned: false` with its key *names* only
+and `key`/`endpoint`/`command` all `null` — a grant lets you see that an operator agent has
+a key, never what it is. The UI masks the value behind a **Reveal** toggle and copies it
+without revealing it, so a page load does not leave a live credential on screen.
 
 **Deleting.** `DELETE /api/agents/<id>` addresses the agent by its serial id, never its name,
 and only the owner may call it: the row must have `owner_email` equal to the session email.

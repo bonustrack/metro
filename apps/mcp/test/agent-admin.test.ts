@@ -6,6 +6,7 @@ import {
   normalizeEmail,
   parseAgentId,
   servesEveryAgent,
+  toAgentSummaries,
 } from '../src/db/agent-admin.ts';
 
 const PIN = process.env.METRO_AGENT;
@@ -86,6 +87,69 @@ describe('parseAgentId', () => {
   test('rejects anything that is not a plain positive integer', () => {
     for (const bad of ['', '0', '-1', '01', '1.0', '1e3', ' 1', '1 ', 'abc', '1;DROP', '99999999999'])
       expect(parseAgentId(bad)).toBeNull();
+  });
+});
+
+describe('toAgentSummaries', () => {
+  const OWNER = 'ada@lovelace.dev';
+  const ROWS = [
+    { id: 1, name: 'ada-bot', ownerEmail: OWNER },
+    { id: 2, name: 'bob-bot', ownerEmail: 'bob@builder.dev' },
+    { id: 5, name: 'legacy', ownerEmail: null },
+  ];
+
+  test('an owned agent carries its key value', () => {
+    const out = toAgentSummaries(OWNER, ROWS, [
+      { agentId: 1, name: 'default', key: 'mk_fake_ada' },
+    ]);
+    expect(out[0]).toEqual({
+      id: 1,
+      name: 'ada-bot',
+      owned: true,
+      keys: [{ name: 'default', key: 'mk_fake_ada' }],
+    });
+  });
+
+  test('a granted operator row is listed by key name with a null value', () => {
+    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 5, name: 'default' }]);
+    expect(out[2]).toEqual({
+      id: 5,
+      name: 'legacy',
+      owned: false,
+      keys: [{ name: 'default', key: null }],
+    });
+  });
+
+  test('a key value belonging to a row the caller does not own is dropped', () => {
+    const out = toAgentSummaries(OWNER, ROWS, [
+      { agentId: 2, name: 'default', key: 'mk_fake_bob' },
+      { agentId: 5, name: 'default', key: 'mk_fake_legacy' },
+    ]);
+    expect(out.flatMap((a) => a.keys.map((k) => k.key))).toEqual([null, null]);
+  });
+
+  test('ownership is compared case-insensitively, like the delete path', () => {
+    const out = toAgentSummaries('ADA@Lovelace.dev', ROWS, [
+      { agentId: 1, name: 'default', key: 'mk_fake_ada' },
+    ]);
+    expect(out[0]?.owned).toBe(true);
+    expect(out[0]?.keys[0]?.key).toBe('mk_fake_ada');
+  });
+
+  test('a null owner_email never matches a caller with no email', () => {
+    const out = toAgentSummaries('', ROWS, [
+      { agentId: 5, name: 'default', key: 'mk_fake_legacy' },
+    ]);
+    expect(out.every((a) => !a.owned)).toBe(true);
+    expect(out[2]?.keys).toEqual([{ name: 'default', key: null }]);
+  });
+
+  test('keys are sorted by name so the list is stable across requests', () => {
+    const out = toAgentSummaries(OWNER, ROWS, [
+      { agentId: 1, name: 'zulu', key: 'mk_fake_z' },
+      { agentId: 1, name: 'alpha', key: 'mk_fake_a' },
+    ]);
+    expect(out[0]?.keys.map((k) => k.name)).toEqual(['alpha', 'zulu']);
   });
 });
 

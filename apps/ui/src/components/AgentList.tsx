@@ -5,14 +5,16 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { type AgentSummary } from '../api/client';
+import { AgentCredentials } from './AgentCredentials';
 
 interface AgentRowProps {
   agent: AgentSummary;
   dark: boolean;
+  endpoint: string;
   onDelete: (id: number) => Promise<void>;
 }
 
-function AgentRow({ agent, dark, onDelete }: AgentRowProps): ReactNode {
+function AgentRow({ agent, dark, endpoint, onDelete }: AgentRowProps): ReactNode {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +54,7 @@ function AgentRow({ agent, dark, onDelete }: AgentRowProps): ReactNode {
             />
           ) : null}
         </Row>
+        <AgentCredentials agent={agent} endpoint={endpoint} />
         {confirming ? (
           <Col gap={8}>
             <Text size="sm" role="danger">
@@ -87,10 +90,11 @@ function AgentRow({ agent, dark, onDelete }: AgentRowProps): ReactNode {
 
 interface AgentListProps {
   agents: AgentSummary[];
+  endpoint: string;
   onDelete: (id: number) => Promise<void>;
 }
 
-export function AgentList({ agents, onDelete }: AgentListProps): ReactNode {
+export function AgentList({ agents, endpoint, onDelete }: AgentListProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   if (agents.length === 0) return null;
   return (
@@ -98,7 +102,13 @@ export function AgentList({ agents, onDelete }: AgentListProps): ReactNode {
       <Text size="lg" weight="semibold">Agents</Text>
       <Col gap={8}>
         {agents.map((a) => (
-          <AgentRow key={a.id} agent={a} dark={dark} onDelete={onDelete} />
+          <AgentRow
+            key={a.id}
+            agent={a}
+            dark={dark}
+            endpoint={endpoint}
+            onDelete={onDelete}
+          />
         ))}
       </Col>
     </Col>

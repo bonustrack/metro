@@ -55,7 +55,7 @@ export function Dashboard({
           }}
         />
       ) : null}
-      <AgentList agents={data.agents} onDelete={onDelete} />
+      <AgentList agents={data.agents} endpoint={data.endpoint} onDelete={onDelete} />
       <CreateAgent onCreate={onCreate} />
       <AccountList groups={data.groups} />
     </Col>
