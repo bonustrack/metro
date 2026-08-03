@@ -20,6 +20,7 @@ export interface WhatsappLoginEvents {
 
 const PHONE_RE = /^[0-9]{6,15}$/;
 const RESTART_REQUIRED = 515;
+const MAX_REOPENS = 6;
 
 export function normalizePhone(raw: unknown): string {
   const phone = typeof raw === 'string' ? raw.replace(/[^0-9]/g, '') : '';
@@ -40,6 +41,7 @@ export class WhatsappLogin {
   private sock: WASocket | null = null;
   private pairingRequested = false;
   private settled = false;
+  private reopens = 0;
 
   constructor(
     private phone: string,
@@ -106,16 +108,28 @@ export class WhatsappLogin {
       this.fail('WhatsApp ended the pairing, start again');
       return;
     }
-    if (statusCode === RESTART_REQUIRED || statusCode === undefined) {
-      this.open(version);
+    this.reopens += 1;
+    if (this.reopens > MAX_REOPENS && statusCode !== RESTART_REQUIRED) {
+      this.fail('WhatsApp kept dropping the pairing connection, start again');
       return;
     }
     this.open(version);
   }
 
+  private pairedPhone(): string {
+    const linked = this.auth.state.creds.me?.id.split(':')[0] ?? '';
+    return PHONE_RE.test(linked) ? linked : this.phone;
+  }
+
   private finish(): void {
     if (this.settled) return;
-    const phone = this.auth.state.creds.me?.id.split(':')[0] ?? this.phone;
+    const phone = this.pairedPhone();
+    if (phone === '') {
+      this.fail(
+        'WhatsApp paired but did not say which number it linked, so Metro has nothing to store',
+      );
+      return;
+    }
     const credentials = this.auth.serialize();
     this.settled = true;
     void this.closeSocket().then(() => {
