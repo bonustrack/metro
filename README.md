@@ -161,10 +161,11 @@ Three small tables, no foreign-key constraints — accounts and keys reference t
 by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
 - **`agents`** — `id` (auto-increment int, primary key — **the identity**: every scoping
-  decision compares `agents.id`, never the name), `name` (a label; unique per owner only,
-  so two different people may both call their agent `tony`), `owner_email` (nullable; the
-  lowercased verified Google email that created the agent through the web UI. `NULL` =
-  operator-provisioned, owned by nobody, reachable only via `GOOGLE_EMAIL_AGENTS`).
+  decision compares `agents.id`, never the name), `name` (a display label with **no**
+  uniqueness of any kind and stored with the casing the person typed, so two agents may
+  both be called `Lisa`), `owner_email` (nullable; the lowercased verified Google email
+  that created the agent through the web UI. `NULL` = operator-provisioned, owned by
+  nobody, reachable only via `GOOGLE_EMAIL_AGENTS`).
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
   row), `account_id` (the station-local id, e.g. `x0`/`t0`), `allowlist` text[]
@@ -219,10 +220,18 @@ INSERT INTO accounts (agent_id, station, account_id, config)
 INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
 ```
 
-> Migration `0006` adds `owner_email` and a unique index on (`owner_email`, `name`) — one
-> person cannot own two agents with the same name, but two people can each have a `tony`.
-> Every existing row gets `owner_email = NULL`, and Postgres treats NULLs as distinct in a
-> unique index, so the migration cannot fail on existing data whatever the names are.
+> Migration `0006` adds `owner_email`. Migration `0007` drops the unique index it created
+> on (`owner_email`, `name`): `agents.id` is the only unique column, and `name` is a plain
+> label that may repeat, differ only in case, or be reused by the same owner. The drop is
+> `DROP INDEX IF EXISTS`, so re-running it is a no-op.
+>
+> Names are compared nowhere in any scoping or authorisation path; `agents.id` is. The one
+> lookup still keyed on the name is the `GOOGLE_EMAIL_AGENTS` grant, and it is pinned to
+> `owner_email IS NULL`. That pin, not the dropped index, is what makes it safe: Postgres
+> treats NULLs as distinct in a unique index, so two operator rows could always share a
+> name and a grant could always resolve to more than one id. When it does, the grantee sees
+> all of them, still with `owned: false`: no key value, and delete refused. Grant entries
+> match the stored name exactly, casing included.
 
 ### Self-serve agents from the web UI
 

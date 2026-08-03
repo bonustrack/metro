@@ -69,6 +69,11 @@ function removeAgent(email: string, granted: string[], id: number): DeletedAgent
     throw new AgentAdminError('operator-provisioned agents cannot be deleted here', 403);
   }
   if (row.ownerEmail !== email) throw new AgentAdminError('no such agent', 404);
+  if (row.name === 'busy-bot')
+    throw new AgentAdminError(
+      "agent 'busy-bot' still has 2 station account(s) attached, an operator must remove them first",
+      409,
+    );
   rows = rows.filter((r) => r.id !== id);
   return { id: row.id, name: row.name };
 }
@@ -86,8 +91,6 @@ const deps: AgentApiDeps = {
     ]),
   createAgent: (email, name) => {
     const clean = normalizeAgentName(name);
-    if (clean === 'taken')
-      return Promise.reject(new AgentAdminError("agent name 'taken' is already taken", 409));
     created.push({ email, name: clean });
     nextId += 1;
     return Promise.resolve({ id: nextId, name: clean, key: `mk_key_for_${clean}` });
@@ -359,9 +362,17 @@ describe('POST /api/agents', () => {
     const res = await post(session('ada@lovelace.dev'), { name: 'Fresh-Agent' });
     expect(res.status).toBe(201);
     const body = (await res.json()) as CreateBody;
-    expect(body.name).toBe('fresh-agent');
-    expect(body.key).toBe('mk_key_for_fresh-agent');
-    expect(created).toEqual([{ email: 'ada@lovelace.dev', name: 'fresh-agent' }]);
+    expect(body.name).toBe('Fresh-Agent');
+    expect(body.key).toBe('mk_key_for_Fresh-Agent');
+    expect(created).toEqual([{ email: 'ada@lovelace.dev', name: 'Fresh-Agent' }]);
+  });
+
+  test('the name is stored with the casing the person typed, never lowercased', async () => {
+    const body = (await (
+      await post(session('ada@lovelace.dev'), { name: '  Lisa  ' })
+    ).json()) as CreateBody;
+    expect(body.name).toBe('Lisa');
+    expect(body.command).toContain(' Lisa "');
   });
 
   test('returns the exact endpoint and claude mcp add command to paste', async () => {
@@ -394,10 +405,17 @@ describe('POST /api/agents', () => {
     expect((await post(session('ada@lovelace.dev'), {})).status).toBe(400);
   });
 
-  test('a taken name is 409', async () => {
-    const res = await post(session('ada@lovelace.dev'), { name: 'taken' });
-    expect(res.status).toBe(409);
-    expect(((await res.json()) as CreateBody).error).toContain('already taken');
+  test('the same name twice is created twice: the name is a label, not a key', async () => {
+    const first = await post(session('ada@lovelace.dev'), { name: 'Lisa' });
+    const second = await post(session('ada@lovelace.dev'), { name: 'Lisa' });
+    expect([first.status, second.status]).toEqual([201, 201]);
+    const a = (await first.json()) as CreateBody;
+    const b = (await second.json()) as CreateBody;
+    expect(a.id).not.toBe(b.id);
+    expect(created).toEqual([
+      { email: 'ada@lovelace.dev', name: 'Lisa' },
+      { email: 'ada@lovelace.dev', name: 'Lisa' },
+    ]);
   });
 
   test('a non-JSON body is 400', async () => {
@@ -506,5 +524,15 @@ describe('DELETE /api/agents/:id', () => {
     ];
     expect((await del(session('ada@lovelace.dev'), '1')).status).toBe(200);
     expect(rows.map((r) => r.id)).toEqual([2, 5, 6]);
+  });
+
+  test('a 409 from the admin layer is forwarded with its message intact', async () => {
+    rows = [...SEED, { id: 6, name: 'busy-bot', ownerEmail: 'ada@lovelace.dev' }];
+    const res = await del(session('ada@lovelace.dev'), '6');
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain(
+      'station account(s) attached',
+    );
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 5, 6]);
   });
 });
