@@ -30,6 +30,16 @@ the UI ships no Google JavaScript at all.
   its MCP endpoint, its API key, the paste-ready `claude mcp add …` line and its **Delete**
   button. Accounts are never listed globally, so which account belongs to which agent is
   structural rather than something you infer.
+- The selected agent is **in the URL**: `metro.box/#/1` is agent `1`, `#/2` is agent `2`,
+  `#/new` is the create form and `#/` is the no-selection state. Picking an agent pushes a
+  history entry, so Back and Forward walk the selection and a link to `#/2` opens straight
+  on that agent. An id nobody can resolve, one that does not exist as much as one that exists
+  but belongs to somebody else, renders the **same** message, *No agent with that id is
+  available to this account*, because the browser never asks the daemon about a specific id:
+  it only ever receives the list it is allowed to see, so there is nothing to leak. Routing
+  is `window.location.hash` plus `history.pushState` (`src/route.ts`), with no router
+  dependency, and it does not collide with the `#session=…` sign-in fragment, which is
+  consumed and stripped before the dashboard mounts.
 - Creating an agent `POST`s `/api/agents` with the chosen name, selects the new agent, and
   shows the generated API key and `claude mcp add …` command in the clear once. The key
   stays available afterwards on the agent's own pane, masked behind **Reveal**, and `GET`
@@ -40,8 +50,10 @@ the UI ships no Google JavaScript at all.
   button and no key (only the endpoint), and the daemon refuses the call anyway.
 - The four states the main pane can be in: **no agents at all** → the create form, titled
   *Create your first agent*; **no agent selected** (you just deleted the one you were
-  looking at) → a prompt to pick one on the left, carrying its own **New agent** button so
-  that state is never a dead end; **an agent with no accounts** → its
+  looking at, or you are on `#/`) → a prompt to pick one on the left, carrying its own
+  **New agent** button so that state is never a dead end; **a routed id this account cannot
+  resolve** → the neutral not-available message with the same **New agent** button;
+  **an agent with no accounts** → its
   credentials plus a line saying no chat account is connected yet; **a granted agent** →
   its endpoint, no key.
 - **Log out** clears the stored session. A returning visitor with a still-fresh stored
@@ -67,6 +79,11 @@ history on arrival. `return_to` is validated server-side (metro.box,
 callback cannot be turned into an open redirect.
 
 ### Ownership
+
+An agent's `name` is a display label and nothing else: it is stored with the casing typed
+into the form, it carries no unique index, and two agents, even two owned by the same
+person, may share one. Everything that decides what a session may see or delete compares
+`agents.id`.
 
 An agent created here records the creator's verified Google email in `agents.owner_email`.
 `/api/agents` returns only the agents whose `owner_email` matches the session's email, plus

@@ -5,7 +5,7 @@ import { getDb } from './client.js';
 import { registerKey, unregisterAgentKeys } from './key-map.js';
 import { accounts, agents, keys } from './schema.js';
 
-export const AGENT_NAME_RE = /^[a-z0-9][a-z0-9_-]{1,31}$/;
+export const AGENT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;
 export const DEFAULT_KEY_NAME = 'default';
 
 export class AgentAdminError extends ApiError {}
@@ -40,10 +40,10 @@ export function normalizeEmail(raw: string): string {
 }
 
 export function normalizeAgentName(raw: unknown): string {
-  const name = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  const name = typeof raw === 'string' ? raw.trim() : '';
   if (!AGENT_NAME_RE.test(name))
     throw new AgentAdminError(
-      'name must be 2-32 characters of a-z, 0-9, - or _, starting with a letter or digit',
+      'name must be 2-32 characters of A-Z, a-z, 0-9, - or _, starting with a letter or digit',
       400,
     );
   return name;
@@ -56,11 +56,6 @@ export function newApiKey(): string {
 export function servesEveryAgent(): boolean {
   return (process.env.METRO_AGENT?.trim() ?? '') === '';
 }
-
-const isUniqueViolation = (e: unknown): boolean =>
-  typeof e === 'object' &&
-  e !== null &&
-  (e as { code?: unknown }).code === '23505';
 
 const grantedOperatorRows = (granted: string[]) =>
   and(isNull(agents.ownerEmail), inArray(agents.name, granted));
@@ -153,18 +148,10 @@ export async function listAgentsForEmail(
 }
 
 async function insertAgent(email: string, name: string): Promise<number> {
-  const db = getDb();
-  let inserted: { id: number }[];
-  try {
-    inserted = await db
-      .insert(agents)
-      .values({ name, ownerEmail: email })
-      .returning({ id: agents.id });
-  } catch (e) {
-    if (isUniqueViolation(e))
-      throw new AgentAdminError(`you already have an agent named '${name}'`, 409);
-    throw e;
-  }
+  const inserted = await getDb()
+    .insert(agents)
+    .values({ name, ownerEmail: email })
+    .returning({ id: agents.id });
   const id = inserted[0]?.id;
   if (id === undefined)
     throw new AgentAdminError('agent insert returned no id', 500);
@@ -178,12 +165,6 @@ export async function createAgentForEmail(
   const owner = normalizeEmail(email);
   const name = normalizeAgentName(rawName);
   const db = getDb();
-  const clash = await db
-    .select({ id: agents.id })
-    .from(agents)
-    .where(and(eq(agents.ownerEmail, owner), eq(agents.name, name)));
-  if (clash.length > 0)
-    throw new AgentAdminError(`you already have an agent named '${name}'`, 409);
   const id = await insertAgent(owner, name);
   const key = newApiKey();
   await db.insert(keys).values({ agentId: id, name: DEFAULT_KEY_NAME, key });

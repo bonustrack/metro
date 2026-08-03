@@ -53,7 +53,11 @@ export function AgentPanel(props: AgentPanelProps): ReactNode {
     if (created !== null) return <NewAgentKey created={created} onDismiss={onDismiss} />;
     return (
       <Hint
-        text="Pick an agent on the left to see its accounts, MCP endpoint and API key."
+        text={
+          selection.kind === 'agent'
+            ? 'No agent with that id is available to this account.'
+            : 'Pick an agent on the left to see its accounts, MCP endpoint and API key.'
+        }
         onNew={props.onNew}
       />
     );
