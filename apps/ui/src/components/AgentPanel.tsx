@@ -24,8 +24,10 @@ function Hint({ text, onNew }: { text: string; onNew: () => void }): ReactNode {
 }
 
 interface AgentPanelProps {
+  token: string;
   agents: AgentSummary[];
   groups: AccountGroup[];
+  attachable: string[];
   unattributed: number;
   endpoint: string;
   selection: Selection;
@@ -33,6 +35,7 @@ interface AgentPanelProps {
   onCreate: (name: string) => Promise<void>;
   onNew: () => void;
   onDismiss: () => void;
+  onChanged: () => void;
   onDelete: (id: number) => Promise<void>;
 }
 
@@ -62,10 +65,13 @@ export function AgentPanel(props: AgentPanelProps): ReactNode {
         <NewAgentKey created={created} onDismiss={onDismiss} />
       ) : null}
       <AgentDetail
+        token={props.token}
         agent={agent}
         endpoint={props.endpoint}
         groups={props.groups}
+        attachable={props.attachable}
         unattributed={props.unattributed}
+        onChanged={props.onChanged}
         onDelete={props.onDelete}
       />
     </Col>

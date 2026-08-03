@@ -109,6 +109,13 @@ const deps: AgentApiDeps = {
     return Promise.resolve(out);
   },
   capabilities: () => ({ telegram: ['send'], discord: ['send', 'read'] }),
+  prepareAccount: () =>
+    Promise.reject(new AgentAdminError('attaching is not exercised here', 400)),
+  attachAccount: () =>
+    Promise.reject(new AgentAdminError('attaching is not exercised here', 400)),
+  detachAccount: () =>
+    Promise.reject(new AgentAdminError('detaching is not exercised here', 400)),
+  syncStations: () => Promise.resolve(),
 };
 
 const session = (email: string, secret = SECRET): string =>

@@ -1,4 +1,10 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
@@ -117,7 +123,25 @@ async function loadAgents(): Promise<LoadedAgent[]> {
   return out;
 }
 
-function writeStations(list: LoadedAgent[]): string[] {
+function trainStubPath(station: StationName): string {
+  return join(TRAINS_DIR, `${station}.ts`);
+}
+
+function currentText(path: string): string | null {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+export function writeIfChanged(path: string, content: string): boolean {
+  if (currentText(path) === content) return false;
+  writeFileSync(path, content);
+  return true;
+}
+
+function writeStations(list: LoadedAgent[]): Map<StationName, number> {
   mkdirSync(METRO_DIR, { recursive: true });
   mkdirSync(TRAINS_DIR, { recursive: true });
 
@@ -138,18 +162,34 @@ function writeStations(list: LoadedAgent[]): string[] {
   setAgentMap(map, names);
   setAllowlistMap(allow);
 
-  const active: string[] = [];
+  const active = new Map<StationName, number>();
   for (const [station, accts] of byStation) {
     const records = accts.map((a) => ({ id: a.accountId, ...a.config }));
     writeSecure(accountFilePath(station), JSON.stringify(records, null, 2));
-    writeFileSync(
-      join(TRAINS_DIR, `${station}.ts`),
+    writeIfChanged(
+      trainStubPath(station),
       `import '${STATION_TARGETS[station].trainImport}';\n`,
     );
-    active.push(`${station}(${accts.length})`);
+    active.set(station, accts.length);
   }
   return active;
 }
+
+function pruneStations(present: Map<StationName, number>): StationName[] {
+  const removed: StationName[] = [];
+  for (const station of Object.keys(STATION_TARGETS) as StationName[]) {
+    if (present.has(station)) continue;
+    const stub = trainStubPath(station);
+    if (!existsSync(stub) && !existsSync(accountFilePath(station))) continue;
+    writeSecure(accountFilePath(station), '[]\n');
+    rmSync(stub, { force: true });
+    removed.push(station);
+  }
+  return removed;
+}
+
+const stationLabels = (m: Map<StationName, number>): string[] =>
+  [...m].map(([station, n]) => `${station}(${n})`);
 
 function applyAgentKey(list: LoadedAgent[]): void {
   if (list.length !== 1) return;
@@ -165,20 +205,43 @@ function applyKeyMap(list: LoadedAgent[]): void {
   );
 }
 
+async function loadAndWrite(): Promise<Map<StationName, number>> {
+  const list = await loadAgents();
+  applyAgentKey(list);
+  applyKeyMap(list);
+  return writeStations(list);
+}
+
 export async function materializeFromDb(): Promise<void> {
   if (!databaseUrl())
     throw new Error('DATABASE_URL is not set — accounts load from Postgres');
   try {
-    const list = await loadAgents();
-    applyAgentKey(list);
-    applyKeyMap(list);
-    const active = writeStations(list);
-    if (active.length === 0)
-      throw new Error('no accounts found in the database');
-    log.info({ stations: active }, 'db: materialized accounts from Postgres');
+    const active = await loadAndWrite();
+    if (active.size === 0) throw new Error('no accounts found in the database');
+    log.info(
+      { stations: stationLabels(active) },
+      'db: materialized accounts from Postgres',
+    );
   } finally {
     await closeDb();
   }
+}
+
+export interface ReloadedStations {
+  active: StationName[];
+  removed: StationName[];
+}
+
+export async function reloadAccountsFromDb(): Promise<ReloadedStations> {
+  if (!databaseUrl())
+    throw new Error('DATABASE_URL is not set — accounts load from Postgres');
+  const active = await loadAndWrite();
+  const removed = pruneStations(active);
+  log.info(
+    { stations: stationLabels(active), removed },
+    'db: reloaded accounts from Postgres',
+  );
+  return { active: [...active.keys()], removed };
 }
 
 if (import.meta.main) {

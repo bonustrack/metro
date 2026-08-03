@@ -75,8 +75,10 @@ export function Dashboard({
         </Col>
         <Col style={MAIN}>
           <AgentPanel
+            token={token}
             agents={data.agents}
             groups={data.groups}
+            attachable={data.attachable}
             unattributed={data.unattributed}
             endpoint={data.endpoint}
             selection={selection}
@@ -88,6 +90,7 @@ export function Dashboard({
             onDismiss={() => {
               setCreated(null);
             }}
+            onChanged={onRefresh}
             onDelete={onDelete}
           />
         </Col>

@@ -15,12 +15,18 @@ import { createMetroMcp } from '../mcp/index.js';
 import { metroCall } from '../mcp/ctx.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import { accountStationCapabilities } from '../stations/registry.js';
-import { materializeFromDb } from '../db/materialize.js';
+import { prepareAccount } from '../stations/attach.js';
+import { materializeFromDb, reloadAccountsFromDb } from '../db/materialize.js';
 import {
   createAgentForEmail,
   deleteAgentForEmail,
   listAgentsForEmail,
 } from '../db/agent-admin.js';
+import {
+  attachAccountToAgent,
+  detachAccountFromAgent,
+} from '../db/account-attach.js';
+import type { StationName } from '../db/schema.js';
 import type { AgentApiDeps } from './agent-api.js';
 
 loadMetroEnv();
@@ -50,12 +56,22 @@ setTrainCallBackend((train, action, args) =>
   supervisor.call(train, action, args),
 );
 
+async function syncStations(station: StationName): Promise<void> {
+  const { removed } = await reloadAccountsFromDb();
+  if (removed.includes(station)) await supervisor.stopTrain(station);
+  else supervisor.requestReload(station);
+}
+
 const agentApi: AgentApiDeps = {
   listAgents: listAgentsForEmail,
   createAgent: createAgentForEmail,
   deleteAgent: deleteAgentForEmail,
   gatherAccounts: gatherAccountsForAgents,
   capabilities: accountStationCapabilities,
+  prepareAccount,
+  attachAccount: attachAccountToAgent,
+  detachAccount: detachAccountFromAgent,
+  syncStations,
 };
 
 async function main(): Promise<void> {

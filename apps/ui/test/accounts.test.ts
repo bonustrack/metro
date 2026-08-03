@@ -29,6 +29,14 @@ describe('groupAccounts carries the owning agent', () => {
     expect(discord?.rows[0]?.fields.map((f) => f.label)).toEqual(['id']);
   });
 
+  test('the station-local account id is kept for detaching, never invented', () => {
+    const groups = groupAccounts(PAYLOAD);
+    expect(
+      groups.find((g) => g.station === 'telegram')?.rows.map((r) => r.id),
+    ).toEqual(['ada-tg', 'bob-tg']);
+    expect(groupAccounts({ telegram: [{ owner: 'ada' }] })[0]?.rows[0]?.id).toBeNull();
+  });
+
   test('an account with no agent id reads as unattributed', () => {
     const groups = groupAccounts({ telegram: [{ id: 'orphan' }] });
     expect(groups[0]?.rows[0]?.agentId).toBeNull();

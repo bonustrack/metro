@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
 import { registerKey, unregisterAgentKeys } from './key-map.js';
 import { accounts, agents, keys } from './schema.js';
@@ -7,14 +8,7 @@ import { accounts, agents, keys } from './schema.js';
 export const AGENT_NAME_RE = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 export const DEFAULT_KEY_NAME = 'default';
 
-export class AgentAdminError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
+export class AgentAdminError extends ApiError {}
 
 export interface AgentKeySummary {
   name: string;
@@ -34,10 +28,12 @@ export interface CreatedAgent {
   key: string;
 }
 
-export interface DeletedAgent {
+export interface OwnedAgent {
   id: number;
   name: string;
 }
+
+export type DeletedAgent = OwnedAgent;
 
 export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
@@ -61,7 +57,7 @@ export function servesEveryAgent(): boolean {
   return (process.env.METRO_AGENT?.trim() ?? '') === '';
 }
 
-const isUniqueViolation = (e: unknown): boolean =>
+export const isUniqueViolation = (e: unknown): boolean =>
   typeof e === 'object' &&
   e !== null &&
   (e as { code?: unknown }).code === '23505';
@@ -200,11 +196,12 @@ export function parseAgentId(raw: string): number | null {
   return Number(raw);
 }
 
-async function deletableAgent(
+export async function ownedAgentOrThrow(
   owner: string,
   granted: string[],
   id: number,
-): Promise<DeletedAgent> {
+  verb: string,
+): Promise<OwnedAgent> {
   const rows = await getDb().select().from(agents).where(eq(agents.id, id));
   const row = rows[0];
   const missing = new AgentAdminError('no such agent', 404);
@@ -212,7 +209,7 @@ async function deletableAgent(
   if (row.ownerEmail === null) {
     if (!granted.includes(row.name)) throw missing;
     throw new AgentAdminError(
-      'operator-provisioned agents cannot be deleted here',
+      `operator-provisioned agents cannot be ${verb} here`,
       403,
     );
   }
@@ -232,7 +229,7 @@ export async function deleteAgentForEmail(
   id: number,
 ): Promise<DeletedAgent> {
   const owner = normalizeEmail(email);
-  const agent = await deletableAgent(owner, granted, id);
+  const agent = await ownedAgentOrThrow(owner, granted, id, 'deleted');
   const revoked = await getDb().transaction(async (tx) => {
     const attached = await tx
       .select({ accountId: accounts.accountId })
