@@ -59,6 +59,7 @@ export function CreateAgent({ first, onCreate }: CreateAgentProps): ReactNode {
           />
           <Button
             color="primary"
+            dark={dark}
             onPress={submit}
             loading={busy}
             disabled={busy || name.trim() === ''}

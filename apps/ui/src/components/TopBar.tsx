@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Button } from '@stage-labs/kit/react-native/button';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 
 interface TopBarProps {
   email: string;
@@ -14,6 +15,7 @@ function expiryLabel(expiresAt: number): string {
 }
 
 export function TopBar({ email, expiresAt, onLock }: TopBarProps): ReactNode {
+  const dark = useKitScheme() === 'dark';
   return (
     <Row justify="between" align="center" gap={12} wrap>
       <Col gap={2}>
@@ -22,7 +24,7 @@ export function TopBar({ email, expiresAt, onLock }: TopBarProps): ReactNode {
           {email} · session expires {expiryLabel(expiresAt)}
         </Text>
       </Col>
-      <Button color="secondary" onPress={onLock} label="Log out" />
+      <Button color="secondary" dark={dark} onPress={onLock} label="Log out" />
     </Row>
   );
 }
