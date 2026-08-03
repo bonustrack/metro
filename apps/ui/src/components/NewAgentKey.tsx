@@ -30,7 +30,7 @@ export function NewAgentKey({
         <CopyBlock label="api key" value={created.key} />
         <CopyBlock label="add to claude code" value={created.command} />
         <Row justify="end">
-          <Button color="secondary" onPress={onDismiss} label="Done" />
+          <Button color="secondary" dark={dark} onPress={onDismiss} label="Done" />
         </Row>
       </Col>
     </Card>

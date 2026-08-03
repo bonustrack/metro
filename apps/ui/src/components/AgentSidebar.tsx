@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
@@ -49,9 +49,21 @@ export function AgentSidebar({
   selection,
   onSelect,
 }: AgentSidebarProps): ReactNode {
+  const dark = useKitScheme() === 'dark';
   return (
     <Col gap={10}>
-      <Text size="lg" weight="semibold">Agents</Text>
+      <Row justify="between" align="center" gap={10} wrap>
+        <Text size="lg" weight="semibold">Agents</Text>
+        <Button
+          size="sm"
+          color="primary"
+          dark={dark}
+          label="New agent"
+          onPress={() => {
+            onSelect({ kind: 'new' });
+          }}
+        />
+      </Row>
       {agents.length === 0 ? (
         <Text size="sm" role="secondary">No agents yet.</Text>
       ) : (
@@ -69,15 +81,6 @@ export function AgentSidebar({
           ))}
         </Col>
       )}
-      <Button
-        size="sm"
-        color="secondary"
-        variant={selection.kind === 'new' ? 'solid' : 'soft'}
-        label="New agent"
-        onPress={() => {
-          onSelect({ kind: 'new' });
-        }}
-      />
     </Col>
   );
 }

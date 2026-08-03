@@ -22,7 +22,10 @@ the UI ships no Google JavaScript at all.
   (`history.replaceState`). It then `GET`s `/api/agents` with
   `Authorization: Bearer <session>`.
 - The dashboard is **two panes**. The left sidebar holds the agent list and nothing else,
-  one row per agent with its account count, plus a **New agent** button. Everything else
+  one row per agent with its account count, under a header row whose right-hand side is the
+  **New agent** button. That button is the create entry point and is rendered in every
+  state — none, one, many — never only in the empty state, and it sits above the list so a
+  long list cannot scroll it out of view. Everything else
   belongs to the agent you pick and lives in the main pane: its accounts grouped by station,
   its MCP endpoint, its API key, the paste-ready `claude mcp add …` line and its **Delete**
   button. Accounts are never listed globally, so which account belongs to which agent is
@@ -37,7 +40,8 @@ the UI ships no Google JavaScript at all.
   button and no key (only the endpoint), and the daemon refuses the call anyway.
 - The four states the main pane can be in: **no agents at all** → the create form, titled
   *Create your first agent*; **no agent selected** (you just deleted the one you were
-  looking at) → a prompt to pick one on the left; **an agent with no accounts** → its
+  looking at) → a prompt to pick one on the left, carrying its own **New agent** button so
+  that state is never a dead end; **an agent with no accounts** → its
   credentials plus a line saying no chat account is connected yet; **a granted agent** →
   its endpoint, no key.
 - **Log out** clears the stored session. A returning visitor with a still-fresh stored
@@ -118,3 +122,9 @@ daemon. Deploy previews work once metro.box's daemon has the callback + envs.
 ## Design
 
 Styling comes from `@stage-labs/kit`, rendered on the web via `react-native-web`.
+
+Kit `Button` resolves its colours from a `dark` prop that defaults to `false`, exactly like
+`Card` does — it does not read the theme context. Every `<Button>` here therefore passes
+`dark={useKitScheme() === 'dark'}`. Omitting it paints a light-scheme button on the dark
+page: a `primary` one comes out pure black on the near-black background, which is how a
+visible control becomes an invisible one. Pass `dark` on every new button.

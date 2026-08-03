@@ -82,6 +82,9 @@ export function Dashboard({
             selection={selection}
             created={created}
             onCreate={onCreate}
+            onNew={() => {
+              setPicked({ kind: 'new' });
+            }}
             onDismiss={() => {
               setCreated(null);
             }}

@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Button } from '@stage-labs/kit/react-native/button';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 
 const MASK = '•'.repeat(28);
 
@@ -12,6 +13,7 @@ interface CopyBlockProps {
 }
 
 export function CopyBlock({ label, value, secret = false }: CopyBlockProps): ReactNode {
+  const dark = useKitScheme() === 'dark';
   const [copied, setCopied] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const masked = secret && !revealed;
@@ -39,13 +41,20 @@ export function CopyBlock({ label, value, secret = false }: CopyBlockProps): Rea
               size="sm"
               color="secondary"
               variant="soft"
+              dark={dark}
               onPress={() => {
                 setRevealed(!revealed);
               }}
               label={revealed ? 'Hide' : 'Reveal'}
             />
           ) : null}
-          <Button size="sm" color="secondary" onPress={copy} label={copied ? 'Copied' : 'Copy'} />
+          <Button
+            size="sm"
+            color="secondary"
+            dark={dark}
+            onPress={copy}
+            label={copied ? 'Copied' : 'Copy'}
+          />
         </Row>
       </Row>
       <Text size="sm" variant="mono" selectable={!masked}>

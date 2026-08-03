@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Button } from '@stage-labs/kit/react-native/button';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { type AgentSummary } from '../api/client';
 
 interface DeleteAgentProps {
@@ -10,6 +11,7 @@ interface DeleteAgentProps {
 }
 
 export function DeleteAgent({ agent, onDelete }: DeleteAgentProps): ReactNode {
+  const dark = useKitScheme() === 'dark';
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,7 @@ export function DeleteAgent({ agent, onDelete }: DeleteAgentProps): ReactNode {
             <Button
               size="sm"
               color="danger"
+              dark={dark}
               onPress={remove}
               loading={busy}
               disabled={busy}
@@ -45,6 +48,7 @@ export function DeleteAgent({ agent, onDelete }: DeleteAgentProps): ReactNode {
             <Button
               size="sm"
               color="secondary"
+              dark={dark}
               disabled={busy}
               onPress={() => {
                 setConfirming(false);
@@ -58,6 +62,7 @@ export function DeleteAgent({ agent, onDelete }: DeleteAgentProps): ReactNode {
           size="sm"
           color="danger"
           variant="soft"
+          dark={dark}
           onPress={() => {
             setConfirming(true);
           }}

@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
+import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { type AccountGroup } from '../api/accounts';
@@ -10,11 +11,14 @@ import { CreateAgent } from './CreateAgent';
 import { NewAgentKey } from './NewAgentKey';
 import { type Selection } from './selection';
 
-function Hint({ text }: { text: string }): ReactNode {
+function Hint({ text, onNew }: { text: string; onNew: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Card dark={dark} padding={18}>
-      <Text role="secondary">{text}</Text>
+      <Col gap={12} align="start">
+        <Text role="secondary">{text}</Text>
+        <Button size="sm" color="primary" dark={dark} label="New agent" onPress={onNew} />
+      </Col>
     </Card>
   );
 }
@@ -27,6 +31,7 @@ interface AgentPanelProps {
   selection: Selection;
   created: CreatedAgent | null;
   onCreate: (name: string) => Promise<void>;
+  onNew: () => void;
   onDismiss: () => void;
   onDelete: (id: number) => Promise<void>;
 }
@@ -43,7 +48,12 @@ export function AgentPanel(props: AgentPanelProps): ReactNode {
 
   if (agent === undefined) {
     if (created !== null) return <NewAgentKey created={created} onDismiss={onDismiss} />;
-    return <Hint text="Pick an agent on the left to see its accounts, MCP endpoint and API key." />;
+    return (
+      <Hint
+        text="Pick an agent on the left to see its accounts, MCP endpoint and API key."
+        onNew={props.onNew}
+      />
+    );
   }
 
   return (
