@@ -109,10 +109,18 @@ const attachSessions = new AttachSessions({
   start: (station, input, hooks) => {
     if (input.phone === 'reject')
       return Promise.reject(new AgentAdminError('that number was refused', 400));
+    if (input.phone === 'handset-refuses')
+      setTimeout(() => {
+        hooks.fail('WhatsApp ended the pairing, start again');
+      }, 0);
     return Promise.resolve({
       prompt: { step: 'code', prompt: 'enter the code' },
       driver: {
         submit: (values) => {
+          if (values.code === '000000') {
+            hooks.fail('that login code is not right');
+            return Promise.resolve();
+          }
           hooks.done({
             config: { session: `fake-session-for-${station}` },
             identity: { userId: String(values.code) },
@@ -756,5 +764,84 @@ describe('interactive attach sessions over HTTP', () => {
       headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
     });
     expect(res.status).toBe(405);
+  });
+});
+
+describe('a sign-in that never completes leaves the accounts table alone', () => {
+  afterEach(async () => {
+    await attachSessions.stop();
+  });
+
+  const seed = async (): Promise<Row[]> => {
+    await start(session('ada@lovelace.dev'), 1, {
+      station: 'telegram',
+      token: `${FAKE_TOKEN}-seed`,
+    });
+    synced = [];
+    return structuredClone(rows);
+  };
+
+  const poll = async (attachId: string): Promise<SessionBody> => {
+    await new Promise((r) => setTimeout(r, 10));
+    const res = await fetch(sessionUrl(1, attachId), {
+      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+    });
+    return (await res.json()) as SessionBody;
+  };
+
+  const step = (attachId: string, code: string): Promise<Response> =>
+    fetch(`${sessionUrl(1, attachId)}/step`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${session('ada@lovelace.dev')}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ code }),
+    });
+
+  test('a Telegram code the provider refuses fails the session and writes nothing', async () => {
+    const before = await seed();
+    const attachId = await startSession('ada@lovelace.dev');
+    expect((await step(attachId, '000000')).status).toBe(200);
+    const view = await poll(attachId);
+    expect(view.status).toBe('failed');
+    expect(view.error).toContain('not right');
+    expect(rows.length).toBe(before.length);
+    expect(rows).toEqual(before);
+    expect(synced).toEqual([]);
+  });
+
+  test('a WhatsApp pairing the handset refuses writes nothing', async () => {
+    const before = await seed();
+    const res = await start(session('ada@lovelace.dev'), 1, {
+      station: 'whatsapp',
+      phone: 'handset-refuses',
+    });
+    const attachId = ((await res.json()) as SessionBody).attachId ?? '';
+    expect((await poll(attachId)).status).toBe('failed');
+    expect(rows.length).toBe(before.length);
+    expect(rows).toEqual(before);
+    expect(synced).toEqual([]);
+  });
+
+  test('a sign-in abandoned before it finishes writes nothing', async () => {
+    const before = await seed();
+    const attachId = await startSession('ada@lovelace.dev');
+    await fetch(sessionUrl(1, attachId), {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+    });
+    expect(rows.length).toBe(before.length);
+    expect(rows).toEqual(before);
+    expect(synced).toEqual([]);
+  });
+
+  test('a sign-in that does complete is the only one that adds a row', async () => {
+    const before = await seed();
+    const attachId = await startSession('ada@lovelace.dev');
+    await step(attachId, '12345');
+    expect((await poll(attachId)).status).toBe('done');
+    expect(rows.length).toBe(before.length + 1);
+    expect(rows.at(-1)?.station).toBe('telegram-user');
   });
 });
