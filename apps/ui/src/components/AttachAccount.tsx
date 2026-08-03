@@ -4,93 +4,108 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { Input } from '@stage-labs/kit/react-native/input';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import {
-  useKitPalette,
-  useKitScheme,
-} from '@stage-labs/kit/react-native/theme-context';
-import {
-  attachAccount,
-  stationLabel,
+  startAttach,
   STATION_FORMS,
+  type AttachField,
   type AttachResult,
+  type StationForm,
 } from '../api/attach';
-import { StationIcon } from './StationIcon';
+import { type AttachSession } from '../api/attach-session';
+import { StationPicker } from './StationPicker';
 
 interface AttachAccountProps {
   token: string;
   agentId: number;
   attachable: string[];
   onAttached: (result: AttachResult) => void;
+  onPending: (session: AttachSession) => void;
 }
 
-function StationPicker({
-  stations,
-  picked,
-  disabled,
-  onPick,
-}: {
-  stations: string[];
-  picked: string;
-  disabled: boolean;
-  onPick: (station: string) => void;
-}): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const palette = useKitPalette();
-  return (
-    <Row gap={8} wrap>
-      {stations.map((station) => (
-        <Button
-          key={station}
-          size="sm"
-          dark={dark}
-          disabled={disabled}
-          color={station === picked ? 'primary' : 'secondary'}
-          variant={station === picked ? 'solid' : 'soft'}
-          onPress={() => {
-            onPick(station);
-          }}
-          label={stationLabel(station)}
-          icon={
-            <StationIcon
-              station={station}
-              size={14}
-              color={station === picked ? palette.bg : palette.text}
-            />
-          }
-        />
-      ))}
-    </Row>
+const inputType = (field: AttachField): 'password' | 'number' | 'tel' | 'text' =>
+  field.secret ? 'password' : field.kind;
+
+function ready(form: StationForm, values: Record<string, string>): boolean {
+  return form.fields.every(
+    (f) => f.optional === true || (values[f.key] ?? '').trim() !== '',
   );
 }
 
-export function AttachAccount({
-  token,
-  agentId,
-  attachable,
-  onAttached,
-}: AttachAccountProps): ReactNode {
+function trimmed(
+  form: StationForm,
+  values: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const field of form.fields) {
+    const value = (values[field.key] ?? '').trim();
+    if (value !== '') out[field.key] = value;
+  }
+  return out;
+}
+
+function FormFields({
+  form,
+  values,
+  busy,
+  onChange,
+  onSubmit,
+}: {
+  form: StationForm;
+  values: Record<string, string>;
+  busy: boolean;
+  onChange: (key: string, value: string) => void;
+  onSubmit: () => void;
+}): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  return (
+    <Col gap={10}>
+      {form.fields.map((field) => (
+        <Col key={field.key} gap={4}>
+          <Text size="2xs" role="secondary">
+            {field.label}
+          </Text>
+          <Input
+            name={`attach-${field.key}`}
+            value={values[field.key] ?? ''}
+            placeholder={field.placeholder}
+            inputType={inputType(field)}
+            disabled={busy}
+            dark={dark}
+            onChangeText={(value) => {
+              onChange(field.key, value);
+            }}
+            onSubmit={onSubmit}
+            style={{ flexGrow: 1, minWidth: 260 }}
+          />
+        </Col>
+      ))}
+    </Col>
+  );
+}
+
+export function AttachAccount(props: AttachAccountProps): ReactNode {
+  const { token, agentId, attachable, onAttached, onPending } = props;
   const dark = useKitScheme() === 'dark';
   const known = attachable.filter((s) => STATION_FORMS[s] !== undefined);
   const [picked, setPicked] = useState(known[0] ?? '');
-  const [value, setValue] = useState('');
+  const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const form = STATION_FORMS[picked];
   if (known.length === 0 || form === undefined) return null;
-  const field = form.fields[0];
-  const ready = field === undefined || value.trim() !== '';
+  const complete = ready(form, values);
 
   const submit = (): void => {
-    if (busy || !ready) return;
+    if (busy || !complete) return;
     setBusy(true);
     setError(null);
-    const fields: Record<string, string> =
-      field === undefined ? {} : { [field.key]: value.trim() };
-    attachAccount(token, agentId, picked, fields)
-      .then((result) => {
-        setValue('');
-        onAttached(result);
+    startAttach(token, agentId, picked, trimmed(form, values))
+      .then((started) => {
+        setValues({});
+        if (started.kind === 'pending') onPending(started.session);
+        else onAttached(started.result);
       })
       .catch((err: unknown) => {
         setError(
@@ -119,31 +134,33 @@ export function AttachAccount({
           disabled={busy}
           onPick={(station) => {
             setPicked(station);
-            setValue('');
+            setValues({});
             setError(null);
           }}
         />
-        <Row gap={10} align="center" wrap>
-          {field === undefined ? null : (
-            <Input
-              name={`attach-${picked}`}
-              value={value}
-              placeholder={field.placeholder}
-              inputType={field.secret ? 'password' : 'text'}
-              disabled={busy}
-              dark={dark}
-              onChangeText={setValue}
-              onSubmit={submit}
-              style={{ flexGrow: 1, minWidth: 260 }}
-            />
-          )}
+        <FormFields
+          form={form}
+          values={values}
+          busy={busy}
+          onChange={(key, value) => {
+            setValues((prev) => ({ ...prev, [key]: value }));
+          }}
+          onSubmit={submit}
+        />
+        <Row justify="end">
           <Button
             color="primary"
             dark={dark}
             onPress={submit}
             loading={busy}
-            disabled={busy || !ready}
-            label={field === undefined ? 'Generate and connect' : 'Connect'}
+            disabled={busy || !complete}
+            label={
+              form.interactive
+                ? 'Start sign-in'
+                : form.fields.length === 0
+                  ? 'Generate and connect'
+                  : 'Connect'
+            }
           />
         </Row>
         {error !== null ? (

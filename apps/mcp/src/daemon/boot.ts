@@ -21,12 +21,15 @@ import {
   createAgentForEmail,
   deleteAgentForEmail,
   listAgentsForEmail,
+  normalizeEmail,
+  ownedAgentOrThrow,
 } from '../db/agent-admin.js';
 import {
   attachAccountToAgent,
   detachAccountFromAgent,
 } from '../db/account-attach.js';
 import type { StationName } from '../db/schema.js';
+import { AttachSessions } from './attach-session.js';
 import type { AgentApiDeps } from './agent-api.js';
 
 loadMetroEnv();
@@ -62,7 +65,39 @@ async function syncStations(station: StationName): Promise<void> {
   else supervisor.requestReload(station);
 }
 
+const attachSessions = new AttachSessions({
+  authorize: async (owner) => {
+    await ownedAgentOrThrow(
+      normalizeEmail(owner.email),
+      owner.granted,
+      owner.agentId,
+      'changed',
+    );
+  },
+  complete: async (owner, station, config) => {
+    const ref = await attachAccountToAgent(
+      owner.email,
+      owner.granted,
+      owner.agentId,
+      station,
+      config,
+    );
+    const activated = await syncStations(station).then(
+      () => true,
+      (err: unknown) => {
+        log.warn(
+          { station, err: errMsg(err) },
+          'attach-session: station reload failed, the change lands at the next boot',
+        );
+        return false;
+      },
+    );
+    return { accountId: ref.accountId, activated };
+  },
+});
+
 const agentApi: AgentApiDeps = {
+  attachSessions,
   listAgents: listAgentsForEmail,
   createAgent: createAgentForEmail,
   deleteAgent: deleteAgentForEmail,
@@ -112,6 +147,7 @@ async function shutdown(): Promise<void> {
       }),
     ]);
   }
+  await attachSessions.stop();
   await supervisor.stop();
   process.exit(0);
 }

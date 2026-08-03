@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { signSession } from '../src/daemon/session.ts';
 import type { AgentApiDeps } from '../src/daemon/agent-api.ts';
+import { AttachSessions } from '../src/daemon/attach-session.ts';
 import { AgentAdminError, type AgentSummary } from '../src/db/agent-admin.ts';
 import type { StationName } from '../src/db/schema.ts';
 import {
@@ -85,7 +86,47 @@ function fakePrepare(input: AttachInput): Promise<PreparedAccount> {
   });
 }
 
+const attachSessions = new AttachSessions({
+  authorize: (owner) => {
+    try {
+      ownedOrThrow(owner.email, owner.granted, owner.agentId);
+    } catch (err) {
+      return Promise.reject(err as Error);
+    }
+    return Promise.resolve();
+  },
+  complete: (owner, station, config) => {
+    nextAccount += 1;
+    const accountId = `a${owner.agentId}-0000000${nextAccount}`;
+    try {
+      ownedOrThrow(owner.email, owner.granted, owner.agentId);
+    } catch (err) {
+      return Promise.reject(err as Error);
+    }
+    rows.push({ agentId: owner.agentId, station, accountId, config });
+    return Promise.resolve({ accountId, activated: true });
+  },
+  start: (station, input, hooks) => {
+    if (input.phone === 'reject')
+      return Promise.reject(new AgentAdminError('that number was refused', 400));
+    return Promise.resolve({
+      prompt: { step: 'code', prompt: 'enter the code' },
+      driver: {
+        submit: (values) => {
+          hooks.done({
+            config: { session: `fake-session-for-${station}` },
+            identity: { userId: String(values.code) },
+          });
+          return Promise.resolve();
+        },
+        cancel: () => Promise.resolve(),
+      },
+    });
+  },
+});
+
 const deps: AgentApiDeps = {
+  attachSessions,
   listAgents: (email) => Promise.resolve(AGENTS[email] ?? []),
   createAgent: () => Promise.reject(new AgentAdminError('not used here', 400)),
   deleteAgent: () => Promise.reject(new AgentAdminError('not used here', 400)),
@@ -545,6 +586,175 @@ describe('GET /api/agents advertises what can be attached', () => {
       headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
     });
     const body = (await res.json()) as { attachable?: string[] };
-    expect(body.attachable).toEqual(['discord', 'telegram', 'xmtp']);
+    expect(body.attachable).toEqual([
+      'discord',
+      'telegram',
+      'xmtp',
+      'telegram-user',
+      'whatsapp',
+    ]);
+  });
+});
+
+interface SessionBody {
+  attachId?: string;
+  status?: string;
+  step?: string | null;
+  error?: string;
+  cancelled?: boolean;
+}
+
+const sessionUrl = (agentId: number | string, attachId: string): string =>
+  `${base}/api/agents/${agentId}/accounts/${attachId}`;
+
+const startSession = async (email: string, agentId = 1): Promise<string> => {
+  const res = await start(session(email), agentId, {
+    station: 'telegram-user',
+    apiId: 1,
+    apiHash: 'ff',
+    phone: '447700900123',
+  });
+  return ((await res.json()) as SessionBody).attachId ?? '';
+};
+
+describe('interactive attach sessions over HTTP', () => {
+  afterEach(async () => {
+    await attachSessions.stop();
+  });
+
+  test('start returns a pending session instead of a finished account', async () => {
+    const res = await start(session('ada@lovelace.dev'), 1, {
+      station: 'telegram-user',
+      apiId: 1,
+      apiHash: 'ff',
+      phone: '447700900123',
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as SessionBody;
+    expect(body.status).toBe('pending');
+    expect(body.step).toBe('code');
+    expect(body.attachId).toMatch(/^as_[A-Za-z0-9_-]{22}$/);
+    expect(rows).toEqual([]);
+  });
+
+  test('a step signs in and lands the account', async () => {
+    const attachId = await startSession('ada@lovelace.dev');
+    const res = await fetch(`${sessionUrl(1, attachId)}/step`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${session('ada@lovelace.dev')}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ code: '12345' }),
+    });
+    expect(res.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 10));
+    const poll = await fetch(sessionUrl(1, attachId), {
+      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+    });
+    expect(((await poll.json()) as SessionBody).status).toBe('done');
+    expect(rows[0]?.station).toBe('telegram-user');
+  });
+
+  test('the stored session string is never served back', async () => {
+    const attachId = await startSession('ada@lovelace.dev');
+    await fetch(`${sessionUrl(1, attachId)}/step`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${session('ada@lovelace.dev')}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ code: '12345' }),
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    const poll = await fetch(sessionUrl(1, attachId), {
+      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+    });
+    expect(await poll.text()).not.toContain('fake-session-for-');
+  });
+
+  test('another signed-in user cannot poll or step somebody else session', async () => {
+    const attachId = await startSession('ada@lovelace.dev');
+    const bob = { authorization: `Bearer ${session('bob@builder.dev')}` };
+    expect((await fetch(sessionUrl(1, attachId), { headers: bob })).status).toBe(
+      404,
+    );
+    const step = await fetch(`${sessionUrl(1, attachId)}/step`, {
+      method: 'POST',
+      headers: { ...bob, 'content-type': 'application/json' },
+      body: JSON.stringify({ code: '12345' }),
+    });
+    expect(step.status).toBe(404);
+    expect(rows).toEqual([]);
+  });
+
+  test('polling without a session is 401', async () => {
+    const attachId = await startSession('ada@lovelace.dev');
+    expect((await fetch(sessionUrl(1, attachId))).status).toBe(401);
+  });
+
+  test('cancelling drops the session', async () => {
+    const attachId = await startSession('ada@lovelace.dev');
+    const res = await fetch(sessionUrl(1, attachId), {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as SessionBody).cancelled).toBe(true);
+    const poll = await fetch(sessionUrl(1, attachId), {
+      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+    });
+    expect(poll.status).toBe(404);
+  });
+
+  test('an id that is not an attach id never reaches the session store', async () => {
+    for (const bad of ['as_short', 'as_' + 'x'.repeat(30), 'notasession']) {
+      const res = await fetch(sessionUrl(1, bad), {
+        headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      });
+      expect(res.status).toBe(404);
+    }
+  });
+
+  test('a grant is refused before any login is attempted', async () => {
+    process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
+    const res = await start(session('ada@lovelace.dev'), 5, {
+      station: 'whatsapp',
+      phone: '447700900123',
+    });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as SessionBody).error).toContain(
+      'operator-provisioned',
+    );
+    expect(rows).toEqual([]);
+  });
+
+  test('an interactive sign-in on somebody else agent is a flat 404', async () => {
+    const res = await start(session('ada@lovelace.dev'), 2, {
+      station: 'telegram-user',
+      apiId: 1,
+      apiHash: 'ff',
+      phone: '447700900123',
+    });
+    expect(res.status).toBe(404);
+    expect(rows).toEqual([]);
+  });
+
+  test('a station that refuses the input is a 400 with no session left behind', async () => {
+    const res = await start(session('ada@lovelace.dev'), 1, {
+      station: 'whatsapp',
+      phone: 'reject',
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as SessionBody).error).toContain('refused');
+  });
+
+  test('PUT on a session path is 405', async () => {
+    const attachId = await startSession('ada@lovelace.dev');
+    const res = await fetch(sessionUrl(1, attachId), {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+    });
+    expect(res.status).toBe(405);
   });
 });

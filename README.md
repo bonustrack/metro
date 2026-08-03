@@ -191,7 +191,7 @@ Per-station `config` jsonb (connection secrets + optional `owner`):
 | `telegram` | `{ token }`; optional `owner` |
 | `telegram-user` | `{ session, apiId, apiHash }`; optional `owner` |
 | `discord` | `{ token }`; optional `owner` |
-| `whatsapp` | `{ phone }` (E.164 digits); optional `owner`. Auth state is not in the DB — it lives as files on the `/data` volume (see below) |
+| `whatsapp` | `{ phone }` (E.164 digits) plus the Baileys auth blob under `config.credentials`; optional `owner` |
 
 `account_id` is the station-local id. An operator picks it (`x0`, `t0`, `d0`, `w0`,
 `default`); the web UI generates one (`a<agent-id>-<8 hex>`) so two owners can never collide
@@ -310,6 +310,28 @@ route that writes the `accounts` table, and it writes nothing else.
 | `discord` | the bot token | `GET /users/@me` with `Authorization: Bot <token>`. A rejected token is a `400` at attach time, not a dead train at the next boot. `GET /applications/@me` is read too: the Discord train always requests the **Message Content** intent, so an application that does not have it enabled is refused with the fix spelled out, rather than crash-looping on `Used disallowed intents`. If that second call cannot be read, the attach is allowed through. |
 | `telegram` | the bot token | `getMe`, which must answer `ok:true` for an `is_bot` identity. |
 | `xmtp` | nothing | Metro generates the 32-byte secp256k1 key itself, then **opens an XMTP inbox with it** before the row is written. The check runs in a short-lived subprocess (`@metro-labs/xmtp/verify`, key over stdin) against the same `~/.metro/xmtp-production-<hex>.db3` the train will use, and that path is stored in `config.dbPath`, so the train reuses the installation that was just verified instead of burning a second one out of the inbox's ten. `inboxId` and `address` come back on the `201`. If XMTP cannot be reached, or answers with an unregistered client, the attach is a `400` and the half-built database is deleted. |
+| `telegram-user` | api id + api hash from my.telegram.org, then the phone number | The whole MTProto sign-in: Telegram sends a login code to that number, and asks for the two-step verification password if the account has one. |
+| `whatsapp` | a phone number, or nothing to scan a QR instead | The whole multi-device pairing: Metro opens a Baileys socket, shows the QR or the 8-character pairing code, and waits for the handset. |
+
+The last two cannot finish in one request, so they run as a short-lived **attach session**:
+
+| method | path | |
+| --- | --- | --- |
+| `POST` | `/api/agents/<id>/accounts/start` | answers `201 { status: "pending", attachId, step, prompt, qr, pairingCode, expiresAt }` instead of `status: "done"` |
+| `GET` | `/api/agents/<id>/accounts/<attach_id>` | poll: the QR rotates, the step moves `code` to `password`, and the status becomes `done` or `failed` |
+| `POST` | `/api/agents/<id>/accounts/<attach_id>/step` | `{"code":"…"}` or `{"password":"…"}` |
+| `DELETE` | `/api/agents/<id>/accounts/<attach_id>` | abandon it now rather than waiting for the timeout |
+
+`<attach_id>` is `as_` + 22 random base64url characters, which is disjoint from every station
+name, so the router can tell an attach session from an account path without guessing.
+
+The session state is **in memory only and never persisted**. It holds a live provider client,
+which is the thing that holds the credential in flight; the credential itself is handed
+straight to the `accounts` row on success and is never stored on the session or returned in a
+poll. A session lives five minutes, one agent may have two at a time and the daemon forty, a
+sweeper runs every fifteen seconds, and expiring, cancelling or shutting the daemon down all
+tear the provider client down. Nothing is written to `accounts` until the sign-in actually
+completes, so an abandoned attempt leaves no trace.
 
 Rules that hold for every station:
 
@@ -345,6 +367,12 @@ Rules that hold for every station:
 database access can read it, but **no API ever returns it again**, so the one-time panel shown
 at creation is the only copy the person attaching it will get. Copy it out then, or treat the
 identity as disposable and attach a new one.
+
+> `telegram-user` and `whatsapp` sign in as **real user accounts**, not bots. The stored
+> session and the stored Baileys blob are full-account credentials, both carry a ban risk under
+> the platforms' terms, and both are single-writer per account. Use a number you are willing to
+> dedicate to the agent. `packages/whatsapp/scripts/login.ts` and
+> `packages/telegram-user/scripts/login.ts` still work as the operator equivalents.
 
 On a `METRO_AGENT`-pinned daemon the generated key is **not** accepted by that daemon (it
 only serves the pinned agent's keys, before and after a restart alike). The key is still
