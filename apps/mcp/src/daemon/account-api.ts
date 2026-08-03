@@ -94,6 +94,27 @@ interface AttachPayload {
   secret?: OneTimeSecret;
 }
 
+async function storeAccount(
+  deps: AccountApiDeps,
+  session: ApiSession,
+  agentId: number,
+  station: StationName,
+  prepared: PreparedAccount,
+): Promise<AccountRef> {
+  try {
+    return await deps.attachAccount(
+      session.email,
+      session.granted,
+      agentId,
+      station,
+      prepared.config,
+    );
+  } catch (err) {
+    prepared.discard?.();
+    throw err;
+  }
+}
+
 async function handleStart(
   req: IncomingMessage,
   res: ServerResponse,
@@ -109,13 +130,7 @@ async function handleStart(
     station,
     token: bodyField(body, 'token'),
   });
-  const ref = await deps.attachAccount(
-    session.email,
-    session.granted,
-    agentId,
-    station,
-    prepared.config,
-  );
+  const ref = await storeAccount(deps, session, agentId, station, prepared);
   log.info(
     { agentId: ref.agentId, station, account: ref.accountId },
     'account-api: attached a station account',

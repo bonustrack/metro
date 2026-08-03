@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   ATTACHABLE_STATIONS,
   isAttachStation,
@@ -6,11 +9,32 @@ import {
   prepareAccount,
   StationAttachError,
 } from '../src/stations/attach.ts';
+import {
+  XmtpAttachError,
+  type VerifyXmtpKey,
+} from '../src/stations/attach-xmtp.ts';
 import { isStationName, parseAccountId } from '../src/db/account-attach.ts';
 
 const SECP256K1_ORDER = BigInt(
   '0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141',
 );
+
+const INBOX = 'c'.repeat(64);
+
+const opened = (
+  seen: { key: string; dbPath: string }[],
+  resolved = '/tmp/metro-fake-inbox.db3',
+): VerifyXmtpKey => {
+  return (privateKey, dbPath) => {
+    seen.push({ key: privateKey, dbPath });
+    return Promise.resolve({
+      inboxId: INBOX,
+      address: '0x4a76C41C3B3c50F2E75aCFb77C36e35D603d628f',
+      installationId: 'd'.repeat(64),
+      dbPath: resolved,
+    });
+  };
+};
 
 describe('attachable stations', () => {
   test('the attachable set is a strict subset of the known stations', () => {
@@ -50,9 +74,76 @@ describe('generated xmtp identities', () => {
   });
 
   test('prepareAccount hands the key back once, and stores the same one', async () => {
-    const prepared = await prepareAccount({ station: 'xmtp' });
+    const seen: { key: string; dbPath: string }[] = [];
+    const prepared = await prepareAccount({ station: 'xmtp' }, opened(seen));
     expect(prepared.secret?.value).toBe(prepared.config.privateKey as string);
-    expect(prepared.identity).toEqual({});
+    expect(seen[0]?.key).toBe(prepared.config.privateKey as string);
+  });
+});
+
+describe('a generated xmtp key is only stored once XMTP opened an inbox with it', () => {
+  test('the identity carries the inbox XMTP actually opened', async () => {
+    const seen: { key: string; dbPath: string }[] = [];
+    const prepared = await prepareAccount({ station: 'xmtp' }, opened(seen));
+    expect(prepared.identity.inboxId).toBe(INBOX);
+    expect(prepared.identity.address).toBe(
+      '0x4a76C41C3B3c50F2E75aCFb77C36e35D603d628f',
+    );
+    expect(prepared.secret?.note).toContain(INBOX);
+  });
+
+  test('the row records the database the verified installation lives in', async () => {
+    const seen: { key: string; dbPath: string }[] = [];
+    const prepared = await prepareAccount({ station: 'xmtp' }, opened(seen));
+    expect(prepared.config.dbPath).toMatch(
+      /^~\/\.metro\/xmtp-production-[0-9a-f]{16}\.db3$/,
+    );
+    expect(seen[0]?.dbPath).toBe(prepared.config.dbPath as string);
+  });
+
+  test('two attaches never share a database, so neither reuses the other installation', async () => {
+    const seen: { key: string; dbPath: string }[] = [];
+    await prepareAccount({ station: 'xmtp' }, opened(seen));
+    await prepareAccount({ station: 'xmtp' }, opened(seen));
+    expect(seen[0]?.dbPath).not.toBe(seen[1]?.dbPath);
+    expect(seen[0]?.key).not.toBe(seen[1]?.key);
+  });
+
+  test('a key XMTP would not open an inbox for yields no account at all', async () => {
+    const err = await prepareAccount({ station: 'xmtp' }, () =>
+      Promise.reject(new XmtpAttachError('XMTP did not register an inbox')),
+    ).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(StationAttachError);
+    expect((err as StationAttachError).status).toBe(400);
+    expect((err as StationAttachError).message).toContain('did not register');
+  });
+
+  test('an unexpected failure in the check is still a refusal, not an account', async () => {
+    const err = await prepareAccount({ station: 'xmtp' }, () =>
+      Promise.reject(new Error('bun: command not found')),
+    ).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(StationAttachError);
+    expect((err as StationAttachError).message).toContain(
+      'could not open an XMTP inbox',
+    );
+    expect((err as StationAttachError).message).not.toContain('command not found');
+  });
+
+  test('discarding removes the database the check created', async () => {
+    const resolved = join(
+      mkdtempSync(join(tmpdir(), 'metro-xmtp-prepare-')),
+      'inbox.db3',
+    );
+    writeFileSync(resolved, 'x');
+    const prepared = await prepareAccount({ station: 'xmtp' }, opened([], resolved));
+    prepared.discard?.();
+    expect(existsSync(resolved)).toBe(false);
   });
 });
 

@@ -41,7 +41,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
   xmtp: {
     label: 'XMTP',
-    hint: 'Metro generates a fresh XMTP identity for this agent. The private key is shown once and never again.',
+    hint: 'Metro generates a fresh XMTP identity for this agent, opens an inbox with it, and stores it only if that worked. The private key is shown once and never again.',
     fields: [],
   },
 };

@@ -300,10 +300,17 @@ route that writes the `accounts` table, and it writes nothing else.
 | --- | --- | --- |
 | `discord` | the bot token | `GET /users/@me` with `Authorization: Bot <token>`. A rejected token is a `400` at attach time, not a dead train at the next boot. `GET /applications/@me` is read too: the Discord train always requests the **Message Content** intent, so an application that does not have it enabled is refused with the fix spelled out, rather than crash-looping on `Used disallowed intents`. If that second call cannot be read, the attach is allowed through. |
 | `telegram` | the bot token | `getMe`, which must answer `ok:true` for an `is_bot` identity. |
-| `xmtp` | nothing | Metro generates the 32-byte secp256k1 key itself. |
+| `xmtp` | nothing | Metro generates the 32-byte secp256k1 key itself, then **opens an XMTP inbox with it** before the row is written. The check runs in a short-lived subprocess (`@metro-labs/xmtp/verify`, key over stdin) against the same `~/.metro/xmtp-production-<hex>.db3` the train will use, and that path is stored in `config.dbPath`, so the train reuses the installation that was just verified instead of burning a second one out of the inbox's ten. `inboxId` and `address` come back on the `201`. If XMTP cannot be reached, or answers with an unregistered client, the attach is a `400` and the half-built database is deleted. |
 
 Rules that hold for every station:
 
+- **No row exists unless the credential was demonstrated to work.** Every station checks
+  against the real provider *before* `attachAccount` is called, and a refusal is a `400`/`409`
+  that leaves the `accounts` table byte for byte as it was: no row, no train stub, no station
+  reload. If the write itself fails after a good check, whatever the check created on disk is
+  discarded (`PreparedAccount.discard`). "Well-formed" is never enough on its own: a generated
+  XMTP key is well-formed by construction, which is exactly why it is registered before it is
+  stored.
 - **Authorisation is the same predicate as delete.** `ownedAgentOrThrow` is one function used
   by both: the agent must have `owner_email` equal to the session email. Somebody else's agent
   or an unknown id is a flat `404`; an operator-provisioned row a `GOOGLE_EMAIL_AGENTS` grantee

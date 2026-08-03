@@ -8,6 +8,13 @@ import {
   verifyTelegramBotToken,
 } from '@metro-labs/telegram/verify';
 import { ApiError } from '../daemon/api-error.js';
+import {
+  discardXmtpDb,
+  newXmtpDbPath,
+  verifyXmtpKeyOutOfProcess,
+  XmtpAttachError,
+  type VerifyXmtpKey,
+} from './attach-xmtp.js';
 
 export const ATTACHABLE_STATIONS = ['discord', 'telegram', 'xmtp'] as const;
 
@@ -30,6 +37,7 @@ export interface PreparedAccount {
   config: Record<string, unknown>;
   identity: Record<string, string>;
   secret?: OneTimeSecret;
+  discard?: () => void;
 }
 
 const TOKEN_RE = /^[A-Za-z0-9._:-]{8,256}$/;
@@ -112,23 +120,37 @@ export function newXmtpPrivateKey(): string {
   }
 }
 
-function prepareXmtp(): PreparedAccount {
+async function prepareXmtp(verify: VerifyXmtpKey): Promise<PreparedAccount> {
   const privateKey = newXmtpPrivateKey();
+  const dbPath = newXmtpDbPath();
+  const identity = await verify(privateKey, dbPath).catch((err: unknown) =>
+    rejected(
+      err,
+      err instanceof XmtpAttachError,
+      'Metro could not open an XMTP inbox with the key it generated, so nothing was attached',
+    ),
+  );
   return {
-    config: { privateKey },
-    identity: {},
+    config: { privateKey, dbPath },
+    identity: { inboxId: identity.inboxId, address: identity.address },
     secret: {
       label: 'xmtp private key',
       value: privateKey,
-      note: 'Metro generated this key and stores it with the account. It is shown once, here, and is never returned by any API again.',
+      note: 'Metro generated this key, opened inbox ' +
+        `${identity.inboxId} with it, and stores it with the account. ` +
+        'It is shown once, here, and is never returned by any API again.',
+    },
+    discard: () => {
+      discardXmtpDb(identity.dbPath);
     },
   };
 }
 
 export async function prepareAccount(
   input: AttachInput,
+  verify: VerifyXmtpKey = verifyXmtpKeyOutOfProcess,
 ): Promise<PreparedAccount> {
   if (input.station === 'discord') return prepareDiscord(input.token);
   if (input.station === 'telegram') return prepareTelegram(input.token);
-  return Promise.resolve(prepareXmtp());
+  return prepareXmtp(verify);
 }

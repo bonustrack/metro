@@ -41,6 +41,9 @@ let synced: string[] = [];
 let prepared: AttachInput[] = [];
 let nextAccount = 0;
 let syncFails = false;
+let xmtpInboxFails = false;
+let attachFails = false;
+let discarded = 0;
 
 function ownedOrThrow(email: string, granted: string[], id: number): void {
   const owner = OWNER_OF[id];
@@ -58,12 +61,20 @@ function ownedOrThrow(email: string, granted: string[], id: number): void {
 
 function fakePrepare(input: AttachInput): Promise<PreparedAccount> {
   prepared.push(input);
-  if (input.station === 'xmtp')
+  if (input.station === 'xmtp') {
+    if (xmtpInboxFails)
+      return Promise.reject(
+        new StationAttachError('XMTP did not register an inbox for that key', 400),
+      );
     return Promise.resolve({
-      config: { privateKey: FAKE_KEY },
-      identity: {},
+      config: { privateKey: FAKE_KEY, dbPath: '~/.metro/xmtp-production-f00d.db3' },
+      identity: { inboxId: 'inbox-f00d' },
       secret: { label: 'xmtp private key', value: FAKE_KEY, note: 'once only' },
+      discard: () => {
+        discarded += 1;
+      },
     });
+  }
   if (typeof input.token !== 'string' || input.token === '')
     return Promise.reject(new StationAttachError('a bot token is required', 400));
   if (input.token === 'bad')
@@ -83,6 +94,7 @@ const deps: AgentApiDeps = {
   prepareAccount: fakePrepare,
   attachAccount: (email, granted, agentId, station, config) => {
     ownedOrThrow(email, granted, agentId);
+    if (attachFails) throw new AgentAdminError('postgres said no', 500);
     if (
       typeof config.token === 'string' &&
       rows.some((r) => r.station === station && r.config.token === config.token)
@@ -180,6 +192,9 @@ afterEach(() => {
   prepared = [];
   nextAccount = 0;
   syncFails = false;
+  xmtpInboxFails = false;
+  attachFails = false;
+  discarded = 0;
   delete process.env.GOOGLE_EMAIL_AGENTS;
 });
 
@@ -373,6 +388,90 @@ describe('POST /api/agents/:id/accounts/start', () => {
       body: 'not json',
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('no accounts row exists unless the credential was demonstrated to work', () => {
+  const seed = async (): Promise<Row[]> => {
+    await start(session('ada@lovelace.dev'), 1, {
+      station: 'telegram',
+      token: `${FAKE_TOKEN}-seed`,
+    });
+    synced = [];
+    return structuredClone(rows);
+  };
+
+  const refusals: { name: string; body: unknown; status: number }[] = [
+    {
+      name: 'a Discord token the provider rejects',
+      body: { station: 'discord', token: 'bad' },
+      status: 400,
+    },
+    {
+      name: 'a Telegram token that was never given',
+      body: { station: 'telegram' },
+      status: 400,
+    },
+    {
+      name: 'a Telegram token the provider rejects',
+      body: { station: 'telegram', token: 'bad' },
+      status: 400,
+    },
+    { name: 'a station Metro cannot attach', body: { station: 'line' }, status: 400 },
+  ];
+
+  for (const refusal of refusals) {
+    test(`${refusal.name} leaves the table byte for byte as it was`, async () => {
+      const before = await seed();
+      const res = await start(session('ada@lovelace.dev'), 1, refusal.body);
+      expect(res.status).toBe(refusal.status);
+      expect(rows.length).toBe(before.length);
+      expect(rows).toEqual(before);
+      expect(synced).toEqual([]);
+    });
+  }
+
+  test('an XMTP key XMTP would not open an inbox for leaves the table as it was', async () => {
+    const before = await seed();
+    xmtpInboxFails = true;
+    const res = await start(session('ada@lovelace.dev'), 1, { station: 'xmtp' });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as AttachBody).error).toContain(
+      'did not register an inbox',
+    );
+    expect(rows.length).toBe(before.length);
+    expect(rows).toEqual(before);
+    expect(synced).toEqual([]);
+  });
+
+  test('a refused attach never reports a one-time secret', async () => {
+    xmtpInboxFails = true;
+    const res = await start(session('ada@lovelace.dev'), 1, { station: 'xmtp' });
+    expect(await res.text()).not.toContain(FAKE_KEY);
+    expect(rows).toEqual([]);
+  });
+
+  test('a write that fails after a good credential discards what the check created', async () => {
+    const before = await seed();
+    attachFails = true;
+    const res = await start(session('ada@lovelace.dev'), 1, { station: 'xmtp' });
+    expect(res.status).toBe(500);
+    expect(discarded).toBe(1);
+    expect(rows).toEqual(before);
+    expect(synced).toEqual([]);
+  });
+
+  test('a verified XMTP key is stored with the inbox it opened', async () => {
+    const res = await start(session('ada@lovelace.dev'), 1, { station: 'xmtp' });
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as AttachBody).identity).toEqual({
+      inboxId: 'inbox-f00d',
+    });
+    expect(rows[0]?.config).toEqual({
+      privateKey: FAKE_KEY,
+      dbPath: '~/.metro/xmtp-production-f00d.db3',
+    });
+    expect(discarded).toBe(0);
   });
 });
 
