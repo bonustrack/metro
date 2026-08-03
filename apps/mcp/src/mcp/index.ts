@@ -32,11 +32,12 @@ import { BodyTooLargeError } from '../daemon/http.js';
 import { InboundRelay } from '../channels/inbound.js';
 import {
   accountFromLine,
-  agentForAccount,
+  agentIdForAccount,
   allowlistForLine,
   senderMatchesAllowlist,
 } from '../db/agent-map.js';
 import {
+  allowedAgents,
   authConfigFromEnv,
   authenticate,
   currentIdentity,
@@ -130,10 +131,8 @@ async function handleListAccounts(
   identity: RequestIdentity | undefined,
 ): Promise<ToolResult> {
   try {
-    const scope =
-      identity?.kind === 'google' ? new Set(identity.agents) : undefined;
     return okJson({
-      accounts: await gatherAccounts(scope),
+      accounts: await gatherAccounts(allowedAgents(identity)),
       capabilities: accountStationCapabilities(),
     });
   } catch (e) {
@@ -145,14 +144,15 @@ function scopeDenied(
   identity: RequestIdentity | undefined,
   args: Record<string, unknown>,
 ): boolean {
-  if (identity?.kind !== 'google') return false;
+  const allowed = allowedAgents(identity);
+  if (!allowed) return false;
   const line = typeof args.line === 'string' ? args.line : undefined;
   if (!line) return false;
   const acct = accountFromLine(line);
-  const agent = acct
-    ? agentForAccount(acct.station, acct.accountId)
+  const agentId = acct
+    ? agentIdForAccount(acct.station, acct.accountId)
     : undefined;
-  return agent === undefined || !identity.agents.includes(agent);
+  return agentId === undefined || !allowed.has(agentId);
 }
 
 async function callToolHandler(req: {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   buildStartRedirect,
   completeCallback,
@@ -7,7 +7,7 @@ import {
   type OAuthConfig,
 } from '../src/daemon/google-oauth.ts';
 import { parseEmailAgentMap } from '../src/daemon/google-auth.ts';
-import { signState } from '../src/daemon/session.ts';
+import { signState, verifySession } from '../src/daemon/session.ts';
 
 const cfg: OAuthConfig = {
   clientId: 'client-abc',
@@ -20,9 +20,23 @@ const cfg: OAuthConfig = {
   sessionTtlSec: 3600,
 };
 
+const GRANTED_IDS: Record<string, number> = { tony: 3, wan: 4 };
+let grantLookups: string[][] = [];
+
+const grantedAgentIds = (names: string[]): Promise<number[]> => {
+  grantLookups.push(names);
+  const ids = names.map((n) => GRANTED_IDS[n]);
+  return Promise.resolve(ids.filter((id): id is number => id !== undefined));
+};
+
+beforeEach(() => {
+  grantLookups = [];
+});
+
 const okDeps = (email: string): CallbackDeps => ({
   exchangeCode: () => Promise.resolve({ id_token: 'fake-id-token' }),
   verifyIdToken: () => Promise.resolve({ email }),
+  grantedAgentIds,
 });
 
 const stateFrom = (url: string): string =>
@@ -87,6 +101,7 @@ describe('completeCallback', () => {
       cfg,
       { code: 'c', state: stateFrom(url) },
       {
+        grantedAgentIds,
         exchangeCode: () => Promise.resolve({ id_token: 't' }),
         verifyIdToken: (_t, n) => {
           seen = n;
@@ -97,16 +112,49 @@ describe('completeCallback', () => {
     expect(seen).toBe(nonce ?? '');
   });
 
-  test('redirects with error=unauthorized for an unmapped email', async () => {
+  test('self-serve: an unmapped email signs in with an empty agent grant', async () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, okDeps('nobody@x.co'));
-    expect(fragment(redirect).get('error')).toBe('unauthorized');
-    expect(fragment(redirect).get('session')).toBeNull();
+    const token = fragment(redirect).get('session');
+    expect(token).toBeTruthy();
+    expect(verifySession(token ?? '', cfg.sessionSecret)).toEqual({
+      email: 'nobody@x.co',
+      agentIds: [],
+    });
+    expect(grantLookups).toEqual([]);
+  });
+
+  test('sign-in is open: any verified Google account gets a session, whatever the domain', async () => {
+    for (const email of [
+      'newbie@gmail.com',
+      'someone@bonustrack.co',
+      'user@sub.example.co.uk',
+      'x@protonmail.com',
+    ]) {
+      const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
+      const redirect = await completeCallback(cfg, { code: 'c', state }, okDeps(email));
+      const token = fragment(redirect).get('session');
+      expect(fragment(redirect).get('error')).toBeNull();
+      expect(verifySession(token ?? '', cfg.sessionSecret).email).toBe(email);
+    }
+  });
+
+  test('a GOOGLE_EMAIL_AGENTS grant still resolves to operator agent ids', async () => {
+    const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
+    const redirect = await completeCallback(
+      cfg,
+      { code: 'c', state },
+      okDeps('fabien@bonustrack.co'),
+    );
+    const token = fragment(redirect).get('session');
+    expect(verifySession(token ?? '', cfg.sessionSecret).agentIds).toEqual([3]);
+    expect(grantLookups.at(-1)).toEqual(['tony']);
   });
 
   test('redirects with error=verify when id-token verification fails', async () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, {
+      grantedAgentIds,
       exchangeCode: () => Promise.resolve({ id_token: 't' }),
       verifyIdToken: () => Promise.reject(new Error('bad token')),
     });
@@ -116,6 +164,7 @@ describe('completeCallback', () => {
   test('redirects with error=exchange when no id_token comes back', async () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, {
+      grantedAgentIds,
       exchangeCode: () => Promise.resolve({}),
       verifyIdToken: () => Promise.resolve({ email: 'fabien@bonustrack.co' }),
     });

@@ -4,13 +4,13 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { type SessionClaims } from '../auth/session';
-import { type AccountGroup } from '../mcp/accounts';
+import { type AccountGroup } from '../api/accounts';
+import { type Dashboard } from '../api/client';
 import { Field } from './Field';
 
 interface AgentHeaderProps {
-  claims: SessionClaims;
-  groups: AccountGroup[];
+  data: Dashboard;
+  expiresAt: number;
   onLock: () => void;
 }
 
@@ -18,27 +18,34 @@ function expiryLabel(expiresAt: number): string {
   return new Date(expiresAt).toLocaleDateString(undefined, { dateStyle: 'medium' });
 }
 
-export function AgentHeader({ claims, groups, onLock }: AgentHeaderProps): ReactNode {
+function stationSummary(groups: AccountGroup[]): string {
+  return groups.length > 0 ? groups.map((g) => g.station).join(', ') : '—';
+}
+
+export function AgentHeader({ data, expiresAt, onLock }: AgentHeaderProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const total = groups.reduce((n, g) => n + g.rows.length, 0);
-  const agent = claims.agents.length > 0 ? claims.agents.join(', ') : 'No agent';
-  const stations = groups.length > 0 ? groups.map((g) => g.station).join(', ') : '—';
+  const total = data.groups.reduce((n, g) => n + g.rows.length, 0);
+  const names = data.agents.map((a) => a.name);
+  const title = names.length > 0 ? names.join(', ') : 'No agent yet';
   return (
     <Col gap={14}>
       <Row justify="between" align="center">
         <Col gap={2}>
-          <Text size="4xl" weight="semibold">{agent}</Text>
+          <Text size="4xl" weight="semibold">{title}</Text>
           <Text size="sm" role="secondary">
-            {total} account{total === 1 ? '' : 's'} across {groups.length} station{groups.length === 1 ? '' : 's'}
+            {data.agents.length} agent{data.agents.length === 1 ? '' : 's'} · {total} account
+            {total === 1 ? '' : 's'} across {data.groups.length} station
+            {data.groups.length === 1 ? '' : 's'}
           </Text>
         </Col>
         <Button color="secondary" onPress={onLock} label="Log out" />
       </Row>
       <Card dark={dark} padding={14}>
         <Row gap={20} wrap>
-          <Field label="signed in as" value={claims.email} />
-          <Field label="stations" value={stations} />
-          <Field label="session expires" value={expiryLabel(claims.expiresAt)} />
+          <Field label="signed in as" value={data.email} />
+          <Field label="mcp endpoint" value={data.endpoint} />
+          <Field label="stations" value={stationSummary(data.groups)} />
+          <Field label="session expires" value={expiryLabel(expiresAt)} />
         </Row>
       </Card>
     </Col>

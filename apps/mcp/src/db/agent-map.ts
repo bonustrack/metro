@@ -1,14 +1,17 @@
-export type AgentMap = Record<string, string>;
+export type AgentMap = Record<string, number>;
+export type AgentNameMap = Record<number, string>;
 export type AllowlistMap = Record<string, string[]>;
 
 const mapKey = (station: string, accountId: string): string =>
   `${station}/${accountId}`;
 
 let agentMap: AgentMap = {};
+let agentNames: AgentNameMap = {};
 let allowlistMap: AllowlistMap = {};
 
-export function setAgentMap(map: AgentMap): void {
+export function setAgentMap(map: AgentMap, names: AgentNameMap): void {
   agentMap = map;
+  agentNames = names;
 }
 
 export function setAllowlistMap(map: AllowlistMap): void {
@@ -25,16 +28,18 @@ function accountOfLine(
   return { station, accountId };
 }
 
-export function agentForLine(line: string): string | undefined {
-  const a = accountOfLine(line);
-  return a ? agentMap[mapKey(a.station, a.accountId)] : undefined;
-}
-
-export function agentForAccount(
+export function agentIdForAccount(
   station: string,
   accountId: string,
-): string | undefined {
+): number | undefined {
   return agentMap[mapKey(station, accountId)];
+}
+
+export function agentForLine(line: string): string | undefined {
+  const a = accountOfLine(line);
+  if (!a) return undefined;
+  const id = agentIdForAccount(a.station, a.accountId);
+  return id === undefined ? undefined : agentNames[id];
 }
 
 export function accountFromLine(

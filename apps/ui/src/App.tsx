@@ -3,9 +3,8 @@ import { Box } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Login } from './components/Login';
 import { Loading } from './components/Loading';
-import { AccountList } from './components/AccountList';
-import { AuthError, fetchAccounts } from './mcp/client';
-import { type AccountGroup } from './mcp/accounts';
+import { Dashboard } from './components/Dashboard';
+import { AuthError, fetchDashboard, type Dashboard as DashboardData } from './api/client';
 import {
   clearSession,
   consumeFragment,
@@ -19,13 +18,7 @@ import {
 type State =
   | { phase: 'connecting'; token: string }
   | { phase: 'login'; error: string | null }
-  | { phase: 'unlocked'; claims: SessionClaims; groups: AccountGroup[] };
-
-function errorMessage(code: string): string {
-  return code === 'unauthorized'
-    ? 'This Google account is not authorized for Metro.'
-    : 'Sign-in failed. Please try again.';
-}
+  | { phase: 'unlocked'; token: string; claims: SessionClaims; data: DashboardData };
 
 function initialState(): State {
   const frag = consumeFragment();
@@ -34,7 +27,7 @@ function initialState(): State {
     return { phase: 'connecting', token: frag.session };
   }
   if (frag.error !== undefined)
-    return { phase: 'login', error: errorMessage(frag.error) };
+    return { phase: 'login', error: 'Sign-in failed. Please try again.' };
   const stored = storedSession();
   return stored !== null && sessionIsFresh(stored)
     ? { phase: 'connecting', token: stored }
@@ -46,7 +39,20 @@ export function App(): ReactNode {
   const [state, setState] = useState<State>(initialState);
   const attempt = useRef(0);
 
-  const connect = (token: string): void => {
+  const failed = (err: unknown): void => {
+    if (err instanceof AuthError) clearSession();
+    setState({
+      phase: 'login',
+      error:
+        err instanceof AuthError
+          ? 'Your session has expired. Please sign in again.'
+          : err instanceof Error
+            ? err.message
+            : 'Failed to reach Metro.',
+    });
+  };
+
+  const load = (token: string, quiet: boolean): void => {
     const id = ++attempt.current;
     const claims = sessionClaims(token);
     if (claims === null) {
@@ -54,27 +60,21 @@ export function App(): ReactNode {
       setState({ phase: 'login', error: 'Your session is invalid. Please sign in again.' });
       return;
     }
-    void fetchAccounts(token)
-      .then((groups) => {
+    if (!quiet) setState({ phase: 'connecting', token });
+    void fetchDashboard(token)
+      .then((data) => {
         if (id !== attempt.current) return;
         storeSession(token);
-        setState({ phase: 'unlocked', claims, groups });
+        setState({ phase: 'unlocked', token, claims, data });
       })
       .catch((err: unknown) => {
         if (id !== attempt.current) return;
-        if (err instanceof AuthError) clearSession();
-        const error =
-          err instanceof AuthError
-            ? 'Your session has expired. Please sign in again.'
-            : err instanceof Error
-              ? err.message
-              : 'Failed to reach Metro.';
-        setState({ phase: 'login', error });
+        failed(err);
       });
   };
 
   useEffect(() => {
-    if (state.phase === 'connecting') connect(state.token);
+    if (state.phase === 'connecting') load(state.token, true);
   }, []);
 
   const lock = (): void => {
@@ -90,7 +90,15 @@ export function App(): ReactNode {
       ) : state.phase === 'login' ? (
         <Login error={state.error} />
       ) : (
-        <AccountList claims={state.claims} groups={state.groups} onLock={lock} />
+        <Dashboard
+          token={state.token}
+          data={state.data}
+          expiresAt={state.claims.expiresAt}
+          onRefresh={() => {
+            load(state.token, true);
+          }}
+          onLock={lock}
+        />
       )}
     </Box>
   );
