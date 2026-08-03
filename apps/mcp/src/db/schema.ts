@@ -5,7 +5,6 @@ import {
   primaryKey,
   serial,
   text,
-  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 export const STATIONS = [
@@ -19,15 +18,11 @@ export const STATIONS = [
 
 export type StationName = (typeof STATIONS)[number];
 
-export const agents = pgTable(
-  'agents',
-  {
-    id: serial('id').primaryKey(),
-    name: text('name').notNull(),
-    ownerEmail: text('owner_email'),
-  },
-  (t) => [uniqueIndex('agents_owner_name_unique').on(t.ownerEmail, t.name)],
-);
+export const agents = pgTable('agents', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  ownerEmail: text('owner_email'),
+});
 
 export const accounts = pgTable(
   'accounts',

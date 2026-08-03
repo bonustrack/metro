@@ -50,6 +50,13 @@
       "when": 1785656371788,
       "tag": "0006_agent_owner_email",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785791645446,
+      "tag": "0007_drop_agents_owner_name_unique",
+      "breakpoints": true
     }
   ]
 }

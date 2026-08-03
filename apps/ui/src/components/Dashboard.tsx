@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import {
   createAgent,
@@ -6,6 +6,12 @@ import {
   type CreatedAgent,
   type Dashboard as DashboardData,
 } from '../api/client';
+import {
+  applyRoute,
+  currentSelection,
+  routeHash,
+  subscribeRoute,
+} from '../route';
 import { AgentPanel } from './AgentPanel';
 import { AgentSidebar } from './AgentSidebar';
 import { TopBar } from './TopBar';
@@ -31,6 +37,8 @@ const SIDEBAR = { flexGrow: 1, flexShrink: 1, flexBasis: 220 } as const;
 const MAIN = { flexGrow: 5, flexShrink: 1, flexBasis: 400 } as const;
 
 function initialSelection(data: DashboardData): Selection {
+  const routed = currentSelection();
+  if (routed.kind !== 'none') return routed;
   const first = data.agents[0];
   return first === undefined ? { kind: 'new' } : { kind: 'agent', id: first.id };
 }
@@ -45,10 +53,23 @@ export function Dashboard({
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   const [picked, setPicked] = useState<Selection>(() => initialSelection(data));
 
+  const selection: Selection = data.agents.length === 0 ? { kind: 'new' } : picked;
+  const hash = routeHash(selection);
+
+  useEffect(() => subscribeRoute(setPicked), []);
+  useEffect(() => {
+    applyRoute(selection, true);
+  }, [hash]);
+
+  const onSelect = (next: Selection): void => {
+    setPicked(next);
+    applyRoute(next, false);
+  };
+
   const onCreate = async (name: string): Promise<void> => {
     const agent = await createAgent(token, name);
     setCreated(agent);
-    setPicked({ kind: 'agent', id: agent.id });
+    onSelect({ kind: 'agent', id: agent.id });
     onRefresh();
   };
 
@@ -59,8 +80,6 @@ export function Dashboard({
     onRefresh();
   };
 
-  const selection: Selection = data.agents.length === 0 ? { kind: 'new' } : picked;
-
   return (
     <Col gap={24} style={PAGE}>
       <TopBar email={data.email} expiresAt={expiresAt} onLock={onLock} />
@@ -70,7 +89,7 @@ export function Dashboard({
             agents={data.agents}
             groups={data.groups}
             selection={selection}
-            onSelect={setPicked}
+            onSelect={onSelect}
           />
         </Col>
         <Col style={MAIN}>
@@ -83,7 +102,7 @@ export function Dashboard({
             created={created}
             onCreate={onCreate}
             onNew={() => {
-              setPicked({ kind: 'new' });
+              onSelect({ kind: 'new' });
             }}
             onDismiss={() => {
               setCreated(null);

@@ -151,6 +151,17 @@ describe('completeCallback', () => {
     expect(grantLookups.at(-1)).toEqual(['tony']);
   });
 
+  test('a grant name shared by several operator rows scopes the session to every one of them', async () => {
+    const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
+    const redirect = await completeCallback(cfg, { code: 'c', state }, {
+      exchangeCode: () => Promise.resolve({ id_token: 'fake-id-token' }),
+      verifyIdToken: () => Promise.resolve({ email: 'fabien@bonustrack.co' }),
+      grantedAgentIds: () => Promise.resolve([3, 11]),
+    });
+    const token = fragment(redirect).get('session');
+    expect(verifySession(token ?? '', cfg.sessionSecret).agentIds).toEqual([3, 11]);
+  });
+
   test('redirects with error=verify when id-token verification fails', async () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, {

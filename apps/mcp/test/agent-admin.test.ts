@@ -16,19 +16,27 @@ afterEach(() => {
 });
 
 describe('normalizeAgentName', () => {
-  test('lowercases and trims a valid name', () => {
-    expect(normalizeAgentName('  My-Agent_1 ')).toBe('my-agent_1');
+  test('trims but keeps the casing the person chose', () => {
+    expect(normalizeAgentName('  My-Agent_1 ')).toBe('My-Agent_1');
+    expect(normalizeAgentName('Lisa')).toBe('Lisa');
+    expect(normalizeAgentName('TONY')).toBe('TONY');
+  });
+
+  test('two names differing only in case stay two different strings', () => {
+    expect(normalizeAgentName('lisa')).not.toBe(normalizeAgentName('Lisa'));
   });
 
   test('accepts the shortest and longest allowed names', () => {
     expect(normalizeAgentName('ab')).toBe('ab');
     expect(normalizeAgentName('a'.repeat(32))).toBe('a'.repeat(32));
+    expect(normalizeAgentName('A'.repeat(32))).toBe('A'.repeat(32));
   });
 
   test('rejects names that could collide with scoping or shell quoting', () => {
     for (const bad of [
       '',
       'a',
+      'A',
       'a'.repeat(33),
       '-leading',
       '_leading',
