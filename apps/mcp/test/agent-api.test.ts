@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { signSession } from '../src/daemon/session.ts';
-import type { AgentApiDeps } from '../src/daemon/agent-api.ts';
+import { mcpAddCommand, type AgentApiDeps } from '../src/daemon/agent-api.ts';
 import {
   AgentAdminError,
   normalizeAgentName,
@@ -14,18 +14,30 @@ import {
 const SECRET = 'agent-api-test-secret';
 const PUBLIC = 'https://mcp.metro.box';
 
+const fakeKey = (agent: string): string => `mk_fake_${agent}`;
+
+const defaultKey = (agent: string): AgentSummary['keys'] => [
+  { name: 'default', key: fakeKey(agent) },
+];
+
 const OWNED: Record<string, AgentSummary[]> = {
-  'ada@lovelace.dev': [{ id: 1, name: 'ada-bot', owned: true, keys: ['default'] }],
-  'bob@builder.dev': [{ id: 2, name: 'bob-bot', owned: true, keys: ['default'] }],
-  'ada@same.dev': [{ id: 7, name: 'tony', owned: true, keys: ['default'] }],
-  'bob@same.dev': [{ id: 8, name: 'tony', owned: true, keys: ['default'] }],
+  'ada@lovelace.dev': [
+    { id: 1, name: 'ada-bot', owned: true, keys: defaultKey('ada-bot') },
+  ],
+  'bob@builder.dev': [
+    { id: 2, name: 'bob-bot', owned: true, keys: defaultKey('bob-bot') },
+  ],
+  'ada@same.dev': [{ id: 7, name: 'tony', owned: true, keys: defaultKey('ada-tony') }],
+  'bob@same.dev': [{ id: 8, name: 'tony', owned: true, keys: defaultKey('bob-tony') }],
 };
 
+let leakGrantedKeys = false;
+
 const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
-  1: ['telegram', { id: 'ada-tg', owner: 'ada' }],
-  2: ['discord', { id: 'bob-dc', owner: 'bob' }],
-  7: ['telegram', { id: 'ada-tony-tg', owner: 'ada' }],
-  8: ['telegram', { id: 'bob-tony-tg', owner: 'bob' }],
+  1: ['telegram', { id: 'ada-tg', owner: 'ada', agentId: 1 }],
+  2: ['discord', { id: 'bob-dc', owner: 'bob', agentId: 2 }],
+  7: ['telegram', { id: 'ada-tony-tg', owner: 'ada', agentId: 7 }],
+  8: ['telegram', { id: 'bob-tony-tg', owner: 'bob', agentId: 8 }],
 };
 
 interface Row {
@@ -69,7 +81,7 @@ const deps: AgentApiDeps = {
         id: 900 + i,
         name,
         owned: false,
-        keys: [] as string[],
+        keys: leakGrantedKeys ? defaultKey(name) : [],
       })),
     ]),
   createAgent: (email, name) => {
@@ -141,6 +153,7 @@ afterEach(() => {
   created = [];
   rows = [...SEED];
   deleteCalls = [];
+  leakGrantedKeys = false;
   delete process.env.GOOGLE_EMAIL_AGENTS;
 });
 
@@ -183,12 +196,29 @@ describe('/api/agents authentication', () => {
   });
 });
 
+interface WireKey {
+  name: string;
+  key: string | null;
+  endpoint: string | null;
+  command: string | null;
+}
+
+interface WireAgent {
+  id: number;
+  name: string;
+  owned: boolean;
+  keys: WireKey[];
+}
+
 interface ListBody {
   email: string;
   endpoint: string;
-  agents: AgentSummary[];
+  agents: WireAgent[];
   accounts: Record<string, unknown[]>;
 }
+
+const listAgents = async (email: string): Promise<WireAgent[]> =>
+  ((await (await get(session(email))).json()) as ListBody).agents;
 
 describe('GET /api/agents ownership', () => {
   test('returns only the caller own agents and their accounts', async () => {
@@ -197,7 +227,7 @@ describe('GET /api/agents ownership', () => {
     expect(body.email).toBe('ada@lovelace.dev');
     expect(body.endpoint).toBe(`${PUBLIC}/mcp`);
     expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
-    expect(body.accounts.telegram).toEqual([{ id: 'ada-tg', owner: 'ada' }]);
+    expect(body.accounts.telegram).toEqual([{ id: 'ada-tg', owner: 'ada', agentId: 1 }]);
     expect(body.accounts.discord).toEqual([]);
   });
 
@@ -205,12 +235,19 @@ describe('GET /api/agents ownership', () => {
     const body = (await (await get(session('bob@builder.dev'))).json()) as ListBody;
     expect(body.agents.map((a) => a.name)).toEqual(['bob-bot']);
     expect(body.accounts.telegram).toEqual([]);
-    expect(body.accounts.discord).toEqual([{ id: 'bob-dc', owner: 'bob' }]);
+    expect(body.accounts.discord).toEqual([{ id: 'bob-dc', owner: 'bob', agentId: 2 }]);
   });
 
   test('the accounts scope set is exactly the visible agent IDS, never names', async () => {
     await get(session('ada@lovelace.dev'));
     expect(scopes.at(-1)).toEqual(new Set([1]));
+  });
+
+  test('every returned account names the agent id it belongs to', async () => {
+    const body = (await (await get(session('ada@lovelace.dev'))).json()) as ListBody;
+    const rowsOut = Object.values(body.accounts).flat();
+    expect(rowsOut.length).toBeGreaterThan(0);
+    expect(rowsOut.map((a) => (a as { agentId?: unknown }).agentId)).toEqual([1]);
   });
 
   test('two owners whose agents share a name each see only their own accounts', async () => {
@@ -223,8 +260,12 @@ describe('GET /api/agents ownership', () => {
     expect(bob.agents.map((a) => a.name)).toEqual(['tony']);
     expect(adaScope).toEqual(new Set([7]));
     expect(bobScope).toEqual(new Set([8]));
-    expect(ada.accounts.telegram).toEqual([{ id: 'ada-tony-tg', owner: 'ada' }]);
-    expect(bob.accounts.telegram).toEqual([{ id: 'bob-tony-tg', owner: 'bob' }]);
+    expect(ada.accounts.telegram).toEqual([
+      { id: 'ada-tony-tg', owner: 'ada', agentId: 7 },
+    ]);
+    expect(bob.accounts.telegram).toEqual([
+      { id: 'bob-tony-tg', owner: 'bob', agentId: 8 },
+    ]);
   });
 
   test('a brand-new signed-in user sees no agents and no accounts', async () => {
@@ -249,6 +290,58 @@ describe('GET /api/agents ownership', () => {
   test('responses are marked no-store', async () => {
     const res = await get(session('ada@lovelace.dev'));
     expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+});
+
+describe('GET /api/agents key exposure', () => {
+  test('an owned agent carries its key, tokenised endpoint and paste-ready command', async () => {
+    const [agent] = await listAgents('ada@lovelace.dev');
+    expect(agent?.keys).toEqual([
+      {
+        name: 'default',
+        key: 'mk_fake_ada-bot',
+        endpoint: `${PUBLIC}/mcp?token=mk_fake_ada-bot`,
+        command: `claude mcp add --transport http --scope user ada-bot "${PUBLIC}/mcp?token=mk_fake_ada-bot"`,
+      },
+    ]);
+  });
+
+  test('the listed command matches what POST hands back for the same key', async () => {
+    const [agent] = await listAgents('ada@lovelace.dev');
+    expect(agent?.keys[0]?.command).toBe(mcpAddCommand('ada-bot', 'mk_fake_ada-bot'));
+  });
+
+  test('another signed-in user never receives the first user key', async () => {
+    const body = await (await get(session('bob@builder.dev'))).text();
+    expect(body).not.toContain('mk_fake_ada-bot');
+  });
+
+  test('a granted agent is listed with its key names but no key value', async () => {
+    process.env.GOOGLE_EMAIL_AGENTS = '{"nobody@example.com":["legacy"]}';
+    leakGrantedKeys = true;
+    const [agent] = await listAgents('nobody@example.com');
+    expect(agent?.owned).toBe(false);
+    expect(agent?.keys).toEqual([
+      { name: 'default', key: null, endpoint: null, command: null },
+    ]);
+  });
+
+  test('a key value that reaches the api layer for a not-owned agent is still not served', async () => {
+    process.env.GOOGLE_EMAIL_AGENTS = '{"nobody@example.com":["legacy"]}';
+    leakGrantedKeys = true;
+    const body = await (await get(session('nobody@example.com'))).text();
+    expect(body).toContain('legacy');
+    expect(body).not.toContain('mk_fake_legacy');
+  });
+
+  test('a grantee sees no key even when they also own an agent', async () => {
+    process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
+    leakGrantedKeys = true;
+    const agents = await listAgents('ada@lovelace.dev');
+    expect(agents.map((a) => [a.name, a.keys[0]?.key])).toEqual([
+      ['ada-bot', 'mk_fake_ada-bot'],
+      ['legacy', null],
+    ]);
   });
 });
 

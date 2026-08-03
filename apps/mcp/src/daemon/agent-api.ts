@@ -6,6 +6,7 @@ import { agentsForEmail, parseEmailAgentMap } from './google-auth.js';
 import {
   AgentAdminError,
   parseAgentId,
+  type AgentKeySummary,
   type AgentSummary,
   type CreatedAgent,
   type DeletedAgent,
@@ -129,6 +130,34 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
+interface KeyPayload {
+  name: string;
+  key: string | null;
+  endpoint: string | null;
+  command: string | null;
+}
+
+function keyPayload(agent: AgentSummary, entry: AgentKeySummary): KeyPayload {
+  const value = agent.owned ? entry.key : null;
+  if (value === null)
+    return { name: entry.name, key: null, endpoint: null, command: null };
+  return {
+    name: entry.name,
+    key: value,
+    endpoint: `${mcpEndpoint()}?token=${value}`,
+    command: mcpAddCommand(agent.name, value),
+  };
+}
+
+function agentPayload(agent: AgentSummary): Record<string, unknown> {
+  return {
+    id: agent.id,
+    name: agent.name,
+    owned: agent.owned,
+    keys: agent.keys.map((entry) => keyPayload(agent, entry)),
+  };
+}
+
 async function handleList(
   req: IncomingMessage,
   res: ServerResponse,
@@ -140,7 +169,7 @@ async function handleList(
   sendJson(req, res, 200, {
     email: session.email,
     endpoint: mcpEndpoint(),
-    agents: list,
+    agents: list.map(agentPayload),
     accounts,
     capabilities: deps.capabilities(),
   });

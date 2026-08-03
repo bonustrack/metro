@@ -21,14 +21,25 @@ the UI ships no Google JavaScript at all.
   (`metro.session`), and immediately strips the fragment from history
   (`history.replaceState`). It then `GET`s `/api/agents` with
   `Authorization: Bearer <session>`.
-- The dashboard lists the agents that session may see, their accounts grouped by station,
-  and a **New agent** form. Creating one `POST`s `/api/agents` with the chosen name; the
-  response carries the generated API key and the `claude mcp add …` command **once**.
-  Nothing ever re-reveals that key — subsequent `GET`s return key *names* only.
-- Each agent you **own** carries a **Delete** button that asks for confirmation in place
-  before it fires `DELETE /api/agents/<id>`. Deleting revokes that agent's API key
-  immediately. Agents shown as *granted, not owned* have no delete button, and the daemon
-  refuses the call anyway.
+- The dashboard is **two panes**. The left sidebar holds the agent list and nothing else,
+  one row per agent with its account count, plus a **New agent** button. Everything else
+  belongs to the agent you pick and lives in the main pane: its accounts grouped by station,
+  its MCP endpoint, its API key, the paste-ready `claude mcp add …` line and its **Delete**
+  button. Accounts are never listed globally, so which account belongs to which agent is
+  structural rather than something you infer.
+- Creating an agent `POST`s `/api/agents` with the chosen name, selects the new agent, and
+  shows the generated API key and `claude mcp add …` command in the clear once. The key
+  stays available afterwards on the agent's own pane, masked behind **Reveal**, and `GET`
+  re-serves it for agents you own.
+- Each agent you **own** carries a **Delete agent** button that asks for confirmation in
+  place before it fires `DELETE /api/agents/<id>`. Deleting revokes that agent's API key
+  immediately and clears the selection. Agents shown as *granted, not owned* have no delete
+  button and no key (only the endpoint), and the daemon refuses the call anyway.
+- The four states the main pane can be in: **no agents at all** → the create form, titled
+  *Create your first agent*; **no agent selected** (you just deleted the one you were
+  looking at) → a prompt to pick one on the left; **an agent with no accounts** → its
+  credentials plus a line saying no chat account is connected yet; **a granted agent** →
+  its endpoint, no key.
 - **Log out** clears the stored session. A returning visitor with a still-fresh stored
   session auto-connects (spinner, no gate). An expired/invalid session gets a `401`, is
   cleared, and the gate returns.
@@ -56,8 +67,17 @@ callback cannot be turned into an open redirect.
 An agent created here records the creator's verified Google email in `agents.owner_email`.
 `/api/agents` returns only the agents whose `owner_email` matches the session's email, plus
 any agent names granted to that email through the daemon's `GOOGLE_EMAIL_AGENTS` map (shown
-as not-owned). Accounts are filtered to that same set of agents, server-side. A signed-in
-user with no agents sees an empty dashboard and the create form — never anyone else's data.
+as not-owned). Accounts are filtered to that same set of agents, server-side, and each one
+comes back stamped with the `agentId` it belongs to, which is what the sidebar/main split
+renders, so the browser never guesses the pairing. A signed-in user with no agents sees an
+empty sidebar and the create form, never anyone else's data.
+
+An account the daemon does not attribute is shown under **no** agent rather than under a
+guessed one. The single exception is deliberate and safe: when the session can see exactly
+one agent, every account in the payload is by construction that agent's, so an untagged row
+is attributed to it. That is what keeps this UI working against a daemon that predates the
+`agentId` field; with more than one agent visible such rows are counted and reported instead
+of shown.
 
 Sign-in is open to any Google account with a verified email, on any domain, and there is no
 cap on how many agents one email owns. Deletion is owner-only and keyed on `agents.id`:

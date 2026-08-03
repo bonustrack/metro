@@ -1,13 +1,26 @@
 import { daemonBase } from '../auth/session';
-import { groupAccounts, isRecord, type AccountGroup } from './accounts';
+import {
+  attributeUntagged,
+  groupAccounts,
+  isRecord,
+  unattributedAccounts,
+  type AccountGroup,
+} from './accounts';
 
 export class AuthError extends Error {}
+
+export interface AgentKey {
+  name: string;
+  key: string | null;
+  endpoint: string | null;
+  command: string | null;
+}
 
 export interface AgentSummary {
   id: number;
   name: string;
   owned: boolean;
-  keys: string[];
+  keys: AgentKey[];
 }
 
 export interface Dashboard {
@@ -15,6 +28,7 @@ export interface Dashboard {
   endpoint: string;
   agents: AgentSummary[];
   groups: AccountGroup[];
+  unattributed: number;
 }
 
 export interface CreatedAgent {
@@ -56,24 +70,55 @@ async function call(token: string, init: CallInit): Promise<unknown> {
   return body;
 }
 
+const text = (value: unknown): string | null =>
+  typeof value === 'string' && value !== '' ? value : null;
+
+function toKey(value: unknown): AgentKey {
+  if (typeof value === 'string')
+    return { name: value, key: null, endpoint: null, command: null };
+  if (!isRecord(value)) return { name: '', key: null, endpoint: null, command: null };
+  return {
+    name: text(value.name) ?? '',
+    key: text(value.key),
+    endpoint: text(value.endpoint),
+    command: text(value.command),
+  };
+}
+
+function toKeys(value: unknown): AgentKey[] {
+  return Array.isArray(value) ? value.map(toKey) : [];
+}
+
 function toAgents(value: unknown): AgentSummary[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((a) => ({
     id: typeof a.id === 'number' ? a.id : 0,
     name: typeof a.name === 'string' ? a.name : '',
     owned: a.owned === true,
-    keys: Array.isArray(a.keys) ? a.keys.filter((k): k is string => typeof k === 'string') : [],
+    keys: toKeys(a.keys),
   }));
+}
+
+function attributedGroups(
+  agents: AgentSummary[],
+  accounts: unknown,
+): AccountGroup[] {
+  const groups = groupAccounts(accounts);
+  const sole = agents.length === 1 ? agents[0] : undefined;
+  return sole === undefined ? groups : attributeUntagged(groups, sole.id);
 }
 
 export async function fetchDashboard(token: string): Promise<Dashboard> {
   const body = await call(token, { method: 'GET' });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
+  const agents = toAgents(body.agents);
+  const groups = attributedGroups(agents, body.accounts);
   return {
     email: typeof body.email === 'string' ? body.email : '',
     endpoint: typeof body.endpoint === 'string' ? body.endpoint : '',
-    agents: toAgents(body.agents),
-    groups: groupAccounts(body.accounts),
+    agents,
+    groups,
+    unattributed: unattributedAccounts(groups),
   };
 }
 

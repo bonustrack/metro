@@ -16,11 +16,16 @@ export class AgentAdminError extends Error {
   }
 }
 
+export interface AgentKeySummary {
+  name: string;
+  key: string | null;
+}
+
 export interface AgentSummary {
   id: number;
   name: string;
   owned: boolean;
-  keys: string[];
+  keys: AgentKeySummary[];
 }
 
 export interface CreatedAgent {
@@ -76,6 +81,61 @@ export async function operatorAgentIdsByName(
   return rows.map((r) => r.id);
 }
 
+interface AgentRow {
+  id: number;
+  name: string;
+  ownerEmail: string | null;
+}
+
+interface KeyRow {
+  agentId: number;
+  name: string;
+  key?: string;
+}
+
+export function toAgentSummaries(
+  email: string,
+  rows: AgentRow[],
+  keyRows: KeyRow[],
+): AgentSummary[] {
+  const owner = normalizeEmail(email);
+  const owned = new Set(
+    rows.filter((r) => r.ownerEmail === owner).map((r) => r.id),
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    owned: owned.has(r.id),
+    keys: keyRows
+      .filter((k) => k.agentId === r.id)
+      .map((k) => ({ name: k.name, key: owned.has(r.id) ? k.key ?? null : null }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  }));
+}
+
+async function selectKeyRows(
+  ids: number[],
+  ownedIds: number[],
+): Promise<KeyRow[]> {
+  const db = getDb();
+  const seenOnly = ids.filter((id) => !ownedIds.includes(id));
+  const named =
+    seenOnly.length === 0
+      ? []
+      : await db
+          .select({ agentId: keys.agentId, name: keys.name })
+          .from(keys)
+          .where(inArray(keys.agentId, seenOnly));
+  const mine =
+    ownedIds.length === 0
+      ? []
+      : await db
+          .select({ agentId: keys.agentId, name: keys.name, key: keys.key })
+          .from(keys)
+          .where(inArray(keys.agentId, ownedIds));
+  return [...named, ...mine];
+}
+
 export async function listAgentsForEmail(
   email: string,
   granted: string[],
@@ -88,17 +148,12 @@ export async function listAgentsForEmail(
       : eq(agents.ownerEmail, owner);
   const rows = await db.select().from(agents).where(where).orderBy(asc(agents.id));
   if (rows.length === 0) return [];
-  const ids = rows.map((r) => r.id);
-  const keyRows = await db
-    .select({ agentId: keys.agentId, name: keys.name })
-    .from(keys)
-    .where(inArray(keys.agentId, ids));
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    owned: r.ownerEmail === owner,
-    keys: keyRows.filter((k) => k.agentId === r.id).map((k) => k.name).sort(),
-  }));
+  const ownedIds = rows.filter((r) => r.ownerEmail === owner).map((r) => r.id);
+  const keyRows = await selectKeyRows(
+    rows.map((r) => r.id),
+    ownedIds,
+  );
+  return toAgentSummaries(owner, rows, keyRows);
 }
 
 async function insertAgent(email: string, name: string): Promise<number> {

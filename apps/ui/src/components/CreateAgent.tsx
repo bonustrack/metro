@@ -7,10 +7,11 @@ import { Input } from '@stage-labs/kit/react-native/input';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 
 interface CreateAgentProps {
+  first: boolean;
   onCreate: (name: string) => Promise<void>;
 }
 
-export function CreateAgent({ onCreate }: CreateAgentProps): ReactNode {
+export function CreateAgent({ first, onCreate }: CreateAgentProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,9 +38,12 @@ export function CreateAgent({ onCreate }: CreateAgentProps): ReactNode {
     <Card dark={dark} padding={18}>
       <Col gap={12}>
         <Col gap={2}>
-          <Text size="lg" weight="semibold">New agent</Text>
+          <Text size="lg" weight="semibold">
+            {first ? 'Create your first agent' : 'New agent'}
+          </Text>
           <Text size="sm" role="secondary">
             Pick a name. Metro generates an API key and the MCP endpoint to add it to Claude Code.
+            Chat accounts are attached to the agent, and show up on its page.
           </Text>
         </Col>
         <Row gap={10} align="center" wrap>

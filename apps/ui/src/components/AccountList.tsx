@@ -34,31 +34,26 @@ function Group({ group, dark }: { group: AccountGroup; dark: boolean }): ReactNo
     <Col gap={10}>
       <Row gap={8} align="center">
         <StationIcon station={group.station} color={palette.text} />
-        <Text size="lg" weight="semibold">{group.station}</Text>
+        <Text size="md" weight="semibold">{group.station}</Text>
         <CountBadge n={group.rows.length} />
       </Row>
-      {group.rows.length === 0 ? (
-        <Text size="sm" role="secondary">No accounts configured.</Text>
-      ) : (
-        <Col gap={8}>
-          {group.rows.map((row, i) => (
-            <AccountCard key={i} row={row} dark={dark} />
-          ))}
-        </Col>
-      )}
+      <Col gap={8}>
+        {group.rows.map((row, i) => (
+          <AccountCard key={i} row={row} dark={dark} />
+        ))}
+      </Col>
     </Col>
   );
 }
 
-export function AccountList({ groups }: { groups: AccountGroup[] }): ReactNode {
+interface AccountListProps {
+  groups: AccountGroup[];
+  empty: string;
+}
+
+export function AccountList({ groups, empty }: AccountListProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  if (groups.length === 0)
-    return (
-      <Text role="secondary">
-        No stations yet. Add the agent as an MCP server, then ask an operator to attach chat
-        accounts to it.
-      </Text>
-    );
+  if (groups.length === 0) return <Text size="sm" role="secondary">{empty}</Text>;
   return (
     <Col gap={20}>
       {groups.map((g) => (
