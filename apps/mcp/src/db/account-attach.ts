@@ -3,8 +3,8 @@ import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from './client.js';
 import {
   AgentAdminError,
-  normalizeEmail,
   ownedAgentOrThrow,
+  userIdForEmail,
 } from './agent-admin.js';
 import { accounts, STATIONS, type StationName } from './schema.js';
 
@@ -64,8 +64,8 @@ export async function attachAccountToAgent(
   station: StationName,
   config: Record<string, unknown>,
 ): Promise<AccountRef> {
-  const agent = await ownedAgentOrThrow(
-    normalizeEmail(email),
+  const { agent } = await ownedAgentOrThrow(
+    await userIdForEmail(email),
     granted,
     agentId,
     'changed',
@@ -94,8 +94,8 @@ export async function detachAccountFromAgent(
   station: StationName,
   accountId: string,
 ): Promise<AccountRef> {
-  const agent = await ownedAgentOrThrow(
-    normalizeEmail(email),
+  const { agent } = await ownedAgentOrThrow(
+    await userIdForEmail(email),
     granted,
     agentId,
     'changed',

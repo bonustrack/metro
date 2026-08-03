@@ -18,10 +18,17 @@ export const STATIONS = [
 
 export type StationName = (typeof STATIONS)[number];
 
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  email: text('email').notNull().unique(),
+});
+
 export const agents = pgTable('agents', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
-  ownerEmail: text('owner_email'),
+  ownerId: integer('owner_id').references(() => users.id, {
+    onDelete: 'restrict',
+  }),
 });
 
 export const accounts = pgTable(

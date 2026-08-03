@@ -43,13 +43,20 @@ const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
 interface Row {
   id: number;
   name: string;
-  ownerEmail: string | null;
+  ownerId: number | null;
 }
 
+const USER_IDS: Record<string, number> = {
+  'ada@lovelace.dev': 11,
+  'bob@builder.dev': 22,
+};
+
+const userIdFor = (email: string): number | null => USER_IDS[email] ?? null;
+
 const SEED: Row[] = [
-  { id: 1, name: 'ada-bot', ownerEmail: 'ada@lovelace.dev' },
-  { id: 2, name: 'bob-bot', ownerEmail: 'bob@builder.dev' },
-  { id: 5, name: 'legacy', ownerEmail: null },
+  { id: 1, name: 'ada-bot', ownerId: 11 },
+  { id: 2, name: 'bob-bot', ownerId: 22 },
+  { id: 5, name: 'legacy', ownerId: null },
 ];
 
 let server: Server;
@@ -62,13 +69,15 @@ let nextId = 10;
 
 function removeAgent(email: string, granted: string[], id: number): DeletedAgent {
   deleteCalls.push({ email, granted, id });
+  const ownerId = userIdFor(email);
   const row = rows.find((r) => r.id === id);
   if (!row) throw new AgentAdminError('no such agent', 404);
-  if (row.ownerEmail === null) {
+  if (row.ownerId === null) {
     if (!granted.includes(row.name)) throw new AgentAdminError('no such agent', 404);
     throw new AgentAdminError('operator-provisioned agents cannot be deleted here', 403);
   }
-  if (row.ownerEmail !== email) throw new AgentAdminError('no such agent', 404);
+  if (ownerId === null || row.ownerId !== ownerId)
+    throw new AgentAdminError('no such agent', 404);
   if (row.name === 'busy-bot')
     throw new AgentAdminError(
       "agent 'busy-bot' still has 2 station account(s) attached, an operator must remove them first",
@@ -397,6 +406,8 @@ describe('POST /api/agents', () => {
       name: 'sneaky',
       email: 'ada@lovelace.dev',
       ownerEmail: 'ada@lovelace.dev',
+      ownerId: 11,
+      owner_id: 11,
     });
     expect(created).toEqual([{ email: 'bob@builder.dev', name: 'sneaky' }]);
   });
@@ -527,14 +538,14 @@ describe('DELETE /api/agents/:id', () => {
   test('a second agent of the same owner survives the delete', async () => {
     rows = [
       ...SEED,
-      { id: 6, name: 'ada-second', ownerEmail: 'ada@lovelace.dev' },
+      { id: 6, name: 'ada-second', ownerId: 11 },
     ];
     expect((await del(session('ada@lovelace.dev'), '1')).status).toBe(200);
     expect(rows.map((r) => r.id)).toEqual([2, 5, 6]);
   });
 
   test('a 409 from the admin layer is forwarded with its message intact', async () => {
-    rows = [...SEED, { id: 6, name: 'busy-bot', ownerEmail: 'ada@lovelace.dev' }];
+    rows = [...SEED, { id: 6, name: 'busy-bot', ownerId: 11 }];
     const res = await del(session('ada@lovelace.dev'), '6');
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: string }).error).toContain(

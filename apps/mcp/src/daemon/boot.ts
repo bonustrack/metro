@@ -21,8 +21,8 @@ import {
   createAgentForEmail,
   deleteAgentForEmail,
   listAgentsForEmail,
-  normalizeEmail,
   ownedAgentOrThrow,
+  userIdForEmail,
 } from '../db/agent-admin.js';
 import {
   attachAccountToAgent,
@@ -68,7 +68,7 @@ async function syncStations(station: StationName): Promise<void> {
 const attachSessions = new AttachSessions({
   authorize: async (owner) => {
     await ownedAgentOrThrow(
-      normalizeEmail(owner.email),
+      await userIdForEmail(owner.email),
       owner.granted,
       owner.agentId,
       'changed',
