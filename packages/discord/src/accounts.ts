@@ -7,8 +7,7 @@ import {
 } from '@metro-labs/mcp/stations/account-store';
 import { Line } from '@metro-labs/mcp/lines';
 import { emit } from './wire.js';
-
-export const API = 'https://discord.com/api/v10';
+import { API } from './api-base.js';
 
 const ACCOUNTS_FILE =
   process.env.DISCORD_ACCOUNTS_FILE ??

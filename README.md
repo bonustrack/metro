@@ -193,9 +193,10 @@ Per-station `config` jsonb (connection secrets + optional `owner`):
 | `discord` | `{ token }`; optional `owner` |
 | `whatsapp` | `{ phone }` (E.164 digits); optional `owner`. Auth state is not in the DB — it lives as files on the `/data` volume (see below) |
 
-`account_id` is the station-local id (`x0`, `t0`, `d0`, `w0`, `default`); lines are
-account-scoped (`metro://telegram/<account>/<chat>`) so replies go back out the same
-identity. Inbound events are tagged with the owning agent (an `agent` field on the
+`account_id` is the station-local id. An operator picks it (`x0`, `t0`, `d0`, `w0`,
+`default`); the web UI generates one (`a<agent-id>-<8 hex>`) so two owners can never collide
+in the shared (`station`, `account_id`) primary key. Lines are account-scoped
+(`metro://telegram/<account>/<chat>`) so replies go back out the same identity. Inbound events are tagged with the owning agent (an `agent` field on the
 event), so a consumer can route by agent. Running several fully independent agents
 today means one daemon per agent (`METRO_AGENT=<id>`, same `DATABASE_URL`) — that also
 keeps XMTP's single-writer rule per inbox. A single daemon already loads *all* agents'
@@ -244,6 +245,8 @@ before the MCP auth gate:
 | `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. Every account carries the `agentId` it belongs to, so the panel can show accounts under their agent instead of in one global list. For agents the email **owns**, each key also carries its value, its `?token=` endpoint and the paste-ready `claude mcp add …` command. |
 | `POST /api/agents` `{"name":"…"}` | Create an agent owned by the signed-in email, mint its API key, and return the key together with the paste-ready `claude mcp add …` command. |
 | `DELETE /api/agents/<id>` | Delete an agent the signed-in email **owns**, and revoke its keys. |
+| `POST /api/agents/<id>/accounts/start` `{"station":"…","token":"…"}` | Attach a station account to an agent the signed-in email **owns**. Validates the credential against the provider first, writes the `accounts` row, and reloads that station. |
+| `DELETE /api/agents/<id>/accounts/<station>/<account_id>` | Detach one of that agent's station accounts, forget its credentials, and reload (or stop) the station. |
 
 Sign-in is **open**: any Google account whose `email_verified` claim is true may sign in and
 create agents. There is no domain allowlist and no cap on how many agents one email owns.
@@ -285,20 +288,63 @@ key issued for that agent stops authenticating on `/mcp` on the very next reques
 restart. If that key was also the value `applyAgentKey` had put in `METRO_MCP_HTTP_TOKEN` at
 boot, that env value is cleared too.
 
-**An agent that still has `accounts` rows is refused with `409`**, listing how many. The
-`accounts` table holds every station credential and the daemon is deliberately never a writer
-of it, so deletion does not cascade — an operator detaches the station accounts first (plain
-SQL), then the owner can delete the agent. This also makes "the daemon materialises a station
-for a deleted agent" impossible by construction: an agent can only be deleted when it owns
-zero accounts. Self-serve agents are created empty, so the normal path never hits this.
+**An agent that still has `accounts` rows is refused with `409`**, listing how many;
+deletion never cascades into station credentials. Detach the accounts first (from the agent's
+page, or with plain SQL), then delete the agent. This also makes "the daemon materialises a
+station for a deleted agent" impossible by construction: an agent can only be deleted when it
+owns zero accounts.
 
 | Var | Default | Meaning |
 | --- | --- | --- |
 | `METRO_SESSION_SECRET` | — | Required for `/api/agents` and Google login. Unset → 401. |
 | `GOOGLE_EMAIL_AGENTS` | `{}` | Grant an email access to operator-provisioned (`owner_email IS NULL`) agents, by name. Never resolves to an agent someone owns, and a granted agent can never be deleted through the API. |
 
-Creating an agent does **not** create station accounts — a new agent starts empty and its
-`list_accounts` returns nothing until an operator inserts `accounts` rows for it.
+### Attaching station accounts from the web UI
+
+Creating an agent does **not** create station accounts; a new agent starts empty. From the
+agent's page you can attach one yourself; `POST /api/agents/<id>/accounts/start` is the only
+route that writes the `accounts` table, and it writes nothing else.
+
+| station | what you supply | what Metro checks before storing anything |
+| --- | --- | --- |
+| `discord` | the bot token | `GET /users/@me` with `Authorization: Bot <token>`. A rejected token is a `400` at attach time, not a dead train at the next boot. `GET /applications/@me` is read too: the Discord train always requests the **Message Content** intent, so an application that does not have it enabled is refused with the fix spelled out, rather than crash-looping on `Used disallowed intents`. If that second call cannot be read, the attach is allowed through. |
+| `telegram` | the bot token | `getMe`, which must answer `ok:true` for an `is_bot` identity. |
+| `xmtp` | nothing | Metro generates the 32-byte secp256k1 key itself, then **opens an XMTP inbox with it** before the row is written. The check runs in a short-lived subprocess (`@metro-labs/xmtp/verify`, key over stdin) against the same `~/.metro/xmtp-production-<hex>.db3` the train will use, and that path is stored in `config.dbPath`, so the train reuses the installation that was just verified instead of burning a second one out of the inbox's ten. `inboxId` and `address` come back on the `201`. If XMTP cannot be reached, or answers with an unregistered client, the attach is a `400` and the half-built database is deleted. |
+
+Rules that hold for every station:
+
+- **No row exists unless the credential was demonstrated to work.** Every station checks
+  against the real provider *before* `attachAccount` is called, and a refusal is a `400`/`409`
+  that leaves the `accounts` table byte for byte as it was: no row, no train stub, no station
+  reload. If the write itself fails after a good check, whatever the check created on disk is
+  discarded (`PreparedAccount.discard`). "Well-formed" is never enough on its own: a generated
+  XMTP key is well-formed by construction, which is exactly why it is registered before it is
+  stored.
+- **Authorisation is the same predicate as delete.** `ownedAgentOrThrow` is one function used
+  by both: the agent must have `owner_email` equal to the session email. Somebody else's agent
+  or an unknown id is a flat `404`; an operator-provisioned row a `GOOGLE_EMAIL_AGENTS` grantee
+  can merely *see* is `403`. **A grant (`owned: false`) can never attach or detach anything.**
+- **`account_id` is generated by the server** (`a<agent-id>-<8 hex>`), never taken from the
+  request. Two people therefore cannot collide in the shared (`station`, `account_id`) primary
+  key, and nobody can probe which ids already exist.
+- **The credential is never returned again.** `GET /api/agents` re-serves `keys.key` for agents
+  you own; station credentials are deliberately **not** part of that exposure. The `accounts`
+  payload is what the trains report (id, username, address, …) and has never carried secrets.
+- **A duplicate bot token is `409`.** Two `telegram` accounts sharing a token make the whole
+  telegram train refuse to boot, so the collision is caught at attach.
+- **The station reloads immediately.** After the row lands, the daemon re-materialises the
+  account files from Postgres and asks the supervisor to reload just that station's train:
+  restarting it if it was already running, spawning it if this is the station's first account,
+  stopping it when the last account is detached. Train stubs are only rewritten when their
+  content actually changes, so attaching a Telegram account does not restart XMTP. The response
+  carries `activated: false` if that reload failed; the row is still valid and comes up at the
+  next boot.
+
+**Is the generated XMTP key recoverable?** Not through Metro. It is stored in
+`accounts.config.privateKey` in plaintext, like every other station secret, so an operator with
+database access can read it, but **no API ever returns it again**, so the one-time panel shown
+at creation is the only copy the person attaching it will get. Copy it out then, or treat the
+identity as disposable and attach a new one.
 
 On a `METRO_AGENT`-pinned daemon the generated key is **not** accepted by that daemon (it
 only serves the pinned agent's keys, before and after a restart alike). The key is still

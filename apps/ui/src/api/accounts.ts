@@ -4,6 +4,7 @@ export interface AccountField {
 }
 
 export interface AccountRow {
+  id: string | null;
   agentId: number | null;
   fields: AccountField[];
 }
@@ -32,14 +33,22 @@ const AGENT_ID = 'agentId';
 
 function toRow(account: unknown): AccountRow {
   if (!isRecord(account))
-    return { agentId: null, fields: [{ label: 'value', value: stringifyValue(account) }] };
+    return {
+      id: null,
+      agentId: null,
+      fields: [{ label: 'value', value: stringifyValue(account) }],
+    };
   const fields: AccountField[] = [];
   for (const [key, value] of Object.entries(account)) {
     if (key === AGENT_ID || SECRET_KEY_PATTERN.test(key)) continue;
     fields.push({ label: key, value: stringifyValue(value) });
   }
   const owner = account[AGENT_ID];
-  return { agentId: typeof owner === 'number' ? owner : null, fields };
+  return {
+    id: typeof account.id === 'string' ? account.id : null,
+    agentId: typeof owner === 'number' ? owner : null,
+    fields,
+  };
 }
 
 export function groupAccounts(accounts: unknown): AccountGroup[] {

@@ -14,6 +14,7 @@ import {
   type TrainEvent,
 } from './protocol.js';
 import {
+  HOT_RELOAD_DEBOUNCE_MS,
   MAX_CONSECUTIVE_FAILS,
   RESTART_BACKOFFS_MS,
   killGracefully,
@@ -64,6 +65,39 @@ export class TrainSupervisor {
     this.watcher = startWatcher(this.dir, this.reloadTimers, (name, path) => {
       this.handleSourceChange(name, path);
     });
+  }
+
+  requestReload(name: string): void {
+    const path = join(this.dir, `${name}.ts`);
+    const existing = this.reloadTimers.get(name);
+    if (existing) clearTimeout(existing);
+    this.reloadTimers.set(
+      name,
+      setTimeout(() => {
+        this.reloadTimers.delete(name);
+        this.handleSourceChange(name, path);
+      }, HOT_RELOAD_DEBOUNCE_MS),
+    );
+  }
+
+  async stopTrain(name: string): Promise<void> {
+    const t = this.trains.get(name);
+    if (!t) return;
+    const timer = this.reloadTimers.get(name);
+    if (timer) {
+      clearTimeout(timer);
+      this.reloadTimers.delete(name);
+    }
+    t.stopped = true;
+    if (t.restartTimer) {
+      clearTimeout(t.restartTimer);
+      t.restartTimer = null;
+    }
+    failAllPending(t.pending, `train '${name}' stopped`);
+    const wait = killGracefully(t.proc);
+    if (wait) await wait;
+    this.trains.delete(name);
+    log.info({ name }, 'train: stopped, last account detached');
   }
 
   private handleSourceChange(name: string, path: string): void {

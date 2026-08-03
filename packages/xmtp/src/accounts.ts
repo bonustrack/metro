@@ -1,15 +1,14 @@
 import {
   Client,
-  IdentifierKind,
   type ClientOptions,
   type Conversation,
-  type Signer,
 } from '@xmtp/node-sdk';
-import { privateKeyToAccount, mnemonicToAccount } from 'viem/accounts';
+import { mnemonicToAccount } from 'viem/accounts';
 import { toHex } from 'viem';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CODECS } from './codecs.js';
+import { expandHome, signerFor, XMTP_ENV } from './identity.js';
 import {
   makeAccountStore,
   resolveAccountId,
@@ -19,8 +18,6 @@ import { Line } from '@metro-labs/mcp/lines';
 const ACCOUNTS_FILE =
   process.env.XMTP_ACCOUNTS_FILE ??
   join(homedir(), '.metro', 'xmtp-accounts.json');
-
-const XMTP_ENV = 'production' as const;
 
 export interface AccountConfig {
   id: string;
@@ -65,9 +62,6 @@ function resolvePrivateKey(cfg: AccountConfig): string {
   return toHex(privateKey);
 }
 
-const expandHome = (p: string): string =>
-  p.startsWith('~') ? join(homedir(), p.slice(1)) : p;
-
 export interface Account {
   cfg: AccountConfig;
   client: Client<unknown>;
@@ -75,27 +69,6 @@ export interface Account {
   address: string;
 }
 export const accounts = new Map<string, Account>();
-
-function signerFor(privateKey: string): { signer: Signer; address: string } {
-  const acct = privateKeyToAccount(privateKey as `0x${string}`);
-  const signer: Signer = {
-    type: 'EOA',
-    getIdentifier: () =>
-      Promise.resolve({
-        identifier: acct.address,
-        identifierKind: IdentifierKind.Ethereum,
-      }),
-    signMessage: async (msg: string) => {
-      const sig = await acct.signMessage({ message: msg });
-      const hex = sig.slice(2);
-      const out = new Uint8Array(hex.length / 2);
-      for (let i = 0; i < out.length; i++)
-        out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-      return out;
-    },
-  };
-  return { signer, address: acct.address };
-}
 
 export async function bootAccount(cfg: AccountConfig): Promise<void> {
   const { signer, address } = signerFor(resolvePrivateKey(cfg));

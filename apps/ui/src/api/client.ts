@@ -29,6 +29,7 @@ export interface Dashboard {
   agents: AgentSummary[];
   groups: AccountGroup[];
   unattributed: number;
+  attachable: string[];
 }
 
 export interface CreatedAgent {
@@ -46,14 +47,14 @@ function errorText(body: unknown, status: number): string {
   return `Metro returned ${status}.`;
 }
 
-interface CallInit {
+export interface CallInit {
   method: 'GET' | 'POST' | 'DELETE';
   path?: string;
   headers?: Record<string, string>;
   body?: string;
 }
 
-async function call(token: string, init: CallInit): Promise<unknown> {
+export async function call(token: string, init: CallInit): Promise<unknown> {
   let res: Response;
   try {
     res = await fetch(`${agentsUrl()}${init.path ?? ''}`, {
@@ -108,6 +109,12 @@ function attributedGroups(
   return sole === undefined ? groups : attributeUntagged(groups, sole.id);
 }
 
+function toStationList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((s): s is string => typeof s === 'string')
+    : [];
+}
+
 export async function fetchDashboard(token: string): Promise<Dashboard> {
   const body = await call(token, { method: 'GET' });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
@@ -119,6 +126,7 @@ export async function fetchDashboard(token: string): Promise<Dashboard> {
     agents,
     groups,
     unattributed: unattributedAccounts(groups),
+    attachable: toStationList(body.attachable),
   };
 }
 
