@@ -57,7 +57,7 @@ export function servesEveryAgent(): boolean {
   return (process.env.METRO_AGENT?.trim() ?? '') === '';
 }
 
-export const isUniqueViolation = (e: unknown): boolean =>
+const isUniqueViolation = (e: unknown): boolean =>
   typeof e === 'object' &&
   e !== null &&
   (e as { code?: unknown }).code === '23505';

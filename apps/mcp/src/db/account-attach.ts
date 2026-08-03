@@ -3,7 +3,6 @@ import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from './client.js';
 import {
   AgentAdminError,
-  isUniqueViolation,
   normalizeEmail,
   ownedAgentOrThrow,
 } from './agent-admin.js';
@@ -11,6 +10,12 @@ import { accounts, STATIONS, type StationName } from './schema.js';
 
 const ACCOUNT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const ID_ATTEMPTS = 5;
+const UNIQUE_VIOLATION = '23505';
+
+const isTakenId = (e: unknown): boolean =>
+  typeof e === 'object' &&
+  e !== null &&
+  (e as { code?: unknown }).code === UNIQUE_VIOLATION;
 
 export interface AccountRef {
   agentId: number;
@@ -76,7 +81,7 @@ export async function attachAccountToAgent(
         .values({ agentId: agent.id, station, accountId, config });
       return { agentId: agent.id, station, accountId };
     } catch (err) {
-      if (!isUniqueViolation(err)) throw err;
+      if (!isTakenId(err)) throw err;
     }
   }
   throw new AgentAdminError('could not allocate a free account id', 500);
