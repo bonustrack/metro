@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit && bun test test/"
   },
   "dependencies": {
     "@stage-labs/kit": "0.1.0-beta.0",

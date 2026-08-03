@@ -7,6 +7,29 @@ const accountId = (acc: unknown): string | undefined => {
   return typeof id === 'string' ? id : undefined;
 };
 
+const asRecord = (acc: unknown): Record<string, unknown> | undefined =>
+  typeof acc === 'object' && acc !== null && !Array.isArray(acc)
+    ? (acc as Record<string, unknown>)
+    : undefined;
+
+function withAgentId(station: string, acc: unknown): unknown {
+  const rec = asRecord(acc);
+  if (rec === undefined) return acc;
+  const id = typeof rec.id === 'string' ? rec.id : undefined;
+  if (id === undefined) return acc;
+  const agentId = agentIdForAccount(station, id);
+  return agentId === undefined ? acc : { ...rec, agentId };
+}
+
+export function attachAgentIds(
+  byStation: Record<string, unknown[]>,
+): Record<string, unknown[]> {
+  const out: Record<string, unknown[]> = {};
+  for (const [station, list] of Object.entries(byStation))
+    out[station] = list.map((acc) => withAgentId(station, acc));
+  return out;
+}
+
 export function scopeAccountsByAgent(
   byStation: Record<string, unknown[]>,
   allowed: Set<number>,
@@ -41,4 +64,10 @@ export async function gatherAccounts(
     }),
   );
   return allowedAgents ? scopeAccountsByAgent(out, allowedAgents) : out;
+}
+
+export async function gatherAccountsForAgents(
+  allowed: Set<number>,
+): Promise<Record<string, unknown[]>> {
+  return attachAgentIds(await gatherAccounts(allowed));
 }

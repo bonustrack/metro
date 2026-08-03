@@ -4,6 +4,7 @@ export interface AccountField {
 }
 
 export interface AccountRow {
+  agentId: number | null;
   fields: AccountField[];
 }
 
@@ -27,14 +28,18 @@ function stringifyValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+const AGENT_ID = 'agentId';
+
 function toRow(account: unknown): AccountRow {
-  if (!isRecord(account)) return { fields: [{ label: 'value', value: stringifyValue(account) }] };
+  if (!isRecord(account))
+    return { agentId: null, fields: [{ label: 'value', value: stringifyValue(account) }] };
   const fields: AccountField[] = [];
   for (const [key, value] of Object.entries(account)) {
-    if (SECRET_KEY_PATTERN.test(key)) continue;
+    if (key === AGENT_ID || SECRET_KEY_PATTERN.test(key)) continue;
     fields.push({ label: key, value: stringifyValue(value) });
   }
-  return { fields };
+  const owner = account[AGENT_ID];
+  return { agentId: typeof owner === 'number' ? owner : null, fields };
 }
 
 export function groupAccounts(accounts: unknown): AccountGroup[] {
@@ -45,4 +50,40 @@ export function groupAccounts(accounts: unknown): AccountGroup[] {
     groups.push({ station, rows });
   }
   return groups.sort((a, b) => a.station.localeCompare(b.station));
+}
+
+export function attributeUntagged(
+  groups: AccountGroup[],
+  agentId: number,
+): AccountGroup[] {
+  return groups.map((g) => ({
+    station: g.station,
+    rows: g.rows.map((r) => (r.agentId === null ? { ...r, agentId } : r)),
+  }));
+}
+
+export function accountsForAgent(
+  groups: AccountGroup[],
+  agentId: number,
+): AccountGroup[] {
+  const out: AccountGroup[] = [];
+  for (const g of groups) {
+    const rows = g.rows.filter((r) => r.agentId === agentId);
+    if (rows.length > 0) out.push({ station: g.station, rows });
+  }
+  return out;
+}
+
+export function countAccounts(groups: AccountGroup[], agentId: number): number {
+  return groups.reduce(
+    (n, g) => n + g.rows.filter((r) => r.agentId === agentId).length,
+    0,
+  );
+}
+
+export function unattributedAccounts(groups: AccountGroup[]): number {
+  return groups.reduce(
+    (n, g) => n + g.rows.filter((r) => r.agentId === null).length,
+    0,
+  );
 }

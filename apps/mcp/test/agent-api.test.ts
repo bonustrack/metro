@@ -34,10 +34,10 @@ const OWNED: Record<string, AgentSummary[]> = {
 let leakGrantedKeys = false;
 
 const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
-  1: ['telegram', { id: 'ada-tg', owner: 'ada' }],
-  2: ['discord', { id: 'bob-dc', owner: 'bob' }],
-  7: ['telegram', { id: 'ada-tony-tg', owner: 'ada' }],
-  8: ['telegram', { id: 'bob-tony-tg', owner: 'bob' }],
+  1: ['telegram', { id: 'ada-tg', owner: 'ada', agentId: 1 }],
+  2: ['discord', { id: 'bob-dc', owner: 'bob', agentId: 2 }],
+  7: ['telegram', { id: 'ada-tony-tg', owner: 'ada', agentId: 7 }],
+  8: ['telegram', { id: 'bob-tony-tg', owner: 'bob', agentId: 8 }],
 };
 
 interface Row {
@@ -227,7 +227,7 @@ describe('GET /api/agents ownership', () => {
     expect(body.email).toBe('ada@lovelace.dev');
     expect(body.endpoint).toBe(`${PUBLIC}/mcp`);
     expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
-    expect(body.accounts.telegram).toEqual([{ id: 'ada-tg', owner: 'ada' }]);
+    expect(body.accounts.telegram).toEqual([{ id: 'ada-tg', owner: 'ada', agentId: 1 }]);
     expect(body.accounts.discord).toEqual([]);
   });
 
@@ -235,12 +235,19 @@ describe('GET /api/agents ownership', () => {
     const body = (await (await get(session('bob@builder.dev'))).json()) as ListBody;
     expect(body.agents.map((a) => a.name)).toEqual(['bob-bot']);
     expect(body.accounts.telegram).toEqual([]);
-    expect(body.accounts.discord).toEqual([{ id: 'bob-dc', owner: 'bob' }]);
+    expect(body.accounts.discord).toEqual([{ id: 'bob-dc', owner: 'bob', agentId: 2 }]);
   });
 
   test('the accounts scope set is exactly the visible agent IDS, never names', async () => {
     await get(session('ada@lovelace.dev'));
     expect(scopes.at(-1)).toEqual(new Set([1]));
+  });
+
+  test('every returned account names the agent id it belongs to', async () => {
+    const body = (await (await get(session('ada@lovelace.dev'))).json()) as ListBody;
+    const rowsOut = Object.values(body.accounts).flat();
+    expect(rowsOut.length).toBeGreaterThan(0);
+    expect(rowsOut.map((a) => (a as { agentId?: unknown }).agentId)).toEqual([1]);
   });
 
   test('two owners whose agents share a name each see only their own accounts', async () => {
@@ -253,8 +260,12 @@ describe('GET /api/agents ownership', () => {
     expect(bob.agents.map((a) => a.name)).toEqual(['tony']);
     expect(adaScope).toEqual(new Set([7]));
     expect(bobScope).toEqual(new Set([8]));
-    expect(ada.accounts.telegram).toEqual([{ id: 'ada-tony-tg', owner: 'ada' }]);
-    expect(bob.accounts.telegram).toEqual([{ id: 'bob-tony-tg', owner: 'bob' }]);
+    expect(ada.accounts.telegram).toEqual([
+      { id: 'ada-tony-tg', owner: 'ada', agentId: 7 },
+    ]);
+    expect(bob.accounts.telegram).toEqual([
+      { id: 'bob-tony-tg', owner: 'bob', agentId: 8 },
+    ]);
   });
 
   test('a brand-new signed-in user sees no agents and no accounts', async () => {

@@ -13,7 +13,7 @@ import {
 } from './http.js';
 import { createMetroMcp } from '../mcp/index.js';
 import { metroCall } from '../mcp/ctx.js';
-import { gatherAccounts } from '../mcp/accounts.js';
+import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import { accountStationCapabilities } from '../stations/registry.js';
 import { materializeFromDb } from '../db/materialize.js';
 import {
@@ -54,7 +54,7 @@ const agentApi: AgentApiDeps = {
   listAgents: listAgentsForEmail,
   createAgent: createAgentForEmail,
   deleteAgent: deleteAgentForEmail,
-  gatherAccounts: (allowed) => gatherAccounts(allowed),
+  gatherAccounts: gatherAccountsForAgents,
   capabilities: accountStationCapabilities,
 };
 

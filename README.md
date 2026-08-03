@@ -232,7 +232,7 @@ before the MCP auth gate:
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. For agents the email **owns**, each key also carries its value, its `?token=` endpoint and the paste-ready `claude mcp add …` command. |
+| `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. Every account carries the `agentId` it belongs to, so the panel can show accounts under their agent instead of in one global list. For agents the email **owns**, each key also carries its value, its `?token=` endpoint and the paste-ready `claude mcp add …` command. |
 | `POST /api/agents` `{"name":"…"}` | Create an agent owned by the signed-in email, mint its API key, and return the key together with the paste-ready `claude mcp add …` command. |
 | `DELETE /api/agents/<id>` | Delete an agent the signed-in email **owns**, and revoke its keys. |
 

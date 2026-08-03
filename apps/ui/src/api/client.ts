@@ -1,5 +1,11 @@
 import { daemonBase } from '../auth/session';
-import { groupAccounts, isRecord, type AccountGroup } from './accounts';
+import {
+  attributeUntagged,
+  groupAccounts,
+  isRecord,
+  unattributedAccounts,
+  type AccountGroup,
+} from './accounts';
 
 export class AuthError extends Error {}
 
@@ -22,6 +28,7 @@ export interface Dashboard {
   endpoint: string;
   agents: AgentSummary[];
   groups: AccountGroup[];
+  unattributed: number;
 }
 
 export interface CreatedAgent {
@@ -92,14 +99,26 @@ function toAgents(value: unknown): AgentSummary[] {
   }));
 }
 
+function attributedGroups(
+  agents: AgentSummary[],
+  accounts: unknown,
+): AccountGroup[] {
+  const groups = groupAccounts(accounts);
+  const sole = agents.length === 1 ? agents[0] : undefined;
+  return sole === undefined ? groups : attributeUntagged(groups, sole.id);
+}
+
 export async function fetchDashboard(token: string): Promise<Dashboard> {
   const body = await call(token, { method: 'GET' });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
+  const agents = toAgents(body.agents);
+  const groups = attributedGroups(agents, body.accounts);
   return {
     email: typeof body.email === 'string' ? body.email : '',
     endpoint: typeof body.endpoint === 'string' ? body.endpoint : '',
-    agents: toAgents(body.agents),
-    groups: groupAccounts(body.accounts),
+    agents,
+    groups,
+    unattributed: unattributedAccounts(groups),
   };
 }
 
