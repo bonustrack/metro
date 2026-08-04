@@ -6,34 +6,45 @@ import {
 } from '../daemon/events.js';
 import type { InboundRelay } from './inbound.js';
 
+export interface ReplayLedger {
+  startAt: number;
+  delivered: Set<number>;
+}
+
+export const newReplayLedger = (startAt = -1): ReplayLedger => ({
+  startAt,
+  delivered: new Set<number>(),
+});
+
 interface ChannelRelayDeps {
   relay: InboundRelay;
   log: (...a: unknown[]) => void;
   inScope: (line: string) => boolean;
+  ledger?: ReplayLedger;
 }
 
 const PENDING_MAX = 2000;
 
 export class ChannelRelay {
   private readonly deps: ChannelRelayDeps;
-  private readonly pending = new Set<number>();
-  private connectedAtBusSeq = 0;
+  private readonly ledger: ReplayLedger;
   private chain: Promise<void> = Promise.resolve();
 
   constructor(deps: ChannelRelayDeps) {
     this.deps = deps;
+    this.ledger = deps.ledger ?? newReplayLedger();
   }
 
   start(): () => void {
-    this.connectedAtBusSeq = currentBusSeq();
+    if (this.ledger.startAt < 0) this.ledger.startAt = currentBusSeq();
     return subscribeEvents((event, busSeq) => {
       this.enqueue(event, busSeq, false);
     });
   }
 
   replayMissed(): void {
-    const missed = bufferedSince(this.connectedAtBusSeq).filter(
-      (b) => !this.pending.has(b.busSeq),
+    const missed = bufferedSince(this.ledger.startAt).filter(
+      (b) => !this.ledger.delivered.has(b.busSeq),
     );
     const first = missed.at(0);
     const last = missed.at(-1);
@@ -48,17 +59,18 @@ export class ChannelRelay {
   }
 
   private enqueue(event: MetroEvent, busSeq: number, replay: boolean): void {
-    if (this.pending.has(busSeq)) return;
-    this.pending.add(busSeq);
-    if (this.pending.size > PENDING_MAX) {
+    const { delivered } = this.ledger;
+    if (delivered.has(busSeq)) return;
+    delivered.add(busSeq);
+    if (delivered.size > PENDING_MAX) {
       const cutoff = busSeq - PENDING_MAX;
-      for (const s of this.pending) if (s <= cutoff) this.pending.delete(s);
+      for (const s of delivered) if (s <= cutoff) delivered.delete(s);
     }
     this.chain = this.chain.then(() => this.deliver(event, busSeq, replay));
   }
 
   private withhold(event: MetroEvent, busSeq: number): void {
-    this.pending.delete(busSeq);
+    this.ledger.delivered.delete(busSeq);
     this.deps.log(
       'relay: withheld (line outside the channel session scope)',
       'busSeq',
@@ -92,7 +104,7 @@ export class ChannelRelay {
         replay,
       );
     } catch (err) {
-      this.pending.delete(busSeq);
+      this.ledger.delivered.delete(busSeq);
       this.deps.log(
         'channel delivery failed; bounded replay on reconnect',
         'busSeq',

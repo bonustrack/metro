@@ -26,7 +26,7 @@ export async function serveChannelGet(opts: ChannelGetOpts): Promise<boolean> {
       .end(check.message ?? 'bad request');
     return false;
   }
-  if (opts.previous && !opts.previous.closed) opts.previous.closed = true;
+  if (opts.previous && !opts.previous.closed) opts.previous.close();
   await serveStandaloneGet({
     transport: opts.transport,
     eventStore: opts.eventStore,

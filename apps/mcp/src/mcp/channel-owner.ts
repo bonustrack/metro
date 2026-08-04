@@ -1,8 +1,6 @@
 import { eventInScope } from '../db/agent-scope.js';
 import { allowedAgents, type RequestIdentity } from './request-identity.js';
-
-const sameScope = (a: Set<number>, b: Set<number>): boolean =>
-  a.size === b.size && [...a].every((id) => b.has(id));
+import { sessionScopeKey } from './session-route.js';
 
 export class ChannelOwner {
   private stream: RequestIdentity | undefined;
@@ -21,7 +19,7 @@ export class ChannelOwner {
 
   streamBelongsTo(identity: RequestIdentity): boolean {
     if (this.stream === undefined) return false;
-    return sameScope(allowedAgents(this.stream), allowedAgents(identity));
+    return sessionScopeKey(this.stream) === sessionScopeKey(identity);
   }
 
   inScope(line: string): boolean {

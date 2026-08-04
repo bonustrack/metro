@@ -209,12 +209,14 @@ in the shared (`station`, `account_id`) primary key. Lines are account-scoped
 (`metro://telegram/<account>/<chat>`) so replies go back out the same identity. Inbound events are tagged with the owning agent (an `agent` field on the
 event), and delivery is scoped to that agent: an account's messages only ever reach a
 session authenticated as the agent that owns the account, on the MCP channel and on the
-Monitor tail alike. An event that arrives while another agent holds the channel is held,
-not dropped, and replays to its owner on the next connect (bounded by the in-memory ring
-buffer). What one daemon still does *not* do is serve two agents at once — the MCP channel
-is a single session and the newest `initialize` takes it — so running several agents live
-in parallel means one daemon per agent (`METRO_AGENT=<id>`, same `DATABASE_URL`), which
-also keeps XMTP's single-writer rule per inbox.
+Monitor tail alike. An event that arrives while its agent is disconnected is held, not
+dropped, and replays to that agent on its next connect (bounded by the in-memory ring
+buffer). One daemon serves several agents at once: each identity gets its own MCP session,
+transport, channel stream and event store, so two agents can be connected simultaneously
+and neither displaces the other. A second `initialize` from the *same* identity still
+supersedes that identity's own previous session. One daemon per agent
+(`METRO_AGENT=<id>`, same `DATABASE_URL`) remains the way to keep XMTP's single-writer
+rule per inbox, but is no longer needed just to keep two agents live.
 
 **Set up.** Provision Postgres, then from the repo:
 
