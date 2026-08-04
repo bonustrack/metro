@@ -222,12 +222,6 @@ export async function ownedAgentOrThrow(
   return { agent: { id: row.id, name: row.name }, ownerId };
 }
 
-function revokeEnvToken(revoked: string | null): void {
-  if (revoked === null) return;
-  if (process.env.METRO_MCP_HTTP_TOKEN === revoked)
-    delete process.env.METRO_MCP_HTTP_TOKEN;
-}
-
 export async function deleteAgentForEmail(
   email: string,
   granted: string[],
@@ -239,7 +233,7 @@ export async function deleteAgentForEmail(
     id,
     'deleted',
   );
-  const revoked = await getDb().transaction(async (tx) => {
+  await getDb().transaction(async (tx) => {
     const attached = await tx
       .select({ accountId: accounts.accountId })
       .from(accounts)
@@ -252,11 +246,9 @@ export async function deleteAgentForEmail(
     const gone = await tx
       .delete(agents)
       .where(and(eq(agents.id, id), eq(agents.ownerId, ownerId)))
-      .returning({ key: agents.key });
+      .returning({ id: agents.id });
     if (gone.length === 0) throw new AgentAdminError('no such agent', 404);
-    return gone[0]?.key ?? null;
   });
   unregisterAgentKey(id);
-  revokeEnvToken(revoked);
   return agent;
 }

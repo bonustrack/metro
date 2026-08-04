@@ -35,11 +35,21 @@ export function agentIdForAccount(
   return agentMap[mapKey(station, accountId)];
 }
 
-export function agentForLine(line: string): string | undefined {
+export function agentIdForLine(line: string): number | undefined {
   const a = accountOfLine(line);
-  if (!a) return undefined;
-  const id = agentIdForAccount(a.station, a.accountId);
+  return a ? agentIdForAccount(a.station, a.accountId) : undefined;
+}
+
+export function agentForLine(line: string): string | undefined {
+  const id = agentIdForLine(line);
   return id === undefined ? undefined : agentNames[id];
+}
+
+export function stationAgentIds(station: string): number[] {
+  const prefix = `${station}/`;
+  return Object.entries(agentMap)
+    .filter(([key]) => key.startsWith(prefix))
+    .map(([, id]) => id);
 }
 
 export function accountFromLine(

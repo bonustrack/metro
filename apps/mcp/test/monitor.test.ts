@@ -3,9 +3,15 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { publishEvent, type MetroEvent } from '../src/daemon/events.ts';
+import { setAgentMap } from '../src/db/agent-map.ts';
+import { setKeyMap } from '../src/db/key-map.ts';
 import type { MonitorCall } from '../src/monitor/api.ts';
 
-const TOKEN = 'monitor-test-token';
+const ONE = 'mk_agent_one';
+const TWO = 'mk_agent_two';
+
+const AGENTS = { 'discord/d1': 1, 'xmtp/x1': 1, 'telegram/t2': 2 };
+const NAMES = { 1: 'tony', 2: 'lisa' };
 
 interface Harness {
   server: Server;
@@ -16,13 +22,11 @@ interface Harness {
 let active: Harness | undefined;
 
 async function start(
-  env: Record<string, string | undefined>,
+  keys: Array<{ key: string; agentId: number }>,
   call?: MonitorCall,
 ): Promise<Harness> {
-  for (const [k, v] of Object.entries(env)) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  setKeyMap(keys);
+  setAgentMap(AGENTS, NAMES);
   process.env.METRO_WEBHOOK_PORT = String(
     20000 + Math.floor(Math.random() * 20000),
   );
@@ -41,34 +45,59 @@ async function start(
   return h;
 }
 
+const both = (): Array<{ key: string; agentId: number }> => [
+  { key: ONE, agentId: 1 },
+  { key: TWO, agentId: 2 },
+];
+
 afterEach(async () => {
   if (active) {
     const s = active.server;
     await new Promise<void>((r) => s.close(() => r()));
     active = undefined;
   }
-  delete process.env.METRO_MCP_HTTP_TOKEN;
+  setKeyMap([]);
+  setAgentMap({}, {});
 });
 
+const post = (
+  h: Harness,
+  path: string,
+  token: string | undefined,
+  args: unknown,
+): Promise<Response> =>
+  fetch(`${h.base}${path}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ args }),
+  });
+
 describe('monitor transport', () => {
-  test('disabled (404) when METRO_MCP_HTTP_TOKEN unset', async () => {
-    const h = await start({ METRO_MCP_HTTP_TOKEN: undefined });
+  test('disabled (404) when the daemon holds no credential at all', async () => {
+    const h = await start([]);
     const res = await fetch(`${h.base}/api/health`);
     expect(res.status).toBe(404);
   });
 
-  test('/api/call requires a bearer token', async () => {
-    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
-    const res = await fetch(`${h.base}/api/call/discord/send`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ args: {} }),
+  test('/api/call requires a credential', async () => {
+    const h = await start(both());
+    const res = await post(h, '/api/call/discord/send', undefined, {});
+    expect(res.status).toBe(401);
+  });
+
+  test('/api/call rejects a token that is not a live agent key', async () => {
+    const h = await start(both());
+    const res = await post(h, '/api/call/discord/send', 'mk_revoked', {
+      line: 'metro://discord/d1/99',
     });
     expect(res.status).toBe(401);
   });
 
   test('/api/health returns ok/version snapshot', async () => {
-    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
+    const h = await start(both());
     const res = await fetch(`${h.base}/api/health`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; version: string };
@@ -77,14 +106,10 @@ describe('monitor transport', () => {
   });
 
   test('/api/call dispatches to a station and returns the result', async () => {
-    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
-    const res = await fetch(`${h.base}/api/call/discord/send`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${TOKEN}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ args: { line: 'metro://discord/1', text: 'hi' } }),
+    const h = await start(both());
+    const res = await post(h, '/api/call/discord/send', ONE, {
+      line: 'metro://discord/d1/99',
+      text: 'hi',
     });
     expect(res.status).toBe(200);
     const j = (await res.json()) as {
@@ -96,17 +121,47 @@ describe('monitor transport', () => {
     expect(h.calls[0]?.action).toBe('send');
   });
 
+  test('an agent key cannot drive another agent line', async () => {
+    const h = await start(both());
+    const res = await post(h, '/api/call/telegram/send', ONE, {
+      line: 'metro://telegram/t2/5',
+      text: 'not mine',
+    });
+    expect(res.status).toBe(403);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  test('an `account` override cannot escape the line scope', async () => {
+    const h = await start(both());
+    const res = await post(h, '/api/call/discord/send', TWO, {
+      line: 'metro://discord/d1/99',
+      account: 'd1',
+      text: 'not mine',
+    });
+    expect(res.status).toBe(403);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  test('a line-less call is allowed only when the station is wholly in scope', async () => {
+    const h = await start(both());
+    expect((await post(h, '/api/call/xmtp/accounts', ONE, {})).status).toBe(200);
+    expect((await post(h, '/api/call/xmtp/accounts', TWO, {})).status).toBe(403);
+  });
+
+  test('a line-less call is refused once a second agent shares the station', async () => {
+    const h = await start(both());
+    setAgentMap({ ...AGENTS, 'discord/d2': 2 }, NAMES);
+    expect((await post(h, '/api/call/discord/accounts', ONE, {})).status).toBe(
+      403,
+    );
+  });
+
   test('/api/call surfaces a dispatch error as 502', async () => {
-    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN }, async () => {
+    const h = await start(both(), async () => {
       throw new Error('train said no');
     });
-    const res = await fetch(`${h.base}/api/call/discord/send`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${TOKEN}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ args: {} }),
+    const res = await post(h, '/api/call/discord/send', ONE, {
+      line: 'metro://discord/d1/99',
     });
     expect(res.status).toBe(502);
     const j = (await res.json()) as { error: string };
@@ -114,45 +169,91 @@ describe('monitor transport', () => {
   });
 
   test('/api/call rejects GET with 405', async () => {
-    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
+    const h = await start(both());
     const res = await fetch(`${h.base}/api/call/discord/send`, {
-      headers: { authorization: `Bearer ${TOKEN}` },
+      headers: { authorization: `Bearer ${ONE}` },
     });
     expect(res.status).toBe(405);
   });
+});
 
-  test('/api/tail streams a live event published after connect', async () => {
-    const h = await start({ METRO_MCP_HTTP_TOKEN: TOKEN });
+const evt = (line: string, text: string): MetroEvent =>
+  ({
+    id: `msg_${text}`,
+    ts: new Date().toISOString(),
+    station: line.split('/')[2] ?? '',
+    line,
+    from: 'metro://discord/peer',
+    to: line,
+    text,
+  }) as MetroEvent;
+
+async function readUntil(
+  res: Response,
+  needle: string,
+): Promise<{ buf: string; cancel: () => Promise<void> }> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (!buf.includes(needle)) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+  }
+  return {
+    buf,
+    cancel: async () => {
+      await reader.cancel().catch(() => undefined);
+    },
+  };
+}
+
+describe('monitor tail scoping', () => {
+  test('streams a live event published after connect', async () => {
+    const h = await start(both());
     const ac = new AbortController();
-    const res = await fetch(`${h.base}/api/tail?token=${TOKEN}`, {
+    const res = await fetch(`${h.base}/api/tail?token=${ONE}`, {
       signal: ac.signal,
     });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
-    const reader = res.body!.getReader();
-    const decoder = new TextDecoder();
-
-    const evt: MetroEvent = {
-      id: 'msg_test',
-      ts: new Date().toISOString(),
-      station: 'discord',
-      line: 'metro://discord/1' as MetroEvent['line'],
-      from: 'metro://discord/peer' as MetroEvent['from'],
-      to: 'metro://discord/1' as MetroEvent['to'],
-      text: 'live hello',
-    };
     await new Promise((r) => setTimeout(r, 50));
-    publishEvent(evt);
-
-    let buf = '';
-    while (!buf.includes('live hello')) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-    }
+    publishEvent(evt('metro://discord/d1/99', 'live hello'));
+    const { buf, cancel } = await readUntil(res, 'live hello');
     expect(buf).toContain('event: live');
-    expect(buf).toContain('live hello');
-    await reader.cancel().catch(() => undefined);
+    await cancel();
+    ac.abort();
+  });
+
+  test('another agent line never reaches the tail, an ownerless one does', async () => {
+    const h = await start(both());
+    const ac = new AbortController();
+    const res = await fetch(`${h.base}/api/tail?token=${ONE}`, {
+      signal: ac.signal,
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    publishEvent(evt('metro://telegram/t2/5', 'other agent secret'));
+    publishEvent(evt('metro://webhook/gh', 'ownerless event'));
+    publishEvent(evt('metro://discord/d1/99', 'mine at last'));
+    const { buf, cancel } = await readUntil(res, 'mine at last');
+    expect(buf).not.toContain('other agent secret');
+    expect(buf).toContain('ownerless event');
+    await cancel();
+    ac.abort();
+  });
+
+  test('the same tail for the second agent sees only its own line', async () => {
+    const h = await start(both());
+    const ac = new AbortController();
+    const res = await fetch(`${h.base}/api/tail?token=${TWO}`, {
+      signal: ac.signal,
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    publishEvent(evt('metro://discord/d1/99', 'agent one traffic'));
+    publishEvent(evt('metro://telegram/t2/5', 'agent two traffic'));
+    const { buf, cancel } = await readUntil(res, 'agent two traffic');
+    expect(buf).not.toContain('agent one traffic');
+    await cancel();
     ac.abort();
   });
 });

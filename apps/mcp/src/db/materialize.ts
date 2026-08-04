@@ -190,12 +190,6 @@ function pruneStations(present: Map<StationName, number>): StationName[] {
 const stationLabels = (m: Map<StationName, number>): string[] =>
   [...m].map(([station, n]) => `${station}(${n})`);
 
-function applyAgentKey(list: LoadedAgent[]): void {
-  if (list.length !== 1) return;
-  const key = list[0]?.key;
-  if (key) process.env.METRO_MCP_HTTP_TOKEN = key;
-}
-
 function applyKeyMap(list: LoadedAgent[]): void {
   setKeyMap(
     list.flatMap((agent) =>
@@ -206,7 +200,6 @@ function applyKeyMap(list: LoadedAgent[]): void {
 
 async function loadAndWrite(): Promise<Map<StationName, number>> {
   const list = await loadAgents();
-  applyAgentKey(list);
   applyKeyMap(list);
   return writeStations(list);
 }

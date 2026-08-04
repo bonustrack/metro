@@ -31,11 +31,10 @@ import {
 import { BodyTooLargeError } from '../daemon/http.js';
 import { InboundRelay } from '../channels/inbound.js';
 import {
-  accountFromLine,
-  agentIdForAccount,
   allowlistForLine,
   senderMatchesAllowlist,
 } from '../db/agent-map.js';
+import { lineTargetDenied } from '../db/agent-scope.js';
 import {
   allowedAgents,
   authConfigFromEnv,
@@ -144,15 +143,7 @@ function scopeDenied(
   identity: RequestIdentity | undefined,
   args: Record<string, unknown>,
 ): boolean {
-  const allowed = allowedAgents(identity);
-  if (!allowed) return false;
-  const line = typeof args.line === 'string' ? args.line : undefined;
-  if (!line) return false;
-  const acct = accountFromLine(line);
-  const agentId = acct
-    ? agentIdForAccount(acct.station, acct.accountId)
-    : undefined;
-  return agentId === undefined || !allowed.has(agentId);
+  return lineTargetDenied(allowedAgents(identity), args);
 }
 
 async function callToolHandler(req: {

@@ -92,9 +92,9 @@ fly secrets set --app <your-app-name> \
 ```
 
 `DATABASE_URL` is the only required var. Station secrets (mnemonics/keys/tokens/
-sessions) are DB rows, not Fly secrets. Optionally set `METRO_MCP_HTTP_TOKEN` to gate
-the public `/mcp` endpoint (else a lone agent's `agents.key` is used at boot);
-`/health` stays public for Fly's health check.
+sessions) are DB rows, not Fly secrets. There is no full-access env bearer: every
+credential is an `agents.key` row, and `/mcp`, the Monitor transport and attachment
+fetching all authenticate with one. `/health` stays public for Fly's health check.
 
 ### 3. Deploy
 
@@ -111,7 +111,7 @@ fly certs add mcp.metro.box --app <your-app-name>
 # then add the CNAME / A+AAAA records Fly prints, at your DNS provider
 
 claude mcp add --transport http metro https://mcp.metro.box \
-  --header "Authorization: Bearer <METRO_MCP_HTTP_TOKEN>"
+  --header "Authorization: Bearer <the agent's agents.key>"
 # or the default host: https://<your-app-name>.fly.dev
 ```
 
@@ -179,15 +179,15 @@ with no foreign key; the one FK in the schema is `agents.owner_id → users.id`
   (default `['*']`) — the per-account channel allowlist, and `config` jsonb (the station
   connection secrets + optional `owner` + any extras — see below). Primary key
   (`station`, `account_id`).
-`agents.key` is the whole API-key story. For a single-agent daemon that key becomes the
-`METRO_MCP_HTTP_TOKEN` bearer at boot. Every `agents.key` is also a valid `?token=` on
-`/mcp` in its own right: at boot the daemon indexes them by SHA-256 and a request
-presenting one is authenticated as that agent and **scoped to that agent's accounts
-only** (`METRO_MCP_HTTP_TOKEN` remains the unscoped full-access key). Because a key
-identifies exactly one agent, the MCP url needs no agent selector beyond the token
-itself. The cost of the 1:1 is that there is **no key rotation**: a column holds one
-value, so replacing a key means overwriting it and re-pointing every client at the same
-time, with no overlap window.
+`agents.key` is the whole API-key story, and since the env bearer was retired it is the
+**only** one. At boot the daemon indexes the keys by SHA-256, and a request presenting
+one is authenticated as that agent and **scoped to that agent's accounts only** — on
+`/mcp`, on the Monitor transport and on `/attach`. There is no unscoped identity left,
+so nothing in the daemon can see every agent at once. Because a key identifies exactly
+one agent, the MCP url needs no agent selector beyond the token itself. The cost of the
+1:1 is that there is **no key rotation**: a column holds one value, so replacing a key
+means overwriting it and re-pointing every client at the same time, with no overlap
+window.
 
 The `allowlist` column is the sender ids allowed to drive that account's session;
 inbound from anyone else is dropped. It defaults to `['*']` (allow all senders); set a
@@ -253,7 +253,7 @@ INSERT INTO accounts (agent_id, station, account_id, config)
 > Migration `0009` replaces the `keys` table with `agents.key`. It adds the nullable
 > `key` column and its `UNIQUE` constraint, copies each agent's key across, then drops
 > `keys`. The copy is a plain column-to-column `UPDATE`, so a key value moves byte for
-> byte and every existing `?token=` keeps working, `METRO_MCP_HTTP_TOKEN` included. An
+> byte and every existing `?token=` keeps working. An
 > agent with no `keys` row lands on `key IS NULL` (NULLs are distinct under the unique
 > constraint, so any number of agents may have none). An agent that somehow had more than
 > one key keeps the alphabetically first key *name*, deterministically, and the rest are
@@ -297,8 +297,8 @@ can never widen a grant. An email with no `users` row owns nothing: `owner_id IS
 is not a match for "no user", it is the operator-provisioned marker.
 
 **The key value is served for agents you own, and only those.** `agents.key` is stored in
-plaintext (`applyAgentKey` needs the raw value at boot), so the key can be re-served rather
-than shown once at creation — which is what lets the control panel put the key next to the
+plaintext (the daemon needs the raw value to mint attachment links as the owning agent),
+so the key can be re-served rather than shown once at creation — which is what lets the control panel put the key next to the
 endpoint and hand you a ready `claude mcp add …` line. The exposure is gated in two
 independent places, and both are load-bearing:
 
@@ -320,9 +320,9 @@ An **operator-provisioned row (`owner_id IS NULL`) can never be deleted through 
 route** — a `GOOGLE_EMAIL_AGENTS` grantee who can *see* it gets `403 operator-provisioned
 agents cannot be deleted here`, anyone else gets the same `404`. Deleting removes the agent row
 and with it the `key` column holding its credential, and evicts that digest from the in-memory
-key map, so the key stops authenticating on `/mcp` on the very next request, with no
-restart. If that key was also the value `applyAgentKey` had put in `METRO_MCP_HTTP_TOKEN` at
-boot, that env value is cleared too.
+key map, so the key stops authenticating on `/mcp`, on the Monitor transport and on
+`/attach` on the very next request, with no restart. The map is the whole revocation
+story; there is no env copy of the value to clear.
 
 **An agent that still has `accounts` rows is refused with `409`**, listing how many;
 deletion never cascades into station credentials. Detach the accounts first (from the agent's
@@ -429,7 +429,6 @@ UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND ac
 | `METRO_PUBLIC_URL` | tunnel hostname | Base URL for attachment links. Unset → falls back to the tunnel hostname; with neither, attachments are surfaced by local path only. |
 | `METRO_HTTP_HOST` | `127.0.0.1` | HTTP bind host; set `0.0.0.0` behind a platform proxy |
 | `METRO_WEBHOOK_PORT` | `8420` | HTTP port |
-| `METRO_MCP_HTTP_TOKEN` | — | Optional full-access bearer gating the MCP endpoint; the same token also gates the Monitor transport (`/api/tail`, `/api/call/*`, `/api/health`). Unset → Monitor disabled (404). Any `agents.key` also authenticates on `/mcp`, scoped to its own agent. |
 | `METRO_LOG_LEVEL` | `info` | `trace`–`fatal`; logs go to stderr |
 
 ## Connecting a client
@@ -440,7 +439,7 @@ e.g. `https://mcp.metro.box`), plus `GET /health` and the webhook receiver at
 
 ```sh
 claude mcp add --transport http metro https://mcp.metro.box \
-  --header "Authorization: Bearer <METRO_MCP_HTTP_TOKEN>"
+  --header "Authorization: Bearer <the agent's agents.key>"
 ```
 
 Metro is a Claude Code **channel** — it pushes inbound chat into a running session.
@@ -463,11 +462,13 @@ want to observe and drive Metro over plain HTTP (no MCP client needed). It is
 **live-only by design** — no history, backlog, or replay — and can be attached
 mid-session.
 
-The Monitor reuses the MCP HTTP token: set `METRO_MCP_HTTP_TOKEN` to enable it,
-and reach `/api/*` with the same `?token=<METRO_MCP_HTTP_TOKEN>` (or
-`Authorization: Bearer`) as the MCP/Channel endpoint. While the token is unset
-the `/api/*` surface stays disabled (returns 404), so there is no
-unauthenticated surface.
+The Monitor uses the same credential as `/mcp`: an `agents.key` (or a Google
+session JWT), as `?token=<key>` or `Authorization: Bearer`. It is **scoped like
+`/mcp`**: the tail carries only events on the caller's own station accounts, and
+a call may only drive a line that belongs to one of them. While the daemon holds
+no credential at all — no `agents.key` and no `METRO_SESSION_SECRET` — the
+`/api/*` surface stays disabled (returns 404), so there is no unauthenticated
+surface.
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -475,15 +476,33 @@ unauthenticated surface.
 | `POST /api/call/:train/:action` | Invoke a station verb (`send`/`reply`/`react`/…) over HTTP; routes through the station registry and returns the dispatch result as JSON. |
 | `GET /api/health` | `{ ok, service, version, uptime_s }` snapshot. |
 
-Auth is `Authorization: Bearer <METRO_MCP_HTTP_TOKEN>` (or `?token=`):
+Auth is `Authorization: Bearer <the agent's agents.key>` (or `?token=`):
 
 ```sh
-curl -N -H "Authorization: Bearer $METRO_MCP_HTTP_TOKEN" http://127.0.0.1:8420/api/tail
-curl -X POST -H "Authorization: Bearer $METRO_MCP_HTTP_TOKEN" \
+curl -N -H "Authorization: Bearer $METRO_AGENT_KEY" http://127.0.0.1:8420/api/tail
+curl -X POST -H "Authorization: Bearer $METRO_AGENT_KEY" \
   -H 'content-type: application/json' \
-  -d '{"args":{"line":"metro://discord/1","text":"hi"}}' \
+  -d '{"args":{"line":"metro://discord/<account_id>/<channel_id>","text":"hi"}}' \
   http://127.0.0.1:8420/api/call/discord/send
 ```
+
+The line is what carries the scope, so it is required: a scoped caller may only
+drive an account it owns, and an `account` argument may not re-route the call to
+somebody else's. A call with no line at all (`accounts`, for instance) is served
+only when every account of that station belongs to the caller, which is how a
+whole-station query stops working the moment a second agent joins that station.
+`GET /api/health` stays in front of the auth gate and returns the same
+`version`/`uptime` snapshot as the public `/health`.
+
+### Attachment links
+
+Inbound media is cached under `$HOME/.cache/metro/messenger-uploads` and surfaced
+on the event as an absolute `/attach/<name>` url on `METRO_PUBLIC_URL`, carrying
+the owning agent's key as `?token=`. When the daemon mints that url it records
+the owning agent id next to the cached file, and `/attach` serves the file only
+to a credential scoped to that agent — so one agent can fetch what was sent to
+its own accounts and nothing else, even knowing another agent's file name. An
+attachment with no recorded owner is refused, never served.
 
 ## How it works
 

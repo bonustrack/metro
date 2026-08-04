@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
   agentIdForKey,
+  hasAnyKey,
+  keyForAgent,
   registerKey,
   setKeyMap,
   unregisterAgentKey,
@@ -85,5 +87,36 @@ describe('key map', () => {
     expect(agentIdForKey('mk_x')).toBeUndefined();
     expect(agentIdForKey('mk_z')).toBeUndefined();
     expect(agentIdForKey('mk_y')).toBeUndefined();
+    expect(keyForAgent(1)).toBeUndefined();
+    expect(hasAnyKey()).toBe(false);
+  });
+});
+
+describe('key by agent id', () => {
+  test('keyForAgent returns the agent own key and nobody elses', () => {
+    setKeyMap([
+      { key: 'mk_ada', agentId: 7 },
+      { key: 'mk_bob', agentId: 8 },
+    ]);
+    expect(keyForAgent(7)).toBe('mk_ada');
+    expect(keyForAgent(8)).toBe('mk_bob');
+    expect(keyForAgent(9)).toBeUndefined();
+  });
+
+  test('the two indexes move together on register and unregister', () => {
+    setKeyMap([{ key: 'mk_ada_old', agentId: 7 }]);
+    registerKey('mk_ada_new', 7);
+    expect(keyForAgent(7)).toBe('mk_ada_new');
+    unregisterAgentKey(7);
+    expect(keyForAgent(7)).toBeUndefined();
+    expect(agentIdForKey('mk_ada_new')).toBeUndefined();
+  });
+
+  test('hasAnyKey reports whether the daemon can authenticate anyone', () => {
+    expect(hasAnyKey()).toBe(false);
+    setKeyMap([{ key: 'mk_ada', agentId: 7 }]);
+    expect(hasAnyKey()).toBe(true);
+    unregisterAgentKey(7);
+    expect(hasAnyKey()).toBe(false);
   });
 });
