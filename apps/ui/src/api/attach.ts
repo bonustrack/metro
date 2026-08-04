@@ -1,16 +1,26 @@
 import { call } from './client';
 import { isRecord } from './accounts';
+import {
+  isAttachSession,
+  toSession,
+  type AttachSession,
+} from './attach-session';
+
+export type AttachFieldKind = 'text' | 'tel' | 'number';
 
 export interface AttachField {
-  key: 'token';
+  key: string;
   label: string;
   placeholder: string;
   secret: boolean;
+  kind: AttachFieldKind;
+  optional?: boolean;
 }
 
 export interface StationForm {
   label: string;
   hint: string;
+  interactive: boolean;
   fields: AttachField[];
 }
 
@@ -18,31 +28,79 @@ export const STATION_FORMS: Record<string, StationForm> = {
   discord: {
     label: 'Discord bot',
     hint: 'Paste the bot token from the Discord developer portal. Message Content must be enabled under Privileged Gateway Intents.',
+    interactive: false,
     fields: [
       {
         key: 'token',
         label: 'Bot token',
         placeholder: 'MTIz...',
         secret: true,
+        kind: 'text',
       },
     ],
   },
   telegram: {
     label: 'Telegram bot',
     hint: 'Paste the bot token BotFather gave you.',
+    interactive: false,
     fields: [
       {
         key: 'token',
         label: 'Bot token',
         placeholder: '123456:ABC-DEF...',
         secret: true,
+        kind: 'text',
       },
     ],
   },
   xmtp: {
     label: 'XMTP',
     hint: 'Metro generates a fresh XMTP identity for this agent, opens an inbox with it, and stores it only if that worked. The private key is shown once and never again.',
+    interactive: false,
     fields: [],
+  },
+  'telegram-user': {
+    label: 'Telegram account',
+    hint: 'Signs in as a real Telegram user. Create an application at my.telegram.org to get the api id and hash, then Telegram sends a login code to the number below. This is a full-account credential and carries Telegram ban risk, so use a number you are willing to dedicate to the agent.',
+    interactive: true,
+    fields: [
+      {
+        key: 'apiId',
+        label: 'api id',
+        placeholder: '1234567',
+        secret: false,
+        kind: 'number',
+      },
+      {
+        key: 'apiHash',
+        label: 'api hash',
+        placeholder: '32 hex characters',
+        secret: true,
+        kind: 'text',
+      },
+      {
+        key: 'phone',
+        label: 'Phone number',
+        placeholder: '447700900123',
+        secret: false,
+        kind: 'tel',
+      },
+    ],
+  },
+  whatsapp: {
+    label: 'WhatsApp',
+    hint: 'Links Metro as a companion device on a real WhatsApp account. Give a phone number to pair with an 8-character code, or leave it blank to scan a QR code instead. Carries WhatsApp ban risk, so use a dedicated number.',
+    interactive: true,
+    fields: [
+      {
+        key: 'phone',
+        label: 'Phone number (blank to scan a QR code)',
+        placeholder: '447700900123',
+        secret: false,
+        kind: 'tel',
+        optional: true,
+      },
+    ],
   },
 };
 
@@ -79,18 +137,11 @@ function toSecret(value: unknown): OneTimeSecret | null {
   return { label, value: secret, note: typeof note === 'string' ? note : '' };
 }
 
-export async function attachAccount(
-  token: string,
-  agentId: number,
-  station: string,
-  fields: Record<string, string>,
-): Promise<AttachResult> {
-  const body = await call(token, {
-    method: 'POST',
-    path: `/${agentId}/accounts/start`,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ station, ...fields }),
-  });
+export type AttachStarted =
+  | { kind: 'done'; result: AttachResult }
+  | { kind: 'pending'; session: AttachSession };
+
+export function toAttachResult(station: string, body: unknown): AttachResult {
   if (!isRecord(body) || typeof body.accountId !== 'string')
     throw new Error('Metro returned an unexpected response.');
   return {
@@ -100,6 +151,22 @@ export async function attachAccount(
     activated: body.activated === true,
     secret: toSecret(body.secret),
   };
+}
+
+export async function startAttach(
+  token: string,
+  agentId: number,
+  station: string,
+  fields: Record<string, string>,
+): Promise<AttachStarted> {
+  const body = await call(token, {
+    method: 'POST',
+    path: `/${agentId}/accounts/start`,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ station, ...fields }),
+  });
+  if (isAttachSession(body)) return { kind: 'pending', session: toSession(body) };
+  return { kind: 'done', result: toAttachResult(station, body) };
 }
 
 export async function detachAccount(

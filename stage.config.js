@@ -13,7 +13,7 @@ export default defineConfig({
       knip: {
         entry: ['index.html'],
         project: ['src/**/*.{ts,tsx}'],
-        ignoreDependencies: ['react-native-web'],
+        ignoreDependencies: ['react-native-web', '@types/qrcode'],
       },
     },
     'apps/mcp': {

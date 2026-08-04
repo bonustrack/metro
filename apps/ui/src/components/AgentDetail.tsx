@@ -5,11 +5,13 @@ import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { accountsForAgent, type AccountGroup } from '../api/accounts';
 import { detachAccount, type AttachResult } from '../api/attach';
+import { type AttachSession as Session } from '../api/attach-session';
 import { type AgentSummary } from '../api/client';
 import { AccountList } from './AccountList';
 import { AgentCredentials } from './AgentCredentials';
 import { AttachAccount } from './AttachAccount';
 import { AttachedAccount } from './AttachedAccount';
+import { AttachSession } from './AttachSession';
 import { DeleteAgent } from './DeleteAgent';
 
 function plural(n: number, word: string): string {
@@ -42,6 +44,7 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
   const { token, agent, groups, attachable, unattributed, onChanged } = props;
   const dark = useKitScheme() === 'dark';
   const [attached, setAttached] = useState<AttachResult | null>(null);
+  const [pending, setPending] = useState<Session | null>(null);
   const mine = accountsForAgent(groups, agent.id);
 
   const onDetach = async (station: string, accountId: string): Promise<void> => {
@@ -75,11 +78,28 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
           }}
         />
       ) : null}
-      {agent.owned ? (
+      {pending !== null ? (
+        <AttachSession
+          token={token}
+          agentId={agent.id}
+          session={pending}
+          onUpdate={setPending}
+          onDone={(result) => {
+            setPending(null);
+            setAttached(result);
+            onChanged();
+          }}
+          onClose={() => {
+            setPending(null);
+          }}
+        />
+      ) : null}
+      {agent.owned && pending === null ? (
         <AttachAccount
           token={token}
           agentId={agent.id}
           attachable={attachable}
+          onPending={setPending}
           onAttached={(result) => {
             setAttached(result);
             onChanged();

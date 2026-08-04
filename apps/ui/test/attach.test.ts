@@ -10,9 +10,11 @@ describe('station attach forms', () => {
     }
   });
 
-  test('every credential field is masked in the browser', () => {
+  test('every field that carries a credential is masked in the browser', () => {
+    const plain = new Set(['phone', 'apiId']);
     for (const form of Object.values(STATION_FORMS))
-      for (const field of form.fields) expect(field.secret).toBe(true);
+      for (const field of form.fields)
+        expect(field.secret).toBe(!plain.has(field.key));
   });
 
   test('xmtp asks for nothing because Metro generates the identity', () => {
