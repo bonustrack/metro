@@ -3,8 +3,13 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { signSession } from '../src/daemon/session.ts';
-import { mcpAddCommand, type AgentApiDeps } from '../src/daemon/agent-api.ts';
 import {
+  mcpAddCommand,
+  mcpServerName,
+  type AgentApiDeps,
+} from '../src/daemon/agent-api.ts';
+import {
+  AGENT_NAME_RE,
   AgentAdminError,
   normalizeAgentName,
   type AgentSummary,
@@ -314,7 +319,7 @@ describe('GET /api/agents key exposure', () => {
       owned: true,
       key: 'mk_fake_ada-bot',
       endpoint: `${PUBLIC}/mcp?token=mk_fake_ada-bot`,
-      command: `claude mcp add --transport http --scope user ada-bot "${PUBLIC}/mcp?token=mk_fake_ada-bot"`,
+      command: `claude mcp add --transport http ada-bot "${PUBLIC}/mcp?token=mk_fake_ada-bot"`,
     });
   });
 
@@ -395,7 +400,7 @@ describe('POST /api/agents', () => {
       await post(session('ada@lovelace.dev'), { name: '  Lisa  ' })
     ).json()) as CreateBody;
     expect(body.name).toBe('Lisa');
-    expect(body.command).toContain(' Lisa "');
+    expect(body.command).toContain(' lisa "');
   });
 
   test('returns the exact endpoint and claude mcp add command to paste', async () => {
@@ -404,7 +409,7 @@ describe('POST /api/agents', () => {
     ).json()) as CreateBody;
     expect(body.endpoint).toBe(`${PUBLIC}/mcp?token=mk_key_for_pasteme`);
     expect(body.command).toBe(
-      `claude mcp add --transport http --scope user pasteme "${PUBLIC}/mcp?token=mk_key_for_pasteme"`,
+      `claude mcp add --transport http pasteme "${PUBLIC}/mcp?token=mk_key_for_pasteme"`,
     );
   });
 
@@ -559,5 +564,59 @@ describe('DELETE /api/agents/:id', () => {
       'station account(s) attached',
     );
     expect(rows.map((r) => r.id)).toEqual([1, 2, 5, 6]);
+  });
+});
+
+describe('mcpServerName', () => {
+  test('lowercases the display name', () => {
+    expect(mcpServerName('Tony')).toBe('tony');
+    expect(mcpServerName('Ada-Bot_1')).toBe('ada-bot_1');
+  });
+
+  test('every character AGENT_NAME_RE permits survives as itself, lowercased', () => {
+    const name = 'Aa0Zz9_-x';
+    expect(AGENT_NAME_RE.test(name)).toBe(true);
+    expect(mcpServerName(name)).toBe('aa0zz9_-x');
+  });
+
+  test('anything outside the slug charset collapses to a dash', () => {
+    expect(mcpServerName('my agent')).toBe('my-agent');
+    expect(mcpServerName('a"; rm -rf /')).toBe('a-rm--rf');
+    expect(mcpServerName('Ada 💎 Bot')).toBe('ada-bot');
+  });
+
+  test('leading and trailing separators are stripped so the slug is never a flag', () => {
+    expect(mcpServerName('-scope')).toBe('scope');
+    expect(mcpServerName('__tony__')).toBe('tony');
+  });
+
+  test('a name with nothing usable left falls back to metro', () => {
+    expect(mcpServerName('...')).toBe('metro');
+    expect(mcpServerName('---')).toBe('metro');
+  });
+});
+
+describe('mcpAddCommand', () => {
+  test('matches the browserbase convention: no --scope, full --transport http', () => {
+    expect(mcpAddCommand('Tony', 'mk_x')).toBe(
+      `claude mcp add --transport http tony "${PUBLIC}/mcp?token=mk_x"`,
+    );
+  });
+
+  test('the server name is one bare token whatever the display name was', () => {
+    const parts = mcpAddCommand('Ada Lovelace Bot', 'mk_x').split(' ');
+    expect(parts.slice(0, 5)).toEqual([
+      'claude',
+      'mcp',
+      'add',
+      '--transport',
+      'http',
+    ]);
+    expect(parts[5]).toBe('ada-lovelace-bot');
+    expect(parts).toHaveLength(7);
+  });
+
+  test('no --scope flag is emitted at all', () => {
+    expect(mcpAddCommand('Tony', 'mk_x')).not.toContain('--scope');
   });
 });

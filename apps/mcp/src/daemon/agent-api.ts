@@ -26,6 +26,7 @@ import {
 
 const PREFIX = '/api/agents';
 const DEFAULT_PUBLIC_BASE = 'https://mcp.metro.box';
+const FALLBACK_SERVER_NAME = 'metro';
 
 export interface AgentApiDeps extends AccountApiDeps {
   listAgents: (email: string, granted: string[]) => Promise<AgentSummary[]>;
@@ -67,9 +68,17 @@ export function mcpEndpoint(): string {
   return `${publicBaseUrl() ?? DEFAULT_PUBLIC_BASE}/mcp`;
 }
 
+export function mcpServerName(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '');
+  return slug === '' ? FALLBACK_SERVER_NAME : slug;
+}
+
 export function mcpAddCommand(name: string, key: string): string {
   const url = `${mcpEndpoint()}?token=${key}`;
-  return `claude mcp add --transport http --scope user ${name} "${url}"`;
+  return `claude mcp add --transport http ${mcpServerName(name)} "${url}"`;
 }
 
 interface KeyPayload {
