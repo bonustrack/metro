@@ -16,7 +16,7 @@ export default defineConfig({
     extensions,
   },
   optimizeDeps: {
-    include: ['react-native-web', '@stage-labs/kit'],
+    include: ['react-native-web', '@stage-labs/kit', '@stage-labs/kit > qrcode'],
     esbuildOptions: {
       resolveExtensions: extensions,
       loader: { '.js': 'jsx' },
