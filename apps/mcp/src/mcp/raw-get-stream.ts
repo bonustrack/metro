@@ -52,6 +52,7 @@ const headerValue = (
 export interface RawGetSink {
   closed: boolean;
   attach: (transport: StreamableHTTPServerTransport) => void;
+  close: () => void;
 }
 
 export interface ValidateResult {
@@ -110,6 +111,19 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
   res.write(COMMENT);
 
   let active = transport;
+  const timers: { keepalive?: ReturnType<typeof setInterval> } = {};
+  const closeStream = (): void => {
+    if (sink.closed) return;
+    sink.closed = true;
+    if (timers.keepalive) clearInterval(timers.keepalive);
+    web(active)?._streamMapping?.delete(STANDALONE_STREAM_ID);
+    registerSink(undefined);
+    try {
+      res.end();
+    } catch {
+      log('raw-get-stream: end failed');
+    }
+  };
   const sink: RawGetSink = {
     closed: false,
     attach: (next: StreamableHTTPServerTransport): void => {
@@ -117,14 +131,20 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
       const entry: StreamEntry = {
         controller: {
           enqueue: (chunk: Uint8Array): void => {
-            if (!sink.closed) res.write(Buffer.from(chunk));
+            if (sink.closed) return;
+            if (res.destroyed || res.writableEnded) {
+              closeStream();
+              return;
+            }
+            res.write(Buffer.from(chunk));
           },
         },
         encoder: { encode: (input: string): Uint8Array => Buffer.from(input) },
-        cleanup: (): void => undefined,
+        cleanup: closeStream,
       };
       web(next)?._streamMapping?.set(STANDALONE_STREAM_ID, entry);
     },
+    close: closeStream,
   };
 
   const lastEventId = headerValue(req, 'last-event-id');
@@ -151,24 +171,12 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
   sink.attach(transport);
   registerSink(sink);
 
-  const keepalive = setInterval(() => {
+  timers.keepalive = setInterval(() => {
     if (!sink.closed) res.write(COMMENT);
   }, KEEPALIVE_MS);
-  keepalive.unref?.();
+  timers.keepalive.unref?.();
 
-  const cleanup = (): void => {
-    if (sink.closed) return;
-    sink.closed = true;
-    clearInterval(keepalive);
-    web(active)?._streamMapping?.delete(STANDALONE_STREAM_ID);
-    registerSink(undefined);
-    try {
-      res.end();
-    } catch {
-      log('raw-get-stream: end failed');
-    }
-  };
-  res.on('close', cleanup);
-  res.on('error', cleanup);
-  req.on('close', cleanup);
+  res.on('close', closeStream);
+  res.on('error', closeStream);
+  req.on('close', closeStream);
 }

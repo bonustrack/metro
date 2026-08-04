@@ -6,6 +6,7 @@ import {
   isStandaloneGet,
   serveStandaloneGet,
   validateStandaloneSession,
+  type RawGetSink,
 } from '../src/mcp/raw-get-stream.ts';
 import { BoundedEventStore } from '../src/mcp/event-store.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
@@ -167,5 +168,83 @@ describe('serveStandaloneGet', () => {
 
     req.emit('close');
     expect(mapping.get('_GET_stream')).toBeUndefined();
+  });
+});
+
+interface Served {
+  sink: RawGetSink;
+  body: () => string;
+  ended: () => boolean;
+  mapping: Map<string, unknown>;
+  registered: (RawGetSink | undefined)[];
+}
+
+async function serve(): Promise<Served> {
+  const transport = fakeTransport('s1', true);
+  const out = new PassThrough();
+  let body = '';
+  let ended = false;
+  out.on('data', (c: Buffer) => {
+    body += c.toString('utf8');
+  });
+  const res = out as unknown as ServerResponse;
+  (res as { writeHead: unknown }).writeHead = () => res;
+  (res as { flushHeaders?: () => void }).flushHeaders = () => undefined;
+  (res as { end: unknown }).end = (): void => {
+    ended = true;
+  };
+  const registered: (RawGetSink | undefined)[] = [];
+  await serveStandaloneGet({
+    transport: transport as never,
+    eventStore: new BoundedEventStore({ scopeOf: () => TONY }),
+    scope: TONY,
+    req: fakeReq('GET', { accept: 'text/event-stream', 'mcp-session-id': 's1' }),
+    res,
+    log: () => undefined,
+    registerSink: (s) => registered.push(s),
+  });
+  const sink = registered[0];
+  if (!sink) throw new Error('no sink registered');
+  return {
+    sink,
+    body: () => body,
+    ended: () => ended,
+    mapping: transport._webStandardTransport._streamMapping,
+    registered,
+  };
+}
+
+describe('a displaced stream is closed at the wire, not just flagged', () => {
+  test('close() ends the response, drops the mapping and releases the sink', async () => {
+    const served = await serve();
+    expect(served.ended()).toBe(false);
+    expect(served.mapping.get('_GET_stream')).toBeDefined();
+
+    served.sink.close();
+
+    expect(served.sink.closed).toBe(true);
+    expect(served.ended()).toBe(true);
+    expect(served.mapping.get('_GET_stream')).toBeUndefined();
+    expect(served.registered.at(-1)).toBeUndefined();
+  });
+
+  test('nothing is written to a closed stream and close() is idempotent', async () => {
+    const served = await serve();
+    served.sink.close();
+    const after = served.body();
+    served.sink.close();
+
+    const entry = served.mapping.get('_GET_stream');
+    expect(entry).toBeUndefined();
+    expect(served.body()).toBe(after);
+    expect(served.registered.filter((s) => s === undefined).length).toBe(1);
+  });
+
+  test('the SDK transport own cleanup also ends the response', async () => {
+    const served = await serve();
+    const entry = served.mapping.get('_GET_stream') as { cleanup: () => void };
+    entry.cleanup();
+    expect(served.ended()).toBe(true);
+    expect(served.sink.closed).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { str } from '../mcp/str.js';
+import { dedupeKey } from './dedupe.js';
 
 interface InboundDeps {
   mcp: Server;
@@ -75,12 +76,6 @@ const displayNameMeta = (v: unknown): Record<string, string> => {
   return name ? { from_display_name: name } : {};
 };
 
-const accountStrippedLine = (line: string): string => {
-  const parts = line.split('/');
-  if (parts.length < 5) return line;
-  return [parts[0], parts[1], parts[2], ...parts.slice(4)].join('/');
-};
-
 export class InboundRelay {
   private readonly deps: InboundDeps;
   private readonly pendingAttachments = new Map<string, PendingMsg>();
@@ -113,7 +108,7 @@ export class InboundRelay {
     messageId: string,
   ): boolean {
     if (!messageId) return false;
-    const key = `${station} ${accountStrippedLine(line)} ${kind} ${messageId}`;
+    const key = dedupeKey(station, line, kind, messageId);
     const now = Date.now();
     if (this.seenEvents.size >= DEDUPE_MAX) {
       for (const [k, t] of this.seenEvents) {
