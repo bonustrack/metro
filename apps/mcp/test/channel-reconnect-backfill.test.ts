@@ -49,7 +49,7 @@ const settle = (): Promise<void> =>
 describe('channel reconnect backfill', () => {
   test('an event whose delivery fails is replayed (not lost) on reconnect', async () => {
     const cap: Capture = { contents: [], fail: new Set(['during-gap']) };
-    const channel = new ChannelRelay({ relay: makeRelay(cap), log: () => {} });
+    const channel = new ChannelRelay({ relay: makeRelay(cap), log: () => {}, inScope: () => true });
     const stop = channel.start();
 
     publishEvent(msg('during-gap'));
@@ -69,6 +69,7 @@ describe('channel reconnect backfill', () => {
     const channel = new ChannelRelay({
       relay: makeRelay(cap),
       log: (...a: unknown[]) => logs.push(a),
+      inScope: () => true,
     });
     const stop = channel.start();
 
@@ -84,7 +85,7 @@ describe('channel reconnect backfill', () => {
   test('replay bypasses dedup so a reconnecting client still receives the event', async () => {
     const cap: Capture = { contents: [], fail: new Set(['only-once']) };
     const relay = makeRelay(cap);
-    const channel = new ChannelRelay({ relay, log: () => {} });
+    const channel = new ChannelRelay({ relay, log: () => {}, inScope: () => true });
     const stop = channel.start();
 
     publishEvent(msg('only-once'));

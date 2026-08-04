@@ -104,6 +104,12 @@ describe('callTargetDenied', () => {
     expect(callTargetDenied(ONE, 'xmtp', {})).toBe(false);
     expect(callTargetDenied(ONE, 'discord', {})).toBe(true);
   });
+
+  test('a line-less call naming an account is judged by that account', () => {
+    expect(callTargetDenied(ONE, 'discord', { account: 'd1' })).toBe(false);
+    expect(callTargetDenied(ONE, 'discord', { account: 'd2' })).toBe(true);
+    expect(callTargetDenied(ONE, 'discord', { account: 'ghost' })).toBe(true);
+  });
 });
 
 describe('eventInScope', () => {

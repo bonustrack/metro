@@ -45,6 +45,8 @@ export function callTargetDenied(
 ): boolean {
   if (typeof args.line === 'string')
     return lineTargetDenied(allowed, args, station);
+  if (typeof args.account === 'string')
+    return !accountInScope(allowed, station, args.account);
   return !stationFullyScoped(allowed, station);
 }
 

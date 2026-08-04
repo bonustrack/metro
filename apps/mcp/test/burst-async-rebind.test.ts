@@ -60,7 +60,7 @@ function contents(notifs: Notif[]): string[] {
 describe('burst with async delivery + mid-burst rebind', () => {
   test('async sink: 10 rapid events all delivered once, in order', async () => {
     const { relay, notifs } = makeRelay(['discord'], () => tick(5));
-    const channel = new ChannelRelay({ relay, log: () => {} });
+    const channel = new ChannelRelay({ relay, log: () => {}, inScope: () => true });
     stop = channel.start();
 
     for (let i = 1; i <= 10; i++) publishEvent(inbound(`a-${i}`, String(i)));
@@ -73,7 +73,7 @@ describe('burst with async delivery + mid-burst rebind', () => {
 
   test('rebind in the middle of an async burst: every event once, no dups', async () => {
     const { relay, notifs } = makeRelay(['discord'], () => tick(5));
-    const channel = new ChannelRelay({ relay, log: () => {} });
+    const channel = new ChannelRelay({ relay, log: () => {}, inScope: () => true });
     stop = channel.start();
 
     for (let i = 1; i <= 10; i++) publishEvent(inbound(`b-${i}`, String(i)));
@@ -94,7 +94,7 @@ describe('burst with async delivery + mid-burst rebind', () => {
       if (calls === 3) return Promise.reject(new Error('transport down'));
       return tick(5);
     });
-    const channel = new ChannelRelay({ relay, log: () => {} });
+    const channel = new ChannelRelay({ relay, log: () => {}, inScope: () => true });
     stop = channel.start();
 
     for (let i = 1; i <= 10; i++) publishEvent(inbound(`c-${i}`, String(i)));

@@ -78,7 +78,7 @@ function channelContents(notifs: Notif[]): string[] {
 describe('burst delivery', () => {
   test('10 distinct rapid messages on one discord chat all delivered', async () => {
     const { relay, notifs } = makeRelay(['discord']);
-    stop = new ChannelRelay({ relay, log: () => {} }).start();
+    stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     for (let i = 1; i <= 10; i++) {
       publishEvent(
@@ -101,7 +101,7 @@ describe('burst delivery', () => {
 
   test('burst interleaved with non-routable bus traffic, all delivered', async () => {
     const { relay, notifs } = makeRelay(['telegram']);
-    stop = new ChannelRelay({ relay, log: () => {} }).start();
+    stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     for (let i = 1; i <= 10; i++) {
       publishEvent(
@@ -138,7 +138,7 @@ describe('burst delivery', () => {
       'telegram',
       'telegram-user',
     ]);
-    stop = new ChannelRelay({ relay, log: () => {} }).start();
+    stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     const lines: Record<string, { line: string; from: string }> = {
       discord: { line: 'metro://discord/g/1/c/2', from: 'metro://discord/u/a' },
@@ -175,7 +175,7 @@ describe('burst delivery', () => {
 
   test('genuine duplicate (same messageId re-emitted) is still deduped', async () => {
     const { relay, notifs } = makeRelay(['discord']);
-    stop = new ChannelRelay({ relay, log: () => {} }).start();
+    stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     const e = inbound({
       station: 'discord',
@@ -199,7 +199,7 @@ function replyMsg(s: MsgSpec & { replyTo: string }): MetroEvent {
 describe('burst with reply-typed messages (the burst-drop bug)', () => {
   test('a burst where half the messages are replies still delivers all 10', async () => {
     const { relay, notifs } = makeRelay(['discord']);
-    stop = new ChannelRelay({ relay, log: () => {} }).start();
+    stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     for (let i = 1; i <= 10; i++) {
       const spec = {
@@ -225,7 +225,7 @@ describe('burst with reply-typed messages (the burst-drop bug)', () => {
 
   test('a single reply message reaches the channel sink', async () => {
     const { relay, notifs } = makeRelay(['telegram']);
-    stop = new ChannelRelay({ relay, log: () => {} }).start();
+    stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     publishEvent(
       replyMsg({

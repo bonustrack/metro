@@ -6,7 +6,6 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import { gatherAccounts } from './accounts.js';
 import {
   STATIONS,
@@ -19,7 +18,7 @@ import {
   LIST_ACCOUNTS_TOOL,
   MCP_INSTRUCTIONS,
 } from './tool-schemas.js';
-import { errResult, makeCtx, metroCall, okJson, toErr } from './ctx.js';
+import { errResult, makeCtx, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool } from './call-tools.js';
 import { dispatchListMembers } from './member-tools.js';
 import {
@@ -34,7 +33,7 @@ import {
   allowlistForLine,
   senderMatchesAllowlist,
 } from '../db/agent-map.js';
-import { lineTargetDenied } from '../db/agent-scope.js';
+import { callTargetDenied, lineTargetDenied } from '../db/agent-scope.js';
 import {
   allowedAgents,
   authConfigFromEnv,
@@ -44,13 +43,12 @@ import {
   type RequestIdentity,
 } from './request-identity.js';
 import { ChannelRelay } from '../channels/relay.js';
+import { ChannelOwner } from './channel-owner.js';
+import { registerPermissionRelay } from './permission-relay.js';
 import { BoundedEventStore } from './event-store.js';
-import {
-  isStandaloneGet,
-  serveStandaloneGet,
-  validateStandaloneSession,
-  type RawGetSink,
-} from './raw-get-stream.js';
+import { str } from './str.js';
+import { isStandaloneGet, type RawGetSink } from './raw-get-stream.js';
+import { serveChannelGet } from './channel-get.js';
 
 const parseList = (raw: string, lower: boolean): string[] =>
   raw
@@ -82,17 +80,7 @@ const mcp = new Server(
   },
 );
 
-const trainOf = (line: string): string => line.split('/')[2] ?? '';
-
-async function metroSend(
-  line: string,
-  text: string,
-  replyTo?: string,
-): Promise<void> {
-  const args: Record<string, string> = { line, text };
-  if (replyTo) args.replyTo = replyTo;
-  await metroCall(trainOf(line), 'send', args);
-}
+const channelOwner = new ChannelOwner();
 
 mcp.setRequestHandler(ListToolsRequestSchema, () => ({
   tools: [
@@ -139,11 +127,23 @@ async function handleListAccounts(
   }
 }
 
+function stationForTool(
+  name: string,
+  args: Record<string, unknown>,
+): string | undefined {
+  if (name === 'create_group') return str(args.station) || undefined;
+  return STATION_TOOLS.get(name)?.station.name;
+}
+
 function scopeDenied(
   identity: RequestIdentity | undefined,
+  name: string,
   args: Record<string, unknown>,
 ): boolean {
-  return lineTargetDenied(allowedAgents(identity), args);
+  const allowed = allowedAgents(identity);
+  const station = stationForTool(name, args);
+  if (station !== undefined) return callTargetDenied(allowed, station, args);
+  return lineTargetDenied(allowed, args);
 }
 
 async function callToolHandler(req: {
@@ -153,7 +153,7 @@ async function callToolHandler(req: {
   const a = req.params.arguments ?? {};
 
   const identity = currentIdentity();
-  if (name !== 'list_accounts' && scopeDenied(identity, a))
+  if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');
 
   const owned = STATION_TOOLS.get(name);
@@ -189,38 +189,7 @@ const relay = new InboundRelay({
   senderAllowed,
 });
 
-const PermissionRequestSchema = z.object({
-  method: z.literal('notifications/claude/channel/permission_request'),
-  params: z.object({
-    request_id: z.string(),
-    tool_name: z.string(),
-    description: z.string(),
-    input_preview: z.string(),
-  }),
-});
-
-type PermissionRequest = z.infer<typeof PermissionRequestSchema>;
-mcp.setNotificationHandler(
-  PermissionRequestSchema as never,
-  async (n: PermissionRequest) => {
-    const { params } = n;
-    const line = relay.knownLine;
-    if (!line) {
-      log('permission_request but no known line to relay to', params.request_id);
-      return;
-    }
-    relay.registerPermission(params.request_id);
-    const body =
-      `Claude wants to run ${params.tool_name}: ${params.description}\n` +
-      (params.input_preview ? `\n${params.input_preview}\n` : '') +
-      `\nReply "yes ${params.request_id}" or "no ${params.request_id}"`;
-    try {
-      await metroSend(line, body);
-    } catch (e) {
-      log('relay send failed', e);
-    }
-  },
-);
+registerPermissionRelay({ mcp, relay, owner: channelOwner, log });
 
 interface AdoptableInner {
   sessionId?: string;
@@ -294,6 +263,22 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
+type ParsedBody = { ok: true; body: unknown } | { ok: false };
+
+async function readOrReject(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<ParsedBody> {
+  try {
+    const body = req.method === 'POST' ? await readBody(req) : undefined;
+    return { ok: true, body };
+  } catch (err) {
+    if (!(err instanceof BodyTooLargeError)) throw err;
+    res.writeHead(413).end('payload too large');
+    return { ok: false };
+  }
+}
+
 export async function createMetroMcp(): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
@@ -303,10 +288,24 @@ export async function createMetroMcp(): Promise<{
   if ((mcp as { transport?: unknown }).transport !== undefined)
     await mcp.close().catch(() => undefined);
   await mcp.connect(transport);
-  const channel = new ChannelRelay({ relay, log });
+  const channel = new ChannelRelay({
+    relay,
+    log,
+    inScope: (line) => channelOwner.inScope(line),
+  });
   let adoptedSessionId: string | undefined;
   let rawGetSink: RawGetSink | undefined;
-  const rebind = async (adoptId?: string): Promise<void> => {
+  const dropStream = (): void => {
+    if (rawGetSink) rawGetSink.closed = true;
+    rawGetSink = undefined;
+    channelOwner.releaseStream();
+  };
+  const rebind = async (
+    identity: RequestIdentity,
+    adoptId?: string,
+  ): Promise<void> => {
+    const keepStream = channelOwner.streamBelongsTo(identity);
+    if (!keepStream) dropStream();
     await transport.close().catch(() => undefined);
     transport = makeTransport(eventStore, adoptId);
     await mcp.connect(transport);
@@ -322,6 +321,7 @@ export async function createMetroMcp(): Promise<{
   const syncSession = async (
     req: IncomingMessage,
     body: unknown,
+    identity: RequestIdentity,
   ): Promise<void> => {
     const decision = rebindDecision({
       isInitialize: isInitialize(body),
@@ -329,28 +329,27 @@ export async function createMetroMcp(): Promise<{
       current: currentSessionId(),
       adopted: adoptedSessionId,
     });
-    if (decision.rebind) await rebind(decision.adoptId);
+    if (decision.rebind) await rebind(identity, decision.adoptId);
   };
   const serveGet = async (
     req: IncomingMessage,
     res: ServerResponse,
+    identity: RequestIdentity,
   ): Promise<void> => {
-    const check = validateStandaloneSession(transport, req);
-    if (!check.ok) {
-      res.writeHead(check.status ?? 400).end(check.message ?? 'bad request');
-      return;
-    }
-    if (rawGetSink && !rawGetSink.closed) rawGetSink.closed = true;
-    await serveStandaloneGet({
+    const served = await serveChannelGet({
       transport,
       eventStore,
       req,
       res,
+      previous: rawGetSink,
       log,
       registerSink: (sink) => {
         rawGetSink = sink;
+        if (sink === undefined) channelOwner.releaseStream();
+        else channelOwner.bindStream(identity);
       },
     });
+    if (served) channel.replayMissed();
   };
   const httpHandler = async (
     req: IncomingMessage,
@@ -361,21 +360,15 @@ export async function createMetroMcp(): Promise<{
       res.writeHead(401).end('unauthorized');
       return;
     }
-    let body: unknown;
-    try {
-      body = req.method === 'POST' ? await readBody(req) : undefined;
-    } catch (err) {
-      if (!(err instanceof BodyTooLargeError)) throw err;
-      res.writeHead(413).end('payload too large');
-      return;
-    }
+    const parsed = await readOrReject(req, res);
+    if (!parsed.ok) return;
     await runWithIdentity(identity, async () => {
-      await syncSession(req, body);
+      await syncSession(req, parsed.body, identity);
       if (isStandaloneGet(req)) {
-        await serveGet(req, res);
+        await serveGet(req, res, identity);
         return;
       }
-      await transport.handleRequest(req, res, body);
+      await transport.handleRequest(req, res, parsed.body);
     });
   };
 
