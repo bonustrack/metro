@@ -9,6 +9,7 @@ import type { InboundRelay } from './inbound.js';
 interface ChannelRelayDeps {
   relay: InboundRelay;
   log: (...a: unknown[]) => void;
+  inScope: (line: string) => boolean;
 }
 
 const PENDING_MAX = 2000;
@@ -56,11 +57,26 @@ export class ChannelRelay {
     this.chain = this.chain.then(() => this.deliver(event, busSeq, replay));
   }
 
+  private withhold(event: MetroEvent, busSeq: number): void {
+    this.pending.delete(busSeq);
+    this.deps.log(
+      'relay: withheld (line outside the channel session scope)',
+      'busSeq',
+      busSeq,
+      'line',
+      event.line,
+    );
+  }
+
   private async deliver(
     event: MetroEvent,
     busSeq: number,
     replay: boolean,
   ): Promise<void> {
+    if (!this.deps.inScope(event.line)) {
+      this.withhold(event, busSeq);
+      return;
+    }
     this.deps.log(
       'relay: notify',
       'busSeq',
