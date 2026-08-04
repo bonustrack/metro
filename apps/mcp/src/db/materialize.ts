@@ -19,7 +19,7 @@ import {
   type AllowlistMap,
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
-import { accounts, agents, keys, type StationName } from './schema.js';
+import { accounts, agents, type StationName } from './schema.js';
 
 interface StationTarget {
   file: string;
@@ -38,7 +38,7 @@ interface LoadedAgent {
   id: number;
   name: string;
   accounts: LoadedAccount[];
-  keys: { name: string; key: string }[];
+  key: string | null;
 }
 
 const METRO_DIR = join(homedir(), '.metro');
@@ -107,7 +107,6 @@ async function loadAgents(): Promise<LoadedAgent[]> {
       .select()
       .from(accounts)
       .where(eq(accounts.agentId, a.id));
-    const keyRows = await db.select().from(keys).where(eq(keys.agentId, a.id));
     out.push({
       id: a.id,
       name: a.name,
@@ -117,7 +116,7 @@ async function loadAgents(): Promise<LoadedAgent[]> {
         allowlist: r.allowlist,
         config: r.config as Record<string, unknown>,
       })),
-      keys: keyRows.map((k) => ({ name: k.name, key: k.key })),
+      key: a.key,
     });
   }
   return out;
@@ -193,14 +192,14 @@ const stationLabels = (m: Map<StationName, number>): string[] =>
 
 function applyAgentKey(list: LoadedAgent[]): void {
   if (list.length !== 1) return;
-  const key = list[0]?.keys[0]?.key;
+  const key = list[0]?.key;
   if (key) process.env.METRO_MCP_HTTP_TOKEN = key;
 }
 
 function applyKeyMap(list: LoadedAgent[]): void {
   setKeyMap(
     list.flatMap((agent) =>
-      agent.keys.map((k) => ({ key: k.key, agentId: agent.id })),
+      agent.key === null ? [] : [{ key: agent.key, agentId: agent.id }],
     ),
   );
 }

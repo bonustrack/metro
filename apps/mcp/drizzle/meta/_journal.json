@@ -64,6 +64,13 @@
       "when": 1785795392798,
       "tag": "0008_users_and_agent_owner_id",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785821553657,
+      "tag": "0009_agent_key_replaces_keys_table",
+      "breakpoints": true
     }
   ]
 }

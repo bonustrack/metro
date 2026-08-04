@@ -108,57 +108,48 @@ describe('toAgentSummaries', () => {
   ];
 
   test('an owned agent carries its key value', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [
-      { agentId: 1, name: 'default', key: 'mk_fake_ada' },
-    ]);
+    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 1, key: 'mk_fake_ada' }]);
     expect(out[0]).toEqual({
       id: 1,
       name: 'ada-bot',
       owned: true,
-      keys: [{ name: 'default', key: 'mk_fake_ada' }],
+      key: 'mk_fake_ada',
     });
   });
 
-  test('a granted operator row is listed by key name with a null value', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 5, name: 'default' }]);
-    expect(out[2]).toEqual({
-      id: 5,
-      name: 'legacy',
-      owned: false,
-      keys: [{ name: 'default', key: null }],
-    });
+  test('an owned agent with no key at all is served a null key', () => {
+    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 1, key: null }]);
+    expect(out[0]).toEqual({ id: 1, name: 'ada-bot', owned: true, key: null });
+  });
+
+  test('a granted operator row is listed with a null key', () => {
+    const out = toAgentSummaries(OWNER, ROWS, []);
+    expect(out[2]).toEqual({ id: 5, name: 'legacy', owned: false, key: null });
   });
 
   test('a key value belonging to a row the caller does not own is dropped', () => {
     const out = toAgentSummaries(OWNER, ROWS, [
-      { agentId: 2, name: 'default', key: 'mk_fake_bob' },
-      { agentId: 5, name: 'default', key: 'mk_fake_legacy' },
+      { agentId: 2, key: 'mk_fake_bob' },
+      { agentId: 5, key: 'mk_fake_legacy' },
     ]);
-    expect(out.flatMap((a) => a.keys.map((k) => k.key))).toEqual([null, null]);
+    expect(out.map((a) => a.key)).toEqual([null, null, null]);
   });
 
   test('a null owner_id never matches a caller with no user row', () => {
-    const out = toAgentSummaries(null, ROWS, [
-      { agentId: 5, name: 'default', key: 'mk_fake_legacy' },
-    ]);
+    const out = toAgentSummaries(null, ROWS, [{ agentId: 5, key: 'mk_fake_legacy' }]);
     expect(out.every((a) => !a.owned)).toBe(true);
-    expect(out[2]?.keys).toEqual([{ name: 'default', key: null }]);
+    expect(out.map((a) => a.key)).toEqual([null, null, null]);
   });
 
   test('an owner id never matches an operator row that has no owner at all', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [
-      { agentId: 5, name: 'default', key: 'mk_fake_legacy' },
-    ]);
+    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 5, key: 'mk_fake_legacy' }]);
     expect(out[2]?.owned).toBe(false);
-    expect(out[2]?.keys[0]?.key).toBeNull();
+    expect(out[2]?.key).toBeNull();
   });
 
-  test('keys are sorted by name so the list is stable across requests', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [
-      { agentId: 1, name: 'zulu', key: 'mk_fake_z' },
-      { agentId: 1, name: 'alpha', key: 'mk_fake_a' },
-    ]);
-    expect(out[0]?.keys.map((k) => k.name)).toEqual(['alpha', 'zulu']);
+  test('every agent carries exactly one key field, never a list', () => {
+    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 1, key: 'mk_fake_ada' }]);
+    expect(Object.keys(out[0] ?? {}).sort()).toEqual(['id', 'key', 'name', 'owned']);
   });
 });
 

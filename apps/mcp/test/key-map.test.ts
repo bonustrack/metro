@@ -3,7 +3,7 @@ import {
   agentIdForKey,
   registerKey,
   setKeyMap,
-  unregisterAgentKeys,
+  unregisterAgentKey,
 } from '../src/db/key-map.ts';
 
 afterEach(() => setKeyMap([]));
@@ -49,23 +49,27 @@ describe('key map', () => {
     expect(agentIdForKey('mk_alpha')).toBe(1);
   });
 
-  test('unregisterAgentKeys evicts every key of one agent and nobody else', () => {
+  test('registerKey replaces the previous key of the same agent', () => {
+    setKeyMap([{ key: 'mk_ada_old', agentId: 7 }]);
+    registerKey('mk_ada_new', 7);
+    unregisterAgentKey(7);
+    expect(agentIdForKey('mk_ada_old')).toBeUndefined();
+    expect(agentIdForKey('mk_ada_new')).toBeUndefined();
+  });
+
+  test('unregisterAgentKey evicts that agent key and nobody else', () => {
     setKeyMap([
-      { key: 'mk_ada_default', agentId: 7 },
-      { key: 'mk_ada_second', agentId: 7 },
+      { key: 'mk_ada', agentId: 7 },
       { key: 'mk_bob', agentId: 8 },
     ]);
-    registerKey('mk_ada_third', 7);
-    unregisterAgentKeys(7);
-    expect(agentIdForKey('mk_ada_default')).toBeUndefined();
-    expect(agentIdForKey('mk_ada_second')).toBeUndefined();
-    expect(agentIdForKey('mk_ada_third')).toBeUndefined();
+    unregisterAgentKey(7);
+    expect(agentIdForKey('mk_ada')).toBeUndefined();
     expect(agentIdForKey('mk_bob')).toBe(8);
   });
 
-  test('unregistering an agent with no keys is a no-op', () => {
+  test('unregistering an agent with no key is a no-op', () => {
     setKeyMap([{ key: 'mk_bob', agentId: 8 }]);
-    unregisterAgentKeys(99);
+    unregisterAgentKey(99);
     expect(agentIdForKey('mk_bob')).toBe(8);
   });
 

@@ -82,7 +82,7 @@ concurrent writers.
 
 ### 2. Populate the DB + set `DATABASE_URL`
 
-Account config (agents, station accounts, keys) lives in Postgres — see
+Account config (agents, their API key, station accounts) lives in Postgres — see
 [Configuration](#configuration) to provision + populate it. The only secret Metro
 needs on Fly is the connection string:
 
@@ -93,7 +93,7 @@ fly secrets set --app <your-app-name> \
 
 `DATABASE_URL` is the only required var. Station secrets (mnemonics/keys/tokens/
 sessions) are DB rows, not Fly secrets. Optionally set `METRO_MCP_HTTP_TOKEN` to gate
-the public `/mcp` endpoint (else the single agent's first `keys` row is used at boot);
+the public `/mcp` endpoint (else a lone agent's `agents.key` is used at boot);
 `/health` stays public for Fly's health check.
 
 ### 3. Deploy
@@ -157,7 +157,7 @@ missing `DATABASE_URL` or an empty database is a hard, loud error.
 | `DATABASE_URL` | Postgres connection string (required). Agents + accounts load from the DB on boot and are materialized to the per-station account files the trains read. |
 | `METRO_AGENT` | Optional. Restrict this instance to one agent by its numeric `id` (the `agents.id` PK). Must be a positive integer that exists, else boot fails loudly. Unset → the daemon runs every agent's accounts in the one process. |
 
-Four small tables. `accounts` and `keys` reference their agent by a plain `agent_id` int
+Three small tables. `accounts` references its agent by a plain `agent_id` int
 with no foreign key; the one FK in the schema is `agents.owner_id → users.id`
 (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
@@ -169,19 +169,25 @@ with no foreign key; the one FK in the schema is `agents.owner_id → users.id`
   uniqueness of any kind and stored with the casing the person typed, so two agents may
   both be called `Lisa`), `owner_id` (nullable int → `users.id`, `ON DELETE RESTRICT`, so
   a user who still owns an agent cannot be deleted out from under it. `NULL` =
-  operator-provisioned, owned by nobody, reachable only via `GOOGLE_EMAIL_AGENTS`).
+  operator-provisioned, owned by nobody, reachable only via `GOOGLE_EMAIL_AGENTS`), and
+  `key` (nullable text, `UNIQUE`): **the agent's one and only API key**. One key per
+  agent, one agent per key. `NULL` means the agent has no key and cannot authenticate
+  with one.
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
   row), `account_id` (the station-local id, e.g. `x0`/`t0`), `allowlist` text[]
   (default `['*']`) — the per-account channel allowlist, and `config` jsonb (the station
   connection secrets + optional `owner` + any extras — see below). Primary key
   (`station`, `account_id`).
-- **`keys`** — `agent_id`, `name`, `key`. Per-agent API keys. Primary key (`agent_id`,
-  `name`). For a single-agent daemon the first key becomes the `METRO_MCP_HTTP_TOKEN`
-  bearer at boot. Every `keys` row is also a valid `?token=` on `/mcp` in its own right —
-  at boot the daemon indexes them by SHA-256 and a request presenting one is authenticated
-  as that agent and **scoped to that agent's accounts only** (`METRO_MCP_HTTP_TOKEN`
-  remains the unscoped full-access key).
+`agents.key` is the whole API-key story. For a single-agent daemon that key becomes the
+`METRO_MCP_HTTP_TOKEN` bearer at boot. Every `agents.key` is also a valid `?token=` on
+`/mcp` in its own right: at boot the daemon indexes them by SHA-256 and a request
+presenting one is authenticated as that agent and **scoped to that agent's accounts
+only** (`METRO_MCP_HTTP_TOKEN` remains the unscoped full-access key). Because a key
+identifies exactly one agent, the MCP url needs no agent selector beyond the token
+itself. The cost of the 1:1 is that there is **no key rotation**: a column holds one
+value, so replacing a key means overwriting it and re-pointing every client at the same
+time, with no overlap window.
 
 The `allowlist` column is the sender ids allowed to drive that account's session;
 inbound from anyone else is dropped. It defaults to `['*']` (allow all senders); set a
@@ -214,15 +220,14 @@ export DATABASE_URL=postgres://user:pass@host:5432/metro
 bun --filter @metro-labs/mcp db:migrate    # create the tables
 ```
 
-Then insert an agent, take its returned `id`, and insert that agent's accounts (and any
-API keys) with that `agent_id`; start Metro. `db:generate` regenerates the migration
+Then insert an agent with its API key, take its returned `id`, and insert that agent's
+accounts with that `agent_id`; start Metro. `db:generate` regenerates the migration
 after a schema change.
 
 ```sql
-INSERT INTO agents (name) VALUES ('tony') RETURNING id;   -- e.g. 1
+INSERT INTO agents (name, key) VALUES ('tony', 'your-bearer') RETURNING id;   -- e.g. 1
 INSERT INTO accounts (agent_id, station, account_id, config)
   VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');   -- allowlist defaults to ['*']
-INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
 ```
 
 > Migration `0006` adds `owner_email`. Migration `0007` drops the unique index it created
@@ -244,6 +249,23 @@ INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
 > name and a grant could always resolve to more than one id. When it does, the grantee sees
 > all of them, still with `owned: false`: no key value, and delete refused. Grant entries
 > match the stored name exactly, casing included.
+>
+> Migration `0009` replaces the `keys` table with `agents.key`. It adds the nullable
+> `key` column and its `UNIQUE` constraint, copies each agent's key across, then drops
+> `keys`. The copy is a plain column-to-column `UPDATE`, so a key value moves byte for
+> byte and every existing `?token=` keeps working, `METRO_MCP_HTTP_TOKEN` included. An
+> agent with no `keys` row lands on `key IS NULL` (NULLs are distinct under the unique
+> constraint, so any number of agents may have none). An agent that somehow had more than
+> one key keeps the alphabetically first key *name*, deterministically, and the rest are
+> dropped with the table; check for that before running it. If two agents shared one key
+> value the unique constraint raises and the whole migration rolls back, leaving `keys`
+> intact, which is the intended fail-loud.
+>
+> **What this gives up: key rotation.** With a `keys` table you could add a second key,
+> move clients over, then delete the old one. A single column cannot hold two values, so
+> rotating now means overwriting `agents.key` and re-pointing every client at once, with
+> no overlap window. That was a deliberate trade for one key per agent and an unambiguous
+> `?token=`.
 
 ### Self-serve agents from the web UI
 
@@ -255,7 +277,7 @@ before the MCP auth gate:
 | --- | --- |
 | `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. Every account carries the `agentId` it belongs to, so the panel can show accounts under their agent instead of in one global list. For agents the email **owns**, each key also carries its value, its `?token=` endpoint and the paste-ready `claude mcp add …` command. |
 | `POST /api/agents` `{"name":"…"}` | Create an agent owned by the signed-in email, mint its API key, and return the key together with the paste-ready `claude mcp add …` command. |
-| `DELETE /api/agents/<id>` | Delete an agent the signed-in email **owns**, and revoke its keys. |
+| `DELETE /api/agents/<id>` | Delete an agent the signed-in email **owns**, and revoke its key. |
 | `POST /api/agents/<id>/accounts/start` `{"station":"…","token":"…"}` | Attach a station account to an agent the signed-in email **owns**. Validates the credential against the provider first, writes the `accounts` row, and reloads that station. |
 | `DELETE /api/agents/<id>/accounts/<station>/<account_id>` | Detach one of that agent's station accounts, forget its credentials, and reload (or stop) the station. |
 
@@ -274,21 +296,20 @@ re-login. Those grant names are resolved to ids at sign-in, so a name someone el
 can never widen a grant. An email with no `users` row owns nothing: `owner_id IS NULL`
 is not a match for "no user", it is the operator-provisioned marker.
 
-**Key values are served for agents you own, and only those.** `keys.key` is stored in
+**The key value is served for agents you own, and only those.** `agents.key` is stored in
 plaintext (`applyAgentKey` needs the raw value at boot), so the key can be re-served rather
 than shown once at creation — which is what lets the control panel put the key next to the
 endpoint and hand you a ready `claude mcp add …` line. The exposure is gated in two
 independent places, and both are load-bearing:
 
-1. `listAgentsForEmail` issues **two disjoint queries** — the `key` column is only ever
-   SELECTed for agent ids the session owns, so a granted agent's secret never leaves
-   Postgres.
-2. `agent-api.ts` re-checks `agent.owned` when it serialises each key, so a value that
+1. `listAgentsForEmail` issues **two disjoint queries** — the list query selects only
+   (`id`, `name`, `owner_id`), and the `key` column is re-read for agent ids the session
+   owns and nobody else, so a granted agent's secret never leaves Postgres.
+2. `agent-api.ts` re-checks `agent.owned` when it serialises the key, so a value that
    somehow reached the API layer for a not-owned agent is still replaced with `null`.
 
-A `GOOGLE_EMAIL_AGENTS` grant therefore comes back `owned: false` with its key *names* only
-and `key`/`endpoint`/`command` all `null` — a grant lets you see that an operator agent has
-a key, never what it is. The UI masks the value behind a **Reveal** toggle and copies it
+A `GOOGLE_EMAIL_AGENTS` grant therefore comes back `owned: false` with `key`/`endpoint`/
+`command` all `null`. The UI masks the value behind a **Reveal** toggle and copies it
 without revealing it, so a page load does not leave a live credential on screen.
 
 **Deleting.** `DELETE /api/agents/<id>` addresses the agent by its serial id, never its name,
@@ -297,9 +318,9 @@ the session email. An agent somebody else owns, or an id that does not exist, is
 `404 no such agent`.
 An **operator-provisioned row (`owner_id IS NULL`) can never be deleted through this
 route** — a `GOOGLE_EMAIL_AGENTS` grantee who can *see* it gets `403 operator-provisioned
-agents cannot be deleted here`, anyone else gets the same `404`. Deleting removes the agent's
-`keys` rows in the same transaction and evicts their digests from the in-memory key map, so a
-key issued for that agent stops authenticating on `/mcp` on the very next request, with no
+agents cannot be deleted here`, anyone else gets the same `404`. Deleting removes the agent row
+and with it the `key` column holding its credential, and evicts that digest from the in-memory
+key map, so the key stops authenticating on `/mcp` on the very next request, with no
 restart. If that key was also the value `applyAgentKey` had put in `METRO_MCP_HTTP_TOKEN` at
 boot, that env value is cleared too.
 
@@ -364,7 +385,7 @@ Rules that hold for every station:
 - **`account_id` is generated by the server** (`a<agent-id>-<8 hex>`), never taken from the
   request. Two people therefore cannot collide in the shared (`station`, `account_id`) primary
   key, and nobody can probe which ids already exist.
-- **The credential is never returned again.** `GET /api/agents` re-serves `keys.key` for agents
+- **The credential is never returned again.** `GET /api/agents` re-serves `agents.key` for agents
   you own; station credentials are deliberately **not** part of that exposure. The `accounts`
   payload is what the trains report (id, username, address, …) and has never carried secrets.
 - **A duplicate bot token is `409`.** Two `telegram` accounts sharing a token make the whole
@@ -390,7 +411,7 @@ identity as disposable and attach a new one.
 > `packages/telegram-user/scripts/login.ts` still work as the operator equivalents.
 
 On a `METRO_AGENT`-pinned daemon the generated key is **not** accepted by that daemon (it
-only serves the pinned agent's keys, before and after a restart alike). The key is still
+only serves the pinned agent's key, before and after a restart alike). The key is still
 valid in the database and starts working as soon as a daemon that serves the new agent
 runs.
 
@@ -408,7 +429,7 @@ UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND ac
 | `METRO_PUBLIC_URL` | tunnel hostname | Base URL for attachment links. Unset → falls back to the tunnel hostname; with neither, attachments are surfaced by local path only. |
 | `METRO_HTTP_HOST` | `127.0.0.1` | HTTP bind host; set `0.0.0.0` behind a platform proxy |
 | `METRO_WEBHOOK_PORT` | `8420` | HTTP port |
-| `METRO_MCP_HTTP_TOKEN` | — | Optional full-access bearer gating the MCP endpoint; the same token also gates the Monitor transport (`/api/tail`, `/api/call/*`, `/api/health`). Unset → Monitor disabled (404). Any `keys` row also authenticates on `/mcp`, scoped to its own agent. |
+| `METRO_MCP_HTTP_TOKEN` | — | Optional full-access bearer gating the MCP endpoint; the same token also gates the Monitor transport (`/api/tail`, `/api/call/*`, `/api/health`). Unset → Monitor disabled (404). Any `agents.key` also authenticates on `/mcp`, scoped to its own agent. |
 | `METRO_LOG_LEVEL` | `info` | `trace`–`fatal`; logs go to stderr |
 
 ## Connecting a client
