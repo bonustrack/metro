@@ -3,6 +3,12 @@ import {
   agentIdForAccount,
   stationAgentIds,
 } from './agent-map.js';
+import { STATIONS } from './schema.js';
+
+const ACCOUNT_STATIONS = new Set<string>(STATIONS);
+
+const stationHasAccounts = (station: string): boolean =>
+  ACCOUNT_STATIONS.has(station);
 
 const accountInScope = (
   allowed: Set<number>,
@@ -52,7 +58,7 @@ export function callTargetDenied(
 
 export function eventInScope(allowed: Set<number>, line: string): boolean {
   const acct = accountFromLine(line);
-  if (!acct) return true;
-  const agentId = agentIdForAccount(acct.station, acct.accountId);
-  return agentId === undefined || allowed.has(agentId);
+  if (!acct) return false;
+  if (!stationHasAccounts(acct.station)) return true;
+  return accountInScope(allowed, acct.station, acct.accountId);
 }

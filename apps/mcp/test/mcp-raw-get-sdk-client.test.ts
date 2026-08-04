@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
@@ -6,12 +6,15 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { createMetroMcp } from '../src/mcp/index.ts';
 import { setKeyMap } from '../src/db/key-map.ts';
+import { setAgentMap } from '../src/db/agent-map.ts';
 import { asLine } from '../src/stations/lines.ts';
 import { publishEvent, type MetroEvent } from '../src/daemon/events.ts';
 
 process.env.METRO_CHANNEL_STATIONS = 'discord';
 const TOKEN = 'mk_test_agent_key';
 setKeyMap([{ key: TOKEN, agentId: 1 }]);
+beforeAll(() => setAgentMap({ 'discord/acc': 1 }, { 1: 'Tony' }));
+afterAll(() => setAgentMap({}, {}));
 
 
 const msgEvent = (text: string): MetroEvent =>

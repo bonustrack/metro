@@ -118,9 +118,34 @@ describe('eventInScope', () => {
     expect(eventInScope(TWO, 'metro://xmtp/x1/conv')).toBe(false);
   });
 
-  test('a line with no owning agent reaches everyone', () => {
+  test('a line on a station with no accounts reaches everyone', () => {
     expect(eventInScope(ONE, 'metro://webhook/gh')).toBe(true);
     expect(eventInScope(TWO, 'metro://webhook/gh')).toBe(true);
     expect(eventInScope(TWO, 'metro://claude/org/session')).toBe(true);
+    expect(eventInScope(new Set(), 'metro://webhook/gh')).toBe(true);
+  });
+
+  test('an account-station line with no owning agent reaches nobody', () => {
+    expect(eventInScope(ONE, 'metro://whatsapp/ghost/1@lid')).toBe(false);
+    expect(eventInScope(TWO, 'metro://whatsapp/ghost/1@lid')).toBe(false);
+    expect(eventInScope(ONE, 'metro://xmtp/unmapped/conv')).toBe(false);
+    expect(eventInScope(ONE, 'metro://discord/unmapped/9')).toBe(false);
+  });
+
+  test('an account that loses its mapping stops being deliverable', () => {
+    expect(eventInScope(ONE, 'metro://xmtp/x1/conv')).toBe(true);
+    setAgentMap({ 'discord/d2': 2 }, { 2: 'lisa' });
+    expect(eventInScope(ONE, 'metro://xmtp/x1/conv')).toBe(false);
+    expect(eventInScope(TWO, 'metro://xmtp/x1/conv')).toBe(false);
+  });
+
+  test('an unparsable line reaches nobody', () => {
+    expect(eventInScope(ONE, 'metro://user')).toBe(false);
+    expect(eventInScope(ONE, 'not-a-line')).toBe(false);
+    expect(eventInScope(ONE, '')).toBe(false);
+  });
+
+  test('an empty scope owns nothing on an account station', () => {
+    expect(eventInScope(new Set(), 'metro://xmtp/x1/conv')).toBe(false);
   });
 });

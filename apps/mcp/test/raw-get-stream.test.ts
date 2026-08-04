@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { PassThrough } from 'node:stream';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { EventEmitter } from 'node:events';
@@ -8,6 +8,13 @@ import {
   validateStandaloneSession,
 } from '../src/mcp/raw-get-stream.ts';
 import { BoundedEventStore } from '../src/mcp/event-store.ts';
+import { setAgentMap } from '../src/db/agent-map.ts';
+
+const TONY = new Set([1]);
+const TONY_LINE = 'metro://whatsapp/a1-tony/111@lid';
+
+beforeAll(() => setAgentMap({ 'whatsapp/a1-tony': 1 }, { 1: 'Tony' }));
+afterAll(() => setAgentMap({}, {}));
 
 type FakeTransport = {
   _webStandardTransport: {
@@ -93,16 +100,16 @@ describe('validateStandaloneSession', () => {
 
 describe('serveStandaloneGet', () => {
   test('writes headers + priming comment, registers sink, replays last-event-id', async () => {
-    const eventStore = new BoundedEventStore();
+    const eventStore = new BoundedEventStore({ scopeOf: () => TONY });
     const id = await eventStore.storeEvent('_GET_stream', {
       jsonrpc: '2.0',
       method: 'notifications/claude/channel',
-      params: { content: 'replayed' },
+      params: { content: 'replayed', meta: { line: TONY_LINE } },
     } as never);
     const after = await eventStore.storeEvent('_GET_stream', {
       jsonrpc: '2.0',
       method: 'notifications/claude/channel',
-      params: { content: 'newer' },
+      params: { content: 'newer', meta: { line: TONY_LINE } },
     } as never);
     expect(after).not.toBe(id);
 
@@ -130,6 +137,7 @@ describe('serveStandaloneGet', () => {
     await serveStandaloneGet({
       transport: transport as never,
       eventStore,
+      scope: TONY,
       req,
       res,
       log: () => undefined,
