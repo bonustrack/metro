@@ -1,7 +1,13 @@
-import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '../daemon/log.js';
 import { subscribeEvents, type MetroEvent } from '../daemon/events.js';
+import { callTargetDenied, eventInScope } from '../db/agent-scope.js';
+import { hasAnyKey } from '../db/key-map.js';
+import {
+  allowedAgents,
+  authConfigFromEnv,
+  authenticate,
+} from '../mcp/request-identity.js';
 
 export type MonitorCall = (
   train: string,
@@ -13,8 +19,8 @@ const KEEPALIVE_MS = 25_000;
 const CALL_BODY_MAX = 256 * 1024;
 const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
 
-function monitorToken(): string {
-  return process.env.METRO_MCP_HTTP_TOKEN ?? '';
+function monitorEnabled(): boolean {
+  return hasAnyKey() || authConfigFromEnv().sessionSecret !== '';
 }
 
 function cors(req: IncomingMessage): Record<string, string> {
@@ -35,21 +41,6 @@ function sendJson(
 ): void {
   res.writeHead(status, { 'content-type': 'application/json', ...cors(req) });
   res.end(JSON.stringify(body));
-}
-
-function tokenEq(given: string, want: string): boolean {
-  const g = Buffer.from(given);
-  const w = Buffer.from(want);
-  return g.length === w.length && timingSafeEqual(g, w);
-}
-
-function authorized(req: IncomingMessage, q: URLSearchParams): boolean {
-  const token = monitorToken();
-  const header = req.headers.authorization;
-  if (header?.startsWith('Bearer ') && tokenEq(header.slice(7), token))
-    return true;
-  const qt = q.get('token');
-  return Boolean(qt && tokenEq(qt, token));
 }
 
 function parseCallArgs(raw: string): Record<string, unknown> {
@@ -79,7 +70,11 @@ async function readCallArgs(
   return parseCallArgs(Buffer.concat(chunks).toString('utf8').trim());
 }
 
-function startTailStream(req: IncomingMessage, res: ServerResponse): void {
+function startTailStream(
+  req: IncomingMessage,
+  res: ServerResponse,
+  allowed: Set<number>,
+): void {
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache, no-transform',
@@ -90,6 +85,7 @@ function startTailStream(req: IncomingMessage, res: ServerResponse): void {
   res.write(': metro monitor tail (live)\n\n');
   let id = 0;
   const stop = subscribeEvents((e: MetroEvent): void => {
+    if (!eventInScope(allowed, e.line)) return;
     id += 1;
     res.write(`id: ${id}\nevent: live\ndata: ${JSON.stringify(e)}\n\n`);
   });
@@ -117,12 +113,19 @@ async function handleCall(
   train: string,
   action: string,
   call: MonitorCall,
+  allowed: Set<number>,
 ): Promise<void> {
   let args: Record<string, unknown>;
   try {
     args = await readCallArgs(req);
   } catch (err) {
     sendJson(res, req, 400, { error: `bad JSON body: ${errMsg(err)}` });
+    return;
+  }
+  if (callTargetDenied(allowed, train, args)) {
+    sendJson(res, req, 403, {
+      error: 'metro: this account is outside your authorized scope',
+    });
     return;
   }
   try {
@@ -138,6 +141,7 @@ function routeApi(
   res: ServerResponse,
   path: string,
   call: MonitorCall,
+  allowed: Set<number>,
 ): void {
   const callMatch = /^\/api\/call\/([^/]+)\/([^/]+)$/.exec(path);
   if (callMatch) {
@@ -145,12 +149,17 @@ function routeApi(
       sendJson(res, req, 405, { error: 'method not allowed' });
       return;
     }
-    handleCall(req, res, callMatch[1] ?? '', callMatch[2] ?? '', call).catch(
-      (err: unknown) => {
-        log.warn({ err: errMsg(err) }, 'monitor: call handler error');
-        if (!res.headersSent) sendJson(res, req, 500, { error: errMsg(err) });
-      },
-    );
+    handleCall(
+      req,
+      res,
+      callMatch[1] ?? '',
+      callMatch[2] ?? '',
+      call,
+      allowed,
+    ).catch((err: unknown) => {
+      log.warn({ err: errMsg(err) }, 'monitor: call handler error');
+      if (!res.headersSent) sendJson(res, req, 500, { error: errMsg(err) });
+    });
     return;
   }
   if (path === '/api/tail') {
@@ -158,7 +167,7 @@ function routeApi(
       sendJson(res, req, 405, { error: 'method not allowed' });
       return;
     }
-    startTailStream(req, res);
+    startTailStream(req, res, allowed);
     return;
   }
   sendJson(res, req, 404, { error: 'not found' });
@@ -168,9 +177,8 @@ function preflight(
   req: IncomingMessage,
   res: ServerResponse,
   path: string,
-  qs: string,
 ): boolean {
-  if (!monitorToken()) {
+  if (!monitorEnabled()) {
     sendJson(res, req, 404, { error: 'not found' });
     return true;
   }
@@ -187,10 +195,6 @@ function preflight(
     });
     return true;
   }
-  if (!authorized(req, new URLSearchParams(qs))) {
-    sendJson(res, req, 401, { error: 'unauthorized' });
-    return true;
-  }
   return false;
 }
 
@@ -199,11 +203,14 @@ export function handleMonitorRequest(
   res: ServerResponse,
   call: MonitorCall,
 ): boolean {
-  const url = req.url ?? '';
-  const [rawPath, qs = ''] = url.split('?', 2);
-  const path = rawPath ?? '';
+  const path = (req.url ?? '').split('?', 2)[0] ?? '';
   if (!path.startsWith('/api/')) return false;
-  if (preflight(req, res, path, qs)) return true;
-  routeApi(req, res, path, call);
+  if (preflight(req, res, path)) return true;
+  const identity = authenticate(req, authConfigFromEnv());
+  if (!identity) {
+    sendJson(res, req, 401, { error: 'unauthorized' });
+    return true;
+  }
+  routeApi(req, res, path, call, allowedAgents(identity));
   return true;
 }

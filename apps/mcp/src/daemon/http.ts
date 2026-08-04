@@ -15,7 +15,7 @@ import {
   type MetroEvent,
 } from './events.js';
 import type { TrainEvent } from './protocol.js';
-import { agentForLine } from '../db/agent-map.js';
+import { agentForLine, agentIdForLine } from '../db/agent-map.js';
 import { findEndpoint, listEndpoints, webhookPort } from './tunnel.js';
 import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
@@ -88,7 +88,9 @@ export function makeDedupSeq(): DedupSeq {
 function withAttachmentUrl(entry: MetroEvent): MetroEvent {
   const payload = entry.payload;
   if (!payload || typeof payload !== 'object') return entry;
-  const url = attachmentEventUrl(payload as Record<string, unknown>);
+  const agentId = agentIdForLine(entry.line);
+  if (agentId === undefined) return entry;
+  const url = attachmentEventUrl(payload as Record<string, unknown>, agentId);
   if (!url) return entry;
   return { ...entry, payload: { ...payload, url } };
 }

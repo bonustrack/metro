@@ -16,7 +16,6 @@ const req = (url: string, headers: Record<string, string> = {}): IncomingMessage
   ({ url, headers }) as unknown as IncomingMessage;
 
 const cfg = (over: Partial<AuthConfig> = {}): AuthConfig => ({
-  apiKey: 'secret-key',
   sessionSecret: SECRET,
   ...over,
 });
@@ -34,20 +33,9 @@ describe('extractToken', () => {
 });
 
 describe('authenticate', () => {
-  test('open access when nothing is configured', () => {
-    expect(authenticate(req('/mcp'), cfg({ apiKey: '', sessionSecret: '' }))).toEqual({
-      kind: 'key',
-    });
-  });
-
-  test('accepts the API key as a full-access key identity (query)', () => {
-    expect(authenticate(req('/mcp?token=secret-key'), cfg())).toEqual({ kind: 'key' });
-  });
-
-  test('accepts the API key via Bearer header', () => {
-    expect(
-      authenticate(req('/mcp', { authorization: 'Bearer secret-key' }), cfg()),
-    ).toEqual({ kind: 'key' });
+  test('nothing configured is closed, not open', () => {
+    expect(authenticate(req('/mcp'), cfg({ sessionSecret: '' }))).toBeNull();
+    expect(authenticate(req('/mcp?token=anything'), cfg({ sessionSecret: '' }))).toBeNull();
   });
 
   test('rejects a wrong opaque token', () => {
@@ -92,8 +80,12 @@ describe('authenticate', () => {
     expect(authenticate(req(`/mcp?token=${h}.${forged}.${s}`), cfg())).toBeNull();
   });
 
-  test('does not treat the API key as a JWT', () => {
-    expect(authenticate(req('/mcp?token=secret-key'), cfg())).toEqual({ kind: 'key' });
+  test('does not treat an opaque agent key as a JWT', () => {
+    setKeyMap([{ key: 'secret-key', agentId: 3 }]);
+    expect(authenticate(req('/mcp?token=secret-key'), cfg())).toEqual({
+      kind: 'agent',
+      agentId: 3,
+    });
   });
 
   test('accepts a per-agent DB key and scopes the identity to that agent id', () => {
@@ -126,9 +118,11 @@ describe('authenticate', () => {
     });
   });
 
-  test('the full-access env key still wins over the per-agent key map', () => {
+  test('there is no unscoped identity left: every key resolves to one agent', () => {
     setKeyMap([{ key: 'secret-key', agentId: 12 }]);
-    expect(authenticate(req('/mcp?token=secret-key'), cfg())).toEqual({ kind: 'key' });
+    const identity = authenticate(req('/mcp?token=secret-key'), cfg());
+    expect(identity).toEqual({ kind: 'agent', agentId: 12 });
+    expect(allowedAgents(identity ?? undefined)).toEqual(new Set([12]));
   });
 
   test('a revoked (unmapped) agent key is rejected', () => {
@@ -138,9 +132,8 @@ describe('authenticate', () => {
 });
 
 describe('allowedAgents', () => {
-  test('the full-access key identity is unscoped', () => {
-    expect(allowedAgents({ kind: 'key' })).toBeUndefined();
-    expect(allowedAgents(undefined)).toBeUndefined();
+  test('no identity is scoped to nothing, never to everything', () => {
+    expect(allowedAgents(undefined)).toEqual(new Set());
   });
 
   test('an agent key is scoped to exactly its own agent id', () => {

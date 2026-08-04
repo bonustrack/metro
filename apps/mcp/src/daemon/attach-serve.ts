@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -6,27 +5,22 @@ import {
   guessMime,
   resolveCachedAttachment,
 } from '../stations/attachments.js';
+import { keyForAgent } from '../db/key-map.js';
+import {
+  allowedAgents,
+  authConfigFromEnv,
+  authenticate,
+} from '../mcp/request-identity.js';
+import { attachmentOwner, recordAttachmentOwner } from './attach-owner.js';
 import { errMsg, log } from './log.js';
 import { loadTunnelConfig } from './tunnel.js';
 
-function attachToken(): string {
-  return process.env.METRO_MCP_HTTP_TOKEN ?? '';
-}
-
-function tokenEq(given: string, want: string): boolean {
-  const g = Buffer.from(given);
-  const w = Buffer.from(want);
-  return g.length === w.length && timingSafeEqual(g, w);
-}
-
-function authorized(req: IncomingMessage, q: URLSearchParams): boolean {
-  const token = attachToken();
-  if (!token) return true;
-  const header = req.headers.authorization;
-  if (header?.startsWith('Bearer ') && tokenEq(header.slice(7), token))
-    return true;
-  const qt = q.get('token');
-  return Boolean(qt && tokenEq(qt, token));
+function authorized(req: IncomingMessage, name: string): boolean {
+  const owner = attachmentOwner(name);
+  if (owner === undefined) return false;
+  return allowedAgents(authenticate(req, authConfigFromEnv()) ?? undefined).has(
+    owner,
+  );
 }
 
 export function publicBaseUrl(): string | null {
@@ -36,23 +30,28 @@ export function publicBaseUrl(): string | null {
   return host ? `https://${host}` : null;
 }
 
-export function attachmentUrl(pathOrName: string): string | null {
+export function attachmentUrl(
+  pathOrName: string,
+  agentId: number,
+): string | null {
   const base = publicBaseUrl();
   if (!base) return null;
   const name = pathOrName.split('/').pop();
   if (!name || !resolveCachedAttachment(name)) return null;
-  const token = attachToken();
-  const suffix = token ? `?token=${encodeURIComponent(token)}` : '';
-  return `${base}/attach/${encodeURIComponent(name)}${suffix}`;
+  const key = keyForAgent(agentId);
+  if (key === undefined) return null;
+  recordAttachmentOwner(name, agentId);
+  return `${base}/attach/${encodeURIComponent(name)}?token=${encodeURIComponent(key)}`;
 }
 
 export function attachmentEventUrl(
   payload: Record<string, unknown>,
+  agentId: number,
 ): string | null {
   if (payload.contentType !== 'attachmentSaved') return null;
   if (typeof payload.url === 'string' && payload.url.length > 0) return null;
   const p = payload.attachmentPath ?? payload.localPath;
-  return typeof p === 'string' ? attachmentUrl(p) : null;
+  return typeof p === 'string' ? attachmentUrl(p, agentId) : null;
 }
 
 async function serveFile(
@@ -93,7 +92,7 @@ export function handleAttachRequest(
   req: IncomingMessage,
   res: ServerResponse,
 ): boolean {
-  const [rawPath, qs = ''] = (req.url ?? '').split('?', 2);
+  const [rawPath] = (req.url ?? '').split('?', 2);
   const m = /^\/attach\/([^/]+)$/.exec(rawPath ?? '');
   if (!m) return false;
   const method = req.method ?? 'GET';
@@ -101,11 +100,11 @@ export function handleAttachRequest(
     res.writeHead(405).end();
     return true;
   }
-  if (!authorized(req, new URLSearchParams(qs))) {
+  const name = decodeURIComponent(m[1] ?? '');
+  if (!authorized(req, name)) {
     res.writeHead(401).end();
     return true;
   }
-  const name = decodeURIComponent(m[1] ?? '');
   void serveFile(res, method, name).catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'attach: serve error');
     if (!res.headersSent) res.writeHead(500).end();

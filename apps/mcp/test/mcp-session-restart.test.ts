@@ -3,10 +3,14 @@ import { createServer, type Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { createMetroMcp } from '../src/mcp/index.ts';
+import { setKeyMap } from '../src/db/key-map.ts';
 import { asLine } from '../src/stations/lines.ts';
 import { publishEvent, type MetroEvent } from '../src/daemon/events.ts';
 
 process.env.METRO_CHANNEL_STATIONS = 'discord';
+const TOKEN = 'mk_test_agent_key';
+setKeyMap([{ key: TOKEN, agentId: 1 }]);
+
 
 const msgEvent = (text: string): MetroEvent =>
   ({
@@ -51,7 +55,7 @@ describe('MCP session survives daemon restart', () => {
     });
     await new Promise<void>((r) => server?.listen(0, '127.0.0.1', () => r()));
     const port = (server.address() as AddressInfo).port;
-    const url = `http://127.0.0.1:${port}/mcp`;
+    const url = `http://127.0.0.1:${port}/mcp?token=${TOKEN}`;
 
     const init = await fetch(url, {
       method: 'POST',
