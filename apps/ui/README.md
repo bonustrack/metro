@@ -85,8 +85,9 @@ into the form, it carries no unique index, and two agents, even two owned by the
 person, may share one. Everything that decides what a session may see or delete compares
 `agents.id`.
 
-An agent created here records the creator's verified Google email in `agents.owner_email`.
-`/api/agents` returns only the agents whose `owner_email` matches the session's email, plus
+An agent created here records the creator in `agents.owner_id`, the `users` row for their
+verified Google email (created on first sign-in, one row per address).
+`/api/agents` returns only the agents whose `owner_id` is that row, plus
 any agent names granted to that email through the daemon's `GOOGLE_EMAIL_AGENTS` map (shown
 as not-owned). Accounts are filtered to that same set of agents, server-side, and each one
 comes back stamped with the `agentId` it belongs to, which is what the sidebar/main split
@@ -102,7 +103,7 @@ of shown.
 
 Sign-in is open to any Google account with a verified email, on any domain, and there is no
 cap on how many agents one email owns. Deletion is owner-only and keyed on `agents.id`:
-someone else's agent id is a `404`, and an operator-provisioned row (`owner_email IS NULL`)
+someone else's agent id is a `404`, and an operator-provisioned row (`owner_id IS NULL`)
 is refused even for a session that can see it through `GOOGLE_EMAIL_AGENTS`.
 
 ## Config

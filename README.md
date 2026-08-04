@@ -157,15 +157,19 @@ missing `DATABASE_URL` or an empty database is a hard, loud error.
 | `DATABASE_URL` | Postgres connection string (required). Agents + accounts load from the DB on boot and are materialized to the per-station account files the trains read. |
 | `METRO_AGENT` | Optional. Restrict this instance to one agent by its numeric `id` (the `agents.id` PK). Must be a positive integer that exists, else boot fails loudly. Unset → the daemon runs every agent's accounts in the one process. |
 
-Three small tables, no foreign-key constraints — accounts and keys reference their agent
-by `agent_id` (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
+Four small tables. `accounts` and `keys` reference their agent by a plain `agent_id` int
+with no foreign key; the one FK in the schema is `agents.owner_id → users.id`
+(see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
+- **`users`** — `id` (auto-increment int, primary key; **the owner identity**), `email`
+  (the lowercased verified Google email, `UNIQUE`). One row per person. Created on first
+  Google sign-in and never again for the same address.
 - **`agents`** — `id` (auto-increment int, primary key — **the identity**: every scoping
   decision compares `agents.id`, never the name), `name` (a display label with **no**
   uniqueness of any kind and stored with the casing the person typed, so two agents may
-  both be called `Lisa`), `owner_email` (nullable; the lowercased verified Google email
-  that created the agent through the web UI. `NULL` = operator-provisioned, owned by
-  nobody, reachable only via `GOOGLE_EMAIL_AGENTS`).
+  both be called `Lisa`), `owner_id` (nullable int → `users.id`, `ON DELETE RESTRICT`, so
+  a user who still owns an agent cannot be deleted out from under it. `NULL` =
+  operator-provisioned, owned by nobody, reachable only via `GOOGLE_EMAIL_AGENTS`).
 - **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
   `discord` today — a plain text column, not a DB enum, so a new station is just a new
   row), `account_id` (the station-local id, e.g. `x0`/`t0`), `allowlist` text[]
@@ -222,13 +226,20 @@ INSERT INTO keys (agent_id, name, key) VALUES (1, 'mcp', 'your-bearer');
 ```
 
 > Migration `0006` adds `owner_email`. Migration `0007` drops the unique index it created
-> on (`owner_email`, `name`): `agents.id` is the only unique column, and `name` is a plain
-> label that may repeat, differ only in case, or be reused by the same owner. The drop is
-> `DROP INDEX IF EXISTS`, so re-running it is a no-op.
+> on (`owner_email`, `name`): `agents.id` is the only unique column on that table, and
+> `name` is a plain label that may repeat, differ only in case, or be reused by the same
+> owner. The drop is `DROP INDEX IF EXISTS`, so re-running it is a no-op.
+>
+> Migration `0008` replaces `agents.owner_email` with `agents.owner_id`. It creates
+> `users`, adds the column and its FK, backfills one `users` row per distinct non-null
+> `owner_email` and points every agent at it, then drops `owner_email`. The backfill
+> copies the stored email byte for byte, so an agent whose `owner_email` was never
+> normalized stays exactly as visible (or invisible) to its owner as it was before. Rows
+> with `owner_email IS NULL` keep `owner_id IS NULL`: operator provisioning is untouched.
 >
 > Names are compared nowhere in any scoping or authorisation path; `agents.id` is. The one
 > lookup still keyed on the name is the `GOOGLE_EMAIL_AGENTS` grant, and it is pinned to
-> `owner_email IS NULL`. That pin, not the dropped index, is what makes it safe: Postgres
+> `owner_id IS NULL`. That pin, not the dropped index, is what makes it safe: Postgres
 > treats NULLs as distinct in a unique index, so two operator rows could always share a
 > name and a grant could always resolve to more than one id. When it does, the grantee sees
 > all of them, still with `owned: false`: no key value, and delete refused. Grant entries
@@ -255,10 +266,13 @@ login `nonce` all checked, and an unverified email refused.
 
 Auth is the daemon-signed session JWT from the Google login flow, as
 `Authorization: Bearer <session>` or `?token=<session>`. **Authorisation is per-agent and
-keyed on `agents.id`:** a session may only see agents where `agents.owner_email` equals its
-verified email, plus the operator-provisioned (`owner_email IS NULL`) agents named for that
-email in `GOOGLE_EMAIL_AGENTS`. Those names are resolved to ids at sign-in, so a name
-someone else picks can never widen a grant.
+keyed on `agents.id`:** a session may only see agents whose `agents.owner_id` is the
+`users` row for its verified email, plus the operator-provisioned (`owner_id IS NULL`)
+agents named for that email in `GOOGLE_EMAIL_AGENTS`. The email is resolved to a `users.id`
+per request, never read from the JWT, so a freshly created agent shows up without
+re-login. Those grant names are resolved to ids at sign-in, so a name someone else picks
+can never widen a grant. An email with no `users` row owns nothing: `owner_id IS NULL`
+is not a match for "no user", it is the operator-provisioned marker.
 
 **Key values are served for agents you own, and only those.** `keys.key` is stored in
 plaintext (`applyAgentKey` needs the raw value at boot), so the key can be re-served rather
@@ -278,9 +292,10 @@ a key, never what it is. The UI masks the value behind a **Reveal** toggle and c
 without revealing it, so a page load does not leave a live credential on screen.
 
 **Deleting.** `DELETE /api/agents/<id>` addresses the agent by its serial id, never its name,
-and only the owner may call it: the row must have `owner_email` equal to the session email.
-An agent somebody else owns, or an id that does not exist, is a flat `404 no such agent`.
-An **operator-provisioned row (`owner_email IS NULL`) can never be deleted through this
+and only the owner may call it: the row must have `owner_id` equal to the `users` row for
+the session email. An agent somebody else owns, or an id that does not exist, is a flat
+`404 no such agent`.
+An **operator-provisioned row (`owner_id IS NULL`) can never be deleted through this
 route** — a `GOOGLE_EMAIL_AGENTS` grantee who can *see* it gets `403 operator-provisioned
 agents cannot be deleted here`, anyone else gets the same `404`. Deleting removes the agent's
 `keys` rows in the same transaction and evicts their digests from the in-memory key map, so a
@@ -297,7 +312,7 @@ owns zero accounts.
 | Var | Default | Meaning |
 | --- | --- | --- |
 | `METRO_SESSION_SECRET` | — | Required for `/api/agents` and Google login. Unset → 401. |
-| `GOOGLE_EMAIL_AGENTS` | `{}` | Grant an email access to operator-provisioned (`owner_email IS NULL`) agents, by name. Never resolves to an agent someone owns, and a granted agent can never be deleted through the API. |
+| `GOOGLE_EMAIL_AGENTS` | `{}` | Grant an email access to operator-provisioned (`owner_id IS NULL`) agents, by name. Never resolves to an agent someone owns, and a granted agent can never be deleted through the API. |
 
 ### Attaching station accounts from the web UI
 

@@ -57,6 +57,13 @@
       "when": 1785791645446,
       "tag": "0007_drop_agents_owner_name_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785795392798,
+      "tag": "0008_users_and_agent_owner_id",
+      "breakpoints": true
     }
   ]
 }

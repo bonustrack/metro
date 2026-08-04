@@ -7,7 +7,7 @@ import {
   type EmailAgentMap,
 } from './google-auth.js';
 import { newNonce, signSession, signState, verifyState } from './session.js';
-import { operatorAgentIdsByName } from '../db/agent-admin.js';
+import { ensureUser, operatorAgentIdsByName } from '../db/agent-admin.js';
 
 export interface OAuthConfig {
   clientId: string;
@@ -99,6 +99,7 @@ function withFragment(returnTo: string, frag: string): string {
 export interface CallbackDeps {
   exchangeCode: (code: string) => Promise<{ id_token?: string }>;
   verifyIdToken: (idToken: string, nonce: string) => Promise<{ email: string }>;
+  ensureUser: (email: string) => Promise<number>;
   grantedAgentIds: (names: string[]) => Promise<number[]>;
 }
 
@@ -123,8 +124,10 @@ export async function completeCallback(
     return withFragment(return_to, 'error=verify');
   }
 
+  const userId = await deps.ensureUser(email);
   const granted = agentsForEmail(cfg.emailAgents, email);
   const agentIds = granted ? await deps.grantedAgentIds(granted) : [];
+  log.info({ userId, granted: agentIds.length }, 'google auth: session issued');
 
   const session = signSession({ email, agentIds }, cfg.sessionSecret, {
     ttlSec: cfg.sessionTtlSec,
@@ -160,6 +163,7 @@ function defaultDeps(cfg: OAuthConfig): CallbackDeps {
         clientId: cfg.clientId,
         expectedNonce: nonce,
       }).then((c) => ({ email: c.email })),
+    ensureUser,
     grantedAgentIds: operatorAgentIdsByName,
   };
 }

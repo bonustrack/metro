@@ -5,6 +5,7 @@ import {
   normalizeAgentName,
   normalizeEmail,
   parseAgentId,
+  resolveUserId,
   servesEveryAgent,
   toAgentSummaries,
 } from '../src/db/agent-admin.ts';
@@ -99,11 +100,11 @@ describe('parseAgentId', () => {
 });
 
 describe('toAgentSummaries', () => {
-  const OWNER = 'ada@lovelace.dev';
+  const OWNER = 11;
   const ROWS = [
-    { id: 1, name: 'ada-bot', ownerEmail: OWNER },
-    { id: 2, name: 'bob-bot', ownerEmail: 'bob@builder.dev' },
-    { id: 5, name: 'legacy', ownerEmail: null },
+    { id: 1, name: 'ada-bot', ownerId: OWNER },
+    { id: 2, name: 'bob-bot', ownerId: 22 },
+    { id: 5, name: 'legacy', ownerId: null },
   ];
 
   test('an owned agent carries its key value', () => {
@@ -136,20 +137,20 @@ describe('toAgentSummaries', () => {
     expect(out.flatMap((a) => a.keys.map((k) => k.key))).toEqual([null, null]);
   });
 
-  test('ownership is compared case-insensitively, like the delete path', () => {
-    const out = toAgentSummaries('ADA@Lovelace.dev', ROWS, [
-      { agentId: 1, name: 'default', key: 'mk_fake_ada' },
-    ]);
-    expect(out[0]?.owned).toBe(true);
-    expect(out[0]?.keys[0]?.key).toBe('mk_fake_ada');
-  });
-
-  test('a null owner_email never matches a caller with no email', () => {
-    const out = toAgentSummaries('', ROWS, [
+  test('a null owner_id never matches a caller with no user row', () => {
+    const out = toAgentSummaries(null, ROWS, [
       { agentId: 5, name: 'default', key: 'mk_fake_legacy' },
     ]);
     expect(out.every((a) => !a.owned)).toBe(true);
     expect(out[2]?.keys).toEqual([{ name: 'default', key: null }]);
+  });
+
+  test('an owner id never matches an operator row that has no owner at all', () => {
+    const out = toAgentSummaries(OWNER, ROWS, [
+      { agentId: 5, name: 'default', key: 'mk_fake_legacy' },
+    ]);
+    expect(out[2]?.owned).toBe(false);
+    expect(out[2]?.keys[0]?.key).toBeNull();
   });
 
   test('keys are sorted by name so the list is stable across requests', () => {
@@ -158,6 +159,62 @@ describe('toAgentSummaries', () => {
       { agentId: 1, name: 'alpha', key: 'mk_fake_a' },
     ]);
     expect(out[0]?.keys.map((k) => k.name)).toEqual(['alpha', 'zulu']);
+  });
+});
+
+describe('resolveUserId', () => {
+  test('a first login inserts the row and uses the id it just got back', async () => {
+    let lookups = 0;
+    const id = await resolveUserId(
+      () => Promise.resolve(7),
+      () => {
+        lookups += 1;
+        return Promise.resolve(null);
+      },
+    );
+    expect(id).toBe(7);
+    expect(lookups).toBe(0);
+  });
+
+  test('a losing concurrent first login re-selects the winner id instead of failing', async () => {
+    const id = await resolveUserId(
+      () => Promise.resolve(undefined),
+      () => Promise.resolve(7),
+    );
+    expect(id).toBe(7);
+  });
+
+  test('two concurrent first logins settle on ONE id and create ONE row', async () => {
+    const table = new Map<string, number>();
+    let nextId = 0;
+    const insert = (email: string) => (): Promise<number | undefined> => {
+      if (table.has(email)) return Promise.resolve(undefined);
+      nextId += 1;
+      table.set(email, nextId);
+      return Promise.resolve(nextId);
+    };
+    const lookup = (email: string) => (): Promise<number | null> =>
+      Promise.resolve(table.get(email) ?? null);
+    const ids = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        resolveUserId(insert('ada@lovelace.dev'), lookup('ada@lovelace.dev')),
+      ),
+    );
+    expect(new Set(ids)).toEqual(new Set([1]));
+    expect(table.size).toBe(1);
+  });
+
+  test('an insert that conflicts against a row nobody can find is a 500, never a second row', async () => {
+    try {
+      await resolveUserId(
+        () => Promise.resolve(undefined),
+        () => Promise.resolve(null),
+      );
+      expect.unreachable();
+    } catch (e) {
+      expect(e).toBeInstanceOf(AgentAdminError);
+      expect((e as AgentAdminError).status).toBe(500);
+    }
   });
 });
 
