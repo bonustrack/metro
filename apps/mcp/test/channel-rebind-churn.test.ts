@@ -91,8 +91,8 @@ describe('session routing', () => {
 });
 
 describe('sessionScopeKey', () => {
-  test('an agent key and a google session over the same agent share a session', () => {
-    expect(sessionScopeKey(TONY_OWNER)).toBe(sessionScopeKey(TONY));
+  test('an agent key and a google session over the same agent never share one', () => {
+    expect(sessionScopeKey(TONY_OWNER)).not.toBe(sessionScopeKey(TONY));
   });
 
   test('two agents never share a session key', () => {
@@ -106,12 +106,18 @@ describe('sessionScopeKey', () => {
 
   test('the key is order independent', () => {
     expect(
-      sessionScopeKey({ kind: 'google', email: 'a@b.test', agentIds: [1, 34] }),
+      sessionScopeKey({
+        kind: 'google',
+        email: 'ops@example.test',
+        agentIds: [1, 34],
+      }),
     ).toBe(sessionScopeKey(BOTH));
   });
 
   test('a session owning no agent is keyed by email, not pooled with every other', () => {
-    expect(sessionScopeKey(NO_AGENTS)).toBe('email:newcomer@example.test');
+    expect(sessionScopeKey(NO_AGENTS)).toBe(
+      'google:agents::newcomer@example.test',
+    );
     expect(sessionScopeKey(NO_AGENTS)).not.toBe(
       sessionScopeKey({ kind: 'google', email: 'other@x.test', agentIds: [] }),
     );

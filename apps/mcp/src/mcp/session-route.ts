@@ -1,9 +1,10 @@
 import { allowedAgents, type RequestIdentity } from './request-identity.js';
 
 export function sessionScopeKey(identity: RequestIdentity): string {
-  const ids = [...allowedAgents(identity)].sort((a, b) => a - b);
-  if (ids.length > 0) return `agents:${ids.join(',')}`;
-  return `email:${identity.kind === 'google' ? identity.email : identity.agentId}`;
+  const ids = [...allowedAgents(identity)].sort((a, b) => a - b).join(',');
+  if (identity.kind === 'google')
+    return `google:agents:${ids}:${identity.email}`;
+  return `key:agents:${ids}`;
 }
 
 export type SessionOwnership = 'none' | 'mine' | 'theirs';

@@ -171,12 +171,12 @@ describe('ChannelOwner', () => {
     expect(owner.inScope(TONY_LINE)).toBe(false);
   });
 
-  test('an open stream is only kept across a rebind by the same scope', () => {
+  test('an open stream is only kept across a rebind by the same session key', () => {
     const owner = new ChannelOwner();
     expect(owner.streamBelongsTo(TONY)).toBe(false);
     owner.bindStream(TONY);
     expect(owner.streamBelongsTo(TONY)).toBe(true);
-    expect(owner.streamBelongsTo(TONY_OWNER)).toBe(true);
+    expect(owner.streamBelongsTo(TONY_OWNER)).toBe(false);
     expect(owner.streamBelongsTo(LISA)).toBe(false);
   });
 });
