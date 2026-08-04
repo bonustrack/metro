@@ -139,6 +139,11 @@ async function serveGet(
 
 let activeRegistry: SessionRegistry | undefined;
 
+export async function closeAgentSession(agentId: number): Promise<boolean> {
+  const scopeKey = sessionScopeKey({ kind: 'agent', agentId });
+  return (await activeRegistry?.closeScope(scopeKey)) ?? false;
+}
+
 export async function createMetroMcp(): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;

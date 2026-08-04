@@ -5,19 +5,21 @@ import {
   guessMime,
   resolveCachedAttachment,
 } from '../stations/attachments.js';
-import { keyForAgent } from '../db/key-map.js';
 import {
   allowedAgents,
   authConfigFromEnv,
   authenticate,
+  extractToken,
 } from '../mcp/request-identity.js';
 import { attachmentOwner, recordAttachmentOwner } from './attach-owner.js';
+import { grantAllows, issueAttachmentGrant } from './attach-grant.js';
 import { errMsg, log } from './log.js';
 import { loadTunnelConfig } from './tunnel.js';
 
 function authorized(req: IncomingMessage, name: string): boolean {
   const owner = attachmentOwner(name);
   if (owner === undefined) return false;
+  if (grantAllows(name, owner, extractToken(req) ?? '')) return true;
   return allowedAgents(authenticate(req, authConfigFromEnv()) ?? undefined).has(
     owner,
   );
@@ -38,10 +40,10 @@ export function attachmentUrl(
   if (!base) return null;
   const name = pathOrName.split('/').pop();
   if (!name || !resolveCachedAttachment(name)) return null;
-  const key = keyForAgent(agentId);
-  if (key === undefined) return null;
   recordAttachmentOwner(name, agentId);
-  return `${base}/attach/${encodeURIComponent(name)}?token=${encodeURIComponent(key)}`;
+  const token = issueAttachmentGrant(name, agentId);
+  if (token === undefined) return null;
+  return `${base}/attach/${encodeURIComponent(name)}?token=${encodeURIComponent(token)}`;
 }
 
 export function attachmentEventUrl(

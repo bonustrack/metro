@@ -1,19 +1,29 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { fetchDashboard, type AgentSummary } from '../src/api/client';
+import { fetchDashboard, resetAgentKey, type AgentSummary } from '../src/api/client';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-function serve(body: unknown): void {
-  globalThis.fetch = (() =>
-    Promise.resolve(
+interface Seen {
+  url: string;
+  method: string | undefined;
+}
+
+let calls: Seen[] = [];
+
+function serve(body: unknown, status = 200): void {
+  calls = [];
+  globalThis.fetch = ((url: string, init?: RequestInit) => {
+    calls.push({ url, method: init?.method });
+    return Promise.resolve(
       new Response(JSON.stringify(body), {
-        status: 200,
+        status,
         headers: { 'content-type': 'application/json' },
       }),
-    )) as typeof fetch;
+    );
+  }) as unknown as typeof fetch;
 }
 
 const dashboard = async (agents: unknown): Promise<AgentSummary[]> => {
@@ -88,5 +98,41 @@ describe('agent credentials on the wire', () => {
   test('a malformed agent entry never throws and never invents a key', async () => {
     const agents = await dashboard([{ id: 'nope', keys: 'not-an-array' }, null, 7]);
     expect(agents).toEqual([{ id: 0, name: '', owned: false, key: null, endpoint: null, command: null }]);
+  });
+});
+
+describe('resetAgentKey', () => {
+  const ROTATED = {
+    id: 7,
+    name: 'tony',
+    reset: true,
+    key: 'mk_rotated',
+    endpoint: 'https://mcp.metro.box/mcp?token=mk_rotated',
+    command: 'claude mcp add --transport http metro "x"',
+  };
+
+  test('POSTs to the agent key sub-resource and returns the new credentials', async () => {
+    serve(ROTATED);
+    const out = await resetAgentKey('session', 7);
+    expect(calls).toEqual([
+      { url: 'https://mcp.metro.box/api/agents/7/key', method: 'POST' },
+    ]);
+    expect(out).toEqual({
+      id: 7,
+      name: 'tony',
+      key: 'mk_rotated',
+      endpoint: ROTATED.endpoint,
+      command: ROTATED.command,
+    });
+  });
+
+  test('a refusal is surfaced with the daemon own message', async () => {
+    serve({ error: 'no such agent' }, 404);
+    await expect(resetAgentKey('session', 8)).rejects.toThrow('no such agent');
+  });
+
+  test('a response without a key is rejected rather than shown as empty', async () => {
+    serve({ id: 7, name: 'tony', reset: true });
+    await expect(resetAgentKey('session', 7)).rejects.toThrow('unexpected');
   });
 });

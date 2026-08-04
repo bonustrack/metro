@@ -22,6 +22,7 @@ import {
   type AgentSummary,
   type CreatedAgent,
   type DeletedAgent,
+  type ResetAgentKey,
 } from '../db/agent-admin.js';
 
 const PREFIX = '/api/agents';
@@ -36,19 +37,26 @@ export interface AgentApiDeps extends AccountApiDeps {
     granted: string[],
     id: number,
   ) => Promise<DeletedAgent>;
+  resetKey: (
+    email: string,
+    granted: string[],
+    id: number,
+  ) => Promise<ResetAgentKey>;
   gatherAccounts: (allowed: Set<number>) => Promise<Record<string, unknown[]>>;
   capabilities: () => Record<string, string[]>;
 }
 
-type Target =
+type Routable =
   | { kind: 'collection' }
   | { kind: 'agent'; id: number }
-  | { kind: 'accounts'; id: number; route: AccountRoute }
-  | { kind: 'unknown' }
-  | null;
+  | { kind: 'key'; id: number }
+  | { kind: 'accounts'; id: number; route: AccountRoute };
+
+type Target = Routable | { kind: 'unknown' } | null;
 
 function subTarget(id: number, rest: string[]): Target {
   if (rest.length === 0) return { kind: 'agent', id };
+  if (rest.length === 1 && rest[0] === 'key') return { kind: 'key', id };
   if (rest[0] !== 'accounts') return { kind: 'unknown' };
   const route = accountRoute(rest.slice(1));
   return route === null ? { kind: 'unknown' } : { kind: 'accounts', id, route };
@@ -79,14 +87,18 @@ interface KeyPayload {
   command: string | null;
 }
 
+function credentials(key: string): KeyPayload {
+  return {
+    key,
+    endpoint: `${mcpEndpoint()}?token=${key}`,
+    command: mcpAddCommand(key),
+  };
+}
+
 function keyPayload(agent: AgentSummary): KeyPayload {
   const value = agent.owned ? agent.key : null;
   if (value === null) return { key: null, endpoint: null, command: null };
-  return {
-    key: value,
-    endpoint: `${mcpEndpoint()}?token=${value}`,
-    command: mcpAddCommand(value),
-  };
+  return credentials(value);
 }
 
 function agentPayload(agent: AgentSummary): Record<string, unknown> {
@@ -132,9 +144,27 @@ async function handleCreate(
   sendJson(req, res, 201, {
     id: created.id,
     name: created.name,
-    key: created.key,
-    endpoint: `${mcpEndpoint()}?token=${created.key}`,
-    command: mcpAddCommand(created.key),
+    ...credentials(created.key),
+  });
+}
+
+async function handleResetKey(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: AgentApiDeps,
+  session: ApiSession,
+  id: number,
+): Promise<void> {
+  const reset = await deps.resetKey(session.email, session.granted, id);
+  log.info(
+    { agent: reset.name, id: reset.id, owner: session.email },
+    'agent-api: reset agent key',
+  );
+  sendJson(req, res, 200, {
+    id: reset.id,
+    name: reset.name,
+    reset: true,
+    ...credentials(reset.key),
   });
 }
 
@@ -153,15 +183,19 @@ async function handleDelete(
   sendJson(req, res, 200, { id: gone.id, name: gone.name, deleted: true });
 }
 
+type AgentTarget = Exclude<Routable, { kind: 'accounts' }>;
+
 async function routeAgent(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AgentApiDeps,
   session: ApiSession,
-  id: number | null,
+  tgt: AgentTarget,
 ): Promise<void> {
   try {
-    if (id !== null) await handleDelete(req, res, deps, session, id);
+    if (tgt.kind === 'key') await handleResetKey(req, res, deps, session, tgt.id);
+    else if (tgt.kind === 'agent')
+      await handleDelete(req, res, deps, session, tgt.id);
     else if (req.method === 'GET') await handleList(req, res, deps, session);
     else await handleCreate(req, res, deps, session);
   } catch (err) {
@@ -169,21 +203,22 @@ async function routeAgent(
   }
 }
 
-const ALLOWED: Record<string, string[]> = {
+const ALLOWED: Record<AgentTarget['kind'], string[]> = {
   collection: ['GET', 'POST'],
   agent: ['DELETE'],
+  key: ['POST'],
 };
 
-function methodAllowed(tgt: Target & object, method: string | undefined): boolean {
+function methodAllowed(tgt: Routable, method: string | undefined): boolean {
   if (tgt.kind === 'accounts') return accountRouteAllows(tgt.route, method);
-  return (ALLOWED[tgt.kind] ?? []).includes(method ?? '');
+  return ALLOWED[tgt.kind].includes(method ?? '');
 }
 
 function dispatch(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AgentApiDeps,
-  tgt: Target & object,
+  tgt: Routable,
 ): Promise<void> {
   const session = apiSession(req);
   if (!session) {
@@ -192,13 +227,7 @@ function dispatch(
   }
   if (tgt.kind === 'accounts')
     return handleAccountRoute(req, res, deps, session, tgt.id, tgt.route);
-  return routeAgent(
-    req,
-    res,
-    deps,
-    session,
-    tgt.kind === 'agent' ? tgt.id : null,
-  );
+  return routeAgent(req, res, deps, session, tgt);
 }
 
 export function handleAgentApiRequest(

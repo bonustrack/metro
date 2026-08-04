@@ -11,14 +11,20 @@ import {
   publicBaseUrl,
 } from '../src/daemon/attach-serve.ts';
 import { attachmentOwner } from '../src/daemon/attach-owner.ts';
+import { readAttachmentGrant } from '../src/daemon/attach-grant.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
 import { setKeyMap } from '../src/db/key-map.ts';
 
 const CACHE_NAME = 'msg_abc123_0.png';
 const OTHER_NAME = 'msg_def456_0.png';
+const THIRD_NAME = 'msg_ghi789_0.png';
+const KEYLESS_NAME = 'msg_jkl012_0.png';
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const ONE = 'mk_agent_one';
 const TWO = 'mk_agent_two';
+
+const tokenOf = (url: string | null): string =>
+  new URL(url ?? 'http://x/').searchParams.get('token') ?? '';
 
 let server: Server;
 let base: string;
@@ -30,8 +36,8 @@ const prevEnv = {
 
 beforeAll(async () => {
   attachDir = mkdtempSync(join(tmpdir(), 'metro-attach-'));
-  writeFileSync(join(attachDir, CACHE_NAME), PNG);
-  writeFileSync(join(attachDir, OTHER_NAME), PNG);
+  for (const name of [CACHE_NAME, OTHER_NAME, THIRD_NAME, KEYLESS_NAME])
+    writeFileSync(join(attachDir, name), PNG);
   process.env.METRO_XMTP_ATTACH_DIR = attachDir;
   process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box/';
   process.env.METRO_WEBHOOK_PORT = String(
@@ -66,17 +72,45 @@ describe('attachment url helpers', () => {
     expect(publicBaseUrl()).toBe('https://mcp.metro.box');
   });
 
-  test('attachmentUrl carries the owning agent key and records the owner', () => {
-    expect(
-      attachmentUrl(`/data/.cache/metro/messenger-uploads/${CACHE_NAME}`, 1),
-    ).toBe(`https://mcp.metro.box/attach/${CACHE_NAME}?token=${ONE}`);
+  test('attachmentUrl records the owner and mints a per-attachment token', () => {
+    const url = attachmentUrl(
+      `/data/.cache/metro/messenger-uploads/${CACHE_NAME}`,
+      1,
+    );
+    expect(url).toStartWith(`https://mcp.metro.box/attach/${CACHE_NAME}?token=`);
     expect(attachmentOwner(CACHE_NAME)).toBe(1);
     expect(existsSync(join(attachDir, `${CACHE_NAME}.owner`))).toBe(true);
+    expect(existsSync(join(attachDir, `${CACHE_NAME}.grant`))).toBe(true);
+    expect(readAttachmentGrant(CACHE_NAME)?.agentId).toBe(1);
   });
 
-  test('an agent with no key gets no url and no owner record', () => {
-    expect(attachmentUrl(`/data/x/${OTHER_NAME}`, 99)).toBeNull();
-    expect(attachmentOwner(OTHER_NAME)).toBeUndefined();
+  test('the url never carries the owning agent api key', () => {
+    const url = attachmentUrl(CACHE_NAME, 1) ?? '';
+    expect(url).not.toContain(ONE);
+    expect(url).not.toContain(TWO);
+    expect(tokenOf(url)).toStartWith('at_');
+  });
+
+  test('re-minting the same attachment for the same owner keeps one token', () => {
+    const first = attachmentUrl(THIRD_NAME, 1);
+    const second = attachmentUrl(THIRD_NAME, 1);
+    expect(second).toBe(first);
+  });
+
+  test('two attachments never share a token', () => {
+    expect(tokenOf(attachmentUrl(CACHE_NAME, 1))).not.toBe(
+      tokenOf(attachmentUrl(THIRD_NAME, 1)),
+    );
+  });
+
+  test('an agent with no api key still gets a working attachment url', async () => {
+    const url = attachmentUrl(KEYLESS_NAME, 99);
+    expect(url).not.toBeNull();
+    expect(attachmentOwner(KEYLESS_NAME)).toBe(99);
+    const res = await fetch(
+      `${base}/attach/${KEYLESS_NAME}?token=${tokenOf(url)}`,
+    );
+    expect(res.status).toBe(200);
   });
 
   test('attachmentUrl rejects paths outside the cache-name shape', () => {
@@ -90,7 +124,7 @@ describe('attachment url helpers', () => {
         { contentType: 'attachmentSaved', localPath: `/data/x/${CACHE_NAME}` },
         1,
       ),
-    ).toBe(`https://mcp.metro.box/attach/${CACHE_NAME}?token=${ONE}`);
+    ).toStartWith(`https://mcp.metro.box/attach/${CACHE_NAME}?token=at_`);
     expect(
       attachmentEventUrl(
         {
@@ -106,21 +140,37 @@ describe('attachment url helpers', () => {
 });
 
 describe('/attach route', () => {
-  test('serves a saved attachment to the agent that owns it', async () => {
-    attachmentUrl(CACHE_NAME, 1);
-    const res = await fetch(`${base}/attach/${CACHE_NAME}?token=${ONE}`);
+  test('serves a saved attachment to the holder of its own token', async () => {
+    const url = attachmentUrl(CACHE_NAME, 1);
+    const res = await fetch(`${base}/attach/${CACHE_NAME}?token=${tokenOf(url)}`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('image/png');
     const body = Buffer.from(await res.arrayBuffer());
     expect(body.equals(PNG)).toBe(true);
   });
 
-  test('the Bearer header works as well as ?token=', async () => {
-    attachmentUrl(CACHE_NAME, 1);
+  test('the attachment token works as a Bearer header too', async () => {
+    const url = attachmentUrl(CACHE_NAME, 1);
     const res = await fetch(`${base}/attach/${CACHE_NAME}`, {
-      headers: { authorization: `Bearer ${ONE}` },
+      headers: { authorization: `Bearer ${tokenOf(url)}` },
     });
     expect(res.status).toBe(200);
+  });
+
+  test('one attachment token does not open another attachment', async () => {
+    attachmentUrl(CACHE_NAME, 1);
+    const other = attachmentUrl(THIRD_NAME, 1);
+    const res = await fetch(
+      `${base}/attach/${CACHE_NAME}?token=${tokenOf(other)}`,
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test('the owning agent key still serves its own attachment', async () => {
+    attachmentUrl(CACHE_NAME, 1);
+    expect((await fetch(`${base}/attach/${CACHE_NAME}?token=${ONE}`)).status).toBe(
+      200,
+    );
   });
 
   test('another agent key cannot fetch it even knowing the name', async () => {
@@ -133,6 +183,10 @@ describe('/attach route', () => {
     expect((await fetch(`${base}/attach/${CACHE_NAME}`)).status).toBe(401);
     expect(
       (await fetch(`${base}/attach/${CACHE_NAME}?token=nope`)).status,
+    ).toBe(401);
+    expect(
+      (await fetch(`${base}/attach/${CACHE_NAME}?token=at_not_a_real_grant`))
+        .status,
     ).toBe(401);
   });
 

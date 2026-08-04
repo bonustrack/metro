@@ -2,10 +2,12 @@ import { randomBytes } from 'node:crypto';
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
-import { registerKey, unregisterAgentKey } from './key-map.js';
+import { registerKey, rotateAgentKey, unregisterAgentKey } from './key-map.js';
 import { accounts, agents, users } from './schema.js';
 
 export const AGENT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;
+const UNIQUE_VIOLATION = '23505';
+const KEY_ATTEMPTS = 5;
 
 export class AgentAdminError extends ApiError {}
 
@@ -29,6 +31,18 @@ export interface OwnedAgent {
 
 export type DeletedAgent = OwnedAgent;
 
+export interface ResetAgentKey extends OwnedAgent {
+  key: string;
+}
+
+export function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: unknown }).code === UNIQUE_VIOLATION
+  );
+}
+
 export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }
@@ -47,8 +61,15 @@ export function newApiKey(): string {
   return `mk_${randomBytes(32).toString('base64url')}`;
 }
 
+const agentPin = (): string => process.env.METRO_AGENT?.trim() ?? '';
+
 export function servesEveryAgent(): boolean {
-  return (process.env.METRO_AGENT?.trim() ?? '') === '';
+  return agentPin() === '';
+}
+
+export function daemonServesAgent(id: number): boolean {
+  const pin = agentPin();
+  return pin === '' || Number(pin) === id;
 }
 
 const grantedOperatorRows = (granted: string[]) =>
@@ -220,6 +241,41 @@ export async function ownedAgentOrThrow(
   }
   if (ownerId === null || row.ownerId !== ownerId) throw missing;
   return { agent: { id: row.id, name: row.name }, ownerId };
+}
+
+async function writeNewKey(id: number, ownerId: number): Promise<string> {
+  for (let attempt = 0; attempt < KEY_ATTEMPTS; attempt += 1) {
+    const key = newApiKey();
+    try {
+      const changed = await getDb()
+        .update(agents)
+        .set({ key })
+        .where(and(eq(agents.id, id), eq(agents.ownerId, ownerId)))
+        .returning({ id: agents.id });
+      if (changed.length === 0)
+        throw new AgentAdminError('no such agent', 404);
+      return key;
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+    }
+  }
+  throw new AgentAdminError('could not allocate a free api key', 500);
+}
+
+export async function resetAgentKeyForEmail(
+  email: string,
+  granted: string[],
+  id: number,
+): Promise<ResetAgentKey> {
+  const { agent, ownerId } = await ownedAgentOrThrow(
+    await userIdForEmail(email),
+    granted,
+    id,
+    'reset',
+  );
+  const key = await writeNewKey(agent.id, ownerId);
+  rotateAgentKey(agent.id, daemonServesAgent(agent.id) ? key : null);
+  return { id: agent.id, name: agent.name, key };
 }
 
 export async function deleteAgentForEmail(
