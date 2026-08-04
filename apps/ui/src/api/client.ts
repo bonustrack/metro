@@ -9,18 +9,13 @@ import {
 
 export class AuthError extends Error {}
 
-export interface AgentKey {
-  name: string;
-  key: string | null;
-  endpoint: string | null;
-  command: string | null;
-}
-
 export interface AgentSummary {
   id: number;
   name: string;
   owned: boolean;
-  keys: AgentKey[];
+  key: string | null;
+  endpoint: string | null;
+  command: string | null;
 }
 
 export interface Dashboard {
@@ -74,30 +69,25 @@ export async function call(token: string, init: CallInit): Promise<unknown> {
 const text = (value: unknown): string | null =>
   typeof value === 'string' && value !== '' ? value : null;
 
-function toKey(value: unknown): AgentKey {
-  if (typeof value === 'string')
-    return { name: value, key: null, endpoint: null, command: null };
-  if (!isRecord(value)) return { name: '', key: null, endpoint: null, command: null };
-  return {
-    name: text(value.name) ?? '',
-    key: text(value.key),
-    endpoint: text(value.endpoint),
-    command: text(value.command),
-  };
-}
-
-function toKeys(value: unknown): AgentKey[] {
-  return Array.isArray(value) ? value.map(toKey) : [];
+function credentials(a: Record<string, unknown>): Record<string, unknown> {
+  if (a.key !== undefined || !Array.isArray(a.keys)) return a;
+  const first: unknown = a.keys[0];
+  return isRecord(first) ? first : {};
 }
 
 function toAgents(value: unknown): AgentSummary[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(isRecord).map((a) => ({
-    id: typeof a.id === 'number' ? a.id : 0,
-    name: typeof a.name === 'string' ? a.name : '',
-    owned: a.owned === true,
-    keys: toKeys(a.keys),
-  }));
+  return value.filter(isRecord).map((a) => {
+    const cred = credentials(a);
+    return {
+      id: typeof a.id === 'number' ? a.id : 0,
+      name: typeof a.name === 'string' ? a.name : '',
+      owned: a.owned === true,
+      key: text(cred.key),
+      endpoint: text(cred.endpoint),
+      command: text(cred.command),
+    };
+  });
 }
 
 function attributedGroups(

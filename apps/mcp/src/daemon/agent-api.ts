@@ -19,7 +19,6 @@ import {
 } from './account-api.js';
 import {
   parseAgentId,
-  type AgentKeySummary,
   type AgentSummary,
   type CreatedAgent,
   type DeletedAgent,
@@ -74,18 +73,15 @@ export function mcpAddCommand(name: string, key: string): string {
 }
 
 interface KeyPayload {
-  name: string;
   key: string | null;
   endpoint: string | null;
   command: string | null;
 }
 
-function keyPayload(agent: AgentSummary, entry: AgentKeySummary): KeyPayload {
-  const value = agent.owned ? entry.key : null;
-  if (value === null)
-    return { name: entry.name, key: null, endpoint: null, command: null };
+function keyPayload(agent: AgentSummary): KeyPayload {
+  const value = agent.owned ? agent.key : null;
+  if (value === null) return { key: null, endpoint: null, command: null };
   return {
-    name: entry.name,
     key: value,
     endpoint: `${mcpEndpoint()}?token=${value}`,
     command: mcpAddCommand(agent.name, value),
@@ -97,7 +93,7 @@ function agentPayload(agent: AgentSummary): Record<string, unknown> {
     id: agent.id,
     name: agent.name,
     owned: agent.owned,
-    keys: agent.keys.map((entry) => keyPayload(agent, entry)),
+    ...keyPayload(agent),
   };
 }
 

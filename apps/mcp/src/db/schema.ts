@@ -29,6 +29,7 @@ export const agents = pgTable('agents', {
   ownerId: integer('owner_id').references(() => users.id, {
     onDelete: 'restrict',
   }),
+  key: text('key').unique(),
 });
 
 export const accounts = pgTable(
@@ -41,14 +42,4 @@ export const accounts = pgTable(
     config: jsonb('config').notNull(),
   },
   (t) => [primaryKey({ columns: [t.station, t.accountId] })],
-);
-
-export const keys = pgTable(
-  'keys',
-  {
-    agentId: integer('agent_id').notNull(),
-    name: text('name').notNull(),
-    key: text('key').notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.agentId, t.name] })],
 );

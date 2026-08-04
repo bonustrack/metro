@@ -25,8 +25,8 @@ interface Row {
 }
 
 const AGENTS: Record<string, AgentSummary[]> = {
-  'ada@lovelace.dev': [{ id: 1, name: 'ada-bot', owned: true, keys: [] }],
-  'bob@builder.dev': [{ id: 2, name: 'bob-bot', owned: true, keys: [] }],
+  'ada@lovelace.dev': [{ id: 1, name: 'ada-bot', owned: true, key: null }],
+  'bob@builder.dev': [{ id: 2, name: 'bob-bot', owned: true, key: null }],
 };
 
 const OWNER_OF: Record<number, string | null> = {

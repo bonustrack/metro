@@ -19,8 +19,7 @@ function plural(n: number, word: string): string {
 }
 
 function subtitle(agent: AgentSummary): string {
-  const base = `id ${agent.id} · ${plural(agent.keys.length, 'key')}`;
-  return agent.owned ? base : `${base} · granted, not owned`;
+  return agent.owned ? `id ${agent.id}` : `id ${agent.id} · granted, not owned`;
 }
 
 function emptyAccounts(agent: AgentSummary, unattributed: number): string {

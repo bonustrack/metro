@@ -2,24 +2,18 @@ import { randomBytes } from 'node:crypto';
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
-import { registerKey, unregisterAgentKeys } from './key-map.js';
-import { accounts, agents, keys, users } from './schema.js';
+import { registerKey, unregisterAgentKey } from './key-map.js';
+import { accounts, agents, users } from './schema.js';
 
 export const AGENT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;
-export const DEFAULT_KEY_NAME = 'default';
 
 export class AgentAdminError extends ApiError {}
-
-export interface AgentKeySummary {
-  name: string;
-  key: string | null;
-}
 
 export interface AgentSummary {
   id: number;
   name: string;
   owned: boolean;
-  keys: AgentKeySummary[];
+  key: string | null;
 }
 
 export interface CreatedAgent {
@@ -115,8 +109,7 @@ interface AgentRow {
 
 interface KeyRow {
   agentId: number;
-  name: string;
-  key?: string;
+  key: string | null;
 }
 
 function ownedIdsOf(ownerId: number | null, rows: AgentRow[]): number[] {
@@ -134,34 +127,18 @@ export function toAgentSummaries(
     id: r.id,
     name: r.name,
     owned: owned.has(r.id),
-    keys: keyRows
-      .filter((k) => k.agentId === r.id)
-      .map((k) => ({ name: k.name, key: owned.has(r.id) ? k.key ?? null : null }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    key: owned.has(r.id)
+      ? keyRows.find((k) => k.agentId === r.id)?.key ?? null
+      : null,
   }));
 }
 
-async function selectKeyRows(
-  ids: number[],
-  ownedIds: number[],
-): Promise<KeyRow[]> {
-  const db = getDb();
-  const seenOnly = ids.filter((id) => !ownedIds.includes(id));
-  const named =
-    seenOnly.length === 0
-      ? []
-      : await db
-          .select({ agentId: keys.agentId, name: keys.name })
-          .from(keys)
-          .where(inArray(keys.agentId, seenOnly));
-  const mine =
-    ownedIds.length === 0
-      ? []
-      : await db
-          .select({ agentId: keys.agentId, name: keys.name, key: keys.key })
-          .from(keys)
-          .where(inArray(keys.agentId, ownedIds));
-  return [...named, ...mine];
+async function selectKeyRows(ownedIds: number[]): Promise<KeyRow[]> {
+  if (ownedIds.length === 0) return [];
+  return getDb()
+    .select({ agentId: agents.id, key: agents.key })
+    .from(agents)
+    .where(inArray(agents.id, ownedIds));
 }
 
 function visibleAgents(ownerId: number | null, granted: string[]) {
@@ -179,22 +156,23 @@ export async function listAgentsForEmail(
   const where = visibleAgents(ownerId, granted);
   if (where === undefined) return [];
   const rows = await getDb()
-    .select()
+    .select({ id: agents.id, name: agents.name, ownerId: agents.ownerId })
     .from(agents)
     .where(where)
     .orderBy(asc(agents.id));
   if (rows.length === 0) return [];
-  const keyRows = await selectKeyRows(
-    rows.map((r) => r.id),
-    ownedIdsOf(ownerId, rows),
-  );
+  const keyRows = await selectKeyRows(ownedIdsOf(ownerId, rows));
   return toAgentSummaries(ownerId, rows, keyRows);
 }
 
-async function insertAgent(ownerId: number, name: string): Promise<number> {
+async function insertAgent(
+  ownerId: number,
+  name: string,
+  key: string,
+): Promise<number> {
   const inserted = await getDb()
     .insert(agents)
-    .values({ name, ownerId })
+    .values({ name, ownerId, key })
     .returning({ id: agents.id });
   const id = inserted[0]?.id;
   if (id === undefined)
@@ -207,10 +185,8 @@ export async function createAgentForEmail(
   rawName: string,
 ): Promise<CreatedAgent> {
   const name = normalizeAgentName(rawName);
-  const db = getDb();
-  const id = await insertAgent(await ensureUser(email), name);
   const key = newApiKey();
-  await db.insert(keys).values({ agentId: id, name: DEFAULT_KEY_NAME, key });
+  const id = await insertAgent(await ensureUser(email), name, key);
   if (servesEveryAgent()) registerKey(key, id);
   return { id, name, key };
 }
@@ -246,9 +222,9 @@ export async function ownedAgentOrThrow(
   return { agent: { id: row.id, name: row.name }, ownerId };
 }
 
-function revokeEnvToken(revoked: string[]): void {
-  const current = process.env.METRO_MCP_HTTP_TOKEN;
-  if (current !== undefined && revoked.includes(current))
+function revokeEnvToken(revoked: string | null): void {
+  if (revoked === null) return;
+  if (process.env.METRO_MCP_HTTP_TOKEN === revoked)
     delete process.env.METRO_MCP_HTTP_TOKEN;
 }
 
@@ -273,19 +249,14 @@ export async function deleteAgentForEmail(
         `agent '${agent.name}' still has ${attached.length} station account(s) attached — an operator must remove them first`,
         409,
       );
-    const held = await tx
-      .select({ key: keys.key })
-      .from(keys)
-      .where(eq(keys.agentId, id));
-    await tx.delete(keys).where(eq(keys.agentId, id));
     const gone = await tx
       .delete(agents)
       .where(and(eq(agents.id, id), eq(agents.ownerId, ownerId)))
-      .returning({ id: agents.id });
+      .returning({ key: agents.key });
     if (gone.length === 0) throw new AgentAdminError('no such agent', 404);
-    return held.map((k) => k.key);
+    return gone[0]?.key ?? null;
   });
-  unregisterAgentKeys(id);
+  unregisterAgentKey(id);
   revokeEnvToken(revoked);
   return agent;
 }

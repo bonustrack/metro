@@ -16,19 +16,15 @@ const PUBLIC = 'https://mcp.metro.box';
 
 const fakeKey = (agent: string): string => `mk_fake_${agent}`;
 
-const defaultKey = (agent: string): AgentSummary['keys'] => [
-  { name: 'default', key: fakeKey(agent) },
-];
-
 const OWNED: Record<string, AgentSummary[]> = {
   'ada@lovelace.dev': [
-    { id: 1, name: 'ada-bot', owned: true, keys: defaultKey('ada-bot') },
+    { id: 1, name: 'ada-bot', owned: true, key: fakeKey('ada-bot') },
   ],
   'bob@builder.dev': [
-    { id: 2, name: 'bob-bot', owned: true, keys: defaultKey('bob-bot') },
+    { id: 2, name: 'bob-bot', owned: true, key: fakeKey('bob-bot') },
   ],
-  'ada@same.dev': [{ id: 7, name: 'tony', owned: true, keys: defaultKey('ada-tony') }],
-  'bob@same.dev': [{ id: 8, name: 'tony', owned: true, keys: defaultKey('bob-tony') }],
+  'ada@same.dev': [{ id: 7, name: 'tony', owned: true, key: fakeKey('ada-tony') }],
+  'bob@same.dev': [{ id: 8, name: 'tony', owned: true, key: fakeKey('bob-tony') }],
 };
 
 let leakGrantedKeys = false;
@@ -95,7 +91,7 @@ const deps: AgentApiDeps = {
         id: 900 + i,
         name,
         owned: false,
-        keys: leakGrantedKeys ? defaultKey(name) : [],
+        key: leakGrantedKeys ? fakeKey(name) : null,
       })),
     ]),
   createAgent: (email, name) => {
@@ -215,18 +211,13 @@ describe('/api/agents authentication', () => {
   });
 });
 
-interface WireKey {
-  name: string;
-  key: string | null;
-  endpoint: string | null;
-  command: string | null;
-}
-
 interface WireAgent {
   id: number;
   name: string;
   owned: boolean;
-  keys: WireKey[];
+  key: string | null;
+  endpoint: string | null;
+  command: string | null;
 }
 
 interface ListBody {
@@ -297,7 +288,9 @@ describe('GET /api/agents ownership', () => {
   test('GOOGLE_EMAIL_AGENTS grants show up as not-owned', async () => {
     process.env.GOOGLE_EMAIL_AGENTS = '{"nobody@example.com":["legacy"]}';
     const body = (await (await get(session('nobody@example.com'))).json()) as ListBody;
-    expect(body.agents).toEqual([{ id: 900, name: 'legacy', owned: false, keys: [] }]);
+    expect(body.agents).toEqual([
+      { id: 900, name: 'legacy', owned: false, key: null, endpoint: null, command: null },
+    ]);
     expect(scopes.at(-1)).toEqual(new Set([900]));
   });
 
@@ -315,19 +308,19 @@ describe('GET /api/agents ownership', () => {
 describe('GET /api/agents key exposure', () => {
   test('an owned agent carries its key, tokenised endpoint and paste-ready command', async () => {
     const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.keys).toEqual([
-      {
-        name: 'default',
-        key: 'mk_fake_ada-bot',
-        endpoint: `${PUBLIC}/mcp?token=mk_fake_ada-bot`,
-        command: `claude mcp add --transport http --scope user ada-bot "${PUBLIC}/mcp?token=mk_fake_ada-bot"`,
-      },
-    ]);
+    expect(agent).toEqual({
+      id: 1,
+      name: 'ada-bot',
+      owned: true,
+      key: 'mk_fake_ada-bot',
+      endpoint: `${PUBLIC}/mcp?token=mk_fake_ada-bot`,
+      command: `claude mcp add --transport http --scope user ada-bot "${PUBLIC}/mcp?token=mk_fake_ada-bot"`,
+    });
   });
 
   test('the listed command matches what POST hands back for the same key', async () => {
     const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.keys[0]?.command).toBe(mcpAddCommand('ada-bot', 'mk_fake_ada-bot'));
+    expect(agent?.command).toBe(mcpAddCommand('ada-bot', 'mk_fake_ada-bot'));
   });
 
   test('another signed-in user never receives the first user key', async () => {
@@ -335,14 +328,12 @@ describe('GET /api/agents key exposure', () => {
     expect(body).not.toContain('mk_fake_ada-bot');
   });
 
-  test('a granted agent is listed with its key names but no key value', async () => {
+  test('a granted agent is listed with no key, endpoint or command', async () => {
     process.env.GOOGLE_EMAIL_AGENTS = '{"nobody@example.com":["legacy"]}';
     leakGrantedKeys = true;
     const [agent] = await listAgents('nobody@example.com');
     expect(agent?.owned).toBe(false);
-    expect(agent?.keys).toEqual([
-      { name: 'default', key: null, endpoint: null, command: null },
-    ]);
+    expect([agent?.key, agent?.endpoint, agent?.command]).toEqual([null, null, null]);
   });
 
   test('a key value that reaches the api layer for a not-owned agent is still not served', async () => {
@@ -357,10 +348,26 @@ describe('GET /api/agents key exposure', () => {
     process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
     leakGrantedKeys = true;
     const agents = await listAgents('ada@lovelace.dev');
-    expect(agents.map((a) => [a.name, a.keys[0]?.key])).toEqual([
+    expect(agents.map((a) => [a.name, a.key])).toEqual([
       ['ada-bot', 'mk_fake_ada-bot'],
       ['legacy', null],
     ]);
+  });
+
+  test('an owned agent that has no key yet is served nulls, not a stale value', async () => {
+    OWNED['keyless@example.com'] = [
+      { id: 42, name: 'keyless', owned: true, key: null },
+    ];
+    const [agent] = await listAgents('keyless@example.com');
+    expect(agent).toEqual({
+      id: 42,
+      name: 'keyless',
+      owned: true,
+      key: null,
+      endpoint: null,
+      command: null,
+    });
+    delete OWNED['keyless@example.com'];
   });
 });
 
