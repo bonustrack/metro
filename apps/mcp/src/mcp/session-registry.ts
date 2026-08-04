@@ -87,6 +87,14 @@ export class SessionRegistry {
     return session;
   }
 
+  async closeScope(scopeKey: string): Promise<boolean> {
+    const session = this.byScope.get(scopeKey);
+    if (!session) return false;
+    this.log('session: closed, credential rotated', 'id', session.id, 'scope', scopeKey);
+    await session.close();
+    return true;
+  }
+
   async closeAll(): Promise<void> {
     clearInterval(this.sweeper);
     for (const session of [...this.byId.values()]) await session.close();

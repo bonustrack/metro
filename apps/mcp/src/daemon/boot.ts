@@ -11,7 +11,7 @@ import {
   startWebhookServer,
   trainEventToMetroEvent,
 } from './http.js';
-import { createMetroMcp } from '../mcp/index.js';
+import { closeAgentSession, createMetroMcp } from '../mcp/index.js';
 import { metroCall } from '../mcp/ctx.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import { accountStationCapabilities } from '../stations/registry.js';
@@ -22,7 +22,9 @@ import {
   deleteAgentForEmail,
   listAgentsForEmail,
   ownedAgentOrThrow,
+  resetAgentKeyForEmail,
   userIdForEmail,
+  type ResetAgentKey,
 } from '../db/agent-admin.js';
 import {
   attachAccountToAgent,
@@ -96,11 +98,26 @@ const attachSessions = new AttachSessions({
   },
 });
 
+async function resetAgentKey(
+  email: string,
+  granted: string[],
+  id: number,
+): Promise<ResetAgentKey> {
+  const reset = await resetAgentKeyForEmail(email, granted, id);
+  const closed = await closeAgentSession(id);
+  log.info(
+    { agent: reset.name, id: reset.id, sessionClosed: closed },
+    'agent-api: key rotated, live session dropped',
+  );
+  return reset;
+}
+
 const agentApi: AgentApiDeps = {
   attachSessions,
   listAgents: listAgentsForEmail,
   createAgent: createAgentForEmail,
   deleteAgent: deleteAgentForEmail,
+  resetKey: resetAgentKey,
   gatherAccounts: gatherAccountsForAgents,
   capabilities: accountStationCapabilities,
   prepareAccount,

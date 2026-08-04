@@ -184,10 +184,10 @@ with no foreign key; the one FK in the schema is `agents.owner_id → users.id`
 one is authenticated as that agent and **scoped to that agent's accounts only** — on
 `/mcp`, on the Monitor transport and on `/attach`. There is no unscoped identity left,
 so nothing in the daemon can see every agent at once. Because a key identifies exactly
-one agent, the MCP url needs no agent selector beyond the token itself. The cost of the
-1:1 is that there is **no key rotation**: a column holds one value, so replacing a key
-means overwriting it and re-pointing every client at the same time, with no overlap
-window.
+one agent, the MCP url needs no agent selector beyond the token itself. Because a column
+holds one value, a **reset is a hard cutover with no overlap window**: the old key stops
+working the instant the new one starts, and every client has to be re-pointed. That is
+what `POST /api/agents/<id>/key` does — see *Resetting an agent's key* below.
 
 The `allowlist` column is the sender ids allowed to drive that account's session;
 inbound from anyone else is dropped. It defaults to `['*']` (allow all senders); set a
@@ -266,11 +266,10 @@ INSERT INTO accounts (agent_id, station, account_id, config)
 > value the unique constraint raises and the whole migration rolls back, leaving `keys`
 > intact, which is the intended fail-loud.
 >
-> **What this gives up: key rotation.** With a `keys` table you could add a second key,
-> move clients over, then delete the old one. A single column cannot hold two values, so
-> rotating now means overwriting `agents.key` and re-pointing every client at once, with
-> no overlap window. That was a deliberate trade for one key per agent and an unambiguous
-> `?token=`.
+> **What this gives up: overlapping keys.** With a `keys` table you could add a second key,
+> move clients over, then delete the old one. A single column cannot hold two values, so a
+> reset overwrites `agents.key` and re-points every client at once, with no overlap window.
+> That was a deliberate trade for one key per agent and an unambiguous `?token=`.
 
 ### Self-serve agents from the web UI
 
@@ -283,6 +282,7 @@ before the MCP auth gate:
 | `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. Every account carries the `agentId` it belongs to, so the panel can show accounts under their agent instead of in one global list. For agents the email **owns**, each key also carries its value, its `?token=` endpoint and the paste-ready `claude mcp add …` command. |
 | `POST /api/agents` `{"name":"…"}` | Create an agent owned by the signed-in email, mint its API key, and return the key together with the paste-ready `claude mcp add …` command. |
 | `DELETE /api/agents/<id>` | Delete an agent the signed-in email **owns**, and revoke its key. |
+| `POST /api/agents/<id>/key` | Reset the key of an agent the signed-in email **owns**: mint a new one, revoke the old one everywhere, and return the new key with its `?token=` endpoint and paste-ready `claude mcp add …` command. |
 | `POST /api/agents/<id>/accounts/start` `{"station":"…","token":"…"}` | Attach a station account to an agent the signed-in email **owns**. Validates the credential against the provider first, writes the `accounts` row, and reloads that station. |
 | `DELETE /api/agents/<id>/accounts/<station>/<account_id>` | Detach one of that agent's station accounts, forget its credentials, and reload (or stop) the station. |
 
@@ -334,6 +334,37 @@ deletion never cascades into station credentials. Detach the accounts first (fro
 page, or with plain SQL), then delete the agent. This also makes "the daemon materialises a
 station for a deleted agent" impossible by construction: an agent can only be deleted when it
 owns zero accounts.
+
+**Resetting an agent's key.** `POST /api/agents/<id>/key` mints a new key for an agent the
+signed-in email **owns** and revokes the old one, in one step. Authorisation is the same
+`ownedAgentOrThrow` predicate delete and attach use, so it cannot drift from them: somebody
+else's agent or an unknown id is a flat `404 no such agent`, and an operator-provisioned row a
+grantee can merely *see* is `403`. It is a session route like the rest — an agent key cannot
+reset itself. The response is `200 {id, name, reset: true, key, endpoint, command}`, the same
+credential shape `POST /api/agents` returns.
+
+There is **no overlap window, by design**:
+
+- One `UPDATE agents SET key = … WHERE id = … AND owner_id = …` re-asserts ownership in the
+  statement itself, and a `23505` unique violation is retried with a fresh key, so the
+  `agents_key_unique` constraint cannot be tripped.
+- The in-memory key map is then swapped in a single synchronous `rotateAgentKey` call — evict
+  the old digest, insert the new one — so there is never a moment with two live keys for one
+  agent, nor one with none. The row commits, then the map swaps, then the new key goes out in
+  the response.
+- The old key stops authenticating on `/mcp`, on the Monitor transport and on `/attach` on the
+  very next request, with no restart.
+- **The live MCP session for that agent is closed and its SSE stream is ended at the wire.** A
+  stream authenticates once, when it attaches, so a client holding the old key would otherwise
+  keep receiving that agent's traffic indefinitely. The client reconnects with the new key and
+  picks up where it left off: the per-identity replay ledger survives the session, so a message
+  that arrives during the gap is delivered on reconnect.
+- **Attachment links are not affected.** Each link carries its own per-attachment token, not the
+  agent's key (see *Attachments* below). The one exception is transitional: links minted before
+  that change embedded the key verbatim, and the first reset kills all of them — which is
+  exactly how you retire a key that has leaked into chat history or an archive.
+- Nothing else changes: station accounts, the agent's id and name, and every other agent's key
+  are untouched.
 
 | Var | Default | Meaning |
 | --- | --- | --- |
@@ -502,12 +533,24 @@ whole-station query stops working the moment a second agent joins that station.
 ### Attachment links
 
 Inbound media is cached under `$HOME/.cache/metro/messenger-uploads` and surfaced
-on the event as an absolute `/attach/<name>` url on `METRO_PUBLIC_URL`, carrying
-the owning agent's key as `?token=`. When the daemon mints that url it records
-the owning agent id next to the cached file, and `/attach` serves the file only
-to a credential scoped to that agent — so one agent can fetch what was sent to
-its own accounts and nothing else, even knowing another agent's file name. An
-attachment with no recorded owner is refused, never served.
+on the event as an absolute `/attach/<name>` url on `METRO_PUBLIC_URL`. The
+`?token=` in that url is a **per-attachment token** — 32 CSPRNG bytes, good for
+that one file and nothing else. It is **not** the agent's key: a delivered link
+travels through chat history, logs and archives, and it must not be a copy of a
+credential that opens `/mcp`.
+
+When the daemon mints the url it writes two 0600 sidecars next to the cached
+file: `.owner` (the agent id) and `.grant` (the token, bound to that same agent
+id). `/attach` serves the file on either of two paths, and both re-check the
+owner: the caller presents that attachment's own token, or the caller
+authenticates as an identity scoped to the owning agent. Anything else — another
+attachment's token, another agent's key, an unknown or missing token, an
+attachment with no recorded owner — is a flat `401`, never a serve. The
+capability path fails closed: no `.grant` file means no token can match it.
+
+Because the link's authority is its own token, **resetting an agent's key does
+not break links already handed out**. Links minted before this change did carry
+the key, and a reset kills those.
 
 ## How it works
 

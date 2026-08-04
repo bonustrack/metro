@@ -7,7 +7,7 @@ import { CARD_PADDING } from '../theme';
 import { accountsForAgent, type AccountGroup } from '../api/accounts';
 import { detachAccount, type AttachResult } from '../api/attach';
 import { type AttachSession as Session } from '../api/attach-session';
-import { type AgentSummary } from '../api/client';
+import { resetAgentKey, type AgentSummary } from '../api/client';
 import { AccountList } from './AccountList';
 import { AgentCredentials } from './AgentCredentials';
 import { AttachAccount } from './AttachAccount';
@@ -53,6 +53,11 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
     onChanged();
   };
 
+  const onReset = async (id: number): Promise<void> => {
+    await resetAgentKey(token, id);
+    onChanged();
+  };
+
   return (
     <Col gap={20}>
       <Col gap={2}>
@@ -60,7 +65,11 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
         <Text size="2xs" role="secondary">{subtitle(agent)}</Text>
       </Col>
       <Card dark={dark} padding={CARD_PADDING}>
-        <AgentCredentials agent={agent} endpoint={props.endpoint} />
+        <AgentCredentials
+          agent={agent}
+          endpoint={props.endpoint}
+          onReset={onReset}
+        />
       </Card>
       <Col gap={10}>
         <Text size="lg" weight="semibold">Accounts</Text>

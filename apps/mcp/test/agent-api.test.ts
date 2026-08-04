@@ -9,6 +9,7 @@ import {
   normalizeAgentName,
   type AgentSummary,
   type DeletedAgent,
+  type ResetAgentKey,
 } from '../src/db/agent-admin.ts';
 
 const SECRET = 'agent-api-test-secret';
@@ -61,19 +62,35 @@ let scopes: Set<number>[] = [];
 let created: { email: string; name: string }[] = [];
 let rows: Row[] = [...SEED];
 let deleteCalls: { email: string; granted: string[]; id: number }[] = [];
+let resetCalls: { email: string; granted: string[]; id: number }[] = [];
+let liveKeys: Record<number, string> = {};
 let nextId = 10;
+let resetSerial = 0;
 
-function removeAgent(email: string, granted: string[], id: number): DeletedAgent {
-  deleteCalls.push({ email, granted, id });
+function ownedRowOrThrow(
+  email: string,
+  granted: string[],
+  id: number,
+  verb: string,
+): Row {
   const ownerId = userIdFor(email);
   const row = rows.find((r) => r.id === id);
   if (!row) throw new AgentAdminError('no such agent', 404);
   if (row.ownerId === null) {
     if (!granted.includes(row.name)) throw new AgentAdminError('no such agent', 404);
-    throw new AgentAdminError('operator-provisioned agents cannot be deleted here', 403);
+    throw new AgentAdminError(
+      `operator-provisioned agents cannot be ${verb} here`,
+      403,
+    );
   }
   if (ownerId === null || row.ownerId !== ownerId)
     throw new AgentAdminError('no such agent', 404);
+  return row;
+}
+
+function removeAgent(email: string, granted: string[], id: number): DeletedAgent {
+  deleteCalls.push({ email, granted, id });
+  const row = ownedRowOrThrow(email, granted, id, 'deleted');
   if (row.name === 'busy-bot')
     throw new AgentAdminError(
       "agent 'busy-bot' still has 2 station account(s) attached, an operator must remove them first",
@@ -81,6 +98,19 @@ function removeAgent(email: string, granted: string[], id: number): DeletedAgent
     );
   rows = rows.filter((r) => r.id !== id);
   return { id: row.id, name: row.name };
+}
+
+function resetKeyOf(
+  email: string,
+  granted: string[],
+  id: number,
+): ResetAgentKey {
+  resetCalls.push({ email, granted, id });
+  const row = ownedRowOrThrow(email, granted, id, 'reset');
+  resetSerial += 1;
+  const key = `mk_rotated_${row.id}_${resetSerial}`;
+  liveKeys[row.id] = key;
+  return { id: row.id, name: row.name, key };
 }
 
 const deps: AgentApiDeps = {
@@ -103,6 +133,13 @@ const deps: AgentApiDeps = {
   deleteAgent: (email, granted, id) => {
     try {
       return Promise.resolve(removeAgent(email, granted, id));
+    } catch (e) {
+      return Promise.reject(e as Error);
+    }
+  },
+  resetKey: (email, granted, id) => {
+    try {
+      return Promise.resolve(resetKeyOf(email, granted, id));
     } catch (e) {
       return Promise.reject(e as Error);
     }
@@ -168,6 +205,8 @@ afterEach(() => {
   created = [];
   rows = [...SEED];
   deleteCalls = [];
+  resetCalls = [];
+  liveKeys = {};
   leakGrantedKeys = false;
   delete process.env.GOOGLE_EMAIL_AGENTS;
 });
@@ -560,6 +599,141 @@ describe('DELETE /api/agents/:id', () => {
       'station account(s) attached',
     );
     expect(rows.map((r) => r.id)).toEqual([1, 2, 5, 6]);
+  });
+});
+
+interface ResetBody {
+  id: number;
+  name: string;
+  key: string;
+  endpoint: string;
+  command: string;
+  reset: boolean;
+  error?: string;
+}
+
+const resetKey = (token: string | undefined, path: string): Promise<Response> =>
+  fetch(`${base}/api/agents/${path}/key`, {
+    method: 'POST',
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+
+describe('POST /api/agents/:id/key', () => {
+  test('an owner resets their own agent key and gets the new one back', async () => {
+    const res = await resetKey(session('ada@lovelace.dev'), '1');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as ResetBody;
+    expect(body.id).toBe(1);
+    expect(body.name).toBe('ada-bot');
+    expect(body.reset).toBe(true);
+    expect(body.key).toBe(liveKeys[1]);
+    expect(body.endpoint).toBe(`${PUBLIC}/mcp?token=${body.key}`);
+    expect(body.command).toBe(mcpAddCommand(body.key));
+  });
+
+  test('the new key is never the old one', async () => {
+    const first = (await (
+      await resetKey(session('ada@lovelace.dev'), '1')
+    ).json()) as ResetBody;
+    const second = (await (
+      await resetKey(session('ada@lovelace.dev'), '1')
+    ).json()) as ResetBody;
+    expect(second.key).not.toBe(first.key);
+    expect(second.key).not.toBe('mk_fake_ada-bot');
+  });
+
+  test('a non-owner cannot reset another agent key', async () => {
+    const res = await resetKey(session('ada@lovelace.dev'), '2');
+    expect(res.status).toBe(404);
+    expect(liveKeys).toEqual({});
+    expect(resetCalls).toEqual([
+      { email: 'ada@lovelace.dev', granted: [], id: 2 },
+    ]);
+  });
+
+  test('the refusal for someone else agent leaks no key material', async () => {
+    const body = await (await resetKey(session('bob@builder.dev'), '1')).text();
+    expect(body).not.toContain('mk_');
+    expect(body).toBe(JSON.stringify({ error: 'no such agent' }));
+  });
+
+  test('an operator row is refused even when the session can see it', async () => {
+    process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
+    const res = await resetKey(session('ada@lovelace.dev'), '5');
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as ResetBody).error).toContain(
+      'operator-provisioned',
+    );
+    expect(liveKeys).toEqual({});
+  });
+
+  test('an operator row the session cannot see is a plain 404', async () => {
+    expect((await resetKey(session('ada@lovelace.dev'), '5')).status).toBe(404);
+    expect(liveKeys).toEqual({});
+  });
+
+  test('resetting without a session is 401 and rotates nothing', async () => {
+    expect((await resetKey(undefined, '1')).status).toBe(401);
+    expect(resetCalls).toEqual([]);
+    expect(liveKeys).toEqual({});
+  });
+
+  test('a session signed with another secret rotates nothing', async () => {
+    const res = await resetKey(session('ada@lovelace.dev', 'other-secret'), '1');
+    expect(res.status).toBe(401);
+    expect(resetCalls).toEqual([]);
+  });
+
+  test('an agent key is not a session and cannot reach the reset route', async () => {
+    const res = await resetKey('mk_fake_ada-bot', '1');
+    expect(res.status).toBe(401);
+    expect(resetCalls).toEqual([]);
+  });
+
+  test('the owner is always the session email, never anything from the request', async () => {
+    await resetKey(session('ADA@Lovelace.dev'), '1');
+    expect(resetCalls).toEqual([
+      { email: 'ada@lovelace.dev', granted: [], id: 1 },
+    ]);
+  });
+
+  test('GET and DELETE on the key sub-resource are 405', async () => {
+    const headers = { authorization: `Bearer ${session('ada@lovelace.dev')}` };
+    for (const method of ['GET', 'DELETE']) {
+      const res = await fetch(`${base}/api/agents/1/key`, { method, headers });
+      expect(res.status).toBe(405);
+    }
+    expect(resetCalls).toEqual([]);
+  });
+
+  test('a malformed id never reaches the database', async () => {
+    for (const bad of ['abc', '0', '-1', '1.5', 'ada-bot'])
+      expect((await resetKey(session('ada@lovelace.dev'), bad)).status).toBe(404);
+    expect(resetCalls).toEqual([]);
+  });
+
+  test('a deeper path under key is a 404, not a reset', async () => {
+    const res = await fetch(`${base}/api/agents/1/key/rotate`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+    });
+    expect(res.status).toBe(404);
+    expect(resetCalls).toEqual([]);
+  });
+
+  test('an unknown id is 404', async () => {
+    expect((await resetKey(session('ada@lovelace.dev'), '9999')).status).toBe(404);
+  });
+
+  test('OPTIONS preflight on the key sub-resource advertises POST', async () => {
+    const res = await fetch(`${base}/api/agents/1/key`, { method: 'OPTIONS' });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-methods')).toContain('POST');
+  });
+
+  test('the reset response is marked no-store', async () => {
+    const res = await resetKey(session('ada@lovelace.dev'), '1');
+    expect(res.headers.get('cache-control')).toBe('no-store');
   });
 });
 

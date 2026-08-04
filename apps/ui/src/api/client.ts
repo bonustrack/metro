@@ -146,3 +146,25 @@ export async function createAgent(token: string, name: string): Promise<CreatedA
 export async function deleteAgent(token: string, id: number): Promise<void> {
   await call(token, { method: 'DELETE', path: `/${id}` });
 }
+
+export async function resetAgentKey(
+  token: string,
+  id: number,
+): Promise<CreatedAgent> {
+  const body = await call(token, { method: 'POST', path: `/${id}/key` });
+  if (
+    !isRecord(body) ||
+    typeof body.name !== 'string' ||
+    typeof body.key !== 'string' ||
+    typeof body.command !== 'string' ||
+    typeof body.endpoint !== 'string'
+  )
+    throw new Error('Metro returned an unexpected response.');
+  return {
+    id: typeof body.id === 'number' ? body.id : id,
+    name: body.name,
+    key: body.key,
+    endpoint: body.endpoint,
+    command: body.command,
+  };
+}
