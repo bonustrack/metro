@@ -69,7 +69,7 @@ describe('session registry', () => {
     const tony = await reg.create(TONY);
     const lisa = await reg.create(LISA);
     expect(reg.ownership(tony.id, sessionScopeKey(TONY))).toBe('mine');
-    expect(reg.ownership(tony.id, sessionScopeKey(TONY_OWNER))).toBe('mine');
+    expect(reg.ownership(tony.id, sessionScopeKey(TONY_OWNER))).toBe('theirs');
     expect(reg.ownership(tony.id, sessionScopeKey(LISA))).toBe('theirs');
     expect(reg.ownership(lisa.id, sessionScopeKey(TONY))).toBe('theirs');
     expect(reg.ownership(randomUUID(), sessionScopeKey(TONY))).toBe('none');
