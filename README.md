@@ -490,6 +490,11 @@ events; the agent replies with the tools above, and tool-approval prompts relay 
 chat so you can answer from your phone. (Requires Claude Code v2.1.80+ and claude.ai or
 Console API auth.)
 
+Inbound is only noticed between tool calls, so a session busy with a build or a grep
+answers late. [Orchestrator-only main thread](ORCHESTRATOR.md) is the optional
+configuration that fixes that: a `PreToolUse` hook leaves the main thread able to
+delegate and to talk on Metro, and moves all other work to subagents.
+
 ### Monitor transport
 
 The **Channel** above is the primary transport. The **Monitor** is an optional
