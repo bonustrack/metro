@@ -1,8 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Text } from './ui';
+import { CARD_PADDING } from '../theme';
 import { accountsForAgent, type AccountGroup } from '../api/accounts';
 import { detachAccount, type AttachResult } from '../api/attach';
 import { type AttachSession as Session } from '../api/attach-session';
@@ -58,7 +59,7 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
         <Text size="2xl" weight="semibold">{agent.name}</Text>
         <Text size="2xs" role="secondary">{subtitle(agent)}</Text>
       </Col>
-      <Card dark={dark} padding={14}>
+      <Card dark={dark} padding={CARD_PADDING}>
         <AgentCredentials agent={agent} endpoint={props.endpoint} />
       </Card>
       <Col gap={10}>

@@ -1,10 +1,9 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
-import { Input } from '@stage-labs/kit/react-native/input';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
+import { Text, Button, Input } from './ui';
+import { CARD_PADDING } from '../theme';
 import {
   useKitPalette,
   useKitScheme,
@@ -181,7 +180,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
   };
 
   return (
-    <Card dark={dark} padding={18}>
+    <Card dark={dark} padding={CARD_PADDING}>
       <Col gap={14}>
         <Col gap={4}>
           <Text size="lg" weight="semibold">

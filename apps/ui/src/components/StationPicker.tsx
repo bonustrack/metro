@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
-import { Button } from '@stage-labs/kit/react-native/button';
+import { Button } from './ui';
 import {
   useKitPalette,
   useKitScheme,

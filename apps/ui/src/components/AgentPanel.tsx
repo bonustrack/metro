@@ -1,9 +1,9 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Text, Button } from './ui';
+import { CARD_PADDING } from '../theme';
 import { type AccountGroup } from '../api/accounts';
 import { type AgentSummary, type CreatedAgent } from '../api/client';
 import { AgentDetail } from './AgentDetail';
@@ -14,7 +14,7 @@ import { type Selection } from './selection';
 function Hint({ text, onNew }: { text: string; onNew: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
-    <Card dark={dark} padding={18}>
+    <Card dark={dark} padding={CARD_PADDING}>
       <Col gap={12} align="start">
         <Text role="secondary">{text}</Text>
         <Button size="sm" color="primary" dark={dark} label="New agent" onPress={onNew} />

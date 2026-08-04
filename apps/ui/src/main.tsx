@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import './index.css';
 import { KitThemeProvider, type KitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { semanticPalette } from '@stage-labs/kit/tokens';
 import { App } from './App';
