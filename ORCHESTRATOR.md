@@ -141,8 +141,10 @@ agent_id=$(printf '%s' "$payload" | jq -r '.agent_id // empty' 2>/dev/null)
 # finishes, so inbound metro messages are neither seen nor acknowledged for the
 # whole run. Background is the tool's default, so this matches ONLY an explicit
 # boolean false: omitted or true is untouched, as is every other tool. jq -e
-# exits non-zero on false/null and on any parse error, so a malformed payload
-# fails open rather than locking the orchestrator out of delegating.
+# exits non-zero on false/null and on any parse error, so THIS branch never
+# fires on a malformed payload and never locks the orchestrator out of
+# delegating. Such a payload is not allowed either: it has no tool name at
+# all, so it falls through to the catch-all deny at the bottom.
 if [[ "$tool" == "Agent" ]] &&
   printf '%s' "$payload" | jq -e '.tool_input.run_in_background == false' >/dev/null 2>&1; then
   deny "Foreground subagents blind the main thread: it cannot see or acknowledge inbound metro messages until the agent finishes. Re-issue the identical Agent call with run_in_background: true, then wait for the task notification."
@@ -309,8 +311,7 @@ report discipline in that last paragraph is what keeps the arrangement honest.
   weakening the default.
 - **A payload that does not parse is denied, not allowed.** Only the
   `run_in_background` check fails open on a parse error, which is deliberate so a
-  malformed payload can never block delegation. The script's own comment says "fails
-  open" without that qualifier and is misleading: a payload that fails to parse at all
+  malformed payload can never block delegation. A payload that fails to parse at all
   yields an empty tool name and falls through to the catch-all `deny`, whose message
   reads a little oddly with a blank tool name. That is a denial, which is the safe
   direction.
