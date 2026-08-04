@@ -1,0 +1,6 @@
+@supports (text-box-trim: trim-both) {
+  [role='button'] > div[dir='auto'] {
+    text-box: trim-both cap alphabetic;
+    padding-block: 0.35em;
+  }
+}

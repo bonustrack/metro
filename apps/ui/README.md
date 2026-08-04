@@ -151,13 +151,34 @@ component drops out of the font stack and the size scale.
 so all of them move together and the proportions of the scale hold. It is `16 / 15`: one
 step up the kit's own scale, 15px body text rendering at 16px.
 
-Button labels get an explicit `lineHeight`. The kit's `Button` sets a font size on its
-label and no line height, so the label lays out at `line-height: normal`, where the line
-box is taller than the text's content area by the font's line gap and the browser puts
-that gap below the text rather than splitting it. `align-items: center` then centres a box
-whose text is not centred inside it, and every label sits a pixel high in its pill. An
-explicit line height splits the leading evenly, which is what actually centres it. Do not
-paper over this with a `marginTop`.
+Button labels are centred by `src/index.css`, not by a line height. A pill is a
+fixed-height flex row with `align-items: center`, so the browser centres the label's *line
+box* — and that box is not symmetric around the letters. Its height is the font's ascent +
+descent + line gap, the baseline sits at `ascent + floor(halfLeading)` (Blink floors it, so
+an odd leading drops one more pixel below the text than above), and on top of that every
+family has its own gap between the ascent and the cap height, which is rarely equal to its
+descent. The result is that identical markup reads centred in one font and high in another:
+in Calibre the leading is exactly 3px at both button sizes, so the cap band lands 1.21px
+off in a 32px pill.
+
+An explicit `lineHeight` does **not** fix this, and an earlier revision of this file
+claiming it does was wrong. The leading's parity depends on the font's own rounded ascent
+and descent, so a value that splits evenly in one family splits odd in the next; measured
+across five families it fixed some sizes and broke others.
+
+`text-box-trim` is the property built for the problem. It trims the line box to the cap
+height on top and the alphabetic baseline underneath, so the box the flex row centres *is*
+the band the eye reads, derived by the browser from each font's own metrics — no per-font
+nudge, and correct for Calibre and every fallback alike. The trimmed box stops at the
+baseline and the label carries `overflow: hidden` from `numberOfLines={1}`, which would cut
+the tails off g/j/p/q/y, so a symmetric `padding-block` gives them room back without moving
+the cap band. It is behind `@supports` so a browser without the property renders exactly as
+it did before rather than getting the padding on its own.
+
+What is left is Chrome's own pixel grid: it paints the baseline snapped to a whole CSS
+pixel at every DPR, so when the ideal baseline falls mid-pixel the label can still sit up to
+half a pixel off. That residual is not tunable from CSS — do not chase it with a `marginTop`
+or a `translateY`, and do not special-case a font.
 
 Cards take their inset from `CARD_PADDING` (`CARD_PADDING_ROW` for sidebar rows,
 `CARD_PADDING_PANEL` for the signed-out panel) rather than a literal, so stacked cards line
@@ -204,9 +225,14 @@ imported from `src/main.tsx`, plus a preload for the primary weight in `index.ht
 ```
 
 The family names must stay exactly as the kit spells them, and they are already first in
-the stacks in `src/theme.ts`, so nothing else has to change. Verify it on a machine that
-does **not** have Calibre installed: a machine that does will look correct either way,
-which is the whole bug.
+the stacks in `src/theme.ts`, so nothing else has to change. Verify the *fallback* on a
+machine that does **not** have Calibre installed — a machine that does will resolve the
+family either way, which is what hides this particular bug.
+
+Vertical metrics are a separate axis and Calibre is not exempt: check button labels on a
+machine that *does* have it too. Calibre's own numbers are 1000 upem, typo ascender 800,
+descender −200, line gap 200, `USE_TYPO_METRICS` set, cap height 614 — a 1.2em `normal`
+line box whose leading is odd at every size the panel uses. See Type above.
 
 Kit `Button` resolves its colours from a `dark` prop that defaults to `false`, exactly like
 `Card` does — it does not read the theme context. Every `<Button>` here therefore passes
