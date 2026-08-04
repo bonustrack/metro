@@ -1,8 +1,9 @@
 import { type ReactNode } from 'react';
 import { Box, Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Text } from './ui';
+import { CARD_PADDING } from '../theme';
 import { type AccountGroup, type AccountRow } from '../api/accounts';
 import { DetachAccount } from './DetachAccount';
 import { Field } from './Field';
@@ -29,7 +30,7 @@ interface AccountCardProps {
 function AccountCard({ station, row, dark, onDetach }: AccountCardProps): ReactNode {
   const id = row.id;
   return (
-    <Card dark={dark} padding={14}>
+    <Card dark={dark} padding={CARD_PADDING}>
       <Col gap={12}>
         <Row gap={20} wrap>
           {row.fields.map((f) => (

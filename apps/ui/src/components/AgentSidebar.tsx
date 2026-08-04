@@ -1,9 +1,9 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Text, Button } from './ui';
+import { CARD_PADDING_ROW } from '../theme';
 import { countAccounts, type AccountGroup } from '../api/accounts';
 import { type AgentSummary } from '../api/client';
 import { type Selection } from './selection';
@@ -21,7 +21,7 @@ function AgentItem({ agent, accounts, selected, onPress }: AgentItemProps): Reac
   return (
     <Card
       dark={dark}
-      padding={12}
+      padding={CARD_PADDING_ROW}
       background={selected ? undefined : palette.bg}
       onPress={onPress}
     >

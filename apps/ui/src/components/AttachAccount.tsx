@@ -1,10 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
-import { Input } from '@stage-labs/kit/react-native/input';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Text, Button, Input } from './ui';
+import { CARD_PADDING } from '../theme';
 import {
   startAttach,
   STATION_FORMS,
@@ -76,7 +75,7 @@ function FormFields({
               onChange(field.key, value);
             }}
             onSubmit={onSubmit}
-            style={{ flexGrow: 1, minWidth: 260 }}
+            style={{ flexGrow: 1, minWidth: 0 }}
           />
         </Col>
       ))}
@@ -118,7 +117,7 @@ export function AttachAccount(props: AttachAccountProps): ReactNode {
   };
 
   return (
-    <Card dark={dark} padding={18}>
+    <Card dark={dark} padding={CARD_PADDING}>
       <Col gap={12}>
         <Col gap={2}>
           <Text size="lg" weight="semibold">

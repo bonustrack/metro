@@ -141,6 +141,73 @@ daemon. Deploy previews work once metro.box's daemon has the callback + envs.
 
 Styling comes from `@stage-labs/kit`, rendered on the web via `react-native-web`.
 
+### Type
+
+`src/theme.ts` owns the panel's type, and `src/components/ui.tsx` is where it is applied.
+Import `Text`, `Button` and `Input` from `./ui`, never from the kit directly, or the
+component drops out of the font stack and the size scale.
+
+`TYPE_SCALE` is the single knob for text size — it multiplies every size the kit resolves,
+so all of them move together and the proportions of the scale hold. It is `16 / 15`: one
+step up the kit's own scale, 15px body text rendering at 16px.
+
+Button labels get an explicit `lineHeight`. The kit's `Button` sets a font size on its
+label and no line height, so the label lays out at `line-height: normal`, where the line
+box is taller than the text's content area by the font's line gap and the browser puts
+that gap below the text rather than splitting it. `align-items: center` then centres a box
+whose text is not centred inside it, and every label sits a pixel high in its pill. An
+explicit line height splits the leading evenly, which is what actually centres it. Do not
+paper over this with a `marginTop`.
+
+Cards take their inset from `CARD_PADDING` (`CARD_PADDING_ROW` for sidebar rows,
+`CARD_PADDING_PANEL` for the signed-out panel) rather than a literal, so stacked cards line
+up down the page instead of drifting a few pixels apart.
+
+### Fonts
+
+**Calibre is not self-hosted yet, and it needs to be.** The kit names its families
+`Calibre-Medium`, `Calibre-Semibold` and `Menlo`, and ships no `@font-face` for any of
+them. A bare family name only resolves on a machine that has the font installed locally, so
+the panel renders in Calibre on a designer's laptop and in the browser's default serif —
+Times New Roman — on a phone, a second laptop, or Windows.
+
+`FONT_SANS` / `FONT_HEAD` / `FONT_MONO` in `src/theme.ts` keep the Calibre family first and
+put the platform UI font behind it. That is a fallback, not a fix: it stops the panel
+rendering as Times, and it leaves headings and body text at the same weight on any device
+without Calibre, because the two Calibre weights are separate family names rather than one
+family at two weights.
+
+Calibre is a commercial Klim Type Foundry face and its files are not in this repo. To
+finish the job, drop the licensed webfont kit into `apps/ui/public/fonts/` and add:
+
+```css
+@font-face {
+  font-family: 'Calibre-Medium';
+  src: local('Calibre Medium'), url('/fonts/Calibre-Medium.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Calibre-Semibold';
+  src: local('Calibre Semibold'), url('/fonts/Calibre-Semibold.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+```
+
+imported from `src/main.tsx`, plus a preload for the primary weight in `index.html`:
+
+```html
+<link rel="preload" href="/fonts/Calibre-Medium.woff2" as="font" type="font/woff2" crossorigin />
+```
+
+The family names must stay exactly as the kit spells them, and they are already first in
+the stacks in `src/theme.ts`, so nothing else has to change. Verify it on a machine that
+does **not** have Calibre installed: a machine that does will look correct either way,
+which is the whole bug.
+
 Kit `Button` resolves its colours from a `dark` prop that defaults to `false`, exactly like
 `Card` does — it does not read the theme context. Every `<Button>` here therefore passes
 `dark={useKitScheme() === 'dark'}`. Omitting it paints a light-scheme button on the dark

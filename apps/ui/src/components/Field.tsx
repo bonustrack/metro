@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
+import { Text } from './ui';
 
 export function Field({ label, value }: { label: string; value: string }): ReactNode {
   return (
