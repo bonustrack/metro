@@ -1,3 +1,19 @@
+@font-face {
+  font-family: 'Calibre-Medium';
+  src: url('/fonts/Calibre-Medium.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Calibre-Semibold';
+  src: url('/fonts/Calibre-Semibold.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @supports (text-box-trim: trim-both) {
   [role='button'] > div[dir='auto'] {
     text-box: trim-both cap alphabetic;

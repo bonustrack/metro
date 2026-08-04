@@ -186,53 +186,86 @@ up down the page instead of drifting a few pixels apart.
 
 ### Fonts
 
-**Calibre is not self-hosted yet, and it needs to be.** The kit names its families
-`Calibre-Medium`, `Calibre-Semibold` and `Menlo`, and ships no `@font-face` for any of
-them. A bare family name only resolves on a machine that has the font installed locally, so
-the panel renders in Calibre on a designer's laptop and in the browser's default serif —
-Times New Roman — on a phone, a second laptop, or Windows.
+**Calibre is self-hosted from this repo.** The kit names its families `Calibre-Medium`,
+`Calibre-Semibold` and `Menlo`, and ships no `@font-face` for any of them. A bare family
+name only resolves on a machine that has the font installed locally, so before the faces
+below existed the panel rendered in Calibre on a designer's laptop and in the platform UI
+font — or, before the stack in `src/theme.ts`, in the browser's default serif — on a phone,
+a second laptop, or Windows.
 
-`FONT_SANS` / `FONT_HEAD` / `FONT_MONO` in `src/theme.ts` keep the Calibre family first and
-put the platform UI font behind it. That is a fallback, not a fix: it stops the panel
-rendering as Times, and it leaves headings and body text at the same weight on any device
-without Calibre, because the two Calibre weights are separate family names rather than one
-family at two weights.
+The two files live in `public/fonts/`, so Vite copies them verbatim into `dist/fonts/` and
+they are served from a stable path that `index.html` can preload:
 
-Calibre is a commercial Klim Type Foundry face and its files are not in this repo. To
-finish the job, drop the licensed webfont kit into `apps/ui/public/fonts/` and add:
+| file | bytes |
+| --- | --- |
+| `public/fonts/Calibre-Medium.woff2` | 17328 |
+| `public/fonts/Calibre-Semibold.woff2` | 19264 |
+
+They are byte-identical to the subset build snapshot.box ships — `Calibre-Medium-Custom.woff2`
+and `Calibre-Semibold-Custom.woff2` under `packages/tune/src/assets/fonts/` in `sx-monorepo`
+— 447 glyphs over 370 codepoints. Calibre is a commercial Klim Type Foundry face: the repo's
+MIT `LICENSE` covers the source, not these two files, which are here under Snapshot Labs'
+own Klim licence. Do not copy them out into another project.
+
+`src/index.css`, imported from `src/main.tsx`, declares them:
 
 ```css
 @font-face {
   font-family: 'Calibre-Medium';
-  src: local('Calibre Medium'), url('/fonts/Calibre-Medium.woff2') format('woff2');
+  src: url('/fonts/Calibre-Medium.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Calibre-Semibold';
-  src: local('Calibre Semibold'), url('/fonts/Calibre-Semibold.woff2') format('woff2');
+  src: url('/fonts/Calibre-Semibold.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 ```
 
-imported from `src/main.tsx`, plus a preload for the primary weight in `index.html`:
+plus a preload for the primary weight in `index.html`:
 
 ```html
 <link rel="preload" href="/fonts/Calibre-Medium.woff2" as="font" type="font/woff2" crossorigin />
 ```
 
-The family names must stay exactly as the kit spells them, and they are already first in
-the stacks in `src/theme.ts`, so nothing else has to change. Verify the *fallback* on a
-machine that does **not** have Calibre installed — a machine that does will resolve the
-family either way, which is what hides this particular bug.
+Two rules hold this shape together and neither is cosmetic.
 
-Vertical metrics are a separate axis and Calibre is not exempt: check button labels on a
-machine that *does* have it too. Calibre's own numbers are 1000 upem, typo ascender 800,
-descender −200, line gap 200, `USE_TYPO_METRICS` set, cap height 614 — a 1.2em `normal`
-line box whose leading is odd at every size the panel uses. See Type above.
+**One face per family, at `font-weight: normal`.** The kit hardcodes the family *names*
+`Calibre-Medium` and `Calibre-Semibold` — in `text.styles.ts`, `button.styles.ts`,
+`control.styles.ts` and a dozen components — and never sets a `fontWeight`. So a single
+`Calibre` family declared at 500/600, which is how `packages/tune` does it in `sx-monorepo`,
+would match nothing here and every label would fall through to the system stack. Declaring
+each face as its own family at `normal` is what makes the kit's names resolve, and because
+nothing ever asks for a bolder weight than the face provides, no browser synthesises a
+fake bold over the real Semibold. Do not merge them into one family, and do not add a
+`font-weight` axis.
+
+**No `local()` source.** Resolving an installed copy first is what hid the original bug: a
+machine with Calibre rendered correctly whatever the CSS said. It is also non-deterministic
+— these are subsets, a retail install is not, and the button centring in Type above is
+derived from whichever file the browser actually picked. Every machine downloads the same
+36 KB and renders the same metrics.
+
+`FONT_SANS` / `FONT_HEAD` / `FONT_MONO` in `src/theme.ts` keep the Calibre family first and
+the platform UI font behind it. That stack is still load-bearing: it is what renders if the
+font request fails, and it is the per-character fallback for anything outside the subset.
+
+To check the faces are really loading rather than a local install masking a broken path,
+use a machine that does **not** have Calibre — `document.fonts` should report both families
+`loaded`, and Chrome DevTools' computed-font readout should name `Calibre Medium` /
+`Calibre Semibold` as *network resources*.
+
+Vertical metrics are a separate axis and Calibre is not exempt. Its numbers are 1000 upem,
+typo ascender 800, descender −200, line gap 200, `USE_TYPO_METRICS` set, cap height 614 — a
+1.2em `normal` line box whose leading is odd at every size the panel uses. See Type above:
+`text-box-trim` derives the cap band from exactly those numbers, so it stayed correct when
+the real font arrived (measured: the cap band centres to within 0.011px of the pill centre
+at both button sizes), and the 1.21px the untrimmed path is off by in a 32px pill is
+Calibre's figure, measured with the real face.
 
 Kit `Button` resolves its colours from a `dark` prop that defaults to `false`, exactly like
 `Card` does — it does not read the theme context. Every `<Button>` here therefore passes
