@@ -10,6 +10,7 @@ import {
 export interface ChannelGetOpts {
   transport: StreamableHTTPServerTransport;
   eventStore: BoundedEventStore;
+  scope: Set<number>;
   req: IncomingMessage;
   res: ServerResponse;
   previous: RawGetSink | undefined;
@@ -29,6 +30,7 @@ export async function serveChannelGet(opts: ChannelGetOpts): Promise<boolean> {
   await serveStandaloneGet({
     transport: opts.transport,
     eventStore: opts.eventStore,
+    scope: opts.scope,
     req: opts.req,
     res: opts.res,
     log: opts.log,

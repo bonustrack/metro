@@ -87,6 +87,7 @@ export function validateStandaloneSession(
 interface ServeOpts {
   transport: StreamableHTTPServerTransport;
   eventStore: BoundedEventStore;
+  scope: Set<number>;
   req: IncomingMessage;
   res: ServerResponse;
   log: (...a: unknown[]) => void;
@@ -94,7 +95,7 @@ interface ServeOpts {
 }
 
 export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
-  const { transport, eventStore, req, res, log, registerSink } = opts;
+  const { transport, eventStore, scope, req, res, log, registerSink } = opts;
   const sessionId = web(transport)?.sessionId;
 
   res.writeHead(200, {
@@ -129,10 +130,20 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
   const lastEventId = headerValue(req, 'last-event-id');
   if (lastEventId) {
     await eventStore.replayEventsAfter(lastEventId, {
+      scope,
       send: (id: EventId, message: JSONRPCMessage): Promise<void> => {
         if (!sink.closed)
           res.write(`event: message\nid: ${id}\ndata: ${JSON.stringify(message)}\n\n`);
         return Promise.resolve();
+      },
+      onWithheld: (id: EventId, line: string | undefined): void => {
+        log(
+          'raw-get-stream: withheld replay (frame outside the reconnecting session scope)',
+          'id',
+          id,
+          'line',
+          line ?? '(none)',
+        );
       },
     });
   }

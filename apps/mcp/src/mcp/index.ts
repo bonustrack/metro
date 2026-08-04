@@ -283,7 +283,9 @@ export async function createMetroMcp(): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
 }> {
-  const eventStore = new BoundedEventStore();
+  const eventStore = new BoundedEventStore({
+    scopeOf: () => channelOwner.scope(),
+  });
   let transport = makeTransport(eventStore);
   if ((mcp as { transport?: unknown }).transport !== undefined)
     await mcp.close().catch(() => undefined);
@@ -339,6 +341,7 @@ export async function createMetroMcp(): Promise<{
     const served = await serveChannelGet({
       transport,
       eventStore,
+      scope: allowedAgents(identity),
       req,
       res,
       previous: rawGetSink,
