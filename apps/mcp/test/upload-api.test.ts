@@ -74,7 +74,19 @@ const post = (path: string, body: BodyInit, token?: string): Promise<Response> =
   });
 
 const put = (path: string, body: BodyInit): Promise<Response> =>
-  fetch(`${base}${path}`, { method: 'PUT', body });
+  fetch(`${base}${path}`, { method: 'PUT', body, duplex: 'half' } as RequestInit);
+
+const chunked = (bytes: number): BodyInit => {
+  const chunk = new Uint8Array(1024 * 1024);
+  let sent = 0;
+  return new ReadableStream({
+    pull(controller) {
+      if (sent >= bytes) return controller.close();
+      controller.enqueue(chunk);
+      sent += chunk.length;
+    },
+  }) as unknown as BodyInit;
+};
 
 describe('POST /api/uploads with an agent key', () => {
   test('stores the bytes and answers a handle the caller can name in send', async () => {
@@ -151,6 +163,17 @@ describe('the size ceiling names itself', () => {
     expect(error).toContain(String(MAX_UPLOAD_BYTES));
     expect(error).toContain('64 MiB');
     expect(readdirSync(dir)).toHaveLength(0);
+  });
+
+  test('a chunked body leaves no .part behind and frees the slot to retry', async () => {
+    const id = createUploadSlot(1, { name: 'a.bin', mime: 'application/pdf' });
+    const token = issueUploadTicket(id, 1) ?? '';
+    const url = `/api/uploads/${id}?token=${token}`;
+    const res = await put(url, chunked(MAX_UPLOAD_BYTES + 4 * 1024 * 1024));
+    expect(res.status).toBe(413);
+    expect(readdirSync(dir).filter((f) => f.endsWith('.part'))).toHaveLength(0);
+    expect((await put(url, PDF)).status).toBe(200);
+    expect(readUpload(id)?.bytes).toBe(PDF.length);
   });
 });
 

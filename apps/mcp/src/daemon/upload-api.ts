@@ -1,4 +1,4 @@
-import { open, rename } from 'node:fs/promises';
+import { open, rename, rm, type FileHandle } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { guessMime } from '../stations/attachments.js';
 import { safeFileName } from '../stations/attach-inline.js';
@@ -119,15 +119,11 @@ function assertRoomForDeclared(req: IncomingMessage, room: number): void {
   if (declared > room) throw new ApiError(noRoom(), 507);
 }
 
-async function streamToSlot(req: IncomingMessage, id: string): Promise<number> {
-  const part = uploadPath(id, '.part');
-  const final = uploadPath(id);
-  if (part === null || final === null) throw new ApiError('bad upload id', 400);
-  const room = roomForUpload();
-  assertRoomForDeclared(req, room);
-  const handle = await open(part, 'wx', 0o600).catch(() => {
-    throw new ApiError('this upload is already being written', 409);
-  });
+async function drainInto(
+  req: IncomingMessage,
+  handle: FileHandle,
+  room: number,
+): Promise<number> {
   let over: ApiError | undefined;
   let total = 0;
   try {
@@ -143,6 +139,24 @@ async function streamToSlot(req: IncomingMessage, id: string): Promise<number> {
   }
   if (over !== undefined) throw over;
   if (total === 0) throw new ApiError('upload body is empty', 400);
+  return total;
+}
+
+async function streamToSlot(req: IncomingMessage, id: string): Promise<number> {
+  const part = uploadPath(id, '.part');
+  const final = uploadPath(id);
+  if (part === null || final === null) throw new ApiError('bad upload id', 400);
+  const room = roomForUpload();
+  assertRoomForDeclared(req, room);
+  const handle = await open(part, 'wx', 0o600).catch(() => {
+    throw new ApiError('this upload is already being written', 409);
+  });
+  const total = await drainInto(req, handle, room).catch(
+    async (err: unknown) => {
+      await rm(part, { force: true });
+      throw err;
+    },
+  );
   await rename(part, final);
   return total;
 }
