@@ -1,6 +1,11 @@
 import type { CanonicalAttachment, ToolContext } from '@metro-labs/mcp/stations/types';
 import { TrainError } from '@metro-labs/mcp/train-error';
-import { guessMime, isImageMime, isImageExt } from '@metro-labs/mcp/stations/attachments';
+import {
+  guessMime,
+  isImageMime,
+  isImageExt,
+  kindOf,
+} from '@metro-labs/mcp/stations/attachments';
 
 export const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
@@ -112,11 +117,10 @@ export async function xmtpSendAttachments(
     const mime = a.mime ?? guessMime(src);
     if (isImageMime(mime) || isImageExt(src)) {
       await ctx.call('sendImage', { line, path: src });
-      sent.push('image');
     } else {
       await sendFileAttachment(line, a, src, ctx);
-      sent.push('file');
     }
+    sent.push(kindOf(mime, src));
   }
   return sent;
 }

@@ -269,7 +269,33 @@ describe('telegram-user outbound handlers', () => {
     expect(cap.responses[0]).toMatchObject({
       op: 'response',
       id: 'h',
-      result: { messageId: '777', account: 'default' },
+      result: { messageId: '777', account: 'default', attachments: ['image'] },
+    });
+  });
+
+  test('the reported attachments come from the send loop, not the request', async () => {
+    const client = fakeClient(calls);
+    const handle = makeHandleCall(() => client);
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'i',
+      action: 'send',
+      args: {
+        line: LINE,
+        attachments: [
+          { url: '/cache/a.jpg', mime: 'image/jpeg', kind: 'image' },
+          { mime: 'image/png', kind: 'image' },
+        ],
+      },
+    });
+    cap.restore();
+    const media = calls.filter((c) => c.method === 'sendMedia');
+    expect(media).toHaveLength(1);
+    expect(cap.responses[0]).toMatchObject({
+      op: 'response',
+      id: 'i',
+      result: { attachments: ['image'] },
     });
   });
 });

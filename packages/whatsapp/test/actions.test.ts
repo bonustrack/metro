@@ -225,4 +225,43 @@ describe('whatsapp outbound handlers', () => {
     expect(cap.responses[0]).toMatchObject({ op: 'response', id: 'h' });
     expect((cap.responses[0] as { error?: string }).error).toContain('bad line');
   });
+
+  test('an attachment the station skips is NOT reported as delivered', async () => {
+    const handle = makeHandleCall(() => fakeClient(calls));
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'i',
+      action: 'send',
+      args: {
+        line: LINE,
+        attachments: [
+          { kind: 'image', path: '/cache/a.png', mime: 'image/png' },
+          { kind: 'image', mime: 'image/png' },
+        ],
+      },
+    });
+    cap.restore();
+    expect(calls).toHaveLength(1);
+    expect(cap.responses[0]).toMatchObject({
+      result: { attachments: ['image'] },
+    });
+  });
+
+  test('a kindless attachment is classified by mime for both the send and the label', async () => {
+    const handle = makeHandleCall(() => fakeClient(calls));
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'j',
+      action: 'send',
+      args: {
+        line: LINE,
+        attachments: [{ path: '/cache/song.mp3', mime: 'audio/mpeg' }],
+      },
+    });
+    cap.restore();
+    expect(calls[0]?.args[1]).toMatchObject({ kind: 'audio' });
+    expect(cap.responses[0]).toMatchObject({ result: { attachments: ['audio'] } });
+  });
 });

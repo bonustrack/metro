@@ -86,9 +86,9 @@ function makeSend(clientFor: ClientFor): StationHandler {
       );
       respond(id, {
         result: {
-          messageId: String(sent.id),
+          messageId: String(sent.message.id),
           account: accountId,
-          attachments: attachments.map((a) => a.kind ?? 'file'),
+          attachments: sent.delivered,
         },
       });
       return;

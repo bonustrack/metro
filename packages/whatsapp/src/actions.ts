@@ -1,5 +1,6 @@
 import { TrainError } from '@metro-labs/mcp/train-error';
 import { errMsg } from '@metro-labs/mcp/log';
+import { kindOf } from '@metro-labs/mcp/stations/attachments';
 import {
   makeStation,
   respond,
@@ -71,7 +72,7 @@ async function sendMediaSet(
     const att = atts[i];
     if (!att) continue;
     const path = att.path ?? att.url ?? '';
-    const kind = att.kind ?? 'file';
+    const kind = att.kind ?? kindOf(att.mime ?? '', path);
     messageId = await guard(() =>
       client.sendMedia(
         jid,
