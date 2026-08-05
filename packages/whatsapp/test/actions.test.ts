@@ -22,6 +22,7 @@ function fakeClient(calls: Captured[]): WAClient {
     account: { id: 'w0', phone: '111' },
     start: () => Promise.resolve(),
     sendText: record('sendText'),
+    sendMedia: record('sendMedia'),
     sendReaction: record('sendReaction'),
     editMessage: record('editMessage'),
     deleteMessage: record('deleteMessage'),
@@ -62,6 +63,101 @@ describe('whatsapp outbound handlers', () => {
       id: 'a',
       result: { messageId: 'MID', account: 'w0' },
     });
+  });
+
+  test('send with an attachment calls sendMedia, not sendText', async () => {
+    const handle = makeHandleCall(() => fakeClient(calls));
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'm1',
+      action: 'send',
+      args: {
+        line: LINE,
+        text: 'look',
+        attachments: [
+          {
+            kind: 'image',
+            path: '/cache/a.png',
+            mime: 'image/png',
+            name: 'a.png',
+          },
+        ],
+      },
+    });
+    cap.restore();
+    expect(calls.map((c) => c.method)).toEqual(['sendMedia']);
+    expect(calls[0]?.args[1]).toMatchObject({
+      kind: 'image',
+      path: '/cache/a.png',
+      mime: 'image/png',
+      name: 'a.png',
+      caption: 'look',
+    });
+  });
+
+  test('send reports one label per attachment actually pushed', async () => {
+    const handle = makeHandleCall(() => fakeClient(calls));
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'm2',
+      action: 'send',
+      args: {
+        line: LINE,
+        text: 'three',
+        attachments: [
+          { kind: 'image', path: '/cache/a.png', mime: 'image/png' },
+          { kind: 'file', path: '/cache/b.pdf', mime: 'application/pdf' },
+          { kind: 'video', path: '/cache/c.mp4', mime: 'video/mp4' },
+        ],
+      },
+    });
+    cap.restore();
+    expect(calls).toHaveLength(3);
+    expect(cap.responses[0]).toMatchObject({
+      result: { attachments: ['image', 'file', 'video'] },
+    });
+  });
+
+  test('only the first attachment carries the text as its caption', async () => {
+    const handle = makeHandleCall(() => fakeClient(calls));
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'm3',
+      action: 'send',
+      args: {
+        line: LINE,
+        text: 'once',
+        attachments: [
+          { kind: 'image', path: '/cache/a.png' },
+          { kind: 'image', path: '/cache/b.png' },
+        ],
+      },
+    });
+    cap.restore();
+    expect(calls[0]?.args[1]).toMatchObject({ caption: 'once' });
+    expect(calls[1]?.args[1]).not.toHaveProperty('caption');
+  });
+
+  test('reply carries attachments through the normalizer', async () => {
+    const handle = makeHandleCall(() => fakeClient(calls));
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'm4',
+      action: 'reply',
+      args: {
+        line: LINE,
+        text: 'here',
+        messageId: 'ABC',
+        attachments: [{ kind: 'image', path: '/cache/a.png' }],
+      },
+    });
+    cap.restore();
+    expect(calls.map((c) => c.method)).toEqual(['sendMedia']);
+    expect(calls[0]?.args[2]).toBe('ABC');
   });
 
   test('reply normalizes to send with the quoted message id', async () => {

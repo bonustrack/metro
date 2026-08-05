@@ -11,6 +11,7 @@ export function normalizeWhatsApp(action: string, env: Args): Normalized {
         text: env.text,
         replyTo: env.replyTo ?? env.messageId,
         account: env.account,
+        attachments: env.attachments,
       },
     };
   }

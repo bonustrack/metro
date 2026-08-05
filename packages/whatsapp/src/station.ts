@@ -11,6 +11,6 @@ export const whatsappStation: Station = {
     'edit',
     'delete',
   ]),
-  attachmentMode: 'none',
+  attachmentMode: 'canonical',
   tools: [],
 };

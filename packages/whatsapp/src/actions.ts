@@ -44,11 +44,71 @@ async function guard<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+interface WireAttachment {
+  kind?: string;
+  path?: string;
+  url?: string;
+  mime?: string;
+  name?: string;
+}
+
+function attachmentsOf(args: Args): WireAttachment[] {
+  const raw = args.attachments;
+  if (!Array.isArray(raw)) return [];
+  return (raw as WireAttachment[]).filter((a) => Boolean(a.path ?? a.url));
+}
+
+async function sendMediaSet(
+  client: WAClient,
+  jid: string,
+  atts: WireAttachment[],
+  text: string,
+  replyTo: string | undefined,
+): Promise<{ messageId: string; labels: string[] }> {
+  const labels: string[] = [];
+  let messageId = '';
+  for (let i = 0; i < atts.length; i++) {
+    const att = atts[i];
+    if (!att) continue;
+    const path = att.path ?? att.url ?? '';
+    const kind = att.kind ?? 'file';
+    messageId = await guard(() =>
+      client.sendMedia(
+        jid,
+        {
+          kind,
+          path,
+          mime: att.mime ?? 'application/octet-stream',
+          name: att.name ?? path.split('/').pop() ?? 'attachment',
+          ...(i === 0 && text ? { caption: text } : {}),
+        },
+        replyTo,
+      ),
+    );
+    labels.push(kind);
+  }
+  return { messageId, labels };
+}
+
 function makeSend(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
     const { accountId, client, jid } = resolve(args, clientFor);
     const text = str(args.text) ?? '';
     const replyTo = str(args.replyTo);
+    const atts = attachmentsOf(args);
+    if (atts.length) {
+      const { messageId, labels } = await sendMediaSet(
+        client,
+        jid,
+        atts,
+        text,
+        replyTo,
+      );
+      respond(id, {
+        result: { messageId, account: accountId, attachments: labels },
+      });
+      return;
+    }
     const messageId = await guard(() => client.sendText(jid, text, replyTo));
     respond(id, { result: { messageId, account: accountId } });
   };

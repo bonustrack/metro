@@ -1,5 +1,9 @@
 import { stationForLine } from '../stations/registry.js';
-import { toCanonical } from '../stations/attachments.js';
+import { kindOf, toCanonical } from '../stations/attachments.js';
+import {
+  resolveAttachments,
+  type ResolvedAttachment,
+} from '../stations/attach-resolve.js';
 import type { CanonicalAttachment, ToolResult } from '../stations/types.js';
 import { errResult, makeCtx, ok, okJson, toErr } from './ctx.js';
 import { str } from './str.js';
@@ -16,11 +20,19 @@ interface MessageArgs {
 const hasRef = (x: CanonicalAttachment): boolean =>
   Boolean(x.path) || Boolean(x.url);
 
+const deliveredLabels = (response: { result: unknown }): string[] => {
+  const list = (response.result as { attachments?: unknown } | null)
+    ?.attachments;
+  return Array.isArray(list)
+    ? list.filter((x): x is string => typeof x === 'string')
+    : [];
+};
+
 async function sendNative(
   m: MessageArgs,
   text: string | undefined,
   replyTo: string | undefined,
-  atts: CanonicalAttachment[],
+  atts: ResolvedAttachment[],
 ): Promise<string[]> {
   const { line, ctx, station } = m;
   const sent: string[] = [];
@@ -37,30 +49,45 @@ async function sendForwarded(
   m: MessageArgs,
   text: string | undefined,
   replyTo: string | undefined,
-  atts: CanonicalAttachment[],
+  atts: ResolvedAttachment[],
 ): Promise<string[]> {
-  const { line, ctx } = m;
+  const { line, ctx, station } = m;
   const args: Record<string, unknown> = { line };
   if (text) args.text = text;
   if (replyTo) args.replyTo = replyTo;
   if (atts.length) args.attachments = atts.map(toCanonical);
-  await ctx.call('send', args);
+  const response = await ctx.call('send', args);
   const sent: string[] = [];
   if (text) sent.push('text');
-  if (atts.length) sent.push(`${atts.length} attachment(s)`);
+  if (!atts.length) return sent;
+  const delivered = deliveredLabels(response);
+  if (delivered.length < atts.length)
+    throw new Error(
+      `${station.name} delivered ${delivered.length} of ${atts.length} attachment(s); ` +
+        'the message text may still have been sent',
+    );
+  sent.push(...delivered);
   return sent;
 }
+
+const unsupported = (station: Station, atts: CanonicalAttachment[]): string =>
+  `${station.name} cannot send attachments (${atts
+    .map((a) => kindOf(a.mime ?? '', a.path ?? a.url ?? ''))
+    .join(', ')}); send a link in \`text\` instead`;
 
 async function handleSend(m: MessageArgs): Promise<ToolResult> {
   const text = m.a.text as string | undefined;
   const replyTo = m.a.reply_to as string | undefined;
-  const atts =
+  const requested =
     (m.a.attachments as CanonicalAttachment[] | undefined)?.filter(hasRef) ?? [];
+  if (!text && !requested.length)
+    return errResult('send requires `text` or `attachments`');
+  if (requested.length && m.station.attachmentMode === 'none')
+    return errResult(unsupported(m.station, requested));
+  const atts = await resolveAttachments(requested);
   const native =
     m.station.attachmentMode === 'native' &&
     typeof m.station.sendAttachments === 'function';
-  if (!native && !text && !atts.length)
-    return errResult('send requires `text` or `attachments`');
   const sent = native
     ? await sendNative(m, text, replyTo, atts)
     : await sendForwarded(m, text, replyTo, atts);

@@ -13,15 +13,27 @@ function isOggRef(mime: string | undefined, ref: string | undefined): boolean {
   return mime === 'audio/ogg' || ext === 'ogg' || ext === 'oga';
 }
 
+function isVoiceRef(
+  kind: string | undefined,
+  mime: string | undefined,
+  ref: string | undefined,
+): boolean {
+  const isOgg = isOggRef(mime, ref);
+  if (kind === 'voice') return true;
+  if (kind === 'audio') return isOgg;
+  return !kind && isOgg;
+}
+
 export function mediaKindOf(
   kind: string | undefined,
   mime: string | undefined,
   ref: string | undefined,
-): 'image' | 'voice' | 'document' {
-  if (kind === 'image' || mime?.startsWith('image/')) return 'image';
-  const isOgg = isOggRef(mime, ref);
-  if (kind === 'voice' || (kind === 'audio' && isOgg)) return 'voice';
-  if (!kind && isOgg) return 'voice';
+): 'image' | 'voice' | 'audio' | 'video' | 'document' {
+  const m = mime ?? '';
+  if (kind === 'image' || m.startsWith('image/')) return 'image';
+  if (isVoiceRef(kind, mime, ref)) return 'voice';
+  if (kind === 'video' || m.startsWith('video/')) return 'video';
+  if (kind === 'audio' || m.startsWith('audio/')) return 'audio';
   return 'document';
 }
 

@@ -1,5 +1,3 @@
-import type { CanonicalAttachment } from './types.js';
-
 export const attachDir = (): string =>
   process.env.METRO_XMTP_ATTACH_DIR ??
   `${process.env.HOME}/.cache/metro/messenger-uploads`;
@@ -142,15 +140,21 @@ export const appendFile = async (
   form.append(field, new Blob([data]), name);
 };
 
-export const toCanonical = (
-  a: CanonicalAttachment,
-): Record<string, unknown> => {
-  const src = a.path ?? a.url ?? '';
-  const mime = a.mime ?? (src ? guessMime(src) : '');
-  return {
-    kind: isImageMime(mime) || isImageExt(src) ? 'image' : 'file',
-    url: src,
-    name: a.name ?? src.split('/').pop() ?? undefined,
-    ...(a.mime ? { mime: a.mime } : {}),
-  };
+export const kindOf = (mime: string, path: string): string => {
+  if (isImageMime(mime) || isImageExt(path)) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  return 'file';
 };
+
+export const toCanonical = (a: {
+  path: string;
+  mime: string;
+  name: string;
+}): Record<string, unknown> => ({
+  kind: kindOf(a.mime, a.path),
+  path: a.path,
+  url: a.path,
+  name: a.name,
+  mime: a.mime,
+});
