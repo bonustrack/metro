@@ -1,7 +1,7 @@
-import { stat } from 'node:fs/promises';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { str } from '../mcp/str.js';
 import { dedupeKey } from './dedupe.js';
+import { buildMediaNote, type SavedMedia } from './media-note.js';
 
 interface InboundDeps {
   mcp: Server;
@@ -29,19 +29,18 @@ interface PendingMsg {
   timer: ReturnType<typeof setTimeout>;
 }
 
-interface SavedMedia {
-  contentType?: string;
-  attachmentFor?: string;
-  attachmentPath?: string;
-  localPath?: string;
-  url?: string;
-  mime?: string;
-  name?: string;
-  index?: number;
+interface MediaCtx {
+  line: string;
+  from: string;
+  station: string;
+  text?: string;
+  messageId?: string;
+  lineName?: string;
+  fromName?: string;
+  fromDisplayName?: string;
 }
 
 const ATTACH_TIMEOUT_MS = 15_000;
-const MAX_INLINE_BYTES = 4 * 1024 * 1024;
 const DEDUPE_TTL_MS = 30_000;
 const DEDUPE_MAX = 2_000;
 const ALLOWED_LINES_MAX = 2_000;
@@ -56,18 +55,6 @@ function capSet(set: Set<string>, max: number): void {
 }
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
-function mediaKind(mime?: string, name?: string): string {
-  const m = (mime ?? '').toLowerCase();
-  if (m.startsWith('image/')) return 'image';
-  if (m.startsWith('video/')) return 'video';
-  if (m.startsWith('audio/')) return 'audio';
-  const n = name ?? '';
-  if (/\.(png|jpe?g|gif|webp|heic)$/i.test(n)) return 'image';
-  if (/\.(mp4|mov|webm|m4v)$/i.test(n)) return 'video';
-  if (/\.(m4a|mp3|ogg|wav)$/i.test(n)) return 'audio';
-  return 'file';
-}
-
 const shortId = (id: string): string =>
   id.length > 10 ? `${id.slice(0, 6)}…` : id;
 
@@ -75,6 +62,28 @@ const displayNameMeta = (v: unknown): Record<string, string> => {
   const name = str(v);
   return name ? { from_display_name: name } : {};
 };
+
+const senderMeta = (c: MediaCtx): Record<string, string> => ({
+  ...(c.messageId ? { message_id: c.messageId } : {}),
+  ...(c.lineName ? { line_name: c.lineName } : {}),
+  ...(c.fromName ? { from_name: c.fromName } : {}),
+  ...displayNameMeta(c.fromDisplayName),
+});
+
+function takeMediaCtx(buf: PendingMsg): MediaCtx {
+  const ctx: MediaCtx = {
+    line: buf.line,
+    from: buf.from,
+    station: buf.station,
+    text: buf.text,
+    messageId: buf.messageId,
+    lineName: buf.lineName,
+    fromName: buf.fromName,
+    fromDisplayName: buf.fromDisplayName,
+  };
+  buf.text = '';
+  return ctx;
+}
 
 export class InboundRelay {
   private readonly deps: InboundDeps;
@@ -121,34 +130,21 @@ export class InboundRelay {
     return false;
   }
 
-  private async surfaceMedia(
-    ctx: { line: string; from: string; station: string },
-    p: SavedMedia,
-  ): Promise<void> {
-    const path = p.attachmentPath ?? p.localPath;
-    if (!path) return;
-    const kind = mediaKind(p.mime, p.name);
-    const name = p.name ?? path.split('/').pop() ?? 'attachment';
-    const size = await fileSize(path);
-    const tooBig = size > MAX_INLINE_BYTES;
-    const sizeNote = size ? ` (${(size / 1024 / 1024).toFixed(2)} MB)` : '';
-    const content =
-      `[${kind} attachment received: ${name}${p.mime ? `, ${p.mime}` : ''}${sizeNote}]\n` +
-      `Saved locally at: ${path}\n` +
-      (p.url ? `Public URL: ${p.url}\n` : '') +
-      (tooBig
-        ? 'Large file - inspect on disk only as needed (do not inline).'
-        : 'Use the Read tool on that absolute path to view/inspect it.');
+  private async surfaceMedia(ctx: MediaCtx, p: SavedMedia): Promise<void> {
+    const note = await buildMediaNote(p, ctx.text ?? '');
+    if (!note) return;
     await this.notify('notifications/claude/channel', {
-      content,
+      content: note.content,
       meta: {
         line: ctx.line,
         from: ctx.from,
         station: ctx.station,
-        kind,
+        ...senderMeta(ctx),
+        kind: note.kind,
         mime: p.mime ?? '',
-        name,
-        local_path: path,
+        name: note.name,
+        ...(p.url ? { url: p.url } : {}),
+        local_path: note.path,
       },
     });
   }
@@ -188,14 +184,12 @@ export class InboundRelay {
     if (buf) {
       const idx = typeof payload.index === 'number' ? payload.index : 0;
       buf.saved.add(idx);
-      await this.surfaceMedia(
-        { line: buf.line, from: buf.from, station: buf.station },
-        payload,
-      );
+      const ctx = takeMediaCtx(buf);
       if (buf.saved.size >= buf.attachments.length) {
         clearTimeout(buf.timer);
         this.pendingAttachments.delete(forId);
       }
+      await this.surfaceMedia(ctx, payload);
     } else if (line && this.allowedLines.has(line)) {
       await this.surfaceMedia(
         { line, from: 'metro://attachment', station: str(ev.station) || 'xmtp' },
@@ -369,14 +363,6 @@ interface EventBase {
   from: string;
   line: string;
   text: string;
-}
-
-async function fileSize(path: string): Promise<number> {
-  try {
-    return (await stat(path)).size;
-  } catch {
-    return 0;
-  }
 }
 
 function reactionEmoji(raw: unknown): string {

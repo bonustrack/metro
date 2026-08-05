@@ -1,4 +1,4 @@
-import type { Message, MessageReaction, User } from 'discord.js';
+import { MessageFlags, type Message, type MessageReaction, type User } from 'discord.js';
 import { accounts, lineOf } from './accounts.js';
 import { emit, mintId, SELF_URI } from './wire.js';
 import { saveDiscordAttachment } from './attachments.js';
@@ -41,7 +41,6 @@ function emitAttachmentSaved(
           localPath: saved.path,
           mime: saved.mime,
           name: saved.name,
-          url: ref.url,
         },
       });
     })
@@ -52,17 +51,18 @@ function emitAttachmentSaved(
     );
 }
 
+const AV_TAG: Record<string, string> = { audio: 'audio', video: 'video' };
+
 function tagFor(att: {
   contentType?: string | null;
   name?: string | null;
-  url?: string;
+  voice?: boolean;
 }): string {
-  if (att.contentType?.startsWith('image/')) return '[image]';
-  if (att.contentType?.startsWith('audio/'))
-    return `[audio: ${att.name ?? 'audio'}]`;
-  if (att.contentType?.startsWith('video/'))
-    return `[video: ${att.name ?? 'video'}]`;
-  return `[file: ${att.name ?? 'file'}]`;
+  const type = (att.contentType ?? '').split('/')[0] ?? '';
+  if (type === 'image') return '[image]';
+  if (att.voice && type === 'audio') return '[voice]';
+  const kind = AV_TAG[type] ?? 'file';
+  return `[${kind}: ${att.name ?? kind}]`;
 }
 
 export function messageEnvelope(
@@ -70,8 +70,9 @@ export function messageEnvelope(
   m: Message,
 ): Record<string, unknown> | null {
   if (m.author.bot) return null;
+  const voice = m.flags.has(MessageFlags.IsVoiceMessage);
   const tags = m.attachments.map((a) =>
-    tagFor({ contentType: a.contentType, name: a.name, url: a.url }),
+    tagFor({ contentType: a.contentType, name: a.name, voice }),
   );
   const stickerTags = m.stickers.map((s) => `[sticker: ${s.name}]`);
   const text = [m.content.trim(), ...tags, ...stickerTags]

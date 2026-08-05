@@ -50,21 +50,40 @@ const MEDIA_EXTRACTORS: ((m: TgMsg) => TgMediaRef | null)[] = [
   },
   (m) =>
     m.document?.file_id
-      ? { fileId: m.document.file_id, name: m.document.file_name }
+      ? {
+          fileId: m.document.file_id,
+          name: m.document.file_name,
+          mime: m.document.mime_type,
+        }
       : null,
   (m) =>
     m.video?.file_id
-      ? { fileId: m.video.file_id, name: m.video.file_name, mime: 'video/mp4' }
+      ? {
+          fileId: m.video.file_id,
+          name: m.video.file_name,
+          mime: m.video.mime_type ?? 'video/mp4',
+        }
       : null,
   (m) =>
     m.animation?.file_id
-      ? { fileId: m.animation.file_id, name: m.animation.file_name }
+      ? {
+          fileId: m.animation.file_id,
+          name: m.animation.file_name,
+          mime: m.animation.mime_type,
+        }
       : null,
   (m) =>
     m.audio?.file_id
-      ? { fileId: m.audio.file_id, name: m.audio.file_name }
+      ? {
+          fileId: m.audio.file_id,
+          name: m.audio.file_name,
+          mime: m.audio.mime_type,
+        }
       : null,
-  (m) => (m.voice?.file_id ? { fileId: m.voice.file_id, mime: 'audio/ogg' } : null),
+  (m) =>
+    m.voice?.file_id
+      ? { fileId: m.voice.file_id, mime: m.voice.mime_type ?? 'audio/ogg' }
+      : null,
   (m) =>
     m.sticker?.file_id
       ? { fileId: m.sticker.file_id, mime: 'image/webp' }

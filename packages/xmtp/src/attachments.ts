@@ -8,8 +8,15 @@ import {
   assertAttachmentSize,
 } from '@metro-labs/mcp/stations/attachments';
 import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
+import { errMsg } from '@metro-labs/mcp/log';
 
 export type { SavedAttachment };
+
+export const REMOTE_FETCH_ATTEMPTS = 3;
+const REMOTE_FETCH_BACKOFF_MS = 400;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 const attachmentCodec = new AttachmentCodec();
 const loadRegistry = {
@@ -61,17 +68,38 @@ function toRemoteDescriptor(r: RemoteEntry): {
   };
 }
 
+interface DecodedAttachment {
+  filename?: string;
+  mimeType?: string;
+  data: Uint8Array;
+}
+
+async function loadRemote(r: RemoteEntry): Promise<DecodedAttachment> {
+  let last = '';
+  for (let attempt = 1; attempt <= REMOTE_FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      return await RemoteAttachmentCodec.load<DecodedAttachment>(
+        toRemoteDescriptor(r),
+        loadRegistry,
+      );
+    } catch (err) {
+      last = errMsg(err);
+      if (attempt < REMOTE_FETCH_ATTEMPTS)
+        await sleep(REMOTE_FETCH_BACKOFF_MS * attempt);
+    }
+  }
+  throw new Error(
+    `xmtp remote attachment fetch failed after ${REMOTE_FETCH_ATTEMPTS} attempts: ${last}`,
+  );
+}
+
 export async function saveRemoteAttachment(
   r: RemoteEntry,
   messageId: string,
   index = 0,
 ): Promise<SavedAttachment> {
   if (r.contentLength) assertAttachmentSize(r.contentLength);
-  const decoded = await RemoteAttachmentCodec.load<{
-    filename?: string;
-    mimeType?: string;
-    data: Uint8Array;
-  }>(toRemoteDescriptor(r), loadRegistry);
+  const decoded = await loadRemote(r);
   return saveBufferToCache(decoded.data, messageId, index, {
     mime: decoded.mimeType,
     name: decoded.filename ?? r.filename,

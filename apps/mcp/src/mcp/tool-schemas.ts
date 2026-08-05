@@ -386,8 +386,10 @@ export const MCP_INSTRUCTIONS =
   '`attachments`, optional `reply_to`), `reply` (quote a `message_id` with `text`), `react`/' +
   '`unreact` (emoji on a `message_id`), `edit`/`delete` (a `message_id`), and `read` (recent ' +
   "history). Station support varies - the tool returns the daemon's reason if a verb is " +
-  'unsupported on that line. Inbound attachments are surfaced as a note with an absolute ' +
-  '`local_path` - Read that path to view the file. To send a file OUT, call `create_upload`, ' +
+  'unsupported on that line. An inbound attachment is surfaced as a note carrying the ' +
+  "sender's own text alongside a `Public URL` - fetch that url to read the file; the note's " +
+  '`local_path` resolves on the DAEMON host, not on yours, so the Read tool works on it only ' +
+  'for an agent running there. To send a file OUT, call `create_upload`, ' +
   'run the one curl line it hands back (that step needs a shell; the bytes go from your disk ' +
   'straight to metro and never through this conversation), then `send` with ' +
   'attachments:[{upload:"<upload_id>"}]. Inline `data` is for tiny files only, `url` only for ' +

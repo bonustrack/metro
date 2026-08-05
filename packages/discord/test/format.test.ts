@@ -23,6 +23,7 @@ const fakeMessage = (author: Record<string, unknown>): Message =>
     createdTimestamp: 1_700_000_000_000,
     guildId: 'guild1',
     reference: null,
+    flags: { has: () => false },
     toJSON: () => ({}),
   }) as unknown as Message;
 
