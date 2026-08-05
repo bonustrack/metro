@@ -329,6 +329,19 @@ export class InboundRelay {
     });
   }
 
+  private async handleAttachments(
+    ev: Record<string, unknown>,
+    base: EventBase,
+  ): Promise<boolean> {
+    const atts = (ev.payload as { attachments?: PendingAtt[] } | undefined)
+      ?.attachments;
+    if (!Array.isArray(atts) || !atts.length) return false;
+    const captioned = base.evType === 'msg' && base.text !== '';
+    if (captioned) await this.emitMessage(ev, base);
+    this.bufferAttachments(ev, captioned ? { ...base, text: '' } : base, atts);
+    return true;
+  }
+
   async handleEvent(
     ev: Record<string, unknown>,
     replay = false,
@@ -347,12 +360,7 @@ export class InboundRelay {
       capSet(this.allowedLines, ALLOWED_LINES_MAX);
     }
 
-    const atts = (ev.payload as { attachments?: PendingAtt[] } | undefined)
-      ?.attachments;
-    if (Array.isArray(atts) && atts.length) {
-      this.bufferAttachments(ev, base, atts);
-      return;
-    }
+    if (await this.handleAttachments(ev, base)) return;
 
     if (base.evType === 'react') {
       await this.handleReact(ev, base);
