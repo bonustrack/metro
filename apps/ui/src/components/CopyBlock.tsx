@@ -18,7 +18,7 @@ export function CopyBlock({ label, value, secret = false }: CopyBlockProps): Rea
   const masked = secret && !revealed;
 
   const copy = (): void => {
-    void navigator.clipboard?.writeText(value).then(
+    navigator.clipboard?.writeText(value).then(
       () => {
         setCopied(true);
       },

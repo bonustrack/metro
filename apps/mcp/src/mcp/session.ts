@@ -133,7 +133,9 @@ export class McpSession {
     const session = new McpSession(init);
     await session.server.connect(session.transport);
     session.server.onclose = (): void => {
-      void session.close();
+      session.close().catch((err: unknown) => {
+        channelLog('session: close failed', 'id', init.id, errMsg(err));
+      });
     };
     return session;
   }
@@ -168,7 +170,7 @@ export class McpSession {
     if (!this.schemaNoticeDue) return;
     this.schemaNoticeDue = false;
     channelLog('session: tool list changed', 'id', this.id, 'scope', this.scopeKey);
-    void this.server.sendToolListChanged().catch((err: unknown) => {
+    this.server.sendToolListChanged().catch((err: unknown) => {
       channelLog('session: tool list changed notice failed', errMsg(err));
     });
   }

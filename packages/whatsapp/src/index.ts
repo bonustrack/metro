@@ -30,7 +30,10 @@ process.stdin.on('data', (chunk: Buffer | string) => {
   buf = drainLines('whatsapp', buf, (line) => {
     try {
       const msg = JSON.parse(line) as Partial<CallMsg>;
-      if (msg.op === 'call') void handleCall(msg as CallMsg);
+      if (msg.op === 'call')
+        handleCall(msg as CallMsg).catch((e: unknown) => {
+          process.stderr.write(`call failed: ${errMsg(e)}\n`);
+        });
     } catch (err: unknown) {
       process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
     }
@@ -39,7 +42,10 @@ process.stdin.on('data', (chunk: Buffer | string) => {
 
 function boot(): void {
   for (const cfg of loadAccounts()) accounts.set(cfg.id, cfg);
-  for (const id of accounts.keys()) void startInbound(clientFor(id));
+  for (const id of accounts.keys())
+    startInbound(clientFor(id)).catch((err: unknown) => {
+      process.stderr.write(`whatsapp[${id}] inbound failed: ${errMsg(err)}\n`);
+    });
   process.stderr.write(
     `whatsapp train ready (inbound+outbound) — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
   );

@@ -172,7 +172,17 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
   registerSink(sink);
 
   timers.keepalive = setInterval(() => {
-    if (!sink.closed) res.write(COMMENT);
+    if (sink.closed) return;
+    if (res.destroyed || res.writableEnded) {
+      closeStream();
+      return;
+    }
+    try {
+      res.write(COMMENT);
+    } catch (err) {
+      log('raw-get-stream: keepalive write failed', err);
+      closeStream();
+    }
   }, KEEPALIVE_MS);
   timers.keepalive.unref?.();
 

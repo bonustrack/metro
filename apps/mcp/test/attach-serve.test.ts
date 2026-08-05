@@ -206,4 +206,33 @@ describe('/attach route', () => {
     );
     expect([400, 401, 404]).toContain(res.status);
   });
+
+  test('a name that is not a cache name at all is a 404, not a 401', async () => {
+    for (const name of ['horse.mp3', 'README.md', 'msg_.png', 'msg_a_0.toolong'])
+      expect(
+        (await fetch(`${base}/attach/${encodeURIComponent(name)}?token=${ONE}`))
+          .status,
+      ).toBe(404);
+  });
+
+  test('the 404 depends on the name alone, never on what is on disk', async () => {
+    const withCred = await fetch(`${base}/attach/horse.mp3?token=${ONE}`);
+    const without = await fetch(`${base}/attach/horse.mp3`);
+    const wrongAgent = await fetch(`${base}/attach/horse.mp3?token=${TWO}`);
+    expect(withCred.status).toBe(404);
+    expect(without.status).toBe(404);
+    expect(wrongAgent.status).toBe(404);
+  });
+
+  test('a cache-shaped name stays a flat 401 whether or not it exists', async () => {
+    attachmentUrl(CACHE_NAME, 1);
+    const present = await fetch(`${base}/attach/${CACHE_NAME}?token=${TWO}`);
+    const absent = await fetch(`${base}/attach/msg_nothere_0.png?token=${TWO}`);
+    const anonPresent = await fetch(`${base}/attach/${CACHE_NAME}`);
+    const anonAbsent = await fetch(`${base}/attach/msg_nothere_0.png`);
+    expect(present.status).toBe(401);
+    expect(absent.status).toBe(401);
+    expect(anonPresent.status).toBe(401);
+    expect(anonAbsent.status).toBe(401);
+  });
 });

@@ -66,7 +66,18 @@ export class ChannelRelay {
       const cutoff = busSeq - PENDING_MAX;
       for (const s of delivered) if (s <= cutoff) delivered.delete(s);
     }
-    this.chain = this.chain.then(() => this.deliver(event, busSeq, replay));
+    this.chain = this.chain.then(() =>
+      this.deliver(event, busSeq, replay).catch((err: unknown) => {
+        this.deps.log(
+          'relay: delivery step failed; chain kept alive',
+          'busSeq',
+          busSeq,
+          'line',
+          event.line,
+          err,
+        );
+      }),
+    );
   }
 
   private withhold(event: MetroEvent, busSeq: number): void {

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { currentBusSeq } from '../daemon/events.js';
+import { errMsg } from '../daemon/log.js';
 import { newReplayLedger, type ReplayLedger } from '../channels/relay.js';
 import { McpSession, channelLog } from './session.js';
 import { sessionScopeKey, type SessionOwnership } from './session-route.js';
@@ -107,7 +108,9 @@ export class SessionRegistry {
       if (session.streamAttached) continue;
       if (now - session.lastSeenAt <= SESSION_IDLE_MS) continue;
       this.log('session: reaped idle', 'id', session.id, 'scope', session.scopeKey);
-      void session.close();
+      session.close().catch((err: unknown) => {
+        this.log('session: reap close failed', 'id', session.id, errMsg(err));
+      });
       reaped += 1;
     }
     return reaped;

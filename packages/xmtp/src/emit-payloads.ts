@@ -1,5 +1,6 @@
 import type { Reaction } from '@xmtp/content-type-reaction';
 import type { Reply } from '@xmtp/content-type-reply';
+import { errMsg } from '@metro-labs/mcp/log';
 import { transcribeAndEmit } from './transcribe.js';
 import {
   saveInlineAttachment,
@@ -181,13 +182,17 @@ function inlineAttachmentPayload(
     },
   };
   if (kind === 'audio')
-    void transcribeAndEmit(
+    transcribeAndEmit(
       c.content,
       ctx.line,
       ctx.accountId,
       ctx.baseId,
       emitInbound,
-    );
+    ).catch((err: unknown) => {
+      process.stderr.write(
+        `xmtp[${ctx.accountId}] voice transcription failed: ${errMsg(err)}\n`,
+      );
+    });
   emitAttachmentSaved(
     ctx.accountId,
     ctx.line,

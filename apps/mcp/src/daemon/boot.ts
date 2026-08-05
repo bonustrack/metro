@@ -2,8 +2,9 @@ import { join } from 'node:path';
 import { type Server } from 'node:http';
 import { selfLine, userSelf } from './events.js';
 import { setTrainCallBackend } from './train-call.js';
-import { errMsg, log } from './log.js';
+import { errMsg, log, logFatalSync } from './log.js';
 import { acquireLock, loadMetroEnv, STATE_DIR } from './paths.js';
+import { installCrashGuard, markDaemonReady } from './crash-guard.js';
 import { loadTunnelConfig, Tunnel, webhookPort } from './tunnel.js';
 import { TrainSupervisor, TRAINS_DIR } from './supervisor.js';
 import {
@@ -35,6 +36,7 @@ import { AttachSessions } from './attach-session.js';
 import { startUploadReaper } from './upload-store.js';
 import type { AgentApiDeps } from './agent-api.js';
 
+installCrashGuard();
 loadMetroEnv();
 acquireLock(join(STATE_DIR, '.tail-lock'));
 
@@ -144,6 +146,7 @@ async function main(): Promise<void> {
     { tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' },
     'dispatcher ready',
   );
+  markDaemonReady();
 }
 
 const SHUTDOWN_TIMEOUT_MS = 3_000;
@@ -171,10 +174,16 @@ async function shutdown(): Promise<void> {
   process.exit(0);
 }
 const onShutdown = (): void => {
-  void shutdown();
+  shutdown().catch((err: unknown) => {
+    log.error({ err: errMsg(err) }, 'dispatcher: shutdown failed');
+    process.exit(1);
+  });
 };
 if (process.env.METRO_STDIN_SHUTDOWN === '1')
   process.stdin.on('end', onShutdown).on('close', onShutdown);
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, onShutdown);
 
-await main();
+await main().catch((err: unknown) => {
+  logFatalSync({ err: errMsg(err) }, 'dispatcher failed to start');
+  process.exit(1);
+});

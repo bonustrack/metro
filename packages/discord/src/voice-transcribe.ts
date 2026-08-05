@@ -256,7 +256,11 @@ export function startTranscription(
     enabled: true,
   };
   s.onStart = (userId: string) => {
-    void handleSpeaker(s, userId);
+    handleSpeaker(s, userId).catch((err: unknown) => {
+      process.stderr.write(
+        `discord[${accountId}] voice speaker failed: ${errMsg(err)}\n`,
+      );
+    });
   };
   receiver.speaking.on('start', s.onStart);
   sessions.set(guildId, s);

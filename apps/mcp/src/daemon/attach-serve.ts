@@ -108,11 +108,15 @@ export function handleAttachRequest(
     return true;
   }
   const name = decodeURIComponent(m[1] ?? '');
+  if (resolveCachedAttachment(name) === null) {
+    res.writeHead(404).end();
+    return true;
+  }
   if (!authorized(req, name)) {
     res.writeHead(401).end();
     return true;
   }
-  void serveFile(res, method, name).catch((err: unknown) => {
+  serveFile(res, method, name).catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'attach: serve error');
     if (!res.headersSent) res.writeHead(500).end();
   });

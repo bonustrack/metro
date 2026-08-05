@@ -4,6 +4,7 @@ import makeWASocket, {
   fetchLatestWaWebVersion,
   type WASocket,
 } from '@whiskeysockets/baileys';
+import { errMsg, log } from '@metro-labs/mcp/log';
 import { inMemoryAuthState } from './auth-state.js';
 
 export class WhatsappLoginError extends Error {}
@@ -132,20 +133,28 @@ export class WhatsappLogin {
     }
     const credentials = this.auth.serialize();
     this.settled = true;
-    void this.closeSocket().then(() => {
-      this.events.onPaired({
-        config: { phone, credentials },
-        identity: { phone },
+    this.closeSocket()
+      .then(() => {
+        this.events.onPaired({
+          config: { phone, credentials },
+          identity: { phone },
+        });
+      })
+      .catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, 'whatsapp login: pairing report failed');
       });
-    });
   }
 
   private fail(message: string): void {
     if (this.settled) return;
     this.settled = true;
-    void this.closeSocket().then(() => {
-      this.events.onFailed(message);
-    });
+    this.closeSocket()
+      .then(() => {
+        this.events.onFailed(message);
+      })
+      .catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, 'whatsapp login: failure report failed');
+      });
   }
 
   private closeSocket(): Promise<void> {
