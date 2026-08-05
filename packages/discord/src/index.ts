@@ -26,7 +26,10 @@ process.stdin.on('data', (chunk: string) => {
   buf = drainLines('discord', buf, (line) => {
     try {
       const msg = JSON.parse(line) as CallMsg;
-      if (msg.op === 'call') void handleCall(msg);
+      if (msg.op === 'call')
+        handleCall(msg).catch((e: unknown) => {
+          process.stderr.write(`call failed: ${errMsg(e)}\n`);
+        });
     } catch (err) {
       process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
     }
@@ -90,7 +93,11 @@ async function bootAccount(cfg: AccountConfig): Promise<void> {
       }
       const env = reactionEnvelope(accountId, r as MessageReaction, u as User);
       if (env) emitInbound(accountId, env);
-    })();
+    })().catch((err: unknown) => {
+      process.stderr.write(
+        `discord[${accountId}] reaction handler failed: ${errMsg(err)}\n`,
+      );
+    });
   });
 
   client.on(Events.MessageUpdate, (_old, _new) => {
@@ -102,7 +109,11 @@ async function bootAccount(cfg: AccountConfig): Promise<void> {
           `discord[${accountId}] message update fetch failed: ${errMsg(err)}\n`,
         );
       }
-    })();
+    })().catch((err: unknown) => {
+      process.stderr.write(
+        `discord[${accountId}] message update handler failed: ${errMsg(err)}\n`,
+      );
+    });
   });
 
   accounts.set(accountId, { cfg, client });

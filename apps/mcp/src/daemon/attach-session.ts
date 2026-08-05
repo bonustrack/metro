@@ -100,7 +100,9 @@ export class AttachSessions {
   private ensureSweeper(): void {
     if (this.sweeper) return;
     this.sweeper = setInterval(() => {
-      void this.sweep();
+      this.sweep().catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, 'attach-session: sweep failed');
+      });
     }, SWEEP_MS);
     this.sweeper.unref();
   }
@@ -184,7 +186,12 @@ export class AttachSessions {
         session.view.pairingCode = p.pairingCode ?? null;
       },
       done: (o: AttachOutcome): void => {
-        void this.finish(attachId, station, o);
+        this.finish(attachId, station, o).catch((err: unknown) => {
+          log.warn(
+            { attachId, station, err: errMsg(err) },
+            'attach-session: completion failed',
+          );
+        });
       },
       fail: (message: string): void => {
         const session = this.sessions.get(attachId);

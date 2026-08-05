@@ -19,7 +19,10 @@ process.stdin.on('data', (chunk: Buffer | string) => {
   buf = drainLines('xmtp', buf, (line) => {
     try {
       const msg = JSON.parse(line) as Partial<CallMsg>;
-      if (msg.op === 'call') void handleCall(msg as CallMsg);
+      if (msg.op === 'call')
+        handleCall(msg as CallMsg).catch((e: unknown) => {
+          process.stderr.write(`call failed: ${errMsg(e)}\n`);
+        });
     } catch (err: unknown) {
       process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
     }
@@ -56,18 +59,11 @@ async function bootSync(acct: Account): Promise<void> {
 function startPeriodicSync(acct: Account): void {
   const { id } = acct.cfg;
   setInterval(() => {
-    void (async () => {
-      try {
-        await acct.client.conversations.syncAll([
-          ConsentState.Allowed,
-          ConsentState.Unknown,
-        ]);
-      } catch (err) {
-        process.stderr.write(
-          `xmtp[${id}] sync error: ${errMsg(err)}\n`,
-        );
-      }
-    })();
+    acct.client.conversations
+      .syncAll([ConsentState.Allowed, ConsentState.Unknown])
+      .catch((err: unknown) => {
+        process.stderr.write(`xmtp[${id}] sync error: ${errMsg(err)}\n`);
+      });
   }, SYNC_MS).unref();
 }
 
@@ -136,4 +132,9 @@ process.stderr.write(
   `xmtp train ready — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
 );
 
-for (const acct of accounts.values()) void runAccount(acct);
+for (const acct of accounts.values())
+  runAccount(acct).catch((err: unknown) => {
+    process.stderr.write(
+      `xmtp[${acct.cfg.id}] account loop failed: ${errMsg(err)}\n`,
+    );
+  });

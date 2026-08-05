@@ -39,7 +39,12 @@ function emitMessage(client: UserClient, m: Message): void {
   if (isOwnEcho(m)) return;
   const env = envelope(client.account.id, m);
   emit(env);
-  if (m.media !== null) void saveMediaAndEmit(client, m, env);
+  if (m.media !== null)
+    saveMediaAndEmit(client, m, env).catch((err: unknown) => {
+      process.stderr.write(
+        `telegram-user[${client.account.id}] media save failed: ${errMsg(err)}\n`,
+      );
+    });
 }
 
 function subscribe(client: UserClient): void {

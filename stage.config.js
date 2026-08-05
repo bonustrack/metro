@@ -3,6 +3,17 @@ import { defineConfig } from '@stage-labs/config';
 export default defineConfig({
   eslint: {
     ignores: ['**/test/**', '**/scripts/**'],
+    extends: [
+      {
+        files: ['**/*.{ts,tsx}'],
+        rules: {
+          '@typescript-eslint/no-floating-promises': [
+            'error',
+            { ignoreVoid: false },
+          ],
+        },
+      },
+    ],
   },
   knip: {
     ignore: ['stage.config.js'],

@@ -39,9 +39,11 @@ export function makeStation({ handlers, normalize, preDispatch }: StationConfig)
   const known = Object.keys(handlers).join(', ');
   return async function handleCall(msg: CallMsg): Promise<void> {
     const { id } = msg;
-    const { action, args } = normalize(msg.action, msg.args);
-    emit({ op: 'log', text: `call ${action} recv (line=${lineTag(args)})` });
+    let action = msg.action;
+    let args: Args = msg.args;
     try {
+      ({ action, args } = normalize(msg.action, msg.args));
+      emit({ op: 'log', text: `call ${action} recv (line=${lineTag(args)})` });
       if (preDispatch?.(id, action)) return;
       const handler = handlers[action];
       if (!handler) {

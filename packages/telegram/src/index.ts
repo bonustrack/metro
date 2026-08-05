@@ -21,7 +21,10 @@ process.stdin.on('data', (chunk: Buffer | string) => {
   buf = drainLines('telegram', buf, (line) => {
     try {
       const msg = JSON.parse(line) as Partial<CallMsg>;
-      if (msg.op === 'call') void handleCall(msg as CallMsg);
+      if (msg.op === 'call')
+        handleCall(msg as CallMsg).catch((e: unknown) => {
+          process.stderr.write(`call failed: ${errMsg(e)}\n`);
+        });
     } catch (err: unknown) {
       process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
     }
@@ -107,4 +110,9 @@ process.stderr.write(
   `telegram train ready (multi) — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
 );
 
-for (const acct of accounts.values()) void runAccount(acct);
+for (const acct of accounts.values())
+  runAccount(acct).catch((err: unknown) => {
+    process.stderr.write(
+      `telegram[${acct.cfg.id}] account loop failed: ${errMsg(err)}\n`,
+    );
+  });

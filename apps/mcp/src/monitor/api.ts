@@ -82,27 +82,44 @@ function startTailStream(
     'x-accel-buffering': 'no',
     ...cors(req),
   });
-  res.write(': metro monitor tail (live)\n\n');
-  let id = 0;
-  const stop = subscribeEvents((e: MetroEvent): void => {
-    if (!eventInScope(allowed, e.line)) return;
-    id += 1;
-    res.write(`id: ${id}\nevent: live\ndata: ${JSON.stringify(e)}\n\n`);
-  });
-  const keepalive = setInterval(
-    () => res.write(': keepalive\n\n'),
-    KEEPALIVE_MS,
-  );
-  keepalive.unref?.();
+  const timers: { keepalive?: ReturnType<typeof setInterval> } = {};
+  const subs: { stop?: () => void } = {};
+  let done = false;
   const cleanup = (): void => {
-    stop();
-    clearInterval(keepalive);
+    if (done) return;
+    done = true;
+    subs.stop?.();
+    if (timers.keepalive) clearInterval(timers.keepalive);
     try {
       res.end();
     } catch {
       log.debug('monitor: tail cleanup end failed');
     }
   };
+  const write = (chunk: string): void => {
+    if (done) return;
+    if (res.destroyed || res.writableEnded) {
+      cleanup();
+      return;
+    }
+    try {
+      res.write(chunk);
+    } catch (err) {
+      log.debug({ err: errMsg(err) }, 'monitor: tail write failed');
+      cleanup();
+    }
+  };
+  write(': metro monitor tail (live)\n\n');
+  let id = 0;
+  subs.stop = subscribeEvents((e: MetroEvent): void => {
+    if (!eventInScope(allowed, e.line)) return;
+    id += 1;
+    write(`id: ${id}\nevent: live\ndata: ${JSON.stringify(e)}\n\n`);
+  });
+  timers.keepalive = setInterval(() => {
+    write(': keepalive\n\n');
+  }, KEEPALIVE_MS);
+  timers.keepalive.unref?.();
   req.on('close', cleanup);
   req.on('error', cleanup);
 }

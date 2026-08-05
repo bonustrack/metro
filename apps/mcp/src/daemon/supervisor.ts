@@ -109,7 +109,7 @@ export class TrainSupervisor {
         return;
       }
       log.info({ name }, 'train hot-reload: source changed, restarting');
-      void this.restart(name).catch((err: unknown) => {
+      this.restart(name).catch((err: unknown) => {
         log.warn(
           { name, err: errMsg(err) },
           'train hot-reload: restart failed',
@@ -222,11 +222,21 @@ export class TrainSupervisor {
       state.buf = '';
       state.errBuf = '';
       log.info({ name: state.name, pid: proc.pid }, 'train: spawned');
-      void this.pumpStdout(state);
-      void this.pumpStderr(state);
-      void proc.exited.then((code) => {
-        this.onExit(state, code ?? 0);
-      });
+      const pumpFailed = (err: unknown): void => {
+        log.warn({ name: state.name, err: errMsg(err) }, 'train: pump failed');
+      };
+      this.pumpStdout(state).catch(pumpFailed);
+      this.pumpStderr(state).catch(pumpFailed);
+      proc.exited
+        .then((code) => {
+          this.onExit(state, code ?? 0);
+        })
+        .catch((err: unknown) => {
+          log.error(
+            { name: state.name, err: errMsg(err) },
+            'train: exit handler failed',
+          );
+        });
     } catch (err) {
       log.warn({ name: state.name, err: errMsg(err) }, 'train: spawn failed');
       this.scheduleRestart(state);

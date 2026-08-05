@@ -1,3 +1,4 @@
+import { writeSync } from 'node:fs';
 import pino from 'pino';
 import pinoPretty from 'pino-pretty';
 
@@ -14,6 +15,24 @@ export const log = pino(
   { base: { name: 'metro' }, level: process.env.METRO_LOG_LEVEL ?? 'info' },
   stream,
 );
+
+export const logFatalSync = (
+  fields: Record<string, unknown>,
+  msg: string,
+): void => {
+  const line = JSON.stringify({
+    level: 60,
+    time: Date.now(),
+    name: 'metro',
+    ...fields,
+    msg,
+  });
+  try {
+    writeSync(2, `${line}\n`);
+  } catch {
+    return;
+  }
+};
 
 export const errMsg = (err: unknown): string => {
   if (err instanceof Error) return err.message;

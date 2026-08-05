@@ -11,7 +11,10 @@ process.stdin.on('data', (chunk: Buffer | string) => {
   buf = drainLines('line', buf, (line) => {
     try {
       const msg = JSON.parse(line) as Partial<CallMsg>;
-      if (msg.op === 'call') void handleCall(msg as CallMsg);
+      if (msg.op === 'call')
+        handleCall(msg as CallMsg).catch((e: unknown) => {
+          process.stderr.write(`call failed: ${errMsg(e)}\n`);
+        });
     } catch (err: unknown) {
       process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
     }

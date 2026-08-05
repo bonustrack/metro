@@ -216,7 +216,16 @@ export class InboundRelay {
       attachments: atts.map((a) => ({ kind: a.kind, name: a.name })),
       saved: new Set<number>(),
       timer: setTimeout(() => {
-        void this.flushPendingFallback(id);
+        this.flushPendingFallback(id).catch((err: unknown) => {
+          this.deps.log(
+            'inbound: attachment fallback not delivered',
+            'id',
+            id,
+            'line',
+            base.line,
+            err,
+          );
+        });
       }, ATTACH_TIMEOUT_MS),
     });
   }
