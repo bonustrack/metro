@@ -15,6 +15,7 @@ export interface ToolResult {
 export interface CanonicalAttachment {
   path?: string;
   url?: string;
+  data?: string;
   mime?: string;
   name?: string;
 }
