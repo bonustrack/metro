@@ -491,9 +491,16 @@ chat so you can answer from your phone. (Requires Claude Code v2.1.80+ and claud
 Console API auth.)
 
 Inbound is only noticed between tool calls, so a session busy with a build or a grep
-answers late. [Orchestrator-only main thread](ORCHESTRATOR.md) is the optional
-configuration that fixes that: a `PreToolUse` hook leaves the main thread able to
-delegate and to talk on Metro, and moves all other work to subagents.
+answers late. [Orchestrator-only main thread](SETUP.md#orchestrator-only-main-thread)
+is the optional configuration that fixes that: a `PreToolUse` hook leaves the main
+thread able to delegate and to talk on Metro, and moves all other work to subagents.
+
+If you turn Claude Code's telemetry off, read
+[Privacy and data retention](SETUP.md#privacy-and-data-retention) first. Disabling
+telemetry also disables feature-flag evaluation, which disables channels, which stops
+inbound delivery silently on the next reconnect — `CLAUDE_CODE_GB_DISK_CACHE_WHEN_TELEMETRY_OFF=1`
+is the fix. That section also covers the local plaintext transcripts, which no
+server-side retention setting touches.
 
 ### Monitor transport
 
