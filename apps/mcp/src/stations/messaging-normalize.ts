@@ -6,6 +6,7 @@ export interface Normalized {
 
 interface Attachment {
   kind?: string;
+  path?: string;
   url?: string;
   data?: string;
   mime?: string;
@@ -14,9 +15,9 @@ interface Attachment {
 
 function discordAttachments(att: Attachment[]): Args {
   const files = att
-    .map((a) => a.url)
+    .map((a) => a.path ?? a.url)
     .filter((u): u is string => typeof u === 'string');
-  return files.length ? { files } : {};
+  return files.length ? { files, attachmentKinds: att.map((a) => a.kind ?? 'file') } : {};
 }
 
 export function normalizeDiscord(action: string, env: Args): Normalized {

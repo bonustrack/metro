@@ -66,17 +66,27 @@ async function sendMessage(
 export type { CallMsg };
 
 async function send(id: string, args: Record<string, unknown>): Promise<void> {
-  const { line, text, replyTo, embeds, stickerIds, images, files, account } =
-    args as {
-      line: string;
-      text?: string;
-      replyTo?: string;
-      embeds?: unknown[];
-      stickerIds?: string[];
-      images?: string[];
-      files?: string[];
-      account?: string;
-    };
+  const {
+    line,
+    text,
+    replyTo,
+    embeds,
+    stickerIds,
+    images,
+    files,
+    account,
+    attachmentKinds,
+  } = args as {
+    line: string;
+    text?: string;
+    replyTo?: string;
+    embeds?: unknown[];
+    stickerIds?: string[];
+    images?: string[];
+    files?: string[];
+    account?: string;
+    attachmentKinds?: string[];
+  };
   const { accountId, channelId } = routeOf(line, account);
   const body: Record<string, unknown> = { flags: 4 };
   if (text !== undefined) body.content = text;
@@ -91,7 +101,16 @@ async function send(id: string, args: Record<string, unknown>): Promise<void> {
     attachments.length ? attachments : undefined,
   );
   emitOutbound(accountId, line, res.id, text ?? '', replyTo);
-  respond(id, { result: { messageId: res.id, account: accountId } });
+  const delivered = attachments.map(
+    (_, i) => attachmentKinds?.[i] ?? 'file',
+  );
+  respond(id, {
+    result: {
+      messageId: res.id,
+      account: accountId,
+      ...(delivered.length ? { attachments: delivered } : {}),
+    },
+  });
 }
 
 function presence(id: string, args: Record<string, unknown>): void {

@@ -18,10 +18,19 @@ export interface InboundHandlers {
   onReaction(r: ReactionInput): void;
 }
 
+export interface WAMedia {
+  kind: string;
+  path: string;
+  mime: string;
+  name: string;
+  caption?: string;
+}
+
 export interface WAClient {
   account: WhatsAppAccount;
   start(handlers: InboundHandlers): Promise<void>;
   sendText(jid: string, text: string, quotedId?: string): Promise<string>;
+  sendMedia(jid: string, media: WAMedia, quotedId?: string): Promise<string>;
   sendReaction(jid: string, messageId: string, emoji: string): Promise<void>;
   editMessage(jid: string, messageId: string, text: string): Promise<void>;
   deleteMessage(jid: string, messageId: string): Promise<void>;
@@ -152,6 +161,22 @@ function quotedOpts(jid: string, quotedId: string): SendOpts {
   };
 }
 
+function mediaContent(m: WAMedia): SendContent {
+  const source = { url: m.path };
+  const caption = m.caption ? { caption: m.caption } : {};
+  if (m.kind === 'image') return { image: source, ...caption };
+  if (m.kind === 'video')
+    return { video: source, mimetype: m.mime, ...caption };
+  if (m.kind === 'audio')
+    return { audio: source, mimetype: m.mime, ptt: false };
+  return {
+    document: source,
+    mimetype: m.mime,
+    fileName: m.name,
+    ...caption,
+  };
+}
+
 export function createClient(account: WhatsAppAccount): WAClient {
   const st: State = { account, closed: false, openPromise: Promise.resolve() };
   resetGate(st);
@@ -169,6 +194,14 @@ export function createClient(account: WhatsAppAccount): WAClient {
     },
     sendText(jid, text, quotedId) {
       return send(st, jid, { text }, quotedId ? quotedOpts(jid, quotedId) : undefined);
+    },
+    sendMedia(jid, media, quotedId) {
+      return send(
+        st,
+        jid,
+        mediaContent(media),
+        quotedId ? quotedOpts(jid, quotedId) : undefined,
+      );
     },
     async sendReaction(jid, messageId, emoji) {
       await send(st, jid, { react: { text: emoji, key: key(jid, messageId, false) } });

@@ -85,7 +85,11 @@ function makeSend(clientFor: ClientFor): StationHandler {
         sendAttachments({ client, chatId, replyTo: replyParam }, attachments, text),
       );
       respond(id, {
-        result: { messageId: String(sent.id), account: accountId },
+        result: {
+          messageId: String(sent.id),
+          account: accountId,
+          attachments: attachments.map((a) => a.kind ?? 'file'),
+        },
       });
       return;
     }

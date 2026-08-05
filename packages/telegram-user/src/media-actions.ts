@@ -5,22 +5,32 @@ import type { UserClient } from './client.js';
 
 export interface CanonicalAttachment {
   kind?: string;
+  path?: string;
   url?: string;
   mime?: string;
   name?: string;
 }
 
+const srcOf = (att: CanonicalAttachment): string => att.path ?? att.url ?? '';
+
 function isImage(att: CanonicalAttachment): boolean {
   if (att.kind === 'image') return true;
   if (att.mime !== undefined) return isImageMime(att.mime);
-  return att.url !== undefined && isImageExt(att.url);
+  const src = srcOf(att);
+  return src !== '' && isImageExt(src);
+}
+
+function fileRef(att: CanonicalAttachment): string {
+  const src = srcOf(att);
+  if (src === '' || /^https?:\/\//i.test(src)) return src;
+  return src.startsWith('file:') ? src : `file:${src}`;
 }
 
 export function buildInputMedia(
   att: CanonicalAttachment,
   caption: string | undefined,
 ): InputMediaLike {
-  const file = att.url ?? '';
+  const file = fileRef(att);
   const params = {
     ...(caption ? { caption } : {}),
     ...(att.name ? { fileName: att.name } : {}),

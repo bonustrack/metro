@@ -72,40 +72,73 @@ interface SendArgs {
   parseMode?: string;
   buttons?: { text: string; url: string }[][];
   account?: string;
-  attachments?: { kind?: string; url?: string; mime?: string; name?: string }[];
+  attachments?: {
+    kind?: string;
+    path?: string;
+    url?: string;
+    mime?: string;
+    name?: string;
+  }[];
 }
 
 
+type WireAttachment = NonNullable<SendArgs['attachments']>[number];
+
+const attachmentSrc = (att: WireAttachment): string | undefined =>
+  att.path ?? att.url;
+
+const attachmentKind = (att: WireAttachment): string =>
+  mediaKindOf(att.kind, att.mime, attachmentSrc(att) ?? att.name);
+
+async function sendOneAttachment(
+  a: SendArgs,
+  att: WireAttachment,
+  caption: string | undefined,
+): Promise<{ accountId: string; message_id: number; kind: string }> {
+  const kind = attachmentKind(att);
+  const mf = MEDIA_METHOD_FIELD[kind];
+  if (!mf) throw new Error(`telegram cannot send a '${kind}' attachment`);
+  const sent = await sendMedia(mf.method, mf.field, {
+    line: a.line,
+    path: attachmentSrc(att),
+    caption,
+    replyTo: a.replyTo,
+    parseMode: a.parseMode,
+    account: a.account,
+    name: att.name,
+  });
+  return { ...sent, kind };
+}
+
+const captionLabel = (caption: string | undefined, kind: string): string =>
+  caption !== undefined && caption !== '' ? caption : `[${kind}]`;
+
 async function sendAttachments(id: string, a: SendArgs): Promise<void> {
-  const { line, text, replyTo, parseMode, account, attachments = [] } = a;
+  const { line, text, replyTo, attachments = [] } = a;
   let last: { accountId: string; message_id: number } | undefined;
+  const delivered: string[] = [];
   for (let i = 0; i < attachments.length; i++) {
     const att = attachments[i];
     if (!att) continue;
-    const kind = mediaKindOf(att.kind, att.mime, att.url ?? att.name);
-    const mf = MEDIA_METHOD_FIELD[kind];
-    if (!mf) continue;
-    const { method, field } = mf;
-    last = await sendMedia(method, field, {
-      line,
-      path: att.url,
-      caption: i === 0 ? text : undefined,
-      replyTo,
-      parseMode,
-      account,
-      name: att.name,
-    });
+    const caption = i === 0 ? text : undefined;
+    const sent = await sendOneAttachment(a, att, caption);
+    last = sent;
+    delivered.push(sent.kind);
     emitOutbound(
-      last.accountId,
+      sent.accountId,
       line,
-      String(last.message_id),
-      i === 0 ? text || `[${kind}]` : `[${kind}]`,
+      String(sent.message_id),
+      captionLabel(caption, sent.kind),
       replyTo,
     );
   }
   if (!last) throw new Error('no attachments were sent');
   respond(id, {
-    result: { messageId: String(last.message_id), account: last.accountId },
+    result: {
+      messageId: String(last.message_id),
+      account: last.accountId,
+      attachments: delivered,
+    },
   });
 }
 

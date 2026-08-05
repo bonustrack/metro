@@ -107,6 +107,8 @@ export const MEDIA_METHOD_FIELD: Record<
 > = {
   image: { method: 'sendPhoto', field: 'photo' },
   voice: { method: 'sendVoice', field: 'voice' },
+  audio: { method: 'sendAudio', field: 'audio' },
+  video: { method: 'sendVideo', field: 'video' },
   document: { method: 'sendDocument', field: 'document' },
 };
 

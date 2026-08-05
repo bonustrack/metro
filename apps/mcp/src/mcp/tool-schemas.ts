@@ -11,13 +11,18 @@ const msgIdProp = {
 const attachmentItem = {
   type: 'object',
   description:
-    'A file to attach. Provide `path` (preferred, absolute local path) or `url`.',
+    'A file to attach. Provide exactly one of `url` (fetched by the daemon) or ' +
+    '`path` (read off the daemon machine, so only useful for a file already there).',
   properties: {
     path: {
       type: 'string',
-      description: 'Absolute local path to the file (the daemon reads it).',
+      description:
+        'Absolute path on the DAEMON host. A path on your own machine will not resolve; use `url`.',
     },
-    url: { type: 'string', description: 'http(s) URL (alternative to path).' },
+    url: {
+      type: 'string',
+      description: 'http(s) URL. The daemon fetches it and uploads the bytes.',
+    },
     mime: {
       type: 'string',
       description: 'MIME type (guessed from extension if omitted).',
@@ -50,8 +55,10 @@ export const COMMON_TOOLS = [
     name: 'send',
     description:
       'Send a message (and/or media) to a Metro conversation. Args: line, text?, reply_to?, ' +
-      'attachments?. The station is derived from the line. Attachments are local paths ' +
-      '(preferred) or urls the daemon reads. At least one of text/attachments is required.',
+      'attachments?. The station is derived from the line. Attachments are urls the daemon ' +
+      'fetches, or paths on the daemon host. At least one of text/attachments is required. ' +
+      'The success line names each attachment the station actually delivered; a station that ' +
+      'cannot carry a file errors instead of reporting success.',
     inputSchema: {
       type: 'object',
       properties: {
