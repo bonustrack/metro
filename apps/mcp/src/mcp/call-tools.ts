@@ -28,6 +28,18 @@ const deliveredLabels = (response: { result: unknown }): string[] => {
     : [];
 };
 
+function assertDelivered(
+  station: Station,
+  delivered: string[],
+  atts: ResolvedAttachment[],
+): void {
+  if (delivered.length < atts.length)
+    throw new Error(
+      `${station.name} delivered ${delivered.length} of ${atts.length} attachment(s); ` +
+        'the message text may still have been sent',
+    );
+}
+
 async function sendNative(
   m: MessageArgs,
   text: string | undefined,
@@ -40,8 +52,12 @@ async function sendNative(
     await ctx.call('send', replyTo ? { line, text, replyTo } : { line, text });
     sent.push('text');
   }
-  if (station.sendAttachments)
-    sent.push(...(await station.sendAttachments(line, atts, ctx)));
+  if (!atts.length) return sent;
+  const delivered = station.sendAttachments
+    ? await station.sendAttachments(line, atts, ctx)
+    : [];
+  assertDelivered(station, delivered, atts);
+  sent.push(...delivered);
   return sent;
 }
 
@@ -61,11 +77,7 @@ async function sendForwarded(
   if (text) sent.push('text');
   if (!atts.length) return sent;
   const delivered = deliveredLabels(response);
-  if (delivered.length < atts.length)
-    throw new Error(
-      `${station.name} delivered ${delivered.length} of ${atts.length} attachment(s); ` +
-        'the message text may still have been sent',
-    );
+  assertDelivered(station, delivered, atts);
   sent.push(...delivered);
   return sent;
 }

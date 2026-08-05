@@ -13,11 +13,28 @@ interface Attachment {
   name?: string;
 }
 
+interface DiscordFile {
+  file: string;
+  kind: string;
+  name: string;
+}
+
+const discordFile = (a: Attachment): DiscordFile | null => {
+  const file = a.path ?? a.url;
+  if (typeof file !== 'string') return null;
+  return { file, kind: a.kind ?? 'file', name: a.name ?? '' };
+};
+
 function discordAttachments(att: Attachment[]): Args {
-  const files = att
-    .map((a) => a.path ?? a.url)
-    .filter((u): u is string => typeof u === 'string');
-  return files.length ? { files, attachmentKinds: att.map((a) => a.kind ?? 'file') } : {};
+  const usable = att
+    .map(discordFile)
+    .filter((f): f is DiscordFile => f !== null);
+  if (!usable.length) return {};
+  return {
+    files: usable.map((f) => f.file),
+    attachmentKinds: usable.map((f) => f.kind),
+    attachmentNames: usable.map((f) => f.name),
+  };
 }
 
 export function normalizeDiscord(action: string, env: Args): Normalized {

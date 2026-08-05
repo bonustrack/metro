@@ -26,18 +26,23 @@ function fileRef(att: CanonicalAttachment): string {
   return src.startsWith('file:') ? src : `file:${src}`;
 }
 
+export interface OutgoingMedia {
+  media: InputMediaLike;
+  kind: string;
+}
+
 export function buildInputMedia(
   att: CanonicalAttachment,
   caption: string | undefined,
-): InputMediaLike {
+): OutgoingMedia {
   const file = fileRef(att);
   const params = {
     ...(caption ? { caption } : {}),
     ...(att.name ? { fileName: att.name } : {}),
   };
   return isImage(att)
-    ? InputMedia.photo(file, params)
-    : InputMedia.document(file, params);
+    ? { media: InputMedia.photo(file, params), kind: 'image' }
+    : { media: InputMedia.document(file, params), kind: 'file' };
 }
 
 interface SendMediaTarget {
@@ -46,22 +51,30 @@ interface SendMediaTarget {
   replyTo?: number;
 }
 
+export interface SentMedia {
+  message: Message;
+  delivered: string[];
+}
+
 export async function sendAttachments(
   target: SendMediaTarget,
   attachments: CanonicalAttachment[],
   text: string,
-): Promise<Message> {
+): Promise<SentMedia> {
   const { client, chatId, replyTo } = target;
   const peer = await client.tg.resolvePeer(chatId);
   let last: Message | undefined;
+  const delivered: string[] = [];
   for (let i = 0; i < attachments.length; i++) {
     const att = attachments[i];
-    if (!att) continue;
+    if (!att || srcOf(att) === '') continue;
     const caption = i === 0 ? text : undefined;
-    last = await client.tg.sendMedia(peer, buildInputMedia(att, caption), {
+    const out = buildInputMedia(att, caption);
+    last = await client.tg.sendMedia(peer, out.media, {
       ...(replyTo !== undefined ? { replyTo } : {}),
     });
+    delivered.push(out.kind);
   }
   if (!last) throw new Error('no attachments were sent');
-  return last;
+  return { message: last, delivered };
 }

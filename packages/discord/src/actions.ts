@@ -14,10 +14,12 @@ import {
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
 import { respond } from './wire.js';
 import { normalizeDiscord } from '@metro-labs/mcp/stations/messaging-normalize';
+import { assertContentLength } from '@metro-labs/mcp/stations/attachments';
 import {
-  appendFile,
-  assertContentLength,
-} from '@metro-labs/mcp/stations/attachments';
+  appendFiles,
+  outgoingFiles,
+  type OutgoingFile,
+} from './send-files.js';
 import {
   makeStation,
   type CallMsg,
@@ -36,31 +38,28 @@ async function sendMessage(
   accountId: string,
   channel: string,
   body: Record<string, unknown>,
-  files?: string[],
-): Promise<{ id: string }> {
-  if (!files || files.length === 0) {
-    return rest<{ id: string }>(
+  files: OutgoingFile[],
+): Promise<{ id: string; delivered: string[] }> {
+  if (files.length === 0) {
+    const plain = await rest<{ id: string }>(
       accountId,
       'POST',
       `/channels/${channel}/messages`,
       body,
     );
+    return { id: plain.id, delivered: [] };
   }
   const form = new FormData();
   form.append('payload_json', JSON.stringify(body));
-  for (let i = 0; i < files.length; i++) {
-    const path = files[i];
-    if (path === undefined) continue;
-    const name = path.split('/').pop() ?? `file-${i}`;
-    await appendFile(form, `files[${i}]`, path, name);
-  }
-  return rest<{ id: string }>(
+  const delivered = await appendFiles(form, files);
+  const res = await rest<{ id: string }>(
     accountId,
     'POST',
     `/channels/${channel}/messages`,
     form,
     true,
   );
+  return { id: res.id, delivered };
 }
 
 export type { CallMsg };
@@ -76,6 +75,7 @@ async function send(id: string, args: Record<string, unknown>): Promise<void> {
     files,
     account,
     attachmentKinds,
+    attachmentNames,
   } = args as {
     line: string;
     text?: string;
@@ -86,6 +86,7 @@ async function send(id: string, args: Record<string, unknown>): Promise<void> {
     files?: string[];
     account?: string;
     attachmentKinds?: string[];
+    attachmentNames?: string[];
   };
   const { accountId, channelId } = routeOf(line, account);
   const body: Record<string, unknown> = { flags: 4 };
@@ -93,22 +94,18 @@ async function send(id: string, args: Record<string, unknown>): Promise<void> {
   if (replyTo) body.message_reference = { message_id: replyTo };
   if (embeds) body.embeds = embeds;
   if (stickerIds) body.sticker_ids = stickerIds;
-  const attachments = [...(images ?? []), ...(files ?? [])];
-  const res = await sendMessage(
-    accountId,
-    channelId,
-    body,
-    attachments.length ? attachments : undefined,
+  const outgoing = outgoingFiles(
+    [...(images ?? []), ...(files ?? [])],
+    attachmentNames,
+    attachmentKinds,
   );
+  const res = await sendMessage(accountId, channelId, body, outgoing);
   emitOutbound(accountId, line, res.id, text ?? '', replyTo);
-  const delivered = attachments.map(
-    (_, i) => attachmentKinds?.[i] ?? 'file',
-  );
   respond(id, {
     result: {
       messageId: res.id,
       account: accountId,
-      ...(delivered.length ? { attachments: delivered } : {}),
+      ...(res.delivered.length ? { attachments: res.delivered } : {}),
     },
   });
 }
