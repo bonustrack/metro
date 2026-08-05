@@ -1,6 +1,7 @@
 import { stationForLine } from '../stations/registry.js';
 import { kindOf, toCanonical } from '../stations/attachments.js';
 import {
+  cleanupAttachments,
   resolveAttachments,
   type ResolvedAttachment,
 } from '../stations/attach-resolve.js';
@@ -16,9 +17,6 @@ interface MessageArgs {
   ctx: ReturnType<typeof makeCtx>;
   station: Station;
 }
-
-const hasRef = (x: CanonicalAttachment): boolean =>
-  Boolean(x.path) || Boolean(x.url);
 
 const deliveredLabels = (response: { result: unknown }): string[] => {
   const list = (response.result as { attachments?: unknown } | null)
@@ -84,27 +82,30 @@ async function sendForwarded(
 
 const unsupported = (station: Station, atts: CanonicalAttachment[]): string =>
   `${station.name} cannot send attachments (${atts
-    .map((a) => kindOf(a.mime ?? '', a.path ?? a.url ?? ''))
+    .map((a) => kindOf(a.mime ?? '', a.path ?? a.url ?? a.name ?? ''))
     .join(', ')}); send a link in \`text\` instead`;
 
 async function handleSend(m: MessageArgs): Promise<ToolResult> {
   const text = m.a.text as string | undefined;
   const replyTo = m.a.reply_to as string | undefined;
-  const requested =
-    (m.a.attachments as CanonicalAttachment[] | undefined)?.filter(hasRef) ?? [];
+  const requested = (m.a.attachments as CanonicalAttachment[] | undefined) ?? [];
   if (!text && !requested.length)
     return errResult('send requires `text` or `attachments`');
   if (requested.length && m.station.attachmentMode === 'none')
     return errResult(unsupported(m.station, requested));
   const atts = await resolveAttachments(requested);
-  const native =
-    m.station.attachmentMode === 'native' &&
-    typeof m.station.sendAttachments === 'function';
-  const sent = native
-    ? await sendNative(m, text, replyTo, atts)
-    : await sendForwarded(m, text, replyTo, atts);
-  if (!sent.length) return errResult('send requires `text` or `attachments`');
-  return ok(`sent: ${sent.join(', ')}`);
+  try {
+    const native =
+      m.station.attachmentMode === 'native' &&
+      typeof m.station.sendAttachments === 'function';
+    const sent = native
+      ? await sendNative(m, text, replyTo, atts)
+      : await sendForwarded(m, text, replyTo, atts);
+    if (!sent.length) return errResult('send requires `text` or `attachments`');
+    return ok(`sent: ${sent.join(', ')}`);
+  } finally {
+    await cleanupAttachments(atts);
+  }
 }
 
 async function handleRead({ line, a, ctx }: MessageArgs): Promise<ToolResult> {

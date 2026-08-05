@@ -11,25 +11,42 @@ const msgIdProp = {
 const attachmentItem = {
   type: 'object',
   description:
-    'A file to attach. Provide exactly one of `url` (fetched by the daemon) or ' +
-    '`path` (read off the daemon machine, so only useful for a file already there).',
+    'A file to attach. Provide EXACTLY ONE source: `data` (base64 bytes carried inline in this ' +
+    'call), `url` (an http(s) url the daemon fetches, so the file must be publicly reachable), ' +
+    'or `path` (an absolute path resolved on the DAEMON host, not on yours). Naming more than ' +
+    'one source is an error, and so is naming none. For a file on your own machine, or one that ' +
+    'must not be exposed publicly, `data` is the only form that works.',
   properties: {
-    path: {
+    data: {
       type: 'string',
       description:
-        'Absolute path on the DAEMON host. A path on your own machine will not resolve; use `url`.',
+        'Base64-encoded file bytes, carried inline in this request. Use this for a file on your ' +
+        'own machine (nothing needs to exist on the daemon) or for a confidential file (nothing ' +
+        'is published). Capped at 8 MiB of decoded bytes per attachment AND per send, about ' +
+        '11 MiB of base64; over that the call is refused with an explicit error rather than ' +
+        'truncated. Set `name` and `mime` alongside it. Stations impose their own, lower limits ' +
+        '(xmtp refuses non-image files over ~190 KiB).',
     },
     url: {
       type: 'string',
-      description: 'http(s) URL. The daemon fetches it and uploads the bytes.',
+      description:
+        'http(s) URL fetched BY THE DAEMON, so it must be publicly reachable from the daemon ' +
+        'host. Do not use it for anything confidential; use `data`.',
+    },
+    path: {
+      type: 'string',
+      description:
+        'Absolute path resolved ON THE DAEMON HOST, not on the caller\'s machine. A path on ' +
+        'your own machine will not resolve and is refused; use `data` for that.',
     },
     mime: {
       type: 'string',
-      description: 'MIME type (guessed from extension if omitted).',
+      description: 'MIME type (guessed from the name/extension if omitted).',
     },
     name: {
       type: 'string',
-      description: 'Filename to present (defaults to basename).',
+      description:
+        'Filename to present (defaults to the basename; required in practice with `data`).',
     },
   },
 } as const;
@@ -55,8 +72,11 @@ export const COMMON_TOOLS = [
     name: 'send',
     description:
       'Send a message (and/or media) to a Metro conversation. Args: line, text?, reply_to?, ' +
-      'attachments?. The station is derived from the line. Attachments are urls the daemon ' +
-      'fetches, or paths on the daemon host. At least one of text/attachments is required. ' +
+      'attachments?. The station is derived from the line. Each attachment names EXACTLY ONE ' +
+      'source: `data` (base64 bytes inline, capped at 8 MiB decoded per attachment and per ' +
+      'send), `url` (fetched by the daemon, so it must be publicly reachable), or `path` ' +
+      '(resolved on the DAEMON host, not on yours). Use `data` for a file on your own machine ' +
+      'or one that must not be published. At least one of text/attachments is required. ' +
       'The success line names each attachment the station actually delivered; a station that ' +
       'cannot carry a file errors instead of reporting success.',
     inputSchema: {
