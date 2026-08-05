@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from './log.js';
-import { publicBaseUrl } from './attach-serve.js';
+import { publicBaseOrDefault } from './attach-serve.js';
 import {
   apiFailure,
   apiSession,
@@ -26,7 +26,6 @@ import {
 } from '../db/agent-admin.js';
 
 const PREFIX = '/api/agents';
-const DEFAULT_PUBLIC_BASE = 'https://mcp.metro.box';
 const SERVER_NAME = 'metro';
 
 export interface AgentApiDeps extends AccountApiDeps {
@@ -73,7 +72,7 @@ export function target(path: string): Target {
 }
 
 export function mcpEndpoint(): string {
-  return `${publicBaseUrl() ?? DEFAULT_PUBLIC_BASE}/mcp`;
+  return `${publicBaseOrDefault()}/mcp`;
 }
 
 export function mcpAddCommand(key: string): string {

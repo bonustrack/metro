@@ -25,12 +25,17 @@ function authorized(req: IncomingMessage, name: string): boolean {
   );
 }
 
+const DEFAULT_PUBLIC_BASE = 'https://mcp.metro.box';
+
 export function publicBaseUrl(): string | null {
   const env = process.env.METRO_PUBLIC_URL?.trim();
   if (env) return env.replace(/\/+$/, '');
   const host = loadTunnelConfig()?.hostname;
   return host ? `https://${host}` : null;
 }
+
+export const publicBaseOrDefault = (): string =>
+  publicBaseUrl() ?? DEFAULT_PUBLIC_BASE;
 
 export function attachmentUrl(
   pathOrName: string,

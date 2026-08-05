@@ -14,7 +14,7 @@ export interface ApiSession {
 export function cors(req: IncomingMessage): Record<string, string> {
   return {
     'access-control-allow-origin': req.headers.origin ?? '*',
-    'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'access-control-allow-headers': 'Authorization, Content-Type',
     'access-control-max-age': '86400',
     vary: 'Origin',
@@ -90,13 +90,14 @@ export function apiFailure(
   req: IncomingMessage,
   res: ServerResponse,
   err: unknown,
+  label = 'agent-api',
 ): void {
   if (err instanceof ApiError) {
     sendJson(req, res, err.status, { error: err.message });
     return;
   }
-  log.warn({ err: errMsg(err) }, 'agent-api: request failed');
-  sendJson(req, res, 500, { error: 'agent api failed' });
+  log.warn({ err: errMsg(err) }, `${label}: request failed`);
+  if (!res.headersSent) sendJson(req, res, 500, { error: `${label} failed` });
 }
 
 export function bodyField(body: unknown, key: string): unknown {

@@ -220,7 +220,7 @@ describe('malformed inline content', () => {
   test('an empty-string source counts as no source at all', async () => {
     await expect(
       resolveAttachments([{ data: '', name: 'a.bin' }]),
-    ).rejects.toThrow(/requires `path` or `url`/);
+    ).rejects.toThrow(/requires exactly one of `upload`, `data`, `url` or `path`/);
   });
 });
 
@@ -240,7 +240,7 @@ describe('exactly one source', () => {
   test('path plus url is refused', async () => {
     await expect(
       resolveAttachments([{ path: '/tmp/a.png', url: 'https://x.test/a.png' }]),
-    ).rejects.toThrow(/pass exactly one of `path`, `url` or `data`/);
+    ).rejects.toThrow(/pass exactly one of `upload`, `data`, `url` or `path`/);
   });
 
   test('all three is refused', async () => {
@@ -251,9 +251,9 @@ describe('exactly one source', () => {
     ).rejects.toThrow(/names 3 sources/);
   });
 
-  test('no source at all is still refused with the pre-existing wording', async () => {
+  test('no source at all is still refused, naming all four sources', async () => {
     await expect(resolveAttachments([{ name: 'a.png' }])).rejects.toThrow(
-      /requires `path` or `url`/,
+      /requires exactly one of `upload`, `data`, `url` or `path`/,
     );
   });
 

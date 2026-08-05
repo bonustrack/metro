@@ -39,7 +39,7 @@ describe('resolveAttachments', () => {
 
   test('an attachment with neither path nor url is refused', async () => {
     await expect(resolveAttachments([{ name: 'a.png' }])).rejects.toThrow(
-      /requires `path` or `url`/,
+      /requires exactly one of `upload`, `data`, `url` or `path`/,
     );
   });
 });

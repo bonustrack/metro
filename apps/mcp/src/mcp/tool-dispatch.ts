@@ -19,6 +19,7 @@ import {
   dispatchInviteLink,
   dispatchRemoveMembers,
 } from './group-tools.js';
+import { dispatchCreateUpload } from './upload-tool.js';
 import { callTargetDenied, lineTargetDenied } from '../db/agent-scope.js';
 import { SOURCE_KEYS } from '../stations/attach-resolve.js';
 import { decodedLengthOf } from '../stations/attach-inline.js';
@@ -46,6 +47,7 @@ const CORE_DISPATCH: Record<
   add_members: dispatchAddMembers,
   remove_members: dispatchRemoveMembers,
   export_invite: dispatchInviteLink,
+  create_upload: dispatchCreateUpload,
 };
 
 const toolList = (): { tools: unknown[] } => ({
