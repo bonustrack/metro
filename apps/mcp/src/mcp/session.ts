@@ -2,6 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { InboundRelay } from '../channels/inbound.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
+import { errMsg } from '../daemon/log.js';
 import {
   allowlistForLine,
   senderMatchesAllowlist,
@@ -82,11 +83,13 @@ export class McpSession {
   private sink: RawGetSink | undefined;
   private unsubscribe: (() => void) | undefined;
   private closed = false;
+  private schemaNoticeDue: boolean;
   private readonly onClosed: (session: McpSession) => void;
 
   private constructor(init: SessionInit) {
     this.id = init.id;
     this.scopeKey = init.scopeKey;
+    this.schemaNoticeDue = init.adopted;
     this.onClosed = init.onClosed;
     this.eventStore = new BoundedEventStore({
       scopeOf: () => this.owner.scope(),
@@ -100,7 +103,7 @@ export class McpSession {
             'claude/channel': {},
             'claude/channel/permission': {},
           },
-          tools: {},
+          tools: { listChanged: true },
         },
         instructions: MCP_INSTRUCTIONS,
       },
@@ -153,8 +156,21 @@ export class McpSession {
 
   bindSink(sink: RawGetSink | undefined, identity: RequestIdentity): void {
     this.sink = sink;
-    if (sink === undefined) this.owner.releaseStream();
-    else this.owner.bindStream(identity);
+    if (sink === undefined) {
+      this.owner.releaseStream();
+      return;
+    }
+    this.owner.bindStream(identity);
+    this.announceToolSchema();
+  }
+
+  private announceToolSchema(): void {
+    if (!this.schemaNoticeDue) return;
+    this.schemaNoticeDue = false;
+    channelLog('session: tool list changed', 'id', this.id, 'scope', this.scopeKey);
+    void this.server.sendToolListChanged().catch((err: unknown) => {
+      channelLog('session: tool list changed notice failed', errMsg(err));
+    });
   }
 
   dropStream(): void {

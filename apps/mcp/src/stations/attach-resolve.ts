@@ -8,6 +8,7 @@ import {
   assertInlineTotal,
   decodeInline,
   removeInlineTemp,
+  splitInlineData,
   writeInlineTemp,
 } from './attach-inline.js';
 import type { CanonicalAttachment } from './types.js';
@@ -84,20 +85,21 @@ async function fromData(
   budget: InlineBudget,
 ): Promise<ResolvedAttachment> {
   const name = a.name ?? 'attachment';
-  const bytes = decodeInline(data, `'${name}'`);
+  const source = splitInlineData(data);
+  const bytes = decodeInline(source.data, `'${name}'`);
   budget.used += bytes.length;
   assertInlineTotal(budget.used);
   const { dir, path } = await writeInlineTemp(bytes, a.name);
   return {
     path,
-    mime: a.mime ?? guessMime(name),
+    mime: a.mime ?? source.mime ?? guessMime(name),
     name,
     bytes: bytes.length,
     temp: dir,
   };
 }
 
-const SOURCE_KEYS = ['path', 'url', 'data'] as const;
+export const SOURCE_KEYS = ['path', 'url', 'data'] as const;
 
 const sourcesOf = (a: CanonicalAttachment): string[] =>
   SOURCE_KEYS.filter((k) => {

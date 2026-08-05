@@ -45,8 +45,10 @@ const sseFrames = (chunk: string): Record<string, unknown>[] => {
 };
 
 let server: Server | undefined;
+let second: Server | undefined;
 afterAll(async () => {
   if (server) await new Promise<void>((r) => server?.close(() => r()));
+  if (second) await new Promise<void>((r) => second?.close(() => r()));
 });
 
 describe('MCP session survives daemon restart', () => {
@@ -80,7 +82,14 @@ describe('MCP session survives daemon restart', () => {
     expect(init.status).toBe(200);
     const liveSessionId = init.headers.get('mcp-session-id');
     expect(typeof liveSessionId).toBe('string');
-    await init.body?.cancel();
+    const initFrames = sseFrames(await init.text());
+    expect(
+      (
+        initFrames[0]?.result as
+          | { capabilities?: { tools?: { listChanged?: boolean } } }
+          | undefined
+      )?.capabilities?.tools?.listChanged,
+    ).toBe(true);
 
     const staleSessionId = randomUUID();
     expect(staleSessionId).not.toBe(liveSessionId);
@@ -146,5 +155,79 @@ describe('MCP session survives daemon restart', () => {
             'after restart',
       ),
     ).toBe(true);
+    expect(
+      received.some((f) => f.method === 'notifications/tools/list_changed'),
+    ).toBe(true);
+  }, 15000);
+});
+
+describe('the tool list_changed notice', () => {
+  test('is not sent to a client that just listed the tools itself', async () => {
+    const handler = await createMetroMcp();
+    handler.startInbound();
+    second = createServer((req, res) => {
+      void handler.httpHandler(req, res);
+    });
+    await new Promise<void>((r) => second?.listen(0, '127.0.0.1', () => r()));
+    const port = (second.address() as AddressInfo).port;
+    const url = `http://127.0.0.1:${port}/mcp?token=${TOKEN}`;
+
+    const init = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          clientInfo: { name: 'probe', version: '0.0.0' },
+        },
+      }),
+    });
+    const sessionId = init.headers.get('mcp-session-id') ?? '';
+    await init.body?.cancel();
+    expect(sessionId).not.toBe('');
+
+    const ac = new AbortController();
+    const sseRes = await fetch(url, {
+      method: 'GET',
+      signal: ac.signal,
+      headers: {
+        accept: 'text/event-stream',
+        'mcp-session-id': sessionId,
+        'mcp-protocol-version': '2025-06-18',
+      },
+    });
+    expect(sseRes.status).toBe(200);
+
+    const received: Record<string, unknown>[] = [];
+    const reader = sseRes.body?.getReader();
+    const decoder = new TextDecoder();
+    const pump = (async () => {
+      if (!reader) return;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          for (const f of sseFrames(decoder.decode(value, { stream: true })))
+            received.push(f);
+        }
+      } catch {
+        // aborted on teardown
+      }
+    })();
+
+    await new Promise((r) => setTimeout(r, 500));
+    ac.abort();
+    await pump;
+
+    expect(
+      received.some((f) => f.method === 'notifications/tools/list_changed'),
+    ).toBe(false);
   }, 15000);
 });
