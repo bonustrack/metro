@@ -11,6 +11,7 @@ import {
   splitInlineData,
   writeInlineTemp,
 } from './attach-inline.js';
+import { readUpload, UPLOAD_TTL_MS } from '../daemon/upload-store.js';
 import type { CanonicalAttachment } from './types.js';
 
 export interface ResolvedAttachment {
@@ -19,6 +20,10 @@ export interface ResolvedAttachment {
   name: string;
   bytes: number;
   temp?: string;
+}
+
+export interface ResolveOptions {
+  allowed?: Set<number>;
 }
 
 interface InlineBudget {
@@ -99,7 +104,27 @@ async function fromData(
   };
 }
 
-export const SOURCE_KEYS = ['path', 'url', 'data'] as const;
+const uploadMissing = (id: string): Error =>
+  new Error(
+    `upload '${id}' is not a live upload of yours. Either it was never created, or its ` +
+      'bytes were never pushed to `POST /api/uploads`, or it belongs to another agent, or ' +
+      `it expired (an upload lives ${Math.round(UPLOAD_TTL_MS / 60_000)} minutes). ` +
+      'Create a new one with `create_upload` and push the file again.',
+  );
+
+function fromUpload(
+  a: CanonicalAttachment,
+  id: string,
+  allowed: Set<number> | undefined,
+): ResolvedAttachment {
+  const rec = allowed === undefined ? undefined : readUpload(id);
+  if (rec === undefined || !(allowed?.has(rec.agentId) ?? false))
+    throw uploadMissing(id);
+  const name = a.name ?? rec.name;
+  return { path: rec.path, mime: a.mime ?? rec.mime, name, bytes: rec.bytes };
+}
+
+export const SOURCE_KEYS = ['path', 'url', 'data', 'upload'] as const;
 
 const sourcesOf = (a: CanonicalAttachment): string[] =>
   SOURCE_KEYS.filter((k) => {
@@ -110,18 +135,20 @@ const sourcesOf = (a: CanonicalAttachment): string[] =>
 export async function resolveAttachment(
   a: CanonicalAttachment,
   budget: InlineBudget = { used: 0 },
+  opts: ResolveOptions = {},
 ): Promise<ResolvedAttachment> {
   const sources = sourcesOf(a);
   if (sources.length === 0)
     throw new Error(
-      'attachment requires `path` or `url` or inline base64 `data` (exactly one)',
+      'attachment requires exactly one of `upload`, `data`, `url` or `path`',
     );
   if (sources.length > 1)
     throw new Error(
       `attachment names ${sources.length} sources (${sources
         .map((s) => `\`${s}\``)
-        .join(', ')}); pass exactly one of \`path\`, \`url\` or \`data\``,
+        .join(', ')}); pass exactly one of \`upload\`, \`data\`, \`url\` or \`path\``,
     );
+  if (a.upload) return fromUpload(a, a.upload, opts.allowed);
   if (a.data) return fromData(a, a.data, budget);
   if (a.path) return fromPath(a, a.path);
   return fromUrl(a, a.url ?? '');
@@ -135,6 +162,7 @@ export async function cleanupAttachments(
 
 export async function resolveAttachments(
   atts: CanonicalAttachment[],
+  opts: ResolveOptions = {},
 ): Promise<ResolvedAttachment[]> {
   const out: ResolvedAttachment[] = [];
   const budget: InlineBudget = { used: 0 };
@@ -142,7 +170,7 @@ export async function resolveAttachments(
     const a = atts[i];
     if (!a) continue;
     try {
-      out.push(await resolveAttachment(a, budget));
+      out.push(await resolveAttachment(a, budget, opts));
     } catch (e) {
       await cleanupAttachments(out);
       const why = e instanceof Error ? e.message : String(e);

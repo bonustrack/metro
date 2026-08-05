@@ -11,34 +11,50 @@ const msgIdProp = {
 const attachmentItem = {
   type: 'object',
   description:
-    'A file to attach. Provide EXACTLY ONE source: `data` (base64 bytes carried inline in this ' +
-    'call), `url` (an http(s) url the daemon fetches, so the file must be publicly reachable), ' +
-    'or `path` (an absolute path resolved on the DAEMON host, not on yours). Naming more than ' +
-    'one source is an error, and so is naming none. For a file on your own machine, or one that ' +
-    'must not be exposed publicly, `data` is the only form that works.',
+    'A file to attach. Provide EXACTLY ONE source; naming two is an error and so is naming ' +
+    'none. Which one to use: `upload` for any real file on your own machine, including a ' +
+    'confidential one (call `create_upload` first, push the bytes over HTTP, then name the ' +
+    'id here); `data` ONLY for a tiny file, a few KB at most, because the base64 has to be ' +
+    'written out verbatim in this tool call and long base64 gets corrupted in the writing; ' +
+    '`url` when the file is ALREADY published somewhere the daemon can fetch it; `path` ONLY ' +
+    'for a file that is already sitting on the daemon host, which is almost never your ' +
+    'machine.',
   properties: {
+    upload: {
+      type: 'string',
+      description:
+        'The `upload_id` of a file already pushed to metro over HTTP (`create_upload` mints ' +
+        'the slot and the one-line command; the bytes never pass through this conversation). ' +
+        'THIS IS THE ROUTE FOR ANYTHING REAL: it takes files up to 64 MiB, works for a file on ' +
+        'your own machine, and publishes nothing. The upload belongs to your agent, expires ' +
+        '30 minutes after it is created, and no other agent can name it.',
+    },
     data: {
       type: 'string',
       description:
-        'Base64-encoded file bytes, carried inline in this request. Use this for a file on your ' +
-        'own machine (nothing needs to exist on the daemon) or for a confidential file (nothing ' +
-        'is published). Capped at 8 MiB of decoded bytes per attachment AND per send, about ' +
-        '11 MiB of base64; over that the call is refused with an explicit error rather than ' +
-        'truncated. Set `name` and `mime` alongside it; a `data:<mime>;base64,` prefix is also ' +
-        'accepted and supplies the mime when `mime` is omitted. Stations impose their own, ' +
-        'lower limits (xmtp refuses non-image files over ~190 KiB).',
+        'Base64-encoded file bytes, inline in this call. ONLY FOR TINY FILES. The hard cap is ' +
+        '8 MiB decoded, but the real ceiling is far lower and is not enforced by the daemon: ' +
+        'this base64 has to be emitted verbatim as part of the tool call, and past roughly ' +
+        '10 KB (~13 KB of base64) it comes out corrupted, so the file arrives silently ' +
+        'damaged or fails to decode. Use `upload` instead for anything bigger. A ' +
+        '`data:<mime>;base64,` prefix is accepted and supplies the mime when `mime` is ' +
+        'omitted. Stations impose their own, lower limits (xmtp refuses non-image files over ' +
+        '~190 KiB).',
     },
     url: {
       type: 'string',
       description:
-        'http(s) URL fetched BY THE DAEMON, so it must be publicly reachable from the daemon ' +
-        'host. Do not use it for anything confidential; use `data`.',
+        'http(s) URL fetched BY THE DAEMON, so it must already be publicly reachable from the ' +
+        'daemon host. Right when the file is already published; never for anything ' +
+        'confidential, because it has to be public for this to work at all. Use `upload` for ' +
+        'a confidential file.',
     },
     path: {
       type: 'string',
       description:
-        'Absolute path resolved ON THE DAEMON HOST, not on the caller\'s machine. A path on ' +
-        'your own machine will not resolve and is refused; use `data` for that.',
+        'Absolute path resolved ON THE DAEMON HOST, which is a different machine from yours. ' +
+        'A path on your own disk does NOT resolve here and is refused, however local it ' +
+        'looks. Use `upload` for a file on your machine.',
     },
     mime: {
       type: 'string',
@@ -47,10 +63,39 @@ const attachmentItem = {
     name: {
       type: 'string',
       description:
-        'Filename to present (defaults to the basename; required in practice with `data`).',
+        'Filename to present (defaults to the basename, or to the name given at upload time).',
     },
   },
 } as const;
+
+const CREATE_UPLOAD_TOOL = {
+  name: 'create_upload',
+  description:
+    'Reserve a slot to push a file to metro over HTTP so you can attach it with `send`. Use ' +
+    'this for any file that actually matters: it is the only attachment route that carries a ' +
+    'file from YOUR machine without publishing it and without the bytes passing through this ' +
+    'conversation. Args: name? (the filename to present), mime?. Returns `upload_id`, a ' +
+    'single-use `upload_url` and a ready-to-run `curl` line. ONE STEP NEEDS A SHELL: run that ' +
+    'command (or any HTTP client) to push the bytes; there is no way to move a local file to ' +
+    'the daemon over MCP alone, because anything in an MCP call has to be written out by the ' +
+    'model first. If you have no shell, hand the single command to a subagent that does and ' +
+    'keep the `upload_id` -- the slot belongs to this metro agent, not to whoever runs the ' +
+    'command. Then: send({line, attachments:[{upload:"<upload_id>"}]}). Up to 64 MiB, expires ' +
+    '30 minutes after it is created, and no other agent can reference it.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Filename to present to the recipient (e.g. `report.pdf`).',
+      },
+      mime: {
+        type: 'string',
+        description: 'MIME type (guessed from the name/extension if omitted).',
+      },
+    },
+  },
+};
 
 export const COMMON_TOOLS = [
   {
@@ -74,10 +119,12 @@ export const COMMON_TOOLS = [
     description:
       'Send a message (and/or media) to a Metro conversation. Args: line, text?, reply_to?, ' +
       'attachments?. The station is derived from the line. Each attachment names EXACTLY ONE ' +
-      'source: `data` (base64 bytes inline, capped at 8 MiB decoded per attachment and per ' +
-      'send), `url` (fetched by the daemon, so it must be publicly reachable), or `path` ' +
-      '(resolved on the DAEMON host, not on yours). Use `data` for a file on your own machine ' +
-      'or one that must not be published. At least one of text/attachments is required. ' +
+      'source, and the choice matters: `upload` (an `upload_id` from `create_upload`, the ' +
+      'route for any real file on your own machine, confidential or not, up to 64 MiB); ' +
+      '`data` (base64 inline -- TINY FILES ONLY, a few KB, because the base64 has to be ' +
+      'written out verbatim in the call and longer than that it corrupts); `url` (the daemon ' +
+      'fetches it, so the file must already be public); `path` (resolved on the DAEMON host, ' +
+      'which is not your machine). At least one of text/attachments is required. ' +
       'The success line names each attachment the station actually delivered; a station that ' +
       'cannot carry a file errors instead of reporting success.',
     inputSchema: {
@@ -318,6 +365,7 @@ export const COMMON_TOOLS = [
       required: ['line'],
     },
   },
+  CREATE_UPLOAD_TOOL,
 ];
 
 export const LIST_ACCOUNTS_TOOL = {
@@ -339,5 +387,9 @@ export const MCP_INSTRUCTIONS =
   '`unreact` (emoji on a `message_id`), `edit`/`delete` (a `message_id`), and `read` (recent ' +
   "history). Station support varies - the tool returns the daemon's reason if a verb is " +
   'unsupported on that line. Inbound attachments are surfaced as a note with an absolute ' +
-  '`local_path` - Read that path to view the file. Tool-approval prompts are relayed to the ' +
-  'same chat - answer "yes <id>"/"no <id>".';
+  '`local_path` - Read that path to view the file. To send a file OUT, call `create_upload`, ' +
+  'run the one curl line it hands back (that step needs a shell; the bytes go from your disk ' +
+  'straight to metro and never through this conversation), then `send` with ' +
+  'attachments:[{upload:"<upload_id>"}]. Inline `data` is for tiny files only, `url` only for ' +
+  'an already-public file, and `path` is read on the DAEMON host, not yours. Tool-approval ' +
+  'prompts are relayed to the same chat - answer "yes <id>"/"no <id>".';

@@ -16,6 +16,7 @@ conversation and encodes its platform, so the server routes the call automatical
 | Tool | Purpose |
 | --- | --- |
 | `send` | Send a message — text and/or `attachments`, optional `reply_to` |
+| `create_upload` | Reserve a slot to push a file to metro over HTTP, then attach it with `send` |
 | `reply` | Reply to a `message_id` with text |
 | `react` / `unreact` | Add / remove an emoji reaction |
 | `edit` / `delete` | Edit or delete a message you sent |
@@ -563,6 +564,67 @@ capability path fails closed: no `.grant` file means no token can match it.
 Because the link's authority is its own token, **resetting an agent's key does
 not break links already handed out**. Links minted before this change did carry
 the key, and a reset kills those.
+
+### Sending a file out
+
+An attachment on `send` names exactly one source, and only one of them is right
+for the normal case — a file sitting on the machine the agent runs on:
+
+| Source | Use it when | Why not otherwise |
+| --- | --- | --- |
+| `upload` | **almost always**, up to 64 MiB | — |
+| `data` | the file is a few KB at most | the base64 has to be written out verbatim inside the tool call, and a model cannot emit tens of thousands of characters of it without corrupting them. Measured practical ceiling: roughly 10 KB, far below the 8 MiB the daemon would accept |
+| `url` | the file is already published | the daemon fetches it, so it has to be publicly reachable — which rules it out for anything confidential |
+| `path` | the file is already on the daemon host | it is resolved on the **daemon's** filesystem, not the caller's. A local-looking absolute path is refused |
+
+The `upload` route moves the bytes over HTTP, straight from the caller's disk to
+the daemon, so they never pass through the model's context and nothing is
+published:
+
+```bash
+# 1. MCP, no shell needed: mint a slot
+#    create_upload({name: "q3-results.pdf"})
+#    -> { upload_id: "up_…", upload_url: "https://mcp.metro.box/api/uploads/up_…?token=ut_…", curl: "…" }
+
+# 2. the one step that needs a shell — push the bytes
+curl -sS -T q3-results.pdf "https://mcp.metro.box/api/uploads/up_…?token=ut_…"
+
+# 3. MCP again: attach it
+#    send({line, text: "the numbers", attachments: [{upload: "up_…"}]})
+```
+
+Step 2 needs a shell and there is no way around that: anything carried in an MCP
+call is model output by construction, so an MCP-only path puts the bytes back
+through the model, which is the problem `data` already has. An agent that cannot
+run commands should delegate that single line to one that can and keep the
+`upload_id` — the slot belongs to the metro **agent**, not to whoever ran the
+command.
+
+If you have the agent's key to hand you can skip `create_upload` entirely and
+post the file in one request, authenticated exactly like `/api/tail` and
+`/attach`:
+
+```bash
+curl -sS -H "Authorization: Bearer $METRO_AGENT_KEY" \
+     --data-binary @q3-results.pdf \
+     "https://mcp.metro.box/api/uploads?name=q3-results.pdf"
+```
+
+An upload is **owned by the uploading agent and scoped exactly like an
+attachment**: the same `.owner` / `.grant` sidecars, the same two-path check, and
+`send` re-checks the owner before it resolves the id. Another agent naming the id
+gets the same answer as an agent naming an id that never existed.
+
+Uploads are **transient**. They live in the daemon's temp directory, never in the
+durable attachment cache that `/attach` serves, they expire **30 minutes** after
+they are created, and a reaper sweeps every 60 seconds. `DELETE
+/api/uploads/<id>` drops one early. A successful `send` does *not* consume the
+upload, so a retry after a timed-out call still works.
+
+Limits: **64 MiB per file** and 512 MiB of pending uploads daemon-wide. Over
+either, the request is refused with an error that names the limit — it is never
+truncated. Stations impose their own, lower ceilings on top of that (XMTP refuses
+non-image files over ~190 KiB), and those still fire first.
 
 ## How it works
 

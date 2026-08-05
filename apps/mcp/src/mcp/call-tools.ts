@@ -7,6 +7,7 @@ import {
 } from '../stations/attach-resolve.js';
 import type { CanonicalAttachment, ToolResult } from '../stations/types.js';
 import { errResult, makeCtx, ok, okJson, toErr } from './ctx.js';
+import { allowedAgents, currentIdentity } from './request-identity.js';
 import { str } from './str.js';
 
 type Station = NonNullable<ReturnType<typeof stationForLine>>;
@@ -93,7 +94,9 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
     return errResult('send requires `text` or `attachments`');
   if (requested.length && m.station.attachmentMode === 'none')
     return errResult(unsupported(m.station, requested));
-  const atts = await resolveAttachments(requested);
+  const atts = await resolveAttachments(requested, {
+    allowed: allowedAgents(currentIdentity()),
+  });
   try {
     const native =
       m.station.attachmentMode === 'native' &&

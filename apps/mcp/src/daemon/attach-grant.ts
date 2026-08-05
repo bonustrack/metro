@@ -11,13 +11,8 @@ export interface AttachmentGrant {
   mintedAt: number;
 }
 
-function grantPath(name: string): string | null {
-  const path = resolveCachedAttachment(name);
-  return path === null ? null : `${path}${GRANT_SUFFIX}`;
-}
-
-export function newAttachmentToken(): string {
-  return `at_${randomBytes(32).toString('base64url')}`;
+export function newAttachmentToken(prefix = 'at'): string {
+  return `${prefix}_${randomBytes(32).toString('base64url')}`;
 }
 
 function parseGrant(raw: string): AttachmentGrant | undefined {
@@ -39,30 +34,27 @@ function parseGrant(raw: string): AttachmentGrant | undefined {
   };
 }
 
-export function readAttachmentGrant(name: string): AttachmentGrant | undefined {
-  const path = grantPath(name);
-  if (path === null) return undefined;
+export function readGrant(path: string): AttachmentGrant | undefined {
   try {
-    return parseGrant(readFileSync(path, 'utf8'));
+    return parseGrant(readFileSync(`${path}${GRANT_SUFFIX}`, 'utf8'));
   } catch {
     return undefined;
   }
 }
 
-export function issueAttachmentGrant(
-  name: string,
+export function issueGrant(
+  path: string,
   agentId: number,
-): string | undefined {
-  const path = grantPath(name);
-  if (path === null) return undefined;
-  const existing = readAttachmentGrant(name);
+  prefix?: string,
+): string {
+  const existing = readGrant(path);
   if (existing?.agentId === agentId) return existing.token;
   const grant: AttachmentGrant = {
-    token: newAttachmentToken(),
+    token: newAttachmentToken(prefix),
     agentId,
     mintedAt: Date.now(),
   };
-  writeSecure(path, `${JSON.stringify(grant)}\n`);
+  writeSecure(`${path}${GRANT_SUFFIX}`, `${JSON.stringify(grant)}\n`);
   return grant.token;
 }
 
@@ -72,14 +64,36 @@ function sameToken(presented: string, stored: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+export function grantAllowsPath(
+  path: string,
+  owner: number,
+  presented: string,
+): boolean {
+  if (presented === '') return false;
+  const grant = readGrant(path);
+  if (grant === undefined) return false;
+  if (grant.agentId !== owner) return false;
+  return sameToken(presented, grant.token);
+}
+
+export function readAttachmentGrant(name: string): AttachmentGrant | undefined {
+  const path = resolveCachedAttachment(name);
+  return path === null ? undefined : readGrant(path);
+}
+
+export function issueAttachmentGrant(
+  name: string,
+  agentId: number,
+): string | undefined {
+  const path = resolveCachedAttachment(name);
+  return path === null ? undefined : issueGrant(path, agentId);
+}
+
 export function grantAllows(
   name: string,
   owner: number,
   presented: string,
 ): boolean {
-  if (presented === '') return false;
-  const grant = readAttachmentGrant(name);
-  if (grant === undefined) return false;
-  if (grant.agentId !== owner) return false;
-  return sameToken(presented, grant.token);
+  const path = resolveCachedAttachment(name);
+  return path === null ? false : grantAllowsPath(path, owner, presented);
 }

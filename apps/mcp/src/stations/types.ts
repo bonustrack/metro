@@ -16,6 +16,7 @@ export interface CanonicalAttachment {
   path?: string;
   url?: string;
   data?: string;
+  upload?: string;
   mime?: string;
   name?: string;
 }

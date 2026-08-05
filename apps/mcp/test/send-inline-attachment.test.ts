@@ -219,7 +219,7 @@ describe('inline attachments that cannot be sent are errors, never successes', (
       attachments: [{ data: B64, url: 'https://x.test/a.png', name: 'a.png' }],
     });
     expect(res.isError).toBe(true);
-    expect(text(res)).toContain('pass exactly one of `path`, `url` or `data`');
+    expect(text(res)).toContain('pass exactly one of `upload`, `data`, `url` or `path`');
     expect(h.seen).toHaveLength(0);
     expect(leftBehind()).toHaveLength(0);
   });
@@ -231,7 +231,9 @@ describe('inline attachments that cannot be sent are errors, never successes', (
       attachments: [{ name: 'forgot-the-bytes.pdf', mime: 'application/pdf' }],
     });
     expect(res.isError).toBe(true);
-    expect(text(res)).toContain('requires `path` or `url`');
+    expect(text(res)).toContain(
+      'requires exactly one of `upload`, `data`, `url` or `path`',
+    );
     expect(h.seen).toHaveLength(0);
   });
 

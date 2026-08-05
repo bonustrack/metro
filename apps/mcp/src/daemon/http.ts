@@ -22,6 +22,7 @@ import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
 import { handleLineWebhook, isLineWebhookPath } from './line-webhook.js';
 import { handleGoogleAuthRequest } from './google-oauth.js';
 import { handleAgentApiRequest, type AgentApiDeps } from './agent-api.js';
+import { handleUploadRequest } from './upload-api.js';
 import {
   handleMonitorRequest,
   type MonitorCall,
@@ -310,6 +311,7 @@ async function handlePreMcpRoutes(
   if (handleHealth(req, res)) return true;
   if (await handleGoogleAuthRequest(req, res)) return true;
   if (agentApi && handleAgentApiRequest(req, res, agentApi)) return true;
+  if (handleUploadRequest(req, res)) return true;
   if (handleAttachRequest(req, res)) return true;
   if (isLineWebhookPath(req)) {
     await handleLineWebhook(req, res, emit);

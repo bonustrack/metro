@@ -32,6 +32,7 @@ import {
 } from '../db/account-attach.js';
 import type { StationName } from '../db/schema.js';
 import { AttachSessions } from './attach-session.js';
+import { startUploadReaper } from './upload-store.js';
 import type { AgentApiDeps } from './agent-api.js';
 
 loadMetroEnv();
@@ -137,6 +138,7 @@ async function main(): Promise<void> {
     agentApi,
   );
   metroMcp.startInbound();
+  startUploadReaper();
   tunnel?.start();
   log.info(
     { tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' },
