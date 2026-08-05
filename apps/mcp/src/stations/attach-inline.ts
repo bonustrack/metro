@@ -36,8 +36,27 @@ export const decodedLengthOf = (b64: string): number =>
 const malformed = (why: string): Error =>
   new Error(
     `inline \`data\` ${why}; pass the file's bytes base64-encoded ` +
-      '(standard or url-safe alphabet, no `data:` prefix)',
+      '(standard or url-safe alphabet, optionally behind a `data:<mime>;base64,` prefix)',
   );
+
+const DATA_URL_RE = /^data:([^,]*),/i;
+
+export interface InlineSource {
+  data: string;
+  mime?: string;
+}
+
+export function splitInlineData(raw: string): InlineSource {
+  const compact = raw.replace(/\s+/g, '');
+  const match = DATA_URL_RE.exec(compact);
+  if (!match) return { data: raw };
+  const params = (match[1] ?? '').split(';');
+  if (!params.slice(1).some((p) => p.toLowerCase() === 'base64'))
+    throw malformed('is a `data:` url whose payload is not base64');
+  const mime = params[0]?.toLowerCase();
+  const data = compact.slice(match[0].length);
+  return mime === undefined || mime === '' ? { data } : { data, mime };
+}
 
 export function decodeInline(raw: string, label: string): Uint8Array {
   const b64 = raw.replace(/\s+/g, '');

@@ -24,8 +24,9 @@ const attachmentItem = {
         'own machine (nothing needs to exist on the daemon) or for a confidential file (nothing ' +
         'is published). Capped at 8 MiB of decoded bytes per attachment AND per send, about ' +
         '11 MiB of base64; over that the call is refused with an explicit error rather than ' +
-        'truncated. Set `name` and `mime` alongside it. Stations impose their own, lower limits ' +
-        '(xmtp refuses non-image files over ~190 KiB).',
+        'truncated. Set `name` and `mime` alongside it; a `data:<mime>;base64,` prefix is also ' +
+        'accepted and supplies the mime when `mime` is omitted. Stations impose their own, ' +
+        'lower limits (xmtp refuses non-image files over ~190 KiB).',
     },
     url: {
       type: 'string',

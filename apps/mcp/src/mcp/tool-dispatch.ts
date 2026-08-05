@@ -20,6 +20,9 @@ import {
   dispatchRemoveMembers,
 } from './group-tools.js';
 import { callTargetDenied, lineTargetDenied } from '../db/agent-scope.js';
+import { SOURCE_KEYS } from '../stations/attach-resolve.js';
+import { decodedLengthOf } from '../stations/attach-inline.js';
+import { log } from '../daemon/log.js';
 import {
   allowedAgents,
   currentIdentity,
@@ -91,7 +94,42 @@ export function scopeDenied(
   return lineTargetDenied(allowed, args);
 }
 
-export async function callToolHandler(req: {
+const sourceOf = (entry: unknown): string => {
+  const att = (entry ?? {}) as Record<string, unknown>;
+  const named = SOURCE_KEYS.filter(
+    (k) => typeof att[k] === 'string' && att[k] !== '',
+  );
+  if (named.length === 0) return 'none';
+  return named
+    .map((k) =>
+      k === 'data' ? `data(${decodedLengthOf(String(att.data))}B)` : k,
+    )
+    .join('+');
+};
+
+export const attachmentShape = (
+  a: Record<string, unknown>,
+): string[] | undefined =>
+  Array.isArray(a.attachments) ? a.attachments.map(sourceOf) : undefined;
+
+function logToolFailure(
+  name: string,
+  a: Record<string, unknown>,
+  result: ToolResult,
+): void {
+  log.warn(
+    {
+      tool: name,
+      agents: [...allowedAgents(currentIdentity())],
+      line: str(a.line),
+      attachments: attachmentShape(a),
+      err: result.content[0]?.text,
+    },
+    'mcp: tool call failed',
+  );
+}
+
+async function runTool(req: {
   params: { name: string; arguments?: Record<string, unknown> };
 }): Promise<ToolResult> {
   const name = req.params.name;
@@ -116,6 +154,15 @@ export async function callToolHandler(req: {
   if (name === 'list_accounts') return handleListAccounts(identity);
 
   return dispatchMessageTool(name, a);
+}
+
+export async function callToolHandler(req: {
+  params: { name: string; arguments?: Record<string, unknown> };
+}): Promise<ToolResult> {
+  const result = await runTool(req);
+  if (result.isError === true)
+    logToolFailure(req.params.name, req.params.arguments ?? {}, result);
+  return result;
 }
 
 export function registerToolHandlers(server: Server): void {

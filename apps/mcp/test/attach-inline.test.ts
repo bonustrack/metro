@@ -81,6 +81,39 @@ describe('inline base64 attachments', () => {
     await cleanupAttachments(atts);
   });
 
+  test('a data: url prefix is accepted and names the mime', async () => {
+    const atts = await resolveAttachments([
+      { data: `data:image/png;base64,${B64}`, name: 'a.png' },
+    ]);
+    const a = atts[0];
+    expect(a).toBeDefined();
+    if (!a) return;
+    expect(Buffer.compare(readFileSync(a.path), PAYLOAD)).toBe(0);
+    expect(a.mime).toBe('image/png');
+    await cleanupAttachments(atts);
+    expect(leftBehind()).toHaveLength(0);
+  });
+
+  test('an explicit mime still wins over the one in the data: url', async () => {
+    const atts = await resolveAttachments([
+      { data: `data:application/octet-stream;base64,${B64}`, name: 'a.png', mime: 'image/png' },
+    ]);
+    expect(atts[0]?.mime).toBe('image/png');
+    await cleanupAttachments(atts);
+  });
+
+  test('a data: url survives the whitespace a client may wrap it in', async () => {
+    const wrapped = `data:image/png;base64,\n${B64.slice(0, 4)}\n  ${B64.slice(4)}`;
+    const atts = await resolveAttachments([{ data: wrapped, name: 'a.png' }]);
+    const a = atts[0];
+    expect(a).toBeDefined();
+    if (!a) return;
+    expect(Buffer.compare(readFileSync(a.path), PAYLOAD)).toBe(0);
+    expect(a.mime).toBe('image/png');
+    await cleanupAttachments(atts);
+    expect(leftBehind()).toHaveLength(0);
+  });
+
   test('whitespace-wrapped and url-safe base64 both decode', async () => {
     const wrapped = `${B64.slice(0, 4)}\n  ${B64.slice(4)}`;
     const atts = await resolveAttachments([
@@ -151,12 +184,14 @@ describe('malformed inline content', () => {
     ).rejects.toThrow(/is not base64/);
   });
 
-  test('a data: url prefix is refused with a hint', async () => {
+  test('a data: url whose payload is not base64 is refused', async () => {
     await expect(
-      resolveAttachments([
-        { data: `data:image/png;base64,${B64}`, name: 'a.png' },
-      ]),
-    ).rejects.toThrow(/no `data:` prefix/);
+      resolveAttachments([{ data: 'data:text/plain,hello', name: 'a.txt' }]),
+    ).rejects.toThrow(/`data:` url whose payload is not base64/);
+    await expect(
+      resolveAttachments([{ data: `data:,${B64}`, name: 'a.bin' }]),
+    ).rejects.toThrow(/`data:` url whose payload is not base64/);
+    expect(leftBehind()).toHaveLength(0);
   });
 
   test('a truncated quantum is refused', async () => {
