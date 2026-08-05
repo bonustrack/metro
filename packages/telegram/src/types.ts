@@ -13,11 +13,11 @@ export interface TgMsg {
   message_thread_id?: number;
   is_topic_message?: boolean;
   photo?: { file_id: string; file_size?: number }[];
-  document?: { file_name?: string; file_id?: string };
-  voice?: { file_id?: string; duration?: number };
-  audio?: { file_id?: string; file_name?: string };
-  video?: { file_id?: string; file_name?: string };
-  animation?: { file_id?: string; file_name?: string };
+  document?: { file_name?: string; file_id?: string; mime_type?: string };
+  voice?: { file_id?: string; duration?: number; mime_type?: string };
+  audio?: { file_id?: string; file_name?: string; mime_type?: string };
+  video?: { file_id?: string; file_name?: string; mime_type?: string };
+  animation?: { file_id?: string; file_name?: string; mime_type?: string };
   sticker?: { file_id?: string; emoji?: string; set_name?: string };
   location?: { latitude: number; longitude: number };
   dice?: { emoji: string; value: number };
