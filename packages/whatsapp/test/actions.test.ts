@@ -181,6 +181,33 @@ describe('whatsapp outbound handlers', () => {
     expect(calls[0]).toEqual({ method: 'sendReaction', args: [JID, 'ABC', '👍'] });
   });
 
+  test('a reaction the client refuses is an error response, never ok:true', async () => {
+    const client = fakeClient(calls);
+    client.sendReaction = () =>
+      Promise.reject(
+        new Error(
+          "cannot react to message 'GHOST' in group 1@g.us: this connection never saw that message",
+        ),
+      );
+    const handle = makeHandleCall(() => client);
+    const cap = captureResponses();
+    await handle({
+      op: 'call',
+      id: 'c2',
+      action: 'react',
+      args: {
+        line: 'metro://whatsapp/w0/1@g.us',
+        messageId: 'GHOST',
+        emoji: '👍',
+      },
+    });
+    cap.restore();
+    expect(cap.responses[0]).not.toMatchObject({ result: { ok: true } });
+    expect((cap.responses[0] as { error?: string }).error).toContain(
+      'never saw that message',
+    );
+  });
+
   test('unreact normalizes to react with empty emoji', async () => {
     const handle = makeHandleCall(() => fakeClient(calls));
     const cap = captureResponses();

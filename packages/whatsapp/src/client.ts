@@ -2,7 +2,6 @@ import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestWaWebVersion,
-  type WAMessageKey,
   type WASocket,
 } from '@whiskeysockets/baileys';
 import { TrainError } from '@metro-labs/mcp/train-error';
@@ -12,6 +11,7 @@ import type { InboundMessage, ReactionInput } from './format.js';
 import { toInbound, toReaction, type ReactionEvent } from './parse.js';
 import { silentLogger } from './logger.js';
 import { useAccountAuthState } from './auth-state.js';
+import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 
 export interface InboundHandlers {
   onMessage(m: InboundMessage): void;
@@ -44,16 +44,11 @@ interface State {
   closed: boolean;
   openResolve?: () => void;
   openPromise: Promise<void>;
+  keys: KeyCache;
 }
 
 type SendOpts = Parameters<WASocket['sendMessage']>[2];
 type SendContent = Parameters<WASocket['sendMessage']>[1];
-
-const key = (jid: string, id: string, fromMe: boolean): WAMessageKey => ({
-  remoteJid: jid,
-  id,
-  fromMe,
-});
 
 function resetGate(st: State): void {
   st.openPromise = new Promise<void>((resolve) => {
@@ -63,6 +58,7 @@ function resetGate(st: State): void {
 
 function bindInbound(st: State, sock: WASocket): void {
   sock.ev.on('messages.upsert', ({ messages, type }) => {
+    for (const m of messages) st.keys.remember(m.key);
     if (type !== 'notify' || !st.handlers) return;
     for (const m of messages) {
       if (m.key.fromMe) continue;
@@ -152,12 +148,16 @@ async function send(
 ): Promise<string> {
   const sock = await ready(st);
   const sent = await sock.sendMessage(jid, content, opts);
+  st.keys.remember(sent?.key);
   return sent?.key.id ?? '';
 }
 
-function quotedOpts(jid: string, quotedId: string): SendOpts {
+function quotedOpts(st: State, jid: string, quotedId: string): SendOpts {
   return {
-    quoted: { key: key(jid, quotedId, false), message: { conversation: '' } },
+    quoted: {
+      key: knownKey(st.keys, jid, quotedId, false),
+      message: { conversation: '' },
+    },
   };
 }
 
@@ -178,7 +178,12 @@ function mediaContent(m: WAMedia): SendContent {
 }
 
 export function createClient(account: WhatsAppAccount): WAClient {
-  const st: State = { account, closed: false, openPromise: Promise.resolve() };
+  const st: State = {
+    account,
+    closed: false,
+    openPromise: Promise.resolve(),
+    keys: makeKeyCache(),
+  };
   resetGate(st);
   return {
     account,
@@ -193,24 +198,35 @@ export function createClient(account: WhatsAppAccount): WAClient {
       }
     },
     sendText(jid, text, quotedId) {
-      return send(st, jid, { text }, quotedId ? quotedOpts(jid, quotedId) : undefined);
+      return send(
+        st,
+        jid,
+        { text },
+        quotedId ? quotedOpts(st, jid, quotedId) : undefined,
+      );
     },
     sendMedia(jid, media, quotedId) {
       return send(
         st,
         jid,
         mediaContent(media),
-        quotedId ? quotedOpts(jid, quotedId) : undefined,
+        quotedId ? quotedOpts(st, jid, quotedId) : undefined,
       );
     },
     async sendReaction(jid, messageId, emoji) {
-      await send(st, jid, { react: { text: emoji, key: key(jid, messageId, false) } });
+      const target = targetKey(st.keys, jid, messageId, 'react to');
+      await send(st, jid, { react: { text: emoji, key: target } });
     },
     async editMessage(jid, messageId, text) {
-      await send(st, jid, { text, edit: key(jid, messageId, true) });
+      await send(st, jid, {
+        text,
+        edit: knownKey(st.keys, jid, messageId, true),
+      });
     },
     async deleteMessage(jid, messageId) {
-      await send(st, jid, { delete: key(jid, messageId, true) });
+      await send(st, jid, {
+        delete: knownKey(st.keys, jid, messageId, true),
+      });
     },
     disconnect() {
       st.closed = true;
