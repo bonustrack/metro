@@ -1,4 +1,4 @@
-import type { proto } from '@whiskeysockets/baileys';
+import type { proto } from 'baileys';
 import { extFromMime } from '@metro-labs/mcp/stations/attachments';
 
 export type WAMediaKind =

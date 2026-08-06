@@ -16,7 +16,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import type { WAMessage } from '@whiskeysockets/baileys';
+import type { WAMessage } from 'baileys';
 import { MAX_ATTACHMENT_BYTES } from '@metro-labs/mcp/stations/attachments';
 import { startInbound } from '../src/inbound.ts';
 import type { InboundHandlers, WAClient } from '../src/client.ts';

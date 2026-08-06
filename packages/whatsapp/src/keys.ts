@@ -1,5 +1,5 @@
 import { TrainError } from '@metro-labs/mcp/train-error';
-import type { WAMessageKey } from '@whiskeysockets/baileys';
+import type { WAMessageKey } from 'baileys';
 import { isGroupJid } from './parse.js';
 
 const MAX_TRACKED_KEYS = 4000;

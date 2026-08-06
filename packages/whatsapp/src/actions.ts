@@ -38,6 +38,7 @@ async function guard<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (e) {
+    if (e instanceof TrainError) throw e;
     const msg = errMsg(e);
     if (/rate.?over.?limit|too many|429/i.test(msg))
       throw new TrainError('rate_limited', msg);

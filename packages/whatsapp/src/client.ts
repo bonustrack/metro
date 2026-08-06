@@ -6,7 +6,7 @@ import makeWASocket, {
   type WAMessage,
   type WAMessageKey,
   type WASocket,
-} from '@whiskeysockets/baileys';
+} from 'baileys';
 import { TrainError } from '@metro-labs/mcp/train-error';
 import { errMsg } from '@metro-labs/mcp/log';
 import type { WhatsAppAccount } from './types.js';
@@ -16,7 +16,14 @@ import { baileysLogger } from './logger.js';
 import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 import { makeOutbox, type Outbox } from './outbox.js';
-import { deliveryNotes } from './delivery.js';
+import { deliveryNotes, describeNote } from './delivery.js';
+import {
+  ACK_WAIT_MS,
+  bindAcks,
+  makeAckWatch,
+  rejection,
+  type AckWatch,
+} from './ack.js';
 
 export interface InboundHandlers {
   onMessage(m: InboundMessage, raw: WAMessage): void;
@@ -52,6 +59,7 @@ interface State {
   openPromise: Promise<void>;
   keys: KeyCache;
   outbox: Outbox;
+  acks: AckWatch;
 }
 
 type SendOpts = Parameters<WASocket['sendMessage']>[2];
@@ -86,8 +94,13 @@ function bindDelivery(st: State, sock: WASocket): void {
   sock.ev.on('messages.update', (updates) => {
     for (const note of deliveryNotes(updates))
       process.stderr.write(
-        `whatsapp[${st.account.id}] send ${note.messageId} to ${note.jid}: ${note.status}\n`,
+        `whatsapp[${st.account.id}] send ${note.messageId} to ${note.jid}: ${describeNote(note)}\n`,
       );
+  });
+  bindAcks(sock, st.acks, (ack) => {
+    process.stderr.write(
+      `whatsapp[${st.account.id}] send ${ack.messageId} to ${ack.jid} REFUSED by WhatsApp: ack error ${ack.error ?? '?'}\n`,
+    );
   });
 }
 
@@ -188,6 +201,9 @@ async function send(
       'whatsapp_call',
       `WhatsApp accepted no message for ${jid}, so there is nothing that can have arrived`,
     );
+  const ack = await st.acks.wait(messageId, ACK_WAIT_MS);
+  const refused = ack ? rejection(ack) : undefined;
+  if (refused) throw refused;
   return messageId;
 }
 
@@ -223,6 +239,7 @@ export function createClient(account: WhatsAppAccount): WAClient {
     openPromise: Promise.resolve(),
     keys: makeKeyCache(),
     outbox: makeOutbox(),
+    acks: makeAckWatch(),
   };
   resetGate(st);
   return {
@@ -272,14 +289,13 @@ export function createClient(account: WhatsAppAccount): WAClient {
       const sock = await ready(st);
       return sock.updateMediaMessage(m);
     },
-    disconnect() {
+    async disconnect() {
       st.closed = true;
       try {
-        st.sock?.end(undefined);
+        await st.sock?.end(undefined);
       } catch {
         st.sock = undefined;
       }
-      return Promise.resolve();
     },
   };
 }

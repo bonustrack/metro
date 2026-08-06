@@ -1,4 +1,4 @@
-import type { WAMessageKey, proto } from '@whiskeysockets/baileys';
+import type { WAMessageKey, proto } from 'baileys';
 
 const MAX_TRACKED_SENDS = 256;
 

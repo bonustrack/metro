@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { WAMessage } from '@whiskeysockets/baileys';
+import type { WAMessage } from 'baileys';
 import {
   extractText,
   isGroupJid,

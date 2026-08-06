@@ -3,7 +3,7 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestWaWebVersion,
   type WASocket,
-} from '@whiskeysockets/baileys';
+} from 'baileys';
 import { errMsg } from '@metro-labs/mcp/log';
 import { writeWhatsappCredentials } from '@metro-labs/mcp/db/whatsapp-login';
 import qrcode from 'qrcode-terminal';

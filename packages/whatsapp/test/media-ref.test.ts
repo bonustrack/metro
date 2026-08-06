@@ -20,7 +20,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import type { WAMessage } from '@whiskeysockets/baileys';
+import type { WAMessage } from 'baileys';
 import { mediaRefOf, toInbound } from '../src/parse.ts';
 
 const asMessage = (m: unknown): WAMessage => m as WAMessage;
