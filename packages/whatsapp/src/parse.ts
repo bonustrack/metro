@@ -1,4 +1,5 @@
 import type { WAMessage, WAMessageKey, proto } from '@whiskeysockets/baileys';
+import { mediaRefIn, mediaTag, type WAMediaRef } from './media.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 
 export const isGroupJid = (jid: string): boolean => jid.endsWith('@g.us');
@@ -61,26 +62,16 @@ export function extractText(message: Content): string {
   return captionOf(inner);
 }
 
-const MEDIA_TAGS: [keyof proto.IMessage, string][] = [
-  ['imageMessage', '[image]'],
-  ['videoMessage', '[video]'],
-  ['audioMessage', '[audio]'],
-  ['documentMessage', '[document]'],
-  ['stickerMessage', '[sticker]'],
-];
-
-function mediaTag(message: proto.IMessage | undefined): string | undefined {
-  if (!message) return undefined;
-  for (const [key, tag] of MEDIA_TAGS) if (message[key]) return tag;
-  return undefined;
+export function mediaRefOf(message: Content): WAMediaRef | undefined {
+  const inner = unwrap(message);
+  return inner ? mediaRefIn(inner) : undefined;
 }
 
-export function hasMedia(message: Content): boolean {
-  return mediaTag(unwrap(message)) !== undefined;
-}
-
-function projectText(message: proto.IMessage | undefined): string {
-  return [extractText(message), mediaTag(message)].filter(Boolean).join(' ');
+function projectText(
+  message: proto.IMessage | undefined,
+  ref: WAMediaRef | undefined,
+): string {
+  return [extractText(message), mediaTag(ref)].filter(Boolean).join(' ');
 }
 
 function senderJidOf(key: WAMessageKey, chatJid: string): string {
@@ -97,8 +88,8 @@ export function toInbound(
   if (!chatJid || !messageId) return undefined;
   const inner = unwrap(m.message);
   if (!inner || inner.reactionMessage) return undefined;
-  const text = projectText(inner);
-  const media = mediaTag(inner) !== undefined;
+  const media = mediaRefOf(inner);
+  const text = projectText(inner, media);
   if (!text && !media) return undefined;
   return {
     accountId,
@@ -109,7 +100,7 @@ export function toInbound(
     date: tsToDate(m.messageTimestamp),
     isPrivate: isPrivateJid(chatJid),
     ...(m.pushName ? { pushName: m.pushName } : {}),
-    hasMedia: media,
+    ...(media ? { media } : {}),
   };
 }
 

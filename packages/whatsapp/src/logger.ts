@@ -1,6 +1,8 @@
 import type makeWASocket from '@whiskeysockets/baileys';
 
-type BaileysLogger = NonNullable<Parameters<typeof makeWASocket>[0]>['logger'];
+type BaileysLogger = NonNullable<
+  NonNullable<Parameters<typeof makeWASocket>[0]>['logger']
+>;
 
 export function silentLogger(): BaileysLogger {
   const noop = (): void => undefined;

@@ -11,7 +11,6 @@ const dm = (over: Partial<InboundMessage> = {}): InboundMessage => ({
   date: new Date('2026-06-21T00:00:00.000Z'),
   isPrivate: true,
   pushName: 'Alice',
-  hasMedia: false,
   ...over,
 });
 
@@ -26,7 +25,7 @@ describe('envelope', () => {
     expect(e.message_id).toBe('ABC');
     expect(e.text).toBe('hello');
     expect(e.is_private).toBe(true);
-    expect(e.has_media).toBe(false);
+    expect(e.has_media).toBeUndefined();
     expect(e.payload).toEqual({ account: 'w0', message_id: 'ABC' });
   });
 
@@ -44,10 +43,32 @@ describe('envelope', () => {
     expect(e.is_private).toBe(false);
   });
 
-  test('media sets has_media', () => {
-    const e = envelope(dm({ text: '[image]', hasMedia: true }));
-    expect(e.has_media).toBe(true);
-    expect(e.text).toBe('[image]');
+  test('media rides on payload.attachments, not on a has_media flag', () => {
+    const e = envelope(
+      dm({
+        text: 'the contract [document: nda.pdf]',
+        media: {
+          kind: 'document',
+          mime: 'application/pdf',
+          name: 'nda.pdf',
+          bytes: 91_244,
+        },
+      }),
+    );
+    expect(e.has_media).toBeUndefined();
+    expect(e.text).toBe('the contract [document: nda.pdf]');
+    expect(e.payload).toEqual({
+      account: 'w0',
+      message_id: 'ABC',
+      attachments: [
+        {
+          kind: 'document',
+          name: 'nda.pdf',
+          mime: 'application/pdf',
+          size: 91_244,
+        },
+      ],
+    });
   });
 
   test('missing pushName omits from_name', () => {

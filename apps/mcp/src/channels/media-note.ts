@@ -10,7 +10,9 @@ export interface SavedMedia {
   url?: string;
   mime?: string;
   name?: string;
+  kind?: string;
   index?: number;
+  reason?: string;
 }
 
 export interface MediaNote {
@@ -54,7 +56,7 @@ export async function buildMediaNote(
 ): Promise<MediaNote | null> {
   const path = p.attachmentPath ?? p.localPath;
   if (!path) return null;
-  const kind = mediaKind(p.mime, p.name);
+  const kind = p.kind ?? mediaKind(p.mime, p.name);
   const name = p.name ?? path.split('/').pop() ?? 'attachment';
   const size = await fileSize(path);
   const sizeNote = size ? ` (${(size / 1024 / 1024).toFixed(2)} MB)` : '';
@@ -65,4 +67,19 @@ export async function buildMediaNote(
     `Daemon-host path: ${path}\n` +
     howToRead(p.url, size > MAX_INLINE_BYTES);
   return { content, kind, name, path };
+}
+
+export function buildMediaFailureNote(
+  p: SavedMedia,
+  caption: string,
+): MediaNote {
+  const kind = p.kind ?? mediaKind(p.mime, p.name);
+  const name = p.name ?? 'attachment';
+  const reason = p.reason ?? 'no reason reported';
+  const content =
+    (caption ? `${caption}\n` : '') +
+    `[${kind} attachment could not be fetched: ${name}]\n` +
+    `Reason: ${reason}\n` +
+    'The sender still has the file; nothing was saved. Ask them to resend it, or say why it could not be taken.';
+  return { content, kind, name, path: '' };
 }

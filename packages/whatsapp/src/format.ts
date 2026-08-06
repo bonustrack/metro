@@ -1,5 +1,7 @@
+import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
 import { lineOf } from './accounts.js';
-import { mintId } from './wire.js';
+import { mintId, SELF_URI } from './wire.js';
+import type { WAMediaRef } from './media.js';
 
 export interface InboundMessage {
   accountId: string;
@@ -10,7 +12,7 @@ export interface InboundMessage {
   date: Date;
   isPrivate: boolean;
   pushName?: string;
-  hasMedia: boolean;
+  media?: WAMediaRef;
 }
 
 export interface ReactionInput {
@@ -25,6 +27,15 @@ export interface ReactionInput {
   removed?: boolean;
 }
 
+function attachmentView(ref: WAMediaRef): Record<string, unknown> {
+  return {
+    kind: ref.kind,
+    ...(ref.name ? { name: ref.name } : {}),
+    ...(ref.mime ? { mime: ref.mime } : {}),
+    ...(ref.bytes === undefined ? {} : { size: ref.bytes }),
+  };
+}
+
 export function envelope(m: InboundMessage): Record<string, unknown> {
   return {
     kind: 'inbound',
@@ -37,12 +48,66 @@ export function envelope(m: InboundMessage): Record<string, unknown> {
     message_id: m.messageId,
     text: m.text,
     is_private: m.isPrivate,
-    has_media: m.hasMedia,
     payload: {
       account: m.accountId,
       message_id: m.messageId,
+      ...(m.media ? { attachments: [attachmentView(m.media)] } : {}),
     },
   };
+}
+
+function mediaEvent(
+  m: InboundMessage,
+  text: string,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    kind: 'inbound',
+    id: mintId(),
+    ts: new Date().toISOString(),
+    station: 'whatsapp',
+    line: lineOf(m.accountId, m.chatJid),
+    from: SELF_URI,
+    text,
+    payload: { account: m.accountId, ...payload },
+  };
+}
+
+export function attachmentSavedEnvelope(
+  m: InboundMessage,
+  sourceId: string,
+  ref: WAMediaRef,
+  saved: SavedAttachment,
+  index: number,
+): Record<string, unknown> {
+  return mediaEvent(m, `📎 saved: ${saved.path}`, {
+    contentType: 'attachmentSaved',
+    attachmentFor: sourceId,
+    index,
+    kind: ref.kind,
+    attachmentPath: saved.path,
+    localPath: saved.path,
+    mime: saved.mime,
+    name: saved.name,
+  });
+}
+
+export function attachmentFailedEnvelope(
+  m: InboundMessage,
+  sourceId: string,
+  ref: WAMediaRef,
+  index: number,
+  reason: string,
+): Record<string, unknown> {
+  return mediaEvent(m, `📎 not fetched: ${reason}`, {
+    contentType: 'attachmentFailed',
+    attachmentFor: sourceId,
+    index,
+    kind: ref.kind,
+    name: ref.name,
+    mime: ref.mime,
+    reason,
+  });
 }
 
 export function reactionEnvelope(r: ReactionInput): Record<string, unknown> {
