@@ -20,8 +20,13 @@ async function saveMedia(
   const ref = m.media;
   if (!ref) return;
   try {
-    const saved = await saveWhatsAppMedia(raw, ref, m.messageId, 0, (msg) =>
-      client.reuploadMedia(msg),
+    const saved = await saveWhatsAppMedia(
+      m.accountId,
+      raw,
+      ref,
+      m.messageId,
+      0,
+      (msg) => client.reuploadMedia(msg),
     );
     emit(attachmentSavedEnvelope(m, sourceId, ref, saved, 0));
   } catch (err) {
