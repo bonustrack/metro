@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { WAMessageKey } from '@whiskeysockets/baileys';
+import type { WAMessageKey } from 'baileys';
 import { makeOutbox } from '../src/outbox.ts';
 
 const LID_DM = '71425507483880@lid';

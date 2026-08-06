@@ -1,4 +1,4 @@
-import type { WAMessage, WAMessageKey, proto } from '@whiskeysockets/baileys';
+import type { WAMessage, WAMessageKey, proto } from 'baileys';
 import { mediaRefIn, mediaTag, type WAMediaRef } from './media.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 

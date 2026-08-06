@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { proto } from '@whiskeysockets/baileys';
-import { deliveryNotes } from '../src/delivery.ts';
+import { proto } from 'baileys';
+import { deliveryNotes, describeNote } from '../src/delivery.ts';
 
 const LID_DM = '71425507483880@lid';
 
@@ -54,5 +54,57 @@ describe('whatsapp delivery notes', () => {
         { key: { remoteJid: LID_DM, fromMe: true, id: 'M1' }, update: {} },
       ]),
     ).toEqual([]);
+  });
+
+  test('the reason WhatsApp gave is carried, not discarded — 463 says 463', () => {
+    const [note] = deliveryNotes([
+      {
+        key: { remoteJid: LID_DM, fromMe: true, id: 'M1' },
+        update: {
+          status: proto.WebMessageInfo.Status.ERROR,
+          messageStubParameters: ['463', 'Your account has been restricted'],
+        },
+      },
+    ]);
+    expect(note?.status).toBe('error');
+    expect(note?.reason).toBe('463: Your account has been restricted');
+    expect(describeNote(note!)).toBe(
+      'error (463: Your account has been restricted)',
+    );
+  });
+
+  test('a bare error code with no text still reaches the log', () => {
+    const [note] = deliveryNotes([
+      {
+        key: { remoteJid: LID_DM, fromMe: true, id: 'M1' },
+        update: {
+          status: proto.WebMessageInfo.Status.ERROR,
+          messageStubParameters: ['479'],
+        },
+      },
+    ]);
+    expect(note?.reason).toBe('479');
+    expect(describeNote(note!)).toBe('error (479)');
+  });
+
+  test('a delivered note names no reason and reads as before', () => {
+    const [note] = deliveryNotes([
+      update(proto.WebMessageInfo.Status.DELIVERY_ACK),
+    ]);
+    expect(note?.reason).toBeUndefined();
+    expect(describeNote(note!)).toBe('delivered');
+  });
+
+  test('empty and non-string stub parameters are not a reason', () => {
+    const [note] = deliveryNotes([
+      {
+        key: { remoteJid: LID_DM, fromMe: true, id: 'M1' },
+        update: {
+          status: proto.WebMessageInfo.Status.ERROR,
+          messageStubParameters: ['  ', ''],
+        },
+      },
+    ]);
+    expect(note?.reason).toBeUndefined();
   });
 });

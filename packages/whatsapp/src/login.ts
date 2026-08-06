@@ -3,7 +3,7 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestWaWebVersion,
   type WASocket,
-} from '@whiskeysockets/baileys';
+} from 'baileys';
 import { errMsg, log } from '@metro-labs/mcp/log';
 import { inMemoryAuthState } from './auth-state.js';
 
@@ -157,17 +157,16 @@ export class WhatsappLogin {
       });
   }
 
-  private closeSocket(): Promise<void> {
+  private async closeSocket(): Promise<void> {
     const sock = this.sock;
     this.sock = null;
-    if (!sock) return Promise.resolve();
+    if (!sock) return;
     try {
       sock.ev.removeAllListeners('connection.update');
-      sock.end(undefined);
+      await sock.end(undefined);
     } catch {
-      return Promise.resolve();
+      log.warn({}, 'whatsapp login: pairing socket did not close cleanly');
     }
-    return Promise.resolve();
   }
 
   async cancel(): Promise<void> {

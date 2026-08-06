@@ -1,8 +1,9 @@
 # @metro-labs/whatsapp
 
 WhatsApp station for Metro. Uses a **real WhatsApp account** over the multi-device
-Web protocol via [Baileys](https://github.com/WhiskeySockets/Baileys) (`@whiskeysockets/baileys`)
-— a WebSocket client, no browser and no Business/Cloud bot API.
+Web protocol via [Baileys](https://github.com/WhiskeySockets/Baileys) (`baileys`, the
+package `@whiskeysockets/baileys` was renamed to) — a WebSocket client, no browser and no
+Business/Cloud bot API.
 
 Config (`accounts` row `config` jsonb): `{ "phone": "<E.164 digits>" }`, optional `owner`.
 `account_id` convention: `w0`. Lines are `metro://whatsapp/<account>/<jid>` where `<jid>`
@@ -28,6 +29,31 @@ fallback) — run the login script to pair.
 
 Only the login script (a manual admin action) ever writes `accounts.credentials`.
 
+### The one thing that IS written to disk: the trusted-contact token cache
+
+Baileys 7 attaches a **trusted-contact token** (`tctoken`) to every 1:1 send, and WhatsApp
+answers a 1:1 send that carries none with `ack error 463` — it counts the message as
+reaching out to a stranger and puts the account under a reach-out timelock. The tokens are
+not ours to mint: a contact issues one to us, and Baileys stores it under the
+`tctoken` key type in the auth key store, which for metro is memory that dies with the
+train. **An empty token store on a restart is the 463 back**, one refused send per contact
+per deploy, and each refusal deepens the lock.
+
+So exactly two key types are durable, and no others:
+`tctoken` and `lid-mapping` (the PN ↔ LID index the token is filed under). They live in
+`~/.metro/whatsapp-tokens-<account>.json`, 0600, written debounced through the same
+`writeSecure` the daemon uses (`src/token-store.ts`), and seeded back into the key store on
+the next boot. `HOME=/data` on Fly, so the file is on the mounted volume and survives a
+deploy. Losing it is a degradation, never a failure: the state is exactly what it was
+before this existed, and Baileys re-acquires a token from the contact or from its own
+post-463 recovery issuance.
+
+Signal session material — `session`, `pre-key`, `sender-key`, `identity-key`,
+`app-state-sync-key`, `device-list` — is deliberately **not** written. It re-establishes on
+demand, `creds` (which carries the pre-key counters) is still never written back, and
+persisting half of a Signal state is worse than persisting none of it. The pairing
+credential itself still lives only in Postgres and still survives volume loss.
+
 ## Login (once, when the number is provisioned)
 
 ```sh
@@ -51,6 +77,38 @@ device-list and session-fetch decisions — is logged by Baileys at **`debug`**,
 resend investigation needs `debug` and nothing less. It is chatty on a live account: set
 it for the window (`fly secrets set METRO_WHATSAPP_LOG_LEVEL=debug`) and take it off again
 (`fly secrets unset METRO_WHATSAPP_LOG_LEVEL`) rather than leaving it on.
+
+Baileys 7 says `error 463: account restricted or missing tctoken for contact` at **`warn`**,
+so the default level shows it.
+
+## Media download timeouts are metro's now
+
+Baileys 6 took an axios config on `downloadMediaMessage` and metro set a 60s timeout on it.
+Baileys 7 fetches with `fetch` and `getHttpStream` forwards only `dispatcher`, `method` and
+`headers` — a `signal` handed to it is accepted by the type and then dropped. The timeout is
+therefore enforced in `src/attachments.ts` (`withIdleTimeout`) as a real **idle** timeout on
+the byte stream: 60s with no bytes abandons the download and emits `attachmentFailed` with
+the reason, and a slow-but-moving 100 MiB file is not killed by a total deadline.
+
+## A send WhatsApp refused is an error, not a `messageId`
+
+`sendMessage` resolving means the stanza left the socket, not that WhatsApp took it. The
+verdict comes back separately as `<ack class="message" error="…">`, and the station now
+waits for it: `send` holds for up to `METRO_WHATSAPP_ACK_WAIT_MS` (default 5000, `0` turns
+the wait off) and throws instead of returning a message id when the ack carries an error.
+`463` is `whatsapp_account_restricted` and names the timelock and the no-retry rule; any
+other code is `whatsapp_send_refused`. No ack inside the window is still reported as sent —
+the absence of a verdict is not a verdict.
+
+The ack is read straight off the socket (`sock.ws.on('CB:ack,class:message')`,
+`src/ack.ts`), **not** from `messages.update`. Baileys emits its own `messages.update` for
+the same ack through the buffered event emitter, and a buffer that never flushes eats it:
+that is exactly what happened on `a2` (5 activations, 4 flushes), and `messages.update`
+carried no evidence of a refused send for the whole session. Baileys 7 adds a 30s watchdog
+that auto-flushes a stuck buffer, so the event now arrives late rather than never — late is
+still no good for answering an MCP call. `messages.update` is kept as the delivery log and
+now carries `messageStubParameters`, so the log line reads `error (463: Your account has
+been restricted)` rather than a bare `error`.
 
 ## Constraints
 

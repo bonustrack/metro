@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { WAMessageKey } from '@whiskeysockets/baileys';
+import type { WAMessageKey } from 'baileys';
 import { knownKey, makeKeyCache, targetKey } from '../src/keys.ts';
 
 const GROUP = '120363430375655034@g.us';
