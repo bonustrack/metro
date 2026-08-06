@@ -12,7 +12,7 @@ import { MCP_INSTRUCTIONS } from './tool-schemas.js';
 import { ChannelOwner } from './channel-owner.js';
 import { BoundedEventStore } from './event-store.js';
 import { registerPermissionRelay } from './permission-relay.js';
-import { registerToolHandlers } from './tool-dispatch.js';
+import { registerToolHandlers, toolSchemaSignature } from './tool-dispatch.js';
 import type { RawGetSink } from './raw-get-stream.js';
 import type { RequestIdentity } from './request-identity.js';
 
@@ -83,13 +83,14 @@ export class McpSession {
   private sink: RawGetSink | undefined;
   private unsubscribe: (() => void) | undefined;
   private closed = false;
-  private schemaNoticeDue: boolean;
+  private issuedSchema: string | undefined;
+  private announcing = false;
   private readonly onClosed: (session: McpSession) => void;
 
   private constructor(init: SessionInit) {
     this.id = init.id;
     this.scopeKey = init.scopeKey;
-    this.schemaNoticeDue = init.adopted;
+    this.issuedSchema = init.adopted ? undefined : toolSchemaSignature();
     this.onClosed = init.onClosed;
     this.eventStore = new BoundedEventStore({
       scopeOf: () => this.owner.scope(),
@@ -108,7 +109,14 @@ export class McpSession {
         instructions: MCP_INSTRUCTIONS,
       },
     );
-    registerToolHandlers(this.server);
+    registerToolHandlers(this.server, {
+      markCurrent: (): void => {
+        this.issuedSchema = toolSchemaSignature();
+      },
+      deliver: (send): void => {
+        this.deliverSchemaNotice(send, 'request');
+      },
+    });
     this.relay = new InboundRelay({
       mcp: this.server,
       log: channelLog,
@@ -166,13 +174,39 @@ export class McpSession {
     this.announceToolSchema();
   }
 
+  private get schemaNoticeDue(): boolean {
+    return this.issuedSchema !== toolSchemaSignature();
+  }
+
   private announceToolSchema(): void {
-    if (!this.schemaNoticeDue) return;
-    this.schemaNoticeDue = false;
-    channelLog('session: tool list changed', 'id', this.id, 'scope', this.scopeKey);
-    this.server.sendToolListChanged().catch((err: unknown) => {
-      channelLog('session: tool list changed notice failed', errMsg(err));
-    });
+    if (!this.streamAttached) return;
+    this.deliverSchemaNotice(
+      () => this.server.sendToolListChanged(),
+      'stream',
+    );
+  }
+
+  private deliverSchemaNotice(send: () => Promise<void>, via: string): void {
+    if (!this.schemaNoticeDue || this.announcing) return;
+    this.announcing = true;
+    channelLog(
+      'session: tool list changed',
+      'id',
+      this.id,
+      'scope',
+      this.scopeKey,
+      'via',
+      via,
+    );
+    send()
+      .then(() => {
+        this.issuedSchema = toolSchemaSignature();
+        this.announcing = false;
+      })
+      .catch((err: unknown) => {
+        this.announcing = false;
+        channelLog('session: tool list changed notice failed', errMsg(err));
+      });
   }
 
   dropStream(): void {
