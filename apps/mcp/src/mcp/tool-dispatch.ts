@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   ListToolsRequestSchema,
@@ -63,6 +64,16 @@ const toolList = (): { tools: unknown[] } => ({
     LIST_ACCOUNTS_TOOL,
   ],
 });
+
+let schemaSignature: string | undefined;
+
+export const toolSchemaSignature = (): string => {
+  schemaSignature ??= createHash('sha256')
+    .update(JSON.stringify(toolList()))
+    .digest('hex')
+    .slice(0, 16);
+  return schemaSignature;
+};
 
 async function handleListAccounts(
   identity: RequestIdentity | undefined,
@@ -167,10 +178,35 @@ export async function callToolHandler(req: {
   return result;
 }
 
-export function registerToolHandlers(server: Server): void {
-  server.setRequestHandler(ListToolsRequestSchema, toolList);
+const TOOL_LIST_CHANGED = 'notifications/tools/list_changed';
+
+export interface SchemaNotice {
+  markCurrent: () => void;
+  deliver: (send: () => Promise<void>) => void;
+}
+
+interface NotifyingExtra {
+  sendNotification: (n: { method: string }) => Promise<void>;
+}
+
+export function registerToolHandlers(
+  server: Server,
+  notice?: SchemaNotice,
+): void {
+  server.setRequestHandler(ListToolsRequestSchema, () => {
+    notice?.markCurrent();
+    return toolList();
+  });
   server.setRequestHandler(
     CallToolRequestSchema,
-    callToolHandler as Parameters<typeof server.setRequestHandler>[1],
+    ((
+      req: { params: { name: string; arguments?: Record<string, unknown> } },
+      extra: NotifyingExtra,
+    ): Promise<ToolResult> => {
+      notice?.deliver(() =>
+        extra.sendNotification({ method: TOOL_LIST_CHANGED }),
+      );
+      return callToolHandler(req);
+    }) as Parameters<typeof server.setRequestHandler>[1],
   );
 }
