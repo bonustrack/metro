@@ -7,7 +7,7 @@ import {
   saveStreamToCache,
   type SavedAttachment,
 } from '@metro-labs/mcp/stations/attachments';
-import { silentLogger } from './logger.js';
+import { baileysLogger } from './logger.js';
 import type { WAMediaRef } from './media.js';
 
 export type { SavedAttachment };
@@ -17,6 +17,7 @@ const IDLE_TIMEOUT_MS = 60_000;
 export type ReuploadRequest = (m: WAMessage) => Promise<WAMessage>;
 
 export async function saveWhatsAppMedia(
+  accountId: string,
   raw: WAMessage,
   ref: WAMediaRef,
   messageId: string,
@@ -29,7 +30,7 @@ export async function saveWhatsAppMedia(
     'stream',
     { options: { timeout: IDLE_TIMEOUT_MS } },
     reupload
-      ? { reuploadRequest: reupload, logger: silentLogger() }
+      ? { reuploadRequest: reupload, logger: baileysLogger(accountId) }
       : undefined,
   );
   try {

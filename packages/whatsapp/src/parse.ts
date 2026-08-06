@@ -3,8 +3,9 @@ import { mediaRefIn, mediaTag, type WAMediaRef } from './media.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 
 export const isGroupJid = (jid: string): boolean => jid.endsWith('@g.us');
+const isLidJid = (jid: string): boolean => jid.endsWith('@lid');
 export const isPrivateJid = (jid: string): boolean =>
-  jid.endsWith('@s.whatsapp.net');
+  jid.endsWith('@s.whatsapp.net') || isLidJid(jid);
 
 type Timestamp = number | { toNumber(): number } | null | undefined;
 

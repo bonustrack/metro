@@ -23,6 +23,11 @@ describe('jid helpers', () => {
     expect(isGroupJid('999-1@g.us')).toBe(true);
     expect(isGroupJid('111@s.whatsapp.net')).toBe(false);
   });
+
+  test('a 1:1 carried over lid addressing is still private', () => {
+    expect(isPrivateJid('71425507483880@lid')).toBe(true);
+    expect(isGroupJid('71425507483880@lid')).toBe(false);
+  });
 });
 
 describe('tsToDate', () => {
@@ -128,6 +133,18 @@ describe('toInbound', () => {
     expect(inbound?.isPrivate).toBe(false);
     expect(inbound?.media?.kind).toBe('image');
     expect(inbound?.text).toBe('pic [image]');
+  });
+
+  test('a lid 1:1 message is private and its sender is the chat itself', () => {
+    const m = asMessage({
+      key: { remoteJid: '71425507483880@lid', id: 'LID1', fromMe: false },
+      message: { conversation: 'Here??' },
+      messageTimestamp: 1_700_000_000,
+      pushName: 'Fabien',
+    });
+    const inbound = toInbound('a2', m);
+    expect(inbound?.isPrivate).toBe(true);
+    expect(inbound?.senderJid).toBe('71425507483880@lid');
   });
 
   test('drops messages without a jid or id', () => {

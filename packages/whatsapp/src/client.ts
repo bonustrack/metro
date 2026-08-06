@@ -2,7 +2,9 @@ import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestWaWebVersion,
+  type proto,
   type WAMessage,
+  type WAMessageKey,
   type WASocket,
 } from '@whiskeysockets/baileys';
 import { TrainError } from '@metro-labs/mcp/train-error';
@@ -10,9 +12,11 @@ import { errMsg } from '@metro-labs/mcp/log';
 import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 import { toInbound, toReaction, type ReactionEvent } from './parse.js';
-import { silentLogger } from './logger.js';
+import { baileysLogger } from './logger.js';
 import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
+import { makeOutbox, type Outbox } from './outbox.js';
+import { deliveryNotes } from './delivery.js';
 
 export interface InboundHandlers {
   onMessage(m: InboundMessage, raw: WAMessage): void;
@@ -47,6 +51,7 @@ interface State {
   openResolve?: () => void;
   openPromise: Promise<void>;
   keys: KeyCache;
+  outbox: Outbox;
 }
 
 type SendOpts = Parameters<WASocket['sendMessage']>[2];
@@ -75,6 +80,29 @@ function bindInbound(st: State, sock: WASocket): void {
       if (reaction) st.handlers.onReaction(reaction);
     }
   });
+}
+
+function bindDelivery(st: State, sock: WASocket): void {
+  sock.ev.on('messages.update', (updates) => {
+    for (const note of deliveryNotes(updates))
+      process.stderr.write(
+        `whatsapp[${st.account.id}] send ${note.messageId} to ${note.jid}: ${note.status}\n`,
+      );
+  });
+}
+
+function servedFromOutbox(
+  st: State,
+  key: WAMessageKey,
+): proto.IMessage | undefined {
+  const message = st.outbox.lookup(key);
+  if (key.fromMe === true)
+    process.stderr.write(
+      message
+        ? `whatsapp[${st.account.id}] asked to send ${key.id} to ${key.remoteJid} again — served from the outbox\n`
+        : `whatsapp[${st.account.id}] asked to send ${key.id} to ${key.remoteJid} again — NOT in the outbox, so that message can never arrive\n`,
+    );
+  return message;
 }
 
 function onClose(st: State, code: number | undefined): void {
@@ -128,12 +156,14 @@ async function connect(st: State): Promise<void> {
     browser: Browsers.macOS('Safari'),
     markOnlineOnConnect: false,
     syncFullHistory: false,
-    logger: silentLogger(),
+    logger: baileysLogger(st.account.id),
+    getMessage: (key) => Promise.resolve(servedFromOutbox(st, key)),
   });
   st.sock = sock;
   sock.ev.on('creds.update', () => void saveCreds());
   bindConnection(st, sock);
   bindInbound(st, sock);
+  bindDelivery(st, sock);
 }
 
 async function ready(st: State): Promise<WASocket> {
@@ -151,7 +181,14 @@ async function send(
   const sock = await ready(st);
   const sent = await sock.sendMessage(jid, content, opts);
   st.keys.remember(sent?.key);
-  return sent?.key.id ?? '';
+  st.outbox.remember(sent?.key, sent?.message);
+  const messageId = sent?.key.id;
+  if (!messageId)
+    throw new TrainError(
+      'whatsapp_call',
+      `WhatsApp accepted no message for ${jid}, so there is nothing that can have arrived`,
+    );
+  return messageId;
 }
 
 function quotedOpts(st: State, jid: string, quotedId: string): SendOpts {
@@ -185,6 +222,7 @@ export function createClient(account: WhatsAppAccount): WAClient {
     closed: false,
     openPromise: Promise.resolve(),
     keys: makeKeyCache(),
+    outbox: makeOutbox(),
   };
   resetGate(st);
   return {
