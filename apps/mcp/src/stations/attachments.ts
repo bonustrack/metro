@@ -36,7 +36,7 @@ const extFromName = (filename: string | undefined): string | undefined => {
     : undefined;
 };
 
-const extFromMime = (mime: string | undefined): string | undefined => {
+export const extFromMime = (mime: string | undefined): string | undefined => {
   if (mime === undefined) return undefined;
   const mapped = MIME_EXT[mime];
   if (mapped) return mapped;
@@ -84,6 +84,21 @@ export function assertContentLength(header: string | null | undefined): void {
   if (Number.isFinite(n)) assertAttachmentSize(n);
 }
 
+const cachePathFor = async (
+  messageId: string,
+  index: number,
+  meta: { mime?: string; name?: string },
+): Promise<string> => {
+  const { mkdir } = await import('node:fs/promises');
+  const nodePath = await import('node:path');
+  const dir = attachDir();
+  await mkdir(dir, { recursive: true });
+  return nodePath.join(
+    dir,
+    cacheFileName(messageId, index, meta.name, meta.mime),
+  );
+};
+
 export const saveBufferToCache = async (
   data: Uint8Array,
   messageId: string,
@@ -91,16 +106,37 @@ export const saveBufferToCache = async (
   meta: { mime?: string; name?: string },
 ): Promise<SavedAttachment> => {
   assertAttachmentSize(data.length);
-  const { mkdir, writeFile } = await import('node:fs/promises');
-  const nodePath = await import('node:path');
-  const dir = attachDir();
-  await mkdir(dir, { recursive: true });
-  const path = nodePath.join(
-    dir,
-    cacheFileName(messageId, index, meta.name, meta.mime),
-  );
+  const { writeFile } = await import('node:fs/promises');
+  const path = await cachePathFor(messageId, index, meta);
   await writeFile(path, data);
   return { path, mime: meta.mime, name: meta.name, bytes: data.length };
+};
+
+export const saveStreamToCache = async (
+  chunks: AsyncIterable<Uint8Array>,
+  messageId: string,
+  index: number,
+  meta: { mime?: string; name?: string },
+): Promise<SavedAttachment> => {
+  const { open, rename, rm } = await import('node:fs/promises');
+  const path = await cachePathFor(messageId, index, meta);
+  const part = `${path}.part`;
+  const handle = await open(part, 'w');
+  let bytes = 0;
+  try {
+    for await (const chunk of chunks) {
+      bytes += chunk.length;
+      assertAttachmentSize(bytes);
+      await handle.write(chunk);
+    }
+  } catch (err) {
+    await handle.close();
+    await rm(part, { force: true });
+    throw err;
+  }
+  await handle.close();
+  await rename(part, path);
+  return { path, mime: meta.mime, name: meta.name, bytes };
 };
 
 export const guessMime = (path: string): string => {

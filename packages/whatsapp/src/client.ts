@@ -2,6 +2,7 @@ import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestWaWebVersion,
+  type WAMessage,
   type WASocket,
 } from '@whiskeysockets/baileys';
 import { TrainError } from '@metro-labs/mcp/train-error';
@@ -14,7 +15,7 @@ import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 
 export interface InboundHandlers {
-  onMessage(m: InboundMessage): void;
+  onMessage(m: InboundMessage, raw: WAMessage): void;
   onReaction(r: ReactionInput): void;
 }
 
@@ -34,6 +35,7 @@ export interface WAClient {
   sendReaction(jid: string, messageId: string, emoji: string): Promise<void>;
   editMessage(jid: string, messageId: string, text: string): Promise<void>;
   deleteMessage(jid: string, messageId: string): Promise<void>;
+  reuploadMedia(m: WAMessage): Promise<WAMessage>;
   disconnect(): Promise<void>;
 }
 
@@ -63,7 +65,7 @@ function bindInbound(st: State, sock: WASocket): void {
     for (const m of messages) {
       if (m.key.fromMe) continue;
       const inbound = toInbound(st.account.id, m);
-      if (inbound) st.handlers.onMessage(inbound);
+      if (inbound) st.handlers.onMessage(inbound, m);
     }
   });
   sock.ev.on('messages.reaction', (events: ReactionEvent[]) => {
@@ -227,6 +229,10 @@ export function createClient(account: WhatsAppAccount): WAClient {
       await send(st, jid, {
         delete: knownKey(st.keys, jid, messageId, true),
       });
+    },
+    async reuploadMedia(m) {
+      const sock = await ready(st);
+      return sock.updateMediaMessage(m);
     },
     disconnect() {
       st.closed = true;

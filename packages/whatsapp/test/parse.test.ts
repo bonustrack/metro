@@ -2,15 +2,18 @@ import { describe, expect, test } from 'bun:test';
 import type { WAMessage } from '@whiskeysockets/baileys';
 import {
   extractText,
-  hasMedia,
   isGroupJid,
   isPrivateJid,
+  mediaRefOf,
   toInbound,
   toReaction,
   tsToDate,
   unwrap,
   type ReactionEvent,
 } from '../src/parse.ts';
+
+const hasMedia = (m: unknown): boolean =>
+  mediaRefOf(m as Parameters<typeof mediaRefOf>[0]) !== undefined;
 
 const asMessage = (m: unknown): WAMessage => m as WAMessage;
 
@@ -106,7 +109,6 @@ describe('toInbound', () => {
       date: new Date(1_700_000_000_000),
       isPrivate: true,
       pushName: 'Alice',
-      hasMedia: false,
     });
   });
 
@@ -124,7 +126,7 @@ describe('toInbound', () => {
     const inbound = toInbound('w0', m);
     expect(inbound?.senderJid).toBe('222@s.whatsapp.net');
     expect(inbound?.isPrivate).toBe(false);
-    expect(inbound?.hasMedia).toBe(true);
+    expect(inbound?.media?.kind).toBe('image');
     expect(inbound?.text).toBe('pic [image]');
   });
 
@@ -175,7 +177,7 @@ describe('toInbound', () => {
     });
     const inbound = toInbound('w0', m);
     expect(inbound?.text).toBe('[image]');
-    expect(inbound?.hasMedia).toBe(true);
+    expect(inbound?.media?.kind).toBe('image');
   });
 });
 

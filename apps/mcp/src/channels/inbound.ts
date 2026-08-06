@@ -1,7 +1,21 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { str } from '../mcp/str.js';
 import { dedupeKey } from './dedupe.js';
-import { buildMediaNote, type SavedMedia } from './media-note.js';
+import {
+  buildMediaFailureNote,
+  buildMediaNote,
+  type MediaNote,
+  type SavedMedia,
+} from './media-note.js';
+import {
+  capSet,
+  displayNameMeta,
+  senderMeta,
+  takeMediaCtx,
+  type MediaCtx,
+  type PendingAtt,
+  type PendingMsg,
+} from './pending.js';
 
 interface InboundDeps {
   mcp: Server;
@@ -10,80 +24,16 @@ interface InboundDeps {
   senderAllowed: (from: string, line: string) => boolean;
 }
 
-interface PendingAtt {
-  kind?: string;
-  name?: string;
-}
-
-interface PendingMsg {
-  line: string;
-  from: string;
-  station: string;
-  text: string;
-  messageId: string;
-  lineName: string;
-  fromName: string;
-  fromDisplayName: string;
-  attachments: PendingAtt[];
-  saved: Set<number>;
-  timer: ReturnType<typeof setTimeout>;
-}
-
-interface MediaCtx {
-  line: string;
-  from: string;
-  station: string;
-  text?: string;
-  messageId?: string;
-  lineName?: string;
-  fromName?: string;
-  fromDisplayName?: string;
-}
-
 const ATTACH_TIMEOUT_MS = 15_000;
 const DEDUPE_TTL_MS = 30_000;
 const DEDUPE_MAX = 2_000;
 const ALLOWED_LINES_MAX = 2_000;
 const PENDING_PERMISSIONS_MAX = 500;
 
-function capSet(set: Set<string>, max: number): void {
-  while (set.size > max) {
-    const oldest = set.values().next();
-    if (oldest.done) break;
-    set.delete(oldest.value);
-  }
-}
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
 const shortId = (id: string): string =>
   id.length > 10 ? `${id.slice(0, 6)}…` : id;
-
-const displayNameMeta = (v: unknown): Record<string, string> => {
-  const name = str(v);
-  return name ? { from_display_name: name } : {};
-};
-
-const senderMeta = (c: MediaCtx): Record<string, string> => ({
-  ...(c.messageId ? { message_id: c.messageId } : {}),
-  ...(c.lineName ? { line_name: c.lineName } : {}),
-  ...(c.fromName ? { from_name: c.fromName } : {}),
-  ...displayNameMeta(c.fromDisplayName),
-});
-
-function takeMediaCtx(buf: PendingMsg): MediaCtx {
-  const ctx: MediaCtx = {
-    line: buf.line,
-    from: buf.from,
-    station: buf.station,
-    text: buf.text,
-    messageId: buf.messageId,
-    lineName: buf.lineName,
-    fromName: buf.fromName,
-    fromDisplayName: buf.fromDisplayName,
-  };
-  buf.text = '';
-  return ctx;
-}
 
 export class InboundRelay {
   private readonly deps: InboundDeps;
@@ -130,10 +80,13 @@ export class InboundRelay {
     return false;
   }
 
-  private async surfaceMedia(ctx: MediaCtx, p: SavedMedia): Promise<void> {
-    const note = await buildMediaNote(p, ctx.text ?? '');
-    if (!note) return;
-    await this.notify('notifications/claude/channel', {
+  private surfaceNote(
+    ctx: MediaCtx,
+    p: SavedMedia,
+    note: MediaNote,
+    extra: Record<string, unknown>,
+  ): Promise<void> {
+    return this.notify('notifications/claude/channel', {
       content: note.content,
       meta: {
         line: ctx.line,
@@ -143,9 +96,23 @@ export class InboundRelay {
         kind: note.kind,
         mime: p.mime ?? '',
         name: note.name,
-        ...(p.url ? { url: p.url } : {}),
-        local_path: note.path,
+        ...extra,
       },
+    });
+  }
+
+  private async surfaceMedia(ctx: MediaCtx, p: SavedMedia): Promise<void> {
+    const note = await buildMediaNote(p, ctx.text ?? '');
+    if (!note) return;
+    await this.surfaceNote(ctx, p, note, {
+      ...(p.url ? { url: p.url } : {}),
+      local_path: note.path,
+    });
+  }
+
+  private surfaceMediaFailure(ctx: MediaCtx, p: SavedMedia): Promise<void> {
+    return this.surfaceNote(ctx, p, buildMediaFailureNote(p, ctx.text ?? ''), {
+      attachment_error: p.reason ?? '',
     });
   }
 
@@ -174,28 +141,40 @@ export class InboundRelay {
     });
   }
 
-  private async handleAttachmentSaved(
+  private mediaCtxFor(
     ev: Record<string, unknown>,
     payload: SavedMedia,
-  ): Promise<void> {
-    const line = str(ev.line);
+  ): MediaCtx | null {
     const forId = str(payload.attachmentFor);
     const buf = forId ? this.pendingAttachments.get(forId) : undefined;
     if (buf) {
-      const idx = typeof payload.index === 'number' ? payload.index : 0;
-      buf.saved.add(idx);
+      buf.saved.add(typeof payload.index === 'number' ? payload.index : 0);
       const ctx = takeMediaCtx(buf);
       if (buf.saved.size >= buf.attachments.length) {
         clearTimeout(buf.timer);
         this.pendingAttachments.delete(forId);
       }
-      await this.surfaceMedia(ctx, payload);
-    } else if (line && this.allowedLines.has(line)) {
-      await this.surfaceMedia(
-        { line, from: 'metro://attachment', station: str(ev.station) || 'xmtp' },
-        payload,
-      );
+      return ctx;
     }
+    const line = str(ev.line);
+    if (!line || !this.allowedLines.has(line)) return null;
+    return {
+      line,
+      from: 'metro://attachment',
+      station: str(ev.station) || 'xmtp',
+    };
+  }
+
+  private async routeAttachment(ev: Record<string, unknown>): Promise<boolean> {
+    const p = ev.payload as SavedMedia | undefined;
+    if (!p) return false;
+    const type = p.contentType;
+    if (type !== 'attachmentSaved' && type !== 'attachmentFailed') return false;
+    const ctx = this.mediaCtxFor(ev, p);
+    if (!ctx) return true;
+    if (type === 'attachmentFailed') await this.surfaceMediaFailure(ctx, p);
+    else await this.surfaceMedia(ctx, p);
+    return true;
   }
 
   private bufferAttachments(
@@ -336,11 +315,7 @@ export class InboundRelay {
     ev: Record<string, unknown>,
     replay = false,
   ): Promise<void> {
-    const payload = ev.payload as SavedMedia | undefined;
-    if (payload?.contentType === 'attachmentSaved') {
-      await this.handleAttachmentSaved(ev, payload);
-      return;
-    }
+    if (await this.routeAttachment(ev)) return;
 
     const base = this.routable(ev, replay);
     if (!base) return;
