@@ -19,13 +19,42 @@ interface MessageArgs {
   station: Station;
 }
 
-const deliveredLabels = (response: { result: unknown }): string[] => {
-  const list = (response.result as { attachments?: unknown } | null)
-    ?.attachments;
-  return Array.isArray(list)
-    ? list.filter((x): x is string => typeof x === 'string')
-    : [];
+interface StationResult {
+  messageId?: unknown;
+  ok?: unknown;
+  attachments?: unknown;
+}
+
+interface SendReport {
+  labels: string[];
+  messageId?: string;
+}
+
+const resultOf = (response: { result: unknown }): StationResult =>
+  (response.result as StationResult | null) ?? {};
+
+const messageIdOf = (r: StationResult): string | undefined => {
+  if (typeof r.messageId === 'string' && r.messageId) return r.messageId;
+  if (typeof r.messageId === 'number') return String(r.messageId);
+  return undefined;
 };
+
+function assertAcknowledged(
+  station: Station,
+  what: string,
+  r: StationResult,
+): void {
+  if (messageIdOf(r) === undefined && r.ok !== true)
+    throw new Error(
+      `${station.name} did not confirm the ${what}; its response carried no ` +
+        'message id and no acknowledgement, so nothing proves it was sent',
+    );
+}
+
+const deliveredLabels = (r: StationResult): string[] =>
+  Array.isArray(r.attachments)
+    ? r.attachments.filter((x): x is string => typeof x === 'string')
+    : [];
 
 function assertDelivered(
   station: Station,
@@ -39,25 +68,33 @@ function assertDelivered(
     );
 }
 
+const describeSend = (r: SendReport): string =>
+  `sent: ${r.labels.join(', ')}${r.messageId ? ` (id ${r.messageId})` : ''}`;
+
 async function sendNative(
   m: MessageArgs,
   text: string | undefined,
   replyTo: string | undefined,
   atts: ResolvedAttachment[],
-): Promise<string[]> {
+): Promise<SendReport> {
   const { line, ctx, station } = m;
-  const sent: string[] = [];
+  const labels: string[] = [];
+  let messageId: string | undefined;
   if (text) {
-    await ctx.call('send', replyTo ? { line, text, replyTo } : { line, text });
-    sent.push('text');
+    const sent = resultOf(
+      await ctx.call('send', replyTo ? { line, text, replyTo } : { line, text }),
+    );
+    assertAcknowledged(station, 'text', sent);
+    messageId = messageIdOf(sent);
+    labels.push('text');
   }
-  if (!atts.length) return sent;
+  if (!atts.length) return { labels, messageId };
   const delivered = station.sendAttachments
     ? await station.sendAttachments(line, atts, ctx)
     : [];
   assertDelivered(station, delivered, atts);
-  sent.push(...delivered);
-  return sent;
+  labels.push(...delivered);
+  return { labels, messageId };
 }
 
 async function sendForwarded(
@@ -65,20 +102,24 @@ async function sendForwarded(
   text: string | undefined,
   replyTo: string | undefined,
   atts: ResolvedAttachment[],
-): Promise<string[]> {
+): Promise<SendReport> {
   const { line, ctx, station } = m;
   const args: Record<string, unknown> = { line };
   if (text) args.text = text;
   if (replyTo) args.replyTo = replyTo;
   if (atts.length) args.attachments = atts.map(toCanonical);
-  const response = await ctx.call('send', args);
-  const sent: string[] = [];
-  if (text) sent.push('text');
-  if (!atts.length) return sent;
-  const delivered = deliveredLabels(response);
+  const sent = resultOf(await ctx.call('send', args));
+  const labels: string[] = [];
+  if (text) {
+    assertAcknowledged(station, 'text', sent);
+    labels.push('text');
+  }
+  const messageId = messageIdOf(sent);
+  if (!atts.length) return { labels, messageId };
+  const delivered = deliveredLabels(sent);
   assertDelivered(station, delivered, atts);
-  sent.push(...delivered);
-  return sent;
+  labels.push(...delivered);
+  return { labels, messageId };
 }
 
 const unsupported = (station: Station, atts: CanonicalAttachment[]): string =>
@@ -104,8 +145,9 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
     const sent = native
       ? await sendNative(m, text, replyTo, atts)
       : await sendForwarded(m, text, replyTo, atts);
-    if (!sent.length) return errResult('send requires `text` or `attachments`');
-    return ok(`sent: ${sent.join(', ')}`);
+    if (!sent.labels.length)
+      return errResult('send requires `text` or `attachments`');
+    return ok(describeSend(sent));
   } finally {
     await cleanupAttachments(atts);
   }
@@ -138,7 +180,7 @@ const MESSAGE_VERBS: Record<string, VerbSpec> = {
 };
 
 function makeVerbHandler(verb: string, spec: VerbSpec): MessageHandler {
-  return async ({ line, a, ctx }) => {
+  return async ({ line, a, ctx, station }) => {
     const payload: Record<string, unknown> = { line };
     for (const [snake, camel] of spec.args) {
       const value = str(a[snake]);
@@ -148,8 +190,10 @@ function makeVerbHandler(verb: string, spec: VerbSpec): MessageHandler {
       }
       payload[camel] = value;
     }
-    await ctx.call(verb, payload);
-    return ok(spec.success);
+    const done = resultOf(await ctx.call(verb, payload));
+    assertAcknowledged(station, verb, done);
+    const messageId = messageIdOf(done);
+    return ok(messageId ? `${spec.success} (id ${messageId})` : spec.success);
   };
 }
 

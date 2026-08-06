@@ -121,8 +121,10 @@ function makeReact(clientFor: ClientFor): StationHandler {
     const { accountId, client, jid } = resolve(args, clientFor);
     const messageId = str(args.messageId) ?? '';
     const emoji = str(args.emoji) ?? '';
-    await guard(() => client.sendReaction(jid, messageId, emoji));
-    respond(id, { result: { ok: true, account: accountId } });
+    const sentId = await guard(() =>
+      client.sendReaction(jid, messageId, emoji),
+    );
+    respond(id, { result: { messageId: sentId, account: accountId } });
   };
 }
 
@@ -131,8 +133,10 @@ function makeEdit(clientFor: ClientFor): StationHandler {
     const { accountId, client, jid } = resolve(args, clientFor);
     const messageId = str(args.messageId) ?? '';
     const text = str(args.text) ?? '';
-    await guard(() => client.editMessage(jid, messageId, text));
-    respond(id, { result: { ok: true, account: accountId } });
+    const sentId = await guard(() =>
+      client.editMessage(jid, messageId, text),
+    );
+    respond(id, { result: { messageId: sentId, account: accountId } });
   };
 }
 
@@ -140,8 +144,8 @@ function makeDelete(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
     const { accountId, client, jid } = resolve(args, clientFor);
     const messageId = str(args.messageId) ?? '';
-    await guard(() => client.deleteMessage(jid, messageId));
-    respond(id, { result: { ok: true, account: accountId } });
+    const sentId = await guard(() => client.deleteMessage(jid, messageId));
+    respond(id, { result: { messageId: sentId, account: accountId } });
   };
 }
 

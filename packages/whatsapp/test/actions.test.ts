@@ -232,6 +232,25 @@ describe('whatsapp outbound handlers', () => {
     expect(calls[0]).toEqual({ method: 'deleteMessage', args: [JID, 'ABC'] });
   });
 
+  test('react, edit and delete report the id of the message they sent', async () => {
+    for (const [n, action, args] of [
+      ['g', 'react', { line: LINE, messageId: 'ABC', emoji: '👍' }],
+      ['h', 'edit', { line: LINE, messageId: 'ABC', text: 'new' }],
+      ['i', 'delete', { line: LINE, messageId: 'ABC' }],
+    ] as const) {
+      const handle = makeHandleCall(() => fakeClient(calls));
+      const cap = captureResponses();
+      await handle({ op: 'call', id: n, action, args });
+      cap.restore();
+      expect(cap.responses[0]).toMatchObject({
+        op: 'response',
+        id: n,
+        result: { messageId: 'MID', account: 'w0' },
+      });
+      expect(cap.responses[0]).not.toMatchObject({ result: { ok: true } });
+    }
+  });
+
   test('accounts lists configured ids', async () => {
     const handle = makeHandleCall(() => fakeClient(calls));
     const cap = captureResponses();
