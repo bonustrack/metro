@@ -41,6 +41,17 @@ the account (`WHATSAPP_ACCOUNT`, default `w0`), which must already exist. Enter 
 scan the QR in WhatsApp → Settings → Linked Devices → Link a Device; restart the daemon to
 pick up the new creds.
 
+## Baileys log level
+
+`METRO_WHATSAPP_LOG_LEVEL` sets how much Baileys itself says on the train's stderr, which
+the daemon relays into the Fly log. Default `warn`; accepted values are `trace`, `debug`,
+`info`, `warn`, `error` and `silent`, and anything else falls back to `warn`. The evidence
+for a send that never arrived — `recv retry request, but message not available`, and the
+device-list and session-fetch decisions — is logged by Baileys at **`debug`**, so a
+resend investigation needs `debug` and nothing less. It is chatty on a live account: set
+it for the window (`fly secrets set METRO_WHATSAPP_LOG_LEVEL=debug`) and take it off again
+(`fly secrets unset METRO_WHATSAPP_LOG_LEVEL`) rather than leaving it on.
+
 ## Constraints
 
 Real-account automation violates WhatsApp's ToS and the number can be **permanently
