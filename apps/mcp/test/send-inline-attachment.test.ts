@@ -57,9 +57,9 @@ function wire(h: Harness): void {
     }
     h.seen.push(entry);
     if (h.fail) return Promise.resolve({ error: 'network is down' });
-    return Promise.resolve({
-      result: h.labels.length ? { attachments: h.labels } : {},
-    });
+    const result: Record<string, unknown> = { messageId: 'm1', account: 'a' };
+    if (h.labels.length) result.attachments = h.labels;
+    return Promise.resolve({ result });
   });
 }
 
@@ -79,7 +79,7 @@ describe('inline bytes reach a station intact', () => {
       attachments: [{ data: B64, name: 'shot.png', mime: 'image/png' }],
     });
     expect(res.isError).toBeUndefined();
-    expect(text(res)).toBe('sent: text, image');
+    expect(text(res)).toBe('sent: text, image (id m1)');
     const call = h.seen[0];
     expect(call?.action).toBe('send');
     expect(call?.bytes).toBeDefined();
@@ -98,7 +98,7 @@ describe('inline bytes reach a station intact', () => {
       attachments: [{ data: B64, name: 'report.pdf', mime: 'application/pdf' }],
     });
     expect(res.isError).toBeUndefined();
-    expect(text(res)).toBe('sent: text, file');
+    expect(text(res)).toBe('sent: text, file (id m1)');
     expect(h.seen.map((s) => s.action)).toEqual(['send', 'sendAttachment']);
     const att = h.seen[1]?.args;
     expect(att?.dataB64).toBe(B64);
@@ -135,7 +135,7 @@ describe('inline bytes reach a station intact', () => {
       ],
     });
     expect(res.isError).toBeUndefined();
-    expect(text(res)).toBe('sent: image, file');
+    expect(text(res)).toBe('sent: image, file (id m1)');
     const list = h.seen[0]?.args.attachments as { path: string }[];
     expect(list).toHaveLength(2);
     expect(Buffer.compare(readFileSync(list[1]?.path ?? ''), PAYLOAD)).toBe(0);

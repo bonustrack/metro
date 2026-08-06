@@ -17,6 +17,7 @@ interface StationCase {
   name: string;
   line: string;
   attachmentActions: string[];
+  report: string;
 }
 
 const STATION_CASES: StationCase[] = [
@@ -24,26 +25,31 @@ const STATION_CASES: StationCase[] = [
     name: 'telegram',
     line: 'metro://telegram/t0/-100123',
     attachmentActions: [],
+    report: 'sent: image, file (id 1)',
   },
   {
     name: 'telegram-user',
     line: 'metro://telegram-user/default/12345',
     attachmentActions: [],
+    report: 'sent: image, file (id 1)',
   },
   {
     name: 'discord',
     line: 'metro://discord/d0/1531084421833297970',
     attachmentActions: [],
+    report: 'sent: image, file (id 1)',
   },
   {
     name: 'whatsapp',
     line: 'metro://whatsapp/w0/111@s.whatsapp.net',
     attachmentActions: [],
+    report: 'sent: image, file (id 1)',
   },
   {
     name: 'xmtp',
     line: 'metro://xmtp/x0/0xabc',
     attachmentActions: ['sendImage', 'sendAttachment'],
+    report: 'sent: image, file',
   },
 ];
 
@@ -129,7 +135,7 @@ describe('a station that silently drops an attachment errors, per station', () =
         attachments: [{ path: png }, { path: pdf }],
       });
       expect(res.isError).toBeUndefined();
-      expect(textOf(res)).toBe('sent: image, file');
+      expect(textOf(res)).toBe(c.report);
     });
   }
 });

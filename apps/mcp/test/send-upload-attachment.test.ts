@@ -76,9 +76,9 @@ beforeEach(() => {
       if (existsSync(src)) entry.bytes = readFileSync(src);
     }
     seen.push(entry);
-    return Promise.resolve({
-      result: labels.length ? { attachments: labels } : {},
-    });
+    const result: Record<string, unknown> = { messageId: 'm1', account: 'a' };
+    if (labels.length) result.attachments = labels;
+    return Promise.resolve({ result });
   });
 });
 
@@ -110,7 +110,7 @@ describe('an uploaded file reaches the station intact', () => {
       attachments: [{ upload: id }],
     });
     expect(res.isError).toBeUndefined();
-    expect(text(res)).toBe('sent: text, file');
+    expect(text(res)).toBe('sent: text, file (id m1)');
     const call = seen[0];
     expect(Buffer.compare(call?.bytes ?? Buffer.alloc(0), PAYLOAD)).toBe(0);
     const att = (call?.args.attachments as Record<string, unknown>[])[0];
@@ -270,7 +270,7 @@ describe('upload is one source among four', () => {
       ],
     });
     expect(res.isError).toBeUndefined();
-    expect(text(res)).toBe('sent: file, file');
+    expect(text(res)).toBe('sent: file, file (id m1)');
   });
 
   test('a failed inline neighbour does not delete the upload', async () => {
