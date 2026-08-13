@@ -53,7 +53,8 @@ export function Dashboard({
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   const [picked, setPicked] = useState<Selection>(() => initialSelection(data));
 
-  const selection: Selection = data.agents.length === 0 ? { kind: 'new' } : picked;
+  const selection: Selection =
+    data.agents.length === 0 && picked.kind !== 'start' ? { kind: 'new' } : picked;
   const hash = routeHash(selection);
 
   useEffect(() => subscribeRoute(setPicked), []);
@@ -82,7 +83,14 @@ export function Dashboard({
 
   return (
     <Col gap={24} style={PAGE}>
-      <TopBar email={data.email} expiresAt={expiresAt} onLock={onLock} />
+      <TopBar
+        email={data.email}
+        expiresAt={expiresAt}
+        onStart={() => {
+          onSelect({ kind: 'start' });
+        }}
+        onLock={onLock}
+      />
       <Row gap={24} wrap align="start">
         <Col style={SIDEBAR}>
           <AgentSidebar

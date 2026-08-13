@@ -31,7 +31,8 @@ the UI ships no Google JavaScript at all.
   button. Accounts are never listed globally, so which account belongs to which agent is
   structural rather than something you infer.
 - The selected agent is **in the URL**: `metro.box/#/1` is agent `1`, `#/2` is agent `2`,
-  `#/new` is the create form and `#/` is the no-selection state. Picking an agent pushes a
+  `#/new` is the create form, `#/start` is the Claude Code page and `#/` is the
+  no-selection state. Picking an agent pushes a
   history entry, so Back and Forward walk the selection and a link to `#/2` opens straight
   on that agent. An id nobody can resolve, one that does not exist as much as one that exists
   but belongs to somebody else, renders the **same** message, *No agent with that id is
@@ -56,6 +57,16 @@ the UI ships no Google JavaScript at all.
   **an agent with no accounts** → its
   credentials plus a line saying no chat account is connected yet; **a granted agent** →
   its endpoint, no key.
+- **Start a Claude Code session** is a page of its own at `#/start`, reached from the
+  **Claude Code** button in the top bar. It leads with the command that starts a session
+  with the Metro channel enabled, carries the `-c` resume variant under it, and then lists
+  what has to exist first: an agent with a key, a station attached to it, the server
+  registered locally under the name `metro`, a recent Claude Code on first-party auth, and
+  telemetry left on. The registration line it shows is built from the daemon's own endpoint
+  with a **placeholder where the key goes** (`src/components/start-session.ts`, pinned by
+  `test/start-session.test.ts`); the real key is only ever on the agent's own page. It is
+  the one route that stays reachable with **no agents yet**, since a first-time visitor is
+  exactly who needs it.
 - **Log out** clears the stored session. A returning visitor with a still-fresh stored
   session auto-connects (spinner, no gate). An expired/invalid session gets a `401`, is
   cleared, and the gate returns.
