@@ -6,6 +6,7 @@ import { Text, Button } from './ui';
 interface TopBarProps {
   email: string;
   expiresAt: number;
+  onStart: () => void;
   onLock: () => void;
 }
 
@@ -13,7 +14,7 @@ function expiryLabel(expiresAt: number): string {
   return new Date(expiresAt).toLocaleDateString(undefined, { dateStyle: 'medium' });
 }
 
-export function TopBar({ email, expiresAt, onLock }: TopBarProps): ReactNode {
+export function TopBar({ email, expiresAt, onStart, onLock }: TopBarProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Row justify="between" align="center" gap={12} wrap>
@@ -23,7 +24,10 @@ export function TopBar({ email, expiresAt, onLock }: TopBarProps): ReactNode {
           {email} · session expires {expiryLabel(expiresAt)}
         </Text>
       </Col>
-      <Button color="secondary" dark={dark} onPress={onLock} label="Log out" />
+      <Row gap={8} align="center">
+        <Button color="secondary" dark={dark} onPress={onStart} label="Claude Code" />
+        <Button color="secondary" dark={dark} onPress={onLock} label="Log out" />
+      </Row>
     </Row>
   );
 }
