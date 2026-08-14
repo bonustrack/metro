@@ -31,6 +31,8 @@ import {
   attachAccountToAgent,
   detachAccountFromAgent,
 } from '../db/account-attach.js';
+import { listAgentRuns, recordAgentRuns } from '../db/agent-runs.js';
+import { setAgentRunsBackend } from './agent-runs-api.js';
 import type { StationName } from '../db/schema.js';
 import { AttachSessions } from './attach-session.js';
 import { startUploadReaper } from './upload-store.js';
@@ -128,6 +130,8 @@ const agentApi: AgentApiDeps = {
   detachAccount: detachAccountFromAgent,
   syncStations,
 };
+
+setAgentRunsBackend({ recordRuns: recordAgentRuns, listRuns: listAgentRuns });
 
 async function main(): Promise<void> {
   await materializeFromDb();

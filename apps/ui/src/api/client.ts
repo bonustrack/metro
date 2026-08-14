@@ -49,10 +49,14 @@ export interface CallInit {
   body?: string;
 }
 
-export async function call(token: string, init: CallInit): Promise<unknown> {
+export async function callUrl(
+  url: string,
+  token: string,
+  init: CallInit,
+): Promise<unknown> {
   let res: Response;
   try {
-    res = await fetch(`${agentsUrl()}${init.path ?? ''}`, {
+    res = await fetch(url, {
       method: init.method,
       headers: { authorization: `Bearer ${token}`, ...init.headers },
       body: init.body,
@@ -64,6 +68,10 @@ export async function call(token: string, init: CallInit): Promise<unknown> {
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok) throw new Error(errorText(body, res.status));
   return body;
+}
+
+export async function call(token: string, init: CallInit): Promise<unknown> {
+  return callUrl(`${agentsUrl()}${init.path ?? ''}`, token, init);
 }
 
 const text = (value: unknown): string | null =>

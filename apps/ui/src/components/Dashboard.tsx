@@ -53,8 +53,9 @@ export function Dashboard({
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   const [picked, setPicked] = useState<Selection>(() => initialSelection(data));
 
+  const standalone = picked.kind === 'start' || picked.kind === 'runs';
   const selection: Selection =
-    data.agents.length === 0 && picked.kind !== 'start' ? { kind: 'new' } : picked;
+    data.agents.length === 0 && !standalone ? { kind: 'new' } : picked;
   const hash = routeHash(selection);
 
   useEffect(() => subscribeRoute(setPicked), []);
@@ -88,6 +89,9 @@ export function Dashboard({
         expiresAt={expiresAt}
         onStart={() => {
           onSelect({ kind: 'start' });
+        }}
+        onRuns={() => {
+          onSelect({ kind: 'runs' });
         }}
         onLock={onLock}
       />

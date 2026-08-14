@@ -16,6 +16,10 @@ describe('routeSelection', () => {
     expect(routeSelection('#/start')).toEqual({ kind: 'start' });
   });
 
+  test('the subagent activity page is its own path as well', () => {
+    expect(routeSelection('#/runs')).toEqual({ kind: 'runs' });
+  });
+
   test('an empty or root hash is the no-selection state', () => {
     expect(routeSelection('')).toEqual({ kind: 'none' });
     expect(routeSelection('#')).toEqual({ kind: 'none' });
@@ -42,6 +46,8 @@ describe('routeSelection', () => {
       '#/New',
       '#/Start',
       '#/start/1',
+      '#/Runs',
+      '#/runs/1',
     ])
       expect(routeSelection(bad)).toEqual({ kind: 'none' });
   });
@@ -53,9 +59,10 @@ describe('routeHash', () => {
     expect(routeHash({ kind: 'agent', id: 2 })).toBe('#/2');
   });
 
-  test('the create pane, the start page and the no-selection state have stable urls', () => {
+  test('the create pane, the standalone pages and the no-selection state have stable urls', () => {
     expect(routeHash({ kind: 'new' })).toBe('#/new');
     expect(routeHash({ kind: 'start' })).toBe('#/start');
+    expect(routeHash({ kind: 'runs' })).toBe('#/runs');
     expect(routeHash({ kind: 'none' })).toBe('#/');
   });
 
@@ -64,6 +71,7 @@ describe('routeHash', () => {
       { kind: 'agent', id: 7 } as const,
       { kind: 'new' } as const,
       { kind: 'start' } as const,
+      { kind: 'runs' } as const,
       { kind: 'none' } as const,
     ])
       expect(routeSelection(routeHash(selection))).toEqual(selection);

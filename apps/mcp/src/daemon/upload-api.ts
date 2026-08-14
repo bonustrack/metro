@@ -2,14 +2,10 @@ import { open, rename, rm, type FileHandle } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { guessMime } from '../stations/attachments.js';
 import { safeFileName } from '../stations/attach-inline.js';
-import {
-  allowedAgents,
-  authConfigFromEnv,
-  authenticate,
-  extractToken,
-} from '../mcp/request-identity.js';
+import { extractToken } from '../mcp/request-identity.js';
 import { ApiError } from './api-error.js';
 import { apiFailure, cors, sendJson } from './api-http.js';
+import { identityScope, ownerFromScope } from './api-scope.js';
 import { log } from './log.js';
 import { writeSecure } from './secure-fs.js';
 import {
@@ -67,26 +63,6 @@ export function target(path: string): Target {
 
 const query = (req: IncomingMessage, key: string): string | undefined =>
   new URL(req.url ?? '/', 'http://localhost').searchParams.get(key) ?? undefined;
-
-const identityScope = (req: IncomingMessage): Set<number> =>
-  allowedAgents(authenticate(req, authConfigFromEnv()) ?? undefined);
-
-function ownerFromScope(req: IncomingMessage, allowed: Set<number>): number {
-  const requested = query(req, 'agent');
-  if (requested !== undefined) {
-    const id = Number(requested);
-    if (!Number.isInteger(id) || !allowed.has(id))
-      throw new ApiError(`agent ${requested} is outside your scope`, 403);
-    return id;
-  }
-  const [only] = [...allowed];
-  if (allowed.size === 1 && only !== undefined) return only;
-  throw new ApiError(
-    `this credential covers ${allowed.size} agents; ` +
-      'name the owning agent with ?agent=<id>',
-    400,
-  );
-}
 
 function mimeFor(req: IncomingMessage, name: string): string {
   const explicit = query(req, 'mime');

@@ -158,8 +158,9 @@ missing `DATABASE_URL` or an empty database is a hard, loud error.
 | `DATABASE_URL` | Postgres connection string (required). Agents + accounts load from the DB on boot and are materialized to the per-station account files the trains read. |
 | `METRO_AGENT` | Optional. Restrict this instance to one agent by its numeric `id` (the `agents.id` PK). Must be a positive integer that exists, else boot fails loudly. Unset → the daemon runs every agent's accounts in the one process. |
 
-Three small tables. `accounts` references its agent by a plain `agent_id` int
-with no foreign key; the one FK in the schema is `agents.owner_id → users.id`
+Four small tables. `accounts` and `agent_runs` reference their agent by a plain
+`agent_id` int with no foreign key; the one FK in the schema is
+`agents.owner_id → users.id`
 (see [`apps/mcp/src/db/schema.ts`](apps/mcp/src/db/schema.ts)):
 
 - **`users`** — `id` (auto-increment int, primary key; **the owner identity**), `email`
@@ -180,6 +181,12 @@ with no foreign key; the one FK in the schema is `agents.owner_id → users.id`
   (default `['*']`) — the per-account channel allowlist, and `config` jsonb (the station
   connection secrets + optional `owner` + any extras — see below). Primary key
   (`station`, `account_id`).
+- **`agent_runs`** — one row per Claude Code subagent run pushed by
+  [the activity pusher](#subagent-activity): `agent_id`, `run_id` (chosen by the pushing
+  box), `state`, `started_at`/`ended_at`, `turns`, four `bigint` token counters, a short
+  `label` and an `agent_type`. Primary key (`agent_id`, `run_id`), which is what stops one
+  agent's push from addressing another's row. Telemetry only: nothing on the relay path
+  reads it, and no station credential ever touches it.
 `agents.key` is the whole API-key story, and since the env bearer was retired it is the
 **only** one. At boot the daemon indexes the keys by SHA-256, and a request presenting
 one is authenticated as that agent and **scoped to that agent's accounts only** — on
@@ -286,6 +293,9 @@ before the MCP auth gate:
 | `POST /api/agents/<id>/key` | Reset the key of an agent the signed-in email **owns**: mint a new one, revoke the old one everywhere, and return the new key with its `?token=` endpoint and paste-ready `claude mcp add …` command. |
 | `POST /api/agents/<id>/accounts/start` `{"station":"…","token":"…"}` | Attach a station account to an agent the signed-in email **owns**. Validates the credential against the provider first, writes the `accounts` row, and reloads that station. |
 | `DELETE /api/agents/<id>/accounts/<station>/<account_id>` | Detach one of that agent's station accounts, forget its credentials, and reload (or stop) the station. |
+
+The panel has one more route, `/api/agent-runs`, which is **not** session-only: see
+[Subagent activity](#subagent-activity) below.
 
 Sign-in is **open**: any Google account whose `email_verified` claim is true may sign in and
 create agents. There is no domain allowlist and no cap on how many agents one email owns.
@@ -626,6 +636,48 @@ either, the request is refused with an error that names the limit — it is neve
 truncated. Stations impose their own, lower ceilings on top of that (XMTP refuses
 non-image files over ~190 KiB), and those still fire first.
 
+### Subagent activity
+
+An agent that fans work out to Claude Code subagents can push what they are doing to
+Metro, and the panel draws it at `#/runs`: what is running right now, plus fourteen days
+of agents started, tokens and median run length.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/agent-runs` `{"runs":[…]}` | Upsert up to 200 runs owned by the calling agent. A run is addressed by (`agent_id`,`run_id`), so pushing the same run again as it progresses updates the one row. |
+| `GET /api/agent-runs?days=14` | The runs of every agent the caller can see, newest first. `days` is 1 to 90, 1000 rows at most. |
+
+Both verbs take the **same credential the rest of `/api/*` takes** — an `agents.key` or a
+Google session, `Authorization: Bearer` or `?token=` — and are scoped by the same
+`allowedAgents()`. In practice the box pushes with the agent's key and the panel reads
+with its session. A session covering several agents names the owner on the way in with
+`?agent=<id>`, exactly like `/api/uploads`.
+
+A run carries **counts and a short label, and nothing else**: state
+(`running`/`done`/`lost`), start and end, turns, four token counters, the agent type, and
+the 3-5 word description of the task, truncated to 80 characters by the same function at
+both ends. The task prompt, the tool calls and the report are never sent, because they
+name private repositories and customers, and the page they would end up on is only as
+private as the sign-in in front of it.
+
+The pusher is [`apps/mcp/scripts/push-agent-runs.ts`](apps/mcp/scripts/push-agent-runs.ts)
+and it runs **on the box the subagents run on**, not on the daemon:
+
+```bash
+# what would be sent, printed and not sent
+bun apps/mcp/scripts/push-agent-runs.ts --dry-run
+
+# push what changed since the last run, every minute
+METRO_AGENT_KEY=<the agent's key> \
+  bun apps/mcp/scripts/push-agent-runs.ts --interval 60
+```
+
+It reads the harness's own files — the subagent transcripts under
+`~/.claude/projects/*/*/subagents/` and the workspaces under `~/work/agents/` — and keeps
+a cursor so a push carries only the runs that moved. `METRO_URL` defaults to
+`https://mcp.metro.box`; `METRO_AGENT_KEY_FILE` reads the key from a file instead of the
+environment.
+
 ## How it works
 
 One process does everything:
@@ -674,6 +726,8 @@ apps/
       daemon/           # the supervised runtime: supervisor + dispatcher HTTP
                         #   (/health, /mcp, /wh/<id>) + IPC + event bus + paths/tunnel
       mcp/              # the MCP protocol surface (createMetroMcp) at the root path
+      runs/             # the subagent-activity collector the push script runs (not
+                        #   the daemon): transcript summary, state, label, wire shape
       stations/         # the station contract + runtime + registry the core reads:
                         #   types.ts            — Station/StationTool/Verb contract
                         #   station-runtime.ts  — makeStation, CallMsg, emit/respond

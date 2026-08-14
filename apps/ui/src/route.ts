@@ -3,10 +3,12 @@ import { type Selection } from './components/selection';
 const AGENT_PATH = /^#?\/([1-9][0-9]{0,9})$/;
 const NEW_PATH = /^#?\/new$/;
 const START_PATH = /^#?\/start$/;
+const RUNS_PATH = /^#?\/runs$/;
 
 export function routeSelection(hash: string): Selection {
   if (NEW_PATH.test(hash)) return { kind: 'new' };
   if (START_PATH.test(hash)) return { kind: 'start' };
+  if (RUNS_PATH.test(hash)) return { kind: 'runs' };
   const id = AGENT_PATH.exec(hash)?.[1];
   return id === undefined ? { kind: 'none' } : { kind: 'agent', id: Number(id) };
 }
@@ -14,6 +16,7 @@ export function routeSelection(hash: string): Selection {
 export function routeHash(selection: Selection): string {
   if (selection.kind === 'agent') return `#/${selection.id}`;
   if (selection.kind === 'start') return '#/start';
+  if (selection.kind === 'runs') return '#/runs';
   return selection.kind === 'new' ? '#/new' : '#/';
 }
 

@@ -31,8 +31,8 @@ the UI ships no Google JavaScript at all.
   button. Accounts are never listed globally, so which account belongs to which agent is
   structural rather than something you infer.
 - The selected agent is **in the URL**: `metro.box/#/1` is agent `1`, `#/2` is agent `2`,
-  `#/new` is the create form, `#/start` is the Claude Code page and `#/` is the
-  no-selection state. Picking an agent pushes a
+  `#/new` is the create form, `#/start` is the Claude Code page, `#/runs` is the subagent
+  activity page and `#/` is the no-selection state. Picking an agent pushes a
   history entry, so Back and Forward walk the selection and a link to `#/2` opens straight
   on that agent. An id nobody can resolve, one that does not exist as much as one that exists
   but belongs to somebody else, renders the **same** message, *No agent with that id is
@@ -67,6 +67,22 @@ the UI ships no Google JavaScript at all.
   `test/start-session.test.ts`); the real key is only ever on the agent's own page. It is
   the one route that stays reachable with **no agents yet**, since a first-time visitor is
   exactly who needs it.
+- **Subagent activity** is a second page of its own at `#/runs`, reached from the
+  **Activity** button in the top bar. It reads `GET /api/agent-runs`, the only route in the
+  panel that is not `/api/agents`, and shows what the agents behind this account are doing:
+  four tiles (running now, agents started in the window, tokens, median run), the list of
+  runs that are still going, three fourteen-day charts, and the runs that finished most
+  recently. The rows are pushed to the daemon by the box the agents run on
+  (`apps/mcp/scripts/push-agent-runs.ts`), so the panel only ever reads them. It polls
+  every 20 seconds; like `#/start` it stays reachable with no agents yet.
+- The charts are **inline SVG built here**, not a chart library: `src/components/runs.ts`
+  buckets the runs by UTC day and computes the bar geometry as plain numbers, and
+  `RunChart.tsx` draws them with `react-native-svg`, which the panel already carries for
+  station icons. One series per chart, so there is no legend and no second axis; the peak
+  and the latest day are labelled in words above and below the plot rather than a number on
+  every bar. The bars are the kit's `primary` ink and the baseline is its `border`, so dark
+  mode is the kit's own scheme rather than an inverted picture. The geometry is pinned by
+  `test/runs.test.ts`.
 - **Log out** clears the stored session. A returning visitor with a still-fresh stored
   session auto-connects (spinner, no gate). An expired/invalid session gets a `401`, is
   cleared, and the gate returns.
