@@ -68,13 +68,16 @@ export function apiSession(req: IncomingMessage): ApiSession | null {
   }
 }
 
-export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+export async function readJsonBody(
+  req: IncomingMessage,
+  maxBytes = BODY_MAX,
+): Promise<unknown> {
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const c of req) {
     const buf = c as Buffer;
     total += buf.length;
-    if (total > BODY_MAX) throw new ApiError('request body too large', 413);
+    if (total > maxBytes) throw new ApiError('request body too large', 413);
     chunks.push(buf);
   }
   const raw = Buffer.concat(chunks).toString('utf8').trim();

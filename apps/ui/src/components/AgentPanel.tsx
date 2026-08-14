@@ -10,6 +10,7 @@ import { AgentDetail } from './AgentDetail';
 import { CreateAgent } from './CreateAgent';
 import { NewAgentKey } from './NewAgentKey';
 import { StartSession } from './StartSession';
+import { AgentRuns } from './AgentRuns';
 import { type Selection } from './selection';
 
 function Hint({ text, onNew }: { text: string; onNew: () => void }): ReactNode {
@@ -43,6 +44,7 @@ interface AgentPanelProps {
 export function AgentPanel(props: AgentPanelProps): ReactNode {
   const { agents, selection, created, onCreate, onDismiss } = props;
   if (selection.kind === 'start') return <StartSession endpoint={props.endpoint} />;
+  if (selection.kind === 'runs') return <AgentRuns token={props.token} />;
   if (selection.kind === 'new')
     return <CreateAgent first={agents.length === 0} onCreate={onCreate} />;
 

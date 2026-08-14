@@ -54,6 +54,36 @@ it survives a daemon restart so connected sessions auto-resume.
   it imports each package's `.` export (`xmtpStation`, `telegramStation`,
   `discordStation`, `webhookStation`) and resolves a line/verb to its owner.
 
+### `src/runs/` — the subagent-activity collector
+
+Not part of the daemon. It is the client half of `POST /api/agent-runs`, and it runs on
+the box where the Claude Code subagents run, driven by `scripts/push-agent-runs.ts`.
+
+- `transcript.ts` — summarizes one subagent transcript into counts: turns (deduped by
+  message id, because a streamed message is written several times), the four token
+  counters, the first and last timestamp, and whether the run ended in a final answer.
+- `collect.ts` — walks `~/.claude/projects/*/*/subagents/agent-*.jsonl`, reads the short
+  `description` from the sibling `.meta.json`, and decides the state: `done` when the
+  transcript ends in a final answer, `running` when the agent's workspace under
+  `~/work/agents/<id>/` is still there with a live owner process, `lost` otherwise.
+- `label.ts` — the one definition of what a label may be. The daemon applies the same
+  function to whatever arrives, so the truncation happens at both ends.
+- `push.ts` — the wire shape, the changed-since-last-push cursor, and the POST.
+
+**What leaves the box is counts, durations, state and that short label — never the task
+prompt, the tool calls or the report.** `test/agent-runs-collect.test.ts` asserts it
+against a transcript carrying a planted secret.
+
+```sh
+METRO_AGENT_KEY=… bun apps/mcp/scripts/push-agent-runs.ts            # push what changed
+METRO_AGENT_KEY=… bun apps/mcp/scripts/push-agent-runs.ts --interval 60
+bun apps/mcp/scripts/push-agent-runs.ts --dry-run                    # print, send nothing
+```
+
+`METRO_AGENT_KEY` (or `METRO_AGENT_KEY_FILE`) is the agent's own key, the same credential
+`/api/uploads` and `/api/tail` take; `METRO_URL` defaults to `https://mcp.metro.box`.
+`--all` re-sends every run instead of only what moved since the last push.
+
 ## Architecture (in-process)
 
 ```

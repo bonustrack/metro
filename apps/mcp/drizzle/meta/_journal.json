@@ -71,6 +71,13 @@
       "when": 1785821553657,
       "tag": "0009_agent_key_replaces_keys_table",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786683094929,
+      "tag": "0010_agent_runs",
+      "breakpoints": true
     }
   ]
 }
