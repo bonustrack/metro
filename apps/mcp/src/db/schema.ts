@@ -83,3 +83,27 @@ export const agentRuns = pgTable(
     index('agent_runs_started_idx').on(t.agentId, t.startedAt),
   ],
 );
+
+export const ROW_KINDS = ['agent', 'queue'] as const;
+
+export type RowKind = (typeof ROW_KINDS)[number];
+
+export interface ReportRow {
+  kind: RowKind;
+  id: string;
+  state: string;
+  label: string | null;
+  who: string | null;
+  needs: string[];
+  blockedOn: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+export const agentReports = pgTable('agent_reports', {
+  agentId: integer('agent_id').primaryKey(),
+  rows: jsonb('rows').$type<ReportRow[]>().notNull(),
+  reportedAt: timestamp('reported_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

@@ -5,8 +5,21 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { Text } from './ui';
 import { CARD_PADDING } from '../theme';
 import { fetchRuns } from '../api/runs';
+import { type AgentSummary } from '../api/client';
 import { Loading } from './Loading';
 import { RunChart } from './RunChart';
+import {
+  ageLabel,
+  reportPanels,
+  rowTiming,
+  STALE_MS,
+  summarise,
+  tone,
+  visibleRows,
+  type AgentReport,
+  type ReportPanel,
+  type ReportRow as TaskRowData,
+} from './report';
 import {
   dayBuckets,
   durationMs,
@@ -25,7 +38,7 @@ const RECENT = 8;
 type State =
   | { phase: 'loading' }
   | { phase: 'error'; message: string }
-  | { phase: 'ready'; runs: Run[] };
+  | { phase: 'ready'; runs: Run[]; reports: AgentReport[] };
 
 function Panel({ title, children }: { title: string; children: ReactNode }): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -142,6 +155,103 @@ function Tiles({ runs, now }: { runs: Run[]; now: number }): ReactNode {
   );
 }
 
+function TaskRow({ row, now }: { row: TaskRowData; now: number }): ReactNode {
+  const palette = useKitPalette();
+  const shade = tone(row);
+  const color =
+    shade === 'live'
+      ? palette.success
+      : shade === 'dead'
+        ? palette.danger
+        : shade === 'open'
+          ? palette.primary
+          : palette.sub;
+  const needs = row.needs.length > 0 ? ` · needs ${row.needs.join(', ')}` : '';
+  const blocked = row.blockedOn === null ? '' : ` · blocked: ${row.blockedOn}`;
+  const who = row.who === null ? '' : ` · for ${row.who}`;
+  return (
+    <Row justify="between" align="center" gap={10} wrap>
+      <Row align="center" gap={8} style={{ flexShrink: 1, minWidth: 0 }}>
+        <Box style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+        <Col gap={1} style={{ flexShrink: 1, minWidth: 0 }}>
+          <Text size="sm">{row.label ?? row.id}</Text>
+          <Text size="2xs" role="secondary">
+            {`${row.state} · ${row.id}${who}${blocked}${needs}`}
+          </Text>
+        </Col>
+      </Row>
+      <Text size="2xs" role="secondary">
+        {rowTiming(row, now)}
+      </Text>
+    </Row>
+  );
+}
+
+function ReportCard({ panel, now }: { panel: ReportPanel; now: number }): ReactNode {
+  const report = panel.report;
+  const age =
+    report === null ? 'never reported' : ageLabel(now - report.reportedAt);
+  const rows = report === null ? [] : visibleRows(report.rows);
+  return (
+    <Col gap={12}>
+      <Row justify="between" align="center" gap={10} wrap>
+        <Text size="sm" weight="semibold">
+          {panel.name}
+        </Text>
+        <Text size="2xs" role={panel.stale ? 'secondary' : undefined}>
+          {report === null ? 'no report' : `${summarise(report.rows)} · ${age}`}
+        </Text>
+      </Row>
+      {rows.length === 0 ? (
+        <Text size="sm" role="secondary">
+          {report === null
+            ? 'This agent has not reported yet.'
+            : 'Nothing running and nothing owed.'}
+        </Text>
+      ) : (
+        <Col gap={12}>
+          {rows.map((row) => (
+            <TaskRow key={`${row.kind}:${row.id}`} row={row} now={now} />
+          ))}
+        </Col>
+      )}
+    </Col>
+  );
+}
+
+function Reports({
+  agents,
+  reports,
+  now,
+}: {
+  agents: AgentSummary[];
+  reports: AgentReport[];
+  now: number;
+}): ReactNode {
+  const panels = reportPanels(agents, reports, now);
+  return (
+    <Panel title="What each agent is working on">
+      {panels.length === 0 ? (
+        <Text size="sm" role="secondary">
+          No agent to report on yet.
+        </Text>
+      ) : (
+        <Col gap={20}>
+          {panels.map((panel) => (
+            <ReportCard key={panel.agentId} panel={panel} now={now} />
+          ))}
+        </Col>
+      )}
+      <Text size="2xs" role="secondary">
+        Each agent reports its own running subagents and queued tasks from the box
+        it runs on. A report older than {STALE_MS / 60_000} minutes is shown greyed
+        with its age, because a number nobody has refreshed is not a number to act
+        on.
+      </Text>
+    </Panel>
+  );
+}
+
 function Feed({ runs, now }: { runs: Run[]; now: number }): ReactNode {
   const running = runs.filter((r) => r.state === 'running');
   const finished = runs.filter((r) => r.state !== 'running').slice(0, RECENT);
@@ -162,7 +272,13 @@ function Feed({ runs, now }: { runs: Run[]; now: number }): ReactNode {
   );
 }
 
-export function AgentRuns({ token }: { token: string }): ReactNode {
+export function AgentRuns({
+  token,
+  agents,
+}: {
+  token: string;
+  agents: AgentSummary[];
+}): ReactNode {
   const [state, setState] = useState<State>({ phase: 'loading' });
   const [now, setNow] = useState(() => Date.now());
 
@@ -173,7 +289,7 @@ export function AgentRuns({ token }: { token: string }): ReactNode {
         .then((feed) => {
           if (!live) return;
           setNow(Date.now());
-          setState({ phase: 'ready', runs: feed.runs });
+          setState({ phase: 'ready', runs: feed.runs, reports: feed.reports });
         })
         .catch((err: unknown) => {
           if (!live) return;
@@ -213,6 +329,7 @@ export function AgentRuns({ token }: { token: string }): ReactNode {
       ) : (
         <Col gap={20}>
           <Tiles runs={state.runs} now={now} />
+          <Reports agents={agents} reports={state.reports} now={now} />
           <Feed runs={state.runs} now={now} />
         </Col>
       )}

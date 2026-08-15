@@ -78,6 +78,10 @@ against a transcript carrying a planted secret.
 METRO_AGENT_KEY=… bun apps/mcp/scripts/push-agent-runs.ts            # push what changed
 METRO_AGENT_KEY=… bun apps/mcp/scripts/push-agent-runs.ts --interval 60
 bun apps/mcp/scripts/push-agent-runs.ts --dry-run                    # print, send nothing
+
+The live `working`/`queued` counts on the same route are reported separately, by
+`packages/discord/scripts/task-status.ts`, which already computes them for the bot custom
+status and sends them on every run so their timestamp stays fresh.
 ```
 
 `METRO_AGENT_KEY` (or `METRO_AGENT_KEY_FILE`) is the agent's own key, the same credential

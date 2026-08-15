@@ -4,12 +4,16 @@ import {
   statusText,
   taskCounts,
   type PublishedStatus,
+  type TaskCounts,
 } from '../src/task-status.js';
+import { wireRows } from '../src/task-rows.js';
 
 const base = (process.env.METRO_URL ?? '').replace(/\/+$/, '');
-const key = process.env.METRO_KEY ?? '';
+const key = process.env.METRO_KEY ?? process.env.METRO_AGENT_KEY ?? '';
 const account = process.env.DISCORD_ACCOUNT ?? '';
 const bin = process.env.AGENT_STATUS_BIN ?? 'agent-status';
+const redact = process.env.METRO_REPORT_REDACT === '1';
+const intervalSec = Number(process.env.METRO_REPORT_INTERVAL ?? '0');
 
 function fail(message: string): never {
   process.stderr.write(`discord-task-status: ${message}\n`);
@@ -81,8 +85,21 @@ async function publish(text: string): Promise<void> {
     throw new Error(`set_presence answered ${res.status}: ${await res.text()}`);
 }
 
-async function main(): Promise<void> {
-  const counts = taskCounts(await readReport());
+async function report(raw: unknown): Promise<void> {
+  const res = await fetch(`${base}/api/agent-runs`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${key}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ report: wireRows(raw, redact) }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok)
+    throw new Error(`agent-runs answered ${res.status}: ${await res.text()}`);
+}
+
+async function setPresence(counts: TaskCounts): Promise<void> {
   const next: PublishedStatus = {
     text: statusText(counts),
     uptime: await daemonUptime(),
@@ -96,8 +113,32 @@ async function main(): Promise<void> {
   process.stdout.write(`published: ${next.text}\n`);
 }
 
-try {
-  await main();
-} catch (err) {
-  fail(err instanceof Error ? err.message : String(err));
+const message = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
+async function main(): Promise<void> {
+  const raw = await readReport();
+  const counts = taskCounts(raw);
+  const failures: string[] = [];
+  await report(raw).catch((err: unknown) => {
+    failures.push(`report: ${message(err)}`);
+  });
+  await setPresence(counts).catch((err: unknown) => {
+    failures.push(`presence: ${message(err)}`);
+  });
+  if (failures.length > 0) fail(failures.join('; '));
 }
+
+if (intervalSec > 0)
+  for (;;) {
+    await main().catch((err: unknown) => {
+      process.stderr.write(`discord-task-status: ${message(err)}\n`);
+    });
+    await new Promise((r) => setTimeout(r, intervalSec * 1000));
+  }
+else
+  try {
+    await main();
+  } catch (err) {
+    fail(message(err));
+  }

@@ -44,7 +44,8 @@ interface AgentPanelProps {
 export function AgentPanel(props: AgentPanelProps): ReactNode {
   const { agents, selection, created, onCreate, onDismiss } = props;
   if (selection.kind === 'start') return <StartSession endpoint={props.endpoint} />;
-  if (selection.kind === 'runs') return <AgentRuns token={props.token} />;
+  if (selection.kind === 'runs')
+    return <AgentRuns token={props.token} agents={agents} />;
   if (selection.kind === 'new')
     return <CreateAgent first={agents.length === 0} onCreate={onCreate} />;
 

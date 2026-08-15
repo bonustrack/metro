@@ -62,6 +62,19 @@ leaves the last good status up rather than replacing it with `idle`.
 | `AGENT_STATUS_BIN` | Optional path to `agent-status` (default: on `PATH`) |
 | `METRO_PRESENCE_STATE` | Optional path for the last-published record |
 
+It also reports the live view to the daemon with `POST /api/agent-runs` (`{"report":[…]}`),
+which is what the panel draws per agent: one row per running subagent and per owed queue
+entry. That report goes on **every** run, not only when the numbers change: the panel
+shows the age of the last report and greys a stale one, so the timestamp has to keep
+moving while the reporter is alive or staleness would mean nothing. The presence update
+stays change-only, because that one is rate limited and the status is identical anyway.
+
+`METRO_REPORT_INTERVAL=20` runs it as a loop instead of a one-shot, which is the cadence
+the panel wants. `METRO_REPORT_REDACT=1` sends the rows **redacted**: every task label
+becomes one word from a fixed vocabulary and `who`, `needs` and the blocker are dropped,
+so the output alphabet is closed and no task text can leave the box at all. Use it for any
+surface thinner than the session-gated panel.
+
 ## Constraints
 
 - Enable the **Message Content Intent** in the Discord developer portal (Bot tab →
