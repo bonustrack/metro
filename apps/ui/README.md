@@ -75,6 +75,13 @@ the UI ships no Google JavaScript at all.
   recently. The rows are pushed to the daemon by the box the agents run on
   (`apps/mcp/scripts/push-agent-runs.ts`), so the panel only ever reads them. It polls
   every 20 seconds; like `#/start` it stays reachable with no agents yet.
+- **What each agent is working on** is a panel per agent on that page: the subagents it
+  has running and the tasks it still owes, as that agent last reported them, with the
+  state, the task, who it is for, what it needs and how long it has been owed. The panel
+  carries the age of the report and greys out once the report stops moving, so a stuck
+  reporter reads as stuck instead of as a current view; an agent that has never reported
+  is still a panel, saying so. `src/components/report.ts` holds that logic and
+  `test/report.test.ts` covers it.
 - The charts are **inline SVG built here**, not a chart library: `src/components/runs.ts`
   buckets the runs by UTC day and computes the bar geometry as plain numbers, and
   `RunChart.tsx` draws them with `react-native-svg`, which the panel already carries for

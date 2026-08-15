@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { RUN_STATES, type RunState } from '../db/schema.js';
 import type { AgentRunInput, AgentRunRow } from '../db/agent-runs.js';
+import type { AgentReportRow } from '../db/agent-report.js';
+import { ROW_KINDS, type ReportRow, type RowKind } from '../db/schema.js';
 import { runLabel } from '../runs/label.js';
 import { ApiError } from './api-error.js';
 import {
@@ -19,6 +21,9 @@ const MAX_RUNS = 200;
 const MAX_ROWS = 1000;
 const DEFAULT_DAYS = 14;
 const MAX_DAYS = 90;
+const MAX_ROWS_IN = 200;
+const LABEL_MAX = 120;
+const NEEDS_MAX = 8;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RUN_ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const TYPE_RE = /^[A-Za-z0-9][A-Za-z0-9 _-]{0,31}$/;
@@ -30,6 +35,8 @@ export interface AgentRunsDeps {
     sinceMs: number,
     limit: number,
   ) => Promise<AgentRunRow[]>;
+  recordReport: (agentId: number, rows: ReportRow[]) => Promise<void>;
+  listReports: (allowed: Set<number>) => Promise<AgentReportRow[]>;
 }
 
 let backend: AgentRunsDeps | null = null;
@@ -105,8 +112,66 @@ function parseRun(raw: unknown): AgentRunInput {
   };
 }
 
+function short(raw: unknown, field: string): string | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'string') throw new ApiError(`${field} must be text`, 400);
+  const clean = raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (clean === '') return null;
+  return clean.length > LABEL_MAX ? `${clean.slice(0, LABEL_MAX - 1)}\u2026` : clean;
+}
+
+function stamp(raw: unknown, field: string): string | null {
+  if (raw === undefined || raw === null) return null;
+  const ms = typeof raw === 'string' ? Date.parse(raw) : Number.NaN;
+  if (Number.isNaN(ms)) throw new ApiError(`${field} must be a timestamp`, 400);
+  return new Date(ms).toISOString();
+}
+
+function kind(raw: unknown): RowKind {
+  if (typeof raw !== 'string' || !(ROW_KINDS as readonly string[]).includes(raw))
+    throw new ApiError(`kind must be one of ${ROW_KINDS.join(', ')}`, 400);
+  return raw as RowKind;
+}
+
+function needs(raw: unknown): string[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) throw new ApiError('needs must be an array', 400);
+  return raw.slice(0, NEEDS_MAX).flatMap((n) => {
+    const one = short(n, 'needs');
+    return one === null ? [] : [one];
+  });
+}
+
+function parseRow(raw: unknown): ReportRow {
+  const id = short(bodyField(raw, 'id'), 'id');
+  if (id === null) throw new ApiError('id is not valid', 400);
+  const state = short(bodyField(raw, 'state'), 'state');
+  if (state === null) throw new ApiError('state is not valid', 400);
+  return {
+    kind: kind(bodyField(raw, 'kind')),
+    id,
+    state,
+    label: short(bodyField(raw, 'label'), 'label'),
+    who: short(bodyField(raw, 'who'), 'who'),
+    needs: needs(bodyField(raw, 'needs')),
+    blockedOn: short(bodyField(raw, 'blocked_on'), 'blocked_on'),
+    startedAt: stamp(bodyField(raw, 'started_at'), 'started_at'),
+    endedAt: stamp(bodyField(raw, 'ended_at'), 'ended_at'),
+  };
+}
+
+export function parseReport(body: unknown): ReportRow[] | null {
+  const raw = bodyField(body, 'report');
+  if (raw === undefined || raw === null) return null;
+  if (!Array.isArray(raw)) throw new ApiError('report must be an array', 400);
+  if (raw.length > MAX_ROWS_IN)
+    throw new ApiError(`send at most ${MAX_ROWS_IN} rows per report`, 400);
+  return raw.map(parseRow);
+}
+
 export function parseRuns(body: unknown): AgentRunInput[] {
   const raw = bodyField(body, 'runs');
+  if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw)) throw new ApiError('runs must be an array', 400);
   if (raw.length > MAX_RUNS)
     throw new ApiError(`send at most ${MAX_RUNS} runs per request`, 400);
@@ -141,6 +206,24 @@ function payload(row: AgentRunRow): Record<string, unknown> {
   };
 }
 
+function reportPayload(row: AgentReportRow): Record<string, unknown> {
+  return {
+    agent_id: row.agentId,
+    reported_at: row.reportedAt.toISOString(),
+    rows: row.rows.map((r) => ({
+      kind: r.kind,
+      id: r.id,
+      state: r.state,
+      label: r.label,
+      who: r.who,
+      needs: r.needs,
+      blocked_on: r.blockedOn,
+      started_at: r.startedAt,
+      ended_at: r.endedAt,
+    })),
+  };
+}
+
 async function handleStore(
   req: IncomingMessage,
   res: ServerResponse,
@@ -148,10 +231,16 @@ async function handleStore(
   allowed: Set<number>,
 ): Promise<void> {
   const agentId = ownerFromScope(req, allowed);
-  const runs = parseRuns(await readJsonBody(req, BODY_MAX));
+  const body = await readJsonBody(req, BODY_MAX);
+  const runs = parseRuns(body);
+  const report = parseReport(body);
   const stored = await deps.recordRuns(agentId, runs);
-  log.info({ agent: agentId, runs: stored }, 'agent-runs: stored');
-  sendJson(req, res, 200, { stored });
+  if (report !== null) await deps.recordReport(agentId, report);
+  log.info(
+    { agent: agentId, runs: stored, report: report?.length ?? null },
+    'agent-runs: stored',
+  );
+  sendJson(req, res, 200, { stored, report: report?.length ?? null });
 }
 
 async function handleList(
@@ -162,8 +251,15 @@ async function handleList(
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const days = parseDays(url.searchParams.get('days'));
-  const rows = await deps.listRuns(allowed, days * DAY_MS, MAX_ROWS);
-  sendJson(req, res, 200, { days, runs: rows.map(payload) });
+  const [rows, reports] = await Promise.all([
+    deps.listRuns(allowed, days * DAY_MS, MAX_ROWS),
+    deps.listReports(allowed),
+  ]);
+  sendJson(req, res, 200, {
+    days,
+    runs: rows.map(payload),
+    reports: reports.map(reportPayload),
+  });
 }
 
 async function dispatch(

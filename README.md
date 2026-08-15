@@ -645,13 +645,24 @@ of agents started, tokens and median run length.
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /api/agent-runs` `{"runs":[…]}` | Upsert up to 200 runs owned by the calling agent. A run is addressed by (`agent_id`,`run_id`), so pushing the same run again as it progresses updates the one row. |
-| `GET /api/agent-runs?days=14` | The runs of every agent the caller can see, newest first. `days` is 1 to 90, 1000 rows at most. |
+| `POST /api/agent-runs` `{"report":[…]}` | Replace the calling agent's live view: one row per running subagent and per owed queue entry, upserted whole, stamped with the moment it arrived. Either field of the body may be sent alone. |
+| `GET /api/agent-runs?days=14` | The runs and the latest reported view of every agent the caller can see, newest first. `days` is 1 to 90, 1000 rows at most. |
 
 Both verbs take the **same credential the rest of `/api/*` takes** — an `agents.key` or a
 Google session, `Authorization: Bearer` or `?token=` — and are scoped by the same
 `allowedAgents()`. In practice the box pushes with the agent's key and the panel reads
 with its session. A session covering several agents names the owner on the way in with
 `?agent=<id>`, exactly like `/api/uploads`.
+
+The report is **reported, never derived from `agent_runs`**: that table has no notion of a
+queue at all, and its `running` is a snapshot that goes stale between pushes, so a live
+view has to be measured where the agents are and sent. The rows come from the box's own
+`agent-status` report rather than being defined a second time here, so the panel and that
+tool cannot disagree. `reported_at` is what makes them readable: the panel shows the age
+of every report and greys one that has stopped moving, because a row with no freshness
+signal is worse than no row. The reporter can send the rows **redacted**, replacing every
+task label with one word from a fixed vocabulary and dropping `who`, `needs` and the
+blocker, for a surface thinner than a Google session.
 
 A run carries **counts and a short label, and nothing else**: state
 (`running`/`done`/`lost`), start and end, turns, four token counters, the agent type, and

@@ -32,6 +32,7 @@ import {
   detachAccountFromAgent,
 } from '../db/account-attach.js';
 import { listAgentRuns, recordAgentRuns } from '../db/agent-runs.js';
+import { listAgentReports, recordAgentReport } from '../db/agent-report.js';
 import { setAgentRunsBackend } from './agent-runs-api.js';
 import type { StationName } from '../db/schema.js';
 import { AttachSessions } from './attach-session.js';
@@ -131,7 +132,12 @@ const agentApi: AgentApiDeps = {
   syncStations,
 };
 
-setAgentRunsBackend({ recordRuns: recordAgentRuns, listRuns: listAgentRuns });
+setAgentRunsBackend({
+  recordRuns: recordAgentRuns,
+  listRuns: listAgentRuns,
+  recordReport: recordAgentReport,
+  listReports: listAgentReports,
+});
 
 async function main(): Promise<void> {
   await materializeFromDb();

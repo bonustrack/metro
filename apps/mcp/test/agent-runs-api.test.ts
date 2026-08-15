@@ -6,6 +6,8 @@ import { setAgentRunsBackend } from '../src/daemon/agent-runs-api.ts';
 import { signSession } from '../src/daemon/session.ts';
 import { setKeyMap } from '../src/db/key-map.ts';
 import type { AgentRunInput, AgentRunRow } from '../src/db/agent-runs.ts';
+import type { AgentReportRow } from '../src/db/agent-report.ts';
+import type { ReportRow } from '../src/db/schema.ts';
 
 const ONE = 'mk_runs_one';
 const TWO = 'mk_runs_two';
@@ -16,6 +18,8 @@ let base: string;
 let stored: { agentId: number; runs: AgentRunInput[] }[] = [];
 let listed: { allowed: number[]; sinceMs: number; limit: number }[] = [];
 let rows: AgentRunRow[] = [];
+let counted: { agentId: number; rows: ReportRow[] }[] = [];
+let countRows: AgentReportRow[] = [];
 
 const RUN = {
   id: 'a6494ae6dcf34b8de',
@@ -49,6 +53,12 @@ beforeAll(async () => {
       listed.push({ allowed: [...allowed], sinceMs, limit });
       return Promise.resolve(rows.filter((r) => allowed.has(r.agentId)));
     },
+    recordReport: (agentId, reported) => {
+      counted.push({ agentId, rows: reported });
+      return Promise.resolve();
+    },
+    listReports: (allowed) =>
+      Promise.resolve(countRows.filter((r) => allowed.has(r.agentId))),
   });
   server = await startWebhookServer(makeEmit(), undefined, () =>
     Promise.resolve({ result: null }),
@@ -67,6 +77,8 @@ beforeEach(() => {
   stored = [];
   listed = [];
   rows = [];
+  counted = [];
+  countRows = [];
 });
 
 const post = (body: unknown, token?: string, query = ''): Promise<Response> =>
@@ -103,7 +115,7 @@ describe('pushing runs', () => {
   test('an agent key stores runs against that agent and nobody else', async () => {
     const res = await post({ runs: [RUN] }, ONE);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ stored: 1 });
+    expect(await res.json()).toEqual({ stored: 1, report: null });
     expect(stored).toHaveLength(1);
     expect(stored[0]?.agentId).toBe(1);
     expect(stored[0]?.runs[0]?.runId).toBe(RUN.id);
