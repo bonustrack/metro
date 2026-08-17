@@ -66,4 +66,17 @@ describe('discord reactionEnvelope sender identity', () => {
     expect(env?.from_name).toBe('bonustrack_');
     expect(env?.from_display_name).toBe('less');
   });
+
+  test('a removal says so, an add says so, and both name the emoji', () => {
+    const u = { bot: false, id: '999', username: 'less' } as unknown as User;
+    const r = {
+      message: { channelId: 'chan1', id: 'm1', guildId: null },
+      emoji: { name: '🔥', id: null, toJSON: () => ({}) },
+    } as unknown as MessageReaction;
+    const added = reactionEnvelope('d0', r, u);
+    const removed = reactionEnvelope('d0', r, u, true);
+    expect(added?.emoji).toBe('🔥');
+    expect((added?.payload as { removed: boolean }).removed).toBe(false);
+    expect((removed?.payload as { removed: boolean }).removed).toBe(true);
+  });
 });

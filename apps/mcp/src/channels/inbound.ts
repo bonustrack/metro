@@ -1,4 +1,5 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { eventVariant, type StructuredEvent } from '../daemon/events.js';
 import { str } from '../mcp/str.js';
 import { dedupeKey } from './dedupe.js';
 import {
@@ -63,11 +64,11 @@ export class InboundRelay {
   private isDuplicate(
     station: string,
     line: string,
-    kind: string,
+    variant: string,
     messageId: string,
   ): boolean {
     if (!messageId) return false;
-    const key = dedupeKey(station, line, kind, messageId);
+    const key = dedupeKey(station, line, variant, messageId);
     const now = Date.now();
     if (this.seenEvents.size >= DEDUPE_MAX) {
       for (const [k, t] of this.seenEvents) {
@@ -280,10 +281,15 @@ export class InboundRelay {
     const line = str(ev.line);
     if (this.droppedSender(from, line)) return null;
     const text = str(ev.text);
-    if (!replay && this.isDuplicate(station, line, evType, str(ev.messageId))) {
+    const variant = eventVariant({
+      event: ev.event as StructuredEvent | undefined,
+      text,
+      payload: ev.payload,
+    });
+    if (!replay && this.isDuplicate(station, line, variant, str(ev.messageId))) {
       this.deps.log(
         'drop: duplicate (per-account) event',
-        evType,
+        variant,
         station,
         str(ev.messageId),
       );

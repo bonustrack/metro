@@ -57,6 +57,16 @@ export function classifyEvent(e: MetroEvent): StructuredEvent {
   return { type: 'msg' };
 }
 
+export function eventVariant(
+  e: Pick<MetroEvent, 'event' | 'text' | 'payload'>,
+): string {
+  const type = e.event?.type ?? 'msg';
+  if (type === 'msg' || type === 'reply') return 'msg';
+  const removed =
+    (e.payload as { removed?: boolean } | undefined)?.removed === true;
+  return `${type} ${e.text ?? ''}${removed ? ' removed' : ''}`;
+}
+
 export function formatDisplay(e: MetroEvent): string {
   const headerFor = (icon: string, parts: (string | undefined)[]): string =>
     `**${icon} ${parts.filter(Boolean).join(' · ')}**`;

@@ -63,19 +63,29 @@ export function envelope(accountId: string, m: TgMsg): Record<string, unknown> {
   };
 }
 
+const emojisOf = (list: TgReaction['new_reaction']): string[] =>
+  list.filter((x) => x.type === 'emoji').map((x) => x.emoji ?? '');
+
+function reactionChange(
+  r: TgReaction,
+): { emoji: string; removed: boolean } | null {
+  const next = emojisOf(r.new_reaction);
+  const prev = emojisOf(r.old_reaction);
+  const added = next.filter((e) => !prev.includes(e));
+  const dropped = prev.filter((e) => !next.includes(e));
+  const emoji = added[0] ?? dropped[0];
+  if (emoji === undefined) return null;
+  return { emoji, removed: added.length === 0 };
+}
+
 export function reactionEnvelope(
   accountId: string,
   r: TgReaction,
 ): Record<string, unknown> | null {
   if (r.user?.is_bot) return null;
-  const newEmojis = r.new_reaction
-    .filter((x) => x.type === 'emoji')
-    .map((x) => x.emoji ?? '');
-  const oldEmojis = r.old_reaction
-    .filter((x) => x.type === 'emoji')
-    .map((x) => x.emoji ?? '');
-  const added = newEmojis.filter((e) => !oldEmojis.includes(e));
-  if (!added.length) return null;
+  const change = reactionChange(r);
+  if (!change) return null;
+  const { emoji, removed } = change;
   return {
     kind: 'react',
     id: mintId(),
@@ -86,10 +96,10 @@ export function reactionEnvelope(
     from_name: r.user?.username ? `@${r.user.username}` : r.user?.first_name,
     from_display_name: r.user?.first_name,
     message_id: String(r.message_id),
-    emoji: added[0],
-    event: { type: 'react', emoji: added[0], targetId: String(r.message_id) },
+    emoji,
+    event: { type: 'react', emoji, targetId: String(r.message_id) },
     is_private: r.chat.type === 'private',
-    payload: r,
+    payload: { ...r, removed },
   };
 }
 

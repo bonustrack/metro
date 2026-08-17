@@ -6,6 +6,8 @@ import {
   Partials,
   type Message,
   type MessageReaction,
+  type PartialMessageReaction,
+  type PartialUser,
   type User,
 } from 'discord.js';
 import {
@@ -75,6 +77,35 @@ function onEdit(accountId: string, m: Message): void {
   });
 }
 
+function onReaction(
+  accountId: string,
+  removed: boolean,
+): (
+  r: MessageReaction | PartialMessageReaction,
+  u: User | PartialUser,
+) => void {
+  return (r, u) => {
+    void (async () => {
+      try {
+        if (r.partial) await r.fetch();
+        if (u.partial) await u.fetch();
+      } catch {
+      }
+      const env = reactionEnvelope(
+        accountId,
+        r as MessageReaction,
+        u as User,
+        removed,
+      );
+      if (env) emitInbound(accountId, env);
+    })().catch((err: unknown) => {
+      process.stderr.write(
+        `discord[${accountId}] reaction handler failed: ${errMsg(err)}\n`,
+      );
+    });
+  };
+}
+
 async function bootAccount(cfg: AccountConfig): Promise<void> {
   const client = makeClient();
   const accountId = cfg.id;
@@ -84,21 +115,8 @@ async function bootAccount(cfg: AccountConfig): Promise<void> {
     if (env) emitInbound(accountId, env);
   });
 
-  client.on(Events.MessageReactionAdd, (r, u) => {
-    void (async () => {
-      try {
-        if (r.partial) await r.fetch();
-        if (u.partial) await u.fetch();
-      } catch {
-      }
-      const env = reactionEnvelope(accountId, r as MessageReaction, u as User);
-      if (env) emitInbound(accountId, env);
-    })().catch((err: unknown) => {
-      process.stderr.write(
-        `discord[${accountId}] reaction handler failed: ${errMsg(err)}\n`,
-      );
-    });
-  });
+  client.on(Events.MessageReactionAdd, onReaction(accountId, false));
+  client.on(Events.MessageReactionRemove, onReaction(accountId, true));
 
   client.on(Events.MessageUpdate, (_old, _new) => {
     void (async () => {

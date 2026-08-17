@@ -47,4 +47,30 @@ describe('telegram reactionEnvelope sender identity', () => {
     expect(env?.from_name).toBe('@alice');
     expect(env?.from_display_name).toBe('Alice');
   });
+
+  test('taking a reaction away is an event, not silence', () => {
+    const gone: TgReaction = {
+      chat: { id: -100123, type: 'supergroup' },
+      message_id: 42,
+      user: { id: 555, username: 'alice', first_name: 'Alice' },
+      date: 1_700_000_000,
+      old_reaction: [{ type: 'emoji', emoji: '🔥' }],
+      new_reaction: [],
+    };
+    const env = reactionEnvelope('t0', gone);
+    expect(env?.emoji).toBe('🔥');
+    expect((env?.payload as { removed: boolean }).removed).toBe(true);
+  });
+
+  test('an unchanged reaction set is still nothing to report', () => {
+    const same: TgReaction = {
+      chat: { id: -100123, type: 'supergroup' },
+      message_id: 42,
+      user: { id: 555, username: 'alice', first_name: 'Alice' },
+      date: 1_700_000_000,
+      old_reaction: [{ type: 'emoji', emoji: '🔥' }],
+      new_reaction: [{ type: 'emoji', emoji: '🔥' }],
+    };
+    expect(reactionEnvelope('t0', same)).toBeNull();
+  });
 });

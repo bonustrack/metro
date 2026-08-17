@@ -123,8 +123,10 @@ export function reactionEnvelope(
   accountId: string,
   r: MessageReaction,
   u: User,
+  removed = false,
 ): Record<string, unknown> | null {
   if (u.bot) return null;
+  const emoji = r.emoji.name ?? r.emoji.id ?? '?';
   return {
     kind: 'react',
     id: mintId(),
@@ -135,18 +137,15 @@ export function reactionEnvelope(
     from_name: u.username,
     from_display_name: u.globalName ?? undefined,
     message_id: r.message.id,
-    emoji: r.emoji.name ?? r.emoji.id ?? '?',
+    emoji,
     is_private: r.message.guildId == null,
-    event: {
-      type: 'react',
-      emoji: r.emoji.name ?? r.emoji.id ?? '?',
-      targetId: r.message.id,
-    },
+    event: { type: 'react', emoji, targetId: r.message.id },
     payload: {
       channel_id: r.message.channelId,
       guild_id: r.message.guildId,
       emoji: r.emoji.toJSON(),
       user_id: u.id,
+      removed,
     },
   };
 }

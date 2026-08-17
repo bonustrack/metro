@@ -8,6 +8,8 @@ import { Line } from '../stations/lines.js';
 import { errMsg, log } from './log.js';
 import {
   classifyEvent,
+  daemonSelf,
+  eventVariant,
   formatDisplay,
   mintId,
   publishEvent,
@@ -33,11 +35,9 @@ const LRU_CAP = 2_000;
 
 const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
 
-function dedupKey(
-  e: Pick<MetroEvent, 'station' | 'line' | 'messageId'>,
-): string | null {
+function dedupKey(e: MetroEvent): string | null {
   if (!e.messageId) return null;
-  return `${e.station} ${e.line} ${e.messageId}`;
+  return `${e.station} ${e.line} ${e.messageId} ${eventVariant(e)}`;
 }
 
 export interface DedupSeq {
@@ -50,7 +50,8 @@ export function makeDedupSeq(): DedupSeq {
 
   log.info('dedup+seq: live-from-boot (no persisted seed)');
 
-  const isInbound = (e: MetroEvent): boolean => !Line.isLocal(e.from);
+  const isInbound = (e: MetroEvent): boolean =>
+    !Line.isLocal(e.from) && e.from !== daemonSelf();
 
   return {
     admit(entry: MetroEvent): number | null {
@@ -101,13 +102,16 @@ type Emit = (entry: MetroEvent) => void;
 export function makeEmit(dedupSeq?: DedupSeq): Emit {
   const tracker = dedupSeq ?? makeDedupSeq();
   return function emit(entry: MetroEvent): void {
-    const seq = tracker.admit(entry);
+    const classified: MetroEvent = {
+      ...entry,
+      event: entry.event ?? classifyEvent(entry),
+    };
+    const seq = tracker.admit(classified);
     if (seq === null) return;
     const enriched: MetroEvent = withAttachmentUrl({
-      ...entry,
+      ...classified,
       seq,
       display: entry.display ?? formatDisplay(entry),
-      event: entry.event ?? classifyEvent(entry),
     });
     process.stdout.write(JSON.stringify(enriched) + '\n');
     publishEvent(enriched);
