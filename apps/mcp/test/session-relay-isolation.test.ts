@@ -71,22 +71,28 @@ const inbound = (
   event: { type: 'msg' },
 });
 
+const keyOf = (line: string, variant: string, sender = 'sender'): string =>
+  dedupeKey(
+    { station: 'discord', line, from: `${line}/user/${sender}`, variant },
+    'shared-1',
+  );
+
 describe('inbound dedupe key', () => {
   test('two accounts of ONE agent in one conversation still collapse to one key', () => {
-    expect(dedupeKey('discord', TONY_A, 'msg', 'shared-1')).toBe(
-      dedupeKey('discord', TONY_B, 'msg', 'shared-1'),
-    );
+    expect(keyOf(TONY_A, 'msg')).toBe(keyOf(TONY_B, 'msg'));
   });
 
   test('two agents on the same conversation id never share a key', () => {
-    expect(dedupeKey('discord', TONY_A, 'msg', 'shared-1')).not.toBe(
-      dedupeKey('discord', LISA_A, 'msg', 'shared-1'),
-    );
+    expect(keyOf(TONY_A, 'msg')).not.toBe(keyOf(LISA_A, 'msg'));
   });
 
   test('a message and its later reaction stay distinct', () => {
-    expect(dedupeKey('discord', TONY_A, 'msg', 'shared-1')).not.toBe(
-      dedupeKey('discord', TONY_A, 'react', 'shared-1'),
+    expect(keyOf(TONY_A, 'msg')).not.toBe(keyOf(TONY_A, 'react 🔥'));
+  });
+
+  test('two people reacting the same way never share a key', () => {
+    expect(keyOf(TONY_A, 'react 🔥', 'alice')).not.toBe(
+      keyOf(TONY_A, 'react 🔥', 'bob'),
     );
   });
 });

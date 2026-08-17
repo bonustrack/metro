@@ -46,6 +46,7 @@ describe('telegram reactionEnvelope sender identity', () => {
     expect(env).not.toBeNull();
     expect(env?.from_name).toBe('@alice');
     expect(env?.from_display_name).toBe('Alice');
+    expect((env?.payload as { removed: boolean }).removed).toBe(false);
   });
 
   test('taking a reaction away is an event, not silence', () => {

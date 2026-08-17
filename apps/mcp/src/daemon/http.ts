@@ -8,8 +8,7 @@ import { Line } from '../stations/lines.js';
 import { errMsg, log } from './log.js';
 import {
   classifyEvent,
-  daemonSelf,
-  eventVariant,
+  eventIdentity,
   formatDisplay,
   mintId,
   publishEvent,
@@ -35,9 +34,9 @@ const LRU_CAP = 2_000;
 
 const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
 
-function dedupKey(e: MetroEvent): string | null {
+function dedupKey(e: MetroEvent, variant: string): string | null {
   if (!e.messageId) return null;
-  return `${e.station} ${e.line} ${e.messageId} ${eventVariant(e)}`;
+  return `${e.station} ${e.line} ${e.messageId} ${e.from} ${variant}`;
 }
 
 export interface DedupSeq {
@@ -45,30 +44,31 @@ export interface DedupSeq {
 }
 
 export function makeDedupSeq(): DedupSeq {
-  const seen = new Map<string, true>();
+  const seen = new Map<string, string>();
   const seqByLine = new Map<string, number>();
 
   log.info('dedup+seq: live-from-boot (no persisted seed)');
 
-  const isInbound = (e: MetroEvent): boolean =>
-    !Line.isLocal(e.from) && e.from !== daemonSelf();
+  const isInbound = (e: MetroEvent): boolean => !Line.isLocal(e.from);
 
   return {
     admit(entry: MetroEvent): number | null {
-      const key = dedupKey(entry);
+      const { variant, state } = eventIdentity(entry);
+      const key = dedupKey(entry, variant);
       if (key && isInbound(entry)) {
-        if (seen.has(key)) {
+        if (seen.get(key) === state) {
           log.debug(
             {
               station: entry.station,
               line: entry.line,
               messageId: entry.messageId,
+              variant,
             },
             'dedup: dropped duplicate inbound message',
           );
           return null;
         }
-        seen.set(key, true);
+        seen.set(key, state);
         while (seen.size > LRU_CAP) {
           const oldest = seen.keys().next();
           if (oldest.done) break;

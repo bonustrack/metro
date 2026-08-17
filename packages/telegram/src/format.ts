@@ -71,11 +71,10 @@ function reactionChange(
 ): { emoji: string; removed: boolean } | null {
   const next = emojisOf(r.new_reaction);
   const prev = emojisOf(r.old_reaction);
-  const added = next.filter((e) => !prev.includes(e));
-  const dropped = prev.filter((e) => !next.includes(e));
-  const emoji = added[0] ?? dropped[0];
-  if (emoji === undefined) return null;
-  return { emoji, removed: added.length === 0 };
+  const added = next.find((e) => !prev.includes(e));
+  if (added !== undefined) return { emoji: added, removed: false };
+  const dropped = prev.find((e) => !next.includes(e));
+  return dropped === undefined ? null : { emoji: dropped, removed: true };
 }
 
 export function reactionEnvelope(

@@ -26,7 +26,7 @@ const base = (overrides: Partial<MetroEvent> = {}): MetroEvent => ({
 });
 
 const ourSend = (): MetroEvent =>
-  base({ id: 'msg_sent', from: daemonSelf(), to: LINE, event: { type: 'msg' } });
+  base({ id: 'msg_sent', from: daemonSelf(), to: LINE });
 
 const react = (emoji: string, id: string, removed = false): MetroEvent =>
   base({
@@ -35,6 +35,11 @@ const react = (emoji: string, id: string, removed = false): MetroEvent =>
     event: { type: 'react', emoji, targetId: TARGET },
     payload: { removed },
   });
+
+const by = (e: MetroEvent, who: string): MetroEvent => ({
+  ...e,
+  from: `metro://discord/d0/user/${who}` as Line,
+});
 
 function emitAll(entries: MetroEvent[]): MetroEvent[] {
   const orig = process.stdout.write.bind(process.stdout);
@@ -119,6 +124,58 @@ describe('daemon dedupe admits a reaction on a message it already saw', () => {
     expect(out.map((e) => e.id)).toEqual(['msg_our_ack', 'msg_his_eyes']);
   });
 
+  test('two people reacting with the same emoji are two events', () => {
+    const out = emitAll([
+      by(react('🔥', 'msg_alice'), 'alice'),
+      by(react('🔥', 'msg_bob'), 'bob'),
+    ]);
+    expect(out.map((e) => e.id)).toEqual(['msg_alice', 'msg_bob']);
+  });
+
+  test('adding, taking away and adding again is three events', () => {
+    const out = emitAll([
+      react('🔥', 'msg_on'),
+      react('🔥', 'msg_off', true),
+      react('🔥', 'msg_on_again'),
+    ]);
+    expect(out.map((e) => e.id)).toEqual(['msg_on', 'msg_off', 'msg_on_again']);
+  });
+
+  test('an emoji-less removal from two people is two events', () => {
+    const out = emitAll([
+      by(react('', 'msg_alice_off', true), 'alice'),
+      by(react('', 'msg_bob_off', true), 'bob'),
+    ]);
+    expect(out.map((e) => e.id)).toEqual(['msg_alice_off', 'msg_bob_off']);
+  });
+
+  test('a removal marked only in the text still toggles', () => {
+    const xmtp = (id: string, removed: boolean): MetroEvent =>
+      base({
+        id,
+        station: 'xmtp',
+        text: `[react 👍${removed ? ' (removed)' : ''}]`,
+        event: { type: 'react', emoji: '👍', targetId: TARGET },
+      });
+    const out = emitAll([
+      xmtp('msg_on', false),
+      xmtp('msg_off', true),
+      xmtp('msg_on_again', false),
+    ]);
+    expect(out.map((e) => e.id)).toEqual(['msg_on', 'msg_off', 'msg_on_again']);
+  });
+
+  test('a reaction recognised only by its payload is not the message', () => {
+    const classified = base({
+      id: 'msg_payload_react',
+      text: undefined,
+      event: undefined,
+      payload: { emoji: '🔥' },
+    });
+    const out = emitAll([base({ id: 'msg_theirs' }), classified]);
+    expect(out.map((e) => e.id)).toEqual(['msg_theirs', 'msg_payload_react']);
+  });
+
   test('a message redelivered with the same id is still deduped', () => {
     const out = emitAll([base({ id: 'msg_his' }), base({ id: 'msg_his_again' })]);
     expect(out.map((e) => e.id)).toEqual(['msg_his']);
@@ -166,35 +223,31 @@ describe('every station that reports reactions gets them through', () => {
 
   for (const s of stations) {
     test(`${s.station}: the add, the removal and the message itself are distinct`, () => {
-      const of = (e: TrainEvent, id: string): MetroEvent => {
+      const envelopeOf = (e: TrainEvent): MetroEvent => {
         const env = trainEventToMetroEvent(
           {
-            ...e,
-            id,
             station: s.station,
             line: s.line,
             from: `metro://${s.station}/who`,
             message_id: TARGET,
-            event: { type: 'react', emoji: e.emoji ?? '', targetId: TARGET },
+            ...e,
           },
           s.station,
         );
         if (!env) throw new Error('no envelope');
         return env;
       };
-      const message = trainEventToMetroEvent(
-        {
-          id: 'msg_theirs',
-          station: s.station,
-          line: s.line,
-          from: `metro://${s.station}/who`,
-          message_id: TARGET,
-          text: 'the message being reacted to',
-        },
-        s.station,
-      );
-      if (!message) throw new Error('no envelope');
-      const out = emitAll([message, of(s.add, 'msg_add'), of(s.off, 'msg_off')]);
+      const reaction = (e: TrainEvent, id: string): MetroEvent =>
+        envelopeOf({
+          ...e,
+          id,
+          event: { type: 'react', emoji: e.emoji ?? '', targetId: TARGET },
+        });
+      const out = emitAll([
+        envelopeOf({ id: 'msg_theirs', text: 'the message being reacted to' }),
+        reaction(s.add, 'msg_add'),
+        reaction(s.off, 'msg_off'),
+      ]);
       expect(out.map((e) => e.id)).toEqual(['msg_theirs', 'msg_add', 'msg_off']);
     });
   }
@@ -220,6 +273,15 @@ describe('relay dedupe surfaces each reaction on one message', () => {
       `🔥 reacted to message ${TARGET.slice(0, 6)}…`,
       `🔥 removed from message ${TARGET.slice(0, 6)}…`,
     ]);
+  });
+
+  test('the same emoji from two people surfaces twice', async () => {
+    const { relay, notifs } = makeRelay();
+    await deliver(relay, [
+      by(react('🔥', 'msg_alice'), 'alice'),
+      by(react('🔥', 'msg_bob'), 'bob'),
+    ]);
+    expect(contents(notifs)).toHaveLength(2);
   });
 
   test('the same reaction twice surfaces once', async () => {
