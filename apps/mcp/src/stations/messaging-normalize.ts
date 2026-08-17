@@ -50,7 +50,7 @@ export function normalizeDiscord(action: string, env: Args): Normalized {
     };
   }
   if (action === 'unreact')
-    return { action: 'react', args: { ...env, emoji: '' } };
+    return { action: 'react', args: { ...env, remove: true } };
   if (action === 'read') {
     return {
       action: 'fetch',
