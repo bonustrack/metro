@@ -43,9 +43,9 @@ export interface WAClient {
   start(handlers: InboundHandlers): Promise<void>;
   sendText(jid: string, text: string, quotedId?: string): Promise<string>;
   sendMedia(jid: string, media: WAMedia, quotedId?: string): Promise<string>;
-  sendReaction(jid: string, messageId: string, emoji: string): Promise<void>;
-  editMessage(jid: string, messageId: string, text: string): Promise<void>;
-  deleteMessage(jid: string, messageId: string): Promise<void>;
+  sendReaction(jid: string, messageId: string, emoji: string): Promise<string>;
+  editMessage(jid: string, messageId: string, text: string): Promise<string>;
+  deleteMessage(jid: string, messageId: string): Promise<string>;
   reuploadMedia(m: WAMessage): Promise<WAMessage>;
   disconnect(): Promise<void>;
 }
@@ -270,18 +270,18 @@ export function createClient(account: WhatsAppAccount): WAClient {
         quotedId ? quotedOpts(st, jid, quotedId) : undefined,
       );
     },
-    async sendReaction(jid, messageId, emoji) {
+    sendReaction(jid, messageId, emoji) {
       const target = targetKey(st.keys, jid, messageId, 'react to');
-      await send(st, jid, { react: { text: emoji, key: target } });
+      return send(st, jid, { react: { text: emoji, key: target } });
     },
-    async editMessage(jid, messageId, text) {
-      await send(st, jid, {
+    editMessage(jid, messageId, text) {
+      return send(st, jid, {
         text,
         edit: knownKey(st.keys, jid, messageId, true),
       });
     },
-    async deleteMessage(jid, messageId) {
-      await send(st, jid, {
+    deleteMessage(jid, messageId) {
+      return send(st, jid, {
         delete: knownKey(st.keys, jid, messageId, true),
       });
     },
