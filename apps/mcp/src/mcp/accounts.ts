@@ -66,8 +66,32 @@ export async function gatherAccounts(
   return allowedAgents ? scopeAccountsByAgent(out, allowedAgents) : out;
 }
 
+export interface ScopedAccounts {
+  accounts: Record<string, unknown[]>;
+  unavailable: string[];
+}
+
 export async function gatherAccountsForAgents(
   allowed: Set<number>,
-): Promise<Record<string, unknown[]>> {
-  return attachAgentIds(await gatherAccounts(allowed));
+): Promise<ScopedAccounts> {
+  const unavailable: string[] = [];
+  const out: Record<string, unknown[]> = {};
+  await Promise.all(
+    accountStationNames().map(async (station) => {
+      try {
+        const resp = await forwardTrainCall(station, 'accounts', {});
+        const accounts = (
+          resp.result as { accounts?: unknown[] } | undefined
+        )?.accounts;
+        out[station] = Array.isArray(accounts) ? accounts : [];
+      } catch {
+        out[station] = [];
+        unavailable.push(station);
+      }
+    }),
+  );
+  return {
+    accounts: attachAgentIds(scopeAccountsByAgent(out, allowed)),
+    unavailable,
+  };
 }

@@ -1,42 +1,68 @@
 import { type ReactNode } from 'react';
-import { Pressable } from 'react-native';
-import { ScrollView } from 'react-native';
+import { Pressable as RNPressable, ScrollView } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
+import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
+import { Pressable } from '@stage-labs/kit/react-native/pressable';
+import { Spacer } from '@stage-labs/kit/react-native/spacer';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
+import { Text } from './ui';
+import { Blockies } from './Blockies';
 import { MetroLogo } from './MetroLogo';
-import { CARD_PADDING_ROW } from '../theme';
 import { countAccounts, type AccountGroup } from '../api/accounts';
 import { type AgentSummary } from '../api/client';
 import { SidebarFooter } from './SidebarFooter';
 import { type Selection } from './selection';
 
-interface AgentItemProps {
-  agent: AgentSummary;
-  accounts: number;
+const ROW_PAD = { x: 12, y: 8 } as const;
+const ICON_SIZE = 18;
+
+interface NavRowProps {
+  label: string;
+  icon?: HeroIconName;
+  avatar?: string;
+  trailing?: string;
   selected: boolean;
   onPress: () => void;
 }
 
-function AgentItem({ agent, accounts, selected, onPress }: AgentItemProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
+function NavRow({
+  label,
+  icon,
+  avatar,
+  trailing,
+  selected,
+  onPress,
+}: NavRowProps): ReactNode {
   const palette = useKitPalette();
   return (
-    <Card
-      dark={dark}
-      padding={CARD_PADDING_ROW}
-      background={selected ? undefined : palette.bg}
-      onPress={onPress}
-    >
-      <Col gap={2}>
-        <Text size="lg" weight="semibold">{agent.name}</Text>
-        <Text size="sm" role="secondary">
-          {accounts} station{accounts === 1 ? '' : 's'}
-          {agent.owned ? '' : ' · not owned'}
+    <Pressable pressedOpacity={0.6} onPress={onPress}>
+      <Row
+        align="center"
+        gap={10}
+        padding={ROW_PAD}
+        style={{
+          marginHorizontal: -12,
+          borderRadius: 8,
+          backgroundColor: selected ? palette.inputBg : 'transparent',
+        }}
+      >
+        {icon === undefined ? null : (
+          <Icon
+            name={icon}
+            size={ICON_SIZE}
+            color={selected ? palette.link : palette.sub}
+          />
+        )}
+        {avatar === undefined ? null : <Blockies seed={avatar} size={ICON_SIZE} />}
+        <Text size="xl" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
+          {label}
         </Text>
-      </Col>
-    </Card>
+        <Spacer />
+        {trailing === undefined ? null : (
+          <Text size="lg" role="secondary">{trailing}</Text>
+        )}
+      </Row>
+    </Pressable>
   );
 }
 
@@ -46,7 +72,6 @@ interface AgentSidebarProps {
   selection: Selection;
   email: string;
   onSelect: (selection: Selection) => void;
-  onNew: () => void;
   onLock: () => void;
 }
 
@@ -56,7 +81,6 @@ export function AgentSidebar({
   selection,
   email,
   onSelect,
-  onNew,
   onLock,
 }: AgentSidebarProps): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -64,44 +88,47 @@ export function AgentSidebar({
     <Col style={{ flex: 1, minHeight: 0 }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24 }}>
         <Col gap={10}>
-      <Row style={{ paddingBottom: 6 }}>
-        <Pressable
-          accessibilityRole="link"
-          aria-label="Metro dashboard"
-          onPress={() => {
-            onSelect({ kind: 'none' });
-          }}
-        >
-          <MetroLogo size={32} color={dark ? '#ffffff' : '#000000'} />
-        </Pressable>
-      </Row>
-      <Row justify="between" align="center" gap={10} wrap>
-        <Text size="2xl" weight="semibold">Agents</Text>
-        <Button
-          size="md"
-          color="primary"
-          dark={dark}
-          label="New agent"
-          onPress={onNew}
-        />
-      </Row>
-      {agents.length === 0 ? (
-        <Text size="lg" role="secondary">No agents yet.</Text>
-      ) : (
-        <Col gap={8}>
-          {agents.map((a) => (
-            <AgentItem
-              key={a.id}
-              agent={a}
-              accounts={countAccounts(groups, a.id)}
-              selected={selection.kind === 'agent' && selection.id === a.id}
+          <Row style={{ paddingBottom: 6 }}>
+            <RNPressable
+              accessibilityRole="link"
+              aria-label="Metro dashboard"
               onPress={() => {
-                onSelect({ kind: 'agent', id: a.id });
+                onSelect({ kind: 'none' });
+              }}
+            >
+              <MetroLogo size={32} color={dark ? '#ffffff' : '#000000'} />
+            </RNPressable>
+          </Row>
+          <Col>
+            <NavRow
+              label="Agents"
+              icon="users"
+              selected={selection.kind === 'none'}
+              onPress={() => {
+                onSelect({ kind: 'none' });
               }}
             />
-          ))}
-        </Col>
-      )}
+            {agents.map((a) => (
+              <NavRow
+                key={a.id}
+                avatar={a.name}
+                label={a.owned ? a.name : `${a.name} · not owned`}
+                trailing={String(countAccounts(groups, a.id))}
+                selected={selection.kind === 'agent' && selection.id === a.id}
+                onPress={() => {
+                  onSelect({ kind: 'agent', id: a.id });
+                }}
+              />
+            ))}
+            <NavRow
+              label="Settings"
+              icon="cog"
+              selected={selection.kind === 'settings'}
+              onPress={() => {
+                onSelect({ kind: 'settings' });
+              }}
+            />
+          </Col>
         </Col>
       </ScrollView>
       <SidebarFooter

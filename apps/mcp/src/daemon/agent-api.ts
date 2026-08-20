@@ -39,7 +39,10 @@ export interface AgentApiDeps extends AccountApiDeps {
     email: string,
     id: number,
   ) => Promise<ResetAgentKey>;
-  gatherAccounts: (allowed: Set<number>) => Promise<Record<string, unknown[]>>;
+  gatherAccounts: (allowed: Set<number>) => Promise<{
+    accounts: Record<string, unknown[]>;
+    unavailable: string[];
+  }>;
   capabilities: () => Record<string, string[]>;
 }
 
@@ -114,12 +117,15 @@ async function handleList(
   session: ApiSession,
 ): Promise<void> {
   const list = await deps.listAgents(session.email);
-  const accounts = await deps.gatherAccounts(new Set(list.map((a) => a.id)));
+  const { accounts, unavailable } = await deps.gatherAccounts(
+    new Set(list.map((a) => a.id)),
+  );
   sendJson(req, res, 200, {
     email: session.email,
     endpoint: mcpEndpoint(),
     agents: list.map(agentPayload),
     accounts,
+    unavailable,
     capabilities: deps.capabilities(),
     attachable: ATTACHABLE,
   });

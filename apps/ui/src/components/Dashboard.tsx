@@ -22,7 +22,7 @@ import { useDocumentTitle } from '../title';
 interface DashboardProps {
   token: string;
   data: DashboardData;
-  onRefresh: () => void;
+  onRefresh: (dropped?: string[]) => void;
   onLock: () => void;
 }
 
@@ -96,9 +96,6 @@ export function Dashboard({
           selection={selection}
           email={data.email}
           onSelect={onSelect}
-          onNew={() => {
-            setCreating(true);
-          }}
           onLock={onLock}
         />
       }

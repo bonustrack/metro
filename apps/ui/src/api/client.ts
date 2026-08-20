@@ -25,6 +25,7 @@ export interface Dashboard {
   groups: AccountGroup[];
   unattributed: number;
   attachable: string[];
+  unavailable: string[];
 }
 
 export interface CreatedAgent {
@@ -117,6 +118,7 @@ export async function fetchDashboard(token: string): Promise<Dashboard> {
     groups,
     unattributed: unattributedAccounts(groups),
     attachable: toStationList(body.attachable),
+    unavailable: toStationList(body.unavailable),
   };
 }
 

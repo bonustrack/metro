@@ -133,7 +133,7 @@ const deps: AgentApiDeps = {
       const hit = ACCOUNTS_BY_AGENT_ID[id];
       if (hit) (out[hit[0]] as unknown[]).push(hit[1]);
     }
-    return Promise.resolve(out);
+    return Promise.resolve({ accounts: out, unavailable: [] });
   },
   capabilities: () => ({ telegram: ['send'], discord: ['send', 'read'] }),
   prepareAccount: () =>

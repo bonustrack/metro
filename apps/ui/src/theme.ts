@@ -32,5 +32,4 @@ export function textSize(
 }
 
 export const CARD_PADDING = 18;
-export const CARD_PADDING_ROW = 12;
 export const CARD_PADDING_PANEL = 28;

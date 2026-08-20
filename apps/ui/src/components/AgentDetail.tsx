@@ -33,7 +33,7 @@ interface AgentDetailProps {
   groups: AccountGroup[];
   attachable: string[];
   unattributed: number;
-  onChanged: () => void;
+  onChanged: (dropped?: string[]) => void;
   onDelete: (id: number) => Promise<void>;
 }
 
@@ -45,7 +45,7 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
 
   const onDetach = async (station: string, accountId: string): Promise<void> => {
     await detachAccount(token, agent.id, station, accountId);
-    onChanged();
+    onChanged([`${station}/${accountId}`]);
   };
 
   const onReset = async (id: number): Promise<void> => {

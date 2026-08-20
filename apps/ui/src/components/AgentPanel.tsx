@@ -36,7 +36,7 @@ interface AgentPanelProps {
   onNew: () => void;
   onOpen: (id: number) => void;
   onDismiss: () => void;
-  onChanged: () => void;
+  onChanged: (dropped?: string[]) => void;
   onDelete: (id: number) => Promise<void>;
 }
 

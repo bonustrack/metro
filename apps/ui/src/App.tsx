@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { carryForward } from './api/accounts';
 import { Login } from './components/Login';
 import { Loading } from './components/Loading';
 import { Dashboard } from './components/Dashboard';
@@ -53,7 +54,7 @@ export function App(): ReactNode {
     });
   };
 
-  const load = (token: string, quiet: boolean): void => {
+  const load = (token: string, quiet: boolean, dropped: string[] = []): void => {
     const id = ++attempt.current;
     if (sessionClaims(token) === null) {
       clearSession();
@@ -62,10 +63,22 @@ export function App(): ReactNode {
     }
     if (!quiet) setState({ phase: 'connecting', token });
     void fetchDashboard(token)
-      .then((data) => {
+      .then((fresh) => {
         if (id !== attempt.current) return;
         storeSession(token);
-        setState({ phase: 'unlocked', token, data });
+        setState((prev) => ({
+          phase: 'unlocked',
+          token,
+          data: {
+            ...fresh,
+            groups: carryForward(
+              fresh.groups,
+              prev.phase === 'unlocked' ? prev.data.groups : [],
+              fresh.unavailable,
+              dropped,
+            ),
+          },
+        }));
       })
       .catch((err: unknown) => {
         if (id !== attempt.current) return;
@@ -103,8 +116,8 @@ export function App(): ReactNode {
         <Dashboard
           token={state.token}
           data={state.data}
-          onRefresh={() => {
-            load(state.token, true);
+          onRefresh={(dropped) => {
+            load(state.token, true, dropped);
           }}
           onLock={lock}
         />

@@ -223,8 +223,8 @@ body {
   padding: 0;
   border: 1px solid var(--metro-border);
   border-radius: 999px;
-  background: transparent;
-  color: var(--metro-text);
+  background: var(--metro-border);
+  color: var(--metro-heading);
   font-family: var(--metro-font-sans);
   font-size: 10px;
   line-height: 1;
@@ -240,7 +240,7 @@ body {
 
 .kebab:hover {
   background: var(--metro-surface);
-  color: var(--metro-heading);
+  border-color: var(--metro-surface);
 }
 
 .account-trigger {

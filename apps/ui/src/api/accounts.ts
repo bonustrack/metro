@@ -95,6 +95,24 @@ export function flattenAccounts(groups: AccountGroup[]): FlatAccount[] {
   return out;
 }
 
+export function carryForward(
+  next: AccountGroup[],
+  prev: AccountGroup[],
+  unavailable: string[],
+  dropped: string[],
+): AccountGroup[] {
+  if (unavailable.length === 0) return next;
+  const kept = prev
+    .filter((g) => unavailable.includes(g.station))
+    .map((g) => ({
+      station: g.station,
+      rows: g.rows.filter((r) => !dropped.includes(`${g.station}/${r.id ?? ''}`)),
+    }))
+    .filter((g) => g.rows.length > 0);
+  const fresh = next.filter((g) => !unavailable.includes(g.station));
+  return [...fresh, ...kept].sort((x, y) => x.station.localeCompare(y.station));
+}
+
 export function countAccounts(groups: AccountGroup[], agentId: number): number {
   return groups.reduce(
     (n, g) => n + g.rows.filter((r) => r.agentId === agentId).length,

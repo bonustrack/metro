@@ -23,7 +23,7 @@ export function Login({ error }: LoginProps): ReactNode {
       <Card dark={dark} padding={CARD_PADDING_PANEL} style={{ width: '100%', maxWidth: 420 }}>
         <Col gap={18}>
           <Row justify="center">
-            <MetroLogo size={64} color={dark ? '#ffffff' : '#000000'} />
+            <MetroLogo size={48} color={dark ? '#ffffff' : '#000000'} />
           </Row>
           <Row justify="center">
             <PageTitle>Log in</PageTitle>
