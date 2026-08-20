@@ -4,7 +4,9 @@ import {
   attributeUntagged,
   countAccounts,
   groupAccounts,
+  stationFields,
   unattributedAccounts,
+  type AccountRow,
 } from '../src/api/accounts';
 
 const PAYLOAD = {
@@ -90,5 +92,52 @@ describe('attributeUntagged', () => {
   test('never overwrites an agent id the daemon did send', () => {
     const groups = attributeUntagged(groupAccounts(PAYLOAD), 4);
     expect(groups.flatMap((g) => g.rows.map((r) => r.agentId))).toEqual([1, 1, 2]);
+  });
+});
+
+describe('stationFields', () => {
+  const row = (fields: Record<string, string>): AccountRow => ({
+    id: 'a1-0001',
+    agentId: 1,
+    fields: Object.entries(fields).map(([label, value]) => ({ label, value })),
+  });
+
+  test('identity fields are pulled out and never repeated in the details', () => {
+    const f = stationFields(
+      row({
+        handle: '@metro30593bot',
+        url: 'https://t.me/metro30593bot',
+        botId: '8798949149',
+        connected: 'true',
+      }),
+    );
+    expect(f.handle).toBe('@metro30593bot');
+    expect(f.url).toBe('https://t.me/metro30593bot');
+    expect(f.details.map((d) => d.label)).toEqual(['botId', 'connected']);
+  });
+
+  test('a field the daemon could not fill is dropped, not shown as a dash', () => {
+    const f = stationFields(row({ owner: '-', username: 'Metro', env: '' }));
+    expect(f.details.map((d) => d.label)).toEqual(['username']);
+  });
+
+  test('a missing handle or url is undefined rather than a dash', () => {
+    const f = stationFields(row({ handle: '-', inboxId: 'a254b84f' }));
+    expect(f.handle).toBeUndefined();
+    expect(f.url).toBeUndefined();
+    expect(f.details.map((d) => d.label)).toEqual(['inboxId']);
+  });
+
+  test('every detail an xmtp account carries survives, in order', () => {
+    const f = stationFields(
+      row({
+        handle: '0x0bA043c6',
+        url: 'https://etherscan.io/address/0x0bA043c6',
+        address: '0x0bA043c6',
+        inboxId: 'a254b84f',
+        env: 'production',
+      }),
+    );
+    expect(f.details.map((d) => d.label)).toEqual(['address', 'inboxId', 'env']);
   });
 });

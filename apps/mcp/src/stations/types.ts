@@ -94,6 +94,7 @@ export type AttachmentMode = 'canonical' | 'native' | 'none';
 export interface Station {
   name: string;
   hasAccounts: boolean;
+  hasTrain: boolean;
   messageVerbs: ReadonlySet<Verb>;
   groupOps?: ReadonlySet<GroupOp>;
   attachmentMode: AttachmentMode;

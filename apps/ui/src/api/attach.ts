@@ -101,6 +101,12 @@ export const STATION_FORMS: Record<string, StationForm> = {
       },
     ],
   },
+  webhook: {
+    label: 'Webhook',
+    hint: 'Metro mints a URL and a signing secret. Sign each request body with HMAC-SHA256 and send it as the x-hub-signature-256 header, GitHub style. The URL is public: the signature is its only gate, and an unsigned request is accepted only if you attach no secret. An agent receives webhook events and cannot reply on that line.',
+    interactive: false,
+    fields: [],
+  },
   whatsapp: {
     label: 'WhatsApp',
     hint: 'Links Metro as a companion device on a real WhatsApp account. Give a phone number to pair with an 8-character code, or leave it blank to scan a QR code instead. Carries WhatsApp ban risk, so use a dedicated number.',

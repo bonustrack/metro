@@ -13,6 +13,10 @@ export function DetachAccount({
   accountId,
   onDetach,
 }: DetachAccountProps): ReactNode {
+  const reconnectNote =
+    station === 'webhook'
+      ? 'This cannot be undone. Connecting it again mints a new URL and a new secret, so whoever posts to this one has to be updated.'
+      : 'This cannot be undone. Connecting it again means going through the whole sign-in once more.';
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +34,7 @@ export function DetachAccount({
     <>
       <KebabMenu
         label="Station actions"
+        size="lg"
         items={[
           {
             label: 'Delete station',
@@ -46,7 +51,7 @@ export function DetachAccount({
         title="Delete station"
         lines={[
           'This deletes the station and the credentials Metro stores for it. It stops relaying immediately.',
-          'This cannot be undone. Connecting it again means going through the whole sign-in once more.',
+          reconnectNote,
         ]}
         prompt={`Type ${accountId} to confirm.`}
         confirmWord={accountId}

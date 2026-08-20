@@ -1,115 +1,130 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
-import { CARD_PADDING } from '../theme';
 import { stationLabel } from '../api/attach';
 import {
   flattenAccounts,
+  stationFields,
   type AccountGroup,
-  type AccountField,
   type AccountRow,
 } from '../api/accounts';
+import { ChatIcon } from './ChatIcon';
 import { DetachAccount } from './DetachAccount';
 import { StationIcon } from './StationIcon';
 
 export type DetachHandler = (station: string, accountId: string) => Promise<void>;
 
-const CARD = { width: 260, height: 180 } as const;
-const DETAIL_LINES = 2;
+const ROW_PAD_Y = 10;
+const ICON_SIZE = 20;
 
-const valueOf = (row: AccountRow, label: string): string | undefined => {
-  const found = row.fields.find((f) => f.label === label)?.value;
-  return found === undefined || found === '-' ? undefined : found;
-};
-
-const HIDDEN = new Set(['id', 'handle', 'url']);
-
-function details(row: AccountRow): AccountField[] {
-  return row.fields.filter((f) => !HIDDEN.has(f.label)).slice(0, DETAIL_LINES);
-}
-
-function Handle({ row, fallback }: { row: AccountRow; fallback: string }): ReactNode {
-  const handle = valueOf(row, 'handle') ?? fallback;
-  const url = valueOf(row, 'url');
-  if (url === undefined)
-    return (
-      <Text size="sm" variant="mono" numberOfLines={1}>{handle}</Text>
-    );
-  return (
-    <a className="hint-link" href={url} target="_blank" rel="noreferrer">
-      <Text size="sm" variant="mono" numberOfLines={1}>{handle}</Text>
-    </a>
-  );
-}
-
-interface StationCardProps {
+interface StationRowProps {
   station: string;
   row: AccountRow;
-  dark: boolean;
+  onOpen: (accountId: string) => void;
   onDetach?: DetachHandler;
 }
 
-function StationCard({ station, row, dark, onDetach }: StationCardProps): ReactNode {
+function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactNode {
   const palette = useKitPalette();
   const id = row.id;
+  const { handle, url } = stationFields(row);
+  const body = (
+    <>
+      <StationIcon station={station} size={ICON_SIZE} color={palette.text} />
+      <Row gap={10} align="center" style={{ flex: 1, minWidth: 0 }}>
+        <span className="row-title">
+          <Text size="lg" weight="semibold" numberOfLines={1}>
+            {stationLabel(station)}
+          </Text>
+        </span>
+        <Text
+          size="lg"
+          role="secondary"
+          numberOfLines={1}
+          style={{ flexShrink: 1, minWidth: 0 }}
+        >
+          {handle ?? id ?? '-'}
+        </Text>
+      </Row>
+    </>
+  );
   return (
-    <Card dark={dark} padding={CARD_PADDING} style={CARD}>
-      <Col gap={10} style={{ flex: 1, minHeight: 0 }}>
-        <Row justify="between" align="center" gap={8}>
-          <Row gap={8} align="center" style={{ flexShrink: 1, minWidth: 0 }}>
-            <StationIcon station={station} color={palette.text} />
-            <Text size="sm" weight="semibold" numberOfLines={1}>
-              {stationLabel(station)}
-            </Text>
-          </Row>
-          {onDetach !== undefined && id !== null ? (
-            <DetachAccount station={station} accountId={id} onDetach={onDetach} />
-          ) : null}
+    <Row
+      justify="between"
+      align="stretch"
+      gap={12}
+      style={{
+        borderBottomWidth: 1,
+        borderBottomColor: palette.border,
+      }}
+    >
+      {id === null ? (
+        <Row
+          gap={12}
+          align="center"
+          style={{ flex: 1, minWidth: 0, paddingVertical: ROW_PAD_Y }}
+        >
+          {body}
         </Row>
-        <Handle row={row} fallback={id ?? '-'} />
-        <Col gap={4} style={{ flex: 1, minHeight: 0 }}>
-          {details(row).map((field) => (
-            <Col key={field.label} gap={1}>
-              <Text
-                size="2xs"
-                role="secondary"
-                numberOfLines={1}
-                style={{ textTransform: 'uppercase', letterSpacing: 0.4 }}
-              >
-                {field.label}
-              </Text>
-              <Text size="sm" variant="mono" numberOfLines={1}>{field.value}</Text>
-            </Col>
-          ))}
-        </Col>
-      </Col>
-    </Card>
+      ) : (
+        <a
+          className="row-link"
+          href={`#/station/${id}`}
+          onClick={(e) => {
+            e.preventDefault();
+            onOpen(id);
+          }}
+        >
+          {body}
+        </a>
+      )}
+      <Row gap={8} align="center" style={{ paddingVertical: ROW_PAD_Y }}>
+        {url === undefined ? null : (
+          <a
+            className="kebab kebab-lg"
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open ${stationLabel(station)}`}
+          >
+            <ChatIcon size={18} color={palette.link} />
+          </a>
+        )}
+        {onDetach !== undefined && id !== null ? (
+          <DetachAccount station={station} accountId={id} onDetach={onDetach} />
+        ) : null}
+      </Row>
+    </Row>
   );
 }
 
 interface AccountListProps {
   groups: AccountGroup[];
   empty: string;
+  onOpen: (accountId: string) => void;
   onDetach?: DetachHandler;
 }
 
-export function AccountList({ groups, empty, onDetach }: AccountListProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
+export function AccountList({
+  groups,
+  empty,
+  onOpen,
+  onDetach,
+}: AccountListProps): ReactNode {
   const flat = flattenAccounts(groups);
   if (flat.length === 0) return <Text size="sm" role="secondary">{empty}</Text>;
   return (
-    <Row gap={12} wrap align="start">
+    <Col>
       {flat.map((item) => (
-        <StationCard
+        <StationRow
           key={`${item.station}/${item.row.id ?? ''}`}
           station={item.station}
           row={item.row}
-          dark={dark}
+          onOpen={onOpen}
           onDetach={onDetach}
         />
       ))}
-    </Row>
+    </Col>
   );
 }

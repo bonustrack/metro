@@ -10,7 +10,13 @@ import type { MonitorCall } from '../src/monitor/api.ts';
 const ONE = 'mk_agent_one';
 const TWO = 'mk_agent_two';
 
-const AGENTS = { 'discord/d1': 1, 'xmtp/x1': 1, 'telegram/t2': 2 };
+const AGENTS = {
+  'discord/d1': 1,
+  'xmtp/x1': 1,
+  'telegram/t2': 2,
+  'webhook/a1-gh': 1,
+  'webhook/a2-gh': 2,
+};
 const NAMES = { 1: 'tony', 2: 'lisa' };
 
 interface Harness {
@@ -121,6 +127,18 @@ describe('monitor transport', () => {
     expect(h.calls[0]?.action).toBe('send');
   });
 
+  test('an in-core station takes no calls at all', async () => {
+    const h = await start(both());
+    const res = await post(h, '/api/call/webhook/send', ONE, {
+      line: 'metro://webhook/a1-gh',
+      text: 'hi',
+    });
+    expect(res.status).toBe(400);
+    const j = (await res.json()) as { error: string };
+    expect(j.error).toContain('in-core');
+    expect(h.calls).toHaveLength(0);
+  });
+
   test('an agent key cannot drive another agent line', async () => {
     const h = await start(both());
     const res = await post(h, '/api/call/telegram/send', ONE, {
@@ -225,7 +243,7 @@ describe('monitor tail scoping', () => {
     ac.abort();
   });
 
-  test('another agent line never reaches the tail, an ownerless one does', async () => {
+  test('another agent line never reaches the tail, a local one does', async () => {
     const h = await start(both());
     const ac = new AbortController();
     const res = await fetch(`${h.base}/api/tail?token=${ONE}`, {
@@ -233,11 +251,26 @@ describe('monitor tail scoping', () => {
     });
     await new Promise((r) => setTimeout(r, 50));
     publishEvent(evt('metro://telegram/t2/5', 'other agent secret'));
-    publishEvent(evt('metro://webhook/gh', 'ownerless event'));
+    publishEvent(evt('metro://claude/org/session', 'local event'));
     publishEvent(evt('metro://discord/d1/99', 'mine at last'));
     const { buf, cancel } = await readUntil(res, 'mine at last');
     expect(buf).not.toContain('other agent secret');
-    expect(buf).toContain('ownerless event');
+    expect(buf).toContain('local event');
+    await cancel();
+    ac.abort();
+  });
+
+  test('another agent webhook never reaches the tail', async () => {
+    const h = await start(both());
+    const ac = new AbortController();
+    const res = await fetch(`${h.base}/api/tail?token=${ONE}`, {
+      signal: ac.signal,
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    publishEvent(evt('metro://webhook/a2-gh', 'other agent webhook body'));
+    publishEvent(evt('metro://discord/d1/99', 'mine at last'));
+    const { buf, cancel } = await readUntil(res, 'mine at last');
+    expect(buf).not.toContain('other agent webhook body');
     await cancel();
     ac.abort();
   });

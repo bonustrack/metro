@@ -26,6 +26,7 @@ export interface Dashboard {
   unattributed: number;
   attachable: string[];
   unavailable: string[];
+  capabilities: Record<string, string[]>;
 }
 
 export interface CreatedAgent {
@@ -106,6 +107,14 @@ function toStationList(value: unknown): string[] {
     : [];
 }
 
+function toCapabilities(value: unknown): Record<string, string[]> {
+  if (!isRecord(value)) return {};
+  const out: Record<string, string[]> = {};
+  for (const [station, verbs] of Object.entries(value))
+    out[station] = toStationList(verbs);
+  return out;
+}
+
 export async function fetchDashboard(token: string): Promise<Dashboard> {
   const body = await call(token, { method: 'GET' });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
@@ -119,6 +128,7 @@ export async function fetchDashboard(token: string): Promise<Dashboard> {
     unattributed: unattributedAccounts(groups),
     attachable: toStationList(body.attachable),
     unavailable: toStationList(body.unavailable),
+    capabilities: toCapabilities(body.capabilities),
   };
 }
 

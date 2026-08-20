@@ -3,6 +3,7 @@ import type { Station, Verb } from '@metro-labs/mcp/stations/types';
 export const telegramStation: Station = {
   name: 'telegram',
   hasAccounts: true,
+  hasTrain: true,
   messageVerbs: new Set<Verb>([
     'send',
     'reply',

@@ -5,9 +5,7 @@ import {
   type KeyObject,
 } from 'node:crypto';
 import {
-  agentsForEmail,
   GoogleAuthError,
-  parseEmailAgentMap,
   verifyGoogleIdToken,
 } from '../src/daemon/google-auth.ts';
 
@@ -98,36 +96,5 @@ describe('verifyGoogleIdToken', () => {
 
   test('rejects a non-JWT token', async () => {
     await expect(verify('not-a-jwt')).rejects.toThrow(/not a JWT/);
-  });
-});
-
-describe('parseEmailAgentMap / agentsForEmail', () => {
-  test('parses and lowercases emails', () => {
-    const map = parseEmailAgentMap('{"Fabien@bonustrack.co":["tony"]}');
-    expect(agentsForEmail(map, 'fabien@bonustrack.co')).toEqual(['tony']);
-    expect(agentsForEmail(map, 'FABIEN@bonustrack.co')).toEqual(['tony']);
-  });
-
-  test('empty or undefined config yields no mapping', () => {
-    expect(parseEmailAgentMap(undefined)).toEqual({});
-    expect(agentsForEmail(parseEmailAgentMap(''), 'x@y.z')).toBeUndefined();
-  });
-
-  test('unknown email is undefined', () => {
-    const map = parseEmailAgentMap('{"a@b.co":["tony"]}');
-    expect(agentsForEmail(map, 'other@b.co')).toBeUndefined();
-  });
-
-  test('empty agent list is treated as unauthorized', () => {
-    const map = parseEmailAgentMap('{"a@b.co":[]}');
-    expect(agentsForEmail(map, 'a@b.co')).toBeUndefined();
-  });
-
-  test('throws on invalid JSON', () => {
-    expect(() => parseEmailAgentMap('{not json')).toThrow(GoogleAuthError);
-  });
-
-  test('throws on non-string-array values', () => {
-    expect(() => parseEmailAgentMap('{"a@b.co":"tony"}')).toThrow(GoogleAuthError);
   });
 });

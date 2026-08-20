@@ -4,6 +4,7 @@ import { XMTP_TOOLS, xmtpSendAttachments } from './tools.js';
 export const xmtpStation: Station = {
   name: 'xmtp',
   hasAccounts: true,
+  hasTrain: true,
   messageVerbs: new Set<Verb>(['send', 'reply', 'react', 'unreact', 'read']),
   groupOps: new Set<GroupOp>(['create_group', 'add_members', 'remove_members']),
   attachmentMode: 'native',

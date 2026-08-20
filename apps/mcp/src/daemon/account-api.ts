@@ -202,7 +202,7 @@ async function handleStart(
     agentId: ref.agentId,
     station,
     accountId: ref.accountId,
-    identity: prepared.identity,
+    identity: { ...prepared.identity, ...prepared.finalize?.(ref.accountId) },
     activated: await activate(deps, station),
   };
   sendJson(

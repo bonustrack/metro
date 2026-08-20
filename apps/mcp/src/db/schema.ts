@@ -13,6 +13,7 @@ export const STATIONS = [
   'telegram-user',
   'discord',
   'whatsapp',
+  'webhook',
 ] as const;
 
 export type StationName = (typeof STATIONS)[number];

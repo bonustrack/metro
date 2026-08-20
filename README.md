@@ -40,7 +40,8 @@ A **station** is a chat-platform integration:
 - **telegram** — Bot API. One or many bots, each a `telegram` account row in the DB.
 - **discord** — bot gateway + REST. One or many bots, each a `discord` account row.
 - **webhook** — inbound HTTP receiver (GitHub, Intercom, …). Inbound-only; events
-  arrive on `metro://webhook/<id>`.
+  arrive on `metro://webhook/<account_id>`. Attach one like any other station and Metro
+  mints the url and an HMAC-SHA256 signing secret; it runs in-core, with no train.
 
 ## Running locally
 
@@ -365,6 +366,33 @@ There is **no overlap window, by design**:
 | --- | --- | --- |
 | `METRO_SESSION_SECRET` | — | Required for `/api/agents` and Google login. Unset → 401. |
 
+### Inbound webhooks
+
+A webhook endpoint is an `accounts` row like any other station account, so it belongs to
+one agent and its events reach only that agent. Attach one from the agent's page (or
+`POST /api/agents/<id>/accounts/start` with `{"station":"webhook"}`); the `201` carries the
+url and the signing secret, and the secret is shown that one time only.
+
+```sh
+curl -X POST "https://mcp.metro.box/wh/<account_id>" \
+  -H "content-type: application/json" \
+  -H "x-hub-signature-256: sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -r | cut -d' ' -f1)" \
+  -d "$BODY"
+```
+
+That is GitHub's scheme byte for byte, so a GitHub webhook works by pasting the url and
+the secret into the repository settings. A wrong or missing signature is a `401` and emits
+nothing; `GET` on the same url answers a readiness line and emits nothing, so it is safe as
+a health check. Events arrive on `metro://webhook/<account_id>` and are inbound-only — an
+agent cannot `send`, `reply` or `react` on that line.
+
+The agent is handed a `[webhook received]` note with the pretty-printed body, capped at
+8 KiB, plus an allowlist of headers — a delivery's `authorization`, `cookie` and
+`x-hub-signature-256` never reach the agent.
+
+Detaching the account (`DELETE /api/agents/<id>/accounts/webhook/<account_id>`) takes the
+url out of service at the next materialize.
+
 ### Attaching station accounts from the web UI
 
 Creating an agent does **not** create station accounts; a new agent starts empty. From the
@@ -378,6 +406,7 @@ route that writes the `accounts` table, and it writes nothing else.
 | `xmtp` | nothing | Metro generates the 32-byte secp256k1 key itself, then **opens an XMTP inbox with it** before the row is written. The check runs in a short-lived subprocess (`@metro-labs/xmtp/verify`, key over stdin) against the same `~/.metro/xmtp-production-<hex>.db3` the train will use, and that path is stored in `config.dbPath`, so the train reuses the installation that was just verified instead of burning a second one out of the inbox's ten. `inboxId` and `address` come back on the `201`. If XMTP cannot be reached, or answers with an unregistered client, the attach is a `400` and the half-built database is deleted. |
 | `telegram-user` | api id + api hash from my.telegram.org, then the phone number | The whole MTProto sign-in: Telegram sends a login code to that number, and asks for the two-step verification password if the account has one. |
 | `whatsapp` | a phone number, or nothing to scan a QR instead | The whole multi-device pairing: Metro opens a Baileys socket, shows the QR or the 8-character pairing code, and waits for the handset. |
+| `webhook` | nothing | Nothing to check — there is no provider. Metro generates the account id, mints a 32-byte signing secret, and answers with the endpoint url built from that id. The url is live as soon as the row is written; no train is spawned. |
 
 The last two cannot finish in one request, so they run as a short-lived **attach session**:
 
