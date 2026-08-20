@@ -13,7 +13,6 @@ export const STATIONS = [
   'telegram-user',
   'discord',
   'whatsapp',
-  'line',
 ] as const;
 
 export type StationName = (typeof STATIONS)[number];

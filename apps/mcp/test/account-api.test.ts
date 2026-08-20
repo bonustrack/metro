@@ -46,17 +46,10 @@ let xmtpInboxFails = false;
 let attachFails = false;
 let discarded = 0;
 
-function ownedOrThrow(email: string, granted: string[], id: number): void {
+function ownedOrThrow(email: string, id: number): void {
   const owner = OWNER_OF[id];
   const missing = new AgentAdminError('no such agent', 404);
-  if (owner === undefined) throw missing;
-  if (owner === null) {
-    if (!granted.includes('legacy')) throw missing;
-    throw new AgentAdminError(
-      'operator-provisioned agents cannot be changed here',
-      403,
-    );
-  }
+  if (owner === undefined || owner === null) throw missing;
   if (owner !== email) throw missing;
 }
 
@@ -89,7 +82,7 @@ function fakePrepare(input: AttachInput): Promise<PreparedAccount> {
 const attachSessions = new AttachSessions({
   authorize: (owner) => {
     try {
-      ownedOrThrow(owner.email, owner.granted, owner.agentId);
+      ownedOrThrow(owner.email, owner.agentId);
     } catch (err) {
       return Promise.reject(err as Error);
     }
@@ -99,7 +92,7 @@ const attachSessions = new AttachSessions({
     nextAccount += 1;
     const accountId = `a${owner.agentId}-0000000${nextAccount}`;
     try {
-      ownedOrThrow(owner.email, owner.granted, owner.agentId);
+      ownedOrThrow(owner.email, owner.agentId);
     } catch (err) {
       return Promise.reject(err as Error);
     }
@@ -141,8 +134,8 @@ const deps: AgentApiDeps = {
   gatherAccounts: () => Promise.resolve({}),
   capabilities: () => ({}),
   prepareAccount: fakePrepare,
-  attachAccount: (email, granted, agentId, station, config) => {
-    ownedOrThrow(email, granted, agentId);
+  attachAccount: (email, agentId, station, config) => {
+    ownedOrThrow(email, agentId);
     if (attachFails) throw new AgentAdminError('postgres said no', 500);
     if (
       typeof config.token === 'string' &&
@@ -157,8 +150,8 @@ const deps: AgentApiDeps = {
     rows.push({ agentId, station, accountId, config });
     return Promise.resolve({ agentId, station, accountId });
   },
-  detachAccount: (email, granted, agentId, station, accountId) => {
-    ownedOrThrow(email, granted, agentId);
+  detachAccount: (email, agentId, station, accountId) => {
+    ownedOrThrow(email, agentId);
     const before = rows.length;
     rows = rows.filter(
       (r) =>
@@ -220,7 +213,6 @@ interface AttachBody {
 beforeAll(async () => {
   process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box';
-  delete process.env.GOOGLE_EMAIL_AGENTS;
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   process.env.METRO_WEBHOOK_PORT = String(
     20000 + Math.floor(Math.random() * 20000),
@@ -244,7 +236,6 @@ afterEach(() => {
   xmtpInboxFails = false;
   attachFails = false;
   discarded = 0;
-  delete process.env.GOOGLE_EMAIL_AGENTS;
 });
 
 describe('POST /api/agents/:id/accounts/start authorisation', () => {
@@ -276,20 +267,7 @@ describe('POST /api/agents/:id/accounts/start authorisation', () => {
     expect(rows).toEqual([]);
   });
 
-  test('a grant (owned:false) may not attach to an operator agent', async () => {
-    process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
-    const res = await start(session('ada@lovelace.dev'), 5, {
-      station: 'telegram',
-      token: FAKE_TOKEN,
-    });
-    expect(res.status).toBe(403);
-    expect(((await res.json()) as AttachBody).error).toContain(
-      'operator-provisioned',
-    );
-    expect(rows).toEqual([]);
-  });
-
-  test('an operator agent the session cannot see is a plain 404', async () => {
+  test('an operator-provisioned agent is never attachable, by anyone', async () => {
     const res = await start(session('ada@lovelace.dev'), 5, {
       station: 'telegram',
       token: FAKE_TOKEN,
@@ -724,16 +702,12 @@ describe('interactive attach sessions over HTTP', () => {
     }
   });
 
-  test('a grant is refused before any login is attempted', async () => {
-    process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
+  test('an operator agent is refused before any login is attempted', async () => {
     const res = await start(session('ada@lovelace.dev'), 5, {
       station: 'whatsapp',
       phone: '447700900123',
     });
-    expect(res.status).toBe(403);
-    expect(((await res.json()) as SessionBody).error).toContain(
-      'operator-provisioned',
-    );
+    expect(res.status).toBe(404);
     expect(rows).toEqual([]);
   });
 

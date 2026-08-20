@@ -19,7 +19,6 @@ import { agentForLine, agentIdForLine } from '../db/agent-map.js';
 import { findEndpoint, listEndpoints, webhookPort } from './tunnel.js';
 import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
-import { handleLineWebhook, isLineWebhookPath } from './line-webhook.js';
 import { handleGoogleAuthRequest } from './google-oauth.js';
 import { handleAgentApiRequest, type AgentApiDeps } from './agent-api.js';
 import { handleUploadRequest } from './upload-api.js';
@@ -304,7 +303,6 @@ async function handleWebhookRoute(
 async function handlePreMcpRoutes(
   req: IncomingMessage,
   res: ServerResponse,
-  emit: Emit,
   monitorCall?: MonitorCall,
   agentApi?: AgentApiDeps,
 ): Promise<boolean> {
@@ -313,10 +311,6 @@ async function handlePreMcpRoutes(
   if (agentApi && handleAgentApiRequest(req, res, agentApi)) return true;
   if (handleUploadRequest(req, res)) return true;
   if (handleAttachRequest(req, res)) return true;
-  if (isLineWebhookPath(req)) {
-    await handleLineWebhook(req, res, emit);
-    return true;
-  }
   return Boolean(monitorCall && handleMonitorRequest(req, res, monitorCall));
 }
 
@@ -328,7 +322,7 @@ async function handleRequest(
   monitorCall?: MonitorCall,
   agentApi?: AgentApiDeps,
 ): Promise<void> {
-  if (await handlePreMcpRoutes(req, res, emit, monitorCall, agentApi)) return;
+  if (await handlePreMcpRoutes(req, res, monitorCall, agentApi)) return;
   if (mcp && isMcpPath(req)) {
     applyMcpCors(req, res);
     if (handleMcpPreflight(req, res)) return;

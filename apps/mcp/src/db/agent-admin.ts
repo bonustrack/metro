@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
 import { registerKey, rotateAgentKey, unregisterAgentKey } from './key-map.js';
@@ -72,9 +72,6 @@ export function daemonServesAgent(id: number): boolean {
   return pin === '' || Number(pin) === id;
 }
 
-const grantedOperatorRows = (granted: string[]) =>
-  and(isNull(agents.ownerId), inArray(agents.name, granted));
-
 export async function userIdForEmail(rawEmail: string): Promise<number | null> {
   const rows = await getDb()
     .select({ id: users.id })
@@ -108,18 +105,6 @@ export async function ensureUser(rawEmail: string): Promise<number> {
     },
     () => userIdForEmail(email),
   );
-}
-
-export async function operatorAgentIdsByName(
-  granted: string[],
-): Promise<number[]> {
-  if (granted.length === 0) return [];
-  const rows = await getDb()
-    .select({ id: agents.id })
-    .from(agents)
-    .where(grantedOperatorRows(granted))
-    .orderBy(asc(agents.id));
-  return rows.map((r) => r.id);
 }
 
 interface AgentRow {
@@ -162,24 +147,15 @@ async function selectKeyRows(ownedIds: number[]): Promise<KeyRow[]> {
     .where(inArray(agents.id, ownedIds));
 }
 
-function visibleAgents(ownerId: number | null, granted: string[]) {
-  const mine = ownerId === null ? undefined : eq(agents.ownerId, ownerId);
-  if (granted.length === 0) return mine;
-  const grants = grantedOperatorRows(granted);
-  return mine === undefined ? grants : or(mine, grants);
-}
-
 export async function listAgentsForEmail(
   email: string,
-  granted: string[],
 ): Promise<AgentSummary[]> {
   const ownerId = await userIdForEmail(email);
-  const where = visibleAgents(ownerId, granted);
-  if (where === undefined) return [];
+  if (ownerId === null) return [];
   const rows = await getDb()
     .select({ id: agents.id, name: agents.name, ownerId: agents.ownerId })
     .from(agents)
-    .where(where)
+    .where(eq(agents.ownerId, ownerId))
     .orderBy(asc(agents.id));
   if (rows.length === 0) return [];
   const keyRows = await selectKeyRows(ownedIdsOf(ownerId, rows));
@@ -224,22 +200,14 @@ interface Deletable {
 
 export async function ownedAgentOrThrow(
   ownerId: number | null,
-  granted: string[],
   id: number,
-  verb: string,
 ): Promise<Deletable> {
   const rows = await getDb().select().from(agents).where(eq(agents.id, id));
   const row = rows[0];
   const missing = new AgentAdminError('no such agent', 404);
   if (!row) throw missing;
-  if (row.ownerId === null) {
-    if (!granted.includes(row.name)) throw missing;
-    throw new AgentAdminError(
-      `operator-provisioned agents cannot be ${verb} here`,
-      403,
-    );
-  }
-  if (ownerId === null || row.ownerId !== ownerId) throw missing;
+  if (ownerId === null || row.ownerId === null || row.ownerId !== ownerId)
+    throw missing;
   return { agent: { id: row.id, name: row.name }, ownerId };
 }
 
@@ -264,14 +232,11 @@ async function writeNewKey(id: number, ownerId: number): Promise<string> {
 
 export async function resetAgentKeyForEmail(
   email: string,
-  granted: string[],
   id: number,
 ): Promise<ResetAgentKey> {
   const { agent, ownerId } = await ownedAgentOrThrow(
     await userIdForEmail(email),
-    granted,
     id,
-    'reset',
   );
   const key = await writeNewKey(agent.id, ownerId);
   rotateAgentKey(agent.id, daemonServesAgent(agent.id) ? key : null);
@@ -280,14 +245,11 @@ export async function resetAgentKeyForEmail(
 
 export async function deleteAgentForEmail(
   email: string,
-  granted: string[],
   id: number,
 ): Promise<DeletedAgent> {
   const { agent, ownerId } = await ownedAgentOrThrow(
     await userIdForEmail(email),
-    granted,
     id,
-    'deleted',
   );
   await getDb().transaction(async (tx) => {
     const attached = await tx

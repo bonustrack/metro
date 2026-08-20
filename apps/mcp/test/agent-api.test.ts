@@ -61,36 +61,25 @@ let base: string;
 let scopes: Set<number>[] = [];
 let created: { email: string; name: string }[] = [];
 let rows: Row[] = [...SEED];
-let deleteCalls: { email: string; granted: string[]; id: number }[] = [];
-let resetCalls: { email: string; granted: string[]; id: number }[] = [];
+let deleteCalls: { email: string; id: number }[] = [];
+let resetCalls: { email: string; id: number }[] = [];
 let liveKeys: Record<number, string> = {};
 let nextId = 10;
 let resetSerial = 0;
 
-function ownedRowOrThrow(
-  email: string,
-  granted: string[],
-  id: number,
-  verb: string,
-): Row {
+function ownedRowOrThrow(email: string, id: number): Row {
   const ownerId = userIdFor(email);
   const row = rows.find((r) => r.id === id);
-  if (!row) throw new AgentAdminError('no such agent', 404);
-  if (row.ownerId === null) {
-    if (!granted.includes(row.name)) throw new AgentAdminError('no such agent', 404);
-    throw new AgentAdminError(
-      `operator-provisioned agents cannot be ${verb} here`,
-      403,
-    );
-  }
-  if (ownerId === null || row.ownerId !== ownerId)
-    throw new AgentAdminError('no such agent', 404);
+  const missing = new AgentAdminError('no such agent', 404);
+  if (!row) throw missing;
+  if (ownerId === null || row.ownerId === null || row.ownerId !== ownerId)
+    throw missing;
   return row;
 }
 
-function removeAgent(email: string, granted: string[], id: number): DeletedAgent {
-  deleteCalls.push({ email, granted, id });
-  const row = ownedRowOrThrow(email, granted, id, 'deleted');
+function removeAgent(email: string, id: number): DeletedAgent {
+  deleteCalls.push({ email, id });
+  const row = ownedRowOrThrow(email, id);
   if (row.name === 'busy-bot')
     throw new AgentAdminError(
       "agent 'busy-bot' still has 2 station account(s) attached, an operator must remove them first",
@@ -100,13 +89,9 @@ function removeAgent(email: string, granted: string[], id: number): DeletedAgent
   return { id: row.id, name: row.name };
 }
 
-function resetKeyOf(
-  email: string,
-  granted: string[],
-  id: number,
-): ResetAgentKey {
-  resetCalls.push({ email, granted, id });
-  const row = ownedRowOrThrow(email, granted, id, 'reset');
+function resetKeyOf(email: string, id: number): ResetAgentKey {
+  resetCalls.push({ email, id });
+  const row = ownedRowOrThrow(email, id);
   resetSerial += 1;
   const key = `mk_rotated_${row.id}_${resetSerial}`;
   liveKeys[row.id] = key;
@@ -114,15 +99,12 @@ function resetKeyOf(
 }
 
 const deps: AgentApiDeps = {
-  listAgents: (email, granted) =>
+  listAgents: (email) =>
     Promise.resolve([
       ...(OWNED[email] ?? []),
-      ...granted.map((name, i) => ({
-        id: 900 + i,
-        name,
-        owned: false,
-        key: leakGrantedKeys ? fakeKey(name) : null,
-      })),
+      ...(leakGrantedKeys
+        ? [{ id: 901, name: 'not-mine', owned: false, key: fakeKey('not-mine') }]
+        : []),
     ]),
   createAgent: (email, name) => {
     const clean = normalizeAgentName(name);
@@ -130,16 +112,16 @@ const deps: AgentApiDeps = {
     nextId += 1;
     return Promise.resolve({ id: nextId, name: clean, key: `mk_key_for_${clean}` });
   },
-  deleteAgent: (email, granted, id) => {
+  deleteAgent: (email, id) => {
     try {
-      return Promise.resolve(removeAgent(email, granted, id));
+      return Promise.resolve(removeAgent(email, id));
     } catch (e) {
       return Promise.reject(e as Error);
     }
   },
-  resetKey: (email, granted, id) => {
+  resetKey: (email, id) => {
     try {
-      return Promise.resolve(resetKeyOf(email, granted, id));
+      return Promise.resolve(resetKeyOf(email, id));
     } catch (e) {
       return Promise.reject(e as Error);
     }
@@ -187,7 +169,6 @@ const del = (token: string | undefined, path: string): Promise<Response> =>
 beforeAll(async () => {
   process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_PUBLIC_URL = PUBLIC;
-  delete process.env.GOOGLE_EMAIL_AGENTS;
   process.env.METRO_WEBHOOK_PORT = String(20000 + Math.floor(Math.random() * 20000));
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   server = await startWebhookServer(makeEmit(), undefined, undefined, deps);
@@ -208,7 +189,6 @@ afterEach(() => {
   resetCalls = [];
   liveKeys = {};
   leakGrantedKeys = false;
-  delete process.env.GOOGLE_EMAIL_AGENTS;
 });
 
 describe('/api/agents authentication', () => {
@@ -324,15 +304,6 @@ describe('GET /api/agents ownership', () => {
     expect(body.accounts.telegram).toEqual([]);
   });
 
-  test('GOOGLE_EMAIL_AGENTS grants show up as not-owned', async () => {
-    process.env.GOOGLE_EMAIL_AGENTS = '{"nobody@example.com":["legacy"]}';
-    const body = (await (await get(session('nobody@example.com'))).json()) as ListBody;
-    expect(body.agents).toEqual([
-      { id: 900, name: 'legacy', owned: false, key: null, endpoint: null, command: null },
-    ]);
-    expect(scopes.at(-1)).toEqual(new Set([900]));
-  });
-
   test('the session email is compared case-insensitively', async () => {
     const body = (await (await get(session('ADA@Lovelace.dev'))).json()) as ListBody;
     expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
@@ -367,30 +338,18 @@ describe('GET /api/agents key exposure', () => {
     expect(body).not.toContain('mk_fake_ada-bot');
   });
 
-  test('a granted agent is listed with no key, endpoint or command', async () => {
-    process.env.GOOGLE_EMAIL_AGENTS = '{"nobody@example.com":["legacy"]}';
+  test('a not-owned agent is listed with no key, endpoint or command', async () => {
     leakGrantedKeys = true;
-    const [agent] = await listAgents('nobody@example.com');
+    const agent = (await listAgents('nobody@example.com')).at(-1);
     expect(agent?.owned).toBe(false);
     expect([agent?.key, agent?.endpoint, agent?.command]).toEqual([null, null, null]);
   });
 
   test('a key value that reaches the api layer for a not-owned agent is still not served', async () => {
-    process.env.GOOGLE_EMAIL_AGENTS = '{"nobody@example.com":["legacy"]}';
     leakGrantedKeys = true;
-    const body = await (await get(session('nobody@example.com'))).text();
-    expect(body).toContain('legacy');
-    expect(body).not.toContain('mk_fake_legacy');
-  });
-
-  test('a grantee sees no key even when they also own an agent', async () => {
-    process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
-    leakGrantedKeys = true;
-    const agents = await listAgents('ada@lovelace.dev');
-    expect(agents.map((a) => [a.name, a.key])).toEqual([
-      ['ada-bot', 'mk_fake_ada-bot'],
-      ['legacy', null],
-    ]);
+    const body = await (await get(session('ada@lovelace.dev'))).text();
+    expect(body).toContain('not-mine');
+    expect(body).not.toContain('mk_fake_not-mine');
   });
 
   test('an owned agent that has no key yet is served nulls, not a stale value', async () => {
@@ -516,18 +475,8 @@ describe('DELETE /api/agents/:id', () => {
     expect(res.status).toBe(404);
     expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
     expect(deleteCalls).toEqual([
-      { email: 'ada@lovelace.dev', granted: [], id: 2 },
+      { email: 'ada@lovelace.dev', id: 2 },
     ]);
-  });
-
-  test('an operator row is refused even when the session can see it', async () => {
-    process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
-    const res = await del(session('ada@lovelace.dev'), '5');
-    expect(res.status).toBe(403);
-    expect(((await res.json()) as { error: string }).error).toContain(
-      'operator-provisioned',
-    );
-    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
   });
 
   test('an operator row the session cannot see is a plain 404', async () => {
@@ -539,7 +488,7 @@ describe('DELETE /api/agents/:id', () => {
   test('the owner is always the session email, never anything from the request', async () => {
     await del(session('ADA@Lovelace.dev'), '1');
     expect(deleteCalls).toEqual([
-      { email: 'ada@lovelace.dev', granted: [], id: 1 },
+      { email: 'ada@lovelace.dev', id: 1 },
     ]);
   });
 
@@ -647,7 +596,7 @@ describe('POST /api/agents/:id/key', () => {
     expect(res.status).toBe(404);
     expect(liveKeys).toEqual({});
     expect(resetCalls).toEqual([
-      { email: 'ada@lovelace.dev', granted: [], id: 2 },
+      { email: 'ada@lovelace.dev', id: 2 },
     ]);
   });
 
@@ -655,16 +604,6 @@ describe('POST /api/agents/:id/key', () => {
     const body = await (await resetKey(session('bob@builder.dev'), '1')).text();
     expect(body).not.toContain('mk_');
     expect(body).toBe(JSON.stringify({ error: 'no such agent' }));
-  });
-
-  test('an operator row is refused even when the session can see it', async () => {
-    process.env.GOOGLE_EMAIL_AGENTS = '{"ada@lovelace.dev":["legacy"]}';
-    const res = await resetKey(session('ada@lovelace.dev'), '5');
-    expect(res.status).toBe(403);
-    expect(((await res.json()) as ResetBody).error).toContain(
-      'operator-provisioned',
-    );
-    expect(liveKeys).toEqual({});
   });
 
   test('an operator row the session cannot see is a plain 404', async () => {
@@ -693,7 +632,7 @@ describe('POST /api/agents/:id/key', () => {
   test('the owner is always the session email, never anything from the request', async () => {
     await resetKey(session('ADA@Lovelace.dev'), '1');
     expect(resetCalls).toEqual([
-      { email: 'ada@lovelace.dev', granted: [], id: 1 },
+      { email: 'ada@lovelace.dev', id: 1 },
     ]);
   });
 

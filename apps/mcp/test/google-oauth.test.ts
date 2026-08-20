@@ -16,20 +16,12 @@ const cfg: OAuthConfig = {
   authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
   tokenUrl: 'https://oauth2.googleapis.com/token',
   sessionSecret: 'sign-secret',
-  emailAgents: parseEmailAgentMap('{"fabien@bonustrack.co":["tony"]}'),
   sessionTtlSec: 3600,
 };
 
 const GRANTED_IDS: Record<string, number> = { tony: 3, wan: 4 };
-let grantLookups: string[][] = [];
 let userTable = new Map<string, number>();
 let ensured: string[] = [];
-
-const grantedAgentIds = (names: string[]): Promise<number[]> => {
-  grantLookups.push(names);
-  const ids = names.map((n) => GRANTED_IDS[n]);
-  return Promise.resolve(ids.filter((id): id is number => id !== undefined));
-};
 
 const ensureUser = (email: string): Promise<number> => {
   ensured.push(email);
@@ -41,7 +33,6 @@ const ensureUser = (email: string): Promise<number> => {
 };
 
 beforeEach(() => {
-  grantLookups = [];
   userTable = new Map();
   ensured = [];
 });
@@ -50,7 +41,6 @@ const okDeps = (email: string): CallbackDeps => ({
   exchangeCode: () => Promise.resolve({ id_token: 'fake-id-token' }),
   verifyIdToken: () => Promise.resolve({ email }),
   ensureUser,
-  grantedAgentIds,
 });
 
 const stateFrom = (url: string): string =>
@@ -116,7 +106,6 @@ describe('completeCallback', () => {
       { code: 'c', state: stateFrom(url) },
       {
         ensureUser,
-        grantedAgentIds,
         exchangeCode: () => Promise.resolve({ id_token: 't' }),
         verifyIdToken: (_t, n) => {
           seen = n;
@@ -136,7 +125,6 @@ describe('completeCallback', () => {
       email: 'nobody@x.co',
       agentIds: [],
     });
-    expect(grantLookups).toEqual([]);
   });
 
   test('sign-in is open: any verified Google account gets a session, whatever the domain', async () => {
@@ -175,7 +163,6 @@ describe('completeCallback', () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     await completeCallback(cfg, { code: 'c', state }, {
       ensureUser,
-      grantedAgentIds,
       exchangeCode: () => Promise.resolve({ id_token: 't' }),
       verifyIdToken: () => Promise.resolve({ email: 'verified@example.com' }),
     });
@@ -186,7 +173,6 @@ describe('completeCallback', () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, {
       ensureUser,
-      grantedAgentIds,
       exchangeCode: () => Promise.resolve({ id_token: 't' }),
       verifyIdToken: () => Promise.reject(new Error('bad token')),
     });
@@ -199,42 +185,16 @@ describe('completeCallback', () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     await completeCallback(cfg, { code: 'c', state }, {
       ensureUser,
-      grantedAgentIds,
       exchangeCode: () => Promise.resolve({}),
       verifyIdToken: () => Promise.resolve({ email: 'never@x.co' }),
     });
     expect(userTable.size).toBe(0);
   });
 
-  test('a GOOGLE_EMAIL_AGENTS grant still resolves to operator agent ids', async () => {
-    const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
-    const redirect = await completeCallback(
-      cfg,
-      { code: 'c', state },
-      okDeps('fabien@bonustrack.co'),
-    );
-    const token = fragment(redirect).get('session');
-    expect(verifySession(token ?? '', cfg.sessionSecret).agentIds).toEqual([3]);
-    expect(grantLookups.at(-1)).toEqual(['tony']);
-  });
-
-  test('a grant name shared by several operator rows scopes the session to every one of them', async () => {
-    const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
-    const redirect = await completeCallback(cfg, { code: 'c', state }, {
-      exchangeCode: () => Promise.resolve({ id_token: 'fake-id-token' }),
-      verifyIdToken: () => Promise.resolve({ email: 'fabien@bonustrack.co' }),
-      ensureUser,
-      grantedAgentIds: () => Promise.resolve([3, 11]),
-    });
-    const token = fragment(redirect).get('session');
-    expect(verifySession(token ?? '', cfg.sessionSecret).agentIds).toEqual([3, 11]);
-  });
-
   test('redirects with error=verify when id-token verification fails', async () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, {
       ensureUser,
-      grantedAgentIds,
       exchangeCode: () => Promise.resolve({ id_token: 't' }),
       verifyIdToken: () => Promise.reject(new Error('bad token')),
     });
@@ -245,7 +205,6 @@ describe('completeCallback', () => {
     const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
     const redirect = await completeCallback(cfg, { code: 'c', state }, {
       ensureUser,
-      grantedAgentIds,
       exchangeCode: () => Promise.resolve({}),
       verifyIdToken: () => Promise.resolve({ email: 'fabien@bonustrack.co' }),
     });

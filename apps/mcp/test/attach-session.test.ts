@@ -12,10 +12,9 @@ const FAKE_SESSION = 'fake-mtproto-session-string';
 
 const ADA: AttachOwner = {
   email: 'ada@lovelace.dev',
-  granted: [],
   agentId: 1,
 };
-const BOB: AttachOwner = { email: 'bob@builder.dev', granted: [], agentId: 2 };
+const BOB: AttachOwner = { email: 'bob@builder.dev', agentId: 2 };
 
 interface Recorded {
   config: Record<string, unknown>;

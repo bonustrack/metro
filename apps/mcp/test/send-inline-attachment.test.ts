@@ -237,14 +237,14 @@ describe('inline attachments that cannot be sent are errors, never successes', (
     expect(h.seen).toHaveLength(0);
   });
 
-  test('a station that cannot carry files still refuses before any decode', async () => {
+  test('a station with no outbound messaging refuses before any decode', async () => {
     const res = await dispatchMessageTool('send', {
-      line: 'metro://line/l0/U123',
+      line: 'metro://webhook/gh',
       text: 'hi',
       attachments: [{ data: B64, name: 'shot.png', mime: 'image/png' }],
     });
     expect(res.isError).toBe(true);
-    expect(text(res)).toContain('line cannot send attachments');
+    expect(text(res)).toContain('webhook lines do not support outbound messaging');
     expect(h.seen).toHaveLength(0);
     expect(leftBehind()).toHaveLength(0);
   });

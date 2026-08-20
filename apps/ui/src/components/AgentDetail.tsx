@@ -18,7 +18,7 @@ function plural(n: number, word: string): string {
 }
 
 function subtitle(agent: AgentSummary): string {
-  return agent.owned ? `id ${agent.id}` : `id ${agent.id} · granted, not owned`;
+  return agent.owned ? `id ${agent.id}` : `id ${agent.id} · not owned`;
 }
 
 function emptyStations(agent: AgentSummary, unattributed: number): string {

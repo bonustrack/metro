@@ -54,16 +54,13 @@ async function assertTokenFree(
 
 export async function attachAccountToAgent(
   email: string,
-  granted: string[],
   agentId: number,
   station: StationName,
   config: Record<string, unknown>,
 ): Promise<AccountRef> {
   const { agent } = await ownedAgentOrThrow(
     await userIdForEmail(email),
-    granted,
     agentId,
-    'changed',
   );
   const token = config.token;
   if (typeof token === 'string') await assertTokenFree(station, token);
@@ -84,16 +81,13 @@ export async function attachAccountToAgent(
 
 export async function detachAccountFromAgent(
   email: string,
-  granted: string[],
   agentId: number,
   station: StationName,
   accountId: string,
 ): Promise<AccountRef> {
   const { agent } = await ownedAgentOrThrow(
     await userIdForEmail(email),
-    granted,
     agentId,
-    'changed',
   );
   const gone = await getDb()
     .delete(accounts)

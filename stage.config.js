@@ -62,10 +62,6 @@ export default defineConfig({
         project: ['src/**/*.ts'],
       },
     },
-    'packages/line': {
-      type: 'library',
-      knip: { project: ['src/**/*.ts'] },
-    },
     'packages/xmtp': {
       type: 'library',
       knip: { project: ['src/**/*.ts'] },

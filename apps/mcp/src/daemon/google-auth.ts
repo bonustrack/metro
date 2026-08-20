@@ -162,34 +162,3 @@ export async function verifyGoogleIdToken(
 
   return validateClaims(payload, opts);
 }
-
-export type EmailAgentMap = Record<string, string[]>;
-
-export function parseEmailAgentMap(raw: string | undefined): EmailAgentMap {
-  if (!raw || raw.trim() === '') return {};
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new GoogleAuthError('GOOGLE_EMAIL_AGENTS is not valid JSON');
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
-    throw new GoogleAuthError('GOOGLE_EMAIL_AGENTS must be an object');
-  const out: EmailAgentMap = {};
-  for (const [email, agents] of Object.entries(parsed)) {
-    if (!Array.isArray(agents) || agents.some((a) => typeof a !== 'string'))
-      throw new GoogleAuthError(
-        `GOOGLE_EMAIL_AGENTS[${email}] must be a string array`,
-      );
-    out[email.toLowerCase()] = agents as string[];
-  }
-  return out;
-}
-
-export function agentsForEmail(
-  map: EmailAgentMap,
-  email: string,
-): string[] | undefined {
-  const agents = map[email.toLowerCase()];
-  return agents && agents.length > 0 ? agents : undefined;
-}

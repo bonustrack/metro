@@ -29,7 +29,6 @@ const MAX_TOTAL = 40;
 
 export interface AttachOwner {
   email: string;
-  granted: string[];
   agentId: number;
 }
 

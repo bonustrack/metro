@@ -53,7 +53,7 @@ describe('agent credentials on the wire', () => {
     });
   });
 
-  test('a granted agent carries no key, endpoint or command', async () => {
+  test('a not-owned agent carries no key, endpoint or command', async () => {
     const [agent] = await dashboard([
       { id: 5, name: 'legacy', owned: false, key: null, endpoint: null, command: null },
     ]);

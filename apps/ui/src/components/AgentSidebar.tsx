@@ -33,7 +33,7 @@ function AgentItem({ agent, accounts, selected, onPress }: AgentItemProps): Reac
         <Text size="lg" weight="semibold">{agent.name}</Text>
         <Text size="sm" role="secondary">
           {accounts} station{accounts === 1 ? '' : 's'}
-          {agent.owned ? '' : ' · granted'}
+          {agent.owned ? '' : ' · not owned'}
         </Text>
       </Col>
     </Card>

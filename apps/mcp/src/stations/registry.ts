@@ -5,7 +5,6 @@ import { telegramStation } from '@metro-labs/telegram';
 import { telegramUserStation } from '@metro-labs/telegram-user';
 import { discordStation } from '@metro-labs/discord';
 import { whatsappStation } from '@metro-labs/whatsapp';
-import { lineStation } from '@metro-labs/line';
 import { webhookStation } from '@metro-labs/webhook';
 
 export const STATIONS: readonly Station[] = [
@@ -14,7 +13,6 @@ export const STATIONS: readonly Station[] = [
   telegramUserStation,
   discordStation,
   whatsappStation,
-  lineStation,
   webhookStation,
 ];
 

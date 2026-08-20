@@ -2,13 +2,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
 import { verifySession } from './session.js';
-import { agentsForEmail, parseEmailAgentMap } from './google-auth.js';
 
 const BODY_MAX = 4 * 1024;
 
 export interface ApiSession {
   email: string;
-  granted: string[];
 }
 
 export function cors(req: IncomingMessage): Record<string, string> {
@@ -45,16 +43,6 @@ function bearerOrQueryToken(req: IncomingMessage): string {
   return url.searchParams.get('token') ?? '';
 }
 
-function grantedFor(email: string): string[] {
-  try {
-    const map = parseEmailAgentMap(process.env.GOOGLE_EMAIL_AGENTS);
-    return agentsForEmail(map, email) ?? [];
-  } catch (e) {
-    log.warn({ err: errMsg(e) }, 'agent-api: bad GOOGLE_EMAIL_AGENTS');
-    return [];
-  }
-}
-
 export function apiSession(req: IncomingMessage): ApiSession | null {
   const secret = process.env.METRO_SESSION_SECRET?.trim() ?? '';
   if (secret === '') return null;
@@ -62,7 +50,7 @@ export function apiSession(req: IncomingMessage): ApiSession | null {
   if (token === '') return null;
   try {
     const { email } = verifySession(token, secret);
-    return { email: email.toLowerCase(), granted: grantedFor(email) };
+    return { email: email.toLowerCase() };
   } catch {
     return null;
   }

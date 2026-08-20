@@ -29,16 +29,14 @@ const PREFIX = '/api/agents';
 const SERVER_NAME = 'metro';
 
 export interface AgentApiDeps extends AccountApiDeps {
-  listAgents: (email: string, granted: string[]) => Promise<AgentSummary[]>;
+  listAgents: (email: string) => Promise<AgentSummary[]>;
   createAgent: (email: string, name: string) => Promise<CreatedAgent>;
   deleteAgent: (
     email: string,
-    granted: string[],
     id: number,
   ) => Promise<DeletedAgent>;
   resetKey: (
     email: string,
-    granted: string[],
     id: number,
   ) => Promise<ResetAgentKey>;
   gatherAccounts: (allowed: Set<number>) => Promise<Record<string, unknown[]>>;
@@ -115,7 +113,7 @@ async function handleList(
   deps: AgentApiDeps,
   session: ApiSession,
 ): Promise<void> {
-  const list = await deps.listAgents(session.email, session.granted);
+  const list = await deps.listAgents(session.email);
   const accounts = await deps.gatherAccounts(new Set(list.map((a) => a.id)));
   sendJson(req, res, 200, {
     email: session.email,
@@ -154,7 +152,7 @@ async function handleResetKey(
   session: ApiSession,
   id: number,
 ): Promise<void> {
-  const reset = await deps.resetKey(session.email, session.granted, id);
+  const reset = await deps.resetKey(session.email, id);
   log.info(
     { agent: reset.name, id: reset.id, owner: session.email },
     'agent-api: reset agent key',
@@ -174,7 +172,7 @@ async function handleDelete(
   session: ApiSession,
   id: number,
 ): Promise<void> {
-  const gone = await deps.deleteAgent(session.email, session.granted, id);
+  const gone = await deps.deleteAgent(session.email, id);
   log.info(
     { agent: gone.name, id: gone.id, owner: session.email },
     'agent-api: deleted agent',

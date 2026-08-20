@@ -45,7 +45,6 @@ const mint = (agentId: number): string =>
 
 async function resetKey(
   email: string,
-  _granted: string[],
   id: number,
 ): Promise<{ id: number; name: string; key: string }> {
   if (OWNERS[id] !== email) throw new AgentAdminError('no such agent', 404);

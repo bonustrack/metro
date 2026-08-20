@@ -43,7 +43,6 @@
   },
   "dependencies": {
     "@metro-labs/discord": "workspace:*",
-    "@metro-labs/line": "workspace:*",
     "@metro-labs/telegram": "workspace:*",
     "@metro-labs/telegram-user": "workspace:*",
     "@metro-labs/webhook": "workspace:*",

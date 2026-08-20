@@ -17,7 +17,7 @@ interface AgentsHomeProps {
 
 function summary(agent: AgentSummary, accounts: number): string {
   const label = `${String(accounts)} station${accounts === 1 ? '' : 's'}`;
-  return agent.owned ? label : `${label} · granted, not owned`;
+  return agent.owned ? label : `${label} · not owned`;
 }
 
 export function AgentsHome({ agents, groups, onOpen, onNew }: AgentsHomeProps): ReactNode {
@@ -28,7 +28,7 @@ export function AgentsHome({ agents, groups, onOpen, onNew }: AgentsHomeProps): 
         <Col gap={2} style={{ flexShrink: 1, minWidth: 0 }}>
           <PageTitle>Agents</PageTitle>
           <Text size="sm" role="secondary">
-            Every agent you own or have been granted on this Metro daemon.
+            Every agent you own on this Metro daemon.
           </Text>
         </Col>
         <Button color="primary" dark={dark} label="New agent" onPress={onNew} />

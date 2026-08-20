@@ -1,13 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from './log.js';
-import {
-  agentsForEmail,
-  parseEmailAgentMap,
-  verifyGoogleIdToken,
-  type EmailAgentMap,
-} from './google-auth.js';
+import { verifyGoogleIdToken } from './google-auth.js';
 import { newNonce, signSession, signState, verifyState } from './session.js';
-import { ensureUser, operatorAgentIdsByName } from '../db/agent-admin.js';
+import { ensureUser } from '../db/agent-admin.js';
 
 export interface OAuthConfig {
   clientId: string;
@@ -16,7 +11,6 @@ export interface OAuthConfig {
   authUrl: string;
   tokenUrl: string;
   sessionSecret: string;
-  emailAgents: EmailAgentMap;
   sessionTtlSec: number;
 }
 
@@ -49,7 +43,6 @@ function oauthConfigFromEnv(): OAuthConfig | null {
     redirectUri: envOr('GOOGLE_OAUTH_REDIRECT_URI', DEFAULT_REDIRECT_URI),
     authUrl: envOr('GOOGLE_OAUTH_AUTH_URL', DEFAULT_AUTH_URL),
     tokenUrl: envOr('GOOGLE_OAUTH_TOKEN_URL', DEFAULT_TOKEN_URL),
-    emailAgents: parseEmailAgentMap(process.env.GOOGLE_EMAIL_AGENTS),
     sessionTtlSec: sessionTtlFromEnv(),
   };
 }
@@ -100,7 +93,6 @@ export interface CallbackDeps {
   exchangeCode: (code: string) => Promise<{ id_token?: string }>;
   verifyIdToken: (idToken: string, nonce: string) => Promise<{ email: string }>;
   ensureUser: (email: string) => Promise<number>;
-  grantedAgentIds: (names: string[]) => Promise<number[]>;
 }
 
 export async function completeCallback(
@@ -125,9 +117,8 @@ export async function completeCallback(
   }
 
   const userId = await deps.ensureUser(email);
-  const granted = agentsForEmail(cfg.emailAgents, email);
-  const agentIds = granted ? await deps.grantedAgentIds(granted) : [];
-  log.info({ userId, granted: agentIds.length }, 'google auth: session issued');
+  const agentIds: number[] = [];
+  log.info({ userId }, 'google auth: session issued');
 
   const session = signSession({ email, agentIds }, cfg.sessionSecret, {
     ttlSec: cfg.sessionTtlSec,
@@ -164,7 +155,6 @@ function defaultDeps(cfg: OAuthConfig): CallbackDeps {
         expectedNonce: nonce,
       }).then((c) => ({ email: c.email })),
     ensureUser,
-    grantedAgentIds: operatorAgentIdsByName,
   };
 }
 

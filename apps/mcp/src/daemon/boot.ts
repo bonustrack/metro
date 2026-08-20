@@ -72,17 +72,11 @@ async function syncStations(station: StationName): Promise<void> {
 
 const attachSessions = new AttachSessions({
   authorize: async (owner) => {
-    await ownedAgentOrThrow(
-      await userIdForEmail(owner.email),
-      owner.granted,
-      owner.agentId,
-      'changed',
-    );
+    await ownedAgentOrThrow(await userIdForEmail(owner.email), owner.agentId);
   },
   complete: async (owner, station, config) => {
     const ref = await attachAccountToAgent(
       owner.email,
-      owner.granted,
       owner.agentId,
       station,
       config,
@@ -103,10 +97,9 @@ const attachSessions = new AttachSessions({
 
 async function resetAgentKey(
   email: string,
-  granted: string[],
   id: number,
 ): Promise<ResetAgentKey> {
-  const reset = await resetAgentKeyForEmail(email, granted, id);
+  const reset = await resetAgentKeyForEmail(email, id);
   const closed = await closeAgentSession(id);
   log.info(
     { agent: reset.name, id: reset.id, sessionClosed: closed },

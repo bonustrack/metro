@@ -47,16 +47,14 @@ the UI ships no Google JavaScript at all.
   re-serves it for agents you own.
 - Each agent you **own** carries a **Delete agent** button that asks for confirmation in
   place before it fires `DELETE /api/agents/<id>`. Deleting revokes that agent's API key
-  immediately and clears the selection. Agents shown as *granted, not owned* have no delete
-  button and no key (only the endpoint), and the daemon refuses the call anyway.
+  immediately and clears the selection.
 - The four states the main pane can be in: **no agents at all** → the create form, titled
   *Create your first agent*; **no agent selected** (you just deleted the one you were
   looking at, or you are on `#/`) → a prompt to pick one on the left, carrying its own
   **New agent** button so that state is never a dead end; **a routed id this account cannot
   resolve** → the neutral not-available message with the same **New agent** button;
-  **an agent with no accounts** → its
-  credentials plus a line saying no chat account is connected yet; **a granted agent** →
-  its endpoint, no key.
+  **an agent with no stations** → its
+  credentials plus a line saying no station is connected yet.
 - **Start a Claude Code session** is a page of its own at `#/start`, reached from the
   **Claude Code** button in the top bar. It leads with the command that starts a session
   with the Metro channel enabled, carries the `-c` resume variant under it, and then lists
@@ -98,9 +96,9 @@ person, may share one. Everything that decides what a session may see or delete 
 
 An agent created here records the creator in `agents.owner_id`, the `users` row for their
 verified Google email (created on first sign-in, one row per address).
-`/api/agents` returns only the agents whose `owner_id` is that row, plus
-any agent names granted to that email through the daemon's `GOOGLE_EMAIL_AGENTS` map (shown
-as not-owned). Accounts are filtered to that same set of agents, server-side, and each one
+`/api/agents` returns only the agents whose `owner_id` is that row. Operator-provisioned
+rows (`owner_id IS NULL`) are not listed to anybody.
+Accounts are filtered to that same set of agents, server-side, and each one
 comes back stamped with the `agentId` it belongs to, which is what the sidebar/main split
 renders, so the browser never guesses the pairing. A signed-in user with no agents sees an
 empty sidebar and the create form, never anyone else's data.
@@ -114,8 +112,8 @@ of shown.
 
 Sign-in is open to any Google account with a verified email, on any domain, and there is no
 cap on how many agents one email owns. Deletion is owner-only and keyed on `agents.id`:
-someone else's agent id is a `404`, and an operator-provisioned row (`owner_id IS NULL`)
-is refused even for a session that can see it through `GOOGLE_EMAIL_AGENTS`.
+someone else's agent id is a `404`, and so is an operator-provisioned row
+(`owner_id IS NULL`).
 
 ## Config
 
@@ -123,7 +121,7 @@ is refused even for a session that can see it through `GOOGLE_EMAIL_AGENTS`.
   is also where the sign-in redirect and `/api/agents` point.
 
 The daemon (apps/mcp) needs `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` and
-`METRO_SESSION_SECRET`; `GOOGLE_EMAIL_AGENTS` is optional (see repo `.env.example`).
+`METRO_SESSION_SECRET` (see repo `.env.example`).
 
 ## Run locally
 
