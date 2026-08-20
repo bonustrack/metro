@@ -1,11 +1,12 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { STATE_DIR } from './paths.js';
 import { errMsg, log } from './log.js';
 import { readJson } from './secure-fs.js';
 
 const FILE = join(STATE_DIR, 'tunnel.json');
-const WEBHOOKS_FILE = join(STATE_DIR, 'webhooks.json');
+const LEGACY_WEBHOOKS_FILE = join(STATE_DIR, 'webhooks.json');
 const RESTART_DELAY_MS = 2_000;
 
 export interface TunnelConfig {
@@ -20,20 +21,56 @@ export interface Endpoint {
   session?: string;
   createdAt: string;
 }
-interface Store {
-  endpoints: Endpoint[];
+interface AccountRecord {
+  id?: unknown;
+  label?: unknown;
+  secret?: unknown;
+  session?: unknown;
+  createdAt?: unknown;
 }
 
 export const webhookPort = (): number =>
   Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 
-function readWebhooks(): Store {
-  return readJson<Store>(WEBHOOKS_FILE, { endpoints: [] });
+const accountsFile = (): string =>
+  process.env.WEBHOOK_ACCOUNTS_FILE ??
+  join(homedir(), '.metro', 'webhook-accounts.json');
+
+const str = (v: unknown): string | undefined =>
+  typeof v === 'string' && v !== '' ? v : undefined;
+
+function toEndpoint(raw: AccountRecord): Endpoint | null {
+  const id = str(raw.id);
+  if (id === undefined) return null;
+  return {
+    id,
+    label: str(raw.label) ?? id,
+    secret: str(raw.secret),
+    session: str(raw.session),
+    createdAt: str(raw.createdAt) ?? '',
+  };
 }
 
-export const listEndpoints = (): Endpoint[] => readWebhooks().endpoints;
+export function listEndpoints(): Endpoint[] {
+  const raw = readJson<AccountRecord[]>(accountsFile(), [], {
+    warn: 'webhook-accounts.json: malformed, ignoring',
+  });
+  if (!Array.isArray(raw)) return [];
+  return raw.map(toEndpoint).filter((e): e is Endpoint => e !== null);
+}
+
 export const findEndpoint = (id: string): Endpoint | undefined =>
-  readWebhooks().endpoints.find((e) => e.id === id);
+  listEndpoints().find((e) => e.id === id);
+
+export function warnOnLegacyWebhooks(): void {
+  const legacy = readJson<{ endpoints?: unknown[] }>(LEGACY_WEBHOOKS_FILE, {});
+  const count = Array.isArray(legacy.endpoints) ? legacy.endpoints.length : 0;
+  if (count > 0)
+    log.warn(
+      { file: LEGACY_WEBHOOKS_FILE, endpoints: count },
+      'webhook: webhooks.json is no longer read — endpoints live in the accounts table; these endpoints are inactive',
+    );
+}
 
 export const loadTunnelConfig = (): TunnelConfig | null =>
   readJson<TunnelConfig | null>(FILE, null, {

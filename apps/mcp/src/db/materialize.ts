@@ -24,7 +24,7 @@ import { accounts, agents, type StationName } from './schema.js';
 interface StationTarget {
   file: string;
   fileEnv: string;
-  trainImport: string;
+  trainImport: string | null;
 }
 
 interface LoadedAccount {
@@ -69,6 +69,11 @@ const STATION_TARGETS: Record<StationName, StationTarget> = {
     file: 'whatsapp-accounts.json',
     fileEnv: 'WHATSAPP_ACCOUNTS_FILE',
     trainImport: '@metro-labs/whatsapp/train',
+  },
+  webhook: {
+    file: 'webhook-accounts.json',
+    fileEnv: 'WEBHOOK_ACCOUNTS_FILE',
+    trainImport: null,
   },
 };
 
@@ -160,10 +165,9 @@ function writeStations(list: LoadedAgent[]): Map<StationName, number> {
   for (const [station, accts] of byStation) {
     const records = accts.map((a) => ({ id: a.accountId, ...a.config }));
     writeSecure(accountFilePath(station), JSON.stringify(records, null, 2));
-    writeIfChanged(
-      trainStubPath(station),
-      `import '${STATION_TARGETS[station].trainImport}';\n`,
-    );
+    const { trainImport } = STATION_TARGETS[station];
+    if (trainImport !== null)
+      writeIfChanged(trainStubPath(station), `import '${trainImport}';\n`);
     active.set(station, accts.length);
   }
   return active;
@@ -173,10 +177,15 @@ function pruneStations(present: Map<StationName, number>): StationName[] {
   const removed: StationName[] = [];
   for (const station of Object.keys(STATION_TARGETS) as StationName[]) {
     if (present.has(station)) continue;
+    const hasTrain = STATION_TARGETS[station].trainImport !== null;
     const stub = trainStubPath(station);
-    if (!existsSync(stub) && !existsSync(accountFilePath(station))) continue;
+    if (
+      (!hasTrain || !existsSync(stub)) &&
+      !existsSync(accountFilePath(station))
+    )
+      continue;
     writeSecure(accountFilePath(station), '[]\n');
-    rmSync(stub, { force: true });
+    if (hasTrain) rmSync(stub, { force: true });
     removed.push(station);
   }
   return removed;

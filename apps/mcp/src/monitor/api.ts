@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { stationByName } from '../stations/registry.js';
 import { errMsg, log } from '../daemon/log.js';
 import { subscribeEvents, type MetroEvent } from '../daemon/events.js';
 import { callTargetDenied, eventInScope } from '../db/agent-scope.js';
@@ -142,6 +143,12 @@ async function handleCall(
   if (callTargetDenied(allowed, train, args)) {
     sendJson(res, req, 403, {
       error: 'metro: this account is outside your authorized scope',
+    });
+    return;
+  }
+  if (stationByName(train)?.hasTrain === false) {
+    sendJson(res, req, 400, {
+      error: `metro: station '${train}' runs in-core and takes no calls`,
     });
     return;
   }

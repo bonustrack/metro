@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "tsc --noEmit && bun test test/"
+    "test": "tsc --noEmit && DYLD_FALLBACK_LIBRARY_PATH=/usr/lib bun test test/"
   },
   "dependencies": {
     "@metro-labs/mcp": "workspace:*",

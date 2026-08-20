@@ -1,5 +1,10 @@
 import { forwardTrainCall } from '../daemon/train-call.js';
-import { accountStationNames } from '../stations/registry.js';
+import { publicBaseOrDefault } from '../daemon/attach-serve.js';
+import {
+  accountStationNames,
+  stationByName,
+} from '../stations/registry.js';
+import { listEndpoints } from '../daemon/tunnel.js';
 import { agentIdForAccount } from '../db/agent-map.js';
 
 const accountId = (acc: unknown): string | undefined => {
@@ -46,12 +51,30 @@ export function scopeAccountsByAgent(
   return out;
 }
 
+const hasTrain = (station: string): boolean =>
+  stationByName(station)?.hasTrain !== false;
+
+function inCoreAccounts(station: string): unknown[] {
+  if (station !== 'webhook') return [];
+  const base = publicBaseOrDefault().replace(/\/+$/, '');
+  return listEndpoints().map((e) => ({
+    id: e.id,
+    handle: `/wh/${e.id}`,
+    url: `${base}/wh/${e.id}`,
+    signed: e.secret === undefined ? 'no' : 'hmac-sha256',
+  }));
+}
+
 export async function gatherAccounts(
   allowedAgents?: Set<number>,
 ): Promise<Record<string, unknown[]>> {
   const out: Record<string, unknown[]> = {};
   await Promise.all(
     accountStationNames().map(async (station) => {
+      if (!hasTrain(station)) {
+        out[station] = inCoreAccounts(station);
+        return;
+      }
       try {
         const resp = await forwardTrainCall(station, 'accounts', {});
         const accounts = (
@@ -78,6 +101,10 @@ export async function gatherAccountsForAgents(
   const out: Record<string, unknown[]> = {};
   await Promise.all(
     accountStationNames().map(async (station) => {
+      if (!hasTrain(station)) {
+        out[station] = inCoreAccounts(station);
+        return;
+      }
       try {
         const resp = await forwardTrainCall(station, 'accounts', {});
         const accounts = (

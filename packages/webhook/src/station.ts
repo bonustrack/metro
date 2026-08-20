@@ -9,7 +9,8 @@ const sessionOwner = (sessionId: string): Line =>
 
 export const webhookStation: Station = {
   name: 'webhook',
-  hasAccounts: false,
+  hasAccounts: true,
+  hasTrain: false,
   messageVerbs: new Set<Verb>(),
   attachmentMode: 'none',
   tools: [],

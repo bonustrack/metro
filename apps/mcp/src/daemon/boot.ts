@@ -5,7 +5,12 @@ import { setTrainCallBackend } from './train-call.js';
 import { errMsg, log, logFatalSync } from './log.js';
 import { acquireLock, loadMetroEnv, STATE_DIR } from './paths.js';
 import { installCrashGuard, markDaemonReady } from './crash-guard.js';
-import { loadTunnelConfig, Tunnel, webhookPort } from './tunnel.js';
+import {
+  loadTunnelConfig,
+  Tunnel,
+  warnOnLegacyWebhooks,
+  webhookPort,
+} from './tunnel.js';
 import { TrainSupervisor, TRAINS_DIR } from './supervisor.js';
 import {
   makeEmit,
@@ -15,7 +20,10 @@ import {
 import { closeAgentSession, createMetroMcp } from '../mcp/index.js';
 import { metroCall } from '../mcp/ctx.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
-import { accountStationCapabilities } from '../stations/registry.js';
+import {
+  accountStationCapabilities,
+  stationByName,
+} from '../stations/registry.js';
 import { prepareAccount } from '../stations/attach.js';
 import { materializeFromDb, reloadAccountsFromDb } from '../db/materialize.js';
 import {
@@ -66,6 +74,7 @@ setTrainCallBackend((train, action, args) =>
 
 async function syncStations(station: StationName): Promise<void> {
   const { removed } = await reloadAccountsFromDb();
+  if (stationByName(station)?.hasTrain === false) return;
   if (removed.includes(station)) await supervisor.stopTrain(station);
   else supervisor.requestReload(station);
 }
@@ -124,6 +133,7 @@ const agentApi: AgentApiDeps = {
 
 async function main(): Promise<void> {
   await materializeFromDb();
+  warnOnLegacyWebhooks();
   supervisor.start();
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(

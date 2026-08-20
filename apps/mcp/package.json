@@ -39,7 +39,7 @@
     "build": "tsc",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "test": "tsc --noEmit && METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
+    "test": "tsc --noEmit && DYLD_FALLBACK_LIBRARY_PATH=/usr/lib METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
   },
   "dependencies": {
     "@metro-labs/discord": "workspace:*",

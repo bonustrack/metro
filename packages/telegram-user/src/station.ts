@@ -3,6 +3,7 @@ import type { GroupOp, Station, Verb } from '@metro-labs/mcp/stations/types';
 export const telegramUserStation: Station = {
   name: 'telegram-user',
   hasAccounts: true,
+  hasTrain: true,
   messageVerbs: new Set<Verb>([
     'send',
     'reply',

@@ -49,7 +49,7 @@ export function ConnectStation(props: ConnectStationProps): ReactNode {
           <Text size="sm" role="secondary">
             {known.length === 0
               ? 'This Metro daemon offers no station you can connect.'
-              : 'Pick the chat network this agent should talk on.'}
+              : 'Pick the network this agent should be reachable on.'}
           </Text>
           <StationPicker
             stations={known}

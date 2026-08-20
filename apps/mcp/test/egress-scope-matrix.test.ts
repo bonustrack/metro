@@ -37,6 +37,9 @@ const TONY_LINE = 'metro://whatsapp/m1-tony/111@lid';
 const LISA_LINE = 'metro://whatsapp/m34-lisa/222@lid';
 const MO_LINE = 'metro://whatsapp/m7-mo/333@lid';
 const GHOST_LINE = 'metro://whatsapp/m99-ghost/444@lid';
+const TONY_HOOK = 'metro://webhook/a1-gh';
+const LISA_HOOK = 'metro://webhook/a34-gh';
+const GHOST_HOOK = 'metro://webhook/nobody-gh';
 
 const TONY_KEY = 'mk_matrix_tony';
 const LISA_KEY = 'mk_matrix_lisa';
@@ -86,6 +89,20 @@ const CASES: Case[] = [
     delivered: false,
   },
   { name: 'any account at all', reader: NOBODY, line: TONY_LINE, delivered: false },
+  { name: 'its own webhook', reader: TONY, line: TONY_HOOK, delivered: true },
+  {
+    name: 'another agent webhook',
+    reader: TONY,
+    line: LISA_HOOK,
+    delivered: false,
+  },
+  {
+    name: 'a webhook with no owning agent',
+    reader: TONY,
+    line: GHOST_HOOK,
+    delivered: false,
+  },
+  { name: 'any webhook at all', reader: NOBODY, line: TONY_HOOK, delivered: false },
 ];
 
 let priorStations: string | undefined;
@@ -94,12 +111,14 @@ let monitorBase = '';
 
 beforeAll(async () => {
   priorStations = process.env.METRO_CHANNEL_STATIONS;
-  process.env.METRO_CHANNEL_STATIONS = 'whatsapp';
+  process.env.METRO_CHANNEL_STATIONS = 'whatsapp,webhook';
   setAgentMap(
     {
       'whatsapp/m1-tony': 1,
       'whatsapp/m34-lisa': 34,
       'whatsapp/m7-mo': 7,
+      'webhook/a1-gh': 1,
+      'webhook/a34-gh': 34,
     },
     { 1: 'Tony', 34: 'Lisa', 7: 'Mo' },
   );
@@ -130,11 +149,13 @@ const identityFor = (reader: Reader): RequestIdentity | undefined =>
     ? undefined
     : { kind: 'google', email: `${reader.label}@example.test`, agentIds: [...reader.scope] };
 
+const stationOf = (line: string): string => line.split('/')[2] ?? 'whatsapp';
+
 const inbound = (line: string, text: string): MetroEvent =>
   ({
     id: `id-${randomUUID()}`,
     ts: new Date().toISOString(),
-    station: 'whatsapp',
+    station: stationOf(line),
     line: asLine(line),
     from: asLine(`${line}/sender`),
     to: asLine(line),
@@ -142,6 +163,14 @@ const inbound = (line: string, text: string): MetroEvent =>
     messageId: `m-${randomUUID()}`,
     event: { type: 'msg' },
   }) as unknown as MetroEvent;
+
+const OWNER_OF: Record<string, number> = {
+  [TONY_LINE]: 1,
+  [LISA_LINE]: 34,
+  [MO_LINE]: 7,
+  [TONY_HOOK]: 1,
+  [LISA_HOOK]: 34,
+};
 
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 40));
 
@@ -158,7 +187,7 @@ function channelSession(owner: ChannelOwner): {
       },
     } as never,
     log: () => undefined,
-    getStations: () => new Set(['whatsapp']),
+    getStations: () => new Set(['whatsapp', 'webhook']),
     senderAllowed: () => true,
   });
   return {
@@ -222,7 +251,7 @@ async function sseResume(reader: Reader, line: string, text: string): Promise<bo
   const store = new BoundedEventStore({ scopeOf: () => owner.scope() });
   owner.bindStream({ kind: 'agent', agentId: PARKED_AGENT });
   const base = await store.storeEvent(STREAM, notification(MO_LINE, 'baseline'));
-  const author = line === MO_LINE ? 7 : line === LISA_LINE ? 34 : 1;
+  const author = OWNER_OF[line] ?? 1;
   owner.bindStream({ kind: 'agent', agentId: author });
   await store.storeEvent(STREAM, notification(line, text));
 

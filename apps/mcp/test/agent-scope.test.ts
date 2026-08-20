@@ -17,6 +17,7 @@ beforeEach(() =>
       'discord/d1': 1,
       'discord/d2': 2,
       'telegram/t2': 2,
+      'webhook/a1-gh': 1,
     },
     { 1: 'tony', 2: 'lisa' },
   ),
@@ -118,11 +119,21 @@ describe('eventInScope', () => {
     expect(eventInScope(TWO, 'metro://xmtp/x1/conv')).toBe(false);
   });
 
-  test('a line on a station with no accounts reaches everyone', () => {
-    expect(eventInScope(ONE, 'metro://webhook/gh')).toBe(true);
-    expect(eventInScope(TWO, 'metro://webhook/gh')).toBe(true);
+  test('a local line on a station with no accounts still reaches everyone', () => {
+    expect(eventInScope(ONE, 'metro://claude/org/session')).toBe(true);
     expect(eventInScope(TWO, 'metro://claude/org/session')).toBe(true);
-    expect(eventInScope(new Set(), 'metro://webhook/gh')).toBe(true);
+    expect(eventInScope(new Set(), 'metro://claude/org/session')).toBe(true);
+  });
+
+  test('an owned webhook reaches its agent and nobody else', () => {
+    expect(eventInScope(ONE, 'metro://webhook/a1-gh')).toBe(true);
+    expect(eventInScope(TWO, 'metro://webhook/a1-gh')).toBe(false);
+    expect(eventInScope(new Set(), 'metro://webhook/a1-gh')).toBe(false);
+  });
+
+  test('a webhook with no owning agent reaches nobody', () => {
+    expect(eventInScope(ONE, 'metro://webhook/unmapped')).toBe(false);
+    expect(eventInScope(TWO, 'metro://webhook/unmapped')).toBe(false);
   });
 
   test('an account-station line with no owning agent reaches nobody', () => {

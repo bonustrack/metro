@@ -53,7 +53,7 @@ export async function dispatchListMembers(
   const station = stationForLine(line);
   if (!station)
     return okJson(unsupportedMembers(line, '', `no station for line ${line}`));
-  if (!station.hasAccounts)
+  if (!station.hasAccounts || !station.hasTrain)
     return okJson(
       unsupportedMembers(
         line,

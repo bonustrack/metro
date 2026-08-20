@@ -7,6 +7,7 @@ import {
   type MediaNote,
   type SavedMedia,
 } from './media-note.js';
+import { buildWebhookNote } from './webhook-note.js';
 import {
   capSet,
   displayNameMeta,
@@ -272,10 +273,10 @@ export class InboundRelay {
   ): EventBase | null {
     const rawType = ev.event ? (ev.event as { type?: string }).type : 'msg';
     const evType = rawType === 'reply' ? 'msg' : rawType;
-    if (evType !== 'msg' && evType !== 'react') return null;
-    const station = str(ev.station);
-    if (station === 'webhook' || !this.deps.getStations().has(station))
+    if (evType !== 'msg' && evType !== 'react' && evType !== 'system')
       return null;
+    const station = str(ev.station);
+    if (!this.deps.getStations().has(station)) return null;
     const from = str(ev.from);
     const line = str(ev.line);
     if (this.droppedSender(from, line)) return null;
@@ -296,9 +297,13 @@ export class InboundRelay {
     ev: Record<string, unknown>,
     base: EventBase,
   ): Promise<void> {
-    if (await this.handlePermissionReply(base.text)) return;
+    if (base.evType === 'msg' && (await this.handlePermissionReply(base.text)))
+      return;
     await this.notify('notifications/claude/channel', {
-      content: base.text,
+      content:
+        base.evType === 'system'
+          ? buildWebhookNote(base.text, str(ev.lineName), ev.payload)
+          : base.text,
       meta: {
         line: base.line,
         from: base.from,
@@ -319,7 +324,7 @@ export class InboundRelay {
 
     const base = this.routable(ev, replay);
     if (!base) return;
-    this.lastLine = base.line;
+    if (base.evType !== 'system') this.lastLine = base.line;
     if (base.line) {
       this.allowedLines.add(base.line);
       capSet(this.allowedLines, ALLOWED_LINES_MAX);

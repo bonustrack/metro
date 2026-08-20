@@ -8,6 +8,7 @@ import {
   verifyTelegramBotToken,
 } from '@metro-labs/telegram/verify';
 import { ApiError } from '../daemon/api-error.js';
+import { publicBaseOrDefault } from '../daemon/attach-serve.js';
 import {
   discardXmtpDb,
   newXmtpDbPath,
@@ -16,7 +17,12 @@ import {
   type VerifyXmtpKey,
 } from './attach-xmtp.js';
 
-export const ATTACHABLE_STATIONS = ['discord', 'telegram', 'xmtp'] as const;
+export const ATTACHABLE_STATIONS = [
+  'discord',
+  'telegram',
+  'xmtp',
+  'webhook',
+] as const;
 
 export type AttachStation = (typeof ATTACHABLE_STATIONS)[number];
 
@@ -38,6 +44,7 @@ export interface PreparedAccount {
   identity: Record<string, string>;
   secret?: OneTimeSecret;
   discard?: () => void;
+  finalize?: (accountId: string) => Record<string, string>;
 }
 
 const TOKEN_RE = /^[A-Za-z0-9._:-]{8,256}$/;
@@ -146,11 +153,32 @@ async function prepareXmtp(verify: VerifyXmtpKey): Promise<PreparedAccount> {
   };
 }
 
+const webhookUrl = (accountId: string): string =>
+  `${publicBaseOrDefault().replace(/\/+$/, '')}/wh/${accountId}`;
+
+function prepareWebhook(): PreparedAccount {
+  const secret = randomBytes(32).toString('hex');
+  return {
+    config: { secret, createdAt: new Date().toISOString() },
+    identity: {},
+    secret: {
+      label: 'webhook signing secret',
+      value: secret,
+      note:
+        'Sign each request body with HMAC-SHA256 and send it as ' +
+        'x-hub-signature-256: sha256=<hex>. Metro shows this secret once, ' +
+        'here, and no API returns it again.',
+    },
+    finalize: (accountId) => ({ url: webhookUrl(accountId) }),
+  };
+}
+
 export async function prepareAccount(
   input: AttachInput,
   verify: VerifyXmtpKey = verifyXmtpKeyOutOfProcess,
 ): Promise<PreparedAccount> {
   if (input.station === 'discord') return prepareDiscord(input.token);
   if (input.station === 'telegram') return prepareTelegram(input.token);
+  if (input.station === 'webhook') return prepareWebhook();
   return prepareXmtp(verify);
 }

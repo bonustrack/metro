@@ -105,6 +105,7 @@ export function makeEmit(dedupSeq?: DedupSeq): Emit {
     const enriched: MetroEvent = withAttachmentUrl({
       ...entry,
       seq,
+      agent: entry.agent ?? agentForLine(entry.line),
       display: entry.display ?? formatDisplay(entry),
       event: entry.event ?? classifyEvent(entry),
     });
