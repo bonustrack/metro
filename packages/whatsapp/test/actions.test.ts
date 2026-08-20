@@ -20,6 +20,7 @@ function fakeClient(calls: Captured[]): WAClient {
     };
   return {
     account: { id: 'w0', phone: '111' },
+    self: () => '447700900123',
     start: () => Promise.resolve(),
     sendText: record('sendText'),
     sendMedia: record('sendMedia'),
@@ -232,7 +233,7 @@ describe('whatsapp outbound handlers', () => {
     expect(calls[0]).toEqual({ method: 'deleteMessage', args: [JID, 'ABC'] });
   });
 
-  test('accounts lists configured ids', async () => {
+  test('accounts reports the paired number and a wa.me link', async () => {
     const handle = makeHandleCall(() => fakeClient(calls));
     const cap = captureResponses();
     await handle({ op: 'call', id: 'g', action: 'accounts', args: {} });
@@ -240,7 +241,17 @@ describe('whatsapp outbound handlers', () => {
     expect(cap.responses[0]).toMatchObject({
       op: 'response',
       id: 'g',
-      result: { accounts: [{ id: 'w0', owner: null }] },
+      result: {
+        accounts: [
+          {
+            id: 'w0',
+            owner: null,
+            handle: '+447700900123',
+            url: 'https://wa.me/447700900123',
+            connected: true,
+          },
+        ],
+      },
     });
   });
 
@@ -290,5 +301,41 @@ describe('whatsapp outbound handlers', () => {
     cap.restore();
     expect(calls[0]?.args[1]).toMatchObject({ kind: 'audio' });
     expect(cap.responses[0]).toMatchObject({ result: { attachments: ['audio'] } });
+  });
+});
+
+describe('the handle is the number actually paired, not the one configured', () => {
+  beforeEach(() => {
+    accounts.set('w0', { id: 'w0', phone: '111' });
+  });
+  afterEach(() => {
+    accounts.clear();
+  });
+
+  test('a socket that is not connected reports no handle and no link', async () => {
+    const calls: Captured[] = [];
+    const offline = { ...fakeClient(calls), self: () => null };
+    const handle = makeHandleCall(() => offline);
+    const cap = captureResponses();
+    await handle({ op: 'call', id: 'g', action: 'accounts', args: {} });
+    cap.restore();
+    expect(cap.responses[0]).toMatchObject({
+      result: {
+        accounts: [{ id: 'w0', handle: null, url: null, connected: false }],
+      },
+    });
+  });
+
+  test('the config phone is never used as the handle', async () => {
+    const calls: Captured[] = [];
+    const moved = { ...fakeClient(calls), self: () => '999888777' };
+    const handle = makeHandleCall(() => moved);
+    const cap = captureResponses();
+    await handle({ op: 'call', id: 'g', action: 'accounts', args: {} });
+    cap.restore();
+    const [account] = (
+      cap.responses[0] as { result: { accounts: { handle: string }[] } }
+    ).result.accounts;
+    expect(account?.handle).toBe('+999888777');
   });
 });

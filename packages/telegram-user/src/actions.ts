@@ -215,12 +215,18 @@ function makeGroupInvite(clientFor: ClientFor): StationHandler {
   };
 }
 
-function makeAccounts(): StationHandler {
+function makeAccounts(clientFor: ClientFor): StationHandler {
   return (id) => {
-    const list = [...accounts.values()].map((a) => ({
-      id: a.id,
-      owner: a.owner ?? null,
-    }));
+    const list = [...accounts.values()].map((a) => {
+      const me = clientFor(a.id).self();
+      const username = me?.username ?? null;
+      return {
+        id: a.id,
+        handle: username === null ? me?.phone ?? null : `@${username}`,
+        url: username === null ? null : `https://t.me/${username}`,
+        owner: a.owner ?? null,
+      };
+    });
     respond(id, { result: { accounts: list } });
     return Promise.resolve();
   };
@@ -231,7 +237,7 @@ export function makeHandleCall(
 ): (msg: CallMsg) => Promise<void> {
   return makeStation({
     handlers: {
-      accounts: makeAccounts(),
+      accounts: makeAccounts(clientFor),
       send: makeSend(clientFor),
       react: makeReact(clientFor),
       edit: makeEdit(clientFor),

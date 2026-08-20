@@ -145,12 +145,18 @@ function makeDelete(clientFor: ClientFor): StationHandler {
   };
 }
 
-function makeAccounts(): StationHandler {
+function makeAccounts(clientFor: ClientFor): StationHandler {
   return (id) => {
-    const list = [...accounts.values()].map((a) => ({
-      id: a.id,
-      owner: a.owner ?? null,
-    }));
+    const list = [...accounts.values()].map((a) => {
+      const phone = clientFor(a.id).self();
+      return {
+        id: a.id,
+        handle: phone === null ? null : `+${phone}`,
+        url: phone === null ? null : `https://wa.me/${phone}`,
+        connected: phone !== null,
+        owner: a.owner ?? null,
+      };
+    });
     respond(id, { result: { accounts: list } });
     return Promise.resolve();
   };
@@ -161,7 +167,7 @@ export function makeHandleCall(
 ): (msg: CallMsg) => Promise<void> {
   return makeStation({
     handlers: {
-      accounts: makeAccounts(),
+      accounts: makeAccounts(clientFor),
       send: makeSend(clientFor),
       react: makeReact(clientFor),
       edit: makeEdit(clientFor),

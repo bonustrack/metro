@@ -19,8 +19,29 @@ export type DetachHandler = (station: string, accountId: string) => Promise<void
 const CARD = { width: 260, height: 180 } as const;
 const DETAIL_LINES = 2;
 
+const valueOf = (row: AccountRow, label: string): string | undefined => {
+  const found = row.fields.find((f) => f.label === label)?.value;
+  return found === undefined || found === '-' ? undefined : found;
+};
+
+const HIDDEN = new Set(['id', 'handle', 'url']);
+
 function details(row: AccountRow): AccountField[] {
-  return row.fields.filter((f) => f.label !== 'id').slice(0, DETAIL_LINES);
+  return row.fields.filter((f) => !HIDDEN.has(f.label)).slice(0, DETAIL_LINES);
+}
+
+function Handle({ row, fallback }: { row: AccountRow; fallback: string }): ReactNode {
+  const handle = valueOf(row, 'handle') ?? fallback;
+  const url = valueOf(row, 'url');
+  if (url === undefined)
+    return (
+      <Text size="sm" variant="mono" numberOfLines={1}>{handle}</Text>
+    );
+  return (
+    <a className="hint-link" href={url} target="_blank" rel="noreferrer">
+      <Text size="sm" variant="mono" numberOfLines={1}>{handle}</Text>
+    </a>
+  );
 }
 
 interface StationCardProps {
@@ -47,7 +68,7 @@ function StationCard({ station, row, dark, onDetach }: StationCardProps): ReactN
             <DetachAccount station={station} accountId={id} onDetach={onDetach} />
           ) : null}
         </Row>
-        <Text size="sm" variant="mono" numberOfLines={1}>{id ?? '-'}</Text>
+        <Handle row={row} fallback={id ?? '-'} />
         <Col gap={4} style={{ flex: 1, minHeight: 0 }}>
           {details(row).map((field) => (
             <Col key={field.label} gap={1}>

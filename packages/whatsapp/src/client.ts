@@ -40,6 +40,7 @@ export interface WAMedia {
 
 export interface WAClient {
   account: WhatsAppAccount;
+  self(): string | null;
   start(handlers: InboundHandlers): Promise<void>;
   sendText(jid: string, text: string, quotedId?: string): Promise<string>;
   sendMedia(jid: string, media: WAMedia, quotedId?: string): Promise<string>;
@@ -244,6 +245,11 @@ export function createClient(account: WhatsAppAccount): WAClient {
   resetGate(st);
   return {
     account,
+    self() {
+      const jid = st.sock?.user?.id;
+      if (jid === undefined) return null;
+      return jid.split(':')[0]?.split('@')[0] ?? null;
+    },
     async start(handlers) {
       st.handlers = handlers;
       try {

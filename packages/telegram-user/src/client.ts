@@ -9,9 +9,15 @@ import type { UserAccount } from './types.js';
 const STATE_DIR =
   process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
 
+export interface Self {
+  username: string | null;
+  phone: string | null;
+}
+
 export interface UserClient {
   account: UserAccount;
   tg: TelegramClient;
+  self: () => Self | null;
   connect: () => Promise<void>;
   startUpdates: () => Promise<void>;
   disconnect: () => Promise<void>;
@@ -37,6 +43,8 @@ export function createClient(account: UserAccount): UserClient {
     storage: storagePath(account.id),
   });
 
+  let me: Self | null = null;
+
   const connect = async (): Promise<void> => {
     try {
       await tg.importSession(account.session);
@@ -45,6 +53,14 @@ export function createClient(account: UserAccount): UserClient {
       throw new TrainError(
         'telegram_user_auth',
         `account '${account.id}' connect failed: ${errMsg(e)}`,
+      );
+    }
+    try {
+      const user = await tg.getMe();
+      me = { username: user.username ?? null, phone: user.phoneNumber ?? null };
+    } catch (e) {
+      process.stderr.write(
+        `telegram-user[${account.id}] identity unavailable: ${errMsg(e)}\n`,
       );
     }
   };
@@ -57,5 +73,5 @@ export function createClient(account: UserAccount): UserClient {
     await tg.disconnect();
   };
 
-  return { account, tg, connect, startUpdates, disconnect };
+  return { account, tg, self: () => me, connect, startUpdates, disconnect };
 }

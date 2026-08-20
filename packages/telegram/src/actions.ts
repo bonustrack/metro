@@ -54,11 +54,14 @@ async function listAccounts(id: string): Promise<void> {
   const list = await Promise.all(
     [...accounts.values()].map(async (a) => {
       const me = await getMe(a.cfg.id);
+      const username = me?.username ?? null;
       return {
         id: a.cfg.id,
+        handle: username === null ? null : `@${username}`,
+        url: username === null ? null : `https://t.me/${username}`,
         owner: a.cfg.owner ?? null,
         botId: me?.id ?? null,
-        username: me?.username ?? null,
+        username,
       };
     }),
   );

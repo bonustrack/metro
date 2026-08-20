@@ -142,11 +142,16 @@ function presence(id: string, args: Record<string, unknown>): void {
   });
 }
 
+const profileUrl = (userId?: string): string | null =>
+  userId === undefined ? null : `https://discord.com/users/${userId}`;
+
 function listAccounts(id: string): void {
   respond(id, {
     result: {
       accounts: [...accounts.values()].map((a) => ({
         id: a.cfg.id,
+        handle: a.client.user?.username ?? null,
+        url: profileUrl(a.client.user?.id),
         userId: a.client.user?.id ?? null,
         username: a.client.user?.username ?? null,
         owner: a.cfg.owner ?? null,
