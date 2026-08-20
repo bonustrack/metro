@@ -1,20 +1,21 @@
 import { type Selection } from './components/selection';
 
-const AGENT_PATH = /^#?\/([1-9][0-9]{0,9})$/;
-const NEW_PATH = /^#?\/new$/;
-const START_PATH = /^#?\/start$/;
+const AGENT_PATH = /^#?\/agent\/([1-9][0-9]{0,9})$/;
+const DOCS_PATH = /^#?\/docs\/setup$/;
+const SETTINGS_PATH = /^#?\/settings$/;
 
 export function routeSelection(hash: string): Selection {
-  if (NEW_PATH.test(hash)) return { kind: 'new' };
-  if (START_PATH.test(hash)) return { kind: 'start' };
+  if (DOCS_PATH.test(hash)) return { kind: 'docs' };
+  if (SETTINGS_PATH.test(hash)) return { kind: 'settings' };
   const id = AGENT_PATH.exec(hash)?.[1];
   return id === undefined ? { kind: 'none' } : { kind: 'agent', id: Number(id) };
 }
 
 export function routeHash(selection: Selection): string {
-  if (selection.kind === 'agent') return `#/${selection.id}`;
-  if (selection.kind === 'start') return '#/start';
-  return selection.kind === 'new' ? '#/new' : '#/';
+  if (selection.kind === 'agent') return `#/agent/${selection.id}`;
+  if (selection.kind === 'docs') return '#/docs/setup';
+  if (selection.kind === 'settings') return '#/settings';
+  return '#/';
 }
 
 export function currentSelection(): Selection {

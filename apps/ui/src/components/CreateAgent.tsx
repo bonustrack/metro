@@ -1,20 +1,28 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui';
-import { CARD_PADDING } from '../theme';
+import { Modal } from './Modal';
 
 interface CreateAgentProps {
+  open: boolean;
   first: boolean;
+  onClose: () => void;
   onCreate: (name: string) => Promise<void>;
 }
 
-export function CreateAgent({ first, onCreate }: CreateAgentProps): ReactNode {
+export function CreateAgent({ open, first, onClose, onCreate }: CreateAgentProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const close = (): void => {
+    if (busy) return;
+    setName('');
+    setError(null);
+    onClose();
+  };
 
   const submit = (): void => {
     const trimmed = name.trim();
@@ -24,6 +32,7 @@ export function CreateAgent({ first, onCreate }: CreateAgentProps): ReactNode {
     onCreate(trimmed)
       .then(() => {
         setName('');
+        onClose();
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not create the agent.');
@@ -34,28 +43,25 @@ export function CreateAgent({ first, onCreate }: CreateAgentProps): ReactNode {
   };
 
   return (
-    <Card dark={dark} padding={CARD_PADDING}>
-      <Col gap={12}>
-        <Col gap={2}>
-          <Text size="lg" weight="semibold">
-            {first ? 'Create your first agent' : 'New agent'}
-          </Text>
-          <Text size="sm" role="secondary">
-            Pick a name. Metro generates an API key and the MCP endpoint to add it to Claude Code.
-            Chat accounts are attached to the agent, and show up on its page.
-          </Text>
-        </Col>
-        <Row gap={10} align="center" wrap>
-          <Input
-            name="agent-name"
-            value={name}
-            placeholder="my-agent"
-            disabled={busy}
-            dark={dark}
-            onChangeText={setName}
-            onSubmit={submit}
-            style={{ flexGrow: 1, minWidth: 180 }}
-          />
+    <Modal title={first ? 'Create your first agent' : 'New agent'} open={open} onClose={close}>
+      <Col gap={14}>
+        <Text size="sm" role="secondary">
+          Pick a name. Metro generates an API key and the registration command for Claude Code.
+          Stations are attached to the agent, and show up on its page.
+        </Text>
+        <Input
+          name="agent-name"
+          value={name}
+          placeholder="my-agent"
+          disabled={busy}
+          dark={dark}
+          onChangeText={setName}
+          onSubmit={submit}
+          style={{ flexGrow: 1, minWidth: 0 }}
+        />
+        {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+        <Row justify="between" align="center" gap={12} wrap>
+          <Button color="secondary" dark={dark} disabled={busy} onPress={close} label="Cancel" />
           <Button
             color="primary"
             dark={dark}
@@ -65,8 +71,7 @@ export function CreateAgent({ first, onCreate }: CreateAgentProps): ReactNode {
             label="Create agent"
           />
         </Row>
-        {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
       </Col>
-    </Card>
+    </Modal>
   );
 }

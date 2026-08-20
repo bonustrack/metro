@@ -1,5 +1,4 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
 import {
   createAgent,
   deleteAgent,
@@ -14,55 +13,44 @@ import {
 } from '../route';
 import { AgentPanel } from './AgentPanel';
 import { AgentSidebar } from './AgentSidebar';
-import { TopBar } from './TopBar';
+import { CreateAgent } from './CreateAgent';
+import { Shell } from './Shell';
 import { type Selection } from './selection';
+import { useIsNarrow } from '../media';
 
 interface DashboardProps {
   token: string;
   data: DashboardData;
-  expiresAt: number;
   onRefresh: () => void;
   onLock: () => void;
 }
 
-const PAGE = {
-  maxWidth: 1040,
-  marginLeft: 'auto',
-  marginRight: 'auto',
-  width: '100%',
-  padding: 24,
-} as const;
-
-const SIDEBAR = { flexGrow: 1, flexShrink: 1, flexBasis: 220 } as const;
-const MAIN = { flexGrow: 5, flexShrink: 1, flexBasis: 400 } as const;
-
-function initialSelection(data: DashboardData): Selection {
-  const routed = currentSelection();
-  if (routed.kind !== 'none') return routed;
-  const first = data.agents[0];
-  return first === undefined ? { kind: 'new' } : { kind: 'agent', id: first.id };
-}
 
 export function Dashboard({
   token,
   data,
-  expiresAt,
   onRefresh,
   onLock,
 }: DashboardProps): ReactNode {
+  const narrow = useIsNarrow();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedAgent | null>(null);
-  const [picked, setPicked] = useState<Selection>(() => initialSelection(data));
+  const [picked, setPicked] = useState<Selection>(currentSelection);
 
-  const selection: Selection =
-    data.agents.length === 0 && picked.kind !== 'start' ? { kind: 'new' } : picked;
+  const selection: Selection = picked;
   const hash = routeHash(selection);
 
   useEffect(() => subscribeRoute(setPicked), []);
+  useEffect(() => {
+    if (!narrow) setMenuOpen(false);
+  }, [narrow]);
   useEffect(() => {
     applyRoute(selection, true);
   }, [hash]);
 
   const onSelect = (next: Selection): void => {
+    setMenuOpen(false);
     setPicked(next);
     applyRoute(next, false);
   };
@@ -82,46 +70,57 @@ export function Dashboard({
   };
 
   return (
-    <Col gap={24} style={PAGE}>
-      <TopBar
-        email={data.email}
-        expiresAt={expiresAt}
-        onStart={() => {
-          onSelect({ kind: 'start' });
+    <Shell
+      narrow={narrow}
+      menuOpen={menuOpen}
+      onOpenMenu={() => {
+        setMenuOpen(true);
+      }}
+      onCloseMenu={() => {
+        setMenuOpen(false);
+      }}
+      sidebar={
+        <AgentSidebar
+          agents={data.agents}
+          groups={data.groups}
+          selection={selection}
+          email={data.email}
+          onSelect={onSelect}
+          onNew={() => {
+            setCreating(true);
+          }}
+          onLock={onLock}
+        />
+      }
+    >
+      <AgentPanel
+        token={token}
+        agents={data.agents}
+        groups={data.groups}
+        attachable={data.attachable}
+        unattributed={data.unattributed}
+        selection={selection}
+        created={created}
+        onNew={() => {
+          setCreating(true);
         }}
-        onLock={onLock}
+        onOpen={(id) => {
+          onSelect({ kind: 'agent', id });
+        }}
+        onDismiss={() => {
+          setCreated(null);
+        }}
+        onChanged={onRefresh}
+        onDelete={onDelete}
       />
-      <Row gap={24} wrap align="start">
-        <Col style={SIDEBAR}>
-          <AgentSidebar
-            agents={data.agents}
-            groups={data.groups}
-            selection={selection}
-            onSelect={onSelect}
-          />
-        </Col>
-        <Col style={MAIN}>
-          <AgentPanel
-            token={token}
-            agents={data.agents}
-            groups={data.groups}
-            attachable={data.attachable}
-            unattributed={data.unattributed}
-            endpoint={data.endpoint}
-            selection={selection}
-            created={created}
-            onCreate={onCreate}
-            onNew={() => {
-              onSelect({ kind: 'new' });
-            }}
-            onDismiss={() => {
-              setCreated(null);
-            }}
-            onChanged={onRefresh}
-            onDelete={onDelete}
-          />
-        </Col>
-      </Row>
-    </Col>
+      <CreateAgent
+        open={creating}
+        first={data.agents.length === 0}
+        onClose={() => {
+          setCreating(false);
+        }}
+        onCreate={onCreate}
+      />
+    </Shell>
   );
 }

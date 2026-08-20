@@ -1,77 +1,70 @@
 import { type ReactNode } from 'react';
-import { Box, Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
 import { CARD_PADDING } from '../theme';
-import { type AccountGroup, type AccountRow } from '../api/accounts';
+import { stationLabel } from '../api/attach';
+import {
+  flattenAccounts,
+  type AccountGroup,
+  type AccountField,
+  type AccountRow,
+} from '../api/accounts';
 import { DetachAccount } from './DetachAccount';
-import { Field } from './Field';
 import { StationIcon } from './StationIcon';
 
 export type DetachHandler = (station: string, accountId: string) => Promise<void>;
 
-function CountBadge({ n }: { n: number }): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <Box background={palette.inputBg} radius={999} padding={{ x: 8, y: 2 }}>
-      <Text size="2xs" role="secondary">{n}</Text>
-    </Box>
-  );
+const CARD = { width: 260, height: 180 } as const;
+const DETAIL_LINES = 2;
+
+function details(row: AccountRow): AccountField[] {
+  return row.fields.filter((f) => f.label !== 'id').slice(0, DETAIL_LINES);
 }
 
-interface AccountCardProps {
+interface StationCardProps {
   station: string;
   row: AccountRow;
   dark: boolean;
   onDetach?: DetachHandler;
 }
 
-function AccountCard({ station, row, dark, onDetach }: AccountCardProps): ReactNode {
+function StationCard({ station, row, dark, onDetach }: StationCardProps): ReactNode {
+  const palette = useKitPalette();
   const id = row.id;
   return (
-    <Card dark={dark} padding={CARD_PADDING}>
-      <Col gap={12}>
-        <Row gap={20} wrap>
-          {row.fields.map((f) => (
-            <Field key={f.label} label={f.label} value={f.value} />
-          ))}
+    <Card dark={dark} padding={CARD_PADDING} style={CARD}>
+      <Col gap={10} style={{ flex: 1, minHeight: 0 }}>
+        <Row justify="between" align="center" gap={8}>
+          <Row gap={8} align="center" style={{ flexShrink: 1, minWidth: 0 }}>
+            <StationIcon station={station} color={palette.text} />
+            <Text size="sm" weight="semibold" numberOfLines={1}>
+              {stationLabel(station)}
+            </Text>
+          </Row>
+          {onDetach !== undefined && id !== null ? (
+            <DetachAccount station={station} accountId={id} onDetach={onDetach} />
+          ) : null}
         </Row>
-        {onDetach !== undefined && id !== null ? (
-          <DetachAccount station={station} accountId={id} onDetach={onDetach} />
-        ) : null}
+        <Text size="sm" variant="mono" numberOfLines={1}>{id ?? '-'}</Text>
+        <Col gap={4} style={{ flex: 1, minHeight: 0 }}>
+          {details(row).map((field) => (
+            <Col key={field.label} gap={1}>
+              <Text
+                size="2xs"
+                role="secondary"
+                numberOfLines={1}
+                style={{ textTransform: 'uppercase', letterSpacing: 0.4 }}
+              >
+                {field.label}
+              </Text>
+              <Text size="sm" variant="mono" numberOfLines={1}>{field.value}</Text>
+            </Col>
+          ))}
+        </Col>
       </Col>
     </Card>
-  );
-}
-
-interface GroupProps {
-  group: AccountGroup;
-  dark: boolean;
-  onDetach?: DetachHandler;
-}
-
-function Group({ group, dark, onDetach }: GroupProps): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <Col gap={10}>
-      <Row gap={8} align="center">
-        <StationIcon station={group.station} color={palette.text} />
-        <Text size="md" weight="semibold">{group.station}</Text>
-        <CountBadge n={group.rows.length} />
-      </Row>
-      <Col gap={8}>
-        {group.rows.map((row, i) => (
-          <AccountCard
-            key={i}
-            station={group.station}
-            row={row}
-            dark={dark}
-            onDetach={onDetach}
-          />
-        ))}
-      </Col>
-    </Col>
   );
 }
 
@@ -83,12 +76,19 @@ interface AccountListProps {
 
 export function AccountList({ groups, empty, onDetach }: AccountListProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  if (groups.length === 0) return <Text size="sm" role="secondary">{empty}</Text>;
+  const flat = flattenAccounts(groups);
+  if (flat.length === 0) return <Text size="sm" role="secondary">{empty}</Text>;
   return (
-    <Col gap={20}>
-      {groups.map((g) => (
-        <Group key={g.station} group={g} dark={dark} onDetach={onDetach} />
+    <Row gap={12} wrap align="start">
+      {flat.map((item) => (
+        <StationCard
+          key={`${item.station}/${item.row.id ?? ''}`}
+          station={item.station}
+          row={item.row}
+          dark={dark}
+          onDetach={onDetach}
+        />
       ))}
-    </Col>
+    </Row>
   );
 }

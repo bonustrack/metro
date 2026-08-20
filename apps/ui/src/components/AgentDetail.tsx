@@ -1,18 +1,16 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
+import { Text, Button } from './ui';
+import { PageTitle } from './PageTitle';
 import { CARD_PADDING } from '../theme';
 import { accountsForAgent, type AccountGroup } from '../api/accounts';
-import { detachAccount, type AttachResult } from '../api/attach';
-import { type AttachSession as Session } from '../api/attach-session';
+import { detachAccount } from '../api/attach';
 import { resetAgentKey, type AgentSummary } from '../api/client';
 import { AccountList } from './AccountList';
 import { AgentCredentials } from './AgentCredentials';
-import { AttachAccount } from './AttachAccount';
-import { AttachedAccount } from './AttachedAccount';
-import { AttachSession } from './AttachSession';
+import { ConnectStation } from './ConnectStation';
 import { DeleteAgent } from './DeleteAgent';
 
 function plural(n: number, word: string): string {
@@ -23,16 +21,15 @@ function subtitle(agent: AgentSummary): string {
   return agent.owned ? `id ${agent.id}` : `id ${agent.id} · granted, not owned`;
 }
 
-function emptyAccounts(agent: AgentSummary, unattributed: number): string {
+function emptyStations(agent: AgentSummary, unattributed: number): string {
   if (unattributed > 0)
-    return `This Metro daemon returned ${plural(unattributed, 'account')} without saying which agent they belong to, so they are not shown here.`;
-  return `No chat account is connected to “${agent.name}” yet. Connect one below.`;
+    return `This Metro daemon returned ${plural(unattributed, 'station')} without saying which agent they belong to, so they are not shown here.`;
+  return `No station is connected to “${agent.name}” yet. Connect one with the button above.`;
 }
 
 interface AgentDetailProps {
   token: string;
   agent: AgentSummary;
-  endpoint: string;
   groups: AccountGroup[];
   attachable: string[];
   unattributed: number;
@@ -43,13 +40,11 @@ interface AgentDetailProps {
 export function AgentDetail(props: AgentDetailProps): ReactNode {
   const { token, agent, groups, attachable, unattributed, onChanged } = props;
   const dark = useKitScheme() === 'dark';
-  const [attached, setAttached] = useState<AttachResult | null>(null);
-  const [pending, setPending] = useState<Session | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const mine = accountsForAgent(groups, agent.id);
 
   const onDetach = async (station: string, accountId: string): Promise<void> => {
     await detachAccount(token, agent.id, station, accountId);
-    if (attached?.accountId === accountId) setAttached(null);
     onChanged();
   };
 
@@ -60,63 +55,47 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
 
   return (
     <Col gap={20}>
-      <Col gap={2}>
-        <Text size="2xl" weight="semibold">{agent.name}</Text>
-        <Text size="2xs" role="secondary">{subtitle(agent)}</Text>
-      </Col>
+      <Row justify="between" align="start" gap={12} wrap>
+        <Col gap={2}>
+          <PageTitle>{agent.name}</PageTitle>
+          <Text size="sm" role="secondary">{subtitle(agent)}</Text>
+        </Col>
+        {agent.owned ? (
+          <Row gap={8} align="center">
+            <Button
+              color="primary"
+              dark={dark}
+              label="Connect station"
+              onPress={() => {
+                setConnecting(true);
+              }}
+            />
+            <DeleteAgent agent={agent} onDelete={props.onDelete} />
+          </Row>
+        ) : null}
+      </Row>
       <Card dark={dark} padding={CARD_PADDING}>
-        <AgentCredentials
-          agent={agent}
-          endpoint={props.endpoint}
-          onReset={onReset}
-        />
+        <AgentCredentials agent={agent} onReset={onReset} />
       </Card>
       <Col gap={10}>
-        <Text size="lg" weight="semibold">Accounts</Text>
+        <Text size="lg" weight="semibold">Stations</Text>
         <AccountList
           groups={mine}
-          empty={emptyAccounts(agent, unattributed)}
+          empty={emptyStations(agent, unattributed)}
           onDetach={agent.owned ? onDetach : undefined}
         />
       </Col>
-      {attached !== null ? (
-        <AttachedAccount
-          result={attached}
-          onDismiss={() => {
-            setAttached(null);
-          }}
-        />
-      ) : null}
-      {pending !== null ? (
-        <AttachSession
-          token={token}
-          agentId={agent.id}
-          session={pending}
-          onUpdate={setPending}
-          onDone={(result) => {
-            setPending(null);
-            setAttached(result);
-            onChanged();
-          }}
-          onClose={() => {
-            setPending(null);
-          }}
-        />
-      ) : null}
-      {agent.owned && pending === null ? (
-        <AttachAccount
+      {agent.owned ? (
+        <ConnectStation
           token={token}
           agentId={agent.id}
           attachable={attachable}
-          onPending={setPending}
-          onAttached={(result) => {
-            setAttached(result);
-            onChanged();
+          open={connecting}
+          onClose={() => {
+            setConnecting(false);
           }}
+          onChanged={onChanged}
         />
-      ) : null}
-      {agent.owned ? (
-        <DeleteAgent agent={agent} onDelete={props.onDelete} />
       ) : null}
     </Col>
   );

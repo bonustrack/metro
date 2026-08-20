@@ -3,6 +3,8 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
+import { GoogleLogo } from './GoogleLogo';
+import { MetroLogo } from './MetroLogo';
 import { CARD_PADDING_PANEL } from '../theme';
 import { startLoginUrl } from '../auth/session';
 
@@ -16,16 +18,20 @@ export function Login({ error }: LoginProps): ReactNode {
     window.location.assign(startLoginUrl());
   };
   return (
-    <Row justify="center" align="center" style={{ minHeight: '100%', padding: 24 }}>
+    <Row justify="center" align="center" style={{ flex: 1, padding: 24 }}>
       <Card dark={dark} padding={CARD_PADDING_PANEL} style={{ width: '100%', maxWidth: 420 }}>
         <Col gap={18}>
-          <Col gap={6}>
-            <Text size="5xl" weight="semibold">Metro</Text>
-            <Text role="secondary">
-              Sign in with Google to create an agent and get its MCP endpoint.
-            </Text>
-          </Col>
-          <Button color="primary" dark={dark} onPress={signIn} label="Continue with Google" />
+          <Row justify="center">
+            <MetroLogo size={64} color={dark ? '#ffffff' : '#000000'} />
+          </Row>
+          <Button
+            block
+            color="primary"
+            dark={dark}
+            onPress={signIn}
+            iconStart={<GoogleLogo />}
+            label="Continue with Google"
+          />
           {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
         </Col>
       </Card>

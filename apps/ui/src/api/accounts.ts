@@ -22,8 +22,8 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function stringifyValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'string') return value.length > 0 ? value : '—';
+  if (value === null || value === undefined) return '-';
+  if (typeof value === 'string') return value.length > 0 ? value : '-';
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (Array.isArray(value)) return value.map(stringifyValue).join(', ');
   return JSON.stringify(value);
@@ -80,6 +80,18 @@ export function accountsForAgent(
     const rows = g.rows.filter((r) => r.agentId === agentId);
     if (rows.length > 0) out.push({ station: g.station, rows });
   }
+  return out;
+}
+
+export interface FlatAccount {
+  station: string;
+  row: AccountRow;
+}
+
+export function flattenAccounts(groups: AccountGroup[]): FlatAccount[] {
+  const out: FlatAccount[] = [];
+  for (const group of groups)
+    for (const row of group.rows) out.push({ station: group.station, row });
   return out;
 }
 

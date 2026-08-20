@@ -17,9 +17,15 @@ export interface AttachField {
   optional?: boolean;
 }
 
+export interface HintLink {
+  text: string;
+  href: string;
+}
+
 export interface StationForm {
   label: string;
   hint: string;
+  links?: HintLink[];
   interactive: boolean;
   fields: AttachField[];
 }
@@ -28,6 +34,12 @@ export const STATION_FORMS: Record<string, StationForm> = {
   discord: {
     label: 'Discord bot',
     hint: 'Paste the bot token from the Discord developer portal. Message Content must be enabled under Privileged Gateway Intents.',
+    links: [
+      {
+        text: 'Discord developer portal',
+        href: 'https://discord.com/developers/applications',
+      },
+    ],
     interactive: false,
     fields: [
       {
@@ -42,6 +54,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
   telegram: {
     label: 'Telegram bot',
     hint: 'Paste the bot token BotFather gave you.',
+    links: [{ text: 'BotFather', href: 'https://t.me/BotFather' }],
     interactive: false,
     fields: [
       {
@@ -60,8 +73,9 @@ export const STATION_FORMS: Record<string, StationForm> = {
     fields: [],
   },
   'telegram-user': {
-    label: 'Telegram account',
+    label: 'Telegram',
     hint: 'Signs in as a real Telegram user. Create an application at my.telegram.org to get the api id and hash, then Telegram sends a login code to the number below. This is a full-account credential and carries Telegram ban risk, so use a number you are willing to dedicate to the agent.',
+    links: [{ text: 'my.telegram.org', href: 'https://my.telegram.org/apps' }],
     interactive: true,
     fields: [
       {

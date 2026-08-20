@@ -3,15 +3,28 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 
-const MASK = '•'.repeat(28);
+const MASK = '•'.repeat(5);
 
 interface CopyBlockProps {
   label: string;
   value: string;
   secret?: boolean;
+  hide?: string | null;
+  actions?: ReactNode;
 }
 
-export function CopyBlock({ label, value, secret = false }: CopyBlockProps): ReactNode {
+function display(value: string, hide: string | null | undefined): string {
+  if (hide === null || hide === undefined || hide === '') return MASK;
+  return value.split(hide).join(MASK);
+}
+
+export function CopyBlock({
+  label,
+  value,
+  secret = false,
+  hide,
+  actions,
+}: CopyBlockProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [copied, setCopied] = useState(false);
   const [revealed, setRevealed] = useState(false);
@@ -53,10 +66,11 @@ export function CopyBlock({ label, value, secret = false }: CopyBlockProps): Rea
             onPress={copy}
             label={copied ? 'Copied' : 'Copy'}
           />
+          {actions}
         </Row>
       </Row>
       <Text size="sm" variant="mono" selectable={!masked}>
-        {masked ? MASK : value}
+        {masked ? display(value, hide) : value}
       </Text>
     </Col>
   );

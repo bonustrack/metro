@@ -1,9 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
 import { Text, Button, Input } from './ui';
-import { CARD_PADDING } from '../theme';
 import {
   useKitPalette,
   useKitScheme,
@@ -180,8 +178,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
   };
 
   return (
-    <Card dark={dark} padding={CARD_PADDING}>
-      <Col gap={14}>
+    <Col gap={14}>
         <Col gap={4}>
           <Text size="lg" weight="semibold">
             Connecting {stationLabel(session.station)}
@@ -202,7 +199,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
           </Text>
         ) : null}
         <Row justify="between" align="center" gap={12} wrap>
-          <Text size="2xs" style={{ color: palette.sub }}>
+          <Text size="sm" style={{ color: palette.sub }}>
             Nothing is stored until the sign-in completes. Metro drops it after
             five minutes.
           </Text>
@@ -214,7 +211,6 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
             label={session.status === 'pending' ? 'Cancel' : 'Close'}
           />
         </Row>
-      </Col>
-    </Card>
+    </Col>
   );
 }

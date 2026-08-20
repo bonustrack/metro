@@ -7,9 +7,10 @@ import { CARD_PADDING } from '../theme';
 import { type AccountGroup } from '../api/accounts';
 import { type AgentSummary, type CreatedAgent } from '../api/client';
 import { AgentDetail } from './AgentDetail';
-import { CreateAgent } from './CreateAgent';
+import { AgentsHome } from './AgentsHome';
 import { NewAgentKey } from './NewAgentKey';
-import { StartSession } from './StartSession';
+import { Docs } from './Docs';
+import { Settings } from './Settings';
 import { type Selection } from './selection';
 
 function Hint({ text, onNew }: { text: string; onNew: () => void }): ReactNode {
@@ -30,21 +31,35 @@ interface AgentPanelProps {
   groups: AccountGroup[];
   attachable: string[];
   unattributed: number;
-  endpoint: string;
   selection: Selection;
   created: CreatedAgent | null;
-  onCreate: (name: string) => Promise<void>;
   onNew: () => void;
+  onOpen: (id: number) => void;
   onDismiss: () => void;
   onChanged: () => void;
   onDelete: (id: number) => Promise<void>;
 }
 
+function standalonePage(props: AgentPanelProps): ReactNode | null {
+  const { agents, selection, created } = props;
+  if (selection.kind === 'docs') return <Docs />;
+  if (selection.kind === 'settings') return <Settings />;
+  if (selection.kind === 'none' && created === null)
+    return (
+      <AgentsHome
+        agents={agents}
+        groups={props.groups}
+        onOpen={props.onOpen}
+        onNew={props.onNew}
+      />
+    );
+  return null;
+}
+
 export function AgentPanel(props: AgentPanelProps): ReactNode {
-  const { agents, selection, created, onCreate, onDismiss } = props;
-  if (selection.kind === 'start') return <StartSession endpoint={props.endpoint} />;
-  if (selection.kind === 'new')
-    return <CreateAgent first={agents.length === 0} onCreate={onCreate} />;
+  const standalone = standalonePage(props);
+  if (standalone !== null) return standalone;
+  const { agents, selection, created, onDismiss } = props;
 
   const agent =
     selection.kind === 'agent'
@@ -58,7 +73,7 @@ export function AgentPanel(props: AgentPanelProps): ReactNode {
         text={
           selection.kind === 'agent'
             ? 'No agent with that id is available to this account.'
-            : 'Pick an agent on the left to see its accounts, MCP endpoint and API key.'
+            : 'Pick an agent on the left to see its stations, MCP endpoint and API key.'
         }
         onNew={props.onNew}
       />
@@ -73,7 +88,6 @@ export function AgentPanel(props: AgentPanelProps): ReactNode {
       <AgentDetail
         token={props.token}
         agent={agent}
-        endpoint={props.endpoint}
         groups={props.groups}
         attachable={props.attachable}
         unattributed={props.unattributed}

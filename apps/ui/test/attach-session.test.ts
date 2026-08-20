@@ -92,7 +92,7 @@ describe('interactive station forms', () => {
   });
 
   test('both interactive stations have a human label', () => {
-    expect(stationLabel('telegram-user')).toBe('Telegram account');
+    expect(stationLabel('telegram-user')).toBe('Telegram');
     expect(stationLabel('whatsapp')).toBe('WhatsApp');
   });
 });

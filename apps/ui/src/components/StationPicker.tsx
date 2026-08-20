@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Button } from './ui';
 import {
   useKitPalette,
@@ -24,11 +24,12 @@ export function StationPicker({
   const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
   return (
-    <Row gap={8} wrap>
+    <Col gap={8}>
       {stations.map((station) => (
         <Button
           key={station}
-          size="sm"
+          block
+          size="lg"
           dark={dark}
           disabled={disabled}
           color={station === picked ? 'primary' : 'secondary'}
@@ -40,12 +41,12 @@ export function StationPicker({
           icon={
             <StationIcon
               station={station}
-              size={14}
+              size={20}
               color={station === picked ? palette.bg : palette.text}
             />
           }
         />
       ))}
-    </Row>
+    </Col>
   );
 }

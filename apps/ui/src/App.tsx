@@ -1,5 +1,4 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Box } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Login } from './components/Login';
 import { Loading } from './components/Loading';
@@ -12,13 +11,12 @@ import {
   sessionIsFresh,
   storeSession,
   storedSession,
-  type SessionClaims,
 } from './auth/session';
 
 type State =
   | { phase: 'connecting'; token: string }
   | { phase: 'login'; error: string | null }
-  | { phase: 'unlocked'; token: string; claims: SessionClaims; data: DashboardData };
+  | { phase: 'unlocked'; token: string; data: DashboardData };
 
 function initialState(): State {
   const frag = consumeFragment();
@@ -54,8 +52,7 @@ export function App(): ReactNode {
 
   const load = (token: string, quiet: boolean): void => {
     const id = ++attempt.current;
-    const claims = sessionClaims(token);
-    if (claims === null) {
+    if (sessionClaims(token) === null) {
       clearSession();
       setState({ phase: 'login', error: 'Your session is invalid. Please sign in again.' });
       return;
@@ -65,7 +62,7 @@ export function App(): ReactNode {
       .then((data) => {
         if (id !== attempt.current) return;
         storeSession(token);
-        setState({ phase: 'unlocked', token, claims, data });
+        setState({ phase: 'unlocked', token, data });
       })
       .catch((err: unknown) => {
         if (id !== attempt.current) return;
@@ -84,7 +81,7 @@ export function App(): ReactNode {
   };
 
   return (
-    <Box background={palette.bg} style={{ minHeight: '100%' }}>
+    <div className="app-root" style={{ backgroundColor: palette.bg }}>
       {state.phase === 'connecting' ? (
         <Loading />
       ) : state.phase === 'login' ? (
@@ -93,13 +90,12 @@ export function App(): ReactNode {
         <Dashboard
           token={state.token}
           data={state.data}
-          expiresAt={state.claims.expiresAt}
           onRefresh={() => {
             load(state.token, true);
           }}
           onLock={lock}
         />
       )}
-    </Box>
+    </div>
   );
 }

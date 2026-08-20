@@ -1,5 +1,5 @@
 export type Selection =
   | { kind: 'agent'; id: number }
-  | { kind: 'new' }
-  | { kind: 'start' }
+  | { kind: 'docs' }
+  | { kind: 'settings' }
   | { kind: 'none' };

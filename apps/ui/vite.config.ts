@@ -1,5 +1,8 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url).href);
 
 const proxyTarget = process.env.METRO_MCP_PROXY_TARGET ?? 'http://127.0.0.1:8420';
 
@@ -24,6 +27,7 @@ export default defineConfig({
   },
   server: {
     port: 5175,
+    fs: { allow: [repoRoot] },
     proxy: {
       '/mcp': { target: proxyTarget, changeOrigin: true },
       '/api': { target: proxyTarget, changeOrigin: true },

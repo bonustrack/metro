@@ -1,9 +1,7 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
-import { CARD_PADDING } from '../theme';
 import { stationLabel, type AttachResult } from '../api/attach';
 import { CopyBlock } from './CopyBlock';
 import { Field } from './Field';
@@ -24,8 +22,7 @@ export function AttachedAccount({
   const dark = useKitScheme() === 'dark';
   const secret = result.secret;
   return (
-    <Card dark={dark} padding={CARD_PADDING}>
-      <Col gap={14}>
+    <Col gap={14}>
         <Col gap={4}>
           <Text size="lg" weight="semibold">
             {stationLabel(result.station)} attached
@@ -35,7 +32,7 @@ export function AttachedAccount({
           </Text>
         </Col>
         <Row gap={20} wrap>
-          <Field label="account" value={result.accountId} />
+          <Field label="id" value={result.accountId} />
           {Object.entries(result.identity).map(([label, value]) => (
             <Field key={label} label={label} value={value} />
           ))}
@@ -56,7 +53,6 @@ export function AttachedAccount({
             label="Done"
           />
         </Row>
-      </Col>
-    </Card>
+    </Col>
   );
 }

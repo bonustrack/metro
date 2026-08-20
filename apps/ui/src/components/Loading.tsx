@@ -1,13 +1,13 @@
 import { type ReactNode } from 'react';
-import { ActivityIndicator } from 'react-native';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { Spinner } from './Spinner';
 
 export function Loading(): ReactNode {
   const palette = useKitPalette();
   return (
-    <Row justify="center" align="center" style={{ minHeight: '100%', padding: 24 }}>
-      <ActivityIndicator size="large" color={palette.primary} />
+    <Row justify="center" align="center" style={{ flex: 1, padding: 24 }}>
+      <Spinner size={24} color={palette.link} />
     </Row>
   );
 }

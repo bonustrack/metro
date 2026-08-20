@@ -16,8 +16,11 @@
     "@stage-labs/kit": "0.1.0-beta.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-markdown": "^10.1.0",
     "react-native-svg": "15.15.5",
-    "react-native-web": "^0.21.2"
+    "react-native-web": "^0.21.2",
+    "rehype-slug": "^6.0.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.2",
