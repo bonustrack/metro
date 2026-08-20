@@ -3,8 +3,6 @@ import {
   type ClientOptions,
   type Conversation,
 } from '@xmtp/node-sdk';
-import { mnemonicToAccount } from 'viem/accounts';
-import { toHex } from 'viem';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CODECS } from './codecs.js';
@@ -21,17 +19,9 @@ const ACCOUNTS_FILE =
 
 export interface AccountConfig {
   id: string;
-  derive?: number;
-  mnemonic?: string;
   privateKey?: string;
   owner?: string;
   dbPath?: string;
-}
-
-function hasValidDerive(a: AccountConfig): boolean {
-  return (
-    typeof a.derive === 'number' && a.derive >= 0 && Number.isInteger(a.derive)
-  );
 }
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
@@ -42,8 +32,7 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
     const seen = new Set<string>();
     for (const a of raw) {
       if (!a.id) die('account missing id');
-      if (!a.privateKey && !(a.mnemonic && hasValidDerive(a)))
-        die(`account '${a.id}' needs a privateKey or a mnemonic + derive`);
+      if (!a.privateKey) die(`account '${a.id}' needs a privateKey`);
       if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
       seen.add(a.id);
     }
@@ -51,15 +40,9 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
 });
 
 function resolvePrivateKey(cfg: AccountConfig): string {
-  if (cfg.privateKey) return cfg.privateKey;
-  const mnemonic = cfg.mnemonic?.trim();
-  if (!mnemonic) throw new Error(`account '${cfg.id}' has no privateKey/mnemonic`);
-  const derive = cfg.derive ?? 0;
-  const acct = mnemonicToAccount(mnemonic, { addressIndex: derive });
-  const { privateKey } = acct.getHdKey();
-  if (!privateKey)
-    throw new Error(`HD key has no private key for derive index ${derive}`);
-  return toHex(privateKey);
+  const privateKey = cfg.privateKey?.trim();
+  if (!privateKey) throw new Error(`account '${cfg.id}' has no privateKey`);
+  return privateKey;
 }
 
 export interface Account {

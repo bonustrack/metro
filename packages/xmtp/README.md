@@ -12,8 +12,8 @@ on `@metro-labs/mcp` and implements the station contract from
 - as a **train subprocess** — the `./train` export (`index.ts`), spawned by the
   supervisor to run the live XMTP client(s).
 
-Identity is one or more Ethereum EOAs derived from a BIP-39 mnemonic
-(`m/44'/60'/0'/0/<index>`), running on the **XMTP production network**. Lines are
+Identity is one or more Ethereum EOAs, one raw private key per account,
+running on the **XMTP production network**. Lines are
 `metro://xmtp/<…>`; account ids are `x0..xN`.
 
 ## Capabilities
@@ -29,8 +29,8 @@ Identity is one or more Ethereum EOAs derived from a BIP-39 mnemonic
 
 ## Configuration
 
-Account config lives in the DB (`accounts.config` jsonb): `{ mnemonic, derive }` for an
-HD account **or** `{ privateKey }` for a raw EOA key; optional `owner`, `dbPath`. The
+Account config lives in the DB (`accounts.config` jsonb): `{ privateKey }`, the raw
+EOA key; optional `owner`, `dbPath`. The
 daemon materializes it to the accounts file the train reads. See the
 [root README "Configuration"](../../README.md#configuration).
 

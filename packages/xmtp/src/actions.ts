@@ -338,7 +338,7 @@ async function accountsAction(id: string): Promise<void> {
         inboxId: a.inboxId,
         env: 'production',
         owner: a.cfg.owner ?? null,
-        keySource: `derive:${a.cfg.derive}`,
+        keySource: 'privateKey',
       })),
     },
   });

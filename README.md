@@ -35,7 +35,7 @@ failing silently.
 A **station** is a chat-platform integration:
 
 - **xmtp** — end-to-end-encrypted DMs and groups. Identity is an Ethereum EOA, with
-  multi-account support (HD mnemonic + derive index, or a raw key). Runs on the XMTP
+  multi-account support (one raw EOA key per account). Runs on the XMTP
   production network.
 - **telegram** — Bot API. One or many bots, each a `telegram` account row in the DB.
 - **discord** — bot gateway + REST. One or many bots, each a `discord` account row.
@@ -92,7 +92,7 @@ fly secrets set --app <your-app-name> \
   DATABASE_URL="postgres://user:pass@host:5432/metro"
 ```
 
-`DATABASE_URL` is the only required var. Station secrets (mnemonics/keys/tokens/
+`DATABASE_URL` is the only required var. Station secrets (keys/tokens/
 sessions) are DB rows, not Fly secrets. There is no full-access env bearer: every
 credential is an `agents.key` row, and `/mcp`, the Monitor transport and attachment
 fetching all authenticate with one. `/health` stays public for Fly's health check.
@@ -130,7 +130,7 @@ claude mcp add --transport http metro https://mcp.metro.box \
   long-poll alive. Don't enable autostop.
 - **Memory.** Each XMTP account is a live client; bump `[[vm]] memory` in `fly.toml`
   (2gb+) as you add accounts.
-- **Dev vs prod.** Use a *separate* XMTP identity for testing (its own mnemonic/key in
+- **Dev vs prod.** Use a *separate* XMTP identity for testing (its own key in
   the DB) — redeploys/restarts are safe (the volume persists the MLS DB), but creating
   fresh DBs elsewhere burns the inbox's 10-installation / 256-update budget.
 
@@ -198,7 +198,7 @@ Per-station `config` jsonb (connection secrets + optional `owner`):
 
 | station | `config` fields |
 | --- | --- |
-| `xmtp` | `{ mnemonic, derive }` (HD account) **or** `{ privateKey }` (raw EOA key); optional `owner`, `dbPath` |
+| `xmtp` | `{ privateKey }` (raw EOA key); optional `owner`, `dbPath` |
 | `telegram` | `{ token }`; optional `owner` |
 | `telegram-user` | `{ session, apiId, apiHash }`; optional `owner` |
 | `discord` | `{ token }`; optional `owner` |
