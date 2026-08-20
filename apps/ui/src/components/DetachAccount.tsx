@@ -34,6 +34,7 @@ export function DetachAccount({
     <>
       <KebabMenu
         label="Station actions"
+        size="lg"
         items={[
           {
             label: 'Delete station',

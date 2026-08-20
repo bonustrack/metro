@@ -212,6 +212,27 @@ body {
   text-decoration: underline;
 }
 
+.row-link {
+  display: flex;
+  flex: 1 1 auto;
+  align-self: stretch;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.row-title {
+  display: block;
+  min-width: 0;
+}
+
+.row-link:hover .row-title {
+  text-decoration: underline;
+}
+
 .kebab {
   display: inline-flex;
   align-items: center;

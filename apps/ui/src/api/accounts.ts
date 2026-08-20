@@ -95,6 +95,36 @@ export function flattenAccounts(groups: AccountGroup[]): FlatAccount[] {
   return out;
 }
 
+const IDENTITY = new Set(['id', 'handle', 'url']);
+
+const present = (value: string | undefined): string | undefined =>
+  value === undefined || value === '' || value === '-' ? undefined : value;
+
+export interface StationFields {
+  handle: string | undefined;
+  url: string | undefined;
+  details: AccountField[];
+}
+
+export function stationFields(row: AccountRow): StationFields {
+  const pick = (label: string): string | undefined =>
+    present(row.fields.find((f) => f.label === label)?.value);
+  return {
+    handle: pick('handle'),
+    url: pick('url'),
+    details: row.fields.filter(
+      (f) => !IDENTITY.has(f.label) && present(f.value) !== undefined,
+    ),
+  };
+}
+
+export function findAccount(
+  groups: AccountGroup[],
+  accountId: string,
+): FlatAccount | undefined {
+  return flattenAccounts(groups).find((a) => a.row.id === accountId);
+}
+
 export function carryForward(
   next: AccountGroup[],
   prev: AccountGroup[],

@@ -5,91 +5,96 @@ import { Text } from './ui';
 import { stationLabel } from '../api/attach';
 import {
   flattenAccounts,
+  stationFields,
   type AccountGroup,
-  type AccountField,
   type AccountRow,
 } from '../api/accounts';
+import { ChatIcon } from './ChatIcon';
 import { DetachAccount } from './DetachAccount';
 import { StationIcon } from './StationIcon';
 
 export type DetachHandler = (station: string, accountId: string) => Promise<void>;
 
-const ROW_PAD_Y = 14;
-const ICON_SIZE = 18;
-const DETAIL_FIELDS = 3;
-
-const valueOf = (row: AccountRow, label: string): string | undefined => {
-  const found = row.fields.find((f) => f.label === label)?.value;
-  return found === undefined || found === '-' ? undefined : found;
-};
-
-const HIDDEN = new Set(['id', 'handle', 'url']);
-
-function details(row: AccountRow): AccountField[] {
-  return row.fields.filter((f) => !HIDDEN.has(f.label)).slice(0, DETAIL_FIELDS);
-}
-
-function Handle({ row, fallback }: { row: AccountRow; fallback: string }): ReactNode {
-  const handle = valueOf(row, 'handle') ?? fallback;
-  const url = valueOf(row, 'url');
-  const text = <Text size="sm" numberOfLines={1}>{handle}</Text>;
-  if (url === undefined) return text;
-  return (
-    <a className="hint-link" href={url} target="_blank" rel="noreferrer">
-      {text}
-    </a>
-  );
-}
-
-function Meta({ row }: { row: AccountRow }): ReactNode {
-  const fields = details(row);
-  if (fields.length === 0) return null;
-  return (
-    <Row gap={8} align="center" wrap>
-      {fields.map((field) => (
-        <Text key={field.label} size="sm" role="secondary" numberOfLines={1}>
-          {field.label} {field.value}
-        </Text>
-      ))}
-    </Row>
-  );
-}
+const ROW_PAD_Y = 10;
+const ICON_SIZE = 20;
 
 interface StationRowProps {
   station: string;
   row: AccountRow;
+  onOpen: (accountId: string) => void;
   onDetach?: DetachHandler;
 }
 
-function StationRow({ station, row, onDetach }: StationRowProps): ReactNode {
+function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactNode {
   const palette = useKitPalette();
   const id = row.id;
+  const { handle, url } = stationFields(row);
+  const body = (
+    <>
+      <StationIcon station={station} size={ICON_SIZE} color={palette.text} />
+      <Row gap={10} align="center" style={{ flex: 1, minWidth: 0 }}>
+        <span className="row-title">
+          <Text size="lg" weight="semibold" numberOfLines={1}>
+            {stationLabel(station)}
+          </Text>
+        </span>
+        <Text
+          size="lg"
+          role="secondary"
+          numberOfLines={1}
+          style={{ flexShrink: 1, minWidth: 0 }}
+        >
+          {handle ?? id ?? '-'}
+        </Text>
+      </Row>
+    </>
+  );
   return (
     <Row
       justify="between"
-      align="center"
+      align="stretch"
       gap={12}
       style={{
-        paddingVertical: ROW_PAD_Y,
         borderBottomWidth: 1,
         borderBottomColor: palette.border,
       }}
     >
-      <Row gap={12} align="center" style={{ flex: 1, minWidth: 0 }}>
-        <StationIcon station={station} size={ICON_SIZE} color={palette.text} />
-        <Col gap={2} style={{ flex: 1, minWidth: 0 }}>
-          <Text size="sm" weight="semibold" numberOfLines={1}>
-            {stationLabel(station)}
-          </Text>
-          <Row gap={8} align="center" wrap>
-            <Handle row={row} fallback={id ?? '-'} />
-            <Meta row={row} />
-          </Row>
-        </Col>
+      {id === null ? (
+        <Row
+          gap={12}
+          align="center"
+          style={{ flex: 1, minWidth: 0, paddingVertical: ROW_PAD_Y }}
+        >
+          {body}
+        </Row>
+      ) : (
+        <a
+          className="row-link"
+          href={`#/station/${id}`}
+          onClick={(e) => {
+            e.preventDefault();
+            onOpen(id);
+          }}
+        >
+          {body}
+        </a>
+      )}
+      <Row gap={8} align="center" style={{ paddingVertical: ROW_PAD_Y }}>
+        {url === undefined ? null : (
+          <a
+            className="kebab kebab-lg"
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open ${stationLabel(station)}`}
+          >
+            <ChatIcon size={18} color={palette.link} />
+          </a>
+        )}
+        {onDetach !== undefined && id !== null ? (
+          <DetachAccount station={station} accountId={id} onDetach={onDetach} />
+        ) : null}
       </Row>
-      {onDetach !== undefined && id !== null ? (
-        <DetachAccount station={station} accountId={id} onDetach={onDetach} />
-      ) : null}
     </Row>
   );
 }
@@ -97,10 +102,16 @@ function StationRow({ station, row, onDetach }: StationRowProps): ReactNode {
 interface AccountListProps {
   groups: AccountGroup[];
   empty: string;
+  onOpen: (accountId: string) => void;
   onDetach?: DetachHandler;
 }
 
-export function AccountList({ groups, empty, onDetach }: AccountListProps): ReactNode {
+export function AccountList({
+  groups,
+  empty,
+  onOpen,
+  onDetach,
+}: AccountListProps): ReactNode {
   const flat = flattenAccounts(groups);
   if (flat.length === 0) return <Text size="sm" role="secondary">{empty}</Text>;
   return (
@@ -110,6 +121,7 @@ export function AccountList({ groups, empty, onDetach }: AccountListProps): Reac
           key={`${item.station}/${item.row.id ?? ''}`}
           station={item.station}
           row={item.row}
+          onOpen={onOpen}
           onDetach={onDetach}
         />
       ))}

@@ -33,6 +33,7 @@ interface AgentDetailProps {
   groups: AccountGroup[];
   attachable: string[];
   unattributed: number;
+  onOpenStation: (accountId: string) => void;
   onChanged: (dropped?: string[]) => void;
   onDelete: (id: number) => Promise<void>;
 }
@@ -82,6 +83,7 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
         <AccountList
           groups={mine}
           empty={emptyStations(agent, unattributed)}
+          onOpen={props.onOpenStation}
           onDetach={agent.owned ? onDetach : undefined}
         />
       </Col>

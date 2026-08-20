@@ -8,6 +8,35 @@ describe('routeSelection', () => {
     expect(routeSelection('#/agent/4242')).toEqual({ kind: 'agent', id: 4242 });
   });
 
+  test('a station route selects that account by its id', () => {
+    expect(routeSelection('#/station/z01')).toEqual({
+      kind: 'station',
+      accountId: 'z01',
+    });
+    expect(routeSelection('#/station/a1-e5036b5f')).toEqual({
+      kind: 'station',
+      accountId: 'a1-e5036b5f',
+    });
+    expect(routeSelection('#/station/tony')).toEqual({
+      kind: 'station',
+      accountId: 'tony',
+    });
+  });
+
+  test('a station id that could escape its own segment is not a route', () => {
+    for (const bad of [
+      '#/station',
+      '#/station/',
+      '#/station/a/b',
+      '#/station/../agent/1',
+      '#/station/a b',
+      '#/station/a.b',
+      '#/Station/z01',
+      `#/station/${'z'.repeat(65)}`,
+    ])
+      expect(routeSelection(bad)).toEqual({ kind: 'none' });
+  });
+
   test('the documentation page is its own path too', () => {
     expect(routeSelection('#/docs/setup')).toEqual({ kind: 'docs' });
   });
@@ -61,6 +90,10 @@ describe('routeHash', () => {
     expect(routeHash({ kind: 'agent', id: 2 })).toBe('#/agent/2');
   });
 
+  test('a selected station is reflected as its own url', () => {
+    expect(routeHash({ kind: 'station', accountId: 'z01' })).toBe('#/station/z01');
+  });
+
   test('the create pane, the start page and the no-selection state have stable urls', () => {
     expect(routeHash({ kind: 'docs' })).toBe('#/docs/setup');
     expect(routeHash({ kind: 'settings' })).toBe('#/settings');
@@ -70,6 +103,7 @@ describe('routeHash', () => {
   test('every hash it writes parses back to the same selection', () => {
     for (const selection of [
       { kind: 'agent', id: 7 } as const,
+      { kind: 'station', accountId: 'a1-e5036b5f' } as const,
       { kind: 'docs' } as const,
       { kind: 'settings' } as const,
       { kind: 'none' } as const,
