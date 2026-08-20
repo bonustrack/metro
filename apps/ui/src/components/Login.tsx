@@ -5,6 +5,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { GoogleLogo } from './GoogleLogo';
 import { MetroLogo } from './MetroLogo';
+import { PageTitle } from './PageTitle';
 import { CARD_PADDING_PANEL } from '../theme';
 import { startLoginUrl } from '../auth/session';
 
@@ -23,6 +24,9 @@ export function Login({ error }: LoginProps): ReactNode {
         <Col gap={18}>
           <Row justify="center">
             <MetroLogo size={64} color={dark ? '#ffffff' : '#000000'} />
+          </Row>
+          <Row justify="center">
+            <PageTitle>Log in</PageTitle>
           </Row>
           <Button
             block

@@ -4,6 +4,8 @@ import { Login } from './components/Login';
 import { Loading } from './components/Loading';
 import { Dashboard } from './components/Dashboard';
 import { AuthError, fetchDashboard, type Dashboard as DashboardData } from './api/client';
+import { atLogin, goToLogin, leaveLogin } from './auth/login-route';
+import { pageTitle } from './title';
 import {
   clearSession,
   consumeFragment,
@@ -22,6 +24,7 @@ function initialState(): State {
   const frag = consumeFragment();
   if (frag.session !== undefined) {
     storeSession(frag.session);
+    leaveLogin();
     return { phase: 'connecting', token: frag.session };
   }
   if (frag.error !== undefined)
@@ -43,7 +46,7 @@ export function App(): ReactNode {
       phase: 'login',
       error:
         err instanceof AuthError
-          ? 'Your session has expired. Please sign in again.'
+          ? null
           : err instanceof Error
             ? err.message
             : 'Failed to reach Metro.',
@@ -73,6 +76,16 @@ export function App(): ReactNode {
   useEffect(() => {
     if (state.phase === 'connecting') load(state.token, true);
   }, []);
+
+  useEffect(() => {
+    if (state.phase === 'login') goToLogin();
+    else if (atLogin()) leaveLogin();
+  }, [state.phase]);
+
+  useEffect(() => {
+    if (state.phase === 'unlocked') return;
+    document.title = pageTitle(state.phase === 'login' ? 'Log in' : null);
+  }, [state.phase]);
 
   const lock = (): void => {
     attempt.current += 1;

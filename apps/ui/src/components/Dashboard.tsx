@@ -17,6 +17,7 @@ import { CreateAgent } from './CreateAgent';
 import { Shell } from './Shell';
 import { type Selection } from './selection';
 import { useIsNarrow } from '../media';
+import { useDocumentTitle } from '../title';
 
 interface DashboardProps {
   token: string;
@@ -25,6 +26,14 @@ interface DashboardProps {
   onLock: () => void;
 }
 
+
+function pageName(selection: Selection, agents: DashboardData['agents']): string {
+  if (selection.kind === 'settings') return 'Settings';
+  if (selection.kind === 'docs') return 'Documentation';
+  if (selection.kind === 'agent')
+    return agents.find((a) => a.id === selection.id)?.name ?? 'Agent';
+  return 'Agents';
+}
 
 export function Dashboard({
   token,
@@ -40,6 +49,7 @@ export function Dashboard({
 
   const selection: Selection = picked;
   const hash = routeHash(selection);
+  useDocumentTitle(pageName(selection, data.agents));
 
   useEffect(() => subscribeRoute(setPicked), []);
   useEffect(() => {
