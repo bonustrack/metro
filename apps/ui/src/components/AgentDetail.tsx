@@ -8,6 +8,7 @@ import { detachAccount } from '../api/attach';
 import { resetAgentKey, type AgentSummary } from '../api/client';
 import { AccountList } from './AccountList';
 import { AgentCredentials } from './AgentCredentials';
+import { BackLink } from './BackLink';
 import { ConnectStation } from './ConnectStation';
 import { DeleteAgent } from './DeleteAgent';
 
@@ -34,6 +35,7 @@ interface AgentDetailProps {
   onOpenStation: (accountId: string) => void;
   onChanged: (dropped?: string[]) => void;
   onDelete: (id: string) => Promise<void>;
+  onBack: () => void;
 }
 
 export function AgentDetail(props: AgentDetailProps): ReactNode {
@@ -54,25 +56,28 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
 
   return (
     <Col gap={20}>
-      <Row justify="between" align="start" gap={12} wrap>
-        <Col gap={2}>
-          <PageTitle>{agent.name}</PageTitle>
-          <Text size="sm" role="secondary">{subtitle(agent)}</Text>
-        </Col>
-        {agent.owned ? (
-          <Row gap={8} align="center">
-            <Button
-              color="primary"
-              dark={dark}
-              label="Connect station"
-              onPress={() => {
-                setConnecting(true);
-              }}
-            />
-            <DeleteAgent agent={agent} onDelete={props.onDelete} />
-          </Row>
-        ) : null}
-      </Row>
+      <Col gap={8}>
+        <BackLink label="Agents" href="#/" onPress={props.onBack} />
+        <Row justify="between" align="start" gap={12} wrap>
+          <Col gap={2}>
+            <PageTitle>{agent.name}</PageTitle>
+            <Text size="sm" role="secondary">{subtitle(agent)}</Text>
+          </Col>
+          {agent.owned ? (
+            <Row gap={8} align="center">
+              <Button
+                color="primary"
+                dark={dark}
+                label="Connect station"
+                onPress={() => {
+                  setConnecting(true);
+                }}
+              />
+              <DeleteAgent agent={agent} onDelete={props.onDelete} />
+            </Row>
+          ) : null}
+        </Row>
+      </Col>
       <AgentCredentials agent={agent} onReset={onReset} />
       <Col gap={10}>
         <Text size="lg" weight="semibold">Stations</Text>

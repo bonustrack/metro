@@ -7,6 +7,7 @@ import { PageTitle } from './PageTitle';
 import { stationLabel } from '../api/attach';
 import { stationFields, type AccountRow } from '../api/accounts';
 import { type AgentSummary } from '../api/client';
+import { BackLink } from './BackLink';
 import { CopyBlock } from './CopyBlock';
 import { DetachAccount } from './DetachAccount';
 import { StationIcon } from './StationIcon';
@@ -79,18 +80,29 @@ function Heading({ station, row, agent, onOpenAgent }: StationDetailProps): Reac
 }
 
 export function StationDetail(props: StationDetailProps): ReactNode {
-  const { station, row, verbs, onDetach } = props;
+  const { station, row, agent, verbs, onOpenAgent, onDetach } = props;
   const { url, endpoint, details } = stationFields(row);
   const id = row.id;
 
   return (
     <Col gap={20}>
-      <Row justify="between" align="start" gap={12} wrap>
-        <Heading {...props} />
-        {onDetach !== undefined && id !== null ? (
-          <DetachAccount station={station} accountId={id} onDetach={onDetach} />
-        ) : null}
-      </Row>
+      <Col gap={8}>
+        {agent === undefined ? null : (
+          <BackLink
+            label={agent.name}
+            href={`#/agent/${agent.id}`}
+            onPress={() => {
+              onOpenAgent(agent.id);
+            }}
+          />
+        )}
+        <Row justify="between" align="start" gap={12} wrap>
+          <Heading {...props} />
+          {onDetach !== undefined && id !== null ? (
+            <DetachAccount station={station} accountId={id} onDetach={onDetach} />
+          ) : null}
+        </Row>
+      </Col>
 
       {id === null ? null : (
         <CopyBlock label="line" value={`metro://${station}/${id}`} />

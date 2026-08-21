@@ -7,10 +7,16 @@ import { PageTitle } from './PageTitle';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createAgent,
+  deleteAgent,
   type AgentSummary,
   type CreatedAgent,
 } from '../api/client';
-import { agentsKey, queryError, useAgentsQuery } from '../api/queries';
+import {
+  agentsKey,
+  queryError,
+  stationsKey,
+  useAgentsQuery,
+} from '../api/queries';
 import { AgentRow } from './AgentRow';
 import { CreateAgent } from './CreateAgent';
 import { Loading } from './Loading';
@@ -23,16 +29,23 @@ const FALLBACK = 'Could not load your agents.';
 function AgentCards({
   agents,
   onOpen,
+  onDelete,
 }: {
   agents: AgentSummary[];
   onOpen: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
 }): ReactNode {
   if (agents.length === 0)
     return <Text size="sm" role="secondary">No agents yet.</Text>;
   return (
     <Col>
       {agents.map((agent) => (
-        <AgentRow key={agent.id} agent={agent} onOpen={onOpen} />
+        <AgentRow
+          key={agent.id}
+          agent={agent}
+          onOpen={onOpen}
+          onDelete={onDelete}
+        />
       ))}
     </Col>
   );
@@ -55,6 +68,12 @@ export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
     const agent = await createAgent(token, name);
     setCreated(agent);
     await client.invalidateQueries({ queryKey: agentsKey() });
+  };
+
+  const remove = async (id: string): Promise<void> => {
+    await deleteAgent(token, id);
+    await client.invalidateQueries({ queryKey: agentsKey() });
+    await client.invalidateQueries({ queryKey: stationsKey() });
   };
 
   return (
@@ -88,7 +107,7 @@ export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
       )}
       {data === undefined && error === null ? <Loading /> : null}
       {data === undefined ? null : (
-        <AgentCards agents={data.agents} onOpen={onOpen} />
+        <AgentCards agents={data.agents} onOpen={onOpen} onDelete={remove} />
       )}
 
       <CreateAgent
