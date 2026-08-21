@@ -38,7 +38,7 @@ function NavRow({
         padding={ROW_PAD}
         margin={{ x: -12 }}
         radius={8}
-        surface={selected ? 'raised' : 'none'}
+        background={selected ? palette.border : undefined}
       >
         {icon === undefined ? null : (
           <Icon
