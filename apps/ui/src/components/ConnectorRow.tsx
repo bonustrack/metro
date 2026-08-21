@@ -12,7 +12,8 @@ const ROW_PAD_Y = 12;
 function summary(row: Connector): string {
   const tools = row.verified?.tools ?? 0;
   const label = `${String(tools)} tool${tools === 1 ? '' : 's'}`;
-  if (row.auth === 'oauth') return `${label} · signed in`;
+  if (row.signIn === 'connected') return `${label} · signed in`;
+  if (row.signIn === 'disconnected') return `${label} · signed out`;
   if (row.auth === 'header') return `${label} · header auth`;
   return label;
 }
@@ -50,7 +51,12 @@ export function ConnectorRow({
         <Col gap={1} flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }}>
           <Row gap={10} align="center" minWidth={0}>
             <span className="row-title">
-              <Text size="lg" weight="semibold" numberOfLines={1}>
+              <Text
+                size="lg"
+                weight="semibold"
+                role={row.signIn === 'disconnected' ? 'secondary' : 'default'}
+                numberOfLines={1}
+              >
                 {row.name}
               </Text>
             </span>

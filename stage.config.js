@@ -41,6 +41,10 @@ export default defineConfig({
         ignoreDependencies: ['react-native-web', '@types/qrcode'],
       },
     },
+    'packages/cli': {
+      type: 'library',
+      knip: { project: ['src/**/*.ts'] },
+    },
     'apps/mcp': {
       type: 'library',
       knip: {

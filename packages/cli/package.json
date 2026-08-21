@@ -1,0 +1,38 @@
+{
+  "name": "@stage-labs/metro",
+  "version": "0.1.0-beta.16",
+  "description": "The metro command line. Sign in once per machine, then hand your MCP connector list to Claude Code without the credentials touching disk, argv or shell history.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bonustrack/metro.git"
+  },
+  "homepage": "https://github.com/bonustrack/metro#readme",
+  "bugs": "https://github.com/bonustrack/metro/issues",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "metro": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "tag": "beta"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "tsc",
+    "test": "tsc --noEmit && bun test test/"
+  },
+  "devDependencies": {
+    "@stage-labs/config": "0.1.0-beta.2",
+    "eslint": "^10.3.0",
+    "knip": "^6.15.0",
+    "madge": "^8.0.0",
+    "typescript": "^5"
+  }
+}

@@ -17,7 +17,7 @@ export const TEXT_FONT: Record<TextWeight, string> = {
   bold: FONT_HEAD,
 };
 
-export const TYPE_SCALE = 17 / 15;
+export const TYPE_SCALE = 16 / 15;
 
 export function typeSize(px: number): number {
   return Math.round(px * TYPE_SCALE);

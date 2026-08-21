@@ -16,7 +16,12 @@ Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
   - `src/stations/` — registry, types, account-store, attachments, lines, attach.
   - `src/db/` — drizzle schema, materialize, agent/key/allowlist maps, scope predicate.
 - `apps/ui` — the control panel (Vite + react-native-web + `@stage-labs/kit`).
-- `packages/*` — six stations: `xmtp`, `telegram`, `telegram-user`, `discord`, `whatsapp`, `webhook`.
+- `packages/*` — six stations: `xmtp`, `telegram`, `telegram-user`, `discord`, `whatsapp`, `webhook` — plus `packages/cli`.
+- **`packages/cli` is `@stage-labs/metro`, the ONLY published package in the repo.** Everything else is `private: true`. That name is not new: it is what this repo published up to `0.1.0-beta.15` back when it was a stdio MCP, before the rename to `@metro-labs/mcp`. The CLI continues the version line rather than starting a new one, so an existing `npm i -g @stage-labs/metro` upgrades into it.
+  - It ships `dist` only (`files`), `bin.metro` → `dist/cli.js`, `engines.node >= 22`, and `publishConfig.tag` is **`beta`** — publishing without that tag would move `latest` and hand the beta to everyone.
+  - It uses NO Bun API and its shebang is `node`, so the published artifact runs anywhere Node 22 does. The rest of the repo runs under Bun; do not import `Bun.*` here.
+  - **`metro update` resolves the highest dist-tag, never `latest`.** This package's `latest` is stuck at `0.1.0-beta.0` while `beta` is the real head, so an update that trusted `latest` would DOWNGRADE. `newestOf` picks the greatest parseable version across all tags and `isNewer` refuses to move sideways or backwards; `test/version.test.ts` pins both, including that a release outranks its own prereleases and that `beta.10` beats `beta.9`.
+  - `metro login` exists because metro returns its session in the URL FRAGMENT (`return_to#session=…`), which never reaches a server. The CLI serves a page that reads `location.hash` and POSTs it back to an ephemeral `127.0.0.1` listener. Do not "simplify" this into a `?session=` query — a query lands in access logs and `Referer`, a fragment does not.
 
 ## Commands / the gate
 
