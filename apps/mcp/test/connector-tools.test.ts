@@ -3,6 +3,7 @@ import {
   classifyTool,
   countByKind,
   isDestructive,
+  readStoredTools,
   toToolInfo,
   toToolList,
 } from '../src/daemon/connector-tools.ts';
@@ -129,6 +130,56 @@ describe('toToolList', () => {
   test('the list is capped so one server cannot bloat the row', () => {
     const many = Array.from({ length: 900 }, (_, i) => ({ name: `t${String(i)}` }));
     expect(toToolList(many)).toHaveLength(500);
+  });
+});
+
+describe('a catalog survives the round trip through storage', () => {
+  const WIRE = [
+    { name: 'snapshot-query', annotations: { readOnlyHint: true } },
+    { name: 'snapshot-schema', annotations: { readOnlyHint: true } },
+    { name: 'snapshot-whoami', annotations: { readOnlyHint: true } },
+    {
+      name: 'snapshot-vote',
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    {
+      name: 'snapshot-propose',
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    { name: 'snapshot-follow' },
+  ];
+
+  test('reading a stored catalog keeps the kinds it was stored with', () => {
+    const fresh = toToolList(WIRE);
+    const stored = JSON.parse(JSON.stringify(fresh)) as unknown;
+    expect(readStoredTools(stored)).toEqual(fresh);
+  });
+
+  test('the read-only tools stay read-only — re-deriving would lose them', () => {
+    const stored = JSON.parse(JSON.stringify(toToolList(WIRE))) as unknown;
+    const back = readStoredTools(stored);
+    expect(back.filter((t) => t.kind === 'read').map((t) => t.name)).toEqual([
+      'snapshot-query',
+      'snapshot-schema',
+      'snapshot-whoami',
+    ]);
+    expect(countByKind(back)).toEqual({ read: 3, write: 3 });
+  });
+
+  test('the wire reader would have flattened them, which is the bug this guards', () => {
+    const stored = JSON.parse(JSON.stringify(toToolList(WIRE))) as unknown;
+    expect(countByKind(toToolList(stored))).toEqual({ read: 0, write: 6 });
+  });
+
+  test('junk in a stored catalog is dropped, not rendered blank', () => {
+    expect(readStoredTools([null, { kind: 'read' }, 7])).toEqual([]);
+    expect(readStoredTools('nope')).toEqual([]);
+  });
+
+  test('a stored kind Metro does not know falls to the cautious bucket', () => {
+    expect(readStoredTools([{ name: 't', kind: 'destructive' }])[0]?.kind).toBe(
+      'write',
+    );
   });
 });
 

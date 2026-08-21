@@ -10,7 +10,7 @@ import {
   type VerifiedServer,
 } from '../daemon/connector-verify.js';
 import { oauthExpired, refreshOAuth } from '../daemon/connector-oauth.js';
-import { toToolList } from '../daemon/connector-tools.js';
+import { readStoredTools } from '../daemon/connector-tools.js';
 import { getDb } from './client.js';
 import { ensureUser, isUniqueViolation, userIdForEmail } from './agent-admin.js';
 import { connectors, type ConnectorTransport } from './schema.js';
@@ -124,7 +124,7 @@ function readAuth(raw: unknown): ConnectorAuth {
 
 function readVerified(raw: unknown): VerifiedRecord {
   const record = isRecord(raw) ? raw : {};
-  const catalog = toToolList(record.catalog);
+  const catalog = readStoredTools(record.catalog);
   return {
     at: text(record.at),
     server: text(record.server),

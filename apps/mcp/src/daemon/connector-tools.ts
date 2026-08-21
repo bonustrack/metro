@@ -66,6 +66,33 @@ export function toToolList(raw: unknown): ToolInfo[] {
   return out;
 }
 
+export function toStoredTool(raw: unknown): ToolInfo | null {
+  if (!isRecord(raw)) return null;
+  const name = str(raw.name, 200);
+  if (name === '') return null;
+  return {
+    name,
+    title: str(raw.title, 200),
+    description: str(raw.description, MAX_DESCRIPTION),
+    kind: raw.kind === 'read' ? 'read' : 'write',
+    annotated: raw.annotated === true,
+    destructive: raw.destructive !== false,
+    idempotent: raw.idempotent === true,
+    openWorld: raw.openWorld !== false,
+  };
+}
+
+export function readStoredTools(raw: unknown): ToolInfo[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ToolInfo[] = [];
+  for (const entry of raw) {
+    if (out.length >= MAX_TOOLS) break;
+    const tool = toStoredTool(entry);
+    if (tool !== null) out.push(tool);
+  }
+  return out;
+}
+
 export function countByKind(tools: ToolInfo[]): Record<ToolKind, number> {
   const counts: Record<ToolKind, number> = { read: 0, write: 0 };
   for (const tool of tools) counts[tool.kind] += 1;
