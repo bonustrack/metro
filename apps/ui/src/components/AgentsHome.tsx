@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
+import { SHRINK } from '../theme';
 import { PageTitle } from './PageTitle';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -59,7 +60,7 @@ export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
   return (
     <Col gap={16}>
       <Row justify="between" align="start" gap={12} wrap>
-        <Col gap={2} style={{ flexShrink: 1, minWidth: 0 }}>
+        <Col gap={2} style={SHRINK}>
           <PageTitle>Agents</PageTitle>
           <Text size="sm" role="secondary">{BLURB}</Text>
         </Col>

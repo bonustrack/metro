@@ -8,7 +8,7 @@ const LOGO_SIZE = 64;
 export function BootLoading(): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
-    <Row justify="center" align="center" style={{ flex: 1, padding: 24 }}>
+    <Row justify="center" align="center" flex={1} padding={24}>
       <div className="boot-pulse" aria-label="Loading Metro">
         <MetroLogo size={LOGO_SIZE} color={dark ? '#ffffff' : '#000000'} />
       </div>

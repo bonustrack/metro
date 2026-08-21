@@ -34,11 +34,9 @@ function NavRow({
         align="center"
         gap={10}
         padding={ROW_PAD}
-        style={{
-          marginHorizontal: -12,
-          borderRadius: 8,
-          backgroundColor: selected ? palette.inputBg : 'transparent',
-        }}
+        margin={{ x: -12 }}
+        radius={8}
+        surface={selected ? 'raised' : 'none'}
       >
         {icon === undefined ? null : (
           <Icon
@@ -70,10 +68,10 @@ export function AgentSidebar({
 }: AgentSidebarProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
-    <Col style={{ flex: 1, minHeight: 0 }}>
+    <Col flex={1} minHeight={0}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24 }}>
         <Col gap={10}>
-          <Row style={{ paddingBottom: 6 }}>
+          <Row padding={{ bottom: 6 }}>
             <RNPressable
               accessibilityRole="link"
               aria-label="Metro dashboard"

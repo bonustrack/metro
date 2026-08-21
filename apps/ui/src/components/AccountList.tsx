@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
+import { SHRINK } from '../theme';
 import { stationLabel } from '../api/attach';
 import {
   flattenAccounts,
@@ -32,7 +33,7 @@ function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactN
   const body = (
     <>
       <StationIcon station={station} size={ICON_SIZE} color={palette.text} />
-      <Row gap={10} align="center" style={{ flex: 1, minWidth: 0 }}>
+      <Row gap={10} align="center" flex={1} minWidth={0}>
         <span className="row-title">
           <Text size="lg" weight="semibold" numberOfLines={1}>
             {stationLabel(station)}
@@ -42,7 +43,7 @@ function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactN
           size="lg"
           role="secondary"
           numberOfLines={1}
-          style={{ flexShrink: 1, minWidth: 0 }}
+          style={SHRINK}
         >
           {handle ?? id ?? '-'}
         </Text>
@@ -54,16 +55,15 @@ function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactN
       justify="between"
       align="stretch"
       gap={12}
-      style={{
-        borderBottomWidth: 1,
-        borderBottomColor: palette.border,
-      }}
+      border={{ bottom: { width: 1, color: palette.border } }}
     >
       {id === null ? (
         <Row
           gap={12}
           align="center"
-          style={{ flex: 1, minWidth: 0, paddingVertical: ROW_PAD_Y }}
+          flex={1}
+          minWidth={0}
+          padding={{ y: ROW_PAD_Y }}
         >
           {body}
         </Row>
@@ -79,7 +79,7 @@ function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactN
           {body}
         </a>
       )}
-      <Row gap={8} align="center" style={{ paddingVertical: ROW_PAD_Y }}>
+      <Row gap={8} align="center" padding={{ y: ROW_PAD_Y }}>
         {url === undefined ? null : (
           <a
             className="kebab kebab-lg"

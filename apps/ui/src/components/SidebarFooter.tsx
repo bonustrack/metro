@@ -35,7 +35,7 @@ export function SidebarFooter({
   onLock,
 }: SidebarFooterProps): ReactNode {
   return (
-    <Col gap={10} style={{ padding: 24, paddingTop: 16 }}>
+    <Col gap={10} padding={{ x: 24, bottom: 24, top: 16 }}>
       <SidebarLink
         label="Documentation"
         active={selection.kind === 'docs'}

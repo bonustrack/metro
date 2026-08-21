@@ -13,18 +13,14 @@ const LABEL: Record<ToolKind, string> = {
 };
 
 function CountBadge({ count }: { count: number }): ReactNode {
-  const palette = useKitPalette();
   return (
     <Row
       align="center"
       justify="center"
-      style={{
-        minWidth: 24,
-        paddingHorizontal: 7,
-        paddingVertical: 1,
-        borderRadius: 6,
-        backgroundColor: palette.inputBg,
-      }}
+      minWidth={24}
+      padding={{ x: 7, y: 1 }}
+      radius={6}
+      surface="raised"
     >
       <Text size="sm" role="secondary">{String(count)}</Text>
     </Row>
@@ -36,11 +32,8 @@ function ToolRow({ tool }: { tool: ConnectorTool }): ReactNode {
   return (
     <Col
       gap={2}
-      style={{
-        paddingVertical: 12,
-        borderTopWidth: 1,
-        borderTopColor: palette.border,
-      }}
+      padding={{ y: 12 }}
+      border={{ top: { width: 1, color: palette.border } }}
     >
       <Row gap={8} align="center" wrap>
         <Text size="lg" variant="mono">{tool.name}</Text>
@@ -75,7 +68,7 @@ function KindSection({
           setOpen(!open);
         }}
       >
-        <Row align="center" gap={10} style={{ paddingVertical: 12 }}>
+        <Row align="center" gap={10} padding={{ y: 12 }}>
           <Icon
             name={open ? 'chevronDown' : 'chevronRight'}
             size={16}
@@ -87,7 +80,7 @@ function KindSection({
         </Row>
       </Pressable>
       {open ? (
-        <Col style={{ paddingLeft: 26 }}>
+        <Col padding={{ left: 26 }}>
           {tools.map((tool) => (
             <ToolRow key={tool.name} tool={tool} />
           ))}

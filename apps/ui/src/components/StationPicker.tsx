@@ -5,6 +5,7 @@ import {
   useKitScheme,
 } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Input } from './ui';
+import { GROW } from '../theme';
 import { matchStations, stationLabel } from '../api/attach';
 import { StationIcon } from './StationIcon';
 
@@ -63,7 +64,7 @@ export function StationPicker({
           const only = shown[0];
           if (only !== undefined) onPick(only);
         }}
-        style={{ flexGrow: 1, minWidth: 0 }}
+        style={GROW}
       />
       {shown.length === 0 ? (
         <Text size="sm" role="secondary">

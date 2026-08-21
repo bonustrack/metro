@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
+import { SHRINK } from '../theme';
 import { PageTitle } from './PageTitle';
 import { stationLabel } from '../api/attach';
 import { stationFields, type AccountRow } from '../api/accounts';
@@ -27,14 +28,11 @@ function Detail({ label, value }: { label: string; value: string }): ReactNode {
       justify="between"
       align="center"
       gap={16}
-      style={{
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: palette.border,
-      }}
+      padding={{ y: 12 }}
+      border={{ bottom: { width: 1, color: palette.border } }}
     >
       <Text size="sm" role="secondary">{label}</Text>
-      <Text size="sm" numberOfLines={1} style={{ flexShrink: 1 }}>{value}</Text>
+      <Text size="sm" numberOfLines={1} style={SHRINK}>{value}</Text>
     </Row>
   );
 }

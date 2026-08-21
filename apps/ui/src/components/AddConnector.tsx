@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui';
+import { GROW } from '../theme';
 import {
   connectorHost,
   createConnector,
@@ -56,7 +57,7 @@ function FormField(props: FormFieldProps): ReactNode {
         dark={dark}
         onChangeText={props.onChange}
         onSubmit={props.onSubmit}
-        style={{ flexGrow: 1, minWidth: 0 }}
+        style={GROW}
       />
     </Col>
   );

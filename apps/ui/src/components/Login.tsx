@@ -17,8 +17,8 @@ export function Login({ error }: LoginProps): ReactNode {
     window.location.assign(startLoginUrl());
   };
   return (
-    <Row justify="center" align="center" style={{ flex: 1, padding: 24 }}>
-      <Col gap={18} style={{ width: '100%', maxWidth: 420 }}>
+    <Row justify="center" align="center" flex={1} padding={24}>
+      <Col gap={18} width="100%" maxWidth={420}>
           <Row justify="center">
             <MetroLogo size={48} color={dark ? '#ffffff' : '#000000'} />
           </Row>

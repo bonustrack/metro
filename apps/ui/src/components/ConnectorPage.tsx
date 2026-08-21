@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
+import { SHRINK } from '../theme';
 import { PageTitle } from './PageTitle';
 import {
   connectorHost,
@@ -70,14 +71,14 @@ function ConnectorHeading({
   connector: Connector;
 }): ReactNode {
   return (
-    <Row gap={12} align="center" style={{ flexShrink: 1, minWidth: 0 }}>
+    <Row gap={12} align="center" style={SHRINK}>
       <ConnectorIcon
         name={connector.name}
         url={connector.url}
         icon={connector.verified?.icon ?? ''}
         size={40}
       />
-      <Col gap={2} style={{ flexShrink: 1, minWidth: 0 }}>
+      <Col gap={2} style={SHRINK}>
         <PageTitle>{connector.name}</PageTitle>
         <Text size="sm" role="secondary" numberOfLines={1}>
           {connectorHost(connector.url)}

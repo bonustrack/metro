@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
+import { FieldLabel } from './FieldLabel';
 
 const MASK = '•'.repeat(5);
 
@@ -44,9 +45,7 @@ export function CopyBlock({
   return (
     <Col gap={6}>
       <Row justify="between" align="center" gap={12}>
-        <Text size="2xs" role="secondary" style={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
-          {label}
-        </Text>
+        <FieldLabel>{label}</FieldLabel>
         <Row gap={6} align="center">
           {secret ? (
             <Button

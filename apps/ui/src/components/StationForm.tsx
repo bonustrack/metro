@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui';
+import { GROW } from '../theme';
 import {
   startAttach,
   stationLabel,
@@ -94,7 +95,7 @@ export function StationForm(props: StationFormProps): ReactNode {
                 setValues((prev) => ({ ...prev, [field.key]: value }));
               }}
               onSubmit={submit}
-              style={{ flexGrow: 1, minWidth: 0 }}
+              style={GROW}
             />
           </Col>
         ))}

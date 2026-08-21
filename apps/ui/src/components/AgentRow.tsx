@@ -16,7 +16,7 @@ export function AgentRow({ agent, onOpen }: AgentRowProps): ReactNode {
   return (
     <Row
       align="stretch"
-      style={{ borderBottomWidth: 1, borderBottomColor: palette.border }}
+      border={{ bottom: { width: 1, color: palette.border } }}
     >
       <a
         className="row-link"
@@ -26,7 +26,7 @@ export function AgentRow({ agent, onOpen }: AgentRowProps): ReactNode {
           onOpen(agent.id);
         }}
       >
-        <Col gap={1} style={{ flex: 1, minWidth: 0, paddingVertical: ROW_PAD_Y }}>
+        <Col gap={1} flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }}>
           <Text size="lg" weight="semibold" numberOfLines={1}>
             {agent.name}
           </Text>

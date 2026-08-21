@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui';
+import { GROW } from '../theme';
 import { Modal } from './Modal';
 
 interface ConfirmModalProps {
@@ -49,7 +50,7 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
             dark={dark}
             onChangeText={setTyped}
             onSubmit={confirm}
-            style={{ flexGrow: 1, minWidth: 0 }}
+            style={GROW}
           />
         </Col>
         {props.error !== null ? (

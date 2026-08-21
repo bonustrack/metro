@@ -42,7 +42,7 @@ function initialState(): State {
 function Unreachable({ onRetry }: { onRetry: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
-    <Col gap={12} align="center" style={{ padding: 48 }}>
+    <Col gap={12} align="center" padding={48}>
       <Text role="secondary">Could not reach Metro.</Text>
       <Button color="secondary" dark={dark} label="Try again" onPress={onRetry} />
     </Col>

@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
+import { SHRINK } from '../theme';
 import { connectorHost, type Connector } from '../api/connectors';
 import { ConnectorIcon } from './ConnectorIcon';
 
@@ -26,7 +27,7 @@ export function ConnectorRow({ row, onOpen }: ConnectorRowProps): ReactNode {
   return (
     <Row
       align="stretch"
-      style={{ borderBottomWidth: 1, borderBottomColor: palette.border }}
+      border={{ bottom: { width: 1, color: palette.border } }}
     >
       <a
         className="row-link"
@@ -42,8 +43,8 @@ export function ConnectorRow({ row, onOpen }: ConnectorRowProps): ReactNode {
           icon={row.verified?.icon ?? ''}
           size={ICON_SIZE}
         />
-        <Col gap={1} style={{ flex: 1, minWidth: 0, paddingVertical: ROW_PAD_Y }}>
-          <Row gap={10} align="center" style={{ minWidth: 0 }}>
+        <Col gap={1} flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }}>
+          <Row gap={10} align="center" minWidth={0}>
             <span className="row-title">
               <Text size="lg" weight="semibold" numberOfLines={1}>
                 {row.name}
@@ -53,7 +54,7 @@ export function ConnectorRow({ row, onOpen }: ConnectorRowProps): ReactNode {
               size="sm"
               role="secondary"
               numberOfLines={1}
-              style={{ flexShrink: 1, minWidth: 0 }}
+              style={SHRINK}
             >
               {connectorHost(row.url)}
             </Text>

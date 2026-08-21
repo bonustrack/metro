@@ -13,7 +13,7 @@ export function TopBar({ onOpenMenu }: TopBarProps): ReactNode {
   return (
     <Row
       align="center"
-      style={{ padding: 12 }}
+      padding={12}
     >
       <Pressable accessibilityRole="button" aria-label="Open menu" onPress={onOpenMenu}>
         <MenuIcon color={palette.text} />

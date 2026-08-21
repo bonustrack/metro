@@ -2,10 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
 import { Text, Button, Input } from './ui';
-import {
-  useKitPalette,
-  useKitScheme,
-} from '@stage-labs/kit/react-native/theme-context';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import {
   cancelAttachSession,
   pollAttachSession,
@@ -118,7 +115,6 @@ function StepBody({
 export function AttachSession(props: AttachSessionProps): ReactNode {
   const { token, agentId, session, onUpdate, onDone, onClose } = props;
   const dark = useKitScheme() === 'dark';
-  const palette = useKitPalette();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const live = useRef(true);
@@ -199,7 +195,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
           </Text>
         ) : null}
         <Row justify="between" align="center" gap={12} wrap>
-          <Text size="sm" style={{ color: palette.sub }}>
+          <Text size="sm" role="secondary">
             Nothing is stored until the sign-in completes. Metro drops it after
             five minutes.
           </Text>

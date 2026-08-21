@@ -31,3 +31,7 @@ export function textSize(
   return typeSize(variant === 'caption' ? FONT_SIZE.xs : FONT_SIZE.md);
 }
 
+
+export const SHRINK = { flexShrink: 1, minWidth: 0 } as const;
+
+export const GROW = { flexGrow: 1, minWidth: 0 } as const;

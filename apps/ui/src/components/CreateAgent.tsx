@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui';
+import { GROW } from '../theme';
 import { Modal } from './Modal';
 
 interface CreateAgentProps {
@@ -57,7 +58,7 @@ export function CreateAgent({ open, first, onClose, onCreate }: CreateAgentProps
           dark={dark}
           onChangeText={setName}
           onSubmit={submit}
-          style={{ flexGrow: 1, minWidth: 0 }}
+          style={GROW}
         />
         {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
         <Row justify="between" align="center" gap={12} wrap>
