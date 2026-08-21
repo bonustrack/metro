@@ -487,7 +487,6 @@ UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND ac
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `METRO_CHANNEL_STATIONS` | `xmtp,telegram,discord` | Stations surfaced to the MCP |
 | `METRO_PUBLIC_URL` | tunnel hostname | Base URL for attachment links. Unset → falls back to the tunnel hostname; with neither, attachments are surfaced by local path only. |
 | `METRO_HTTP_HOST` | `127.0.0.1` | HTTP bind host; set `0.0.0.0` behind a platform proxy |
 | `METRO_WEBHOOK_PORT` | `8420` | HTTP port |

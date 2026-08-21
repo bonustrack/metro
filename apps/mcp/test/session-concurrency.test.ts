@@ -25,7 +25,6 @@ const LISA_ACCOUNT = 'a34-conclisa';
 const TONY_LINE = `metro://whatsapp/${TONY_ACCOUNT}/111@lid`;
 const LISA_LINE = `metro://whatsapp/${LISA_ACCOUNT}/222@lid`;
 
-let priorStations: string | undefined;
 let server: Server | undefined;
 let base = '';
 
@@ -133,8 +132,6 @@ const waitFor = async (predicate: () => boolean, ms = 5000): Promise<void> => {
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 150));
 
 beforeAll(async () => {
-  priorStations = process.env.METRO_CHANNEL_STATIONS;
-  process.env.METRO_CHANNEL_STATIONS = 'whatsapp';
   setKeyMap([
     { key: TONY_TOKEN, agentId: 1 },
     { key: LISA_TOKEN, agentId: 34 },
@@ -153,8 +150,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (priorStations === undefined) delete process.env.METRO_CHANNEL_STATIONS;
-  else process.env.METRO_CHANNEL_STATIONS = priorStations;
   setKeyMap([]);
   setAgentMap({}, {});
   if (server) await new Promise<void>((r) => server?.close(() => r()));

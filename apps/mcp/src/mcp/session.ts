@@ -20,18 +20,7 @@ export const channelLog = (...a: unknown[]): void => {
   console.error('[metro-mcp]', ...a);
 };
 
-const parseList = (raw: string): string[] =>
-  raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-const getStations = (): Set<string> =>
-  new Set(
-    parseList(
-      process.env.METRO_CHANNEL_STATIONS ?? accountStationNames().join(','),
-    ),
-  );
+const getStations = (): Set<string> => new Set(accountStationNames());
 
 const senderAllowed = (from: string, line: string): boolean => {
   const allowlist = allowlistForLine(line);

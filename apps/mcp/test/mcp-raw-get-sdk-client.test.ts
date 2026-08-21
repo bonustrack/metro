@@ -10,7 +10,6 @@ import { setAgentMap } from '../src/db/agent-map.ts';
 import { asLine } from '../src/stations/lines.ts';
 import { publishEvent, type MetroEvent } from '../src/daemon/events.ts';
 
-process.env.METRO_CHANNEL_STATIONS = 'discord';
 const TOKEN = 'mk_test_agent_key';
 setKeyMap([{ key: TOKEN, agentId: 1 }]);
 beforeAll(() => setAgentMap({ 'discord/acc': 1 }, { 1: 'Tony' }));

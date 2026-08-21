@@ -29,11 +29,8 @@ const LISA_ACCOUNT = 'a34-leaklisa';
 const TONY_LINE = `metro://whatsapp/${TONY_ACCOUNT}/111@lid`;
 const LISA_LINE = `metro://whatsapp/${LISA_ACCOUNT}/222@lid`;
 
-let priorStations: string | undefined;
 
 beforeAll(() => {
-  priorStations = process.env.METRO_CHANNEL_STATIONS;
-  process.env.METRO_CHANNEL_STATIONS = 'whatsapp';
   setKeyMap([
     { key: TONY_TOKEN, agentId: 1 },
     { key: LISA_TOKEN, agentId: 34 },
@@ -45,8 +42,6 @@ beforeAll(() => {
 });
 
 afterAll(async () => {
-  if (priorStations === undefined) delete process.env.METRO_CHANNEL_STATIONS;
-  else process.env.METRO_CHANNEL_STATIONS = priorStations;
   setKeyMap([]);
   setAgentMap({}, {});
   if (server) await new Promise<void>((r) => server?.close(() => r()));

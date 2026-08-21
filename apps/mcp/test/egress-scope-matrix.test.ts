@@ -105,13 +105,10 @@ const CASES: Case[] = [
   { name: 'any webhook at all', reader: NOBODY, line: TONY_HOOK, delivered: false },
 ];
 
-let priorStations: string | undefined;
 let server: Server | undefined;
 let monitorBase = '';
 
 beforeAll(async () => {
-  priorStations = process.env.METRO_CHANNEL_STATIONS;
-  process.env.METRO_CHANNEL_STATIONS = 'whatsapp,webhook';
   setAgentMap(
     {
       'whatsapp/m1-tony': 1,
@@ -137,8 +134,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (priorStations === undefined) delete process.env.METRO_CHANNEL_STATIONS;
-  else process.env.METRO_CHANNEL_STATIONS = priorStations;
   setAgentMap({}, {});
   setKeyMap([]);
   if (server) await new Promise<void>((r) => server?.close(() => r()));

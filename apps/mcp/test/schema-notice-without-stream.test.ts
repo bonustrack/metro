@@ -6,7 +6,6 @@ import { createMetroMcp } from '../src/mcp/index.ts';
 import { setKeyMap } from '../src/db/key-map.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
 
-process.env.METRO_CHANNEL_STATIONS = 'discord';
 const TOKEN = 'mk_test_agent_key';
 setKeyMap([{ key: TOKEN, agentId: 1 }]);
 beforeAll(() => setAgentMap({ 'discord/acc': 1 }, { 1: 'Tony' }));

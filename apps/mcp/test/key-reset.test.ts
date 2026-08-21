@@ -38,7 +38,6 @@ let base = '';
 let attachDir = '';
 let adaUrl = '';
 let bobUrl = '';
-let priorStations: string | undefined;
 
 const mint = (agentId: number): string =>
   `mk_reset_${agentId}_${randomUUID().replace(/-/g, '')}`;
@@ -207,8 +206,6 @@ const doReset = (email: string, id: number): Promise<Response> =>
   });
 
 beforeAll(async () => {
-  priorStations = process.env.METRO_CHANNEL_STATIONS;
-  process.env.METRO_CHANNEL_STATIONS = 'whatsapp';
   process.env.METRO_SESSION_SECRET = SECRET;
   attachDir = mkdtempSync(join(tmpdir(), 'metro-keyreset-'));
   writeFileSync(join(attachDir, ADA_FILE), PNG);
@@ -249,8 +246,6 @@ afterAll(async () => {
       new Promise<void>((r) => setTimeout(r, 2000).unref()),
     ]);
   }
-  if (priorStations === undefined) delete process.env.METRO_CHANNEL_STATIONS;
-  else process.env.METRO_CHANNEL_STATIONS = priorStations;
   delete process.env.METRO_SESSION_SECRET;
   delete process.env.METRO_XMTP_ATTACH_DIR;
   delete process.env.METRO_PUBLIC_URL;
