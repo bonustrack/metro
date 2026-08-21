@@ -20,6 +20,7 @@ import {
   type AllowlistMap,
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
+import { carryTokenStores } from './token-carry.js';
 import { stations, agents, type StationName } from './schema.js';
 
 interface StationTarget {
@@ -30,6 +31,7 @@ interface StationTarget {
 
 interface LoadedAccount {
   station: StationName;
+  id: string;
   accountId: string;
   allowlist: string[] | null;
   config: Record<string, unknown>;
@@ -112,6 +114,7 @@ async function loadAgents(): Promise<LoadedAgent[]> {
       name: a.name,
       accounts: acctRows.map((r) => ({
         station: r.station,
+        id: r.id,
         accountId: r.accountId,
         allowlist: r.allowlist,
         config: r.config as Record<string, unknown>,
@@ -160,6 +163,7 @@ function writeStations(list: LoadedAgent[]): Map<StationName, number> {
   }
   setAgentMap(map, names);
   setAllowlistMap(allow);
+  carryTokenStores(list.flatMap((agent) => agent.accounts));
 
   const active = new Map<StationName, number>();
   for (const [station, accts] of byStation) {
