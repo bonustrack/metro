@@ -48,8 +48,21 @@ describe('the migrations the release command applies', () => {
     );
   });
 
-  test('0012 is the newest migration', () => {
-    expect(journal().at(-1)?.tag).toBe('0012_pin_xmtp_dbpath');
+  test('0013 is the newest migration', () => {
+    expect(journal().at(-1)?.tag).toBe('0013_stations_single_id');
+  });
+
+  test('0013 stashes the old handle before it drops the column', () => {
+    const sql = readFileSync(join(DIR, '0013_stations_single_id.sql'), 'utf8');
+    const stash = sql.indexOf("'previousAccountId'");
+    const drop = sql.indexOf('DROP COLUMN "account_id"');
+    expect(stash).toBeGreaterThan(-1);
+    expect(drop).toBeGreaterThan(stash);
+  });
+
+  test('0013 drops the unique that went with the column', () => {
+    const sql = readFileSync(join(DIR, '0013_stations_single_id.sql'), 'utf8');
+    expect(sql).toContain('DROP CONSTRAINT "stations_station_account_id_unique"');
   });
 
   test('0011 moves accounts into stations instead of dropping them', () => {

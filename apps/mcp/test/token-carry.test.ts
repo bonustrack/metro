@@ -17,8 +17,8 @@ let saved: string | undefined;
 
 const row = (over: Partial<CarriedStation> = {}): CarriedStation => ({
   station: 'whatsapp',
-  accountId: OLD,
   id: NEW,
+  config: { previousAccountId: OLD },
   ...over,
 });
 
@@ -83,9 +83,20 @@ describe('carrying the whatsapp token store to the station id', () => {
     expect(carryTokenStores([row({ station: 'telegram' })])).toBe(0);
   });
 
-  test('a row whose id already equals its account id is skipped', () => {
+  test('a row whose id already equals its previous account id is skipped', () => {
     seed(OLD);
-    expect(carryTokenStores([row({ id: OLD })])).toBe(0);
+    expect(carryTokenStores([row({ id: OLD, config: { previousAccountId: OLD } })])).toBe(0);
+  });
+
+  test('a row with no stashed previous id is skipped — nothing to carry from', () => {
+    seed(OLD);
+    expect(carryTokenStores([row({ config: {} })])).toBe(0);
+    expect(existsSync(tokenStorePath(NEW))).toBe(false);
+  });
+
+  test('a non-string stash is ignored rather than trusted', () => {
+    seed(OLD);
+    expect(carryTokenStores([row({ config: { previousAccountId: 42 } })])).toBe(0);
   });
 
   test('running it twice carries once — release 1 boots more than once', () => {
