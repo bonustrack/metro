@@ -10,6 +10,7 @@ const linear: ConnectorEntry = {
   transport: 'http',
   header: 'Authorization',
   secret: 'Bearer lin_oauth_7f',
+  bearer: null,
 };
 
 const docs: ConnectorEntry = {
@@ -18,6 +19,7 @@ const docs: ConnectorEntry = {
   transport: 'http',
   header: null,
   secret: null,
+  bearer: null,
 };
 
 const notion: ConnectorEntry = {
@@ -26,6 +28,16 @@ const notion: ConnectorEntry = {
   transport: 'http',
   header: 'X-Api-Key',
   secret: 'ntn_secret_value',
+  bearer: null,
+};
+
+const signedIn: ConnectorEntry = {
+  name: 'snapshot',
+  url: 'https://mcp.snapshot.box',
+  transport: 'http',
+  header: null,
+  secret: null,
+  bearer: 'oat_live_9c31',
 };
 
 interface ServerBlock {
@@ -96,5 +108,37 @@ describe('mcpServersJson composes the paste-ready block', () => {
     const json = mcpServersJson([linear]);
     expect(json.startsWith('{\n  "mcpServers": {\n    "linear": {\n')).toBe(true);
     expect(json).toContain('\n      "type": "http"');
+  });
+});
+
+describe('the paste-ready block carries whatever credential the row holds', () => {
+  test('an oauth row exports its access token as a bearer header', () => {
+    const servers = parse(mcpServersJson([signedIn]));
+    expect(servers.snapshot?.headers).toEqual({
+      Authorization: 'Bearer oat_live_9c31',
+    });
+  });
+
+  test('a stored header still wins, so a row never exports two credentials', () => {
+    const both: ConnectorEntry = { ...notion, bearer: 'oat_live_9c31' };
+    expect(parse(mcpServersJson([both])).notion?.headers).toEqual({
+      'X-Api-Key': 'ntn_secret_value',
+    });
+  });
+
+  test('an empty bearer is no bearer, never a literal "Bearer "', () => {
+    const blank: ConnectorEntry = { ...docs, bearer: '' };
+    expect(parse(mcpServersJson([blank])).docs?.headers).toBeUndefined();
+  });
+
+  test('the combined block signs in every row it can, in one copy', () => {
+    const servers = parse(mcpServersJson([linear, docs, signedIn]));
+    expect(servers.linear?.headers).toEqual({
+      Authorization: 'Bearer lin_oauth_7f',
+    });
+    expect(servers.snapshot?.headers).toEqual({
+      Authorization: 'Bearer oat_live_9c31',
+    });
+    expect(servers.docs?.headers).toBeUndefined();
   });
 });

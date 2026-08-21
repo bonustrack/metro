@@ -6,13 +6,22 @@ export interface ConnectorEntry {
   transport: ConnectorTransport;
   header: string | null;
   secret: string | null;
+  bearer: string | null;
+}
+
+function headersOf(entry: ConnectorEntry): Record<string, string> | null {
+  const { header, secret, bearer } = entry;
+  if (typeof header === 'string' && typeof secret === 'string')
+    return { [header]: secret };
+  if (typeof bearer === 'string' && bearer !== '')
+    return { Authorization: `Bearer ${bearer}` };
+  return null;
 }
 
 function serverOf(entry: ConnectorEntry): Record<string, unknown> {
   const base = { type: entry.transport, url: entry.url };
-  const { header, secret } = entry;
-  if (header === null || secret === null) return base;
-  return { ...base, headers: { [header]: secret } };
+  const headers = headersOf(entry);
+  return headers === null ? base : { ...base, headers };
 }
 
 export function mcpServersJson(entries: ConnectorEntry[]): string {
