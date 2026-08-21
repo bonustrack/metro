@@ -39,7 +39,7 @@ function submitLabel(form: Form): string {
 
 interface StationFormProps {
   token: string;
-  agentId: number;
+  agentId: string;
   station: string;
   onBack: () => void;
   onAttached: (result: AttachResult) => void;

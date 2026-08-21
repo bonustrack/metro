@@ -1,9 +1,9 @@
 import { type Selection } from './components/selection';
 
-const AGENT_PATH = /^#?\/agent\/([1-9][0-9]{0,9})$/;
+const AGENT_PATH = /^#?\/agent\/([A-Za-z0-9_-]{11})$/;
 const STATION_PATH = /^#?\/station\/([A-Za-z0-9_-]{1,64})$/;
 const CONNECTORS_PATH = /^#?\/connectors$/;
-const CONNECTOR_PATH = /^#?\/connector\/([1-9][0-9]{0,9})$/;
+const CONNECTOR_PATH = /^#?\/connector\/([A-Za-z0-9_-]{11})$/;
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 
@@ -13,11 +13,11 @@ export function routeSelection(hash: string): Selection {
   if (CONNECTORS_PATH.test(hash)) return { kind: 'connectors' };
   const connectorId = CONNECTOR_PATH.exec(hash)?.[1];
   if (connectorId !== undefined)
-    return { kind: 'connector', id: Number(connectorId) };
+    return { kind: 'connector', id: connectorId };
   const accountId = STATION_PATH.exec(hash)?.[1];
   if (accountId !== undefined) return { kind: 'station', accountId };
   const id = AGENT_PATH.exec(hash)?.[1];
-  return id === undefined ? { kind: 'none' } : { kind: 'agent', id: Number(id) };
+  return id === undefined ? { kind: 'none' } : { kind: 'agent', id };
 }
 
 export function routeHash(selection: Selection): string {

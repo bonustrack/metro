@@ -3,7 +3,8 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
 import { registerKey, rotateAgentKey, unregisterAgentKey } from './key-map.js';
-import { accounts, agents, users } from './schema.js';
+import { newId, parseId } from './ids.js';
+import { agents, stations, users } from './schema.js';
 
 export const AGENT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;
 const UNIQUE_VIOLATION = '23505';
@@ -12,20 +13,20 @@ const KEY_ATTEMPTS = 5;
 export class AgentAdminError extends ApiError {}
 
 export interface AgentSummary {
-  id: number;
+  id: string;
   name: string;
   owned: boolean;
   key: string | null;
 }
 
 export interface CreatedAgent {
-  id: number;
+  id: string;
   name: string;
   key: string;
 }
 
 export interface OwnedAgent {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -67,12 +68,12 @@ export function servesEveryAgent(): boolean {
   return agentPin() === '';
 }
 
-export function daemonServesAgent(id: number): boolean {
+export function daemonServesAgent(id: string): boolean {
   const pin = agentPin();
-  return pin === '' || Number(pin) === id;
+  return pin === '' || pin === id;
 }
 
-export async function userIdForEmail(rawEmail: string): Promise<number | null> {
+export async function userIdForEmail(rawEmail: string): Promise<string | null> {
   const rows = await getDb()
     .select({ id: users.id })
     .from(users)
@@ -81,9 +82,9 @@ export async function userIdForEmail(rawEmail: string): Promise<number | null> {
 }
 
 export async function resolveUserId(
-  insert: () => Promise<number | undefined>,
-  lookup: () => Promise<number | null>,
-): Promise<number> {
+  insert: () => Promise<string | undefined>,
+  lookup: () => Promise<string | null>,
+): Promise<string> {
   const inserted = await insert();
   if (inserted !== undefined) return inserted;
   const existing = await lookup();
@@ -92,13 +93,13 @@ export async function resolveUserId(
   return existing;
 }
 
-export async function ensureUser(rawEmail: string): Promise<number> {
+export async function ensureUser(rawEmail: string): Promise<string> {
   const email = normalizeEmail(rawEmail);
   return resolveUserId(
     async () => {
       const rows = await getDb()
         .insert(users)
-        .values({ email })
+        .values({ id: newId(), email })
         .onConflictDoNothing({ target: users.email })
         .returning({ id: users.id });
       return rows[0]?.id;
@@ -108,23 +109,23 @@ export async function ensureUser(rawEmail: string): Promise<number> {
 }
 
 interface AgentRow {
-  id: number;
+  id: string;
   name: string;
-  ownerId: number | null;
+  ownerId: string | null;
 }
 
 interface KeyRow {
-  agentId: number;
+  agentId: string;
   key: string | null;
 }
 
-function ownedIdsOf(ownerId: number | null, rows: AgentRow[]): number[] {
+function ownedIdsOf(ownerId: string | null, rows: AgentRow[]): string[] {
   if (ownerId === null) return [];
   return rows.filter((r) => r.ownerId === ownerId).map((r) => r.id);
 }
 
 export function toAgentSummaries(
-  ownerId: number | null,
+  ownerId: string | null,
   rows: AgentRow[],
   keyRows: KeyRow[],
 ): AgentSummary[] {
@@ -139,7 +140,7 @@ export function toAgentSummaries(
   }));
 }
 
-async function selectKeyRows(ownedIds: number[]): Promise<KeyRow[]> {
+async function selectKeyRows(ownedIds: string[]): Promise<KeyRow[]> {
   if (ownedIds.length === 0) return [];
   return getDb()
     .select({ agentId: agents.id, key: agents.key })
@@ -156,20 +157,20 @@ export async function listAgentsForEmail(
     .select({ id: agents.id, name: agents.name, ownerId: agents.ownerId })
     .from(agents)
     .where(eq(agents.ownerId, ownerId))
-    .orderBy(asc(agents.id));
+    .orderBy(asc(agents.name), asc(agents.id));
   if (rows.length === 0) return [];
   const keyRows = await selectKeyRows(ownedIdsOf(ownerId, rows));
   return toAgentSummaries(ownerId, rows, keyRows);
 }
 
 async function insertAgent(
-  ownerId: number,
+  ownerId: string,
   name: string,
   key: string,
-): Promise<number> {
+): Promise<string> {
   const inserted = await getDb()
     .insert(agents)
-    .values({ name, ownerId, key })
+    .values({ id: newId(), name, ownerId, key })
     .returning({ id: agents.id });
   const id = inserted[0]?.id;
   if (id === undefined)
@@ -188,19 +189,18 @@ export async function createAgentForEmail(
   return { id, name, key };
 }
 
-export function parseAgentId(raw: string): number | null {
-  if (!/^[1-9][0-9]{0,9}$/.test(raw)) return null;
-  return Number(raw);
+export function parseAgentId(raw: string): string | null {
+  return parseId(raw);
 }
 
 interface Deletable {
   agent: DeletedAgent;
-  ownerId: number;
+  ownerId: string;
 }
 
 export async function ownedAgentOrThrow(
-  ownerId: number | null,
-  id: number,
+  ownerId: string | null,
+  id: string,
 ): Promise<Deletable> {
   const rows = await getDb().select().from(agents).where(eq(agents.id, id));
   const row = rows[0];
@@ -211,7 +211,7 @@ export async function ownedAgentOrThrow(
   return { agent: { id: row.id, name: row.name }, ownerId };
 }
 
-async function writeNewKey(id: number, ownerId: number): Promise<string> {
+async function writeNewKey(id: string, ownerId: string): Promise<string> {
   for (let attempt = 0; attempt < KEY_ATTEMPTS; attempt += 1) {
     const key = newApiKey();
     try {
@@ -232,7 +232,7 @@ async function writeNewKey(id: number, ownerId: number): Promise<string> {
 
 export async function resetAgentKeyForEmail(
   email: string,
-  id: number,
+  id: string,
 ): Promise<ResetAgentKey> {
   const { agent, ownerId } = await ownedAgentOrThrow(
     await userIdForEmail(email),
@@ -245,7 +245,7 @@ export async function resetAgentKeyForEmail(
 
 export async function deleteAgentForEmail(
   email: string,
-  id: number,
+  id: string,
 ): Promise<DeletedAgent> {
   const { agent, ownerId } = await ownedAgentOrThrow(
     await userIdForEmail(email),
@@ -253,9 +253,9 @@ export async function deleteAgentForEmail(
   );
   await getDb().transaction(async (tx) => {
     const attached = await tx
-      .select({ accountId: accounts.accountId })
-      .from(accounts)
-      .where(eq(accounts.agentId, id));
+      .select({ accountId: stations.accountId })
+      .from(stations)
+      .where(eq(stations.agentId, id));
     if (attached.length > 0)
       throw new AgentAdminError(
         `agent '${agent.name}' still has ${attached.length} station account(s) attached — an operator must remove them first`,

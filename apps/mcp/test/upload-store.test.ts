@@ -62,7 +62,7 @@ describe('upload ids are unguessable and unforgeable', () => {
   });
 
   test('the sidecars can never be addressed as an upload of their own', () => {
-    const id = createUploadSlot(1, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000001', { name: 'a.pdf', mime: 'application/pdf' });
     for (const suffix of ['.meta', '.owner', '.grant', '.part'])
       expect(uploadPath(`${id}${suffix}`)).toBeNull();
   });
@@ -70,23 +70,23 @@ describe('upload ids are unguessable and unforgeable', () => {
 
 describe('ownership comes from the #130 owner sidecar', () => {
   test('a created slot records its owning agent on disk', () => {
-    const id = createUploadSlot(7, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000007', { name: 'a.pdf', mime: 'application/pdf' });
     expect(existsSync(join(dir, `${id}.owner`))).toBe(true);
     expect(existsSync(join(dir, `${id}.meta`))).toBe(true);
-    expect(uploadSlot(id)?.agentId).toBe(7);
+    expect(uploadSlot(id)?.agentId).toBe('agent000007');
   });
 
   test('a slot with no bytes yet is not a readable upload', () => {
-    const id = createUploadSlot(7, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000007', { name: 'a.pdf', mime: 'application/pdf' });
     expect(uploadSlot(id)).toBeDefined();
     expect(readUpload(id)).toBeUndefined();
   });
 
   test('a filled slot reports its owner, name, mime and byte count', () => {
-    const id = createUploadSlot(7, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000007', { name: 'a.pdf', mime: 'application/pdf' });
     fill(id, Buffer.alloc(1234, 7));
     const rec = readUpload(id);
-    expect(rec?.agentId).toBe(7);
+    expect(rec?.agentId).toBe('agent000007');
     expect(rec?.name).toBe('a.pdf');
     expect(rec?.mime).toBe('application/pdf');
     expect(rec?.bytes).toBe(1234);
@@ -94,7 +94,7 @@ describe('ownership comes from the #130 owner sidecar', () => {
   });
 
   test('bytes with no owner sidecar are not a readable upload', () => {
-    const id = createUploadSlot(7, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000007', { name: 'a.pdf', mime: 'application/pdf' });
     fill(id, Buffer.alloc(8));
     rmSync(join(dir, `${id}.owner`), { force: true });
     expect(readUpload(id)).toBeUndefined();
@@ -103,35 +103,35 @@ describe('ownership comes from the #130 owner sidecar', () => {
 
 describe('the ticket reuses the #130 grant machinery', () => {
   test('a ticket is a ut_ token bound to the slot and its owner', () => {
-    const id = createUploadSlot(3, { name: 'a.pdf', mime: 'application/pdf' });
-    const token = issueUploadTicket(id, 3) ?? '';
+    const id = createUploadSlot('agent000003', { name: 'a.pdf', mime: 'application/pdf' });
+    const token = issueUploadTicket(id, 'agent000003') ?? '';
     expect(token).toStartWith('ut_');
-    expect(uploadTicketAllows(id, 3, token)).toBe(true);
+    expect(uploadTicketAllows(id, 'agent000003', token)).toBe(true);
   });
 
   test('one slot ticket does not open another slot', () => {
-    const a = createUploadSlot(3, { name: 'a.pdf', mime: 'application/pdf' });
-    const b = createUploadSlot(3, { name: 'b.pdf', mime: 'application/pdf' });
-    const tokenA = issueUploadTicket(a, 3) ?? '';
-    expect(uploadTicketAllows(b, 3, tokenA)).toBe(false);
+    const a = createUploadSlot('agent000003', { name: 'a.pdf', mime: 'application/pdf' });
+    const b = createUploadSlot('agent000003', { name: 'b.pdf', mime: 'application/pdf' });
+    const tokenA = issueUploadTicket(a, 'agent000003') ?? '';
+    expect(uploadTicketAllows(b, 'agent000003', tokenA)).toBe(false);
   });
 
   test('a ticket minted for one agent never satisfies another owner', () => {
-    const id = createUploadSlot(3, { name: 'a.pdf', mime: 'application/pdf' });
-    const token = issueUploadTicket(id, 3) ?? '';
-    expect(uploadTicketAllows(id, 4, token)).toBe(false);
+    const id = createUploadSlot('agent000003', { name: 'a.pdf', mime: 'application/pdf' });
+    const token = issueUploadTicket(id, 'agent000003') ?? '';
+    expect(uploadTicketAllows(id, 'agent000004', token)).toBe(false);
   });
 
   test('a slot with no grant file can never be opened by any token', () => {
-    const id = createUploadSlot(3, { name: 'a.pdf', mime: 'application/pdf' });
-    expect(uploadTicketAllows(id, 3, 'ut_anything')).toBe(false);
-    expect(uploadTicketAllows(id, 3, '')).toBe(false);
+    const id = createUploadSlot('agent000003', { name: 'a.pdf', mime: 'application/pdf' });
+    expect(uploadTicketAllows(id, 'agent000003', 'ut_anything')).toBe(false);
+    expect(uploadTicketAllows(id, 'agent000003', '')).toBe(false);
   });
 });
 
 describe('uploads are transient', () => {
   test('an upload past its TTL reads as gone before any reaper runs', () => {
-    const id = createUploadSlot(1, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000001', { name: 'a.pdf', mime: 'application/pdf' });
     fill(id, Buffer.alloc(16));
     writeFileSync(
       join(dir, `${id}.meta`),
@@ -146,15 +146,15 @@ describe('uploads are transient', () => {
   });
 
   test('the sweeper removes every file of an expired upload', () => {
-    const id = createUploadSlot(1, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000001', { name: 'a.pdf', mime: 'application/pdf' });
     fill(id, Buffer.alloc(16));
-    issueUploadTicket(id, 1);
+    issueUploadTicket(id, 'agent000001');
     expect(sweepUploads(Date.now() + UPLOAD_TTL_MS + 1)).toBe(1);
     expect(readdirSync(dir).filter((f) => f.startsWith(id))).toHaveLength(0);
   });
 
   test('the sweeper leaves a live upload alone', () => {
-    const id = createUploadSlot(1, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000001', { name: 'a.pdf', mime: 'application/pdf' });
     fill(id, Buffer.alloc(16));
     expect(sweepUploads()).toBe(0);
     expect(readUpload(id)).toBeDefined();
@@ -174,9 +174,9 @@ describe('uploads are transient', () => {
   });
 
   test('removeUpload takes the bytes and every sidecar with it', () => {
-    const id = createUploadSlot(1, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000001', { name: 'a.pdf', mime: 'application/pdf' });
     fill(id, Buffer.alloc(16));
-    issueUploadTicket(id, 1);
+    issueUploadTicket(id, 'agent000001');
     removeUpload(id);
     expect(readdirSync(dir).filter((f) => f.startsWith(id))).toHaveLength(0);
   });
@@ -184,7 +184,7 @@ describe('uploads are transient', () => {
 
 describe('the live-bytes budget', () => {
   test('counts finished and in-flight bytes, and nothing else', () => {
-    const id = createUploadSlot(1, { name: 'a.bin', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000001', { name: 'a.bin', mime: 'application/pdf' });
     fill(id, Buffer.alloc(1000));
     writeFileSync(join(dir, `${newUploadId()}.part`), Buffer.alloc(500));
     expect(liveUploadBytes()).toBe(1500);

@@ -17,17 +17,17 @@ import {
 } from '../src/mcp/session-route.ts';
 import type { RequestIdentity } from '../src/mcp/request-identity.ts';
 
-const TONY: RequestIdentity = { kind: 'agent', agentId: 1 };
-const LISA: RequestIdentity = { kind: 'agent', agentId: 34 };
+const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
+const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
 const TONY_OWNER: RequestIdentity = {
   kind: 'google',
   email: 'tony@example.test',
-  agentIds: [1],
+  agentIds: ['agent000001'],
 };
 const BOTH: RequestIdentity = {
   kind: 'google',
   email: 'ops@example.test',
-  agentIds: [34, 1],
+  agentIds: ['agent000034', 'agent000001'],
 };
 const NO_AGENTS: RequestIdentity = {
   kind: 'google',
@@ -106,7 +106,7 @@ describe('sessionScopeKey', () => {
 
   test('the key is order independent', () => {
     expect(
-      sessionScopeKey({ kind: 'google', email: 'a@b.test', agentIds: [1, 34] }),
+      sessionScopeKey({ kind: 'google', email: 'a@b.test', agentIds: ['agent000001', 'agent000034'] }),
     ).toBe(sessionScopeKey(BOTH));
   });
 

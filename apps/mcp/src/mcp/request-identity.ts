@@ -4,8 +4,8 @@ import { verifySession } from '../daemon/session.js';
 import { agentIdForKey } from '../db/key-map.js';
 
 export type RequestIdentity =
-  | { kind: 'agent'; agentId: number }
-  | { kind: 'google'; email: string; agentIds: number[] };
+  | { kind: 'agent'; agentId: string }
+  | { kind: 'google'; email: string; agentIds: string[] };
 
 const storage = new AsyncLocalStorage<RequestIdentity>();
 
@@ -66,7 +66,7 @@ export function authenticate(
 
 export function allowedAgents(
   identity: RequestIdentity | undefined,
-): Set<number> {
+): Set<string> {
   if (identity?.kind === 'google') return new Set(identity.agentIds);
   if (identity?.kind === 'agent') return new Set([identity.agentId]);
   return new Set();

@@ -29,7 +29,7 @@ const MAX_TOTAL = 40;
 
 export interface AttachOwner {
   email: string;
-  agentId: number;
+  agentId: string;
 }
 
 export interface AttachView {

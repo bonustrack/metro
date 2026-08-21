@@ -27,7 +27,7 @@ interface ConnectorInput {
 }
 
 interface Row {
-  id: number;
+  id: string;
   email: string;
   name: string;
   url: string;
@@ -36,7 +36,7 @@ interface Row {
 }
 
 interface WireConnector {
-  id: number;
+  id: string;
   name: string;
   url: string;
   transport: string;
@@ -55,7 +55,7 @@ interface WireConnector {
 
 const SEED: Row[] = [
   {
-    id: 1,
+    id: 'agent000001',
     email: ADA,
     name: 'linear',
     url: 'https://mcp.linear.app/mcp',
@@ -63,7 +63,7 @@ const SEED: Row[] = [
     secret: 'Bearer lin_oauth_7f',
   },
   {
-    id: 2,
+    id: 'agent000002',
     email: ADA,
     name: 'docs',
     url: 'https://docs.example.com/mcp',
@@ -71,7 +71,7 @@ const SEED: Row[] = [
     secret: null,
   },
   {
-    id: 3,
+    id: 'agent000003',
     email: BOB,
     name: 'notion',
     url: 'https://mcp.notion.com/mcp',
@@ -265,7 +265,7 @@ describe('/api/connectors is the Google session surface', () => {
   });
 
   test('a live agent key opens the monitor but never this surface', async () => {
-    setKeyMap([{ key: AGENT_KEY, agentId: 1 }]);
+    setKeyMap([{ key: AGENT_KEY, agentId: 'agent000001' }]);
     try {
       expect((await call('GET', '/api/connectors', AGENT_KEY)).status).toBe(401);
       expect((await call('POST', '/api/connectors', AGENT_KEY, {})).status).toBe(
@@ -281,8 +281,8 @@ describe('/api/connectors is the Google session surface', () => {
   test('every write path is 401 without a session', async () => {
     for (const [method, path] of [
       ['POST', '/api/connectors'],
-      ['POST', '/api/connectors/1/verify'],
-      ['DELETE', '/api/connectors/1'],
+      ['POST', '/api/connectors/agent000001/verify'],
+      ['DELETE', '/api/connectors/agent000001'],
     ] as const)
       expect([path, (await call(method, path)).status]).toEqual([path, 401]);
     expect(calls).toEqual([]);
@@ -300,17 +300,17 @@ describe('the routing gates run before authentication', () => {
   });
 
   test('OPTIONS on a connector id is 204 too', async () => {
-    expect((await call('OPTIONS', '/api/connectors/1/verify')).status).toBe(204);
+    expect((await call('OPTIONS', '/api/connectors/agent000001/verify')).status).toBe(204);
   });
 
   test('a path under the prefix that is not a target is 404, not 401', async () => {
     for (const path of [
       '/api/connectors/abc',
-      '/api/connectors/0',
+      '/api/connectors/nope',
       '/api/connectors/-1',
-      '/api/connectors/1/tools',
-      '/api/connectors/1/verify/again',
-      '/api/connectors/99999999999',
+      '/api/connectors/agent000001/tools',
+      '/api/connectors/agent000001/verify/again',
+      '/api/connectors/agent99999999999',
     ]) {
       const res = await call('GET', path);
       expect([path, res.status]).toEqual([path, 404]);
@@ -320,7 +320,7 @@ describe('the routing gates run before authentication', () => {
   });
 
   test('GET on a connector is a real route now — it reaches auth, not 405', async () => {
-    const res = await fetch(`${base}/api/connectors/1`);
+    const res = await fetch(`${base}/api/connectors/agent000001`);
     expect(res.status).toBe(401);
   });
 
@@ -328,10 +328,10 @@ describe('the routing gates run before authentication', () => {
     for (const [method, path] of [
       ['PUT', '/api/connectors'],
       ['DELETE', '/api/connectors'],
-      ['POST', '/api/connectors/1'],
-      ['PUT', '/api/connectors/1'],
-      ['GET', '/api/connectors/1/verify'],
-      ['DELETE', '/api/connectors/1/verify'],
+      ['POST', '/api/connectors/agent000001'],
+      ['PUT', '/api/connectors/agent000001'],
+      ['GET', '/api/connectors/agent000001/verify'],
+      ['DELETE', '/api/connectors/agent000001/verify'],
     ] as const) {
       const res = await call(method, path);
       expect([method, path, res.status]).toEqual([method, path, 405]);
@@ -351,7 +351,7 @@ describe('GET /api/connectors returns the wire shape', () => {
     };
     expect(wire.connectors.map((c) => c.name)).toEqual(['linear', 'docs']);
     expect(wire.connectors[0]).toEqual({
-      id: 1,
+      id: 'agent000001',
       name: 'linear',
       url: 'https://mcp.linear.app/mcp',
       transport: 'http',
@@ -547,21 +547,21 @@ describe('POST /api/connectors', () => {
 
 describe('another owner is a 404, never a 403', () => {
   test("DELETE of somebody else's connector is 404", async () => {
-    const res = await call('DELETE', '/api/connectors/3', session(ADA));
+    const res = await call('DELETE', '/api/connectors/agent000003', session(ADA));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'no such connector' });
-    expect((await listFor(BOB)).map((c) => c.id)).toEqual([3]);
+    expect((await listFor(BOB)).map((c) => c.id)).toEqual(['agent000003']);
   });
 
   test("verify of somebody else's connector is 404", async () => {
-    const res = await call('POST', '/api/connectors/3/verify', session(ADA));
+    const res = await call('POST', '/api/connectors/agent000003/verify', session(ADA));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'no such connector' });
   });
 
   test('an id that exists and one that never did answer identically', async () => {
-    const mine = await call('DELETE', '/api/connectors/3', session(ADA));
-    const never = await call('DELETE', '/api/connectors/8888', session(ADA));
+    const mine = await call('DELETE', '/api/connectors/agent000003', session(ADA));
+    const never = await call('DELETE', '/api/connectors/agent008888', session(ADA));
     expect([mine.status, never.status]).toEqual([404, 404]);
     expect(await mine.json()).toEqual(await never.json());
   });
@@ -569,10 +569,10 @@ describe('another owner is a 404, never a 403', () => {
 
 describe('verify and delete', () => {
   test('a re-verify that succeeds is 200 with ok true', async () => {
-    const res = await call('POST', '/api/connectors/1/verify', session(ADA));
+    const res = await call('POST', '/api/connectors/agent000001/verify', session(ADA));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      id: 1,
+      id: 'agent000001',
       name: 'linear',
       ok: true,
       verified: VERIFIED,
@@ -583,7 +583,7 @@ describe('verify and delete', () => {
     rows = [
       ...SEED,
       {
-        id: 4,
+        id: 'agent000004',
         email: ADA,
         name: 'picky',
         url: 'https://rejects.example.com/mcp',
@@ -591,10 +591,10 @@ describe('verify and delete', () => {
         secret: 'Bearer wrong',
       },
     ];
-    const res = await call('POST', '/api/connectors/4/verify', session(ADA));
+    const res = await call('POST', '/api/connectors/agent000004/verify', session(ADA));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      id: 4,
+      id: 'agent000004',
       name: 'picky',
       ok: false,
       reason: 'rejects.example.com rejected that credential.',
@@ -602,17 +602,17 @@ describe('verify and delete', () => {
   });
 
   test('DELETE removes the row and names it back', async () => {
-    const res = await call('DELETE', '/api/connectors/1', session(ADA));
+    const res = await call('DELETE', '/api/connectors/agent000001', session(ADA));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ id: 1, name: 'linear', deleted: true });
+    expect(await res.json()).toEqual({ id: 'agent000001', name: 'linear', deleted: true });
     expect((await listFor(ADA)).map((c) => c.name)).toEqual(['docs']);
   });
 
   test('deleting twice is a 404 the second time', async () => {
-    expect((await call('DELETE', '/api/connectors/2', session(ADA))).status).toBe(
+    expect((await call('DELETE', '/api/connectors/agent000002', session(ADA))).status).toBe(
       200,
     );
-    expect((await call('DELETE', '/api/connectors/2', session(ADA))).status).toBe(
+    expect((await call('DELETE', '/api/connectors/agent000002', session(ADA))).status).toBe(
       404,
     );
   });

@@ -30,7 +30,7 @@ type Step =
 
 interface ConnectStationProps {
   token: string;
-  agentId: number;
+  agentId: string;
   attachable: string[];
   open: boolean;
   onClose: () => void;

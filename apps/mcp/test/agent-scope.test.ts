@@ -7,19 +7,19 @@ import {
 } from '../src/db/agent-scope.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
 
-const ONE = new Set([1]);
-const TWO = new Set([2]);
+const ONE = new Set(['agent000001']);
+const TWO = new Set(['agent000002']);
 
 beforeEach(() =>
   setAgentMap(
     {
-      'xmtp/x1': 1,
-      'discord/d1': 1,
-      'discord/d2': 2,
-      'telegram/t2': 2,
-      'webhook/a1-gh': 1,
+      'xmtp/x1': 'agent000001',
+      'discord/d1': 'agent000001',
+      'discord/d2': 'agent000002',
+      'telegram/t2': 'agent000002',
+      'webhook/a1-gh': 'agent000001',
     },
-    { 1: 'tony', 2: 'lisa' },
+    { ['agent000001']: 'tony', ['agent000002']: 'lisa' },
   ),
 );
 afterAll(() => setAgentMap({}, {}));
@@ -76,17 +76,17 @@ describe('stationFullyScoped', () => {
   test('true only when every account of the station is in scope', () => {
     expect(stationFullyScoped(ONE, 'xmtp')).toBe(true);
     expect(stationFullyScoped(ONE, 'discord')).toBe(false);
-    expect(stationFullyScoped(new Set([1, 2]), 'discord')).toBe(true);
+    expect(stationFullyScoped(new Set(['agent000001', 'agent000002']), 'discord')).toBe(true);
   });
 
   test('a station with no accounts is never fully scoped', () => {
-    expect(stationFullyScoped(new Set([1, 2]), 'whatsapp')).toBe(false);
+    expect(stationFullyScoped(new Set(['agent000001', 'agent000002']), 'whatsapp')).toBe(false);
   });
 
   test('a station goes out of reach the moment a second agent joins it', () => {
-    setAgentMap({ 'xmtp/x1': 1 }, { 1: 'tony' });
+    setAgentMap({ 'xmtp/x1': 'agent000001' }, { ['agent000001']: 'tony' });
     expect(stationFullyScoped(ONE, 'xmtp')).toBe(true);
-    setAgentMap({ 'xmtp/x1': 1, 'xmtp/x2': 2 }, { 1: 'tony', 2: 'lisa' });
+    setAgentMap({ 'xmtp/x1': 'agent000001', 'xmtp/x2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
     expect(stationFullyScoped(ONE, 'xmtp')).toBe(false);
   });
 });
@@ -145,7 +145,7 @@ describe('eventInScope', () => {
 
   test('an account that loses its mapping stops being deliverable', () => {
     expect(eventInScope(ONE, 'metro://xmtp/x1/conv')).toBe(true);
-    setAgentMap({ 'discord/d2': 2 }, { 2: 'lisa' });
+    setAgentMap({ 'discord/d2': 'agent000002' }, { ['agent000002']: 'lisa' });
     expect(eventInScope(ONE, 'metro://xmtp/x1/conv')).toBe(false);
     expect(eventInScope(TWO, 'metro://xmtp/x1/conv')).toBe(false);
   });

@@ -135,31 +135,31 @@ describe('an in-core station is never reported as unavailable', () => {
   });
 
   test('every train being down leaves webhook listed with its endpoints', async () => {
-    setAgentMap({ [`webhook/${SIGNED}`]: 1, [`webhook/${OPEN}`]: 2 }, { 1: 'Tony' });
+    setAgentMap({ [`webhook/${SIGNED}`]: 'agent000001', [`webhook/${OPEN}`]: 'agent000002' }, { ['agent000001']: 'Tony' });
     setTrainCallBackend(() => Promise.reject(new Error('train restarting')));
-    const { accounts, unavailable } = await gatherAccountsForAgents(new Set([1]));
+    const { accounts, unavailable } = await gatherAccountsForAgents(new Set(['agent000001']));
     expect(unavailable).not.toContain('webhook');
     expect(accounts.webhook).toEqual([
       {
         id: SIGNED,
         handle: `/api/webhooks/${SIGNED_HOOK}`,
         endpoint: `https://hooks.metro.test/api/webhooks/${SIGNED_HOOK}/${SECRET}`,
-        agentId: 1,
+        agentId: 'agent000001',
       },
     ]);
   });
 
   test('an endpoint owned by another agent is not listed', async () => {
-    setAgentMap({ [`webhook/${SIGNED}`]: 1, [`webhook/${OPEN}`]: 2 }, { 2: 'Lisa' });
+    setAgentMap({ [`webhook/${SIGNED}`]: 'agent000001', [`webhook/${OPEN}`]: 'agent000002' }, { ['agent000002']: 'Lisa' });
     setTrainCallBackend(() => Promise.reject(new Error('train restarting')));
-    const { accounts } = await gatherAccountsForAgents(new Set([2]));
+    const { accounts } = await gatherAccountsForAgents(new Set(['agent000002']));
     expect((accounts.webhook as { id: string }[]).map((a) => a.id)).toEqual([OPEN]);
   });
 
   test('an endpoint with no token is unaddressable, so it is not listed', async () => {
-    setAgentMap({ 'webhook/a1-nosecret': 2 }, { 2: 'Lisa' });
+    setAgentMap({ 'webhook/a1-nosecret': 'agent000002' }, { ['agent000002']: 'Lisa' });
     setTrainCallBackend(() => Promise.reject(new Error('train restarting')));
-    const { accounts } = await gatherAccountsForAgents(new Set([2]));
+    const { accounts } = await gatherAccountsForAgents(new Set(['agent000002']));
     expect(accounts.webhook).toEqual([]);
   });
 });
@@ -176,7 +176,7 @@ describe('the /hook route', () => {
     );
     process.env.METRO_HTTP_HOST = '127.0.0.1';
     seen = [];
-    setKeyMap([{ key: 'mk_monitor_is_mounted', agentId: 1 }]);
+    setKeyMap([{ key: 'mk_monitor_is_mounted', agentId: 'agent000001' }]);
     unsubscribe = subscribeEvents((e: MetroEvent) => seen.push(e));
     server = await startWebhookServer(makeEmit(), undefined, () =>
       Promise.resolve({ result: null }),

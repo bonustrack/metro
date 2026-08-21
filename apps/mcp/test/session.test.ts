@@ -51,15 +51,15 @@ describe('state token', () => {
   });
 
   test('rejects a session token presented as state (typ guard)', () => {
-    const s = signSession({ email: 'a@b.co', agentIds: [1] }, SECRET);
+    const s = signSession({ email: 'a@b.co', agentIds: ['agent000001'] }, SECRET);
     expect(() => verifyState(s, SECRET)).toThrow(/token type/);
   });
 });
 
 describe('session token', () => {
   test('round-trips email and agent ids', () => {
-    const t = signSession({ email: 'a@b.co', agentIds: [1, 2] }, SECRET);
-    expect(verifySession(t, SECRET)).toEqual({ email: 'a@b.co', agentIds: [1, 2] });
+    const t = signSession({ email: 'a@b.co', agentIds: ['agent000001', 'agent000002'] }, SECRET);
+    expect(verifySession(t, SECRET)).toEqual({ email: 'a@b.co', agentIds: ['agent000001', 'agent000002'] });
   });
 
   test('rejects a correctly signed legacy session that scopes by agent NAME', () => {
@@ -78,12 +78,12 @@ describe('session token', () => {
   });
 
   test('rejects an expired session', () => {
-    const t = signSession({ email: 'a@b.co', agentIds: [1] }, SECRET, { ttlSec: -5 });
+    const t = signSession({ email: 'a@b.co', agentIds: ['agent000001'] }, SECRET, { ttlSec: -5 });
     expect(() => verifySession(t, SECRET)).toThrow(/expired/);
   });
 
   test('rejects a wrong secret', () => {
-    const t = signSession({ email: 'a@b.co', agentIds: [1] }, SECRET);
+    const t = signSession({ email: 'a@b.co', agentIds: ['agent000001'] }, SECRET);
     expect(() => verifySession(t, 'other')).toThrow(SessionError);
   });
 

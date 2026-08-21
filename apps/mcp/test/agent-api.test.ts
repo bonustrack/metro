@@ -19,51 +19,51 @@ const fakeKey = (agent: string): string => `mk_fake_${agent}`;
 
 const OWNED: Record<string, AgentSummary[]> = {
   'ada@lovelace.dev': [
-    { id: 1, name: 'ada-bot', owned: true, key: fakeKey('ada-bot') },
+    { id: 'agent000001', name: 'ada-bot', owned: true, key: fakeKey('ada-bot') },
   ],
   'bob@builder.dev': [
-    { id: 2, name: 'bob-bot', owned: true, key: fakeKey('bob-bot') },
+    { id: 'agent000002', name: 'bob-bot', owned: true, key: fakeKey('bob-bot') },
   ],
-  'ada@same.dev': [{ id: 7, name: 'tony', owned: true, key: fakeKey('ada-tony') }],
-  'bob@same.dev': [{ id: 8, name: 'tony', owned: true, key: fakeKey('bob-tony') }],
+  'ada@same.dev': [{ id: 'agent000007', name: 'tony', owned: true, key: fakeKey('ada-tony') }],
+  'bob@same.dev': [{ id: 'agent000008', name: 'tony', owned: true, key: fakeKey('bob-tony') }],
 };
 
 let leakGrantedKeys = false;
 
 const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
-  1: ['telegram', { id: 'ada-tg', owner: 'ada', agentId: 1 }],
-  2: ['discord', { id: 'bob-dc', owner: 'bob', agentId: 2 }],
-  7: ['telegram', { id: 'ada-tony-tg', owner: 'ada', agentId: 7 }],
-  8: ['telegram', { id: 'bob-tony-tg', owner: 'bob', agentId: 8 }],
+  ["agent000001"]: ['telegram', { id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }],
+  ["agent000002"]: ['discord', { id: 'bob-dc', owner: 'bob', agentId: 'agent000002' }],
+  ["agent000007"]: ['telegram', { id: 'ada-tony-tg', owner: 'ada', agentId: 'agent000007' }],
+  ["agent000008"]: ['telegram', { id: 'bob-tony-tg', owner: 'bob', agentId: 'agent000008' }],
 };
 
 interface Row {
-  id: number;
+  id: string;
   name: string;
-  ownerId: number | null;
+  ownerId: string | null;
 }
 
-const USER_IDS: Record<string, number> = {
-  'ada@lovelace.dev': 11,
-  'bob@builder.dev': 22,
+const USER_IDS: Record<string, string> = {
+  'ada@lovelace.dev': 'user0000011',
+  'bob@builder.dev': 'user0000022',
 };
 
-const userIdFor = (email: string): number | null => USER_IDS[email] ?? null;
+const userIdFor = (email: string): string | null => USER_IDS[email] ?? null;
 
 const SEED: Row[] = [
-  { id: 1, name: 'ada-bot', ownerId: 11 },
-  { id: 2, name: 'bob-bot', ownerId: 22 },
-  { id: 5, name: 'legacy', ownerId: null },
+  { id: 'agent000001', name: 'ada-bot', ownerId: 'user0000011' },
+  { id: 'agent000002', name: 'bob-bot', ownerId: 'user0000022' },
+  { id: 'agent000005', name: 'legacy', ownerId: null },
 ];
 
 let server: Server;
 let base: string;
-let scopes: Set<number>[] = [];
+let scopes: Set<string>[] = [];
 let created: { email: string; name: string }[] = [];
 let rows: Row[] = [...SEED];
 let deleteCalls: { email: string; id: number }[] = [];
 let resetCalls: { email: string; id: number }[] = [];
-let liveKeys: Record<number, string> = {};
+let liveKeys: Record<string, string> = {};
 let nextId = 10;
 let resetSerial = 0;
 
@@ -103,7 +103,7 @@ const deps: AgentApiDeps = {
     Promise.resolve([
       ...(OWNED[email] ?? []),
       ...(leakGrantedKeys
-        ? [{ id: 901, name: 'not-mine', owned: false, key: fakeKey('not-mine') }]
+        ? [{ id: 'agent000901', name: 'not-mine', owned: false, key: fakeKey('not-mine') }]
         : []),
     ]),
   createAgent: (email, name) => {
@@ -236,7 +236,7 @@ describe('/api/agents authentication', () => {
 });
 
 interface WireAgent {
-  id: number;
+  id: string;
   name: string;
   owned: boolean;
   key: string | null;
@@ -261,7 +261,7 @@ describe('GET /api/agents ownership', () => {
     expect(body.email).toBe('ada@lovelace.dev');
     expect(body.endpoint).toBe(`${PUBLIC}/mcp`);
     expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
-    expect(body.accounts.telegram).toEqual([{ id: 'ada-tg', owner: 'ada', agentId: 1 }]);
+    expect(body.accounts.telegram).toEqual([{ id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }]);
     expect(body.accounts.discord).toEqual([]);
   });
 
@@ -269,19 +269,19 @@ describe('GET /api/agents ownership', () => {
     const body = (await (await getFull(session('bob@builder.dev'))).json()) as ListBody;
     expect(body.agents.map((a) => a.name)).toEqual(['bob-bot']);
     expect(body.accounts.telegram).toEqual([]);
-    expect(body.accounts.discord).toEqual([{ id: 'bob-dc', owner: 'bob', agentId: 2 }]);
+    expect(body.accounts.discord).toEqual([{ id: 'bob-dc', owner: 'bob', agentId: 'agent000002' }]);
   });
 
   test('the accounts scope set is exactly the visible agent IDS, never names', async () => {
     await getFull(session('ada@lovelace.dev'));
-    expect(scopes.at(-1)).toEqual(new Set([1]));
+    expect(scopes.at(-1)).toEqual(new Set(['agent000001']));
   });
 
   test('every returned account names the agent id it belongs to', async () => {
     const body = (await (await getFull(session('ada@lovelace.dev'))).json()) as ListBody;
     const rowsOut = Object.values(body.accounts).flat();
     expect(rowsOut.length).toBeGreaterThan(0);
-    expect(rowsOut.map((a) => (a as { agentId?: unknown }).agentId)).toEqual([1]);
+    expect(rowsOut.map((a) => (a as { agentId?: unknown }).agentId)).toEqual(['agent000001']);
   });
 
   test('two owners whose agents share a name each see only their own accounts', async () => {
@@ -292,13 +292,13 @@ describe('GET /api/agents ownership', () => {
 
     expect(ada.agents.map((a) => a.name)).toEqual(['tony']);
     expect(bob.agents.map((a) => a.name)).toEqual(['tony']);
-    expect(adaScope).toEqual(new Set([7]));
-    expect(bobScope).toEqual(new Set([8]));
+    expect(adaScope).toEqual(new Set(['agent000007']));
+    expect(bobScope).toEqual(new Set(['agent000008']));
     expect(ada.accounts.telegram).toEqual([
-      { id: 'ada-tony-tg', owner: 'ada', agentId: 7 },
+      { id: 'ada-tony-tg', owner: 'ada', agentId: 'agent000007' },
     ]);
     expect(bob.accounts.telegram).toEqual([
-      { id: 'bob-tony-tg', owner: 'bob', agentId: 8 },
+      { id: 'bob-tony-tg', owner: 'bob', agentId: 'agent000008' },
     ]);
   });
 
@@ -361,7 +361,7 @@ describe('GET /api/agents key exposure', () => {
   test('an owned agent carries its key, tokenised endpoint and paste-ready command', async () => {
     const [agent] = await listAgents('ada@lovelace.dev');
     expect(agent).toEqual({
-      id: 1,
+      id: 'agent000001',
       name: 'ada-bot',
       owned: true,
       key: 'mk_fake_ada-bot',
@@ -396,11 +396,11 @@ describe('GET /api/agents key exposure', () => {
 
   test('an owned agent that has no key yet is served nulls, not a stale value', async () => {
     OWNED['keyless@example.com'] = [
-      { id: 42, name: 'keyless', owned: true, key: null },
+      { id: 'agent000042', name: 'keyless', owned: true, key: null },
     ];
     const [agent] = await listAgents('keyless@example.com');
     expect(agent).toEqual({
-      id: 42,
+      id: 'agent000042',
       name: 'keyless',
       owned: true,
       key: null,
@@ -412,7 +412,7 @@ describe('GET /api/agents key exposure', () => {
 });
 
 interface CreateBody {
-  id: number;
+  id: string;
   name: string;
   key: string;
   endpoint: string;
@@ -454,7 +454,7 @@ describe('POST /api/agents', () => {
       name: 'sneaky',
       email: 'ada@lovelace.dev',
       ownerEmail: 'ada@lovelace.dev',
-      ownerId: 11,
+      ownerId: 'user0000011',
       owner_id: 11,
     });
     expect(created).toEqual([{ email: 'bob@builder.dev', name: 'sneaky' }]);
@@ -506,44 +506,44 @@ describe('POST /api/agents', () => {
 
 describe('DELETE /api/agents/:id', () => {
   test('an owner deletes their own agent by id', async () => {
-    const res = await del(session('ada@lovelace.dev'), '1');
+    const res = await del(session('ada@lovelace.dev'), 'agent000001');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ id: 1, name: 'ada-bot', deleted: true });
-    expect(rows.map((r) => r.id)).toEqual([2, 5]);
+    expect(await res.json()).toEqual({ id: 'agent000001', name: 'ada-bot', deleted: true });
+    expect(rows.map((r) => r.id)).toEqual(['agent000002', 'agent000005']);
   });
 
   test('deleting someone else agent id is refused and leaves it intact', async () => {
-    const res = await del(session('ada@lovelace.dev'), '2');
+    const res = await del(session('ada@lovelace.dev'), 'agent000002');
     expect(res.status).toBe(404);
-    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
     expect(deleteCalls).toEqual([
-      { email: 'ada@lovelace.dev', id: 2 },
+      { email: 'ada@lovelace.dev', id: 'agent000002' },
     ]);
   });
 
   test('an operator row the session cannot see is a plain 404', async () => {
-    const res = await del(session('ada@lovelace.dev'), '5');
+    const res = await del(session('ada@lovelace.dev'), 'agent000005');
     expect(res.status).toBe(404);
-    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
   });
 
   test('the owner is always the session email, never anything from the request', async () => {
-    await del(session('ADA@Lovelace.dev'), '1');
+    await del(session('ADA@Lovelace.dev'), 'agent000001');
     expect(deleteCalls).toEqual([
-      { email: 'ada@lovelace.dev', id: 1 },
+      { email: 'ada@lovelace.dev', id: 'agent000001' },
     ]);
   });
 
   test('deleting without a session is 401 and deletes nothing', async () => {
-    expect((await del(undefined, '1')).status).toBe(401);
+    expect((await del(undefined, 'agent000001')).status).toBe(401);
     expect(deleteCalls).toEqual([]);
-    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
   });
 
   test('a session signed with another secret deletes nothing', async () => {
-    const res = await del(session('ada@lovelace.dev', 'other-secret'), '1');
+    const res = await del(session('ada@lovelace.dev', 'other-secret'), 'agent000001');
     expect(res.status).toBe(401);
-    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
   });
 
   test('a non-numeric or malformed id never reaches the database', async () => {
@@ -554,21 +554,21 @@ describe('DELETE /api/agents/:id', () => {
   });
 
   test('an unknown id is 404', async () => {
-    expect((await del(session('ada@lovelace.dev'), '9999')).status).toBe(404);
+    expect((await del(session('ada@lovelace.dev'), 'agent009999')).status).toBe(404);
   });
 
   test('GET and POST on a single agent are 405', async () => {
     const token = session('ada@lovelace.dev');
     const headers = { authorization: `Bearer ${token}` };
-    expect((await fetch(`${base}/api/agents/1`, { headers })).status).toBe(405);
+    expect((await fetch(`${base}/api/agents/agent000001`, { headers })).status).toBe(405);
     expect(
-      (await fetch(`${base}/api/agents/1`, { method: 'POST', headers })).status,
+      (await fetch(`${base}/api/agents/agent000001`, { method: 'POST', headers })).status,
     ).toBe(405);
-    expect(rows.map((r) => r.id)).toEqual([1, 2, 5]);
+    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
   });
 
   test('OPTIONS preflight on a single agent advertises DELETE', async () => {
-    const res = await fetch(`${base}/api/agents/1`, { method: 'OPTIONS' });
+    const res = await fetch(`${base}/api/agents/agent000001`, { method: 'OPTIONS' });
     expect(res.status).toBe(204);
     expect(res.headers.get('access-control-allow-methods')).toContain('DELETE');
   });
@@ -576,25 +576,25 @@ describe('DELETE /api/agents/:id', () => {
   test('a second agent of the same owner survives the delete', async () => {
     rows = [
       ...SEED,
-      { id: 6, name: 'ada-second', ownerId: 11 },
+      { id: 'agent000006', name: 'ada-second', ownerId: 'user0000011' },
     ];
-    expect((await del(session('ada@lovelace.dev'), '1')).status).toBe(200);
-    expect(rows.map((r) => r.id)).toEqual([2, 5, 6]);
+    expect((await del(session('ada@lovelace.dev'), 'agent000001')).status).toBe(200);
+    expect(rows.map((r) => r.id)).toEqual(['agent000002', 'agent000005', 'agent000006']);
   });
 
   test('a 409 from the admin layer is forwarded with its message intact', async () => {
-    rows = [...SEED, { id: 6, name: 'busy-bot', ownerId: 11 }];
-    const res = await del(session('ada@lovelace.dev'), '6');
+    rows = [...SEED, { id: 'agent000006', name: 'busy-bot', ownerId: 'user0000011' }];
+    const res = await del(session('ada@lovelace.dev'), 'agent000006');
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: string }).error).toContain(
       'station account(s) attached',
     );
-    expect(rows.map((r) => r.id)).toEqual([1, 2, 5, 6]);
+    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005', 'agent000006']);
   });
 });
 
 interface ResetBody {
-  id: number;
+  id: string;
   name: string;
   key: string;
   endpoint: string;
@@ -611,77 +611,77 @@ const resetKey = (token: string | undefined, path: string): Promise<Response> =>
 
 describe('POST /api/agents/:id/key', () => {
   test('an owner resets their own agent key and gets the new one back', async () => {
-    const res = await resetKey(session('ada@lovelace.dev'), '1');
+    const res = await resetKey(session('ada@lovelace.dev'), 'agent000001');
     expect(res.status).toBe(200);
     const body = (await res.json()) as ResetBody;
-    expect(body.id).toBe(1);
+    expect(body.id).toBe('agent000001');
     expect(body.name).toBe('ada-bot');
     expect(body.reset).toBe(true);
-    expect(body.key).toBe(liveKeys[1]);
+    expect(body.key).toBe(liveKeys['agent000001']);
     expect(body.endpoint).toBe(`${PUBLIC}/mcp?token=${body.key}`);
     expect(body.command).toBe(mcpAddCommand(body.key));
   });
 
   test('the new key is never the old one', async () => {
     const first = (await (
-      await resetKey(session('ada@lovelace.dev'), '1')
+      await resetKey(session('ada@lovelace.dev'), 'agent000001')
     ).json()) as ResetBody;
     const second = (await (
-      await resetKey(session('ada@lovelace.dev'), '1')
+      await resetKey(session('ada@lovelace.dev'), 'agent000001')
     ).json()) as ResetBody;
     expect(second.key).not.toBe(first.key);
     expect(second.key).not.toBe('mk_fake_ada-bot');
   });
 
   test('a non-owner cannot reset another agent key', async () => {
-    const res = await resetKey(session('ada@lovelace.dev'), '2');
+    const res = await resetKey(session('ada@lovelace.dev'), 'agent000002');
     expect(res.status).toBe(404);
     expect(liveKeys).toEqual({});
     expect(resetCalls).toEqual([
-      { email: 'ada@lovelace.dev', id: 2 },
+      { email: 'ada@lovelace.dev', id: 'agent000002' },
     ]);
   });
 
   test('the refusal for someone else agent leaks no key material', async () => {
-    const body = await (await resetKey(session('bob@builder.dev'), '1')).text();
+    const body = await (await resetKey(session('bob@builder.dev'), 'agent000001')).text();
     expect(body).not.toContain('mk_');
     expect(body).toBe(JSON.stringify({ error: 'no such agent' }));
   });
 
   test('an operator row the session cannot see is a plain 404', async () => {
-    expect((await resetKey(session('ada@lovelace.dev'), '5')).status).toBe(404);
+    expect((await resetKey(session('ada@lovelace.dev'), 'agent000005')).status).toBe(404);
     expect(liveKeys).toEqual({});
   });
 
   test('resetting without a session is 401 and rotates nothing', async () => {
-    expect((await resetKey(undefined, '1')).status).toBe(401);
+    expect((await resetKey(undefined, 'agent000001')).status).toBe(401);
     expect(resetCalls).toEqual([]);
     expect(liveKeys).toEqual({});
   });
 
   test('a session signed with another secret rotates nothing', async () => {
-    const res = await resetKey(session('ada@lovelace.dev', 'other-secret'), '1');
+    const res = await resetKey(session('ada@lovelace.dev', 'other-secret'), 'agent000001');
     expect(res.status).toBe(401);
     expect(resetCalls).toEqual([]);
   });
 
   test('an agent key is not a session and cannot reach the reset route', async () => {
-    const res = await resetKey('mk_fake_ada-bot', '1');
+    const res = await resetKey('mk_fake_ada-bot', 'agent000001');
     expect(res.status).toBe(401);
     expect(resetCalls).toEqual([]);
   });
 
   test('the owner is always the session email, never anything from the request', async () => {
-    await resetKey(session('ADA@Lovelace.dev'), '1');
+    await resetKey(session('ADA@Lovelace.dev'), 'agent000001');
     expect(resetCalls).toEqual([
-      { email: 'ada@lovelace.dev', id: 1 },
+      { email: 'ada@lovelace.dev', id: 'agent000001' },
     ]);
   });
 
   test('GET and DELETE on the key sub-resource are 405', async () => {
     const headers = { authorization: `Bearer ${session('ada@lovelace.dev')}` };
     for (const method of ['GET', 'DELETE']) {
-      const res = await fetch(`${base}/api/agents/1/key`, { method, headers });
+      const res = await fetch(`${base}/api/agents/agent000001/key`, { method, headers });
       expect(res.status).toBe(405);
     }
     expect(resetCalls).toEqual([]);
@@ -694,7 +694,7 @@ describe('POST /api/agents/:id/key', () => {
   });
 
   test('a deeper path under key is a 404, not a reset', async () => {
-    const res = await fetch(`${base}/api/agents/1/key/rotate`, {
+    const res = await fetch(`${base}/api/agents/agent000001/key/rotate`, {
       method: 'POST',
       headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
     });
@@ -703,17 +703,17 @@ describe('POST /api/agents/:id/key', () => {
   });
 
   test('an unknown id is 404', async () => {
-    expect((await resetKey(session('ada@lovelace.dev'), '9999')).status).toBe(404);
+    expect((await resetKey(session('ada@lovelace.dev'), 'agent009999')).status).toBe(404);
   });
 
   test('OPTIONS preflight on the key sub-resource advertises POST', async () => {
-    const res = await fetch(`${base}/api/agents/1/key`, { method: 'OPTIONS' });
+    const res = await fetch(`${base}/api/agents/agent000001/key`, { method: 'OPTIONS' });
     expect(res.status).toBe(204);
     expect(res.headers.get('access-control-allow-methods')).toContain('POST');
   });
 
   test('the reset response is marked no-store', async () => {
-    const res = await resetKey(session('ada@lovelace.dev'), '1');
+    const res = await resetKey(session('ada@lovelace.dev'), 'agent000001');
     expect(res.headers.get('cache-control')).toBe('no-store');
   });
 });

@@ -43,18 +43,18 @@ const GHOST_HOOK = 'metro://webhook/nobody-gh';
 
 const TONY_KEY = 'mk_matrix_tony';
 const LISA_KEY = 'mk_matrix_lisa';
-const PARKED_AGENT = 999;
+const PARKED_AGENT = 'agent000999';
 
 interface Reader {
   label: string;
-  scope: Set<number>;
+  scope: Set<string>;
   token: string | undefined;
 }
 
-const TONY: Reader = { label: 'agent 1', scope: new Set([1]), token: TONY_KEY };
+const TONY: Reader = { label: 'agent 1', scope: new Set(['agent000001']), token: TONY_KEY };
 const LISA: Reader = {
   label: 'agent 34',
-  scope: new Set([34]),
+  scope: new Set(['agent000034']),
   token: LISA_KEY,
 };
 const NOBODY: Reader = { label: 'no identity', scope: new Set(), token: undefined };
@@ -111,17 +111,17 @@ let monitorBase = '';
 beforeAll(async () => {
   setAgentMap(
     {
-      'whatsapp/m1-tony': 1,
-      'whatsapp/m34-lisa': 34,
-      'whatsapp/m7-mo': 7,
-      'webhook/a1-gh': 1,
-      'webhook/a34-gh': 34,
+      'whatsapp/m1-tony': 'agent000001',
+      'whatsapp/m34-lisa': 'agent000034',
+      'whatsapp/m7-mo': 'agent000007',
+      'webhook/a1-gh': 'agent000001',
+      'webhook/a34-gh': 'agent000034',
     },
-    { 1: 'Tony', 34: 'Lisa', 7: 'Mo' },
+    { ['agent000001']: 'Tony', ['agent000034']: 'Lisa', 7: 'Mo' },
   );
   setKeyMap([
-    { key: TONY_KEY, agentId: 1 },
-    { key: LISA_KEY, agentId: 34 },
+    { key: TONY_KEY, agentId: 'agent000001' },
+    { key: LISA_KEY, agentId: 'agent000034' },
   ]);
   process.env.METRO_WEBHOOK_PORT = String(
     24000 + Math.floor(Math.random() * 12000),
@@ -159,7 +159,7 @@ const inbound = (line: string, text: string): MetroEvent =>
     event: { type: 'msg' },
   }) as unknown as MetroEvent;
 
-const OWNER_OF: Record<string, number> = {
+const OWNER_OF: Record<string, string> = {
   [TONY_LINE]: 1,
   [LISA_LINE]: 34,
   [MO_LINE]: 7,

@@ -18,7 +18,7 @@ const FALLBACK = 'Could not load this station.';
 interface StationPageProps {
   token: string;
   accountId: string;
-  onOpenAgent: (id: number) => void;
+  onOpenAgent: (id: string) => void;
 }
 
 export function StationPage({

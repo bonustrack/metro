@@ -58,7 +58,7 @@ const VERIFIED = {
 };
 
 const ROW = {
-  id: 12,
+  id: 'id000000012',
   name: 'linear',
   url: 'https://mcp.linear.app/mcp',
   transport: 'http',
@@ -105,14 +105,14 @@ describe('the connectors surface is its own endpoint', () => {
   });
 
   test('a verify posts the id sub-resource', async () => {
-    serve({ id: 12, name: 'linear', ok: true, verified: VERIFIED });
+    serve({ id: 'id000000012', name: 'linear', ok: true, verified: VERIFIED });
     await verifyConnector('session', 12);
     expect(calls[0]?.url).toBe(`${CONNECTORS}/12/verify`);
     expect(calls[0]?.method).toBe('POST');
   });
 
   test('a delete addresses the row by id', async () => {
-    serve({ id: 12, name: 'linear', deleted: true });
+    serve({ id: 'id000000012', name: 'linear', deleted: true });
     await deleteConnector('session', 12);
     expect(calls[0]?.url).toBe(`${CONNECTORS}/12`);
     expect(calls[0]?.method).toBe('DELETE');
@@ -163,7 +163,7 @@ describe('a connector row is coerced field by field', () => {
   test('a well-formed row survives the wire unchanged', async () => {
     expect(await list({ connectors: [ROW], json: '{}' })).toEqual([
       {
-        id: 12,
+        id: 'id000000012',
         name: 'linear',
         url: 'https://mcp.linear.app/mcp',
         transport: 'http',
@@ -236,11 +236,11 @@ describe('a connector row is coerced field by field', () => {
 
   test('missing and mistyped fields fall back instead of reaching the page', async () => {
     const [row] = await list({
-      connectors: [{ name: 'bare', id: '12', url: 7, secret: 3, verified: 'yes' }],
+      connectors: [{ name: 'bare', id: 7, url: 7, secret: 3, verified: 'yes' }],
       json: 5,
     });
     expect(row).toEqual({
-      id: 0,
+      id: '',
       name: 'bare',
       url: '',
       transport: '',
@@ -269,7 +269,7 @@ describe('a connector row is coerced field by field', () => {
   });
 
   test('a row with no name is refused rather than rendered as blank', async () => {
-    serve({ connectors: [{ id: 12 }], json: '{}' });
+    serve({ connectors: [{ id: 'id000000012' }], json: '{}' });
     await expect(fetchConnectors('session')).rejects.toThrow('unexpected');
   });
 
@@ -287,7 +287,7 @@ describe('a connector row is coerced field by field', () => {
     serve(ROW, 201);
     const result = await createConnector('session', NEW);
     if (result.kind !== 'added') throw new Error('expected an added connector');
-    expect(result.connector.id).toBe(12);
+    expect(result.connector.id).toBe('id000000012');
     expect(result.connector.secret).toBe('Bearer lin_oauth_7f');
     expect(result.connector.verified?.tools).toBe(12);
   });
@@ -307,16 +307,16 @@ describe('a connector row is coerced field by field', () => {
   });
 
   test('a create answering with no name is refused', async () => {
-    serve({ id: 12 }, 201);
+    serve({ id: 'id000000012' }, 201);
     await expect(createConnector('session', NEW)).rejects.toThrow('unexpected');
   });
 });
 
 describe('a re-verify reports its own verdict', () => {
   test('a passing check carries the fresh verified block', async () => {
-    serve({ id: 12, name: 'linear', ok: true, verified: VERIFIED });
+    serve({ id: 'id000000012', name: 'linear', ok: true, verified: VERIFIED });
     expect(await verifyConnector('session', 12)).toEqual({
-      id: 12,
+      id: 'id000000012',
       name: 'linear',
       ok: true,
       verified: VERIFIED,
@@ -326,13 +326,13 @@ describe('a re-verify reports its own verdict', () => {
 
   test('a failing check carries the reason and no verified block', async () => {
     serve({
-      id: 12,
+      id: 'id000000012',
       name: 'linear',
       ok: false,
       reason: 'mcp.linear.app rejected that credential.',
     });
     expect(await verifyConnector('session', 12)).toEqual({
-      id: 12,
+      id: 'id000000012',
       name: 'linear',
       ok: false,
       verified: null,
@@ -341,7 +341,7 @@ describe('a re-verify reports its own verdict', () => {
   });
 
   test('anything other than a literal true is not a pass', async () => {
-    serve({ id: 12, name: 'linear', ok: 'true' });
+    serve({ id: 'id000000012', name: 'linear', ok: 'true' });
     expect((await verifyConnector('session', 12)).ok).toBe(false);
   });
 

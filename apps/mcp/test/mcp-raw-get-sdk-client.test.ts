@@ -11,8 +11,8 @@ import { asLine } from '../src/stations/lines.ts';
 import { publishEvent, type MetroEvent } from '../src/daemon/events.ts';
 
 const TOKEN = 'mk_test_agent_key';
-setKeyMap([{ key: TOKEN, agentId: 1 }]);
-beforeAll(() => setAgentMap({ 'discord/acc': 1 }, { 1: 'Tony' }));
+setKeyMap([{ key: TOKEN, agentId: 'agent000001' }]);
+beforeAll(() => setAgentMap({ 'discord/acc': 'agent000001' }, { ['agent000001']: 'Tony' }));
 afterAll(() => setAgentMap({}, {}));
 
 

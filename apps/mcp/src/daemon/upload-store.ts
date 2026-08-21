@@ -33,7 +33,7 @@ interface UploadMeta {
 
 export interface UploadRecord extends UploadMeta {
   id: string;
-  agentId: number;
+  agentId: string;
   bytes: number;
   path: string;
   expiresAt: number;
@@ -57,7 +57,7 @@ function readMeta(id: string): UploadMeta | undefined {
 
 export interface UploadSlot extends UploadMeta {
   id: string;
-  agentId: number;
+  agentId: string;
   expiresAt: number;
 }
 
@@ -80,7 +80,7 @@ export function readUpload(id: string): UploadRecord | undefined {
 }
 
 export function createUploadSlot(
-  agentId: number,
+  agentId: string,
   meta: { name: string; mime: string },
 ): string {
   ensureSecureDir(uploadDir());
@@ -96,7 +96,7 @@ export function createUploadSlot(
 
 export const issueUploadTicket = (
   id: string,
-  agentId: number,
+  agentId: string,
 ): string | undefined => {
   const base = uploadPath(id);
   return base === null ? undefined : issueGrant(base, agentId, 'ut');
@@ -104,7 +104,7 @@ export const issueUploadTicket = (
 
 export const uploadTicketAllows = (
   id: string,
-  owner: number,
+  owner: string,
   presented: string,
 ): boolean => {
   const base = uploadPath(id);

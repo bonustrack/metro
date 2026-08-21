@@ -92,7 +92,7 @@ function withFragment(returnTo: string, frag: string): string {
 export interface CallbackDeps {
   exchangeCode: (code: string) => Promise<{ id_token?: string }>;
   verifyIdToken: (idToken: string, nonce: string) => Promise<{ email: string }>;
-  ensureUser: (email: string) => Promise<number>;
+  ensureUser: (email: string) => Promise<string>;
 }
 
 export async function completeCallback(
@@ -117,7 +117,7 @@ export async function completeCallback(
   }
 
   const userId = await deps.ensureUser(email);
-  const agentIds: number[] = [];
+  const agentIds: string[] = [];
   log.info({ userId }, 'google auth: session issued');
 
   const session = signSession({ email, agentIds }, cfg.sessionSecret, {

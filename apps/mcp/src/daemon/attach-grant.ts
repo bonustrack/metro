@@ -1,4 +1,5 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { ID_RE } from '../db/ids.js';
 import { readFileSync } from 'node:fs';
 import { resolveCachedAttachment } from '../stations/attachments.js';
 import { writeSecure } from './secure-fs.js';
@@ -7,7 +8,7 @@ const GRANT_SUFFIX = '.grant';
 
 export interface AttachmentGrant {
   token: string;
-  agentId: number;
+  agentId: string;
   mintedAt: number;
 }
 
@@ -25,8 +26,7 @@ function parseGrant(raw: string): AttachmentGrant | undefined {
   if (typeof parsed !== 'object' || parsed === null) return undefined;
   const { token, agentId, mintedAt } = parsed as Record<string, unknown>;
   if (typeof token !== 'string' || token === '') return undefined;
-  if (typeof agentId !== 'number' || !Number.isInteger(agentId) || agentId <= 0)
-    return undefined;
+  if (typeof agentId !== 'string' || !ID_RE.test(agentId)) return undefined;
   return {
     token,
     agentId,
@@ -44,7 +44,7 @@ export function readGrant(path: string): AttachmentGrant | undefined {
 
 export function issueGrant(
   path: string,
-  agentId: number,
+  agentId: string,
   prefix?: string,
 ): string {
   const existing = readGrant(path);
@@ -66,7 +66,7 @@ function sameToken(presented: string, stored: string): boolean {
 
 export function grantAllowsPath(
   path: string,
-  owner: number,
+  owner: string,
   presented: string,
 ): boolean {
   if (presented === '') return false;
@@ -83,7 +83,7 @@ export function readAttachmentGrant(name: string): AttachmentGrant | undefined {
 
 export function issueAttachmentGrant(
   name: string,
-  agentId: number,
+  agentId: string,
 ): string | undefined {
   const path = resolveCachedAttachment(name);
   return path === null ? undefined : issueGrant(path, agentId);
@@ -91,7 +91,7 @@ export function issueAttachmentGrant(
 
 export function grantAllows(
   name: string,
-  owner: number,
+  owner: string,
   presented: string,
 ): boolean {
   const path = resolveCachedAttachment(name);

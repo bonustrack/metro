@@ -12,13 +12,13 @@ const FAKE_SESSION = 'fake-mtproto-session-string';
 
 const ADA: AttachOwner = {
   email: 'ada@lovelace.dev',
-  agentId: 1,
+  agentId: 'agent000001',
 };
-const BOB: AttachOwner = { email: 'bob@builder.dev', agentId: 2 };
+const BOB: AttachOwner = { email: 'bob@builder.dev', agentId: 'agent000002' };
 
 interface Recorded {
   config: Record<string, unknown>;
-  agentId: number;
+  agentId: string;
   station: string;
 }
 
@@ -33,7 +33,7 @@ const complete = (
 ): Promise<{ accountId: string; activated: boolean }> => {
   if (storeFails !== null) return Promise.reject(new ApiError(storeFails, 409));
   stored.push({ config, agentId: owner.agentId, station });
-  return Promise.resolve({ accountId: `a${owner.agentId}-aaaa0001`, activated: true });
+  return Promise.resolve({ accountId: 'acct-aaaa0001', activated: true });
 };
 
 let hooksSeen: DriverHooks | null = null;
@@ -68,7 +68,7 @@ const starter: StartAttach = (station, input, hooks) => {
 };
 
 const authorize = (owner: AttachOwner): Promise<void> =>
-  owner.agentId === 5
+  owner.agentId === 'agent000005'
     ? Promise.reject(
         new ApiError('operator-provisioned agents cannot be changed here', 403),
       )
@@ -108,14 +108,14 @@ describe('attach session lifecycle', () => {
     await settle();
     expect(stored).toEqual([
       {
-        agentId: 1,
+        agentId: 'agent000001',
         station: 'telegram-user',
         config: { session: FAKE_SESSION, apiId: 1, apiHash: 'ff' },
       },
     ]);
     const done = store.view(ADA, attachId);
     expect(done.status).toBe('done');
-    expect(done.accountId).toBe('a1-aaaa0001');
+    expect(done.accountId).toBe('acct-aaaa0001');
     expect(done.identity).toEqual({ userId: '7', displayName: 'Ada' });
     expect(JSON.stringify([after, done])).not.toContain(FAKE_SESSION);
     await store.stop();
@@ -191,7 +191,7 @@ describe('attach sessions are owned', () => {
     const store = sessions();
     const { attachId } = await store.start(ADA, 'telegram-user', {});
     expect(() =>
-      store.view({ ...ADA, agentId: 99 }, attachId),
+      store.view({ ...ADA, agentId: 'agent000099' }, attachId),
     ).toThrow('no such attach session');
     await store.stop();
   });
@@ -199,7 +199,7 @@ describe('attach sessions are owned', () => {
   test('a grant is refused before any login is attempted', async () => {
     const store = sessions();
     await expect(
-      store.start({ ...ADA, agentId: 5 }, 'whatsapp', {}),
+      store.start({ ...ADA, agentId: 'agent000005' }, 'whatsapp', {}),
     ).rejects.toThrow('operator-provisioned');
     expect(hooksSeen).toBeNull();
     expect(stored).toEqual([]);

@@ -33,7 +33,7 @@ rather than failing silently.
 
 ## Stations
 
-A **station** is a chat-platform integration. Each is an `accounts` row in Postgres, and
+A **station** is a chat-platform integration. Each is a `stations` row in Postgres, and
 each runs as its own supervised subprocess except webhook, which runs in-core.
 
 - **xmtp** — end-to-end-encrypted DMs and groups. Identity is an Ethereum EOA (one raw
@@ -139,11 +139,13 @@ loud error.
 | Var | Meaning |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string (required). |
-| `METRO_AGENT` | Optional. Restrict this instance to one agent by its numeric `agents.id`. Must be a positive integer that exists, else boot fails loudly. Unset → the daemon runs every agent's accounts in one process. |
+| `METRO_AGENT` | Optional. Restrict this instance to one agent by its `agents.id` (11 characters, e.g. `l0q57dPlRc-`). Must exist, else boot fails loudly. Unset → the daemon runs every agent's accounts in one process. |
 
-Four small tables ([`schema.ts`](apps/mcp/src/db/schema.ts)). Both foreign keys point at
+Four small tables ([`schema.ts`](apps/mcp/src/db/schema.ts)). **Every `id` is an
+11-character URL-safe random string** (`A-Za-z0-9_-`, like a YouTube video id, e.g.
+`l0q57dPlRc-`) and is the first column of its table. Both foreign keys point at
 `users.id` (`agents.owner_id` and `connectors.user_id`, each `ON DELETE RESTRICT`);
-`accounts` references its agent by a plain int with none.
+`stations` references its agent by a plain text column with none.
 
 - **`users`** — `id`, `email` (lowercased verified Google email, `UNIQUE`). One row per
   person, created on first sign-in.
@@ -152,10 +154,13 @@ Four small tables ([`schema.ts`](apps/mcp/src/db/schema.ts)). Both foreign keys 
   casing typed, so two agents may both be `Lisa`), `owner_id` (nullable → `users.id`,
   `ON DELETE RESTRICT`; `NULL` = operator-provisioned, owned by nobody and listed to
   nobody), `key` (nullable text `UNIQUE`) — **the agent's one and only API key**.
-- **`accounts`** — `agent_id`, `station` text (`xmtp` | `telegram` | `telegram-user` |
-  `discord` | `whatsapp` | `webhook` — a plain text column, not a DB enum, so a new
-  station needs no migration), `account_id`, `allowlist` text[] (default `['*']`), and
-  `config` jsonb. Primary key (`station`, `account_id`).
+- **`stations`** (renamed from `accounts` in `0011`) — `id`, `agent_id`, `station` text
+  (`xmtp` | `telegram` | `telegram-user` | `discord` | `whatsapp` | `webhook` — a plain
+  text column, not a DB enum, so a new station needs no migration), `account_id`,
+  `allowlist` text[] (default `['*']`), and `config` jsonb, with
+  `UNIQUE (station, account_id)`. `account_id` is the station's public handle — it appears
+  in `metro://` lines and in the WhatsApp token filename — and `0011` left those values
+  alone.
 - **`connectors`** — `id`, `user_id` (→ `users.id`), `name`, `url`, `transport` text
   (`http`), `config` jsonb (`{auth, createdAt, verified}`), `UNIQUE (user_id, name)`.
   Verified bookmarks for **remote** MCP servers, owned by the person rather than by an
@@ -275,7 +280,7 @@ toggle and copies it without revealing it.
 it. Somebody else's agent, an unknown id, or an operator-provisioned row is a flat `404`.
 Deleting removes the row and its key and evicts the digest from the in-memory key map, so
 the key stops authenticating on the very next request with no restart — the map is the
-whole revocation story. **An agent that still has `accounts` rows is refused `409`**;
+whole revocation story. **An agent that still has `stations` rows is refused `409`**;
 deletion never cascades into station credentials, which also makes "the daemon
 materialises a station for a deleted agent" impossible by construction.
 
@@ -325,7 +330,7 @@ the value is ever logged.
 
 ### Inbound webhooks
 
-A webhook endpoint is an `accounts` row like any other station account, so it belongs to
+A webhook endpoint is a `stations` row like any other station account, so it belongs to
 one agent and its events reach only that agent. Attach one from the agent's page (or
 `POST /api/agents/<id>/accounts/start` with `{"station":"webhook"}`); the `201` carries the
 url.
@@ -358,7 +363,7 @@ page — the one station credential an API re-serves, to its owning agent only.
 ### Attaching station accounts from the web UI
 
 Creating an agent does **not** create station accounts; a new agent starts empty.
-`POST /api/agents/<id>/accounts/start` is the only route that writes the `accounts` table.
+`POST /api/agents/<id>/accounts/start` is the only route that writes the `stations` table.
 
 | station | what you supply | what Metro checks before storing anything |
 | --- | --- | --- |
@@ -384,7 +389,7 @@ so the router can tell an attach session from an account path without guessing.
 
 Session state is **in memory only and never persisted**. It holds a live provider client —
 the thing that holds the credential in flight — and the credential is handed straight to
-the `accounts` row on success, never stored on the session or returned in a poll. A session
+the `stations` row on success, never stored on the session or returned in a poll. A session
 lives five minutes, one agent may have two at a time and the daemon forty, and expiring,
 cancelling or shutting down all tear the provider client down. Nothing is written until the
 sign-in completes, so an abandoned attempt leaves no trace.
@@ -498,7 +503,7 @@ curl -X POST -H "Authorization: Bearer $METRO_AGENT_KEY" \
 
 The line carries the scope, so it is required: a caller may only drive an account it owns,
 and an `account` argument may not re-route the call to somebody else's. A call with no line
-at all (`accounts`) is served only when every account of that station belongs to the
+at all (`stations`) is served only when every account of that station belongs to the
 caller.
 
 ### Attachment links

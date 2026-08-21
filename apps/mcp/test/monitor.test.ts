@@ -11,13 +11,13 @@ const ONE = 'mk_agent_one';
 const TWO = 'mk_agent_two';
 
 const AGENTS = {
-  'discord/d1': 1,
-  'xmtp/x1': 1,
-  'telegram/t2': 2,
-  'webhook/a1-gh': 1,
-  'webhook/a2-gh': 2,
+  'discord/d1': 'agent000001',
+  'xmtp/x1': 'agent000001',
+  'telegram/t2': 'agent000002',
+  'webhook/a1-gh': 'agent000001',
+  'webhook/a2-gh': 'agent000002',
 };
-const NAMES = { 1: 'tony', 2: 'lisa' };
+const NAMES = { ['agent000001']: 'tony', ['agent000002']: 'lisa' };
 
 interface Harness {
   server: Server;
@@ -52,8 +52,8 @@ async function start(
 }
 
 const both = (): Array<{ key: string; agentId: number }> => [
-  { key: ONE, agentId: 1 },
-  { key: TWO, agentId: 2 },
+  { key: ONE, agentId: 'agent000001' },
+  { key: TWO, agentId: 'agent000002' },
 ];
 
 afterEach(async () => {
@@ -168,7 +168,7 @@ describe('monitor transport', () => {
 
   test('a line-less call is refused once a second agent shares the station', async () => {
     const h = await start(both());
-    setAgentMap({ ...AGENTS, 'discord/d2': 2 }, NAMES);
+    setAgentMap({ ...AGENTS, 'discord/d2': 'agent000002' }, NAMES);
     expect((await post(h, '/api/call/discord/accounts', ONE, {})).status).toBe(
       403,
     );

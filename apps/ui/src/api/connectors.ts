@@ -30,7 +30,7 @@ export interface ConnectorVerified {
 }
 
 export interface Connector {
-  id: number;
+  id: string;
   name: string;
   url: string;
   transport: string;
@@ -54,7 +54,7 @@ export interface NewConnector {
 }
 
 export interface VerifyResult {
-  id: number;
+  id: string;
   name: string;
   ok: boolean;
   verified: ConnectorVerified | null;
@@ -121,7 +121,7 @@ function toConnector(value: unknown): Connector {
   if (!isRecord(value) || typeof value.name !== 'string')
     throw new Error('Metro returned an unexpected response.');
   return {
-    id: typeof value.id === 'number' ? value.id : 0,
+    id: typeof value.id === 'string' ? value.id : '',
     name: value.name,
     url: str(value.url),
     transport: str(value.transport),
@@ -201,19 +201,19 @@ export function takeConnectorError(): string | null {
 
 export async function fetchConnector(
   token: string,
-  id: number,
+  id: string,
 ): Promise<Connector> {
   const body = await call(token, {
     method: 'GET',
     base: connectorsUrl(),
-    path: `/${String(id)}`,
+    path: `/${id}`,
   });
   return toConnector(body);
 }
 
 export async function verifyConnector(
   token: string,
-  id: number,
+  id: string,
 ): Promise<VerifyResult> {
   const body = await call(token, {
     method: 'POST',
@@ -222,7 +222,7 @@ export async function verifyConnector(
   });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   return {
-    id: typeof body.id === 'number' ? body.id : id,
+    id: typeof body.id === 'string' ? body.id : id,
     name: str(body.name),
     ok: body.ok === true,
     verified: toVerified(body.verified),
@@ -230,7 +230,7 @@ export async function verifyConnector(
   };
 }
 
-export async function deleteConnector(token: string, id: number): Promise<void> {
+export async function deleteConnector(token: string, id: string): Promise<void> {
   await call(token, {
     method: 'DELETE',
     base: connectorsUrl(),

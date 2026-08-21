@@ -33,7 +33,7 @@ interface AgentDetailProps {
   unattributed: number;
   onOpenStation: (accountId: string) => void;
   onChanged: (dropped?: string[]) => void;
-  onDelete: (id: number) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }
 
 export function AgentDetail(props: AgentDetailProps): ReactNode {
@@ -47,7 +47,7 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
     onChanged([`${station}/${accountId}`]);
   };
 
-  const onReset = async (id: number): Promise<void> => {
+  const onReset = async (id: string): Promise<void> => {
     await resetAgentKey(token, id);
     onChanged();
   };

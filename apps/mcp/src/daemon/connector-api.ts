@@ -9,6 +9,7 @@ import {
   sendJson,
   type ApiSession,
 } from './api-http.js';
+import { parseId } from '../db/ids.js';
 import { mcpServersJson } from './connector-json.js';
 
 const asText = (value: unknown): string =>
@@ -29,7 +30,7 @@ import type {
 } from '../db/connectors.js';
 
 const PREFIX = '/api/connectors';
-const CONNECTOR_ID_RE = /^[1-9][0-9]{0,9}$/;
+
 
 export interface ConnectorApiDeps {
   listConnectors: (email: string) => Promise<Connector[]>;
@@ -41,24 +42,24 @@ export interface ConnectorApiDeps {
     email: string,
     input: ConnectorInput,
   ) => Promise<Connector>;
-  getConnector: (email: string, id: number) => Promise<Connector>;
-  verifyConnector: (email: string, id: number) => Promise<ConnectorCheck>;
-  deleteConnector: (email: string, id: number) => Promise<DeletedConnector>;
+  getConnector: (email: string, id: string) => Promise<Connector>;
+  verifyConnector: (email: string, id: string) => Promise<ConnectorCheck>;
+  deleteConnector: (email: string, id: string) => Promise<DeletedConnector>;
 }
 
 type Routable =
   | { kind: 'collection' }
   | { kind: 'callback' }
-  | { kind: 'connector'; id: number }
-  | { kind: 'verify'; id: number };
+  | { kind: 'connector'; id: string }
+  | { kind: 'verify'; id: string };
 
 type Target = Routable | { kind: 'unknown' } | null;
 
-function parseConnectorId(raw: string): number | null {
-  return CONNECTOR_ID_RE.test(raw) ? Number(raw) : null;
+function parseConnectorId(raw: string): string | null {
+  return parseId(raw);
 }
 
-function subTarget(id: number, rest: string[]): Target {
+function subTarget(id: string, rest: string[]): Target {
   if (rest.length === 0) return { kind: 'connector', id };
   if (rest.length === 1 && rest[0] === 'verify') return { kind: 'verify', id };
   return { kind: 'unknown' };
@@ -165,7 +166,7 @@ async function handleVerify(
   res: ServerResponse,
   deps: ConnectorApiDeps,
   session: ApiSession,
-  id: number,
+  id: string,
 ): Promise<void> {
   const check = await deps.verifyConnector(session.email, id);
   log.info(
@@ -180,7 +181,7 @@ async function handleConnector(
   res: ServerResponse,
   deps: ConnectorApiDeps,
   session: ApiSession,
-  id: number,
+  id: string,
 ): Promise<void> {
   if (req.method !== 'GET') {
     await handleDelete(req, res, deps, session, id);
@@ -195,7 +196,7 @@ async function handleDelete(
   res: ServerResponse,
   deps: ConnectorApiDeps,
   session: ApiSession,
-  id: number,
+  id: string,
 ): Promise<void> {
   const gone = await deps.deleteConnector(session.email, id);
   log.info(

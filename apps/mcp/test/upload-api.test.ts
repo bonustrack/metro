@@ -39,10 +39,10 @@ beforeAll(async () => {
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   setKeyMap([
-    { key: ONE, agentId: 1 },
-    { key: TWO, agentId: 2 },
+    { key: ONE, agentId: 'agent000001' },
+    { key: TWO, agentId: 'agent000002' },
   ]);
-  setAgentMap({ 'xmtp/x1': 1, 'telegram/t2': 2 }, { 1: 'tony', 2: 'lisa' });
+  setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
   server = await startWebhookServer(makeEmit(), undefined, () =>
     Promise.resolve({ result: null }),
   );
@@ -100,7 +100,7 @@ describe('POST /api/uploads with an agent key', () => {
     expect(body.attachment).toEqual({ upload: body.id });
     expect(typeof body.expires_at).toBe('string');
     const rec = readUpload(String(body.id));
-    expect(rec?.agentId).toBe(1);
+    expect(rec?.agentId).toBe('agent000001');
     expect(rec?.bytes).toBe(PDF.length);
   });
 
@@ -166,8 +166,8 @@ describe('the size ceiling names itself', () => {
   });
 
   test('a chunked body leaves no .part behind and frees the slot to retry', async () => {
-    const id = createUploadSlot(1, { name: 'a.bin', mime: 'application/pdf' });
-    const token = issueUploadTicket(id, 1) ?? '';
+    const id = createUploadSlot('agent000001', { name: 'a.bin', mime: 'application/pdf' });
+    const token = issueUploadTicket(id, 'agent000001') ?? '';
     const url = `/api/uploads/${id}?token=${token}`;
     const res = await put(url, chunked(MAX_UPLOAD_BYTES + 4 * 1024 * 1024));
     expect(res.status).toBe(413);
@@ -178,47 +178,47 @@ describe('the size ceiling names itself', () => {
 });
 
 describe('PUT /api/uploads/<id> with a ticket', () => {
-  const ticketed = (agentId: number): { id: string; url: string } => {
+  const ticketed = (agentId: string): { id: string; url: string } => {
     const id = createUploadSlot(agentId, { name: 'a.pdf', mime: 'application/pdf' });
     const token = issueUploadTicket(id, agentId) ?? '';
     return { id, url: `/api/uploads/${id}?token=${token}` };
   };
 
   test('the ticket alone stores the bytes, with no agent key in sight', async () => {
-    const { id, url } = ticketed(1);
+    const { id, url } = ticketed('agent000001');
     const res = await put(url, PDF);
     expect(res.status).toBe(200);
     expect(readUpload(id)?.bytes).toBe(PDF.length);
-    expect(readUpload(id)?.agentId).toBe(1);
+    expect(readUpload(id)?.agentId).toBe('agent000001');
   });
 
   test('POST works too, for a client that cannot PUT', async () => {
-    const { id, url } = ticketed(1);
+    const { id, url } = ticketed('agent000001');
     expect((await post(url, PDF)).status).toBe(200);
     expect(readUpload(id)?.bytes).toBe(PDF.length);
   });
 
   test('a ticket is single use: a second push is a 409', async () => {
-    const { url } = ticketed(1);
+    const { url } = ticketed('agent000001');
     expect((await put(url, PDF)).status).toBe(200);
     expect((await put(url, PDF)).status).toBe(409);
   });
 
   test('?name= at push time relabels the file', async () => {
-    const { id, url } = ticketed(1);
+    const { id, url } = ticketed('agent000001');
     await put(`${url}&name=q3-results.pdf`, PDF);
     expect(readUpload(id)?.name).toBe('q3-results.pdf');
   });
 
   test('no token at all is a 404, never a store', async () => {
-    const { id } = ticketed(1);
+    const { id } = ticketed('agent000001');
     expect((await put(`/api/uploads/${id}`, PDF)).status).toBe(404);
     expect(readUpload(id)).toBeUndefined();
   });
 
   test('one slot ticket does not fill another slot', async () => {
-    const mine = ticketed(1);
-    const other = createUploadSlot(1, { name: 'b.pdf', mime: 'application/pdf' });
+    const mine = ticketed('agent000001');
+    const other = createUploadSlot('agent000001', { name: 'b.pdf', mime: 'application/pdf' });
     const stolen = mine.url.split('?')[1] ?? '';
     const res = await put(`/api/uploads/${other}?${stolen}`, PDF);
     expect(res.status).toBe(404);
@@ -226,7 +226,7 @@ describe('PUT /api/uploads/<id> with a ticket', () => {
   });
 
   test('the owning agent key fills its own slot without a ticket', async () => {
-    const id = createUploadSlot(1, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000001', { name: 'a.pdf', mime: 'application/pdf' });
     const res = await fetch(`${base}/api/uploads/${id}?token=${ONE}`, {
       method: 'PUT',
       body: PDF,
@@ -235,7 +235,7 @@ describe('PUT /api/uploads/<id> with a ticket', () => {
   });
 
   test('another agent key cannot fill it even knowing the id', async () => {
-    const id = createUploadSlot(1, { name: 'a.pdf', mime: 'application/pdf' });
+    const id = createUploadSlot('agent000001', { name: 'a.pdf', mime: 'application/pdf' });
     const res = await fetch(`${base}/api/uploads/${id}?token=${TWO}`, {
       method: 'PUT',
       body: PDF,

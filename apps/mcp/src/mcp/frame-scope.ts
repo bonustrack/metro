@@ -4,7 +4,7 @@ import { str } from './str.js';
 
 export interface FrameOrigin {
   line: string | undefined;
-  owner: Set<number>;
+  owner: Set<string>;
 }
 
 export function frameLine(message: JSONRPCMessage): string | undefined {
@@ -15,7 +15,7 @@ export function frameLine(message: JSONRPCMessage): string | undefined {
   return str((meta as { line?: unknown }).line) || undefined;
 }
 
-export function frameInScope(scope: Set<number>, origin: FrameOrigin): boolean {
+export function frameInScope(scope: Set<string>, origin: FrameOrigin): boolean {
   if (origin.line !== undefined) return eventInScope(scope, origin.line);
   return origin.owner.size > 0 && [...origin.owner].every((id) => scope.has(id));
 }

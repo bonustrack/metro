@@ -18,12 +18,12 @@ import { sessionScopeKey } from '../src/mcp/session-route.ts';
 import type { RawGetSink } from '../src/mcp/raw-get-stream.ts';
 import type { RequestIdentity } from '../src/mcp/request-identity.ts';
 
-const TONY: RequestIdentity = { kind: 'agent', agentId: 1 };
-const LISA: RequestIdentity = { kind: 'agent', agentId: 34 };
+const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
+const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
 const TONY_OWNER: RequestIdentity = {
   kind: 'google',
   email: 'tony@example.test',
-  agentIds: [1],
+  agentIds: ['agent000001'],
 };
 
 const quiet = (): void => undefined;
@@ -138,7 +138,7 @@ describe('session registry', () => {
 
   test('the capacity ceiling evicts the least recently used streamless session', async () => {
     const reg = make();
-    const first = await reg.create({ kind: 'agent', agentId: 1 });
+    const first = await reg.create({ kind: 'agent', agentId: 'agent000001' });
     first.lastSeenAt = 0;
     for (let i = 2; i <= MAX_SESSIONS; i += 1)
       await reg.create({ kind: 'agent', agentId: i });

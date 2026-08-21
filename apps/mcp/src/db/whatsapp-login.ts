@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from './client.js';
-import { accounts } from './schema.js';
+import { stations } from './schema.js';
 
 export async function writeWhatsappCredentials(
   accountId: string,
@@ -8,11 +8,11 @@ export async function writeWhatsappCredentials(
 ): Promise<void> {
   const db = getDb();
   await db
-    .update(accounts)
+    .update(stations)
     .set({
-      config: sql`${accounts.config} || ${JSON.stringify({ credentials })}::jsonb`,
+      config: sql`${stations.config} || ${JSON.stringify({ credentials })}::jsonb`,
     })
     .where(
-      and(eq(accounts.station, 'whatsapp'), eq(accounts.accountId, accountId)),
+      and(eq(stations.station, 'whatsapp'), eq(stations.accountId, accountId)),
     );
 }

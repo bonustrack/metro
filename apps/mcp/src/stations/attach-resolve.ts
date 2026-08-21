@@ -23,7 +23,7 @@ export interface ResolvedAttachment {
 }
 
 export interface ResolveOptions {
-  allowed?: Set<number>;
+  allowed?: Set<string>;
 }
 
 interface InlineBudget {
@@ -115,7 +115,7 @@ const uploadMissing = (id: string): Error =>
 function fromUpload(
   a: CanonicalAttachment,
   id: string,
-  allowed: Set<number> | undefined,
+  allowed: Set<string> | undefined,
 ): ResolvedAttachment {
   const rec = allowed === undefined ? undefined : readUpload(id);
   if (rec === undefined || !(allowed?.has(rec.agentId) ?? false))

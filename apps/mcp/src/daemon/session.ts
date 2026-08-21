@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { ID_RE } from '../db/ids.js';
 
 export class SessionError extends Error {}
 
@@ -95,7 +96,7 @@ export function verifyState(
 
 interface SessionClaims {
   email: string;
-  agentIds: number[];
+  agentIds: string[];
 }
 
 export function signSession(
@@ -129,8 +130,8 @@ export function verifySession(
   if (
     typeof p.sub !== 'string' ||
     !Array.isArray(ids) ||
-    ids.some((a) => !Number.isInteger(a) || (a as number) <= 0)
+    ids.some((a) => typeof a !== 'string' || !ID_RE.test(a))
   )
     throw new SessionError('malformed session');
-  return { email: p.sub, agentIds: ids as number[] };
+  return { email: p.sub, agentIds: ids as string[] };
 }

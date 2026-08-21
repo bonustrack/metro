@@ -5,7 +5,7 @@ import { KebabMenu } from './KebabMenu';
 
 interface ResetAgentKeyProps {
   agent: AgentSummary;
-  onReset: (id: number) => Promise<void>;
+  onReset: (id: string) => Promise<void>;
 }
 
 const CONFIRM_WORD = 'DELETE';

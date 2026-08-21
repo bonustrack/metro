@@ -3,9 +3,14 @@ import { routeHash, routeSelection } from '../src/route';
 
 describe('routeSelection', () => {
   test('a per-agent route selects that agent by id', () => {
-    expect(routeSelection('#/agent/1')).toEqual({ kind: 'agent', id: 1 });
-    expect(routeSelection('#/agent/2')).toEqual({ kind: 'agent', id: 2 });
-    expect(routeSelection('#/agent/4242')).toEqual({ kind: 'agent', id: 4242 });
+    expect(routeSelection('#/agent/id000000001')).toEqual({
+      kind: 'agent',
+      id: 'id000000001',
+    });
+    expect(routeSelection('#/agent/aB3-_xYz9Qw')).toEqual({
+      kind: 'agent',
+      id: 'aB3-_xYz9Qw',
+    });
   });
 
   test('a station route selects that account by its id', () => {
@@ -63,16 +68,14 @@ describe('routeSelection', () => {
 
   test('anything that is not a plain positive id falls back to no selection', () => {
     for (const bad of [
-      '#/agent/0',
-      '#/agent/-1',
-      '#/agent/01',
-      '#/agent/1.0',
-      '#/agent/1e3',
-      '#/agent/ 1',
-      '#/agent/1 ',
-      '#/agent/abc',
-      '#/agent/1/2',
-      '#/agent/99999999999',
+      '#/agent/1',
+      '#/agent/id00000000',
+      '#/agent/id0000000012',
+      '#/agent/id00000000.',
+      '#/agent/id00000000+',
+      '#/agent/ id00000001',
+      '#/agent/id00000001 ',
+      '#/agent/id000000001/2',
       '#/1',
       '#/agent',
       '#/agent/',
@@ -96,8 +99,12 @@ describe('routeSelection', () => {
 
 describe('routeHash', () => {
   test('a selected agent is reflected as its own url', () => {
-    expect(routeHash({ kind: 'agent', id: 1 })).toBe('#/agent/1');
-    expect(routeHash({ kind: 'agent', id: 2 })).toBe('#/agent/2');
+    expect(routeHash({ kind: 'agent', id: 'id000000001' })).toBe(
+      '#/agent/id000000001',
+    );
+    expect(routeHash({ kind: 'agent', id: 'aB3-_xYz9Qw' })).toBe(
+      '#/agent/aB3-_xYz9Qw',
+    );
   });
 
   test('a selected station is reflected as its own url', () => {
@@ -116,7 +123,7 @@ describe('routeHash', () => {
 
   test('every hash it writes parses back to the same selection', () => {
     for (const selection of [
-      { kind: 'agent', id: 7 } as const,
+      { kind: 'agent', id: 'id000000007' } as const,
       { kind: 'station', accountId: 'a1-e5036b5f' } as const,
       { kind: 'connectors' } as const,
       { kind: 'docs' } as const,

@@ -35,7 +35,7 @@ describe('agent credentials on the wire', () => {
   test('an owned agent carries one key, its endpoint and its command', async () => {
     const [agent] = await dashboard([
       {
-        id: 1,
+        id: 'id000000001',
         name: 'ada-bot',
         owned: true,
         key: 'mk_fake',
@@ -44,7 +44,7 @@ describe('agent credentials on the wire', () => {
       },
     ]);
     expect(agent).toEqual({
-      id: 1,
+      id: 'id000000001',
       name: 'ada-bot',
       owned: true,
       key: 'mk_fake',
@@ -55,10 +55,10 @@ describe('agent credentials on the wire', () => {
 
   test('a not-owned agent carries no key, endpoint or command', async () => {
     const [agent] = await dashboard([
-      { id: 5, name: 'legacy', owned: false, key: null, endpoint: null, command: null },
+      { id: 'id000000005', name: 'legacy', owned: false, key: null, endpoint: null, command: null },
     ]);
     expect(agent).toEqual({
-      id: 5,
+      id: 'id000000005',
       name: 'legacy',
       owned: false,
       key: null,
@@ -70,7 +70,7 @@ describe('agent credentials on the wire', () => {
   test('a daemon that still sends the old keys array is read from its first entry', async () => {
     const [agent] = await dashboard([
       {
-        id: 1,
+        id: 'id000000001',
         name: 'ada-bot',
         owned: true,
         keys: [
@@ -90,20 +90,22 @@ describe('agent credentials on the wire', () => {
 
   test('an old-daemon agent with an empty keys array reads as no key', async () => {
     const [agent] = await dashboard([
-      { id: 1, name: 'ada-bot', owned: true, keys: [] },
+      { id: 'id000000001', name: 'ada-bot', owned: true, keys: [] },
     ]);
     expect([agent?.key, agent?.endpoint, agent?.command]).toEqual([null, null, null]);
   });
 
   test('a malformed agent entry never throws and never invents a key', async () => {
-    const agents = await dashboard([{ id: 'nope', keys: 'not-an-array' }, null, 7]);
-    expect(agents).toEqual([{ id: 0, name: '', owned: false, key: null, endpoint: null, command: null }]);
+    const agents = await dashboard([{ id: 7, keys: 'not-an-array' }, null, 7]);
+    expect(agents).toEqual([
+      { id: '', name: '', owned: false, key: null, endpoint: null, command: null },
+    ]);
   });
 });
 
 describe('resetAgentKey', () => {
   const ROTATED = {
-    id: 7,
+    id: 'id000000007',
     name: 'tony',
     reset: true,
     key: 'mk_rotated',
@@ -125,7 +127,7 @@ describe('resetAgentKey', () => {
   });
 
   test('a response without a key is rejected rather than shown as empty', async () => {
-    serve({ id: 7, name: 'tony', reset: true });
+    serve({ id: 'id000000007', name: 'tony', reset: true });
     await expect(resetAgentKey('session', 7)).rejects.toThrow('unexpected');
   });
 });

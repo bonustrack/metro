@@ -5,7 +5,7 @@ import { KebabMenu } from './KebabMenu';
 
 interface DeleteAgentProps {
   agent: AgentSummary;
-  onDelete: (id: number) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }
 
 export function DeleteAgent({ agent, onDelete }: DeleteAgentProps): ReactNode {

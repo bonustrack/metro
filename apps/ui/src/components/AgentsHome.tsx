@@ -25,7 +25,7 @@ function AgentCards({
   onOpen,
 }: {
   agents: AgentSummary[];
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }): ReactNode {
   if (agents.length === 0)
     return <Text size="sm" role="secondary">No agents yet.</Text>;
@@ -40,7 +40,7 @@ function AgentCards({
 
 interface AgentsHomeProps {
   token: string;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }
 
 export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {

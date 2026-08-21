@@ -11,6 +11,7 @@ import {
 } from '../daemon/connector-verify.js';
 import { oauthExpired, refreshOAuth } from '../daemon/connector-oauth.js';
 import { readStoredTools } from '../daemon/connector-tools.js';
+import { newId } from './ids.js';
 import { getDb } from './client.js';
 import { ensureUser, isUniqueViolation, userIdForEmail } from './agent-admin.js';
 import { connectors, type ConnectorTransport } from './schema.js';
@@ -23,7 +24,7 @@ const DEFAULT_HEADER = 'Authorization';
 class ConnectorError extends ApiError {}
 
 export interface Connector {
-  id: number;
+  id: string;
   name: string;
   url: string;
   transport: ConnectorTransport;
@@ -41,11 +42,11 @@ export interface ConnectorInput {
 }
 
 export type ConnectorCheck =
-  | { id: number; name: string; ok: true; verified: VerifiedRecord }
-  | { id: number; name: string; ok: false; reason: string };
+  | { id: string; name: string; ok: true; verified: VerifiedRecord }
+  | { id: string; name: string; ok: false; reason: string };
 
 export interface DeletedConnector {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -176,8 +177,8 @@ const missing = (): ConnectorError =>
   new ConnectorError('no such connector', 404);
 
 async function ownedConnectorOrThrow(
-  userId: number | null,
-  id: number,
+  userId: string | null,
+  id: string,
 ): Promise<ConnectorRow> {
   if (userId === null) throw missing();
   const rows = await getDb()
@@ -204,14 +205,14 @@ export async function listConnectorsForEmail(
 
 export async function getConnectorForEmail(
   email: string,
-  id: number,
+  id: string,
 ): Promise<Connector> {
   const userId = await userIdForEmail(email);
   return toConnector(await ownedConnectorOrThrow(userId, id));
 }
 
 async function insertConnector(
-  userId: number,
+  userId: string,
   name: string,
   url: URL,
   config: ConnectorConfig,
@@ -220,6 +221,7 @@ async function insertConnector(
     const rows = await getDb()
       .insert(connectors)
       .values({
+        id: newId(),
         userId,
         name,
         url: url.toString(),
@@ -287,7 +289,7 @@ export async function createOAuthConnectorForEmail(
 
 export async function verifyConnectorForEmail(
   email: string,
-  id: number,
+  id: string,
 ): Promise<ConnectorCheck> {
   const userId = await userIdForEmail(email);
   const row = await ownedConnectorOrThrow(userId, id);
@@ -309,7 +311,7 @@ export async function verifyConnectorForEmail(
 
 export async function deleteConnectorForEmail(
   email: string,
-  id: number,
+  id: string,
 ): Promise<DeletedConnector> {
   const userId = await userIdForEmail(email);
   if (userId === null) throw missing();

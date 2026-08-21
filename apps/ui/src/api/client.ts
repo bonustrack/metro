@@ -10,7 +10,7 @@ import {
 export class AuthError extends Error {}
 
 export interface AgentSummary {
-  id: number;
+  id: string;
   name: string;
   owned: boolean;
   key: string | null;
@@ -33,7 +33,7 @@ export interface StationsView extends AgentsView {
 }
 
 export interface CreatedAgent {
-  id: number;
+  id: string;
   name: string;
   key: string;
   endpoint: string;
@@ -87,7 +87,7 @@ function toAgents(value: unknown): AgentSummary[] {
   return value.filter(isRecord).map((a) => {
     const cred = credentials(a);
     return {
-      id: typeof a.id === 'number' ? a.id : 0,
+      id: typeof a.id === 'string' ? a.id : '',
       name: typeof a.name === 'string' ? a.name : '',
       owned: a.owned === true,
       key: text(cred.key),
@@ -171,7 +171,7 @@ export async function createAgent(token: string, name: string): Promise<CreatedA
   )
     throw new Error('Metro returned an unexpected response.');
   return {
-    id: typeof body.id === 'number' ? body.id : 0,
+    id: typeof body.id === 'string' ? body.id : '',
     name: body.name,
     key: body.key,
     endpoint: body.endpoint,
@@ -179,13 +179,13 @@ export async function createAgent(token: string, name: string): Promise<CreatedA
   };
 }
 
-export async function deleteAgent(token: string, id: number): Promise<void> {
+export async function deleteAgent(token: string, id: string): Promise<void> {
   await call(token, { method: 'DELETE', path: `/${id}` });
 }
 
 export async function resetAgentKey(
   token: string,
-  id: number,
+  id: string,
 ): Promise<void> {
   const body = await call(token, { method: 'POST', path: `/${id}/key` });
   if (

@@ -32,12 +32,12 @@ const LISA_LINE = `metro://whatsapp/${LISA_ACCOUNT}/222@lid`;
 
 beforeAll(() => {
   setKeyMap([
-    { key: TONY_TOKEN, agentId: 1 },
-    { key: LISA_TOKEN, agentId: 34 },
+    { key: TONY_TOKEN, agentId: 'agent000001' },
+    { key: LISA_TOKEN, agentId: 'agent000034' },
   ]);
   setAgentMap(
-    { [`whatsapp/${TONY_ACCOUNT}`]: 1, [`whatsapp/${LISA_ACCOUNT}`]: 34 },
-    { 1: 'Tony', 34: 'Lisa' },
+    { [`whatsapp/${TONY_ACCOUNT}`]: 'agent000001', [`whatsapp/${LISA_ACCOUNT}`]: 'agent000034' },
+    { ['agent000001']: 'Tony', ['agent000034']: 'Lisa' },
   );
 });
 

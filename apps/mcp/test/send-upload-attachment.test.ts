@@ -85,17 +85,17 @@ beforeEach(() => {
 const text = (r: { content: { text: string }[] }): string =>
   r.content.map((c) => c.text).join('\n');
 
-function stored(agentId: number, name = 'q3.pdf'): string {
+function stored(agentId: string, name = 'q3.pdf'): string {
   const id = createUploadSlot(agentId, { name, mime: 'application/pdf' });
   writeFileSync(uploadPath(id) ?? '', PAYLOAD, { mode: 0o600 });
   return id;
 }
 
-const asAgent = <T>(agentId: number, fn: () => Promise<T>): Promise<T> =>
+const asAgent = <T>(agentId: string, fn: () => Promise<T>): Promise<T> =>
   runWithIdentity({ kind: 'agent', agentId }, fn);
 
 const send = (
-  agentId: number,
+  agentId: string,
   args: Record<string, unknown>,
 ): Promise<{ content: { text: string }[]; isError?: boolean }> =>
   asAgent(agentId, () => dispatchMessageTool('send', args));
@@ -103,8 +103,8 @@ const send = (
 describe('an uploaded file reaches the station intact', () => {
   test('the station is handed a real local file with the uploaded bytes', async () => {
     labels = ['file'];
-    const id = stored(1);
-    const res = await send(1, {
+    const id = stored('agent000001');
+    const res = await send('agent000001', {
       line: WHATSAPP,
       text: 'the numbers',
       attachments: [{ upload: id }],
@@ -121,9 +121,9 @@ describe('an uploaded file reaches the station intact', () => {
 
   test('no credential of any kind crosses to the station', async () => {
     labels = ['file'];
-    const id = stored(1);
-    const token = issueUploadTicket(id, 1) ?? '';
-    await send(1, { line: WHATSAPP, attachments: [{ upload: id }] });
+    const id = stored('agent000001');
+    const token = issueUploadTicket(id, 'agent000001') ?? '';
+    await send('agent000001', { line: WHATSAPP, attachments: [{ upload: id }] });
     const wire = JSON.stringify(seen);
     expect(token).toStartWith('ut_');
     expect(wire).not.toContain(token);
@@ -132,16 +132,16 @@ describe('an uploaded file reaches the station intact', () => {
 
   test('the bytes never enter the durable attachment cache', async () => {
     labels = ['file'];
-    const id = stored(1);
-    await send(1, { line: WHATSAPP, attachments: [{ upload: id }] });
+    const id = stored('agent000001');
+    await send('agent000001', { line: WHATSAPP, attachments: [{ upload: id }] });
     expect(seen[0]?.path?.startsWith(dir)).toBe(true);
     expect(seen[0]?.path?.startsWith(attachDir())).toBe(false);
   });
 
   test('an explicit name and mime override the ones given at upload time', async () => {
     labels = ['image'];
-    const id = stored(1);
-    await send(1, {
+    const id = stored('agent000001');
+    await send('agent000001', {
       line: WHATSAPP,
       attachments: [{ upload: id, name: 'chart.png', mime: 'image/png' }],
     });
@@ -150,8 +150,8 @@ describe('an uploaded file reaches the station intact', () => {
   });
 
   test('a native station carries it too', async () => {
-    const id = stored(1);
-    const res = await send(1, { line: XMTP, attachments: [{ upload: id }] });
+    const id = stored('agent000001');
+    const res = await send('agent000001', { line: XMTP, attachments: [{ upload: id }] });
     expect(res.isError).toBeUndefined();
     expect(text(res)).toBe('sent: file');
     expect(seen.map((s) => s.action)).toEqual(['sendAttachment']);
@@ -159,18 +159,18 @@ describe('an uploaded file reaches the station intact', () => {
 
   test('the send does not consume the upload, so a retry still works', async () => {
     labels = ['file'];
-    const id = stored(1);
-    await send(1, { line: WHATSAPP, attachments: [{ upload: id }] });
+    const id = stored('agent000001');
+    await send('agent000001', { line: WHATSAPP, attachments: [{ upload: id }] });
     expect(readUpload(id)).toBeDefined();
-    const again = await send(1, { line: WHATSAPP, attachments: [{ upload: id }] });
+    const again = await send('agent000001', { line: WHATSAPP, attachments: [{ upload: id }] });
     expect(again.isError).toBeUndefined();
   });
 });
 
 describe('an upload belongs to the agent that made it', () => {
   test("another agent naming the id is refused and nothing is sent", async () => {
-    const id = stored(1);
-    const res = await send(2, {
+    const id = stored('agent000001');
+    const res = await send('agent000002', {
       line: WHATSAPP,
       text: 'hi',
       attachments: [{ upload: id }],
@@ -181,7 +181,7 @@ describe('an upload belongs to the agent that made it', () => {
   });
 
   test('a caller with no identity at all is refused, never served', async () => {
-    const id = stored(1);
+    const id = stored('agent000001');
     const res = await dispatchMessageTool('send', {
       line: WHATSAPP,
       attachments: [{ upload: id }],
@@ -193,9 +193,9 @@ describe('an upload belongs to the agent that made it', () => {
 
   test('a google session over that agent may use it', async () => {
     labels = ['file'];
-    const id = stored(1);
+    const id = stored('agent000001');
     const res = await runWithIdentity(
-      { kind: 'google', email: 'x@y.z', agentIds: [1, 3] },
+      { kind: 'google', email: 'x@y.z', agentIds: ['agent000001', 'agent000003'] },
       () => dispatchMessageTool('send', { line: WHATSAPP, attachments: [{ upload: id }] }),
     );
     expect(res.isError).toBeUndefined();
@@ -204,7 +204,7 @@ describe('an upload belongs to the agent that made it', () => {
 
 describe('an upload that is not there is an error, never a silent drop', () => {
   test('an unknown id is refused', async () => {
-    const res = await send(1, {
+    const res = await send('agent000001', {
       line: WHATSAPP,
       text: 'hi',
       attachments: [{ upload: 'up_aaaaaaaaaaaaaaaaaaaaaa' }],
@@ -215,7 +215,7 @@ describe('an upload that is not there is an error, never a silent drop', () => {
   });
 
   test('an id that is not id-shaped is refused, never resolved as a path', async () => {
-    const res = await send(1, {
+    const res = await send('agent000001', {
       line: WHATSAPP,
       attachments: [{ upload: '../../../etc/passwd' }],
     });
@@ -224,14 +224,14 @@ describe('an upload that is not there is an error, never a silent drop', () => {
   });
 
   test('a slot whose bytes were never pushed is refused', async () => {
-    const id = createUploadSlot(1, { name: 'a.pdf', mime: 'application/pdf' });
-    const res = await send(1, { line: WHATSAPP, attachments: [{ upload: id }] });
+    const id = createUploadSlot('agent000001', { name: 'a.pdf', mime: 'application/pdf' });
+    const res = await send('agent000001', { line: WHATSAPP, attachments: [{ upload: id }] });
     expect(res.isError).toBe(true);
     expect(text(res)).toContain('is not a live upload of yours');
   });
 
   test('an expired upload is refused and the error says so', async () => {
-    const id = stored(1);
+    const id = stored('agent000001');
     writeFileSync(
       `${uploadPath(id) ?? ''}.meta`,
       JSON.stringify({
@@ -240,7 +240,7 @@ describe('an upload that is not there is an error, never a silent drop', () => {
         createdAt: Date.now() - UPLOAD_TTL_MS - 1000,
       }),
     );
-    const res = await send(1, { line: WHATSAPP, attachments: [{ upload: id }] });
+    const res = await send('agent000001', { line: WHATSAPP, attachments: [{ upload: id }] });
     expect(res.isError).toBe(true);
     expect(text(res)).toContain('expired');
     expect(seen).toHaveLength(0);
@@ -249,8 +249,8 @@ describe('an upload that is not there is an error, never a silent drop', () => {
 
 describe('upload is one source among four', () => {
   test('upload plus data on one attachment is refused', async () => {
-    const id = stored(1);
-    const res = await send(1, {
+    const id = stored('agent000001');
+    const res = await send('agent000001', {
       line: WHATSAPP,
       attachments: [{ upload: id, data: PAYLOAD.toString('base64') }],
     });
@@ -261,8 +261,8 @@ describe('upload is one source among four', () => {
 
   test('an upload alongside an inline attachment sends both', async () => {
     labels = ['file', 'file'];
-    const id = stored(1);
-    const res = await send(1, {
+    const id = stored('agent000001');
+    const res = await send('agent000001', {
       line: WHATSAPP,
       attachments: [
         { upload: id },
@@ -274,8 +274,8 @@ describe('upload is one source among four', () => {
   });
 
   test('a failed inline neighbour does not delete the upload', async () => {
-    const id = stored(1);
-    const res = await send(1, {
+    const id = stored('agent000001');
+    const res = await send('agent000001', {
       line: WHATSAPP,
       attachments: [{ upload: id }, { data: 'not base64 at all!!', name: 'x.bin' }],
     });

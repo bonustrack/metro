@@ -26,7 +26,7 @@ const EMPTY =
 
 interface ConnectorsBodyProps {
   data: ConnectorList;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }
 
 function ConnectorsBody({ data, onOpen }: ConnectorsBodyProps): ReactNode {
@@ -58,7 +58,7 @@ export function Connectors({
   onOpen,
 }: {
   token: string;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();

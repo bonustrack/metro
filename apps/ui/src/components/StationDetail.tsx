@@ -42,7 +42,7 @@ interface StationDetailProps {
   row: AccountRow;
   agent: AgentSummary | undefined;
   verbs: string[];
-  onOpenAgent: (id: number) => void;
+  onOpenAgent: (id: string) => void;
   onDetach?: DetachHandler;
 }
 
@@ -63,7 +63,7 @@ function Heading({ station, row, agent, onOpenAgent }: StationDetailProps): Reac
             <Text size="sm" role="secondary">on</Text>
             <a
               className="hint-link"
-              href={`#/agent/${String(agent.id)}`}
+              href={`#/agent/${agent.id}`}
               onClick={(e) => {
                 e.preventDefault();
                 onOpenAgent(agent.id);

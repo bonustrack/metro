@@ -18,13 +18,13 @@ import { setAgentMap } from '../src/db/agent-map.ts';
 
 const STREAM = '_GET_stream';
 
-const TONY: RequestIdentity = { kind: 'agent', agentId: 1 };
-const LISA: RequestIdentity = { kind: 'agent', agentId: 34 };
-const MO: RequestIdentity = { kind: 'agent', agentId: 7 };
+const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
+const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
+const MO: RequestIdentity = { kind: 'agent', agentId: 'agent000007' };
 const TONY_OWNER: RequestIdentity = {
   kind: 'google',
   email: 'tony@example.test',
-  agentIds: [1],
+  agentIds: ['agent000001'],
 };
 
 const TONY_LINE = 'metro://whatsapp/a1-tony/111@lid';
@@ -34,11 +34,11 @@ const MO_LINE = 'metro://whatsapp/a7-mo/333@lid';
 beforeAll(() =>
   setAgentMap(
     {
-      'whatsapp/a1-tony': 1,
-      'whatsapp/a34-lisa': 34,
-      'whatsapp/a7-mo': 7,
+      'whatsapp/a1-tony': 'agent000001',
+      'whatsapp/a34-lisa': 'agent000034',
+      'whatsapp/a7-mo': 'agent000007',
     },
-    { 1: 'Tony', 34: 'Lisa', 7: 'Mo' },
+    { ['agent000001']: 'Tony', ['agent000034']: 'Lisa', 7: 'Mo' },
   ),
 );
 afterAll(() => setAgentMap({}, {}));

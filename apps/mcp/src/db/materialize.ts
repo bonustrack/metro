@@ -6,6 +6,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
+import { ID_RE } from './ids.js';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { log } from '../daemon/log.js';
@@ -19,7 +20,7 @@ import {
   type AllowlistMap,
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
-import { accounts, agents, type StationName } from './schema.js';
+import { stations, agents, type StationName } from './schema.js';
 
 interface StationTarget {
   file: string;
@@ -35,7 +36,7 @@ interface LoadedAccount {
 }
 
 interface LoadedAgent {
-  id: number;
+  id: string;
   name: string;
   accounts: LoadedAccount[];
   key: string | null;
@@ -82,13 +83,12 @@ function accountFilePath(station: StationName): string {
   return process.env[target.fileEnv] ?? join(METRO_DIR, target.file);
 }
 
-function agentFilter(): number | undefined {
+function agentFilter(): string | undefined {
   const v = process.env.METRO_AGENT?.trim();
   if (!v) return undefined;
-  const id = Number(v);
-  if (!Number.isInteger(id) || id <= 0)
-    throw new Error(`METRO_AGENT must be an agent id (positive integer), got '${v}'`);
-  return id;
+  if (!ID_RE.test(v))
+    throw new Error(`METRO_AGENT must be an 11-character agent id, got '${v}'`);
+  return v;
 }
 
 async function loadAgents(): Promise<LoadedAgent[]> {
@@ -105,8 +105,8 @@ async function loadAgents(): Promise<LoadedAgent[]> {
   for (const a of agentRows) {
     const acctRows = await db
       .select()
-      .from(accounts)
-      .where(eq(accounts.agentId, a.id));
+      .from(stations)
+      .where(eq(stations.agentId, a.id));
     out.push({
       id: a.id,
       name: a.name,

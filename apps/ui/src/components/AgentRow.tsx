@@ -8,7 +8,7 @@ const ROW_PAD_Y = 12;
 
 interface AgentRowProps {
   agent: AgentSummary;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }
 
 export function AgentRow({ agent, onOpen }: AgentRowProps): ReactNode {
@@ -20,7 +20,7 @@ export function AgentRow({ agent, onOpen }: AgentRowProps): ReactNode {
     >
       <a
         className="row-link"
-        href={`#/agent/${String(agent.id)}`}
+        href={`#/agent/${agent.id}`}
         onClick={(e) => {
           e.preventDefault();
           onOpen(agent.id);
@@ -31,7 +31,7 @@ export function AgentRow({ agent, onOpen }: AgentRowProps): ReactNode {
             {agent.name}
           </Text>
           <Text size="sm" role="secondary">
-            {agent.owned ? `id ${String(agent.id)}` : `id ${String(agent.id)} · not owned`}
+            {agent.owned ? `id ${agent.id}` : `id ${agent.id} · not owned`}
           </Text>
         </Col>
       </a>

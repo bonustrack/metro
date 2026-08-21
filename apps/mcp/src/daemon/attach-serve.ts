@@ -39,7 +39,7 @@ export const publicBaseOrDefault = (): string =>
 
 export function attachmentUrl(
   pathOrName: string,
-  agentId: number,
+  agentId: string,
 ): string | null {
   const base = publicBaseUrl();
   if (!base) return null;
@@ -53,7 +53,7 @@ export function attachmentUrl(
 
 export function attachmentEventUrl(
   payload: Record<string, unknown>,
-  agentId: number,
+  agentId: string,
 ): string | null {
   if (payload.contentType !== 'attachmentSaved') return null;
   if (typeof payload.url === 'string' && payload.url.length > 0) return null;

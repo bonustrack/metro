@@ -43,10 +43,37 @@ describe('the migrations the release command applies', () => {
   });
 
   test('0010 creates the connectors table', () => {
-    const tag = journal().at(-1)?.tag ?? '';
-    expect(tag).toBe('0010_connectors');
-    expect(readFileSync(join(DIR, `${tag}.sql`), 'utf8')).toContain(
+    expect(readFileSync(join(DIR, '0010_connectors.sql'), 'utf8')).toContain(
       'CREATE TABLE "connectors"',
     );
+  });
+
+  test('0011 is the newest migration', () => {
+    expect(journal().at(-1)?.tag).toBe('0011_stations_and_text_ids');
+  });
+
+  test('0011 moves accounts into stations instead of dropping them', () => {
+    const sql = readFileSync(join(DIR, '0011_stations_and_text_ids.sql'), 'utf8');
+    expect(sql).toContain('CREATE TABLE "stations"');
+    expect(sql).toContain('INSERT INTO "stations"');
+    expect(sql).toContain('FROM "accounts"');
+  });
+
+  test('0011 puts id first in every table it creates', () => {
+    const sql = readFileSync(join(DIR, '0011_stations_and_text_ids.sql'), 'utf8');
+    const firsts = [...sql.matchAll(/CREATE TABLE "[^"]+" \(\n\t"([a-z_]+)"/g)].map((m) => m[1]);
+    expect(firsts.length).toBeGreaterThan(0);
+    for (const first of firsts) expect(first).toBe('id');
+  });
+
+  test('0011 refuses rather than silently dropping orphan rows', () => {
+    const sql = readFileSync(join(DIR, '0011_stations_and_text_ids.sql'), 'utf8');
+    expect(sql).toContain('RAISE EXCEPTION');
+  });
+
+  test('0011 leaves no scaffolding behind', () => {
+    const sql = readFileSync(join(DIR, '0011_stations_and_text_ids.sql'), 'utf8');
+    expect(sql).toContain('DROP FUNCTION metro_new_id()');
+    expect(sql).not.toContain('metro_new_id text;\nALTER');
   });
 });

@@ -17,7 +17,7 @@ const FALLBACK = 'Could not load this agent.';
 
 interface AgentPageProps {
   token: string;
-  id: number;
+  id: string;
   onOpenStation: (accountId: string) => void;
   onGone: () => void;
 }

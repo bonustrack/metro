@@ -11,10 +11,10 @@ import {
 import { BoundedEventStore } from '../src/mcp/event-store.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
 
-const TONY = new Set([1]);
+const TONY = new Set(['agent000001']);
 const TONY_LINE = 'metro://whatsapp/a1-tony/111@lid';
 
-beforeAll(() => setAgentMap({ 'whatsapp/a1-tony': 1 }, { 1: 'Tony' }));
+beforeAll(() => setAgentMap({ 'whatsapp/a1-tony': 'agent000001' }, { ['agent000001']: 'Tony' }));
 afterAll(() => setAgentMap({}, {}));
 
 type FakeTransport = {

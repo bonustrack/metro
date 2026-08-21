@@ -15,8 +15,8 @@ import { SessionRegistry } from '../src/mcp/session-registry.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
 import type { RequestIdentity } from '../src/mcp/request-identity.ts';
 
-const TONY: RequestIdentity = { kind: 'agent', agentId: 1 };
-const LISA: RequestIdentity = { kind: 'agent', agentId: 34 };
+const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
+const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
 
 const TONY_A = 'metro://discord/a1-tony/guild/9/chan/7';
 const TONY_B = 'metro://discord/a1-tony2/guild/9/chan/7';
@@ -25,11 +25,11 @@ const LISA_A = 'metro://discord/a34-lisa/guild/9/chan/7';
 beforeAll(() =>
   setAgentMap(
     {
-      'discord/a1-tony': 1,
-      'discord/a1-tony2': 1,
-      'discord/a34-lisa': 34,
+      'discord/a1-tony': 'agent000001',
+      'discord/a1-tony2': 'agent000001',
+      'discord/a34-lisa': 'agent000034',
     },
-    { 1: 'Tony', 34: 'Lisa' },
+    { ['agent000001']: 'Tony', ['agent000034']: 'Lisa' },
   ),
 );
 afterAll(() => setAgentMap({}, {}));

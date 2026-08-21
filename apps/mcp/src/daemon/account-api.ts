@@ -52,13 +52,13 @@ export interface AccountApiDeps {
   prepareAccount: (input: AttachInput) => Promise<PreparedAccount>;
   attachAccount: (
     email: string,
-    agentId: number,
+    agentId: string,
     station: StationName,
     config: Record<string, unknown>,
   ) => Promise<AccountRef>;
   detachAccount: (
     email: string,
-    agentId: number,
+    agentId: string,
     station: StationName,
     accountId: string,
   ) => Promise<AccountRef>;
@@ -129,7 +129,7 @@ async function activate(
 
 interface AttachPayload {
   status: 'done';
-  agentId: number;
+  agentId: string;
   station: string;
   accountId: string;
   identity: Record<string, string>;
@@ -140,7 +140,7 @@ interface AttachPayload {
 async function storeAccount(
   deps: AccountApiDeps,
   session: ApiSession,
-  agentId: number,
+  agentId: string,
   station: StationName,
   prepared: PreparedAccount,
 ): Promise<AccountRef> {
@@ -157,7 +157,7 @@ async function storeAccount(
   }
 }
 
-function ownerOf(session: ApiSession, agentId: number): AttachOwner {
+function ownerOf(session: ApiSession, agentId: string): AttachOwner {
   return { email: session.email, agentId };
 }
 
@@ -173,7 +173,7 @@ async function handleStart(
   res: ServerResponse,
   deps: AccountApiDeps,
   session: ApiSession,
-  agentId: number,
+  agentId: string,
 ): Promise<void> {
   const body = await readJsonBody(req);
   const station = bodyField(body, 'station');
@@ -220,7 +220,7 @@ async function handleDetach(
   res: ServerResponse,
   deps: AccountApiDeps,
   session: ApiSession,
-  agentId: number,
+  agentId: string,
   target: { station: StationName; accountId: string },
 ): Promise<void> {
   const ref = await deps.detachAccount(
@@ -277,7 +277,7 @@ async function dispatchRoute(
   res: ServerResponse,
   deps: AccountApiDeps,
   session: ApiSession,
-  agentId: number,
+  agentId: string,
   route: AccountRoute,
 ): Promise<void> {
   if (route.kind === 'start')
@@ -300,7 +300,7 @@ export async function handleAccountRoute(
   res: ServerResponse,
   deps: AccountApiDeps,
   session: ApiSession,
-  agentId: number,
+  agentId: string,
   route: AccountRoute,
 ): Promise<void> {
   try {

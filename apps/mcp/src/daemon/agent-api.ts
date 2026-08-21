@@ -33,13 +33,13 @@ export interface AgentApiDeps extends AccountApiDeps {
   createAgent: (email: string, name: string) => Promise<CreatedAgent>;
   deleteAgent: (
     email: string,
-    id: number,
+    id: string,
   ) => Promise<DeletedAgent>;
   resetKey: (
     email: string,
-    id: number,
+    id: string,
   ) => Promise<ResetAgentKey>;
-  gatherAccounts: (allowed: Set<number>) => Promise<{
+  gatherAccounts: (allowed: Set<string>) => Promise<{
     accounts: Record<string, unknown[]>;
     unavailable: string[];
   }>;
@@ -48,13 +48,13 @@ export interface AgentApiDeps extends AccountApiDeps {
 
 type Routable =
   | { kind: 'collection' }
-  | { kind: 'agent'; id: number }
-  | { kind: 'key'; id: number }
-  | { kind: 'accounts'; id: number; route: AccountRoute };
+  | { kind: 'agent'; id: string }
+  | { kind: 'key'; id: string }
+  | { kind: 'accounts'; id: string; route: AccountRoute };
 
 type Target = Routable | { kind: 'unknown' } | null;
 
-function subTarget(id: number, rest: string[]): Target {
+function subTarget(id: string, rest: string[]): Target {
   if (rest.length === 0) return { kind: 'agent', id };
   if (rest.length === 1 && rest[0] === 'key') return { kind: 'key', id };
   if (rest[0] !== 'accounts') return { kind: 'unknown' };
@@ -164,7 +164,7 @@ async function handleResetKey(
   res: ServerResponse,
   deps: AgentApiDeps,
   session: ApiSession,
-  id: number,
+  id: string,
 ): Promise<void> {
   const reset = await deps.resetKey(session.email, id);
   log.info(
@@ -184,7 +184,7 @@ async function handleDelete(
   res: ServerResponse,
   deps: AgentApiDeps,
   session: ApiSession,
-  id: number,
+  id: string,
 ): Promise<void> {
   const gone = await deps.deleteAgent(session.email, id);
   log.info(

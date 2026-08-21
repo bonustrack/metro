@@ -13,7 +13,7 @@ export class ChannelOwner {
     this.stream = undefined;
   }
 
-  scope(): Set<number> {
+  scope(): Set<string> {
     return allowedAgents(this.stream);
   }
 

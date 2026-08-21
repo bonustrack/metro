@@ -47,28 +47,28 @@ describe('authenticate', () => {
   });
 
   test('accepts a valid daemon session JWT and scopes to its agents', () => {
-    const token = signSession({ email: 'fabien@bonustrack.co', agentIds: [1] }, SECRET);
+    const token = signSession({ email: 'fabien@bonustrack.co', agentIds: ['agent000001'] }, SECRET);
     expect(authenticate(req(`/mcp?token=${token}`), cfg())).toEqual({
       kind: 'google',
       email: 'fabien@bonustrack.co',
-      agentIds: [1],
+      agentIds: ['agent000001'],
     });
   });
 
   test('rejects a session signed with a different secret', () => {
-    const token = signSession({ email: 'x@y.z', agentIds: [1] }, 'other-secret');
+    const token = signSession({ email: 'x@y.z', agentIds: ['agent000001'] }, 'other-secret');
     expect(authenticate(req(`/mcp?token=${token}`), cfg())).toBeNull();
   });
 
   test('rejects an expired session', () => {
-    const token = signSession({ email: 'x@y.z', agentIds: [1] }, SECRET, {
+    const token = signSession({ email: 'x@y.z', agentIds: ['agent000001'] }, SECRET, {
       ttlSec: -10,
     });
     expect(authenticate(req(`/mcp?token=${token}`), cfg())).toBeNull();
   });
 
   test('rejects a tampered session payload', () => {
-    const token = signSession({ email: 'x@y.z', agentIds: [1] }, SECRET);
+    const token = signSession({ email: 'x@y.z', agentIds: ['agent000001'] }, SECRET);
     const [h, , s] = token.split('.');
     const forged = Buffer.from(
       JSON.stringify({ typ: 'session', sub: 'x@y.z', agent_ids: [99], exp: 9_999_999_999 }),
@@ -81,52 +81,52 @@ describe('authenticate', () => {
   });
 
   test('does not treat an opaque agent key as a JWT', () => {
-    setKeyMap([{ key: 'secret-key', agentId: 3 }]);
+    setKeyMap([{ key: 'secret-key', agentId: 'agent000003' }]);
     expect(authenticate(req('/mcp?token=secret-key'), cfg())).toEqual({
       kind: 'agent',
-      agentId: 3,
+      agentId: 'agent000003',
     });
   });
 
   test('accepts a per-agent DB key and scopes the identity to that agent id', () => {
-    setKeyMap([{ key: 'mk_selfserve', agentId: 12 }]);
+    setKeyMap([{ key: 'mk_selfserve', agentId: 'agent000012' }]);
     expect(authenticate(req('/mcp?token=mk_selfserve'), cfg())).toEqual({
       kind: 'agent',
-      agentId: 12,
+      agentId: 'agent000012',
     });
   });
 
   test('a per-agent key also works as a Bearer header', () => {
-    setKeyMap([{ key: 'mk_selfserve', agentId: 12 }]);
+    setKeyMap([{ key: 'mk_selfserve', agentId: 'agent000012' }]);
     expect(
       authenticate(req('/mcp', { authorization: 'Bearer mk_selfserve' }), cfg()),
-    ).toEqual({ kind: 'agent', agentId: 12 });
+    ).toEqual({ kind: 'agent', agentId: 'agent000012' });
   });
 
   test('same-named agents get distinct identities from their own keys', () => {
     setKeyMap([
-      { key: 'mk_ada_tony', agentId: 7 },
-      { key: 'mk_bob_tony', agentId: 8 },
+      { key: 'mk_ada_tony', agentId: 'agent000007' },
+      { key: 'mk_bob_tony', agentId: 'agent000008' },
     ]);
     expect(authenticate(req('/mcp?token=mk_ada_tony'), cfg())).toEqual({
       kind: 'agent',
-      agentId: 7,
+      agentId: 'agent000007',
     });
     expect(authenticate(req('/mcp?token=mk_bob_tony'), cfg())).toEqual({
       kind: 'agent',
-      agentId: 8,
+      agentId: 'agent000008',
     });
   });
 
   test('there is no unscoped identity left: every key resolves to one agent', () => {
-    setKeyMap([{ key: 'secret-key', agentId: 12 }]);
+    setKeyMap([{ key: 'secret-key', agentId: 'agent000012' }]);
     const identity = authenticate(req('/mcp?token=secret-key'), cfg());
-    expect(identity).toEqual({ kind: 'agent', agentId: 12 });
-    expect(allowedAgents(identity ?? undefined)).toEqual(new Set([12]));
+    expect(identity).toEqual({ kind: 'agent', agentId: 'agent000012' });
+    expect(allowedAgents(identity ?? undefined)).toEqual(new Set(['agent000012']));
   });
 
   test('a revoked (unmapped) agent key is rejected', () => {
-    setKeyMap([{ key: 'mk_live', agentId: 12 }]);
+    setKeyMap([{ key: 'mk_live', agentId: 'agent000012' }]);
     expect(authenticate(req('/mcp?token=mk_revoked'), cfg())).toBeNull();
   });
 });
@@ -137,13 +137,13 @@ describe('allowedAgents', () => {
   });
 
   test('an agent key is scoped to exactly its own agent id', () => {
-    expect(allowedAgents({ kind: 'agent', agentId: 12 })).toEqual(new Set([12]));
+    expect(allowedAgents({ kind: 'agent', agentId: 'agent000012' })).toEqual(new Set(['agent000012']));
   });
 
   test('a google session is scoped to its granted agent ids', () => {
     expect(
-      allowedAgents({ kind: 'google', email: 'a@b.co', agentIds: [1, 2] }),
-    ).toEqual(new Set([1, 2]));
+      allowedAgents({ kind: 'google', email: 'a@b.co', agentIds: ['agent000001', 'agent000002'] }),
+    ).toEqual(new Set(['agent000001', 'agent000002']));
   });
 
   test('a google session with no agents is scoped to nothing (not everything)', () => {

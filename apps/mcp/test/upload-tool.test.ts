@@ -50,7 +50,7 @@ interface Ticket {
 }
 
 async function mint(
-  agentId: number,
+  agentId: string,
   args: Record<string, unknown> = {},
 ): Promise<{ isError?: boolean; text: string }> {
   const res = await runWithIdentity({ kind: 'agent', agentId }, () =>
@@ -63,7 +63,7 @@ const ticket = (text: string): Ticket => JSON.parse(text) as Ticket;
 
 describe('create_upload mints a slot over MCP alone', () => {
   test('returns an id, a single-use url and a runnable command', async () => {
-    const res = await mint(1, { name: 'q3.pdf' });
+    const res = await mint('agent000001', { name: 'q3.pdf' });
     expect(res.isError).toBeUndefined();
     const t = ticket(res.text);
     expect(UPLOAD_ID_RE.test(t.upload_id)).toBe(true);
@@ -78,28 +78,28 @@ describe('create_upload mints a slot over MCP alone', () => {
   });
 
   test('the slot is owned by the calling agent and its token opens only it', async () => {
-    const t = ticket((await mint(4, { name: 'a.png' })).text);
+    const t = ticket((await mint('agent000004', { name: 'a.png' })).text);
     const token = new URL(t.upload_url).searchParams.get('token') ?? '';
-    expect(uploadSlot(t.upload_id)?.agentId).toBe(4);
-    expect(uploadTicketAllows(t.upload_id, 4, token)).toBe(true);
-    expect(uploadTicketAllows(t.upload_id, 5, token)).toBe(false);
+    expect(uploadSlot(t.upload_id)?.agentId).toBe('agent000004');
+    expect(uploadTicketAllows(t.upload_id, 'agent000004', token)).toBe(true);
+    expect(uploadTicketAllows(t.upload_id, 'agent000005', token)).toBe(false);
   });
 
   test('two calls never share a slot or a token', async () => {
-    const a = ticket((await mint(1)).text);
-    const b = ticket((await mint(1)).text);
+    const a = ticket((await mint('agent000001')).text);
+    const b = ticket((await mint('agent000001')).text);
     expect(a.upload_id).not.toBe(b.upload_id);
     expect(a.upload_url).not.toBe(b.upload_url);
   });
 
   test('the filename is sanitised before it reaches the filesystem', async () => {
-    const t = ticket((await mint(1, { name: '../../etc/passwd' })).text);
+    const t = ticket((await mint('agent000001', { name: '../../etc/passwd' })).text);
     expect(t.name).toBe('passwd');
     expect(uploadSlot(t.upload_id)?.name).toBe('passwd');
   });
 
   test('the answer says plainly that pushing the bytes needs a shell', async () => {
-    const t = ticket((await mint(1, { name: 'a.pdf' })).text);
+    const t = ticket((await mint('agent000001', { name: 'a.pdf' })).text);
     expect(t.next).toContain('shell');
     expect(t.next).toContain(`{upload:'${t.upload_id}'}`);
   });
@@ -114,7 +114,7 @@ describe('create_upload mints a slot over MCP alone', () => {
 
   test('a multi-agent sign-in is refused and told how to name the agent', async () => {
     const res = await runWithIdentity(
-      { kind: 'google', email: 'x@y.z', agentIds: [1, 2] },
+      { kind: 'google', email: 'x@y.z', agentIds: ['agent000001', 'agent000002'] },
       () => callToolHandler({ params: { name: 'create_upload', arguments: {} } }),
     );
     expect(res.isError).toBe(true);

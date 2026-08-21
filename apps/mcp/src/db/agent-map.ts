@@ -1,5 +1,5 @@
-export type AgentMap = Record<string, number>;
-export type AgentNameMap = Record<number, string>;
+export type AgentMap = Record<string, string>;
+export type AgentNameMap = Record<string, string>;
 export type AllowlistMap = Record<string, string[]>;
 
 const mapKey = (station: string, accountId: string): string =>
@@ -31,11 +31,11 @@ export function accountFromLine(
 export function agentIdForAccount(
   station: string,
   accountId: string,
-): number | undefined {
+): string | undefined {
   return agentMap[mapKey(station, accountId)];
 }
 
-export function agentIdForLine(line: string): number | undefined {
+export function agentIdForLine(line: string): string | undefined {
   const a = accountFromLine(line);
   return a ? agentIdForAccount(a.station, a.accountId) : undefined;
 }
@@ -45,7 +45,7 @@ export function agentForLine(line: string): string | undefined {
   return id === undefined ? undefined : agentNames[id];
 }
 
-export function stationAgentIds(station: string): number[] {
+export function stationAgentIds(station: string): string[] {
   const prefix = `${station}/`;
   return Object.entries(agentMap)
     .filter(([key]) => key.startsWith(prefix))

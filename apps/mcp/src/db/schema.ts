@@ -1,9 +1,6 @@
 import {
-  integer,
   jsonb,
   pgTable,
-  primaryKey,
-  serial,
   text,
   unique,
 } from 'drizzle-orm/pg-core';
@@ -20,29 +17,30 @@ export const STATIONS = [
 export type StationName = (typeof STATIONS)[number];
 
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
+  id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
 });
 
 export const agents = pgTable('agents', {
-  id: serial('id').primaryKey(),
+  id: text('id').primaryKey(),
   name: text('name').notNull(),
-  ownerId: integer('owner_id').references(() => users.id, {
+  ownerId: text('owner_id').references(() => users.id, {
     onDelete: 'restrict',
   }),
   key: text('key').unique(),
 });
 
-export const accounts = pgTable(
-  'accounts',
+export const stations = pgTable(
+  'stations',
   {
-    agentId: integer('agent_id').notNull(),
+    id: text('id').primaryKey(),
+    agentId: text('agent_id').notNull(),
     station: text('station').$type<StationName>().notNull(),
     accountId: text('account_id').notNull(),
     allowlist: text('allowlist').array().default(['*']),
     config: jsonb('config').notNull(),
   },
-  (t) => [primaryKey({ columns: [t.station, t.accountId] })],
+  (t) => [unique('stations_station_account_id_unique').on(t.station, t.accountId)],
 );
 
 export const CONNECTOR_TRANSPORTS = ['http', 'sse'] as const;
@@ -52,8 +50,8 @@ export type ConnectorTransport = (typeof CONNECTOR_TRANSPORTS)[number];
 export const connectors = pgTable(
   'connectors',
   {
-    id: serial('id').primaryKey(),
-    userId: integer('user_id')
+    id: text('id').primaryKey(),
+    userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     name: text('name').notNull(),

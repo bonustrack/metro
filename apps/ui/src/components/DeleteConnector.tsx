@@ -5,7 +5,7 @@ import { KebabMenu } from './KebabMenu';
 
 interface DeleteConnectorProps {
   connector: Connector;
-  onDelete: (id: number) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }
 
 export function DeleteConnector({

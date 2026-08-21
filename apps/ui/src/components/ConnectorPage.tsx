@@ -38,8 +38,8 @@ const HINT =
 
 interface ConnectorPageProps {
   token: string;
-  id: number;
-  onDelete: (id: number) => Promise<void>;
+  id: string;
+  onDelete: (id: string) => Promise<void>;
 }
 
 function whenLabel(at: string): string {

@@ -115,7 +115,7 @@ const attachSessions = new AttachSessions({
 
 async function resetAgentKey(
   email: string,
-  id: number,
+  id: string,
 ): Promise<ResetAgentKey> {
   const reset = await resetAgentKeyForEmail(email, id);
   const closed = await closeAgentSession(id);

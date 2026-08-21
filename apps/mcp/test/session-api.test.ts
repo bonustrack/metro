@@ -84,7 +84,7 @@ describe('GET /api/session is the boot gate', () => {
   });
 
   test('an agent key never opens this surface — it is session-only', async () => {
-    setKeyMap([{ key: 'mk_session_probe', agentId: 1 }]);
+    setKeyMap([{ key: 'mk_session_probe', agentId: 'agent000001' }]);
     try {
       expect((await get('mk_session_probe')).status).toBe(401);
     } finally {

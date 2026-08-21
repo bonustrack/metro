@@ -17,8 +17,8 @@ import { AgentAdminError } from '../src/db/agent-admin.ts';
 import type { AgentApiDeps } from '../src/daemon/agent-api.ts';
 
 const SECRET = 'key-reset-test-secret';
-const ADA = 1;
-const BOB = 2;
+const ADA = 'agent000001';
+const BOB = 'agent000002';
 const ADA_ACCOUNT = 'a1-adawa';
 const BOB_ACCOUNT = 'a2-bobwa';
 const ADA_LINE = `metro://whatsapp/${ADA_ACCOUNT}/111@lid`;

@@ -88,7 +88,7 @@ export function validateStandaloneSession(
 export interface ServeOpts {
   transport: StreamableHTTPServerTransport;
   eventStore: BoundedEventStore;
-  scope: Set<number>;
+  scope: Set<string>;
   req: IncomingMessage;
   res: ServerResponse;
   log: (...a: unknown[]) => void;

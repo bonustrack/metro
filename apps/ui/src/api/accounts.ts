@@ -5,7 +5,7 @@ export interface AccountField {
 
 export interface AccountRow {
   id: string | null;
-  agentId: number | null;
+  agentId: string | null;
   fields: AccountField[];
 }
 
@@ -46,7 +46,7 @@ function toRow(account: unknown): AccountRow {
   const owner = account[AGENT_ID];
   return {
     id: typeof account.id === 'string' ? account.id : null,
-    agentId: typeof owner === 'number' ? owner : null,
+    agentId: typeof owner === 'string' ? owner : null,
     fields,
   };
 }
@@ -63,7 +63,7 @@ export function groupAccounts(accounts: unknown): AccountGroup[] {
 
 export function attributeUntagged(
   groups: AccountGroup[],
-  agentId: number,
+  agentId: string,
 ): AccountGroup[] {
   return groups.map((g) => ({
     station: g.station,
@@ -73,7 +73,7 @@ export function attributeUntagged(
 
 export function accountsForAgent(
   groups: AccountGroup[],
-  agentId: number,
+  agentId: string,
 ): AccountGroup[] {
   const out: AccountGroup[] = [];
   for (const g of groups) {

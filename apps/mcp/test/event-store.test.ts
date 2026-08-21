@@ -10,17 +10,17 @@ import { BoundedEventStore } from '../src/mcp/event-store.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
 
 const STREAM = '_GET_stream';
-const TONY = new Set([1]);
-const LISA = new Set([34]);
-const BOTH = new Set([1, 34]);
+const TONY = new Set(['agent000001']);
+const LISA = new Set(['agent000034']);
+const BOTH = new Set(['agent000001', 'agent000034']);
 
 const TONY_LINE = 'metro://whatsapp/a1-tony/111@lid';
 const LISA_LINE = 'metro://whatsapp/a34-lisa/222@lid';
 
 beforeEach(() =>
   setAgentMap(
-    { 'whatsapp/a1-tony': 1, 'whatsapp/a34-lisa': 34 },
-    { 1: 'Tony', 34: 'Lisa' },
+    { 'whatsapp/a1-tony': 'agent000001', 'whatsapp/a34-lisa': 'agent000034' },
+    { ['agent000001']: 'Tony', ['agent000034']: 'Lisa' },
   ),
 );
 afterAll(() => setAgentMap({}, {}));
@@ -32,7 +32,7 @@ const note = (n: number, line?: string): JSONRPCMessage =>
     params: line === undefined ? { n } : { n, meta: { line } },
   }) as unknown as JSONRPCMessage;
 
-const storeFor = (owner: Set<number>, max?: number): BoundedEventStore =>
+const storeFor = (owner: Set<string>, max?: number): BoundedEventStore =>
   new BoundedEventStore(
     max === undefined
       ? { scopeOf: () => owner }
@@ -42,7 +42,7 @@ const storeFor = (owner: Set<number>, max?: number): BoundedEventStore =>
 const collect = async (
   store: BoundedEventStore,
   lastEventId: string,
-  scope: Set<number> | undefined,
+  scope: Set<string> | undefined,
 ): Promise<JSONRPCMessage[]> => {
   const out: JSONRPCMessage[] = [];
   await store.replayEventsAfter(lastEventId, {

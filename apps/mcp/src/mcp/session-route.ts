@@ -1,7 +1,7 @@
 import { allowedAgents, type RequestIdentity } from './request-identity.js';
 
 export function sessionScopeKey(identity: RequestIdentity): string {
-  const ids = [...allowedAgents(identity)].sort((a, b) => a - b);
+  const ids = [...allowedAgents(identity)].sort();
   if (ids.length > 0) return `agents:${ids.join(',')}`;
   return `email:${identity.kind === 'google' ? identity.email : identity.agentId}`;
 }

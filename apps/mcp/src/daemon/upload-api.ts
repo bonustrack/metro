@@ -68,16 +68,15 @@ export function target(path: string): Target {
 const query = (req: IncomingMessage, key: string): string | undefined =>
   new URL(req.url ?? '/', 'http://localhost').searchParams.get(key) ?? undefined;
 
-const identityScope = (req: IncomingMessage): Set<number> =>
+const identityScope = (req: IncomingMessage): Set<string> =>
   allowedAgents(authenticate(req, authConfigFromEnv()) ?? undefined);
 
-function ownerFromScope(req: IncomingMessage, allowed: Set<number>): number {
+function ownerFromScope(req: IncomingMessage, allowed: Set<string>): string {
   const requested = query(req, 'agent');
   if (requested !== undefined) {
-    const id = Number(requested);
-    if (!Number.isInteger(id) || !allowed.has(id))
+    if (!allowed.has(requested))
       throw new ApiError(`agent ${requested} is outside your scope`, 403);
-    return id;
+    return requested;
   }
   const [only] = [...allowed];
   if (allowed.size === 1 && only !== undefined) return only;
@@ -202,7 +201,7 @@ async function handleCreate(
   }
 }
 
-function authorizeItem(req: IncomingMessage, id: string): number {
+function authorizeItem(req: IncomingMessage, id: string): string {
   const slot = uploadSlot(id);
   if (slot === undefined) throw new ApiError('no such upload', 404);
   if (uploadTicketAllows(id, slot.agentId, extractToken(req) ?? ''))

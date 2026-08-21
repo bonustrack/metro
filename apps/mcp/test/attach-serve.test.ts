@@ -45,10 +45,10 @@ beforeAll(async () => {
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   setKeyMap([
-    { key: ONE, agentId: 1 },
-    { key: TWO, agentId: 2 },
+    { key: ONE, agentId: 'agent000001' },
+    { key: TWO, agentId: 'agent000002' },
   ]);
-  setAgentMap({ 'xmtp/x1': 1, 'telegram/t2': 2 }, { 1: 'tony', 2: 'lisa' });
+  setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
   server = await startWebhookServer(makeEmit());
   const addr = server.address() as AddressInfo;
   base = `http://127.0.0.1:${addr.port}`;
@@ -75,38 +75,38 @@ describe('attachment url helpers', () => {
   test('attachmentUrl records the owner and mints a per-attachment token', () => {
     const url = attachmentUrl(
       `/data/.cache/metro/messenger-uploads/${CACHE_NAME}`,
-      1,
+      'agent000001',
     );
     expect(url).toStartWith(`https://mcp.metro.box/attach/${CACHE_NAME}?token=`);
-    expect(attachmentOwner(CACHE_NAME)).toBe(1);
+    expect(attachmentOwner(CACHE_NAME)).toBe('agent000001');
     expect(existsSync(join(attachDir, `${CACHE_NAME}.owner`))).toBe(true);
     expect(existsSync(join(attachDir, `${CACHE_NAME}.grant`))).toBe(true);
-    expect(readAttachmentGrant(CACHE_NAME)?.agentId).toBe(1);
+    expect(readAttachmentGrant(CACHE_NAME)?.agentId).toBe('agent000001');
   });
 
   test('the url never carries the owning agent api key', () => {
-    const url = attachmentUrl(CACHE_NAME, 1) ?? '';
+    const url = attachmentUrl(CACHE_NAME, 'agent000001') ?? '';
     expect(url).not.toContain(ONE);
     expect(url).not.toContain(TWO);
     expect(tokenOf(url)).toStartWith('at_');
   });
 
   test('re-minting the same attachment for the same owner keeps one token', () => {
-    const first = attachmentUrl(THIRD_NAME, 1);
-    const second = attachmentUrl(THIRD_NAME, 1);
+    const first = attachmentUrl(THIRD_NAME, 'agent000001');
+    const second = attachmentUrl(THIRD_NAME, 'agent000001');
     expect(second).toBe(first);
   });
 
   test('two attachments never share a token', () => {
-    expect(tokenOf(attachmentUrl(CACHE_NAME, 1))).not.toBe(
-      tokenOf(attachmentUrl(THIRD_NAME, 1)),
+    expect(tokenOf(attachmentUrl(CACHE_NAME, 'agent000001'))).not.toBe(
+      tokenOf(attachmentUrl(THIRD_NAME, 'agent000001')),
     );
   });
 
   test('an agent with no api key still gets a working attachment url', async () => {
-    const url = attachmentUrl(KEYLESS_NAME, 99);
+    const url = attachmentUrl(KEYLESS_NAME, 'agent000099');
     expect(url).not.toBeNull();
-    expect(attachmentOwner(KEYLESS_NAME)).toBe(99);
+    expect(attachmentOwner(KEYLESS_NAME)).toBe('agent000099');
     const res = await fetch(
       `${base}/attach/${KEYLESS_NAME}?token=${tokenOf(url)}`,
     );
@@ -114,8 +114,8 @@ describe('attachment url helpers', () => {
   });
 
   test('attachmentUrl rejects paths outside the cache-name shape', () => {
-    expect(attachmentUrl('/etc/passwd', 1)).toBeNull();
-    expect(attachmentUrl('../../secret.png', 1)).toBeNull();
+    expect(attachmentUrl('/etc/passwd', 'agent000001')).toBeNull();
+    expect(attachmentUrl('../../secret.png', 'agent000001')).toBeNull();
   });
 
   test('attachmentEventUrl only enriches attachmentSaved without a url', () => {
@@ -135,13 +135,13 @@ describe('attachment url helpers', () => {
         1,
       ),
     ).toBeNull();
-    expect(attachmentEventUrl({ contentType: 'inbound' }, 1)).toBeNull();
+    expect(attachmentEventUrl({ contentType: 'inbound' }, 'agent000001')).toBeNull();
   });
 });
 
 describe('/attach route', () => {
   test('serves a saved attachment to the holder of its own token', async () => {
-    const url = attachmentUrl(CACHE_NAME, 1);
+    const url = attachmentUrl(CACHE_NAME, 'agent000001');
     const res = await fetch(`${base}/attach/${CACHE_NAME}?token=${tokenOf(url)}`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('image/png');
@@ -150,7 +150,7 @@ describe('/attach route', () => {
   });
 
   test('the attachment token works as a Bearer header too', async () => {
-    const url = attachmentUrl(CACHE_NAME, 1);
+    const url = attachmentUrl(CACHE_NAME, 'agent000001');
     const res = await fetch(`${base}/attach/${CACHE_NAME}`, {
       headers: { authorization: `Bearer ${tokenOf(url)}` },
     });
@@ -158,8 +158,8 @@ describe('/attach route', () => {
   });
 
   test('one attachment token does not open another attachment', async () => {
-    attachmentUrl(CACHE_NAME, 1);
-    const other = attachmentUrl(THIRD_NAME, 1);
+    attachmentUrl(CACHE_NAME, 'agent000001');
+    const other = attachmentUrl(THIRD_NAME, 'agent000001');
     const res = await fetch(
       `${base}/attach/${CACHE_NAME}?token=${tokenOf(other)}`,
     );
@@ -167,14 +167,14 @@ describe('/attach route', () => {
   });
 
   test('the owning agent key still serves its own attachment', async () => {
-    attachmentUrl(CACHE_NAME, 1);
+    attachmentUrl(CACHE_NAME, 'agent000001');
     expect((await fetch(`${base}/attach/${CACHE_NAME}?token=${ONE}`)).status).toBe(
       200,
     );
   });
 
   test('another agent key cannot fetch it even knowing the name', async () => {
-    attachmentUrl(CACHE_NAME, 1);
+    attachmentUrl(CACHE_NAME, 'agent000001');
     const res = await fetch(`${base}/attach/${CACHE_NAME}?token=${TWO}`);
     expect(res.status).toBe(401);
   });
@@ -225,7 +225,7 @@ describe('/attach route', () => {
   });
 
   test('a cache-shaped name stays a flat 401 whether or not it exists', async () => {
-    attachmentUrl(CACHE_NAME, 1);
+    attachmentUrl(CACHE_NAME, 'agent000001');
     const present = await fetch(`${base}/attach/${CACHE_NAME}?token=${TWO}`);
     const absent = await fetch(`${base}/attach/msg_nothere_0.png?token=${TWO}`);
     const anonPresent = await fetch(`${base}/attach/${CACHE_NAME}`);

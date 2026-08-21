@@ -28,7 +28,7 @@ export const sessionKey = (): string[] => ['session'];
 export const agentsKey = (): string[] => ['agents'];
 export const stationsKey = (): string[] => ['stations'];
 export const connectorsKey = (): string[] => ['connectors'];
-export const connectorKey = (id: number): (string | number)[] => [
+export const connectorKey = (id: string): (string | number)[] => [
   'connector',
   id,
 ];
@@ -96,7 +96,7 @@ export function useConnectorsQuery(token: string): UseQueryResult<ConnectorList>
 
 export function useConnectorQuery(
   token: string,
-  id: number,
+  id: string,
 ): UseQueryResult<Connector> {
   return useQuery({
     queryKey: connectorKey(id),

@@ -74,7 +74,7 @@ async function readCallArgs(
 function startTailStream(
   req: IncomingMessage,
   res: ServerResponse,
-  allowed: Set<number>,
+  allowed: Set<string>,
 ): void {
   res.writeHead(200, {
     'content-type': 'text/event-stream',
@@ -131,7 +131,7 @@ async function handleCall(
   train: string,
   action: string,
   call: MonitorCall,
-  allowed: Set<number>,
+  allowed: Set<string>,
 ): Promise<void> {
   let args: Record<string, unknown>;
   try {
@@ -165,7 +165,7 @@ function routeApi(
   res: ServerResponse,
   path: string,
   call: MonitorCall,
-  allowed: Set<number>,
+  allowed: Set<string>,
 ): void {
   const callMatch = /^\/api\/call\/([^/]+)\/([^/]+)$/.exec(path);
   if (callMatch) {

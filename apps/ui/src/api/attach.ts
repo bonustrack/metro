@@ -183,7 +183,7 @@ export function toAttachResult(station: string, body: unknown): AttachResult {
 
 export async function startAttach(
   token: string,
-  agentId: number,
+  agentId: string,
   station: string,
   fields: Record<string, string>,
 ): Promise<AttachStarted> {
@@ -199,7 +199,7 @@ export async function startAttach(
 
 export async function detachAccount(
   token: string,
-  agentId: number,
+  agentId: string,
   station: string,
   accountId: string,
 ): Promise<void> {

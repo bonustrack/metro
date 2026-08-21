@@ -7,7 +7,7 @@ import { ResetAgentKey } from './ResetAgentKey';
 
 interface AgentCredentialsProps {
   agent: AgentSummary;
-  onReset: (id: number) => Promise<void>;
+  onReset: (id: string) => Promise<void>;
 }
 
 export function AgentCredentials({

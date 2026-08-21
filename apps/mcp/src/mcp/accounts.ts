@@ -37,7 +37,7 @@ export function attachAgentIds(
 
 export function scopeAccountsByAgent(
   byStation: Record<string, unknown[]>,
-  allowed: Set<number>,
+  allowed: Set<string>,
 ): Record<string, unknown[]> {
   const out: Record<string, unknown[]> = {};
   for (const [station, list] of Object.entries(byStation)) {
@@ -98,14 +98,14 @@ async function loadStations(): Promise<ScopedAccounts> {
 }
 
 export async function gatherAccounts(
-  allowedAgents?: Set<number>,
+  allowedAgents?: Set<string>,
 ): Promise<Record<string, unknown[]>> {
   const { accounts } = await loadStations();
   return allowedAgents ? scopeAccountsByAgent(accounts, allowedAgents) : accounts;
 }
 
 export async function gatherAccountsForAgents(
-  allowed: Set<number>,
+  allowed: Set<string>,
 ): Promise<ScopedAccounts> {
   const { accounts, unavailable } = await loadStations();
   return {

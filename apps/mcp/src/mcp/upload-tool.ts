@@ -15,21 +15,28 @@ import { str } from './str.js';
 
 const ttlMinutes = (): number => Math.round(UPLOAD_TTL_MS / 60_000);
 
-function ownerAgent(): number | string {
+const NO_AGENT =
+  'create_upload needs an agent credential; this session is not scoped to one agent';
+
+const manyAgents = (n: number): string =>
+  `create_upload is scoped to one agent, but this session covers ${String(n)}` +
+  ' (a multi-agent sign-in); use `POST /api/uploads?agent=<id>` directly instead';
+
+type OwnerAgent = { agentId: string } | { error: string };
+
+function ownerAgent(): OwnerAgent {
   const allowed = allowedAgents(currentIdentity());
   const [only] = [...allowed];
-  if (allowed.size === 1 && only !== undefined) return only;
-  return allowed.size === 0
-    ? 'create_upload needs an agent credential; this session is not scoped to one agent'
-    : `create_upload is scoped to one agent, but this session covers ${allowed.size}` +
-        ' (a multi-agent sign-in); use `POST /api/uploads?agent=<id>` directly instead';
+  if (allowed.size === 1 && only !== undefined) return { agentId: only };
+  return { error: allowed.size === 0 ? NO_AGENT : manyAgents(allowed.size) };
 }
 
 export function dispatchCreateUpload(
   a: Record<string, unknown>,
 ): Promise<ToolResult> {
-  const agentId = ownerAgent();
-  if (typeof agentId === 'string') return Promise.resolve(errResult(agentId));
+  const owner = ownerAgent();
+  if ('error' in owner) return Promise.resolve(errResult(owner.error));
+  const agentId = owner.agentId;
   const name = safeFileName(str(a.name) || undefined);
   const mime = str(a.mime) || guessMime(name);
   const id = createUploadSlot(agentId, { name, mime });

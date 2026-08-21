@@ -14,12 +14,12 @@ import { setAgentMap } from '../src/db/agent-map.ts';
 import { asLine } from '../src/stations/lines.ts';
 import type { RequestIdentity } from '../src/mcp/request-identity.ts';
 
-const TONY: RequestIdentity = { kind: 'agent', agentId: 1 };
-const LISA: RequestIdentity = { kind: 'agent', agentId: 34 };
+const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
+const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
 const TONY_OWNER: RequestIdentity = {
   kind: 'google',
   email: 'tony@example.test',
-  agentIds: [1],
+  agentIds: ['agent000001'],
 };
 
 const TONY_LINE = 'metro://whatsapp/a1-tony/111@lid';
@@ -27,8 +27,8 @@ const LISA_LINE = 'metro://whatsapp/a34-lisa/222@lid';
 
 beforeEach(() =>
   setAgentMap(
-    { 'whatsapp/a1-tony': 1, 'whatsapp/a34-lisa': 34 },
-    { 1: 'Tony', 34: 'Lisa' },
+    { 'whatsapp/a1-tony': 'agent000001', 'whatsapp/a34-lisa': 'agent000034' },
+    { ['agent000001']: 'Tony', ['agent000034']: 'Lisa' },
   ),
 );
 afterAll(() => setAgentMap({}, {}));

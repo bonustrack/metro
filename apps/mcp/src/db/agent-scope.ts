@@ -11,7 +11,7 @@ const stationHasAccounts = (station: string): boolean =>
   ACCOUNT_STATIONS.has(station);
 
 const accountInScope = (
-  allowed: Set<number>,
+  allowed: Set<string>,
   station: string,
   accountId: string,
 ): boolean => {
@@ -20,7 +20,7 @@ const accountInScope = (
 };
 
 export function lineTargetDenied(
-  allowed: Set<number>,
+  allowed: Set<string>,
   args: Record<string, unknown>,
   station?: string,
 ): boolean {
@@ -37,7 +37,7 @@ export function lineTargetDenied(
 }
 
 export function stationFullyScoped(
-  allowed: Set<number>,
+  allowed: Set<string>,
   station: string,
 ): boolean {
   const ids = stationAgentIds(station);
@@ -45,7 +45,7 @@ export function stationFullyScoped(
 }
 
 export function callTargetDenied(
-  allowed: Set<number>,
+  allowed: Set<string>,
   station: string,
   args: Record<string, unknown>,
 ): boolean {
@@ -56,7 +56,7 @@ export function callTargetDenied(
   return !stationFullyScoped(allowed, station);
 }
 
-export function eventInScope(allowed: Set<number>, line: string): boolean {
+export function eventInScope(allowed: Set<string>, line: string): boolean {
   const acct = accountFromLine(line);
   if (!acct) return false;
   if (!stationHasAccounts(acct.station)) return true;

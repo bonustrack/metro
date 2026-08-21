@@ -88,29 +88,41 @@ describe('newApiKey', () => {
 });
 
 describe('parseAgentId', () => {
-  test('accepts a positive decimal id', () => {
-    expect(parseAgentId('1')).toBe(1);
-    expect(parseAgentId('4242')).toBe(4242);
+  test('accepts an id of exactly 11 base64url characters', () => {
+    expect(parseAgentId('agent000001')).toBe('agent000001');
+    expect(parseAgentId('aB3-_xYz9Qw')).toBe('aB3-_xYz9Qw');
   });
 
-  test('rejects anything that is not a plain positive integer', () => {
-    for (const bad of ['', '0', '-1', '01', '1.0', '1e3', ' 1', '1 ', 'abc', '1;DROP', '99999999999'])
+  test('rejects anything that is not one', () => {
+    for (const bad of [
+      '',
+      '1',
+      'agent00000',
+      'agent0000012',
+      'agent00000.',
+      'agent00000+',
+      ' agent00001',
+      'agent00001 ',
+      "agent'DROP",
+      '-gent000001',
+      '_gent000001',
+    ])
       expect(parseAgentId(bad)).toBeNull();
   });
 });
 
 describe('toAgentSummaries', () => {
-  const OWNER = 11;
+  const OWNER = 'user0000011';
   const ROWS = [
-    { id: 1, name: 'ada-bot', ownerId: OWNER },
-    { id: 2, name: 'bob-bot', ownerId: 22 },
-    { id: 5, name: 'legacy', ownerId: null },
+    { id: 'agent000001', name: 'ada-bot', ownerId: OWNER },
+    { id: 'agent000002', name: 'bob-bot', ownerId: 'user0000022' },
+    { id: 'agent000005', name: 'legacy', ownerId: null },
   ];
 
   test('an owned agent carries its key value', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 1, key: 'mk_fake_ada' }]);
+    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 'agent000001', key: 'mk_fake_ada' }]);
     expect(out[0]).toEqual({
-      id: 1,
+      id: 'agent000001',
       name: 'ada-bot',
       owned: true,
       key: 'mk_fake_ada',
@@ -118,37 +130,37 @@ describe('toAgentSummaries', () => {
   });
 
   test('an owned agent with no key at all is served a null key', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 1, key: null }]);
-    expect(out[0]).toEqual({ id: 1, name: 'ada-bot', owned: true, key: null });
+    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 'agent000001', key: null }]);
+    expect(out[0]).toEqual({ id: 'agent000001', name: 'ada-bot', owned: true, key: null });
   });
 
   test('a granted operator row is listed with a null key', () => {
     const out = toAgentSummaries(OWNER, ROWS, []);
-    expect(out[2]).toEqual({ id: 5, name: 'legacy', owned: false, key: null });
+    expect(out[2]).toEqual({ id: 'agent000005', name: 'legacy', owned: false, key: null });
   });
 
   test('a key value belonging to a row the caller does not own is dropped', () => {
     const out = toAgentSummaries(OWNER, ROWS, [
-      { agentId: 2, key: 'mk_fake_bob' },
-      { agentId: 5, key: 'mk_fake_legacy' },
+      { agentId: 'agent000002', key: 'mk_fake_bob' },
+      { agentId: 'agent000005', key: 'mk_fake_legacy' },
     ]);
     expect(out.map((a) => a.key)).toEqual([null, null, null]);
   });
 
   test('a null owner_id never matches a caller with no user row', () => {
-    const out = toAgentSummaries(null, ROWS, [{ agentId: 5, key: 'mk_fake_legacy' }]);
+    const out = toAgentSummaries(null, ROWS, [{ agentId: 'agent000005', key: 'mk_fake_legacy' }]);
     expect(out.every((a) => !a.owned)).toBe(true);
     expect(out.map((a) => a.key)).toEqual([null, null, null]);
   });
 
   test('an owner id never matches an operator row that has no owner at all', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 5, key: 'mk_fake_legacy' }]);
+    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 'agent000005', key: 'mk_fake_legacy' }]);
     expect(out[2]?.owned).toBe(false);
     expect(out[2]?.key).toBeNull();
   });
 
   test('every agent carries exactly one key field, never a list', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 1, key: 'mk_fake_ada' }]);
+    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 'agent000001', key: 'mk_fake_ada' }]);
     expect(Object.keys(out[0] ?? {}).sort()).toEqual(['id', 'key', 'name', 'owned']);
   });
 });
@@ -157,41 +169,41 @@ describe('resolveUserId', () => {
   test('a first login inserts the row and uses the id it just got back', async () => {
     let lookups = 0;
     const id = await resolveUserId(
-      () => Promise.resolve(7),
+      () => Promise.resolve('user0000007'),
       () => {
         lookups += 1;
         return Promise.resolve(null);
       },
     );
-    expect(id).toBe(7);
+    expect(id).toBe('user0000007');
     expect(lookups).toBe(0);
   });
 
   test('a losing concurrent first login re-selects the winner id instead of failing', async () => {
     const id = await resolveUserId(
       () => Promise.resolve(undefined),
-      () => Promise.resolve(7),
+      () => Promise.resolve('user0000007'),
     );
-    expect(id).toBe(7);
+    expect(id).toBe('user0000007');
   });
 
   test('two concurrent first logins settle on ONE id and create ONE row', async () => {
-    const table = new Map<string, number>();
+    const table = new Map<string, string>();
     let nextId = 0;
-    const insert = (email: string) => (): Promise<number | undefined> => {
+    const insert = (email: string) => (): Promise<string | undefined> => {
       if (table.has(email)) return Promise.resolve(undefined);
       nextId += 1;
-      table.set(email, nextId);
-      return Promise.resolve(nextId);
+      table.set(email, `user${String(nextId).padStart(7, '0')}`);
+      return Promise.resolve(table.get(email));
     };
-    const lookup = (email: string) => (): Promise<number | null> =>
+    const lookup = (email: string) => (): Promise<string | null> =>
       Promise.resolve(table.get(email) ?? null);
     const ids = await Promise.all(
       Array.from({ length: 8 }, () =>
         resolveUserId(insert('ada@lovelace.dev'), lookup('ada@lovelace.dev')),
       ),
     );
-    expect(new Set(ids)).toEqual(new Set([1]));
+    expect(new Set(ids)).toEqual(new Set(['user0000001']));
     expect(table.size).toBe(1);
   });
 

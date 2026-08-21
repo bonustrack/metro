@@ -1,5 +1,5 @@
-import { randomBytes } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
+import { newId } from './ids.js';
 import { getDb } from './client.js';
 import {
   AgentAdminError,
@@ -7,13 +7,13 @@ import {
   ownedAgentOrThrow,
   userIdForEmail,
 } from './agent-admin.js';
-import { accounts, STATIONS, type StationName } from './schema.js';
+import { stations, STATIONS, type StationName } from './schema.js';
 
-const ACCOUNT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const ACCOUNT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const ID_ATTEMPTS = 5;
 
 export interface AccountRef {
-  agentId: number;
+  agentId: string;
   station: StationName;
   accountId: string;
 }
@@ -28,8 +28,8 @@ export function parseAccountId(raw: string): string | null {
   return ACCOUNT_ID_RE.test(raw) ? raw : null;
 }
 
-function newAccountId(agentId: number): string {
-  return `a${agentId}-${randomBytes(4).toString('hex')}`;
+function newAccountId(): string {
+  return newId();
 }
 
 async function assertTokenFree(
@@ -37,12 +37,12 @@ async function assertTokenFree(
   token: string,
 ): Promise<void> {
   const rows = await getDb()
-    .select({ accountId: accounts.accountId })
-    .from(accounts)
+    .select({ accountId: stations.accountId })
+    .from(stations)
     .where(
       and(
-        eq(accounts.station, station),
-        sql`${accounts.config}->>'token' = ${token}`,
+        eq(stations.station, station),
+        sql`${stations.config}->>'token' = ${token}`,
       ),
     );
   if (rows.length > 0)
@@ -54,7 +54,7 @@ async function assertTokenFree(
 
 export async function attachAccountToAgent(
   email: string,
-  agentId: number,
+  agentId: string,
   station: StationName,
   config: Record<string, unknown>,
 ): Promise<AccountRef> {
@@ -66,11 +66,11 @@ export async function attachAccountToAgent(
   if (typeof token === 'string') await assertTokenFree(station, token);
   const db = getDb();
   for (let attempt = 0; attempt < ID_ATTEMPTS; attempt++) {
-    const accountId = newAccountId(agent.id);
+    const accountId = newAccountId();
     try {
       await db
-        .insert(accounts)
-        .values({ agentId: agent.id, station, accountId, config });
+        .insert(stations)
+        .values({ id: newId(), agentId: agent.id, station, accountId, config });
       return { agentId: agent.id, station, accountId };
     } catch (err) {
       if (!isUniqueViolation(err)) throw err;
@@ -81,7 +81,7 @@ export async function attachAccountToAgent(
 
 export async function detachAccountFromAgent(
   email: string,
-  agentId: number,
+  agentId: string,
   station: StationName,
   accountId: string,
 ): Promise<AccountRef> {
@@ -90,15 +90,15 @@ export async function detachAccountFromAgent(
     agentId,
   );
   const gone = await getDb()
-    .delete(accounts)
+    .delete(stations)
     .where(
       and(
-        eq(accounts.agentId, agent.id),
-        eq(accounts.station, station),
-        eq(accounts.accountId, accountId),
+        eq(stations.agentId, agent.id),
+        eq(stations.station, station),
+        eq(stations.accountId, accountId),
       ),
     )
-    .returning({ accountId: accounts.accountId });
+    .returning({ accountId: stations.accountId });
   if (gone.length === 0)
     throw new AgentAdminError('no such account on this agent', 404);
   return { agentId: agent.id, station, accountId };

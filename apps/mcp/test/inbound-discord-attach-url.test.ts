@@ -84,8 +84,8 @@ beforeAll(async () => {
     20000 + Math.floor(Math.random() * 20000),
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
-  setKeyMap([{ key: AGENT_KEY, agentId: 7 }]);
-  setAgentMap({ 'discord/d0': 7 }, { 7: 'tony' });
+  setKeyMap([{ key: AGENT_KEY, agentId: 'agent000007' }]);
+  setAgentMap({ 'discord/d0': 'agent000007' }, { ['agent000007']: 'tony' });
   server = await startWebhookServer(makeEmit());
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -105,7 +105,7 @@ describe('a discord attachmentSaved event with no station url', () => {
     const out = emitAndCapture(savedEvent(FIXED));
     const url = String((out.payload as { url?: string }).url);
     expect(url).toStartWith(`https://mcp.metro.box/attach/${FIXED}?token=at_`);
-    expect(attachmentOwner(FIXED)).toBe(7);
+    expect(attachmentOwner(FIXED)).toBe('agent000007');
     expect(existsSync(join(attachDir, `${FIXED}.owner`))).toBe(true);
     expect(existsSync(join(attachDir, `${FIXED}.grant`))).toBe(true);
   });

@@ -55,12 +55,12 @@ export function toSession(body: unknown): AttachSession {
   };
 }
 
-const sessionPath = (agentId: number, attachId: string): string =>
+const sessionPath = (agentId: string, attachId: string): string =>
   `/${agentId}/accounts/${encodeURIComponent(attachId)}`;
 
 export async function pollAttachSession(
   token: string,
-  agentId: number,
+  agentId: string,
   attachId: string,
 ): Promise<AttachSession> {
   return toSession(
@@ -70,7 +70,7 @@ export async function pollAttachSession(
 
 export async function submitAttachStep(
   token: string,
-  agentId: number,
+  agentId: string,
   attachId: string,
   input: { code?: string; password?: string },
 ): Promise<AttachSession> {
@@ -86,7 +86,7 @@ export async function submitAttachStep(
 
 export async function cancelAttachSession(
   token: string,
-  agentId: number,
+  agentId: string,
   attachId: string,
 ): Promise<void> {
   await call(token, {

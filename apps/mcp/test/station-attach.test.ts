@@ -188,11 +188,13 @@ describe('bot token shape is checked before any network call', () => {
 describe('account id shape', () => {
   test('accepts the ids Metro generates', () => {
     expect(parseAccountId('a1-0a1b2c3d')).toBe('a1-0a1b2c3d');
+    expect(parseAccountId('A1-XX')).toBe('A1-XX');
+    expect(parseAccountId('aB3-_xYz9Qw')).toBe('aB3-_xYz9Qw');
     expect(parseAccountId('t0')).toBe('t0');
   });
 
   test('refuses anything that could travel outside its own segment', () => {
-    for (const bad of ['', '..', 'a/b', 'A1-XX', 'a 1', '-lead', `${'a'.repeat(65)}`])
+    for (const bad of ['', '..', 'a/b', 'a 1', '-lead', '_lead', `${'a'.repeat(65)}`])
       expect(parseAccountId(bad)).toBeNull();
   });
 });

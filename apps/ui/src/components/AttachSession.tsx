@@ -17,7 +17,7 @@ const POLL_MS = 2_000;
 
 interface AttachSessionProps {
   token: string;
-  agentId: number;
+  agentId: string;
   session: Session;
   onUpdate: (session: Session) => void;
   onDone: (result: AttachResult) => void;

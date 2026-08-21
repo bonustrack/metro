@@ -131,7 +131,7 @@ async function serveGet(
 
 let activeRegistry: SessionRegistry | undefined;
 
-export async function closeAgentSession(agentId: number): Promise<boolean> {
+export async function closeAgentSession(agentId: string): Promise<boolean> {
   const scopeKey = sessionScopeKey({ kind: 'agent', agentId });
   return (await activeRegistry?.closeScope(scopeKey)) ?? false;
 }

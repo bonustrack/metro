@@ -4,7 +4,7 @@ import { dropAccount, stationsKey } from '../src/api/queries';
 import { QueryClient } from '@tanstack/react-query';
 import type { StationsView } from '../src/api/client';
 
-const row = (id: string) => ({ id, agentId: 1, fields: [] });
+const row = (id: string) => ({ id, agentId: 'agent000001', fields: [] });
 
 const PREV: AccountGroup[] = [
   { station: 'xmtp', rows: [row('x0'), row('x1'), row('tony')] },

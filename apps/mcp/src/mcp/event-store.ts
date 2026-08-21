@@ -13,17 +13,17 @@ interface StoredEvent {
   streamId: StreamId;
   message: JSONRPCMessage;
   line: string | undefined;
-  owner: Set<number>;
+  owner: Set<string>;
 }
 
 export interface EventStoreDeps {
-  scopeOf: () => Set<number>;
+  scopeOf: () => Set<string>;
   max?: number;
 }
 
 export interface ScopedReplay {
   send: (eventId: EventId, message: JSONRPCMessage) => Promise<void>;
-  scope: Set<number> | undefined;
+  scope: Set<string> | undefined;
   onWithheld?: (eventId: EventId, line: string | undefined) => void;
 }
 
@@ -40,7 +40,7 @@ const decodeStreamId = (eventId: EventId): StreamId | undefined => {
 
 export class BoundedEventStore implements EventStore {
   private readonly max: number;
-  private readonly scopeOf: () => Set<number>;
+  private readonly scopeOf: () => Set<string>;
   private readonly events: StoredEvent[] = [];
   private seq = 0;
 
@@ -72,7 +72,7 @@ export class BoundedEventStore implements EventStore {
   ): Promise<StreamId> {
     const streamId = decodeStreamId(lastEventId);
     if (streamId === undefined) return '';
-    const allowed = scope ?? new Set<number>();
+    const allowed = scope ?? new Set<string>();
     let seen = false;
     for (const e of this.events) {
       if (e.streamId !== streamId) continue;

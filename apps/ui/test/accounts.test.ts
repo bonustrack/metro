@@ -10,10 +10,10 @@ import {
 
 const PAYLOAD = {
   telegram: [
-    { id: 'ada-tg', owner: 'ada', agentId: 1 },
-    { id: 'bob-tg', owner: 'bob', agentId: 2 },
+    { id: 'ada-tg', owner: 'ada', agentId: 'agent000001' },
+    { id: 'bob-tg', owner: 'bob', agentId: 'agent000002' },
   ],
-  discord: [{ id: 'ada-dc', token: 'mk_fake_never_shown', agentId: 1 }],
+  discord: [{ id: 'ada-dc', token: 'mk_fake_never_shown', agentId: 'agent000001' }],
   line: [],
 };
 
@@ -21,7 +21,7 @@ describe('groupAccounts carries the owning agent', () => {
   test('each row keeps the agent id and never renders it as a field', () => {
     const groups = groupAccounts(PAYLOAD);
     const telegram = groups.find((g) => g.station === 'telegram');
-    expect(telegram?.rows.map((r) => r.agentId)).toEqual([1, 2]);
+    expect(telegram?.rows.map((r) => r.agentId)).toEqual(['agent000001', 'agent000002']);
     expect(telegram?.rows[0]?.fields.map((f) => f.label)).toEqual(['id', 'owner']);
   });
 
@@ -47,7 +47,7 @@ describe('groupAccounts carries the owning agent', () => {
 
 describe('accountsForAgent', () => {
   test('returns only the selected agent accounts', () => {
-    const groups = accountsForAgent(groupAccounts(PAYLOAD), 1);
+    const groups = accountsForAgent(groupAccounts(PAYLOAD), 'agent000001');
     expect(groups.map((g) => g.station)).toEqual(['discord', 'telegram']);
     expect(groups.flatMap((g) => g.rows.map((r) => r.fields[0]?.value))).toEqual([
       'ada-dc',
@@ -56,39 +56,39 @@ describe('accountsForAgent', () => {
   });
 
   test('a station with none of this agent accounts is dropped entirely', () => {
-    const groups = accountsForAgent(groupAccounts(PAYLOAD), 2);
+    const groups = accountsForAgent(groupAccounts(PAYLOAD), 'agent000002');
     expect(groups.map((g) => g.station)).toEqual(['telegram']);
     expect(groups[0]?.rows).toHaveLength(1);
   });
 
   test('an agent with no accounts gets an empty list, never someone else rows', () => {
-    expect(accountsForAgent(groupAccounts(PAYLOAD), 99)).toEqual([]);
+    expect(accountsForAgent(groupAccounts(PAYLOAD), 'agent000099')).toEqual([]);
   });
 
   test('unattributed rows belong to no agent', () => {
     const groups = groupAccounts({ telegram: [{ id: 'orphan' }] });
-    expect(accountsForAgent(groups, 1)).toEqual([]);
+    expect(accountsForAgent(groups, 'agent000001')).toEqual([]);
   });
 });
 
 describe('attributeUntagged', () => {
   test('fills in the sole agent id when an older daemon sent none', () => {
-    const groups = attributeUntagged(groupAccounts({ telegram: [{ id: 'a' }] }), 4);
-    expect(groups[0]?.rows[0]?.agentId).toBe(4);
-    expect(accountsForAgent(groups, 4)).toHaveLength(1);
+    const groups = attributeUntagged(groupAccounts({ telegram: [{ id: 'a' }] }), 'agent000004');
+    expect(groups[0]?.rows[0]?.agentId).toBe('agent000004');
+    expect(accountsForAgent(groups, 'agent000004')).toHaveLength(1);
     expect(unattributedAccounts(groups)).toBe(0);
   });
 
   test('never overwrites an agent id the daemon did send', () => {
-    const groups = attributeUntagged(groupAccounts(PAYLOAD), 4);
-    expect(groups.flatMap((g) => g.rows.map((r) => r.agentId))).toEqual([1, 1, 2]);
+    const groups = attributeUntagged(groupAccounts(PAYLOAD), 'agent000004');
+    expect(groups.flatMap((g) => g.rows.map((r) => r.agentId))).toEqual(['agent000001', 'agent000001', 'agent000002']);
   });
 });
 
 describe('stationFields', () => {
   const row = (fields: Record<string, string>): AccountRow => ({
     id: 'a1-0001',
-    agentId: 1,
+    agentId: 'agent000001',
     fields: Object.entries(fields).map(([label, value]) => ({ label, value })),
   });
 

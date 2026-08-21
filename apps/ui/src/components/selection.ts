@@ -1,8 +1,8 @@
 export type Selection =
-  | { kind: 'agent'; id: number }
+  | { kind: 'agent'; id: string }
   | { kind: 'station'; accountId: string }
   | { kind: 'connectors' }
-  | { kind: 'connector'; id: number }
+  | { kind: 'connector'; id: string }
   | { kind: 'docs' }
   | { kind: 'settings' }
   | { kind: 'none' };

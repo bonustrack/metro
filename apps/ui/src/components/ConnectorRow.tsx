@@ -19,7 +19,7 @@ function summary(row: Connector): string {
 
 interface ConnectorRowProps {
   row: Connector;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }
 
 export function ConnectorRow({ row, onOpen }: ConnectorRowProps): ReactNode {
@@ -31,7 +31,7 @@ export function ConnectorRow({ row, onOpen }: ConnectorRowProps): ReactNode {
     >
       <a
         className="row-link"
-        href={`#/connector/${String(row.id)}`}
+        href={`#/connector/${row.id}`}
         onClick={(e) => {
           e.preventDefault();
           onOpen(row.id);
