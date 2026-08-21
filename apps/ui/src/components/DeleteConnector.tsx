@@ -20,7 +20,7 @@ export function DeleteConnector({
     setBusy(true);
     setError(null);
     onDelete(connector.id).catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : 'Could not delete the connector.');
+      setError(err instanceof Error ? err.message : 'Could not remove the connector.');
       setBusy(false);
     });
   };
@@ -31,7 +31,7 @@ export function DeleteConnector({
         label="Connector actions"
         items={[
           {
-            label: 'Delete connector',
+            label: 'Remove',
             danger: true,
             onSelect: () => {
               setError(null);
@@ -42,14 +42,14 @@ export function DeleteConnector({
       />
       <ConfirmModal
         open={open}
-        title="Delete connector"
+        title="Remove"
         lines={[
           'This deletes the bookmark and the credential Metro stores for it. A config you have already pasted into an MCP client keeps working — Metro is only the holder.',
           'This cannot be undone. Adding it again means pasting the URL and the credential once more.',
         ]}
         prompt={`Type ${connector.name} to confirm.`}
         confirmWord={connector.name}
-        confirmLabel="Delete connector"
+        confirmLabel="Remove"
         busy={busy}
         error={error}
         onClose={() => {
