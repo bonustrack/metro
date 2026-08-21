@@ -117,3 +117,12 @@ export function routeOf(
 }
 
 export const encodeEmoji = (e: string): string => encodeURIComponent(e);
+
+export const ownReactionPath = (
+  channelId: string,
+  messageId: string,
+  emoji: string,
+): string =>
+  `/channels/${channelId}/messages/${messageId}/reactions/${
+    emoji ? `${encodeEmoji(emoji)}/@me` : '@me'
+  }`;
