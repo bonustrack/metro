@@ -49,6 +49,22 @@ export function credential(row: Connector): Credential | null {
   return null;
 }
 
+function compactJson(json: string): string {
+  try {
+    return JSON.stringify(JSON.parse(json) as unknown);
+  } catch {
+    return json;
+  }
+}
+
+function singleQuoted(value: string): string {
+  return `'${value.split("'").join("'\\''")}'`;
+}
+
+export function claudeSessionCommand(json: string): string {
+  return `claude --mcp-config ${singleQuoted(compactJson(json))}`;
+}
+
 const BARE_ARG_RE = /^[A-Za-z0-9._:/-]+$/;
 
 export function shellArg(value: string): string {

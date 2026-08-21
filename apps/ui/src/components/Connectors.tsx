@@ -9,6 +9,7 @@ import {
   takeConnectorError,
   type ConnectorList,
 } from '../api/connectors';
+import { claudeSessionCommand } from '../api/install';
 import { AddConnector } from './AddConnector';
 import { ConnectorRow } from './ConnectorRow';
 import { CopyBlock } from './CopyBlock';
@@ -24,6 +25,9 @@ import { useDocumentTitle } from '../title';
 const BLURB = 'Remote MCP servers Metro has checked for you.';
 
 const FALLBACK = 'Could not load your connectors.';
+
+const SESSION_HINT =
+  'Paste this in a terminal to start Claude Code with every connector loaded, credentials included. It carries them in the clear, so it belongs in a terminal, not in a commit.';
 
 interface ConnectorsBodyProps {
   data: ConnectorList;
@@ -53,16 +57,15 @@ function ConnectorsBody({
           />
         ))}
       </Col>
-      {rows.length > 1 ? (
-        <Col>
-          <CopyBlock
-            key={data.json}
-            label="all connectors"
-            value={data.json}
-            secret={rows.some((r) => r.secret !== null)}
-          />
-        </Col>
-      ) : null}
+      <Col gap={4}>
+        <CopyBlock
+          key={data.json}
+          label="start claude code with all of them"
+          value={claudeSessionCommand(data.json)}
+          secret
+        />
+        <Text size="sm" role="secondary">{SESSION_HINT}</Text>
+      </Col>
     </>
   );
 }

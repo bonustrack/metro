@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   claudeInstallUrl,
+  claudeSessionCommand,
   cursorDeeplink,
   expiryNote,
   installFor,
@@ -215,6 +216,40 @@ describe('a copied token says how long it is good for', () => {
 
   test('a token with no stated expiry still warns rather than promising forever', () => {
     expect(expiryNote(SIGNED_IN, AT)).toContain('OAuth access token');
+  });
+});
+
+describe('one paste starts a claude code session with every connector', () => {
+  const PRETTY = JSON.stringify(
+    { mcpServers: { linear: { type: 'http', url: 'https://mcp.linear.app/mcp' } } },
+    null,
+    2,
+  );
+
+  test('it is a claude --mcp-config command around single-quoted json', () => {
+    expect(claudeSessionCommand(PRETTY)).toBe(
+      "claude --mcp-config '" +
+        '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp"}}}' +
+        "'",
+    );
+  });
+
+  test('the json is compacted, so the command stays one line', () => {
+    expect(claudeSessionCommand(PRETTY)).not.toContain('\n');
+  });
+
+  test('a quote inside a credential cannot end the shell string early', () => {
+    const risky = JSON.stringify({
+      mcpServers: { x: { headers: { Authorization: "it's" } } },
+    });
+    const command = claudeSessionCommand(risky);
+    expect(command).toContain("'\\''");
+    expect(command.startsWith("claude --mcp-config '")).toBe(true);
+    expect(command.endsWith("'")).toBe(true);
+  });
+
+  test('json it cannot parse is passed through rather than dropped', () => {
+    expect(claudeSessionCommand('not json')).toBe("claude --mcp-config 'not json'");
   });
 });
 
