@@ -46,6 +46,7 @@ function errorText(body: unknown, status: number): string {
 
 export interface CallInit {
   method: 'GET' | 'POST' | 'DELETE';
+  base?: string;
   path?: string;
   headers?: Record<string, string>;
   body?: string;
@@ -54,7 +55,7 @@ export interface CallInit {
 export async function call(token: string, init: CallInit): Promise<unknown> {
   let res: Response;
   try {
-    res = await fetch(`${agentsUrl()}${init.path ?? ''}`, {
+    res = await fetch(`${init.base ?? agentsUrl()}${init.path ?? ''}`, {
       method: init.method,
       headers: { authorization: `Bearer ${token}`, ...init.headers },
       body: init.body,

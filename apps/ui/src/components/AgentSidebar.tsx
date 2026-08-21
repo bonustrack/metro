@@ -121,6 +121,14 @@ export function AgentSidebar({
               />
             ))}
             <NavRow
+              label="Connectors"
+              icon="lightningBolt"
+              selected={selection.kind === 'connectors'}
+              onPress={() => {
+                onSelect({ kind: 'connectors' });
+              }}
+            />
+            <NavRow
               label="Settings"
               icon="cog"
               selected={selection.kind === 'settings'}

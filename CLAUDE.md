@@ -118,6 +118,21 @@ Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
 
 A pending MCP `permission_request` is relayed to chat as `yes <request_id>` / `no <request_id>`; `inbound.ts` matches with `PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i`. The 5-char format is a contract with the relayed prompt — never change one side only.
 
+### Connectors (`db/connectors.ts`, `daemon/connector-*.ts`)
+
+A connector is a **user-level verified bookmark for a remote MCP server**, plus a paste-ready `mcpServers` block. Metro stores it and proves it answers — it does NOT proxy it, holds no runtime session to it, gives it no MCP tool and puts nothing on the bus.
+
+- **A connector is NOT a station and carries no egress.** Nothing on this path touches `STATIONS`, `stations/registry.ts`, `materialize.ts`, `db/agent-scope.ts` or `eventInScope` — there is no fifth egress to add to the case table. Don't "unify" it with stations.
+- **Owned by `users.id`, never `agents.id`.** It belongs to the signed-in person, not to an agent, which is why the sidebar page is user-level and takes no agent. `ownedConnectorOrThrow` re-asserts `user_id` in the WHERE, so not-yours and unknown are the SAME 404.
+- **No row exists unless the remote answered a real MCP `initialize`** — the attach rule, applied to a station-less feature. `createConnectorForEmail` verifies BEFORE the insert, so `config.verified` is present on every stored row by construction.
+- **`parseConnectorUrl` is a security boundary, not validation polish.** https only; no IPv4/IPv6 literal, no `localhost`, `*.local`, `*.internal`, `*.flycast` or bare single-label host; no userinfo, no `#fragment`; every frame is `redirect: 'manual'` and a 3xx is refused rather than followed. The fetch is made by the Fly machine that holds `DATABASE_URL`, the pg pool and `/data` with the MLS db3s, at a url named by ANY signed-in Google account — sign-up is open by design. DNS rebinding is accepted for v1, and the channel stays blind: never echo a remote body or header back to the caller.
+- Raw `fetch`, never the SDK `Client` — its `requestInit.signal` is overwritten by the transport, its default timeout is 60s, and after `initialize` it starts an unawaited background GET SSE with reconnect backoff. Streamable HTTP only: `transport` is always `'http'` on a written row, and the column exists so `sse` needs no migration. **No stdio, ever** — the only way to "verify" it is to execute a user-supplied command line on the Fly box.
+- **A remote 401 is metro's 400, never metro's 401** (`ConnectorVerifyError` is always 400, like every `stations/attach.ts` provider refusal). 401 is reserved absolutely for a missing or invalid metro session: `apps/ui/src/api/client.ts` throws `AuthError` on ANY 401 and `App.failed` answers with `clearSession()`, so proxying a remote refusal would log the user out mid-form. On re-verify it is not even an error — `verifyConnectorForEmail` catches `ConnectorVerifyError` into `200 {ok:false, reason}` and leaves the row alone; anything else rethrows.
+- `unique(user_id, name)` is structural, not cosmetic: the name is the `mcpServers` object key, so two connectors named `linear` would silently overwrite each other in the copied JSON. Duplicate → 409 via `isUniqueViolation`.
+- **`GET` re-serves the auth header value to its owner — the SECOND deliberate relaxation of "no API returns a stored credential"** (the webhook url is the first). The whole feature is *copy the JSON*, so a write-only store is useless; metro is the holder, not the issuer — the user already has this credential; and it is gated by the same session JWT that re-serves `agents.key` in plaintext next door. The mitigations are not optional: the field is named `secret` so no row renders it as a clickable link, the UI masks it behind Reveal/Copy, and **neither the url nor the value ever reaches `log`** — `{id, name, host}` only.
+- **The route MUST stay in `handlePreMcpRoutes` before `handleMonitorRequest`**, which claims all of `/api/*` and never falls through. `connectorApi` is the optional 5th positional parameter of `startWebhookServer`/`handleRequest`/`handlePreMcpRoutes`; do NOT fold it into `AgentApiDeps`.
+- Migration `0010` adds the table, and **migrations are manual**: no `migrate()` at boot, no CI step, no `release_command` in `fly.toml`, and `drizzle-kit` is a devDependency absent from the production image. `bun --filter @metro-labs/mcp db:migrate` must be run against prod BEFORE the PR merges, because merging to `main` auto-deploys.
+
 ## HTTP surface
 
 One port (`internal_port=8420`, `webhookPort()` = `METRO_WEBHOOK_PORT || 8420` — an overridable default, not a constant) serves MCP, the APIs, webhooks and health.
@@ -129,6 +144,7 @@ One port (`internal_port=8420`, `webhookPort()` = `METRO_WEBHOOK_PORT || 8420` �
 | `GET /health`, `/healthz` | none | 200 `{status,version,uptime}`. Fly health-check (30s/5s/45s grace). **Breaking or gating this = machine unhealthy = outage.** A test guards it. |
 | `/auth/google/*` | — | Sign-in; `withFragment` strips the hash on return. |
 | `/api/agents…` | session JWT | Agent + account admin. Anything else under it is a 404 from this handler. |
+| `/api/connectors…` | session JWT | User-level remote-MCP bookmarks; **never an agent key**. `GET`/`POST` the collection, `POST /<id>/verify`, `DELETE /<id>`. Anything else under it is a 404 here, a wrong method a 405, both decided before auth. |
 | `/api/uploads…` | agent key or ticket | See attachments. |
 | `/attach` | grant token or owner scope | See attachments. |
 | `/api/webhooks/<webhook_id>/<token>` | the URL itself | Inbound webhook. |
@@ -177,7 +193,8 @@ Live-only `GET /api/tail` SSE (no replay), `POST /api/call/:train/:action`, `GET
 
 - **Not an MCP client** (#113) — `apps/ui/src/mcp/client.ts` was deleted and must not come back. It uses `fetch('/api/agents')`.
 - Two panes: the sidebar is the agent list, Settings, and the account footer; everything agent-specific belongs to the selected agent in the main pane.
-- Routes are hash-based: `#/`, `#/agent/<id>`, `#/station/<account_id>`, `#/settings`, `#/docs/setup`, `#/login`.
+- Routes are hash-based: `#/`, `#/agent/<id>`, `#/station/<account_id>`, `#/connectors`, `#/settings`, `#/docs/setup`, `#/login`. `routeHash` ends in `return '#/'` and is NOT exhaustive, so a new kind that is only added to `routeSelection` fails silently.
+- **`#/connectors` is user-level, not agent-level** — a `standalonePage` beside Settings and Docs. `Connectors` owns its own fetch and state and takes only `token`, because `Dashboard()` is 92 non-blank lines against the 100 cap: keep zero new lines inside it. Consequence, accepted: the NavRow shows no count.
 - **A station account has its own page.** The list row carries only identity (icon, station, handle) and is itself the link; every returned field lives on the station page. `stationFields` (`api/accounts.ts`) is the ONE place deciding which fields are identity and which are detail — a field the daemon could not fill comes back `-` and is dropped, since a dash is not a fact.
 - Attach/detach controls render only when `agent.owned`; the UI hiding them is convenience, `ownedAgentOrThrow` is the enforcement. Accounts never render globally — the pairing is structural, never inferred. The one exception is a session seeing exactly ONE agent, where every account is by construction that agent's.
 - **`apps/ui/public/fonts/Calibre-*.woff2` are the only binary assets and the only files the MIT `LICENSE` does not cover** — a commercial Klim face under Snapshot Labs' licence. Do not copy them elsewhere and do not delete them as "unused": nothing imports them, `index.css` names them by url and Vite copies `public/` verbatim. Each file is its own single-face family at `font-weight: normal`, because the kit hardcodes the family names and never sets a weight. `test/fonts.test.ts` guards the pairing.
@@ -228,17 +245,18 @@ Package `baileys` (`@whiskeysockets/baileys` is the OLD name; both publish `7.0.
 
 **The DB is the ONLY runtime account source** — nothing reads station secrets from the environment.
 
-Three tables in `db/schema.ts`. The ONE foreign key is `agents.owner_id` → `users.id` `ON DELETE RESTRICT` (a user who still owns an agent cannot be deleted); `accounts` references its agent by a plain int with no FK.
+Four tables in `db/schema.ts`. BOTH foreign keys point at `users.id` `ON DELETE RESTRICT` — `agents.owner_id` and `connectors.user_id` (a user who still owns either cannot be deleted); `accounts` references its agent by a plain int with no FK.
 
 - `users` — `id`, `email` UNIQUE and always lowercased through `normalizeEmail`. One row per person, created on first Google sign-in.
 - `agents` — `id` (the real identity, the only thing scoping compares); `name`, a display label with NO unique index since `0007`, so it may repeat across and within owners and differ only in case; `owner_id` nullable (NULL = operator-provisioned); `key` nullable text UNIQUE.
 - `accounts` — `agent_id`, `station` **plain text, not a pg enum**, so a new station needs no migration (adding `webhook` needed none); `account_id`; `allowlist` text[] DEFAULT `['*']`; jsonb `config`. PK (`station`,`account_id`). The `StationName` union is TS-only, via `$type`.
+- `connectors` (added by `0010`) — `id`; `user_id` → `users.id`, so a connector is owned by the PERSON and no agent id appears on the path; `name`; `url`; `transport` plain text (`http` today, `sse` reserved), `ConnectorTransport` TS-only via `$type`; jsonb `config` = `{auth, createdAt, verified}`, ISO strings, no timestamp column. `unique(user_id, name)`. See Connectors above.
 
 There is NO `keys` table since `0009`, no `credentials` column and no `whatsapp_auth` table. `allowlist` is a first-class column (relay-only, stripped from the train files); `owner` and every heterogeneous secret live in `config`, which materialize passes through to the train files. DB deps (`drizzle-orm`, `postgres`, dev `drizzle-kit`) live ONLY in `apps/mcp`; config is `apps/mcp/drizzle.config.ts`, generated SQL `apps/mcp/drizzle/`.
 
 ### Writers and loading
 
-- `db/agent-admin.ts` (users + agents), `db/account-attach.ts` (accounts) and `db/whatsapp-login.ts` are the ONLY writers. `db/materialize.ts` is read-only against the DB.
+- `db/agent-admin.ts` (users + agents), `db/account-attach.ts` (accounts), `db/connectors.ts` (connectors) and `db/whatsapp-login.ts` are the ONLY writers. `db/materialize.ts` is read-only against the DB, and it never reads `connectors` — nothing about a connector is materialized to disk or to a train.
 - `ensureUser` is `INSERT … ON CONFLICT DO NOTHING RETURNING id`, re-SELECTing the winner when a concurrent first login wins the race, so two simultaneous logins settle on one row and neither 500s.
 - `createAgentForEmail` validates the name (`/^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/`, trimmed, **never lowercased**), mints the key and inserts agent + key in ONE statement, with no duplicate-name check of any kind. It registers the key only when the daemon is not `METRO_AGENT`-pinned.
 - **Keys are stored PLAINTEXT.** `GET /api/agents` re-serves the key to its owner, so hashing would break that and turn `authenticate()` into a DB lookup. Don't "fix" it in passing.

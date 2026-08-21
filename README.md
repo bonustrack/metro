@@ -141,8 +141,9 @@ loud error.
 | `DATABASE_URL` | Postgres connection string (required). |
 | `METRO_AGENT` | Optional. Restrict this instance to one agent by its numeric `agents.id`. Must be a positive integer that exists, else boot fails loudly. Unset → the daemon runs every agent's accounts in one process. |
 
-Three small tables ([`schema.ts`](apps/mcp/src/db/schema.ts)). The one foreign key is
-`agents.owner_id → users.id`; `accounts` references its agent by a plain int with none.
+Four small tables ([`schema.ts`](apps/mcp/src/db/schema.ts)). Both foreign keys point at
+`users.id` (`agents.owner_id` and `connectors.user_id`, each `ON DELETE RESTRICT`);
+`accounts` references its agent by a plain int with none.
 
 - **`users`** — `id`, `email` (lowercased verified Google email, `UNIQUE`). One row per
   person, created on first sign-in.
@@ -155,6 +156,11 @@ Three small tables ([`schema.ts`](apps/mcp/src/db/schema.ts)). The one foreign k
   `discord` | `whatsapp` | `webhook` — a plain text column, not a DB enum, so a new
   station needs no migration), `account_id`, `allowlist` text[] (default `['*']`), and
   `config` jsonb. Primary key (`station`, `account_id`).
+- **`connectors`** — `id`, `user_id` (→ `users.id`), `name`, `url`, `transport` text
+  (`http`), `config` jsonb (`{auth, createdAt, verified}`), `UNIQUE (user_id, name)`.
+  Verified bookmarks for **remote** MCP servers, owned by the person rather than by an
+  agent; nothing in the relay, the bus or the trains reads this table. See
+  [Connectors](#connectors).
 
 `agents.key` is the whole API-key story. At boot the daemon indexes the keys by SHA-256,
 and a request presenting one is authenticated as that agent and **scoped to that agent's
@@ -207,9 +213,15 @@ INSERT INTO accounts (agent_id, station, account_id, config)
 `db:generate` regenerates the migration after a schema change. Applied migrations are in
 [`apps/mcp/drizzle/`](apps/mcp/drizzle/); the ones worth knowing about are `0007` (drops
 name uniqueness — `agents.id` is the only unique column), `0008` (replaces `owner_email`
-with `owner_id` and creates `users`), and `0009` (replaces the `keys` table with
-`agents.key`). `0009` gives up overlapping keys deliberately: a single column cannot hold
-two values, so a reset re-points every client at once with no overlap window.
+with `owner_id` and creates `users`), `0009` (replaces the `keys` table with `agents.key`)
+and `0010` (adds `connectors`). `0009` gives up overlapping keys deliberately: a single
+column cannot hold two values, so a reset re-points every client at once with no overlap
+window.
+
+**Migrations are manual, and only manual.** There is no `migrate()` at boot, no CI step and
+no `release_command` — `drizzle-kit` is a devDependency and is not in the production image.
+Run `db:migrate` against the production database *before* merging, because merging to
+`main` deploys.
 
 ### Self-serve agents from the web UI
 
@@ -225,6 +237,10 @@ auth gate:
 | `POST /api/agents/<id>/key` | Reset the key of an agent you **own**. |
 | `POST /api/agents/<id>/accounts/start` | Attach a station account. Validates the credential against the provider first, writes the row, reloads that station. |
 | `DELETE /api/agents/<id>/accounts/<station>/<account_id>` | Detach an account, forget its credentials, reload (or stop) the station. |
+| `GET /api/connectors` | Your [connectors](#connectors), each with its own `mcpServers` block, plus one combined block. |
+| `POST /api/connectors` `{"name","url","header","value"}` | Verify a remote MCP server and store it. `header`/`value` are optional and go together. |
+| `POST /api/connectors/<id>/verify` | Re-check a stored connector. `200 {ok:true, verified}` or `200 {ok:false, reason}`. |
+| `DELETE /api/connectors/<id>` | Delete a connector you own. |
 
 Sign-in is **open**: any Google account whose `email_verified` claim is true may sign in
 and create agents. There is no domain allowlist and no cap. The id token is still fully
@@ -268,7 +284,36 @@ each carries its own per-attachment token.
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `METRO_SESSION_SECRET` | — | Required for `/api/agents` and Google login. Unset → 401. |
+| `METRO_SESSION_SECRET` | — | Required for `/api/agents`, `/api/connectors` and Google login. Unset → 401. |
+
+### Connectors
+
+A connector is a **verified bookmark for someone else's MCP server** — Linear, Sentry,
+whatever speaks Streamable HTTP — kept next to your agents so the config is in one place.
+Metro checks the server really answers an MCP `initialize`, stores the url and the optional
+auth header, and hands back a ready-to-paste `mcpServers` block. That is the whole feature:
+**Metro does not proxy a connector**, opens no session to it, exposes no tool for it, and
+no agent's traffic goes through it.
+
+Connectors belong to the **signed-in person**, not to an agent, so they live at `#/connectors`
+in the panel rather than on an agent's page. Somebody else's connector and an id that never
+existed are the same `404`.
+
+Nothing is stored until the probe succeeds: Metro POSTs a real `initialize`, then
+`notifications/initialized`, then `tools/list`, and records the server name, version,
+protocol and tool count. A refusal by the remote while you are adding one is a `400` from
+Metro with a plain reason — never a `401`, which is reserved for your own expired session.
+Re-checking a connector that has stopped answering is a `200` carrying `ok: false`; the row
+stays.
+
+**The url must be public `https`.** Metro connects from its own server, so `localhost`, an
+IP literal, and `.local`/`.internal` names are refused, as are `user:pass@` urls and
+redirects. Nothing about the remote's answer is echoed back to you.
+
+`GET /api/connectors` re-serves the header value you stored, because the point of the
+feature is copying the JSON — this and the webhook endpoint url are the only two credentials
+any Metro API returns. The panel keeps it behind **Reveal**/**Copy**, and neither the url nor
+the value is ever logged.
 
 ### Inbound webhooks
 
@@ -351,8 +396,8 @@ Rules that hold for every station:
   which ids exist.
 - **Station credentials are never returned again.** `GET /api/agents` re-serves
   `agents.key` for agents you own; `accounts.config` is deliberately not part of that
-  exposure. The single exception is the webhook endpoint url, which is useless if you
-  cannot retrieve it.
+  exposure. The one exception here is the webhook endpoint url, which is useless if you
+  cannot retrieve it — as is, elsewhere, a [connector](#connectors)'s auth header.
 - **A duplicate bot token is `409`.** Two `telegram` accounts sharing a token make the
   whole train refuse to boot, so the collision is caught at attach.
 - **The station reloads immediately.** The daemon re-materialises the account files and

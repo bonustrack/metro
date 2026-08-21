@@ -8,6 +8,7 @@ import { findAccount, type AccountGroup } from '../api/accounts';
 import { type AgentSummary, type CreatedAgent } from '../api/client';
 import { AgentDetail } from './AgentDetail';
 import { AgentsHome } from './AgentsHome';
+import { Connectors } from './Connectors';
 import { NewAgentKey } from './NewAgentKey';
 import { Docs } from './Docs';
 import { Settings } from './Settings';
@@ -80,6 +81,7 @@ function standalonePage(props: AgentPanelProps): ReactNode | null {
   const { agents, selection, created } = props;
   if (selection.kind === 'docs') return <Docs />;
   if (selection.kind === 'settings') return <Settings />;
+  if (selection.kind === 'connectors') return <Connectors token={props.token} />;
   const station = stationPage(props);
   if (station !== null) return station;
   if (selection.kind === 'none' && created === null)

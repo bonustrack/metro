@@ -2,12 +2,14 @@ import { type Selection } from './components/selection';
 
 const AGENT_PATH = /^#?\/agent\/([1-9][0-9]{0,9})$/;
 const STATION_PATH = /^#?\/station\/([A-Za-z0-9_-]{1,64})$/;
+const CONNECTORS_PATH = /^#?\/connectors$/;
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 
 export function routeSelection(hash: string): Selection {
   if (DOCS_PATH.test(hash)) return { kind: 'docs' };
   if (SETTINGS_PATH.test(hash)) return { kind: 'settings' };
+  if (CONNECTORS_PATH.test(hash)) return { kind: 'connectors' };
   const accountId = STATION_PATH.exec(hash)?.[1];
   if (accountId !== undefined) return { kind: 'station', accountId };
   const id = AGENT_PATH.exec(hash)?.[1];
@@ -19,6 +21,7 @@ export function routeHash(selection: Selection): string {
   if (selection.kind === 'station') return `#/station/${selection.accountId}`;
   if (selection.kind === 'docs') return '#/docs/setup';
   if (selection.kind === 'settings') return '#/settings';
+  if (selection.kind === 'connectors') return '#/connectors';
   return '#/';
 }
 

@@ -5,6 +5,7 @@ import {
   primaryKey,
   serial,
   text,
+  unique,
 } from 'drizzle-orm/pg-core';
 
 export const STATIONS = [
@@ -42,4 +43,23 @@ export const accounts = pgTable(
     config: jsonb('config').notNull(),
   },
   (t) => [primaryKey({ columns: [t.station, t.accountId] })],
+);
+
+export const CONNECTOR_TRANSPORTS = ['http', 'sse'] as const;
+
+export type ConnectorTransport = (typeof CONNECTOR_TRANSPORTS)[number];
+
+export const connectors = pgTable(
+  'connectors',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    url: text('url').notNull(),
+    transport: text('transport').$type<ConnectorTransport>().notNull(),
+    config: jsonb('config').notNull(),
+  },
+  (t) => [unique('connectors_user_id_name_unique').on(t.userId, t.name)],
 );

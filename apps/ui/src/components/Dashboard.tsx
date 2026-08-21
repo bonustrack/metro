@@ -32,6 +32,7 @@ interface DashboardProps {
 function pageName(selection: Selection, data: DashboardData): string {
   if (selection.kind === 'settings') return 'Settings';
   if (selection.kind === 'docs') return 'Documentation';
+  if (selection.kind === 'connectors') return 'Connectors';
   if (selection.kind === 'station')
     return findAccount(data.groups, selection.accountId) === undefined
       ? 'Station'

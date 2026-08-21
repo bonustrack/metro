@@ -27,6 +27,10 @@ import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry } from '@metro-labs/webhook';
 import { handleGoogleAuthRequest } from './google-oauth.js';
 import { handleAgentApiRequest, type AgentApiDeps } from './agent-api.js';
+import {
+  handleConnectorApiRequest,
+  type ConnectorApiDeps,
+} from './connector-api.js';
 import { handleUploadRequest } from './upload-api.js';
 import {
   handleMonitorRequest,
@@ -163,15 +167,22 @@ export async function startWebhookServer(
   mcp?: McpHandler,
   monitorCall?: MonitorCall,
   agentApi?: AgentApiDeps,
+  connectorApi?: ConnectorApiDeps,
 ): Promise<Server> {
   const port = webhookPort();
   const server = createServer((req, res) => {
-    handleRequest(req, res, emit, mcp, monitorCall, agentApi).catch(
-      (err: unknown) => {
-        log.warn({ err: errMsg(err) }, 'webhook handler error');
-        if (!res.headersSent) res.writeHead(500).end();
-      },
-    );
+    handleRequest(
+      req,
+      res,
+      emit,
+      mcp,
+      monitorCall,
+      agentApi,
+      connectorApi,
+    ).catch((err: unknown) => {
+      log.warn({ err: errMsg(err) }, 'webhook handler error');
+      if (!res.headersSent) res.writeHead(500).end();
+    });
   });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -323,16 +334,29 @@ async function handleWebhookRoute(
   return true;
 }
 
+function handleSessionApis(
+  req: IncomingMessage,
+  res: ServerResponse,
+  agentApi?: AgentApiDeps,
+  connectorApi?: ConnectorApiDeps,
+): boolean {
+  if (agentApi && handleAgentApiRequest(req, res, agentApi)) return true;
+  return Boolean(
+    connectorApi && handleConnectorApiRequest(req, res, connectorApi),
+  );
+}
+
 async function handlePreMcpRoutes(
   req: IncomingMessage,
   res: ServerResponse,
   emit: Emit,
   monitorCall?: MonitorCall,
   agentApi?: AgentApiDeps,
+  connectorApi?: ConnectorApiDeps,
 ): Promise<boolean> {
   if (handleHealth(req, res)) return true;
   if (await handleGoogleAuthRequest(req, res)) return true;
-  if (agentApi && handleAgentApiRequest(req, res, agentApi)) return true;
+  if (handleSessionApis(req, res, agentApi, connectorApi)) return true;
   if (handleUploadRequest(req, res)) return true;
   if (handleAttachRequest(req, res)) return true;
   if (await handleWebhookRoute(req, res, emit)) return true;
@@ -346,8 +370,12 @@ async function handleRequest(
   mcp?: McpHandler,
   monitorCall?: MonitorCall,
   agentApi?: AgentApiDeps,
+  connectorApi?: ConnectorApiDeps,
 ): Promise<void> {
-  if (await handlePreMcpRoutes(req, res, emit, monitorCall, agentApi)) return;
+  if (
+    await handlePreMcpRoutes(req, res, emit, monitorCall, agentApi, connectorApi)
+  )
+    return;
   if (mcp && isMcpPath(req)) {
     applyMcpCors(req, res);
     if (handleMcpPreflight(req, res)) return;

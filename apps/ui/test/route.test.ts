@@ -45,6 +45,11 @@ describe('routeSelection', () => {
     expect(routeSelection('#/settings')).toEqual({ kind: 'settings' });
   });
 
+  test('the connectors page is its own path too', () => {
+    expect(routeSelection('#/connectors')).toEqual({ kind: 'connectors' });
+    expect(routeSelection('/connectors')).toEqual({ kind: 'connectors' });
+  });
+
   test('an empty or root hash is the no-selection state', () => {
     expect(routeSelection('')).toEqual({ kind: 'none' });
     expect(routeSelection('#')).toEqual({ kind: 'none' });
@@ -79,6 +84,11 @@ describe('routeSelection', () => {
       '#/setup',
       '#/Settings',
       '#/settings/1',
+      '#/connectors/1',
+      '#/Connectors',
+      '#/connectors/',
+      '#/connector',
+      '#/connectorsx',
     ])
       expect(routeSelection(bad)).toEqual({ kind: 'none' });
   });
@@ -100,10 +110,15 @@ describe('routeHash', () => {
     expect(routeHash({ kind: 'none' })).toBe('#/');
   });
 
+  test('the connectors page serializes to its own url, not the fallback', () => {
+    expect(routeHash({ kind: 'connectors' })).toBe('#/connectors');
+  });
+
   test('every hash it writes parses back to the same selection', () => {
     for (const selection of [
       { kind: 'agent', id: 7 } as const,
       { kind: 'station', accountId: 'a1-e5036b5f' } as const,
+      { kind: 'connectors' } as const,
       { kind: 'docs' } as const,
       { kind: 'settings' } as const,
       { kind: 'none' } as const,

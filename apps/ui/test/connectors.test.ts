@@ -1,0 +1,348 @@
+import { afterEach, describe, expect, test } from 'bun:test';
+import { AuthError } from '../src/api/client';
+import {
+  connectorHost,
+  createConnector,
+  deleteConnector,
+  fetchConnectors,
+  serverLabel,
+  verifyConnector,
+  type Connector,
+} from '../src/api/connectors';
+
+const CONNECTORS = 'https://mcp.metro.box/api/connectors';
+
+const realFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = realFetch;
+});
+
+interface Seen {
+  url: string;
+  method: string | undefined;
+  body: unknown;
+  authorization: unknown;
+  contentType: unknown;
+}
+
+let calls: Seen[] = [];
+
+function serve(body: unknown, status = 200): void {
+  calls = [];
+  globalThis.fetch = ((url: string, init?: RequestInit) => {
+    const headers: Record<string, unknown> = { ...init?.headers };
+    calls.push({
+      url,
+      method: init?.method,
+      body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
+      authorization: headers.authorization,
+      contentType: headers['content-type'],
+    });
+    return Promise.resolve(
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+  }) as unknown as typeof fetch;
+}
+
+const VERIFIED = {
+  at: '2026-08-21T09:14:04.880Z',
+  server: 'linear',
+  version: '1.4.0',
+  protocol: '2025-06-18',
+  tools: 12,
+};
+
+const ROW = {
+  id: 12,
+  name: 'linear',
+  url: 'https://mcp.linear.app/mcp',
+  transport: 'http',
+  auth: 'header',
+  header: 'Authorization',
+  secret: 'Bearer lin_oauth_7f',
+  json: '{\n  "mcpServers": {}\n}',
+  verified: VERIFIED,
+};
+
+const NEW = {
+  name: 'linear',
+  url: 'https://mcp.linear.app/mcp',
+  header: '',
+  value: '',
+};
+
+const list = async (body: unknown): Promise<Connector[]> => {
+  serve(body);
+  return (await fetchConnectors('session')).connectors;
+};
+
+describe('the connectors surface is its own endpoint', () => {
+  test('a list reads /api/connectors, never a path under /api/agents', async () => {
+    serve({ connectors: [], json: '{}' });
+    await fetchConnectors('session');
+    expect(calls[0]?.url).toBe(CONNECTORS);
+    expect(calls[0]?.url).not.toContain('/api/agents');
+    expect(calls[0]?.method).toBe('GET');
+  });
+
+  test('a create posts the collection itself', async () => {
+    serve(ROW, 201);
+    await createConnector('session', NEW);
+    expect(calls).toEqual([
+      {
+        url: CONNECTORS,
+        method: 'POST',
+        body: { name: 'linear', url: 'https://mcp.linear.app/mcp' },
+        authorization: 'Bearer session',
+        contentType: 'application/json',
+      },
+    ]);
+  });
+
+  test('a verify posts the id sub-resource', async () => {
+    serve({ id: 12, name: 'linear', ok: true, verified: VERIFIED });
+    await verifyConnector('session', 12);
+    expect(calls[0]?.url).toBe(`${CONNECTORS}/12/verify`);
+    expect(calls[0]?.method).toBe('POST');
+  });
+
+  test('a delete addresses the row by id', async () => {
+    serve({ id: 12, name: 'linear', deleted: true });
+    await deleteConnector('session', 12);
+    expect(calls[0]?.url).toBe(`${CONNECTORS}/12`);
+    expect(calls[0]?.method).toBe('DELETE');
+    expect(calls[0]?.authorization).toBe('Bearer session');
+  });
+});
+
+describe('the create body carries only what was filled in', () => {
+  test('an auth pair is sent as header and value', async () => {
+    serve(ROW, 201);
+    await createConnector('session', {
+      ...NEW,
+      header: 'Authorization',
+      value: 'Bearer lin_oauth_7f',
+    });
+    expect(calls[0]?.body).toEqual({
+      name: 'linear',
+      url: 'https://mcp.linear.app/mcp',
+      header: 'Authorization',
+      value: 'Bearer lin_oauth_7f',
+    });
+  });
+
+  test('a value with no header leaves the header to the daemon default', async () => {
+    serve(ROW, 201);
+    await createConnector('session', { ...NEW, value: 'Bearer lin_oauth_7f' });
+    expect(calls[0]?.body).toEqual({
+      name: 'linear',
+      url: 'https://mcp.linear.app/mcp',
+      value: 'Bearer lin_oauth_7f',
+    });
+  });
+
+  test('an empty pair sends neither field rather than two empty strings', async () => {
+    serve(ROW, 201);
+    await createConnector('session', NEW);
+    expect(calls[0]?.body).toEqual({
+      name: 'linear',
+      url: 'https://mcp.linear.app/mcp',
+    });
+  });
+});
+
+describe('a connector row is coerced field by field', () => {
+  test('a well-formed row survives the wire unchanged', async () => {
+    expect(await list({ connectors: [ROW], json: '{}' })).toEqual([
+      {
+        id: 12,
+        name: 'linear',
+        url: 'https://mcp.linear.app/mcp',
+        transport: 'http',
+        auth: 'header',
+        header: 'Authorization',
+        secret: 'Bearer lin_oauth_7f',
+        json: '{\n  "mcpServers": {}\n}',
+        verified: VERIFIED,
+      },
+    ]);
+  });
+
+  test('the combined config block is carried alongside the rows', async () => {
+    serve({ connectors: [ROW], json: '{\n  "mcpServers": { }\n}' });
+    expect((await fetchConnectors('session')).json).toBe(
+      '{\n  "mcpServers": { }\n}',
+    );
+  });
+
+  test('a no-auth row masks nothing, so header and secret stay null', async () => {
+    const [row] = await list({
+      connectors: [
+        { ...ROW, auth: 'none', header: null, secret: null },
+      ],
+      json: '{}',
+    });
+    expect([row?.auth, row?.header, row?.secret]).toEqual(['none', null, null]);
+  });
+
+  test('an auth value the daemon never sends reads as no auth, never as header', async () => {
+    const [row] = await list({
+      connectors: [{ ...ROW, auth: 'oauth' }],
+      json: '{}',
+    });
+    expect(row?.auth).toBe('none');
+  });
+
+  test('missing and mistyped fields fall back instead of reaching the page', async () => {
+    const [row] = await list({
+      connectors: [{ name: 'bare', id: '12', url: 7, secret: 3, verified: 'yes' }],
+      json: 5,
+    });
+    expect(row).toEqual({
+      id: 0,
+      name: 'bare',
+      url: '',
+      transport: '',
+      auth: 'none',
+      header: null,
+      secret: null,
+      json: '',
+      verified: null,
+    });
+  });
+
+  test('a verified block with a mistyped tool count reads as zero, not NaN', async () => {
+    const [row] = await list({
+      connectors: [{ ...ROW, verified: { ...VERIFIED, tools: '12', server: 9 } }],
+      json: '{}',
+    });
+    expect(row?.verified).toEqual({
+      at: '2026-08-21T09:14:04.880Z',
+      server: '',
+      version: '1.4.0',
+      protocol: '2025-06-18',
+      tools: 0,
+    });
+  });
+
+  test('a row with no name is refused rather than rendered as blank', async () => {
+    serve({ connectors: [{ id: 12 }], json: '{}' });
+    await expect(fetchConnectors('session')).rejects.toThrow('unexpected');
+  });
+
+  test('a body that is not an object is refused', async () => {
+    serve([ROW]);
+    await expect(fetchConnectors('session')).rejects.toThrow('unexpected');
+  });
+
+  test('a body with no connectors array lists nothing rather than throwing', async () => {
+    expect(await list({ json: '{}' })).toEqual([]);
+    expect(await list({ connectors: 'none', json: '{}' })).toEqual([]);
+  });
+
+  test('a create answers with the same shape a list row has', async () => {
+    serve(ROW, 201);
+    const created = await createConnector('session', NEW);
+    expect(created.id).toBe(12);
+    expect(created.secret).toBe('Bearer lin_oauth_7f');
+    expect(created.verified?.tools).toBe(12);
+  });
+
+  test('a create answering with no name is refused', async () => {
+    serve({ id: 12 }, 201);
+    await expect(createConnector('session', NEW)).rejects.toThrow('unexpected');
+  });
+});
+
+describe('a re-verify reports its own verdict', () => {
+  test('a passing check carries the fresh verified block', async () => {
+    serve({ id: 12, name: 'linear', ok: true, verified: VERIFIED });
+    expect(await verifyConnector('session', 12)).toEqual({
+      id: 12,
+      name: 'linear',
+      ok: true,
+      verified: VERIFIED,
+      reason: null,
+    });
+  });
+
+  test('a failing check carries the reason and no verified block', async () => {
+    serve({
+      id: 12,
+      name: 'linear',
+      ok: false,
+      reason: 'mcp.linear.app rejected that credential.',
+    });
+    expect(await verifyConnector('session', 12)).toEqual({
+      id: 12,
+      name: 'linear',
+      ok: false,
+      verified: null,
+      reason: 'mcp.linear.app rejected that credential.',
+    });
+  });
+
+  test('anything other than a literal true is not a pass', async () => {
+    serve({ id: 12, name: 'linear', ok: 'true' });
+    expect((await verifyConnector('session', 12)).ok).toBe(false);
+  });
+
+  test('a response with no id falls back to the id that was asked about', async () => {
+    serve({ name: 'linear', ok: true, verified: VERIFIED });
+    expect((await verifyConnector('session', 12)).id).toBe(12);
+  });
+
+  test('a body that is not an object is refused', async () => {
+    serve('ok');
+    await expect(verifyConnector('session', 12)).rejects.toThrow('unexpected');
+  });
+});
+
+describe('daemon refusals reach the page as themselves', () => {
+  test('a 404 surfaces the daemon own wording', async () => {
+    serve({ error: 'no such connector' }, 404);
+    await expect(deleteConnector('session', 99)).rejects.toThrow(
+      'no such connector',
+    );
+  });
+
+  test('a remote refusal arrives as a 400, and stays a plain error', async () => {
+    serve({ error: 'mcp.linear.app rejected that credential.' }, 400);
+    await expect(createConnector('session', NEW)).rejects.toThrow(
+      'rejected that credential',
+    );
+    serve({ error: 'mcp.linear.app rejected that credential.' }, 400);
+    await expect(createConnector('session', NEW)).rejects.not.toBeInstanceOf(
+      AuthError,
+    );
+  });
+
+  test('an expired metro session is an AuthError, not a message', async () => {
+    serve({ error: 'not authorized' }, 401);
+    await expect(fetchConnectors('session')).rejects.toBeInstanceOf(AuthError);
+  });
+});
+
+describe('the row labels are derived, never asserted', () => {
+  test('the host is read off the url and never shows the credential', () => {
+    expect(connectorHost('https://mcp.linear.app/mcp')).toBe('mcp.linear.app');
+    expect(connectorHost('https://mcp.linear.app:8443/mcp')).toBe(
+      'mcp.linear.app:8443',
+    );
+  });
+
+  test('a url that will not parse is shown as it came', () => {
+    expect(connectorHost('not a url')).toBe('not a url');
+    expect(connectorHost('')).toBe('');
+  });
+
+  test('the server label pairs name and version, and drops what is missing', () => {
+    expect(serverLabel(VERIFIED)).toBe('linear 1.4.0');
+    expect(serverLabel({ ...VERIFIED, version: '' })).toBe('linear');
+    expect(serverLabel({ ...VERIFIED, server: '' })).toBe('1.4.0');
+    expect(serverLabel({ ...VERIFIED, server: '', version: '' })).toBe('-');
+  });
+});

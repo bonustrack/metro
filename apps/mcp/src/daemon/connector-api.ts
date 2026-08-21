@@ -1,0 +1,209 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { errMsg, log } from './log.js';
+import {
+  apiFailure,
+  apiSession,
+  bodyField,
+  cors,
+  readJsonBody,
+  sendJson,
+  type ApiSession,
+} from './api-http.js';
+import { mcpServersJson } from './connector-json.js';
+import type {
+  Connector,
+  ConnectorCheck,
+  ConnectorInput,
+  DeletedConnector,
+} from '../db/connectors.js';
+
+const PREFIX = '/api/connectors';
+const CONNECTOR_ID_RE = /^[1-9][0-9]{0,9}$/;
+
+export interface ConnectorApiDeps {
+  listConnectors: (email: string) => Promise<Connector[]>;
+  createConnector: (
+    email: string,
+    input: ConnectorInput,
+  ) => Promise<Connector>;
+  verifyConnector: (email: string, id: number) => Promise<ConnectorCheck>;
+  deleteConnector: (email: string, id: number) => Promise<DeletedConnector>;
+}
+
+type Routable =
+  | { kind: 'collection' }
+  | { kind: 'connector'; id: number }
+  | { kind: 'verify'; id: number };
+
+type Target = Routable | { kind: 'unknown' } | null;
+
+function parseConnectorId(raw: string): number | null {
+  return CONNECTOR_ID_RE.test(raw) ? Number(raw) : null;
+}
+
+function subTarget(id: number, rest: string[]): Target {
+  if (rest.length === 0) return { kind: 'connector', id };
+  if (rest.length === 1 && rest[0] === 'verify') return { kind: 'verify', id };
+  return { kind: 'unknown' };
+}
+
+function target(path: string): Target {
+  if (path === PREFIX || path === `${PREFIX}/`) return { kind: 'collection' };
+  if (!path.startsWith(`${PREFIX}/`)) return null;
+  const segments = path.slice(PREFIX.length + 1).split('/').filter(Boolean);
+  const head = segments[0];
+  if (head === undefined) return { kind: 'collection' };
+  const id = parseConnectorId(head);
+  return id === null ? { kind: 'unknown' } : subTarget(id, segments.slice(1));
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+function connectorPayload(row: Connector): Record<string, unknown> {
+  return {
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    transport: row.transport,
+    auth: row.auth,
+    header: row.header,
+    secret: row.secret,
+    json: mcpServersJson([row]),
+    verified: row.verified,
+  };
+}
+
+async function handleList(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+  session: ApiSession,
+): Promise<void> {
+  const rows = await deps.listConnectors(session.email);
+  sendJson(req, res, 200, {
+    connectors: rows.map(connectorPayload),
+    json: mcpServersJson(rows),
+  });
+}
+
+async function handleCreate(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+  session: ApiSession,
+): Promise<void> {
+  const body = await readJsonBody(req);
+  const created = await deps.createConnector(session.email, {
+    name: bodyField(body, 'name'),
+    url: bodyField(body, 'url'),
+    header: bodyField(body, 'header'),
+    value: bodyField(body, 'value'),
+  });
+  log.info(
+    { id: created.id, name: created.name, host: hostOf(created.url) },
+    'connector-api: created connector',
+  );
+  sendJson(req, res, 201, connectorPayload(created));
+}
+
+async function handleVerify(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+  session: ApiSession,
+  id: number,
+): Promise<void> {
+  const check = await deps.verifyConnector(session.email, id);
+  log.info(
+    { id: check.id, name: check.name, ok: check.ok },
+    'connector-api: re-verified connector',
+  );
+  sendJson(req, res, 200, check);
+}
+
+async function handleDelete(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+  session: ApiSession,
+  id: number,
+): Promise<void> {
+  const gone = await deps.deleteConnector(session.email, id);
+  log.info(
+    { id: gone.id, name: gone.name },
+    'connector-api: deleted connector',
+  );
+  sendJson(req, res, 200, { id: gone.id, name: gone.name, deleted: true });
+}
+
+async function route(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+  session: ApiSession,
+  tgt: Routable,
+): Promise<void> {
+  try {
+    if (tgt.kind === 'verify')
+      await handleVerify(req, res, deps, session, tgt.id);
+    else if (tgt.kind === 'connector')
+      await handleDelete(req, res, deps, session, tgt.id);
+    else if (req.method === 'GET') await handleList(req, res, deps, session);
+    else await handleCreate(req, res, deps, session);
+  } catch (err) {
+    apiFailure(req, res, err, 'connector-api');
+  }
+}
+
+const ALLOWED: Record<Routable['kind'], string[]> = {
+  collection: ['GET', 'POST'],
+  connector: ['DELETE'],
+  verify: ['POST'],
+};
+
+function dispatch(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+  tgt: Routable,
+): Promise<void> {
+  const session = apiSession(req);
+  if (!session) {
+    sendJson(req, res, 401, { error: 'unauthorized' });
+    return Promise.resolve();
+  }
+  return route(req, res, deps, session, tgt);
+}
+
+export function handleConnectorApiRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+): boolean {
+  const tgt = target((req.url ?? '').split('?')[0] ?? '');
+  if (tgt === null) return false;
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, cors(req)).end();
+    return true;
+  }
+  if (tgt.kind === 'unknown') {
+    sendJson(req, res, 404, { error: 'no such connector' });
+    return true;
+  }
+  if (!ALLOWED[tgt.kind].includes(req.method ?? '')) {
+    sendJson(req, res, 405, { error: 'method not allowed' });
+    return true;
+  }
+  dispatch(req, res, deps, tgt).catch((err: unknown) => {
+    log.warn({ err: errMsg(err) }, 'connector-api: unhandled error');
+    if (!res.headersSent)
+      sendJson(req, res, 500, { error: 'connector api failed' });
+  });
+  return true;
+}

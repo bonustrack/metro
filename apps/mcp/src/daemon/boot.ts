@@ -39,10 +39,17 @@ import {
   attachAccountToAgent,
   detachAccountFromAgent,
 } from '../db/account-attach.js';
+import {
+  createConnectorForEmail,
+  deleteConnectorForEmail,
+  listConnectorsForEmail,
+  verifyConnectorForEmail,
+} from '../db/connectors.js';
 import type { StationName } from '../db/schema.js';
 import { AttachSessions } from './attach-session.js';
 import { startUploadReaper } from './upload-store.js';
 import type { AgentApiDeps } from './agent-api.js';
+import type { ConnectorApiDeps } from './connector-api.js';
 
 installCrashGuard();
 loadMetroEnv();
@@ -131,6 +138,13 @@ const agentApi: AgentApiDeps = {
   syncStations,
 };
 
+const connectorApi: ConnectorApiDeps = {
+  listConnectors: listConnectorsForEmail,
+  createConnector: createConnectorForEmail,
+  verifyConnector: verifyConnectorForEmail,
+  deleteConnector: deleteConnectorForEmail,
+};
+
 async function main(): Promise<void> {
   await materializeFromDb();
   warnOnLegacyWebhooks();
@@ -141,6 +155,7 @@ async function main(): Promise<void> {
     metroMcp.httpHandler,
     metroCall,
     agentApi,
+    connectorApi,
   );
   metroMcp.startInbound();
   startUploadReaper();

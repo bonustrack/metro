@@ -71,6 +71,13 @@
       "when": 1785821553657,
       "tag": "0009_agent_key_replaces_keys_table",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787308129071,
+      "tag": "0010_connectors",
+      "breakpoints": true
     }
   ]
 }
