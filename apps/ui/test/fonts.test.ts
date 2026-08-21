@@ -6,8 +6,8 @@ const uiRoot = join(import.meta.dir, '..');
 const css = readFileSync(join(uiRoot, 'src/index.css'), 'utf8');
 const html = readFileSync(join(uiRoot, 'index.html'), 'utf8');
 
-const REGULAR = 'GT-America-Standard-Regular-Trial.woff2';
-const MEDIUM = 'GT-America-Standard-Medium-Trial.woff2';
+const REGULAR = 'GT-America-Standard-Regular.woff2';
+const MEDIUM = 'GT-America-Standard-Medium.woff2';
 
 const FACES = [
   { family: 'GT-America-Regular', file: REGULAR },
