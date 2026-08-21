@@ -1,10 +1,8 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
-import { CARD_PADDING } from '../theme';
 import { THEME_MODES, useThemeMode } from '../theme-mode';
 import { useDocumentTitle } from '../title';
 
@@ -20,8 +18,7 @@ export function Settings(): ReactNode {
           Preferences for this browser. They are stored locally, not on your account.
         </Text>
       </Col>
-      <Card dark={dark} padding={CARD_PADDING}>
-        <Col gap={12}>
+      <Col gap={12}>
           <Col gap={2}>
             <Text weight="semibold">Appearance</Text>
             <Text size="sm" role="secondary">
@@ -42,8 +39,7 @@ export function Settings(): ReactNode {
               />
             ))}
           </Row>
-        </Col>
-      </Card>
+      </Col>
     </Col>
   );
 }

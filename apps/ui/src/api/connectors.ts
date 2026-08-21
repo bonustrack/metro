@@ -2,14 +2,34 @@ import { daemonBase } from '../auth/session';
 import { call } from './client';
 import { isRecord } from './accounts';
 
-export type ConnectorAuth = 'header' | 'none';
+export type ConnectorAuth = 'header' | 'oauth' | 'none';
+
+export const TOOL_KINDS = [
+  'read',
+  'write',
+  'destructive',
+  'unspecified',
+] as const;
+
+export type ToolKind = (typeof TOOL_KINDS)[number];
+
+export interface ConnectorTool {
+  name: string;
+  title: string;
+  description: string;
+  kind: ToolKind;
+  idempotent: boolean;
+  openWorld: boolean;
+}
 
 export interface ConnectorVerified {
   at: string;
   server: string;
   version: string;
   protocol: string;
+  icon: string;
   tools: number;
+  catalog: ConnectorTool[];
 }
 
 export interface Connector {
@@ -59,6 +79,32 @@ const str = (value: unknown): string => (typeof value === 'string' ? value : '')
 const nullable = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;
 
+function toKind(value: unknown): ToolKind {
+  return TOOL_KINDS.find((k) => k === value) ?? 'unspecified';
+}
+
+function toTool(value: unknown): ConnectorTool | null {
+  if (!isRecord(value) || typeof value.name !== 'string') return null;
+  return {
+    name: value.name,
+    title: str(value.title),
+    description: str(value.description),
+    kind: toKind(value.kind),
+    idempotent: value.idempotent === true,
+    openWorld: value.openWorld !== false,
+  };
+}
+
+function toCatalog(value: unknown): ConnectorTool[] {
+  if (!Array.isArray(value)) return [];
+  const out: ConnectorTool[] = [];
+  for (const entry of value) {
+    const tool = toTool(entry);
+    if (tool !== null) out.push(tool);
+  }
+  return out;
+}
+
 function toVerified(value: unknown): ConnectorVerified | null {
   if (!isRecord(value)) return null;
   return {
@@ -66,7 +112,9 @@ function toVerified(value: unknown): ConnectorVerified | null {
     server: str(value.server),
     version: str(value.version),
     protocol: str(value.protocol),
+    icon: str(value.icon),
     tools: typeof value.tools === 'number' ? value.tools : 0,
+    catalog: toCatalog(value.catalog),
   };
 }
 
@@ -78,7 +126,12 @@ function toConnector(value: unknown): Connector {
     name: value.name,
     url: str(value.url),
     transport: str(value.transport),
-    auth: value.auth === 'header' ? 'header' : 'none',
+    auth:
+      value.auth === 'header'
+        ? 'header'
+        : value.auth === 'oauth'
+          ? 'oauth'
+          : 'none',
     header: nullable(value.header),
     secret: nullable(value.secret),
     json: str(value.json),
@@ -145,6 +198,18 @@ export function takeConnectorError(): string | null {
     window.location.pathname + (query === '' ? '' : `?${query}`) + window.location.hash,
   );
   return error;
+}
+
+export async function fetchConnector(
+  token: string,
+  id: number,
+): Promise<Connector> {
+  const body = await call(token, {
+    method: 'GET',
+    base: connectorsUrl(),
+    path: `/${String(id)}`,
+  });
+  return toConnector(body);
 }
 
 export async function verifyConnector(

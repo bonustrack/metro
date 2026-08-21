@@ -319,12 +319,17 @@ describe('the routing gates run before authentication', () => {
     expect(calls).toEqual([]);
   });
 
+  test('GET on a connector is a real route now — it reaches auth, not 405', async () => {
+    const res = await fetch(`${base}/api/connectors/1`);
+    expect(res.status).toBe(401);
+  });
+
   test('a wrong method on a real target is 405, not 401', async () => {
     for (const [method, path] of [
       ['PUT', '/api/connectors'],
       ['DELETE', '/api/connectors'],
-      ['GET', '/api/connectors/1'],
       ['POST', '/api/connectors/1'],
+      ['PUT', '/api/connectors/1'],
       ['GET', '/api/connectors/1/verify'],
       ['DELETE', '/api/connectors/1/verify'],
     ] as const) {

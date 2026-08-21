@@ -228,15 +228,20 @@ describe('parseConnectorUrl is the security boundary', () => {
 
 describe('verifyRemoteMcp over a server that speaks SSE', () => {
   test('the happy path reports the server, version, protocol and tool count', async () => {
-    expect(await probe()).toEqual({
+    const seenTools = await probe();
+    expect(seenTools).toMatchObject({
       server: 'linear',
       version: '1.4.0',
       protocol: '2025-06-18',
+      icon: '',
       tools: 3,
     });
+    expect(
+      (seenTools as { catalog: { name: string }[] }).catalog.map((t) => t.name),
+    ).toEqual(['create_issue', 'list_issues', 'search']);
   });
 
-  test('initialize offers both media types and the current protocol', async () => {
+  test('initialize offers both media types and asks for the latest protocol', async () => {
     await probe();
     const init = seen[0];
     expect(init?.method).toBe('POST');
@@ -247,7 +252,7 @@ describe('verifyRemoteMcp over a server that speaks SSE', () => {
       id: 1,
       method: 'initialize',
       params: {
-        protocolVersion: '2025-06-18',
+        protocolVersion: '2025-11-25',
         clientInfo: { name: 'metro', version: '0.1.0' },
       },
     });
@@ -263,7 +268,7 @@ describe('verifyRemoteMcp over a server that speaks SSE', () => {
     ]);
   });
 
-  test('the session id is echoed on every frame after initialize', async () => {
+  test('later frames echo the version the SERVER chose, not the one we asked for', async () => {
     await probe();
     expect(seen[0]?.headers['mcp-session-id']).toBeUndefined();
     for (const frame of seen.slice(1)) {
@@ -332,12 +337,17 @@ describe('verifyRemoteMcp over a server that speaks SSE', () => {
 describe('verifyRemoteMcp over a server that answers plain JSON', () => {
   test('the happy path is identical', async () => {
     reply = jsonServer();
-    expect(await probe()).toEqual({
+    const seenTools = await probe();
+    expect(seenTools).toMatchObject({
       server: 'linear',
       version: '1.4.0',
       protocol: '2025-06-18',
+      icon: '',
       tools: 3,
     });
+    expect(
+      (seenTools as { catalog: { name: string }[] }).catalog.map((t) => t.name),
+    ).toEqual(['create_issue', 'list_issues', 'search']);
   });
 
   test('a stateless JSON server verifies too', async () => {

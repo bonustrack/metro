@@ -1,9 +1,17 @@
-import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
+import {
+  ConnectorNotMcp,
+  ConnectorUnauthorized,
+  refused,
+  safeIconSrc,
+} from './connector-url.js';
+import { toToolList, type ToolInfo } from './connector-tools.js';
 
-export class ConnectorVerifyError extends ApiError {}
-
-export class ConnectorUnauthorized extends ConnectorVerifyError {}
+export {
+  ConnectorUnauthorized,
+  ConnectorVerifyError,
+  parseConnectorUrl,
+} from './connector-url.js';
 
 export interface OAuthTokens {
   accessToken: string;
@@ -28,55 +36,26 @@ export interface VerifiedServer {
   server: string;
   version: string;
   protocol: string;
+  icon: string;
   tools: number;
+  catalog: ToolInfo[];
 }
 
 export interface VerifiedRecord extends VerifiedServer {
   at: string;
 }
 
-const PROTOCOL_VERSION = '2025-06-18';
+const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18'] as const;
+const MAX_TOOL_PAGES = 10;
+
+function notMcp(url: URL): ConnectorNotMcp {
+  return new ConnectorNotMcp(
+    `${url.hostname} answered, but it does not speak MCP.`,
+    400,
+  );
+}
 const PROBE_TIMEOUT_MS = 10_000;
 const ACCEPT = 'application/json, text/event-stream';
-
-const POLICY_MESSAGE =
-  'Metro connects from its own server, so it cannot reach a URL on your machine. localhost and private addresses are not usable as connectors.';
-
-const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
-const PRIVATE_SUFFIX = /(?:^|\.)(?:localhost|local|internal|flycast)$/;
-
-function refused(message: string): ConnectorVerifyError {
-  return new ConnectorVerifyError(message, 400);
-}
-
-function notMcp(url: URL): ConnectorVerifyError {
-  return refused(`${url.hostname} answered, but it does not speak MCP.`);
-}
-
-function hostAllowed(host: string): boolean {
-  if (host === '' || host.startsWith('[')) return false;
-  if (IPV4.test(host) || !host.includes('.')) return false;
-  return !PRIVATE_SUFFIX.test(host);
-}
-
-export function parseConnectorUrl(raw: unknown): URL {
-  const text = typeof raw === 'string' ? raw.trim() : '';
-  if (text === '') throw refused('a connector url is required');
-  let url: URL;
-  try {
-    url = new URL(text);
-  } catch {
-    throw refused('that is not a valid url');
-  }
-  if (url.protocol !== 'https:')
-    throw refused('a connector url must start with https://');
-  if (url.username !== '' || url.password !== '')
-    throw refused('a connector url must not carry a user:password');
-  if (url.hash !== '')
-    throw refused('a connector url must not carry a #fragment');
-  if (!hostAllowed(url.hostname.toLowerCase())) throw refused(POLICY_MESSAGE);
-  return url;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -155,28 +134,47 @@ async function resultOrNull(
   return parsed.result;
 }
 
-function initializeBody(): unknown {
+function initializeBody(version: string): unknown {
   return {
     jsonrpc: '2.0',
     id: 1,
     method: 'initialize',
     params: {
-      protocolVersion: PROTOCOL_VERSION,
+      protocolVersion: version,
       capabilities: {},
       clientInfo: { name: 'metro', version: '0.1.0' },
     },
   };
 }
 
+function iconOf(info: Record<string, unknown>): string {
+  const icons = info.icons;
+  if (!Array.isArray(icons)) return '';
+  for (const entry of icons) {
+    if (!isRecord(entry)) continue;
+    const src = safeIconSrc(entry.src);
+    if (src !== '') return src;
+  }
+  return '';
+}
+
 function serverFrom(url: URL, result: Record<string, unknown>): VerifiedServer {
   const protocol = result.protocolVersion;
   if (typeof protocol !== 'string') throw notMcp(url);
   const info = isRecord(result.serverInfo) ? result.serverInfo : {};
+  const title = typeof info.title === 'string' ? info.title : '';
   return {
-    server: typeof info.name === 'string' ? info.name : url.hostname,
+    server:
+      title !== ''
+        ? title
+        : typeof info.name === 'string'
+          ? info.name
+          : url.hostname,
     version: typeof info.version === 'string' ? info.version : '',
     protocol,
+    icon: iconOf(info),
     tools: 0,
+    catalog: [],
   };
 }
 
@@ -184,8 +182,9 @@ async function initialize(
   url: URL,
   auth: ConnectorAuth,
   signal: AbortSignal,
+  version: string,
 ): Promise<{ session: string | null; server: VerifiedServer }> {
-  const res = await frame(url, auth, {}, initializeBody(), signal);
+  const res = await frame(url, auth, {}, initializeBody(version), signal);
   if (res.status === 401 || res.status === 403) {
     await discard(res);
     throw new ConnectorUnauthorized(
@@ -214,9 +213,12 @@ async function initialize(
   };
 }
 
-function sessionHeaders(session: string | null): Record<string, string> {
+function sessionHeaders(
+  session: string | null,
+  version: string,
+): Record<string, string> {
   const headers: Record<string, string> = {
-    'mcp-protocol-version': PROTOCOL_VERSION,
+    'mcp-protocol-version': version,
   };
   if (session !== null && session !== '') headers['mcp-session-id'] = session;
   return headers;
@@ -238,25 +240,45 @@ async function announce(
   await discard(res);
 }
 
-async function countTools(
+async function toolPage(
   url: URL,
   auth: ConnectorAuth,
   headers: Record<string, string>,
   signal: AbortSignal,
-): Promise<number> {
+  cursor: string,
+): Promise<Record<string, unknown> | null> {
+  const params = cursor === '' ? {} : { cursor };
   const res = await frame(
     url,
     auth,
     headers,
-    { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
+    { jsonrpc: '2.0', id: 2, method: 'tools/list', params },
     signal,
   );
   if (!res.ok) {
     await discard(res);
-    return 0;
+    return null;
   }
-  const tools = (await resultOrNull(res))?.tools;
-  return Array.isArray(tools) ? tools.length : 0;
+  return resultOrNull(res);
+}
+
+async function listTools(
+  url: URL,
+  auth: ConnectorAuth,
+  headers: Record<string, string>,
+  signal: AbortSignal,
+): Promise<ToolInfo[]> {
+  const tools: ToolInfo[] = [];
+  let cursor = '';
+  for (let page = 0; page < MAX_TOOL_PAGES; page += 1) {
+    const result = await toolPage(url, auth, headers, signal, cursor);
+    if (result === null) break;
+    tools.push(...toToolList(result.tools));
+    const next = result.nextCursor;
+    if (typeof next !== 'string' || next === '' || next === cursor) break;
+    cursor = next;
+  }
+  return tools;
 }
 
 async function terminate(
@@ -274,20 +296,37 @@ async function terminate(
   await discard(res);
 }
 
-export async function verifyRemoteMcp(
+async function probeWith(
   url: URL,
   auth: ConnectorAuth,
+  version: string,
 ): Promise<VerifiedServer> {
   const signal = AbortSignal.timeout(PROBE_TIMEOUT_MS);
-  const { session, server } = await initialize(url, auth, signal);
-  const headers = sessionHeaders(session);
+  const { session, server } = await initialize(url, auth, signal, version);
+  const headers = sessionHeaders(session, server.protocol);
   await announce(url, auth, headers, signal);
-  const tools = await countTools(url, auth, headers, signal);
+  const catalog = await listTools(url, auth, headers, signal);
   await terminate(url, auth, headers, signal).catch((err: unknown) => {
     log.debug(
       { host: url.hostname, err: errMsg(err) },
       'connector-verify: the remote declined to end the session',
     );
   });
-  return { ...server, tools };
+  return { ...server, tools: catalog.length, catalog };
+}
+
+export async function verifyRemoteMcp(
+  url: URL,
+  auth: ConnectorAuth,
+): Promise<VerifiedServer> {
+  let last: unknown;
+  for (const version of PROTOCOL_VERSIONS) {
+    try {
+      return await probeWith(url, auth, version);
+    } catch (err) {
+      if (!(err instanceof ConnectorNotMcp)) throw err;
+      last = err;
+    }
+  }
+  throw last;
 }

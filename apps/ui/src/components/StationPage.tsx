@@ -1,8 +1,5 @@
 import { type ReactNode } from 'react';
-import { Card } from '@stage-labs/kit/react-native/card';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
-import { CARD_PADDING } from '../theme';
 import { findAccount } from '../api/accounts';
 import { detachAccount } from '../api/attach';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,7 +26,6 @@ export function StationPage({
   accountId,
   onOpenAgent,
 }: StationPageProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const { data, error } = useStationsQuery(token);
   useDocumentTitle(accountId);
@@ -41,11 +37,9 @@ export function StationPage({
   const found = findAccount(data.groups, accountId);
   if (found === undefined)
     return (
-      <Card dark={dark} padding={CARD_PADDING}>
-        <Text role="secondary">
-          {`No station with the id “${accountId}” is connected to this account.`}
-        </Text>
-      </Card>
+      <Text role="secondary">
+        {`No station with the id “${accountId}” is connected to this account.`}
+      </Text>
     );
 
   const agent = data.agents.find((a) => a.id === found.row.agentId);

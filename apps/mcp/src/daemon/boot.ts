@@ -43,6 +43,7 @@ import {
   createConnectorForEmail,
   createOAuthConnectorForEmail,
   deleteConnectorForEmail,
+  getConnectorForEmail,
   listConnectorsForEmail,
   verifyConnectorForEmail,
 } from '../db/connectors.js';
@@ -143,6 +144,7 @@ const connectorApi: ConnectorApiDeps = {
   listConnectors: listConnectorsForEmail,
   createConnector: createConnectorForEmail,
   createOAuthConnector: createOAuthConnectorForEmail,
+  getConnector: getConnectorForEmail,
   verifyConnector: verifyConnectorForEmail,
   deleteConnector: deleteConnectorForEmail,
 };

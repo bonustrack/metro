@@ -10,6 +10,7 @@ import {
   type VerifiedServer,
 } from '../daemon/connector-verify.js';
 import { oauthExpired, refreshOAuth } from '../daemon/connector-oauth.js';
+import { toToolList } from '../daemon/connector-tools.js';
 import { getDb } from './client.js';
 import { ensureUser, isUniqueViolation, userIdForEmail } from './agent-admin.js';
 import { connectors, type ConnectorTransport } from './schema.js';
@@ -123,12 +124,15 @@ function readAuth(raw: unknown): ConnectorAuth {
 
 function readVerified(raw: unknown): VerifiedRecord {
   const record = isRecord(raw) ? raw : {};
+  const catalog = toToolList(record.catalog);
   return {
     at: text(record.at),
     server: text(record.server),
     version: text(record.version),
     protocol: text(record.protocol),
+    icon: text(record.icon),
     tools: typeof record.tools === 'number' ? record.tools : 0,
+    catalog,
   };
 }
 
@@ -147,7 +151,9 @@ function stamp(server: VerifiedServer): VerifiedRecord {
     server: server.server,
     version: server.version,
     protocol: server.protocol,
+    icon: server.icon,
     tools: server.tools,
+    catalog: server.catalog,
   };
 }
 
@@ -194,6 +200,14 @@ export async function listConnectorsForEmail(
     .where(eq(connectors.userId, userId))
     .orderBy(asc(connectors.id));
   return rows.map(toConnector);
+}
+
+export async function getConnectorForEmail(
+  email: string,
+  id: number,
+): Promise<Connector> {
+  const userId = await userIdForEmail(email);
+  return toConnector(await ownedConnectorOrThrow(userId, id));
 }
 
 async function insertConnector(

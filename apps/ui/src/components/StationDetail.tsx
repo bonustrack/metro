@@ -1,10 +1,8 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
 import { PageTitle } from './PageTitle';
-import { CARD_PADDING } from '../theme';
 import { stationLabel } from '../api/attach';
 import { stationFields, type AccountRow } from '../api/accounts';
 import { type AgentSummary } from '../api/client';
@@ -84,7 +82,6 @@ function Heading({ station, row, agent, onOpenAgent }: StationDetailProps): Reac
 
 export function StationDetail(props: StationDetailProps): ReactNode {
   const { station, row, verbs, onDetach } = props;
-  const dark = useKitScheme() === 'dark';
   const { url, endpoint, details } = stationFields(row);
   const id = row.id;
 
@@ -98,17 +95,13 @@ export function StationDetail(props: StationDetailProps): ReactNode {
       </Row>
 
       {id === null ? null : (
-        <Card dark={dark} padding={CARD_PADDING}>
-          <CopyBlock label="line" value={`metro://${station}/${id}`} />
-        </Card>
+        <CopyBlock label="line" value={`metro://${station}/${id}`} />
       )}
 
       {endpoint === undefined ? null : (
         <Section title="Endpoint">
           <Col gap={8}>
-            <Card dark={dark} padding={CARD_PADDING}>
-              <CopyBlock label="post events here" value={endpoint} secret />
-            </Card>
+            <CopyBlock label="post events here" value={endpoint} secret />
             <Text size="sm" role="secondary">
               The whole URL is the credential. Anyone holding it can post events
               to this agent, so paste it straight into the provider and do not
@@ -120,7 +113,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
 
       {url === undefined ? null : (
         <Section title="Link">
-          <Card dark={dark} padding={CARD_PADDING}>
+          <Col>
             <CopyBlock
               label="profile"
               value={url}
@@ -130,7 +123,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
                 </a>
               }
             />
-          </Card>
+          </Col>
         </Section>
       )}
 
@@ -153,9 +146,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
         ) : (
           <Row gap={8} wrap>
             {verbs.map((verb) => (
-              <Card key={verb} dark={dark} padding={8}>
-                <Text size="sm" variant="mono">{verb}</Text>
-              </Card>
+              <Text key={verb} size="sm" variant="mono">{verb}</Text>
             ))}
           </Row>
         )}

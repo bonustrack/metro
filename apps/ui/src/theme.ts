@@ -31,5 +31,3 @@ export function textSize(
   return typeSize(variant === 'caption' ? FONT_SIZE.xs : FONT_SIZE.md);
 }
 
-export const CARD_PADDING = 18;
-export const CARD_PADDING_PANEL = 28;

@@ -1,6 +1,8 @@
 import { type ReactNode } from 'react';
 import { AgentPage } from './AgentPage';
 import { AgentsHome } from './AgentsHome';
+import { deleteConnector } from '../api/connectors';
+import { ConnectorPage } from './ConnectorPage';
 import { Connectors } from './Connectors';
 import { Docs } from './Docs';
 import { Settings } from './Settings';
@@ -20,7 +22,26 @@ export function AgentPanel({
 }: AgentPanelProps): ReactNode {
   if (selection.kind === 'docs') return <Docs />;
   if (selection.kind === 'settings') return <Settings />;
-  if (selection.kind === 'connectors') return <Connectors token={token} />;
+  if (selection.kind === 'connectors')
+    return (
+      <Connectors
+        token={token}
+        onOpen={(id) => {
+          onSelect({ kind: 'connector', id });
+        }}
+      />
+    );
+  if (selection.kind === 'connector')
+    return (
+      <ConnectorPage
+        token={token}
+        id={selection.id}
+        onDelete={async (id) => {
+          await deleteConnector(token, id);
+          onSelect({ kind: 'connectors' });
+        }}
+      />
+    );
   if (selection.kind === 'station')
     return (
       <StationPage

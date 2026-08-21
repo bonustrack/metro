@@ -52,7 +52,9 @@ const VERIFIED = {
   server: 'linear',
   version: '1.4.0',
   protocol: '2025-06-18',
+  icon: '',
   tools: 12,
+  catalog: [],
 };
 
 const ROW = {
@@ -193,10 +195,43 @@ describe('a connector row is coerced field by field', () => {
 
   test('an auth value the daemon never sends reads as no auth, never as header', async () => {
     const [row] = await list({
-      connectors: [{ ...ROW, auth: 'oauth' }],
+      connectors: [{ ...ROW, auth: 'basic' }],
       json: '{}',
     });
     expect(row?.auth).toBe('none');
+  });
+
+  test('oauth is a real auth kind now, and survives the wire', async () => {
+    const [row] = await list({
+      connectors: [{ ...ROW, auth: 'oauth', header: null, secret: null }],
+      json: '{}',
+    });
+    expect(row?.auth).toBe('oauth');
+    expect(row?.secret).toBeNull();
+  });
+
+  test('the tool catalog is coerced entry by entry, junk dropped', async () => {
+    const [row] = await list({
+      connectors: [
+        {
+          ...ROW,
+          verified: {
+            ...VERIFIED,
+            catalog: [
+              { name: 'a', kind: 'read' },
+              { name: 'b', kind: 'not-a-kind' },
+              { description: 'nameless' },
+              null,
+            ],
+          },
+        },
+      ],
+      json: '{}',
+    });
+    expect(row?.verified?.catalog.map((t) => [t.name, t.kind])).toEqual([
+      ['a', 'read'],
+      ['b', 'unspecified'],
+    ]);
   });
 
   test('missing and mistyped fields fall back instead of reaching the page', async () => {
@@ -227,7 +262,9 @@ describe('a connector row is coerced field by field', () => {
       server: '',
       version: '1.4.0',
       protocol: '2025-06-18',
+      icon: '',
       tools: 0,
+      catalog: [],
     });
   });
 

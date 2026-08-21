@@ -14,7 +14,12 @@ import {
   type AgentsView,
   type StationsView,
 } from './client';
-import { fetchConnectors, type ConnectorList } from './connectors';
+import {
+  fetchConnector,
+  fetchConnectors,
+  type Connector,
+  type ConnectorList,
+} from './connectors';
 
 const STALE_MS = 60_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
@@ -23,6 +28,10 @@ export const sessionKey = (): string[] => ['session'];
 export const agentsKey = (): string[] => ['agents'];
 export const stationsKey = (): string[] => ['stations'];
 export const connectorsKey = (): string[] => ['connectors'];
+export const connectorKey = (id: number): (string | number)[] => [
+  'connector',
+  id,
+];
 
 export function makeQueryClient(onAuthError: () => void): QueryClient {
   return new QueryClient({
@@ -82,6 +91,16 @@ export function useConnectorsQuery(token: string): UseQueryResult<ConnectorList>
   return useQuery({
     queryKey: connectorsKey(),
     queryFn: () => fetchConnectors(token),
+  });
+}
+
+export function useConnectorQuery(
+  token: string,
+  id: number,
+): UseQueryResult<Connector> {
+  return useQuery({
+    queryKey: connectorKey(id),
+    queryFn: () => fetchConnector(token, id),
   });
 }
 

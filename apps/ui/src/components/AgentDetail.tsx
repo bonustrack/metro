@@ -1,10 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
-import { CARD_PADDING } from '../theme';
 import { accountsForAgent, type AccountGroup } from '../api/accounts';
 import { detachAccount } from '../api/attach';
 import { resetAgentKey, type AgentSummary } from '../api/client';
@@ -75,9 +73,7 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
           </Row>
         ) : null}
       </Row>
-      <Card dark={dark} padding={CARD_PADDING}>
-        <AgentCredentials agent={agent} onReset={onReset} />
-      </Card>
+      <AgentCredentials agent={agent} onReset={onReset} />
       <Col gap={10}>
         <Text size="lg" weight="semibold">Stations</Text>
         <AccountList

@@ -1,9 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
-import { CARD_PADDING } from '../theme';
 import { useQueryClient } from '@tanstack/react-query';
 import { deleteAgent } from '../api/client';
 import {
@@ -26,11 +23,8 @@ interface AgentPageProps {
 }
 
 function Notice({ text }: { text: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
-    <Card dark={dark} padding={CARD_PADDING}>
-      <Text role="secondary">{text}</Text>
-    </Card>
+    <Text role="secondary">{text}</Text>
   );
 }
 

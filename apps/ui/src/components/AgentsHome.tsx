@@ -1,10 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
-import { CARD_PADDING } from '../theme';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createAgent,
@@ -12,6 +10,7 @@ import {
   type CreatedAgent,
 } from '../api/client';
 import { agentsKey, queryError, useAgentsQuery } from '../api/queries';
+import { AgentRow } from './AgentRow';
 import { CreateAgent } from './CreateAgent';
 import { Loading } from './Loading';
 import { NewAgentKey } from './NewAgentKey';
@@ -20,10 +19,6 @@ import { useDocumentTitle } from '../title';
 const BLURB = 'Every agent you own on this Metro daemon.';
 const FALLBACK = 'Could not load your agents.';
 
-function subtitle(agent: AgentSummary): string {
-  return agent.owned ? `id ${agent.id}` : `id ${agent.id} · not owned`;
-}
-
 function AgentCards({
   agents,
   onOpen,
@@ -31,25 +26,12 @@ function AgentCards({
   agents: AgentSummary[];
   onOpen: (id: number) => void;
 }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   if (agents.length === 0)
     return <Text size="sm" role="secondary">No agents yet.</Text>;
   return (
-    <Col gap={10}>
+    <Col>
       {agents.map((agent) => (
-        <Card
-          key={agent.id}
-          dark={dark}
-          padding={CARD_PADDING}
-          onPress={() => {
-            onOpen(agent.id);
-          }}
-        >
-          <Col gap={2}>
-            <Text size="lg" weight="semibold">{agent.name}</Text>
-            <Text size="sm" role="secondary">{subtitle(agent)}</Text>
-          </Col>
-        </Card>
+        <AgentRow key={agent.id} agent={agent} onOpen={onOpen} />
       ))}
     </Col>
   );

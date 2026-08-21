@@ -41,6 +41,7 @@ export interface ConnectorApiDeps {
     email: string,
     input: ConnectorInput,
   ) => Promise<Connector>;
+  getConnector: (email: string, id: number) => Promise<Connector>;
   verifyConnector: (email: string, id: number) => Promise<ConnectorCheck>;
   deleteConnector: (email: string, id: number) => Promise<DeletedConnector>;
 }
@@ -82,7 +83,11 @@ function hostOf(url: string): string {
   }
 }
 
-function connectorPayload(row: Connector): Record<string, unknown> {
+function connectorPayload(
+  row: Connector,
+  withCatalog = false,
+): Record<string, unknown> {
+  const { catalog, ...summary } = row.verified;
   return {
     id: row.id,
     name: row.name,
@@ -92,7 +97,7 @@ function connectorPayload(row: Connector): Record<string, unknown> {
     header: row.header,
     secret: row.secret,
     json: mcpServersJson([row]),
-    verified: row.verified,
+    verified: withCatalog ? { ...summary, catalog } : summary,
   };
 }
 
@@ -104,7 +109,7 @@ async function handleList(
 ): Promise<void> {
   const rows = await deps.listConnectors(session.email);
   sendJson(req, res, 200, {
-    connectors: rows.map(connectorPayload),
+    connectors: rows.map((row) => connectorPayload(row)),
     json: mcpServersJson(rows),
   });
 }
@@ -168,6 +173,21 @@ async function handleVerify(
     'connector-api: re-verified connector',
   );
   sendJson(req, res, 200, check);
+}
+
+async function handleConnector(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+  session: ApiSession,
+  id: number,
+): Promise<void> {
+  if (req.method !== 'GET') {
+    await handleDelete(req, res, deps, session, id);
+    return;
+  }
+  const row = await deps.getConnector(session.email, id);
+  sendJson(req, res, 200, connectorPayload(row, true));
 }
 
 async function handleDelete(
@@ -256,7 +276,7 @@ async function route(
     if (tgt.kind === 'verify')
       await handleVerify(req, res, deps, session, tgt.id);
     else if (tgt.kind === 'connector')
-      await handleDelete(req, res, deps, session, tgt.id);
+      await handleConnector(req, res, deps, session, tgt.id);
     else if (req.method === 'GET') await handleList(req, res, deps, session);
     else await handleCreate(req, res, deps, session);
   } catch (err) {
@@ -267,7 +287,7 @@ async function route(
 const ALLOWED: Record<Routable['kind'], string[]> = {
   collection: ['GET', 'POST'],
   callback: ['GET'],
-  connector: ['DELETE'],
+  connector: ['GET', 'DELETE'],
   verify: ['POST'],
 };
 

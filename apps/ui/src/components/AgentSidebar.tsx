@@ -12,6 +12,7 @@ import { type Selection } from './selection';
 const ROW_PAD = { x: 12, y: 8 } as const;
 const ICON_SIZE = 18;
 const AGENT_PAGES: Selection['kind'][] = ['none', 'agent', 'station'];
+const CONNECTOR_PAGES: Selection['kind'][] = ['connectors', 'connector'];
 
 interface NavRowProps {
   label: string;
@@ -95,7 +96,7 @@ export function AgentSidebar({
             <NavRow
               label="Connectors"
               icon="lightningBolt"
-              selected={selection.kind === 'connectors'}
+              selected={CONNECTOR_PAGES.includes(selection.kind)}
               onPress={() => {
                 onSelect({ kind: 'connectors' });
               }}
