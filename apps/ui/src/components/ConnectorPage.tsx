@@ -71,7 +71,7 @@ function ConnectorHeading({
   connector: Connector;
 }): ReactNode {
   return (
-    <Col gap={2} style={SHRINK}>
+    <Col gap={8} style={SHRINK}>
       <PageTitle>{connector.name}</PageTitle>
       <Text size="sm" role="secondary" numberOfLines={1}>
         {connectorHost(connector.url)}

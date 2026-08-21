@@ -1,7 +1,10 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { AgentAvatar } from './AgentAvatar';
 import { Dropdown } from './Dropdown';
-import { NavRow } from './NavRow';
+import { NAV_GAP, NAV_ICON_SIZE, NAV_ROW_BOX, NavRow } from './NavRow';
+import { Text } from './ui';
+import { SHRINK } from '../theme';
 import { type Selection } from './selection';
 
 interface SidebarFooterProps {
@@ -18,7 +21,7 @@ export function SidebarFooter({
   onLock,
 }: SidebarFooterProps): ReactNode {
   return (
-    <Col gap={10} padding={{ x: 24, bottom: 24, top: 16 }}>
+    <Col gap={NAV_GAP} padding={{ x: 24, bottom: 24, top: 16 }}>
       <NavRow
         label="Documentation"
         icon="bookOpen"
@@ -40,7 +43,12 @@ export function SidebarFooter({
           { label: 'Log out', danger: true, onSelect: onLock },
         ]}
       >
-        {email}
+        <Row {...NAV_ROW_BOX}>
+          <AgentAvatar seed={email} size={NAV_ICON_SIZE} />
+          <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>
+            {email}
+          </Text>
+        </Row>
       </Dropdown>
     </Col>
   );

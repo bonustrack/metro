@@ -7,8 +7,15 @@ import { opensElsewhere } from './link';
 import { routeHash } from '../route';
 import { type Selection } from './selection';
 
-const ROW_PAD = { x: 12, y: 8 } as const;
-const ICON_SIZE = 18;
+export const NAV_ROW_BOX = {
+  align: 'center',
+  gap: 10,
+  padding: { x: 12, y: 6 },
+  margin: { x: -12 },
+} as const;
+export const NAV_ICON_SIZE = 18;
+
+export const NAV_GAP = 6;
 
 interface NavRowProps {
   label: string;
@@ -36,15 +43,15 @@ export function NavRow({
         onSelect(target);
       }}
     >
-      <Row align="center" gap={10} padding={ROW_PAD} margin={{ x: -12 }}>
+      <Row {...NAV_ROW_BOX}>
         {icon === undefined ? null : (
           <Icon
             name={icon}
-            size={ICON_SIZE}
+            size={NAV_ICON_SIZE}
             color={selected ? palette.link : palette.sub}
           />
         )}
-        <Text size="xl" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
+        <Text size="md" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
           {label}
         </Text>
       </Row>

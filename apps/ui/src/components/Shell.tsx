@@ -2,7 +2,11 @@ import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { TopBar } from './TopBar';
 
-const PAGE = { width: '100%', padding: 24 } as const;
+const PAGE = {
+  width: '100%',
+  paddingHorizontal: 32,
+  paddingVertical: 24,
+} as const;
 
 interface ShellProps {
   narrow: boolean;

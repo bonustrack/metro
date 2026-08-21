@@ -52,7 +52,7 @@ function Heading({ station, row, agent, onOpenAgent }: StationDetailProps): Reac
   const palette = useKitPalette();
   const handle = stationFields(row).handle ?? row.id ?? stationLabel(station);
   return (
-    <Col gap={6}>
+    <Col gap={8}>
       <Row gap={10} align="center">
         <StationIcon station={station} size={18} color={palette.sub} />
         <Text size="sm" role="secondary">{stationLabel(station)}</Text>

@@ -97,7 +97,7 @@ export function Connectors({
   return (
     <Col gap={16}>
       <Row justify="between" align="start" gap={12} wrap>
-        <Col gap={2} style={SHRINK}>
+        <Col gap={8} style={SHRINK}>
           <PageTitle>Connectors</PageTitle>
           <Text size="sm" role="secondary">{BLURB}</Text>
         </Col>

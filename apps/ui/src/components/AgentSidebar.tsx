@@ -3,7 +3,7 @@ import { ScrollView } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { MetroLogo } from './MetroLogo';
-import { NavRow } from './NavRow';
+import { NAV_GAP, NavRow } from './NavRow';
 import { SidebarFooter } from './SidebarFooter';
 import { opensElsewhere } from './link';
 import { routeHash } from '../route';
@@ -46,7 +46,7 @@ export function AgentSidebar({
               <MetroLogo size={32} color={palette.link} />
             </a>
           </Row>
-          <Col>
+          <Col gap={NAV_GAP}>
             <NavRow
               label="Agents"
               icon="users"

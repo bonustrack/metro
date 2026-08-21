@@ -12,7 +12,7 @@ export function Settings(): ReactNode {
   useDocumentTitle('Settings');
   return (
     <Col gap={16}>
-      <Col gap={2}>
+      <Col gap={8}>
         <PageTitle>Settings</PageTitle>
         <Text size="sm" role="secondary">
           Preferences for this browser. They are stored locally, not on your account.

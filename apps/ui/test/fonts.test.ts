@@ -6,12 +6,17 @@ const uiRoot = join(import.meta.dir, '..');
 const css = readFileSync(join(uiRoot, 'src/index.css'), 'utf8');
 const html = readFileSync(join(uiRoot, 'index.html'), 'utf8');
 
+const REGULAR = 'GT-America-Standard-Regular-Trial.woff2';
+const MEDIUM = 'GT-America-Standard-Medium-Trial.woff2';
+
 const FACES = [
-  { family: 'Calibre-Medium', file: 'Calibre-Medium.woff2' },
-  { family: 'Calibre-Semibold', file: 'Calibre-Semibold.woff2' },
+  { family: 'GT-America-Regular', file: REGULAR },
+  { family: 'GT-America-Medium', file: MEDIUM },
+  { family: 'Calibre-Medium', file: REGULAR },
+  { family: 'Calibre-Semibold', file: MEDIUM },
 ];
 
-describe('self-hosted Calibre', () => {
+describe('self-hosted GT America', () => {
   test('every @font-face url resolves to a file that ships in public/', () => {
     const urls = [...css.matchAll(/url\('([^']+)'\)/g)].map((m) => m[1]);
     expect(urls.length).toBeGreaterThan(0);
@@ -40,11 +45,19 @@ describe('self-hosted Calibre', () => {
     expect(css).not.toContain('local(');
   });
 
+  test('the kit hardcodes the Calibre names, so they must still resolve', () => {
+    const theme = readFileSync(join(uiRoot, 'src/theme.ts'), 'utf8');
+    expect(theme).toContain('GT-America-Regular');
+    expect(theme).toContain('GT-America-Medium');
+    expect(css).not.toContain('Calibre-Medium.woff2');
+    expect(css).not.toContain('Calibre-Semibold.woff2');
+  });
+
   test('the primary weight is preloaded with a crossorigin font hint', () => {
     const link = html.match(/<link rel="preload"[^>]*>/);
     expect(link).not.toBeNull();
     const tag = (link as RegExpMatchArray)[0];
-    expect(tag).toContain('href="/fonts/Calibre-Medium.woff2"');
+    expect(tag).toContain(`href="/fonts/${REGULAR}"`);
     expect(tag).toContain('as="font"');
     expect(tag).toContain('type="font/woff2"');
     expect(tag).toContain('crossorigin');

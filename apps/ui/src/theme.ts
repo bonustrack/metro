@@ -4,8 +4,8 @@ import { type TextVariant, type TextWeight } from '@stage-labs/kit/react-native/
 const SYSTEM_SANS =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
-export const FONT_SANS = `Calibre-Medium, ${SYSTEM_SANS}`;
-export const FONT_HEAD = `Calibre-Semibold, ${SYSTEM_SANS}`;
+export const FONT_SANS = `GT-America-Regular, ${SYSTEM_SANS}`;
+export const FONT_HEAD = `GT-America-Medium, ${SYSTEM_SANS}`;
 export const FONT_MONO =
   "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace";
 
@@ -17,7 +17,7 @@ export const TEXT_FONT: Record<TextWeight, string> = {
   bold: FONT_HEAD,
 };
 
-export const TYPE_SCALE = 18 / 15;
+export const TYPE_SCALE = 17 / 15;
 
 export function typeSize(px: number): number {
   return Math.round(px * TYPE_SCALE);

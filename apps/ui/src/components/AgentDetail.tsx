@@ -73,7 +73,7 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
             </Row>
           ) : null}
         </Row>
-        <Col gap={2}>
+        <Col gap={8}>
           <PageTitle>{agent.name}</PageTitle>
           <Text size="sm" role="secondary">{subtitle(agent)}</Text>
         </Col>
