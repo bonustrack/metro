@@ -230,7 +230,7 @@ describe('a connector row is coerced field by field', () => {
     });
     expect(row?.verified?.catalog.map((t) => [t.name, t.kind])).toEqual([
       ['a', 'read'],
-      ['b', 'unspecified'],
+      ['b', 'write'],
     ]);
   });
 

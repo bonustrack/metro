@@ -4,12 +4,7 @@ import { isRecord } from './accounts';
 
 export type ConnectorAuth = 'header' | 'oauth' | 'none';
 
-export const TOOL_KINDS = [
-  'read',
-  'write',
-  'destructive',
-  'unspecified',
-] as const;
+export const TOOL_KINDS = ['read', 'write'] as const;
 
 export type ToolKind = (typeof TOOL_KINDS)[number];
 
@@ -18,6 +13,8 @@ export interface ConnectorTool {
   title: string;
   description: string;
   kind: ToolKind;
+  annotated: boolean;
+  destructive: boolean;
   idempotent: boolean;
   openWorld: boolean;
 }
@@ -80,7 +77,7 @@ const nullable = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;
 
 function toKind(value: unknown): ToolKind {
-  return TOOL_KINDS.find((k) => k === value) ?? 'unspecified';
+  return TOOL_KINDS.find((k) => k === value) ?? 'write';
 }
 
 function toTool(value: unknown): ConnectorTool | null {
@@ -90,6 +87,8 @@ function toTool(value: unknown): ConnectorTool | null {
     title: str(value.title),
     description: str(value.description),
     kind: toKind(value.kind),
+    annotated: value.annotated === true,
+    destructive: value.destructive !== false,
     idempotent: value.idempotent === true,
     openWorld: value.openWorld !== false,
   };

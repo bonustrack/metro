@@ -9,7 +9,13 @@ import {
   verifyConnector,
   type Connector,
 } from '../api/connectors';
-import { queryError, useConnectorQuery } from '../api/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  connectorKey,
+  connectorsKey,
+  queryError,
+  useConnectorQuery,
+} from '../api/queries';
 import { ConnectorIcon } from './ConnectorIcon';
 import { CopyBlock } from './CopyBlock';
 import { DeleteConnector } from './DeleteConnector';
@@ -27,7 +33,7 @@ const AUTH_LABEL: Record<string, string> = {
 };
 
 const HINT =
-  'Types come from the tool annotations the server publishes. They are hints, not guarantees — MCP says to treat them as untrusted unless you trust the server.';
+  'Grouping comes from the annotations the server publishes. A tool counts as read-only only when it says so, so anything unannotated is grouped with write/delete. These are hints, not guarantees — MCP says to treat them as untrusted unless you trust the server.';
 
 interface ConnectorPageProps {
   token: string;
@@ -87,6 +93,7 @@ export function ConnectorPage({
   onDelete,
 }: ConnectorPageProps): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const client = useQueryClient();
   const { data, error } = useConnectorQuery(token, id);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -97,8 +104,10 @@ export function ConnectorPage({
     setBusy(true);
     setStatus(null);
     verifyConnector(token, id)
-      .then((result) => {
+      .then(async (result) => {
         setStatus(result.ok ? 'Answered just now.' : (result.reason ?? 'It did not answer.'));
+        await client.invalidateQueries({ queryKey: connectorKey(id) });
+        await client.invalidateQueries({ queryKey: connectorsKey() });
       })
       .catch((err: unknown) => {
         setStatus(queryError(err, 'Could not check the connector.'));
@@ -149,7 +158,7 @@ export function ConnectorPage({
           <Text size="lg" weight="semibold">Tools</Text>
           <Text size="sm" role="secondary">{HINT}</Text>
         </Col>
-        <ToolList tools={tools} />
+        <ToolList tools={tools} recorded={data.verified?.tools ?? 0} />
       </Col>
     </Col>
   );

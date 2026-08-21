@@ -1,22 +1,35 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Icon } from '@stage-labs/kit/react-native/icon';
+import { Pressable } from '@stage-labs/kit/react-native/pressable';
+import { Spacer } from '@stage-labs/kit/react-native/spacer';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
 import { TOOL_KINDS, type ConnectorTool, type ToolKind } from '../api/connectors';
 
 const LABEL: Record<ToolKind, string> = {
-  read: 'Read-only',
-  write: 'Write',
-  destructive: 'Destructive',
-  unspecified: 'Unspecified',
+  read: 'Read-only tools',
+  write: 'Write/delete tools',
 };
 
-const BLURB: Record<ToolKind, string> = {
-  read: 'Declared not to modify anything.',
-  write: 'Declared to make additive changes only.',
-  destructive: 'May overwrite or delete. This is the MCP default whenever a server annotates a tool without ruling it out.',
-  unspecified: 'The server published no annotations for these, so Metro will not guess.',
-};
+function CountBadge({ count }: { count: number }): ReactNode {
+  const palette = useKitPalette();
+  return (
+    <Row
+      align="center"
+      justify="center"
+      style={{
+        minWidth: 24,
+        paddingHorizontal: 7,
+        paddingVertical: 1,
+        borderRadius: 6,
+        backgroundColor: palette.inputBg,
+      }}
+    >
+      <Text size="sm" role="secondary">{String(count)}</Text>
+    </Row>
+  );
+}
 
 function ToolRow({ tool }: { tool: ConnectorTool }): ReactNode {
   const palette = useKitPalette();
@@ -24,21 +37,15 @@ function ToolRow({ tool }: { tool: ConnectorTool }): ReactNode {
     <Col
       gap={2}
       style={{
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: palette.border,
+        paddingVertical: 12,
+        borderTopWidth: 1,
+        borderTopColor: palette.border,
       }}
     >
       <Row gap={8} align="center" wrap>
-        <Text size="sm" variant="mono">{tool.name}</Text>
-        {tool.title === '' || tool.title === tool.name ? null : (
-          <Text size="sm" role="secondary">{tool.title}</Text>
-        )}
-        {tool.idempotent ? (
-          <Text size="2xs" role="secondary">idempotent</Text>
-        ) : null}
-        {tool.openWorld ? null : (
-          <Text size="2xs" role="secondary">closed world</Text>
+        <Text size="lg" variant="mono">{tool.name}</Text>
+        {tool.annotated ? null : (
+          <Text size="2xs" role="secondary">not annotated</Text>
         )}
       </Row>
       {tool.description === '' ? null : (
@@ -57,32 +64,56 @@ function KindSection({
   kind: ToolKind;
   tools: ConnectorTool[];
 }): ReactNode {
+  const palette = useKitPalette();
+  const [open, setOpen] = useState(true);
   if (tools.length === 0) return null;
   return (
-    <Col gap={8}>
-      <Row justify="between" align="center" gap={12}>
-        <Text weight="semibold">{LABEL[kind]}</Text>
-        <Text size="sm" role="secondary">{String(tools.length)}</Text>
-      </Row>
-      <Text size="sm" role="secondary">{BLURB[kind]}</Text>
-      <Col>
-        {tools.map((tool) => (
-          <ToolRow key={tool.name} tool={tool} />
-        ))}
-      </Col>
+    <Col>
+      <Pressable
+        pressedOpacity={0.6}
+        onPress={() => {
+          setOpen(!open);
+        }}
+      >
+        <Row align="center" gap={10} style={{ paddingVertical: 12 }}>
+          <Icon
+            name={open ? 'chevronDown' : 'chevronRight'}
+            size={16}
+            color={palette.sub}
+          />
+          <Text weight="semibold">{LABEL[kind]}</Text>
+          <CountBadge count={tools.length} />
+          <Spacer />
+        </Row>
+      </Pressable>
+      {open ? (
+        <Col style={{ paddingLeft: 26 }}>
+          {tools.map((tool) => (
+            <ToolRow key={tool.name} tool={tool} />
+          ))}
+        </Col>
+      ) : null}
     </Col>
   );
 }
 
-export function ToolList({ tools }: { tools: ConnectorTool[] }): ReactNode {
+export function ToolList({
+  tools,
+  recorded,
+}: {
+  tools: ConnectorTool[];
+  recorded: number;
+}): ReactNode {
   if (tools.length === 0)
     return (
       <Text size="sm" role="secondary">
-        This server published no tools the last time Metro checked.
+        {recorded > 0
+          ? `Metro counted ${String(recorded)} tools here but did not keep their details — this connector was last checked before Metro recorded them. Press Check to fetch them.`
+          : 'This server published no tools the last time Metro checked.'}
       </Text>
     );
   return (
-    <Col gap={24}>
+    <Col>
       {TOOL_KINDS.map((kind) => (
         <KindSection
           key={kind}

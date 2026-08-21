@@ -2,16 +2,18 @@ import { describe, expect, test } from 'bun:test';
 import {
   classifyTool,
   countByKind,
+  isDestructive,
   toToolInfo,
   toToolList,
 } from '../src/daemon/connector-tools.ts';
 
 describe('classifyTool follows the MCP annotation defaults', () => {
-  test('no annotations at all is unspecified — the server opted out, so we do not guess', () => {
-    expect(classifyTool(undefined)).toBe('unspecified');
-    expect(classifyTool(null)).toBe('unspecified');
-    expect(classifyTool('read')).toBe('unspecified');
-    expect(classifyTool([])).toBe('unspecified');
+  test('a tool is read-only only when it SAYS so — silence is not read-only', () => {
+    expect(classifyTool(undefined)).toBe('write');
+    expect(classifyTool(null)).toBe('write');
+    expect(classifyTool('read')).toBe('write');
+    expect(classifyTool([])).toBe('write');
+    expect(classifyTool({})).toBe('write');
   });
 
   test('readOnlyHint true is read, and outranks destructiveHint', () => {
@@ -21,28 +23,38 @@ describe('classifyTool follows the MCP annotation defaults', () => {
     ).toBe('read');
   });
 
-  test('destructiveHint false is a write — additive only', () => {
+  test('anything not declared read-only groups with write/delete', () => {
     expect(classifyTool({ destructiveHint: false })).toBe('write');
-    expect(
-      classifyTool({ readOnlyHint: false, destructiveHint: false }),
-    ).toBe('write');
-  });
-
-  test('an annotated tool that rules nothing out is destructive — the spec default is true', () => {
-    expect(classifyTool({ title: 'Delete everything' })).toBe('destructive');
-    expect(classifyTool({ readOnlyHint: false })).toBe('destructive');
-    expect(classifyTool({ destructiveHint: true })).toBe('destructive');
+    expect(classifyTool({ title: 'Delete everything' })).toBe('write');
+    expect(classifyTool({ readOnlyHint: false })).toBe('write');
   });
 
   test('a non-boolean hint is not treated as a boolean', () => {
-    expect(classifyTool({ readOnlyHint: 'true' })).toBe('destructive');
-    expect(classifyTool({ destructiveHint: 0 })).toBe('destructive');
+    expect(classifyTool({ readOnlyHint: 'true' })).toBe('write');
   });
 
-  test('the tool NAME never influences the verdict', () => {
-    expect(classifyTool({ readOnlyHint: true })).toBe('read');
-    expect(toToolInfo({ name: 'delete_everything' })?.kind).toBe('unspecified');
-    expect(toToolInfo({ name: 'get_weather' })?.kind).toBe('unspecified');
+  test('the tool NAME never influences the verdict, in either direction', () => {
+    expect(toToolInfo({ name: 'delete_everything' })?.kind).toBe('write');
+    expect(toToolInfo({ name: 'get_weather' })?.kind).toBe('write');
+    expect(
+      toToolInfo({ name: 'delete_everything', annotations: { readOnlyHint: true } })
+        ?.kind,
+    ).toBe('read');
+  });
+});
+
+describe('isDestructive keeps the finer distinction the spec draws', () => {
+  test('unannotated is destructive — destructiveHint defaults to true', () => {
+    expect(isDestructive(undefined)).toBe(true);
+    expect(isDestructive({})).toBe(true);
+  });
+
+  test('read-only is never destructive', () => {
+    expect(isDestructive({ readOnlyHint: true })).toBe(false);
+  });
+
+  test('an additive write is not destructive', () => {
+    expect(isDestructive({ destructiveHint: false })).toBe(false);
   });
 });
 
@@ -59,6 +71,8 @@ describe('toToolInfo', () => {
       title: 'Create Issue',
       description: 'Create an issue',
       kind: 'write',
+      annotated: true,
+      destructive: false,
       idempotent: false,
       openWorld: true,
     });
@@ -120,12 +134,7 @@ describe('toToolList', () => {
 
 describe('countByKind', () => {
   test('every kind is present even at zero, so the UI can render a stable table', () => {
-    expect(countByKind([])).toEqual({
-      read: 0,
-      write: 0,
-      destructive: 0,
-      unspecified: 0,
-    });
+    expect(countByKind([])).toEqual({ read: 0, write: 0 });
   });
 
   test('it counts what it was given', () => {
@@ -135,11 +144,6 @@ describe('countByKind', () => {
       { name: 'c', annotations: {} },
       { name: 'd' },
     ]);
-    expect(countByKind(tools)).toEqual({
-      read: 1,
-      write: 1,
-      destructive: 1,
-      unspecified: 1,
-    });
+    expect(countByKind(tools)).toEqual({ read: 1, write: 3 });
   });
 });
