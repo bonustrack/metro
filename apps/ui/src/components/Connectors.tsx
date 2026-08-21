@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
@@ -8,7 +8,6 @@ import { CARD_PADDING } from '../theme';
 import {
   connectorHost,
   deleteConnector,
-  fetchConnectors,
   serverLabel,
   verifyConnector,
   type Connector,
@@ -19,7 +18,12 @@ import { CopyBlock } from './CopyBlock';
 import { DeleteConnector } from './DeleteConnector';
 import { Field } from './Field';
 import { Loading } from './Loading';
-import { loadError, useLoad } from '../load';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  connectorsKey,
+  queryError,
+  useConnectorsQuery,
+} from '../api/queries';
 import { useDocumentTitle } from '../title';
 
 const BLURB = 'Remote MCP servers Metro has checked for you.';
@@ -57,7 +61,7 @@ function ConnectorCard({ token, row, onDelete }: ConnectorCardProps): ReactNode 
         setStatus(result.ok ? 'Answered just now.' : (result.reason ?? 'It did not answer.'));
       })
       .catch((err: unknown) => {
-        setStatus(loadError(err, 'Could not check the connector.'));
+        setStatus(queryError(err, 'Could not check the connector.'));
       })
       .finally(() => {
         setBusy(false);
@@ -140,8 +144,13 @@ function ConnectorsBody({ token, data, onDelete }: ConnectorsBodyProps): ReactNo
 
 export function Connectors({ token }: { token: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const load = useCallback(() => fetchConnectors(token), [token]);
-  const { data, error, reload } = useLoad(load, FALLBACK);
+  const client = useQueryClient();
+  const { data, error } = useConnectorsQuery(token);
+  const reload = (): void => {
+    client
+      .invalidateQueries({ queryKey: connectorsKey() })
+      .catch(() => undefined);
+  };
   useDocumentTitle('Connectors');
   const [adding, setAdding] = useState(false);
 
@@ -167,9 +176,11 @@ export function Connectors({ token }: { token: string }): ReactNode {
         />
       </Row>
 
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
-      {data === null && error === null ? <Loading /> : null}
-      {data === null ? null : (
+      {error === null ? null : (
+        <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>
+      )}
+      {data === undefined && error === null ? <Loading /> : null}
+      {data === undefined ? null : (
         <ConnectorsBody token={token} data={data} onDelete={remove} />
       )}
 

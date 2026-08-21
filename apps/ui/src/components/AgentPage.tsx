@@ -4,11 +4,19 @@ import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
 import { CARD_PADDING } from '../theme';
+import { useQueryClient } from '@tanstack/react-query';
 import { deleteAgent } from '../api/client';
-import { useStations } from '../api/stations';
+import {
+  agentsKey,
+  queryError,
+  stationsKey,
+  useStationsQuery,
+} from '../api/queries';
 import { AgentDetail } from './AgentDetail';
 import { Loading } from './Loading';
 import { useDocumentTitle } from '../title';
+
+const FALLBACK = 'Could not load this agent.';
 
 interface AgentPageProps {
   token: string;
@@ -28,12 +36,19 @@ function Notice({ text }: { text: string }): ReactNode {
 
 export function AgentPage(props: AgentPageProps): ReactNode {
   const { token, id, onOpenStation, onGone } = props;
-  const { data, error, reload } = useStations(token);
+  const client = useQueryClient();
+  const { data, error } = useStationsQuery(token);
+  const refresh = (): void => {
+    client
+      .invalidateQueries({ queryKey: stationsKey() })
+      .catch(() => undefined);
+  };
   const agent = data?.agents.find((a) => a.id === id);
   useDocumentTitle(agent?.name ?? 'Agent');
 
-  if (error !== null) return <Text size="sm" role="danger">{error}</Text>;
-  if (data === null) return <Loading />;
+  if (error !== null)
+    return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
+  if (data === undefined) return <Loading />;
   if (agent === undefined)
     return (
       <Notice text="No agent with that id is available to this account." />
@@ -48,9 +63,11 @@ export function AgentPage(props: AgentPageProps): ReactNode {
         attachable={data.attachable}
         unattributed={data.unattributed}
         onOpenStation={onOpenStation}
-        onChanged={reload}
+        onChanged={refresh}
         onDelete={async (agentId) => {
           await deleteAgent(token, agentId);
+          await client.invalidateQueries({ queryKey: agentsKey() });
+          await client.invalidateQueries({ queryKey: stationsKey() });
           onGone();
         }}
       />

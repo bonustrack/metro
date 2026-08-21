@@ -5,10 +5,18 @@ import { Text } from './ui';
 import { CARD_PADDING } from '../theme';
 import { findAccount } from '../api/accounts';
 import { detachAccount } from '../api/attach';
-import { useStations } from '../api/stations';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  dropAccount,
+  queryError,
+  stationsKey,
+  useStationsQuery,
+} from '../api/queries';
 import { Loading } from './Loading';
 import { StationDetail } from './StationDetail';
 import { useDocumentTitle } from '../title';
+
+const FALLBACK = 'Could not load this station.';
 
 interface StationPageProps {
   token: string;
@@ -22,11 +30,13 @@ export function StationPage({
   onOpenAgent,
 }: StationPageProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const { data, error, reload } = useStations(token);
+  const client = useQueryClient();
+  const { data, error } = useStationsQuery(token);
   useDocumentTitle(accountId);
 
-  if (error !== null) return <Text size="sm" role="danger">{error}</Text>;
-  if (data === null) return <Loading />;
+  if (error !== null)
+    return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
+  if (data === undefined) return <Loading />;
 
   const found = findAccount(data.groups, accountId);
   if (found === undefined)
@@ -52,7 +62,8 @@ export function StationPage({
         agent?.owned === true && owner !== null
           ? async (station, id) => {
               await detachAccount(token, owner, station, id);
-              reload([`${station}/${id}`]);
+              dropAccount(client, station, id);
+              await client.invalidateQueries({ queryKey: stationsKey() });
             }
           : undefined
       }

@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@stage-labs/kit": "0.1.0-beta.0",
+    "@tanstack/react-query": "^5.101.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-markdown": "^10.1.0",

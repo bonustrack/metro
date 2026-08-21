@@ -1,17 +1,17 @@
-import { type ReactNode, useCallback, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
 import { CARD_PADDING } from '../theme';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   createAgent,
-  fetchAgents,
   type AgentSummary,
   type CreatedAgent,
 } from '../api/client';
-import { useLoad } from '../load';
+import { agentsKey, queryError, useAgentsQuery } from '../api/queries';
 import { CreateAgent } from './CreateAgent';
 import { Loading } from './Loading';
 import { NewAgentKey } from './NewAgentKey';
@@ -62,8 +62,8 @@ interface AgentsHomeProps {
 
 export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const load = useCallback(() => fetchAgents(token), [token]);
-  const { data, error, reload } = useLoad(load, FALLBACK);
+  const client = useQueryClient();
+  const { data, error } = useAgentsQuery(token);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   useDocumentTitle('Agents');
@@ -71,7 +71,7 @@ export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
   const create = async (name: string): Promise<void> => {
     const agent = await createAgent(token, name);
     setCreated(agent);
-    reload();
+    await client.invalidateQueries({ queryKey: agentsKey() });
   };
 
   return (
@@ -100,9 +100,11 @@ export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
         />
       )}
 
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
-      {data === null && error === null ? <Loading /> : null}
-      {data === null ? null : (
+      {error === null ? null : (
+        <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>
+      )}
+      {data === undefined && error === null ? <Loading /> : null}
+      {data === undefined ? null : (
         <AgentCards agents={data.agents} onOpen={onOpen} />
       )}
 
