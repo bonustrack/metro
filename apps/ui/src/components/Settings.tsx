@@ -6,10 +6,12 @@ import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
 import { CARD_PADDING } from '../theme';
 import { THEME_MODES, useThemeMode } from '../theme-mode';
+import { useDocumentTitle } from '../title';
 
 export function Settings(): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { mode, setMode } = useThemeMode();
+  useDocumentTitle('Settings');
   return (
     <Col gap={16}>
       <Col gap={2}>

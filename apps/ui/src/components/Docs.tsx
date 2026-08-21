@@ -4,6 +4,7 @@ import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { PageTitle } from './PageTitle';
+import { useDocumentTitle } from '../title';
 import setupDoc from '../../../../docs/SETUP.md?raw';
 
 function scrollTo(id: string): void {
@@ -13,6 +14,7 @@ function scrollTo(id: string): void {
 const DOC_WIDTH = { maxWidth: 900, width: '100%' } as const;
 
 export function Docs(): ReactNode {
+  useDocumentTitle('Documentation');
   return (
     <Col gap={16} style={DOC_WIDTH}>
       <PageTitle>Documentation</PageTitle>

@@ -153,6 +153,11 @@ const get = (token?: string): Promise<Response> =>
     headers: token ? { authorization: `Bearer ${token}` } : {},
   });
 
+const getFull = (token?: string): Promise<Response> =>
+  fetch(`${base}/api/agents?accounts=1`, {
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+
 const post = (token: string, body: unknown): Promise<Response> =>
   fetch(`${base}/api/agents`, {
     method: 'POST',
@@ -251,7 +256,7 @@ const listAgents = async (email: string): Promise<WireAgent[]> =>
 
 describe('GET /api/agents ownership', () => {
   test('returns only the caller own agents and their accounts', async () => {
-    const res = await get(session('ada@lovelace.dev'));
+    const res = await getFull(session('ada@lovelace.dev'));
     const body = (await res.json()) as ListBody;
     expect(body.email).toBe('ada@lovelace.dev');
     expect(body.endpoint).toBe(`${PUBLIC}/mcp`);
@@ -261,28 +266,28 @@ describe('GET /api/agents ownership', () => {
   });
 
   test('another signed-in user never sees the first user agent', async () => {
-    const body = (await (await get(session('bob@builder.dev'))).json()) as ListBody;
+    const body = (await (await getFull(session('bob@builder.dev'))).json()) as ListBody;
     expect(body.agents.map((a) => a.name)).toEqual(['bob-bot']);
     expect(body.accounts.telegram).toEqual([]);
     expect(body.accounts.discord).toEqual([{ id: 'bob-dc', owner: 'bob', agentId: 2 }]);
   });
 
   test('the accounts scope set is exactly the visible agent IDS, never names', async () => {
-    await get(session('ada@lovelace.dev'));
+    await getFull(session('ada@lovelace.dev'));
     expect(scopes.at(-1)).toEqual(new Set([1]));
   });
 
   test('every returned account names the agent id it belongs to', async () => {
-    const body = (await (await get(session('ada@lovelace.dev'))).json()) as ListBody;
+    const body = (await (await getFull(session('ada@lovelace.dev'))).json()) as ListBody;
     const rowsOut = Object.values(body.accounts).flat();
     expect(rowsOut.length).toBeGreaterThan(0);
     expect(rowsOut.map((a) => (a as { agentId?: unknown }).agentId)).toEqual([1]);
   });
 
   test('two owners whose agents share a name each see only their own accounts', async () => {
-    const ada = (await (await get(session('ada@same.dev'))).json()) as ListBody;
+    const ada = (await (await getFull(session('ada@same.dev'))).json()) as ListBody;
     const adaScope = scopes.at(-1);
-    const bob = (await (await get(session('bob@same.dev'))).json()) as ListBody;
+    const bob = (await (await getFull(session('bob@same.dev'))).json()) as ListBody;
     const bobScope = scopes.at(-1);
 
     expect(ada.agents.map((a) => a.name)).toEqual(['tony']);
@@ -298,20 +303,57 @@ describe('GET /api/agents ownership', () => {
   });
 
   test('a brand-new signed-in user sees no agents and no accounts', async () => {
-    const body = (await (await get(session('nobody@example.com'))).json()) as ListBody;
+    const body = (await (await getFull(session('nobody@example.com'))).json()) as ListBody;
     expect(body.agents).toEqual([]);
     expect(scopes.at(-1)).toEqual(new Set());
     expect(body.accounts.telegram).toEqual([]);
   });
 
   test('the session email is compared case-insensitively', async () => {
-    const body = (await (await get(session('ADA@Lovelace.dev'))).json()) as ListBody;
+    const body = (await (await getFull(session('ADA@Lovelace.dev'))).json()) as ListBody;
     expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
   });
 
   test('responses are marked no-store', async () => {
-    const res = await get(session('ada@lovelace.dev'));
+    const res = await getFull(session('ada@lovelace.dev'));
     expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+});
+
+describe('GET /api/agents is light unless accounts are asked for', () => {
+  test('the default payload carries agents but no accounts, and never gathers them', async () => {
+    const before = scopes.length;
+    const res = await get(session('ada@lovelace.dev'));
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(res.status).toBe(200);
+    expect(body.agents).toBeDefined();
+    expect(body.email).toBe('ada@lovelace.dev');
+    expect(body.capabilities).toBeDefined();
+    expect(body.attachable).toBeDefined();
+    expect(body.accounts).toBeUndefined();
+    expect(body.unavailable).toBeUndefined();
+    expect(scopes.length).toBe(before);
+  });
+
+  test('?accounts=1 adds them and does gather', async () => {
+    const before = scopes.length;
+    const res = await getFull(session('ada@lovelace.dev'));
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.accounts).toBeDefined();
+    expect(body.unavailable).toEqual([]);
+    expect(scopes.length).toBe(before + 1);
+  });
+
+  test('any other value of accounts stays light — only "1" opts in', async () => {
+    const before = scopes.length;
+    for (const q of ['accounts=0', 'accounts=true', 'accounts=', 'accounts']) {
+      const res = await fetch(`${base}/api/agents?${q}`, {
+        headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      });
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body.accounts).toBeUndefined();
+    }
+    expect(scopes.length).toBe(before);
   });
 });
 

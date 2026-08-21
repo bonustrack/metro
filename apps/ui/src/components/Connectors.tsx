@@ -1,11 +1,10 @@
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Card } from '@stage-labs/kit/react-native/card';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
 import { CARD_PADDING } from '../theme';
-import { AuthError } from '../api/client';
 import {
   connectorHost,
   deleteConnector,
@@ -20,19 +19,17 @@ import { CopyBlock } from './CopyBlock';
 import { DeleteConnector } from './DeleteConnector';
 import { Field } from './Field';
 import { Loading } from './Loading';
+import { loadError, useLoad } from '../load';
+import { useDocumentTitle } from '../title';
 
 const BLURB = 'Remote MCP servers Metro has checked for you.';
+
+const FALLBACK = 'Could not load your connectors.';
 
 const EMPTY =
   'No connectors yet. Add one and Metro checks that the server answers before it stores anything. Metro holds the config for you to copy — it does not proxy these servers, and no agent connects through them.';
 
 type DeleteHandler = (id: number) => Promise<void>;
-
-function failure(err: unknown, fallback: string): string {
-  if (err instanceof AuthError)
-    return 'Your Metro session expired. Reload the page to sign in again.';
-  return err instanceof Error ? err.message : fallback;
-}
 
 function whenLabel(at: string): string {
   const ms = Date.parse(at);
@@ -60,7 +57,7 @@ function ConnectorCard({ token, row, onDelete }: ConnectorCardProps): ReactNode 
         setStatus(result.ok ? 'Answered just now.' : (result.reason ?? 'It did not answer.'));
       })
       .catch((err: unknown) => {
-        setStatus(failure(err, 'Could not check the connector.'));
+        setStatus(loadError(err, 'Could not check the connector.'));
       })
       .finally(() => {
         setBusy(false);
@@ -143,26 +140,14 @@ function ConnectorsBody({ token, data, onDelete }: ConnectorsBodyProps): ReactNo
 
 export function Connectors({ token }: { token: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const [data, setData] = useState<ConnectorList | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => fetchConnectors(token), [token]);
+  const { data, error, reload } = useLoad(load, FALLBACK);
+  useDocumentTitle('Connectors');
   const [adding, setAdding] = useState(false);
-
-  const load = useCallback((): void => {
-    fetchConnectors(token)
-      .then((next) => {
-        setData(next);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        setError(failure(err, 'Could not load your connectors.'));
-      });
-  }, [token]);
-
-  useEffect(load, [load]);
 
   const remove = async (id: number): Promise<void> => {
     await deleteConnector(token, id);
-    load();
+    reload();
   };
 
   return (
@@ -194,7 +179,7 @@ export function Connectors({ token }: { token: string }): ReactNode {
         onClose={() => {
           setAdding(false);
         }}
-        onAdded={load}
+        onAdded={reload}
       />
     </Col>
   );

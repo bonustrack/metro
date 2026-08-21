@@ -145,13 +145,6 @@ export function carryForward(
   return [...fresh, ...kept].sort((x, y) => x.station.localeCompare(y.station));
 }
 
-export function countAccounts(groups: AccountGroup[], agentId: number): number {
-  return groups.reduce(
-    (n, g) => n + g.rows.filter((r) => r.agentId === agentId).length,
-    0,
-  );
-}
-
 export function unattributedAccounts(groups: AccountGroup[]): number {
   return groups.reduce(
     (n, g) => n + g.rows.filter((r) => r.agentId === null).length,

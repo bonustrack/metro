@@ -3,24 +3,19 @@ import { Pressable as RNPressable, ScrollView } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
 import { Pressable } from '@stage-labs/kit/react-native/pressable';
-import { Spacer } from '@stage-labs/kit/react-native/spacer';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
-import { Blockies } from './Blockies';
 import { MetroLogo } from './MetroLogo';
-import { countAccounts, type AccountGroup } from '../api/accounts';
-import { type AgentSummary } from '../api/client';
 import { SidebarFooter } from './SidebarFooter';
 import { type Selection } from './selection';
 
 const ROW_PAD = { x: 12, y: 8 } as const;
 const ICON_SIZE = 18;
+const AGENT_PAGES: Selection['kind'][] = ['none', 'agent', 'station'];
 
 interface NavRowProps {
   label: string;
   icon?: HeroIconName;
-  avatar?: string;
-  trailing?: string;
   selected: boolean;
   onPress: () => void;
 }
@@ -28,8 +23,6 @@ interface NavRowProps {
 function NavRow({
   label,
   icon,
-  avatar,
-  trailing,
   selected,
   onPress,
 }: NavRowProps): ReactNode {
@@ -53,22 +46,15 @@ function NavRow({
             color={selected ? palette.link : palette.sub}
           />
         )}
-        {avatar === undefined ? null : <Blockies seed={avatar} size={ICON_SIZE} />}
         <Text size="xl" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
           {label}
         </Text>
-        <Spacer />
-        {trailing === undefined ? null : (
-          <Text size="lg" role="secondary">{trailing}</Text>
-        )}
       </Row>
     </Pressable>
   );
 }
 
 interface AgentSidebarProps {
-  agents: AgentSummary[];
-  groups: AccountGroup[];
   selection: Selection;
   email: string;
   onSelect: (selection: Selection) => void;
@@ -76,8 +62,6 @@ interface AgentSidebarProps {
 }
 
 export function AgentSidebar({
-  agents,
-  groups,
   selection,
   email,
   onSelect,
@@ -103,23 +87,11 @@ export function AgentSidebar({
             <NavRow
               label="Agents"
               icon="users"
-              selected={selection.kind === 'none'}
+              selected={AGENT_PAGES.includes(selection.kind)}
               onPress={() => {
                 onSelect({ kind: 'none' });
               }}
             />
-            {agents.map((a) => (
-              <NavRow
-                key={a.id}
-                avatar={a.name}
-                label={a.owned ? a.name : `${a.name} · not owned`}
-                trailing={String(countAccounts(groups, a.id))}
-                selected={selection.kind === 'agent' && selection.id === a.id}
-                onPress={() => {
-                  onSelect({ kind: 'agent', id: a.id });
-                }}
-              />
-            ))}
             <NavRow
               label="Connectors"
               icon="lightningBolt"

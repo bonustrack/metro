@@ -110,6 +110,11 @@ function agentPayload(agent: AgentSummary): Record<string, unknown> {
   };
 }
 
+function wantsAccounts(req: IncomingMessage): boolean {
+  const query = (req.url ?? '').split('?')[1] ?? '';
+  return new URLSearchParams(query).get('accounts') === '1';
+}
+
 async function handleList(
   req: IncomingMessage,
   res: ServerResponse,
@@ -117,18 +122,21 @@ async function handleList(
   session: ApiSession,
 ): Promise<void> {
   const list = await deps.listAgents(session.email);
-  const { accounts, unavailable } = await deps.gatherAccounts(
-    new Set(list.map((a) => a.id)),
-  );
-  sendJson(req, res, 200, {
+  const base = {
     email: session.email,
     endpoint: mcpEndpoint(),
     agents: list.map(agentPayload),
-    accounts,
-    unavailable,
     capabilities: deps.capabilities(),
     attachable: ATTACHABLE,
-  });
+  };
+  if (!wantsAccounts(req)) {
+    sendJson(req, res, 200, base);
+    return;
+  }
+  const { accounts, unavailable } = await deps.gatherAccounts(
+    new Set(list.map((a) => a.id)),
+  );
+  sendJson(req, res, 200, { ...base, accounts, unavailable });
 }
 
 async function handleCreate(

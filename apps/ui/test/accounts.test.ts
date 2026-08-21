@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import {
   accountsForAgent,
   attributeUntagged,
-  countAccounts,
   groupAccounts,
   stationFields,
   unattributedAccounts,
@@ -64,20 +63,11 @@ describe('accountsForAgent', () => {
 
   test('an agent with no accounts gets an empty list, never someone else rows', () => {
     expect(accountsForAgent(groupAccounts(PAYLOAD), 99)).toEqual([]);
-    expect(countAccounts(groupAccounts(PAYLOAD), 99)).toBe(0);
   });
 
   test('unattributed rows belong to no agent', () => {
     const groups = groupAccounts({ telegram: [{ id: 'orphan' }] });
     expect(accountsForAgent(groups, 1)).toEqual([]);
-  });
-});
-
-describe('countAccounts', () => {
-  test('counts across stations for one agent only', () => {
-    const groups = groupAccounts(PAYLOAD);
-    expect(countAccounts(groups, 1)).toBe(2);
-    expect(countAccounts(groups, 2)).toBe(1);
   });
 });
 

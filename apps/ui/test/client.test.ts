@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { fetchDashboard, resetAgentKey, type AgentSummary } from '../src/api/client';
+import { fetchAgents, resetAgentKey, type AgentSummary } from '../src/api/client';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -28,7 +28,7 @@ function serve(body: unknown, status = 200): void {
 
 const dashboard = async (agents: unknown): Promise<AgentSummary[]> => {
   serve({ email: 'ada@lovelace.dev', endpoint: 'https://mcp.metro.box/mcp', agents });
-  return (await fetchDashboard('session')).agents;
+  return (await fetchAgents('session')).agents;
 };
 
 describe('agent credentials on the wire', () => {

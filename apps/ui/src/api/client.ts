@@ -18,10 +18,13 @@ export interface AgentSummary {
   command: string | null;
 }
 
-export interface Dashboard {
+export interface AgentsView {
   email: string;
   endpoint: string;
   agents: AgentSummary[];
+}
+
+export interface StationsView extends AgentsView {
   groups: AccountGroup[];
   unattributed: number;
   attachable: string[];
@@ -116,15 +119,27 @@ function toCapabilities(value: unknown): Record<string, string[]> {
   return out;
 }
 
-export async function fetchDashboard(token: string): Promise<Dashboard> {
-  const body = await call(token, { method: 'GET' });
-  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
-  const agents = toAgents(body.agents);
-  const groups = attributedGroups(agents, body.accounts);
+function toAgentsView(body: Record<string, unknown>): AgentsView {
   return {
     email: typeof body.email === 'string' ? body.email : '',
     endpoint: typeof body.endpoint === 'string' ? body.endpoint : '',
-    agents,
+    agents: toAgents(body.agents),
+  };
+}
+
+export async function fetchAgents(token: string): Promise<AgentsView> {
+  const body = await call(token, { method: 'GET' });
+  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
+  return toAgentsView(body);
+}
+
+export async function fetchStations(token: string): Promise<StationsView> {
+  const body = await call(token, { method: 'GET', path: '?accounts=1' });
+  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
+  const view = toAgentsView(body);
+  const groups = attributedGroups(view.agents, body.accounts);
+  return {
+    ...view,
     groups,
     unattributed: unattributedAccounts(groups),
     attachable: toStationList(body.attachable),
