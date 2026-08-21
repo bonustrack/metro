@@ -24,9 +24,10 @@ export function Spinner({ size = 20, color }: { size?: number; color: string }):
   }, [spin]);
 
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const spinStyle = { width: size, height: size, transform: [{ rotate }] };
 
   return (
-    <Animated.View style={{ width: size, height: size, transform: [{ rotate }] }}>
+    <Animated.View style={spinStyle}>
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Defs>
           <LinearGradient id={gradientId} x1="28.154%" y1="63.74%" x2="74.629%" y2="17.783%">

@@ -40,16 +40,8 @@ export function Text({ style, ...props }: TextProps): ReactElement {
 
 export function Button({ textStyle, ...props }: ButtonProps): ReactElement {
   const fontSize = typeSize(BUTTON_FONT_SIZE[props.size ?? 'md']);
-  return (
-    <KitButton
-      {...props}
-      textStyle={{
-        fontFamily: FONT_HEAD,
-        fontSize,
-        ...textStyle,
-      }}
-    />
-  );
+  const merged = { fontFamily: FONT_HEAD, fontSize, ...textStyle };
+  return <KitButton {...props} textStyle={merged} />;
 }
 
 export function Input({ style, ...props }: InputProps): ReactElement {

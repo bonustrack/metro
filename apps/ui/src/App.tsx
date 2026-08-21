@@ -1,10 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
-import {
-  useKitPalette,
-  useKitScheme,
-} from '@stage-labs/kit/react-native/theme-context';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './components/ui';
 import { Login } from './components/Login';
 import { BootLoading } from './components/BootLoading';
@@ -74,7 +71,6 @@ function Gate({ token, onLock }: GateProps): ReactNode {
 }
 
 export function App(): ReactNode {
-  const palette = useKitPalette();
   const [state, setState] = useState<State>(initialState);
 
   const lock = (): void => {
@@ -98,7 +94,7 @@ export function App(): ReactNode {
   }, [state.phase, client]);
 
   return (
-    <div className="app-root" style={{ backgroundColor: palette.bg }}>
+    <div className="app-root">
       <QueryClientProvider client={client}>
         {state.phase === 'login' ? (
           <Login error={state.error} />

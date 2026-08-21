@@ -13,6 +13,20 @@ export default defineConfig({
           ],
         },
       },
+      {
+        files: ['**/*.tsx'],
+        rules: {
+          'no-restricted-syntax': [
+            'error',
+            {
+              selector:
+                'JSXAttribute[name.name=/[Ss]tyle$/] > JSXExpressionContainer > ObjectExpression',
+              message:
+                'No inline style objects in JSX. Use the kit props (gap, padding, flex, radius, surface, border, minWidth...) or a named style constant.',
+            },
+          ],
+        },
+      },
     ],
   },
   knip: {

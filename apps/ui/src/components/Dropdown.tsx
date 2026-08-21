@@ -47,6 +47,9 @@ export function Dropdown({
     setAt(placement(box, items.length, align));
   };
 
+  const menuStyle =
+    at === null ? undefined : { top: at.top, left: at.left, width: MENU_WIDTH };
+
   return (
     <>
       <button
@@ -70,7 +73,7 @@ export function Dropdown({
               <div
                 className="kebab-menu"
                 role="menu"
-                style={{ top: at.top, left: at.left, width: MENU_WIDTH }}
+                style={menuStyle}
               >
                 {items.map((item) => (
                   <button

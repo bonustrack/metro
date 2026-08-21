@@ -30,7 +30,7 @@ export function ConnectorIcon({
     (src) => src !== '' && !failed.includes(src),
   );
   const src = candidates[0];
-  const box = {
+  const boxStyle = {
     width: size,
     height: size,
     borderRadius: Math.round(size / 4),
@@ -38,17 +38,22 @@ export function ConnectorIcon({
     overflow: 'hidden' as const,
   };
 
+  const placeholderStyle = {
+    ...boxStyle,
+    background: palette.inputBg,
+    display: 'flex' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  };
+  const imageStyle = {
+    ...boxStyle,
+    objectFit: 'contain' as const,
+    background: palette.inputBg,
+  };
+
   if (src === undefined)
     return (
-      <div
-        style={{
-          ...box,
-          background: palette.inputBg,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <div style={placeholderStyle}>
         <Text size="sm" weight="semibold">
           {(name[0] ?? '?').toUpperCase()}
         </Text>
@@ -63,7 +68,7 @@ export function ConnectorIcon({
       height={size}
       loading="lazy"
       referrerPolicy="no-referrer"
-      style={{ ...box, objectFit: 'contain', background: palette.inputBg }}
+      style={imageStyle}
       onError={() => {
         setFailed((prev) => [...prev, src]);
       }}

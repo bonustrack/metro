@@ -11,6 +11,8 @@ import { type Selection } from './selection';
 
 const ROW_PAD = { x: 12, y: 8 } as const;
 const ICON_SIZE = 18;
+const SCROLL = { flex: 1 } as const;
+const SCROLL_CONTENT = { padding: 24 } as const;
 const AGENT_PAGES: Selection['kind'][] = ['none', 'agent', 'station'];
 const CONNECTOR_PAGES: Selection['kind'][] = ['connectors', 'connector'];
 
@@ -69,7 +71,7 @@ export function AgentSidebar({
   const dark = useKitScheme() === 'dark';
   return (
     <Col flex={1} minHeight={0}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24 }}>
+      <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
         <Col gap={10}>
           <Row padding={{ bottom: 6 }}>
             <RNPressable

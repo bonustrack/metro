@@ -2,6 +2,8 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
 import { Text, Button, Input } from './ui';
+
+const CODE_INPUT = { flexGrow: 1, minWidth: 200 } as const;
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import {
   cancelAttachSession,
@@ -63,7 +65,7 @@ function CodeEntry({
         dark={dark}
         onChangeText={setValue}
         onSubmit={send}
-        style={{ flexGrow: 1, minWidth: 200 }}
+        style={CODE_INPUT}
       />
       <Button
         color="primary"
