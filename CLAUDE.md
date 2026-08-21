@@ -268,14 +268,14 @@ There is NO `keys` table since `0009`, no `credentials` column and no `whatsapp_
 
 ### Migrations
 
-**Migrations apply themselves on deploy, via `release_command` in `fly.toml` — NOT at boot.** Fly runs `bun /app/apps/mcp/scripts/migrate.ts` in a temporary machine holding the app's secrets BEFORE the new version is released.
+**Migrations apply themselves on deploy, via `release_command` in `fly.toml` — NOT at boot.** Fly runs `bun --filter @metro-labs/mcp db:migrate` (i.e. `drizzle-kit migrate`) in a temporary machine holding the app's secrets BEFORE the new version is released. It is the same command you run by hand, so there is one code path, not two.
 
-- **The failure semantics are the whole point of choosing `release_command` over a boot-time `migrate()`.** A non-zero exit ABORTS the deploy and the old machine keeps serving. A migration that ran at boot would instead throw before `markDaemonReady()`, which the crash guard turns into `exit 1` — a crash-loop, i.e. a full outage caused by the migration itself. Do not move this to `boot.ts`.
-- It uses **drizzle-orm's runtime migrator** (`drizzle-orm/postgres-js/migrator`), not `drizzle-kit`: `drizzle-orm` is a production dependency, `drizzle-kit` is a devDependency and `bun install --production` leaves it out of the image entirely.
-- **The runtime migrator and `drizzle-kit migrate` share one history** — schema `drizzle`, table `__drizzle_migrations`, both by default, and `drizzle.config.ts` overrides neither. The migrator applies every migration whose `_journal.json` `when` is greater than the newest recorded `created_at`, all in ONE transaction. That is what makes the cutover safe on a DB already migrated by the old path; verified against a real Postgres staged at `0009`.
-- `MIGRATIONS_DIR` resolves off `import.meta.url`, never the cwd, because the release machine's cwd is not the repo root. The release machine has **no volume**, so nothing on this path may import `daemon/paths.ts` — it `mkdirSync`s `STATE_DIR` at import time. `daemon/log.ts` is safe (pino only).
-- `apps/mcp/scripts/*.ts` is a knip entry (`stage.config.js`) so the runner is reachable; `bun --filter @metro-labs/mcp db:migrate` runs the SAME script locally, so there is one code path, not two.
-- The daemon still never migrates and `materializeFromDb()` still throws on an empty DB — a deploy whose release command failed never reaches it.
+- **`release_command` replaces `CMD` but NEVER overrides `ENTRYPOINT`.** This is why the Dockerfile ends in `CMD ["bun", "/app/apps/mcp/src/server.ts"]` and must NOT go back to `ENTRYPOINT`. With an `ENTRYPOINT` the release machine runs `bun server.ts <release command>` — `server.ts` ignores argv, so it boots a SECOND daemon against an empty `/data` (a fresh XMTP installation, burning an install slot) and never exits, timing the deploy out. This actually happened once; do not reintroduce it.
+- **The failure semantics are the whole point of choosing `release_command` over a boot-time `migrate()`.** A non-zero exit ABORTS the deploy and the old machine keeps serving. The same migration at boot would throw before `markDaemonReady()`, which the crash guard turns into `exit 1` — a crash-loop, i.e. an outage caused by the migration itself. Do not move this to `boot.ts`. Verified: unreachable DB, empty and unset `DATABASE_URL` all exit 1; a re-run with nothing pending exits 0 and applies nothing.
+- **`drizzle-kit` is a runtime `dependency`, not a devDependency** — `bun install --frozen-lockfile --production` (Dockerfile) would otherwise leave it out of the image and the release command would fail. It is ~10 MB. Moving it back to devDependencies breaks every deploy.
+- **`bun --filter` is load-bearing**: it sets cwd to `apps/mcp` so `drizzle.config.ts` and its relative `out: './drizzle'` resolve. The release machine's cwd is `/app` (the Dockerfile `WORKDIR`), where neither exists.
+- The daemon itself still never migrates, and `materializeFromDb()` still throws on an empty DB — a deploy whose release command failed never reaches it.
+- `test/migrate.test.ts` pins journal integrity only (every entry has its `.sql`, contiguous and ordered `when`, no orphan `.sql`). There is no Postgres in the suite; the DB behaviour above was verified by hand against a real one staged at `0009`.
 
 ## Deploy & Ops
 

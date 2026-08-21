@@ -37,4 +37,7 @@ ENV HOME=/data \
     METRO_LOG_LEVEL=info
 
 EXPOSE 8420
-ENTRYPOINT ["bun", "/app/apps/mcp/src/server.ts"]
+# CMD, not ENTRYPOINT: Fly release_command replaces CMD but ENTRYPOINT always runs, so an
+# ENTRYPOINT here would make the release machine boot a SECOND daemon (with an empty
+# /data, i.e. a fresh XMTP installation) instead of running the migration.
+CMD ["bun", "/app/apps/mcp/src/server.ts"]

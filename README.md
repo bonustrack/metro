@@ -219,14 +219,13 @@ column cannot hold two values, so a reset re-points every client at once with no
 window.
 
 **Migrations apply themselves on deploy.** `fly.toml` sets a `release_command`, so Fly runs
-`bun /app/apps/mcp/scripts/migrate.ts` in a temporary machine with the app's secrets before
-the new version goes live. If it fails the deploy is **aborted** and the old machine keeps
-serving — a bad migration can never crash-loop the daemon, which is why this runs on release
-rather than at boot. It uses drizzle-orm's runtime migrator (a production dependency), not
-`drizzle-kit`, which is a devDependency and is not in the image.
+`bun --filter @metro-labs/mcp db:migrate` in a temporary machine with the app's secrets
+before the new version goes live. If it fails the deploy is **aborted** and the old machine
+keeps serving — a bad migration can never crash-loop the daemon, which is why this runs on
+release rather than at boot. `drizzle-kit` is therefore a runtime dependency, not a
+devDependency, so it is present in the production image.
 
-The same script is `db:migrate`, so you can still apply migrations by hand against any
-database you can reach:
+It is the same command by hand, against any database you can reach:
 
 ```bash
 DATABASE_URL='postgres://…' bun --filter @metro-labs/mcp db:migrate

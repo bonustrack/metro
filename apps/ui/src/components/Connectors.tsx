@@ -21,11 +21,10 @@ import { DeleteConnector } from './DeleteConnector';
 import { Field } from './Field';
 import { Loading } from './Loading';
 
-const BLURB =
-  'Remote MCP servers Metro has checked for you. Metro stores the bookmark and the credential and hands you a config block to paste. It does not proxy them, and no agent connects through them.';
+const BLURB = 'Remote MCP servers Metro has checked for you.';
 
 const EMPTY =
-  'No connectors yet. Add one and Metro checks the server answers before it stores anything.';
+  'No connectors yet. Add one and Metro checks that the server answers before it stores anything. Metro holds the config for you to copy — it does not proxy these servers, and no agent connects through them.';
 
 type DeleteHandler = (id: number) => Promise<void>;
 

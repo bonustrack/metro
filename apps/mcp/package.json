@@ -38,7 +38,7 @@
     "start": "bun src/server.ts",
     "build": "tsc",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "bun scripts/migrate.ts",
+    "db:migrate": "drizzle-kit migrate",
     "test": "tsc --noEmit && DYLD_FALLBACK_LIBRARY_PATH=/usr/lib METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
   },
   "dependencies": {
@@ -49,6 +49,7 @@
     "@metro-labs/whatsapp": "workspace:*",
     "@metro-labs/xmtp": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "drizzle-kit": "^0.31.0",
     "drizzle-orm": "^0.44.0",
     "pino": "^9.5.0",
     "pino-pretty": "^13.1.3",
@@ -57,7 +58,6 @@
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.2",
-    "drizzle-kit": "^0.31.0",
     "eslint": "^10.3.0",
     "knip": "^6.15.0",
     "madge": "^8.0.0",
