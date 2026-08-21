@@ -46,6 +46,14 @@ export interface VerifyResult {
 
 const connectorsUrl = (): string => `${daemonBase()}/api/connectors`;
 
+function returnTo(): string {
+  try {
+    return window.location.origin + window.location.pathname;
+  } catch {
+    return '';
+  }
+}
+
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 const nullable = (value: unknown): string | null =>
@@ -105,17 +113,38 @@ export async function fetchConnectors(token: string): Promise<ConnectorList> {
   return { connectors: rows.map(toConnector), json: str(body.json) };
 }
 
+export type AddResult =
+  | { kind: 'added'; connector: Connector }
+  | { kind: 'oauth'; authorizeUrl: string };
+
 export async function createConnector(
   token: string,
   input: NewConnector,
-): Promise<Connector> {
+): Promise<AddResult> {
   const body = await call(token, {
     method: 'POST',
     base: connectorsUrl(),
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload(input)),
+    body: JSON.stringify({ ...payload(input), returnTo: returnTo() }),
   });
-  return toConnector(body);
+  if (isRecord(body) && body.status === 'oauth' && typeof body.authorizeUrl === 'string')
+    return { kind: 'oauth', authorizeUrl: body.authorizeUrl };
+  return { kind: 'added', connector: toConnector(body) };
+}
+
+export function takeConnectorError(): string | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const error = params.get('connector_error');
+  if (error === null) return null;
+  params.delete('connector_error');
+  const query = params.toString();
+  window.history.replaceState(
+    null,
+    '',
+    window.location.pathname + (query === '' ? '' : `?${query}`) + window.location.hash,
+  );
+  return error;
 }
 
 export async function verifyConnector(

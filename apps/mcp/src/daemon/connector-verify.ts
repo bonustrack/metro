@@ -3,9 +3,26 @@ import { errMsg, log } from './log.js';
 
 export class ConnectorVerifyError extends ApiError {}
 
+export class ConnectorUnauthorized extends ConnectorVerifyError {}
+
+export interface OAuthTokens {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number;
+}
+
+export interface OAuthAuth extends OAuthTokens {
+  kind: 'oauth';
+  issuer: string;
+  tokenEndpoint: string;
+  clientId: string;
+  clientSecret?: string;
+}
+
 export type ConnectorAuth =
   | { kind: 'none' }
-  | { kind: 'header'; name: string; value: string };
+  | { kind: 'header'; name: string; value: string }
+  | OAuthAuth;
 
 export interface VerifiedServer {
   server: string;
@@ -75,7 +92,10 @@ async function discard(res: Response): Promise<void> {
 }
 
 function authHeaders(auth: ConnectorAuth): Record<string, string> {
-  return auth.kind === 'header' ? { [auth.name]: auth.value } : {};
+  if (auth.kind === 'header') return { [auth.name]: auth.value };
+  if (auth.kind === 'oauth')
+    return { authorization: `Bearer ${auth.accessToken}` };
+  return {};
 }
 
 async function frame(
@@ -168,7 +188,12 @@ async function initialize(
   const res = await frame(url, auth, {}, initializeBody(), signal);
   if (res.status === 401 || res.status === 403) {
     await discard(res);
-    throw refused(`${url.hostname} rejected that credential.`);
+    throw new ConnectorUnauthorized(
+      auth.kind === 'none'
+        ? `${url.hostname} requires authorization.`
+        : `${url.hostname} rejected that credential.`,
+      400,
+    );
   }
   if (res.status === 404 || res.status === 405) {
     await discard(res);

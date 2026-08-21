@@ -5,9 +5,11 @@ import {
   parseConnectorUrl,
   verifyRemoteMcp,
   type ConnectorAuth,
+  type OAuthAuth,
   type VerifiedRecord,
   type VerifiedServer,
 } from '../daemon/connector-verify.js';
+import { oauthExpired, refreshOAuth } from '../daemon/connector-oauth.js';
 import { getDb } from './client.js';
 import { ensureUser, isUniqueViolation, userIdForEmail } from './agent-admin.js';
 import { connectors, type ConnectorTransport } from './schema.js';
@@ -89,8 +91,30 @@ function connectorAuth(rawHeader: unknown, rawValue: unknown): ConnectorAuth {
   return { kind: 'header', name, value };
 }
 
+function readOAuth(raw: Record<string, unknown>): ConnectorAuth {
+  const accessToken = text(raw.accessToken);
+  const clientId = text(raw.clientId);
+  const tokenEndpoint = text(raw.tokenEndpoint);
+  if (accessToken === '' || clientId === '' || tokenEndpoint === '')
+    return { kind: 'none' };
+  const refreshToken = text(raw.refreshToken);
+  const clientSecret = text(raw.clientSecret);
+  return {
+    kind: 'oauth',
+    accessToken,
+    clientId,
+    tokenEndpoint,
+    issuer: text(raw.issuer),
+    ...(refreshToken === '' ? {} : { refreshToken }),
+    ...(clientSecret === '' ? {} : { clientSecret }),
+    ...(typeof raw.expiresAt === 'number' ? { expiresAt: raw.expiresAt } : {}),
+  };
+}
+
 function readAuth(raw: unknown): ConnectorAuth {
-  if (!isRecord(raw) || raw.kind !== 'header') return { kind: 'none' };
+  if (!isRecord(raw)) return { kind: 'none' };
+  if (raw.kind === 'oauth') return readOAuth(raw);
+  if (raw.kind !== 'header') return { kind: 'none' };
   const name = text(raw.name);
   const value = text(raw.value);
   if (name === '' || value === '') return { kind: 'none' };
@@ -218,6 +242,35 @@ export async function createConnectorForEmail(
   });
 }
 
+async function freshAuth(
+  auth: ConnectorAuth,
+  resource: string,
+): Promise<ConnectorAuth> {
+  if (auth.kind !== 'oauth' || !oauthExpired(auth)) return auth;
+  return refreshOAuth(auth, resource);
+}
+
+export interface OAuthConnectorInput {
+  name: string;
+  url: string;
+  auth: OAuthAuth;
+}
+
+export async function createOAuthConnectorForEmail(
+  email: string,
+  input: OAuthConnectorInput,
+): Promise<Connector> {
+  const name = connectorName(input.name);
+  const url = parseConnectorUrl(input.url);
+  const userId = await ensureUser(email);
+  const verified = stamp(await verifyRemoteMcp(url, input.auth));
+  return insertConnector(userId, name, url, {
+    auth: input.auth,
+    createdAt: new Date().toISOString(),
+    verified,
+  });
+}
+
 export async function verifyConnectorForEmail(
   email: string,
   id: number,
@@ -226,12 +279,12 @@ export async function verifyConnectorForEmail(
   const row = await ownedConnectorOrThrow(userId, id);
   const config = readConfig(row.config);
   try {
-    const verified = stamp(
-      await verifyRemoteMcp(parseConnectorUrl(row.url), config.auth),
-    );
+    const url = parseConnectorUrl(row.url);
+    const auth = await freshAuth(config.auth, url.toString());
+    const verified = stamp(await verifyRemoteMcp(url, auth));
     await getDb()
       .update(connectors)
-      .set({ config: { ...config, verified } })
+      .set({ config: { ...config, auth, verified } })
       .where(and(eq(connectors.id, row.id), eq(connectors.userId, row.userId)));
     return { id: row.id, name: row.name, ok: true, verified };
   } catch (err) {

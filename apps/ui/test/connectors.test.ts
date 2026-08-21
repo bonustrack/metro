@@ -95,7 +95,7 @@ describe('the connectors surface is its own endpoint', () => {
       {
         url: CONNECTORS,
         method: 'POST',
-        body: { name: 'linear', url: 'https://mcp.linear.app/mcp' },
+        body: { name: 'linear', url: 'https://mcp.linear.app/mcp', returnTo: '' },
         authorization: 'Bearer session',
         contentType: 'application/json',
       },
@@ -131,6 +131,7 @@ describe('the create body carries only what was filled in', () => {
       url: 'https://mcp.linear.app/mcp',
       header: 'Authorization',
       value: 'Bearer lin_oauth_7f',
+      returnTo: '',
     });
   });
 
@@ -141,6 +142,7 @@ describe('the create body carries only what was filled in', () => {
       name: 'linear',
       url: 'https://mcp.linear.app/mcp',
       value: 'Bearer lin_oauth_7f',
+      returnTo: '',
     });
   });
 
@@ -150,6 +152,7 @@ describe('the create body carries only what was filled in', () => {
     expect(calls[0]?.body).toEqual({
       name: 'linear',
       url: 'https://mcp.linear.app/mcp',
+      returnTo: '',
     });
   });
 });
@@ -245,10 +248,25 @@ describe('a connector row is coerced field by field', () => {
 
   test('a create answers with the same shape a list row has', async () => {
     serve(ROW, 201);
-    const created = await createConnector('session', NEW);
-    expect(created.id).toBe(12);
-    expect(created.secret).toBe('Bearer lin_oauth_7f');
-    expect(created.verified?.tools).toBe(12);
+    const result = await createConnector('session', NEW);
+    if (result.kind !== 'added') throw new Error('expected an added connector');
+    expect(result.connector.id).toBe(12);
+    expect(result.connector.secret).toBe('Bearer lin_oauth_7f');
+    expect(result.connector.verified?.tools).toBe(12);
+  });
+
+  test('a 202 oauth answer is a sign-in to follow, not a connector', async () => {
+    serve({ status: 'oauth', authorizeUrl: 'https://as.example.com/authorize?x=1' }, 202);
+    const result = await createConnector('session', NEW);
+    expect(result).toEqual({
+      kind: 'oauth',
+      authorizeUrl: 'https://as.example.com/authorize?x=1',
+    });
+  });
+
+  test('an oauth answer missing its url is not mistaken for one', async () => {
+    serve({ status: 'oauth' }, 202);
+    await expect(createConnector('session', NEW)).rejects.toThrow('unexpected');
   });
 
   test('a create answering with no name is refused', async () => {

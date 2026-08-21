@@ -20,7 +20,7 @@ type FieldKey = keyof NewConnector;
 const EMPTY: NewConnector = { name: '', url: '', header: '', value: '' };
 
 const HINT =
-  'Metro verifies the server from its own machine, so a localhost URL will never work. The name becomes the key in the JSON you paste into your MCP client.';
+  'Metro verifies the server from its own machine, so a localhost URL will never work. The name becomes the key in the JSON you paste into your MCP client. Leave the header empty if the server signs you in with OAuth — Metro will send you there.';
 
 function trimmed(values: NewConnector): NewConnector {
   return {
@@ -86,7 +86,13 @@ function ConnectorForm({ token, onAdded, onCancel }: ConnectorFormProps): ReactN
     setBusy(true);
     setError(null);
     createConnector(token, trimmed(values))
-      .then(onAdded)
+      .then((result) => {
+        if (result.kind === 'oauth') {
+          window.location.assign(result.authorizeUrl);
+          return;
+        }
+        onAdded(result.connector);
+      })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not add the connector.');
       })

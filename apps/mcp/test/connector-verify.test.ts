@@ -391,13 +391,24 @@ describe('the three failures are worded separately', () => {
     expect(err.status).toBe(400);
   });
 
-  test('a remote 403 is worded the same way', async () => {
+  test('a remote 403 with a credential is worded the same way', async () => {
     reply = (_req, res) => {
       res.writeHead(403).end('forbidden');
     };
-    expect((await refusal(probe())).message).toBe(
+    expect((await refusal(probe('/mcp', BEARER))).message).toBe(
       '127.0.0.1 rejected that credential.',
     );
+  });
+
+  test('a 401 with NO credential says authorization is required, not rejected', async () => {
+    reply = (_req, res) => {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end('{"error":"invalid_token"}');
+    };
+    const err = await refusal(probe());
+    expect(err.message).toBe('127.0.0.1 requires authorization.');
+    expect(err.message).not.toContain('rejected');
+    expect(err.status).toBe(400);
   });
 
   test('an HTML page is answered-but-not-MCP', async () => {

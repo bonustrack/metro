@@ -41,6 +41,7 @@ import {
 } from '../db/account-attach.js';
 import {
   createConnectorForEmail,
+  createOAuthConnectorForEmail,
   deleteConnectorForEmail,
   listConnectorsForEmail,
   verifyConnectorForEmail,
@@ -141,6 +142,7 @@ const agentApi: AgentApiDeps = {
 const connectorApi: ConnectorApiDeps = {
   listConnectors: listConnectorsForEmail,
   createConnector: createConnectorForEmail,
+  createOAuthConnector: createOAuthConnectorForEmail,
   verifyConnector: verifyConnectorForEmail,
   deleteConnector: deleteConnectorForEmail,
 };

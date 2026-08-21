@@ -8,6 +8,7 @@ import { CARD_PADDING } from '../theme';
 import {
   connectorHost,
   deleteConnector,
+  takeConnectorError,
   serverLabel,
   verifyConnector,
   type Connector,
@@ -153,6 +154,7 @@ export function Connectors({ token }: { token: string }): ReactNode {
   };
   useDocumentTitle('Connectors');
   const [adding, setAdding] = useState(false);
+  const [returned] = useState(takeConnectorError);
 
   const remove = async (id: number): Promise<void> => {
     await deleteConnector(token, id);
@@ -176,6 +178,9 @@ export function Connectors({ token }: { token: string }): ReactNode {
         />
       </Row>
 
+      {returned === null ? null : (
+        <Text size="sm" role="danger">{`Sign-in did not finish: ${returned}`}</Text>
+      )}
       {error === null ? null : (
         <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>
       )}

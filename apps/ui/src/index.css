@@ -361,17 +361,15 @@ textarea:focus-visible {
   0%,
   100% {
     opacity: 1;
-    transform: scale(1);
   }
   50% {
-    opacity: 0.4;
-    transform: scale(0.94);
+    opacity: 0.35;
   }
 }
 
 .boot-pulse {
   animation: boot-pulse 1.4s ease-in-out infinite;
-  will-change: opacity, transform;
+  will-change: opacity;
 }
 
 @media (prefers-reduced-motion: reduce) {
