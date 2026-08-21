@@ -28,16 +28,12 @@ export function parseAccountId(raw: string): string | null {
   return ACCOUNT_ID_RE.test(raw) ? raw : null;
 }
 
-function newAccountId(): string {
-  return newId();
-}
-
 async function assertTokenFree(
   station: StationName,
   token: string,
 ): Promise<void> {
   const rows = await getDb()
-    .select({ accountId: stations.accountId })
+    .select({ id: stations.id })
     .from(stations)
     .where(
       and(
@@ -66,11 +62,11 @@ export async function attachAccountToAgent(
   if (typeof token === 'string') await assertTokenFree(station, token);
   const db = getDb();
   for (let attempt = 0; attempt < ID_ATTEMPTS; attempt++) {
-    const accountId = newAccountId();
+    const accountId = newId();
     try {
       await db
         .insert(stations)
-        .values({ id: newId(), agentId: agent.id, station, accountId, config });
+        .values({ id: accountId, agentId: agent.id, station, config });
       return { agentId: agent.id, station, accountId };
     } catch (err) {
       if (!isUniqueViolation(err)) throw err;
@@ -95,10 +91,10 @@ export async function detachAccountFromAgent(
       and(
         eq(stations.agentId, agent.id),
         eq(stations.station, station),
-        eq(stations.accountId, accountId),
+        eq(stations.id, accountId),
       ),
     )
-    .returning({ accountId: stations.accountId });
+    .returning({ id: stations.id });
   if (gone.length === 0)
     throw new AgentAdminError('no such account on this agent', 404);
   return { agentId: agent.id, station, accountId };
