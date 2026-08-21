@@ -1,5 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm';
 import {
+  connectorUrlText,
   ConnectorVerifyError,
   parseConnectorUrl,
   verifyRemoteMcp,
@@ -138,7 +139,7 @@ async function insertConnector(
         id: newId(),
         userId,
         name,
-        url: url.toString(),
+        url: connectorUrlText(url),
         transport: 'http',
         config,
       })

@@ -25,18 +25,21 @@ const BLURB = 'Remote MCP servers Metro has checked for you.';
 
 const FALLBACK = 'Could not load your connectors.';
 
-const EMPTY =
-  'No connectors yet. Add one and Metro checks that the server answers before it stores anything. Metro holds the config for you to copy — it does not proxy these servers, and no agent connects through them.';
-
 interface ConnectorsBodyProps {
   data: ConnectorList;
   onOpen: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
+  onError: (message: string) => void;
 }
 
-function ConnectorsBody({ data, onOpen, onDelete }: ConnectorsBodyProps): ReactNode {
+function ConnectorsBody({
+  data,
+  onOpen,
+  onDelete,
+  onError,
+}: ConnectorsBodyProps): ReactNode {
   const rows = data.connectors;
-  if (rows.length === 0) return <Text size="sm" role="secondary">{EMPTY}</Text>;
+  if (rows.length === 0) return null;
   return (
     <>
       <Col>
@@ -46,6 +49,7 @@ function ConnectorsBody({ data, onOpen, onDelete }: ConnectorsBodyProps): ReactN
             row={row}
             onOpen={onOpen}
             onDelete={onDelete}
+            onError={onError}
           />
         ))}
       </Col>
@@ -84,6 +88,7 @@ export function Connectors({
   };
   useDocumentTitle('Connectors');
   const [adding, setAdding] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [returned] = useState(takeConnectorError);
 
   return (
@@ -109,9 +114,17 @@ export function Connectors({
       {error === null ? null : (
         <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>
       )}
+      {failed === null ? null : (
+        <Text size="sm" role="danger">{failed}</Text>
+      )}
       {data === undefined && error === null ? <Loading /> : null}
       {data === undefined ? null : (
-        <ConnectorsBody data={data} onOpen={onOpen} onDelete={remove} />
+        <ConnectorsBody
+          data={data}
+          onOpen={onOpen}
+          onDelete={remove}
+          onError={setFailed}
+        />
       )}
 
       <AddConnector
@@ -120,7 +133,10 @@ export function Connectors({
         onClose={() => {
           setAdding(false);
         }}
-        onAdded={reload}
+        onAdded={(id) => {
+          reload();
+          onOpen(id);
+        }}
       />
     </Col>
   );

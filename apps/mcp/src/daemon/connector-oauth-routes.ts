@@ -79,18 +79,17 @@ export async function handleConnect(
   sendJson(req, res, 202, { status: 'oauth', authorizeUrl: authorize });
 }
 
-function landing(entry: PendingAuth): string {
-  return entry.connectorId === undefined
-    ? '#/connectors'
-    : `#/connector/${entry.connectorId}`;
+function landing(entry: PendingAuth, id?: string): string {
+  const target = id ?? entry.connectorId;
+  return target === undefined ? '#/connectors' : `#/connector/${target}`;
 }
 
-function backTo(entry: PendingAuth, error?: string): string {
+function backTo(entry: PendingAuth, error?: string, id?: string): string {
   const suffix =
     error === undefined
       ? ''
       : `?connector_error=${encodeURIComponent(error)}`;
-  return `${entry.returnTo}${suffix}${landing(entry)}`;
+  return `${entry.returnTo}${suffix}${landing(entry, id)}`;
 }
 
 function redirect(res: ServerResponse, location: string): void {
@@ -124,7 +123,7 @@ async function settleCallback(
       { id: saved.id, name: saved.name, host: hostOf(saved.url) },
       'connector-api: oauth sign-in completed',
     );
-    redirect(res, backTo(entry));
+    redirect(res, backTo(entry, undefined, saved.id));
   } catch (err) {
     log.warn({ err: errMsg(err) }, 'connector-api: oauth sign-in failed');
     redirect(res, backTo(entry, errMsg(err)));

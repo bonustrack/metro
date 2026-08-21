@@ -41,6 +41,12 @@ export function parseConnectorUrl(raw: unknown): URL {
   return url;
 }
 
+export function connectorUrlText(url: URL): string {
+  const text = url.toString();
+  if (url.pathname !== '/' || url.search !== '') return text;
+  return text.endsWith('/') ? text.slice(0, -1) : text;
+}
+
 export function safeIconSrc(raw: unknown): string {
   if (typeof raw !== 'string' || raw === '') return '';
   try {

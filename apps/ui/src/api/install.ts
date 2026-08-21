@@ -49,12 +49,22 @@ export function credential(row: Connector): Credential | null {
   return null;
 }
 
+const BARE_ARG_RE = /^[A-Za-z0-9._:/-]+$/;
+
+export function shellArg(value: string): string {
+  if (BARE_ARG_RE.test(value)) return value;
+  return `"${value.replace(/(["\\$`])/g, '\\$1')}"`;
+}
+
 function claudeCode(row: Connector): Install {
   const auth = credential(row);
-  const base = `claude mcp add --transport http ${row.name} ${row.url}`;
+  const base = `claude mcp add --transport http ${shellArg(row.name)} ${shellArg(row.url)}`;
   return {
     kind: 'command',
-    value: auth === null ? base : `${base} --header "${auth.name}: ${auth.value}"`,
+    value:
+      auth === null
+        ? base
+        : `${base} --header ${shellArg(`${auth.name}: ${auth.value}`)}`,
     secret: auth?.secret ?? null,
     note: 'Registers it for the directory you run it in, not globally.',
   };
@@ -70,7 +80,7 @@ function codexNote(row: Connector): string {
 function codex(row: Connector): Install {
   return {
     kind: 'command',
-    value: `codex mcp add ${row.name} --url ${row.url}`,
+    value: `codex mcp add ${shellArg(row.name)} --url ${shellArg(row.url)}`,
     secret: null,
     note: codexNote(row),
   };

@@ -5,6 +5,7 @@ import {
   expiryNote,
   installFor,
   MCP_CLIENTS,
+  shellArg,
   type McpClient,
 } from '../src/api/install';
 import { type Connector } from '../src/api/connectors';
@@ -93,6 +94,38 @@ describe('every client gets an install that fits how it actually adds a server',
       if (install.kind !== 'link') throw new Error('expected a link target');
       expect(new URL(install.href).protocol).toBe('https:');
     }
+  });
+});
+
+describe('a name is a label now, so the commands have to quote it', () => {
+  const SPACED: Connector = { ...BASE, name: 'My MySQL server' };
+
+  test('a plain name stays bare, so the common command reads cleanly', () => {
+    expect(shellArg('linear')).toBe('linear');
+    expect(shellArg('https://mcp.linear.app/mcp')).toBe(
+      'https://mcp.linear.app/mcp',
+    );
+  });
+
+  test('a name with spaces is quoted rather than split into two arguments', () => {
+    expect(commandFor(SPACED, 'Claude Code')).toBe(
+      'claude mcp add --transport http "My MySQL server" https://mcp.linear.app/mcp',
+    );
+    expect(commandFor(SPACED, 'Codex')).toBe(
+      'codex mcp add "My MySQL server" --url https://mcp.linear.app/mcp',
+    );
+  });
+
+  test('quotes and expansions in a name are escaped, not left to the shell', () => {
+    expect(shellArg('say "hi"')).toBe('"say \\"hi\\""');
+    expect(shellArg('$(whoami)')).toBe('"\\$(whoami)"');
+    expect(shellArg('back`tick`')).toBe('"back\\`tick\\`"');
+  });
+
+  test('a name needing no quotes still reaches the deeplink verbatim', () => {
+    expect(new URL(cursorDeeplink(SPACED)).searchParams.get('name')).toBe(
+      'My MySQL server',
+    );
   });
 });
 

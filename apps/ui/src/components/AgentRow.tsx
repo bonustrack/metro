@@ -7,7 +7,7 @@ import { DeleteAgent } from './DeleteAgent';
 import { opensElsewhere } from './link';
 import { type AgentSummary } from '../api/client';
 
-const ROW_PAD_Y = 12;
+const ROW_PAD_Y = 6;
 const AVATAR_SIZE = 32;
 
 function summary(agent: AgentSummary, stations: number): string {

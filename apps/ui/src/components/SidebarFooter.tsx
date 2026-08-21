@@ -1,25 +1,8 @@
 import { type ReactNode } from 'react';
-import { Pressable } from 'react-native';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui';
 import { Dropdown } from './Dropdown';
+import { NavRow } from './NavRow';
 import { type Selection } from './selection';
-
-interface SidebarLinkProps {
-  label: string;
-  active?: boolean;
-  onPress: () => void;
-}
-
-function SidebarLink({ label, active = false, onPress }: SidebarLinkProps): ReactNode {
-  return (
-    <Pressable accessibilityRole="link" onPress={onPress}>
-      <Text size="lg" role={active ? 'link' : 'secondary'} weight={active ? 'semibold' : 'normal'}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
 
 interface SidebarFooterProps {
   email: string;
@@ -36,12 +19,12 @@ export function SidebarFooter({
 }: SidebarFooterProps): ReactNode {
   return (
     <Col gap={10} padding={{ x: 24, bottom: 24, top: 16 }}>
-      <SidebarLink
+      <NavRow
         label="Documentation"
-        active={selection.kind === 'docs'}
-        onPress={() => {
-          onSelect({ kind: 'docs' });
-        }}
+        icon="bookOpen"
+        selected={selection.kind === 'docs'}
+        target={{ kind: 'docs' }}
+        onSelect={onSelect}
       />
       <Dropdown
         className="account-trigger"

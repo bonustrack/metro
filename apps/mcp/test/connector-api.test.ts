@@ -17,7 +17,7 @@ const BOB = 'bob@builder.dev';
 
 const AGENT_KEY = 'mk_connector_surface_probe';
 
-const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;
+const NAME_RE = /^.{1,64}$/;
 
 interface ConnectorInput {
   name: unknown;
@@ -122,7 +122,7 @@ function makeRow(email: string, input: ConnectorInput): Row {
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   if (!NAME_RE.test(name))
     throw new ApiError(
-      'name must be 2-32 characters of A-Z, a-z, 0-9, - or _, starting with a letter or digit',
+      'a connector needs a name',
       400,
     );
   const url = parseConnectorUrl(input.url);
@@ -553,8 +553,18 @@ describe('POST /api/connectors', () => {
     expect(res.status).toBe(201);
   });
 
-  test('a name with a space is 400 — it would paste as two words', async () => {
-    for (const name of ['my linear', '', 'a', '-leading', 'x'.repeat(33)]) {
+  test('a name is a label now — spaces and punctuation are accepted', async () => {
+    for (const name of ['my linear', 'a', '-leading', 'Snapshot · prod']) {
+      const res = await call('POST', '/api/connectors', session(ADA), {
+        name,
+        url: `https://${name.length}.example.com/mcp`,
+      });
+      expect([name, res.status]).toEqual([name, 201]);
+    }
+  });
+
+  test('a name still has to be there, and cannot run on forever', async () => {
+    for (const name of ['', '   ', 'x'.repeat(65)]) {
       const res = await call('POST', '/api/connectors', session(ADA), {
         name,
         url: 'https://mcp.linear.app/mcp',

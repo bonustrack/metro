@@ -6,7 +6,7 @@ import type {
 } from '../daemon/connector-verify.js';
 import { readStoredTools } from '../daemon/connector-tools.js';
 
-const CONNECTOR_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;
+const CONNECTOR_NAME_MAX = 64;
 const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
 const HEADER_VALUE_RE = /^[\x20-\x7e]{1,4096}$/;
 const DEFAULT_HEADER = 'Authorization';
@@ -30,11 +30,25 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function hasControlChar(value: string): boolean {
+  for (const ch of value) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
 export function connectorName(raw: unknown): string {
   const name = typeof raw === 'string' ? raw.trim() : '';
-  if (!CONNECTOR_NAME_RE.test(name))
+  if (name === '') throw new ConnectorError('a connector needs a name', 400);
+  if (name.length > CONNECTOR_NAME_MAX)
     throw new ConnectorError(
-      'name must be 2-32 characters of A-Z, a-z, 0-9, - or _, starting with a letter or digit',
+      `a connector name must be ${String(CONNECTOR_NAME_MAX)} characters or fewer`,
+      400,
+    );
+  if (hasControlChar(name))
+    throw new ConnectorError(
+      'a connector name must not contain control characters',
       400,
     );
   return name;

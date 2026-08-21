@@ -68,6 +68,7 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
       <DeleteConnector
         connector={connector}
         onDelete={props.onDelete}
+        onError={onError}
         size="lg"
         extra={[
           {

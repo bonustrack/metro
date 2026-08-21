@@ -21,9 +21,15 @@ interface ConnectorRowProps {
   row: Connector;
   onOpen: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
+  onError: (message: string) => void;
 }
 
-export function ConnectorRow({ row, onOpen, onDelete }: ConnectorRowProps): ReactNode {
+export function ConnectorRow({
+  row,
+  onOpen,
+  onDelete,
+  onError,
+}: ConnectorRowProps): ReactNode {
   const palette = useKitPalette();
   return (
     <Row
@@ -61,7 +67,12 @@ export function ConnectorRow({ row, onOpen, onDelete }: ConnectorRowProps): Reac
         </Col>
       </a>
       <Row align="center" padding={{ y: ROW_PAD_Y }}>
-        <DeleteConnector connector={row} onDelete={onDelete} size="lg" />
+        <DeleteConnector
+          connector={row}
+          onDelete={onDelete}
+          onError={onError}
+          size="lg"
+        />
       </Row>
     </Row>
   );

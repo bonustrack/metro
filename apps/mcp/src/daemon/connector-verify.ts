@@ -10,6 +10,7 @@ import { toToolList, type ToolInfo } from './connector-tools.js';
 export {
   ConnectorUnauthorized,
   ConnectorVerifyError,
+  connectorUrlText,
   parseConnectorUrl,
 } from './connector-url.js';
 

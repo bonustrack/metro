@@ -45,6 +45,10 @@ export function Button({ textStyle, ...props }: ButtonProps): ReactElement {
 }
 
 export function Input({ style, ...props }: InputProps): ReactElement {
-  const base = { fontFamily: FONT_SANS, fontSize: typeSize(FONT_SIZE.md) };
+  const base = {
+    fontFamily: FONT_SANS,
+    fontSize: typeSize(FONT_SIZE.md),
+    borderWidth: 0,
+  };
   return <KitInput {...props} style={style === undefined ? base : [base, style]} />;
 }

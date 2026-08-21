@@ -4,17 +4,11 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui';
 import { GROW } from '../theme';
 import {
-  connectorHost,
   createConnector,
-  serverLabel,
   type Connector,
   type NewConnector,
 } from '../api/connectors';
-import { CopyBlock } from './CopyBlock';
-import { Field } from './Field';
 import { Modal } from './Modal';
-
-type Step = { kind: 'form' } | { kind: 'done'; result: Connector };
 
 type FieldKey = keyof NewConnector;
 
@@ -159,47 +153,8 @@ function ConnectorForm({ token, onAdded, onCancel }: ConnectorFormProps): ReactN
           onPress={submit}
           loading={busy}
           disabled={busy || !complete}
-          label="Connect"
+          label="Add"
         />
-      </Row>
-    </Col>
-  );
-}
-
-function AddedConnector({
-  result,
-  onDismiss,
-}: {
-  result: Connector;
-  onDismiss: () => void;
-}): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const verified = result.verified;
-  return (
-    <Col gap={14}>
-      <Col gap={4}>
-        <Text size="lg" weight="semibold">{result.name} connected</Text>
-        <Text size="sm" role="secondary">
-          Metro reached {connectorHost(result.url)} and it answered as an MCP
-          server. Paste the block below into your MCP client config.
-        </Text>
-      </Col>
-      {verified === null ? null : (
-        <Row gap={20} wrap>
-          <Field label="tools" value={String(verified.tools)} />
-          <Field label="server" value={serverLabel(verified)} />
-          <Field label="protocol" value={verified.protocol} />
-        </Row>
-      )}
-      <CopyBlock
-        key={result.json}
-        label="mcp config"
-        value={result.json}
-        secret={result.secret !== null}
-        hide={result.secret}
-      />
-      <Row justify="end">
-        <Button color="secondary" dark={dark} onPress={onDismiss} label="Done" />
       </Row>
     </Col>
   );
@@ -209,34 +164,22 @@ interface AddConnectorProps {
   token: string;
   open: boolean;
   onClose: () => void;
-  onAdded: () => void;
+  onAdded: (id: string) => void;
 }
 
 export function AddConnector(props: AddConnectorProps): ReactNode {
   const { token, open, onClose, onAdded } = props;
-  const [step, setStep] = useState<Step>({ kind: 'form' });
-
-  const close = (): void => {
-    setStep({ kind: 'form' });
-    onClose();
-  };
 
   return (
-    <Modal title="Add connector" open={open} onClose={close}>
-      {step.kind === 'form' ? (
-        <ConnectorForm
-          token={token}
-          onCancel={close}
-          onAdded={(result) => {
-            setStep({ kind: 'done', result });
-            onAdded();
-          }}
-        />
-      ) : null}
-
-      {step.kind === 'done' ? (
-        <AddedConnector result={step.result} onDismiss={close} />
-      ) : null}
+    <Modal title="Add connector" open={open} onClose={onClose}>
+      <ConnectorForm
+        token={token}
+        onCancel={onClose}
+        onAdded={(result) => {
+          onClose();
+          onAdded(result.id);
+        }}
+      />
     </Modal>
   );
 }
