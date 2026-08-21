@@ -31,6 +31,7 @@ import {
   handleConnectorApiRequest,
   type ConnectorApiDeps,
 } from './connector-api.js';
+import { handleSessionApiRequest } from './session-api.js';
 import { handleUploadRequest } from './upload-api.js';
 import {
   handleMonitorRequest,
@@ -340,6 +341,7 @@ function handleSessionApis(
   agentApi?: AgentApiDeps,
   connectorApi?: ConnectorApiDeps,
 ): boolean {
+  if (handleSessionApiRequest(req, res)) return true;
   if (agentApi && handleAgentApiRequest(req, res, agentApi)) return true;
   return Boolean(
     connectorApi && handleConnectorApiRequest(req, res, connectorApi),

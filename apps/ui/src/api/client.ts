@@ -41,6 +41,7 @@ export interface CreatedAgent {
 }
 
 const agentsUrl = (): string => `${daemonBase()}/api/agents`;
+const sessionUrl = (): string => `${daemonBase()}/api/session`;
 
 function errorText(body: unknown, status: number): string {
   if (isRecord(body) && typeof body.error === 'string') return body.error;
@@ -125,6 +126,13 @@ function toAgentsView(body: Record<string, unknown>): AgentsView {
     endpoint: typeof body.endpoint === 'string' ? body.endpoint : '',
     agents: toAgents(body.agents),
   };
+}
+
+export async function fetchSession(token: string): Promise<string> {
+  const body = await call(token, { base: sessionUrl(), method: 'GET' });
+  if (!isRecord(body) || typeof body.email !== 'string')
+    throw new Error('Metro returned an unexpected response.');
+  return body.email;
 }
 
 export async function fetchAgents(token: string): Promise<AgentsView> {

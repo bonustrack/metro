@@ -356,3 +356,26 @@ textarea:focus-visible {
 
 .kebab-item:hover { background: var(--metro-border); }
 .kebab-danger { color: #d6453d; }
+
+@keyframes boot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.94);
+  }
+}
+
+.boot-pulse {
+  animation: boot-pulse 1.4s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-pulse {
+    animation: none;
+  }
+}
