@@ -40,6 +40,9 @@ export function AgentPanel({
           await deleteConnector(token, id);
           onSelect({ kind: 'connectors' });
         }}
+        onBack={() => {
+          onSelect({ kind: 'connectors' });
+        }}
       />
     );
   if (selection.kind === 'station')
@@ -61,6 +64,9 @@ export function AgentPanel({
           onSelect({ kind: 'station', accountId });
         }}
         onGone={() => {
+          onSelect({ kind: 'none' });
+        }}
+        onBack={() => {
           onSelect({ kind: 'none' });
         }}
       />

@@ -5,6 +5,7 @@ import { Text } from './ui';
 import { SHRINK } from '../theme';
 import { connectorHost, type Connector } from '../api/connectors';
 import { ConnectorIcon } from './ConnectorIcon';
+import { DeleteConnector } from './DeleteConnector';
 
 const ROW_PAD_Y = 12;
 const ICON_SIZE = 28;
@@ -20,13 +21,16 @@ function summary(row: Connector): string {
 interface ConnectorRowProps {
   row: Connector;
   onOpen: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
 }
 
-export function ConnectorRow({ row, onOpen }: ConnectorRowProps): ReactNode {
+export function ConnectorRow({ row, onOpen, onDelete }: ConnectorRowProps): ReactNode {
   const palette = useKitPalette();
   return (
     <Row
+      justify="between"
       align="stretch"
+      gap={12}
       border={{ bottom: { width: 1, color: palette.border } }}
     >
       <a
@@ -62,6 +66,9 @@ export function ConnectorRow({ row, onOpen }: ConnectorRowProps): ReactNode {
           <Text size="sm" role="secondary">{summary(row)}</Text>
         </Col>
       </a>
+      <Row align="center" padding={{ y: ROW_PAD_Y }}>
+        <DeleteConnector connector={row} onDelete={onDelete} size="lg" />
+      </Row>
     </Row>
   );
 }

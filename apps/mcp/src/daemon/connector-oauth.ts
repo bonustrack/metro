@@ -35,6 +35,7 @@ export interface BeginInput {
   name: string;
   url: URL;
   returnTo: string;
+  connectorId?: string;
 }
 
 export async function beginOAuth(input: BeginInput): Promise<string> {
@@ -54,6 +55,9 @@ export async function beginOAuth(input: BeginInput): Promise<string> {
     verifier,
     server,
     client,
+    ...(input.connectorId === undefined
+      ? {}
+      : { connectorId: input.connectorId }),
   });
   return authorizeUrl({
     server,

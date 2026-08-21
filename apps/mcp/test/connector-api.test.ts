@@ -33,6 +33,7 @@ interface Row {
   url: string;
   header: string | null;
   secret: string | null;
+  signIn?: 'connected' | 'disconnected' | null;
 }
 
 interface WireConnector {
@@ -43,6 +44,7 @@ interface WireConnector {
   auth: string;
   header: string | null;
   secret: string | null;
+  signIn: 'connected' | 'disconnected' | null;
   json: string;
   verified: {
     at: string;
@@ -104,6 +106,7 @@ const toConnector = (row: Row) => ({
   auth: row.secret === null ? 'none' : 'header',
   header: row.header,
   secret: row.secret,
+  signIn: row.signIn ?? null,
   verified: VERIFIED,
 });
 
@@ -169,6 +172,17 @@ const deps: ConnectorApiDeps = {
         reason: 'rejects.example.com rejected that credential.',
       };
     return { id: row.id, name: row.name, ok: true, verified: VERIFIED };
+  },
+  getConnector: async (email, id) => {
+    calls.push(`get ${email} ${id}`);
+    return toConnector(ownedOrThrow(email, id));
+  },
+  disconnectConnector: async (email, id) => {
+    calls.push(`disconnect ${email} ${id}`);
+    const row = ownedOrThrow(email, id);
+    const next: Row = { ...row, header: null, secret: null, signIn: null };
+    rows = rows.map((r) => (r.id === id ? next : r));
+    return toConnector(next);
   },
   deleteConnector: async (email, id) => {
     calls.push(`delete ${email} ${id}`);
@@ -332,12 +346,87 @@ describe('the routing gates run before authentication', () => {
       ['PUT', '/api/connectors/agent000001'],
       ['GET', '/api/connectors/agent000001/verify'],
       ['DELETE', '/api/connectors/agent000001/verify'],
+      ['GET', '/api/connectors/agent000001/connect'],
+      ['DELETE', '/api/connectors/agent000001/connect'],
+      ['GET', '/api/connectors/agent000001/disconnect'],
+      ['DELETE', '/api/connectors/agent000001/disconnect'],
     ] as const) {
       const res = await call(method, path);
       expect([method, path, res.status]).toEqual([method, path, 405]);
       expect(await res.json()).toEqual({ error: 'method not allowed' });
     }
     expect(calls).toEqual([]);
+  });
+
+  test('a sub-path that is not a real action is a 404, decided before auth', async () => {
+    for (const path of [
+      '/api/connectors/agent000001/nonsense',
+      '/api/connectors/agent000001/verify/extra',
+      '/api/connectors/agent000001/connect/now',
+    ]) {
+      const res = await fetch(`${base}${path}`, { method: 'POST' });
+      expect([path, res.status]).toEqual([path, 404]);
+      expect(await res.json()).toEqual({ error: 'no such connector' });
+    }
+    expect(calls).toEqual([]);
+  });
+});
+
+describe('a connector can be signed out without being deleted', () => {
+  test('disconnect reaches the writer and answers with the row, not a deletion', async () => {
+    const res = await call('POST', '/api/connectors/agent000001/disconnect', session(ADA));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      id: 'agent000001',
+      name: 'linear',
+      signIn: null,
+    });
+    expect(calls).toEqual([`disconnect ${ADA} agent000001`]);
+    expect(rows.some((r) => r.id === 'agent000001')).toBe(true);
+  });
+
+  test('the row it answers with carries the cleared credential', async () => {
+    const res = await call('POST', '/api/connectors/agent000001/disconnect', session(ADA));
+    expect(await res.json()).toMatchObject({ header: null, secret: null });
+  });
+
+  test('disconnecting a connector you do not own is the same 404 as one that is not there', async () => {
+    const theirs = await call(
+      'POST',
+      '/api/connectors/agent000003/disconnect',
+      session(ADA),
+    );
+    const nothing = await call(
+      'POST',
+      '/api/connectors/agent000999/disconnect',
+      session(ADA),
+    );
+    expect([theirs.status, nothing.status]).toEqual([404, 404]);
+    expect(await theirs.json()).toEqual({ error: 'no such connector' });
+  });
+
+  test('disconnect is session-gated, never open to an agent key', async () => {
+    const bare = await call('POST', '/api/connectors/agent000001/disconnect');
+    const keyed = await call(
+      'POST',
+      '/api/connectors/agent000001/disconnect',
+      AGENT_KEY,
+    );
+    expect([bare.status, keyed.status]).toEqual([401, 401]);
+    expect(calls).toEqual([]);
+  });
+
+  test('a signed-in row reports connected, so the page can offer Disconnect', async () => {
+    rows = rows.map((r) =>
+      r.id === 'agent000002' ? { ...r, signIn: 'connected' as const } : r,
+    );
+    const res = await call('GET', '/api/connectors', session(ADA));
+    const body = (await res.json()) as { connectors: { id: string; signIn: unknown }[] };
+    const seen = body.connectors.map((c) => [c.id, c.signIn]);
+    expect(seen).toEqual([
+      ['agent000001', null],
+      ['agent000002', 'connected'],
+    ]);
   });
 });
 
@@ -358,6 +447,7 @@ describe('GET /api/connectors returns the wire shape', () => {
       auth: 'header',
       header: 'Authorization',
       secret: 'Bearer lin_oauth_7f',
+      signIn: null,
       json: JSON.stringify(
         {
           mcpServers: {

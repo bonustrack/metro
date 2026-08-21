@@ -43,8 +43,10 @@ import {
   createConnectorForEmail,
   createOAuthConnectorForEmail,
   deleteConnectorForEmail,
+  disconnectConnectorForEmail,
   getConnectorForEmail,
   listConnectorsForEmail,
+  reconnectConnectorForEmail,
   verifyConnectorForEmail,
 } from '../db/connectors.js';
 import type { StationName } from '../db/schema.js';
@@ -144,8 +146,10 @@ const connectorApi: ConnectorApiDeps = {
   listConnectors: listConnectorsForEmail,
   createConnector: createConnectorForEmail,
   createOAuthConnector: createOAuthConnectorForEmail,
+  reconnectConnector: reconnectConnectorForEmail,
   getConnector: getConnectorForEmail,
   verifyConnector: verifyConnectorForEmail,
+  disconnectConnector: disconnectConnectorForEmail,
   deleteConnector: deleteConnectorForEmail,
 };
 

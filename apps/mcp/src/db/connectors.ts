@@ -1,5 +1,4 @@
 import { and, asc, eq } from 'drizzle-orm';
-import { ApiError } from '../daemon/api-error.js';
 import {
   ConnectorVerifyError,
   parseConnectorUrl,
@@ -7,21 +6,22 @@ import {
   type ConnectorAuth,
   type OAuthAuth,
   type VerifiedRecord,
-  type VerifiedServer,
 } from '../daemon/connector-verify.js';
 import { oauthExpired, refreshOAuth } from '../daemon/connector-oauth.js';
-import { readStoredTools } from '../daemon/connector-tools.js';
+import {
+  ConnectorError,
+  connectorAuth,
+  connectorName,
+  readConfig,
+  signInState,
+  stamp,
+  type ConnectorConfig,
+  type ConnectorSignIn,
+} from './connector-config.js';
 import { newId } from './ids.js';
 import { getDb } from './client.js';
 import { ensureUser, isUniqueViolation, userIdForEmail } from './agent-admin.js';
 import { connectors, type ConnectorTransport } from './schema.js';
-
-const CONNECTOR_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;
-const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
-const HEADER_VALUE_RE = /^[\x20-\x7e]{1,4096}$/;
-const DEFAULT_HEADER = 'Authorization';
-
-class ConnectorError extends ApiError {}
 
 export interface Connector {
   id: string;
@@ -31,6 +31,9 @@ export interface Connector {
   auth: ConnectorAuth['kind'];
   header: string | null;
   secret: string | null;
+  bearer: string | null;
+  expiresAt: number | null;
+  signIn: ConnectorSignIn;
   verified: VerifiedRecord;
 }
 
@@ -50,113 +53,7 @@ export interface DeletedConnector {
   name: string;
 }
 
-interface ConnectorConfig {
-  auth: ConnectorAuth;
-  createdAt: string;
-  verified: VerifiedRecord;
-}
-
 type ConnectorRow = typeof connectors.$inferSelect;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function text(value: unknown): string {
-  return typeof value === 'string' ? value : '';
-}
-
-function connectorName(raw: unknown): string {
-  const name = typeof raw === 'string' ? raw.trim() : '';
-  if (!CONNECTOR_NAME_RE.test(name))
-    throw new ConnectorError(
-      'name must be 2-32 characters of A-Z, a-z, 0-9, - or _, starting with a letter or digit',
-      400,
-    );
-  return name;
-}
-
-function connectorAuth(rawHeader: unknown, rawValue: unknown): ConnectorAuth {
-  const header = text(rawHeader).trim();
-  const value = text(rawValue).trim();
-  if (header === '' && value === '') return { kind: 'none' };
-  if (value === '')
-    throw new ConnectorError(
-      'that header has no value — give both a header name and its value, or neither',
-      400,
-    );
-  const name = header === '' ? DEFAULT_HEADER : header;
-  if (!HEADER_NAME_RE.test(name))
-    throw new ConnectorError('that is not a valid HTTP header name', 400);
-  if (!HEADER_VALUE_RE.test(value))
-    throw new ConnectorError('that header value is not sendable', 400);
-  return { kind: 'header', name, value };
-}
-
-function readOAuth(raw: Record<string, unknown>): ConnectorAuth {
-  const accessToken = text(raw.accessToken);
-  const clientId = text(raw.clientId);
-  const tokenEndpoint = text(raw.tokenEndpoint);
-  if (accessToken === '' || clientId === '' || tokenEndpoint === '')
-    return { kind: 'none' };
-  const refreshToken = text(raw.refreshToken);
-  const clientSecret = text(raw.clientSecret);
-  return {
-    kind: 'oauth',
-    accessToken,
-    clientId,
-    tokenEndpoint,
-    issuer: text(raw.issuer),
-    ...(refreshToken === '' ? {} : { refreshToken }),
-    ...(clientSecret === '' ? {} : { clientSecret }),
-    ...(typeof raw.expiresAt === 'number' ? { expiresAt: raw.expiresAt } : {}),
-  };
-}
-
-function readAuth(raw: unknown): ConnectorAuth {
-  if (!isRecord(raw)) return { kind: 'none' };
-  if (raw.kind === 'oauth') return readOAuth(raw);
-  if (raw.kind !== 'header') return { kind: 'none' };
-  const name = text(raw.name);
-  const value = text(raw.value);
-  if (name === '' || value === '') return { kind: 'none' };
-  return { kind: 'header', name, value };
-}
-
-function readVerified(raw: unknown): VerifiedRecord {
-  const record = isRecord(raw) ? raw : {};
-  const catalog = readStoredTools(record.catalog);
-  return {
-    at: text(record.at),
-    server: text(record.server),
-    version: text(record.version),
-    protocol: text(record.protocol),
-    icon: text(record.icon),
-    tools: typeof record.tools === 'number' ? record.tools : 0,
-    catalog,
-  };
-}
-
-function readConfig(raw: unknown): ConnectorConfig {
-  const record = isRecord(raw) ? raw : {};
-  return {
-    auth: readAuth(record.auth),
-    createdAt: text(record.createdAt),
-    verified: readVerified(record.verified),
-  };
-}
-
-function stamp(server: VerifiedServer): VerifiedRecord {
-  return {
-    at: new Date().toISOString(),
-    server: server.server,
-    version: server.version,
-    protocol: server.protocol,
-    icon: server.icon,
-    tools: server.tools,
-    catalog: server.catalog,
-  };
-}
 
 function toConnector(row: ConnectorRow): Connector {
   const config = readConfig(row.config);
@@ -169,6 +66,9 @@ function toConnector(row: ConnectorRow): Connector {
     auth: auth.kind,
     header: auth.kind === 'header' ? auth.name : null,
     secret: auth.kind === 'header' ? auth.value : null,
+    bearer: auth.kind === 'oauth' ? auth.accessToken : null,
+    expiresAt: auth.kind === 'oauth' ? (auth.expiresAt ?? null) : null,
+    signIn: signInState(config),
     verified: config.verified,
   };
 }
@@ -188,6 +88,20 @@ async function ownedConnectorOrThrow(
   const row = rows[0];
   if (row === undefined) throw missing();
   return row;
+}
+
+async function saveConfig(
+  row: ConnectorRow,
+  config: ConnectorConfig,
+): Promise<Connector> {
+  const rows = await getDb()
+    .update(connectors)
+    .set({ config })
+    .where(and(eq(connectors.id, row.id), eq(connectors.userId, row.userId)))
+    .returning();
+  const saved = rows[0];
+  if (saved === undefined) throw missing();
+  return toConnector(saved);
 }
 
 export async function listConnectorsForEmail(
@@ -255,6 +169,7 @@ export async function createConnectorForEmail(
     auth,
     createdAt: new Date().toISOString(),
     verified,
+    oauth: false,
   });
 }
 
@@ -284,7 +199,33 @@ export async function createOAuthConnectorForEmail(
     auth: input.auth,
     createdAt: new Date().toISOString(),
     verified,
+    oauth: true,
   });
+}
+
+export async function reconnectConnectorForEmail(
+  email: string,
+  id: string,
+  auth: OAuthAuth,
+): Promise<Connector> {
+  const userId = await userIdForEmail(email);
+  const row = await ownedConnectorOrThrow(userId, id);
+  const config = readConfig(row.config);
+  const url = parseConnectorUrl(row.url);
+  const verified = stamp(await verifyRemoteMcp(url, auth));
+  return saveConfig(row, { ...config, auth, verified, oauth: true });
+}
+
+export async function disconnectConnectorForEmail(
+  email: string,
+  id: string,
+): Promise<Connector> {
+  const userId = await userIdForEmail(email);
+  const row = await ownedConnectorOrThrow(userId, id);
+  const config = readConfig(row.config);
+  if (config.auth.kind !== 'oauth')
+    throw new ConnectorError('that connector is not signed in', 400);
+  return saveConfig(row, { ...config, auth: { kind: 'none' }, oauth: true });
 }
 
 export async function verifyConnectorForEmail(
@@ -298,10 +239,7 @@ export async function verifyConnectorForEmail(
     const url = parseConnectorUrl(row.url);
     const auth = await freshAuth(config.auth, url.toString());
     const verified = stamp(await verifyRemoteMcp(url, auth));
-    await getDb()
-      .update(connectors)
-      .set({ config: { ...config, auth, verified } })
-      .where(and(eq(connectors.id, row.id), eq(connectors.userId, row.userId)));
+    await saveConfig(row, { ...config, auth, verified });
     return { id: row.id, name: row.name, ok: true, verified };
   } catch (err) {
     if (!(err instanceof ConnectorVerifyError)) throw err;

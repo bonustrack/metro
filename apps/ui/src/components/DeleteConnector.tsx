@@ -1,16 +1,21 @@
 import { type ReactNode, useState } from 'react';
 import { type Connector } from '../api/connectors';
 import { ConfirmModal } from './ConfirmModal';
+import { type MenuItem } from './Dropdown';
 import { KebabMenu } from './KebabMenu';
 
 interface DeleteConnectorProps {
   connector: Connector;
   onDelete: (id: string) => Promise<void>;
+  size?: 'sm' | 'lg';
+  extra?: MenuItem[];
 }
 
 export function DeleteConnector({
   connector,
   onDelete,
+  size,
+  extra = [],
 }: DeleteConnectorProps): ReactNode {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -29,9 +34,11 @@ export function DeleteConnector({
     <>
       <KebabMenu
         label="Connector actions"
+        size={size}
         items={[
+          ...extra,
           {
-            label: 'Delete connector',
+            label: 'Remove',
             danger: true,
             onSelect: () => {
               setError(null);
@@ -42,14 +49,14 @@ export function DeleteConnector({
       />
       <ConfirmModal
         open={open}
-        title="Delete connector"
+        title="Remove"
         lines={[
-          'This deletes the bookmark and the credential Metro stores for it. A config you have already pasted into an MCP client keeps working — Metro is only the holder.',
+          'This removes the bookmark and the credential Metro stores for it. A config you have already pasted into an MCP client keeps working — Metro is only the holder.',
           'This cannot be undone. Adding it again means pasting the URL and the credential once more.',
         ]}
         prompt={`Type ${connector.name} to confirm.`}
         confirmWord={connector.name}
-        confirmLabel="Delete connector"
+        confirmLabel="Remove"
         busy={busy}
         error={error}
         onClose={() => {

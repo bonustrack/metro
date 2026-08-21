@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
+import { Text } from './ui';
 import { SHRINK } from '../theme';
 import { PageTitle } from './PageTitle';
 import {
@@ -17,9 +16,10 @@ import {
   queryError,
   useConnectorQuery,
 } from '../api/queries';
+import { BackLink } from './BackLink';
+import { ConnectorActions } from './ConnectorActions';
 import { ConnectorIcon } from './ConnectorIcon';
-import { CopyBlock } from './CopyBlock';
-import { DeleteConnector } from './DeleteConnector';
+import { ConnectorInstall } from './ConnectorInstall';
 import { Field } from './Field';
 import { Loading } from './Loading';
 import { ToolList } from './ToolList';
@@ -40,6 +40,7 @@ interface ConnectorPageProps {
   token: string;
   id: string;
   onDelete: (id: string) => Promise<void>;
+  onBack: () => void;
 }
 
 function whenLabel(at: string): string {
@@ -92,13 +93,23 @@ export function ConnectorPage({
   token,
   id,
   onDelete,
+  onBack,
 }: ConnectorPageProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const { data, error } = useConnectorQuery(token, id);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   useDocumentTitle(data?.name ?? 'Connector');
+
+  const reload = (): void => {
+    setStatus(null);
+    client
+      .invalidateQueries({ queryKey: connectorKey(id) })
+      .catch(() => undefined);
+    client
+      .invalidateQueries({ queryKey: connectorsKey() })
+      .catch(() => undefined);
+  };
 
   const recheck = (): void => {
     if (busy) return;
@@ -125,34 +136,26 @@ export function ConnectorPage({
 
   return (
     <Col gap={20}>
-      <Row justify="between" align="start" gap={12} wrap>
-        <ConnectorHeading connector={data} />
-        <Row gap={8} align="center">
-          <Button
-            size="sm"
-            color="secondary"
-            dark={dark}
-            onPress={recheck}
-            loading={busy}
-            disabled={busy}
-            label="Check"
+      <Col gap={8}>
+        <BackLink label="Connectors" href="#/connectors" onPress={onBack} />
+        <Row justify="between" align="start" gap={12} wrap>
+          <ConnectorHeading connector={data} />
+          <ConnectorActions
+            token={token}
+            connector={data}
+            refreshing={busy}
+            onRefresh={recheck}
+            onDelete={onDelete}
+            onChanged={reload}
+            onError={setStatus}
           />
-          <DeleteConnector connector={data} onDelete={onDelete} />
         </Row>
-      </Row>
+      </Col>
 
       <ConnectorFacts connector={data} />
       {status !== null ? <Text size="sm" role="secondary">{status}</Text> : null}
 
-      <Col>
-        <CopyBlock
-          key={data.json}
-          label="mcp config"
-          value={data.json}
-          secret={data.secret !== null}
-          hide={data.secret}
-        />
-      </Col>
+      <ConnectorInstall connector={data} />
 
       <Col gap={10}>
         <Col gap={2}>

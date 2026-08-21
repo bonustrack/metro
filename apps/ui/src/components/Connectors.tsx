@@ -4,7 +4,11 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { SHRINK } from '../theme';
 import { PageTitle } from './PageTitle';
-import { takeConnectorError, type ConnectorList } from '../api/connectors';
+import {
+  deleteConnector,
+  takeConnectorError,
+  type ConnectorList,
+} from '../api/connectors';
 import { AddConnector } from './AddConnector';
 import { ConnectorRow } from './ConnectorRow';
 import { CopyBlock } from './CopyBlock';
@@ -27,16 +31,22 @@ const EMPTY =
 interface ConnectorsBodyProps {
   data: ConnectorList;
   onOpen: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
 }
 
-function ConnectorsBody({ data, onOpen }: ConnectorsBodyProps): ReactNode {
+function ConnectorsBody({ data, onOpen, onDelete }: ConnectorsBodyProps): ReactNode {
   const rows = data.connectors;
   if (rows.length === 0) return <Text size="sm" role="secondary">{EMPTY}</Text>;
   return (
     <>
       <Col>
         {rows.map((row) => (
-          <ConnectorRow key={row.id} row={row} onOpen={onOpen} />
+          <ConnectorRow
+            key={row.id}
+            row={row}
+            onOpen={onOpen}
+            onDelete={onDelete}
+          />
         ))}
       </Col>
       {rows.length > 1 ? (
@@ -68,6 +78,10 @@ export function Connectors({
       .invalidateQueries({ queryKey: connectorsKey() })
       .catch(() => undefined);
   };
+  const remove = async (id: string): Promise<void> => {
+    await deleteConnector(token, id);
+    await client.invalidateQueries({ queryKey: connectorsKey() });
+  };
   useDocumentTitle('Connectors');
   const [adding, setAdding] = useState(false);
   const [returned] = useState(takeConnectorError);
@@ -97,7 +111,7 @@ export function Connectors({
       )}
       {data === undefined && error === null ? <Loading /> : null}
       {data === undefined ? null : (
-        <ConnectorsBody data={data} onOpen={onOpen} />
+        <ConnectorsBody data={data} onOpen={onOpen} onDelete={remove} />
       )}
 
       <AddConnector

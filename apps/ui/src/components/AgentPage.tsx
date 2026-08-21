@@ -20,6 +20,7 @@ interface AgentPageProps {
   id: string;
   onOpenStation: (accountId: string) => void;
   onGone: () => void;
+  onBack: () => void;
 }
 
 function Notice({ text }: { text: string }): ReactNode {
@@ -29,7 +30,7 @@ function Notice({ text }: { text: string }): ReactNode {
 }
 
 export function AgentPage(props: AgentPageProps): ReactNode {
-  const { token, id, onOpenStation, onGone } = props;
+  const { token, id, onOpenStation, onGone, onBack } = props;
   const client = useQueryClient();
   const { data, error } = useStationsQuery(token);
   const refresh = (): void => {
@@ -57,6 +58,7 @@ export function AgentPage(props: AgentPageProps): ReactNode {
         attachable={data.attachable}
         unattributed={data.unattributed}
         onOpenStation={onOpenStation}
+        onBack={onBack}
         onChanged={refresh}
         onDelete={async (agentId) => {
           await deleteAgent(token, agentId);

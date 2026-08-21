@@ -4,6 +4,8 @@ import { isRecord } from './accounts';
 
 export type ConnectorAuth = 'header' | 'oauth' | 'none';
 
+export type ConnectorSignIn = 'connected' | 'disconnected' | null;
+
 export const TOOL_KINDS = ['read', 'write'] as const;
 
 export type ToolKind = (typeof TOOL_KINDS)[number];
@@ -37,6 +39,9 @@ export interface Connector {
   auth: ConnectorAuth;
   header: string | null;
   secret: string | null;
+  bearer: string | null;
+  expiresAt: number | null;
+  signIn: ConnectorSignIn;
   json: string;
   verified: ConnectorVerified | null;
 }
@@ -117,6 +122,12 @@ function toVerified(value: unknown): ConnectorVerified | null {
   };
 }
 
+function toSignIn(value: unknown): ConnectorSignIn {
+  if (value === 'connected') return 'connected';
+  if (value === 'disconnected') return 'disconnected';
+  return null;
+}
+
 function toConnector(value: unknown): Connector {
   if (!isRecord(value) || typeof value.name !== 'string')
     throw new Error('Metro returned an unexpected response.');
@@ -133,6 +144,9 @@ function toConnector(value: unknown): Connector {
           : 'none',
     header: nullable(value.header),
     secret: nullable(value.secret),
+    bearer: nullable(value.bearer),
+    expiresAt: typeof value.expiresAt === 'number' ? value.expiresAt : null,
+    signIn: toSignIn(value.signIn),
     json: str(value.json),
     verified: toVerified(value.verified),
   };
@@ -228,6 +242,34 @@ export async function verifyConnector(
     verified: toVerified(body.verified),
     reason: nullable(body.reason),
   };
+}
+
+export async function connectConnector(
+  token: string,
+  id: string,
+): Promise<string> {
+  const body = await call(token, {
+    method: 'POST',
+    base: connectorsUrl(),
+    path: `/${id}/connect`,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ returnTo: returnTo() }),
+  });
+  if (!isRecord(body) || typeof body.authorizeUrl !== 'string')
+    throw new Error('Metro returned an unexpected response.');
+  return body.authorizeUrl;
+}
+
+export async function disconnectConnector(
+  token: string,
+  id: string,
+): Promise<Connector> {
+  const body = await call(token, {
+    method: 'POST',
+    base: connectorsUrl(),
+    path: `/${id}/disconnect`,
+  });
+  return toConnector(body);
 }
 
 export async function deleteConnector(token: string, id: string): Promise<void> {

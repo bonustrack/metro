@@ -11,39 +11,34 @@ import {
 } from './api-http.js';
 import { parseId } from '../db/ids.js';
 import { mcpServersJson } from './connector-json.js';
-
-const asText = (value: unknown): string =>
-  typeof value === 'string' ? value : '';
 import {
-  beginOAuth,
-  completeOAuth,
-  takePending,
-  type PendingAuth,
-} from './connector-oauth.js';
-import { ConnectorUnauthorized, parseConnectorUrl } from './connector-verify.js';
+  handleCallback,
+  handleConnect,
+  hostOf,
+  startOAuth,
+  type OAuthRouteDeps,
+} from './connector-oauth-routes.js';
+import { ConnectorUnauthorized } from './connector-verify.js';
 import type {
   Connector,
   ConnectorCheck,
   ConnectorInput,
   DeletedConnector,
-  OAuthConnectorInput,
 } from '../db/connectors.js';
 
 const PREFIX = '/api/connectors';
 
+const asText = (value: unknown): string =>
+  typeof value === 'string' ? value : '';
 
-export interface ConnectorApiDeps {
+export interface ConnectorApiDeps extends OAuthRouteDeps {
   listConnectors: (email: string) => Promise<Connector[]>;
-  createOAuthConnector: (
-    email: string,
-    input: OAuthConnectorInput,
-  ) => Promise<Connector>;
   createConnector: (
     email: string,
     input: ConnectorInput,
   ) => Promise<Connector>;
-  getConnector: (email: string, id: string) => Promise<Connector>;
   verifyConnector: (email: string, id: string) => Promise<ConnectorCheck>;
+  disconnectConnector: (email: string, id: string) => Promise<Connector>;
   deleteConnector: (email: string, id: string) => Promise<DeletedConnector>;
 }
 
@@ -51,17 +46,19 @@ type Routable =
   | { kind: 'collection' }
   | { kind: 'callback' }
   | { kind: 'connector'; id: string }
-  | { kind: 'verify'; id: string };
+  | { kind: 'verify'; id: string }
+  | { kind: 'connect'; id: string }
+  | { kind: 'disconnect'; id: string };
 
 type Target = Routable | { kind: 'unknown' } | null;
 
-function parseConnectorId(raw: string): string | null {
-  return parseId(raw);
-}
-
 function subTarget(id: string, rest: string[]): Target {
   if (rest.length === 0) return { kind: 'connector', id };
-  if (rest.length === 1 && rest[0] === 'verify') return { kind: 'verify', id };
+  if (rest.length > 1) return { kind: 'unknown' };
+  const head = rest[0];
+  if (head === 'verify') return { kind: 'verify', id };
+  if (head === 'connect') return { kind: 'connect', id };
+  if (head === 'disconnect') return { kind: 'disconnect', id };
   return { kind: 'unknown' };
 }
 
@@ -72,21 +69,13 @@ function target(path: string): Target {
   const head = segments[0];
   if (head === undefined) return { kind: 'collection' };
   if (head === 'callback' && segments.length === 1) return { kind: 'callback' };
-  const id = parseConnectorId(head);
+  const id = parseId(head);
   return id === null ? { kind: 'unknown' } : subTarget(id, segments.slice(1));
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return '';
-  }
 }
 
 function connectorPayload(
   row: Connector,
-  withCatalog = false,
+  detail = false,
 ): Record<string, unknown> {
   const { catalog, ...summary } = row.verified;
   return {
@@ -97,8 +86,10 @@ function connectorPayload(
     auth: row.auth,
     header: row.header,
     secret: row.secret,
+    signIn: row.signIn,
     json: mcpServersJson([row]),
-    verified: withCatalog ? { ...summary, catalog } : summary,
+    verified: detail ? { ...summary, catalog } : summary,
+    ...(detail ? { bearer: row.bearer, expiresAt: row.expiresAt } : {}),
   };
 }
 
@@ -113,26 +104,6 @@ async function handleList(
     connectors: rows.map((row) => connectorPayload(row)),
     json: mcpServersJson(rows),
   });
-}
-
-async function startOAuth(
-  req: IncomingMessage,
-  res: ServerResponse,
-  session: ApiSession,
-  body: unknown,
-): Promise<void> {
-  const url = parseConnectorUrl(bodyField(body, 'url'));
-  const authorize = await beginOAuth({
-    email: session.email,
-    name: asText(bodyField(body, 'name')),
-    url,
-    returnTo: asText(bodyField(body, 'returnTo')),
-  });
-  log.info(
-    { host: url.hostname },
-    'connector-api: server wants oauth, sending the user to sign in',
-  );
-  sendJson(req, res, 202, { status: 'oauth', authorizeUrl: authorize });
 }
 
 async function handleCreate(
@@ -176,19 +147,19 @@ async function handleVerify(
   sendJson(req, res, 200, check);
 }
 
-async function handleConnector(
+async function handleDisconnect(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  if (req.method !== 'GET') {
-    await handleDelete(req, res, deps, session, id);
-    return;
-  }
-  const row = await deps.getConnector(session.email, id);
-  sendJson(req, res, 200, connectorPayload(row, true));
+  const row = await deps.disconnectConnector(session.email, id);
+  log.info(
+    { id: row.id, name: row.name },
+    'connector-api: signed the connector out',
+  );
+  sendJson(req, res, 200, connectorPayload(row));
 }
 
 async function handleDelete(
@@ -206,63 +177,19 @@ async function handleDelete(
   sendJson(req, res, 200, { id: gone.id, name: gone.name, deleted: true });
 }
 
-function backTo(entry: PendingAuth, error?: string): string {
-  const suffix =
-    error === undefined
-      ? ''
-      : `?connector_error=${encodeURIComponent(error)}`;
-  return `${entry.returnTo}${suffix}#/connectors`;
-}
-
-function redirect(res: ServerResponse, location: string): void {
-  res.writeHead(302, { location, 'cache-control': 'no-store' }).end();
-}
-
-async function settleCallback(
-  res: ServerResponse,
-  deps: ConnectorApiDeps,
-  entry: PendingAuth,
-  code: string,
-): Promise<void> {
-  try {
-    const auth = await completeOAuth(entry, code);
-    const created = await deps.createOAuthConnector(entry.email, {
-      name: entry.name,
-      url: entry.url,
-      auth,
-    });
-    log.info(
-      { id: created.id, name: created.name, host: hostOf(created.url) },
-      'connector-api: oauth sign-in completed',
-    );
-    redirect(res, backTo(entry));
-  } catch (err) {
-    log.warn({ err: errMsg(err) }, 'connector-api: oauth sign-in failed');
-    redirect(res, backTo(entry, errMsg(err)));
-  }
-}
-
-function handleCallback(
+async function handleConnector(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
-): void {
-  const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
-  const entry = takePending(query.get('state') ?? '');
-  if (entry === undefined) {
-    sendJson(req, res, 400, { error: 'that sign-in has expired — start it again' });
+  session: ApiSession,
+  id: string,
+): Promise<void> {
+  if (req.method !== 'GET') {
+    await handleDelete(req, res, deps, session, id);
     return;
   }
-  const denied = query.get('error');
-  const code = query.get('code') ?? '';
-  if (denied !== null || code === '') {
-    redirect(res, backTo(entry, denied ?? 'no authorization code came back'));
-    return;
-  }
-  settleCallback(res, deps, entry, code).catch((err: unknown) => {
-    log.warn({ err: errMsg(err) }, 'connector-api: oauth callback failed');
-    if (!res.headersSent) redirect(res, backTo(entry, 'sign-in failed'));
-  });
+  const row = await deps.getConnector(session.email, id);
+  sendJson(req, res, 200, connectorPayload(row, true));
 }
 
 async function route(
@@ -276,6 +203,10 @@ async function route(
     if (tgt.kind === 'callback') return;
     if (tgt.kind === 'verify')
       await handleVerify(req, res, deps, session, tgt.id);
+    else if (tgt.kind === 'connect')
+      await handleConnect(req, res, deps, session, tgt.id);
+    else if (tgt.kind === 'disconnect')
+      await handleDisconnect(req, res, deps, session, tgt.id);
     else if (tgt.kind === 'connector')
       await handleConnector(req, res, deps, session, tgt.id);
     else if (req.method === 'GET') await handleList(req, res, deps, session);
@@ -290,6 +221,8 @@ const ALLOWED: Record<Routable['kind'], string[]> = {
   callback: ['GET'],
   connector: ['GET', 'DELETE'],
   verify: ['POST'],
+  connect: ['POST'],
+  disconnect: ['POST'],
 };
 
 function dispatch(
