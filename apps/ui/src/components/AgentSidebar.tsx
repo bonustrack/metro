@@ -10,7 +10,7 @@ import { MetroLogo } from './MetroLogo';
 import { SidebarFooter } from './SidebarFooter';
 import { type Selection } from './selection';
 
-const ROW_PAD = { x: 12, y: 11 } as const;
+const ROW_PAD = { x: 12, y: 10 } as const;
 const ICON_SIZE = 18;
 const SCROLL = { flex: 1 } as const;
 const SCROLL_CONTENT = { padding: 24 } as const;
