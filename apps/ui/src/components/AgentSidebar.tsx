@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Pressable as RNPressable, ScrollView } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
+import { BUTTON_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Pressable } from '@stage-labs/kit/react-native/pressable';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
@@ -9,7 +10,7 @@ import { MetroLogo } from './MetroLogo';
 import { SidebarFooter } from './SidebarFooter';
 import { type Selection } from './selection';
 
-const ROW_PAD = { x: 12, y: 8 } as const;
+const ROW_PAD = { x: 12, y: 11 } as const;
 const ICON_SIZE = 18;
 const SCROLL = { flex: 1 } as const;
 const SCROLL_CONTENT = { padding: 24 } as const;
@@ -37,7 +38,7 @@ function NavRow({
         gap={10}
         padding={ROW_PAD}
         margin={{ x: -12 }}
-        radius={8}
+        radius={BUTTON_RADIUS_DEFAULT}
         background={selected ? palette.border : undefined}
       >
         {icon === undefined ? null : (
