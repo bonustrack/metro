@@ -38,7 +38,7 @@
     "start": "bun src/server.ts",
     "build": "tsc",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "bun scripts/migrate.ts",
     "test": "tsc --noEmit && DYLD_FALLBACK_LIBRARY_PATH=/usr/lib METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
   },
   "dependencies": {

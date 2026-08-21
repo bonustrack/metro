@@ -30,7 +30,7 @@ export default defineConfig({
     'apps/mcp': {
       type: 'library',
       knip: {
-        entry: ['src/daemon/**/*.ts', 'test/**/*.{ts,mjs}'],
+        entry: ['src/daemon/**/*.ts', 'scripts/*.ts', 'test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
         ignoreBinaries: ['mktemp', 'claude'],
         ignore: ['src/daemon/tunnel.ts'],

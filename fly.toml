@@ -13,6 +13,14 @@ primary_region = "iad"
 [build]
   dockerfile = "Dockerfile"
 
+# Schema migrations run HERE, not at boot. Fly runs this in a temporary machine with
+# the app's secrets BEFORE the new version is released: if it fails the deploy is
+# ABORTED and the old machine keeps serving, so a bad migration can never crash-loop
+# the daemon. It uses drizzle-orm's runtime migrator (a production dependency) — the
+# release machine has no volume and drizzle-kit is not in the image.
+[deploy]
+  release_command = "bun /app/apps/mcp/scripts/migrate.ts"
+
 [env]
   HOME = "/data"
   METRO_HTTP_HOST = "0.0.0.0"

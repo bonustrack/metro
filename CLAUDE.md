@@ -131,7 +131,7 @@ A connector is a **user-level verified bookmark for a remote MCP server**, plus 
 - `unique(user_id, name)` is structural, not cosmetic: the name is the `mcpServers` object key, so two connectors named `linear` would silently overwrite each other in the copied JSON. Duplicate → 409 via `isUniqueViolation`.
 - **`GET` re-serves the auth header value to its owner — the SECOND deliberate relaxation of "no API returns a stored credential"** (the webhook url is the first). The whole feature is *copy the JSON*, so a write-only store is useless; metro is the holder, not the issuer — the user already has this credential; and it is gated by the same session JWT that re-serves `agents.key` in plaintext next door. The mitigations are not optional: the field is named `secret` so no row renders it as a clickable link, the UI masks it behind Reveal/Copy, and **neither the url nor the value ever reaches `log`** — `{id, name, host}` only.
 - **The route MUST stay in `handlePreMcpRoutes` before `handleMonitorRequest`**, which claims all of `/api/*` and never falls through. `connectorApi` is the optional 5th positional parameter of `startWebhookServer`/`handleRequest`/`handlePreMcpRoutes`; do NOT fold it into `AgentApiDeps`.
-- Migration `0010` adds the table, and **migrations are manual**: no `migrate()` at boot, no CI step, no `release_command` in `fly.toml`, and `drizzle-kit` is a devDependency absent from the production image. `bun --filter @metro-labs/mcp db:migrate` must be run against prod BEFORE the PR merges, because merging to `main` auto-deploys.
+- Migration `0010` adds the table. Migrations apply themselves on deploy — see Migrations below.
 
 ## HTTP surface
 
@@ -265,6 +265,17 @@ There is NO `keys` table since `0009`, no `credentials` column and no `whatsapp_
 - `materializeFromDb()` runs once at boot before `supervisor.start()`, writes the per-station account files (`writeSecure` 0600) and train stubs, and **throws on missing `DATABASE_URL` or an empty DB** — one path, fails loudly. Trains read those files; none opens a pg connection.
 - `METRO_AGENT` (numeric id) restricts a daemon to one agent; must be a positive integer that exists or boot throws. Unset loads all — and since #129 several agents hold the daemon concurrently, so one daemon per agent is no longer required for liveness.
 - xmtp config is `{privateKey}`; the legacy `{mnemonic, derive}` HD form is GONE and a row still carrying it fails validation at boot. `mnemonic`/`derive`/`seed` stay in the UI's `SECRET_KEY_PATTERN` redaction list so an unconverted row can never render its seed.
+
+### Migrations
+
+**Migrations apply themselves on deploy, via `release_command` in `fly.toml` — NOT at boot.** Fly runs `bun /app/apps/mcp/scripts/migrate.ts` in a temporary machine holding the app's secrets BEFORE the new version is released.
+
+- **The failure semantics are the whole point of choosing `release_command` over a boot-time `migrate()`.** A non-zero exit ABORTS the deploy and the old machine keeps serving. A migration that ran at boot would instead throw before `markDaemonReady()`, which the crash guard turns into `exit 1` — a crash-loop, i.e. a full outage caused by the migration itself. Do not move this to `boot.ts`.
+- It uses **drizzle-orm's runtime migrator** (`drizzle-orm/postgres-js/migrator`), not `drizzle-kit`: `drizzle-orm` is a production dependency, `drizzle-kit` is a devDependency and `bun install --production` leaves it out of the image entirely.
+- **The runtime migrator and `drizzle-kit migrate` share one history** — schema `drizzle`, table `__drizzle_migrations`, both by default, and `drizzle.config.ts` overrides neither. The migrator applies every migration whose `_journal.json` `when` is greater than the newest recorded `created_at`, all in ONE transaction. That is what makes the cutover safe on a DB already migrated by the old path; verified against a real Postgres staged at `0009`.
+- `MIGRATIONS_DIR` resolves off `import.meta.url`, never the cwd, because the release machine's cwd is not the repo root. The release machine has **no volume**, so nothing on this path may import `daemon/paths.ts` — it `mkdirSync`s `STATE_DIR` at import time. `daemon/log.ts` is safe (pino only).
+- `apps/mcp/scripts/*.ts` is a knip entry (`stage.config.js`) so the runner is reachable; `bun --filter @metro-labs/mcp db:migrate` runs the SAME script locally, so there is one code path, not two.
+- The daemon still never migrates and `materializeFromDb()` still throws on an empty DB — a deploy whose release command failed never reaches it.
 
 ## Deploy & Ops
 
