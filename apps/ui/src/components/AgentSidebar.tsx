@@ -74,7 +74,7 @@ export function AgentSidebar({
     <Col flex={1} minHeight={0}>
       <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
         <Col gap={10}>
-          <Row padding={{ bottom: 6 }}>
+          <Row padding={{ bottom: 14 }}>
             <RNPressable
               accessibilityRole="link"
               aria-label="Metro dashboard"
