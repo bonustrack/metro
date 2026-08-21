@@ -58,6 +58,16 @@ export function resourceMetadataUrls(resource: URL): URL[] {
   return urls;
 }
 
+export async function advertisesOAuth(resource: URL): Promise<boolean> {
+  for (const candidate of resourceMetadataUrls(resource)) {
+    const body = await getJson(candidate);
+    const servers: unknown = body?.authorization_servers;
+    const first: unknown = Array.isArray(servers) ? servers[0] : undefined;
+    if (typeof first === 'string' && first !== '') return true;
+  }
+  return false;
+}
+
 async function authServerFor(resource: URL): Promise<URL> {
   for (const candidate of resourceMetadataUrls(resource)) {
     const body = await getJson(candidate);
@@ -87,13 +97,21 @@ function toServer(body: Record<string, unknown>, issuer: URL): OAuthServer {
   };
 }
 
+export function authServerMetadataUrls(issuer: URL): URL[] {
+  const path = issuer.pathname.replace(/\/$/, '');
+  const suffixes = ['oauth-authorization-server', 'openid-configuration'];
+  const urls = suffixes.map((suffix) => wellKnown(issuer, suffix));
+  if (path === '') return urls;
+  const aware = suffixes.map(
+    (suffix) => new URL(`/.well-known/${suffix}${path}`, issuer.origin),
+  );
+  return [...aware, new URL(`${path}/.well-known/openid-configuration`, issuer.origin), ...urls];
+}
+
 export async function discoverOAuth(resource: URL): Promise<OAuthServer> {
   const issuer = await authServerFor(resource);
-  for (const suffix of [
-    'oauth-authorization-server',
-    'openid-configuration',
-  ]) {
-    const body = await getJson(wellKnown(issuer, suffix));
+  for (const candidate of authServerMetadataUrls(issuer)) {
+    const body = await getJson(candidate);
     if (body !== null) return toServer(body, issuer);
   }
   throw refused(

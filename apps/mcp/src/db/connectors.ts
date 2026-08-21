@@ -9,6 +9,7 @@ import {
   type VerifiedRecord,
 } from '../daemon/connector-verify.js';
 import { oauthExpired, refreshOAuth } from '../daemon/connector-oauth.js';
+import { advertisesOAuth } from '../daemon/oauth-discovery.js';
 import {
   ConnectorError,
   connectorAuth,
@@ -170,8 +171,14 @@ export async function createConnectorForEmail(
     auth,
     createdAt: new Date().toISOString(),
     verified,
-    oauth: false,
+    oauth: await oauthCapable(url, auth),
   });
+}
+
+async function oauthCapable(url: URL, auth: ConnectorAuth): Promise<boolean> {
+  if (auth.kind === 'oauth') return true;
+  if (auth.kind === 'header') return false;
+  return advertisesOAuth(url);
 }
 
 async function freshAuth(
@@ -240,7 +247,8 @@ export async function verifyConnectorForEmail(
     const url = parseConnectorUrl(row.url);
     const auth = await freshAuth(config.auth, url.toString());
     const verified = stamp(await verifyRemoteMcp(url, auth));
-    await saveConfig(row, { ...config, auth, verified });
+    const oauth = config.oauth || (await oauthCapable(url, auth));
+    await saveConfig(row, { ...config, auth, verified, oauth });
     return { id: row.id, name: row.name, ok: true, verified };
   } catch (err) {
     if (!(err instanceof ConnectorVerifyError)) throw err;
