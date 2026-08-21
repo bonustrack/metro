@@ -8,10 +8,8 @@ import {
 import { carryForward, type AccountGroup } from './accounts';
 import {
   AuthError,
-  fetchAgents,
   fetchSession,
   fetchStations,
-  type AgentsView,
   type StationsView,
 } from './client';
 import {
@@ -62,13 +60,6 @@ export function useSessionQuery(token: string): UseQueryResult<string> {
     queryKey: sessionKey(),
     queryFn: () => fetchSession(token),
     staleTime: 5 * 60_000,
-  });
-}
-
-export function useAgentsQuery(token: string): UseQueryResult<AgentsView> {
-  return useQuery({
-    queryKey: agentsKey(),
-    queryFn: () => fetchAgents(token),
   });
 }
 

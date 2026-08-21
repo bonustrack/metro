@@ -16,18 +16,16 @@ interface Credential {
   secret: string;
 }
 
+export type Needs = 'url' | 'credential';
+
 export type Install =
   | { kind: 'command'; value: string; secret: string | null; note: string }
-  | { kind: 'deeplink'; label: string; href: string; note: string }
-  | { kind: 'paste'; label: string; href: string; note: string };
+  | { kind: 'link'; label: string; href: string; note: string; needs: Needs[] };
 
-const CLAUDE_CONNECTORS =
-  'https://claude.ai/settings/connectors?modal=add-custom-connector';
+const CLAUDE_INSTALL =
+  'https://claude.ai/customize/connectors?modal=add-custom-connector';
 
 const CHATGPT_CONNECTORS = 'https://chatgpt.com/#settings/Connectors';
-
-const PASTE_NOTE =
-  'This one cannot be filled in for you. Open the form and paste the values below.';
 
 export function expiryNote(row: Connector, now = Date.now()): string {
   if (row.bearer === null) return '';
@@ -91,30 +89,54 @@ export function cursorDeeplink(row: Connector): string {
   return `cursor://anysphere.cursor-deeplink/mcp/install?name=${name}&config=${config}`;
 }
 
+export function claudeInstallUrl(row: Connector): string {
+  const name = encodeURIComponent(row.name);
+  const url = encodeURIComponent(row.url);
+  return `${CLAUDE_INSTALL}&connectorName=${name}&connectorUrl=${url}`;
+}
+
+function cursor(row: Connector): Install {
+  return {
+    kind: 'link',
+    label: 'Add to Cursor',
+    href: cursorDeeplink(row),
+    needs: [],
+    note:
+      credential(row) === null
+        ? 'Opens Cursor and adds the server in one step.'
+        : 'Opens Cursor and adds the server, credential included, in one step.',
+  };
+}
+
+function claudeWeb(row: Connector): Install {
+  const auth = credential(row);
+  return {
+    kind: 'link',
+    label: 'Add to Claude',
+    href: claudeInstallUrl(row),
+    needs: auth === null ? [] : ['credential'],
+    note:
+      auth === null
+        ? 'Opens Claude with the name and URL already filled in. You confirm before anything is added.'
+        : 'Opens Claude with the name and URL already filled in. The link cannot carry a credential, so add the header below under Request headers before you confirm.',
+  };
+}
+
+function chatgpt(row: Connector): Install {
+  const auth = credential(row);
+  return {
+    kind: 'link',
+    label: 'Open ChatGPT connectors',
+    href: CHATGPT_CONNECTORS,
+    needs: auth === null ? ['url'] : ['url', 'credential'],
+    note: 'ChatGPT takes no install link. Open the form and paste the values below.',
+  };
+}
+
 export function installFor(row: Connector, client: McpClient): Install {
   if (client === 'Claude Code') return claudeCode(row);
   if (client === 'Codex') return codex(row);
-  if (client === 'Cursor')
-    return {
-      kind: 'deeplink',
-      label: 'Add to Cursor',
-      href: cursorDeeplink(row),
-      note:
-        credential(row) === null
-          ? 'Opens Cursor and adds the server in one step.'
-          : 'Opens Cursor and adds the server, credential included, in one step.',
-    };
-  if (client === 'Claude')
-    return {
-      kind: 'paste',
-      label: 'Open Claude connectors',
-      href: CLAUDE_CONNECTORS,
-      note: PASTE_NOTE,
-    };
-  return {
-    kind: 'paste',
-    label: 'Open ChatGPT connectors',
-    href: CHATGPT_CONNECTORS,
-    note: PASTE_NOTE,
-  };
+  if (client === 'Cursor') return cursor(row);
+  if (client === 'Claude') return claudeWeb(row);
+  return chatgpt(row);
 }

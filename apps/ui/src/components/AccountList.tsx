@@ -12,6 +12,7 @@ import {
 } from '../api/accounts';
 import { ChatIcon } from './ChatIcon';
 import { DetachAccount } from './DetachAccount';
+import { opensElsewhere } from './link';
 import { StationIcon } from './StationIcon';
 
 export type DetachHandler = (station: string, accountId: string) => Promise<void>;
@@ -72,6 +73,7 @@ function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactN
           className="row-link"
           href={`#/station/${id}`}
           onClick={(e) => {
+            if (opensElsewhere(e)) return;
             e.preventDefault();
             onOpen(id);
           }}

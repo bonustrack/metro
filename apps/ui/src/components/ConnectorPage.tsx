@@ -18,7 +18,6 @@ import {
 } from '../api/queries';
 import { BackLink } from './BackLink';
 import { ConnectorActions } from './ConnectorActions';
-import { ConnectorIcon } from './ConnectorIcon';
 import { ConnectorInstall } from './ConnectorInstall';
 import { Field } from './Field';
 import { Loading } from './Loading';
@@ -72,20 +71,12 @@ function ConnectorHeading({
   connector: Connector;
 }): ReactNode {
   return (
-    <Row gap={12} align="center" style={SHRINK}>
-      <ConnectorIcon
-        name={connector.name}
-        url={connector.url}
-        icon={connector.verified?.icon ?? ''}
-        size={40}
-      />
-      <Col gap={2} style={SHRINK}>
-        <PageTitle>{connector.name}</PageTitle>
-        <Text size="sm" role="secondary" numberOfLines={1}>
-          {connectorHost(connector.url)}
-        </Text>
-      </Col>
-    </Row>
+    <Col gap={2} style={SHRINK}>
+      <PageTitle>{connector.name}</PageTitle>
+      <Text size="sm" role="secondary" numberOfLines={1}>
+        {connectorHost(connector.url)}
+      </Text>
+    </Col>
   );
 }
 
@@ -136,10 +127,9 @@ export function ConnectorPage({
 
   return (
     <Col gap={20}>
-      <Col gap={8}>
-        <BackLink label="Connectors" href="#/connectors" onPress={onBack} />
-        <Row justify="between" align="start" gap={12} wrap>
-          <ConnectorHeading connector={data} />
+      <Col gap={12}>
+        <Row justify="between" align="center" gap={12}>
+          <BackLink label="Connectors" href="#/connectors" onPress={onBack} />
           <ConnectorActions
             token={token}
             connector={data}
@@ -150,6 +140,7 @@ export function ConnectorPage({
             onError={setStatus}
           />
         </Row>
+        <ConnectorHeading connector={data} />
       </Col>
 
       <ConnectorFacts connector={data} />

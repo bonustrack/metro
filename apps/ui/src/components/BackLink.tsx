@@ -2,6 +2,7 @@ import { type ReactElement, type ReactNode } from 'react';
 import { Path, Svg } from 'react-native-svg';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
+import { opensElsewhere } from './link';
 
 function BackIcon({ size, color }: { size: number; color: string }): ReactElement {
   return (
@@ -30,6 +31,7 @@ export function BackLink({ label, href, onPress }: BackLinkProps): ReactNode {
       className="back-link"
       href={href}
       onClick={(e) => {
+        if (opensElsewhere(e)) return;
         e.preventDefault();
         onPress();
       }}

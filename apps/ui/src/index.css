@@ -40,8 +40,7 @@ body {
 
 .app-sidebar,
 .app-drawer {
-  background: var(--metro-bg);
-  background: color-mix(in srgb, var(--metro-bg) 60%, var(--metro-surface));
+  background: var(--metro-surface);
 }
 
 .app-sidebar {
@@ -216,6 +215,16 @@ body {
   text-decoration: underline;
 }
 
+.nav-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav-link:active {
+  opacity: 0.6;
+}
+
 .back-link {
   display: inline-flex;
   align-self: flex-start;
@@ -225,10 +234,6 @@ body {
   min-width: 0;
   color: inherit;
   text-decoration: none;
-}
-
-.back-link:hover {
-  text-decoration: underline;
 }
 
 .row-link {
@@ -246,10 +251,6 @@ body {
 .row-title {
   display: block;
   min-width: 0;
-}
-
-.row-link:hover .row-title {
-  text-decoration: underline;
 }
 
 input,
@@ -374,7 +375,7 @@ textarea:focus-visible {
 }
 
 .kebab-item:hover { background: var(--metro-border); }
-.kebab-danger { color: #d6453d; }
+.kebab-danger { color: var(--metro-danger); }
 
 @keyframes boot-pulse {
   0%,

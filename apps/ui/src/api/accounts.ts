@@ -88,6 +88,13 @@ export interface FlatAccount {
   row: AccountRow;
 }
 
+export function stationCount(groups: AccountGroup[], agentId: string): number {
+  let total = 0;
+  for (const group of groups)
+    for (const row of group.rows) if (row.agentId === agentId) total += 1;
+  return total;
+}
+
 export function flattenAccounts(groups: AccountGroup[]): FlatAccount[] {
   const out: FlatAccount[] = [];
   for (const group of groups)

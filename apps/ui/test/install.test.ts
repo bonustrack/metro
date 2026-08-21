@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  claudeInstallUrl,
   cursorDeeplink,
   expiryNote,
   installFor,
@@ -53,10 +54,24 @@ describe('every client gets an install that fits how it actually adds a server',
     const kinds = MCP_CLIENTS.map((c) => [c, installFor(BASE, c).kind]);
     expect(kinds).toEqual([
       ['Claude Code', 'command'],
-      ['Claude', 'paste'],
-      ['ChatGPT', 'paste'],
+      ['Claude', 'link'],
+      ['ChatGPT', 'link'],
       ['Codex', 'command'],
-      ['Cursor', 'deeplink'],
+      ['Cursor', 'link'],
+    ]);
+  });
+
+  test('only the client that cannot be pre-filled asks for the url', () => {
+    const needs = MCP_CLIENTS.map((c) => {
+      const install = installFor(BASE, c);
+      return [c, install.kind === 'link' ? install.needs : []];
+    });
+    expect(needs).toEqual([
+      ['Claude Code', []],
+      ['Claude', []],
+      ['ChatGPT', ['url']],
+      ['Codex', []],
+      ['Cursor', []],
     ]);
   });
 
@@ -72,10 +87,10 @@ describe('every client gets an install that fits how it actually adds a server',
     );
   });
 
-  test('the paste targets carry a real https destination, never a made-up scheme', () => {
+  test('the web targets carry a real https destination, never a made-up scheme', () => {
     for (const client of ['Claude', 'ChatGPT'] as const) {
       const install = installFor(BASE, client);
-      if (install.kind !== 'paste') throw new Error('expected a paste target');
+      if (install.kind !== 'link') throw new Error('expected a link target');
       expect(new URL(install.href).protocol).toBe('https:');
     }
   });
@@ -167,6 +182,37 @@ describe('a copied token says how long it is good for', () => {
 
   test('a token with no stated expiry still warns rather than promising forever', () => {
     expect(expiryNote(SIGNED_IN, AT)).toContain('OAuth access token');
+  });
+});
+
+describe('the claude install link pre-fills the dialog', () => {
+  test('it names the modal and carries name and url as claude expects them', () => {
+    const href = claudeInstallUrl(BASE);
+    expect(href.startsWith('https://claude.ai/customize/connectors?')).toBe(true);
+    const params = new URL(href).searchParams;
+    expect(params.get('modal')).toBe('add-custom-connector');
+    expect(params.get('connectorName')).toBe('linear');
+    expect(params.get('connectorUrl')).toBe('https://mcp.linear.app/mcp');
+  });
+
+  test('the server url is percent-encoded, not left raw in the query', () => {
+    expect(claudeInstallUrl(BASE)).toContain(
+      'connectorUrl=https%3A%2F%2Fmcp.linear.app%2Fmcp',
+    );
+  });
+
+  test('a credential cannot ride the link, so claude is told to paste it', () => {
+    const install = installFor(KEYED, 'Claude');
+    if (install.kind !== 'link') throw new Error('expected a link target');
+    expect(install.needs).toEqual(['credential']);
+    expect(install.href).not.toContain('lin_oauth_7f');
+    expect(install.note).toContain('Request headers');
+  });
+
+  test('a connector with no credential asks for nothing extra', () => {
+    const install = installFor(BASE, 'Claude');
+    if (install.kind !== 'link') throw new Error('expected a link target');
+    expect(install.needs).toEqual([]);
   });
 });
 

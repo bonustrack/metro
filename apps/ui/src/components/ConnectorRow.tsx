@@ -4,11 +4,10 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
 import { SHRINK } from '../theme';
 import { connectorHost, type Connector } from '../api/connectors';
-import { ConnectorIcon } from './ConnectorIcon';
 import { DeleteConnector } from './DeleteConnector';
+import { opensElsewhere } from './link';
 
 const ROW_PAD_Y = 12;
-const ICON_SIZE = 28;
 
 function summary(row: Connector): string {
   const tools = row.verified?.tools ?? 0;
@@ -37,16 +36,11 @@ export function ConnectorRow({ row, onOpen, onDelete }: ConnectorRowProps): Reac
         className="row-link"
         href={`#/connector/${row.id}`}
         onClick={(e) => {
+          if (opensElsewhere(e)) return;
           e.preventDefault();
           onOpen(row.id);
         }}
       >
-        <ConnectorIcon
-          name={row.name}
-          url={row.url}
-          icon={row.verified?.icon ?? ''}
-          size={ICON_SIZE}
-        />
         <Col gap={1} flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }}>
           <Row gap={10} align="center" minWidth={0}>
             <span className="row-title">

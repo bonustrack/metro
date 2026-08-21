@@ -56,13 +56,9 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
 
   return (
     <Col gap={20}>
-      <Col gap={8}>
-        <BackLink label="Agents" href="#/" onPress={props.onBack} />
-        <Row justify="between" align="start" gap={12} wrap>
-          <Col gap={2}>
-            <PageTitle>{agent.name}</PageTitle>
-            <Text size="sm" role="secondary">{subtitle(agent)}</Text>
-          </Col>
+      <Col gap={12}>
+        <Row justify="between" align="center" gap={12}>
+          <BackLink label="Agents" href="#/" onPress={props.onBack} />
           {agent.owned ? (
             <Row gap={8} align="center">
               <Button
@@ -77,6 +73,10 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
             </Row>
           ) : null}
         </Row>
+        <Col gap={2}>
+          <PageTitle>{agent.name}</PageTitle>
+          <Text size="sm" role="secondary">{subtitle(agent)}</Text>
+        </Col>
       </Col>
       <AgentCredentials agent={agent} onReset={onReset} />
       <Col gap={10}>

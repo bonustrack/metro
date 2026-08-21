@@ -10,6 +10,7 @@ import { type AgentSummary } from '../api/client';
 import { BackLink } from './BackLink';
 import { CopyBlock } from './CopyBlock';
 import { DetachAccount } from './DetachAccount';
+import { opensElsewhere } from './link';
 import { StationIcon } from './StationIcon';
 import { type DetachHandler } from './AccountList';
 
@@ -66,6 +67,7 @@ function Heading({ station, row, agent, onOpenAgent }: StationDetailProps): Reac
               className="hint-link"
               href={`#/agent/${agent.id}`}
               onClick={(e) => {
+                if (opensElsewhere(e)) return;
                 e.preventDefault();
                 onOpenAgent(agent.id);
               }}
@@ -86,22 +88,24 @@ export function StationDetail(props: StationDetailProps): ReactNode {
 
   return (
     <Col gap={20}>
-      <Col gap={8}>
-        {agent === undefined ? null : (
-          <BackLink
-            label={agent.name}
-            href={`#/agent/${agent.id}`}
-            onPress={() => {
-              onOpenAgent(agent.id);
-            }}
-          />
-        )}
-        <Row justify="between" align="start" gap={12} wrap>
-          <Heading {...props} />
+      <Col gap={12}>
+        <Row justify="between" align="center" gap={12}>
+          {agent === undefined ? (
+            <Col />
+          ) : (
+            <BackLink
+              label={agent.name}
+              href={`#/agent/${agent.id}`}
+              onPress={() => {
+                onOpenAgent(agent.id);
+              }}
+            />
+          )}
           {onDetach !== undefined && id !== null ? (
             <DetachAccount station={station} accountId={id} onDetach={onDetach} />
           ) : null}
         </Row>
+        <Heading {...props} />
       </Col>
 
       {id === null ? null : (

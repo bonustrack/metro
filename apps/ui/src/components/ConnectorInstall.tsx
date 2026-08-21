@@ -53,19 +53,17 @@ function Panel({
           }}
         />
       </Row>
-      {install.kind === 'paste' ? (
-        <Col gap={10}>
-          <CopyBlock label="server url" value={connector.url} />
-          {auth === null ? null : (
-            <CopyBlock
-              key={auth.value}
-              label={auth.name}
-              value={auth.value}
-              secret
-              hide={auth.secret}
-            />
-          )}
-        </Col>
+      {install.needs.includes('url') ? (
+        <CopyBlock label="server url" value={connector.url} />
+      ) : null}
+      {install.needs.includes('credential') && auth !== null ? (
+        <CopyBlock
+          key={auth.value}
+          label={auth.name}
+          value={auth.value}
+          secret
+          hide={auth.secret}
+        />
       ) : null}
     </Col>
   );

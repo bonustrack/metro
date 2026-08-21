@@ -15,8 +15,9 @@ import {
   agentsKey,
   queryError,
   stationsKey,
-  useAgentsQuery,
+  useStationsQuery,
 } from '../api/queries';
+import { stationCount, type AccountGroup } from '../api/accounts';
 import { AgentRow } from './AgentRow';
 import { CreateAgent } from './CreateAgent';
 import { Loading } from './Loading';
@@ -28,10 +29,12 @@ const FALLBACK = 'Could not load your agents.';
 
 function AgentCards({
   agents,
+  groups,
   onOpen,
   onDelete,
 }: {
   agents: AgentSummary[];
+  groups: AccountGroup[];
   onOpen: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
 }): ReactNode {
@@ -43,6 +46,7 @@ function AgentCards({
         <AgentRow
           key={agent.id}
           agent={agent}
+          stations={stationCount(groups, agent.id)}
           onOpen={onOpen}
           onDelete={onDelete}
         />
@@ -59,7 +63,7 @@ interface AgentsHomeProps {
 export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const { data, error } = useAgentsQuery(token);
+  const { data, error } = useStationsQuery(token);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   useDocumentTitle('Agents');
@@ -68,6 +72,7 @@ export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
     const agent = await createAgent(token, name);
     setCreated(agent);
     await client.invalidateQueries({ queryKey: agentsKey() });
+    await client.invalidateQueries({ queryKey: stationsKey() });
   };
 
   const remove = async (id: string): Promise<void> => {
@@ -107,7 +112,12 @@ export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
       )}
       {data === undefined && error === null ? <Loading /> : null}
       {data === undefined ? null : (
-        <AgentCards agents={data.agents} onOpen={onOpen} onDelete={remove} />
+        <AgentCards
+          agents={data.agents}
+          groups={data.groups}
+          onOpen={onOpen}
+          onDelete={remove}
+        />
       )}
 
       <CreateAgent

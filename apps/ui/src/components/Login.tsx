@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { GoogleLogo } from './GoogleLogo';
 import { MetroLogo } from './MetroLogo';
@@ -13,6 +13,7 @@ interface LoginProps {
 
 export function Login({ error }: LoginProps): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const palette = useKitPalette();
   const signIn = (): void => {
     window.location.assign(startLoginUrl());
   };
@@ -20,7 +21,7 @@ export function Login({ error }: LoginProps): ReactNode {
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={18} width="100%" maxWidth={420}>
           <Row justify="center">
-            <MetroLogo size={48} color={dark ? '#ffffff' : '#000000'} />
+            <MetroLogo size={48} color={palette.link} />
           </Row>
           <Row justify="center">
             <PageTitle>Log in</PageTitle>
