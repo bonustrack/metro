@@ -85,7 +85,7 @@ function Heading({ station, row, agent, onOpenAgent }: StationDetailProps): Reac
 export function StationDetail(props: StationDetailProps): ReactNode {
   const { station, row, verbs, onDetach } = props;
   const dark = useKitScheme() === 'dark';
-  const { url, details } = stationFields(row);
+  const { url, endpoint, details } = stationFields(row);
   const id = row.id;
 
   return (
@@ -103,11 +103,26 @@ export function StationDetail(props: StationDetailProps): ReactNode {
         </Card>
       )}
 
+      {endpoint === undefined ? null : (
+        <Section title="Endpoint">
+          <Col gap={8}>
+            <Card dark={dark} padding={CARD_PADDING}>
+              <CopyBlock label="post events here" value={endpoint} secret />
+            </Card>
+            <Text size="sm" role="secondary">
+              The whole URL is the credential. Anyone holding it can post events
+              to this agent, so paste it straight into the provider and do not
+              put it anywhere public.
+            </Text>
+          </Col>
+        </Section>
+      )}
+
       {url === undefined ? null : (
         <Section title="Link">
           <Card dark={dark} padding={CARD_PADDING}>
             <CopyBlock
-              label={station === 'webhook' ? 'endpoint url' : 'profile'}
+              label="profile"
               value={url}
               actions={
                 <a className="hint-link" href={url} target="_blank" rel="noreferrer">

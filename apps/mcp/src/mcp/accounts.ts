@@ -1,10 +1,10 @@
 import { forwardTrainCall } from '../daemon/train-call.js';
-import { publicBaseOrDefault } from '../daemon/attach-serve.js';
 import {
   accountStationNames,
   stationByName,
 } from '../stations/registry.js';
 import { listEndpoints } from '../daemon/tunnel.js';
+import { hookUrl } from '../stations/attach.js';
 import { agentIdForAccount } from '../db/agent-map.js';
 
 const accountId = (acc: unknown): string | undefined => {
@@ -56,13 +56,17 @@ const hasTrain = (station: string): boolean =>
 
 function inCoreAccounts(station: string): unknown[] {
   if (station !== 'webhook') return [];
-  const base = publicBaseOrDefault().replace(/\/+$/, '');
-  return listEndpoints().map((e) => ({
-    id: e.id,
-    handle: `/wh/${e.id}`,
-    url: `${base}/wh/${e.id}`,
-    signed: e.secret === undefined ? 'no' : 'hmac-sha256',
-  }));
+  return listEndpoints().flatMap((e) =>
+    e.secret === undefined || e.webhookId === undefined
+      ? []
+      : [
+          {
+            id: e.id,
+            handle: `/api/webhooks/${e.webhookId}`,
+            endpoint: hookUrl(e.webhookId, e.secret),
+          },
+        ],
+  );
 }
 
 export async function gatherAccounts(

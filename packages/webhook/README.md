@@ -10,7 +10,7 @@ on `@metro-labs/mcp` and implements the station contract from
 Webhook is the one station that has accounts but **no train**: `hasAccounts` is `true`
 and `hasTrain` is `false`, so it exports just the `.` export (`station.ts` →
 `webhookStation`) and there is **no `./train`** and no subprocess. The daemon's HTTP
-server (in `@metro-labs/mcp`) owns the `/wh/<id>` receiver and calls this package's
+server (in `@metro-labs/mcp`) owns the `/api/webhooks/<id>/<token>` receiver and calls this package's
 helpers directly. It exposes no message verbs — it is **inbound-only**, and `send`,
 `reply`, `react` and `list_members` all refuse on a webhook line.
 
@@ -18,8 +18,8 @@ helpers directly. It exposes no message verbs — it is **inbound-only**, and `s
 
 An endpoint is a row in the `accounts` table like any other station account: attach one
 from the control panel (or `POST /api/agents/<id>/accounts/start` with
-`{"station":"webhook"}`) and Metro generates the account id, mints a 32-byte signing
-secret, and answers with the endpoint url built from that id. `materialize.ts` writes
+`{"station":"webhook"}`) and Metro generates the account id, mints a random webhook id and a
+token, and answers with the endpoint url built from those two. `materialize.ts` writes
 the rows to `~/.metro/webhook-accounts.json` and the daemon reads them from there — no
 train stub is written and no process is spawned.
 
@@ -28,17 +28,22 @@ follows from that applies: its events reach only that agent's MCP session and mo
 tail, and detaching it (`DELETE /api/agents/<id>/accounts/webhook/<account_id>`) makes
 the url 404 on the next materialize.
 
-The signing secret is shown once, at attach time. No API returns it again.
+The url stays retrievable from the station's page, since a webhook url you cannot get back
+is useless. It is the one station credential an API re-serves, to its owning agent only.
 
 ## Delivering to an endpoint
 
-`POST https://<public base>/wh/<account_id>` with the payload as the body. Sign the raw
-body with HMAC-SHA256 and send it as `x-hub-signature-256: sha256=<hex>` — the same
-scheme GitHub uses, so a GitHub webhook works by pasting the url and the secret into the
-repository settings. A wrong or missing signature is a `401` and emits nothing.
+`POST https://<public base>/api/webhooks/<webhook_id>/<token>` with the payload as the
+body. The `<webhook_id>` is a random 19-digit id of its own — the account id encodes the
+agent it belongs to, and this URL is pasted into other people's systems. The whole URL is the credential: no signature header, nothing else to configure.
+Anything that is not an exact token match is a `404`, compared in constant time — wrong
+token, missing token, unknown id, an account id presented in place of the webhook id, and a
+row carrying no token or no webhook id at all.
 
-`GET /wh/<account_id>` answers `200` with a readiness line and emits nothing, so it is
-safe as a liveness check. Anything else is a `405`, and an unknown id is a `404`.
+`GET` on the same url answers `200` with a readiness line and emits nothing, so it is safe
+as a liveness check. Anything else is a `405`.
+
+The route is mounted ahead of the monitor router, which claims all of `/api/*`.
 
 ## What the agent is handed
 
@@ -57,8 +62,6 @@ tool-approval prompt is relayed to.
   `x-request-id`, a summary line from `x-github-event` / `x-intercom-topic`, and
   carrying the full `{ headers, body }` as the payload. Routes to the bound session when
   the endpoint has one.
-- `verifyWebhookSig(secret, raw, header)` — constant-time HMAC-SHA256 signature check
-  (`sha256=…`) for providers that sign their deliveries.
 - `parseLine` — recognizes `metro://webhook/<path>` lines.
 
 ## Env vars

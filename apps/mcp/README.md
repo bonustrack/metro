@@ -31,7 +31,8 @@ it survives a daemon restart so connected sessions auto-resume.
   subprocess per train script in `METRO_TRAINS_DIR` (`~/.metro/trains/*` by default),
   hot-reloads them, and multiplexes their JSON event stream.
 - `http.ts` — the dispatcher HTTP server on `METRO_WEBHOOK_PORT` (8420): the public
-  `GET /health`, the MCP at `/` and `/mcp`, and the webhook receiver at `/wh/<id>`.
+  `GET /health`, the MCP at `/` and `/mcp`, and the webhook receiver at
+  `/api/webhooks/<id>/<token>`.
   `makeEmit` publishes train events onto the event bus.
 - `events.ts` — the in-memory event bus (`subscribeEvents`, `mintId`, the `MetroEvent`
   shape) the MCP relay subscribes to. Inbound is never journaled to disk.

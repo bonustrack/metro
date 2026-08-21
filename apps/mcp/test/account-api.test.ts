@@ -17,6 +17,7 @@ const SECRET = 'account-api-test-secret';
 const FAKE_TOKEN = 'fake-bot-token-not-real';
 const FAKE_KEY = '0xfeed0000000000000000000000000000000000000000000000000000000fake1';
 const FAKE_HOOK_SECRET = 'b'.repeat(64);
+const FAKE_HOOK_ID = '1493556940637339623';
 
 interface Row {
   agentId: number;
@@ -58,14 +59,10 @@ function fakePrepare(input: AttachInput): Promise<PreparedAccount> {
   prepared.push(input);
   if (input.station === 'webhook')
     return Promise.resolve({
-      config: { secret: FAKE_HOOK_SECRET },
-      identity: {},
-      secret: {
-        label: 'webhook signing secret',
-        value: FAKE_HOOK_SECRET,
-        note: 'once only',
+      config: { secret: FAKE_HOOK_SECRET, webhookId: FAKE_HOOK_ID },
+      identity: {
+        endpoint: `https://hooks.test/api/webhooks/${FAKE_HOOK_ID}/${FAKE_HOOK_SECRET}`,
       },
-      finalize: (accountId) => ({ url: `https://hooks.test/wh/${accountId}` }),
     });
   if (input.station === 'xmtp') {
     if (xmtpInboxFails)
@@ -333,7 +330,7 @@ describe('POST /api/agents/:id/accounts/start', () => {
     expect(rows[0]?.agentId).toBe(1);
   });
 
-  test('a webhook attach mints a secret and a url naming the generated id', async () => {
+  test('a webhook attach answers with a url naming its own webhook id', async () => {
     const res = await start(session('ada@lovelace.dev'), 1, {
       station: 'webhook',
       accountId: 'chosen-by-me',
@@ -341,14 +338,16 @@ describe('POST /api/agents/:id/accounts/start', () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as AttachBody;
     expect(body.accountId).toBe('a1-00000001');
-    expect(body.secret?.value).toBe(FAKE_HOOK_SECRET);
-    expect(body.identity).toEqual({ url: 'https://hooks.test/wh/a1-00000001' });
+    expect(body.identity).toEqual({
+      endpoint: `https://hooks.test/api/webhooks/${FAKE_HOOK_ID}/${FAKE_HOOK_SECRET}`,
+    });
+    expect(JSON.stringify(body.identity)).not.toContain('a1-');
     expect(rows).toEqual([
       {
         agentId: 1,
         station: 'webhook',
         accountId: 'a1-00000001',
-        config: { secret: FAKE_HOOK_SECRET },
+        config: { secret: FAKE_HOOK_SECRET, webhookId: FAKE_HOOK_ID },
       },
     ]);
     expect(synced).toEqual(['webhook']);

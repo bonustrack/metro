@@ -233,6 +233,50 @@ body {
   text-decoration: underline;
 }
 
+input,
+input:focus,
+input:focus-visible,
+textarea,
+textarea:focus,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.picker-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--metro-surface);
+  border: 1px solid var(--metro-bg);
+  border-radius: 10px;
+}
+
+.picker-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--metro-heading);
+  font-family: var(--metro-font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-option:hover:not(:disabled) {
+  background: var(--metro-bg);
+}
+
+.picker-option:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
 .kebab {
   display: inline-flex;
   align-items: center;

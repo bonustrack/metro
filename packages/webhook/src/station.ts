@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Line, asLine } from '@metro-labs/mcp/lines';
 import { mintId, type MetroEvent } from '@metro-labs/mcp/events';
 import type { Endpoint } from '@metro-labs/mcp/endpoints';
@@ -37,15 +37,4 @@ export function webhookEntry(
     text: `${headers['x-github-event'] ?? headers['x-intercom-topic'] ?? 'event'} ${method} ${url}`,
     payload: { headers, body },
   };
-}
-
-export function verifyWebhookSig(
-  secret: string,
-  raw: Buffer,
-  header?: string,
-): boolean {
-  if (!header?.startsWith('sha256=')) return false;
-  const given = Buffer.from(header.slice(7), 'hex');
-  const want = createHmac('sha256', secret).update(raw).digest();
-  return given.length === want.length && timingSafeEqual(given, want);
 }

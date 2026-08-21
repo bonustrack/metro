@@ -1,52 +1,93 @@
-import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { Button } from './ui';
+import { useState, type ReactNode } from 'react';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
 import {
   useKitPalette,
   useKitScheme,
 } from '@stage-labs/kit/react-native/theme-context';
-import { stationLabel } from '../api/attach';
+import { Text, Input } from './ui';
+import { matchStations, stationLabel } from '../api/attach';
 import { StationIcon } from './StationIcon';
+
+const ICON_SIZE = 20;
 
 interface StationPickerProps {
   stations: string[];
-  picked: string;
   disabled: boolean;
   onPick: (station: string) => void;
 }
 
+function Option({
+  station,
+  disabled,
+  onPick,
+}: {
+  station: string;
+  disabled: boolean;
+  onPick: (station: string) => void;
+}): ReactNode {
+  const palette = useKitPalette();
+  return (
+    <button
+      type="button"
+      className="picker-option"
+      disabled={disabled}
+      onClick={() => {
+        onPick(station);
+      }}
+    >
+      <StationIcon station={station} size={ICON_SIZE} color={palette.link} />
+      <Text size="lg" weight="semibold">{stationLabel(station)}</Text>
+    </button>
+  );
+}
+
 export function StationPicker({
   stations,
-  picked,
   disabled,
   onPick,
 }: StationPickerProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const palette = useKitPalette();
+  const [query, setQuery] = useState('');
+  const shown = matchStations(stations, query);
+
   return (
     <Col gap={8}>
-      {stations.map((station) => (
-        <Button
-          key={station}
-          block
-          size="lg"
-          dark={dark}
-          disabled={disabled}
-          color={station === picked ? 'primary' : 'secondary'}
-          variant={station === picked ? 'solid' : 'soft'}
-          onPress={() => {
-            onPick(station);
-          }}
-          label={stationLabel(station)}
-          icon={
-            <StationIcon
+      <Input
+        name="station-search"
+        value={query}
+        placeholder="Search stations"
+        disabled={disabled}
+        dark={dark}
+        onChangeText={setQuery}
+        onSubmit={() => {
+          const only = shown[0];
+          if (only !== undefined) onPick(only);
+        }}
+        style={{ flexGrow: 1, minWidth: 0 }}
+      />
+      {shown.length === 0 ? (
+        <Text size="sm" role="secondary">
+          No station matches “{query.trim()}”.
+        </Text>
+      ) : (
+        <div className="picker-menu">
+          {shown.map((station) => (
+            <Option
+              key={station}
               station={station}
-              size={20}
-              color={station === picked ? palette.bg : palette.text}
+              disabled={disabled}
+              onPick={onPick}
             />
-          }
-        />
-      ))}
+          ))}
+        </div>
+      )}
+      {query.trim() === '' && stations.length > shown.length ? (
+        <Row gap={4}>
+          <Text size="sm" role="secondary">
+            Type to search {String(stations.length - shown.length)} more.
+          </Text>
+        </Row>
+      ) : null}
     </Col>
   );
 }

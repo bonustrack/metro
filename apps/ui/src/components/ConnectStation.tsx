@@ -9,12 +9,17 @@ import { Modal } from './Modal';
 import { StationForm } from './StationForm';
 import { StationPicker } from './StationPicker';
 
-const LAST = 'xmtp';
+const TAIL = ['xmtp', 'webhook'];
+
+const rank = (station: string): number => {
+  const at = TAIL.indexOf(station);
+  return at === -1 ? -1 : at;
+};
 
 function orderStations(attachable: string[]): string[] {
   return attachable
     .filter((s) => STATION_FORMS[s] !== undefined)
-    .sort((a, b) => Number(a === LAST) - Number(b === LAST));
+    .sort((a, b) => rank(a) - rank(b));
 }
 
 type Step =
@@ -53,7 +58,6 @@ export function ConnectStation(props: ConnectStationProps): ReactNode {
           </Text>
           <StationPicker
             stations={known}
-            picked=""
             disabled={false}
             onPick={(station) => {
               setStep({ kind: 'form', station });

@@ -41,7 +41,7 @@ const hookEvent = (
       headers,
       body,
       'POST',
-      `/wh/${id}`,
+      `/api/webhooks/${id}`,
     ),
   );
   stop();
@@ -115,7 +115,7 @@ describe('a webhook delivery reaches the agent', () => {
 
 describe('the note the agent is handed', () => {
   test('only known-safe headers are echoed, never a delivery credential', () => {
-    const note = buildWebhookNote('push POST /wh/a1-gh', 'github', {
+    const note = buildWebhookNote('push POST /api/webhooks/a1-gh', 'github', {
       headers: {
         'x-github-event': 'push',
         authorization: 'Bearer super-secret-token',
@@ -131,7 +131,7 @@ describe('the note the agent is handed', () => {
   });
 
   test('a huge body is truncated with the dropped size named', () => {
-    const note = buildWebhookNote('event POST /wh/x', undefined, {
+    const note = buildWebhookNote('event POST /api/webhooks/x', undefined, {
       body: { blob: 'z'.repeat(20_000) },
     });
     expect(note.length).toBeLessThan(9_000);
@@ -139,15 +139,15 @@ describe('the note the agent is handed', () => {
   });
 
   test('a body that is plain text is passed through as text', () => {
-    const note = buildWebhookNote('event POST /wh/x', undefined, {
+    const note = buildWebhookNote('event POST /api/webhooks/x', undefined, {
       body: 'ping from a provider that does not send json',
     });
     expect(note).toContain('ping from a provider that does not send json');
   });
 
   test('no body at all still says what arrived', () => {
-    const note = buildWebhookNote('event POST /wh/x', 'plain', {});
-    expect(note).toContain('[webhook received] plain: event POST /wh/x');
+    const note = buildWebhookNote('event POST /api/webhooks/x', 'plain', {});
+    expect(note).toContain('[webhook received] plain: event POST /api/webhooks/x');
     expect(note).toContain('Inbound only');
   });
 

@@ -23,8 +23,10 @@ export function AttachedAccount({
 }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const secret = result.secret;
-  const url = result.identity.url;
-  const fields = Object.entries(result.identity).filter(([k]) => k !== 'url');
+  const endpoint = result.identity.endpoint;
+  const fields = Object.entries(result.identity).filter(
+    ([k]) => k !== 'endpoint',
+  );
   return (
     <Col gap={14}>
         <Col gap={4}>
@@ -41,8 +43,14 @@ export function AttachedAccount({
             <Field key={label} label={label} value={value} />
           ))}
         </Row>
-        {url === undefined ? null : (
-          <CopyBlock label="endpoint url" value={url} />
+        {endpoint === undefined ? null : (
+          <Col gap={8}>
+            <CopyBlock label="post events here" value={endpoint} secret />
+            <Text size="sm" role="secondary">
+              The whole URL is the credential. Paste it into the provider as the
+              webhook URL — no secret or signature header to configure.
+            </Text>
+          </Col>
         )}
         {secret !== null ? (
           <Col gap={8}>

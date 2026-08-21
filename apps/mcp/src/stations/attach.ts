@@ -44,7 +44,6 @@ export interface PreparedAccount {
   identity: Record<string, string>;
   secret?: OneTimeSecret;
   discard?: () => void;
-  finalize?: (accountId: string) => Record<string, string>;
 }
 
 const TOKEN_RE = /^[A-Za-z0-9._:-]{8,256}$/;
@@ -153,23 +152,22 @@ async function prepareXmtp(verify: VerifyXmtpKey): Promise<PreparedAccount> {
   };
 }
 
-const webhookUrl = (accountId: string): string =>
-  `${publicBaseOrDefault().replace(/\/+$/, '')}/wh/${accountId}`;
+export const hookUrl = (webhookId: string, secret: string): string =>
+  `${publicBaseOrDefault().replace(/\/+$/, '')}/api/webhooks/${webhookId}/${secret}`;
+
+const WEBHOOK_ID_FLOOR = 10n ** 18n;
+
+export function newWebhookId(): string {
+  const raw = BigInt(`0x${randomBytes(8).toString('hex')}`);
+  return String(WEBHOOK_ID_FLOOR + (raw % (9n * WEBHOOK_ID_FLOOR)));
+}
 
 function prepareWebhook(): PreparedAccount {
-  const secret = randomBytes(32).toString('hex');
+  const secret = randomBytes(48).toString('base64url');
+  const webhookId = newWebhookId();
   return {
-    config: { secret, createdAt: new Date().toISOString() },
-    identity: {},
-    secret: {
-      label: 'webhook signing secret',
-      value: secret,
-      note:
-        'Sign each request body with HMAC-SHA256 and send it as ' +
-        'x-hub-signature-256: sha256=<hex>. Metro shows this secret once, ' +
-        'here, and no API returns it again.',
-    },
-    finalize: (accountId) => ({ url: webhookUrl(accountId) }),
+    config: { secret, webhookId, createdAt: new Date().toISOString() },
+    identity: { endpoint: hookUrl(webhookId, secret) },
   };
 }
 

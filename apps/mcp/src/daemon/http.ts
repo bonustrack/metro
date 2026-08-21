@@ -16,9 +16,15 @@ import {
 } from './events.js';
 import type { TrainEvent } from './protocol.js';
 import { agentForLine, agentIdForLine } from '../db/agent-map.js';
-import { findEndpoint, listEndpoints, webhookPort } from './tunnel.js';
+import {
+  findEndpointByWebhookId,
+  listEndpoints,
+  tokenMatches,
+  webhookPort,
+  type Endpoint,
+} from './tunnel.js';
 import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
-import { webhookEntry, verifyWebhookSig } from '@metro-labs/webhook';
+import { webhookEntry } from '@metro-labs/webhook';
 import { handleGoogleAuthRequest } from './google-oauth.js';
 import { handleAgentApiRequest, type AgentApiDeps } from './agent-api.js';
 import { handleUploadRequest } from './upload-api.js';
@@ -234,7 +240,7 @@ async function handleWebhookPost(
   res: ServerResponse,
   emit: Emit,
   endpointId: string,
-  endpoint: ReturnType<typeof findEndpoint> & object,
+  endpoint: Endpoint,
 ): Promise<void> {
   let raw: Buffer;
   try {
@@ -245,18 +251,15 @@ async function handleWebhookPost(
     res.writeHead(413).end('payload too large');
     return;
   }
-  const headers = flatHeaders(req);
-  if (
-    endpoint.secret &&
-    !verifyWebhookSig(endpoint.secret, raw, headers['x-hub-signature-256'])
-  ) {
-    log.warn({ endpoint: endpointId }, 'webhook signature mismatch — rejecting');
-    res.writeHead(401).end('signature mismatch');
-    return;
-  }
   const body = parseBody(raw);
   emit(
-    webhookEntry(endpoint, headers, body, req.method ?? 'POST', req.url ?? ''),
+    webhookEntry(
+      endpoint,
+      flatHeaders(req),
+      body,
+      req.method ?? 'POST',
+      hookPath(endpointId),
+    ),
   );
   res.writeHead(200).end('ok');
 }
@@ -274,36 +277,53 @@ function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
   return true;
 }
 
+const HOOK_PATH =
+  /^\/api\/webhooks\/([0-9]{17,20})\/([A-Za-z0-9_-]{32,128})$/;
+
+const HOOK_PREFIX = '/api/webhooks/';
+
+const hookPath = (webhookId: string): string => `${HOOK_PREFIX}${webhookId}`;
+
+function hookTarget(
+  path: string,
+): { id: string; endpoint: Endpoint } | null {
+  const m = HOOK_PATH.exec(path);
+  const webhookId = m?.[1];
+  const token = m?.[2];
+  if (webhookId === undefined || token === undefined) return null;
+  const endpoint = findEndpointByWebhookId(webhookId);
+  if (!endpoint?.secret || !tokenMatches(endpoint.secret, token)) return null;
+  return { id: webhookId, endpoint };
+}
+
 async function handleWebhookRoute(
   req: IncomingMessage,
   res: ServerResponse,
   emit: Emit,
-): Promise<void> {
-  const m = req.url?.match(/^\/wh\/([A-Za-z0-9_-]+)/);
-  if (m?.[1] === undefined) {
+): Promise<boolean> {
+  const path = (req.url ?? '').split('?')[0] ?? '';
+  if (!path.startsWith(HOOK_PREFIX)) return false;
+  const target = hookTarget(path);
+  if (target === null) {
     res.writeHead(404).end();
-    return;
-  }
-  const endpointId = m[1];
-  const endpoint = findEndpoint(endpointId);
-  if (!endpoint) {
-    res.writeHead(404).end();
-    return;
+    return true;
   }
   if (req.method === 'GET') {
-    res.writeHead(200).end(`metro webhook ${endpointId} ready\n`);
-    return;
+    res.writeHead(200).end(`metro webhook ${target.id} ready\n`);
+    return true;
   }
   if (req.method !== 'POST') {
     res.writeHead(405).end();
-    return;
+    return true;
   }
-  await handleWebhookPost(req, res, emit, endpointId, endpoint);
+  await handleWebhookPost(req, res, emit, target.id, target.endpoint);
+  return true;
 }
 
 async function handlePreMcpRoutes(
   req: IncomingMessage,
   res: ServerResponse,
+  emit: Emit,
   monitorCall?: MonitorCall,
   agentApi?: AgentApiDeps,
 ): Promise<boolean> {
@@ -312,6 +332,7 @@ async function handlePreMcpRoutes(
   if (agentApi && handleAgentApiRequest(req, res, agentApi)) return true;
   if (handleUploadRequest(req, res)) return true;
   if (handleAttachRequest(req, res)) return true;
+  if (await handleWebhookRoute(req, res, emit)) return true;
   return Boolean(monitorCall && handleMonitorRequest(req, res, monitorCall));
 }
 
@@ -323,12 +344,12 @@ async function handleRequest(
   monitorCall?: MonitorCall,
   agentApi?: AgentApiDeps,
 ): Promise<void> {
-  if (await handlePreMcpRoutes(req, res, monitorCall, agentApi)) return;
+  if (await handlePreMcpRoutes(req, res, emit, monitorCall, agentApi)) return;
   if (mcp && isMcpPath(req)) {
     applyMcpCors(req, res);
     if (handleMcpPreflight(req, res)) return;
     await mcp(req, res);
     return;
   }
-  await handleWebhookRoute(req, res, emit);
+  res.writeHead(404).end();
 }

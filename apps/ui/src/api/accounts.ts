@@ -95,7 +95,7 @@ export function flattenAccounts(groups: AccountGroup[]): FlatAccount[] {
   return out;
 }
 
-const IDENTITY = new Set(['id', 'handle', 'url']);
+const IDENTITY = new Set(['id', 'handle', 'url', 'endpoint']);
 
 const present = (value: string | undefined): string | undefined =>
   value === undefined || value === '' || value === '-' ? undefined : value;
@@ -103,6 +103,7 @@ const present = (value: string | undefined): string | undefined =>
 export interface StationFields {
   handle: string | undefined;
   url: string | undefined;
+  endpoint: string | undefined;
   details: AccountField[];
 }
 
@@ -112,6 +113,7 @@ export function stationFields(row: AccountRow): StationFields {
   return {
     handle: pick('handle'),
     url: pick('url'),
+    endpoint: pick('endpoint'),
     details: row.fields.filter(
       (f) => !IDENTITY.has(f.label) && present(f.value) !== undefined,
     ),

@@ -41,7 +41,7 @@ A **station** is a chat-platform integration:
 - **discord** — bot gateway + REST. One or many bots, each a `discord` account row.
 - **webhook** — inbound HTTP receiver (GitHub, Intercom, …). Inbound-only; events
   arrive on `metro://webhook/<account_id>`. Attach one like any other station and Metro
-  mints the url and an HMAC-SHA256 signing secret; it runs in-core, with no train.
+  mints a `POST` url whose token is the whole credential; it runs in-core, with no train.
 
 ## Running locally
 
@@ -374,17 +374,21 @@ one agent and its events reach only that agent. Attach one from the agent's page
 url and the signing secret, and the secret is shown that one time only.
 
 ```sh
-curl -X POST "https://mcp.metro.box/wh/<account_id>" \
-  -H "content-type: application/json" \
-  -H "x-hub-signature-256: sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -r | cut -d' ' -f1)" \
-  -d "$BODY"
+curl -X POST "https://mcp.metro.box/api/webhooks/<webhook_id>/<token>" \
+  -H "content-type: application/json" -d '{"hello":"world"}'
 ```
 
-That is GitHub's scheme byte for byte, so a GitHub webhook works by pasting the url and
-the secret into the repository settings. A wrong or missing signature is a `401` and emits
-nothing; `GET` on the same url answers a readiness line and emits nothing, so it is safe as
-a health check. Events arrive on `metro://webhook/<account_id>` and are inbound-only — an
-agent cannot `send`, `reply` or `react` on that line.
+The whole URL is the credential — there is no signature header and nothing else to
+configure, so any provider that takes a webhook URL works by pasting it in. Treat it like a
+password: anyone holding it can post events to that agent.
+
+The `<webhook_id>` is its own random 19-digit id, not the account id — an account id encodes
+the agent it belongs to, and this URL gets pasted into other people's systems.
+
+Anything that is not an exact token match is a `404`, compared in constant time. `GET` on
+the same url answers a readiness line and emits nothing, so it is safe as a health check.
+Events arrive on `metro://webhook/<account_id>` and are inbound-only — an agent cannot
+`send`, `reply` or `react` on that line.
 
 The agent is handed a `[webhook received]` note with the pretty-printed body, capped at
 8 KiB, plus an allowlist of headers — a delivery's `authorization`, `cookie` and
@@ -406,7 +410,7 @@ route that writes the `accounts` table, and it writes nothing else.
 | `xmtp` | nothing | Metro generates the 32-byte secp256k1 key itself, then **opens an XMTP inbox with it** before the row is written. The check runs in a short-lived subprocess (`@metro-labs/xmtp/verify`, key over stdin) against the same `~/.metro/xmtp-production-<hex>.db3` the train will use, and that path is stored in `config.dbPath`, so the train reuses the installation that was just verified instead of burning a second one out of the inbox's ten. `inboxId` and `address` come back on the `201`. If XMTP cannot be reached, or answers with an unregistered client, the attach is a `400` and the half-built database is deleted. |
 | `telegram-user` | api id + api hash from my.telegram.org, then the phone number | The whole MTProto sign-in: Telegram sends a login code to that number, and asks for the two-step verification password if the account has one. |
 | `whatsapp` | a phone number, or nothing to scan a QR instead | The whole multi-device pairing: Metro opens a Baileys socket, shows the QR or the 8-character pairing code, and waits for the handset. |
-| `webhook` | nothing | Nothing to check — there is no provider. Metro generates the account id, mints a 32-byte signing secret, and answers with the endpoint url built from that id. The url is live as soon as the row is written; no train is spawned. |
+| `webhook` | nothing | Nothing to check — there is no provider. Metro generates the account id, mints a random webhook id and a token, and answers with the endpoint url built from those two. The url never contains the account id. The url is live as soon as the row is written; no train is spawned, and the url stays retrievable from the station's page. |
 
 The last two cannot finish in one request, so they run as a short-lived **attach session**:
 
@@ -493,7 +497,7 @@ UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND ac
 
 The HTTP server serves the **MCP at the root path** (so it can sit behind its own host,
 e.g. `https://mcp.metro.box`), plus `GET /health` and the webhook receiver at
-`/wh/<id>`. Register it:
+`/api/webhooks/<id>/<token>`. Register it:
 
 ```sh
 claude mcp add --transport http metro https://mcp.metro.box \
@@ -693,7 +697,7 @@ apps/
     src/
       server.ts         # entry (bin: metro-daemon) — imports daemon/boot
       daemon/           # the supervised runtime: supervisor + dispatcher HTTP
-                        #   (/health, /mcp, /wh/<id>) + IPC + event bus + paths/tunnel
+                        #   (/health, /mcp, /api/webhooks/…) + IPC + bus + paths/tunnel
       mcp/              # the MCP protocol surface (createMetroMcp) at the root path
       stations/         # the station contract + runtime + registry the core reads:
                         #   types.ts            — Station/StationTool/Verb contract

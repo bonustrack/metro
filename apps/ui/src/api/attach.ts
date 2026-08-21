@@ -103,7 +103,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
   webhook: {
     label: 'Webhook',
-    hint: 'Metro mints a URL and a signing secret. Sign each request body with HMAC-SHA256 and send it as the x-hub-signature-256 header, GitHub style. The URL is public: the signature is its only gate, and an unsigned request is accepted only if you attach no secret. An agent receives webhook events and cannot reply on that line.',
+    hint: 'Metro mints a URL to POST events to. The whole URL is the credential, so paste it into the provider and there is no secret or signature header to configure. Treat it like a password: anyone holding it can post events to this agent. Webhook lines are inbound only, so the agent receives events and cannot reply on them.',
     interactive: false,
     fields: [],
   },
@@ -126,6 +126,21 @@ export const STATION_FORMS: Record<string, StationForm> = {
 
 export function stationLabel(station: string): string {
   return STATION_FORMS[station]?.label ?? station;
+}
+
+export const STATIONS_SHOWN = 3;
+
+export function matchStations(
+  stations: string[],
+  query: string,
+  shown = STATIONS_SHOWN,
+): string[] {
+  const q = query.trim().toLowerCase();
+  if (q === '') return stations.slice(0, shown);
+  return stations.filter(
+    (s) =>
+      s.toLowerCase().includes(q) || stationLabel(s).toLowerCase().includes(q),
+  );
 }
 
 export interface OneTimeSecret {

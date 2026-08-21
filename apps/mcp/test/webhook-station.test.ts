@@ -7,7 +7,6 @@ import {
   expect,
   test,
 } from 'bun:test';
-import { createHmac } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
@@ -18,13 +17,17 @@ import { subscribeEvents, type MetroEvent } from '../src/daemon/events.ts';
 import { listEndpoints } from '../src/daemon/tunnel.ts';
 import { setTrainCallBackend } from '../src/daemon/train-call.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
+import { setKeyMap } from '../src/db/key-map.ts';
 import { gatherAccountsForAgents } from '../src/mcp/accounts.ts';
-import { prepareAccount } from '../src/stations/attach.ts';
+import { newWebhookId, prepareAccount } from '../src/stations/attach.ts';
 import { stationByName } from '../src/stations/registry.ts';
 
-const SECRET = 'a'.repeat(64);
+const SECRET = 'Zx-Egym_QEc7slzQR37KDtVFZ1wrZaZb1NcXFED2uNI';
+const OPEN_SECRET = 'b'.repeat(43);
 const SIGNED = 'a1-signed';
 const OPEN = 'a1-open';
+const SIGNED_HOOK = '1493556940637339623';
+const OPEN_HOOK = '7002884113995117460';
 
 let dir: string;
 let accountsFile: string;
@@ -54,8 +57,9 @@ afterAll(() => {
 
 beforeEach(() => {
   write([
-    { id: SIGNED, label: 'github', secret: SECRET },
-    { id: OPEN, label: 'open' },
+    { id: SIGNED, webhookId: SIGNED_HOOK, label: 'github', secret: SECRET },
+    { id: OPEN, webhookId: OPEN_HOOK, label: 'open', secret: OPEN_SECRET },
+    { id: 'a1-nosecret', webhookId: '5000000000000000001', label: 'legacy' },
   ]);
 });
 
@@ -67,7 +71,11 @@ describe('webhook is an account station with no train', () => {
   });
 
   test('endpoints come from the materialized account file', () => {
-    expect(listEndpoints().map((e) => e.id)).toEqual([SIGNED, OPEN]);
+    expect(listEndpoints().map((e) => e.id)).toEqual([
+      SIGNED,
+      OPEN,
+      'a1-nosecret',
+    ]);
     expect(listEndpoints()[0]?.secret).toBe(SECRET);
   });
 
@@ -79,25 +87,45 @@ describe('webhook is an account station with no train', () => {
 });
 
 describe('attaching a webhook mints a secret and its own url', () => {
-  test('the secret is shown once and the url carries the generated id', async () => {
+  test('the url carries its own webhook id, never the account id', async () => {
     const prepared = await prepareAccount({ station: 'webhook' });
-    expect(prepared.secret?.value).toMatch(/^[0-9a-f]{64}$/);
-    expect(prepared.config).toMatchObject({ secret: prepared.secret?.value });
-    expect(prepared.finalize?.('a7-abcdef12')).toEqual({
-      url: 'https://hooks.metro.test/wh/a7-abcdef12',
+    const { secret, webhookId } = prepared.config as {
+      secret: string;
+      webhookId: string;
+    };
+    expect(secret).toMatch(/^[A-Za-z0-9_-]{64}$/);
+    expect(webhookId).toMatch(/^[0-9]{19}$/);
+    expect(prepared.identity).toEqual({
+      endpoint: `https://hooks.metro.test/api/webhooks/${webhookId}/${secret}`,
     });
   });
 
-  test('two attaches never share a signing secret', async () => {
-    const one = await prepareAccount({ station: 'webhook' });
-    const two = await prepareAccount({ station: 'webhook' });
-    expect(one.secret?.value).not.toBe(two.secret?.value);
+  test('the public id gives away neither the agent nor the account', async () => {
+    const prepared = await prepareAccount({ station: 'webhook' });
+    const { webhookId } = prepared.config as { webhookId: string };
+    expect(webhookId).not.toContain('-');
+    expect(newWebhookId()).not.toBe(newWebhookId());
+    const ids = new Set(Array.from({ length: 200 }, () => newWebhookId()));
+    expect(ids.size).toBe(200);
+  });
+
+  test('the token is never handed back as a separate one-time secret', async () => {
+    const prepared = await prepareAccount({ station: 'webhook' });
+    expect(prepared.secret).toBeUndefined();
+  });
+
+  test('two attaches never share a token', async () => {
+    const one = (await prepareAccount({ station: 'webhook' })).config;
+    const two = (await prepareAccount({ station: 'webhook' })).config;
+    expect((one as { secret: string }).secret).not.toBe(
+      (two as { secret: string }).secret,
+    );
   });
 
   test('no provider is contacted, so nothing can be discarded', async () => {
     const prepared = await prepareAccount({ station: 'webhook' });
     expect(prepared.discard).toBeUndefined();
-    expect(prepared.identity).toEqual({});
+    expect(Object.keys(prepared.identity)).toEqual(['endpoint']);
   });
 });
 
@@ -114,9 +142,8 @@ describe('an in-core station is never reported as unavailable', () => {
     expect(accounts.webhook).toEqual([
       {
         id: SIGNED,
-        handle: `/wh/${SIGNED}`,
-        url: `https://hooks.metro.test/wh/${SIGNED}`,
-        signed: 'hmac-sha256',
+        handle: `/api/webhooks/${SIGNED_HOOK}`,
+        endpoint: `https://hooks.metro.test/api/webhooks/${SIGNED_HOOK}/${SECRET}`,
         agentId: 1,
       },
     ]);
@@ -129,24 +156,15 @@ describe('an in-core station is never reported as unavailable', () => {
     expect((accounts.webhook as { id: string }[]).map((a) => a.id)).toEqual([OPEN]);
   });
 
-  test('an endpoint with no secret says so, and no secret is ever listed', async () => {
-    setAgentMap({ [`webhook/${OPEN}`]: 2 }, { 2: 'Lisa' });
+  test('an endpoint with no token is unaddressable, so it is not listed', async () => {
+    setAgentMap({ 'webhook/a1-nosecret': 2 }, { 2: 'Lisa' });
     setTrainCallBackend(() => Promise.reject(new Error('train restarting')));
     const { accounts } = await gatherAccountsForAgents(new Set([2]));
-    expect(accounts.webhook).toEqual([
-      {
-        id: OPEN,
-        handle: `/wh/${OPEN}`,
-        url: `https://hooks.metro.test/wh/${OPEN}`,
-        signed: 'no',
-        agentId: 2,
-      },
-    ]);
-    expect(JSON.stringify(accounts)).not.toContain(SECRET);
+    expect(accounts.webhook).toEqual([]);
   });
 });
 
-describe('the /wh route', () => {
+describe('the /hook route', () => {
   let server: Server;
   let base: string;
   let seen: MetroEvent[];
@@ -158,30 +176,32 @@ describe('the /wh route', () => {
     );
     process.env.METRO_HTTP_HOST = '127.0.0.1';
     seen = [];
+    setKeyMap([{ key: 'mk_monitor_is_mounted', agentId: 1 }]);
     unsubscribe = subscribeEvents((e: MetroEvent) => seen.push(e));
-    server = await startWebhookServer(makeEmit());
+    server = await startWebhookServer(makeEmit(), undefined, () =>
+      Promise.resolve({ result: null }),
+    );
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
 
   afterEach(async () => {
     unsubscribe();
+    setKeyMap([]);
     await new Promise<void>((r) => server.close(() => r()));
   });
 
-  const sign = (body: string): string =>
-    `sha256=${createHmac('sha256', SECRET).update(body).digest('hex')}`;
+  const hook = (webhookId: string, token: string): string =>
+    `${base}/api/webhooks/${webhookId}/${token}`;
 
-  test('a signed post emits one event on the endpoint own line', async () => {
-    const body = JSON.stringify({ action: 'opened' });
-    const res = await fetch(`${base}/wh/${SIGNED}`, {
+  test('a post to the full url emits one event on the endpoint own line', async () => {
+    const res = await fetch(hook(SIGNED_HOOK, SECRET), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-hub-signature-256': sign(body),
         'x-github-event': 'issues',
         'x-github-delivery': 'd-1',
       },
-      body,
+      body: JSON.stringify({ action: 'opened' }),
     });
     expect(res.status).toBe(200);
     expect(seen).toHaveLength(1);
@@ -191,30 +211,66 @@ describe('the /wh route', () => {
     expect(seen[0]?.payload).toMatchObject({ body: { action: 'opened' } });
   });
 
-  test('a wrong signature is refused and emits nothing', async () => {
-    const res = await fetch(`${base}/wh/${SIGNED}`, {
+  test('the summary line names the path without the token', async () => {
+    await fetch(hook(SIGNED_HOOK, SECRET), { method: 'POST', body: '{}' });
+    expect(seen[0]?.text).toBe(`event POST /api/webhooks/${SIGNED_HOOK}`);
+    expect(JSON.stringify(seen[0])).not.toContain(SECRET);
+  });
+
+  test('no signature header is needed at all', async () => {
+    const res = await fetch(hook(OPEN_HOOK, OPEN_SECRET), {
       method: 'POST',
-      headers: { 'x-hub-signature-256': `sha256=${'0'.repeat(64)}` },
       body: '{}',
     });
-    expect(res.status).toBe(401);
-    expect(seen).toHaveLength(0);
-  });
-
-  test('a missing signature on a signed endpoint is refused', async () => {
-    const res = await fetch(`${base}/wh/${SIGNED}`, { method: 'POST', body: '{}' });
-    expect(res.status).toBe(401);
-    expect(seen).toHaveLength(0);
-  });
-
-  test('an endpoint with no secret accepts an unsigned post', async () => {
-    const res = await fetch(`${base}/wh/${OPEN}`, { method: 'POST', body: '{}' });
     expect(res.status).toBe(200);
     expect(String(seen[0]?.line)).toBe(`metro://webhook/${OPEN}`);
   });
 
+  test('a wrong token is refused and emits nothing', async () => {
+    const res = await fetch(hook(SIGNED_HOOK, 'f'.repeat(43)), {
+      method: 'POST',
+      body: '{}',
+    });
+    expect(res.status).toBe(404);
+    expect(seen).toHaveLength(0);
+  });
+
+  test('another endpoint token never opens this one', async () => {
+    const res = await fetch(hook(SIGNED_HOOK, OPEN_SECRET), {
+      method: 'POST',
+      body: '{}',
+    });
+    expect(res.status).toBe(404);
+    expect(seen).toHaveLength(0);
+  });
+
+  test('the id alone, with no token, is not a route', async () => {
+    for (const path of [
+      `/api/webhooks/${SIGNED_HOOK}`,
+      `/api/webhooks/${SIGNED_HOOK}/`,
+      `/api/webhooks/${SIGNED}/${SECRET}`,
+      `/hook/${SIGNED_HOOK}/${SECRET}`,
+      `/wh/${SIGNED}`,
+    ]) {
+      const res = await fetch(`${base}${path}`, { method: 'POST', body: '{}' });
+      expect([path, res.status]).toEqual([path, 404]);
+    }
+    expect(seen).toHaveLength(0);
+  });
+
+  test('an endpoint with no stored token can never be addressed', async () => {
+    for (const token of ['', 'a'.repeat(43), SECRET]) {
+      const res = await fetch(`${base}/api/webhooks/5000000000000000001/${token}`, {
+        method: 'POST',
+        body: '{}',
+      });
+      expect(res.status).toBe(404);
+    }
+    expect(seen).toHaveLength(0);
+  });
+
   test('an unknown endpoint is a 404 and emits nothing', async () => {
-    const res = await fetch(`${base}/wh/a1-never-attached`, {
+    const res = await fetch(hook('9999999999999999999', SECRET), {
       method: 'POST',
       body: '{}',
     });
@@ -223,25 +279,38 @@ describe('the /wh route', () => {
   });
 
   test('an endpoint detached since the last materialize stops accepting', async () => {
-    write([{ id: OPEN, label: 'open' }]);
-    const res = await fetch(`${base}/wh/${SIGNED}`, {
+    write([
+      { id: OPEN, webhookId: OPEN_HOOK, label: 'open', secret: OPEN_SECRET },
+    ]);
+    const res = await fetch(hook(SIGNED_HOOK, SECRET), {
       method: 'POST',
-      headers: { 'x-hub-signature-256': sign('{}') },
       body: '{}',
     });
     expect(res.status).toBe(404);
     expect(seen).toHaveLength(0);
   });
 
-  test('a GET confirms the endpoint is live without emitting', async () => {
-    const res = await fetch(`${base}/wh/${SIGNED}`);
+  test('the monitor router claims /api/* and must not swallow this one', async () => {
+    expect(
+      (await fetch(`${base}/api/tail`, { method: 'GET' })).status,
+    ).toBe(401);
+    const res = await fetch(hook(SIGNED_HOOK, SECRET), {
+      method: 'POST',
+      body: '{"through":"the api prefix"}',
+    });
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain(SIGNED);
+    expect(seen).toHaveLength(1);
+  });
+
+  test('a GET confirms the endpoint is live without emitting', async () => {
+    const res = await fetch(hook(SIGNED_HOOK, SECRET));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain(SIGNED_HOOK);
     expect(seen).toHaveLength(0);
   });
 
   test('a verb that is neither GET nor POST is refused', async () => {
-    const res = await fetch(`${base}/wh/${SIGNED}`, { method: 'DELETE' });
+    const res = await fetch(hook(SIGNED_HOOK, SECRET), { method: 'DELETE' });
     expect(res.status).toBe(405);
     expect(seen).toHaveLength(0);
   });

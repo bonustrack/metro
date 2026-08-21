@@ -1,4 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { timingSafeEqual } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { STATE_DIR } from './paths.js';
@@ -16,6 +17,7 @@ export interface TunnelConfig {
 
 export interface Endpoint {
   id: string;
+  webhookId?: string;
   label: string;
   secret?: string;
   session?: string;
@@ -23,6 +25,7 @@ export interface Endpoint {
 }
 interface AccountRecord {
   id?: unknown;
+  webhookId?: unknown;
   label?: unknown;
   secret?: unknown;
   session?: unknown;
@@ -44,6 +47,7 @@ function toEndpoint(raw: AccountRecord): Endpoint | null {
   if (id === undefined) return null;
   return {
     id,
+    webhookId: str(raw.webhookId),
     label: str(raw.label) ?? id,
     secret: str(raw.secret),
     session: str(raw.session),
@@ -61,6 +65,17 @@ export function listEndpoints(): Endpoint[] {
 
 export const findEndpoint = (id: string): Endpoint | undefined =>
   listEndpoints().find((e) => e.id === id);
+
+export const findEndpointByWebhookId = (
+  webhookId: string,
+): Endpoint | undefined =>
+  listEndpoints().find((e) => e.webhookId === webhookId);
+
+export function tokenMatches(secret: string, given: string): boolean {
+  const want = Buffer.from(secret);
+  const got = Buffer.from(given);
+  return want.length === got.length && timingSafeEqual(want, got);
+}
 
 export function warnOnLegacyWebhooks(): void {
   const legacy = readJson<{ endpoints?: unknown[] }>(LEGACY_WEBHOOKS_FILE, {});
