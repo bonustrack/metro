@@ -79,6 +79,8 @@ function applyCanvas(scheme: Scheme, palette: KitPalette): void {
     '--metro-heading': palette.link,
     '--metro-border': palette.border,
     '--metro-surface': palette.inputBg,
+    '--metro-toolbar': palette.toolbarBg,
+    '--metro-danger': palette.danger,
     '--metro-font-sans': FONT_SANS,
     '--metro-font-head': FONT_HEAD,
     '--metro-font-mono': FONT_MONO,

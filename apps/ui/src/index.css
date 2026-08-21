@@ -40,8 +40,7 @@ body {
 
 .app-sidebar,
 .app-drawer {
-  background: var(--metro-bg);
-  background: color-mix(in srgb, var(--metro-bg) 60%, var(--metro-surface));
+  background: var(--metro-toolbar);
 }
 
 .app-sidebar {
@@ -52,6 +51,7 @@ body {
   flex: 0 0 300px;
   width: 300px;
   height: 100vh;
+  border-right: 1px solid var(--metro-border);
 }
 
 .app-drawer {
@@ -63,6 +63,7 @@ body {
   display: flex;
   flex-direction: column;
   width: 300px;
+  border-right: 1px solid var(--metro-border);
 }
 
 .app-main {
@@ -374,7 +375,7 @@ textarea:focus-visible {
 }
 
 .kebab-item:hover { background: var(--metro-border); }
-.kebab-danger { color: #d6453d; }
+.kebab-danger { color: var(--metro-danger); }
 
 @keyframes boot-pulse {
   0%,

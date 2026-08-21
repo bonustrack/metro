@@ -3,7 +3,7 @@ import { Pressable as RNPressable, ScrollView } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
 import { Pressable } from '@stage-labs/kit/react-native/pressable';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
 import { MetroLogo } from './MetroLogo';
 import { SidebarFooter } from './SidebarFooter';
@@ -68,7 +68,7 @@ export function AgentSidebar({
   onSelect,
   onLock,
 }: AgentSidebarProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
+  const palette = useKitPalette();
   return (
     <Col flex={1} minHeight={0}>
       <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
@@ -81,7 +81,7 @@ export function AgentSidebar({
                 onSelect({ kind: 'none' });
               }}
             >
-              <MetroLogo size={32} color={dark ? '#ffffff' : '#000000'} />
+              <MetroLogo size={32} color={palette.link} />
             </RNPressable>
           </Row>
           <Col>

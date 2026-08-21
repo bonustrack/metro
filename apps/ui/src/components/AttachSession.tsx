@@ -1,9 +1,13 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
+import { colors } from '@stage-labs/kit/tokens';
 import { Text, Button, Input } from './ui';
 
 const CODE_INPUT = { flexGrow: 1, minWidth: 200 } as const;
+
+const QR_INK = colors['link-light'];
+const QR_PAPER = colors['bg-light'];
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import {
   cancelAttachSession,
@@ -93,7 +97,12 @@ function StepBody({
     return qr === null ? (
       <Waiting label="Waiting for WhatsApp to hand over a QR code." />
     ) : (
-      <QrCode value={qr} size={220} color="#000000" background="#ffffff" />
+      <QrCode
+        value={qr}
+        size={220}
+        color={QR_INK}
+        background={QR_PAPER}
+      />
     );
   if (step === 'pair')
     return pairingCode === null ? (
