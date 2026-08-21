@@ -18,7 +18,7 @@ export function setAllowlistMap(map: AllowlistMap): void {
   allowlistMap = map;
 }
 
-function accountOfLine(
+export function accountFromLine(
   line: string,
 ): { station: string; accountId: string } | undefined {
   const parts = line.split('/');
@@ -36,7 +36,7 @@ export function agentIdForAccount(
 }
 
 export function agentIdForLine(line: string): number | undefined {
-  const a = accountOfLine(line);
+  const a = accountFromLine(line);
   return a ? agentIdForAccount(a.station, a.accountId) : undefined;
 }
 
@@ -52,14 +52,8 @@ export function stationAgentIds(station: string): number[] {
     .map(([, id]) => id);
 }
 
-export function accountFromLine(
-  line: string,
-): { station: string; accountId: string } | undefined {
-  return accountOfLine(line);
-}
-
 export function allowlistForLine(line: string): string[] | undefined {
-  const a = accountOfLine(line);
+  const a = accountFromLine(line);
   return a ? allowlistMap[mapKey(a.station, a.accountId)] : undefined;
 }
 

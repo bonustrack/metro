@@ -111,19 +111,12 @@ describe('resetAgentKey', () => {
     command: 'claude mcp add --transport http metro "x"',
   };
 
-  test('POSTs to the agent key sub-resource and returns the new credentials', async () => {
+  test('POSTs to the agent key sub-resource', async () => {
     serve(ROTATED);
-    const out = await resetAgentKey('session', 7);
+    await resetAgentKey('session', 7);
     expect(calls).toEqual([
       { url: 'https://mcp.metro.box/api/agents/7/key', method: 'POST' },
     ]);
-    expect(out).toEqual({
-      id: 7,
-      name: 'tony',
-      key: 'mk_rotated',
-      endpoint: ROTATED.endpoint,
-      command: ROTATED.command,
-    });
   });
 
   test('a refusal is surfaced with the daemon own message', async () => {

@@ -3,6 +3,7 @@ import { join, parse as parsePath } from 'node:path';
 import { errMsg, log } from './log.js';
 import { coerceErrorInfo, type TrainErrorInfo } from './train-error.js';
 import type { StructuredEvent } from './events.js';
+import type { CallMsg } from '../stations/station-runtime.js';
 
 export {
   TrainError,
@@ -124,6 +125,28 @@ export function drainLines(
     onLine(line);
   }
   return buf;
+}
+
+export function readCalls(
+  name: string,
+  handleCall: (msg: CallMsg) => Promise<void>,
+): void {
+  let buf = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (chunk: Buffer | string) => {
+    buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    buf = drainLines(name, buf, (line) => {
+      try {
+        const msg = JSON.parse(line) as Partial<CallMsg>;
+        if (msg.op === 'call')
+          handleCall(msg as CallMsg).catch((e: unknown) => {
+            process.stderr.write(`call failed: ${errMsg(e)}\n`);
+          });
+      } catch (err: unknown) {
+        process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
+      }
+    });
+  });
 }
 
 export function encodeCall(id: string, action: string, args: unknown): string {

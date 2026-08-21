@@ -10,7 +10,7 @@ const FILE = join(STATE_DIR, 'tunnel.json');
 const LEGACY_WEBHOOKS_FILE = join(STATE_DIR, 'webhooks.json');
 const RESTART_DELAY_MS = 2_000;
 
-export interface TunnelConfig {
+interface TunnelConfig {
   name: string;
   hostname: string;
 }
@@ -62,9 +62,6 @@ export function listEndpoints(): Endpoint[] {
   if (!Array.isArray(raw)) return [];
   return raw.map(toEndpoint).filter((e): e is Endpoint => e !== null);
 }
-
-export const findEndpoint = (id: string): Endpoint | undefined =>
-  listEndpoints().find((e) => e.id === id);
 
 export const findEndpointByWebhookId = (
   webhookId: string,

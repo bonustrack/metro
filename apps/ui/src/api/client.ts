@@ -162,7 +162,7 @@ export async function deleteAgent(token: string, id: number): Promise<void> {
 export async function resetAgentKey(
   token: string,
   id: number,
-): Promise<CreatedAgent> {
+): Promise<void> {
   const body = await call(token, { method: 'POST', path: `/${id}/key` });
   if (
     !isRecord(body) ||
@@ -172,11 +172,4 @@ export async function resetAgentKey(
     typeof body.endpoint !== 'string'
   )
     throw new Error('Metro returned an unexpected response.');
-  return {
-    id: typeof body.id === 'number' ? body.id : id,
-    name: body.name,
-    key: body.key,
-    endpoint: body.endpoint,
-    command: body.command,
-  };
 }

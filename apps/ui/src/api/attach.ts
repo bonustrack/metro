@@ -2,6 +2,7 @@ import { call } from './client';
 import { isRecord } from './accounts';
 import {
   isAttachSession,
+  toIdentity,
   toSession,
   type AttachSession,
 } from './attach-session';
@@ -155,14 +156,6 @@ export interface AttachResult {
   identity: Record<string, string>;
   activated: boolean;
   secret: OneTimeSecret | null;
-}
-
-function toIdentity(value: unknown): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!isRecord(value)) return out;
-  for (const [key, raw] of Object.entries(value))
-    if (typeof raw === 'string' && raw !== '') out[key] = raw;
-  return out;
 }
 
 function toSecret(value: unknown): OneTimeSecret | null {

@@ -69,60 +69,47 @@ function inCoreAccounts(station: string): unknown[] {
   );
 }
 
-export async function gatherAccounts(
-  allowedAgents?: Set<number>,
-): Promise<Record<string, unknown[]>> {
-  const out: Record<string, unknown[]> = {};
-  await Promise.all(
-    accountStationNames().map(async (station) => {
-      if (!hasTrain(station)) {
-        out[station] = inCoreAccounts(station);
-        return;
-      }
-      try {
-        const resp = await forwardTrainCall(station, 'accounts', {});
-        const accounts = (
-          resp.result as { accounts?: unknown[] } | undefined
-        )?.accounts;
-        out[station] = Array.isArray(accounts) ? accounts : [];
-      } catch {
-        out[station] = [];
-      }
-    }),
-  );
-  return allowedAgents ? scopeAccountsByAgent(out, allowedAgents) : out;
-}
-
 export interface ScopedAccounts {
   accounts: Record<string, unknown[]>;
   unavailable: string[];
 }
 
-export async function gatherAccountsForAgents(
-  allowed: Set<number>,
-): Promise<ScopedAccounts> {
+async function loadStations(): Promise<ScopedAccounts> {
   const unavailable: string[] = [];
-  const out: Record<string, unknown[]> = {};
+  const accounts: Record<string, unknown[]> = {};
   await Promise.all(
     accountStationNames().map(async (station) => {
       if (!hasTrain(station)) {
-        out[station] = inCoreAccounts(station);
+        accounts[station] = inCoreAccounts(station);
         return;
       }
       try {
         const resp = await forwardTrainCall(station, 'accounts', {});
-        const accounts = (
-          resp.result as { accounts?: unknown[] } | undefined
-        )?.accounts;
-        out[station] = Array.isArray(accounts) ? accounts : [];
+        const list = (resp.result as { accounts?: unknown[] } | undefined)
+          ?.accounts;
+        accounts[station] = Array.isArray(list) ? list : [];
       } catch {
-        out[station] = [];
+        accounts[station] = [];
         unavailable.push(station);
       }
     }),
   );
+  return { accounts, unavailable };
+}
+
+export async function gatherAccounts(
+  allowedAgents?: Set<number>,
+): Promise<Record<string, unknown[]>> {
+  const { accounts } = await loadStations();
+  return allowedAgents ? scopeAccountsByAgent(accounts, allowedAgents) : accounts;
+}
+
+export async function gatherAccountsForAgents(
+  allowed: Set<number>,
+): Promise<ScopedAccounts> {
+  const { accounts, unavailable } = await loadStations();
   return {
-    accounts: attachAgentIds(scopeAccountsByAgent(out, allowed)),
+    accounts: attachAgentIds(scopeAccountsByAgent(accounts, allowed)),
     unavailable,
   };
 }

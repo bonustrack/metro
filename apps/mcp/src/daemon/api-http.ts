@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
 import { verifySession } from './session.js';
+import { extractToken } from '../mcp/request-identity.js';
 
 const BODY_MAX = 4 * 1024;
 
@@ -33,20 +34,10 @@ export function sendJson(
   res.end(JSON.stringify(body));
 }
 
-function bearerOrQueryToken(req: IncomingMessage): string {
-  const header = req.headers.authorization;
-  if (header?.startsWith('Bearer ')) {
-    const t = header.slice(7).trim();
-    if (t !== '') return t;
-  }
-  const url = new URL(req.url ?? '/', 'http://localhost');
-  return url.searchParams.get('token') ?? '';
-}
-
 export function apiSession(req: IncomingMessage): ApiSession | null {
   const secret = process.env.METRO_SESSION_SECRET?.trim() ?? '';
   if (secret === '') return null;
-  const token = bearerOrQueryToken(req);
+  const token = extractToken(req) ?? '';
   if (token === '') return null;
   try {
     const { email } = verifySession(token, secret);

@@ -11,25 +11,10 @@ import {
   type TgReaction,
   type TgReactionCount,
 } from './format.js';
-import { drainLines } from '@metro-labs/mcp/trains/protocol';
-import { handleCall, type CallMsg } from './actions.js';
+import { readCalls } from '@metro-labs/mcp/trains/protocol';
+import { handleCall } from './actions.js';
 
-let buf = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk: Buffer | string) => {
-  buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-  buf = drainLines('telegram', buf, (line) => {
-    try {
-      const msg = JSON.parse(line) as Partial<CallMsg>;
-      if (msg.op === 'call')
-        handleCall(msg as CallMsg).catch((e: unknown) => {
-          process.stderr.write(`call failed: ${errMsg(e)}\n`);
-        });
-    } catch (err: unknown) {
-      process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
-    }
-  });
-});
+readCalls('telegram', handleCall);
 
 interface Update {
   update_id: number;

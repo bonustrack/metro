@@ -18,7 +18,7 @@ interface StreamEntry {
   cleanup: () => void;
 }
 
-interface WebTransport {
+export interface WebTransport {
   sessionId?: string;
   _initialized?: boolean;
   _streamMapping?: Map<string, StreamEntry>;
@@ -28,7 +28,7 @@ interface AdaptedTransport {
   _webStandardTransport?: WebTransport;
 }
 
-const web = (
+export const web = (
   transport: StreamableHTTPServerTransport,
 ): WebTransport | undefined =>
   (transport as unknown as AdaptedTransport)._webStandardTransport;
@@ -40,7 +40,7 @@ export const isStandaloneGet = (req: IncomingMessage): boolean => {
   return value.includes('text/event-stream');
 };
 
-const headerValue = (
+export const headerValue = (
   req: IncomingMessage,
   name: string,
 ): string | undefined => {
@@ -85,7 +85,7 @@ export function validateStandaloneSession(
   return { ok: true };
 }
 
-interface ServeOpts {
+export interface ServeOpts {
   transport: StreamableHTTPServerTransport;
   eventStore: BoundedEventStore;
   scope: Set<number>;
@@ -189,4 +189,19 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
   res.on('close', closeStream);
   res.on('error', closeStream);
   req.on('close', closeStream);
+}
+
+export interface ChannelGetOpts extends ServeOpts {
+  previous: RawGetSink | undefined;
+}
+
+export async function serveChannelGet(opts: ChannelGetOpts): Promise<boolean> {
+  const check = validateStandaloneSession(opts.transport, opts.req);
+  if (!check.ok) {
+    opts.res.writeHead(check.status ?? 400).end(check.message ?? 'bad request');
+    return false;
+  }
+  if (opts.previous && !opts.previous.closed) opts.previous.close();
+  await serveStandaloneGet(opts);
+  return true;
 }

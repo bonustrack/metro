@@ -205,7 +205,10 @@ export class BodyTooLargeError extends Error {
   }
 }
 
-async function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
+export async function readBody(
+  req: IncomingMessage,
+  maxBytes: number,
+): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const c of req) {

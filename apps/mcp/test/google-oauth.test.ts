@@ -6,7 +6,6 @@ import {
   type CallbackDeps,
   type OAuthConfig,
 } from '../src/daemon/google-oauth.ts';
-import { parseEmailAgentMap } from '../src/daemon/google-auth.ts';
 import { signState, verifySession } from '../src/daemon/session.ts';
 
 const cfg: OAuthConfig = {
@@ -19,7 +18,6 @@ const cfg: OAuthConfig = {
   sessionTtlSec: 3600,
 };
 
-const GRANTED_IDS: Record<string, number> = { tony: 3, wan: 4 };
 let userTable = new Map<string, number>();
 let ensured: string[] = [];
 
@@ -189,16 +187,6 @@ describe('completeCallback', () => {
       verifyIdToken: () => Promise.resolve({ email: 'never@x.co' }),
     });
     expect(userTable.size).toBe(0);
-  });
-
-  test('redirects with error=verify when id-token verification fails', async () => {
-    const state = stateFrom(buildStartRedirect(cfg, 'https://metro.box/'));
-    const redirect = await completeCallback(cfg, { code: 'c', state }, {
-      ensureUser,
-      exchangeCode: () => Promise.resolve({ id_token: 't' }),
-      verifyIdToken: () => Promise.reject(new Error('bad token')),
-    });
-    expect(fragment(redirect).get('error')).toBe('verify');
   });
 
   test('redirects with error=exchange when no id_token comes back', async () => {

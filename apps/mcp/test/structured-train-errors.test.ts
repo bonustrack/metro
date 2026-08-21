@@ -5,8 +5,7 @@
  *  - TrainError shape: `toErrorInfo` carries code/message/retryable/retryAfterMs.
  *  - serializeTrainError: a `TrainError` yields BOTH the legacy `error` string AND
  *    the structured `errorInfo`; the daemon-side `parseTrainLine` carries
- *    `errorInfo` through; the CLI maps `errorInfo.code === 'RATE_LIMITED'` to
- *    exit code 7.
+ *    `errorInfo` through.
  *  - legacy-parity: a plain `Error` produces EXACTLY today's `{ error }` output
  *    (no `errorInfo` key), byte-identical to pre-#3 behaviour.
  */
@@ -77,31 +76,5 @@ describe('parseTrainLine: daemon carries errorInfo through', () => {
       op: 'response', id: 'r3', error: 'x', errorInfo: { retryable: true },
     }));
     expect((msg as { errorInfo?: unknown }).errorInfo).toBeUndefined();
-  });
-});
-
-describe('CLI exit-code mapping (errorInfo.code preferred, regex fallback)', () => {
-  // Mirrors verbs.ts codeFor() precedence without spawning the daemon.
-  const EXIT = { upstream: 3, rateLimited: 7 } as const;
-  type ErrLike = Error & { code?: number; errorInfo?: { code: string } };
-  function codeFor(err: ErrLike): number {
-    if (typeof err.code === 'number') return err.code;
-    if (err.errorInfo?.code === 'RATE_LIMITED') return EXIT.rateLimited;
-    if (/rate.?limit|429|too many requests/i.test(err.message)) return EXIT.rateLimited;
-    return EXIT.upstream;
-  }
-
-  test('errorInfo.code RATE_LIMITED → exit 7 even when prose does not match', () => {
-    const e: ErrLike = Object.assign(new Error('busy'), { errorInfo: { code: 'RATE_LIMITED' } });
-    expect(codeFor(e)).toBe(EXIT.rateLimited);
-  });
-
-  test('regex fallback still catches rate limits with no errorInfo', () => {
-    expect(codeFor(new Error('429 too many requests'))).toBe(EXIT.rateLimited);
-  });
-
-  test('non-rate-limited structured code → upstream 3', () => {
-    const e: ErrLike = Object.assign(new Error('gone'), { errorInfo: { code: 'NOT_FOUND' } });
-    expect(codeFor(e)).toBe(EXIT.upstream);
   });
 });

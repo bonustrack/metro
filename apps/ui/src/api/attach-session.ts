@@ -22,7 +22,7 @@ const STEPS: AttachStep[] = ['code', 'password', 'scan', 'pair'];
 const text = (v: unknown): string | null =>
   typeof v === 'string' && v !== '' ? v : null;
 
-function toIdentity(value: unknown): Record<string, string> {
+export function toIdentity(value: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (!isRecord(value)) return out;
   for (const [key, raw] of Object.entries(value))

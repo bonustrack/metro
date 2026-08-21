@@ -11,7 +11,7 @@ export interface AttachmentGrant {
   mintedAt: number;
 }
 
-export function newAttachmentToken(prefix = 'at'): string {
+function newAttachmentToken(prefix = 'at'): string {
   return `${prefix}_${randomBytes(32).toString('base64url')}`;
 }
 

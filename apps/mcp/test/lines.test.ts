@@ -1,10 +1,8 @@
 /**
  * Unit tests for `src/stations/lines.ts` — the `metro://` URI vocabulary.
  *
- * Covers builders (discord/telegram/claude/webhook/user), the generic
- * `parse`/`station` split, the local-session parser (`parseClaude` —
- * participant `/user/<id>` URIs vs full `<userId>/<sessionId>` sessions),
- * `isLocal`, round-trips, and malformed input.
+ * Covers the builders (claude/webhook/user), the generic `parse`/`station`
+ * split, the account-scoped forms, `isLocal`, and malformed input.
  *
  * Pure in-process; no fs / network.
  */
@@ -13,21 +11,6 @@ import { describe, expect, test } from 'bun:test';
 import { Line, asLine } from '../src/stations/lines.ts';
 
 describe('Line builders', () => {
-  test('discord', () => {
-    expect(Line.discord('456')).toBe(asLine('metro://discord/456'));
-  });
-
-  test('telegram without topic', () => {
-    expect(Line.telegram(123)).toBe(asLine('metro://telegram/123'));
-    expect(Line.telegram('-100')).toBe(asLine('metro://telegram/-100'));
-  });
-
-  test('telegram with topic', () => {
-    expect(Line.telegram(-100, 42)).toBe(asLine('metro://telegram/-100/42'));
-    /** topicId === 0 is a real value, must NOT be dropped as undefined. */
-    expect(Line.telegram(-100, 0)).toBe(asLine('metro://telegram/-100/0'));
-  });
-
   test('claude full-session builder', () => {
     expect(Line.claude('org1', 'sess1')).toBe(asLine('metro://claude/org1/sess1'));
   });
@@ -82,33 +65,6 @@ describe('Line.station', () => {
   });
 });
 
-describe('parseClaude — participant vs full-session URIs', () => {
-  test('full session URI parses to {userId, sessionId}', () => {
-    expect(Line.parseClaude('metro://claude/org1/sess1')).toEqual({ userId: 'org1', sessionId: 'sess1' });
-  });
-
-  test('participant URI (/user/<id>) is skipped — returns null', () => {
-    expect(Line.parseClaude('metro://claude/user/abc')).toBeNull();
-  });
-
-  test('single-segment (userId only, no session) returns null', () => {
-    expect(Line.parseClaude('metro://claude/org1')).toBeNull();
-  });
-
-  test('wrong station returns null (claude parser rejects non-claude lines)', () => {
-    expect(Line.parseClaude('metro://xmtp/acct1/thread1')).toBeNull();
-  });
-
-  test('malformed input returns null', () => {
-    expect(Line.parseClaude('garbage')).toBeNull();
-  });
-
-  test('extra trailing segments still parse to first two', () => {
-    /** path[0]=userId, path[1]=sessionId; anything after is ignored. */
-    expect(Line.parseClaude('metro://claude/org1/sess1/extra')).toEqual({ userId: 'org1', sessionId: 'sess1' });
-  });
-});
-
 describe('isLocal', () => {
   test('claude is local', () => {
     expect(Line.isLocal('metro://claude/org1/sess1')).toBe(true);
@@ -123,4 +79,11 @@ describe('isLocal', () => {
   });
 });
 
-/* xmtp account-scoped lines + round-trips moved to lines-xmtp.test.ts */
+describe('account-scoped xmtp lines', () => {
+  test('extra path segments are all preserved', () => {
+    expect(Line.parse('metro://xmtp/tony/group/0xdef')).toEqual({
+      station: 'xmtp',
+      path: ['tony', 'group', '0xdef'],
+    });
+  });
+});

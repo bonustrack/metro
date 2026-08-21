@@ -9,25 +9,10 @@ import {
 import { emitInbound, envelope } from './emit.js';
 import { groupNameFor } from './conv-helpers.js';
 import { handleControlDm, pushInbound } from './push.js';
-import { drainLines } from '@metro-labs/mcp/trains/protocol';
-import { handleCall, type CallMsg } from './actions.js';
+import { readCalls } from '@metro-labs/mcp/trains/protocol';
+import { handleCall } from './actions.js';
 
-let buf = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk: Buffer | string) => {
-  buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-  buf = drainLines('xmtp', buf, (line) => {
-    try {
-      const msg = JSON.parse(line) as Partial<CallMsg>;
-      if (msg.op === 'call')
-        handleCall(msg as CallMsg).catch((e: unknown) => {
-          process.stderr.write(`call failed: ${errMsg(e)}\n`);
-        });
-    } catch (err: unknown) {
-      process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
-    }
-  });
-});
+readCalls('xmtp', handleCall);
 
 const SYNC_MS = Number(process.env.XMTP_SYNC_MS ?? '60000');
 const SILENT_TYPES = new Set([

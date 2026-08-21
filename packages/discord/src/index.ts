@@ -16,25 +16,10 @@ import {
 } from './accounts.js';
 import { emitInbound, messageEnvelope, reactionEnvelope } from './format.js';
 import { mintId } from './wire.js';
-import { drainLines } from '@metro-labs/mcp/trains/protocol';
-import { handleCall, type CallMsg } from './actions.js';
+import { readCalls } from '@metro-labs/mcp/trains/protocol';
+import { handleCall } from './actions.js';
 
-let buf = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk: string) => {
-  buf += chunk;
-  buf = drainLines('discord', buf, (line) => {
-    try {
-      const msg = JSON.parse(line) as CallMsg;
-      if (msg.op === 'call')
-        handleCall(msg).catch((e: unknown) => {
-          process.stderr.write(`call failed: ${errMsg(e)}\n`);
-        });
-    } catch (err) {
-      process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
-    }
-  });
-});
+readCalls('discord', handleCall);
 
 function makeClient(): Client {
   return new Client({

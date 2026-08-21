@@ -1,7 +1,6 @@
 import { TrainError } from '@metro-labs/mcp/train-error';
 import { errMsg } from '@metro-labs/mcp/log';
-import { drainLines } from '@metro-labs/mcp/trains/protocol';
-import { type CallMsg } from '@metro-labs/mcp/stations/station-runtime';
+import { readCalls } from '@metro-labs/mcp/trains/protocol';
 import { accounts, loadAccounts, accountFor, lineOf, targetOf } from './accounts.js';
 import { createClient, type WAClient } from './client.js';
 import { startInbound } from './inbound.js';
@@ -23,22 +22,7 @@ function clientFor(accountId: string): WAClient {
 
 const handleCall = makeHandleCall(clientFor);
 
-let buf = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk: Buffer | string) => {
-  buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-  buf = drainLines('whatsapp', buf, (line) => {
-    try {
-      const msg = JSON.parse(line) as Partial<CallMsg>;
-      if (msg.op === 'call')
-        handleCall(msg as CallMsg).catch((e: unknown) => {
-          process.stderr.write(`call failed: ${errMsg(e)}\n`);
-        });
-    } catch (err: unknown) {
-      process.stderr.write(`bad stdin line: ${errMsg(err)}\n`);
-    }
-  });
-});
+readCalls('whatsapp', handleCall);
 
 function boot(): void {
   for (const cfg of loadAccounts()) accounts.set(cfg.id, cfg);

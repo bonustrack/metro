@@ -13,7 +13,7 @@ import { ChannelOwner } from './channel-owner.js';
 import { BoundedEventStore } from './event-store.js';
 import { registerPermissionRelay } from './permission-relay.js';
 import { registerToolHandlers, toolSchemaSignature } from './tool-dispatch.js';
-import type { RawGetSink } from './raw-get-stream.js';
+import { web, type RawGetSink } from './raw-get-stream.js';
 import type { RequestIdentity } from './request-identity.js';
 
 export const channelLog = (...a: unknown[]): void => {
@@ -27,11 +27,6 @@ const senderAllowed = (from: string, line: string): boolean => {
   return allowlist ? senderMatchesAllowlist(allowlist, from) : true;
 };
 
-interface AdoptableInner {
-  sessionId?: string;
-  _initialized?: boolean;
-}
-
 function makeTransport(
   id: string,
   eventStore: BoundedEventStore,
@@ -42,8 +37,7 @@ function makeTransport(
     eventStore,
   });
   if (!adopted) return t;
-  const inner = (t as unknown as { _webStandardTransport?: AdoptableInner })
-    ._webStandardTransport;
+  const inner = web(t);
   if (inner) {
     inner.sessionId = id;
     inner._initialized = true;

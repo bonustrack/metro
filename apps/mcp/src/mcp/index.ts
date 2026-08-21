@@ -1,5 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { BodyTooLargeError } from '../daemon/http.js';
+import {
+  BodyTooLargeError,
+  readBody as readBodyBuffer,
+} from '../daemon/http.js';
 import {
   allowedAgents,
   authConfigFromEnv,
@@ -7,8 +10,11 @@ import {
   runWithIdentity,
   type RequestIdentity,
 } from './request-identity.js';
-import { isStandaloneGet } from './raw-get-stream.js';
-import { serveChannelGet } from './channel-get.js';
+import {
+  headerValue,
+  isStandaloneGet,
+  serveChannelGet,
+} from './raw-get-stream.js';
 import { channelLog, type McpSession } from './session.js';
 import { SessionCapacityError, SessionRegistry } from './session-registry.js';
 import { routeSession, sessionScopeKey } from './session-route.js';
@@ -18,24 +24,10 @@ const isInitialize = (b: unknown): boolean =>
   typeof b === 'object' &&
   (b as { method?: string }).method === 'initialize';
 
-const headerSessionId = (req: IncomingMessage): string | undefined => {
-  const raw = req.headers['mcp-session-id'];
-  if (Array.isArray(raw)) return raw[0];
-  return typeof raw === 'string' ? raw : undefined;
-};
-
 const MCP_BODY_MAX = 32 * 1024 * 1024;
 
 async function readBody(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const c of req) {
-    const buf = c as Buffer;
-    total += buf.length;
-    if (total > MCP_BODY_MAX) throw new BodyTooLargeError(MCP_BODY_MAX);
-    chunks.push(buf);
-  }
-  const raw = Buffer.concat(chunks).toString('utf8');
+  const raw = (await readBodyBuffer(req, MCP_BODY_MAX)).toString('utf8');
   try {
     return raw ? JSON.parse(raw) : undefined;
   } catch {
@@ -66,7 +58,7 @@ async function resolveSession(
   identity: RequestIdentity,
   res: ServerResponse,
 ): Promise<McpSession | undefined> {
-  const presented = headerSessionId(req);
+  const presented = headerValue(req, 'mcp-session-id');
   const scopeKey = sessionScopeKey(identity);
   const route = routeSession({
     isInitialize: isInitialize(body),

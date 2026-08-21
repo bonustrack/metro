@@ -101,13 +101,12 @@ export class TrainSupervisor {
   }
 
   private handleSourceChange(name: string, path: string): void {
-    const known = this.trains.get(name);
-    if (known) {
-      try {
-        if (!statSync(path).isFile()) return;
-      } catch {
-        return;
-      }
+    try {
+      if (!statSync(path).isFile()) return;
+    } catch {
+      return;
+    }
+    if (this.trains.has(name)) {
       log.info({ name }, 'train hot-reload: source changed, restarting');
       this.restart(name).catch((err: unknown) => {
         log.warn(
@@ -115,11 +114,6 @@ export class TrainSupervisor {
           'train hot-reload: restart failed',
         );
       });
-      return;
-    }
-    try {
-      if (!statSync(path).isFile()) return;
-    } catch {
       return;
     }
     log.info({ name }, 'train hot-reload: new train, spawning');

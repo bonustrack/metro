@@ -5,18 +5,6 @@ const PREFIX = 'metro://';
 const build = (station: string, ...seg: (string | number)[]): Line =>
   asLine(`${PREFIX}${station}/${seg.map(String).join('/')}`);
 
-function parseLocalSession(
-  line: Line | string,
-  station: 'claude',
-): { userId: string; sessionId: string } | null {
-  const p = Line.parse(line);
-  if (p?.station !== station || p.path[0] === 'user' || p.path.length < 2)
-    return null;
-  const [userId, sessionId] = p.path;
-  if (userId === undefined || sessionId === undefined) return null;
-  return { userId, sessionId };
-}
-
 export function parseAccountScoped(
   line: Line | string,
   station: string,
@@ -64,11 +52,6 @@ function parseTelegramLine(
 }
 
 export const Line = {
-  discord: (channelId: string): Line => build('discord', channelId),
-  telegram: (chatId: number | string, topicId?: number): Line =>
-    topicId !== undefined
-      ? build('telegram', chatId, topicId)
-      : build('telegram', chatId),
   claude: (orgId: string, sessionId: string): Line =>
     build('claude', orgId, sessionId),
   webhook: (endpointId: string): Line => build('webhook', endpointId),
@@ -88,7 +71,6 @@ export const Line = {
   },
   station: (line: Line | string): string | null =>
     Line.parse(line)?.station ?? null,
-  parseClaude: (line: Line | string) => parseLocalSession(line, 'claude'),
   isLocal: (line: Line | string): boolean => Line.station(line) === 'claude',
 
   parseXmtp: (line: Line | string) => parseAccountScoped(line, 'xmtp'),
