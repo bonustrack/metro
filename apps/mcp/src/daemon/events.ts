@@ -57,6 +57,28 @@ export function classifyEvent(e: MetroEvent): StructuredEvent {
   return { type: 'msg' };
 }
 
+export interface EventIdentity {
+  variant: string;
+  state: string;
+}
+
+const wasRemoved = (e: Pick<MetroEvent, 'text' | 'payload'>): boolean =>
+  (e.payload as { removed?: boolean } | undefined)?.removed === true ||
+  / \(removed\)\]?$/.test(e.text ?? '');
+
+export function eventIdentity(
+  e: Pick<MetroEvent, 'event' | 'text' | 'payload'>,
+): EventIdentity {
+  const ev = e.event;
+  if (!ev || ev.type === 'msg' || ev.type === 'reply')
+    return { variant: 'msg', state: 'on' };
+  const detail = ev.type === 'react' ? (ev.emoji ?? '') : (e.text ?? '');
+  return {
+    variant: `${ev.type} ${detail}`,
+    state: wasRemoved(e) ? 'off' : 'on',
+  };
+}
+
 export function formatDisplay(e: MetroEvent): string {
   const headerFor = (icon: string, parts: (string | undefined)[]): string =>
     `**${icon} ${parts.filter(Boolean).join(' · ')}**`;

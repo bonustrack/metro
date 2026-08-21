@@ -8,6 +8,7 @@ import { Line } from '../stations/lines.js';
 import { errMsg, log } from './log.js';
 import {
   classifyEvent,
+  eventIdentity,
   formatDisplay,
   mintId,
   publishEvent,
@@ -38,11 +39,9 @@ const LRU_CAP = 2_000;
 
 const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
 
-function dedupKey(
-  e: Pick<MetroEvent, 'station' | 'line' | 'messageId'>,
-): string | null {
+function dedupKey(e: MetroEvent, variant: string): string | null {
   if (!e.messageId) return null;
-  return `${e.station} ${e.line} ${e.messageId}`;
+  return `${e.station} ${e.line} ${e.messageId} ${e.from} ${variant}`;
 }
 
 export interface DedupSeq {
@@ -50,7 +49,7 @@ export interface DedupSeq {
 }
 
 export function makeDedupSeq(): DedupSeq {
-  const seen = new Map<string, true>();
+  const seen = new Map<string, string>();
   const seqByLine = new Map<string, number>();
 
   log.info('dedup+seq: live-from-boot (no persisted seed)');
@@ -59,20 +58,22 @@ export function makeDedupSeq(): DedupSeq {
 
   return {
     admit(entry: MetroEvent): number | null {
-      const key = dedupKey(entry);
+      const { variant, state } = eventIdentity(entry);
+      const key = dedupKey(entry, variant);
       if (key && isInbound(entry)) {
-        if (seen.has(key)) {
+        if (seen.get(key) === state) {
           log.debug(
             {
               station: entry.station,
               line: entry.line,
               messageId: entry.messageId,
+              variant,
             },
             'dedup: dropped duplicate inbound message',
           );
           return null;
         }
-        seen.set(key, true);
+        seen.set(key, state);
         while (seen.size > LRU_CAP) {
           const oldest = seen.keys().next();
           if (oldest.done) break;
@@ -106,14 +107,17 @@ type Emit = (entry: MetroEvent) => void;
 export function makeEmit(dedupSeq?: DedupSeq): Emit {
   const tracker = dedupSeq ?? makeDedupSeq();
   return function emit(entry: MetroEvent): void {
-    const seq = tracker.admit(entry);
+    const classified: MetroEvent = {
+      ...entry,
+      event: entry.event ?? classifyEvent(entry),
+    };
+    const seq = tracker.admit(classified);
     if (seq === null) return;
     const enriched: MetroEvent = withAttachmentUrl({
-      ...entry,
+      ...classified,
       seq,
       agent: entry.agent ?? agentForLine(entry.line),
       display: entry.display ?? formatDisplay(entry),
-      event: entry.event ?? classifyEvent(entry),
     });
     process.stdout.write(JSON.stringify(enriched) + '\n');
     publishEvent(enriched);

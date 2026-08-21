@@ -16,9 +16,14 @@ export const dedupeOwner = (line: string): string => {
 };
 
 export const dedupeKey = (
-  station: string,
-  line: string,
-  kind: string,
+  e: { station: string; line: string; from: string; variant: string },
   messageId: string,
 ): string =>
-  `${dedupeOwner(line)} ${station} ${accountStrippedLine(line)} ${kind} ${messageId}`;
+  [
+    dedupeOwner(e.line),
+    e.station,
+    accountStrippedLine(e.line),
+    accountStrippedLine(e.from),
+    e.variant,
+    messageId,
+  ].join(' ');

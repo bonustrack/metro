@@ -1,4 +1,5 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { eventIdentity, type StructuredEvent } from '../daemon/events.js';
 import { str } from '../mcp/str.js';
 import { dedupeKey } from './dedupe.js';
 import {
@@ -39,7 +40,7 @@ const shortId = (id: string): string =>
 export class InboundRelay {
   private readonly deps: InboundDeps;
   private readonly pendingAttachments = new Map<string, PendingMsg>();
-  private readonly seenEvents = new Map<string, number>();
+  private readonly seenEvents = new Map<string, SeenEvent>();
   private readonly allowedLines = new Set<string>();
   private readonly pendingPermissions = new Set<string>();
   private lastLine: string | undefined;
@@ -61,24 +62,18 @@ export class InboundRelay {
     return this.deps.mcp.notification({ method, params });
   }
 
-  private isDuplicate(
-    station: string,
-    line: string,
-    kind: string,
-    messageId: string,
-  ): boolean {
+  private isDuplicate(base: EventBase, messageId: string): boolean {
     if (!messageId) return false;
-    const key = dedupeKey(station, line, kind, messageId);
+    const key = dedupeKey(base, messageId);
     const now = Date.now();
     if (this.seenEvents.size >= DEDUPE_MAX) {
-      for (const [k, t] of this.seenEvents) {
-        if (now - t > DEDUPE_TTL_MS) this.seenEvents.delete(k);
+      for (const [k, seen] of this.seenEvents) {
+        if (now - seen.at > DEDUPE_TTL_MS) this.seenEvents.delete(k);
       }
     }
     const prev = this.seenEvents.get(key);
-    if (prev !== undefined && now - prev < DEDUPE_TTL_MS) return true;
-    this.seenEvents.set(key, now);
-    return false;
+    this.seenEvents.set(key, { state: base.state, at: now });
+    return prev?.state === base.state && now - prev.at < DEDUPE_TTL_MS;
   }
 
   private surfaceNote(
@@ -281,16 +276,28 @@ export class InboundRelay {
     const line = str(ev.line);
     if (this.droppedSender(from, line)) return null;
     const text = str(ev.text);
-    if (!replay && this.isDuplicate(station, line, evType, str(ev.messageId))) {
+    const base: EventBase = {
+      evType,
+      station,
+      from,
+      line,
+      text,
+      ...eventIdentity({
+        event: ev.event as StructuredEvent | undefined,
+        text,
+        payload: ev.payload,
+      }),
+    };
+    if (!replay && this.isDuplicate(base, str(ev.messageId))) {
       this.deps.log(
         'drop: duplicate (per-account) event',
-        evType,
+        base.variant,
         station,
         str(ev.messageId),
       );
       return null;
     }
-    return { evType, station, from, line, text };
+    return base;
   }
 
   private async emitMessage(
@@ -352,6 +359,13 @@ interface EventBase {
   from: string;
   line: string;
   text: string;
+  variant: string;
+  state: string;
+}
+
+interface SeenEvent {
+  state: string;
+  at: number;
 }
 
 function reactionEmoji(raw: unknown): string {
