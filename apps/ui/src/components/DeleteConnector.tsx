@@ -25,7 +25,7 @@ export function DeleteConnector({
     setBusy(true);
     setError(null);
     onDelete(connector.id).catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : 'Could not delete the connector.');
+      setError(err instanceof Error ? err.message : 'Could not remove the connector.');
       setBusy(false);
     });
   };

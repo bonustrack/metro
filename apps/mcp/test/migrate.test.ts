@@ -48,8 +48,21 @@ describe('the migrations the release command applies', () => {
     );
   });
 
-  test('0011 is the newest migration', () => {
-    expect(journal().at(-1)?.tag).toBe('0011_stations_and_text_ids');
+  test('0013 is the newest migration', () => {
+    expect(journal().at(-1)?.tag).toBe('0013_stations_single_id');
+  });
+
+  test('0013 stashes the old handle before it drops the column', () => {
+    const sql = readFileSync(join(DIR, '0013_stations_single_id.sql'), 'utf8');
+    const stash = sql.indexOf("'previousAccountId'");
+    const drop = sql.indexOf('DROP COLUMN "account_id"');
+    expect(stash).toBeGreaterThan(-1);
+    expect(drop).toBeGreaterThan(stash);
+  });
+
+  test('0013 drops the unique that went with the column', () => {
+    const sql = readFileSync(join(DIR, '0013_stations_single_id.sql'), 'utf8');
+    expect(sql).toContain('DROP CONSTRAINT "stations_station_account_id_unique"');
   });
 
   test('0011 moves accounts into stations instead of dropping them', () => {
@@ -69,6 +82,18 @@ describe('the migrations the release command applies', () => {
   test('0011 refuses rather than silently dropping orphan rows', () => {
     const sql = readFileSync(join(DIR, '0011_stations_and_text_ids.sql'), 'utf8');
     expect(sql).toContain('RAISE EXCEPTION');
+  });
+
+  test('0012 pins the db3 path xmtp was only ever resolving by fallback', () => {
+    const sql = readFileSync(join(DIR, '0012_pin_xmtp_dbpath.sql'), 'utf8');
+    expect(sql).toContain("'~/.metro/xmtp-production-' || \"account_id\"");
+    expect(sql).toContain('\'.db3\'');
+  });
+
+  test('0012 only fills a missing dbPath, so re-running cannot repoint a live inbox', () => {
+    const sql = readFileSync(join(DIR, '0012_pin_xmtp_dbpath.sql'), 'utf8');
+    expect(sql).toContain('"config"->>\'dbPath\' IS NULL');
+    expect(sql).toContain('"station" = \'xmtp\'');
   });
 
   test('0011 leaves no scaffolding behind', () => {

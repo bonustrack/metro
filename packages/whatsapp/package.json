@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/station.ts",
     "./train": "./src/index.ts",
-    "./login": "./src/login.ts"
+    "./login": "./src/login.ts",
+    "./tokens": "./src/token-store.ts"
   },
   "scripts": {
     "build": "tsc",

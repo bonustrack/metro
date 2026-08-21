@@ -13,6 +13,6 @@ export async function writeWhatsappCredentials(
       config: sql`${stations.config} || ${JSON.stringify({ credentials })}::jsonb`,
     })
     .where(
-      and(eq(stations.station, 'whatsapp'), eq(stations.accountId, accountId)),
+      and(eq(stations.station, 'whatsapp'), eq(stations.id, accountId)),
     );
 }

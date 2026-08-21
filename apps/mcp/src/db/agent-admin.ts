@@ -253,7 +253,7 @@ export async function deleteAgentForEmail(
   );
   await getDb().transaction(async (tx) => {
     const attached = await tx
-      .select({ accountId: stations.accountId })
+      .select({ id: stations.id })
       .from(stations)
       .where(eq(stations.agentId, id));
     if (attached.length > 0)

@@ -30,18 +30,13 @@ export const agents = pgTable('agents', {
   key: text('key').unique(),
 });
 
-export const stations = pgTable(
-  'stations',
-  {
-    id: text('id').primaryKey(),
-    agentId: text('agent_id').notNull(),
-    station: text('station').$type<StationName>().notNull(),
-    accountId: text('account_id').notNull(),
-    allowlist: text('allowlist').array().default(['*']),
-    config: jsonb('config').notNull(),
-  },
-  (t) => [unique('stations_station_account_id_unique').on(t.station, t.accountId)],
-);
+export const stations = pgTable('stations', {
+  id: text('id').primaryKey(),
+  agentId: text('agent_id').notNull(),
+  station: text('station').$type<StationName>().notNull(),
+  allowlist: text('allowlist').array().default(['*']),
+  config: jsonb('config').notNull(),
+});
 
 export const CONNECTOR_TRANSPORTS = ['http', 'sse'] as const;
 

@@ -5,6 +5,7 @@ import { verifySession } from './session.js';
 import { extractToken } from '../mcp/request-identity.js';
 
 const BODY_MAX = 4 * 1024;
+const DRAIN_MAX = 2 * BODY_MAX;
 
 export interface ApiSession {
   email: string;
@@ -50,12 +51,15 @@ export function apiSession(req: IncomingMessage): ApiSession | null {
 export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let total = 0;
+  let over = false;
   for await (const c of req) {
     const buf = c as Buffer;
     total += buf.length;
-    if (total > BODY_MAX) throw new ApiError('request body too large', 413);
-    chunks.push(buf);
+    if (total > BODY_MAX) over = true;
+    if (!over) chunks.push(buf);
+    else if (total > DRAIN_MAX) break;
   }
+  if (over) throw new ApiError('request body too large', 413);
   const raw = Buffer.concat(chunks).toString('utf8').trim();
   if (raw === '') return {};
   try {

@@ -20,6 +20,7 @@ import {
   type AllowlistMap,
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
+import { carryTokenStores, PREVIOUS_ACCOUNT_ID } from './token-carry.js';
 import { stations, agents, type StationName } from './schema.js';
 
 interface StationTarget {
@@ -30,7 +31,7 @@ interface StationTarget {
 
 interface LoadedAccount {
   station: StationName;
-  accountId: string;
+  id: string;
   allowlist: string[] | null;
   config: Record<string, unknown>;
 }
@@ -112,7 +113,7 @@ async function loadAgents(): Promise<LoadedAgent[]> {
       name: a.name,
       accounts: acctRows.map((r) => ({
         station: r.station,
-        accountId: r.accountId,
+        id: r.id,
         allowlist: r.allowlist,
         config: r.config as Record<string, unknown>,
       })),
@@ -120,6 +121,14 @@ async function loadAgents(): Promise<LoadedAgent[]> {
     });
   }
   return out;
+}
+
+function trainConfig(
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(config).filter(([key]) => key !== PREVIOUS_ACCOUNT_ID),
+  );
 }
 
 function trainStubPath(station: StationName): string {
@@ -154,16 +163,17 @@ function writeStations(list: LoadedAgent[]): Map<StationName, number> {
       const cur = byStation.get(a.station);
       if (cur) cur.push(a);
       else byStation.set(a.station, [a]);
-      map[`${a.station}/${a.accountId}`] = agent.id;
-      if (a.allowlist) allow[`${a.station}/${a.accountId}`] = a.allowlist;
+      map[`${a.station}/${a.id}`] = agent.id;
+      if (a.allowlist) allow[`${a.station}/${a.id}`] = a.allowlist;
     }
   }
   setAgentMap(map, names);
   setAllowlistMap(allow);
+  carryTokenStores(list.flatMap((agent) => agent.accounts));
 
   const active = new Map<StationName, number>();
   for (const [station, accts] of byStation) {
-    const records = accts.map((a) => ({ id: a.accountId, ...a.config }));
+    const records = accts.map((a) => ({ id: a.id, ...trainConfig(a.config) }));
     writeSecure(accountFilePath(station), JSON.stringify(records, null, 2));
     const { trainImport } = STATION_TARGETS[station];
     if (trainImport !== null)
