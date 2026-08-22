@@ -1,6 +1,6 @@
 import { call } from './client';
 import { isRecord } from './accounts';
-import { daemonBase } from '../auth/session';
+import { daemonBase, storedProject } from '../auth/session';
 
 export type ProjectRole = 'admin' | 'member';
 
@@ -59,6 +59,14 @@ function membersOf(body: unknown): Member[] {
   if (!isRecord(body) || !Array.isArray(body.members))
     throw new Error('Metro returned an unexpected response.');
   return body.members.map(toMember);
+}
+
+export function rememberedProject(projects: Project[] | undefined): string | null {
+  if (projects === undefined || projects.length === 0) return null;
+  const remembered = storedProject();
+  if (remembered !== null && projects.some((p) => p.id === remembered))
+    return remembered;
+  return projects.find((p) => p.isDefault)?.id ?? projects[0]?.id ?? null;
 }
 
 export async function fetchProjects(token: string): Promise<Project[]> {

@@ -5,7 +5,6 @@ import { deleteConnector } from '../api/connectors';
 import { ConnectorPage } from './ConnectorPage';
 import { Connectors } from './Connectors';
 import { Docs } from './Docs';
-import { Authorize } from './Authorize';
 import { CollectionPage } from './CollectionPage';
 import { Collections } from './Collections';
 import { Members } from './Members';
@@ -146,10 +145,9 @@ function ScopedPanel({
 }
 
 export function AgentPanel(props: AgentPanelProps): ReactNode {
-  const { token, selection } = props;
+  const { selection } = props;
   if (selection.kind === 'docs') return <Docs />;
   if (selection.kind === 'settings') return <Settings />;
-  if (selection.kind === 'authorize') return <Authorize token={token} />;
   if (!('project' in selection)) return null;
   return <ScopedPanel {...props} project={selection.project} />;
 }
