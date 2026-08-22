@@ -1,13 +1,19 @@
 #!/usr/bin/env node
-import { mcpServers, NotSignedIn, sessionEmail } from './api.js';
-import { signIn } from './login.js';
-import { clearToken, credentialsPath, metroUrl, writeToken } from './store.js';
+import { claimCode, mcpServers, NotSignedIn, sessionEmail } from './api.js';
+import { askLine } from './prompt.js';
+import {
+  clearToken,
+  credentialsPath,
+  metroUrl,
+  metroWebUrl,
+  writeToken,
+} from './store.js';
 import { update } from './update.js';
 import { currentVersion } from './version.js';
 
 const USAGE = `metro — the command line for your MCP connectors
 
-  metro login     sign in to metro in your browser
+  metro login     sign in with a code from the metro web UI
   metro logout    forget this machine's sign-in
   metro whoami    print the account this machine is signed in as
   metro mcp       print an mcpServers block for every connector
@@ -20,15 +26,14 @@ Start Claude Code with all of them, without writing them to disk:
 
   METRO_URL     the metro to talk to (default https://mcp.metro.box)
   METRO_TOKEN   use this session instead of the stored one
+  METRO_UI_URL  where the web UI lives (default https://metro.box)
 `;
 
 async function login(): Promise<void> {
-  const token = await signIn();
-  const email = await sessionEmail(token).catch(() => '');
-  writeToken(token);
-  process.stderr.write(
-    `Signed in${email === '' ? '' : ` as ${email}`}. Stored in ${credentialsPath()}\n`,
-  );
+  process.stderr.write(`Get a code from ${metroWebUrl()}/#/settings\n`);
+  const { session, email } = await claimCode(await askLine('Paste it here: '));
+  writeToken(session);
+  process.stderr.write(`Signed in as ${email}. Stored in ${credentialsPath()}\n`);
 }
 
 async function whoami(): Promise<void> {

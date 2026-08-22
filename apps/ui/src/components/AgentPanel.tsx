@@ -21,7 +21,7 @@ export function AgentPanel({
   onSelect,
 }: AgentPanelProps): ReactNode {
   if (selection.kind === 'docs') return <Docs />;
-  if (selection.kind === 'settings') return <Settings />;
+  if (selection.kind === 'settings') return <Settings token={token} />;
   if (selection.kind === 'connectors')
     return (
       <Connectors

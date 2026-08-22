@@ -26,7 +26,7 @@ const envOr = (name: string, def: string): string => {
   return v !== undefined && v !== '' ? v : def;
 };
 
-function sessionTtlFromEnv(): number {
+export function sessionTtlFromEnv(): number {
   const ttl = Number(process.env.METRO_SESSION_TTL_SEC);
   return Number.isFinite(ttl) && ttl > 0 ? ttl : DEFAULT_SESSION_TTL_SEC;
 }

@@ -1,30 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { sessionFrom } from '../src/login.ts';
 import { carriesSecretsSafely } from '../src/api.ts';
-
-describe('the sign-in listener only accepts the browser it opened', () => {
-  const NONCE = 'the-nonce-this-run-minted';
-
-  test('the page it served, carrying the nonce, is accepted', () => {
-    expect(sessionFrom(`session=jwt-value&s=${NONCE}`, NONCE)).toBe('jwt-value');
-  });
-
-  test('another page posting a session without the nonce is refused', () => {
-    expect(sessionFrom('session=attacker-jwt', NONCE)).toBe('');
-  });
-
-  test('a wrong nonce is refused, so guessing the port is not enough', () => {
-    expect(sessionFrom('session=attacker-jwt&s=wrong', NONCE)).toBe('');
-  });
-
-  test('the nonce alone, with no session, yields nothing', () => {
-    expect(sessionFrom(`s=${NONCE}`, NONCE)).toBe('');
-  });
-
-  test('an empty body is not a sign-in', () => {
-    expect(sessionFrom('', NONCE)).toBe('');
-  });
-});
 
 describe('the session token never goes out in the clear', () => {
   test('https is fine wherever it points', () => {

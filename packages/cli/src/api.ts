@@ -28,8 +28,8 @@ function tokenOrThrow(): string {
   return token;
 }
 
-async function get(path: string, presented?: string): Promise<unknown> {
-  const auth = presented ?? tokenOrThrow();
+async function get(path: string): Promise<unknown> {
+  const auth = tokenOrThrow();
   let res: Response;
   try {
     res = await fetch(`${metroUrl()}${path}`, {
@@ -49,6 +49,43 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+async function post(path: string, body: unknown): Promise<unknown> {
+  if (!carriesSecretsSafely(metroUrl()))
+    throw new Error(
+      `refusing to send your code to ${metroUrl()} in the clear — use https, or a loopback address`,
+    );
+  let res: Response;
+  try {
+    res = await fetch(`${metroUrl()}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    throw new Error(`could not reach ${metroUrl()}`);
+  }
+  const parsed: unknown = await res.json().catch(() => null);
+  if (res.ok) return parsed;
+  const detail = isRecord(parsed) ? parsed.error : undefined;
+  throw new Error(
+    typeof detail === 'string' ? detail : `metro answered ${String(res.status)}`,
+  );
+}
+
+export async function claimCode(
+  code: string,
+): Promise<{ session: string; email: string }> {
+  const body = await post('/api/cli/claim', { code });
+  if (
+    !isRecord(body) ||
+    typeof body.session !== 'string' ||
+    typeof body.email !== 'string'
+  )
+    throw new Error('metro returned an unexpected response');
+  return { session: body.session, email: body.email };
+}
+
 export async function mcpServers(): Promise<string> {
   const body = await get('/api/connectors');
   if (!isRecord(body) || typeof body.json !== 'string')
@@ -56,8 +93,8 @@ export async function mcpServers(): Promise<string> {
   return body.json;
 }
 
-export async function sessionEmail(presented?: string): Promise<string> {
-  const body = await get('/api/session', presented);
+export async function sessionEmail(): Promise<string> {
+  const body = await get('/api/session');
   if (!isRecord(body) || typeof body.email !== 'string')
     throw new Error('metro returned an unexpected response');
   return body.email;

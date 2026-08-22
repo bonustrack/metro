@@ -3,10 +3,19 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 const DEFAULT_BASE = 'https://mcp.metro.box';
+const DEFAULT_WEB = 'https://metro.box';
+
+function fromEnv(name: string, fallback: string): string {
+  const raw = process.env[name]?.trim();
+  return raw === undefined || raw === '' ? fallback : raw.replace(/\/+$/, '');
+}
 
 export function metroUrl(): string {
-  const raw = process.env.METRO_URL?.trim();
-  return raw === undefined || raw === '' ? DEFAULT_BASE : raw.replace(/\/+$/, '');
+  return fromEnv('METRO_URL', DEFAULT_BASE);
+}
+
+export function metroWebUrl(): string {
+  return fromEnv('METRO_UI_URL', DEFAULT_WEB);
 }
 
 function configDir(): string {

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { credentialsPath, metroUrl, readToken } from '../src/store.ts';
+import {
+  credentialsPath,
+  metroUrl,
+  metroWebUrl,
+  readToken,
+} from '../src/store.ts';
 
 const saved = { ...process.env };
 
@@ -16,6 +21,24 @@ describe('the CLI talks to one metro and remembers one sign-in', () => {
   test('METRO_URL overrides it, without a trailing slash', () => {
     process.env.METRO_URL = 'http://localhost:8420/';
     expect(metroUrl()).toBe('http://localhost:8420');
+  });
+
+  test('the web UI is a different origin from the daemon, not the same one', () => {
+    delete process.env.METRO_URL;
+    delete process.env.METRO_UI_URL;
+    expect(metroWebUrl()).toBe('https://metro.box');
+    expect(metroWebUrl()).not.toBe(metroUrl());
+  });
+
+  test('METRO_UI_URL overrides the web origin, without a trailing slash', () => {
+    process.env.METRO_UI_URL = 'http://localhost:5173/';
+    expect(metroWebUrl()).toBe('http://localhost:5173');
+  });
+
+  test('pointing the daemon somewhere else does not move the web UI', () => {
+    process.env.METRO_URL = 'http://127.0.0.1:8420';
+    delete process.env.METRO_UI_URL;
+    expect(metroWebUrl()).toBe('https://metro.box');
   });
 
   test('METRO_TOKEN wins over anything stored, for CI and containers', () => {
