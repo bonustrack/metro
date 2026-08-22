@@ -98,17 +98,19 @@ function ChooserStatus({
 
 interface ConnectorChooserProps {
   token: string;
+  project: string;
   chosen: string[];
   onToggle: (id: string) => void;
 }
 
 export function ConnectorChooser({
   token,
+  project,
   chosen,
   onToggle,
 }: ConnectorChooserProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const { data, error } = useConnectorsQuery(token);
+  const { data, error } = useConnectorsQuery(token, project);
   const [term, setTerm] = useState('');
   const rows = (data?.connectors ?? []).filter((c) => matches(c, term));
 

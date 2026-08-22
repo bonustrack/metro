@@ -11,11 +11,13 @@ import { type Selection } from './selection';
 
 const SCROLL = { flex: 1 } as const;
 const SCROLL_CONTENT = { padding: 24 } as const;
-const AGENT_PAGES: Selection['kind'][] = ['none', 'agent', 'station'];
+const AGENT_PAGES: Selection['kind'][] = ['none', 'agents', 'agent', 'station'];
 const CONNECTOR_PAGES: Selection['kind'][] = ['connectors', 'connector'];
 const COLLECTION_PAGES: Selection['kind'][] = ['collections', 'collection'];
 
 interface AgentSidebarProps {
+  token: string;
+  project: string;
   selection: Selection;
   email: string;
   onSelect: (selection: Selection) => void;
@@ -23,6 +25,8 @@ interface AgentSidebarProps {
 }
 
 export function AgentSidebar({
+  token,
+  project,
   selection,
   email,
   onSelect,
@@ -36,12 +40,12 @@ export function AgentSidebar({
           <Row padding={{ bottom: 22 }}>
             <a
               className="nav-link"
-              href={routeHash({ kind: 'none' })}
+              href={routeHash({ kind: 'agents', project })}
               aria-label="Metro dashboard"
               onClick={(e) => {
                 if (opensElsewhere(e)) return;
                 e.preventDefault();
-                onSelect({ kind: 'none' });
+                onSelect({ kind: 'agents', project });
               }}
             >
               <MetroLogo size={32} color={palette.link} />
@@ -50,36 +54,45 @@ export function AgentSidebar({
           <Col gap={NAV_GAP}>
             <NavRow
               label="Agents"
-              icon="users"
+              icon="lightningBolt"
               selected={AGENT_PAGES.includes(selection.kind)}
-              target={{ kind: 'none' }}
+              target={{ kind: 'agents', project }}
               onSelect={onSelect}
             />
             <NavRow
               label="Collections"
               icon="collection"
               selected={COLLECTION_PAGES.includes(selection.kind)}
-              target={{ kind: 'collections' }}
+              target={{ kind: 'collections', project }}
               onSelect={onSelect}
             />
             <NavRow
               label="Connectors"
-              icon="lightningBolt"
+              icon="viewGridAdd"
               selected={CONNECTOR_PAGES.includes(selection.kind)}
-              target={{ kind: 'connectors' }}
+              target={{ kind: 'connectors', project }}
+              onSelect={onSelect}
+            />
+            <NavRow
+              label="Members"
+              icon="users"
+              selected={selection.kind === 'members'}
+              target={{ kind: 'members', project }}
               onSelect={onSelect}
             />
             <NavRow
               label="Settings"
               icon="cog"
-              selected={selection.kind === 'settings'}
-              target={{ kind: 'settings' }}
+              selected={selection.kind === 'project'}
+              target={{ kind: 'project', project }}
               onSelect={onSelect}
             />
           </Col>
         </Col>
       </ScrollView>
       <SidebarFooter
+        token={token}
+        project={project}
         email={email}
         selection={selection}
         onSelect={onSelect}

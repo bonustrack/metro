@@ -17,6 +17,7 @@ const FALLBACK = 'Could not load this agent.';
 
 interface AgentPageProps {
   token: string;
+  project: string;
   id: string;
   onOpenStation: (accountId: string) => void;
   onGone: () => void;
@@ -30,12 +31,12 @@ function Notice({ text }: { text: string }): ReactNode {
 }
 
 export function AgentPage(props: AgentPageProps): ReactNode {
-  const { token, id, onOpenStation, onGone, onBack } = props;
+  const { token, project, id, onOpenStation, onGone, onBack } = props;
   const client = useQueryClient();
-  const { data, error } = useStationsQuery(token);
+  const { data, error } = useStationsQuery(token, project);
   const refresh = (): void => {
     client
-      .invalidateQueries({ queryKey: stationsKey() })
+      .invalidateQueries({ queryKey: stationsKey(project) })
       .catch(() => undefined);
   };
   const agent = data?.agents.find((a) => a.id === id);
@@ -52,6 +53,7 @@ export function AgentPage(props: AgentPageProps): ReactNode {
   return (
     <Col gap={16}>
       <AgentDetail
+        project={project}
         token={token}
         agent={agent}
         groups={data.groups}
@@ -62,8 +64,8 @@ export function AgentPage(props: AgentPageProps): ReactNode {
         onChanged={refresh}
         onDelete={async (agentId) => {
           await deleteAgent(token, agentId);
-          await client.invalidateQueries({ queryKey: agentsKey() });
-          await client.invalidateQueries({ queryKey: stationsKey() });
+          await client.invalidateQueries({ queryKey: agentsKey(project) });
+          await client.invalidateQueries({ queryKey: stationsKey(project) });
           onGone();
         }}
       />

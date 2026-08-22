@@ -1,4 +1,5 @@
 import {
+  boolean,
   jsonb,
   pgTable,
   text,
@@ -21,12 +22,40 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
 });
 
+export const PROJECT_ROLES = ['admin', 'member'] as const;
+
+export type ProjectRole = (typeof PROJECT_ROLES)[number];
+
+export const projects = pgTable('projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  ownerId: text('owner_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  isDefault: boolean('is_default').notNull().default(false),
+});
+
+export const projectMembers = pgTable(
+  'project_members',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    role: text('role').$type<ProjectRole>().notNull(),
+  },
+  (t) => [unique('project_members_project_id_user_id_unique').on(t.projectId, t.userId)],
+);
+
 export const agents = pgTable('agents', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  ownerId: text('owner_id').references(() => users.id, {
-    onDelete: 'restrict',
-  }),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'restrict' }),
   key: text('key').unique(),
 });
 
@@ -46,27 +75,32 @@ export const connectors = pgTable(
   'connectors',
   {
     id: text('id').primaryKey(),
-    userId: text('user_id')
+    projectId: text('project_id')
       .notNull()
-      .references(() => users.id, { onDelete: 'restrict' }),
+      .references(() => projects.id, { onDelete: 'restrict' }),
     name: text('name').notNull(),
     url: text('url').notNull(),
     transport: text('transport').$type<ConnectorTransport>().notNull(),
     config: jsonb('config').notNull(),
   },
-  (t) => [unique('connectors_user_id_name_unique').on(t.userId, t.name)],
+  (t) => [unique('connectors_project_id_name_unique').on(t.projectId, t.name)],
 );
 
 export const connectorCollections = pgTable(
   'connector_collections',
   {
     id: text('id').primaryKey(),
-    userId: text('user_id')
+    projectId: text('project_id')
       .notNull()
-      .references(() => users.id, { onDelete: 'restrict' }),
+      .references(() => projects.id, { onDelete: 'restrict' }),
     name: text('name').notNull(),
   },
-  (t) => [unique('connector_collections_user_id_name_unique').on(t.userId, t.name)],
+  (t) => [
+    unique('connector_collections_project_id_name_unique').on(
+      t.projectId,
+      t.name,
+    ),
+  ],
 );
 
 export const connectorCollectionItems = pgTable(

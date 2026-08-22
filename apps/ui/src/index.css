@@ -342,6 +342,7 @@ textarea:focus-visible {
   background: var(--metro-surface);
 }
 
+.project-trigger,
 .account-trigger {
   display: block;
   width: 100%;
@@ -355,6 +356,7 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
+.project-trigger:active,
 .account-trigger:active {
   opacity: 0.6;
 }
@@ -376,6 +378,9 @@ textarea:focus-visible {
 }
 
 .kebab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 10px;
   border: 0;
   border-radius: 6px;

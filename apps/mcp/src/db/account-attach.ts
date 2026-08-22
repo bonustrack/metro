@@ -1,12 +1,8 @@
+import { isUniqueViolation } from './users.js';
 import { and, eq, sql } from 'drizzle-orm';
 import { newId } from './ids.js';
 import { getDb } from './client.js';
-import {
-  AgentAdminError,
-  isUniqueViolation,
-  ownedAgentOrThrow,
-  userIdForEmail,
-} from './agent-admin.js';
+import {  AgentAdminError,    ownedAgentOrThrow,  } from './agent-admin.js';
 import { stations, STATIONS, type StationName } from './schema.js';
 
 const ACCOUNT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -54,10 +50,7 @@ export async function attachAccountToAgent(
   station: StationName,
   config: Record<string, unknown>,
 ): Promise<AccountRef> {
-  const { agent } = await ownedAgentOrThrow(
-    await userIdForEmail(email),
-    agentId,
-  );
+  const { agent } = await ownedAgentOrThrow(email, agentId);
   const token = config.token;
   if (typeof token === 'string') await assertTokenFree(station, token);
   const db = getDb();
@@ -81,10 +74,7 @@ export async function detachAccountFromAgent(
   station: StationName,
   accountId: string,
 ): Promise<AccountRef> {
-  const { agent } = await ownedAgentOrThrow(
-    await userIdForEmail(email),
-    agentId,
-  );
+  const { agent } = await ownedAgentOrThrow(email, agentId);
   const gone = await getDb()
     .delete(stations)
     .where(

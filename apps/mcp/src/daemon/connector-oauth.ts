@@ -31,11 +31,11 @@ function refused(message: string): ConnectorVerifyError {
 const resourceOf = (url: URL): string => url.toString();
 
 export interface BeginInput {
+  connectorId: string;
   email: string;
   name: string;
   url: URL;
   returnTo: string;
-  connectorId?: string;
 }
 
 export async function beginOAuth(input: BeginInput): Promise<string> {
@@ -55,9 +55,7 @@ export async function beginOAuth(input: BeginInput): Promise<string> {
     verifier,
     server,
     client,
-    ...(input.connectorId === undefined
-      ? {}
-      : { connectorId: input.connectorId }),
+    connectorId: input.connectorId,
   });
   return authorizeUrl({
     server,

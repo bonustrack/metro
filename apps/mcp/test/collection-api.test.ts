@@ -33,11 +33,11 @@ function owned(email: string, id: string): Row {
 const strip = ({ email, ...rest }: Row): ConnectorCollectionRow => rest;
 
 const deps = {
-  listCollections: async (email: string) =>
+  listCollections: async (email: string, _project: string) =>
     Promise.resolve(rows.filter((r) => r.email === email).map(strip)),
   getCollection: async (email: string, id: string) =>
     Promise.resolve(strip(owned(email, id))),
-  createCollection: async (email: string, name: string) => {
+  createCollection: async (email: string, _project: string, name: string) => {
     if (rows.some((r) => r.email === email && r.name === name))
       throw new ApiError(`you already have a collection named '${name}'`, 409);
     const row: Row = {
@@ -100,13 +100,20 @@ afterAll(() => {
 const session = (email: string): string =>
   signSession({ email, agentIds: [] }, SECRET);
 
+const PROJECT = 'prj00000001';
+
+const withProject = (path: string): string =>
+  path.includes('?')
+    ? `${path}&project=${PROJECT}`
+    : `${path}?project=${PROJECT}`;
+
 const call = (
   method: string,
   path: string,
   token?: string,
   body?: unknown,
 ): Promise<Response> =>
-  fetch(`${base}${path}`, {
+  fetch(`${base}${withProject(path)}`, {
     method,
     headers: {
       ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),

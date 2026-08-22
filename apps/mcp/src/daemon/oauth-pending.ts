@@ -15,7 +15,7 @@ export interface PendingAuth {
   verifier: string;
   server: OAuthServer;
   client: OAuthClient;
-  connectorId?: string;
+  connectorId: string;
 }
 
 interface Entry extends PendingAuth {

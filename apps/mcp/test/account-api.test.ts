@@ -135,9 +135,11 @@ const attachSessions = new AttachSessions({
   },
 });
 
+const PROJECT = 'prj00000001';
+
 const deps: AgentApiDeps = {
   attachSessions,
-  listAgents: (email) => Promise.resolve(AGENTS[email] ?? []),
+  listAgents: (email, _project) => Promise.resolve(AGENTS[email] ?? []),
   createAgent: () => Promise.reject(new AgentAdminError('not used here', 400)),
   deleteAgent: () => Promise.reject(new AgentAdminError('not used here', 400)),
   gatherAccounts: () => Promise.resolve({}),
@@ -600,7 +602,7 @@ describe('DELETE /api/agents/:id/accounts/:station/:account', () => {
 
 describe('GET /api/agents advertises what can be attached', () => {
   test('lists the attachable stations', async () => {
-    const res = await fetch(`${base}/api/agents`, {
+    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
       headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
     });
     const body = (await res.json()) as { attachable?: string[] };

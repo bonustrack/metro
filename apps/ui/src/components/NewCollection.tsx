@@ -9,6 +9,7 @@ import { addToCollection, createCollection } from '../api/collections';
 
 interface NewCollectionProps {
   token: string;
+  project: string;
   open: boolean;
   onClose: () => void;
   onCreated: (id: string) => void;
@@ -16,6 +17,7 @@ interface NewCollectionProps {
 
 export function NewCollection({
   token,
+  project,
   open,
   onClose,
   onCreated,
@@ -37,7 +39,7 @@ export function NewCollection({
   };
 
   const create = async (connectorIds: string[]): Promise<void> => {
-    const made = await createCollection(token, name.trim());
+    const made = await createCollection(token, project, name.trim());
     for (const id of connectorIds) await addToCollection(token, made.id, id);
     reset();
     onCreated(made.id);
@@ -47,6 +49,7 @@ export function NewCollection({
     return (
       <AddConnectors
         token={token}
+        project={project}
         title={`Add connectors to ${name.trim()}`}
         action="Create"
         initial={[]}

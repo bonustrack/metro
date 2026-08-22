@@ -9,7 +9,7 @@ import {
 } from './connector-oauth.js';
 import { parseConnectorUrl } from './connector-verify.js';
 import type { OAuthAuth } from './connector-verify.js';
-import type { Connector, OAuthConnectorInput } from '../db/connectors.js';
+import type { Connector } from '../db/connectors.js';
 
 const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
@@ -25,11 +25,8 @@ export function hostOf(url: string): string {
 export interface OAuthRouteDeps {
   createPendingConnector: (
     email: string,
+    project: string,
     input: { name: unknown; url: unknown },
-  ) => Promise<Connector>;
-  createOAuthConnector: (
-    email: string,
-    input: OAuthConnectorInput,
   ) => Promise<Connector>;
   reconnectConnector: (
     email: string,
@@ -44,11 +41,12 @@ export async function startOAuth(
   res: ServerResponse,
   deps: OAuthRouteDeps,
   session: ApiSession,
+  project: string,
   body: unknown,
   payload: (row: Connector) => Record<string, unknown>,
 ): Promise<void> {
   const url = parseConnectorUrl(bodyField(body, 'url'));
-  const row = await deps.createPendingConnector(session.email, {
+  const row = await deps.createPendingConnector(session.email, project, {
     name: bodyField(body, 'name'),
     url: bodyField(body, 'url'),
   });
@@ -112,12 +110,6 @@ async function saveOAuth(
   entry: PendingAuth,
   auth: OAuthAuth,
 ): Promise<Connector> {
-  if (entry.connectorId === undefined)
-    return deps.createOAuthConnector(entry.email, {
-      name: entry.name,
-      url: entry.url,
-      auth,
-    });
   return deps.reconnectConnector(entry.email, entry.connectorId, auth);
 }
 

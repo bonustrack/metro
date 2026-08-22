@@ -254,7 +254,8 @@ auth gate:
 | `POST /api/connectors` `{"name","url","header","value"}` | Verify a remote MCP server and store it. `header`/`value` are optional and go together. |
 | `POST /api/connectors/<id>/verify` | Re-check a stored connector. `200 {ok:true, verified}` or `200 {ok:false, reason}`. |
 | `POST /api/connectors/<id>/rename` `{"name"}` | Rename a connector you own. `409` if that name is already yours. |
-| `GET`/`POST /api/collections` | Your [collections](#collections), and create one. |
+| `GET`/`POST /api/projects` | Your [projects](#projects), and create one. `POST /<id>/rename`, `DELETE /<id>`, and `/<id>/members` for the roster. |
+| `GET`/`POST /api/collections?project=<id>` | That project's [collections](#collections), and create one. |
 | `POST /api/collections/<id>/items` `{"connectorId"}` | Add a connector. `DELETE /<id>/items/<connectorId>` removes it. |
 | `POST /api/collections/<id>/code` | Mint the pairing code that authorizes this collection on one machine. |
 | `DELETE /api/connectors/<id>` | Delete a connector you own. |
@@ -379,6 +380,24 @@ own collection's `mcpServers` block and say who it is. Nothing else.
 Two environment variables matter: `METRO_URL` points at the daemon (default
 `https://mcp.metro.box`) and `METRO_UI_URL` at the web UI (default `https://metro.box`). They
 are different origins; the daemon serves no page.
+
+### Projects
+
+**A project owns everything.** Agents, connectors and collections all belong to a project, not
+to you; the only thing you own directly is the project itself. Your account gets a **Personal**
+project on first sign-in, and that one cannot be deleted.
+
+Anyone can create a project and invite people to it by email. Members carry a role: an **admin**
+renames the project and manages its members, a **member** does everything else inside it, and
+only the **owner** can delete it. The owner cannot be demoted or removed.
+
+The project is part of the url — `#/<projectId>/connectors`, `#/<projectId>/collections`,
+`#/<projectId>/members` — so a link says exactly what it shows, and the switcher at the bottom
+of the sidebar moves between them. A project you are not a member of answers `404`, the same as
+one that never existed.
+
+The MCP path is unaffected: an agent's key resolves straight to its agent, with no user or
+project in the way, so connected clients keep working.
 
 ### Collections
 

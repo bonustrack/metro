@@ -169,8 +169,15 @@ function payload(input: NewConnector): Record<string, string> {
   return out;
 }
 
-export async function fetchConnectors(token: string): Promise<ConnectorsView> {
-  const body = await call(token, { method: 'GET', base: connectorsUrl() });
+export async function fetchConnectors(
+  token: string,
+  project: string,
+): Promise<ConnectorsView> {
+  const body = await call(token, {
+    method: 'GET',
+    base: connectorsUrl(),
+    path: `?project=${project}`,
+  });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   const rows = Array.isArray(body.connectors) ? body.connectors : [];
   return { connectors: rows.map(toConnector) };
@@ -182,11 +189,13 @@ export type AddResult =
 
 export async function createConnector(
   token: string,
+  project: string,
   input: NewConnector,
 ): Promise<AddResult> {
   const body = await call(token, {
     method: 'POST',
     base: connectorsUrl(),
+    path: `?project=${project}`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ ...payload(input), returnTo: returnTo() }),
   });

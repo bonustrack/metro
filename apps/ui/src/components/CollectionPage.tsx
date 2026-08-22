@@ -9,6 +9,7 @@ import { Text, Button } from './ui';
 import { SHRINK } from '../theme';
 import { PageTitle } from './PageTitle';
 import { BackLink } from './BackLink';
+import { routeHash } from '../route';
 import { CountBadge } from './CountBadge';
 import { ConnectorFavicon } from './ConnectorFavicon';
 import { KebabMenu } from './KebabMenu';
@@ -85,29 +86,47 @@ function MemberRow({
 
 function CollectionHeading({
   name,
+  project,
   count,
+  dark,
   onBack,
+  onAdd,
   onRename,
   onRemove,
 }: {
   name: string;
+  project: string;
   count: number;
+  dark: boolean;
   onBack: () => void;
+  onAdd: () => void;
   onRename: () => void;
   onRemove: () => void;
 }): ReactNode {
   return (
     <Col gap={12}>
       <Row justify="between" align="center" gap={12}>
-        <BackLink label="Collections" href="#/collections" onPress={onBack} />
-        <KebabMenu
-          label="Collection actions"
-          size="lg"
-          items={[
-            { label: 'Rename', onSelect: onRename },
-            { label: 'Remove', danger: true, onSelect: onRemove },
-          ]}
+        <BackLink
+          label="Collections"
+          href={routeHash({ kind: 'collections', project })}
+          onPress={onBack}
         />
+        <Row gap={8} align="center">
+          <Button
+            color="primary"
+            dark={dark}
+            label="Add connectors"
+            onPress={onAdd}
+          />
+          <KebabMenu
+            label="Collection actions"
+            size="lg"
+            items={[
+              { label: 'Rename', onSelect: onRename },
+              { label: 'Remove', danger: true, onSelect: onRemove },
+            ]}
+          />
+        </Row>
       </Row>
       <Row gap={10} align="center">
         <PageTitle>{name}</PageTitle>
@@ -120,6 +139,7 @@ function CollectionHeading({
 
 function CollectionModals({
   token,
+  project,
   id,
   data,
   adding,
@@ -128,6 +148,7 @@ function CollectionModals({
   reload,
 }: {
   token: string;
+  project: string;
   id: string;
   data: Collection;
   adding: boolean;
@@ -140,6 +161,7 @@ function CollectionModals({
       <AddConnectors
         key={data.connectorIds.join(',')}
         token={token}
+        project={project}
         title={`Connectors in ${data.name}`}
         action="Save"
         initial={data.connectorIds}
@@ -174,16 +196,18 @@ function CollectionModals({
 
 interface CollectionPageProps {
   token: string;
+  project: string;
   id: string;
   onBack: () => void;
   onGone: () => void;
 }
 
-export function CollectionPage({ token, id, onBack, onGone }: CollectionPageProps): ReactNode {
+export function CollectionPage({ token,
+  project, id, onBack, onGone }: CollectionPageProps): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const { data, error } = useCollectionQuery(token, id);
-  const connectors = useConnectorsQuery(token);
+  const connectors = useConnectorsQuery(token, project);
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -191,7 +215,7 @@ export function CollectionPage({ token, id, onBack, onGone }: CollectionPageProp
   useDocumentTitle(data?.name ?? 'Collection');
 
   const reload = (): void => {
-    refreshCollections(client, id);
+    refreshCollections(client, project, id);
   };
 
   const drop = (connectorId: string): void => {
@@ -211,7 +235,7 @@ export function CollectionPage({ token, id, onBack, onGone }: CollectionPageProp
   const remove = (): void => {
     deleteCollection(token, id)
       .then(() => {
-        refreshCollections(client);
+        refreshCollections(client, project);
         onGone();
       })
       .catch((err: unknown) => {
@@ -228,7 +252,12 @@ export function CollectionPage({ token, id, onBack, onGone }: CollectionPageProp
     <Col gap={20}>
       <CollectionHeading
         name={data.name}
+        project={project}
         count={data.connectorIds.length}
+        dark={dark}
+        onAdd={() => {
+          setAdding(true);
+        }}
         onBack={onBack}
         onRename={() => {
           setRenaming(true);
@@ -236,16 +265,6 @@ export function CollectionPage({ token, id, onBack, onGone }: CollectionPageProp
         onRemove={remove}
       />
       {failed === null ? null : <Text size="sm" role="danger">{failed}</Text>}
-      <Row>
-        <Button
-          color="primary"
-          dark={dark}
-          label="Add connectors"
-          onPress={() => {
-            setAdding(true);
-          }}
-        />
-      </Row>
       {rows.length === 0 ? (
         <Text size="sm" role="secondary">
           {EMPTY}
@@ -266,6 +285,7 @@ export function CollectionPage({ token, id, onBack, onGone }: CollectionPageProp
       )}
       <CollectionModals
         token={token}
+        project={project}
         id={id}
         data={data}
         adding={adding}

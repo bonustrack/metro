@@ -239,9 +239,11 @@ describe('the callback route', () => {
   });
 
   test('the collection route is still session gated', async () => {
-    expect((await fetch(`${base}/api/connectors`)).status).toBe(401);
+    expect((await fetch(`${base}/api/connectors?project=p0000000001`)).status).toBe(
+      401,
+    );
     const token = signSession({ email: 'ada@lovelace.dev', agentIds: [] }, SECRET);
-    const ok = await fetch(`${base}/api/connectors`, {
+    const ok = await fetch(`${base}/api/connectors?project=p0000000001`, {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(ok.status).toBe(200);

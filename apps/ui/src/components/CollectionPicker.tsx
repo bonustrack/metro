@@ -142,6 +142,7 @@ function PickerBody({
 
 interface CollectionPickerProps {
   token: string;
+  project: string;
   connectorId: string;
   connectorName: string;
   open: boolean;
@@ -156,6 +157,7 @@ function memberIds(collections: Collection[], connectorId: string): string[] {
 
 export function CollectionPicker({
   token,
+  project,
   connectorId,
   connectorName,
   open,
@@ -163,7 +165,7 @@ export function CollectionPicker({
 }: CollectionPickerProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const { data, error } = useCollectionsQuery(token);
+  const { data, error } = useCollectionsQuery(token, project);
   const [staged, setStaged] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -200,7 +202,7 @@ export function CollectionPicker({
       ...dropped.map((id) => removeFromCollection(token, id, connectorId)),
     ])
       .then(() => {
-        refreshCollections(client);
+        refreshCollections(client, project);
         close();
       })
       .catch((err: unknown) => {
@@ -245,8 +247,8 @@ export function CollectionPicker({
           setCreating(false);
         }}
         onSubmit={async (name) => {
-          const made = await createCollection(token, name);
-          refreshCollections(client);
+          const made = await createCollection(token, project, name);
+          refreshCollections(client, project);
           setStaged([...chosen, made.id]);
           return made;
         }}

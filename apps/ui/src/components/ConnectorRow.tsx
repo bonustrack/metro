@@ -25,6 +25,7 @@ const CENTER_SELF = { alignSelf: 'center' } as const;
 
 interface ConnectorRowProps {
   token: string;
+  project: string;
   row: Connector;
   onOpen: (id: string) => void;
   onChanged: () => void;
@@ -36,6 +37,7 @@ type ActionProps = Omit<ConnectorRowProps, 'onOpen'>;
 
 function RowActions({
   token,
+  project,
   row,
   onChanged,
   onDelete,
@@ -118,6 +120,7 @@ function RowActions({
       />
       <RowModals
         token={token}
+        project={project}
         row={row}
         picking={picking}
         renaming={renaming}
@@ -133,6 +136,7 @@ function RowActions({
 
 function RowModals({
   token,
+  project,
   row,
   picking,
   renaming,
@@ -140,6 +144,7 @@ function RowModals({
   onChanged,
 }: {
   token: string;
+  project: string;
   row: Connector;
   picking: boolean;
   renaming: boolean;
@@ -150,6 +155,7 @@ function RowModals({
     <>
       <CollectionPicker
         token={token}
+        project={project}
         connectorId={row.id}
         connectorName={row.name}
         open={picking}

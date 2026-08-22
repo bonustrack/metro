@@ -9,6 +9,7 @@ import { resetAgentKey, type AgentSummary } from '../api/client';
 import { AccountList } from './AccountList';
 import { AgentCredentials } from './AgentCredentials';
 import { BackLink } from './BackLink';
+import { routeHash } from '../route';
 import { ConnectStation } from './ConnectStation';
 import { DeleteAgent } from './DeleteAgent';
 
@@ -27,6 +28,7 @@ function emptyStations(agent: AgentSummary, unattributed: number): string {
 }
 
 interface AgentDetailProps {
+  project: string;
   token: string;
   agent: AgentSummary;
   groups: AccountGroup[];
@@ -58,7 +60,11 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
     <Col gap={20}>
       <Col gap={12}>
         <Row justify="between" align="center" gap={12}>
-          <BackLink label="Agents" href="#/" onPress={props.onBack} />
+          <BackLink
+            label="Agents"
+            href={routeHash({ kind: 'agents', project: props.project })}
+            onPress={props.onBack}
+          />
           {agent.owned ? (
             <Row gap={8} align="center">
               <Button

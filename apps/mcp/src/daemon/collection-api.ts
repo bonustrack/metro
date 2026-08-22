@@ -3,6 +3,7 @@ import { errMsg, log } from './log.js';
 import {
   apiFailure,
   apiSession,
+  projectParam,
   bodyField,
   cors,
   readJsonBody,
@@ -74,8 +75,15 @@ async function handleIndex(
   deps: ConnectorApiDeps,
   session: ApiSession,
 ): Promise<void> {
+  const project = projectParam(req);
+  if (project === null) {
+    sendJson(req, res, 400, { error: 'a project is required' });
+    return;
+  }
   if (req.method === 'GET') {
-    sendJson(req, res, 200, { collections: await deps.listCollections(session.email) });
+    sendJson(req, res, 200, {
+      collections: await deps.listCollections(session.email, project),
+    });
     return;
   }
   const name = await nameFrom(req);
@@ -83,7 +91,7 @@ async function handleIndex(
     sendJson(req, res, 400, { error: 'name is required' });
     return;
   }
-  const list = await deps.createCollection(session.email, name);
+  const list = await deps.createCollection(session.email, project, name);
   log.info({ id: list.id, name: list.name }, 'collection-api: created collection');
   sendJson(req, res, 201, list);
 }

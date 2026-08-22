@@ -1,11 +1,18 @@
 export type Selection =
-  | { kind: 'agent'; id: string }
-  | { kind: 'station'; accountId: string }
-  | { kind: 'connectors' }
-  | { kind: 'connector'; id: string }
-  | { kind: 'collections' }
-  | { kind: 'collection'; id: string }
-  | { kind: 'authorize' }
+  | { kind: 'none' }
   | { kind: 'docs' }
   | { kind: 'settings' }
-  | { kind: 'none' };
+  | { kind: 'authorize' }
+  | { kind: 'agents'; project: string }
+  | { kind: 'agent'; project: string; id: string }
+  | { kind: 'station'; project: string; accountId: string }
+  | { kind: 'connectors'; project: string }
+  | { kind: 'connector'; project: string; id: string }
+  | { kind: 'collections'; project: string }
+  | { kind: 'collection'; project: string; id: string }
+  | { kind: 'members'; project: string }
+  | { kind: 'project'; project: string };
+
+export function selectionProject(selection: Selection): string | null {
+  return 'project' in selection ? selection.project : null;
+}

@@ -16,6 +16,7 @@ import {
   useConnectorQuery,
 } from '../api/queries';
 import { BackLink } from './BackLink';
+import { routeHash } from '../route';
 import { ConnectorActions } from './ConnectorActions';
 import { ConnectorFavicon } from './ConnectorFavicon';
 import { Field } from './Field';
@@ -36,6 +37,7 @@ const HINT =
 
 interface ConnectorPageProps {
   token: string;
+  project: string;
   id: string;
   onDelete: (id: string) => Promise<void>;
   onBack: () => void;
@@ -90,6 +92,7 @@ function ConnectorHeading({
 
 export function ConnectorPage({
   token,
+  project,
   id,
   onDelete,
   onBack,
@@ -102,7 +105,7 @@ export function ConnectorPage({
 
   const reload = (): void => {
     setStatus(null);
-    refreshConnectors(client, id);
+    refreshConnectors(client, project, id);
   };
 
   const recheck = (): void => {
@@ -112,7 +115,7 @@ export function ConnectorPage({
     verifyConnector(token, id)
       .then((result) => {
         setStatus(result.ok ? 'Answered just now.' : (result.reason ?? 'It did not answer.'));
-        refreshConnectors(client, id);
+        refreshConnectors(client, project, id);
       })
       .catch((err: unknown) => {
         setStatus(queryError(err, 'Could not check the connector.'));
@@ -131,9 +134,14 @@ export function ConnectorPage({
     <Col gap={20}>
       <Col gap={12}>
         <Row justify="between" align="center" gap={12}>
-          <BackLink label="Connectors" href="#/connectors" onPress={onBack} />
+          <BackLink
+            label="Connectors"
+            href={routeHash({ kind: 'connectors', project })}
+            onPress={onBack}
+          />
           <ConnectorActions
             token={token}
+            project={project}
             connector={data}
             refreshing={busy}
             onRefresh={recheck}

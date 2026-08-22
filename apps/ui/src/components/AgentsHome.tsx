@@ -57,28 +57,33 @@ function AgentCards({
 
 interface AgentsHomeProps {
   token: string;
+  project: string;
   onOpen: (id: string) => void;
 }
 
-export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
+export function AgentsHome({
+  token,
+  project,
+  onOpen,
+}: AgentsHomeProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const { data, error } = useStationsQuery(token);
+  const { data, error } = useStationsQuery(token, project);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   useDocumentTitle('Agents');
 
   const create = async (name: string): Promise<void> => {
-    const agent = await createAgent(token, name);
+    const agent = await createAgent(token, project, name);
     setCreated(agent);
-    await client.invalidateQueries({ queryKey: agentsKey() });
-    await client.invalidateQueries({ queryKey: stationsKey() });
+    await client.invalidateQueries({ queryKey: agentsKey(project) });
+    await client.invalidateQueries({ queryKey: stationsKey(project) });
   };
 
   const remove = async (id: string): Promise<void> => {
     await deleteAgent(token, id);
-    await client.invalidateQueries({ queryKey: agentsKey() });
-    await client.invalidateQueries({ queryKey: stationsKey() });
+    await client.invalidateQueries({ queryKey: agentsKey(project) });
+    await client.invalidateQueries({ queryKey: stationsKey(project) });
   };
 
   return (

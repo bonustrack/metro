@@ -5,9 +5,12 @@ import { Dropdown } from './Dropdown';
 import { NAV_GAP, NAV_ICON_SIZE, NAV_ROW_BOX, NavRow } from './NavRow';
 import { Text } from './ui';
 import { SHRINK } from '../theme';
+import { ProjectSwitcher } from './ProjectSwitcher';
 import { type Selection } from './selection';
 
 interface SidebarFooterProps {
+  token: string;
+  project: string;
   email: string;
   selection: Selection;
   onSelect: (selection: Selection) => void;
@@ -15,6 +18,8 @@ interface SidebarFooterProps {
 }
 
 export function SidebarFooter({
+  token,
+  project,
   email,
   selection,
   onSelect,
@@ -29,6 +34,7 @@ export function SidebarFooter({
         target={{ kind: 'docs' }}
         onSelect={onSelect}
       />
+      <ProjectSwitcher token={token} project={project} onSelect={onSelect} />
       <Dropdown
         className="account-trigger"
         label="Account menu"

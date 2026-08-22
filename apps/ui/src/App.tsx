@@ -6,7 +6,11 @@ import { Text, Button } from './components/ui';
 import { Login } from './components/Login';
 import { BootLoading } from './components/BootLoading';
 import { Dashboard } from './components/Dashboard';
-import { makeQueryClient, useSessionQuery } from './api/queries';
+import {
+  makeQueryClient,
+  useProjectsQuery,
+  useSessionQuery,
+} from './api/queries';
 import { atLogin, goToLogin, leaveLogin } from './auth/login-route';
 import { pageTitle } from './title';
 import {
@@ -53,6 +57,7 @@ interface GateProps {
 
 function Gate({ token, onLock }: GateProps): ReactNode {
   const { data: email, error, refetch } = useSessionQuery(token);
+  const projects = useProjectsQuery(token);
 
   useEffect(() => {
     if (email === undefined) document.title = pageTitle(null);
@@ -67,6 +72,8 @@ function Gate({ token, onLock }: GateProps): ReactNode {
       />
     );
   if (email === undefined) return <BootLoading />;
+  if (projects.data === undefined && projects.error === null)
+    return <BootLoading />;
   return <Dashboard token={token} email={email} onLock={onLock} />;
 }
 

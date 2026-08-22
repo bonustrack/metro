@@ -61,6 +61,13 @@ export function cliIdentity(req: IncomingMessage): CliClaims | null {
   }
 }
 
+export function projectParam(req: IncomingMessage): string | null {
+  const raw = new URL(req.url ?? '/', 'http://localhost').searchParams.get(
+    'project',
+  );
+  return raw === null || raw === '' ? null : raw;
+}
+
 export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let total = 0;

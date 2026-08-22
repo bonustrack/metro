@@ -188,6 +188,7 @@ One port (`internal_port=8420`, `webhookPort()` = `METRO_WEBHOOK_PORT || 8420` �
 | `GET /health`, `/healthz` | none | 200 `{status,version,uptime}`. Fly health-check (30s/5s/45s grace). **Breaking or gating this = machine unhealthy = outage.** A test guards it. |
 | `/auth/google/*` | — | Sign-in; `withFragment` strips the hash on return. |
 | `/api/agents…` | session JWT | Agent + account admin. Anything else under it is a 404 from this handler. |
+| `/api/projects…` | session JWT | Projects and their members. The only thing a user owns directly. |
 | `/api/connectors…` | session JWT | User-level remote-MCP bookmarks; **never an agent key**. `GET`/`POST` the collection, `POST /<id>/verify`, `POST /<id>/connect`, `POST /<id>/disconnect`, `POST /<id>/rename`, `DELETE /<id>`. Anything else under it is a 404 here, a wrong method a 405, both decided before auth. |
 | `/api/collections…` | session JWT | Collections of connectors; **never a CLI token**. `POST /<id>/code` mints the pairing code. |
 | `/api/cli/claim` | **the code itself** | Trades a single-use code for a CLI token. Not session gated — see the CLI above. |
@@ -302,6 +303,18 @@ Package `baileys` (`@whiskeysockets/baileys` is the OLD name; both publish `7.0.
 - The note (`channels/webhook-note.ts`) carries the pretty-printed body — the summary line alone tells an agent nothing — capped at `MAX_BODY_CHARS` 8 KiB with the dropped count named, plus an ALLOWLIST of headers, never the whole map: a delivery's `authorization`, `cookie` and signature must not land in the agent's context.
 - Two consequences of routing a `system` event: `handleEvent` does NOT set `lastLine` for one (that is `knownLine`, where an approval prompt goes, and a webhook line has no `send` verb), and `handlePermissionReply` runs only for `msg`, so a body containing `yes abcde` can never answer a pending request.
 - `listEndpoints` reads the materialized `~/.metro/webhook-accounts.json`, not the pre-account `webhooks.json` (warned about once at boot by `warnOnLegacyWebhooks`).
+
+## Projects own everything
+
+- **A PROJECT is the unit of ownership. Nothing belongs to a user except the project itself.** `agents.project_id`, `connectors.project_id` and `connector_collections.project_id` replaced `owner_id`/`user_id` in `0015`; stations follow their agent. `users` now only identifies a person and owns projects.
+- `projects` (`id`, `name`, `owner_id` → `users.id` restrict, `is_default`) and `project_members` (`project_id` cascade, `user_id` restrict, `role`, `unique(project_id, user_id)`).
+- **Roles gate the PROJECT, not its contents.** `admin` and `member`; any member manages that project's agents, connectors and collections, only an admin renames it or manages members, and only the OWNER deletes it. The owner cannot be demoted or removed, and a `is_default` project cannot be deleted at all — `ensureUserWithProject` mints one named `Personal` on first sign-in.
+- **`memberAccessOrThrow` is the single access predicate** (`db/projects.ts`) and everything else goes through `projectIdOrThrow`. A project you are not a member of is a flat **404**, identical to one that never existed, so the route is not an existence oracle.
+- **Reads and creates take `?project=<id>`; everything else resolves the project FROM THE ROW.** `listAgents`/`createAgent`, `listConnectors`/`createConnector`, `listCollections`/`createCollection` require the query param (400 without it). `ownedAgentOrThrow`, `ownedConnectorOrThrow` and `ownedCollectionOrThrow` look the row up by id and then assert membership of ITS project, so a rename or delete needs no project on the wire and cannot be pointed at the wrong one.
+- **`db/users.ts` exists to break an import cycle.** `projects.ts` needs user lookup and `agent-admin.ts` needs membership; leaving `ensureUser`/`userIdForEmail`/`normalizeEmail`/`isUniqueViolation` in `agent-admin.ts` made the two import each other, which madge rejects. For the same reason `ensureUser` does NOT create the default project — `ensureUserWithProject` (in `projects.ts`) composes the two, and only the sign-in path calls it.
+- **`0015` is hand-written, and it must stay that way.** `drizzle-kit generate` emits bare `DROP COLUMN`s that would throw away every ownership link. It creates a `Personal` project per existing user, backfills agents/connectors/collections from the old owner, sends any orphaned agent to the earliest user's default project, and only then sets `NOT NULL` and drops the old columns. **There is no down migration: once deployed, rolling back means restoring a backup.**
+- **The MCP auth path is untouched.** An agent's key still resolves straight to its agent id with no user or project involved, so connected clients and the CLI are unaffected by any of this — only the web API became project-scoped.
+- In the UI the project is IN THE ROUTE (`#/<projectId>/connectors`), never a stored preference, so a link identifies what it shows. `#/settings` (appearance) and `#/authorize` stay user-level; the authorize page therefore asks which project before listing its collections. `Dashboard` resolves the project from the route and falls back to the default one, which is what makes `#/` land somewhere.
 
 ## Database / multi-agent (Postgres + Drizzle)
 

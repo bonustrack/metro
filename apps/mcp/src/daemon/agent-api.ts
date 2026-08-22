@@ -4,6 +4,7 @@ import { publicBaseOrDefault } from './attach-serve.js';
 import {
   apiFailure,
   apiSession,
+  projectParam,
   cors,
   readJsonBody,
   sendJson,
@@ -29,8 +30,12 @@ const PREFIX = '/api/agents';
 const SERVER_NAME = 'metro';
 
 export interface AgentApiDeps extends AccountApiDeps {
-  listAgents: (email: string) => Promise<AgentSummary[]>;
-  createAgent: (email: string, name: string) => Promise<CreatedAgent>;
+  listAgents: (email: string, project: string) => Promise<AgentSummary[]>;
+  createAgent: (
+    email: string,
+    project: string,
+    name: string,
+  ) => Promise<CreatedAgent>;
   deleteAgent: (
     email: string,
     id: string,
@@ -121,7 +126,12 @@ async function handleList(
   deps: AgentApiDeps,
   session: ApiSession,
 ): Promise<void> {
-  const list = await deps.listAgents(session.email);
+  const project = projectParam(req);
+  if (project === null) {
+    sendJson(req, res, 400, { error: 'a project is required' });
+    return;
+  }
+  const list = await deps.listAgents(session.email, project);
   const base = {
     email: session.email,
     endpoint: mcpEndpoint(),
@@ -147,7 +157,12 @@ async function handleCreate(
 ): Promise<void> {
   const body = await readJsonBody(req);
   const name = (body as { name?: unknown }).name;
-  const created = await deps.createAgent(session.email, name as string);
+  const project = projectParam(req);
+  if (project === null) {
+    sendJson(req, res, 400, { error: 'a project is required' });
+    return;
+  }
+  const created = await deps.createAgent(session.email, project, name as string);
   log.info(
     { agent: created.name, id: created.id, owner: session.email },
     'agent-api: created agent',

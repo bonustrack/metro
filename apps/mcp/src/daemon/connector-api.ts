@@ -3,6 +3,7 @@ import { errMsg, log } from './log.js';
 import {
   apiFailure,
   apiSession,
+  projectParam,
   bodyField,
   cors,
   readJsonBody,
@@ -32,11 +33,18 @@ const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
 
 export interface ConnectorApiDeps extends OAuthRouteDeps {
-  listConnectors: (email: string) => Promise<Connector[]>;
+  listConnectors: (email: string, project: string) => Promise<Connector[]>;
   freshConnectorsByIds: (ids: string[]) => Promise<Connector[]>;
-  listCollections: (email: string) => Promise<ConnectorCollectionRow[]>;
+  listCollections: (
+    email: string,
+    project: string,
+  ) => Promise<ConnectorCollectionRow[]>;
   getCollection: (email: string, id: string) => Promise<ConnectorCollectionRow>;
-  createCollection: (email: string, name: string) => Promise<ConnectorCollectionRow>;
+  createCollection: (
+    email: string,
+    project: string,
+    name: string,
+  ) => Promise<ConnectorCollectionRow>;
   renameCollection: (
     email: string,
     id: string,
@@ -58,6 +66,7 @@ export interface ConnectorApiDeps extends OAuthRouteDeps {
   ) => Promise<ConnectorCollectionRow>;
   createConnector: (
     email: string,
+    project: string,
     input: ConnectorInput,
   ) => Promise<Connector>;
   verifyConnector: (email: string, id: string) => Promise<ConnectorCheck>;
@@ -126,7 +135,12 @@ async function handleList(
   deps: ConnectorApiDeps,
   session: ApiSession,
 ): Promise<void> {
-  const rows = await deps.listConnectors(session.email);
+  const project = projectParam(req);
+  if (project === null) {
+    sendJson(req, res, 400, { error: 'a project is required' });
+    return;
+  }
+  const rows = await deps.listConnectors(session.email, project);
   sendJson(req, res, 200, {
     connectors: rows.map((row) => connectorPayload(row)),
   });
@@ -139,9 +153,14 @@ async function handleCreate(
   session: ApiSession,
 ): Promise<void> {
   const body = await readJsonBody(req);
+  const project = projectParam(req);
+  if (project === null) {
+    sendJson(req, res, 400, { error: 'a project is required' });
+    return;
+  }
   const offered = asText(bodyField(body, 'value')).trim() !== '';
   try {
-    const created = await deps.createConnector(session.email, {
+    const created = await deps.createConnector(session.email, project, {
       name: bodyField(body, 'name'),
       url: bodyField(body, 'url'),
       header: bodyField(body, 'header'),
@@ -154,7 +173,7 @@ async function handleCreate(
     sendJson(req, res, 201, connectorPayload(created));
   } catch (err) {
     if (offered || !(err instanceof ConnectorUnauthorized)) throw err;
-    await startOAuth(req, res, deps, session, body, (row) =>
+    await startOAuth(req, res, deps, session, project, body, (row) =>
       connectorPayload(row),
     );
   }

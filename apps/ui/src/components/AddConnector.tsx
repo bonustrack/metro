@@ -59,11 +59,17 @@ function FormField(props: FormFieldProps): ReactNode {
 
 interface ConnectorFormProps {
   token: string;
+  project: string;
   onAdded: (result: Connector) => void;
   onCancel: () => void;
 }
 
-function ConnectorForm({ token, onAdded, onCancel }: ConnectorFormProps): ReactNode {
+function ConnectorForm({
+  token,
+  project,
+  onAdded,
+  onCancel,
+}: ConnectorFormProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [values, setValues] = useState<NewConnector>(EMPTY);
   const [busy, setBusy] = useState(false);
@@ -80,7 +86,7 @@ function ConnectorForm({ token, onAdded, onCancel }: ConnectorFormProps): ReactN
     if (busy || !complete) return;
     setBusy(true);
     setError(null);
-    createConnector(token, trimmed(values))
+    createConnector(token, project, trimmed(values))
       .then((result) => {
         if (result.kind === 'oauth') {
           window.location.assign(result.authorizeUrl);
@@ -162,18 +168,20 @@ function ConnectorForm({ token, onAdded, onCancel }: ConnectorFormProps): ReactN
 
 interface AddConnectorProps {
   token: string;
+  project: string;
   open: boolean;
   onClose: () => void;
   onAdded: (id: string) => void;
 }
 
 export function AddConnector(props: AddConnectorProps): ReactNode {
-  const { token, open, onClose, onAdded } = props;
+  const { token, project, open, onClose, onAdded } = props;
 
   return (
     <Modal title="Add connector" open={open} onClose={onClose}>
       <ConnectorForm
         token={token}
+        project={project}
         onCancel={onClose}
         onAdded={(result) => {
           onClose();

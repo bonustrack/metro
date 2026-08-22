@@ -1,11 +1,16 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 
 export interface MenuItem {
   label: string;
+  icon?: HeroIconName;
   danger?: boolean;
   onSelect: () => void;
 }
+
+const ITEM_ICON_SIZE = 16;
 
 const MENU_WIDTH = 200;
 const ITEM_HEIGHT = 36;
@@ -38,6 +43,7 @@ export function Dropdown({
   align = 'end',
   children,
 }: DropdownProps): ReactNode {
+  const palette = useKitPalette();
   const trigger = useRef<HTMLButtonElement>(null);
   const [at, setAt] = useState<{ top: number; left: number } | null>(null);
 
@@ -86,6 +92,13 @@ export function Dropdown({
                       item.onSelect();
                     }}
                   >
+                    {item.icon === undefined ? null : (
+                      <Icon
+                        name={item.icon}
+                        size={ITEM_ICON_SIZE}
+                        color={item.danger === true ? palette.danger : palette.link}
+                      />
+                    )}
                     {item.label}
                   </button>
                 ))}

@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from './log.js';
 import { verifyGoogleIdToken } from './google-auth.js';
 import { newNonce, signSession, signState, verifyState } from './session.js';
-import { ensureUser } from '../db/agent-admin.js';
+import { ensureUserWithProject } from '../db/projects.js';
 
 export interface OAuthConfig {
   clientId: string;
@@ -154,7 +154,8 @@ function defaultDeps(cfg: OAuthConfig): CallbackDeps {
         clientId: cfg.clientId,
         expectedNonce: nonce,
       }).then((c) => ({ email: c.email })),
-    ensureUser,
+    ensureUser: ensureUserWithProject,
+    
   };
 }
 

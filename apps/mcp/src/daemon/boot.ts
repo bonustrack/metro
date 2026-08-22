@@ -1,3 +1,4 @@
+import type { ProjectApiDeps } from './project-api.js';
 import { join } from 'node:path';
 import { type Server } from 'node:http';
 import { selfLine, userSelf } from './events.js';
@@ -26,15 +27,7 @@ import {
 } from '../stations/registry.js';
 import { prepareAccount } from '../stations/attach.js';
 import { materializeFromDb, reloadAccountsFromDb } from '../db/materialize.js';
-import {
-  createAgentForEmail,
-  deleteAgentForEmail,
-  listAgentsForEmail,
-  ownedAgentOrThrow,
-  resetAgentKeyForEmail,
-  userIdForEmail,
-  type ResetAgentKey,
-} from '../db/agent-admin.js';
+import {  createAgentForEmail,  deleteAgentForEmail,  listAgentsForEmail,  ownedAgentOrThrow,  resetAgentKeyForEmail,    type ResetAgentKey,} from '../db/agent-admin.js';
 import {
   attachAccountToAgent,
   detachAccountFromAgent,
@@ -42,7 +35,6 @@ import {
 import {
   createConnectorForEmail,
   createPendingConnectorForEmail,
-  createOAuthConnectorForEmail,
   deleteConnectorForEmail,
   disconnectConnectorForEmail,
   getConnectorForEmail,
@@ -52,6 +44,16 @@ import {
   reconnectConnectorForEmail,
   verifyConnectorForEmail,
 } from '../db/connectors.js';
+import {
+  addMemberForEmail,
+  createProjectForEmail,
+  deleteProjectForEmail,
+  listMembersForEmail,
+  listProjectsForEmail,
+  removeMemberForEmail,
+  renameProjectForEmail,
+  setMemberRoleForEmail,
+} from '../db/projects.js';
 import {
   addToCollectionForEmail,
   createCollectionForEmail,
@@ -104,7 +106,7 @@ async function syncStations(station: StationName): Promise<void> {
 
 const attachSessions = new AttachSessions({
   authorize: async (owner) => {
-    await ownedAgentOrThrow(await userIdForEmail(owner.email), owner.agentId);
+    await ownedAgentOrThrow(owner.email, owner.agentId);
   },
   complete: async (owner, station, config) => {
     const ref = await attachAccountToAgent(
@@ -154,6 +156,17 @@ const agentApi: AgentApiDeps = {
   syncStations,
 };
 
+const projectApi: ProjectApiDeps = {
+  listProjects: listProjectsForEmail,
+  createProject: createProjectForEmail,
+  renameProject: renameProjectForEmail,
+  deleteProject: deleteProjectForEmail,
+  listMembers: listMembersForEmail,
+  addMember: addMemberForEmail,
+  setMemberRole: setMemberRoleForEmail,
+  removeMember: removeMemberForEmail,
+};
+
 const connectorApi: ConnectorApiDeps = {
   listConnectors: listConnectorsForEmail,
   freshConnectorsByIds: listFreshConnectorsByIds,
@@ -167,7 +180,6 @@ const connectorApi: ConnectorApiDeps = {
   renameConnector: renameConnectorForEmail,
   createConnector: createConnectorForEmail,
   createPendingConnector: createPendingConnectorForEmail,
-  createOAuthConnector: createOAuthConnectorForEmail,
   reconnectConnector: reconnectConnectorForEmail,
   getConnector: getConnectorForEmail,
   verifyConnector: verifyConnectorForEmail,
@@ -186,6 +198,7 @@ async function main(): Promise<void> {
     metroCall,
     agentApi,
     connectorApi,
+    projectApi,
   );
   metroMcp.startInbound();
   startUploadReaper();

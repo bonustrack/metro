@@ -3,12 +3,11 @@ import {
   AgentAdminError,
   newApiKey,
   normalizeAgentName,
-  normalizeEmail,
   parseAgentId,
-  resolveUserId,
   servesEveryAgent,
   toAgentSummaries,
 } from '../src/db/agent-admin.ts';
+import { normalizeEmail, resolveUserId, UserError } from '../src/db/users.ts';
 
 const PIN = process.env.METRO_AGENT;
 afterEach(() => {
@@ -112,15 +111,21 @@ describe('parseAgentId', () => {
 });
 
 describe('toAgentSummaries', () => {
-  const OWNER = 'user0000011';
+  const PROJECT = 'prj00000011';
   const ROWS = [
-    { id: 'agent000001', name: 'ada-bot', ownerId: OWNER },
-    { id: 'agent000002', name: 'bob-bot', ownerId: 'user0000022' },
-    { id: 'agent000005', name: 'legacy', ownerId: null },
+    { id: 'agent000001', name: 'ada-bot', projectId: PROJECT },
+    { id: 'agent000002', name: 'bob-bot', projectId: PROJECT },
   ];
 
-  test('an owned agent carries its key value', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 'agent000001', key: 'mk_fake_ada' }]);
+  test('the rows it is handed are ALREADY project-scoped, so every one is owned', () => {
+    const out = toAgentSummaries(ROWS, []);
+    expect(out.every((a) => a.owned)).toBe(true);
+  });
+
+  test('an agent carries its key value', () => {
+    const out = toAgentSummaries(ROWS, [
+      { agentId: 'agent000001', key: 'mk_fake_ada' },
+    ]);
     expect(out[0]).toEqual({
       id: 'agent000001',
       name: 'ada-bot',
@@ -129,38 +134,27 @@ describe('toAgentSummaries', () => {
     });
   });
 
-  test('an owned agent with no key at all is served a null key', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 'agent000001', key: null }]);
-    expect(out[0]).toEqual({ id: 'agent000001', name: 'ada-bot', owned: true, key: null });
+  test('an agent with no key yet is served null, not a stale value', () => {
+    const out = toAgentSummaries(ROWS, [{ agentId: 'agent000001', key: null }]);
+    expect(out[0]).toEqual({
+      id: 'agent000001',
+      name: 'ada-bot',
+      owned: true,
+      key: null,
+    });
   });
 
-  test('a granted operator row is listed with a null key', () => {
-    const out = toAgentSummaries(OWNER, ROWS, []);
-    expect(out[2]).toEqual({ id: 'agent000005', name: 'legacy', owned: false, key: null });
-  });
-
-  test('a key value belonging to a row the caller does not own is dropped', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [
-      { agentId: 'agent000002', key: 'mk_fake_bob' },
-      { agentId: 'agent000005', key: 'mk_fake_legacy' },
+  test('a key for an agent that is not in the list reaches nobody', () => {
+    const out = toAgentSummaries(ROWS, [
+      { agentId: 'agent000999', key: 'mk_fake_elsewhere' },
     ]);
-    expect(out.map((a) => a.key)).toEqual([null, null, null]);
-  });
-
-  test('a null owner_id never matches a caller with no user row', () => {
-    const out = toAgentSummaries(null, ROWS, [{ agentId: 'agent000005', key: 'mk_fake_legacy' }]);
-    expect(out.every((a) => !a.owned)).toBe(true);
-    expect(out.map((a) => a.key)).toEqual([null, null, null]);
-  });
-
-  test('an owner id never matches an operator row that has no owner at all', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 'agent000005', key: 'mk_fake_legacy' }]);
-    expect(out[2]?.owned).toBe(false);
-    expect(out[2]?.key).toBeNull();
+    expect(out.map((a) => a.key)).toEqual([null, null]);
   });
 
   test('every agent carries exactly one key field, never a list', () => {
-    const out = toAgentSummaries(OWNER, ROWS, [{ agentId: 'agent000001', key: 'mk_fake_ada' }]);
+    const out = toAgentSummaries(ROWS, [
+      { agentId: 'agent000001', key: 'mk_fake_ada' },
+    ]);
     expect(Object.keys(out[0] ?? {}).sort()).toEqual(['id', 'key', 'name', 'owned']);
   });
 });
@@ -215,8 +209,8 @@ describe('resolveUserId', () => {
       );
       expect.unreachable();
     } catch (e) {
-      expect(e).toBeInstanceOf(AgentAdminError);
-      expect((e as AgentAdminError).status).toBe(500);
+      expect(e).toBeInstanceOf(UserError);
+      expect((e as UserError).status).toBe(500);
     }
   });
 });

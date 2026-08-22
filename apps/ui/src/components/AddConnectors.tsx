@@ -8,6 +8,7 @@ import { queryError } from '../api/queries';
 
 interface AddConnectorsProps {
   token: string;
+  project: string;
   title: string;
   action: string;
   initial: string[];
@@ -19,6 +20,7 @@ interface AddConnectorsProps {
 
 export function AddConnectors({
   token,
+  project,
   title,
   action,
   initial,
@@ -66,7 +68,7 @@ export function AddConnectors({
   return (
     <Modal title={title} open={open} onClose={close}>
       <Col gap={14}>
-        <ConnectorChooser token={token} chosen={chosen} onToggle={toggle} />
+        <ConnectorChooser token={token} project={project} chosen={chosen} onToggle={toggle} />
         {error === null ? null : (
           <Text size="sm" role="danger">
             {error}

@@ -14,6 +14,7 @@ import { RenameConnector } from './RenameConnector';
 
 interface ConnectorActionsProps {
   token: string;
+  project: string;
   connector: Connector;
   refreshing: boolean;
   onRefresh: () => void;
@@ -23,7 +24,7 @@ interface ConnectorActionsProps {
 }
 
 export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
-  const { token, connector, refreshing, onRefresh, onError } = props;
+  const { token, project, connector, refreshing, onRefresh, onError } = props;
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -102,6 +103,7 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
       />
       <CollectionPicker
         token={token}
+        project={project}
         connectorId={connector.id}
         connectorName={connector.name}
         open={picking}

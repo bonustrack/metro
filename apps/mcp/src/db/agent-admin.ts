@@ -4,10 +4,11 @@ import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
 import { registerKey, rotateAgentKey, unregisterAgentKey } from './key-map.js';
 import { newId, parseId } from './ids.js';
-import { agents, stations, users } from './schema.js';
+import { agents, stations } from './schema.js';
+import { isUniqueViolation } from './users.js';
+import { projectIdOrThrow } from './projects.js';
 
 export const AGENT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;
-const UNIQUE_VIOLATION = '23505';
 const KEY_ATTEMPTS = 5;
 
 export class AgentAdminError extends ApiError {}
@@ -36,18 +37,6 @@ export interface ResetAgentKey extends OwnedAgent {
   key: string;
 }
 
-export function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    (err as { code?: unknown }).code === UNIQUE_VIOLATION
-  );
-}
-
-export function normalizeEmail(raw: string): string {
-  return raw.trim().toLowerCase();
-}
-
 export function normalizeAgentName(raw: unknown): string {
   const name = typeof raw === 'string' ? raw.trim() : '';
   if (!AGENT_NAME_RE.test(name))
@@ -73,45 +62,10 @@ export function daemonServesAgent(id: string): boolean {
   return pin === '' || pin === id;
 }
 
-export async function userIdForEmail(rawEmail: string): Promise<string | null> {
-  const rows = await getDb()
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, normalizeEmail(rawEmail)));
-  return rows[0]?.id ?? null;
-}
-
-export async function resolveUserId(
-  insert: () => Promise<string | undefined>,
-  lookup: () => Promise<string | null>,
-): Promise<string> {
-  const inserted = await insert();
-  if (inserted !== undefined) return inserted;
-  const existing = await lookup();
-  if (existing === null)
-    throw new AgentAdminError('user lookup returned no id', 500);
-  return existing;
-}
-
-export async function ensureUser(rawEmail: string): Promise<string> {
-  const email = normalizeEmail(rawEmail);
-  return resolveUserId(
-    async () => {
-      const rows = await getDb()
-        .insert(users)
-        .values({ id: newId(), email })
-        .onConflictDoNothing({ target: users.email })
-        .returning({ id: users.id });
-      return rows[0]?.id;
-    },
-    () => userIdForEmail(email),
-  );
-}
-
 interface AgentRow {
   id: string;
   name: string;
-  ownerId: string | null;
+  projectId: string;
 }
 
 interface KeyRow {
@@ -119,58 +73,49 @@ interface KeyRow {
   key: string | null;
 }
 
-function ownedIdsOf(ownerId: string | null, rows: AgentRow[]): string[] {
-  if (ownerId === null) return [];
-  return rows.filter((r) => r.ownerId === ownerId).map((r) => r.id);
-}
-
 export function toAgentSummaries(
-  ownerId: string | null,
   rows: AgentRow[],
   keyRows: KeyRow[],
 ): AgentSummary[] {
-  const owned = new Set(ownedIdsOf(ownerId, rows));
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
-    owned: owned.has(r.id),
-    key: owned.has(r.id)
-      ? keyRows.find((k) => k.agentId === r.id)?.key ?? null
-      : null,
+    owned: true,
+    key: keyRows.find((k) => k.agentId === r.id)?.key ?? null,
   }));
 }
 
-async function selectKeyRows(ownedIds: string[]): Promise<KeyRow[]> {
-  if (ownedIds.length === 0) return [];
+async function selectKeyRows(ids: string[]): Promise<KeyRow[]> {
+  if (ids.length === 0) return [];
   return getDb()
     .select({ agentId: agents.id, key: agents.key })
     .from(agents)
-    .where(inArray(agents.id, ownedIds));
+    .where(inArray(agents.id, ids));
 }
 
 export async function listAgentsForEmail(
   email: string,
+  project: string,
 ): Promise<AgentSummary[]> {
-  const ownerId = await userIdForEmail(email);
-  if (ownerId === null) return [];
+  const projectId = await projectIdOrThrow(email, project);
   const rows = await getDb()
-    .select({ id: agents.id, name: agents.name, ownerId: agents.ownerId })
+    .select({ id: agents.id, name: agents.name, projectId: agents.projectId })
     .from(agents)
-    .where(eq(agents.ownerId, ownerId))
+    .where(eq(agents.projectId, projectId))
     .orderBy(asc(agents.name), asc(agents.id));
   if (rows.length === 0) return [];
-  const keyRows = await selectKeyRows(ownedIdsOf(ownerId, rows));
-  return toAgentSummaries(ownerId, rows, keyRows);
+  const keyRows = await selectKeyRows(rows.map((r) => r.id));
+  return toAgentSummaries(rows, keyRows);
 }
 
 async function insertAgent(
-  ownerId: string,
+  projectId: string,
   name: string,
   key: string,
 ): Promise<string> {
   const inserted = await getDb()
     .insert(agents)
-    .values({ id: newId(), name, ownerId, key })
+    .values({ id: newId(), name, projectId, key })
     .returning({ id: agents.id });
   const id = inserted[0]?.id;
   if (id === undefined)
@@ -180,11 +125,12 @@ async function insertAgent(
 
 export async function createAgentForEmail(
   email: string,
+  project: string,
   rawName: string,
 ): Promise<CreatedAgent> {
   const name = normalizeAgentName(rawName);
   const key = newApiKey();
-  const id = await insertAgent(await ensureUser(email), name, key);
+  const id = await insertAgent(await projectIdOrThrow(email, project), name, key);
   if (servesEveryAgent()) registerKey(key, id);
   return { id, name, key };
 }
@@ -195,30 +141,33 @@ export function parseAgentId(raw: string): string | null {
 
 interface Deletable {
   agent: DeletedAgent;
-  ownerId: string;
+  projectId: string;
 }
 
 export async function ownedAgentOrThrow(
-  ownerId: string | null,
+  email: string,
   id: string,
 ): Promise<Deletable> {
   const rows = await getDb().select().from(agents).where(eq(agents.id, id));
   const row = rows[0];
   const missing = new AgentAdminError('no such agent', 404);
   if (!row) throw missing;
-  if (ownerId === null || row.ownerId === null || row.ownerId !== ownerId)
+  try {
+    await projectIdOrThrow(email, row.projectId);
+  } catch {
     throw missing;
-  return { agent: { id: row.id, name: row.name }, ownerId };
+  }
+  return { agent: { id: row.id, name: row.name }, projectId: row.projectId };
 }
 
-async function writeNewKey(id: string, ownerId: string): Promise<string> {
+async function writeNewKey(id: string, projectId: string): Promise<string> {
   for (let attempt = 0; attempt < KEY_ATTEMPTS; attempt += 1) {
     const key = newApiKey();
     try {
       const changed = await getDb()
         .update(agents)
         .set({ key })
-        .where(and(eq(agents.id, id), eq(agents.ownerId, ownerId)))
+        .where(and(eq(agents.id, id), eq(agents.projectId, projectId)))
         .returning({ id: agents.id });
       if (changed.length === 0)
         throw new AgentAdminError('no such agent', 404);
@@ -234,11 +183,8 @@ export async function resetAgentKeyForEmail(
   email: string,
   id: string,
 ): Promise<ResetAgentKey> {
-  const { agent, ownerId } = await ownedAgentOrThrow(
-    await userIdForEmail(email),
-    id,
-  );
-  const key = await writeNewKey(agent.id, ownerId);
+  const { agent, projectId } = await ownedAgentOrThrow(email, id);
+  const key = await writeNewKey(agent.id, projectId);
   rotateAgentKey(agent.id, daemonServesAgent(agent.id) ? key : null);
   return { id: agent.id, name: agent.name, key };
 }
@@ -247,10 +193,7 @@ export async function deleteAgentForEmail(
   email: string,
   id: string,
 ): Promise<DeletedAgent> {
-  const { agent, ownerId } = await ownedAgentOrThrow(
-    await userIdForEmail(email),
-    id,
-  );
+  const { agent, projectId } = await ownedAgentOrThrow(email, id);
   await getDb().transaction(async (tx) => {
     const attached = await tx
       .select({ id: stations.id })
@@ -263,7 +206,7 @@ export async function deleteAgentForEmail(
       );
     const gone = await tx
       .delete(agents)
-      .where(and(eq(agents.id, id), eq(agents.ownerId, ownerId)))
+      .where(and(eq(agents.id, id), eq(agents.projectId, projectId)))
       .returning({ id: agents.id });
     if (gone.length === 0) throw new AgentAdminError('no such agent', 404);
   });

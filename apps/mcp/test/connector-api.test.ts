@@ -150,8 +150,10 @@ function makeRow(email: string, input: ConnectorInput): Row {
   };
 }
 
+const PROJECT = 'prj00000001';
+
 const deps: ConnectorApiDeps = {
-  listConnectors: async (email) => {
+  listConnectors: async (email, _project) => {
     calls.push(`list ${email}`);
     return rows.filter((r) => r.email === email).map(toConnector);
   },
@@ -159,7 +161,7 @@ const deps: ConnectorApiDeps = {
     Promise.resolve(
       rows.filter((r) => ids.includes(String(r.id))).map(toConnector),
     ),
-  createConnector: async (email, input) => {
+  createConnector: async (email, _project, input) => {
     calls.push(`create ${email}`);
     const row = makeRow(email, input);
     rows.push(row);
@@ -208,13 +210,18 @@ const deps: ConnectorApiDeps = {
 const session = (email: string, secret = SECRET): string =>
   signSession({ email, agentIds: [] }, secret);
 
+const withProject = (path: string): string =>
+  path.includes('?')
+    ? `${path}&project=${PROJECT}`
+    : `${path}?project=${PROJECT}`;
+
 const call = (
   method: string,
   path: string,
   token?: string,
   body?: unknown,
 ): Promise<Response> =>
-  fetch(`${base}${path}`, {
+  fetch(`${base}${withProject(path)}`, {
     method,
     headers: {
       ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
@@ -285,7 +292,7 @@ describe('/api/connectors is the Google session surface', () => {
 
   test('a ?token= query param authenticates too', async () => {
     const res = await fetch(
-      `${base}/api/connectors?token=${encodeURIComponent(session(ADA))}`,
+      `${base}/api/connectors?project=${PROJECT}&token=${encodeURIComponent(session(ADA))}`,
     );
     expect(res.status).toBe(200);
     expect(calls).toEqual([`list ${ADA}`]);

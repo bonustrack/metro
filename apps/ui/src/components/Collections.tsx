@@ -56,23 +56,25 @@ function CollectionRow({
   );
 }
 
-const EMPTY = 'No collections yet. Create one, then add connectors to it from their menus.';
+const EMPTY = 'No collections yet.';
 
 export function Collections({
   token,
+  project,
   onOpen,
 }: {
   token: string;
+  project: string;
   onOpen: (id: string) => void;
 }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const { data, error } = useCollectionsQuery(token);
+  const { data, error } = useCollectionsQuery(token, project);
   const [adding, setAdding] = useState(false);
   useDocumentTitle('Collections');
   const lists = data ?? [];
   const onChanged = (): void => {
-    refreshCollections(client);
+    refreshCollections(client, project);
   };
   return (
     <Col gap={16}>
@@ -113,6 +115,7 @@ export function Collections({
       )}
       <NewCollection
         token={token}
+        project={project}
         open={adding}
         onClose={() => {
           setAdding(false);

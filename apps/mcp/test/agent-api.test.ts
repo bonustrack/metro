@@ -98,15 +98,17 @@ function resetKeyOf(email: string, id: number): ResetAgentKey {
   return { id: row.id, name: row.name, key };
 }
 
+const PROJECT = 'prj00000001';
+
 const deps: AgentApiDeps = {
-  listAgents: (email) =>
+  listAgents: (email, _project) =>
     Promise.resolve([
       ...(OWNED[email] ?? []),
       ...(leakGrantedKeys
         ? [{ id: 'agent000901', name: 'not-mine', owned: false, key: fakeKey('not-mine') }]
         : []),
     ]),
-  createAgent: (email, name) => {
+  createAgent: (email, _project, name) => {
     const clean = normalizeAgentName(name);
     created.push({ email, name: clean });
     nextId += 1;
@@ -149,17 +151,17 @@ const session = (email: string, secret = SECRET): string =>
   signSession({ email, agentIds: [] }, secret);
 
 const get = (token?: string): Promise<Response> =>
-  fetch(`${base}/api/agents`, {
+  fetch(`${base}/api/agents?project=${PROJECT}`, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
   });
 
 const getFull = (token?: string): Promise<Response> =>
-  fetch(`${base}/api/agents?accounts=1`, {
+  fetch(`${base}/api/agents?accounts=1&project=${PROJECT}`, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
   });
 
 const post = (token: string, body: unknown): Promise<Response> =>
-  fetch(`${base}/api/agents`, {
+  fetch(`${base}/api/agents?project=${PROJECT}`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -214,19 +216,19 @@ describe('/api/agents authentication', () => {
 
   test('a ?token= query param authenticates too', async () => {
     const res = await fetch(
-      `${base}/api/agents?token=${encodeURIComponent(session('ada@lovelace.dev'))}`,
+      `${base}/api/agents?project=${PROJECT}&token=${encodeURIComponent(session('ada@lovelace.dev'))}`,
     );
     expect(res.status).toBe(200);
   });
 
   test('OPTIONS preflight is 204 with CORS', async () => {
-    const res = await fetch(`${base}/api/agents`, { method: 'OPTIONS' });
+    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, { method: 'OPTIONS' });
     expect(res.status).toBe(204);
     expect(res.headers.get('access-control-allow-methods')).toContain('POST');
   });
 
   test('DELETE on the collection is 405 — deletion is per-agent-id only', async () => {
-    const res = await fetch(`${base}/api/agents`, {
+    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
       method: 'DELETE',
       headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
     });
@@ -485,7 +487,7 @@ describe('POST /api/agents', () => {
   });
 
   test('a non-JSON body is 400', async () => {
-    const res = await fetch(`${base}/api/agents`, {
+    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
       method: 'POST',
       headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
       body: 'not json',
@@ -494,7 +496,7 @@ describe('POST /api/agents', () => {
   });
 
   test('creating without a session is 401 and creates nothing', async () => {
-    const res = await fetch(`${base}/api/agents`, {
+    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'anon' }),

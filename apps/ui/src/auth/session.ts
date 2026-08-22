@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'metro.session';
+const PROJECT_KEY = 'metro.project';
 const DEFAULT_DAEMON = 'https://mcp.metro.box';
 const EXP_SKEW_MS = 60_000;
 
@@ -29,6 +30,23 @@ export function storedSession(): string | null {
 export function storeSession(token: string): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, token);
+  } catch {
+    return;
+  }
+}
+
+export function storedProject(): string | null {
+  try {
+    const v = window.localStorage.getItem(PROJECT_KEY);
+    return v !== null && v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function storeProject(id: string): void {
+  try {
+    window.localStorage.setItem(PROJECT_KEY, id);
   } catch {
     return;
   }

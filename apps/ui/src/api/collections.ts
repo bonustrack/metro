@@ -11,7 +11,7 @@ export interface Collection {
 export interface CollectionCode {
   code: string;
   expiresAt: number;
-  list: string;
+  collection: string;
 }
 
 const collectionsUrl = (): string => `${daemonBase()}/api/collections`;
@@ -29,8 +29,15 @@ function toCollection(value: unknown): Collection {
   };
 }
 
-export async function fetchCollections(token: string): Promise<Collection[]> {
-  const body = await call(token, { base: collectionsUrl(), method: 'GET' });
+export async function fetchCollections(
+  token: string,
+  project: string,
+): Promise<Collection[]> {
+  const body = await call(token, {
+    base: collectionsUrl(),
+    method: 'GET',
+    path: `?project=${project}`,
+  });
   if (!isRecord(body) || !Array.isArray(body.collections))
     throw new Error('Metro returned an unexpected response.');
   return body.collections.map(toCollection);
@@ -50,10 +57,16 @@ const json = (body: unknown): { headers: Record<string, string>; body: string } 
 
 export async function createCollection(
   token: string,
+  project: string,
   name: string,
 ): Promise<Collection> {
   return toCollection(
-    await call(token, { base: collectionsUrl(), method: 'POST', ...json({ name }) }),
+    await call(token, {
+      base: collectionsUrl(),
+      method: 'POST',
+      path: `?project=${project}`,
+      ...json({ name }),
+    }),
   );
 }
 
@@ -117,12 +130,12 @@ export async function mintCollectionCode(
   if (
     !isRecord(body) ||
     typeof body.code !== 'string' ||
-    typeof body.list !== 'string'
+    typeof body.collection !== 'string'
   )
     throw new Error('Metro returned an unexpected response.');
   return {
     code: body.code,
-    list: body.list,
+    collection: body.collection,
     expiresAt: typeof body.expiresAt === 'number' ? body.expiresAt : 0,
   };
 }

@@ -135,14 +135,23 @@ export async function fetchSession(token: string): Promise<string> {
   return body.email;
 }
 
-export async function fetchAgents(token: string): Promise<AgentsView> {
-  const body = await call(token, { method: 'GET' });
+export async function fetchAgents(
+  token: string,
+  project: string,
+): Promise<AgentsView> {
+  const body = await call(token, { method: 'GET', path: `?project=${project}` });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   return toAgentsView(body);
 }
 
-export async function fetchStations(token: string): Promise<StationsView> {
-  const body = await call(token, { method: 'GET', path: '?accounts=1' });
+export async function fetchStations(
+  token: string,
+  project: string,
+): Promise<StationsView> {
+  const body = await call(token, {
+    method: 'GET',
+    path: `?accounts=1&project=${project}`,
+  });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   const view = toAgentsView(body);
   const groups = attributedGroups(view.agents, body.accounts);
@@ -156,9 +165,14 @@ export async function fetchStations(token: string): Promise<StationsView> {
   };
 }
 
-export async function createAgent(token: string, name: string): Promise<CreatedAgent> {
+export async function createAgent(
+  token: string,
+  project: string,
+  name: string,
+): Promise<CreatedAgent> {
   const body = await call(token, {
     method: 'POST',
+    path: `?project=${project}`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name }),
   });

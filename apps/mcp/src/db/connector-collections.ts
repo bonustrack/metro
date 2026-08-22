@@ -1,7 +1,8 @@
+import { isUniqueViolation } from './users.js';
+import { projectIdOrThrow } from './projects.js';
 import { and, asc, eq } from 'drizzle-orm';
 import { getDb } from './client.js';
 import { newId } from './ids.js';
-import { ensureUser, isUniqueViolation, userIdForEmail } from './agent-admin.js';
 import { ConnectorError, connectorName } from './connector-config.js';
 import { connectorCollectionItems, connectorCollections, connectors } from './schema.js';
 
@@ -13,7 +14,7 @@ export interface ConnectorCollectionRow {
 
 interface CollectionRow {
   id: string;
-  userId: string;
+  projectId: string;
   name: string;
 }
 
@@ -24,16 +25,20 @@ const duplicate = (name: string): ConnectorError =>
   new ConnectorError(`you already have a collection named '${name}'`, 409);
 
 async function ownedCollectionOrThrow(
-  userId: string | null,
+  email: string,
   id: string,
 ): Promise<CollectionRow> {
-  if (userId === null) throw missing();
   const rows = await getDb()
     .select()
     .from(connectorCollections)
-    .where(and(eq(connectorCollections.id, id), eq(connectorCollections.userId, userId)));
+    .where(eq(connectorCollections.id, id));
   const row = rows[0];
   if (row === undefined) throw missing();
+  try {
+    await projectIdOrThrow(email, row.projectId);
+  } catch {
+    throw missing();
+  }
   return row;
 }
 
@@ -52,13 +57,13 @@ async function withItems(row: CollectionRow): Promise<ConnectorCollectionRow> {
 
 export async function listCollectionsForEmail(
   email: string,
+  project: string,
 ): Promise<ConnectorCollectionRow[]> {
-  const userId = await userIdForEmail(email);
-  if (userId === null) return [];
+  const projectId = await projectIdOrThrow(email, project);
   const rows = await getDb()
     .select()
     .from(connectorCollections)
-    .where(eq(connectorCollections.userId, userId))
+    .where(eq(connectorCollections.projectId, projectId))
     .orderBy(asc(connectorCollections.id));
   return Promise.all(rows.map(withItems));
 }
@@ -67,20 +72,20 @@ export async function getCollectionForEmail(
   email: string,
   id: string,
 ): Promise<ConnectorCollectionRow> {
-  const userId = await userIdForEmail(email);
-  return withItems(await ownedCollectionOrThrow(userId, id));
+  return withItems(await ownedCollectionOrThrow(email, id));
 }
 
 export async function createCollectionForEmail(
   email: string,
+  project: string,
   raw: string,
 ): Promise<ConnectorCollectionRow> {
   const name = connectorName(raw);
-  const userId = await ensureUser(email);
+  const projectId = await projectIdOrThrow(email, project);
   try {
     const rows = await getDb()
       .insert(connectorCollections)
-      .values({ id: newId(), userId, name })
+      .values({ id: newId(), projectId, name })
       .returning();
     const row = rows[0];
     if (row === undefined)
@@ -98,8 +103,7 @@ export async function renameCollectionForEmail(
   raw: string,
 ): Promise<ConnectorCollectionRow> {
   const name = connectorName(raw);
-  const userId = await userIdForEmail(email);
-  const row = await ownedCollectionOrThrow(userId, id);
+  const row = await ownedCollectionOrThrow(email, id);
   try {
     await getDb()
       .update(connectorCollections)
@@ -116,20 +120,19 @@ export async function deleteCollectionForEmail(
   email: string,
   id: string,
 ): Promise<{ id: string; name: string }> {
-  const userId = await userIdForEmail(email);
-  const row = await ownedCollectionOrThrow(userId, id);
+  const row = await ownedCollectionOrThrow(email, id);
   await getDb().delete(connectorCollections).where(eq(connectorCollections.id, row.id));
   return { id: row.id, name: row.name };
 }
 
 async function ownsConnector(
-  userId: string,
+  projectId: string,
   connectorId: string,
 ): Promise<boolean> {
   const rows = await getDb()
     .select({ id: connectors.id })
     .from(connectors)
-    .where(and(eq(connectors.id, connectorId), eq(connectors.userId, userId)));
+    .where(and(eq(connectors.id, connectorId), eq(connectors.projectId, projectId)));
   return rows.length > 0;
 }
 
@@ -138,9 +141,8 @@ export async function addToCollectionForEmail(
   id: string,
   connectorId: string,
 ): Promise<ConnectorCollectionRow> {
-  const userId = await userIdForEmail(email);
-  const row = await ownedCollectionOrThrow(userId, id);
-  if (!(await ownsConnector(row.userId, connectorId)))
+  const row = await ownedCollectionOrThrow(email, id);
+  if (!(await ownsConnector(row.projectId, connectorId)))
     throw new ConnectorError('no such connector', 404);
   try {
     await getDb()
@@ -157,8 +159,7 @@ export async function removeFromCollectionForEmail(
   id: string,
   connectorId: string,
 ): Promise<ConnectorCollectionRow> {
-  const userId = await userIdForEmail(email);
-  const row = await ownedCollectionOrThrow(userId, id);
+  const row = await ownedCollectionOrThrow(email, id);
   await getDb()
     .delete(connectorCollectionItems)
     .where(
