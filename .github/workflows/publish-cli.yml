@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Dry run (build and pack only, do not publish)
+        description: Dry run (verify everything, stop short of uploading)
         type: boolean
         required: false
         default: false
@@ -50,14 +50,13 @@ jobs:
         run: bun run build
 
       - name: Check the npm token is live
-        if: ${{ !inputs.dry_run }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm whoami --registry=https://registry.npmjs.org
 
-      - name: Show what would be published
+      - name: Show exactly what would be published
         working-directory: packages/cli
-        run: npm pack --dry-run
+        run: npm publish --dry-run --tag beta --access public
 
       - name: Publish
         if: ${{ !inputs.dry_run }}
