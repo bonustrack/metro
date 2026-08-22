@@ -21,7 +21,6 @@ export function credentialsPath(): string {
 
 interface Stored {
   token: string;
-  email: string;
   url: string;
 }
 
@@ -39,13 +38,9 @@ function readStored(): Stored | null {
     return null;
   }
   if (typeof parsed !== 'object' || parsed === null) return null;
-  const { token, email, url } = parsed as Record<string, unknown>;
+  const { token, url } = parsed as Record<string, unknown>;
   if (typeof token !== 'string' || token === '') return null;
-  return {
-    token,
-    email: typeof email === 'string' ? email : '',
-    url: typeof url === 'string' ? url : DEFAULT_BASE,
-  };
+  return { token, url: typeof url === 'string' ? url : DEFAULT_BASE };
 }
 
 export function readToken(): string | null {
@@ -56,14 +51,10 @@ export function readToken(): string | null {
   return stored.url === metroUrl() ? stored.token : null;
 }
 
-export function readEmail(): string {
-  return readStored()?.email ?? '';
-}
-
-export function writeToken(token: string, email: string): void {
+export function writeToken(token: string): void {
   const path = credentialsPath();
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  writeFileSync(path, `${JSON.stringify({ token, email, url: metroUrl() })}\n`, {
+  writeFileSync(path, `${JSON.stringify({ token, url: metroUrl() })}\n`, {
     mode: 0o600,
   });
   chmodSync(path, 0o600);

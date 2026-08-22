@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { mcpServers, NotSignedIn, sessionEmail } from './api.js';
 import { signIn } from './login.js';
-import { clearToken, credentialsPath, metroUrl, readEmail, writeToken } from './store.js';
+import { clearToken, credentialsPath, metroUrl, writeToken } from './store.js';
 import { update } from './update.js';
 import { currentVersion } from './version.js';
 
@@ -24,18 +24,15 @@ Start Claude Code with all of them, without writing them to disk:
 
 async function login(): Promise<void> {
   const token = await signIn();
-  writeToken(token, '');
-  const email = await sessionEmail().catch(() => '');
-  if (email !== '') writeToken(token, email);
+  const email = await sessionEmail(token).catch(() => '');
+  writeToken(token);
   process.stderr.write(
     `Signed in${email === '' ? '' : ` as ${email}`}. Stored in ${credentialsPath()}\n`,
   );
 }
 
 async function whoami(): Promise<void> {
-  const email = await sessionEmail();
-  const stored = readEmail();
-  process.stdout.write(`${email === '' ? stored : email} on ${metroUrl()}\n`);
+  process.stdout.write(`${await sessionEmail()} on ${metroUrl()}\n`);
 }
 
 const HELP = new Set([undefined, 'help', '--help', '-h']);
