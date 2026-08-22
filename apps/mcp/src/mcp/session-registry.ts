@@ -3,6 +3,7 @@ import { currentBusSeq } from '../daemon/events.js';
 import { errMsg } from '../daemon/log.js';
 import { newReplayLedger, type ReplayLedger } from '../channels/relay.js';
 import { McpSession, channelLog } from './session.js';
+import { agentsInScopeKey } from './session-route.js';
 import { sessionScopeKey, type SessionOwnership } from './session-route.js';
 import type { RequestIdentity } from './request-identity.js';
 
@@ -10,6 +11,11 @@ export const MAX_SESSIONS = 64;
 export const SESSION_IDLE_MS = 10 * 60_000;
 export const LEDGER_MAX = 256;
 const SWEEP_MS = 60_000;
+
+export interface AgentLiveness {
+  connected: boolean;
+  lastSeenAt: number;
+}
 
 export class SessionCapacityError extends Error {
   constructor() {
@@ -40,6 +46,19 @@ export class SessionRegistry {
 
   get(sessionId: string): McpSession | undefined {
     return this.byId.get(sessionId);
+  }
+
+  liveness(): Map<string, AgentLiveness> {
+    const out = new Map<string, AgentLiveness>();
+    for (const session of this.byId.values())
+      for (const id of agentsInScopeKey(session.scopeKey)) {
+        const prev = out.get(id);
+        out.set(id, {
+          connected: (prev?.connected ?? false) || session.streamAttached,
+          lastSeenAt: Math.max(prev?.lastSeenAt ?? 0, session.lastSeenAt),
+        });
+      }
+    return out;
   }
 
   forScope(scopeKey: string): McpSession | undefined {

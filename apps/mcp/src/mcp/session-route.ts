@@ -2,8 +2,15 @@ import { allowedAgents, type RequestIdentity } from './request-identity.js';
 
 export function sessionScopeKey(identity: RequestIdentity): string {
   const ids = [...allowedAgents(identity)].sort();
-  if (ids.length > 0) return `agents:${ids.join(',')}`;
+  if (ids.length > 0) return `${AGENTS_PREFIX}${ids.join(',')}`;
   return `email:${identity.kind === 'google' ? identity.email : identity.agentId}`;
+}
+
+const AGENTS_PREFIX = 'agents:';
+
+export function agentsInScopeKey(scopeKey: string): string[] {
+  if (!scopeKey.startsWith(AGENTS_PREFIX)) return [];
+  return scopeKey.slice(AGENTS_PREFIX.length).split(',').filter(Boolean);
 }
 
 export type SessionOwnership = 'none' | 'mine' | 'theirs';

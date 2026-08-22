@@ -61,6 +61,7 @@ const deps: AgentApiDeps = {
   resetKey,
   gatherAccounts: () => Promise.resolve({}),
   capabilities: () => ({}),
+  liveness: () => new Map(),
   attachSessions: {
     start: () => Promise.reject(new AgentAdminError('not here', 400)),
     view: () => {

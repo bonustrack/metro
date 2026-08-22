@@ -18,6 +18,8 @@ describe('a station that could not be reached keeps its last known cards', () =>
     const xmtp = out.find((g) => g.station === 'xmtp');
     expect(xmtp?.rows.map((r) => r.id)).toEqual(['x0', 'x1', 'tony']);
     expect(out.find((g) => g.station === 'telegram')?.rows).toHaveLength(1);
+    expect(xmtp?.stale).toBe(true);
+    expect(out.find((g) => g.station === 'telegram')?.stale).toBeUndefined();
   });
 
   test('a reachable station always wins, even when it is now empty', () => {
@@ -68,5 +70,26 @@ describe('a detached account cannot be resurrected by carry-forward', () => {
     );
     dropAccount(client, 'telegram', 't0');
     expect(client.getQueryData<StationsView>(stationsKey())?.groups).toEqual([]);
+  });
+});
+
+describe('a carried-forward station is marked, not passed off as healthy', () => {
+  test('the stale flag survives the flatten the list renders from', async () => {
+    const { flattenAccounts, accountsForAgent } = await import(
+      '../src/api/accounts'
+    );
+    const fresh: AccountGroup[] = [{ station: 'telegram', rows: [row('t0')] }];
+    const out = carryForward(fresh, PREV, ['xmtp']);
+    const flat = flattenAccounts(out);
+    expect(flat.filter((f) => f.stale).map((f) => f.station)).toEqual([
+      'xmtp',
+      'xmtp',
+      'xmtp',
+    ]);
+    expect(flat.filter((f) => !f.stale).map((f) => f.station)).toEqual([
+      'telegram',
+    ]);
+    const mine = accountsForAgent(out, 'agent000001');
+    expect(mine.find((g) => g.station === 'xmtp')?.stale).toBe(true);
   });
 });

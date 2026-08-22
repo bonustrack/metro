@@ -7,9 +7,16 @@ import { AgentAvatar } from './AgentAvatar';
 import { DeleteAgent } from './DeleteAgent';
 import { opensElsewhere } from './link';
 import { type AgentSummary } from '../api/client';
+import { routeHash } from '../route';
 
 const ROW_PAD_Y = 12;
 const AVATAR_SIZE = 16;
+const DOT_SIZE = 8;
+
+function liveness(agent: AgentSummary): string | null {
+  if (!agent.owned || agent.connected) return null;
+  return agent.lastSeen === null ? 'never connected' : 'not receiving';
+}
 
 function summary(agent: AgentSummary, stations: number): string {
   const label = `${String(stations)} station${stations === 1 ? '' : 's'}`;
@@ -18,6 +25,7 @@ function summary(agent: AgentSummary, stations: number): string {
 
 interface AgentRowProps {
   agent: AgentSummary;
+  project: string;
   stations: number;
   onOpen: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
@@ -25,11 +33,13 @@ interface AgentRowProps {
 
 export function AgentRow({
   agent,
+  project,
   stations,
   onOpen,
   onDelete,
 }: AgentRowProps): ReactNode {
   const palette = useKitPalette();
+  const offline = liveness(agent);
   return (
     <Row
       justify="between"
@@ -39,7 +49,7 @@ export function AgentRow({
     >
       <a
         className="row-link"
-        href={`#/agent/${agent.id}`}
+        href={routeHash({ kind: 'agent', project, id: agent.id })}
         onClick={(e) => {
           if (opensElsewhere(e)) return;
           e.preventDefault();
@@ -62,6 +72,19 @@ export function AgentRow({
           <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
             {summary(agent, stations)}
           </Text>
+          {agent.owned && agent.connected ? (
+            <Row
+              width={DOT_SIZE}
+              height={DOT_SIZE}
+              radius={DOT_SIZE}
+              background={palette.success}
+            />
+          ) : null}
+          {offline === null ? null : (
+            <Text size="sm" role="danger" numberOfLines={1}>
+              {offline}
+            </Text>
+          )}
         </Row>
       </a>
       {agent.owned ? (

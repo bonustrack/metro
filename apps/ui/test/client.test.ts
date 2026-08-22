@@ -47,6 +47,8 @@ describe('agent credentials on the wire', () => {
       id: 'id000000001',
       name: 'ada-bot',
       owned: true,
+      connected: false,
+      lastSeen: null,
       key: 'mk_fake',
       endpoint: 'https://mcp.metro.box/mcp?token=mk_fake',
       command: 'claude mcp add x',
@@ -61,6 +63,8 @@ describe('agent credentials on the wire', () => {
       id: 'id000000005',
       name: 'legacy',
       owned: false,
+      connected: false,
+      lastSeen: null,
       key: null,
       endpoint: null,
       command: null,
@@ -98,7 +102,16 @@ describe('agent credentials on the wire', () => {
   test('a malformed agent entry never throws and never invents a key', async () => {
     const agents = await dashboard([{ id: 7, keys: 'not-an-array' }, null, 7]);
     expect(agents).toEqual([
-      { id: '', name: '', owned: false, key: null, endpoint: null, command: null },
+      {
+        id: '',
+        name: '',
+        owned: false,
+        connected: false,
+        lastSeen: null,
+        key: null,
+        endpoint: null,
+        command: null,
+      },
     ]);
   });
 });

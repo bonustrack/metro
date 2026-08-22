@@ -49,6 +49,7 @@ export interface AgentApiDeps extends AccountApiDeps {
     unavailable: string[];
   }>;
   capabilities: () => Record<string, string[]>;
+  liveness: () => Map<string, { connected: boolean; lastSeenAt: number }>;
 }
 
 type Routable =
@@ -106,11 +107,27 @@ function keyPayload(agent: AgentSummary): KeyPayload {
   return credentials(value);
 }
 
-function agentPayload(agent: AgentSummary): Record<string, unknown> {
+function livenessPayload(
+  agent: AgentSummary,
+  live: Map<string, { connected: boolean; lastSeenAt: number }>,
+): Record<string, unknown> {
+  const found = agent.owned ? live.get(agent.id) : undefined;
+  if (found === undefined) return { connected: false, last_seen: null };
+  return {
+    connected: found.connected,
+    last_seen: new Date(found.lastSeenAt).toISOString(),
+  };
+}
+
+function agentPayload(
+  agent: AgentSummary,
+  live: Map<string, { connected: boolean; lastSeenAt: number }>,
+): Record<string, unknown> {
   return {
     id: agent.id,
     name: agent.name,
     owned: agent.owned,
+    ...livenessPayload(agent, live),
     ...keyPayload(agent),
   };
 }
@@ -132,10 +149,11 @@ async function handleList(
     return;
   }
   const list = await deps.listAgents(session.email, project);
+  const live = deps.liveness();
   const base = {
     email: session.email,
     endpoint: mcpEndpoint(),
-    agents: list.map(agentPayload),
+    agents: list.map((a) => agentPayload(a, live)),
     capabilities: deps.capabilities(),
     attachable: ATTACHABLE,
   };

@@ -144,6 +144,7 @@ const deps: AgentApiDeps = {
   deleteAgent: () => Promise.reject(new AgentAdminError('not used here', 400)),
   gatherAccounts: () => Promise.resolve({}),
   capabilities: () => ({}),
+  liveness: () => new Map(),
   prepareAccount: fakePrepare,
   attachAccount: (email, agentId, station, config) => {
     ownedOrThrow(email, agentId);

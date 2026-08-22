@@ -13,6 +13,8 @@ export interface AgentSummary {
   id: string;
   name: string;
   owned: boolean;
+  connected: boolean;
+  lastSeen: string | null;
   key: string | null;
   endpoint: string | null;
   command: string | null;
@@ -90,6 +92,8 @@ function toAgents(value: unknown): AgentSummary[] {
       id: typeof a.id === 'string' ? a.id : '',
       name: typeof a.name === 'string' ? a.name : '',
       owned: a.owned === true,
+      connected: a.connected === true,
+      lastSeen: text(a.last_seen),
       key: text(cred.key),
       endpoint: text(cred.endpoint),
       command: text(cred.command),

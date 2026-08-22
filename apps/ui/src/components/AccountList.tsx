@@ -14,6 +14,7 @@ import { ChatIcon } from './ChatIcon';
 import { DetachAccount } from './DetachAccount';
 import { opensElsewhere } from './link';
 import { StationIcon } from './StationIcon';
+import { routeHash } from '../route';
 
 export type DetachHandler = (station: string, accountId: string) => Promise<void>;
 
@@ -23,11 +24,20 @@ const ICON_SIZE = 20;
 interface StationRowProps {
   station: string;
   row: AccountRow;
+  stale: boolean;
+  project: string;
   onOpen: (accountId: string) => void;
   onDetach?: DetachHandler;
 }
 
-function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactNode {
+function StationRow({
+  station,
+  row,
+  stale,
+  project,
+  onOpen,
+  onDetach,
+}: StationRowProps): ReactNode {
   const palette = useKitPalette();
   const id = row.id;
   const { handle, url } = stationFields(row);
@@ -48,6 +58,11 @@ function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactN
         >
           {handle ?? id ?? '-'}
         </Text>
+        {stale ? (
+          <Text size="sm" role="danger" numberOfLines={1}>
+            not responding
+          </Text>
+        ) : null}
       </Row>
     </>
   );
@@ -71,7 +86,7 @@ function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactN
       ) : (
         <a
           className="row-link"
-          href={`#/station/${id}`}
+          href={routeHash({ kind: 'station', project, accountId: id })}
           onClick={(e) => {
             if (opensElsewhere(e)) return;
             e.preventDefault();
@@ -103,6 +118,7 @@ function StationRow({ station, row, onOpen, onDetach }: StationRowProps): ReactN
 
 interface AccountListProps {
   groups: AccountGroup[];
+  project: string;
   empty: string;
   onOpen: (accountId: string) => void;
   onDetach?: DetachHandler;
@@ -110,6 +126,7 @@ interface AccountListProps {
 
 export function AccountList({
   groups,
+  project,
   empty,
   onOpen,
   onDetach,
@@ -123,6 +140,8 @@ export function AccountList({
           key={`${item.station}/${item.row.id ?? ''}`}
           station={item.station}
           row={item.row}
+          stale={item.stale}
+          project={project}
           onOpen={onOpen}
           onDetach={onDetach}
         />

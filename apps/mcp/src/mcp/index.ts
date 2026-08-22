@@ -16,7 +16,11 @@ import {
   serveChannelGet,
 } from './raw-get-stream.js';
 import { channelLog, type McpSession } from './session.js';
-import { SessionCapacityError, SessionRegistry } from './session-registry.js';
+import {
+  SessionCapacityError,
+  SessionRegistry,
+  type AgentLiveness,
+} from './session-registry.js';
 import { routeSession, sessionScopeKey } from './session-route.js';
 
 const isInitialize = (b: unknown): boolean =>
@@ -130,6 +134,10 @@ async function serveGet(
 }
 
 let activeRegistry: SessionRegistry | undefined;
+
+export function agentLiveness(): Map<string, AgentLiveness> {
+  return activeRegistry?.liveness() ?? new Map<string, AgentLiveness>();
+}
 
 export async function closeAgentSession(agentId: string): Promise<boolean> {
   const scopeKey = sessionScopeKey({ kind: 'agent', agentId });

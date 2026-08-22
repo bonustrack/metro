@@ -10,6 +10,7 @@ export interface PendingMsg {
   from: string;
   station: string;
   text: string;
+  ts: string;
   messageId: string;
   lineName: string;
   fromName: string;
@@ -24,6 +25,7 @@ export interface MediaCtx {
   from: string;
   station: string;
   text?: string;
+  ts?: string;
   messageId?: string;
   lineName?: string;
   fromName?: string;
@@ -38,12 +40,18 @@ export function capSet(set: Set<string>, max: number): void {
   }
 }
 
+export const tsMeta = (v: unknown): Record<string, string> => {
+  const ts = str(v);
+  return ts ? { ts } : {};
+};
+
 export const displayNameMeta = (v: unknown): Record<string, string> => {
   const name = str(v);
   return name ? { from_display_name: name } : {};
 };
 
 export const senderMeta = (c: MediaCtx): Record<string, string> => ({
+  ...tsMeta(c.ts),
   ...(c.messageId ? { message_id: c.messageId } : {}),
   ...(c.lineName ? { line_name: c.lineName } : {}),
   ...(c.fromName ? { from_name: c.fromName } : {}),
@@ -56,6 +64,7 @@ export function takeMediaCtx(buf: PendingMsg): MediaCtx {
     from: buf.from,
     station: buf.station,
     text: buf.text,
+    ts: buf.ts,
     messageId: buf.messageId,
     lineName: buf.lineName,
     fromName: buf.fromName,

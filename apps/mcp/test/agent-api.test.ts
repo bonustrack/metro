@@ -29,6 +29,7 @@ const OWNED: Record<string, AgentSummary[]> = {
 };
 
 let leakGrantedKeys = false;
+let liveAgents = new Map<string, { connected: boolean; lastSeenAt: number }>();
 
 const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
   ["agent000001"]: ['telegram', { id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }],
@@ -138,6 +139,7 @@ const deps: AgentApiDeps = {
     return Promise.resolve({ accounts: out, unavailable: [] });
   },
   capabilities: () => ({ telegram: ['send'], discord: ['send', 'read'] }),
+  liveness: () => liveAgents,
   prepareAccount: () =>
     Promise.reject(new AgentAdminError('attaching is not exercised here', 400)),
   attachAccount: () =>
@@ -196,6 +198,7 @@ afterEach(() => {
   resetCalls = [];
   liveKeys = {};
   leakGrantedKeys = false;
+  liveAgents = new Map();
 });
 
 describe('/api/agents authentication', () => {
@@ -366,10 +369,40 @@ describe('GET /api/agents key exposure', () => {
       id: 'agent000001',
       name: 'ada-bot',
       owned: true,
+      connected: false,
+      last_seen: null,
       key: 'mk_fake_ada-bot',
       endpoint: `${PUBLIC}/mcp?token=mk_fake_ada-bot`,
       command: `claude mcp add --transport http metro "${PUBLIC}/mcp?token=mk_fake_ada-bot"`,
     });
+  });
+
+  test('a live session surfaces as connected with a last_seen stamp', async () => {
+    liveAgents = new Map([
+      ['agent000001', { connected: true, lastSeenAt: Date.UTC(2026, 5, 21) }],
+    ]);
+    const [agent] = await listAgents('ada@lovelace.dev');
+    expect(agent?.connected).toBe(true);
+    expect(agent?.last_seen).toBe('2026-06-21T00:00:00.000Z');
+  });
+
+  test('an agent with a session but no stream reads as not connected', async () => {
+    liveAgents = new Map([
+      ['agent000001', { connected: false, lastSeenAt: Date.UTC(2026, 5, 21) }],
+    ]);
+    const [agent] = await listAgents('ada@lovelace.dev');
+    expect(agent?.connected).toBe(false);
+    expect(agent?.last_seen).toBe('2026-06-21T00:00:00.000Z');
+  });
+
+  test('liveness for an agent you do not own is never served', async () => {
+    leakGrantedKeys = true;
+    liveAgents = new Map([
+      ['agent000003', { connected: true, lastSeenAt: Date.UTC(2026, 5, 21) }],
+    ]);
+    const agent = (await listAgents('nobody@example.com')).at(-1);
+    expect(agent?.owned).toBe(false);
+    expect([agent?.connected, agent?.last_seen]).toEqual([false, null]);
   });
 
   test('the listed command matches what POST hands back for the same key', async () => {
@@ -405,6 +438,8 @@ describe('GET /api/agents key exposure', () => {
       id: 'agent000042',
       name: 'keyless',
       owned: true,
+      connected: false,
+      last_seen: null,
       key: null,
       endpoint: null,
       command: null,

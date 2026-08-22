@@ -65,6 +65,40 @@ describe('inbound event bus → InboundRelay', () => {
     expect(meta.from_display_name).toBe('Alice');
     expect(meta.station).toBe('discord');
     expect(meta.message_id).toBe('disc-1');
+    expect(meta.ts).toBe('2026-06-21T00:00:00.000Z');
+  });
+
+  test('every meta value is a string — a non-string drops the whole notification', async () => {
+    const { relay, notifs } = makeRelay();
+    const stop = subscribeEvents((e) => {
+      void relay.handleEvent(e as unknown as Record<string, unknown>);
+    });
+
+    publishEvent({
+      id: 'msg_bus_types',
+      ts: '2026-06-21T00:00:00.000Z',
+      station: 'discord',
+      line: 'metro://discord/g/1/c/2' as never,
+      lineName: 'general',
+      from: 'metro://discord/u/alice' as never,
+      fromName: 'alice_handle',
+      to: 'metro://discord/g/1/c/2' as never,
+      text: 'typed',
+      messageId: 'disc-2',
+      event: { type: 'msg' },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    stop();
+
+    const channel = notifs.filter(
+      (n) => n.method === 'notifications/claude/channel',
+    );
+    expect(channel.length).toBe(1);
+    const meta = channel[0].params.meta as Record<string, unknown>;
+    expect(Object.keys(meta).length).toBeGreaterThan(0);
+    for (const [key, value] of Object.entries(meta))
+      expect([key, typeof value]).toEqual([key, 'string']);
   });
 
   test('events from a non-subscribed station are ignored', async () => {

@@ -12,6 +12,7 @@ export interface AccountRow {
 export interface AccountGroup {
   station: string;
   rows: AccountRow[];
+  stale?: boolean;
 }
 
 const SECRET_KEY_PATTERN =
@@ -78,7 +79,8 @@ export function accountsForAgent(
   const out: AccountGroup[] = [];
   for (const g of groups) {
     const rows = g.rows.filter((r) => r.agentId === agentId);
-    if (rows.length > 0) out.push({ station: g.station, rows });
+    if (rows.length > 0)
+      out.push({ station: g.station, rows, ...(g.stale === true ? { stale: true } : {}) });
   }
   return out;
 }
@@ -86,6 +88,7 @@ export function accountsForAgent(
 export interface FlatAccount {
   station: string;
   row: AccountRow;
+  stale: boolean;
 }
 
 export function stationCount(groups: AccountGroup[], agentId: string): number {
@@ -98,7 +101,8 @@ export function stationCount(groups: AccountGroup[], agentId: string): number {
 export function flattenAccounts(groups: AccountGroup[]): FlatAccount[] {
   const out: FlatAccount[] = [];
   for (const group of groups)
-    for (const row of group.rows) out.push({ station: group.station, row });
+    for (const row of group.rows)
+      out.push({ station: group.station, row, stale: group.stale === true });
   return out;
 }
 
@@ -142,7 +146,8 @@ export function carryForward(
   if (unavailable.length === 0) return next;
   const kept = prev
     .filter((g) => unavailable.includes(g.station))
-    .filter((g) => g.rows.length > 0);
+    .filter((g) => g.rows.length > 0)
+    .map((g) => ({ ...g, stale: true }));
   const fresh = next.filter((g) => !unavailable.includes(g.station));
   return [...fresh, ...kept].sort((x, y) => x.station.localeCompare(y.station));
 }

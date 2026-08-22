@@ -18,7 +18,11 @@ import {
   startWebhookServer,
   trainEventToMetroEvent,
 } from './http.js';
-import { closeAgentSession, createMetroMcp } from '../mcp/index.js';
+import {
+  agentLiveness,
+  closeAgentSession,
+  createMetroMcp,
+} from '../mcp/index.js';
 import { metroCall } from '../mcp/ctx.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import {
@@ -150,6 +154,7 @@ const agentApi: AgentApiDeps = {
   resetKey: resetAgentKey,
   gatherAccounts: gatherAccountsForAgents,
   capabilities: accountStationCapabilities,
+  liveness: agentLiveness,
   prepareAccount,
   attachAccount: attachAccountToAgent,
   detachAccount: detachAccountFromAgent,

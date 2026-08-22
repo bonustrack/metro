@@ -12,6 +12,7 @@ import {
   capSet,
   displayNameMeta,
   senderMeta,
+  tsMeta,
   takeMediaCtx,
   type MediaCtx,
   type PendingAtt,
@@ -134,6 +135,7 @@ export class InboundRelay {
         line: e.line,
         from: e.from,
         station: e.station,
+        ...tsMeta(e.ts),
         message_id: e.messageId,
         line_name: e.lineName,
         from_name: e.fromName,
@@ -163,6 +165,7 @@ export class InboundRelay {
       line,
       from: 'metro://attachment',
       station: str(ev.station) || 'xmtp',
+      ts: str(ev.ts),
     };
   }
 
@@ -189,6 +192,7 @@ export class InboundRelay {
     if (existing) clearTimeout(existing.timer);
     this.pendingAttachments.set(id, {
       ...base,
+      ts: str(ev.ts),
       messageId: str(ev.messageId),
       lineName: str(ev.lineName),
       fromName: str(ev.fromName),
@@ -229,6 +233,7 @@ export class InboundRelay {
         line: base.line,
         from: base.from,
         station: base.station,
+        ...tsMeta(ev.ts),
         message_id: str(ev.messageId),
         line_name: str(ev.lineName),
         from_name: str(ev.fromName),
@@ -308,6 +313,7 @@ export class InboundRelay {
         line: base.line,
         from: base.from,
         station: base.station,
+        ...tsMeta(ev.ts),
         message_id: str(ev.messageId),
         line_name: str(ev.lineName),
         from_name: str(ev.fromName),
