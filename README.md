@@ -353,6 +353,11 @@ Start a session with every connector, writing nothing to disk:
 claude --mcp-config <(metro mcp)
 ```
 
+`metro mcp` refreshes any OAuth access token that is at or near expiry before it prints, and
+stores the refreshed pair, so a block you pipe into a client is live rather than an hour stale.
+A token endpoint that will not answer is logged and that one connector goes out with what was
+stored; the rest are unaffected.
+
 Sign-in is a **pairing code**, not a browser redirect: the web UI mints a single-use code
 (`mc_` + 16 base64url, ten-minute TTL, in memory only), you paste it into `metro login`, and the
 CLI trades it for a session. There is no localhost listener and no callback, which is exactly

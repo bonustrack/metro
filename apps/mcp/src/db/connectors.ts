@@ -20,6 +20,7 @@ import {
   type ConnectorConfig,
   type ConnectorSignIn,
 } from './connector-config.js';
+import { errMsg, log } from '../daemon/log.js';
 import { newId } from './ids.js';
 import { getDb } from './client.js';
 import { ensureUser, isUniqueViolation, userIdForEmail } from './agent-admin.js';
@@ -106,17 +107,46 @@ async function saveConfig(
   return toConnector(saved);
 }
 
-export async function listConnectorsForEmail(
-  email: string,
-): Promise<Connector[]> {
+async function connectorRowsFor(email: string): Promise<ConnectorRow[]> {
   const userId = await userIdForEmail(email);
   if (userId === null) return [];
-  const rows = await getDb()
+  return getDb()
     .select()
     .from(connectors)
     .where(eq(connectors.userId, userId))
     .orderBy(asc(connectors.id));
-  return rows.map(toConnector);
+}
+
+export async function listConnectorsForEmail(
+  email: string,
+): Promise<Connector[]> {
+  return (await connectorRowsFor(email)).map(toConnector);
+}
+
+async function withFreshToken(row: ConnectorRow): Promise<Connector> {
+  const config = readConfig(row.config);
+  if (config.auth.kind !== 'oauth' || !oauthExpired(config.auth))
+    return toConnector(row);
+  const url = parseConnectorUrl(row.url);
+  const auth = await refreshOAuth(config.auth, url.toString());
+  return saveConfig(row, { ...config, auth });
+}
+
+export async function listFreshConnectorsForEmail(
+  email: string,
+): Promise<Connector[]> {
+  const rows = await connectorRowsFor(email);
+  return Promise.all(
+    rows.map(async (row) =>
+      withFreshToken(row).catch((err: unknown) => {
+        log.warn(
+          { id: row.id, err: errMsg(err) },
+          'connectors: could not refresh the access token',
+        );
+        return toConnector(row);
+      }),
+    ),
+  );
 }
 
 export async function getConnectorForEmail(

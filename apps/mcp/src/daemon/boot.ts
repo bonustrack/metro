@@ -46,6 +46,7 @@ import {
   disconnectConnectorForEmail,
   getConnectorForEmail,
   listConnectorsForEmail,
+  listFreshConnectorsForEmail,
   reconnectConnectorForEmail,
   verifyConnectorForEmail,
 } from '../db/connectors.js';
@@ -144,6 +145,7 @@ const agentApi: AgentApiDeps = {
 
 const connectorApi: ConnectorApiDeps = {
   listConnectors: listConnectorsForEmail,
+  listFreshConnectors: listFreshConnectorsForEmail,
   createConnector: createConnectorForEmail,
   createOAuthConnector: createOAuthConnectorForEmail,
   reconnectConnector: reconnectConnectorForEmail,

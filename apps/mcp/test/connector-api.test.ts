@@ -155,6 +155,10 @@ const deps: ConnectorApiDeps = {
     calls.push(`list ${email}`);
     return rows.filter((r) => r.email === email).map(toConnector);
   },
+  listFreshConnectors: async (email) => {
+    calls.push(`listFresh ${email}`);
+    return rows.filter((r) => r.email === email).map(toConnector);
+  },
   createConnector: async (email, input) => {
     calls.push(`create ${email}`);
     const row = makeRow(email, input);
@@ -495,6 +499,15 @@ describe('GET /api/connectors returns the wire shape', () => {
     const wire = (await res.json()) as { connectors: WireConnector[] };
     expect(wire.connectors[0]).not.toHaveProperty('secret');
     expect(wire.connectors[0]).not.toHaveProperty('bearer');
+  });
+
+  test('a CLI read refreshes expiring tokens first; a browser read never does', async () => {
+    calls.length = 0;
+    await call('GET', '/api/connectors', cliSession(ADA));
+    expect(calls).toEqual([`listFresh ${ADA}`]);
+    calls.length = 0;
+    await call('GET', '/api/connectors', session(ADA));
+    expect(calls).toEqual([`list ${ADA}`]);
   });
 
   test('the email is lowercased before it reaches the store', async () => {

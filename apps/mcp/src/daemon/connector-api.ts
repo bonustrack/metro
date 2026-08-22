@@ -33,6 +33,7 @@ const asText = (value: unknown): string =>
 
 export interface ConnectorApiDeps extends OAuthRouteDeps {
   listConnectors: (email: string) => Promise<Connector[]>;
+  listFreshConnectors: (email: string) => Promise<Connector[]>;
   createConnector: (
     email: string,
     input: ConnectorInput,
@@ -97,10 +98,13 @@ async function handleList(
   deps: ConnectorApiDeps,
   session: ApiSession,
 ): Promise<void> {
-  const rows = await deps.listConnectors(session.email);
+  const cli = session.via === 'cli';
+  const rows = cli
+    ? await deps.listFreshConnectors(session.email)
+    : await deps.listConnectors(session.email);
   sendJson(req, res, 200, {
     connectors: rows.map((row) => connectorPayload(row)),
-    ...(session.via === 'cli' ? { json: mcpServersJson(rows) } : {}),
+    ...(cli ? { json: mcpServersJson(rows) } : {}),
   });
 }
 
