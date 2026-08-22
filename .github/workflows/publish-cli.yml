@@ -1,0 +1,67 @@
+name: Publish @stage-labs/metro
+
+# Manually-triggered publish of packages/cli to npm, always under the `beta`
+# dist-tag. `latest` is deliberately left where it is.
+#
+# Prerequisite: an `NPM_TOKEN` repository secret holding an npm *automation*
+# token with publish rights to the @stage-labs scope. An automation token is
+# what satisfies npm's two-factor requirement; a classic or granular token
+# without "bypass 2FA" is refused with a 403 at the publish step.
+#
+# The published version is whatever is in packages/cli/package.json on the
+# branch you select, so bump it there before running. npm refuses to
+# republish a version that already exists.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run (build and pack only, do not publish)
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.9'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - run: bun install --frozen-lockfile
+
+      - name: Test
+        working-directory: packages/cli
+        run: bun run test
+
+      - name: Build
+        working-directory: packages/cli
+        run: bun run build
+
+      - name: Check the npm token is live
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm whoami --registry=https://registry.npmjs.org
+
+      - name: Show what would be published
+        working-directory: packages/cli
+        run: npm pack --dry-run
+
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        working-directory: packages/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --tag beta --access public --provenance
