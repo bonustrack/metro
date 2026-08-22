@@ -9,7 +9,6 @@ import { Text as KitText, type TextProps } from '@stage-labs/kit/react-native/te
 import { Input as KitInput, type InputProps } from '@stage-labs/kit/react-native/input';
 import {
   FONT_HEAD,
-  FONT_MONO,
   FONT_SANS,
   TEXT_FONT,
   textSize,
@@ -31,7 +30,7 @@ const BUTTON_FONT_SIZE: Record<ButtonSize, number> = {
 export function Text({ style, ...props }: TextProps): ReactElement {
   const base = {
     fontSize: textSize(props.size, props.variant),
-    fontFamily: props.variant === 'mono' ? FONT_MONO : TEXT_FONT[props.weight ?? 'normal'],
+    fontFamily: TEXT_FONT[props.weight ?? 'normal'],
   };
   const merged =
     style === undefined ? base : [base, ...(Array.isArray(style) ? style : [style])];

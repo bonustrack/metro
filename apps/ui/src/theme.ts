@@ -6,8 +6,6 @@ const SYSTEM_SANS =
 
 export const FONT_SANS = `GT-America-Regular, ${SYSTEM_SANS}`;
 export const FONT_HEAD = `GT-America-Medium, ${SYSTEM_SANS}`;
-export const FONT_MONO =
-  "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace";
 
 export const TEXT_FONT: Record<TextWeight, string> = {
   normal: FONT_SANS,

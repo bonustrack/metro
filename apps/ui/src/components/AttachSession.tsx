@@ -38,7 +38,7 @@ function Waiting({ label }: { label: string }): ReactNode {
 
 function PairingCode({ code }: { code: string }): ReactNode {
   return (
-    <Text size="2xl" weight="semibold" variant="mono" selectable>
+    <Text size="2xl" weight="semibold" selectable>
       {code}
     </Text>
   );

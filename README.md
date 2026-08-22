@@ -250,7 +250,7 @@ auth gate:
 | `POST /api/agents/<id>/key` | Reset the key of an agent you **own**. |
 | `POST /api/agents/<id>/accounts/start` | Attach a station account. Validates the credential against the provider first, writes the row, reloads that station. |
 | `DELETE /api/agents/<id>/accounts/<station>/<account_id>` | Detach an account, forget its credentials, reload (or stop) the station. |
-| `GET /api/connectors` | Your [connectors](#connectors), each with its own `mcpServers` block, plus one combined block. |
+| `GET /api/connectors` | Your [connectors](#connectors). Carries **no credential** — the `mcpServers` block is added only for a CLI session (see [The metro CLI](#the-metro-cli)). |
 | `POST /api/connectors` `{"name","url","header","value"}` | Verify a remote MCP server and store it. `header`/`value` are optional and go together. |
 | `POST /api/connectors/<id>/verify` | Re-check a stored connector. `200 {ok:true, verified}` or `200 {ok:false, reason}`. |
 | `DELETE /api/connectors/<id>` | Delete a connector you own. |
@@ -304,7 +304,8 @@ each carries its own per-attachment token.
 A connector is a **verified bookmark for someone else's MCP server** — Linear, Sentry,
 whatever speaks Streamable HTTP — kept next to your agents so the config is in one place.
 Metro checks the server really answers an MCP `initialize`, stores the url and the optional
-auth header, and hands back a ready-to-paste `mcpServers` block. That is the whole feature:
+auth header, and hands the whole list to the [CLI](#the-metro-cli) as one `mcpServers` block.
+That is the whole feature:
 **Metro does not proxy a connector**, opens no session to it, exposes no tool for it, and
 no agent's traffic goes through it.
 
@@ -323,10 +324,44 @@ stays.
 IP literal, and `.local`/`.internal` names are refused, as are `user:pass@` urls and
 redirects. Nothing about the remote's answer is echoed back to you.
 
-`GET /api/connectors` re-serves the header value you stored, because the point of the
-feature is copying the JSON — this and the webhook endpoint url are the only two credentials
-any Metro API returns. The panel keeps it behind **Reveal**/**Copy**, and neither the url nor
-the value is ever logged.
+**No Metro API hands a connector credential to a browser.** `GET /api/connectors` carries no
+stored header value, no OAuth access token and no `mcpServers` block, so the panel has nothing
+to render and an open devtools window has nothing to take. The block that *does* carry the
+credentials is attached only when the caller presents a **CLI session** — one minted by the
+pairing code, which a Google sign-in in the browser can never hold. The boundary is the kind of
+token, not the route. Neither the url nor any value is ever logged. The webhook endpoint url is
+now the only credential any Metro API returns.
+
+### The metro CLI
+
+`@stage-labs/metro` is the only published package in this repo. It exists so a machine with no
+browser — a Linux box you reach over SSH — can hand a whole connector list to a coding session
+without the credentials touching disk, argv or shell history.
+
+```bash
+npm i -g @stage-labs/metro@beta   # `latest` is an older line; the tag matters
+
+metro login     # paste a code from https://metro.box/#/settings
+metro mcp       # prints {"mcpServers": {...}} on stdout
+metro whoami    # which account this machine is signed in as
+metro update    # update to the newest published version
+```
+
+Start a session with every connector, writing nothing to disk:
+
+```bash
+claude --mcp-config <(metro mcp)
+```
+
+Sign-in is a **pairing code**, not a browser redirect: the web UI mints a single-use code
+(`mc_` + 16 base64url, ten-minute TTL, in memory only), you paste it into `metro login`, and the
+CLI trades it for a session. There is no localhost listener and no callback, which is exactly
+why it works over SSH. Servers appear in the client prefixed `metro.box `, the way Claude.ai
+labels its own — so `metro.box Sentry`, never a bare `Sentry`.
+
+Two environment variables matter: `METRO_URL` points at the daemon (default
+`https://mcp.metro.box`) and `METRO_UI_URL` at the web UI (default `https://metro.box`). They
+are different origins; the daemon serves no page.
 
 ### Inbound webhooks
 

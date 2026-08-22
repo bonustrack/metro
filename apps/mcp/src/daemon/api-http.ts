@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
-import { verifySession } from './session.js';
+import { verifySession, type SessionVia } from './session.js';
 import { extractToken } from '../mcp/request-identity.js';
 
 const BODY_MAX = 4 * 1024;
@@ -9,6 +9,7 @@ const DRAIN_MAX = 2 * BODY_MAX;
 
 export interface ApiSession {
   email: string;
+  via?: SessionVia;
 }
 
 export function cors(req: IncomingMessage): Record<string, string> {
@@ -41,8 +42,8 @@ export function apiSession(req: IncomingMessage): ApiSession | null {
   const token = extractToken(req) ?? '';
   if (token === '') return null;
   try {
-    const { email } = verifySession(token, secret);
-    return { email: email.toLowerCase() };
+    const { email, via } = verifySession(token, secret);
+    return { email: email.toLowerCase(), ...(via === undefined ? {} : { via }) };
   } catch {
     return null;
   }

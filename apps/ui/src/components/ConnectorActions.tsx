@@ -28,11 +28,15 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
 
   const connect = (): void => {
     setBusy(true);
+    const tab = window.open('', '_blank');
     connectConnector(token, connector.id).then(
       (authorizeUrl) => {
-        window.location.assign(authorizeUrl);
+        setBusy(false);
+        if (tab === null) window.location.assign(authorizeUrl);
+        else tab.location.assign(authorizeUrl);
       },
       (err: unknown) => {
+        tab?.close();
         onError(queryError(err, 'Could not start the sign-in.'));
         setBusy(false);
       },
@@ -75,6 +79,9 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
             label: refreshing ? 'Refreshing…' : 'Refresh tools list',
             onSelect: onRefresh,
           },
+          ...(signIn === 'connected'
+            ? [{ label: 'Disconnect', danger: true, onSelect: disconnect }]
+            : []),
         ]}
       />
     </Row>

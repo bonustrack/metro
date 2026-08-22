@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const uiRoot = join(import.meta.dir, '..');
@@ -39,6 +39,12 @@ describe('self-hosted GT America', () => {
       expect(face).toContain('font-weight: normal');
       expect(face).toContain('font-display: swap');
     }
+  });
+
+  test('no Calibre binary ships any more — the names are aliases onto GT America', () => {
+    const dir = readdirSync(join(uiRoot, 'public/fonts'));
+    expect(dir.filter((f) => f.startsWith('Calibre'))).toEqual([]);
+    expect(dir.sort()).toEqual([MEDIUM, REGULAR].sort());
   });
 
   test('no local() source, so an installed copy can never mask a broken path', () => {

@@ -19,6 +19,7 @@ import {
 } from '../api/queries';
 import { stationCount, type AccountGroup } from '../api/accounts';
 import { AgentRow } from './AgentRow';
+import { CountBadge } from './CountBadge';
 import { CreateAgent } from './CreateAgent';
 import { Loading } from './Loading';
 import { NewAgentKey } from './NewAgentKey';
@@ -85,7 +86,12 @@ export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
     <Col gap={16}>
       <Row justify="between" align="start" gap={12} wrap>
         <Col gap={8} style={SHRINK}>
-          <PageTitle>Agents</PageTitle>
+          <Row gap={10} align="center">
+            <PageTitle>Agents</PageTitle>
+            {data === undefined ? null : (
+              <CountBadge count={data.agents.length} beside="title" />
+            )}
+          </Row>
           <Text size="sm" role="secondary">{BLURB}</Text>
         </Col>
         <Button

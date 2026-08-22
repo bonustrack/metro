@@ -39,17 +39,12 @@ export interface Connector {
   transport: string;
   auth: ConnectorAuth;
   header: string | null;
-  secret: string | null;
-  bearer: string | null;
-  expiresAt: number | null;
   signIn: ConnectorSignIn;
-  json: string;
   verified: ConnectorVerified | null;
 }
 
 export interface ConnectorList {
   connectors: Connector[];
-  json: string;
 }
 
 export interface NewConnector {
@@ -146,13 +141,15 @@ function toConnector(value: unknown): Connector {
           ? 'oauth'
           : 'none',
     header: nullable(value.header),
-    secret: nullable(value.secret),
-    bearer: nullable(value.bearer),
-    expiresAt: typeof value.expiresAt === 'number' ? value.expiresAt : null,
     signIn: toSignIn(value.signIn),
-    json: str(value.json),
     verified: toVerified(value.verified),
   };
+}
+
+export function connectorsInOrder(rows: Connector[]): Connector[] {
+  const trailing = (row: Connector): number =>
+    row.signIn === 'disconnected' ? 1 : 0;
+  return [...rows].sort((a, b) => trailing(a) - trailing(b));
 }
 
 export function connectorHost(url: string): string {
@@ -179,7 +176,7 @@ export async function fetchConnectors(token: string): Promise<ConnectorList> {
   const body = await call(token, { method: 'GET', base: connectorsUrl() });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   const rows = Array.isArray(body.connectors) ? body.connectors : [];
-  return { connectors: rows.map(toConnector), json: str(body.json) };
+  return { connectors: rows.map(toConnector) };
 }
 
 export type AddResult =

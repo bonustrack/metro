@@ -195,6 +195,9 @@ const deps: ConnectorApiDeps = {
 const session = (email: string, secret = SECRET): string =>
   signSession({ email, agentIds: [] }, secret);
 
+const cliSession = (email: string): string =>
+  signSession({ email, agentIds: [], via: 'cli' }, SECRET);
+
 const call = (
   method: string,
   path: string,
@@ -385,9 +388,9 @@ describe('a connector can be signed out without being deleted', () => {
     expect(rows.some((r) => r.id === 'agent000001')).toBe(true);
   });
 
-  test('the row it answers with carries the cleared credential', async () => {
+  test('the row it answers with reports no auth left', async () => {
     const res = await call('POST', '/api/connectors/agent000001/disconnect', session(ADA));
-    expect(await res.json()).toMatchObject({ header: null, secret: null });
+    expect(await res.json()).toMatchObject({ header: null, signIn: null });
   });
 
   test('disconnecting a connector you do not own is the same 404 as one that is not there', async () => {
@@ -431,12 +434,12 @@ describe('a connector can be signed out without being deleted', () => {
 });
 
 describe('GET /api/connectors returns the wire shape', () => {
-  test('a row carries its identity, its secret and its own json block', async () => {
+  test('a row carries its identity and nothing that could sign anything in', async () => {
     const res = await call('GET', '/api/connectors', session(ADA));
     expect(res.status).toBe(200);
     const wire = (await res.json()) as {
       connectors: WireConnector[];
-      json: string;
+      json?: string;
     };
     expect(wire.connectors.map((c) => c.name)).toEqual(['linear', 'docs']);
     expect(wire.connectors[0]).toEqual({
@@ -447,39 +450,15 @@ describe('GET /api/connectors returns the wire shape', () => {
       transport: 'http',
       auth: 'header',
       header: 'Authorization',
-      secret: 'Bearer lin_oauth_7f',
       signIn: null,
-      json: JSON.stringify(
-        {
-          mcpServers: {
-            'metro.box linear': {
-              type: 'http',
-              url: 'https://mcp.linear.app/mcp',
-              headers: { Authorization: 'Bearer lin_oauth_7f' },
-            },
-          },
-        },
-        null,
-        2,
-      ),
       verified: VERIFIED,
     });
   });
 
-  test('a connector with no auth reports null and hides no headers block', async () => {
+  test('a connector with no auth reports null', async () => {
     const docs = (await listFor(ADA)).find((c) => c.name === 'docs');
     expect(docs?.auth).toBe('none');
     expect(docs?.header).toBeNull();
-    expect(docs?.secret).toBeNull();
-    expect(docs?.json).not.toContain('headers');
-  });
-
-  test('the combined json holds every connector of that user and nobody else', async () => {
-    const res = await call('GET', '/api/connectors', session(ADA));
-    const wire = (await res.json()) as { json: string };
-    const servers = (JSON.parse(wire.json) as { mcpServers: Record<string, unknown> })
-      .mcpServers;
-    expect(Object.keys(servers)).toEqual(['metro.box linear', 'metro.box docs']);
   });
 
   test("another user's connectors are simply not there", async () => {
@@ -491,10 +470,31 @@ describe('GET /api/connectors returns the wire shape', () => {
   test('a signed-in user with nothing gets an empty list, not a 404', async () => {
     const res = await call('GET', '/api/connectors', session('nobody@nowhere.dev'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      connectors: [],
-      json: '{\n  "mcpServers": {}\n}',
-    });
+    expect(await res.json()).toEqual({ connectors: [] });
+  });
+
+  test('a browser session gets no credential anywhere in the response', async () => {
+    const res = await call('GET', '/api/connectors', session(ADA));
+    const body = await res.text();
+    expect(body).not.toContain('lin_oauth_7f');
+    expect(body).not.toContain('mcpServers');
+    expect(JSON.parse(body) as { json?: string }).not.toHaveProperty('json');
+  });
+
+  test('only a CLI session is handed the block that carries the credentials', async () => {
+    const res = await call('GET', '/api/connectors', cliSession(ADA));
+    const wire = (await res.json()) as { json: string };
+    expect(wire.json).toContain('Bearer lin_oauth_7f');
+    const servers = (JSON.parse(wire.json) as { mcpServers: Record<string, unknown> })
+      .mcpServers;
+    expect(Object.keys(servers)).toEqual(['metro.box linear', 'metro.box docs']);
+  });
+
+  test('a CLI session still sees no credential on the rows themselves', async () => {
+    const res = await call('GET', '/api/connectors', cliSession(ADA));
+    const wire = (await res.json()) as { connectors: WireConnector[] };
+    expect(wire.connectors[0]).not.toHaveProperty('secret');
+    expect(wire.connectors[0]).not.toHaveProperty('bearer');
   });
 
   test('the email is lowercased before it reaches the store', async () => {
@@ -518,16 +518,6 @@ describe('POST /api/connectors', () => {
       transport: 'http',
       auth: 'header',
       header: 'Authorization',
-      secret: 'Bearer sntry_1',
-    });
-    expect(JSON.parse(created.json)).toEqual({
-      mcpServers: {
-        'metro.box sentry': {
-          type: 'http',
-          url: 'https://mcp.sentry.dev/mcp',
-          headers: { Authorization: 'Bearer sntry_1' },
-        },
-      },
     });
     expect((await listFor(ADA)).map((c) => c.name)).toEqual([
       'linear',

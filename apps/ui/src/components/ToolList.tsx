@@ -5,27 +5,13 @@ import { Pressable } from '@stage-labs/kit/react-native/pressable';
 import { Spacer } from '@stage-labs/kit/react-native/spacer';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
+import { CountBadge } from './CountBadge';
 import { TOOL_KINDS, type ConnectorTool, type ToolKind } from '../api/connectors';
 
 const LABEL: Record<ToolKind, string> = {
   read: 'Read-only tools',
   write: 'Write/delete tools',
 };
-
-function CountBadge({ count }: { count: number }): ReactNode {
-  return (
-    <Row
-      align="center"
-      justify="center"
-      minWidth={24}
-      padding={{ x: 7, y: 1 }}
-      radius={6}
-      surface="raised"
-    >
-      <Text size="sm" role="secondary">{String(count)}</Text>
-    </Row>
-  );
-}
 
 function ToolRow({ tool }: { tool: ConnectorTool }): ReactNode {
   const palette = useKitPalette();
@@ -36,7 +22,7 @@ function ToolRow({ tool }: { tool: ConnectorTool }): ReactNode {
       border={{ top: { width: 1, color: palette.border } }}
     >
       <Row gap={8} align="center" wrap>
-        <Text size="lg" variant="mono">{tool.name}</Text>
+        <Text size="lg">{tool.name}</Text>
         {tool.annotated ? null : (
           <Text size="2xs" role="secondary">not annotated</Text>
         )}

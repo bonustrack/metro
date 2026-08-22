@@ -86,11 +86,8 @@ function connectorPayload(
     transport: row.transport,
     auth: row.auth,
     header: row.header,
-    secret: row.secret,
     signIn: row.signIn,
-    json: mcpServersJson([row]),
     verified: detail ? { ...summary, catalog } : summary,
-    ...(detail ? { bearer: row.bearer, expiresAt: row.expiresAt } : {}),
   };
 }
 
@@ -103,7 +100,7 @@ async function handleList(
   const rows = await deps.listConnectors(session.email);
   sendJson(req, res, 200, {
     connectors: rows.map((row) => connectorPayload(row)),
-    json: mcpServersJson(rows),
+    ...(session.via === 'cli' ? { json: mcpServersJson(rows) } : {}),
   });
 }
 

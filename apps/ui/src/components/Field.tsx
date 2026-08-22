@@ -7,7 +7,7 @@ export function Field({ label, value }: { label: string; value: string }): React
   return (
     <Col gap={2} minWidth={140} maxWidth={360}>
       <FieldLabel>{label}</FieldLabel>
-      <Text size="sm" variant="mono">{value}</Text>
+      <Text size="sm">{value}</Text>
     </Col>
   );
 }

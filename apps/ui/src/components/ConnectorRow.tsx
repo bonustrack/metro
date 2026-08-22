@@ -1,37 +1,115 @@
-import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
+import { type ReactNode, useState } from 'react';
+import { Row } from '@stage-labs/kit/react-native/box';
+import {
+  useKitPalette,
+  useKitScheme,
+} from '@stage-labs/kit/react-native/theme-context';
+import { Text, Button } from './ui';
 import { SHRINK } from '../theme';
-import { connectorHost, type Connector } from '../api/connectors';
+import {
+  connectConnector,
+  connectorHost,
+  disconnectConnector,
+  type Connector,
+} from '../api/connectors';
+import { queryError } from '../api/queries';
+import { ConnectorFavicon } from './ConnectorFavicon';
 import { DeleteConnector } from './DeleteConnector';
 import { opensElsewhere } from './link';
 
 const ROW_PAD_Y = 12;
-
-function summary(row: Connector): string {
-  const tools = row.verified?.tools ?? 0;
-  const label = `${String(tools)} tool${tools === 1 ? '' : 's'}`;
-  if (row.signIn === 'connected') return `${label} · signed in`;
-  if (row.signIn === 'disconnected') return `${label} · signed out`;
-  if (row.auth === 'header') return `${label} · header auth`;
-  return label;
-}
+const ICON_SIZE = 16;
+const CENTER_SELF = { alignSelf: 'center' } as const;
 
 interface ConnectorRowProps {
+  token: string;
   row: Connector;
   onOpen: (id: string) => void;
+  onChanged: () => void;
   onDelete: (id: string) => Promise<void>;
   onError: (message: string) => void;
 }
 
-export function ConnectorRow({
+type ActionProps = Omit<ConnectorRowProps, 'onOpen'>;
+
+function RowActions({
+  token,
   row,
-  onOpen,
+  onChanged,
   onDelete,
   onError,
+}: ActionProps): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const [busy, setBusy] = useState(false);
+
+  const connect = (): void => {
+    if (busy) return;
+    setBusy(true);
+    const tab = window.open('', '_blank');
+    connectConnector(token, row.id).then(
+      (authorizeUrl) => {
+        setBusy(false);
+        if (tab === null) window.location.assign(authorizeUrl);
+        else tab.location.assign(authorizeUrl);
+      },
+      (err: unknown) => {
+        tab?.close();
+        onError(queryError(err, 'Could not start the sign-in.'));
+        setBusy(false);
+      },
+    );
+  };
+
+  const disconnect = (): void => {
+    if (busy) return;
+    setBusy(true);
+    disconnectConnector(token, row.id).then(
+      () => {
+        setBusy(false);
+        onChanged();
+      },
+      (err: unknown) => {
+        onError(queryError(err, 'Could not sign the connector out.'));
+        setBusy(false);
+      },
+    );
+  };
+
+  return (
+    <Row align="center" gap={8} padding={{ y: ROW_PAD_Y }}>
+      {row.signIn === 'disconnected' ? (
+        <Button
+          size="md"
+          color="secondary"
+          style={CENTER_SELF}
+          dark={dark}
+          label="Connect"
+          loading={busy}
+          disabled={busy}
+          onPress={connect}
+        />
+      ) : null}
+      <DeleteConnector
+        connector={row}
+        onDelete={onDelete}
+        onError={onError}
+        size="lg"
+        extra={
+          row.signIn === 'connected'
+            ? [{ label: 'Disconnect', danger: true, onSelect: disconnect }]
+            : []
+        }
+      />
+    </Row>
+  );
+}
+
+export function ConnectorRow({
+  onOpen,
+  ...actions
 }: ConnectorRowProps): ReactNode {
   const palette = useKitPalette();
+  const { row } = actions;
   return (
     <Row
       justify="between"
@@ -48,38 +126,30 @@ export function ConnectorRow({
           onOpen(row.id);
         }}
       >
-        <Col gap={1} flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }}>
-          <Row gap={10} align="center" minWidth={0}>
-            <span className="row-title">
-              <Text
-                size="lg"
-                weight="semibold"
-                role={row.signIn === 'disconnected' ? 'secondary' : 'default'}
-                numberOfLines={1}
-              >
-                {row.name}
-              </Text>
-            </span>
+        <ConnectorFavicon name={row.name} url={row.url} size={ICON_SIZE} />
+        <Row
+          gap={10}
+          align="center"
+          flex={1}
+          minWidth={0}
+          padding={{ y: ROW_PAD_Y }}
+        >
+          <span className="row-title">
             <Text
-              size="sm"
-              role="secondary"
+              size="lg"
+              weight="semibold"
+              role={row.signIn === 'disconnected' ? 'secondary' : 'default'}
               numberOfLines={1}
-              style={SHRINK}
             >
-              {connectorHost(row.url)}
+              {row.name}
             </Text>
-          </Row>
-          <Text size="sm" role="secondary">{summary(row)}</Text>
-        </Col>
+          </span>
+          <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
+            {connectorHost(row.url)}
+          </Text>
+        </Row>
       </a>
-      <Row align="center" padding={{ y: ROW_PAD_Y }}>
-        <DeleteConnector
-          connector={row}
-          onDelete={onDelete}
-          onError={onError}
-          size="lg"
-        />
-      </Row>
+      <RowActions {...actions} />
     </Row>
   );
 }

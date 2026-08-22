@@ -148,7 +148,7 @@ body {
 .markdown a { color: var(--metro-heading); text-decoration: underline; }
 
 .markdown code {
-  font-family: var(--metro-font-mono);
+  font-family: var(--metro-font-sans);
   font-size: 0.875em;
   background: var(--metro-surface);
   border-radius: 4px;
@@ -314,6 +314,7 @@ textarea:focus-visible {
 }
 
 .kebab {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -322,14 +323,12 @@ textarea:focus-visible {
   min-width: 32px;
   height: 32px;
   padding: 0;
-  border: 1px solid var(--metro-border);
+  border: 0;
   border-radius: 999px;
   background: var(--metro-border);
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: 10px;
   line-height: 1;
-  letter-spacing: 1px;
   cursor: pointer;
 }
 
@@ -341,7 +340,6 @@ textarea:focus-visible {
 
 .kebab:hover {
   background: var(--metro-surface);
-  border-color: var(--metro-surface);
 }
 
 .account-trigger {

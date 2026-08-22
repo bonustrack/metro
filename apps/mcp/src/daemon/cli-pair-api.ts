@@ -37,7 +37,7 @@ async function handleClaim(
     sendJson(req, res, 400, { error: 'that code has expired or was already used' });
     return;
   }
-  const session = signSession({ email, agentIds: [] }, secret, {
+  const session = signSession({ email, agentIds: [], via: 'cli' }, secret, {
     ttlSec: sessionTtlFromEnv(),
   });
   log.info({ email }, 'cli-pair: code claimed');

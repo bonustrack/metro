@@ -88,8 +88,11 @@ export async function claimCode(
 
 export async function mcpServers(): Promise<string> {
   const body = await get('/api/connectors');
-  if (!isRecord(body) || typeof body.json !== 'string')
-    throw new Error('metro returned an unexpected response');
+  if (!isRecord(body)) throw new Error('metro returned an unexpected response');
+  if (typeof body.json !== 'string')
+    throw new NotSignedIn(
+      'this sign-in cannot read your connectors — run `metro login` again',
+    );
   return body.json;
 }
 

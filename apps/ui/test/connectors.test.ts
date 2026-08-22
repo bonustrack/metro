@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { AuthError } from '../src/api/client';
 import {
   connectorHost,
+  connectorsInOrder,
   createConnector,
   deleteConnector,
   fetchConnectors,
@@ -171,31 +172,20 @@ describe('a connector row is coerced field by field', () => {
         transport: 'http',
         auth: 'header',
         header: 'Authorization',
-        secret: 'Bearer lin_oauth_7f',
-        bearer: null,
-        expiresAt: null,
         signIn: null,
-        json: '{\n  "mcpServers": {}\n}',
         verified: VERIFIED,
       },
     ]);
   });
 
-  test('the combined config block is carried alongside the rows', async () => {
-    serve({ connectors: [ROW], json: '{\n  "mcpServers": { }\n}' });
-    expect((await fetchConnectors('session')).json).toBe(
-      '{\n  "mcpServers": { }\n}',
-    );
-  });
-
-  test('a no-auth row masks nothing, so header and secret stay null', async () => {
+  test('a no-auth row reports no header', async () => {
     const [row] = await list({
       connectors: [
         { ...ROW, auth: 'none', header: null, secret: null },
       ],
       json: '{}',
     });
-    expect([row?.auth, row?.header, row?.secret]).toEqual(['none', null, null]);
+    expect([row?.auth, row?.header]).toEqual(['none', null]);
   });
 
   test('an auth value the daemon never sends reads as no auth, never as header', async () => {
@@ -212,7 +202,7 @@ describe('a connector row is coerced field by field', () => {
       json: '{}',
     });
     expect(row?.auth).toBe('oauth');
-    expect(row?.secret).toBeNull();
+    expect(row?.auth).toBe('oauth');
   });
 
   test('the tool catalog is coerced entry by entry, junk dropped', async () => {
@@ -252,11 +242,7 @@ describe('a connector row is coerced field by field', () => {
       transport: '',
       auth: 'none',
       header: null,
-      secret: null,
-      bearer: null,
-      expiresAt: null,
       signIn: null,
-      json: '',
       verified: null,
     });
   });
@@ -297,7 +283,7 @@ describe('a connector row is coerced field by field', () => {
     const result = await createConnector('session', NEW);
     if (result.kind !== 'added') throw new Error('expected an added connector');
     expect(result.connector.id).toBe('id000000012');
-    expect(result.connector.secret).toBe('Bearer lin_oauth_7f');
+    expect(result.connector.name).toBe('linear');
     expect(result.connector.verified?.tools).toBe(12);
   });
 
@@ -408,5 +394,35 @@ describe('the row labels are derived, never asserted', () => {
     expect(serverLabel({ ...VERIFIED, version: '' })).toBe('linear');
     expect(serverLabel({ ...VERIFIED, server: '' })).toBe('1.4.0');
     expect(serverLabel({ ...VERIFIED, server: '', version: '' })).toBe('-');
+  });
+});
+
+describe('connectors that need signing in sink to the bottom', () => {
+  const row = (id: string, signIn: Connector['signIn']): Connector =>
+    ({ id, signIn }) as Connector;
+
+  test('disconnected rows come last', () => {
+    const order = connectorsInOrder([
+      row('a', 'disconnected'),
+      row('b', 'connected'),
+      row('c', null),
+      row('d', 'disconnected'),
+    ]).map((c) => c.id);
+    expect(order).toEqual(['b', 'c', 'a', 'd']);
+  });
+
+  test('it is stable, so equal rows keep the order metro sent', () => {
+    const order = connectorsInOrder([
+      row('a', 'connected'),
+      row('b', null),
+      row('c', 'connected'),
+    ]).map((c) => c.id);
+    expect(order).toEqual(['a', 'b', 'c']);
+  });
+
+  test('it returns a new array rather than sorting the query cache in place', () => {
+    const input = [row('a', 'disconnected'), row('b', 'connected')];
+    expect(connectorsInOrder(input)).not.toBe(input);
+    expect(input.map((c) => c.id)).toEqual(['a', 'b']);
   });
 });

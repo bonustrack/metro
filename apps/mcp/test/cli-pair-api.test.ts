@@ -73,6 +73,14 @@ describe('claiming a pairing code', () => {
     expect(verifySession(body.session, SECRET).email).toBe(EMAIL);
   });
 
+  test('the session it mints is marked a CLI session, which is what unlocks the credentials', async () => {
+    const body = (await (await claim(await freshCode())).json()) as {
+      session: string;
+    };
+    expect(verifySession(body.session, SECRET).via).toBe('cli');
+    expect(verifySession(signSession({ email: EMAIL, agentIds: [] }, SECRET), SECRET).via).toBeUndefined();
+  });
+
   test('the session it mints is not accepted by a different secret', async () => {
     const body = (await (await claim(await freshCode())).json()) as {
       session: string;

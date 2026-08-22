@@ -160,7 +160,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
         ) : (
           <Row gap={8} wrap>
             {verbs.map((verb) => (
-              <Text key={verb} size="sm" variant="mono">{verb}</Text>
+              <Text key={verb} size="sm">{verb}</Text>
             ))}
           </Row>
         )}

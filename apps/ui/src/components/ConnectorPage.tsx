@@ -18,7 +18,7 @@ import {
 } from '../api/queries';
 import { BackLink } from './BackLink';
 import { ConnectorActions } from './ConnectorActions';
-import { ConnectorInstall } from './ConnectorInstall';
+import { ConnectorFavicon } from './ConnectorFavicon';
 import { Field } from './Field';
 import { Loading } from './Loading';
 import { ToolList } from './ToolList';
@@ -65,18 +65,27 @@ function ConnectorFacts({
   );
 }
 
+const HEADING_ICON_SIZE = 44;
+
 function ConnectorHeading({
   connector,
 }: {
   connector: Connector;
 }): ReactNode {
   return (
-    <Col gap={8} style={SHRINK}>
-      <PageTitle>{connector.name}</PageTitle>
-      <Text size="sm" role="secondary" numberOfLines={1}>
-        {connectorHost(connector.url)}
-      </Text>
-    </Col>
+    <Row gap={14} align="center" style={SHRINK}>
+      <ConnectorFavicon
+        name={connector.name}
+        url={connector.url}
+        size={HEADING_ICON_SIZE}
+      />
+      <Col gap={8} style={SHRINK}>
+        <PageTitle>{connector.name}</PageTitle>
+        <Text size="sm" role="secondary" numberOfLines={1}>
+          {connectorHost(connector.url)}
+        </Text>
+      </Col>
+    </Row>
   );
 }
 
@@ -145,8 +154,6 @@ export function ConnectorPage({
 
       <ConnectorFacts connector={data} />
       {status !== null ? <Text size="sm" role="secondary">{status}</Text> : null}
-
-      <ConnectorInstall connector={data} />
 
       <Col gap={10}>
         <Col gap={2}>

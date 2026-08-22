@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { KitThemeProvider, type KitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { semanticPalette } from '@stage-labs/kit/tokens';
-import { FONT_HEAD, FONT_MONO, FONT_SANS } from './theme';
+import { FONT_HEAD, FONT_SANS } from './theme';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type Scheme = 'light' | 'dark';
@@ -82,7 +82,6 @@ function applyCanvas(scheme: Scheme, palette: KitPalette): void {
     '--metro-danger': palette.danger,
     '--metro-font-sans': FONT_SANS,
     '--metro-font-head': FONT_HEAD,
-    '--metro-font-mono': FONT_MONO,
   };
   for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
 }

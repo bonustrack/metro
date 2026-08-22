@@ -5,7 +5,8 @@ import { TopBar } from './TopBar';
 const PAGE = {
   width: '100%',
   paddingHorizontal: 32,
-  paddingVertical: 24,
+  paddingTop: 24,
+  paddingBottom: 64,
 } as const;
 
 interface ShellProps {
