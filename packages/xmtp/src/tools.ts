@@ -21,7 +21,8 @@ export const XMTP_TOOLS: StationTool[] = [
       'Create a new XMTP group conversation (channel). Args: addresses (required, array of ' +
       'Ethereum 0x addresses to add as members), name (required, the group name), labels? ' +
       '(optional string[] status labels applied after creation), account? ' +
-      '(default "tony"). Calls the daemon xmtp `newGroup`, then `updateChannelMeta` if labels ' +
+      '(defaults to your only XMTP account). Calls the daemon xmtp `newGroup`, then ' +
+      '`updateChannelMeta` if labels ' +
       'are given. Returns the new metro:// line and convId. This is an xmtp-only operation. ' +
       'NOTE: there is no add-members verb on the daemon, so members must be supplied at ' +
       'creation time.',
@@ -41,7 +42,8 @@ export const XMTP_TOOLS: StationTool[] = [
         },
         account: {
           type: 'string',
-          description: 'XMTP account to create under (default "tony").',
+          description:
+            'XMTP account to create under. Omit when you have only one.',
         },
       },
       required: ['addresses', 'name'],
@@ -116,7 +118,8 @@ export const XMTP_TOOLS: StationTool[] = [
     name: 'dm',
     description:
       'Open (or reuse) a 1:1 XMTP DM with an Ethereum address. Args: address (required, 0x...), ' +
-      'account? (default "tony"). Returns the new metro:// line and convId. xmtp-only ' +
+      'account? (defaults to your only XMTP account). Returns the new metro:// line and ' +
+      'convId. xmtp-only ' +
       '(daemon `newDm`). Use this instead of create_channel when there is a single recipient.',
     inputSchema: {
       type: 'object',
@@ -127,7 +130,7 @@ export const XMTP_TOOLS: StationTool[] = [
         },
         account: {
           type: 'string',
-          description: 'XMTP account to DM from (default "tony").',
+          description: 'XMTP account to DM from. Omit when you have only one.',
         },
       },
       required: ['address'],
