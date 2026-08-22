@@ -11,15 +11,18 @@ import { PageTitle } from './PageTitle';
 import { Loading } from './Loading';
 import { queryError, refreshCollections, useCollectionsQuery } from '../api/queries';
 import { useDocumentTitle } from '../title';
+import { routeHash } from '../route';
 import { type Collection } from '../api/collections';
 
 const ROW_PAD_Y = 12;
 
 function CollectionRow({
   list,
+  project,
   onOpen,
 }: {
   list: Collection;
+  project: string;
   onOpen: (id: string) => void;
 }): ReactNode {
   const palette = useKitPalette();
@@ -28,7 +31,7 @@ function CollectionRow({
     <Row border={{ bottom: { width: 1, color: palette.border } }}>
       <a
         className="row-link"
-        href={`#/collection/${list.id}`}
+        href={routeHash({ kind: 'collection', project, id: list.id })}
         onClick={(e) => {
           if (opensElsewhere(e)) return;
           e.preventDefault();
@@ -109,7 +112,12 @@ export function Collections({
       ) : (
         <Col>
           {lists.map((list) => (
-            <CollectionRow key={list.id} list={list} onOpen={onOpen} />
+            <CollectionRow
+              key={list.id}
+              list={list}
+              project={project}
+              onOpen={onOpen}
+            />
           ))}
         </Col>
       )}

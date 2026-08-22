@@ -30,11 +30,13 @@ const FALLBACK = 'Could not load your agents.';
 function AgentCards({
   agents,
   groups,
+  project,
   onOpen,
   onDelete,
 }: {
   agents: AgentSummary[];
   groups: AccountGroup[];
+  project: string;
   onOpen: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
 }): ReactNode {
@@ -44,6 +46,7 @@ function AgentCards({
     <Col>
       {agents.map((agent) => (
         <AgentRow
+          project={project}
           key={agent.id}
           agent={agent}
           stations={stationCount(groups, agent.id)}
@@ -124,6 +127,7 @@ export function AgentsHome({
         <AgentCards
           agents={data.agents}
           groups={data.groups}
+          project={project}
           onOpen={onOpen}
           onDelete={remove}
         />

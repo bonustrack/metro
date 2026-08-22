@@ -18,6 +18,7 @@ import { DeleteConnector } from './DeleteConnector';
 import { CollectionPicker } from './CollectionPicker';
 import { RenameConnector } from './RenameConnector';
 import { opensElsewhere } from './link';
+import { routeHash } from '../route';
 
 const ROW_PAD_Y = 12;
 const ICON_SIZE = 16;
@@ -178,7 +179,7 @@ export function ConnectorRow({
   ...actions
 }: ConnectorRowProps): ReactNode {
   const palette = useKitPalette();
-  const { row } = actions;
+  const { row, project } = actions;
   return (
     <Row
       justify="between"
@@ -188,7 +189,7 @@ export function ConnectorRow({
     >
       <a
         className="row-link"
-        href={`#/connector/${row.id}`}
+        href={routeHash({ kind: 'connector', project, id: row.id })}
         onClick={(e) => {
           if (opensElsewhere(e)) return;
           e.preventDefault();

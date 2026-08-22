@@ -11,6 +11,7 @@ import { BackLink } from './BackLink';
 import { CopyBlock } from './CopyBlock';
 import { DetachAccount } from './DetachAccount';
 import { opensElsewhere } from './link';
+import { routeHash } from '../route';
 import { StationIcon } from './StationIcon';
 import { type DetachHandler } from './AccountList';
 
@@ -41,6 +42,7 @@ function Detail({ label, value }: { label: string; value: string }): ReactNode {
 
 interface StationDetailProps {
   station: string;
+  project: string;
   row: AccountRow;
   agent: AgentSummary | undefined;
   verbs: string[];
@@ -48,7 +50,13 @@ interface StationDetailProps {
   onDetach?: DetachHandler;
 }
 
-function Heading({ station, row, agent, onOpenAgent }: StationDetailProps): ReactNode {
+function Heading({
+  station,
+  project,
+  row,
+  agent,
+  onOpenAgent,
+}: StationDetailProps): ReactNode {
   const palette = useKitPalette();
   const handle = stationFields(row).handle ?? row.id ?? stationLabel(station);
   return (
@@ -65,7 +73,7 @@ function Heading({ station, row, agent, onOpenAgent }: StationDetailProps): Reac
             <Text size="sm" role="secondary">on</Text>
             <a
               className="hint-link"
-              href={`#/agent/${agent.id}`}
+              href={routeHash({ kind: 'agent', project, id: agent.id })}
               onClick={(e) => {
                 if (opensElsewhere(e)) return;
                 e.preventDefault();
@@ -82,6 +90,7 @@ function Heading({ station, row, agent, onOpenAgent }: StationDetailProps): Reac
 }
 
 export function StationDetail(props: StationDetailProps): ReactNode {
+  const { project } = props;
   const { station, row, agent, verbs, onOpenAgent, onDetach } = props;
   const { url, endpoint, details } = stationFields(row);
   const id = row.id;
@@ -95,7 +104,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
           ) : (
             <BackLink
               label={agent.name}
-              href={`#/agent/${agent.id}`}
+              href={routeHash({ kind: 'agent', project, id: agent.id })}
               onPress={() => {
                 onOpenAgent(agent.id);
               }}

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { routeHash, routeSelection } from '../src/route';
+import { type Selection } from '../src/components/selection';
 
 const PROJECT = 'prj00000001';
 
@@ -156,5 +157,38 @@ describe('routeHash', () => {
       { kind: 'none' } as const,
     ])
       expect(routeSelection(routeHash(selection))).toEqual(selection);
+  });
+});
+
+describe('every scoped href round-trips back to the same selection', () => {
+  const OWNER = 'GoBAFp2pRZ4';
+  const ID = 'nONaK77lT9Q';
+  const scoped: Selection[] = [
+    { kind: 'agents', project: OWNER },
+    { kind: 'agent', project: OWNER, id: ID },
+    { kind: 'station', project: OWNER, accountId: 'a1-deadbeef' },
+    { kind: 'connectors', project: OWNER },
+    { kind: 'connector', project: OWNER, id: ID },
+    { kind: 'collections', project: OWNER },
+    { kind: 'collection', project: OWNER, id: ID },
+    { kind: 'members', project: OWNER },
+    { kind: 'project', project: OWNER },
+  ];
+
+  for (const selection of scoped)
+    test(`${selection.kind} survives routeHash -> routeSelection`, () => {
+      const hash = routeHash(selection);
+      expect(hash.startsWith(`#/${OWNER}`)).toBe(true);
+      expect(routeSelection(hash)).toEqual(selection);
+    });
+
+  test('a hash missing the project segment matches nothing', () => {
+    for (const orphan of [
+      '#/agent/nONaK77lT9Q',
+      '#/collection/nONaK77lT9Q',
+      '#/connector/nONaK77lT9Q',
+      '#/station/a1-deadbeef',
+    ])
+      expect(routeSelection(orphan)).toEqual({ kind: 'none' });
   });
 });

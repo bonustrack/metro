@@ -89,6 +89,7 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
         <Text size="lg" weight="semibold">Stations</Text>
         <AccountList
           groups={mine}
+          project={props.project}
           empty={emptyStations(agent, unattributed)}
           onOpen={props.onOpenStation}
           onDetach={agent.owned ? onDetach : undefined}

@@ -49,6 +49,7 @@ export function StationPage({
 
   return (
     <StationDetail
+      project={project}
       station={found.station}
       row={found.row}
       agent={agent}
