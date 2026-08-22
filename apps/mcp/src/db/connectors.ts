@@ -1,4 +1,4 @@
-import { isUniqueViolation } from './users.js';
+import { assertRenameFreeOfClash } from './connector-collections.js';
 import { projectIdOrThrow } from './projects.js';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import {
@@ -179,29 +179,21 @@ async function insertConnector(
   url: URL,
   config: ConnectorConfig,
 ): Promise<Connector> {
-  try {
-    const rows = await getDb()
-      .insert(connectors)
-      .values({
-        id: newId(),
-        projectId,
-        name,
-        url: connectorUrlText(url),
-        transport: 'http',
-        config,
-      })
-      .returning();
-    const row = rows[0];
-    if (row === undefined)
-      throw new ConnectorError('connector insert returned no row', 500);
-    return toConnector(row);
-  } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
-    throw new ConnectorError(
-      `you already have a connector named '${name}'`,
-      409,
-    );
-  }
+  const rows = await getDb()
+    .insert(connectors)
+    .values({
+      id: newId(),
+      projectId,
+      name,
+      url: connectorUrlText(url),
+      transport: 'http',
+      config,
+    })
+    .returning();
+  const row = rows[0];
+  if (row === undefined)
+    throw new ConnectorError('connector insert returned no row', 500);
+  return toConnector(row);
 }
 
 const UNVERIFIED = {
@@ -311,19 +303,15 @@ export async function renameConnectorForEmail(
 ): Promise<Connector> {
   const name = connectorName(raw);
   const row = await ownedConnectorOrThrow(email, id);
-  try {
-    const rows = await getDb()
-      .update(connectors)
-      .set({ name })
-      .where(and(eq(connectors.id, row.id), eq(connectors.projectId, row.projectId)))
-      .returning();
-    const saved = rows[0];
-    if (saved === undefined) throw missing();
-    return toConnector(saved);
-  } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
-    throw new ConnectorError(`you already have a connector named '${name}'`, 409);
-  }
+  await assertRenameFreeOfClash(row.id, name);
+  const rows = await getDb()
+    .update(connectors)
+    .set({ name })
+    .where(and(eq(connectors.id, row.id), eq(connectors.projectId, row.projectId)))
+    .returning();
+  const saved = rows[0];
+  if (saved === undefined) throw missing();
+  return toConnector(saved);
 }
 
 export async function deleteConnectorForEmail(

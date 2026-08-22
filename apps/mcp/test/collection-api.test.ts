@@ -22,6 +22,8 @@ const seed = (): Row[] => [
   { id: 'lst00000002', email: BOB, name: 'theirs', connectorIds: [] },
 ];
 
+const CLASHING_CONNECTOR = 'cnn00000009';
+
 const missing = (): ApiError => new ApiError('no such collection', 404);
 
 function owned(email: string, id: string): Row {
@@ -60,6 +62,11 @@ const deps = {
     return Promise.resolve({ id: row.id, name: row.name });
   },
   addToCollection: async (email: string, id: string, connectorId: string) => {
+    if (connectorId === CLASHING_CONNECTOR)
+      throw new ApiError(
+        "the collection 'work' already has a connector named 'linear'",
+        409,
+      );
     const row = owned(email, id);
     if (!row.connectorIds.includes(connectorId)) row.connectorIds.push(connectorId);
     return Promise.resolve(strip(row));
@@ -201,6 +208,16 @@ describe('membership', () => {
       session(ADA),
     );
     expect(await removed.json()).toMatchObject({ connectorIds: ['cnn00000002'] });
+  });
+
+  test('a connector whose name a member already has is 409', async () => {
+    const res = await call('POST', '/api/collections/lst00000001/items', session(ADA), {
+      connectorId: CLASHING_CONNECTOR,
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()) as { error: string }).toEqual({
+      error: "the collection 'work' already has a connector named 'linear'",
+    });
   });
 
   test('an id-shaped connectorId is required', async () => {

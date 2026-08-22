@@ -83,11 +83,10 @@ export const connectors = pgTable(
     transport: text('transport').$type<ConnectorTransport>().notNull(),
     config: jsonb('config').notNull(),
   },
-  (t) => [unique('connectors_project_id_name_unique').on(t.projectId, t.name)],
 );
 
-export const connectorCollections = pgTable(
-  'connector_collections',
+export const collections = pgTable(
+  'collections',
   {
     id: text('id').primaryKey(),
     projectId: text('project_id')
@@ -96,26 +95,23 @@ export const connectorCollections = pgTable(
     name: text('name').notNull(),
   },
   (t) => [
-    unique('connector_collections_project_id_name_unique').on(
-      t.projectId,
-      t.name,
-    ),
+    unique('collections_project_id_name_unique').on(t.projectId, t.name),
   ],
 );
 
-export const connectorCollectionItems = pgTable(
-  'connector_collection_items',
+export const collectionItems = pgTable(
+  'collection_items',
   {
     id: text('id').primaryKey(),
     collectionId: text('collection_id')
       .notNull()
-      .references(() => connectorCollections.id, { onDelete: 'cascade' }),
+      .references(() => collections.id, { onDelete: 'cascade' }),
     connectorId: text('connector_id')
       .notNull()
       .references(() => connectors.id, { onDelete: 'cascade' }),
   },
   (t) => [
-    unique('connector_collection_items_collection_id_connector_id_unique').on(
+    unique('collection_items_collection_id_connector_id_unique').on(
       t.collectionId,
       t.connectorId,
     ),

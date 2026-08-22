@@ -253,7 +253,7 @@ auth gate:
 | `GET /api/connectors` | Your [connectors](#connectors). Carries **no credential** — the `mcpServers` block is added only for a CLI session (see [The metro CLI](#the-metro-cli)). |
 | `POST /api/connectors` `{"name","url","header","value"}` | Verify a remote MCP server and store it. `header`/`value` are optional and go together. |
 | `POST /api/connectors/<id>/verify` | Re-check a stored connector. `200 {ok:true, verified}` or `200 {ok:false, reason}`. |
-| `POST /api/connectors/<id>/rename` `{"name"}` | Rename a connector you own. `409` if that name is already yours. |
+| `POST /api/connectors/<id>/rename` `{"name"}` | Rename a connector you own. `409` only if the new name collides inside a collection it belongs to. |
 | `GET`/`POST /api/projects` | Your [projects](#projects), and create one. `POST /<id>/rename`, `DELETE /<id>`, and `/<id>/members` for the roster. |
 | `GET`/`POST /api/collections?project=<id>` | That project's [collections](#collections), and create one. |
 | `POST /api/collections/<id>/items` `{"connectorId"}` | Add a connector. `DELETE /<id>/items/<connectorId>` removes it. |
@@ -410,6 +410,11 @@ Collections live at `#/collections` in the panel, before Connectors. Membership 
 the **connector**, not the collection: each connector's ⋮ menu has *Add to collection*, with a
 checkbox per collection. The collection's own page lists what is in it and lets you drop a
 member, rename it, or delete it. Deleting a connector removes it from every collection.
+
+Two connectors in one project may share a name, but two in the same **collection** may not: the
+name is the key in the exported `mcpServers` block, so a collision there would silently drop one
+of them. Adding a connector to a collection, or renaming one that is already in a collection,
+is refused `409` when it would collide.
 
 ### Inbound webhooks
 

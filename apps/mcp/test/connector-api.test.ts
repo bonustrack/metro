@@ -14,6 +14,7 @@ import { setKeyMap } from '../src/db/key-map.ts';
 const SECRET = 'connector-api-test-secret';
 const ADA = 'ada@lovelace.dev';
 const BOB = 'bob@builder.dev';
+const CLASHES_IN_COLLECTION = 'already-in-work';
 
 const AGENT_KEY = 'mk_connector_surface_probe';
 
@@ -137,8 +138,6 @@ function makeRow(email: string, input: ConnectorInput): Row {
     throw new ConnectorVerifyError(`${url.hostname} rejected that credential.`, 400);
   if (url.hostname === 'down.example.com')
     throw new ConnectorVerifyError(`Metro could not reach ${url.hostname}.`, 400);
-  if (rows.some((r) => r.email === email && r.name === name))
-    throw new ApiError(`you already have a connector named '${name}'`, 409);
   nextId += 1;
   return {
     id: nextId,
@@ -193,8 +192,11 @@ const deps: ConnectorApiDeps = {
   renameConnector: async (email, id, name) => {
     calls.push(`rename ${email} ${id} ${name}`);
     const row = ownedOrThrow(email, id);
-    if (rows.some((r) => r.email === email && r.name === name && r.id !== id))
-      throw new ApiError(`you already have a connector named '${name}'`, 409);
+    if (name === CLASHES_IN_COLLECTION)
+      throw new ApiError(
+        `the collection 'work' already has a connector named '${name}'`,
+        409,
+      );
     const next: Row = { ...row, name };
     rows = rows.map((r) => (r.id === id ? next : r));
     return toConnector(next);
@@ -513,11 +515,22 @@ describe('a connector can be renamed', () => {
     expect((await listFor(ADA)).map((c) => c.name)).toContain('Linear · prod');
   });
 
-  test('a name already taken by another of yours is 409, not a silent overwrite', async () => {
+  test('a name another of yours already has is fine — names are unique per collection', async () => {
     const res = await call('POST', '/api/connectors/agent000001/rename', session(ADA), {
       name: 'docs',
     });
+    expect(res.status).toBe(200);
+    expect((await listFor(ADA)).filter((c) => c.name === 'docs')).toHaveLength(2);
+  });
+
+  test('a name that would collide inside a collection is 409, not a silent overwrite', async () => {
+    const res = await call('POST', '/api/connectors/agent000001/rename', session(ADA), {
+      name: CLASHES_IN_COLLECTION,
+    });
     expect(res.status).toBe(409);
+    expect((await res.json()) as { error: string }).toEqual({
+      error: `the collection 'work' already has a connector named '${CLASHES_IN_COLLECTION}'`,
+    });
   });
 
   test('renaming a connector you do not own is the same 404 as one that is not there', async () => {
@@ -569,15 +582,13 @@ describe('POST /api/connectors', () => {
     ]);
   });
 
-  test('a duplicate name for the same user is 409', async () => {
+  test('a duplicate name in the same project is allowed', async () => {
     const res = await call('POST', '/api/connectors', session(ADA), {
       name: 'linear',
       url: 'https://mcp.linear.app/mcp',
     });
-    expect(res.status).toBe(409);
-    expect((await res.json()) as { error: string }).toEqual({
-      error: "you already have a connector named 'linear'",
-    });
+    expect(res.status).toBe(201);
+    expect((await listFor(ADA)).filter((c) => c.name === 'linear')).toHaveLength(2);
   });
 
   test('the same name under another owner is fine', async () => {

@@ -1,10 +1,10 @@
 import { isUniqueViolation } from './users.js';
 import { projectIdOrThrow } from './projects.js';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { getDb } from './client.js';
 import { newId } from './ids.js';
 import { ConnectorError, connectorName } from './connector-config.js';
-import { connectorCollectionItems, connectorCollections, connectors } from './schema.js';
+import { collectionItems, collections, connectors } from './schema.js';
 
 export interface ConnectorCollectionRow {
   id: string;
@@ -24,14 +24,58 @@ const missing = (): ConnectorError =>
 const duplicate = (name: string): ConnectorError =>
   new ConnectorError(`you already have a collection named '${name}'`, 409);
 
+const nameClash = (name: string, collection: string): ConnectorError =>
+  new ConnectorError(
+    `the collection '${collection}' already has a connector named '${name}'`,
+    409,
+  );
+
+async function collidingCollection(
+  collectionIds: string[],
+  name: string,
+  exceptConnectorId: string,
+): Promise<string | null> {
+  if (collectionIds.length === 0) return null;
+  const rows = await getDb()
+    .select({ collection: collections.name })
+    .from(collectionItems)
+    .innerJoin(connectors, eq(connectors.id, collectionItems.connectorId))
+    .innerJoin(collections, eq(collections.id, collectionItems.collectionId))
+    .where(
+      and(
+        inArray(collectionItems.collectionId, collectionIds),
+        eq(connectors.name, name),
+        ne(connectors.id, exceptConnectorId),
+      ),
+    )
+    .limit(1);
+  return rows[0]?.collection ?? null;
+}
+
+export async function assertRenameFreeOfClash(
+  connectorId: string,
+  name: string,
+): Promise<void> {
+  const rows = await getDb()
+    .select({ collectionId: collectionItems.collectionId })
+    .from(collectionItems)
+    .where(eq(collectionItems.connectorId, connectorId));
+  const clash = await collidingCollection(
+    rows.map((r) => r.collectionId),
+    name,
+    connectorId,
+  );
+  if (clash !== null) throw nameClash(name, clash);
+}
+
 async function ownedCollectionOrThrow(
   email: string,
   id: string,
 ): Promise<CollectionRow> {
   const rows = await getDb()
     .select()
-    .from(connectorCollections)
-    .where(eq(connectorCollections.id, id));
+    .from(collections)
+    .where(eq(collections.id, id));
   const row = rows[0];
   if (row === undefined) throw missing();
   try {
@@ -44,10 +88,10 @@ async function ownedCollectionOrThrow(
 
 async function itemsOf(collectionId: string): Promise<string[]> {
   const rows = await getDb()
-    .select({ connectorId: connectorCollectionItems.connectorId })
-    .from(connectorCollectionItems)
-    .where(eq(connectorCollectionItems.collectionId, collectionId))
-    .orderBy(asc(connectorCollectionItems.id));
+    .select({ connectorId: collectionItems.connectorId })
+    .from(collectionItems)
+    .where(eq(collectionItems.collectionId, collectionId))
+    .orderBy(asc(collectionItems.id));
   return rows.map((r) => r.connectorId);
 }
 
@@ -62,9 +106,9 @@ export async function listCollectionsForEmail(
   const projectId = await projectIdOrThrow(email, project);
   const rows = await getDb()
     .select()
-    .from(connectorCollections)
-    .where(eq(connectorCollections.projectId, projectId))
-    .orderBy(asc(connectorCollections.id));
+    .from(collections)
+    .where(eq(collections.projectId, projectId))
+    .orderBy(asc(collections.id));
   return Promise.all(rows.map(withItems));
 }
 
@@ -84,7 +128,7 @@ export async function createCollectionForEmail(
   const projectId = await projectIdOrThrow(email, project);
   try {
     const rows = await getDb()
-      .insert(connectorCollections)
+      .insert(collections)
       .values({ id: newId(), projectId, name })
       .returning();
     const row = rows[0];
@@ -106,9 +150,9 @@ export async function renameCollectionForEmail(
   const row = await ownedCollectionOrThrow(email, id);
   try {
     await getDb()
-      .update(connectorCollections)
+      .update(collections)
       .set({ name })
-      .where(eq(connectorCollections.id, row.id));
+      .where(eq(collections.id, row.id));
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
     throw duplicate(name);
@@ -121,19 +165,19 @@ export async function deleteCollectionForEmail(
   id: string,
 ): Promise<{ id: string; name: string }> {
   const row = await ownedCollectionOrThrow(email, id);
-  await getDb().delete(connectorCollections).where(eq(connectorCollections.id, row.id));
+  await getDb().delete(collections).where(eq(collections.id, row.id));
   return { id: row.id, name: row.name };
 }
 
-async function ownsConnector(
+async function connectorNameIn(
   projectId: string,
   connectorId: string,
-): Promise<boolean> {
+): Promise<string | null> {
   const rows = await getDb()
-    .select({ id: connectors.id })
+    .select({ name: connectors.name })
     .from(connectors)
     .where(and(eq(connectors.id, connectorId), eq(connectors.projectId, projectId)));
-  return rows.length > 0;
+  return rows[0]?.name ?? null;
 }
 
 export async function addToCollectionForEmail(
@@ -142,11 +186,13 @@ export async function addToCollectionForEmail(
   connectorId: string,
 ): Promise<ConnectorCollectionRow> {
   const row = await ownedCollectionOrThrow(email, id);
-  if (!(await ownsConnector(row.projectId, connectorId)))
-    throw new ConnectorError('no such connector', 404);
+  const name = await connectorNameIn(row.projectId, connectorId);
+  if (name === null) throw new ConnectorError('no such connector', 404);
+  const clash = await collidingCollection([row.id], name, connectorId);
+  if (clash !== null) throw nameClash(name, clash);
   try {
     await getDb()
-      .insert(connectorCollectionItems)
+      .insert(collectionItems)
       .values({ id: newId(), collectionId: row.id, connectorId });
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
@@ -161,11 +207,11 @@ export async function removeFromCollectionForEmail(
 ): Promise<ConnectorCollectionRow> {
   const row = await ownedCollectionOrThrow(email, id);
   await getDb()
-    .delete(connectorCollectionItems)
+    .delete(collectionItems)
     .where(
       and(
-        eq(connectorCollectionItems.collectionId, row.id),
-        eq(connectorCollectionItems.connectorId, connectorId),
+        eq(collectionItems.collectionId, row.id),
+        eq(collectionItems.connectorId, connectorId),
       ),
     );
   return withItems(row);
