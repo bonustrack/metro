@@ -188,6 +188,15 @@ const deps: ConnectorApiDeps = {
     rows = rows.map((r) => (r.id === id ? next : r));
     return toConnector(next);
   },
+  renameConnector: async (email, id, name) => {
+    calls.push(`rename ${email} ${id} ${name}`);
+    const row = ownedOrThrow(email, id);
+    if (rows.some((r) => r.email === email && r.name === name && r.id !== id))
+      throw new ApiError(`you already have a connector named '${name}'`, 409);
+    const next: Row = { ...row, name };
+    rows = rows.map((r) => (r.id === id ? next : r));
+    return toConnector(next);
+  },
   deleteConnector: async (email, id) => {
     calls.push(`delete ${email} ${id}`);
     const row = ownedOrThrow(email, id);
@@ -449,7 +458,6 @@ describe('GET /api/connectors returns the wire shape', () => {
     expect(wire.connectors[0]).toEqual({
       id: 'agent000001',
       name: 'linear',
-      exportName: 'metro.box linear',
       url: 'https://mcp.linear.app/mcp',
       transport: 'http',
       auth: 'header',
@@ -491,7 +499,7 @@ describe('GET /api/connectors returns the wire shape', () => {
     expect(wire.json).toContain('Bearer lin_oauth_7f');
     const servers = (JSON.parse(wire.json) as { mcpServers: Record<string, unknown> })
       .mcpServers;
-    expect(Object.keys(servers)).toEqual(['metro.box linear', 'metro.box docs']);
+    expect(Object.keys(servers)).toEqual(['linear', 'docs']);
   });
 
   test('a CLI session still sees no credential on the rows themselves', async () => {
@@ -516,6 +524,50 @@ describe('GET /api/connectors returns the wire shape', () => {
   });
 });
 
+describe('a connector can be renamed', () => {
+  test('the row comes back under its new name', async () => {
+    const res = await call('POST', '/api/connectors/agent000001/rename', session(ADA), {
+      name: 'Linear · prod',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: 'agent000001', name: 'Linear · prod' });
+    expect((await listFor(ADA)).map((c) => c.name)).toContain('Linear · prod');
+  });
+
+  test('a name already taken by another of yours is 409, not a silent overwrite', async () => {
+    const res = await call('POST', '/api/connectors/agent000001/rename', session(ADA), {
+      name: 'docs',
+    });
+    expect(res.status).toBe(409);
+  });
+
+  test('renaming a connector you do not own is the same 404 as one that is not there', async () => {
+    for (const id of ['agent000003', 'agent999999'])
+      expect(
+        (await call('POST', `/api/connectors/${id}/rename`, session(ADA), { name: 'x' }))
+          .status,
+      ).toBe(404);
+  });
+
+  test('a missing or non-string name is a 400 before the store is touched', async () => {
+    calls.length = 0;
+    for (const body of [{}, { name: 7 }, { name: null }])
+      expect(
+        (await call('POST', '/api/connectors/agent000001/rename', session(ADA), body))
+          .status,
+      ).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  test('rename needs a session, and GET is refused', async () => {
+    expect(
+      (await call('POST', '/api/connectors/agent000001/rename', undefined, { name: 'x' }))
+        .status,
+    ).toBe(401);
+    expect((await call('GET', '/api/connectors/agent000001/rename', session(ADA))).status).toBe(405);
+  });
+});
+
 describe('POST /api/connectors', () => {
   test('a created connector comes back in the list-row shape', async () => {
     const res = await call('POST', '/api/connectors', session(ADA), {
@@ -527,7 +579,6 @@ describe('POST /api/connectors', () => {
     const created = (await res.json()) as WireConnector;
     expect(created).toMatchObject({
       name: 'sentry',
-      exportName: 'metro.box sentry',
       transport: 'http',
       auth: 'header',
       header: 'Authorization',

@@ -34,7 +34,6 @@ export interface ConnectorVerified {
 export interface Connector {
   id: string;
   name: string;
-  exportName: string;
   url: string;
   transport: string;
   auth: ConnectorAuth;
@@ -130,8 +129,6 @@ function toConnector(value: unknown): Connector {
   return {
     id: typeof value.id === 'string' ? value.id : '',
     name: value.name,
-    exportName:
-      typeof value.exportName === 'string' ? value.exportName : value.name,
     url: str(value.url),
     transport: str(value.transport),
     auth:
@@ -268,6 +265,21 @@ export async function disconnectConnector(
     method: 'POST',
     base: connectorsUrl(),
     path: `/${id}/disconnect`,
+  });
+  return toConnector(body);
+}
+
+export async function renameConnector(
+  token: string,
+  id: string,
+  name: string,
+): Promise<Connector> {
+  const body = await call(token, {
+    method: 'POST',
+    base: connectorsUrl(),
+    path: `/${id}/rename`,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name }),
   });
   return toConnector(body);
 }

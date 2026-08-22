@@ -1,7 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  MCP_NAME_PREFIX,
-  mcpServerName,
   mcpServersJson,
   type ConnectorEntry,
 } from '../src/daemon/connector-json.ts';
@@ -48,17 +46,9 @@ interface ServerBlock {
   headers?: Record<string, string>;
 }
 
-const rawKeys = (json: string): string[] =>
-  Object.keys(
-    (JSON.parse(json) as { mcpServers: Record<string, unknown> }).mcpServers,
-  );
-
 const parse = (json: string): Record<string, ServerBlock> => {
   const parsed = JSON.parse(json) as { mcpServers: Record<string, ServerBlock> };
-  const out: Record<string, ServerBlock> = {};
-  for (const [key, block] of Object.entries(parsed.mcpServers))
-    out[key.slice(MCP_NAME_PREFIX.length)] = block;
-  return out;
+  return parsed.mcpServers;
 };
 
 describe('mcpServersJson composes the paste-ready block', () => {
@@ -116,30 +106,8 @@ describe('mcpServersJson composes the paste-ready block', () => {
 
   test('the string is two-space pretty-printed, not minified', () => {
     const json = mcpServersJson([linear]);
-    expect(
-      json.startsWith('{\n  "mcpServers": {\n    "metro.box linear": {\n'),
-    ).toBe(true);
+    expect(json.startsWith('{\n  "mcpServers": {\n    "linear": {\n')).toBe(true);
     expect(json).toContain('\n      "type": "http"');
-  });
-});
-
-describe('an exported server says where it came from', () => {
-  test('every key carries the prefix, the way claude.ai labels its own', () => {
-    expect(rawKeys(mcpServersJson([linear, docs]))).toEqual([
-      'metro.box linear',
-      'metro.box docs',
-    ]);
-  });
-
-  test('one helper decides it, so the CLI and the UI cannot disagree', () => {
-    expect(mcpServerName('linear')).toBe('metro.box linear');
-    expect(MCP_NAME_PREFIX).toBe('metro.box ');
-  });
-
-  test('a name that already reads like the prefix is not collapsed', () => {
-    expect(rawKeys(mcpServersJson([{ ...docs, name: 'metro.box docs' }]))).toEqual([
-      'metro.box metro.box docs',
-    ]);
   });
 });
 

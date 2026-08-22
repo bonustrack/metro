@@ -253,6 +253,7 @@ auth gate:
 | `GET /api/connectors` | Your [connectors](#connectors). Carries **no credential** — the `mcpServers` block is added only for a CLI session (see [The metro CLI](#the-metro-cli)). |
 | `POST /api/connectors` `{"name","url","header","value"}` | Verify a remote MCP server and store it. `header`/`value` are optional and go together. |
 | `POST /api/connectors/<id>/verify` | Re-check a stored connector. `200 {ok:true, verified}` or `200 {ok:false, reason}`. |
+| `POST /api/connectors/<id>/rename` `{"name"}` | Rename a connector you own. `409` if that name is already yours. |
 | `DELETE /api/connectors/<id>` | Delete a connector you own. |
 
 Sign-in is **open**: any Google account whose `email_verified` claim is true may sign in
@@ -361,8 +362,8 @@ stored; the rest are unaffected.
 Sign-in is a **pairing code**, not a browser redirect: the web UI mints a single-use code
 (`mc_` + 16 base64url, ten-minute TTL, in memory only), you paste it into `metro login`, and the
 CLI trades it for a session. There is no localhost listener and no callback, which is exactly
-why it works over SSH. Servers appear in the client prefixed `metro.box `, the way Claude.ai
-labels its own — so `metro.box Sentry`, never a bare `Sentry`.
+why it works over SSH. A server appears in the client under the connector's own name, so
+rename one (from either kebab menu) if two of them would collide.
 
 Two environment variables matter: `METRO_URL` points at the daemon (default
 `https://mcp.metro.box`) and `METRO_UI_URL` at the web UI (default `https://metro.box`). They

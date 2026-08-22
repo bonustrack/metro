@@ -10,7 +10,7 @@ import {
   type ApiSession,
 } from './api-http.js';
 import { parseId } from '../db/ids.js';
-import { mcpServerName, mcpServersJson } from './connector-json.js';
+import { mcpServersJson } from './connector-json.js';
 import {
   handleCallback,
   handleConnect,
@@ -40,6 +40,11 @@ export interface ConnectorApiDeps extends OAuthRouteDeps {
   ) => Promise<Connector>;
   verifyConnector: (email: string, id: string) => Promise<ConnectorCheck>;
   disconnectConnector: (email: string, id: string) => Promise<Connector>;
+  renameConnector: (
+    email: string,
+    id: string,
+    name: string,
+  ) => Promise<Connector>;
   deleteConnector: (email: string, id: string) => Promise<DeletedConnector>;
 }
 
@@ -49,7 +54,8 @@ type Routable =
   | { kind: 'connector'; id: string }
   | { kind: 'verify'; id: string }
   | { kind: 'connect'; id: string }
-  | { kind: 'disconnect'; id: string };
+  | { kind: 'disconnect'; id: string }
+  | { kind: 'rename'; id: string };
 
 type Target = Routable | { kind: 'unknown' } | null;
 
@@ -60,6 +66,7 @@ function subTarget(id: string, rest: string[]): Target {
   if (head === 'verify') return { kind: 'verify', id };
   if (head === 'connect') return { kind: 'connect', id };
   if (head === 'disconnect') return { kind: 'disconnect', id };
+  if (head === 'rename') return { kind: 'rename', id };
   return { kind: 'unknown' };
 }
 
@@ -82,7 +89,6 @@ function connectorPayload(
   return {
     id: row.id,
     name: row.name,
-    exportName: mcpServerName(row.name),
     url: row.url,
     transport: row.transport,
     auth: row.auth,
@@ -194,6 +200,23 @@ async function handleConnector(
   sendJson(req, res, 200, connectorPayload(row, true));
 }
 
+async function handleRename(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+  session: ApiSession,
+  id: string,
+): Promise<void> {
+  const name = bodyField(await readJsonBody(req), 'name');
+  if (typeof name !== 'string') {
+    sendJson(req, res, 400, { error: 'name is required' });
+    return;
+  }
+  const row = await deps.renameConnector(session.email, id, name);
+  log.info({ id: row.id, name: row.name }, 'connector-api: renamed connector');
+  sendJson(req, res, 200, connectorPayload(row));
+}
+
 async function route(
   req: IncomingMessage,
   res: ServerResponse,
@@ -209,6 +232,8 @@ async function route(
       await handleConnect(req, res, deps, session, tgt.id);
     else if (tgt.kind === 'disconnect')
       await handleDisconnect(req, res, deps, session, tgt.id);
+    else if (tgt.kind === 'rename')
+      await handleRename(req, res, deps, session, tgt.id);
     else if (tgt.kind === 'connector')
       await handleConnector(req, res, deps, session, tgt.id);
     else if (req.method === 'GET') await handleList(req, res, deps, session);
@@ -225,6 +250,7 @@ const ALLOWED: Record<Routable['kind'], string[]> = {
   verify: ['POST'],
   connect: ['POST'],
   disconnect: ['POST'],
+  rename: ['POST'],
 };
 
 function dispatch(

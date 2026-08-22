@@ -286,6 +286,29 @@ export async function verifyConnectorForEmail(
   }
 }
 
+export async function renameConnectorForEmail(
+  email: string,
+  id: string,
+  raw: string,
+): Promise<Connector> {
+  const name = connectorName(raw);
+  const userId = await userIdForEmail(email);
+  const row = await ownedConnectorOrThrow(userId, id);
+  try {
+    const rows = await getDb()
+      .update(connectors)
+      .set({ name })
+      .where(and(eq(connectors.id, row.id), eq(connectors.userId, row.userId)))
+      .returning();
+    const saved = rows[0];
+    if (saved === undefined) throw missing();
+    return toConnector(saved);
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    throw new ConnectorError(`you already have a connector named '${name}'`, 409);
+  }
+}
+
 export async function deleteConnectorForEmail(
   email: string,
   id: string,

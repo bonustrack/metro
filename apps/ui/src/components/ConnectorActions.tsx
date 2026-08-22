@@ -9,6 +9,7 @@ import {
 } from '../api/connectors';
 import { queryError } from '../api/queries';
 import { DeleteConnector } from './DeleteConnector';
+import { RenameConnector } from './RenameConnector';
 
 interface ConnectorActionsProps {
   token: string;
@@ -24,6 +25,7 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
   const { token, connector, refreshing, onRefresh, onError } = props;
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const signIn = connector.signIn;
 
   const connect = (): void => {
@@ -76,6 +78,12 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
         size="lg"
         extra={[
           {
+            label: 'Rename',
+            onSelect: () => {
+              setRenaming(true);
+            },
+          },
+          {
             label: refreshing ? 'Refreshing…' : 'Refresh tools list',
             onSelect: onRefresh,
           },
@@ -83,6 +91,16 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
             ? [{ label: 'Disconnect', danger: true, onSelect: disconnect }]
             : []),
         ]}
+      />
+      <RenameConnector
+        key={connector.name}
+        token={token}
+        connector={connector}
+        open={renaming}
+        onClose={() => {
+          setRenaming(false);
+        }}
+        onRenamed={props.onChanged}
       />
     </Row>
   );

@@ -15,6 +15,7 @@ import {
 import { queryError } from '../api/queries';
 import { ConnectorFavicon } from './ConnectorFavicon';
 import { DeleteConnector } from './DeleteConnector';
+import { RenameConnector } from './RenameConnector';
 import { opensElsewhere } from './link';
 
 const ROW_PAD_Y = 12;
@@ -41,6 +42,7 @@ function RowActions({
 }: ActionProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   const connect = (): void => {
     if (busy) return;
@@ -94,11 +96,27 @@ function RowActions({
         onDelete={onDelete}
         onError={onError}
         size="lg"
-        extra={
-          row.signIn === 'connected'
+        extra={[
+          {
+            label: 'Rename',
+            onSelect: () => {
+              setRenaming(true);
+            },
+          },
+          ...(row.signIn === 'connected'
             ? [{ label: 'Disconnect', danger: true, onSelect: disconnect }]
-            : []
-        }
+            : []),
+        ]}
+      />
+      <RenameConnector
+        key={row.name}
+        token={token}
+        connector={row}
+        open={renaming}
+        onClose={() => {
+          setRenaming(false);
+        }}
+        onRenamed={onChanged}
       />
     </Row>
   );
