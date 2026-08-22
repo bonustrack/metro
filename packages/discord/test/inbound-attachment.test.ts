@@ -72,6 +72,17 @@ const htmlAttachment: Att = {
   size: 8,
 };
 
+const waitForAttachmentSaved = async (): Promise<
+  Record<string, unknown> | undefined
+> => {
+  for (let waited = 0; waited < 5000; waited += 25) {
+    const found = emittedAttachmentSaved();
+    if (found !== undefined) return found;
+    await Bun.sleep(25);
+  }
+  return emittedAttachmentSaved();
+};
+
 const emittedAttachmentSaved = (): Record<string, unknown> | undefined => {
   for (const line of lines) {
     const parsed = JSON.parse(line) as {
@@ -109,9 +120,8 @@ afterAll(() => {
 describe('discord attachmentSaved payload', () => {
   test('carries the cached path and no expiring station url', async () => {
     messageEnvelope('d0', fakeMessage([htmlAttachment], 0));
-    await Bun.sleep(50);
 
-    const saved = emittedAttachmentSaved();
+    const saved = await waitForAttachmentSaved();
     expect(saved).toBeDefined();
     const payload = saved?.payload as Record<string, unknown>;
     expect(payload.attachmentFor).toBeString();
