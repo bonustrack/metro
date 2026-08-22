@@ -17,6 +17,7 @@ import { queryError, refreshProjects, useMembersQuery } from '../api/queries';
 import { useDocumentTitle } from '../title';
 
 const ROW_PAD_Y = 12;
+const KEBAB_LG = 40;
 
 function MemberRow({
   member,
@@ -47,7 +48,9 @@ function MemberRow({
           {member.owner ? 'owner' : member.role}
         </Text>
       </Row>
-      {member.owner ? null : (
+      {member.owner ? (
+        <Row width={KEBAB_LG} height={KEBAB_LG} />
+      ) : (
         <KebabMenu
           label={`Actions for ${member.email}`}
           size="lg"
