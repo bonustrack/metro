@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import {
   connectorUrlText,
   ConnectorVerifyError,
@@ -132,10 +132,19 @@ async function withFreshToken(row: ConnectorRow): Promise<Connector> {
   return saveConfig(row, { ...config, auth });
 }
 
-export async function listFreshConnectorsForEmail(
-  email: string,
+async function rowsByIds(ids: string[]): Promise<ConnectorRow[]> {
+  if (ids.length === 0) return [];
+  return getDb()
+    .select()
+    .from(connectors)
+    .where(inArray(connectors.id, ids))
+    .orderBy(asc(connectors.id));
+}
+
+export async function listFreshConnectorsByIds(
+  ids: string[],
 ): Promise<Connector[]> {
-  const rows = await connectorRowsFor(email);
+  const rows = await rowsByIds(ids);
   return Promise.all(
     rows.map(async (row) =>
       withFreshToken(row).catch((err: unknown) => {

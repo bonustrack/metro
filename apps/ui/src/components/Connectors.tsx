@@ -8,7 +8,7 @@ import {
   connectorsInOrder,
   deleteConnector,
   takeConnectorError,
-  type ConnectorList,
+  type ConnectorsView,
 } from '../api/connectors';
 import { AddConnector } from './AddConnector';
 import { ConnectorRow } from './ConnectorRow';
@@ -16,8 +16,8 @@ import { CountBadge } from './CountBadge';
 import { Loading } from './Loading';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  connectorsKey,
   queryError,
+  refreshConnectors,
   useConnectorsQuery,
 } from '../api/queries';
 import { useDocumentTitle } from '../title';
@@ -29,7 +29,7 @@ const FALLBACK = 'Could not load your connectors.';
 interface ConnectorsBodyProps {
   token: string;
   onChanged: () => void;
-  data: ConnectorList;
+  data: ConnectorsView;
   onOpen: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
   onError: (message: string) => void;
@@ -73,14 +73,12 @@ export function Connectors({
   const client = useQueryClient();
   const { data, error } = useConnectorsQuery(token);
   const reload = (): void => {
-    client
-      .invalidateQueries({ queryKey: connectorsKey() })
-      .catch(() => undefined);
+    refreshConnectors(client);
   };
-  const remove = async (id: string): Promise<void> => {
-    await deleteConnector(token, id);
-    await client.invalidateQueries({ queryKey: connectorsKey() });
-  };
+  const remove = (id: string): Promise<void> =>
+    deleteConnector(token, id).then(() => {
+      refreshConnectors(client);
+    });
   useDocumentTitle('Connectors');
   const [adding, setAdding] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);

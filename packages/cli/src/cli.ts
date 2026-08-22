@@ -1,5 +1,10 @@
 #!/usr/bin/env node
-import { claimCode, mcpServers, NotSignedIn, sessionEmail } from './api.js';
+import {
+  claimCode,
+  mcpServers,
+  NotSignedIn,
+  whoisAuthorized,
+} from './api.js';
 import { askLine } from './prompt.js';
 import {
   clearToken,
@@ -13,10 +18,10 @@ import { currentVersion } from './version.js';
 
 const USAGE = `metro — the command line for your MCP connectors
 
-  metro login     sign in with a code from the metro web UI
+  metro login     authorize a connector collection with a code from the web UI
   metro logout    forget this machine's sign-in
-  metro whoami    print the account this machine is signed in as
-  metro mcp       print an mcpServers block for every connector
+  metro whoami    print the account and collection this machine may read
+  metro mcp       print the mcpServers block for the authorized collection
   metro update    update to the newest published version
   metro version   print this CLI's version
 
@@ -30,14 +35,21 @@ Start Claude Code with all of them, without writing them to disk:
 `;
 
 async function login(): Promise<void> {
-  process.stderr.write(`Get a code from ${metroWebUrl()}/#/settings\n`);
-  const { session, email } = await claimCode(await askLine('Paste it here: '));
-  writeToken(session);
-  process.stderr.write(`Signed in as ${email}. Stored in ${credentialsPath()}\n`);
+  process.stderr.write(
+    `Choose a connector collection at ${metroWebUrl()}/#/authorize\n`,
+  );
+  const { token, email, collection } = await claimCode(
+    await askLine('Paste the code here: '),
+  );
+  writeToken(token);
+  process.stderr.write(
+    `Authorized '${collection}' for ${email}. Stored in ${credentialsPath()}\n`,
+  );
 }
 
 async function whoami(): Promise<void> {
-  process.stdout.write(`${await sessionEmail()} on ${metroUrl()}\n`);
+  const { email, collection } = await whoisAuthorized();
+  process.stdout.write(`${email} · collection '${collection}' on ${metroUrl()}\n`);
 }
 
 const HELP = new Set([undefined, 'help', '--help', '-h']);

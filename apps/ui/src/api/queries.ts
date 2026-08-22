@@ -16,8 +16,9 @@ import {
   fetchConnector,
   fetchConnectors,
   type Connector,
-  type ConnectorList,
+  type ConnectorsView,
 } from './connectors';
+import { fetchCollection, fetchCollections, type Collection } from './collections';
 
 const STALE_MS = 60_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
@@ -30,6 +31,8 @@ export const connectorKey = (id: string): (string | number)[] => [
   'connector',
   id,
 ];
+export const collectionsKey = (): string[] => ['lists'];
+export const collectionKey = (id: string): (string | number)[] => ['list', id];
 
 export function makeQueryClient(onAuthError: () => void): QueryClient {
   return new QueryClient({
@@ -78,11 +81,36 @@ export function useStationsQuery(token: string): UseQueryResult<StationsView> {
   });
 }
 
-export function useConnectorsQuery(token: string): UseQueryResult<ConnectorList> {
+export function useConnectorsQuery(token: string): UseQueryResult<ConnectorsView> {
   return useQuery({
     queryKey: connectorsKey(),
     queryFn: () => fetchConnectors(token),
   });
+}
+
+export function refreshConnectors(client: QueryClient, id?: string): void {
+  const keys: (string | number)[][] = [connectorsKey(), collectionsKey()];
+  if (id !== undefined) keys.push(connectorKey(id));
+  for (const queryKey of keys)
+    client.invalidateQueries({ queryKey }).catch(() => undefined);
+}
+
+export function refreshCollections(client: QueryClient, id?: string): void {
+  const keys: (string | number)[][] = [collectionsKey()];
+  if (id !== undefined) keys.push(collectionKey(id));
+  for (const queryKey of keys)
+    client.invalidateQueries({ queryKey }).catch(() => undefined);
+}
+
+export function useCollectionsQuery(token: string): UseQueryResult<Collection[]> {
+  return useQuery({ queryKey: collectionsKey(), queryFn: () => fetchCollections(token) });
+}
+
+export function useCollectionQuery(
+  token: string,
+  id: string,
+): UseQueryResult<Collection> {
+  return useQuery({ queryKey: collectionKey(id), queryFn: () => fetchCollection(token, id) });
 }
 
 export function useConnectorQuery(

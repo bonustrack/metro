@@ -10,7 +10,7 @@ import {
   type ApiSession,
 } from './api-http.js';
 import { parseId } from '../db/ids.js';
-import { mcpServersJson } from './connector-json.js';
+import type { ConnectorCollectionRow } from '../db/connector-collections.js';
 import {
   handleCallback,
   handleConnect,
@@ -33,7 +33,29 @@ const asText = (value: unknown): string =>
 
 export interface ConnectorApiDeps extends OAuthRouteDeps {
   listConnectors: (email: string) => Promise<Connector[]>;
-  listFreshConnectors: (email: string) => Promise<Connector[]>;
+  freshConnectorsByIds: (ids: string[]) => Promise<Connector[]>;
+  listCollections: (email: string) => Promise<ConnectorCollectionRow[]>;
+  getCollection: (email: string, id: string) => Promise<ConnectorCollectionRow>;
+  createCollection: (email: string, name: string) => Promise<ConnectorCollectionRow>;
+  renameCollection: (
+    email: string,
+    id: string,
+    name: string,
+  ) => Promise<ConnectorCollectionRow>;
+  deleteCollection: (
+    email: string,
+    id: string,
+  ) => Promise<{ id: string; name: string }>;
+  addToCollection: (
+    email: string,
+    id: string,
+    connectorId: string,
+  ) => Promise<ConnectorCollectionRow>;
+  removeFromCollection: (
+    email: string,
+    id: string,
+    connectorId: string,
+  ) => Promise<ConnectorCollectionRow>;
   createConnector: (
     email: string,
     input: ConnectorInput,
@@ -104,13 +126,9 @@ async function handleList(
   deps: ConnectorApiDeps,
   session: ApiSession,
 ): Promise<void> {
-  const cli = session.via === 'cli';
-  const rows = cli
-    ? await deps.listFreshConnectors(session.email)
-    : await deps.listConnectors(session.email);
+  const rows = await deps.listConnectors(session.email);
   sendJson(req, res, 200, {
     connectors: rows.map((row) => connectorPayload(row)),
-    ...(cli ? { json: mcpServersJson(rows) } : {}),
   });
 }
 

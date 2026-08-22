@@ -2,10 +2,49 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleCliPairRequest } from '../src/daemon/cli-pair-api.js';
-import { signSession, verifySession } from '../src/daemon/session.js';
+import { handleCollectionApiRequest } from '../src/daemon/collection-api.js';
+import { signCliToken, signSession, verifyCliToken } from '../src/daemon/session.js';
+import type { ConnectorApiDeps } from '../src/daemon/connector-api.js';
+import type { ConnectorCollectionRow } from '../src/db/connector-collections.js';
 
 const SECRET = 'a-test-session-secret';
 const EMAIL = 'less@bonustrack.co';
+const LIST: ConnectorCollectionRow = {
+  id: 'list0000001',
+  name: 'work',
+  connectorIds: ['conn0000001'],
+};
+
+const CONNECTOR = {
+  id: 'conn0000001',
+  name: 'linear',
+  url: 'https://mcp.linear.app/mcp',
+  transport: 'http' as const,
+  auth: 'header' as const,
+  header: 'Authorization',
+  secret: 'Bearer lin_oauth_7f',
+  bearer: null,
+  expiresAt: null,
+  signIn: null,
+  verified: {
+    at: 'x',
+    server: 's',
+    version: '1',
+    protocol: 'p',
+    icon: '',
+    tools: 1,
+    catalog: [],
+  },
+};
+
+const deps = {
+  getCollection: async (email: string, id: string) => {
+    if (email !== EMAIL || id !== LIST.id) throw new Error('no such collection');
+    return Promise.resolve(LIST);
+  },
+  freshConnectorsByIds: async (ids: string[]) =>
+    Promise.resolve(ids.includes(CONNECTOR.id) ? [CONNECTOR] : []),
+} as unknown as ConnectorApiDeps;
 
 let server: Server;
 let base = '';
@@ -14,7 +53,8 @@ const prev = process.env.METRO_SESSION_SECRET;
 beforeAll(async () => {
   process.env.METRO_SESSION_SECRET = SECRET;
   server = createServer((req, res) => {
-    if (handleCliPairRequest(req, res)) return;
+    if (handleCliPairRequest(req, res, deps)) return;
+    if (handleCollectionApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
   });
   await new Promise<void>((done) => {
@@ -30,9 +70,16 @@ afterAll(() => {
 });
 
 const session = (): string => signSession({ email: EMAIL, agentIds: [] }, SECRET);
+const cliToken = (collectionId = LIST.id): string =>
+  signCliToken({ email: EMAIL, collectionId }, SECRET);
+
+const get = (path: string, token?: string): Promise<Response> =>
+  fetch(`${base}${path}`, {
+    headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
+  });
 
 const mint = (token?: string): Promise<Response> =>
-  fetch(`${base}/api/cli/code`, {
+  fetch(`${base}/api/collections/${LIST.id}/code`, {
     method: 'POST',
     headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
   });
@@ -49,43 +96,29 @@ async function freshCode(): Promise<string> {
   return body.code;
 }
 
-describe('minting a pairing code', () => {
-  test('it needs a signed-in session, exactly like every other user route', async () => {
+describe('a code authorises one collection, not an account', () => {
+  test('minting needs the signed-in owner', async () => {
     expect((await mint()).status).toBe(401);
     expect((await mint('not-a-session')).status).toBe(401);
   });
 
-  test('a signed-in owner gets a code back', async () => {
+  test('the mint names the collection it is for', async () => {
     const res = await mint(session());
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { code: string; expiresAt: number };
+    const body = (await res.json()) as { code: string; collection: string };
     expect(body.code).toMatch(/^mc_[A-Za-z0-9_-]{16}$/);
-    expect(body.expiresAt).toBeGreaterThan(Date.now());
+    expect(body.collection).toBe('work');
   });
-});
 
-describe('claiming a pairing code', () => {
-  test('it takes no session — that is the whole point — and returns one', async () => {
+  test('claiming takes no session and returns a token bound to that collection', async () => {
     const res = await claim(await freshCode());
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { session: string; email: string };
-    expect(body.email).toBe(EMAIL);
-    expect(verifySession(body.session, SECRET).email).toBe(EMAIL);
-  });
-
-  test('the session it mints is marked a CLI session, which is what unlocks the credentials', async () => {
-    const body = (await (await claim(await freshCode())).json()) as {
-      session: string;
-    };
-    expect(verifySession(body.session, SECRET).via).toBe('cli');
-    expect(verifySession(signSession({ email: EMAIL, agentIds: [] }, SECRET), SECRET).via).toBeUndefined();
-  });
-
-  test('the session it mints is not accepted by a different secret', async () => {
-    const body = (await (await claim(await freshCode())).json()) as {
-      session: string;
-    };
-    expect(() => verifySession(body.session, 'another-secret')).toThrow();
+    const body = (await res.json()) as { token: string; collection: string };
+    expect(body.collection).toBe('work');
+    expect(verifyCliToken(body.token, SECRET)).toEqual({
+      email: EMAIL,
+      collectionId: LIST.id,
+    });
   });
 
   test('a code works once and never again', async () => {
@@ -94,22 +127,57 @@ describe('claiming a pairing code', () => {
     expect((await claim(code)).status).toBe(400);
   });
 
-  test('a code nobody minted is refused', async () => {
-    expect((await claim('mc_aaaaaaaaaaaaaaaa')).status).toBe(400);
-  });
-
-  test('a malformed code is refused without reaching the store', async () => {
-    for (const bad of ['', 'nope', 'mc_short', 42, null])
+  test('a code nobody minted, or a malformed one, is refused', async () => {
+    for (const bad of ['mc_aaaaaaaaaaaaaaaa', '', 'nope', 42, null])
       expect((await claim(bad)).status).toBe(400);
   });
 });
 
-describe('the shape of the route itself', () => {
-  test('GET is refused, so a code cannot be minted by a link', async () => {
-    expect((await fetch(`${base}/api/cli/code`)).status).toBe(405);
+describe('a CLI token reads its collection and nothing else', () => {
+  test('it hands back the mcpServers block for that collection', async () => {
+    const res = await get('/api/cli/mcp', cliToken());
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { json: string; collection: string };
+    expect(body.collection).toBe('work');
+    expect(JSON.parse(body.json)).toEqual({
+      mcpServers: {
+        linear: {
+          type: 'http',
+          url: 'https://mcp.linear.app/mcp',
+          headers: { Authorization: 'Bearer lin_oauth_7f' },
+        },
+      },
+    });
   });
 
-  test('anything else under /api/cli is a flat 404', async () => {
-    expect((await fetch(`${base}/api/cli/nope`, { method: 'POST' })).status).toBe(404);
+  test('it identifies itself by account and collection', async () => {
+    const body = (await (await get('/api/cli/session', cliToken())).json()) as {
+      email: string;
+      collection: string;
+    };
+    expect(body).toEqual({ email: EMAIL, collection: 'work' });
+  });
+
+  test('a SESSION token is not a CLI token — the types do not cross', async () => {
+    expect((await get('/api/cli/mcp', session())).status).toBe(401);
+    expect((await get('/api/cli/session', session())).status).toBe(401);
+  });
+
+  test('a CLI token cannot reach the collection admin routes', async () => {
+    expect((await get(`/api/collections/${LIST.id}`, cliToken())).status).toBe(401);
+    expect((await get('/api/collections', cliToken())).status).toBe(401);
+  });
+
+  test('a CLI token signed by another secret is refused', async () => {
+    const other = signCliToken({ email: EMAIL, collectionId: LIST.id }, 'other');
+    expect((await get('/api/cli/mcp', other)).status).toBe(401);
+  });
+
+  test('no token at all is 401, and the wrong method is 405', async () => {
+    expect((await get('/api/cli/mcp')).status).toBe(401);
+    expect(
+      (await fetch(`${base}/api/cli/mcp`, { method: 'POST' })).status,
+    ).toBe(405);
+    expect((await get('/api/cli/nope')).status).toBe(404);
   });
 });

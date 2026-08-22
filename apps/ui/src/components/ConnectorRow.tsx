@@ -15,6 +15,7 @@ import {
 import { queryError } from '../api/queries';
 import { ConnectorFavicon } from './ConnectorFavicon';
 import { DeleteConnector } from './DeleteConnector';
+import { CollectionPicker } from './CollectionPicker';
 import { RenameConnector } from './RenameConnector';
 import { opensElsewhere } from './link';
 
@@ -43,6 +44,7 @@ function RowActions({
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   const connect = (): void => {
     if (busy) return;
@@ -98,6 +100,12 @@ function RowActions({
         size="lg"
         extra={[
           {
+            label: 'Add to collection',
+            onSelect: () => {
+              setPicking(true);
+            },
+          },
+          {
             label: 'Rename',
             onSelect: () => {
               setRenaming(true);
@@ -108,17 +116,54 @@ function RowActions({
             : []),
         ]}
       />
+      <RowModals
+        token={token}
+        row={row}
+        picking={picking}
+        renaming={renaming}
+        onDone={() => {
+          setPicking(false);
+          setRenaming(false);
+        }}
+        onChanged={onChanged}
+      />
+    </Row>
+  );
+}
+
+function RowModals({
+  token,
+  row,
+  picking,
+  renaming,
+  onDone,
+  onChanged,
+}: {
+  token: string;
+  row: Connector;
+  picking: boolean;
+  renaming: boolean;
+  onDone: () => void;
+  onChanged: () => void;
+}): ReactNode {
+  return (
+    <>
+      <CollectionPicker
+        token={token}
+        connectorId={row.id}
+        connectorName={row.name}
+        open={picking}
+        onClose={onDone}
+      />
       <RenameConnector
         key={row.name}
         token={token}
         connector={row}
         open={renaming}
-        onClose={() => {
-          setRenaming(false);
-        }}
+        onClose={onDone}
         onRenamed={onChanged}
       />
-    </Row>
+    </>
   );
 }
 

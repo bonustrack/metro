@@ -94,12 +94,14 @@ export function verifyState(
   return { return_to: p.return_to, nonce: p.nonce };
 }
 
-export type SessionVia = 'cli';
-
 interface SessionClaims {
   email: string;
   agentIds: string[];
-  via?: SessionVia;
+}
+
+export interface CliClaims {
+  email: string;
+  collectionId: string;
 }
 
 export function signSession(
@@ -113,7 +115,6 @@ export function signSession(
       typ: 'session',
       sub: claims.email,
       agent_ids: claims.agentIds,
-      ...(claims.via === undefined ? {} : { via: claims.via }),
       iat,
       exp: iat + (opts.ttlSec ?? 30 * 24 * 3600),
     },
@@ -137,9 +138,37 @@ export function verifySession(
     ids.some((a) => typeof a !== 'string' || !ID_RE.test(a))
   )
     throw new SessionError('malformed session');
-  return {
-    email: p.sub,
-    agentIds: ids as string[],
-    ...(p.via === 'cli' ? { via: 'cli' as const } : {}),
-  };
+  return { email: p.sub, agentIds: ids as string[] };
+}
+
+export function signCliToken(
+  claims: CliClaims,
+  secret: string,
+  opts: { ttlSec?: number; now?: number } = {},
+): string {
+  const iat = nowSec(opts.now);
+  return sign(
+    {
+      typ: 'cli',
+      sub: claims.email,
+      collection: claims.collectionId,
+      iat,
+      exp: iat + (opts.ttlSec ?? 30 * 24 * 3600),
+    },
+    secret,
+  );
+}
+
+export function verifyCliToken(
+  token: string,
+  secret: string,
+  now?: number,
+): CliClaims {
+  const p = verify(token, secret);
+  if (p.typ !== 'cli') throw new SessionError('wrong token type');
+  if (typeof p.exp !== 'number' || p.exp < nowSec(now))
+    throw new SessionError('cli token expired');
+  if (typeof p.sub !== 'string' || typeof p.collection !== 'string')
+    throw new SessionError('malformed cli token');
+  return { email: p.sub, collectionId: p.collection };
 }

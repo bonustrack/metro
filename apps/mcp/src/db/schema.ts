@@ -56,3 +56,34 @@ export const connectors = pgTable(
   },
   (t) => [unique('connectors_user_id_name_unique').on(t.userId, t.name)],
 );
+
+export const connectorCollections = pgTable(
+  'connector_collections',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+  },
+  (t) => [unique('connector_collections_user_id_name_unique').on(t.userId, t.name)],
+);
+
+export const connectorCollectionItems = pgTable(
+  'connector_collection_items',
+  {
+    id: text('id').primaryKey(),
+    collectionId: text('collection_id')
+      .notNull()
+      .references(() => connectorCollections.id, { onDelete: 'cascade' }),
+    connectorId: text('connector_id')
+      .notNull()
+      .references(() => connectors.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    unique('connector_collection_items_collection_id_connector_id_unique').on(
+      t.collectionId,
+      t.connectorId,
+    ),
+  ],
+);

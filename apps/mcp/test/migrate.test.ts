@@ -48,8 +48,8 @@ describe('the migrations the release command applies', () => {
     );
   });
 
-  test('0013 is the newest migration', () => {
-    expect(journal().at(-1)?.tag).toBe('0013_stations_single_id');
+  test('0014 is the newest migration', () => {
+    expect(journal().at(-1)?.tag).toBe('0014_connector_collections');
   });
 
   test('0013 stashes the old handle before it drops the column', () => {

@@ -155,10 +155,10 @@ const deps: ConnectorApiDeps = {
     calls.push(`list ${email}`);
     return rows.filter((r) => r.email === email).map(toConnector);
   },
-  listFreshConnectors: async (email) => {
-    calls.push(`listFresh ${email}`);
-    return rows.filter((r) => r.email === email).map(toConnector);
-  },
+  freshConnectorsByIds: async (ids) =>
+    Promise.resolve(
+      rows.filter((r) => ids.includes(String(r.id))).map(toConnector),
+    ),
   createConnector: async (email, input) => {
     calls.push(`create ${email}`);
     const row = makeRow(email, input);
@@ -207,9 +207,6 @@ const deps: ConnectorApiDeps = {
 
 const session = (email: string, secret = SECRET): string =>
   signSession({ email, agentIds: [] }, secret);
-
-const cliSession = (email: string): string =>
-  signSession({ email, agentIds: [], via: 'cli' }, SECRET);
 
 const call = (
   method: string,
@@ -491,31 +488,6 @@ describe('GET /api/connectors returns the wire shape', () => {
     expect(body).not.toContain('lin_oauth_7f');
     expect(body).not.toContain('mcpServers');
     expect(JSON.parse(body) as { json?: string }).not.toHaveProperty('json');
-  });
-
-  test('only a CLI session is handed the block that carries the credentials', async () => {
-    const res = await call('GET', '/api/connectors', cliSession(ADA));
-    const wire = (await res.json()) as { json: string };
-    expect(wire.json).toContain('Bearer lin_oauth_7f');
-    const servers = (JSON.parse(wire.json) as { mcpServers: Record<string, unknown> })
-      .mcpServers;
-    expect(Object.keys(servers)).toEqual(['linear', 'docs']);
-  });
-
-  test('a CLI session still sees no credential on the rows themselves', async () => {
-    const res = await call('GET', '/api/connectors', cliSession(ADA));
-    const wire = (await res.json()) as { connectors: WireConnector[] };
-    expect(wire.connectors[0]).not.toHaveProperty('secret');
-    expect(wire.connectors[0]).not.toHaveProperty('bearer');
-  });
-
-  test('a CLI read refreshes expiring tokens first; a browser read never does', async () => {
-    calls.length = 0;
-    await call('GET', '/api/connectors', cliSession(ADA));
-    expect(calls).toEqual([`listFresh ${ADA}`]);
-    calls.length = 0;
-    await call('GET', '/api/connectors', session(ADA));
-    expect(calls).toEqual([`list ${ADA}`]);
   });
 
   test('the email is lowercased before it reaches the store', async () => {

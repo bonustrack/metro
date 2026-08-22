@@ -73,32 +73,45 @@ async function post(path: string, body: unknown): Promise<unknown> {
   );
 }
 
-export async function claimCode(
-  code: string,
-): Promise<{ session: string; email: string }> {
+export interface Authorized {
+  token: string;
+  email: string;
+  collection: string;
+}
+
+export async function claimCode(code: string): Promise<Authorized> {
   const body = await post('/api/cli/claim', { code });
   if (
     !isRecord(body) ||
-    typeof body.session !== 'string' ||
-    typeof body.email !== 'string'
+    typeof body.token !== 'string' ||
+    typeof body.email !== 'string' ||
+    typeof body.collection !== 'string'
   )
     throw new Error('metro returned an unexpected response');
-  return { session: body.session, email: body.email };
+  return {
+    token: body.token,
+    email: body.email,
+    collection: body.collection,
+  };
 }
 
 export async function mcpServers(): Promise<string> {
-  const body = await get('/api/connectors');
-  if (!isRecord(body)) throw new Error('metro returned an unexpected response');
-  if (typeof body.json !== 'string')
-    throw new NotSignedIn(
-      'this sign-in cannot read your connectors — run `metro login` again',
-    );
+  const body = await get('/api/cli/mcp');
+  if (!isRecord(body) || typeof body.json !== 'string')
+    throw new Error('metro returned an unexpected response');
   return body.json;
 }
 
-export async function sessionEmail(): Promise<string> {
-  const body = await get('/api/session');
-  if (!isRecord(body) || typeof body.email !== 'string')
+export async function whoisAuthorized(): Promise<{
+  email: string;
+  collection: string;
+}> {
+  const body = await get('/api/cli/session');
+  if (
+    !isRecord(body) ||
+    typeof body.email !== 'string' ||
+    typeof body.collection !== 'string'
+  )
     throw new Error('metro returned an unexpected response');
-  return body.email;
+  return { email: body.email, collection: body.collection };
 }

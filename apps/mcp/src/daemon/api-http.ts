@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
-import { verifySession, type SessionVia } from './session.js';
+import { verifyCliToken, verifySession, type CliClaims } from './session.js';
 import { extractToken } from '../mcp/request-identity.js';
 
 const BODY_MAX = 4 * 1024;
@@ -9,7 +9,6 @@ const DRAIN_MAX = 2 * BODY_MAX;
 
 export interface ApiSession {
   email: string;
-  via?: SessionVia;
 }
 
 export function cors(req: IncomingMessage): Record<string, string> {
@@ -42,8 +41,21 @@ export function apiSession(req: IncomingMessage): ApiSession | null {
   const token = extractToken(req) ?? '';
   if (token === '') return null;
   try {
-    const { email, via } = verifySession(token, secret);
-    return { email: email.toLowerCase(), ...(via === undefined ? {} : { via }) };
+    const { email } = verifySession(token, secret);
+    return { email: email.toLowerCase() };
+  } catch {
+    return null;
+  }
+}
+
+export function cliIdentity(req: IncomingMessage): CliClaims | null {
+  const secret = process.env.METRO_SESSION_SECRET?.trim() ?? '';
+  if (secret === '') return null;
+  const token = extractToken(req) ?? '';
+  if (token === '') return null;
+  try {
+    const { email, collectionId } = verifyCliToken(token, secret);
+    return { email: email.toLowerCase(), collectionId };
   } catch {
     return null;
   }

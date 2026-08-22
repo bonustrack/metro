@@ -254,6 +254,9 @@ auth gate:
 | `POST /api/connectors` `{"name","url","header","value"}` | Verify a remote MCP server and store it. `header`/`value` are optional and go together. |
 | `POST /api/connectors/<id>/verify` | Re-check a stored connector. `200 {ok:true, verified}` or `200 {ok:false, reason}`. |
 | `POST /api/connectors/<id>/rename` `{"name"}` | Rename a connector you own. `409` if that name is already yours. |
+| `GET`/`POST /api/collections` | Your [collections](#collections), and create one. |
+| `POST /api/collections/<id>/items` `{"connectorId"}` | Add a connector. `DELETE /<id>/items/<connectorId>` removes it. |
+| `POST /api/collections/<id>/code` | Mint the pairing code that authorizes this collection on one machine. |
 | `DELETE /api/connectors/<id>` | Delete a connector you own. |
 
 Sign-in is **open**: any Google account whose `email_verified` claim is true may sign in
@@ -359,15 +362,33 @@ stores the refreshed pair, so a block you pipe into a client is live rather than
 A token endpoint that will not answer is logged and that one connector goes out with what was
 stored; the rest are unaffected.
 
-Sign-in is a **pairing code**, not a browser redirect: the web UI mints a single-use code
-(`mc_` + 16 base64url, ten-minute TTL, in memory only), you paste it into `metro login`, and the
-CLI trades it for a session. There is no localhost listener and no callback, which is exactly
+Sign-in authorizes **one collection**, not your account: pick one at `#/authorize`, and the UI
+mints a single-use code (`mc_` + 16 base64url, ten-minute TTL, in memory only) which you paste
+into `metro login`. The
+CLI trades it for a token. There is no localhost listener and no callback, which is exactly
 why it works over SSH. A server appears in the client under the connector's own name, so
 rename one (from either kebab menu) if two of them would collide.
+
+**That token is not a session.** It is a distinct type (`typ: 'cli'`) carrying the collection it
+was minted for, and `apiSession()` refuses it — so a token left on a shared box cannot read your
+agents, cannot add or delete a connector, and cannot see any other collection. It can fetch its
+own collection's `mcpServers` block and say who it is. Nothing else.
 
 Two environment variables matter: `METRO_URL` points at the daemon (default
 `https://mcp.metro.box`) and `METRO_UI_URL` at the web UI (default `https://metro.box`). They
 are different origins; the daemon serves no page.
+
+### Collections
+
+A **collection** is a named set of connectors, and it is the unit a machine gets authorized for.
+`metro login` asks which one; that machine can then read those connectors and nothing else on
+your account — not your agents, not your other collections, and it cannot add or delete
+anything. A connector can sit in as many collections as you like.
+
+Collections live at `#/collections` in the panel, before Connectors. Membership is edited from
+the **connector**, not the collection: each connector's ⋮ menu has *Add to collection*, with a
+checkbox per collection. The collection's own page lists what is in it and lets you drop a
+member, rename it, or delete it. Deleting a connector removes it from every collection.
 
 ### Inbound webhooks
 

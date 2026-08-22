@@ -13,6 +13,7 @@ const SCROLL = { flex: 1 } as const;
 const SCROLL_CONTENT = { padding: 24 } as const;
 const AGENT_PAGES: Selection['kind'][] = ['none', 'agent', 'station'];
 const CONNECTOR_PAGES: Selection['kind'][] = ['connectors', 'connector'];
+const COLLECTION_PAGES: Selection['kind'][] = ['collections', 'collection'];
 
 interface AgentSidebarProps {
   selection: Selection;
@@ -52,6 +53,13 @@ export function AgentSidebar({
               icon="users"
               selected={AGENT_PAGES.includes(selection.kind)}
               target={{ kind: 'none' }}
+              onSelect={onSelect}
+            />
+            <NavRow
+              label="Collections"
+              icon="collection"
+              selected={COLLECTION_PAGES.includes(selection.kind)}
+              target={{ kind: 'collections' }}
               onSelect={onSelect}
             />
             <NavRow

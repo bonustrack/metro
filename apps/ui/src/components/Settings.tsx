@@ -3,15 +3,10 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
-import { CliCode } from './CliCode';
 import { THEME_MODES, useThemeMode } from '../theme-mode';
 import { useDocumentTitle } from '../title';
 
-interface SettingsProps {
-  token: string;
-}
-
-export function Settings({ token }: SettingsProps): ReactNode {
+export function Settings(): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { mode, setMode } = useThemeMode();
   useDocumentTitle('Settings');
@@ -20,15 +15,14 @@ export function Settings({ token }: SettingsProps): ReactNode {
       <Col gap={8}>
         <PageTitle>Settings</PageTitle>
         <Text size="sm" role="secondary">
-          Your account and this browser.
+          Preferences for this browser.
         </Text>
       </Col>
       <Col gap={12}>
           <Col gap={2}>
             <Text weight="semibold">Appearance</Text>
             <Text size="sm" role="secondary">
-              Stored in this browser, not on your account. System follows your device
-              setting and changes with it.
+              System follows your device setting and changes with it.
             </Text>
           </Col>
           <Row gap={8} wrap>
@@ -46,7 +40,6 @@ export function Settings({ token }: SettingsProps): ReactNode {
             ))}
           </Row>
       </Col>
-      <CliCode token={token} />
     </Col>
   );
 }

@@ -5,6 +5,9 @@ import { deleteConnector } from '../api/connectors';
 import { ConnectorPage } from './ConnectorPage';
 import { Connectors } from './Connectors';
 import { Docs } from './Docs';
+import { Authorize } from './Authorize';
+import { CollectionPage } from './CollectionPage';
+import { Collections } from './Collections';
 import { Settings } from './Settings';
 import { StationPage } from './StationPage';
 import { type Selection } from './selection';
@@ -21,7 +24,30 @@ export function AgentPanel({
   onSelect,
 }: AgentPanelProps): ReactNode {
   if (selection.kind === 'docs') return <Docs />;
-  if (selection.kind === 'settings') return <Settings token={token} />;
+  if (selection.kind === 'settings') return <Settings />;
+  if (selection.kind === 'authorize') return <Authorize token={token} />;
+  if (selection.kind === 'collections')
+    return (
+      <Collections
+        token={token}
+        onOpen={(id) => {
+          onSelect({ kind: 'collection', id });
+        }}
+      />
+    );
+  if (selection.kind === 'collection')
+    return (
+      <CollectionPage
+        token={token}
+        id={selection.id}
+        onBack={() => {
+          onSelect({ kind: 'collections' });
+        }}
+        onGone={() => {
+          onSelect({ kind: 'collections' });
+        }}
+      />
+    );
   if (selection.kind === 'connectors')
     return (
       <Connectors

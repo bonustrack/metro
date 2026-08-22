@@ -11,9 +11,8 @@ import {
 } from '../api/connectors';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  connectorKey,
-  connectorsKey,
   queryError,
+  refreshConnectors,
   useConnectorQuery,
 } from '../api/queries';
 import { BackLink } from './BackLink';
@@ -103,12 +102,7 @@ export function ConnectorPage({
 
   const reload = (): void => {
     setStatus(null);
-    client
-      .invalidateQueries({ queryKey: connectorKey(id) })
-      .catch(() => undefined);
-    client
-      .invalidateQueries({ queryKey: connectorsKey() })
-      .catch(() => undefined);
+    refreshConnectors(client, id);
   };
 
   const recheck = (): void => {
@@ -116,10 +110,9 @@ export function ConnectorPage({
     setBusy(true);
     setStatus(null);
     verifyConnector(token, id)
-      .then(async (result) => {
+      .then((result) => {
         setStatus(result.ok ? 'Answered just now.' : (result.reason ?? 'It did not answer.'));
-        await client.invalidateQueries({ queryKey: connectorKey(id) });
-        await client.invalidateQueries({ queryKey: connectorsKey() });
+        refreshConnectors(client, id);
       })
       .catch((err: unknown) => {
         setStatus(queryError(err, 'Could not check the connector.'));

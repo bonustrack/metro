@@ -42,7 +42,7 @@ export interface Connector {
   verified: ConnectorVerified | null;
 }
 
-export interface ConnectorList {
+export interface ConnectorsView {
   connectors: Connector[];
 }
 
@@ -169,7 +169,7 @@ function payload(input: NewConnector): Record<string, string> {
   return out;
 }
 
-export async function fetchConnectors(token: string): Promise<ConnectorList> {
+export async function fetchConnectors(token: string): Promise<ConnectorsView> {
   const body = await call(token, { method: 'GET', base: connectorsUrl() });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   const rows = Array.isArray(body.connectors) ? body.connectors : [];

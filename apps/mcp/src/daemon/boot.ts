@@ -46,11 +46,20 @@ import {
   disconnectConnectorForEmail,
   getConnectorForEmail,
   listConnectorsForEmail,
-  listFreshConnectorsForEmail,
+  listFreshConnectorsByIds,
   renameConnectorForEmail,
   reconnectConnectorForEmail,
   verifyConnectorForEmail,
 } from '../db/connectors.js';
+import {
+  addToCollectionForEmail,
+  createCollectionForEmail,
+  deleteCollectionForEmail,
+  getCollectionForEmail,
+  listCollectionsForEmail,
+  removeFromCollectionForEmail,
+  renameCollectionForEmail,
+} from '../db/connector-collections.js';
 import type { StationName } from '../db/schema.js';
 import { AttachSessions } from './attach-session.js';
 import { startUploadReaper } from './upload-store.js';
@@ -146,7 +155,14 @@ const agentApi: AgentApiDeps = {
 
 const connectorApi: ConnectorApiDeps = {
   listConnectors: listConnectorsForEmail,
-  listFreshConnectors: listFreshConnectorsForEmail,
+  freshConnectorsByIds: listFreshConnectorsByIds,
+  listCollections: listCollectionsForEmail,
+  getCollection: getCollectionForEmail,
+  createCollection: createCollectionForEmail,
+  renameCollection: renameCollectionForEmail,
+  deleteCollection: deleteCollectionForEmail,
+  addToCollection: addToCollectionForEmail,
+  removeFromCollection: removeFromCollectionForEmail,
   renameConnector: renameConnectorForEmail,
   createConnector: createConnectorForEmail,
   createOAuthConnector: createOAuthConnectorForEmail,

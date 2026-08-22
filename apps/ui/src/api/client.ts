@@ -42,7 +42,6 @@ export interface CreatedAgent {
 
 const agentsUrl = (): string => `${daemonBase()}/api/agents`;
 const sessionUrl = (): string => `${daemonBase()}/api/session`;
-const cliCodeUrl = (): string => `${daemonBase()}/api/cli/code`;
 
 function errorText(body: unknown, status: number): string {
   if (isRecord(body) && typeof body.error === 'string') return body.error;
@@ -134,13 +133,6 @@ export async function fetchSession(token: string): Promise<string> {
   if (!isRecord(body) || typeof body.email !== 'string')
     throw new Error('Metro returned an unexpected response.');
   return body.email;
-}
-
-export async function mintCliCode(token: string): Promise<string> {
-  const body = await call(token, { base: cliCodeUrl(), method: 'POST' });
-  if (!isRecord(body) || typeof body.code !== 'string')
-    throw new Error('Metro returned an unexpected response.');
-  return body.code;
 }
 
 export async function fetchAgents(token: string): Promise<AgentsView> {

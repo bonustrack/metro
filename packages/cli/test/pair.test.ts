@@ -33,13 +33,23 @@ async function serve(status: number, body: unknown): Promise<void> {
 }
 
 describe('trading a pairing code for a session', () => {
-  test('a good code comes back as a session and the account it belongs to', async () => {
-    await serve(200, { session: 'jwt-value', email: 'less@bonustrack.co' });
-    expect(await claimCode('mc_abcdefghijklmnop')).toEqual({
-      session: 'jwt-value',
+  test('a good code comes back as a token bound to one named collection', async () => {
+    await serve(200, {
+      token: 'cli-token',
       email: 'less@bonustrack.co',
+      collection: 'work',
+    });
+    expect(await claimCode('mc_abcdefghijklmnop')).toEqual({
+      token: 'cli-token',
+      email: 'less@bonustrack.co',
+      collection: 'work',
     });
     expect(JSON.parse(seen)).toEqual({ code: 'mc_abcdefghijklmnop' });
+  });
+
+  test('a response missing the collection is refused rather than half-used', async () => {
+    await serve(200, { token: 'cli-token', email: 'less@bonustrack.co' });
+    expect(claimCode('mc_abcdefghijklmnop')).rejects.toThrow('unexpected');
   });
 
   test("metro's own words reach the user, not a bare status code", async () => {
