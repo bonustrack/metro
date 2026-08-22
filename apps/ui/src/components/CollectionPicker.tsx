@@ -9,10 +9,16 @@ import { SHRINK } from '../theme';
 import { Modal } from './Modal';
 import { NameModal } from './NameModal';
 import { Loading } from './Loading';
-import { addToCollection, createCollection, removeFromCollection } from '../api/collections';
+import {
+  addToCollection,
+  createCollection,
+  removeFromCollection,
+  type Collection,
+} from '../api/collections';
 import { queryError, refreshCollections, useCollectionsQuery } from '../api/queries';
 
-const EMPTY = 'No collections yet. Create one and this connector goes straight into it.';
+const EMPTY =
+  'No collections yet. Create one and this connector goes straight into it.';
 
 function PickerRow({
   name,
@@ -31,7 +37,7 @@ function PickerRow({
   return (
     <Row gap={10} align="center">
       <Checkbox
-        name={`list-${id}`}
+        name={`collection-${id}`}
         checked={checked}
         disabled={busy}
         dark={dark}
@@ -53,18 +59,84 @@ function PickerRow({
 
 function PickerFooter({
   dark,
+  busy,
   onNew,
-  onDone,
+  onSave,
 }: {
   dark: boolean;
+  busy: boolean;
   onNew: () => void;
-  onDone: () => void;
+  onSave: () => void;
 }): ReactNode {
   return (
     <Row justify="between" align="center" gap={12} wrap>
-      <Button size="sm" color="secondary" dark={dark} label="New collection" onPress={onNew} />
-      <Button size="sm" color="primary" dark={dark} label="Done" onPress={onDone} />
+      <Button
+        color="secondary"
+        dark={dark}
+        disabled={busy}
+        label="New collection"
+        onPress={onNew}
+      />
+      <Button
+        color="primary"
+        dark={dark}
+        loading={busy}
+        disabled={busy}
+        label="Save"
+        onPress={onSave}
+      />
     </Row>
+  );
+}
+
+function PickerBody({
+  data,
+  error,
+  failed,
+  chosen,
+  busy,
+  onToggle,
+}: {
+  data: Collection[] | undefined;
+  error: unknown;
+  failed: string | null;
+  chosen: string[];
+  busy: boolean;
+  onToggle: (id: string) => void;
+}): ReactNode {
+  return (
+    <>
+      {error === null ? null : (
+        <Text size="sm" role="danger">
+          {queryError(error, 'Could not load your collections.')}
+        </Text>
+      )}
+      {failed === null ? null : (
+        <Text size="sm" role="danger">
+          {failed}
+        </Text>
+      )}
+      {data === undefined && error === null ? <Loading /> : null}
+      {data?.length === 0 ? (
+        <Text size="sm" role="secondary">
+          {EMPTY}
+        </Text>
+      ) : null}
+      <Col gap={10}>
+        {(data ?? []).map((collection) => (
+          <PickerRow
+            key={collection.id}
+            id={collection.id}
+            name={collection.name}
+            checked={chosen.includes(collection.id)}
+            busy={busy}
+            onToggle={() => {
+              onToggle(collection.id);
+            }}
+          />
+        ))}
+      </Col>
+    </>
   );
 }
 
@@ -74,6 +146,12 @@ interface CollectionPickerProps {
   connectorName: string;
   open: boolean;
   onClose: () => void;
+}
+
+function memberIds(collections: Collection[], connectorId: string): string[] {
+  return collections
+    .filter((c) => c.connectorIds.includes(connectorId))
+    .map((c) => c.id);
 }
 
 export function CollectionPicker({
@@ -86,72 +164,75 @@ export function CollectionPicker({
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const { data, error } = useCollectionsQuery(token);
-  const [busy, setBusy] = useState('');
+  const [staged, setStaged] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const reload = (): void => {
-    refreshCollections(client);
+  const collections = data ?? [];
+  const saved = memberIds(collections, connectorId);
+  const chosen = staged ?? saved;
+
+  const close = (): void => {
+    setStaged(null);
+    setFailed(null);
+    onClose();
   };
 
-  const toggle = (collectionId: string, inList: boolean): void => {
-    if (busy !== '') return;
-    setBusy(collectionId);
+  const toggle = (id: string): void => {
+    setStaged(
+      chosen.includes(id) ? chosen.filter((c) => c !== id) : [...chosen, id],
+    );
+  };
+
+  const save = (): void => {
+    if (busy) return;
+    const added = chosen.filter((id) => !saved.includes(id));
+    const dropped = saved.filter((id) => !chosen.includes(id));
+    if (added.length === 0 && dropped.length === 0) {
+      close();
+      return;
+    }
+    setBusy(true);
     setFailed(null);
-    const work = inList
-      ? removeFromCollection(token, collectionId, connectorId)
-      : addToCollection(token, collectionId, connectorId);
-    work
+    Promise.all([
+      ...added.map((id) => addToCollection(token, id, connectorId)),
+      ...dropped.map((id) => removeFromCollection(token, id, connectorId)),
+    ])
       .then(() => {
-        reload();
+        refreshCollections(client);
+        close();
       })
       .catch((err: unknown) => {
-        setFailed(queryError(err, 'Could not update that collection.'));
+        setFailed(queryError(err, 'Could not save those collections.'));
       })
       .finally(() => {
-        setBusy('');
+        setBusy(false);
       });
   };
 
   return (
-    <Modal title={`Add ${connectorName} to a collection`} open={open} onClose={onClose}>
+    <Modal
+      title={`Add ${connectorName} to a collection`}
+      open={open}
+      onClose={close}
+    >
       <Col gap={12}>
-        {error === null ? null : (
-          <Text size="sm" role="danger">
-            {queryError(error, 'Could not load your collections.')}
-          </Text>
-        )}
-        {failed === null ? null : (
-          <Text size="sm" role="danger">
-            {failed}
-          </Text>
-        )}
-        {data === undefined && error === null ? <Loading /> : null}
-        {data?.length === 0 ? (
-          <Text size="sm" role="secondary">
-            {EMPTY}
-          </Text>
-        ) : null}
-        <Col gap={10}>
-          {(data ?? []).map((list) => (
-            <PickerRow
-              key={list.id}
-              id={list.id}
-              name={list.name}
-              checked={list.connectorIds.includes(connectorId)}
-              busy={busy !== ''}
-              onToggle={() => {
-                toggle(list.id, list.connectorIds.includes(connectorId));
-              }}
-            />
-          ))}
-        </Col>
+        <PickerBody
+          data={data}
+          error={error}
+          failed={failed}
+          chosen={chosen}
+          busy={busy}
+          onToggle={toggle}
+        />
         <PickerFooter
           dark={dark}
+          busy={busy}
           onNew={() => {
             setCreating(true);
           }}
-          onDone={onClose}
+          onSave={save}
         />
       </Col>
       <NameModal
@@ -165,8 +246,8 @@ export function CollectionPicker({
         }}
         onSubmit={async (name) => {
           const made = await createCollection(token, name);
-          await addToCollection(token, made.id, connectorId);
-          reload();
+          refreshCollections(client);
+          setStaged([...chosen, made.id]);
           return made;
         }}
       />

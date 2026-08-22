@@ -23,6 +23,10 @@ export function hostOf(url: string): string {
 }
 
 export interface OAuthRouteDeps {
+  createPendingConnector: (
+    email: string,
+    input: { name: unknown; url: unknown },
+  ) => Promise<Connector>;
   createOAuthConnector: (
     email: string,
     input: OAuthConnectorInput,
@@ -38,21 +42,28 @@ export interface OAuthRouteDeps {
 export async function startOAuth(
   req: IncomingMessage,
   res: ServerResponse,
+  deps: OAuthRouteDeps,
   session: ApiSession,
   body: unknown,
+  payload: (row: Connector) => Record<string, unknown>,
 ): Promise<void> {
   const url = parseConnectorUrl(bodyField(body, 'url'));
+  const row = await deps.createPendingConnector(session.email, {
+    name: bodyField(body, 'name'),
+    url: bodyField(body, 'url'),
+  });
   const authorize = await beginOAuth({
     email: session.email,
-    name: asText(bodyField(body, 'name')),
+    name: row.name,
     url,
     returnTo: asText(bodyField(body, 'returnTo')),
+    connectorId: row.id,
   });
   log.info(
-    { host: url.hostname },
-    'connector-api: server wants oauth, sending the user to sign in',
+    { id: row.id, host: url.hostname },
+    'connector-api: stored unconnected, sending the user to sign in',
   );
-  sendJson(req, res, 202, { status: 'oauth', authorizeUrl: authorize });
+  sendJson(req, res, 201, { ...payload(row), authorizeUrl: authorize });
 }
 
 export async function handleConnect(

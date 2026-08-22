@@ -284,18 +284,17 @@ describe('a connector row is coerced field by field', () => {
     expect(result.connector.verified?.tools).toBe(12);
   });
 
-  test('a 202 oauth answer is a sign-in to follow, not a connector', async () => {
-    serve({ status: 'oauth', authorizeUrl: 'https://as.example.com/authorize?x=1' }, 202);
+  test('an oauth answer carries the STORED row as well as the sign-in to follow', async () => {
+    serve({ ...ROW, authorizeUrl: 'https://as.example.com/authorize?x=1' }, 201);
     const result = await createConnector('session', NEW);
-    expect(result).toEqual({
-      kind: 'oauth',
-      authorizeUrl: 'https://as.example.com/authorize?x=1',
-    });
+    if (result.kind !== 'oauth') throw new Error('expected an oauth result');
+    expect(result.authorizeUrl).toBe('https://as.example.com/authorize?x=1');
+    expect(result.connector.id).toBe('id000000012');
   });
 
-  test('an oauth answer missing its url is not mistaken for one', async () => {
-    serve({ status: 'oauth' }, 202);
-    await expect(createConnector('session', NEW)).rejects.toThrow('unexpected');
+  test('a create with no authorize url is simply added', async () => {
+    serve(ROW, 201);
+    expect((await createConnector('session', NEW)).kind).toBe('added');
   });
 
   test('a create answering with no name is refused', async () => {

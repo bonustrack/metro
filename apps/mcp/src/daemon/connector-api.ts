@@ -154,7 +154,9 @@ async function handleCreate(
     sendJson(req, res, 201, connectorPayload(created));
   } catch (err) {
     if (offered || !(err instanceof ConnectorUnauthorized)) throw err;
-    await startOAuth(req, res, session, body);
+    await startOAuth(req, res, deps, session, body, (row) =>
+      connectorPayload(row),
+    );
   }
 }
 

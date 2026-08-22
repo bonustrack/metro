@@ -41,6 +41,7 @@ import {
 } from '../db/account-attach.js';
 import {
   createConnectorForEmail,
+  createPendingConnectorForEmail,
   createOAuthConnectorForEmail,
   deleteConnectorForEmail,
   disconnectConnectorForEmail,
@@ -165,6 +166,7 @@ const connectorApi: ConnectorApiDeps = {
   removeFromCollection: removeFromCollectionForEmail,
   renameConnector: renameConnectorForEmail,
   createConnector: createConnectorForEmail,
+  createPendingConnector: createPendingConnectorForEmail,
   createOAuthConnector: createOAuthConnectorForEmail,
   reconnectConnector: reconnectConnectorForEmail,
   getConnector: getConnectorForEmail,

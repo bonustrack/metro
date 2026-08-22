@@ -1,14 +1,15 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
+import { SHRINK } from '../theme';
 import { AgentAvatar } from './AgentAvatar';
 import { DeleteAgent } from './DeleteAgent';
 import { opensElsewhere } from './link';
 import { type AgentSummary } from '../api/client';
 
-const ROW_PAD_Y = 6;
-const AVATAR_SIZE = 32;
+const ROW_PAD_Y = 12;
+const AVATAR_SIZE = 16;
 
 function summary(agent: AgentSummary, stations: number): string {
   const label = `${String(stations)} station${stations === 1 ? '' : 's'}`;
@@ -46,14 +47,22 @@ export function AgentRow({
         }}
       >
         <AgentAvatar seed={agent.id} size={AVATAR_SIZE} />
-        <Col gap={1} flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }}>
-          <Text size="xl" weight="semibold" numberOfLines={1}>
-            {agent.name}
-          </Text>
-          <Text size="sm" role="secondary">
+        <Row
+          gap={10}
+          align="center"
+          flex={1}
+          minWidth={0}
+          padding={{ y: ROW_PAD_Y }}
+        >
+          <span className="row-title">
+            <Text size="lg" weight="semibold" numberOfLines={1}>
+              {agent.name}
+            </Text>
+          </span>
+          <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
             {summary(agent, stations)}
           </Text>
-        </Col>
+        </Row>
       </a>
       {agent.owned ? (
         <Row align="center" padding={{ y: ROW_PAD_Y }}>

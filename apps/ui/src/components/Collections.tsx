@@ -4,19 +4,16 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { Text, Button } from './ui';
 import { SHRINK } from '../theme';
 import { CountBadge } from './CountBadge';
-import { NameModal } from './NameModal';
+import { NewCollection } from './NewCollection';
 import { opensElsewhere } from './link';
 import { useQueryClient } from '@tanstack/react-query';
 import { PageTitle } from './PageTitle';
 import { Loading } from './Loading';
 import { queryError, refreshCollections, useCollectionsQuery } from '../api/queries';
 import { useDocumentTitle } from '../title';
-import { createCollection, type Collection } from '../api/collections';
+import { type Collection } from '../api/collections';
 
 const ROW_PAD_Y = 12;
-
-const BLURB =
-  'A collection is what you authorize on a machine. metro login asks for one, and that machine can read nothing else.';
 
 function CollectionRow({
   list,
@@ -87,9 +84,6 @@ export function Collections({
               <CountBadge count={lists.length} beside="title" />
             )}
           </Row>
-          <Text size="sm" role="secondary">
-            {BLURB}
-          </Text>
         </Col>
         <Button
           color="primary"
@@ -117,19 +111,16 @@ export function Collections({
           ))}
         </Col>
       )}
-      <NameModal
-        title="New collection"
-        action="Create"
-        placeholder="work"
-        failure="Could not create the collection."
+      <NewCollection
+        token={token}
         open={adding}
         onClose={() => {
           setAdding(false);
         }}
-        onSubmit={async (name) => {
-          const made = await createCollection(token, name);
+        onCreated={(id) => {
+          setAdding(false);
           onChanged();
-          return made;
+          onOpen(id);
         }}
       />
     </Col>

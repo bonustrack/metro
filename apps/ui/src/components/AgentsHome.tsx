@@ -25,7 +25,6 @@ import { Loading } from './Loading';
 import { NewAgentKey } from './NewAgentKey';
 import { useDocumentTitle } from '../title';
 
-const BLURB = 'Every agent you own on this Metro daemon.';
 const FALLBACK = 'Could not load your agents.';
 
 function AgentCards({
@@ -92,7 +91,6 @@ export function AgentsHome({ token, onOpen }: AgentsHomeProps): ReactNode {
               <CountBadge count={data.agents.length} beside="title" />
             )}
           </Row>
-          <Text size="sm" role="secondary">{BLURB}</Text>
         </Col>
         <Button
           color="primary"

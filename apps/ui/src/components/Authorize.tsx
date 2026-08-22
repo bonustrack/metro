@@ -10,9 +10,6 @@ import { mintCollectionCode, type Collection } from '../api/collections';
 import { queryError, useCollectionsQuery } from '../api/queries';
 import { useDocumentTitle } from '../title';
 
-const BLURB =
-  'Pick the collection this machine may read, then paste the code back into metro login. The code lasts ten minutes and works once.';
-
 const EMPTY =
   'You have no collections yet. Make one on the Collections page, then come back.';
 
@@ -85,9 +82,6 @@ export function Authorize({ token }: { token: string }): ReactNode {
     <Col gap={20}>
       <Col gap={8}>
         <PageTitle>Authorize a machine</PageTitle>
-        <Text size="sm" role="secondary">
-          {BLURB}
-        </Text>
       </Col>
       {failed === null ? null : <Text size="sm" role="danger">{failed}</Text>}
       {code === null ? null : (

@@ -197,6 +197,31 @@ async function insertConnector(
   }
 }
 
+const UNVERIFIED = {
+  at: '',
+  server: '',
+  version: '',
+  protocol: '',
+  icon: '',
+  tools: 0,
+  catalog: [],
+};
+
+export async function createPendingConnectorForEmail(
+  email: string,
+  input: { name: unknown; url: unknown },
+): Promise<Connector> {
+  const name = connectorName(input.name);
+  const url = parseConnectorUrl(input.url);
+  const userId = await ensureUser(email);
+  return insertConnector(userId, name, url, {
+    auth: { kind: 'none' },
+    createdAt: new Date().toISOString(),
+    verified: UNVERIFIED,
+    oauth: true,
+  });
+}
+
 export async function createConnectorForEmail(
   email: string,
   input: ConnectorInput,

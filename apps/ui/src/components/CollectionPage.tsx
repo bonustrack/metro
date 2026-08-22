@@ -1,18 +1,28 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import {
+  useKitPalette,
+  useKitScheme,
+} from '@stage-labs/kit/react-native/theme-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { Text } from './ui';
+import { Text, Button } from './ui';
 import { SHRINK } from '../theme';
 import { PageTitle } from './PageTitle';
 import { BackLink } from './BackLink';
 import { CountBadge } from './CountBadge';
 import { ConnectorFavicon } from './ConnectorFavicon';
 import { KebabMenu } from './KebabMenu';
+import { AddConnectors } from './AddConnectors';
 import { NameModal } from './NameModal';
 import { Loading } from './Loading';
 import { connectorHost, type Connector } from '../api/connectors';
-import { deleteCollection, removeFromCollection, renameCollection } from '../api/collections';
+import {
+  type Collection,
+  addToCollection,
+  deleteCollection,
+  removeFromCollection,
+  renameCollection,
+} from '../api/collections';
 import {
   queryError,
   refreshCollections,
@@ -103,11 +113,62 @@ function CollectionHeading({
         <PageTitle>{name}</PageTitle>
         <CountBadge count={count} beside="title" />
       </Row>
-      <Text size="sm" role="secondary">
-        Authorize this collection on a machine from the sign-in page. It can read these
-        connectors and nothing else on your account.
-      </Text>
     </Col>
+  );
+}
+
+
+function CollectionModals({
+  token,
+  id,
+  data,
+  adding,
+  renaming,
+  onDone,
+  reload,
+}: {
+  token: string;
+  id: string;
+  data: Collection;
+  adding: boolean;
+  renaming: boolean;
+  onDone: () => void;
+  reload: () => void;
+}): ReactNode {
+  return (
+    <>
+      <AddConnectors
+        key={data.connectorIds.join(',')}
+        token={token}
+        title={`Connectors in ${data.name}`}
+        action="Save"
+        initial={data.connectorIds}
+        open={adding}
+        onClose={onDone}
+        onSubmit={async (ids) => {
+          const added = ids.filter((c: string) => !data.connectorIds.includes(c));
+          const dropped = data.connectorIds.filter((c: string) => !ids.includes(c));
+          for (const c of added) await addToCollection(token, id, c);
+          for (const c of dropped) await removeFromCollection(token, id, c);
+          reload();
+        }}
+      />
+      <NameModal
+        key={data.name}
+        title="Rename collection"
+        action="Rename"
+        placeholder={data.name}
+        initial={data.name}
+        failure="Could not rename the collection."
+        open={renaming}
+        onClose={onDone}
+        onSubmit={async (name) => {
+          const next = await renameCollection(token, id, name);
+          reload();
+          return next;
+        }}
+      />
+    </>
   );
 }
 
@@ -120,10 +181,12 @@ interface CollectionPageProps {
 
 export function CollectionPage({ token, id, onBack, onGone }: CollectionPageProps): ReactNode {
   const client = useQueryClient();
+  const dark = useKitScheme() === 'dark';
   const { data, error } = useCollectionQuery(token, id);
   const connectors = useConnectorsQuery(token);
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   useDocumentTitle(data?.name ?? 'Collection');
 
@@ -173,6 +236,16 @@ export function CollectionPage({ token, id, onBack, onGone }: CollectionPageProp
         onRemove={remove}
       />
       {failed === null ? null : <Text size="sm" role="danger">{failed}</Text>}
+      <Row>
+        <Button
+          color="primary"
+          dark={dark}
+          label="Add connectors"
+          onPress={() => {
+            setAdding(true);
+          }}
+        />
+      </Row>
       {rows.length === 0 ? (
         <Text size="sm" role="secondary">
           {EMPTY}
@@ -191,22 +264,17 @@ export function CollectionPage({ token, id, onBack, onGone }: CollectionPageProp
           ))}
         </Col>
       )}
-      <NameModal
-        key={data.name}
-        title="Rename collection"
-        action="Rename"
-        placeholder={data.name}
-        initial={data.name}
-        failure="Could not rename the collection."
-        open={renaming}
-        onClose={() => {
+      <CollectionModals
+        token={token}
+        id={id}
+        data={data}
+        adding={adding}
+        renaming={renaming}
+        onDone={() => {
+          setAdding(false);
           setRenaming(false);
         }}
-        onSubmit={async (name) => {
-          const next = await renameCollection(token, id, name);
-          reload();
-          return next;
-        }}
+        reload={reload}
       />
     </Col>
   );

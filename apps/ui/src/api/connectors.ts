@@ -178,7 +178,7 @@ export async function fetchConnectors(token: string): Promise<ConnectorsView> {
 
 export type AddResult =
   | { kind: 'added'; connector: Connector }
-  | { kind: 'oauth'; authorizeUrl: string };
+  | { kind: 'oauth'; connector: Connector; authorizeUrl: string };
 
 export async function createConnector(
   token: string,
@@ -190,9 +190,10 @@ export async function createConnector(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ ...payload(input), returnTo: returnTo() }),
   });
-  if (isRecord(body) && body.status === 'oauth' && typeof body.authorizeUrl === 'string')
-    return { kind: 'oauth', authorizeUrl: body.authorizeUrl };
-  return { kind: 'added', connector: toConnector(body) };
+  const connector = toConnector(body);
+  if (isRecord(body) && typeof body.authorizeUrl === 'string')
+    return { kind: 'oauth', connector, authorizeUrl: body.authorizeUrl };
+  return { kind: 'added', connector };
 }
 
 export function takeConnectorError(): string | null {

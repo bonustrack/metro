@@ -22,7 +22,6 @@ import {
 } from '../api/queries';
 import { useDocumentTitle } from '../title';
 
-const BLURB = 'Remote MCP servers Metro has checked for you.';
 
 const FALLBACK = 'Could not load your connectors.';
 
@@ -94,7 +93,6 @@ export function Connectors({
               <CountBadge count={data.connectors.length} beside="title" />
             )}
           </Row>
-          <Text size="sm" role="secondary">{BLURB}</Text>
         </Col>
         <Button
           color="primary"

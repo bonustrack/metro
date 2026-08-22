@@ -14,9 +14,6 @@ export function Settings(): ReactNode {
     <Col gap={16}>
       <Col gap={8}>
         <PageTitle>Settings</PageTitle>
-        <Text size="sm" role="secondary">
-          Preferences for this browser.
-        </Text>
       </Col>
       <Col gap={12}>
           <Col gap={2}>

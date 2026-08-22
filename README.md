@@ -317,7 +317,9 @@ Connectors belong to the **signed-in person**, not to an agent, so they live at 
 in the panel rather than on an agent's page. Somebody else's connector and an id that never
 existed are the same `404`.
 
-Nothing is stored until the probe succeeds: Metro POSTs a real `initialize`, then
+Nothing is stored until the probe succeeds — **except for a server that demands OAuth**, which is
+stored unverified so it appears in your list whether or not you finish signing in, and shows a
+**Connect** button until you do. Otherwise Metro POSTs a real `initialize`, then
 `notifications/initialized`, then `tools/list`, and records the server name, version,
 protocol and tool count. A refusal by the remote while you are adding one is a `400` from
 Metro with a plain reason — never a `401`, which is reserved for your own expired session.
