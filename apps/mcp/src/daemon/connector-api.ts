@@ -10,7 +10,7 @@ import {
   type ApiSession,
 } from './api-http.js';
 import { parseId } from '../db/ids.js';
-import { mcpServersJson } from './connector-json.js';
+import { mcpServerName, mcpServersJson } from './connector-json.js';
 import {
   handleCallback,
   handleConnect,
@@ -81,6 +81,7 @@ function connectorPayload(
   return {
     id: row.id,
     name: row.name,
+    exportName: mcpServerName(row.name),
     url: row.url,
     transport: row.transport,
     auth: row.auth,

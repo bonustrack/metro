@@ -14,6 +14,7 @@ import { type Connector } from '../src/api/connectors';
 const BASE: Connector = {
   id: 'id000000012',
   name: 'linear',
+  exportName: 'metro.box linear',
   url: 'https://mcp.linear.app/mcp',
   transport: 'http',
   auth: 'none',
@@ -79,13 +80,13 @@ describe('every client gets an install that fits how it actually adds a server',
 
   test('claude code names the transport and the url', () => {
     expect(commandFor(BASE, 'Claude Code')).toBe(
-      'claude mcp add --transport http linear https://mcp.linear.app/mcp',
+      'claude mcp add --transport http "metro.box linear" https://mcp.linear.app/mcp',
     );
   });
 
   test('codex takes the url and derives the transport from it', () => {
     expect(commandFor(BASE, 'Codex')).toBe(
-      'codex mcp add linear --url https://mcp.linear.app/mcp',
+      'codex mcp add "metro.box linear" --url https://mcp.linear.app/mcp',
     );
   });
 
@@ -99,7 +100,11 @@ describe('every client gets an install that fits how it actually adds a server',
 });
 
 describe('a name is a label now, so the commands have to quote it', () => {
-  const SPACED: Connector = { ...BASE, name: 'My MySQL server' };
+  const SPACED: Connector = {
+    ...BASE,
+    name: 'My MySQL server',
+    exportName: 'metro.box My MySQL server',
+  };
 
   test('a plain name stays bare, so the common command reads cleanly', () => {
     expect(shellArg('linear')).toBe('linear');
@@ -110,10 +115,10 @@ describe('a name is a label now, so the commands have to quote it', () => {
 
   test('a name with spaces is quoted rather than split into two arguments', () => {
     expect(commandFor(SPACED, 'Claude Code')).toBe(
-      'claude mcp add --transport http "My MySQL server" https://mcp.linear.app/mcp',
+      'claude mcp add --transport http "metro.box My MySQL server" https://mcp.linear.app/mcp',
     );
     expect(commandFor(SPACED, 'Codex')).toBe(
-      'codex mcp add "My MySQL server" --url https://mcp.linear.app/mcp',
+      'codex mcp add "metro.box My MySQL server" --url https://mcp.linear.app/mcp',
     );
   });
 
@@ -123,9 +128,9 @@ describe('a name is a label now, so the commands have to quote it', () => {
     expect(shellArg('back`tick`')).toBe('"back\\`tick\\`"');
   });
 
-  test('a name needing no quotes still reaches the deeplink verbatim', () => {
+  test('the deeplink carries the prefixed name, decoded', () => {
     expect(new URL(cursorDeeplink(SPACED)).searchParams.get('name')).toBe(
-      'My MySQL server',
+      'metro.box My MySQL server',
     );
   });
 });
@@ -133,7 +138,7 @@ describe('a name is a label now, so the commands have to quote it', () => {
 describe('a stored credential rides only where the client can carry it', () => {
   test('claude code takes the header inline', () => {
     expect(commandFor(KEYED, 'Claude Code')).toBe(
-      'claude mcp add --transport http linear https://mcp.linear.app/mcp' +
+      'claude mcp add --transport http "metro.box linear" https://mcp.linear.app/mcp' +
         ' --header "Authorization: Bearer lin_oauth_7f"',
     );
   });
@@ -154,7 +159,7 @@ describe('a stored credential rides only where the client can carry it', () => {
 
   test('a signed-in connector exports its access token as a bearer header', () => {
     expect(commandFor(SIGNED_IN, 'Claude Code')).toBe(
-      'claude mcp add --transport http linear https://mcp.linear.app/mcp' +
+      'claude mcp add --transport http "metro.box linear" https://mcp.linear.app/mcp' +
         ' --header "Authorization: Bearer oat_live_9c31"',
     );
     expect(cursorConfig(SIGNED_IN)).toEqual({
@@ -259,7 +264,7 @@ describe('the claude install link pre-fills the dialog', () => {
     expect(href.startsWith('https://claude.ai/customize/connectors?')).toBe(true);
     const params = new URL(href).searchParams;
     expect(params.get('modal')).toBe('add-custom-connector');
-    expect(params.get('connectorName')).toBe('linear');
+    expect(params.get('connectorName')).toBe('metro.box linear');
     expect(params.get('connectorUrl')).toBe('https://mcp.linear.app/mcp');
   });
 
@@ -291,7 +296,7 @@ describe('the cursor deeplink is shaped the way cursor reads it', () => {
       true,
     );
     const params = new URL(href).searchParams;
-    expect(params.get('name')).toBe('linear');
+    expect(params.get('name')).toBe('metro.box linear');
     expect(params.get('config')).not.toBe(null);
   });
 

@@ -60,6 +60,7 @@ const VERIFIED = {
 const ROW = {
   id: 'id000000012',
   name: 'linear',
+  exportName: 'metro.box linear',
   url: 'https://mcp.linear.app/mcp',
   transport: 'http',
   auth: 'header',
@@ -165,6 +166,7 @@ describe('a connector row is coerced field by field', () => {
       {
         id: 'id000000012',
         name: 'linear',
+        exportName: 'metro.box linear',
         url: 'https://mcp.linear.app/mcp',
         transport: 'http',
         auth: 'header',
@@ -245,6 +247,7 @@ describe('a connector row is coerced field by field', () => {
     expect(row).toEqual({
       id: '',
       name: 'bare',
+      exportName: 'bare',
       url: '',
       transport: '',
       auth: 'none',

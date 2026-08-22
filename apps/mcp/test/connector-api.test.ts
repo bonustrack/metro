@@ -442,6 +442,7 @@ describe('GET /api/connectors returns the wire shape', () => {
     expect(wire.connectors[0]).toEqual({
       id: 'agent000001',
       name: 'linear',
+      exportName: 'metro.box linear',
       url: 'https://mcp.linear.app/mcp',
       transport: 'http',
       auth: 'header',
@@ -451,7 +452,7 @@ describe('GET /api/connectors returns the wire shape', () => {
       json: JSON.stringify(
         {
           mcpServers: {
-            linear: {
+            'metro.box linear': {
               type: 'http',
               url: 'https://mcp.linear.app/mcp',
               headers: { Authorization: 'Bearer lin_oauth_7f' },
@@ -478,7 +479,7 @@ describe('GET /api/connectors returns the wire shape', () => {
     const wire = (await res.json()) as { json: string };
     const servers = (JSON.parse(wire.json) as { mcpServers: Record<string, unknown> })
       .mcpServers;
-    expect(Object.keys(servers)).toEqual(['linear', 'docs']);
+    expect(Object.keys(servers)).toEqual(['metro.box linear', 'metro.box docs']);
   });
 
   test("another user's connectors are simply not there", async () => {
@@ -513,6 +514,7 @@ describe('POST /api/connectors', () => {
     const created = (await res.json()) as WireConnector;
     expect(created).toMatchObject({
       name: 'sentry',
+      exportName: 'metro.box sentry',
       transport: 'http',
       auth: 'header',
       header: 'Authorization',
@@ -520,7 +522,7 @@ describe('POST /api/connectors', () => {
     });
     expect(JSON.parse(created.json)).toEqual({
       mcpServers: {
-        sentry: {
+        'metro.box sentry': {
           type: 'http',
           url: 'https://mcp.sentry.dev/mcp',
           headers: { Authorization: 'Bearer sntry_1' },

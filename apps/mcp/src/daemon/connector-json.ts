@@ -24,8 +24,14 @@ function serverOf(entry: ConnectorEntry): Record<string, unknown> {
   return headers === null ? base : { ...base, headers };
 }
 
+export const MCP_NAME_PREFIX = 'metro.box ';
+
+export function mcpServerName(name: string): string {
+  return `${MCP_NAME_PREFIX}${name}`;
+}
+
 export function mcpServersJson(entries: ConnectorEntry[]): string {
   const mcpServers: Record<string, unknown> = {};
-  for (const entry of entries) mcpServers[entry.name] = serverOf(entry);
+  for (const entry of entries) mcpServers[mcpServerName(entry.name)] = serverOf(entry);
   return JSON.stringify({ mcpServers }, null, 2);
 }

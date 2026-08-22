@@ -34,6 +34,7 @@ export interface ConnectorVerified {
 export interface Connector {
   id: string;
   name: string;
+  exportName: string;
   url: string;
   transport: string;
   auth: ConnectorAuth;
@@ -134,6 +135,8 @@ function toConnector(value: unknown): Connector {
   return {
     id: typeof value.id === 'string' ? value.id : '',
     name: value.name,
+    exportName:
+      typeof value.exportName === 'string' ? value.exportName : value.name,
     url: str(value.url),
     transport: str(value.transport),
     auth:

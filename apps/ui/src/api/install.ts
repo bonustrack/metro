@@ -74,7 +74,7 @@ export function shellArg(value: string): string {
 
 function claudeCode(row: Connector): Install {
   const auth = credential(row);
-  const base = `claude mcp add --transport http ${shellArg(row.name)} ${shellArg(row.url)}`;
+  const base = `claude mcp add --transport http ${shellArg(row.exportName)} ${shellArg(row.url)}`;
   return {
     kind: 'command',
     value:
@@ -89,14 +89,14 @@ function claudeCode(row: Connector): Install {
 function codexNote(row: Connector): string {
   if (credential(row) === null) return 'Codex picks the HTTP transport from the URL.';
   if (row.bearer !== null)
-    return `Codex has no inline header flag. Sign in with “codex mcp login ${row.name}”, or export the token and add --bearer-token-env-var <VAR>.`;
+    return `Codex has no inline header flag. Sign in with “codex mcp login ${row.exportName}”, or export the token and add --bearer-token-env-var <VAR>.`;
   return 'Codex has no inline header flag: export the value and add --bearer-token-env-var <VAR>.';
 }
 
 function codex(row: Connector): Install {
   return {
     kind: 'command',
-    value: `codex mcp add ${shellArg(row.name)} --url ${shellArg(row.url)}`,
+    value: `codex mcp add ${shellArg(row.exportName)} --url ${shellArg(row.url)}`,
     secret: null,
     note: codexNote(row),
   };
@@ -110,13 +110,13 @@ function cursorConfig(row: Connector): string {
 }
 
 export function cursorDeeplink(row: Connector): string {
-  const name = encodeURIComponent(row.name);
+  const name = encodeURIComponent(row.exportName);
   const config = encodeURIComponent(cursorConfig(row));
   return `cursor://anysphere.cursor-deeplink/mcp/install?name=${name}&config=${config}`;
 }
 
 export function claudeInstallUrl(row: Connector): string {
-  const name = encodeURIComponent(row.name);
+  const name = encodeURIComponent(row.exportName);
   const url = encodeURIComponent(row.url);
   return `${CLAUDE_INSTALL}&connectorName=${name}&connectorUrl=${url}`;
 }
