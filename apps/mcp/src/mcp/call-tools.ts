@@ -19,6 +19,19 @@ interface MessageArgs {
   station: Station;
 }
 
+const messageIdOf = (response: { result: unknown }): string | undefined => {
+  const id = (response.result as { messageId?: unknown } | null)?.messageId;
+  return typeof id === 'string' && id !== '' ? id : undefined;
+};
+
+const withId = (text: string, messageId: string | undefined): string =>
+  messageId === undefined ? text : `${text} — message_id: ${messageId}`;
+
+interface Sent {
+  labels: string[];
+  messageId?: string;
+}
+
 const deliveredLabels = (response: { result: unknown }): string[] => {
   const list = (response.result as { attachments?: unknown } | null)
     ?.attachments;
@@ -44,20 +57,25 @@ async function sendNative(
   text: string | undefined,
   replyTo: string | undefined,
   atts: ResolvedAttachment[],
-): Promise<string[]> {
+): Promise<Sent> {
   const { line, ctx, station } = m;
-  const sent: string[] = [];
+  const labels: string[] = [];
+  let messageId: string | undefined;
   if (text) {
-    await ctx.call('send', replyTo ? { line, text, replyTo } : { line, text });
-    sent.push('text');
+    const response = await ctx.call(
+      'send',
+      replyTo ? { line, text, replyTo } : { line, text },
+    );
+    messageId = messageIdOf(response);
+    labels.push('text');
   }
-  if (!atts.length) return sent;
+  if (!atts.length) return { labels, messageId };
   const delivered = station.sendAttachments
     ? await station.sendAttachments(line, atts, ctx)
     : [];
   assertDelivered(station, delivered, atts);
-  sent.push(...delivered);
-  return sent;
+  labels.push(...delivered);
+  return { labels, messageId };
 }
 
 async function sendForwarded(
@@ -65,20 +83,21 @@ async function sendForwarded(
   text: string | undefined,
   replyTo: string | undefined,
   atts: ResolvedAttachment[],
-): Promise<string[]> {
+): Promise<Sent> {
   const { line, ctx, station } = m;
   const args: Record<string, unknown> = { line };
   if (text) args.text = text;
   if (replyTo) args.replyTo = replyTo;
   if (atts.length) args.attachments = atts.map(toCanonical);
   const response = await ctx.call('send', args);
-  const sent: string[] = [];
-  if (text) sent.push('text');
-  if (!atts.length) return sent;
+  const messageId = messageIdOf(response);
+  const labels: string[] = [];
+  if (text) labels.push('text');
+  if (!atts.length) return { labels, messageId };
   const delivered = deliveredLabels(response);
   assertDelivered(station, delivered, atts);
-  sent.push(...delivered);
-  return sent;
+  labels.push(...delivered);
+  return { labels, messageId };
 }
 
 const unsupported = (station: Station, atts: CanonicalAttachment[]): string =>
@@ -104,8 +123,9 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
     const sent = native
       ? await sendNative(m, text, replyTo, atts)
       : await sendForwarded(m, text, replyTo, atts);
-    if (!sent.length) return errResult('send requires `text` or `attachments`');
-    return ok(`sent: ${sent.join(', ')}`);
+    if (!sent.labels.length)
+      return errResult('send requires `text` or `attachments`');
+    return ok(withId(`sent: ${sent.labels.join(', ')}`, sent.messageId));
   } finally {
     await cleanupAttachments(atts);
   }
@@ -148,8 +168,8 @@ function makeVerbHandler(verb: string, spec: VerbSpec): MessageHandler {
       }
       payload[camel] = value;
     }
-    await ctx.call(verb, payload);
-    return ok(spec.success);
+    const response = await ctx.call(verb, payload);
+    return ok(withId(spec.success, messageIdOf(response)));
   };
 }
 

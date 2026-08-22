@@ -129,7 +129,11 @@ describe('a station that silently drops an attachment errors, per station', () =
         attachments: [{ path: png }, { path: pdf }],
       });
       expect(res.isError).toBeUndefined();
-      expect(textOf(res)).toBe('sent: image, file');
+      expect(textOf(res)).toBe(
+        c.attachmentActions.length > 0
+          ? 'sent: image, file'
+          : 'sent: image, file — message_id: 1',
+      );
     });
   }
 });
