@@ -43,28 +43,40 @@ export default defineConfig({
     },
     'packages/cli': {
       type: 'library',
-      knip: { project: ['src/**/*.ts'] },
+      knip: {
+        project: ['src/**/*.ts'],
+        ignoreBinaries: ['tail', 'tar', 'bun'],
+      },
     },
     'apps/mcp': {
       type: 'library',
       knip: {
         entry: ['src/daemon/**/*.ts', 'test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
-        ignoreBinaries: ['mktemp', 'claude'],
+        ignoreBinaries: ['mktemp', 'claude', 'ps'],
         ignore: ['src/daemon/tunnel.ts'],
       },
     },
     'packages/webhook': {
       type: 'library',
-      knip: { project: ['src/**/*.ts'] },
+      knip: {
+        project: ['src/**/*.ts'],
+        ignoreBinaries: ['tail', 'tar', 'bun'],
+      },
     },
     'packages/discord': {
       type: 'library',
-      knip: { project: ['src/**/*.ts'] },
+      knip: {
+        project: ['src/**/*.ts'],
+        ignoreBinaries: ['tail', 'tar', 'bun'],
+      },
     },
     'packages/telegram': {
       type: 'library',
-      knip: { project: ['src/**/*.ts'] },
+      knip: {
+        project: ['src/**/*.ts'],
+        ignoreBinaries: ['tail', 'tar', 'bun'],
+      },
     },
     'packages/telegram-user': {
       type: 'library',
@@ -82,7 +94,10 @@ export default defineConfig({
     },
     'packages/xmtp': {
       type: 'library',
-      knip: { project: ['src/**/*.ts'] },
+      knip: {
+        project: ['src/**/*.ts'],
+        ignoreBinaries: ['tail', 'tar', 'bun'],
+      },
     },
   },
 });

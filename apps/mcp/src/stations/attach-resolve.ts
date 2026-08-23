@@ -11,6 +11,7 @@ import {
   splitInlineData,
   writeInlineTemp,
 } from './attach-inline.js';
+import { realpathSync } from 'node:fs';
 import { readUpload, UPLOAD_TTL_MS } from '../daemon/upload-store.js';
 import type { CanonicalAttachment } from './types.js';
 
@@ -39,10 +40,28 @@ const isHttpUrl = (src: string): boolean => /^https?:\/\//i.test(src);
 
 const mintId = (): string => Math.random().toString(36).slice(2, 12);
 
+const HIDDEN_SEGMENT = /(^|\/)\.[^/]/;
+
+function assertReadablePath(path: string): void {
+  let real: string;
+  try {
+    real = realpathSync(path);
+  } catch {
+    return;
+  }
+  if (HIDDEN_SEGMENT.test(real))
+    throw new Error(
+      `attachment path '${path}' resolves into a hidden directory ` +
+        `('${real}') and will not be read. \`path\` is read on the daemon ` +
+        'machine; put the file somewhere non-hidden or pass `upload` instead.',
+    );
+}
+
 async function fromPath(
   a: CanonicalAttachment,
   path: string,
 ): Promise<ResolvedAttachment> {
+  assertReadablePath(path);
   const file = Bun.file(path);
   if (!(await file.exists()))
     throw new Error(

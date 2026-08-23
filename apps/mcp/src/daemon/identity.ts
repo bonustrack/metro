@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { errMsg } from './log.js';
+import { errMsg, log } from './log.js';
 import { Line } from '../stations/lines.js';
 
 const TTL_MS = 5_000;
@@ -53,8 +53,16 @@ export const claudeSessionId = (): string | null =>
 export function userSelf(): Line {
   const explicit = process.env.METRO_FROM;
   if (explicit) return explicit as Line;
-  if (process.env.CLAUDECODE) return Line.user('claude', claudeUserId());
-  return 'metro://user' as Line;
+  if (!process.env.CLAUDECODE) return 'metro://user' as Line;
+  try {
+    return Line.user('claude', claudeUserId());
+  } catch (e) {
+    log.warn(
+      { reason: errMsg(e) },
+      'could not resolve a Claude account id; relaying as metro://user',
+    );
+    return 'metro://user' as Line;
+  }
 }
 
 export function daemonSelf(): Line {

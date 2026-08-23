@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import {
   closeSync,
   existsSync,
@@ -58,16 +59,32 @@ function readLockPid(lockFile: string): number {
   }
 }
 
+function namesMetro(text: string): boolean {
+  return text.includes('server.ts') || text.includes('metro');
+}
+
 function holderIsMetro(pid: number): boolean {
   try {
-    const cmd = readFileSync(`/proc/${pid}/cmdline`, 'utf8');
-    return cmd.includes('server.ts') || cmd.includes('metro');
+    return namesMetro(readFileSync(`/proc/${pid}/cmdline`, 'utf8'));
   } catch {
-    return process.platform !== 'linux';
+    return holderCommand(pid);
   }
 }
 
-function lockHeldByLiveDaemon(pid: number): boolean {
+function holderCommand(pid: number): boolean {
+  try {
+    return namesMetro(
+      execFileSync('ps', ['-o', 'command=', '-p', String(pid)], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }),
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function lockHeldByLiveDaemon(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) return false;
   try {
     process.kill(pid, 0);
