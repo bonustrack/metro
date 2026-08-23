@@ -102,18 +102,23 @@ interface KeyPayload {
   command: string | null;
 }
 
-function credentials(key: string): KeyPayload {
+const LOCAL_MCP_ENDPOINT = 'http://127.0.0.1:8420/mcp';
+
+function credentials(key: string, heldLocally: boolean): KeyPayload {
+  const url = heldLocally
+    ? `${LOCAL_MCP_ENDPOINT}?token=${key}`
+    : `${mcpEndpoint()}?token=${key}`;
   return {
     key,
-    endpoint: `${mcpEndpoint()}?token=${key}`,
-    command: mcpAddCommand(key),
+    endpoint: url,
+    command: `claude mcp add --transport http ${SERVER_NAME} "${url}"`,
   };
 }
 
-function keyPayload(agent: AgentSummary): KeyPayload {
+function keyPayload(agent: AgentSummary, heldLocally: boolean): KeyPayload {
   const value = agent.owned ? agent.key : null;
   if (value === null) return { key: null, endpoint: null, command: null };
-  return credentials(value);
+  return credentials(value, heldLocally);
 }
 
 function livenessPayload(
@@ -139,7 +144,7 @@ function agentPayload(
     owned: agent.owned,
     runtime: agent.owned ? (runtimes.get(agent.id) ?? null) : null,
     ...livenessPayload(agent, live),
-    ...keyPayload(agent),
+    ...keyPayload(agent, agent.owned && runtimes.has(agent.id)),
   };
 }
 
@@ -219,7 +224,7 @@ async function handleCreate(
   sendJson(req, res, 201, {
     id: created.id,
     name: created.name,
-    ...credentials(created.key),
+    ...credentials(created.key, false),
   });
 }
 
@@ -231,6 +236,7 @@ async function handleResetKey(
   id: string,
 ): Promise<void> {
   const reset = await deps.resetKey(session.email, id);
+  const held = (await deps.runtimes([id])).has(id);
   log.info(
     { agent: reset.name, id: reset.id, owner: session.email },
     'agent-api: reset agent key',
@@ -239,7 +245,7 @@ async function handleResetKey(
     id: reset.id,
     name: reset.name,
     reset: true,
-    ...credentials(reset.key),
+    ...credentials(reset.key, held),
   });
 }
 

@@ -30,6 +30,7 @@ const OWNED: Record<string, AgentSummary[]> = {
 
 let leakGrantedKeys = false;
 let liveAgents = new Map<string, { connected: boolean; lastSeenAt: number }>();
+let heldAgents = new Map<string, string>();
 
 const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
   ["agent000001"]: ['telegram-bot', { id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }],
@@ -142,7 +143,7 @@ const deps: AgentApiDeps = {
   liveness: () => liveAgents,
   mintRuntimeCode: () => Promise.resolve({ code: 'mr_x', expiresAt: 0 }),
   releaseRuntime: () => Promise.resolve(),
-  runtimes: () => Promise.resolve(new Map()),
+  runtimes: () => Promise.resolve(heldAgents),
   prepareAccount: () =>
     Promise.reject(new AgentAdminError('attaching is not exercised here', 400)),
   attachAccount: () =>
@@ -202,6 +203,7 @@ afterEach(() => {
   liveKeys = {};
   leakGrantedKeys = false;
   liveAgents = new Map();
+  heldAgents = new Map();
 });
 
 describe('a run token cannot escalate to the agent admin API', () => {
@@ -427,6 +429,23 @@ describe('GET /api/agents key exposure', () => {
     const agent = (await listAgents('nobody@example.com')).at(-1);
     expect(agent?.owned).toBe(false);
     expect([agent?.connected, agent?.last_seen]).toEqual([false, null]);
+  });
+
+  test('a held agent is handed the LOCAL command, since the hosted one 401s', async () => {
+    heldAgents = new Map([['agent000001', 'tony']]);
+    const [agent] = await listAgents('ada@lovelace.dev');
+    expect(agent?.endpoint).toBe(
+      'http://127.0.0.1:8420/mcp?token=mk_fake_ada-bot',
+    );
+    expect(agent?.command).toBe(
+      'claude mcp add --transport http metro "http://127.0.0.1:8420/mcp?token=mk_fake_ada-bot"',
+    );
+    expect(agent?.runtime).toBe('tony');
+  });
+
+  test('an unheld agent keeps the hosted command', async () => {
+    const [agent] = await listAgents('ada@lovelace.dev');
+    expect(agent?.endpoint).toBe(`${PUBLIC}/mcp?token=mk_fake_ada-bot`);
   });
 
   test('the listed command matches what POST hands back for the same key', async () => {

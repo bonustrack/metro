@@ -19,7 +19,11 @@ export function AgentCredentials({
       {agent.command !== null ? (
         <CopyBlock
           key={agent.command}
-          label="add to claude code"
+          label={
+            agent.runtime === null
+              ? 'add to claude code'
+              : `add to claude code on ${agent.runtime}`
+          }
           value={agent.command}
           hide={agent.key}
           secret
