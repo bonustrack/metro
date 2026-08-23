@@ -1,128 +1,87 @@
+import type { Message } from '@mtcute/bun';
+import { FileLocation } from '@mtcute/bun';
 import {
   saveBufferToCache,
-  assertContentLength,
+  type SavedAttachment,
 } from '@metro-labs/mcp/stations/attachments';
-import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
-import { tg, accounts } from './accounts.js';
-import type { TgMsg } from './types.js';
+import type { UserClient } from './client.js';
 
-export type { SavedAttachment };
+type Media = NonNullable<Message['media']>;
+export type DownloadableMedia = Media & FileLocation;
 
-function isOggRef(mime: string | undefined, ref: string | undefined): boolean {
-  const ext = ref?.split('?')[0]?.split('.').pop()?.toLowerCase();
-  return mime === 'audio/ogg' || ext === 'ogg' || ext === 'oga';
+export function isDownloadable(media: Media): media is DownloadableMedia {
+  return media instanceof FileLocation;
 }
 
-function isVoiceRef(
-  kind: string | undefined,
-  mime: string | undefined,
-  ref: string | undefined,
-): boolean {
-  const isOgg = isOggRef(mime, ref);
-  if (kind === 'voice') return true;
-  if (kind === 'audio') return isOgg;
-  return !kind && isOgg;
-}
-
-export function mediaKindOf(
-  kind: string | undefined,
-  mime: string | undefined,
-  ref: string | undefined,
-): 'image' | 'voice' | 'audio' | 'video' | 'document' {
-  const m = mime ?? '';
-  if (kind === 'image' || m.startsWith('image/')) return 'image';
-  if (isVoiceRef(kind, mime, ref)) return 'voice';
-  if (kind === 'video' || m.startsWith('video/')) return 'video';
-  if (kind === 'audio' || m.startsWith('audio/')) return 'audio';
-  return 'document';
-}
-
-export interface TgMediaRef {
-  fileId: string;
-  name?: string;
+interface MediaMeta {
   mime?: string;
+  name?: string;
 }
 
-const MEDIA_EXTRACTORS: ((m: TgMsg) => TgMediaRef | null)[] = [
-  (m) => {
-    const largest = m.photo?.[m.photo.length - 1];
-    return largest ? { fileId: largest.file_id, mime: 'image/jpeg' } : null;
-  },
-  (m) =>
-    m.document?.file_id
-      ? {
-          fileId: m.document.file_id,
-          name: m.document.file_name,
-          mime: m.document.mime_type,
-        }
-      : null,
-  (m) =>
-    m.video?.file_id
-      ? {
-          fileId: m.video.file_id,
-          name: m.video.file_name,
-          mime: m.video.mime_type ?? 'video/mp4',
-        }
-      : null,
-  (m) =>
-    m.animation?.file_id
-      ? {
-          fileId: m.animation.file_id,
-          name: m.animation.file_name,
-          mime: m.animation.mime_type,
-        }
-      : null,
-  (m) =>
-    m.audio?.file_id
-      ? {
-          fileId: m.audio.file_id,
-          name: m.audio.file_name,
-          mime: m.audio.mime_type,
-        }
-      : null,
-  (m) =>
-    m.voice?.file_id
-      ? { fileId: m.voice.file_id, mime: m.voice.mime_type ?? 'audio/ogg' }
-      : null,
-  (m) =>
-    m.sticker?.file_id
-      ? { fileId: m.sticker.file_id, mime: 'image/webp' }
-      : null,
-];
-
-export function mediaRefOf(m: TgMsg): TgMediaRef | null {
-  for (const extract of MEDIA_EXTRACTORS) {
-    const ref = extract(m);
-    if (ref) return ref;
-  }
-  return null;
+function fallbackMime(media: DownloadableMedia): string | undefined {
+  const type = (media as { type?: unknown }).type;
+  if (type === 'photo') return 'image/jpeg';
+  if (type === 'sticker') return 'image/webp';
+  return undefined;
 }
 
-export async function saveTelegramMedia(
-  accountId: string,
-  ref: TgMediaRef,
+function metaOf(media: DownloadableMedia): MediaMeta {
+  const withMime = media as { mimeType?: unknown };
+  const withName = media as { fileName?: unknown };
+  const mime =
+    (typeof withMime.mimeType === 'string' ? withMime.mimeType : undefined) ??
+    fallbackMime(media);
+  const name =
+    typeof withName.fileName === 'string' ? withName.fileName : undefined;
+  return {
+    ...(mime ? { mime } : {}),
+    ...(name ? { name } : {}),
+  };
+}
+
+export interface PendingDescriptor {
+  kind: string;
+  name?: string;
+}
+
+const KIND_BY_TYPE: Record<string, string> = {
+  photo: 'image',
+  sticker: 'image',
+  voice: 'audio',
+  audio: 'audio',
+  video: 'video',
+  video_note: 'video',
+  animation: 'video',
+};
+
+function mediaType(media: DownloadableMedia): string {
+  const type = (media as { type?: unknown }).type;
+  return typeof type === 'string' ? type : '';
+}
+
+function kindOf(media: DownloadableMedia, mime: string | undefined): string {
+  const byType = KIND_BY_TYPE[mediaType(media)];
+  if (byType) return byType;
+  if (mime?.startsWith('image/')) return 'image';
+  if (mime?.startsWith('audio/')) return 'audio';
+  if (mime?.startsWith('video/')) return 'video';
+  return 'file';
+}
+
+export function pendingDescriptorOf(media: DownloadableMedia): PendingDescriptor {
+  const meta = metaOf(media);
+  return {
+    kind: kindOf(media, meta.mime),
+    ...(meta.name ? { name: meta.name } : {}),
+  };
+}
+
+export async function downloadMedia(
+  client: UserClient,
+  media: DownloadableMedia,
   messageId: string,
   index = 0,
 ): Promise<SavedAttachment> {
-  const file = await tg<{ file_path?: string }>(accountId, 'getFile', {
-    file_id: ref.fileId,
-  });
-  if (!file.file_path)
-    throw new Error(`telegram getFile returned no file_path for ${ref.fileId}`);
-  const acct = accounts.get(accountId);
-  if (!acct) throw new Error(`unknown account '${accountId}'`);
-  const res = await fetch(`${acct.fileApi}/${file.file_path}`, {
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!res.ok)
-    throw new Error(
-      `telegram file download ${res.status} for ${file.file_path}`,
-    );
-  assertContentLength(res.headers.get('content-length'));
-  const data = new Uint8Array(await res.arrayBuffer());
-  const saved = await saveBufferToCache(data, messageId, index, {
-    mime: ref.mime,
-    name: ref.name ?? file.file_path,
-  });
-  return { ...saved, name: ref.name };
+  const buf = await client.tg.downloadAsBuffer(media);
+  return saveBufferToCache(buf, messageId, index, metaOf(media));
 }

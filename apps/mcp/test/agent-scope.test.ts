@@ -14,9 +14,9 @@ beforeEach(() =>
   setAgentMap(
     {
       'xmtp/x1': 'agent000001',
-      'discord/d1': 'agent000001',
-      'discord/d2': 'agent000002',
-      'telegram/t2': 'agent000002',
+      'discord-bot/d1': 'agent000001',
+      'discord-bot/d2': 'agent000002',
+      'telegram-bot/t2': 'agent000002',
       'webhook/a1-gh': 'agent000001',
     },
     { ['agent000001']: 'tony', ['agent000002']: 'lisa' },
@@ -30,7 +30,7 @@ describe('lineTargetDenied', () => {
   });
 
   test('denies a line on another agent account', () => {
-    expect(lineTargetDenied(ONE, { line: 'metro://telegram/t2/5' })).toBe(true);
+    expect(lineTargetDenied(ONE, { line: 'metro://telegram-bot/t2/5' })).toBe(true);
     expect(lineTargetDenied(TWO, { line: 'metro://xmtp/x1/conv' })).toBe(true);
   });
 
@@ -39,7 +39,7 @@ describe('lineTargetDenied', () => {
       true,
     );
     expect(lineTargetDenied(ONE, { line: 'not-a-line' })).toBe(true);
-    expect(lineTargetDenied(ONE, { line: 'metro://discord/1' })).toBe(true);
+    expect(lineTargetDenied(ONE, { line: 'metro://discord-bot/1' })).toBe(true);
   });
 
   test('an empty scope owns nothing', () => {
@@ -55,16 +55,16 @@ describe('lineTargetDenied', () => {
 
   test('an account override may not re-route to another agent account', () => {
     expect(
-      lineTargetDenied(ONE, { line: 'metro://discord/d1/9', account: 'd2' }),
+      lineTargetDenied(ONE, { line: 'metro://discord-bot/d1/9', account: 'd2' }),
     ).toBe(true);
     expect(
-      lineTargetDenied(ONE, { line: 'metro://discord/d1/9', account: 'd1' }),
+      lineTargetDenied(ONE, { line: 'metro://discord-bot/d1/9', account: 'd1' }),
     ).toBe(false);
   });
 
   test('a station mismatch between the route and the line is denied', () => {
     expect(
-      lineTargetDenied(ONE, { line: 'metro://xmtp/x1/conv' }, 'discord'),
+      lineTargetDenied(ONE, { line: 'metro://xmtp/x1/conv' }, 'discord-bot'),
     ).toBe(true);
     expect(lineTargetDenied(ONE, { line: 'metro://xmtp/x1/conv' }, 'xmtp')).toBe(
       false,
@@ -75,8 +75,8 @@ describe('lineTargetDenied', () => {
 describe('stationFullyScoped', () => {
   test('true only when every account of the station is in scope', () => {
     expect(stationFullyScoped(ONE, 'xmtp')).toBe(true);
-    expect(stationFullyScoped(ONE, 'discord')).toBe(false);
-    expect(stationFullyScoped(new Set(['agent000001', 'agent000002']), 'discord')).toBe(true);
+    expect(stationFullyScoped(ONE, 'discord-bot')).toBe(false);
+    expect(stationFullyScoped(new Set(['agent000001', 'agent000002']), 'discord-bot')).toBe(true);
   });
 
   test('a station with no accounts is never fully scoped', () => {
@@ -94,22 +94,22 @@ describe('stationFullyScoped', () => {
 describe('callTargetDenied', () => {
   test('a lined call is judged by the line', () => {
     expect(
-      callTargetDenied(ONE, 'discord', { line: 'metro://discord/d1/9' }),
+      callTargetDenied(ONE, 'discord-bot', { line: 'metro://discord-bot/d1/9' }),
     ).toBe(false);
     expect(
-      callTargetDenied(ONE, 'discord', { line: 'metro://discord/d2/9' }),
+      callTargetDenied(ONE, 'discord-bot', { line: 'metro://discord-bot/d2/9' }),
     ).toBe(true);
   });
 
   test('a line-less call needs the whole station', () => {
     expect(callTargetDenied(ONE, 'xmtp', {})).toBe(false);
-    expect(callTargetDenied(ONE, 'discord', {})).toBe(true);
+    expect(callTargetDenied(ONE, 'discord-bot', {})).toBe(true);
   });
 
   test('a line-less call naming an account is judged by that account', () => {
-    expect(callTargetDenied(ONE, 'discord', { account: 'd1' })).toBe(false);
-    expect(callTargetDenied(ONE, 'discord', { account: 'd2' })).toBe(true);
-    expect(callTargetDenied(ONE, 'discord', { account: 'ghost' })).toBe(true);
+    expect(callTargetDenied(ONE, 'discord-bot', { account: 'd1' })).toBe(false);
+    expect(callTargetDenied(ONE, 'discord-bot', { account: 'd2' })).toBe(true);
+    expect(callTargetDenied(ONE, 'discord-bot', { account: 'ghost' })).toBe(true);
   });
 });
 
@@ -140,12 +140,12 @@ describe('eventInScope', () => {
     expect(eventInScope(ONE, 'metro://whatsapp/ghost/1@lid')).toBe(false);
     expect(eventInScope(TWO, 'metro://whatsapp/ghost/1@lid')).toBe(false);
     expect(eventInScope(ONE, 'metro://xmtp/unmapped/conv')).toBe(false);
-    expect(eventInScope(ONE, 'metro://discord/unmapped/9')).toBe(false);
+    expect(eventInScope(ONE, 'metro://discord-bot/unmapped/9')).toBe(false);
   });
 
   test('an account that loses its mapping stops being deliverable', () => {
     expect(eventInScope(ONE, 'metro://xmtp/x1/conv')).toBe(true);
-    setAgentMap({ 'discord/d2': 'agent000002' }, { ['agent000002']: 'lisa' });
+    setAgentMap({ 'discord-bot/d2': 'agent000002' }, { ['agent000002']: 'lisa' });
     expect(eventInScope(ONE, 'metro://xmtp/x1/conv')).toBe(false);
     expect(eventInScope(TWO, 'metro://xmtp/x1/conv')).toBe(false);
   });

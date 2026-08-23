@@ -3,7 +3,7 @@ import { setTrainCallBackend } from '../src/daemon/train-call.ts';
 import { gatherAccountsForAgents } from '../src/mcp/accounts.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
 
-const OWNED = { 'xmtp/x1': 'agent000001', 'xmtp/tony': 'agent000001', 'telegram/t0': 'agent000001' };
+const OWNED = { 'xmtp/x1': 'agent000001', 'xmtp/tony': 'agent000001', 'telegram-bot/t0': 'agent000001' };
 
 beforeAll(() => {
   process.env.METRO_RUN_TOKEN = 'test-runtime';
@@ -22,19 +22,19 @@ describe('a station whose train is restarting is unavailable, not empty', () => 
     });
     const { accounts, unavailable } = await gatherAccountsForAgents(new Set(['agent000001']));
     expect(unavailable).toContain('xmtp');
-    expect(accounts.telegram).toHaveLength(1);
+    expect(accounts['telegram-bot']).toHaveLength(1);
   });
 
   test('a station that really has no accounts is not reported unavailable', async () => {
     setAgentMap(OWNED, { ['agent000001']: 'Tony' });
     setTrainCallBackend((train) =>
       Promise.resolve({
-        result: { accounts: train === 'telegram' ? [{ id: 't0' }] : [] },
+        result: { accounts: train === 'telegram-bot' ? [{ id: 't0' }] : [] },
       }),
     );
     const { accounts, unavailable } = await gatherAccountsForAgents(new Set(['agent000001']));
     expect(unavailable).toEqual([]);
     expect(accounts.xmtp).toEqual([]);
-    expect(accounts.telegram).toHaveLength(1);
+    expect(accounts['telegram-bot']).toHaveLength(1);
   });
 });

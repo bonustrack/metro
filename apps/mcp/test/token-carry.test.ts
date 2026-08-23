@@ -80,7 +80,7 @@ describe('carrying the whatsapp token store to the station id', () => {
   test('only whatsapp carries state keyed by the account id', () => {
     seed(OLD);
     expect(carryTokenStores([row({ station: 'xmtp' })])).toBe(0);
-    expect(carryTokenStores([row({ station: 'telegram' })])).toBe(0);
+    expect(carryTokenStores([row({ station: 'telegram-bot' })])).toBe(0);
   });
 
   test('a row whose id already equals its previous account id is skipped', () => {

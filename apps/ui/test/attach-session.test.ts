@@ -68,9 +68,9 @@ describe('attach session parsing', () => {
 
 describe('interactive station forms', () => {
   test('the two interactive stations are marked interactive', () => {
-    expect(STATION_FORMS['telegram-user']?.interactive).toBe(true);
+    expect(STATION_FORMS['telegram']?.interactive).toBe(true);
     expect(STATION_FORMS.whatsapp?.interactive).toBe(true);
-    expect(STATION_FORMS.telegram?.interactive).toBe(false);
+    expect(STATION_FORMS['telegram-bot']?.interactive).toBe(false);
   });
 
   test('the WhatsApp phone is optional because a blank one means QR', () => {
@@ -78,7 +78,7 @@ describe('interactive station forms', () => {
   });
 
   test('the Telegram account form asks for everything mtcute needs', () => {
-    expect(STATION_FORMS['telegram-user']?.fields.map((f) => f.key)).toEqual([
+    expect(STATION_FORMS['telegram']?.fields.map((f) => f.key)).toEqual([
       'apiId',
       'apiHash',
       'phone',
@@ -86,13 +86,13 @@ describe('interactive station forms', () => {
   });
 
   test('the api hash is masked in the browser but the phone is not', () => {
-    const fields = STATION_FORMS['telegram-user']?.fields ?? [];
+    const fields = STATION_FORMS['telegram']?.fields ?? [];
     expect(fields.find((f) => f.key === 'apiHash')?.secret).toBe(true);
     expect(fields.find((f) => f.key === 'phone')?.secret).toBe(false);
   });
 
   test('both interactive stations have a human label', () => {
-    expect(stationLabel('telegram-user')).toBe('Telegram');
+    expect(stationLabel('telegram')).toBe('Telegram');
     expect(stationLabel('whatsapp')).toBe('WhatsApp');
   });
 });

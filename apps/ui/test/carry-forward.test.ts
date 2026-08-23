@@ -8,22 +8,22 @@ const row = (id: string) => ({ id, agentId: 'agent000001', fields: [] });
 
 const PREV: AccountGroup[] = [
   { station: 'xmtp', rows: [row('x0'), row('x1'), row('tony')] },
-  { station: 'telegram', rows: [row('t0')] },
+  { station: 'telegram-bot', rows: [row('t0')] },
 ];
 
 describe('a station that could not be reached keeps its last known cards', () => {
   test('an unavailable station is carried forward from the cache', () => {
-    const fresh: AccountGroup[] = [{ station: 'telegram', rows: [row('t0')] }];
+    const fresh: AccountGroup[] = [{ station: 'telegram-bot', rows: [row('t0')] }];
     const out = carryForward(fresh, PREV, ['xmtp']);
     const xmtp = out.find((g) => g.station === 'xmtp');
     expect(xmtp?.rows.map((r) => r.id)).toEqual(['x0', 'x1', 'tony']);
-    expect(out.find((g) => g.station === 'telegram')?.rows).toHaveLength(1);
+    expect(out.find((g) => g.station === 'telegram-bot')?.rows).toHaveLength(1);
     expect(xmtp?.stale).toBe(true);
-    expect(out.find((g) => g.station === 'telegram')?.stale).toBeUndefined();
+    expect(out.find((g) => g.station === 'telegram-bot')?.stale).toBeUndefined();
   });
 
   test('a reachable station always wins, even when it is now empty', () => {
-    const fresh: AccountGroup[] = [{ station: 'telegram', rows: [] }];
+    const fresh: AccountGroup[] = [{ station: 'telegram-bot', rows: [] }];
     const out = carryForward(fresh, PREV, []);
     expect(out).toBe(fresh);
   });
@@ -56,7 +56,7 @@ describe('a detached account cannot be resurrected by carry-forward', () => {
     const kept = cached?.groups.find((g) => g.station === 'xmtp');
     expect(kept?.rows.map((r) => r.id)).toEqual(['x1', 'tony']);
 
-    const merged = carryForward([], cached?.groups ?? [], ['xmtp', 'telegram']);
+    const merged = carryForward([], cached?.groups ?? [], ['xmtp', 'telegram-bot']);
     expect(
       merged.find((g) => g.station === 'xmtp')?.rows.map((r) => r.id),
     ).toEqual(['x1', 'tony']);
@@ -66,9 +66,9 @@ describe('a detached account cannot be resurrected by carry-forward', () => {
     const client = new QueryClient();
     client.setQueryData<StationsView>(
       stationsKey(),
-      view([{ station: 'telegram', rows: [row('t0')] }]),
+      view([{ station: 'telegram-bot', rows: [row('t0')] }]),
     );
-    dropAccount(client, 'telegram', 't0');
+    dropAccount(client, 'telegram-bot', 't0');
     expect(client.getQueryData<StationsView>(stationsKey())?.groups).toEqual([]);
   });
 });
@@ -78,7 +78,7 @@ describe('a carried-forward station is marked, not passed off as healthy', () =>
     const { flattenAccounts, accountsForAgent } = await import(
       '../src/api/accounts'
     );
-    const fresh: AccountGroup[] = [{ station: 'telegram', rows: [row('t0')] }];
+    const fresh: AccountGroup[] = [{ station: 'telegram-bot', rows: [row('t0')] }];
     const out = carryForward(fresh, PREV, ['xmtp']);
     const flat = flattenAccounts(out);
     expect(flat.filter((f) => f.stale).map((f) => f.station)).toEqual([
@@ -87,7 +87,7 @@ describe('a carried-forward station is marked, not passed off as healthy', () =>
       'xmtp',
     ]);
     expect(flat.filter((f) => !f.stale).map((f) => f.station)).toEqual([
-      'telegram',
+      'telegram-bot',
     ]);
     const mine = accountsForAgent(out, 'agent000001');
     expect(mine.find((g) => g.station === 'xmtp')?.stale).toBe(true);

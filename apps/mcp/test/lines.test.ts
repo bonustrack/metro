@@ -20,31 +20,31 @@ describe('Line builders', () => {
   });
 
   test('user participant builder', () => {
-    expect(Line.user('discord', 'alice')).toBe(asLine('metro://discord/user/alice'));
-    expect(Line.user('telegram', 99)).toBe(asLine('metro://telegram/user/99'));
+    expect(Line.user('discord-bot', 'alice')).toBe(asLine('metro://discord-bot/user/alice'));
+    expect(Line.user('telegram-bot', 99)).toBe(asLine('metro://telegram-bot/user/99'));
   });
 });
 
 describe('Line.parse — generic station/path split', () => {
   test('single-segment path', () => {
-    expect(Line.parse('metro://discord/456')).toEqual({ station: 'discord', path: ['456'] });
+    expect(Line.parse('metro://discord-bot/456')).toEqual({ station: 'discord-bot', path: ['456'] });
   });
 
   test('multi-segment path', () => {
-    expect(Line.parse('metro://telegram/-100/42')).toEqual({ station: 'telegram', path: ['-100', '42'] });
+    expect(Line.parse('metro://telegram-bot/-100/42')).toEqual({ station: 'telegram-bot', path: ['-100', '42'] });
   });
 
   test('collapses empty segments from doubled / and trailing slash', () => {
-    expect(Line.parse('metro://discord//456/')).toEqual({ station: 'discord', path: ['456'] });
+    expect(Line.parse('metro://discord-bot//456/')).toEqual({ station: 'discord-bot', path: ['456'] });
   });
 
   test('rejects non-metro prefix', () => {
-    expect(Line.parse('https://discord/456')).toBeNull();
-    expect(Line.parse('discord/456')).toBeNull();
+    expect(Line.parse('https://discord-bot/456')).toBeNull();
+    expect(Line.parse('discord-bot/456')).toBeNull();
   });
 
   test('rejects missing station (no slash after prefix)', () => {
-    expect(Line.parse('metro://discord')).toBeNull();
+    expect(Line.parse('metro://discord-bot')).toBeNull();
   });
 
   test('rejects empty station (leading slash)', () => {
@@ -52,13 +52,13 @@ describe('Line.parse — generic station/path split', () => {
   });
 
   test('rejects station with empty path (only slashes)', () => {
-    expect(Line.parse('metro://discord//')).toBeNull();
+    expect(Line.parse('metro://discord-bot//')).toBeNull();
   });
 });
 
 describe('Line.station', () => {
   test('returns station for valid line', () => {
-    expect(Line.station('metro://discord/456')).toBe('discord');
+    expect(Line.station('metro://discord-bot/456')).toBe('discord-bot');
   });
   test('returns null for malformed line', () => {
     expect(Line.station('not-a-line')).toBeNull();
@@ -69,9 +69,9 @@ describe('isLocal', () => {
   test('claude is local', () => {
     expect(Line.isLocal('metro://claude/org1/sess1')).toBe(true);
   });
-  test('discord/telegram/webhook are not local', () => {
-    expect(Line.isLocal('metro://discord/456')).toBe(false);
-    expect(Line.isLocal('metro://telegram/123')).toBe(false);
+  test('discord-bot/telegram-bot/webhook are not local', () => {
+    expect(Line.isLocal('metro://discord-bot/456')).toBe(false);
+    expect(Line.isLocal('metro://telegram-bot/123')).toBe(false);
     expect(Line.isLocal('metro://webhook/gh-main')).toBe(false);
   });
   test('malformed line is not local', () => {

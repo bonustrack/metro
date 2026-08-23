@@ -32,10 +32,10 @@ let leakGrantedKeys = false;
 let liveAgents = new Map<string, { connected: boolean; lastSeenAt: number }>();
 
 const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
-  ["agent000001"]: ['telegram', { id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }],
-  ["agent000002"]: ['discord', { id: 'bob-dc', owner: 'bob', agentId: 'agent000002' }],
-  ["agent000007"]: ['telegram', { id: 'ada-tony-tg', owner: 'ada', agentId: 'agent000007' }],
-  ["agent000008"]: ['telegram', { id: 'bob-tony-tg', owner: 'bob', agentId: 'agent000008' }],
+  ["agent000001"]: ['telegram-bot', { id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }],
+  ["agent000002"]: ['discord-bot', { id: 'bob-dc', owner: 'bob', agentId: 'agent000002' }],
+  ["agent000007"]: ['telegram-bot', { id: 'ada-tony-tg', owner: 'ada', agentId: 'agent000007' }],
+  ["agent000008"]: ['telegram-bot', { id: 'bob-tony-tg', owner: 'bob', agentId: 'agent000008' }],
 };
 
 interface Row {
@@ -131,14 +131,14 @@ const deps: AgentApiDeps = {
   },
   gatherAccounts: (allowed) => {
     scopes.push(allowed);
-    const out: Record<string, unknown[]> = { telegram: [], discord: [] };
+    const out: Record<string, unknown[]> = { 'telegram-bot': [], 'discord-bot': [] };
     for (const id of allowed) {
       const hit = ACCOUNTS_BY_AGENT_ID[id];
       if (hit) (out[hit[0]] as unknown[]).push(hit[1]);
     }
     return Promise.resolve({ accounts: out, unavailable: [] });
   },
-  capabilities: () => ({ telegram: ['send'], discord: ['send', 'read'] }),
+  capabilities: () => ({ 'telegram-bot': ['send'], 'discord-bot': ['send', 'read'] }),
   liveness: () => liveAgents,
   mintRuntimeCode: () => Promise.resolve({ code: 'mr_x', expiresAt: 0 }),
   releaseRuntime: () => Promise.resolve(),
@@ -289,15 +289,15 @@ describe('GET /api/agents ownership', () => {
     expect(body.email).toBe('ada@lovelace.dev');
     expect(body.endpoint).toBe(`${PUBLIC}/mcp`);
     expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
-    expect(body.accounts.telegram).toEqual([{ id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }]);
-    expect(body.accounts.discord).toEqual([]);
+    expect(body.accounts['telegram-bot']).toEqual([{ id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }]);
+    expect(body.accounts['discord-bot']).toEqual([]);
   });
 
   test('another signed-in user never sees the first user agent', async () => {
     const body = (await (await getFull(session('bob@builder.dev'))).json()) as ListBody;
     expect(body.agents.map((a) => a.name)).toEqual(['bob-bot']);
-    expect(body.accounts.telegram).toEqual([]);
-    expect(body.accounts.discord).toEqual([{ id: 'bob-dc', owner: 'bob', agentId: 'agent000002' }]);
+    expect(body.accounts['telegram-bot']).toEqual([]);
+    expect(body.accounts['discord-bot']).toEqual([{ id: 'bob-dc', owner: 'bob', agentId: 'agent000002' }]);
   });
 
   test('the accounts scope set is exactly the visible agent IDS, never names', async () => {
@@ -322,10 +322,10 @@ describe('GET /api/agents ownership', () => {
     expect(bob.agents.map((a) => a.name)).toEqual(['tony']);
     expect(adaScope).toEqual(new Set(['agent000007']));
     expect(bobScope).toEqual(new Set(['agent000008']));
-    expect(ada.accounts.telegram).toEqual([
+    expect(ada.accounts['telegram-bot']).toEqual([
       { id: 'ada-tony-tg', owner: 'ada', agentId: 'agent000007' },
     ]);
-    expect(bob.accounts.telegram).toEqual([
+    expect(bob.accounts['telegram-bot']).toEqual([
       { id: 'bob-tony-tg', owner: 'bob', agentId: 'agent000008' },
     ]);
   });
@@ -334,7 +334,7 @@ describe('GET /api/agents ownership', () => {
     const body = (await (await getFull(session('nobody@example.com'))).json()) as ListBody;
     expect(body.agents).toEqual([]);
     expect(scopes.at(-1)).toEqual(new Set());
-    expect(body.accounts.telegram).toEqual([]);
+    expect(body.accounts['telegram-bot']).toEqual([]);
   });
 
   test('the session email is compared case-insensitively', async () => {

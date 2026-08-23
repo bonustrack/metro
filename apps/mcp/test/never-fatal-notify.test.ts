@@ -36,9 +36,9 @@ const attachmentMsg = (): Record<string, unknown> => ({
   event: { type: 'msg' },
   id: 'msg_orphan_parent',
   ts: '2026-08-05T20:27:16.000Z',
-  station: 'discord',
-  line: 'metro://discord/d0/1504226489359401221',
-  from: 'metro://discord/d0/user/238307675501232128',
+  station: 'discord-bot',
+  line: 'metro://discord-bot/d0/1504226489359401221',
+  from: 'metro://discord-bot/d0/user/238307675501232128',
   fromName: 'bonustrack_',
   to: 'metro://user',
   text: 'here is the file',
@@ -105,7 +105,7 @@ describe('the 15s attachment fallback fires against a transport that has gone', 
     const relay = new InboundRelay({
       mcp: await deadServer(),
       log: (...a: unknown[]) => logged.push(a),
-      getStations: () => new Set(['discord']),
+      getStations: () => new Set(['discord-bot']),
       senderAllowed: () => true,
     });
 
@@ -134,7 +134,7 @@ describe('the 15s attachment fallback fires against a transport that has gone', 
     const relay = new InboundRelay({
       mcp: await deadServer(),
       log: (...a: unknown[]) => logged.push(a),
-      getStations: () => new Set(['discord']),
+      getStations: () => new Set(['discord-bot']),
       senderAllowed: () => true,
     });
 
@@ -152,7 +152,7 @@ describe('the 15s attachment fallback fires against a transport that has gone', 
     );
     const rendered = failure?.map((v) => String(v)).join(' ') ?? '';
     expect(rendered).toContain('msg_orphan_parent');
-    expect(rendered).toContain('metro://discord/d0/1504226489359401221');
+    expect(rendered).toContain('metro://discord-bot/d0/1504226489359401221');
     expect(watcher.reasons).toEqual([]);
   });
 
@@ -167,7 +167,7 @@ describe('the 15s attachment fallback fires against a transport that has gone', 
         },
       } as never,
       log: () => undefined,
-      getStations: () => new Set(['discord']),
+      getStations: () => new Set(['discord-bot']),
       senderAllowed: () => true,
     });
 
@@ -192,7 +192,7 @@ describe('the 15s attachment fallback fires against a transport that has gone', 
     const relay = new InboundRelay({
       mcp: server,
       log: () => undefined,
-      getStations: () => new Set(['discord']),
+      getStations: () => new Set(['discord-bot']),
       senderAllowed: () => true,
     });
 
@@ -213,15 +213,15 @@ describe('the 15s attachment fallback fires against a transport that has gone', 
         },
       } as never,
       log: () => undefined,
-      getStations: () => new Set(['discord']),
+      getStations: () => new Set(['discord-bot']),
       senderAllowed: () => true,
     });
     await revived.handleEvent({
       event: { type: 'msg' },
       id: 'msg_after',
-      station: 'discord',
-      line: 'metro://discord/d0/1504226489359401221',
-      from: 'metro://discord/d0/user/238307675501232128',
+      station: 'discord-bot',
+      line: 'metro://discord-bot/d0/1504226489359401221',
+      from: 'metro://discord-bot/d0/user/238307675501232128',
       to: 'metro://user',
       text: 'still relaying',
       messageId: '999',

@@ -9,37 +9,37 @@ import {
 } from '../src/api/accounts';
 
 const PAYLOAD = {
-  telegram: [
+  'telegram-bot': [
     { id: 'ada-tg', owner: 'ada', agentId: 'agent000001' },
     { id: 'bob-tg', owner: 'bob', agentId: 'agent000002' },
   ],
-  discord: [{ id: 'ada-dc', token: 'mk_fake_never_shown', agentId: 'agent000001' }],
+  'discord-bot': [{ id: 'ada-dc', token: 'mk_fake_never_shown', agentId: 'agent000001' }],
   line: [],
 };
 
 describe('groupAccounts carries the owning agent', () => {
   test('each row keeps the agent id and never renders it as a field', () => {
     const groups = groupAccounts(PAYLOAD);
-    const telegram = groups.find((g) => g.station === 'telegram');
-    expect(telegram?.rows.map((r) => r.agentId)).toEqual(['agent000001', 'agent000002']);
-    expect(telegram?.rows[0]?.fields.map((f) => f.label)).toEqual(['id', 'owner']);
+    const telegramBot = groups.find((g) => g.station === 'telegram-bot');
+    expect(telegramBot?.rows.map((r) => r.agentId)).toEqual(['agent000001', 'agent000002']);
+    expect(telegramBot?.rows[0]?.fields.map((f) => f.label)).toEqual(['id', 'owner']);
   });
 
   test('secret-looking fields are still stripped', () => {
-    const discord = groupAccounts(PAYLOAD).find((g) => g.station === 'discord');
-    expect(discord?.rows[0]?.fields.map((f) => f.label)).toEqual(['id']);
+    const discordBot = groupAccounts(PAYLOAD).find((g) => g.station === 'discord-bot');
+    expect(discordBot?.rows[0]?.fields.map((f) => f.label)).toEqual(['id']);
   });
 
   test('the station-local account id is kept for detaching, never invented', () => {
     const groups = groupAccounts(PAYLOAD);
     expect(
-      groups.find((g) => g.station === 'telegram')?.rows.map((r) => r.id),
+      groups.find((g) => g.station === 'telegram-bot')?.rows.map((r) => r.id),
     ).toEqual(['ada-tg', 'bob-tg']);
-    expect(groupAccounts({ telegram: [{ owner: 'ada' }] })[0]?.rows[0]?.id).toBeNull();
+    expect(groupAccounts({ 'telegram-bot': [{ owner: 'ada' }] })[0]?.rows[0]?.id).toBeNull();
   });
 
   test('an account with no agent id reads as unattributed', () => {
-    const groups = groupAccounts({ telegram: [{ id: 'orphan' }] });
+    const groups = groupAccounts({ 'telegram-bot': [{ id: 'orphan' }] });
     expect(groups[0]?.rows[0]?.agentId).toBeNull();
     expect(unattributedAccounts(groups)).toBe(1);
   });
@@ -48,7 +48,7 @@ describe('groupAccounts carries the owning agent', () => {
 describe('accountsForAgent', () => {
   test('returns only the selected agent accounts', () => {
     const groups = accountsForAgent(groupAccounts(PAYLOAD), 'agent000001');
-    expect(groups.map((g) => g.station)).toEqual(['discord', 'telegram']);
+    expect(groups.map((g) => g.station)).toEqual(['discord-bot', 'telegram-bot']);
     expect(groups.flatMap((g) => g.rows.map((r) => r.fields[0]?.value))).toEqual([
       'ada-dc',
       'ada-tg',
@@ -57,7 +57,7 @@ describe('accountsForAgent', () => {
 
   test('a station with none of this agent accounts is dropped entirely', () => {
     const groups = accountsForAgent(groupAccounts(PAYLOAD), 'agent000002');
-    expect(groups.map((g) => g.station)).toEqual(['telegram']);
+    expect(groups.map((g) => g.station)).toEqual(['telegram-bot']);
     expect(groups[0]?.rows).toHaveLength(1);
   });
 
@@ -66,14 +66,14 @@ describe('accountsForAgent', () => {
   });
 
   test('unattributed rows belong to no agent', () => {
-    const groups = groupAccounts({ telegram: [{ id: 'orphan' }] });
+    const groups = groupAccounts({ 'telegram-bot': [{ id: 'orphan' }] });
     expect(accountsForAgent(groups, 'agent000001')).toEqual([]);
   });
 });
 
 describe('attributeUntagged', () => {
   test('fills in the sole agent id when an older daemon sent none', () => {
-    const groups = attributeUntagged(groupAccounts({ telegram: [{ id: 'a' }] }), 'agent000004');
+    const groups = attributeUntagged(groupAccounts({ 'telegram-bot': [{ id: 'a' }] }), 'agent000004');
     expect(groups[0]?.rows[0]?.agentId).toBe('agent000004');
     expect(accountsForAgent(groups, 'agent000004')).toHaveLength(1);
     expect(unattributedAccounts(groups)).toBe(0);

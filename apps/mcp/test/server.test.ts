@@ -26,10 +26,10 @@ function emitOne(entry: MetroEvent): MetroEvent {
 }
 
 const base = (overrides: Partial<MetroEvent> = {}): MetroEvent => ({
-  id: 'msg_x', ts: '2026-05-29T00:00:00.000Z', station: 'discord',
-  line: 'metro://discord/1' as Line,
-  from: 'metro://discord/user/9' as Line,
-  to: 'metro://discord/1' as Line,
+  id: 'msg_x', ts: '2026-05-29T00:00:00.000Z', station: 'discord-bot',
+  line: 'metro://discord-bot/1' as Line,
+  from: 'metro://discord-bot/user/9' as Line,
+  to: 'metro://discord-bot/1' as Line,
   text: 'hello',
   ...overrides,
 });

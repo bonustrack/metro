@@ -89,7 +89,7 @@ const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 describe('attach session lifecycle', () => {
   test('start returns a pending view with an opaque id and no credential', async () => {
     const store = sessions();
-    const view = await store.start(ADA, 'telegram-user', {
+    const view = await store.start(ADA, 'telegram', {
       apiId: 1,
       apiHash: 'ff',
       phone: '447700900123',
@@ -103,13 +103,13 @@ describe('attach session lifecycle', () => {
 
   test('a code that signs in stores the config and never returns it', async () => {
     const store = sessions();
-    const { attachId } = await store.start(ADA, 'telegram-user', {});
+    const { attachId } = await store.start(ADA, 'telegram', {});
     const after = await store.submit(ADA, attachId, { code: '12345' });
     await settle();
     expect(stored).toEqual([
       {
         agentId: 'agent000001',
-        station: 'telegram-user',
+        station: 'telegram',
         config: { session: FAKE_SESSION, apiId: 1, apiHash: 'ff' },
       },
     ]);
@@ -151,7 +151,7 @@ describe('attach session lifecycle', () => {
 
   test('a store failure surfaces on the session rather than being swallowed', async () => {
     const store = sessions();
-    const { attachId } = await store.start(ADA, 'telegram-user', {});
+    const { attachId } = await store.start(ADA, 'telegram', {});
     storeFails = 'no such agent';
     await store.submit(ADA, attachId, { code: '12345' });
     await settle();
@@ -175,7 +175,7 @@ describe('attach session lifecycle', () => {
 describe('attach sessions are owned', () => {
   test('another signed-in user cannot see, step or cancel it', async () => {
     const store = sessions();
-    const { attachId } = await store.start(ADA, 'telegram-user', {});
+    const { attachId } = await store.start(ADA, 'telegram', {});
     expect(() => store.view(BOB, attachId)).toThrow('no such attach session');
     await expect(store.submit(BOB, attachId, { code: '12345' })).rejects.toThrow(
       'no such attach session',
@@ -189,7 +189,7 @@ describe('attach sessions are owned', () => {
 
   test('the same email on a different agent is still refused', async () => {
     const store = sessions();
-    const { attachId } = await store.start(ADA, 'telegram-user', {});
+    const { attachId } = await store.start(ADA, 'telegram', {});
     expect(() =>
       store.view({ ...ADA, agentId: 'agent000099' }, attachId),
     ).toThrow('no such attach session');
@@ -221,7 +221,7 @@ describe('attach sessions are owned', () => {
 describe('attach sessions are bounded', () => {
   test('one agent cannot stack more than two sign-ins', async () => {
     const store = sessions();
-    await store.start(ADA, 'telegram-user', {});
+    await store.start(ADA, 'telegram', {});
     await store.start(ADA, 'whatsapp', {});
     await expect(store.start(ADA, 'whatsapp', {})).rejects.toThrow(
       'already has a sign-in in progress',
@@ -231,27 +231,27 @@ describe('attach sessions are bounded', () => {
 
   test('cancelling frees the slot and tears the driver down', async () => {
     const store = sessions();
-    const first = await store.start(ADA, 'telegram-user', {});
+    const first = await store.start(ADA, 'telegram', {});
     await store.start(ADA, 'whatsapp', {});
     await store.cancel(ADA, first.attachId);
-    expect(cancelled).toEqual(['telegram-user']);
-    const third = await store.start(ADA, 'telegram-user', {});
+    expect(cancelled).toEqual(['telegram']);
+    const third = await store.start(ADA, 'telegram', {});
     expect(third.status).toBe('pending');
     await store.stop();
   });
 
   test('an abandoned session times out, is dropped, and its driver is cancelled', async () => {
     const store = sessions();
-    const { attachId } = await store.start(ADA, 'telegram-user', {});
+    const { attachId } = await store.start(ADA, 'telegram', {});
     await store.sweep(Date.now() + 10 * 60_000);
-    expect(cancelled).toEqual(['telegram-user']);
+    expect(cancelled).toEqual(['telegram']);
     expect(() => store.view(ADA, attachId)).toThrow('no such attach session');
     await store.stop();
   });
 
   test('a live session survives a sweep', async () => {
     const store = sessions();
-    const { attachId } = await store.start(ADA, 'telegram-user', {});
+    const { attachId } = await store.start(ADA, 'telegram', {});
     await store.sweep(Date.now());
     expect(store.view(ADA, attachId).status).toBe('pending');
     await store.stop();
@@ -259,15 +259,15 @@ describe('attach sessions are bounded', () => {
 
   test('stop discards every in-flight sign-in', async () => {
     const store = sessions();
-    await store.start(ADA, 'telegram-user', {});
+    await store.start(ADA, 'telegram', {});
     await store.start(BOB, 'whatsapp', {});
     await store.stop();
-    expect(cancelled.sort()).toEqual(['telegram-user', 'whatsapp']);
+    expect(cancelled.sort()).toEqual(['telegram', 'whatsapp']);
   });
 
   test('a finished session cannot be stepped again', async () => {
     const store = sessions();
-    const { attachId } = await store.start(ADA, 'telegram-user', {});
+    const { attachId } = await store.start(ADA, 'telegram', {});
     await store.submit(ADA, attachId, { code: '12345' });
     await settle();
     await expect(store.submit(ADA, attachId, { code: '12345' })).rejects.toThrow(
@@ -278,7 +278,7 @@ describe('attach sessions are bounded', () => {
 
   test('a wrong code keeps the session usable', async () => {
     const store = sessions();
-    const { attachId } = await store.start(ADA, 'telegram-user', {});
+    const { attachId } = await store.start(ADA, 'telegram', {});
     await expect(store.submit(ADA, attachId, { code: '000000' })).rejects.toThrow(
       'that login code is not right',
     );

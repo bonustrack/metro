@@ -2,7 +2,7 @@
  * The backstop under the specific fix: no stray rejection anywhere may take the
  * daemon down, because every station dies with it. v157 exited code 1 and the
  * machine rebooted over one `mcp.notification()` that could not be written, and
- * that is ~16s of outage on xmtp, telegram, telegram-user, discord, whatsapp
+ * that is ~16s of outage on xmtp, telegram-bot, telegram, discord-bot, whatsapp
  * and line at once.
  *
  * Deliberately asymmetric: BEFORE `dispatcher ready` a crash is a boot failure

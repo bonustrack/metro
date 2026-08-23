@@ -1,6 +1,6 @@
 import { StationAttachError } from './attach.js';
 
-export const INTERACTIVE_STATIONS = ['telegram-user', 'whatsapp'] as const;
+export const INTERACTIVE_STATIONS = ['telegram', 'whatsapp'] as const;
 
 export type InteractiveStation = (typeof INTERACTIVE_STATIONS)[number];
 
@@ -61,12 +61,12 @@ async function startTelegramUser(
   input: Record<string, unknown>,
   hooks: DriverHooks,
 ): Promise<StartedAttach> {
-  const { TelegramUserLogin, TelegramUserLoginError, validateCredentials } =
-    await import('@metro-labs/telegram-user/login');
-  const isOwn = (e: unknown): boolean => e instanceof TelegramUserLoginError;
+  const { TelegramLogin, TelegramLoginError, validateCredentials } =
+    await import('@metro-labs/telegram/login');
+  const isOwn = (e: unknown): boolean => e instanceof TelegramLoginError;
   let login;
   try {
-    login = new TelegramUserLogin(
+    login = new TelegramLogin(
       validateCredentials({
         apiId: input.apiId,
         apiHash: input.apiHash,
@@ -155,7 +155,7 @@ export async function startInteractiveAttach(
   input: Record<string, unknown>,
   hooks: DriverHooks,
 ): Promise<StartedAttach> {
-  return station === 'telegram-user'
+  return station === 'telegram'
     ? startTelegramUser(input, hooks)
     : startWhatsapp(input, hooks);
 }

@@ -14,10 +14,10 @@ import type { MetroEvent } from '../src/daemon/events.ts';
 import { Line } from '../src/stations/lines.ts';
 
 const inbound = (overrides: Partial<MetroEvent> = {}): MetroEvent => ({
-  id: 'msg_x', ts: '2026-06-10T00:00:00.000Z', station: 'discord',
-  line: 'metro://discord/1' as Line,
-  from: 'metro://discord/user/9' as Line,
-  to: 'metro://discord/1' as Line,
+  id: 'msg_x', ts: '2026-06-10T00:00:00.000Z', station: 'discord-bot',
+  line: 'metro://discord-bot/1' as Line,
+  from: 'metro://discord-bot/user/9' as Line,
+  to: 'metro://discord-bot/1' as Line,
   text: 'hello', messageId: 'plat-1',
   ...overrides,
 });
@@ -63,8 +63,8 @@ describe('dedup-seq tracker', () => {
 
   test('seq is monotonic per line and independent across lines', () => {
     const t = makeDedupSeq();
-    const A = 'metro://discord/A' as Line;
-    const B = 'metro://discord/B' as Line;
+    const A = 'metro://discord-bot/A' as Line;
+    const B = 'metro://discord-bot/B' as Line;
     expect(t.admit(inbound({ line: A, messageId: 'a1' }))).toBe(1);
     expect(t.admit(inbound({ line: B, messageId: 'b1' }))).toBe(1);
     expect(t.admit(inbound({ line: A, messageId: 'a2' }))).toBe(2);

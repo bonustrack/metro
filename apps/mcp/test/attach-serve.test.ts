@@ -48,7 +48,7 @@ beforeAll(async () => {
     { key: ONE, agentId: 'agent000001' },
     { key: TWO, agentId: 'agent000002' },
   ]);
-  setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
+  setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram-bot/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
   server = await startWebhookServer(makeEmit());
   const addr = server.address() as AddressInfo;
   base = `http://127.0.0.1:${addr.port}`;
@@ -130,7 +130,7 @@ describe('attachment url helpers', () => {
         {
           contentType: 'attachmentSaved',
           localPath: `/data/x/${CACHE_NAME}`,
-          url: 'https://cdn.discord/x.png',
+          url: 'https://cdn.example/x.png',
         },
         1,
       ),

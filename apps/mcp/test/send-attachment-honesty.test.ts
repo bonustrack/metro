@@ -21,18 +21,18 @@ interface StationCase {
 
 const STATION_CASES: StationCase[] = [
   {
+    name: 'telegram-bot',
+    line: 'metro://telegram-bot/t0/-100123',
+    attachmentActions: [],
+  },
+  {
     name: 'telegram',
-    line: 'metro://telegram/t0/-100123',
+    line: 'metro://telegram/default/12345',
     attachmentActions: [],
   },
   {
-    name: 'telegram-user',
-    line: 'metro://telegram-user/default/12345',
-    attachmentActions: [],
-  },
-  {
-    name: 'discord',
-    line: 'metro://discord/d0/1531084421833297970',
+    name: 'discord-bot',
+    line: 'metro://discord-bot/d0/1531084421833297970',
     attachmentActions: [],
   },
   {
@@ -144,7 +144,7 @@ describe('the canonical wire carries what a station needs to label honestly', ()
       result: { messageId: '1', account: 'a', attachments: ['image'] },
     }));
     await dispatchMessageTool('send', {
-      line: 'metro://discord/d0/1531084421833297970',
+      line: 'metro://discord-bot/d0/1531084421833297970',
       attachments: [{ path: png, name: 'horse.png' }],
     });
     const send = calls.find((c) => c.action === 'send');
@@ -172,7 +172,7 @@ describe('the canonical wire carries what a station needs to label honestly', ()
     }));
     try {
       await dispatchMessageTool('send', {
-        line: 'metro://discord/d0/1531084421833297970',
+        line: 'metro://discord-bot/d0/1531084421833297970',
         attachments: [{ url: `http://127.0.0.1:${server.port}/horse.mp3` }],
       });
     } finally {
@@ -189,7 +189,7 @@ describe('the canonical wire carries what a station needs to label honestly', ()
 describe('normalizeDiscord hands the train a name per file', () => {
   test('files, kinds and names line up index for index', () => {
     const { args } = normalizeDiscord('send', {
-      line: 'metro://discord/d0/1',
+      line: 'metro://discord-bot/d0/1',
       attachments: [
         { path: '/cache/msg_outaaa_0.mp3', kind: 'audio', name: 'horse.mp3' },
         { path: '/cache/msg_outbbb_0.png', kind: 'image', name: 'chart.png' },
@@ -205,7 +205,7 @@ describe('normalizeDiscord hands the train a name per file', () => {
 
   test('a nameless attachment yields an empty name, so the station falls back', () => {
     const { args } = normalizeDiscord('send', {
-      line: 'metro://discord/d0/1',
+      line: 'metro://discord-bot/d0/1',
       attachments: [{ path: '/cache/msg_outaaa_0.mp3', kind: 'audio' }],
     });
     expect(args.attachmentNames).toEqual(['']);
@@ -213,7 +213,7 @@ describe('normalizeDiscord hands the train a name per file', () => {
 
   test('an attachment with no path and no url is dropped from every list', () => {
     const { args } = normalizeDiscord('send', {
-      line: 'metro://discord/d0/1',
+      line: 'metro://discord-bot/d0/1',
       attachments: [
         { path: '/cache/msg_outaaa_0.mp3', kind: 'audio', name: 'horse.mp3' },
         { kind: 'image', name: 'ghost.png' },

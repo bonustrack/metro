@@ -23,7 +23,7 @@ function makeRelay(): { relay: InboundRelay; notifs: Notif[] } {
   const relay = new InboundRelay({
     mcp: fakeMcp as never,
     log: () => {},
-    getStations: () => new Set(['discord']),
+    getStations: () => new Set(['discord-bot']),
     senderAllowed: () => true,
   });
   return { relay, notifs };
@@ -39,13 +39,13 @@ describe('inbound event bus → InboundRelay', () => {
     publishEvent({
       id: 'msg_bus_1',
       ts: '2026-06-21T00:00:00.000Z',
-      station: 'discord',
-      line: 'metro://discord/g/1/c/2' as never,
+      station: 'discord-bot',
+      line: 'metro://discord-bot/g/1/c/2' as never,
       lineName: 'general',
-      from: 'metro://discord/u/alice' as never,
+      from: 'metro://discord-bot/u/alice' as never,
       fromName: 'alice_handle',
       fromDisplayName: 'Alice',
-      to: 'metro://discord/g/1/c/2' as never,
+      to: 'metro://discord-bot/g/1/c/2' as never,
       text: 'hello from the bus',
       messageId: 'disc-1',
       event: { type: 'msg' },
@@ -59,11 +59,11 @@ describe('inbound event bus → InboundRelay', () => {
     expect(channel.length).toBe(1);
     expect(channel[0].params.content).toBe('hello from the bus');
     const meta = channel[0].params.meta as Record<string, unknown>;
-    expect(meta.line).toBe('metro://discord/g/1/c/2');
-    expect(meta.from).toBe('metro://discord/u/alice');
+    expect(meta.line).toBe('metro://discord-bot/g/1/c/2');
+    expect(meta.from).toBe('metro://discord-bot/u/alice');
     expect(meta.from_name).toBe('alice_handle');
     expect(meta.from_display_name).toBe('Alice');
-    expect(meta.station).toBe('discord');
+    expect(meta.station).toBe('discord-bot');
     expect(meta.message_id).toBe('disc-1');
     expect(meta.ts).toBe('2026-06-21T00:00:00.000Z');
   });
@@ -77,12 +77,12 @@ describe('inbound event bus → InboundRelay', () => {
     publishEvent({
       id: 'msg_bus_types',
       ts: '2026-06-21T00:00:00.000Z',
-      station: 'discord',
-      line: 'metro://discord/g/1/c/2' as never,
+      station: 'discord-bot',
+      line: 'metro://discord-bot/g/1/c/2' as never,
       lineName: 'general',
-      from: 'metro://discord/u/alice' as never,
+      from: 'metro://discord-bot/u/alice' as never,
       fromName: 'alice_handle',
-      to: 'metro://discord/g/1/c/2' as never,
+      to: 'metro://discord-bot/g/1/c/2' as never,
       text: 'typed',
       messageId: 'disc-2',
       event: { type: 'msg' },
@@ -110,10 +110,10 @@ describe('inbound event bus → InboundRelay', () => {
     publishEvent({
       id: 'msg_bus_2',
       ts: '2026-06-21T00:00:01.000Z',
-      station: 'telegram',
-      line: 'metro://telegram/-100/1' as never,
-      from: 'metro://telegram/u/bob' as never,
-      to: 'metro://telegram/-100/1' as never,
+      station: 'telegram-bot',
+      line: 'metro://telegram-bot/-100/1' as never,
+      from: 'metro://telegram-bot/u/bob' as never,
+      to: 'metro://telegram-bot/-100/1' as never,
       text: 'ignored',
       messageId: 'tg-1',
       event: { type: 'msg' },

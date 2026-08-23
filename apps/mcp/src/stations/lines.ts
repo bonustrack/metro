@@ -38,7 +38,7 @@ function parseTelegramLine(
   line: Line | string,
 ): { accountId: string; chatId: number; topicId?: number } | null {
   const p = Line.parse(line);
-  if (p?.station !== 'telegram') return null;
+  if (p?.station !== 'telegram-bot') return null;
   const { accountId, rest } = splitTelegramAccount(p.path);
   const [chatId, topicId] = rest;
   if (rest.length < 1 || rest.length > 2 || chatId === undefined || !isSignedInt(chatId))
@@ -76,7 +76,7 @@ export const Line = {
   parseXmtp: (line: Line | string) => parseAccountScoped(line, 'xmtp'),
 
   parseDiscord: (line: Line | string) =>
-    parseAccountScoped(line, 'discord', isSnowflake),
+    parseAccountScoped(line, 'discord-bot', isSnowflake),
 
   parseTelegram: (line: Line | string) => parseTelegramLine(line),
 };

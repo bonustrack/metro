@@ -1,0 +1,127 @@
+import { errMsg } from '@metro-labs/mcp/log';
+import {
+  Client,
+  Events,
+  GatewayIntentBits,
+  Partials,
+  type Message,
+  type MessageReaction,
+  type User,
+} from 'discord.js';
+import {
+  accounts,
+  loadAccounts,
+  lineOf,
+  type AccountConfig,
+} from './accounts.js';
+import { emitInbound, messageEnvelope, reactionEnvelope } from './format.js';
+import { mintId } from './wire.js';
+import { readCalls } from '@metro-labs/mcp/trains/protocol';
+import { handleCall } from './actions.js';
+
+readCalls('discord-bot', handleCall);
+
+function makeClient(): Client {
+  return new Client({
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent,
+      GatewayIntentBits.GuildMessageReactions,
+      GatewayIntentBits.DirectMessages,
+      GatewayIntentBits.DirectMessageReactions,
+      GatewayIntentBits.GuildVoiceStates,
+    ],
+    partials: [
+      Partials.Channel,
+      Partials.Message,
+      Partials.Reaction,
+      Partials.User,
+    ],
+  });
+}
+
+function onEdit(accountId: string, m: Message): void {
+  if (m.author.bot) return;
+  emitInbound(accountId, {
+    kind: 'edit',
+    id: mintId(),
+    ts: new Date(m.editedTimestamp ?? Date.now()).toISOString(),
+    station: 'discord-bot',
+    line: lineOf(accountId, m.channelId),
+    from: `metro://discord-bot/${accountId}/user/${m.author.id}`,
+    from_name: m.author.username,
+    from_display_name: m.author.globalName ?? undefined,
+    message_id: m.id,
+    text: m.content,
+    is_private: m.guildId == null,
+    event: { type: 'edit', targetId: m.id },
+    payload: m.toJSON(),
+  });
+}
+
+async function bootAccount(cfg: AccountConfig): Promise<void> {
+  const client = makeClient();
+  const accountId = cfg.id;
+
+  client.on(Events.MessageCreate, (m) => {
+    const env = messageEnvelope(accountId, m);
+    if (env) emitInbound(accountId, env);
+  });
+
+  client.on(Events.MessageReactionAdd, (r, u) => {
+    void (async () => {
+      try {
+        if (r.partial) await r.fetch();
+        if (u.partial) await u.fetch();
+      } catch {
+      }
+      const env = reactionEnvelope(accountId, r as MessageReaction, u as User);
+      if (env) emitInbound(accountId, env);
+    })().catch((err: unknown) => {
+      process.stderr.write(
+        `discord-bot[${accountId}] reaction handler failed: ${errMsg(err)}\n`,
+      );
+    });
+  });
+
+  client.on(Events.MessageUpdate, (_old, _new) => {
+    void (async () => {
+      try {
+        onEdit(accountId, _new.partial ? await _new.fetch() : _new);
+      } catch (err) {
+        process.stderr.write(
+          `discord-bot[${accountId}] message update fetch failed: ${errMsg(err)}\n`,
+        );
+      }
+    })().catch((err: unknown) => {
+      process.stderr.write(
+        `discord-bot[${accountId}] message update handler failed: ${errMsg(err)}\n`,
+      );
+    });
+  });
+
+  accounts.set(accountId, { cfg, client });
+  await client.login(cfg.token);
+  process.stderr.write(
+    `discord-bot[${accountId}] ready — ${client.user?.tag ?? '?'} (owner=${cfg.owner ?? '(broadcast)'})\n`,
+  );
+}
+
+const cfgs = loadAccounts();
+for (const cfg of cfgs) {
+  try {
+    await bootAccount(cfg);
+  } catch (err) {
+    process.stderr.write(
+      `discord-bot[${cfg.id}] boot FAILED: ${errMsg(err)}\n`,
+    );
+  }
+}
+if (accounts.size === 0) {
+  process.stderr.write('discord-bot: no accounts booted, exiting\n');
+  process.exit(2);
+}
+process.stderr.write(
+  `discord-bot train ready — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
+);

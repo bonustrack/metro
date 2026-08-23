@@ -790,7 +790,7 @@ describe('the mounting order inside handlePreMcpRoutes', () => {
   });
 
   test('the connector prefix does not shadow the monitor call route', async () => {
-    const res = await fetch(`${base}/api/call/telegram/send`, { method: 'POST' });
+    const res = await fetch(`${base}/api/call/telegram-bot/send`, { method: 'POST' });
     expect(res.status).toBe(401);
   });
 

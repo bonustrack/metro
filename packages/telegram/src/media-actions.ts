@@ -1,166 +1,80 @@
-import { tg, tgForm, targetOf } from './accounts.js';
-import { emit, mintId, respond, SELF_URI } from './wire.js';
-import { appendFile } from '@metro-labs/mcp/stations/attachments';
+import type { InputMediaLike, Message } from '@mtcute/bun';
+import { InputMedia } from '@mtcute/bun';
+import { isImageMime, isImageExt } from '@metro-labs/mcp/stations/attachments';
+import type { UserClient } from './client.js';
 
-export function emitOutbound(
-  accountId: string,
-  line: string,
-  messageId: string,
-  text: string,
-  replyTo?: string,
-): void {
-  emit({
-    kind: 'outbound',
-    id: mintId(),
-    ts: new Date().toISOString(),
-    station: 'telegram',
-    line,
-    from: SELF_URI,
-    to: line,
-    message_id: messageId,
-    text,
-    reply_to: replyTo,
-    ...(replyTo ? { event: { type: 'reply', replyTo } } : {}),
-    account: accountId,
-    payload: { account: accountId },
-  });
-}
-
-export function finishSend(
-  id: string,
-  accountId: string,
-  line: string,
-  messageId: string,
-  label: string,
-  replyTo?: string,
-  extra?: Record<string, unknown>,
-): void {
-  emitOutbound(accountId, line, messageId, label, replyTo);
-  respond(id, {
-    result: { messageId, account: accountId, ...extra },
-  });
-}
-
-interface MediaArgs {
-  line: string;
-  path: string;
-  caption?: string;
-  replyTo?: string;
-  parseMode?: string;
-  account?: string;
+export interface CanonicalAttachment {
+  kind?: string;
+  path?: string;
+  url?: string;
+  mime?: string;
   name?: string;
 }
 
-export async function sendMedia(
-  method: string,
-  fieldName: string,
-  args: Record<string, unknown>,
-): Promise<{ accountId: string; message_id: number }> {
-  const {
-    line,
-    path,
-    caption,
-    replyTo,
-    parseMode,
-    account,
-    name: fileName,
-  } = args as unknown as MediaArgs;
-  const { accountId, chatId, topicId } = targetOf(line, account);
-  const form = new FormData();
-  form.append('chat_id', String(chatId));
-  if (topicId !== undefined) form.append('message_thread_id', String(topicId));
-  if (caption) form.append('caption', caption);
-  if (parseMode) form.append('parse_mode', parseMode);
-  if (replyTo)
-    form.append(
-      'reply_parameters',
-      JSON.stringify({ message_id: Number(replyTo) }),
-    );
-  const name = fileName ?? path.split('/').pop() ?? fieldName;
-  await appendFile(form, fieldName, path, name);
-  const r = await tgForm<{ message_id: number }>(accountId, method, form);
-  return { accountId, message_id: r.message_id };
+const srcOf = (att: CanonicalAttachment): string => att.path ?? att.url ?? '';
+
+function isImage(att: CanonicalAttachment): boolean {
+  if (att.kind === 'image') return true;
+  if (att.mime !== undefined) return isImageMime(att.mime);
+  const src = srcOf(att);
+  return src !== '' && isImageExt(src);
 }
 
-export async function media(
-  id: string,
-  method: string,
-  field: string,
-  label: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const { accountId, message_id } = await sendMedia(method, field, args);
-  const line = (args as { line: string }).line;
-  finishSend(
-    id,
-    accountId,
-    line,
-    String(message_id),
-    label,
-    args.replyTo as string | undefined,
-  );
+function fileRef(att: CanonicalAttachment): string {
+  const src = srcOf(att);
+  if (src === '' || /^https?:\/\//i.test(src)) return src;
+  return src.startsWith('file:') ? src : `file:${src}`;
 }
 
-export const MEDIA_METHOD_FIELD: Record<
-  string,
-  { method: string; field: string }
-> = {
-  image: { method: 'sendPhoto', field: 'photo' },
-  voice: { method: 'sendVoice', field: 'voice' },
-  audio: { method: 'sendAudio', field: 'audio' },
-  video: { method: 'sendVideo', field: 'video' },
-  document: { method: 'sendDocument', field: 'document' },
-};
-
-export async function sendDice(
-  id: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const {
-    line,
-    emoji = '\U0001F3B2',
-    account,
-  } = args as { line: string; emoji?: string; account?: string };
-  const { accountId, chatId, topicId } = targetOf(line, account);
-  const body: Record<string, unknown> = { chat_id: chatId, emoji };
-  if (topicId !== undefined) body.message_thread_id = topicId;
-  const r = await tg<{ message_id: number; dice?: { value: number } }>(
-    accountId,
-    'sendDice',
-    body,
-  );
-  finishSend(
-    id,
-    accountId,
-    line,
-    String(r.message_id),
-    `[dice ${emoji} = ${r.dice?.value ?? '?'}]`,
-    undefined,
-    { value: r.dice?.value },
-  );
+export interface OutgoingMedia {
+  media: InputMediaLike;
+  kind: string;
 }
 
-export async function sendLocation(
-  id: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const { line, latitude, longitude, account } = args as {
-    line: string;
-    latitude: number;
-    longitude: number;
-    account?: string;
+export function buildInputMedia(
+  att: CanonicalAttachment,
+  caption: string | undefined,
+): OutgoingMedia {
+  const file = fileRef(att);
+  const params = {
+    ...(caption ? { caption } : {}),
+    ...(att.name ? { fileName: att.name } : {}),
   };
-  const { accountId, chatId } = targetOf(line, account);
-  const r = await tg<{ message_id: number }>(accountId, 'sendLocation', {
-    chat_id: chatId,
-    latitude,
-    longitude,
-  });
-  finishSend(
-    id,
-    accountId,
-    line,
-    String(r.message_id),
-    `[location: ${latitude}, ${longitude}]`,
-  );
+  return isImage(att)
+    ? { media: InputMedia.photo(file, params), kind: 'image' }
+    : { media: InputMedia.document(file, params), kind: 'file' };
+}
+
+interface SendMediaTarget {
+  client: UserClient;
+  chatId: number;
+  replyTo?: number;
+}
+
+export interface SentMedia {
+  message: Message;
+  delivered: string[];
+}
+
+export async function sendAttachments(
+  target: SendMediaTarget,
+  attachments: CanonicalAttachment[],
+  text: string,
+): Promise<SentMedia> {
+  const { client, chatId, replyTo } = target;
+  const peer = await client.tg.resolvePeer(chatId);
+  let last: Message | undefined;
+  const delivered: string[] = [];
+  for (let i = 0; i < attachments.length; i++) {
+    const att = attachments[i];
+    if (!att || srcOf(att) === '') continue;
+    const caption = i === 0 ? text : undefined;
+    const out = buildInputMedia(att, caption);
+    last = await client.tg.sendMedia(peer, out.media, {
+      ...(replyTo !== undefined ? { replyTo } : {}),
+    });
+    delivered.push(out.kind);
+  }
+  if (!last) throw new Error('no attachments were sent');
+  return { message: last, delivered };
 }

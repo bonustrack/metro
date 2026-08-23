@@ -85,15 +85,15 @@ export default defineConfig({
       type: 'library',
       knip: { project: ['src/**/*.ts'] },
     },
-    'packages/discord': {
+    'packages/discord-bot': {
+      type: 'library',
+      knip: { project: ['src/**/*.ts'] },
+    },
+    'packages/telegram-bot': {
       type: 'library',
       knip: { project: ['src/**/*.ts'] },
     },
     'packages/telegram': {
-      type: 'library',
-      knip: { project: ['src/**/*.ts'] },
-    },
-    'packages/telegram-user': {
       type: 'library',
       knip: {
         entry: ['scripts/login.ts'],

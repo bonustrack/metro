@@ -38,15 +38,15 @@ each runs as its own supervised subprocess except webhook, which runs in-core.
 
 - **xmtp** — end-to-end-encrypted DMs and groups. Identity is an Ethereum EOA (one raw
   key per account), on the XMTP production network.
-- **telegram** — Bot API. One or many bots.
-- **telegram-user** — a real Telegram **user account** over MTProto, not a bot.
-- **discord** — bot gateway + REST.
+- **telegram-bot** — Bot API. One or many bots.
+- **telegram** — a real Telegram **user account** over MTProto, not a bot.
+- **discord-bot** — bot gateway + REST.
 - **whatsapp** — a real WhatsApp **user account** over the multi-device Web protocol.
 - **webhook** — inbound HTTP receiver (GitHub, Intercom, …). Inbound-only; events arrive
   on `metro://webhook/<account_id>`. Metro mints a `POST` url whose token is the whole
   credential.
 
-> `telegram-user` and `whatsapp` sign in as real user accounts. The stored session and
+> `telegram` and `whatsapp` sign in as real user accounts. The stored session and
 > Baileys blob are full-account credentials, both carry a ban risk under the platforms'
 > terms, and both are single-writer per account. Use an identity you are willing to
 > dedicate to the agent.
@@ -155,7 +155,7 @@ Four small tables ([`schema.ts`](apps/mcp/src/db/schema.ts)). **Every `id` is an
   `ON DELETE RESTRICT`; `NULL` = operator-provisioned, owned by nobody and listed to
   nobody), `key` (nullable text `UNIQUE`) — **the agent's one and only API key**.
 - **`stations`** (renamed from `accounts` in `0011`) — `id`, `agent_id`, `station` text
-  (`xmtp` | `telegram` | `telegram-user` | `discord` | `whatsapp` | `webhook` — a plain
+  (`xmtp` | `telegram-bot` | `telegram` | `discord-bot` | `whatsapp` | `webhook` — a plain
   text column, not a DB enum, so a new station needs no migration), `account_id`,
   `allowlist` text[] (default `['*']`), and `config` jsonb, with
   `UNIQUE (station, account_id)`. `account_id` is the station's public handle — it appears
@@ -181,15 +181,15 @@ Per-station `config` jsonb (connection secrets + optional `owner`):
 | station | `config` fields |
 | --- | --- |
 | `xmtp` | `{ privateKey }` (raw EOA key); optional `dbPath` |
-| `telegram` | `{ token }` |
-| `telegram-user` | `{ session, apiId, apiHash }` |
-| `discord` | `{ token }` |
+| `telegram-bot` | `{ token }` |
+| `telegram` | `{ session, apiId, apiHash }` |
+| `discord-bot` | `{ token }` |
 | `whatsapp` | `{ phone }` (E.164 digits) plus the Baileys auth blob under `credentials` |
 | `webhook` | `{ secret, webhookId }` |
 
 `account_id` is the station-local id. An operator picks it (`x0`, `t0`, `w0`); the web UI
 generates one (`a<agent-id>-<8 hex>`) so two owners can never collide in the shared
-primary key. Lines are account-scoped (`metro://telegram/<account>/<chat>`) so replies go
+primary key. Lines are account-scoped (`metro://telegram-bot/<account>/<chat>`) so replies go
 back out the same identity.
 
 Inbound events are tagged with the owning agent and **delivery is scoped to it**: an
@@ -212,7 +212,7 @@ Then insert an agent, take its returned `id`, and insert that agent's accounts:
 ```sql
 INSERT INTO agents (name, key) VALUES ('tony', 'your-bearer') RETURNING id;   -- e.g. 1
 INSERT INTO accounts (agent_id, station, account_id, config)
-  VALUES (1, 'telegram', 't0', '{"token":"123:abc"}');   -- allowlist defaults to ['*']
+  VALUES (1, 'telegram-bot', 't0', '{"token":"123:abc"}');   -- allowlist defaults to ['*']
 ```
 
 `db:generate` regenerates the migration after a schema change. Applied migrations are in
@@ -480,14 +480,14 @@ Creating an agent does **not** create station accounts; a new agent starts empty
 
 | station | what you supply | what Metro checks before storing anything |
 | --- | --- | --- |
-| `discord` | the bot token | `GET /users/@me` with `Authorization: Bot <token>`. A rejected token is a `400` at attach time, not a dead train at the next boot. `GET /applications/@me` is read too: the train always requests the **Message Content** intent, so an application without it is refused with the fix spelled out rather than crash-looping. If that second call cannot be read, the attach is allowed through. |
-| `telegram` | the bot token | `getMe`, which must answer `ok:true` for an `is_bot` identity. |
+| `discord-bot` | the bot token | `GET /users/@me` with `Authorization: Bot <token>`. A rejected token is a `400` at attach time, not a dead train at the next boot. `GET /applications/@me` is read too: the train always requests the **Message Content** intent, so an application without it is refused with the fix spelled out rather than crash-looping. If that second call cannot be read, the attach is allowed through. |
+| `telegram-bot` | the bot token | `getMe`, which must answer `ok:true` for an `is_bot` identity. |
 | `xmtp` | nothing | Metro generates the 32-byte secp256k1 key, then **opens an XMTP inbox with it** before the row is written — in a short-lived subprocess, against the same db3 the train will use, whose path is stored in `config.dbPath` so the train reuses the verified installation instead of burning a second of the inbox's ten. `inboxId` and `address` come back on the `201`. A failure is a `400` and the half-built database is deleted. |
-| `telegram-user` | api id + api hash from my.telegram.org, then the phone number | The whole MTProto sign-in: a login code to that number, plus the two-step password if the account has one. |
+| `telegram` | api id + api hash from my.telegram.org, then the phone number | The whole MTProto sign-in: a login code to that number, plus the two-step password if the account has one. |
 | `whatsapp` | a phone number, or nothing to scan a QR | The whole multi-device pairing: Metro opens a Baileys socket, shows the QR or 8-character code, and waits for the handset. |
 | `webhook` | nothing | Nothing to check — there is no provider. Metro generates the account id, mints a random webhook id and a token, and answers with the url. Live as soon as the row is written; no train is spawned. |
 
-The last three of the first five cannot finish in one request, so `telegram-user` and
+The last three of the first five cannot finish in one request, so `telegram` and
 `whatsapp` run as a short-lived **attach session**:
 
 | method | path | |
@@ -524,7 +524,7 @@ Rules that hold for every station:
   `agents.key` for agents you own; `accounts.config` is deliberately not part of that
   exposure. The one exception here is the webhook endpoint url, which is useless if you
   cannot retrieve it — as is, elsewhere, a [connector](#connectors)'s auth header.
-- **A duplicate bot token is `409`.** Two `telegram` accounts sharing a token make the
+- **A duplicate bot token is `409`.** Two `telegram-bot` accounts sharing a token make the
   whole train refuse to boot, so the collision is caught at attach.
 - **The station reloads immediately.** The daemon re-materialises the account files and
   asks the supervisor to reload just that station: restarting it, spawning it if this is
@@ -610,8 +610,8 @@ to one of them. While the daemon holds no credential at all — no `agents.key` 
 curl -N -H "Authorization: Bearer $METRO_AGENT_KEY" http://127.0.0.1:8420/api/tail
 curl -X POST -H "Authorization: Bearer $METRO_AGENT_KEY" \
   -H 'content-type: application/json' \
-  -d '{"args":{"line":"metro://discord/<account_id>/<channel_id>","text":"hi"}}' \
-  http://127.0.0.1:8420/api/call/discord/send
+  -d '{"args":{"line":"metro://discord-bot/<account_id>/<channel_id>","text":"hi"}}' \
+  http://127.0.0.1:8420/api/call/discord-bot/send
 ```
 
 The line carries the scope, so it is required: a caller may only drive an account it owns,
@@ -748,15 +748,15 @@ apps/
   ui/                   # the control panel (Vite + react-native-web)
 
 packages/               # private station packages, each implementing the contract
-  xmtp/  telegram/  telegram-user/  discord/  whatsapp/  webhook/
+  xmtp/  telegram-bot/  telegram/  discord-bot/  whatsapp/  webhook/
 ```
 
 The station contract and runtime live in the core and are re-exported via
 `@metro-labs/mcp/stations/*`; the platform packages depend only on `@metro-labs/mcp` and
 stay isolated (the XMTP node SDK never enters the core graph). See the per-package READMEs:
 [apps/mcp](apps/mcp/README.md), [apps/ui](apps/ui/README.md),
-[xmtp](packages/xmtp/README.md), [telegram](packages/telegram/README.md),
-[telegram-user](packages/telegram-user/README.md), [discord](packages/discord/README.md),
+[xmtp](packages/xmtp/README.md), [telegram-bot](packages/telegram-bot/README.md),
+[telegram](packages/telegram/README.md), [discord-bot](packages/discord-bot/README.md),
 [whatsapp](packages/whatsapp/README.md), [webhook](packages/webhook/README.md).
 
 ## License

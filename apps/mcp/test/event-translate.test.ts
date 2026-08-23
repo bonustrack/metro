@@ -34,36 +34,36 @@ describe('trainEventToMetroEvent — required line', () => {
 
 describe('trainEventToMetroEvent — defaults for omitted fields', () => {
   test('mints id when absent', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', id: undefined }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', id: undefined }, 'discord-bot');
     expect(e).not.toBeNull();
     expect(typeof e!.id).toBe('string');
     expect(e!.id).toMatch(/^msg_/);
   });
 
   test('preserves a train-supplied id', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', id: 'fixed-id' }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', id: 'fixed-id' }, 'discord-bot');
     expect(e!.id).toBe('fixed-id');
   });
 
   test('fills ts with an ISO timestamp when absent', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1' }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1' }, 'discord-bot');
     expect(() => new Date(e!.ts).toISOString()).not.toThrow();
     expect(new Date(e!.ts).toISOString()).toBe(e!.ts);
   });
 
   test('preserves a train-supplied ts', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', ts: '2026-01-02T03:04:05.000Z' }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', ts: '2026-01-02T03:04:05.000Z' }, 'discord-bot');
     expect(e!.ts).toBe('2026-01-02T03:04:05.000Z');
   });
 
   test('station: explicit env.station wins', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', station: 'custom' }, 'tg');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', station: 'custom' }, 'tg');
     expect(e!.station).toBe('custom');
   });
 
   test('station: derived from line when env.station absent', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://telegram/123' }, 'fallback-name');
-    expect(e!.station).toBe('telegram');
+    const e = trainEventToMetroEvent({ line: 'metro://telegram-bot/123' }, 'fallback-name');
+    expect(e!.station).toBe('telegram-bot');
   });
 
   test('station: falls back to trainName when line has no parseable station', () => {
@@ -73,57 +73,57 @@ describe('trainEventToMetroEvent — defaults for omitted fields', () => {
   });
 
   test('from: defaults to metro://<station> when absent', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://telegram/123' }, 'tg');
-    expect(e!.from).toBe('metro://telegram');
+    const e = trainEventToMetroEvent({ line: 'metro://telegram-bot/123' }, 'tg');
+    expect(e!.from).toBe('metro://telegram-bot');
   });
 
   test('from: preserves explicit value', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://telegram/123', from: 'metro://telegram/user/bob' }, 'tg');
-    expect(e!.from).toBe('metro://telegram/user/bob');
+    const e = trainEventToMetroEvent({ line: 'metro://telegram-bot/123', from: 'metro://telegram-bot/user/bob' }, 'tg');
+    expect(e!.from).toBe('metro://telegram-bot/user/bob');
   });
 });
 
 describe('trainEventToMetroEvent — to / is_private default', () => {
   test('to defaults to the line itself (public)', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1' }, 'discord');
-    expect(e!.to).toBe('metro://discord/1' as typeof e.to);
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1' }, 'discord-bot');
+    expect(e!.to).toBe('metro://discord-bot/1' as typeof e.to);
   });
 
   test('is_private:true routes `to` to userSelf()', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', is_private: true }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', is_private: true }, 'discord-bot');
     expect(e!.to).toBe('metro://user/me' as typeof e.to);
   });
 
   test('explicit `to` wins over is_private', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', is_private: true, to: 'metro://discord/u/x' }, 'discord');
-    expect(e!.to).toBe('metro://discord/u/x' as typeof e.to);
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', is_private: true, to: 'metro://discord-bot/u/x' }, 'discord-bot');
+    expect(e!.to).toBe('metro://discord-bot/u/x' as typeof e.to);
   });
 
   test('is_private only triggers on strict true (truthy non-true ignored)', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', is_private: 1 as unknown as boolean }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', is_private: 1 as unknown as boolean }, 'discord-bot');
     /** is_private !== true → public default → to === line. */
-    expect(e!.to).toBe('metro://discord/1' as typeof e.to);
+    expect(e!.to).toBe('metro://discord-bot/1' as typeof e.to);
   });
 });
 
 describe('trainEventToMetroEvent — text / emoji fold', () => {
   test('text passes through verbatim', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', text: 'hello' }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', text: 'hello' }, 'discord-bot');
     expect(e!.text).toBe('hello');
   });
 
   test('emoji folds into a [react …] text when text is absent', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', emoji: '👍' }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', emoji: '👍' }, 'discord-bot');
     expect(e!.text).toBe('[react 👍]');
   });
 
   test('explicit text wins over emoji', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', text: 'kept', emoji: '👍' }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', text: 'kept', emoji: '👍' }, 'discord-bot');
     expect(e!.text).toBe('kept');
   });
 
   test('text undefined when neither text nor emoji', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1' }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1' }, 'discord-bot');
     expect(e!.text).toBeUndefined();
   });
 });
@@ -132,9 +132,9 @@ describe('trainEventToMetroEvent — passthrough fields', () => {
   test('payload / *_name / message_id / reply_to map to camelCase', () => {
     const payload = { headers: { a: '1' }, body: { ok: true } };
     const e = trainEventToMetroEvent({
-      line: 'metro://telegram/123',
+      line: 'metro://telegram-bot/123',
       line_name: 'My Group',
-      from: 'metro://telegram/user/bob',
+      from: 'metro://telegram-bot/user/bob',
       from_name: '@bob',
       from_display_name: 'Bob',
       message_id: 'mid-7',
@@ -152,7 +152,7 @@ describe('trainEventToMetroEvent — passthrough fields', () => {
   });
 
   test('optional camelCase fields are undefined when wire fields absent', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1' }, 'discord');
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1' }, 'discord-bot');
     expect(e!.lineName).toBeUndefined();
     expect(e!.fromName).toBeUndefined();
     expect(e!.fromDisplayName).toBeUndefined();

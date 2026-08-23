@@ -11,9 +11,9 @@ const ONE = 'mk_agent_one';
 const TWO = 'mk_agent_two';
 
 const AGENTS = {
-  'discord/d1': 'agent000001',
+  'discord-bot/d1': 'agent000001',
   'xmtp/x1': 'agent000001',
-  'telegram/t2': 'agent000002',
+  'telegram-bot/t2': 'agent000002',
   'webhook/a1-gh': 'agent000001',
   'webhook/a2-gh': 'agent000002',
 };
@@ -90,14 +90,14 @@ describe('monitor transport', () => {
 
   test('/api/call requires a credential', async () => {
     const h = await start(both());
-    const res = await post(h, '/api/call/discord/send', undefined, {});
+    const res = await post(h, '/api/call/discord-bot/send', undefined, {});
     expect(res.status).toBe(401);
   });
 
   test('/api/call rejects a token that is not a live agent key', async () => {
     const h = await start(both());
-    const res = await post(h, '/api/call/discord/send', 'mk_revoked', {
-      line: 'metro://discord/d1/99',
+    const res = await post(h, '/api/call/discord-bot/send', 'mk_revoked', {
+      line: 'metro://discord-bot/d1/99',
     });
     expect(res.status).toBe(401);
   });
@@ -113,8 +113,8 @@ describe('monitor transport', () => {
 
   test('/api/call dispatches to a station and returns the result', async () => {
     const h = await start(both());
-    const res = await post(h, '/api/call/discord/send', ONE, {
-      line: 'metro://discord/d1/99',
+    const res = await post(h, '/api/call/discord-bot/send', ONE, {
+      line: 'metro://discord-bot/d1/99',
       text: 'hi',
     });
     expect(res.status).toBe(200);
@@ -123,7 +123,7 @@ describe('monitor transport', () => {
     };
     expect(j.result.delivered).toBe(true);
     expect(j.result.echo.text).toBe('hi');
-    expect(h.calls[0]?.train).toBe('discord');
+    expect(h.calls[0]?.train).toBe('discord-bot');
     expect(h.calls[0]?.action).toBe('send');
   });
 
@@ -141,8 +141,8 @@ describe('monitor transport', () => {
 
   test('an agent key cannot drive another agent line', async () => {
     const h = await start(both());
-    const res = await post(h, '/api/call/telegram/send', ONE, {
-      line: 'metro://telegram/t2/5',
+    const res = await post(h, '/api/call/telegram-bot/send', ONE, {
+      line: 'metro://telegram-bot/t2/5',
       text: 'not mine',
     });
     expect(res.status).toBe(403);
@@ -151,8 +151,8 @@ describe('monitor transport', () => {
 
   test('an `account` override cannot escape the line scope', async () => {
     const h = await start(both());
-    const res = await post(h, '/api/call/discord/send', TWO, {
-      line: 'metro://discord/d1/99',
+    const res = await post(h, '/api/call/discord-bot/send', TWO, {
+      line: 'metro://discord-bot/d1/99',
       account: 'd1',
       text: 'not mine',
     });
@@ -168,8 +168,8 @@ describe('monitor transport', () => {
 
   test('a line-less call is refused once a second agent shares the station', async () => {
     const h = await start(both());
-    setAgentMap({ ...AGENTS, 'discord/d2': 'agent000002' }, NAMES);
-    expect((await post(h, '/api/call/discord/accounts', ONE, {})).status).toBe(
+    setAgentMap({ ...AGENTS, 'discord-bot/d2': 'agent000002' }, NAMES);
+    expect((await post(h, '/api/call/discord-bot/accounts', ONE, {})).status).toBe(
       403,
     );
   });
@@ -178,8 +178,8 @@ describe('monitor transport', () => {
     const h = await start(both(), async () => {
       throw new Error('train said no');
     });
-    const res = await post(h, '/api/call/discord/send', ONE, {
-      line: 'metro://discord/d1/99',
+    const res = await post(h, '/api/call/discord-bot/send', ONE, {
+      line: 'metro://discord-bot/d1/99',
     });
     expect(res.status).toBe(502);
     const j = (await res.json()) as { error: string };
@@ -188,7 +188,7 @@ describe('monitor transport', () => {
 
   test('/api/call rejects GET with 405', async () => {
     const h = await start(both());
-    const res = await fetch(`${h.base}/api/call/discord/send`, {
+    const res = await fetch(`${h.base}/api/call/discord-bot/send`, {
       headers: { authorization: `Bearer ${ONE}` },
     });
     expect(res.status).toBe(405);
@@ -201,7 +201,7 @@ const evt = (line: string, text: string): MetroEvent =>
     ts: new Date().toISOString(),
     station: line.split('/')[2] ?? '',
     line,
-    from: 'metro://discord/peer',
+    from: 'metro://discord-bot/peer',
     to: line,
     text,
   }) as MetroEvent;
@@ -236,7 +236,7 @@ describe('monitor tail scoping', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
     await new Promise((r) => setTimeout(r, 50));
-    publishEvent(evt('metro://discord/d1/99', 'live hello'));
+    publishEvent(evt('metro://discord-bot/d1/99', 'live hello'));
     const { buf, cancel } = await readUntil(res, 'live hello');
     expect(buf).toContain('event: live');
     await cancel();
@@ -250,9 +250,9 @@ describe('monitor tail scoping', () => {
       signal: ac.signal,
     });
     await new Promise((r) => setTimeout(r, 50));
-    publishEvent(evt('metro://telegram/t2/5', 'other agent secret'));
+    publishEvent(evt('metro://telegram-bot/t2/5', 'other agent secret'));
     publishEvent(evt('metro://claude/org/session', 'local event'));
-    publishEvent(evt('metro://discord/d1/99', 'mine at last'));
+    publishEvent(evt('metro://discord-bot/d1/99', 'mine at last'));
     const { buf, cancel } = await readUntil(res, 'mine at last');
     expect(buf).not.toContain('other agent secret');
     expect(buf).toContain('local event');
@@ -268,7 +268,7 @@ describe('monitor tail scoping', () => {
     });
     await new Promise((r) => setTimeout(r, 50));
     publishEvent(evt('metro://webhook/a2-gh', 'other agent webhook body'));
-    publishEvent(evt('metro://discord/d1/99', 'mine at last'));
+    publishEvent(evt('metro://discord-bot/d1/99', 'mine at last'));
     const { buf, cancel } = await readUntil(res, 'mine at last');
     expect(buf).not.toContain('other agent webhook body');
     await cancel();
@@ -282,8 +282,8 @@ describe('monitor tail scoping', () => {
       signal: ac.signal,
     });
     await new Promise((r) => setTimeout(r, 50));
-    publishEvent(evt('metro://discord/d1/99', 'agent one traffic'));
-    publishEvent(evt('metro://telegram/t2/5', 'agent two traffic'));
+    publishEvent(evt('metro://discord-bot/d1/99', 'agent one traffic'));
+    publishEvent(evt('metro://telegram-bot/t2/5', 'agent two traffic'));
     const { buf, cancel } = await readUntil(res, 'agent two traffic');
     expect(buf).not.toContain('agent one traffic');
     await cancel();

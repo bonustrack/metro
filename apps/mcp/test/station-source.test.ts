@@ -5,21 +5,21 @@ import { tmpdir } from 'node:os';
 import { materializeFrom, MOVABLE_STATIONS } from '../src/db/materialize.ts';
 import { agentIdForKey } from '../src/db/key-map.ts';
 
-const KEEP = { file: process.env.TELEGRAM_ACCOUNTS_FILE };
+const KEEP = { file: process.env.TELEGRAM_BOT_ACCOUNTS_FILE };
 let dir = '';
 let file = '';
 
 beforeEach(() => {
   process.env.METRO_RUN_TOKEN = 'test-runtime';
   dir = mkdtempSync(join(tmpdir(), 'metro-source-'));
-  file = join(dir, 'telegram-accounts.json');
-  process.env.TELEGRAM_ACCOUNTS_FILE = file;
+  file = join(dir, 'telegram-bot-accounts.json');
+  process.env.TELEGRAM_BOT_ACCOUNTS_FILE = file;
 });
 
 afterEach(() => {
   delete process.env.METRO_RUN_TOKEN;
-  if (KEEP.file === undefined) delete process.env.TELEGRAM_ACCOUNTS_FILE;
-  else process.env.TELEGRAM_ACCOUNTS_FILE = KEEP.file;
+  if (KEEP.file === undefined) delete process.env.TELEGRAM_BOT_ACCOUNTS_FILE;
+  else process.env.TELEGRAM_BOT_ACCOUNTS_FILE = KEEP.file;
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -30,8 +30,8 @@ const agent = (accounts: unknown[]) => ({
   accounts,
 });
 
-const telegram = (id: string, allowlist: string[]) => ({
-  station: 'telegram',
+const telegramBot = (id: string, allowlist: string[]) => ({
+  station: 'telegram-bot',
   id,
   allowlist,
   config: { botToken: 'secret-token' },
@@ -50,7 +50,7 @@ describe('materializing from an injected source', () => {
 
   test('a station record reaches its account file, written 0600', async () => {
     await materializeFrom(() =>
-      Promise.resolve([agent([telegram('stn00000001', ['*'])])]),
+      Promise.resolve([agent([telegramBot('stn00000001', ['*'])])]),
     );
     expect(existsSync(file)).toBe(true);
     const written = JSON.parse(readFileSync(file, 'utf8')) as {
@@ -64,7 +64,7 @@ describe('materializing from an injected source', () => {
 
   test('the allowlist is relay-only and never reaches the train file', async () => {
     await materializeFrom(() =>
-      Promise.resolve([agent([telegram('stn00000002', ['alice'])])]),
+      Promise.resolve([agent([telegramBot('stn00000002', ['alice'])])]),
     );
     expect(readFileSync(file, 'utf8')).not.toContain('alice');
   });
@@ -87,9 +87,9 @@ describe('an agent held by a local runtime is not served by the hosted daemon', 
 describe('metro never runs a messenger station, held or not', () => {
   test('the movable set is every station except webhook', () => {
     expect([...MOVABLE_STATIONS].sort()).toEqual([
-      'discord',
+      'discord-bot',
       'telegram',
-      'telegram-user',
+      'telegram-bot',
       'whatsapp',
       'xmtp',
     ]);
@@ -112,11 +112,25 @@ describe('the panel lists what exists, not what happens to be running', () => {
     const { setTrainCallBackend } = await import('../src/daemon/train-call.ts');
     const { gatherAccountsForAgents } = await import('../src/mcp/accounts.ts');
     const { setAgentMap } = await import('../src/db/agent-map.ts');
-    setAgentMap({ 'telegram/t0': 'agent000001' }, { agent000001: 'Tony' });
+    setAgentMap({ 'telegram-bot/t0': 'agent000001' }, { agent000001: 'Tony' });
     setTrainCallBackend(() => Promise.reject(new Error('no such train')));
     const { unavailable } = await gatherAccountsForAgents(
       new Set(['agent000001']),
     );
     expect(unavailable).toEqual([]);
+  });
+});
+
+describe('a station name this build does not know', () => {
+  test('is skipped with an error, never a crash — version skew must not brick the daemon', async () => {
+    await materializeFrom(() =>
+      Promise.resolve([
+        agent([
+          { station: 'from-the-future', id: 'stn00000009', allowlist: ['*'], config: {} },
+          telegramBot('stn00000010', ['*']),
+        ]),
+      ]),
+    );
+    expect(existsSync(file)).toBe(true);
   });
 });

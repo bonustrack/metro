@@ -8,9 +8,9 @@ import {
 
 export const STATIONS = [
   'xmtp',
+  'telegram-bot',
   'telegram',
-  'telegram-user',
-  'discord',
+  'discord-bot',
   'whatsapp',
   'webhook',
 ] as const;

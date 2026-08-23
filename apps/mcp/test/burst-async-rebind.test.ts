@@ -40,11 +40,11 @@ function inbound(messageId: string, text: string): MetroEvent {
   return {
     id: `id_${messageId}`,
     ts: '2026-06-25T00:00:00.000Z',
-    station: 'discord',
-    line: 'metro://discord/g/1/c/2' as Line,
+    station: 'discord-bot',
+    line: 'metro://discord-bot/g/1/c/2' as Line,
     lineName: 'chat',
-    from: 'metro://discord/u/alice' as Line,
-    to: 'metro://discord/g/1/c/2' as Line,
+    from: 'metro://discord-bot/u/alice' as Line,
+    to: 'metro://discord-bot/g/1/c/2' as Line,
     text,
     messageId,
     event: { type: 'msg' },
@@ -59,7 +59,7 @@ function contents(notifs: Notif[]): string[] {
 
 describe('burst with async delivery + mid-burst rebind', () => {
   test('async sink: 10 rapid events all delivered once, in order', async () => {
-    const { relay, notifs } = makeRelay(['discord'], () => tick(5));
+    const { relay, notifs } = makeRelay(['discord-bot'], () => tick(5));
     const channel = new ChannelRelay({ relay, log: () => {}, inScope: () => true });
     stop = channel.start();
 
@@ -72,7 +72,7 @@ describe('burst with async delivery + mid-burst rebind', () => {
   });
 
   test('rebind in the middle of an async burst: every event once, no dups', async () => {
-    const { relay, notifs } = makeRelay(['discord'], () => tick(5));
+    const { relay, notifs } = makeRelay(['discord-bot'], () => tick(5));
     const channel = new ChannelRelay({ relay, log: () => {}, inScope: () => true });
     stop = channel.start();
 
@@ -89,7 +89,7 @@ describe('burst with async delivery + mid-burst rebind', () => {
 
   test('a notify() that rejects once: chain recovers, later events deliver', async () => {
     let calls = 0;
-    const { relay, notifs } = makeRelay(['discord'], () => {
+    const { relay, notifs } = makeRelay(['discord-bot'], () => {
       calls += 1;
       if (calls === 3) return Promise.reject(new Error('transport down'));
       return tick(5);

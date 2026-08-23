@@ -89,7 +89,7 @@ describe('whatsapp line helpers', () => {
 
   test('targetOf rejects non-whatsapp and jid-less lines', async () => {
     const { targetOf } = await fresh();
-    expect(targetOf('metro://telegram/-100')).toBeUndefined();
+    expect(targetOf('metro://telegram-bot/-100')).toBeUndefined();
     expect(targetOf('metro://whatsapp/w0/not-a-jid')).toBeUndefined();
   });
 });

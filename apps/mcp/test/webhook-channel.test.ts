@@ -50,7 +50,7 @@ const hookEvent = (
 
 const chatEvent = (line: string, text: string): Record<string, unknown> => ({
   event: { type: 'msg' },
-  station: 'discord',
+  station: 'discord-bot',
   line,
   from: `${line}/someone`,
   text,
@@ -61,7 +61,7 @@ describe('a webhook delivery reaches the agent', () => {
   let harness: { sent: Sent[]; relay: InboundRelay };
 
   beforeEach(() => {
-    harness = relayWith(['discord', 'webhook']);
+    harness = relayWith(['discord-bot', 'webhook']);
   });
 
   test('the note carries the payload, not just the summary line', async () => {
@@ -84,7 +84,7 @@ describe('a webhook delivery reaches the agent', () => {
   });
 
   test('a station the channel does not serve is still dropped', async () => {
-    const only = relayWith(['discord']);
+    const only = relayWith(['discord-bot']);
     await only.relay.handleEvent(hookEvent({ 'x-github-event': 'push' }, {}));
     expect(only.sent).toHaveLength(0);
   });
@@ -98,11 +98,11 @@ describe('a webhook delivery reaches the agent', () => {
 
   test('a webhook never becomes the line a permission prompt replies to', async () => {
     await harness.relay.handleEvent(
-      chatEvent('metro://discord/d1/99', 'a real conversation'),
+      chatEvent('metro://discord-bot/d1/99', 'a real conversation'),
     );
-    expect(harness.relay.knownLine).toBe('metro://discord/d1/99');
+    expect(harness.relay.knownLine).toBe('metro://discord-bot/d1/99');
     await harness.relay.handleEvent(hookEvent({ 'x-github-event': 'push' }, {}));
-    expect(harness.relay.knownLine).toBe('metro://discord/d1/99');
+    expect(harness.relay.knownLine).toBe('metro://discord-bot/d1/99');
   });
 
   test('a webhook body is never taken for a permission reply', async () => {

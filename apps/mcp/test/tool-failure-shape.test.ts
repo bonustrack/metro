@@ -8,7 +8,7 @@ const B64 = PAYLOAD.toString('base64');
 
 describe('the attachment shape a failed tool call is logged with', () => {
   test('is absent when the call named no attachments', () => {
-    expect(attachmentShape({ line: 'metro://discord/acc/chan' })).toBeUndefined();
+    expect(attachmentShape({ line: 'metro://discord-bot/acc/chan' })).toBeUndefined();
     expect(attachmentShape({ attachments: 'nonsense' })).toBeUndefined();
   });
 

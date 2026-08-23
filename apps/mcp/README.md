@@ -52,8 +52,8 @@ it survives a daemon restart so connected sessions auto-resume.
 - `messaging-normalize.ts` — shared inbound normalization helpers.
 - `lines.ts` — the `metro://<station>/<path>` Line parser.
 - `registry.ts` — the static list of station descriptors (`STATIONS`) the core reads:
-  it imports each package's `.` export (`xmtpStation`, `telegramStation`,
-  `discordStation`, `webhookStation`) and resolves a line/verb to its owner.
+  it imports each package's `.` export (`xmtpStation`, `telegramBotStation`,
+  `discordBotStation`, `webhookStation`) and resolves a line/verb to its owner.
 
 ## Architecture (in-process)
 

@@ -27,15 +27,15 @@ describe('station attach forms', () => {
 });
 
 describe('the station search', () => {
-  const ALL = ['discord', 'telegram', 'telegram-user', 'whatsapp', 'xmtp', 'webhook'];
+  const ALL = ['discord-bot', 'telegram-bot', 'telegram', 'whatsapp', 'xmtp', 'webhook'];
 
   test('an empty query shows the first three, in the order given', () => {
-    expect(matchStations(ALL, '')).toEqual(['discord', 'telegram', 'telegram-user']);
-    expect(matchStations(ALL, '   ')).toEqual(['discord', 'telegram', 'telegram-user']);
+    expect(matchStations(ALL, '')).toEqual(['discord-bot', 'telegram-bot', 'telegram']);
+    expect(matchStations(ALL, '   ')).toEqual(['discord-bot', 'telegram-bot', 'telegram']);
   });
 
   test('a query searches the label a person actually sees, not only the key', () => {
-    expect(matchStations(ALL, 'Discord bot')).toEqual(['discord']);
+    expect(matchStations(ALL, 'Discord bot')).toEqual(['discord-bot']);
     expect(matchStations(ALL, 'whats')).toEqual(['whatsapp']);
   });
 
@@ -45,7 +45,7 @@ describe('the station search', () => {
   });
 
   test('a partial match can return several, and is case insensitive', () => {
-    expect(matchStations(ALL, 'TELEGRAM')).toEqual(['telegram', 'telegram-user']);
+    expect(matchStations(ALL, 'TELEGRAM')).toEqual(['telegram-bot', 'telegram']);
   });
 
   test('nothing matching is an empty list, never a fallback to everything', () => {
@@ -53,6 +53,6 @@ describe('the station search', () => {
   });
 
   test('a daemon offering fewer than three shows only what it has', () => {
-    expect(matchStations(['discord'], '')).toEqual(['discord']);
+    expect(matchStations(['discord-bot'], '')).toEqual(['discord-bot']);
   });
 });

@@ -36,10 +36,10 @@ const resolved = (e: MetroEvent): StructuredEvent => e.event ?? classifyEvent(e)
 describe('typed event carried verbatim through the dispatcher', () => {
   test('react: typed event survives + legacy [react] text kept', () => {
     const env: TrainEvent = {
-      line: 'metro://discord/1', kind: 'react', emoji: '👍',
+      line: 'metro://discord-bot/1', kind: 'react', emoji: '👍',
       text: '[react 👍]', event: { type: 'react', emoji: '👍', targetId: 'mid-1' },
     };
-    const e = trainEventToMetroEvent(env, 'discord')!;
+    const e = trainEventToMetroEvent(env, 'discord-bot')!;
     expect(e.event).toEqual({ type: 'react', emoji: '👍', targetId: 'mid-1' });
     expect(e.text).toBe('[react 👍]');
     expect(resolved(e)).toEqual({ type: 'react', emoji: '👍', targetId: 'mid-1' });
@@ -47,10 +47,10 @@ describe('typed event carried verbatim through the dispatcher', () => {
 
   test('edit: typed event survives end-to-end', () => {
     const env: TrainEvent = {
-      line: 'metro://telegram/1', kind: 'edit', text: 'fixed typo',
+      line: 'metro://telegram-bot/1', kind: 'edit', text: 'fixed typo',
       event: { type: 'edit', targetId: 'mid-9' },
     };
-    const e = trainEventToMetroEvent(env, 'telegram')!;
+    const e = trainEventToMetroEvent(env, 'telegram-bot')!;
     expect(e.event).toEqual({ type: 'edit', targetId: 'mid-9' });
     expect(e.text).toBe('fixed typo');
     expect(resolved(e)).toEqual({ type: 'edit', targetId: 'mid-9' });
@@ -69,9 +69,9 @@ describe('typed event carried verbatim through the dispatcher', () => {
 
   test('delete: the new branch is carried (not derivable from text)', () => {
     const env: TrainEvent = {
-      line: 'metro://discord/1', event: { type: 'delete', targetId: 'mid-7' },
+      line: 'metro://discord-bot/1', event: { type: 'delete', targetId: 'mid-7' },
     };
-    const e = trainEventToMetroEvent(env, 'discord')!;
+    const e = trainEventToMetroEvent(env, 'discord-bot')!;
     expect(e.event).toEqual({ type: 'delete', targetId: 'mid-7' });
     expect(resolved(e)).toEqual({ type: 'delete', targetId: 'mid-7' });
   });
@@ -79,26 +79,26 @@ describe('typed event carried verbatim through the dispatcher', () => {
 
 describe('legacy parity — no `event` on the wire classifies exactly as before', () => {
   test('absent event ⇒ entry.event is undefined (key omitted on the wire)', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', text: 'hi' }, 'discord')!;
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', text: 'hi' }, 'discord-bot')!;
     expect(e.event).toBeUndefined();
     expect(JSON.stringify(e)).not.toContain('"event"');
   });
 
   test('legacy [react X] text still classifies as react (regex fallback)', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', emoji: '🎉' }, 'discord')!;
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', emoji: '🎉' }, 'discord-bot')!;
     expect(e.event).toBeUndefined();
     expect(e.text).toBe('[react 🎉]');
     expect(resolved(e)).toEqual({ type: 'react', emoji: '🎉', targetId: undefined });
   });
 
   test('legacy reply (reply_to, no event) classifies as reply', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', text: 'yo', reply_to: 'mid-2' }, 'discord')!;
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', text: 'yo', reply_to: 'mid-2' }, 'discord-bot')!;
     expect(e.event).toBeUndefined();
     expect(resolved(e)).toEqual({ type: 'reply', replyTo: 'mid-2' });
   });
 
   test('legacy plain message classifies as msg', () => {
-    const e = trainEventToMetroEvent({ line: 'metro://discord/1', text: 'plain' }, 'discord')!;
+    const e = trainEventToMetroEvent({ line: 'metro://discord-bot/1', text: 'plain' }, 'discord-bot')!;
     expect(resolved(e)).toEqual({ type: 'msg' });
   });
 

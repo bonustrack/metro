@@ -235,7 +235,7 @@ export const COMMON_TOOLS = [
       'limit?. The station is derived from the line. Returns {line, station, memberCount, ' +
       'members:[{id, name?, display_name?, address?, roles?, is_admin?, is_bot?}], capability:' +
       '{supported, complete, reason?, total?}}. Each station fills the fields it has (xmtp: id=' +
-      'inboxId + address; discord: id + username/nick + roles + is_bot; telegram/telegram-user: ' +
+      'inboxId + address; discord-bot: id + username/nick + roles + is_bot; telegram-bot/telegram: ' +
       'id + username/first_name). Never throws on "not supported": stations that cannot ' +
       'enumerate (e.g. the Telegram Bot API) return an empty or partial list with a reason in ' +
       '`capability`. Check `capability.complete` before assuming the roster is exhaustive.',
@@ -255,9 +255,9 @@ export const COMMON_TOOLS = [
     name: 'create_group',
     description:
       'Create a new group/channel on a station and add members, in a station-agnostic shape. ' +
-      'Args: station (required, xmtp|telegram-user|discord|telegram), name (required), members? ' +
-      '(string[]; xmtp: 0x address or inboxId, telegram-user: @username or user id, discord: ' +
-      'user id), account? (which station account), parent? (discord only: the metro:// line of ' +
+      'Args: station (required, xmtp|telegram|discord-bot|telegram-bot), name (required), members? ' +
+      '(string[]; xmtp: 0x address or inboxId, telegram: @username or user id, discord-bot: ' +
+      'user id), account? (which station account), parent? (discord-bot only: the metro:// line of ' +
       'the channel to open the thread under). Returns {op, line (the NEW group line), station, ' +
       'supported, reason?, id?, name?, members:[{id, status: added|invited|removed|failed, ' +
       'reason?}], inviteLink?}. Never throws on "not supported": stations that lack the op ' +
@@ -269,7 +269,7 @@ export const COMMON_TOOLS = [
       properties: {
         station: {
           type: 'string',
-          description: 'The station to create the group on (xmtp|telegram-user|discord).',
+          description: 'The station to create the group on (xmtp|telegram|discord-bot).',
         },
         name: { type: 'string', description: 'The group/channel name.' },
         members: {
@@ -357,7 +357,7 @@ export const COMMON_TOOLS = [
     description:
       'Get a join/invite link for a Metro group, for platforms where direct-add is not always ' +
       'permitted. Args: line (required). The station is derived from the line. Returns {op, ' +
-      'line, station, supported, reason?, inviteLink?}. Only telegram-user supports this today; ' +
+      'line, station, supported, reason?, inviteLink?}. Only telegram supports this today; ' +
       'other stations return {supported:false, reason}. Never throws on "not supported".',
     inputSchema: {
       type: 'object',

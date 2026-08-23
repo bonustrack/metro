@@ -2,7 +2,7 @@
  * `src/stations/lines.ts` — canonical account-scoped parsers `Line.parseXmtp` /
  * `Line.parseDiscord`. These are the single source of truth the
  * per-station `parseLine()` helpers (stations/xmtp/accounts.ts,
- * stations/discord/accounts.ts) and cli/send-guard.ts now delegate to, so the
+ * stations/discord-bot/accounts.ts) and cli/send-guard.ts now delegate to, so the
  * cases here pin the exact behavior the old anchored regexes had.
  */
 
@@ -24,7 +24,7 @@ describe('Line.parseXmtp', () => {
   });
 
   test('wrong station → null', () => {
-    expect(Line.parseXmtp('metro://discord/123')).toBeNull();
+    expect(Line.parseXmtp('metro://discord-bot/123')).toBeNull();
   });
 
   test('malformed input → null', () => {
@@ -40,20 +40,20 @@ describe('Line.parseXmtp', () => {
 
 describe('Line.parseDiscord', () => {
   test('new account-scoped form (snowflake channel) → {accountId, resource}', () => {
-    expect(Line.parseDiscord('metro://discord/main/123456')).toEqual({ accountId: 'main', resource: '123456' });
+    expect(Line.parseDiscord('metro://discord-bot/main/123456')).toEqual({ accountId: 'main', resource: '123456' });
   });
 
   test('legacy single-segment snowflake → default account', () => {
-    expect(Line.parseDiscord('metro://discord/123456')).toEqual({ accountId: 'default', resource: '123456' });
+    expect(Line.parseDiscord('metro://discord-bot/123456')).toEqual({ accountId: 'default', resource: '123456' });
   });
 
   test('non-numeric channel (resource) → null in both forms', () => {
-    expect(Line.parseDiscord('metro://discord/main/not-a-snowflake')).toBeNull();
-    expect(Line.parseDiscord('metro://discord/not-a-snowflake')).toBeNull();
+    expect(Line.parseDiscord('metro://discord-bot/main/not-a-snowflake')).toBeNull();
+    expect(Line.parseDiscord('metro://discord-bot/not-a-snowflake')).toBeNull();
   });
 
   test('three or more segments → null', () => {
-    expect(Line.parseDiscord('metro://discord/main/sub/123')).toBeNull();
+    expect(Line.parseDiscord('metro://discord-bot/main/sub/123')).toBeNull();
   });
 
   test('wrong station / malformed → null', () => {

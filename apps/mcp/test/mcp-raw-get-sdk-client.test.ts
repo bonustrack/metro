@@ -12,7 +12,7 @@ import { publishEvent, type MetroEvent } from '../src/daemon/events.ts';
 
 const TOKEN = 'mk_test_agent_key';
 setKeyMap([{ key: TOKEN, agentId: 'agent000001' }]);
-beforeAll(() => setAgentMap({ 'discord/acc': 'agent000001' }, { ['agent000001']: 'Tony' }));
+beforeAll(() => setAgentMap({ 'discord-bot/acc': 'agent000001' }, { ['agent000001']: 'Tony' }));
 afterAll(() => setAgentMap({}, {}));
 
 
@@ -20,10 +20,10 @@ const msgEvent = (text: string): MetroEvent =>
   ({
     id: `id-${randomUUID()}`,
     ts: new Date().toISOString(),
-    station: 'discord',
-    line: asLine('metro://discord/acc/chan1'),
-    from: asLine('metro://discord/acc/sender1'),
-    to: asLine('metro://discord/acc/chan1'),
+    station: 'discord-bot',
+    line: asLine('metro://discord-bot/acc/chan1'),
+    from: asLine('metro://discord-bot/acc/sender1'),
+    to: asLine('metro://discord-bot/acc/chan1'),
     text,
     messageId: `m-${randomUUID()}`,
     event: { type: 'msg' },

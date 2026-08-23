@@ -1,14 +1,14 @@
 /**
- * A discord attachment gets a metro grant like every other station's.
+ * A discord-bot attachment gets a metro grant like every other station's.
  *
  * `attachmentEventUrl` mints a per-attachment grant only for an
- * `attachmentSaved` payload that carries NO url of its own. The discord train
+ * `attachmentSaved` payload that carries NO url of its own. The discord-bot train
  * used to set `url: ref.url` — the Discord CDN link — so no grant was minted,
  * no `.owner` sidecar was written, the advertised link expired after 24 hours,
- * and our own `GET /attach/<file>?token=<agent key>` answered 401 for discord
- * files while answering 200 for telegram, telegram-user and xmtp.
+ * and our own `GET /attach/<file>?token=<agent key>` answered 401 for discord-bot
+ * files while answering 200 for telegram-bot, telegram and xmtp.
  *
- * The station stopped emitting that url (packages/discord/src/format.ts). Here
+ * The station stopped emitting that url (packages/discord-bot/src/format.ts). Here
  * we drive the daemon's emit path with both payload shapes and show the
  * difference end to end, over real HTTP.
  */
@@ -29,7 +29,7 @@ import { setKeyMap } from '../src/db/key-map.ts';
 const AGENT_KEY = 'mk_discord_owner';
 const FIXED = 'msg_1534630426356879_0.html';
 const CDN_ONLY = 'msg_1534630426356880_0.html';
-const LINE = 'metro://discord/d0/1504226489359401221';
+const LINE = 'metro://discord-bot/d0/1504226489359401221';
 const BODY = Buffer.from('<html>hi</html>');
 
 let server: Server;
@@ -47,7 +47,7 @@ const savedEvent = (
   ({
     id: `ev_${name}`,
     ts: new Date().toISOString(),
-    station: 'discord',
+    station: 'discord-bot',
     line: LINE,
     from: 'metro://user',
     to: LINE,
@@ -76,7 +76,7 @@ function emitAndCapture(entry: MetroEvent): MetroEvent {
 }
 
 beforeAll(async () => {
-  attachDir = mkdtempSync(join(tmpdir(), 'metro-discord-url-'));
+  attachDir = mkdtempSync(join(tmpdir(), 'metro-discord-bot-url-'));
   for (const name of [FIXED, CDN_ONLY]) writeFileSync(join(attachDir, name), BODY);
   process.env.METRO_XMTP_ATTACH_DIR = attachDir;
   process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box';
@@ -85,7 +85,7 @@ beforeAll(async () => {
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   setKeyMap([{ key: AGENT_KEY, agentId: 'agent000007' }]);
-  setAgentMap({ 'discord/d0': 'agent000007' }, { ['agent000007']: 'tony' });
+  setAgentMap({ 'discord-bot/d0': 'agent000007' }, { ['agent000007']: 'tony' });
   server = await startWebhookServer(makeEmit());
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -100,7 +100,7 @@ afterAll(async () => {
   setAgentMap({}, {});
 });
 
-describe('a discord attachmentSaved event with no station url', () => {
+describe('a discord-bot attachmentSaved event with no station url', () => {
   test('is enriched with a metro url and an owner sidecar', () => {
     const out = emitAndCapture(savedEvent(FIXED));
     const url = String((out.payload as { url?: string }).url);

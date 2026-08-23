@@ -18,16 +18,16 @@ import type { RequestIdentity } from '../src/mcp/request-identity.ts';
 const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
 const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
 
-const TONY_A = 'metro://discord/a1-tony/guild/9/chan/7';
-const TONY_B = 'metro://discord/a1-tony2/guild/9/chan/7';
-const LISA_A = 'metro://discord/a34-lisa/guild/9/chan/7';
+const TONY_A = 'metro://discord-bot/a1-tony/guild/9/chan/7';
+const TONY_B = 'metro://discord-bot/a1-tony2/guild/9/chan/7';
+const LISA_A = 'metro://discord-bot/a34-lisa/guild/9/chan/7';
 
 beforeAll(() =>
   setAgentMap(
     {
-      'discord/a1-tony': 'agent000001',
-      'discord/a1-tony2': 'agent000001',
-      'discord/a34-lisa': 'agent000034',
+      'discord-bot/a1-tony': 'agent000001',
+      'discord-bot/a1-tony2': 'agent000001',
+      'discord-bot/a34-lisa': 'agent000034',
     },
     { ['agent000001']: 'Tony', ['agent000034']: 'Lisa' },
   ),
@@ -49,7 +49,7 @@ function makeRelay(): { relay: InboundRelay; notifs: Notif[] } {
       },
     } as never,
     log: () => undefined,
-    getStations: () => new Set(['discord']),
+    getStations: () => new Set(['discord-bot']),
     senderAllowed: () => true,
   });
   return { relay, notifs };
@@ -62,7 +62,7 @@ const inbound = (
 ): Record<string, unknown> => ({
   id: `id-${messageId}-${line}`,
   ts: new Date().toISOString(),
-  station: 'discord',
+  station: 'discord-bot',
   line,
   from: `${line}/sender`,
   to: line,
@@ -73,20 +73,20 @@ const inbound = (
 
 describe('inbound dedupe key', () => {
   test('two accounts of ONE agent in one conversation still collapse to one key', () => {
-    expect(dedupeKey('discord', TONY_A, 'msg', 'shared-1')).toBe(
-      dedupeKey('discord', TONY_B, 'msg', 'shared-1'),
+    expect(dedupeKey('discord-bot', TONY_A, 'msg', 'shared-1')).toBe(
+      dedupeKey('discord-bot', TONY_B, 'msg', 'shared-1'),
     );
   });
 
   test('two agents on the same conversation id never share a key', () => {
-    expect(dedupeKey('discord', TONY_A, 'msg', 'shared-1')).not.toBe(
-      dedupeKey('discord', LISA_A, 'msg', 'shared-1'),
+    expect(dedupeKey('discord-bot', TONY_A, 'msg', 'shared-1')).not.toBe(
+      dedupeKey('discord-bot', LISA_A, 'msg', 'shared-1'),
     );
   });
 
   test('a message and its later reaction stay distinct', () => {
-    expect(dedupeKey('discord', TONY_A, 'msg', 'shared-1')).not.toBe(
-      dedupeKey('discord', TONY_A, 'react', 'shared-1'),
+    expect(dedupeKey('discord-bot', TONY_A, 'msg', 'shared-1')).not.toBe(
+      dedupeKey('discord-bot', TONY_A, 'react', 'shared-1'),
     );
   });
 });

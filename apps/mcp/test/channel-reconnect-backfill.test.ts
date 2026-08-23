@@ -25,7 +25,7 @@ function makeRelay(cap: Capture): InboundRelay {
   return new InboundRelay({
     mcp: fakeMcp as never,
     log: () => {},
-    getStations: () => new Set(['discord']),
+    getStations: () => new Set(['discord-bot']),
     senderAllowed: () => true,
   });
 }
@@ -34,10 +34,10 @@ const msg = (text: string): MetroEvent =>
   ({
     id: `id-${randomUUID()}`,
     ts: new Date().toISOString(),
-    station: 'discord',
-    line: asLine('metro://discord/acc/chan1'),
-    from: asLine('metro://discord/acc/sender1'),
-    to: asLine('metro://discord/acc/chan1'),
+    station: 'discord-bot',
+    line: asLine('metro://discord-bot/acc/chan1'),
+    from: asLine('metro://discord-bot/acc/sender1'),
+    to: asLine('metro://discord-bot/acc/chan1'),
     text,
     messageId: `m-${randomUUID()}`,
     event: { type: 'msg' },

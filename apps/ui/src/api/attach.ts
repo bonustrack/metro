@@ -32,7 +32,7 @@ export interface StationForm {
 }
 
 export const STATION_FORMS: Record<string, StationForm> = {
-  discord: {
+  'discord-bot': {
     label: 'Discord bot',
     hint: 'Paste the bot token from the Discord developer portal. Message Content must be enabled under Privileged Gateway Intents.',
     links: [
@@ -52,7 +52,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
       },
     ],
   },
-  telegram: {
+  'telegram-bot': {
     label: 'Telegram bot',
     hint: 'Paste the bot token BotFather gave you.',
     links: [{ text: 'BotFather', href: 'https://t.me/BotFather' }],
@@ -73,7 +73,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
     interactive: false,
     fields: [],
   },
-  'telegram-user': {
+  'telegram': {
     label: 'Telegram',
     hint: 'Signs in as a real Telegram user. Create an application at my.telegram.org to get the api id and hash, then Telegram sends a login code to the number below. This is a full-account credential and carries Telegram ban risk, so use a number you are willing to dedicate to the agent.',
     links: [{ text: 'my.telegram.org', href: 'https://my.telegram.org/apps' }],

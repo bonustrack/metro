@@ -10,7 +10,7 @@ describe('per-account allowlist', () => {
   afterAll(() => setAllowlistMap({}));
 
   test('no allowlist configured for the account allows all senders', () => {
-    expect(allowlistForLine('metro://discord/d0/chan1')).toBeUndefined();
+    expect(allowlistForLine('metro://discord-bot/d0/chan1')).toBeUndefined();
   });
 
   test('resolves the allowlist per account from the line', () => {

@@ -258,7 +258,7 @@ describe('whatsapp outbound handlers', () => {
   test('bad line is reported as an error response', async () => {
     const handle = makeHandleCall(() => fakeClient(calls));
     const cap = captureResponses();
-    await handle({ op: 'call', id: 'h', action: 'send', args: { line: 'metro://telegram/1', text: 'x' } });
+    await handle({ op: 'call', id: 'h', action: 'send', args: { line: 'metro://telegram-bot/1', text: 'x' } });
     cap.restore();
     expect(cap.responses[0]).toMatchObject({ op: 'response', id: 'h' });
     expect((cap.responses[0] as { error?: string }).error).toContain('bad line');

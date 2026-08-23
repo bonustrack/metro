@@ -18,7 +18,7 @@ afterEach(() => {
 
 describe('train stubs are only rewritten when they change', () => {
   test('a missing stub is created', () => {
-    const path = join(scratch(), 'telegram.ts');
+    const path = join(scratch(), 'telegram-bot.ts');
     expect(writeIfChanged(path, "import 'x';\n")).toBe(true);
     expect(readFileSync(path, 'utf8')).toBe("import 'x';\n");
   });
@@ -32,7 +32,7 @@ describe('train stubs are only rewritten when they change', () => {
   });
 
   test('a changed stub is rewritten', () => {
-    const path = join(scratch(), 'discord.ts');
+    const path = join(scratch(), 'discord-bot.ts');
     writeFileSync(path, "import 'old';\n");
     expect(writeIfChanged(path, "import 'new';\n")).toBe(true);
     expect(readFileSync(path, 'utf8')).toBe("import 'new';\n");

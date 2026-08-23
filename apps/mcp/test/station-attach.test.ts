@@ -43,12 +43,12 @@ describe('attachable stations', () => {
   });
 
   test('stations Metro knows but cannot attach yet are refused', () => {
-    for (const station of ['line', 'whatsapp', 'telegram-user'])
+    for (const station of ['line', 'whatsapp', 'telegram'])
       expect(isAttachStation(station)).toBe(false);
   });
 
   test('junk is never an attachable station', () => {
-    for (const station of ['', 'XMTP', 'telegram ', 42, null, undefined, {}])
+    for (const station of ['', 'XMTP', 'telegram-bot ', 42, null, undefined, {}])
       expect(isAttachStation(station)).toBe(false);
   });
 });
@@ -148,7 +148,7 @@ describe('a generated xmtp key is only stored once XMTP opened an inbox with it'
 });
 
 describe('bot token shape is checked before any network call', () => {
-  const reject = async (station: 'discord' | 'telegram', token: unknown) => {
+  const reject = async (station: 'discord-bot' | 'telegram-bot', token: unknown) => {
     const err = await prepareAccount({ station, token }).then(
       () => null,
       (e: unknown) => e,
@@ -159,7 +159,7 @@ describe('bot token shape is checked before any network call', () => {
 
   test('a missing token never reaches the provider', async () => {
     for (const token of [undefined, '', '   ', null, 42, {}]) {
-      const err = await reject('telegram', token);
+      const err = await reject('telegram-bot', token);
       expect(err.status).toBe(400);
       expect(err.message).toContain('required');
     }
@@ -173,14 +173,14 @@ describe('bot token shape is checked before any network call', () => {
       'short',
       `${'x'.repeat(257)}`,
     ]) {
-      const err = await reject('discord', token);
+      const err = await reject('discord-bot', token);
       expect(err.status).toBe(400);
       expect(err.message).toContain('does not look like');
     }
   });
 
   test('the refusal message never repeats the token back', async () => {
-    const err = await reject('discord', 'a token with spaces');
+    const err = await reject('discord-bot', 'a token with spaces');
     expect(err.message).not.toContain('a token with spaces');
   });
 });

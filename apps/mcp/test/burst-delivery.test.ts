@@ -76,16 +76,16 @@ function channelContents(notifs: Notif[]): string[] {
 }
 
 describe('burst delivery', () => {
-  test('10 distinct rapid messages on one discord chat all delivered', async () => {
-    const { relay, notifs } = makeRelay(['discord']);
+  test('10 distinct rapid messages on one discord-bot chat all delivered', async () => {
+    const { relay, notifs } = makeRelay(['discord-bot']);
     stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     for (let i = 1; i <= 10; i++) {
       publishEvent(
         inbound({
-          station: 'discord',
-          line: 'metro://discord/g/1/c/2',
-          from: 'metro://discord/u/alice',
+          station: 'discord-bot',
+          line: 'metro://discord-bot/g/1/c/2',
+          from: 'metro://discord-bot/u/alice',
           messageId: `disc-${i}`,
           text: String(i),
         }),
@@ -100,15 +100,15 @@ describe('burst delivery', () => {
   });
 
   test('burst interleaved with non-routable bus traffic, all delivered', async () => {
-    const { relay, notifs } = makeRelay(['telegram']);
+    const { relay, notifs } = makeRelay(['telegram-bot']);
     stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     for (let i = 1; i <= 10; i++) {
       publishEvent(
         inbound({
-          station: 'telegram',
-          line: 'metro://telegram/acct/-100/5',
-          from: 'metro://telegram/u/bob',
+          station: 'telegram-bot',
+          line: 'metro://telegram-bot/acct/-100/5',
+          from: 'metro://telegram-bot/u/bob',
           messageId: `tg-${i}`,
           text: String(i),
         }),
@@ -116,10 +116,10 @@ describe('burst delivery', () => {
       publishEvent({
         id: `out_${i}`,
         ts: '2026-06-25T00:00:00.000Z',
-        station: 'telegram',
-        line: 'metro://telegram/acct/-100/5' as Line,
+        station: 'telegram-bot',
+        line: 'metro://telegram-bot/acct/-100/5' as Line,
         from: 'metro://claude/main' as Line,
-        to: 'metro://telegram/acct/-100/5' as Line,
+        to: 'metro://telegram-bot/acct/-100/5' as Line,
         text: `ack ${i}`,
         event: { type: 'msg' },
       });
@@ -134,21 +134,21 @@ describe('burst delivery', () => {
 
   test('bursts across three stations interleaved all delivered', async () => {
     const { relay, notifs } = makeRelay([
-      'discord',
+      'discord-bot',
+      'telegram-bot',
       'telegram',
-      'telegram-user',
     ]);
     stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     const lines: Record<string, { line: string; from: string }> = {
-      discord: { line: 'metro://discord/g/1/c/2', from: 'metro://discord/u/a' },
-      telegram: {
-        line: 'metro://telegram/acct/-100/5',
-        from: 'metro://telegram/u/b',
+      'discord-bot': { line: 'metro://discord-bot/g/1/c/2', from: 'metro://discord-bot/u/a' },
+      'telegram-bot': {
+        line: 'metro://telegram-bot/acct/-100/5',
+        from: 'metro://telegram-bot/u/b',
       },
-      'telegram-user': {
-        line: 'metro://telegram-user/acct/777',
-        from: 'metro://telegram-user/u/c',
+      'telegram': {
+        line: 'metro://telegram/acct/777',
+        from: 'metro://telegram/u/c',
       },
     };
     const stations = Object.keys(lines);
@@ -174,13 +174,13 @@ describe('burst delivery', () => {
   });
 
   test('genuine duplicate (same messageId re-emitted) is still deduped', async () => {
-    const { relay, notifs } = makeRelay(['discord']);
+    const { relay, notifs } = makeRelay(['discord-bot']);
     stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     const e = inbound({
-      station: 'discord',
-      line: 'metro://discord/g/1/c/2',
-      from: 'metro://discord/u/alice',
+      station: 'discord-bot',
+      line: 'metro://discord-bot/g/1/c/2',
+      from: 'metro://discord-bot/u/alice',
       messageId: 'dup-1',
       text: 'only once',
     });
@@ -198,14 +198,14 @@ function replyMsg(s: MsgSpec & { replyTo: string }): MetroEvent {
 
 describe('burst with reply-typed messages (the burst-drop bug)', () => {
   test('a burst where half the messages are replies still delivers all 10', async () => {
-    const { relay, notifs } = makeRelay(['discord']);
+    const { relay, notifs } = makeRelay(['discord-bot']);
     stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     for (let i = 1; i <= 10; i++) {
       const spec = {
-        station: 'discord',
-        line: 'metro://discord/g/1/c/2',
-        from: 'metro://discord/u/alice',
+        station: 'discord-bot',
+        line: 'metro://discord-bot/g/1/c/2',
+        from: 'metro://discord-bot/u/alice',
         messageId: `r-${i}`,
         text: String(i),
       };
@@ -224,14 +224,14 @@ describe('burst with reply-typed messages (the burst-drop bug)', () => {
   });
 
   test('a single reply message reaches the channel sink', async () => {
-    const { relay, notifs } = makeRelay(['telegram']);
+    const { relay, notifs } = makeRelay(['telegram-bot']);
     stop = new ChannelRelay({ relay, log: () => {}, inScope: () => true }).start();
 
     publishEvent(
       replyMsg({
-        station: 'telegram',
-        line: 'metro://telegram/acct/-100/5',
-        from: 'metro://telegram/u/bob',
+        station: 'telegram-bot',
+        line: 'metro://telegram-bot/acct/-100/5',
+        from: 'metro://telegram-bot/u/bob',
         messageId: 'tg-reply-1',
         text: 'this is a reply',
         replyTo: 'tg-0',

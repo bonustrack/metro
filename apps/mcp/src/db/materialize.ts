@@ -52,20 +52,20 @@ const STATION_TARGETS: Record<StationName, StationTarget> = {
     fileEnv: 'XMTP_ACCOUNTS_FILE',
     trainImport: '@metro-labs/xmtp/train',
   },
-  telegram: {
+  'telegram-bot': {
+    file: 'telegram-bot-accounts.json',
+    fileEnv: 'TELEGRAM_BOT_ACCOUNTS_FILE',
+    trainImport: '@metro-labs/telegram-bot/train',
+  },
+  'telegram': {
     file: 'telegram-accounts.json',
     fileEnv: 'TELEGRAM_ACCOUNTS_FILE',
     trainImport: '@metro-labs/telegram/train',
   },
-  'telegram-user': {
-    file: 'telegram-user-accounts.json',
-    fileEnv: 'TELEGRAM_USER_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/telegram-user/train',
-  },
-  discord: {
-    file: 'discord-accounts.json',
-    fileEnv: 'DISCORD_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/discord/train',
+  'discord-bot': {
+    file: 'discord-bot-accounts.json',
+    fileEnv: 'DISCORD_BOT_ACCOUNTS_FILE',
+    trainImport: '@metro-labs/discord-bot/train',
   },
   whatsapp: {
     file: 'whatsapp-accounts.json',
@@ -247,6 +247,13 @@ function writeStations(list: LoadedAgent[]): Map<StationName, number> {
   for (const agent of list) {
     names[agent.id] = agent.name;
     for (const a of agent.accounts) {
+      if (!(a.station in STATION_TARGETS)) {
+        log.error(
+          { station: a.station, id: a.id },
+          'unknown station — this metro is older or newer than the row; skipping it',
+        );
+        continue;
+      }
       map[`${a.station}/${a.id}`] = agent.id;
       if (a.allowlist) allow[`${a.station}/${a.id}`] = a.allowlist;
       if (stationRunsHere(a.station)) {

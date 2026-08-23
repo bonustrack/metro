@@ -1,54 +1,80 @@
 import { describe, expect, test } from 'bun:test';
+import type { UserClient } from '../src/client.ts';
 import {
-  adminMemberList,
-  inaccessibleMemberList,
-  mapTgMember,
+  fetchMembers,
+  isRestricted,
+  mapUserMember,
+  restrictedMemberList,
 } from '../src/members.ts';
 
-describe('telegram (bot) member mapping', () => {
-  test('maps an administrator with display name and admin flag', () => {
+describe('telegram member mapping', () => {
+  test('maps a member with username, display name, title and flags', () => {
     expect(
-      mapTgMember({
-        user: { id: 5, username: 'less', first_name: 'Less', is_bot: false },
-        status: 'administrator',
+      mapUserMember({
+        user: { id: 9, username: 'less', displayName: 'Less', isBot: false },
+        status: 'admin',
+        title: 'Boss',
       }),
     ).toEqual({
-      id: '5',
+      id: '9',
       name: 'less',
       display_name: 'Less',
+      roles: ['Boss'],
       is_admin: true,
       is_bot: false,
     });
   });
 
-  test('creator is admin; plain member is not', () => {
-    expect(mapTgMember({ user: { id: 1 }, status: 'creator' }).is_admin).toBe(
-      true,
-    );
-    expect(mapTgMember({ user: { id: 2 }, status: 'member' }).is_admin).toBe(
-      false,
-    );
+  test('isRestricted recognises admin/permission errors', () => {
+    expect(isRestricted('CHAT_ADMIN_REQUIRED')).toBe(true);
+    expect(isRestricted('some other error')).toBe(false);
   });
 
-  test('adminMemberList marks the roster incomplete with a reason and total', () => {
-    const list = adminMemberList(
-      [{ user: { id: 1, first_name: 'A' }, status: 'creator' }],
-      120,
-    );
-    expect(list.members).toHaveLength(1);
-    expect(list.capability.supported).toBe(true);
-    expect(list.capability.complete).toBe(false);
-    expect(list.capability.total).toBe(120);
-    expect(list.capability.reason).toContain('Bot API');
+  test('restrictedMemberList is unsupported + empty', () => {
+    expect(restrictedMemberList('nope').capability.supported).toBe(false);
   });
+});
 
-  test('inaccessibleMemberList is unsupported with the raw reason', () => {
-    const list = inaccessibleMemberList('no admins in private chat');
-    expect(list.members).toEqual([]);
-    expect(list.capability).toEqual({
-      supported: false,
-      complete: false,
-      reason: 'no admins in private chat',
+function fakeClient(pages: Record<number, { rows: unknown[]; total: number }>): UserClient {
+  return {
+    tg: {
+      getChatMembers: (_id: number, p: { offset: number; limit: number }) => {
+        const page = pages[p.offset] ?? { rows: [], total: 0 };
+        const arr = page.rows.slice() as unknown[] & { total?: number };
+        arr.total = page.total;
+        return Promise.resolve(arr);
+      },
+    },
+  } as unknown as UserClient;
+}
+
+const row = (id: number): unknown => ({
+  user: { id, username: `u${id}`, displayName: `U${id}` },
+  status: 'member',
+});
+
+describe('telegram fetchMembers pagination', () => {
+  test('pages across offsets until total is reached and marks complete', async () => {
+    const client = fakeClient({
+      0: { rows: Array.from({ length: 200 }, (_, i) => row(i)), total: 300 },
+      200: { rows: Array.from({ length: 100 }, (_, i) => row(200 + i)), total: 300 },
     });
+    const list = await fetchMembers(client, 123, 1000);
+    expect(list.members).toHaveLength(300);
+    expect(list.capability).toEqual({
+      supported: true,
+      complete: true,
+      total: 300,
+    });
+  });
+
+  test('respects the requested limit and reports incomplete', async () => {
+    const client = fakeClient({
+      0: { rows: Array.from({ length: 200 }, (_, i) => row(i)), total: 300 },
+    });
+    const list = await fetchMembers(client, 123, 200);
+    expect(list.members).toHaveLength(200);
+    expect(list.capability.complete).toBe(false);
+    expect(list.capability.total).toBe(300);
   });
 });

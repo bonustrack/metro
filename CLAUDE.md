@@ -16,7 +16,8 @@ Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
   - `src/stations/` — registry, types, account-store, attachments, lines, attach.
   - `src/db/` — drizzle schema, materialize, agent/key/allowlist maps, scope predicate.
 - `apps/ui` — the control panel (Vite + react-native-web + `@stage-labs/kit`).
-- `packages/*` — six stations: `xmtp`, `telegram`, `telegram-user`, `discord`, `whatsapp`, `webhook` — plus `packages/cli`.
+- `packages/*` — six stations: `xmtp`, `telegram-bot`, `telegram`, `discord-bot`, `whatsapp`, `webhook` — plus `packages/cli`.
+  - **`telegram` is the USER-ACCOUNT station and `telegram-bot` is the Bot API one.** Until `0018` the names were `telegram-user` and `telegram`: the plain name swapped meaning from bot to user account. `0018` rewrote `stations.station` in that order (bot out of the way first, or the two would collide on `unique(station, account_id)`), and everything derived follows the new names: `metro://telegram-bot/…` lines, `telegram-bot-accounts.json`, the `TELEGRAM_BOT_*`/`TELEGRAM_*`/`DISCORD_BOT_*` env vars, and the train stubs. A pre-`0018` line or file name refers to a station that no longer exists and fails loud, not sideways. The migration is plain UPDATEs, so it IS hand-reversible, unlike `0015`.
 - **`packages/cli` is `@stage-labs/metro`, the ONLY published package in the repo.** Everything else is `private: true`. That name is not new: it is what this repo published up to `0.1.0-beta.15` back when it was a stdio MCP, before the rename to `@metro-labs/mcp`. The CLI continues the version line rather than starting a new one, so an existing `npm i -g @stage-labs/metro` upgrades into it.
   - It ships `dist` only (`files`), `bin.metro` → `dist/cli.js`, `engines.node >= 22`, and `publishConfig.tag` is **`beta`** — publishing without that tag would move `latest` and hand the beta to everyone.
   - **Publishing is the `Publish @stage-labs/metro` workflow, run by hand from the Actions tab** (`.github/workflows/publish-cli.yml`, `workflow_dispatch`, with a `dry_run` input that builds and packs without publishing). It must `bun install` and BUILD before packing: `dist` is gitignored, so a bare `npm publish` on a fresh checkout ships a tarball holding nothing but `package.json`. It publishes `--tag beta --access public --provenance`. **The tag is passed explicitly even though `publishConfig` already carries it**, because `npm publish` announces `with tag latest` either way — npm reads that notice from the raw config (`publish.js` line 76) while the upload uses the flattened `opts.defaultTag` (`libnpmpublish` line 99), so the message is wrong and only the message. Auth is the repo's `NPM_TOKEN`, which has to be an npm AUTOMATION token: a personal login is refused with a 403 demanding 2FA.
@@ -59,7 +60,7 @@ Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
   - `boot.ts`'s `syncStations` returns before touching the supervisor.
   - `mcp/accounts.ts` reads webhook's accounts in-core (`inCoreAccounts`) instead of calling an absent train — which is also why webhook can never appear in `unavailable`.
   - The Monitor's `/api/call/:train/:action` is a flat 400 for it; `list_members` refuses on `!hasAccounts || !hasTrain`.
-- telegram-user and whatsapp trains spawn only when an account of that station exists.
+- telegram and whatsapp trains spawn only when an account of that station exists.
 - **The LINE station was removed.** No `line` package, no `line` in `STATIONS` — a leftover `line` row in `accounts` crashes `materialize.ts` at boot. Drop those rows before deploying.
 
 ### Sessions, identity and scope
@@ -109,7 +110,7 @@ Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
 - `saveStreamToCache` streams to a `.part` with a running `assertAttachmentSize` counter and `rename`s on completion, so RSS stays flat and a refused save leaves neither a half file nor an orphan.
 - **Serving** (`daemon/attach-serve.ts` + `attach-owner.ts` + `attach-grant.ts`) is scoped by the OWNING agent, not a shared secret. Minting a url writes two 0600 sidecars beside the cached file: `.owner` (agent id) and `.grant` (`{token, agentId, mintedAt}`, `at_<43 base64url>`, 32 CSPRNG bytes). The `?token=` is that per-attachment token, never the agent's key. Minting is idempotent for the same owner, so re-emitting an event does not break a delivered link.
   - `/attach` takes two paths, both re-checking `.owner` first: the presented token matches that attachment's own grant (`timingSafeEqual`, and the grant's `agentId` must equal the recorded owner), OR the caller authenticates as an identity whose scope contains the owner. Everything else is a flat 401.
-  - The ONE 404 is a name that is not cache-shaped (`CACHE_NAME_RE`), decided before `authorized()` — it depends only on the request string. A cache-shaped name stays 401 whether or not it exists: cache names derive from public ids (a discord snowflake), so a distinguishable "gone" would be an existence oracle. **Do not "improve" that 401 into a 404.**
+  - The ONE 404 is a name that is not cache-shaped (`CACHE_NAME_RE`), decided before `authorized()` — it depends only on the request string. A cache-shaped name stays 401 whether or not it exists: cache names derive from public ids (a discord-bot snowflake), so a distinguishable "gone" would be an existence oracle. **Do not "improve" that 401 into a 404.**
   - Fails closed: no `.grant` means no token can match. Sidecars are unservable by construction (`CACHE_NAME_RE` cannot match two dots).
 - **Outbound sources** (`stations/attach-resolve.ts`, `attach-inline.ts`): exactly ONE of `upload`, `data`, `url`, `path`. Two is an error and so is none — the old filter that swallowed a source-less entry is gone, because dropping it and answering `sent: text` is the #134 dishonesty.
   - `path` resolves on the DAEMON host; `url` must be publicly reachable; `data` transits the model's output. `upload` is the only one fit for a real file.
@@ -122,7 +123,7 @@ Bun workspaces (`bun@1.3.9`): `apps/*`, `packages/*`.
   - **Transient by construction:** `uploadDir()` (0700), never `attachDir()`. `UPLOAD_TTL_MS` 30 min, expiry read from `.meta` on EVERY lookup, `startUploadReaper()` sweeping every 60s with one sweep at start. `UPLOAD_ID_RE` (`up_` + 22 base64url) is the traversal guard and makes sidecars unaddressable. A send does NOT consume the upload — a timed-out `send` has usually succeeded, so a retry must work.
   - **64 MiB per file, 512 MiB daemon-wide live budget.** Under `MAX_ATTACHMENT_BYTES` (100 MiB) so the naming error fires first, and above the largest station ceiling (Telegram's 50 MB) so metro never refuses a file a station would carry. Over-size is refused from `content-length` before a byte is written; a chunked body is caught by the running counter, which **DRAINS rather than throws** — throwing there destroys the socket in Bun's `node:http` and the client hangs forever. Drain capped at `DRAIN_MAX` = 2x. Do not "simplify" it back into a throw.
   - `streamToSlot` owns removing the `.part` on failure, not its callers: the `wx` open makes an orphan permanent, wedging that slot at 409 for the full TTL.
-- **Outbound reporting is derived, never asserted** (#134). `handleSend` compares what came back against `atts.length` through ONE predicate, `assertDelivered`, applied to both the forwarded and native paths. **Fewer labels than attachments is an error, never a success.** Each station's label list must be built INSIDE the loop that pushes, appended only after the push resolves, and derived from the branch that chose the verb — never `map`ped over the input array, which is what let telegram-user report full success for a partial send. `test/send-attachment-honesty.test.ts` crosses drop/partial/complete against every station's line; add a station to it and to the package's own send-loop test.
+- **Outbound reporting is derived, never asserted** (#134). `handleSend` compares what came back against `atts.length` through ONE predicate, `assertDelivered`, applied to both the forwarded and native paths. **Fewer labels than attachments is an error, never a success.** Each station's label list must be built INSIDE the loop that pushes, appended only after the push resolves, and derived from the branch that chose the verb — never `map`ped over the input array, which is what let telegram report full success for a partial send. `test/send-attachment-honesty.test.ts` crosses drop/partial/complete against every station's line; add a station to it and to the package's own send-loop test.
 
 ### Human-in-the-loop
 
@@ -224,12 +225,12 @@ One port (`internal_port=8420`, `webhookPort()` = `METRO_WEBHOOK_PORT || 8420` �
 ### Attaching station accounts
 
 - `POST /api/agents/<id>/accounts/start` is the **ONLY** route that writes `accounts`.
-- **No `accounts` row exists unless the credential has been demonstrated to work.** Every station is verified against the real provider BEFORE the row is written: discord `GET /users/@me` plus the `/applications/@me` Message Content flags, telegram `getMe`, xmtp opens a real inbox with the key it just generated. Well-formed is not enough — a generated secp256k1 key is well-formed by construction.
+- **No `accounts` row exists unless the credential has been demonstrated to work.** Every station is verified against the real provider BEFORE the row is written: discord-bot `GET /users/@me` plus the `/applications/@me` Message Content flags, telegram-bot `getMe`, xmtp opens a real inbox with the key it just generated. Well-formed is not enough — a generated secp256k1 key is well-formed by construction.
 - The xmtp check runs OUT OF PROCESS (`Bun.spawn`, key over stdin, never argv/env, 90s cap) because `@xmtp/node-sdk` v6 exposes no `close()`, so an in-daemon client would hold the MLS SQLite handle for the daemon's life and fight the train. It verifies into the SAME db3 the train will use and stores that path in `config.dbPath`, so the train reuses the verified installation instead of burning one of the inbox's ten. On a failed write, `discard()` deletes the db3 and its sidecars. Refusals run through `withoutKey`.
 - `account_id` is ALWAYS server-generated (`a<agentId>-<8 hex>`), never from the body — (`station`,`account_id`) is a global PK, so a caller-chosen id would collide across owners and leak which ids exist.
-- Duplicate bot tokens are refused 409 (two telegram accounts sharing a token make the whole train refuse to boot).
+- Duplicate bot tokens are refused 409 (two telegram-bot accounts sharing a token make the whole train refuse to boot).
 - **No API returns a stored station credential** — the one-time `secret` in the 201 is the only time a generated XMTP key is shown. The single deliberate exception is the webhook endpoint url (see the webhook station).
-- **Interactive attach** (`daemon/attach-session.ts`): telegram-user and whatsapp cannot finish in one request, so `start` answers `status:'pending'` with an `as_<22 base64url>` id, and the client polls, posts `/step`, or `DELETE`s. `ATTACH_ID_RE` is disjoint from every station name, which lets one route table serve both shapes.
+- **Interactive attach** (`daemon/attach-session.ts`): telegram and whatsapp cannot finish in one request, so `start` answers `status:'pending'` with an `as_<22 base64url>` id, and the client polls, posts `/step`, or `DELETE`s. `ATTACH_ID_RE` is disjoint from every station name, which lets one route table serve both shapes.
   - `AttachSessions` is IN MEMORY ONLY. It holds the live provider client and hands the finished config straight to the write; no credential reaches a view or poll response.
   - `authorize` runs `ownedAgentOrThrow` BEFORE any provider client is created.
   - 5-min pending TTL, 1-min settled, 2 per agent, 40 per daemon, 15s unref'd sweeper; expiry/cancel/`stop()` all call `driver.cancel()`.
@@ -271,15 +272,15 @@ Live-only `GET /api/tail` SSE (no replay), `POST /api/call/:train/:action`, `GET
 | Station | Train | Message verbs | Notes |
 | --- | --- | --- | --- |
 | xmtp | yes | `send`/`reply`/`react`/`unreact`/`read` + push, group ops | Production XMTP/MLS. DB `~/.metro/xmtp-production-<id>.db3`. Single-writer. Use a separate identity for dev. |
-| telegram | yes | `send`/`reply`/`react`/`unreact`/`edit`/`delete` (no `read`) + six `send_*` | Bot API. |
-| telegram-user | yes | all seven | Telegram **user account** (MTProto via `@mtcute/bun`). Config `{session, apiId, apiHash}`. ToS/ban risk; the session is a full-account secret; single-writer. Dormant until an account exists. |
-| discord | yes | all seven + thread/pin/typing/presence/voice | Voice via `@discordjs/voice`. |
+| telegram-bot | yes | `send`/`reply`/`react`/`unreact`/`edit`/`delete` (no `read`) + six `send_*` | Bot API. |
+| telegram | yes | all seven | Telegram **user account** (MTProto via `@mtcute/bun`). Config `{session, apiId, apiHash}`. ToS/ban risk; the session is a full-account secret; single-writer. Dormant until an account exists. |
+| discord-bot | yes | all seven + thread/pin/typing/presence/voice | Voice via `@discordjs/voice`. |
 | whatsapp | yes | `send`/`reply`/`react`/`unreact`/`edit`/`delete` (no `read`) | Real user account via Baileys. See below. |
 | webhook | **no** | none (inbound-only) | See below. |
 
-Allowlists resolve via account-store `allowlistEnv`: `<STATION>_ONLY_ACCOUNTS` restricts, `<STATION>_ACCOUNTS` configures (`XMTP_`, `TELEGRAM_`, `TELEGRAM_USER_`, `DISCORD_`, `WHATSAPP_`).
+Allowlists resolve via account-store `allowlistEnv`: `<STATION>_ONLY_ACCOUNTS` restricts, `<STATION>_ACCOUNTS` configures (`XMTP_`, `TELEGRAM_BOT_`, `TELEGRAM_`, `DISCORD_BOT_`, `WHATSAPP_`).
 
-Every station's `accounts` action reports `handle` + `url` for the UI. All of them swallow a failed identity lookup into `null`, so a blank handle means the provider call failed (e.g. a revoked telegram token) — the daemon knows the reason and currently shows none. Worth fixing.
+Every station's `accounts` action reports `handle` + `url` for the UI. All of them swallow a failed identity lookup into `null`, so a blank handle means the provider call failed (e.g. a revoked telegram-bot token) — the daemon knows the reason and currently shows none. Worth fixing.
 
 ### whatsapp
 

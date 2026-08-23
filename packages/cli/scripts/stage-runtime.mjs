@@ -11,9 +11,9 @@ const MODULES = join(OUT, 'node_modules', '@metro-labs');
 const SOURCES = [
   ['apps/mcp', 'mcp'],
   ['packages/xmtp', 'xmtp'],
+  ['packages/telegram-bot', 'telegram-bot'],
   ['packages/telegram', 'telegram'],
-  ['packages/telegram-user', 'telegram-user'],
-  ['packages/discord', 'discord'],
+  ['packages/discord-bot', 'discord-bot'],
   ['packages/whatsapp', 'whatsapp'],
   ['packages/webhook', 'webhook'],
 ];

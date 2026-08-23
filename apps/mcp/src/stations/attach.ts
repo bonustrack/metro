@@ -2,11 +2,11 @@ import { randomBytes } from 'node:crypto';
 import {
   DiscordTokenError,
   verifyDiscordBotToken,
-} from '@metro-labs/discord/verify';
+} from '@metro-labs/discord-bot/verify';
 import {
   TelegramTokenError,
   verifyTelegramBotToken,
-} from '@metro-labs/telegram/verify';
+} from '@metro-labs/telegram-bot/verify';
 import { ApiError } from '../daemon/api-error.js';
 import { publicBaseOrDefault } from '../daemon/attach-serve.js';
 import {
@@ -18,8 +18,8 @@ import {
 } from './attach-xmtp.js';
 
 export const ATTACHABLE_STATIONS = [
-  'discord',
-  'telegram',
+  'discord-bot',
+  'telegram-bot',
   'xmtp',
   'webhook',
 ] as const;
@@ -175,8 +175,8 @@ export async function prepareAccount(
   input: AttachInput,
   verify: VerifyXmtpKey = verifyXmtpKeyOutOfProcess,
 ): Promise<PreparedAccount> {
-  if (input.station === 'discord') return prepareDiscord(input.token);
-  if (input.station === 'telegram') return prepareTelegram(input.token);
+  if (input.station === 'discord-bot') return prepareDiscord(input.token);
+  if (input.station === 'telegram-bot') return prepareTelegram(input.token);
   if (input.station === 'webhook') return prepareWebhook();
   return prepareXmtp(verify);
 }

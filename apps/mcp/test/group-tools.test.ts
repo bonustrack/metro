@@ -26,9 +26,9 @@ describe('group tool schemas', () => {
 
 describe('wrapGroupResult', () => {
   test('prefers the daemon line and echoes members/invite link', () => {
-    const wrapped = wrapGroupResult('create_group', '', 'telegram-user', {
+    const wrapped = wrapGroupResult('create_group', '', 'telegram', {
       capability: { supported: true },
-      line: 'metro://telegram-user/default/42',
+      line: 'metro://telegram/default/42',
       id: '42',
       name: 'Support',
       members: [
@@ -39,8 +39,8 @@ describe('wrapGroupResult', () => {
     });
     expect(wrapped).toMatchObject({
       op: 'create_group',
-      line: 'metro://telegram-user/default/42',
-      station: 'telegram-user',
+      line: 'metro://telegram/default/42',
+      station: 'telegram',
       supported: true,
       id: '42',
       inviteLink: 'https://t.me/+abc',
@@ -60,10 +60,10 @@ describe('wrapGroupResult', () => {
 
 describe('unsupportedGroup', () => {
   test('returns a structured not-supported result', () => {
-    expect(unsupportedGroup('invite_link', 'metro://discord/a/1', 'discord', 'no')).toEqual({
+    expect(unsupportedGroup('invite_link', 'metro://discord-bot/a/1', 'discord-bot', 'no')).toEqual({
       op: 'invite_link',
-      line: 'metro://discord/a/1',
-      station: 'discord',
+      line: 'metro://discord-bot/a/1',
+      station: 'discord-bot',
       supported: false,
       reason: 'no',
       members: [],
@@ -84,11 +84,11 @@ describe('dispatch base-default (never throws on unsupported)', () => {
     expect(body.station).toBe('nope');
   });
 
-  test('create_group on the telegram bot station is unsupported (no groupOps)', async () => {
-    const res = await dispatchCreateGroup({ station: 'telegram', name: 'x' });
+  test('create_group on the telegram-bot station is unsupported (no groupOps)', async () => {
+    const res = await dispatchCreateGroup({ station: 'telegram-bot', name: 'x' });
     const body = parse(res.content[0]!.text);
     expect(body.supported).toBe(false);
-    expect(body.reason).toContain('not supported on telegram');
+    expect(body.reason).toContain('not supported on telegram-bot');
     expect(body.members).toEqual([]);
   });
 
@@ -97,22 +97,22 @@ describe('dispatch base-default (never throws on unsupported)', () => {
     expect(parse(res.content[0]!.text).supported).toBe(false);
   });
 
-  test('add_members on a telegram bot line is unsupported', async () => {
-    const res = await dispatchAddMembers({ line: 'metro://telegram/123', members: ['@x'] });
+  test('add_members on a telegram-bot line is unsupported', async () => {
+    const res = await dispatchAddMembers({ line: 'metro://telegram-bot/123', members: ['@x'] });
     const body = parse(res.content[0]!.text);
-    expect(body.station).toBe('telegram');
+    expect(body.station).toBe('telegram-bot');
     expect(body.supported).toBe(false);
   });
 
-  test('remove_members on a telegram bot line is unsupported', async () => {
-    const res = await dispatchRemoveMembers({ line: 'metro://telegram/123', members: ['@x'] });
+  test('remove_members on a telegram-bot line is unsupported', async () => {
+    const res = await dispatchRemoveMembers({ line: 'metro://telegram-bot/123', members: ['@x'] });
     expect(parse(res.content[0]!.text).supported).toBe(false);
   });
 
-  test('export_invite on a discord line is unsupported (invite_link not offered)', async () => {
-    const res = await dispatchInviteLink({ line: 'metro://discord/acc/123456789' });
+  test('export_invite on a discord-bot line is unsupported (invite_link not offered)', async () => {
+    const res = await dispatchInviteLink({ line: 'metro://discord-bot/acc/123456789' });
     const body = parse(res.content[0]!.text);
-    expect(body.station).toBe('discord');
+    expect(body.station).toBe('discord-bot');
     expect(body.supported).toBe(false);
     expect(body.reason).toContain('invite_link');
   });

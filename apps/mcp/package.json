@@ -42,9 +42,9 @@
     "test": "tsc --noEmit && DYLD_FALLBACK_LIBRARY_PATH=/usr/lib METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
   },
   "dependencies": {
-    "@metro-labs/discord": "workspace:*",
+    "@metro-labs/discord-bot": "workspace:*",
     "@metro-labs/telegram": "workspace:*",
-    "@metro-labs/telegram-user": "workspace:*",
+    "@metro-labs/telegram-bot": "workspace:*",
     "@metro-labs/webhook": "workspace:*",
     "@metro-labs/whatsapp": "workspace:*",
     "@metro-labs/xmtp": "workspace:*",

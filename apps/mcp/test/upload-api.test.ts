@@ -42,7 +42,7 @@ beforeAll(async () => {
     { key: ONE, agentId: 'agent000001' },
     { key: TWO, agentId: 'agent000002' },
   ]);
-  setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
+  setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram-bot/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
   server = await startWebhookServer(makeEmit(), {}, undefined, () =>
     Promise.resolve({ result: null }),
   );

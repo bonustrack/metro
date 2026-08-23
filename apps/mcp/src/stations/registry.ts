@@ -1,17 +1,17 @@
 import type { Station } from './types.js';
 import { Line } from './lines.js';
 import { xmtpStation } from '@metro-labs/xmtp';
+import { telegramBotStation } from '@metro-labs/telegram-bot';
 import { telegramStation } from '@metro-labs/telegram';
-import { telegramUserStation } from '@metro-labs/telegram-user';
-import { discordStation } from '@metro-labs/discord';
+import { discordBotStation } from '@metro-labs/discord-bot';
 import { whatsappStation } from '@metro-labs/whatsapp';
 import { webhookStation } from '@metro-labs/webhook';
 
 export const STATIONS: readonly Station[] = [
   xmtpStation,
+  telegramBotStation,
   telegramStation,
-  telegramUserStation,
-  discordStation,
+  discordBotStation,
   whatsappStation,
   webhookStation,
 ];

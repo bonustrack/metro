@@ -3,102 +3,43 @@ import { join } from 'node:path';
 import {
   makeAccountStore,
   resolveAccountId,
+  type Die,
 } from '@metro-labs/mcp/stations/account-store';
-import { Line } from '@metro-labs/mcp/lines';
+import type { UserAccount } from './types.js';
 
 const ACCOUNTS_FILE =
   process.env.TELEGRAM_ACCOUNTS_FILE ??
   join(homedir(), '.metro', 'telegram-accounts.json');
 
-export interface AccountConfig {
-  id: string;
-  token: string;
-  owner?: string;
+const isSignedInt = (s: string): boolean => /^-?\d+$/.test(s);
+const isTopic = (s: string): boolean => /^\d+$/.test(s);
+
+function validateAccount(a: UserAccount, seen: Set<string>, die: Die): void {
+  if (!a.id) die('account missing id');
+  if (!a.session || typeof a.session !== 'string')
+    die(`account '${a.id}' missing session`);
+  if (!Number.isInteger(a.apiId) || (a.apiId ?? 0) <= 0)
+    die(`account '${a.id}' missing apiId`);
+  if (!a.apiHash || typeof a.apiHash !== 'string')
+    die(`account '${a.id}' missing apiHash`);
+  if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
+  seen.add(a.id);
 }
 
-export const { loadAccounts } = makeAccountStore<AccountConfig>({
+export const { loadAccounts } = makeAccountStore<UserAccount>({
   prefix: 'telegram',
   file: ACCOUNTS_FILE,
   allowlistEnv: ['TELEGRAM_ONLY_ACCOUNTS', 'TELEGRAM_ACCOUNTS'],
   validate(raw, die) {
-    const seenId = new Set<string>();
-    const seenTok = new Set<string>();
-    for (const a of raw) {
-      if (!a.id) die('account missing id');
-      if (!a.token || typeof a.token !== 'string')
-        die(`account '${a.id}' missing token`);
-      if (seenId.has(a.id)) die(`duplicate account id '${a.id}'`);
-      if (seenTok.has(a.token))
-        die(
-          `account '${a.id}' reuses a token used by another account (409 on getUpdates)`,
-        );
-      seenId.add(a.id);
-      seenTok.add(a.token);
-    }
+    const seen = new Set<string>();
+    for (const a of raw) validateAccount(a, seen, die);
   },
 });
 
-export interface Account {
-  cfg: AccountConfig;
-  api: string;
-  fileApi: string;
-  offset: number;
-}
-export const accounts = new Map<string, Account>();
-
-export async function tg<T>(
-  accountId: string,
-  method: string,
-  body: unknown,
-  timeoutMs = 30_000,
-): Promise<T> {
-  const acct = accounts.get(accountId);
-  if (!acct) throw new Error(`unknown account '${accountId}'`);
-  const res = await fetch(`${acct.api}/${method}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  const json = (await res.json()) as {
-    ok: boolean;
-    description?: string;
-    result?: T;
-  };
-  if (!json.ok)
-    throw new Error(`telegram ${method}: ${json.description ?? 'unknown'}`);
-  return json.result as T;
-}
-
-export async function tgForm<T>(
-  accountId: string,
-  method: string,
-  form: FormData,
-  timeoutMs = 60_000,
-): Promise<T> {
-  const acct = accounts.get(accountId);
-  if (!acct) throw new Error(`unknown account '${accountId}'`);
-  const res = await fetch(`${acct.api}/${method}`, {
-    method: 'POST',
-    body: form,
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  const json = (await res.json()) as {
-    ok: boolean;
-    description?: string;
-    result?: T;
-  };
-  if (!json.ok)
-    throw new Error(`telegram ${method}: ${json.description ?? 'unknown'}`);
-  return json.result as T;
-}
+export const accounts = new Map<string, UserAccount>();
 
 export function accountFor(args: { account?: string; line?: string }): string {
-  return resolveAccountId(
-    accounts,
-    args,
-    (line) => Line.parseTelegram(line)?.accountId,
-  );
+  return resolveAccountId(accounts, args, (line) => targetOf(line)?.accountId);
 }
 
 export function lineOf(
@@ -110,11 +51,31 @@ export function lineOf(
   return `metro://telegram/${accountId}/${tail}`;
 }
 
-export function targetOf(
-  line: string,
-  accountOverride?: string,
-): { accountId: string; chatId: number; topicId?: number } {
-  const parsed = Line.parseTelegram(line);
-  if (!parsed) throw new Error(`bad telegram line: ${line}`);
-  return { ...parsed, accountId: accountOverride ?? parsed.accountId };
+interface Target {
+  accountId: string;
+  chatId: number;
+  topicId?: number;
+}
+
+function splitScoped(path: string[]): { accountId: string; rest: string[] } {
+  const first = path[0];
+  if (path.length >= 2 && first !== undefined && !isSignedInt(first))
+    return { accountId: first, rest: path.slice(1) };
+  return { accountId: 'default', rest: path };
+}
+
+export function targetOf(line: string): Target | undefined {
+  const prefix = 'metro://telegram/';
+  if (!line.startsWith(prefix)) return undefined;
+  const path = line.slice(prefix.length).split('/').filter(Boolean);
+  const { accountId, rest } = splitScoped(path);
+  const [chatId, topicId] = rest;
+  if (rest.length < 1 || rest.length > 2 || chatId === undefined) return undefined;
+  if (!isSignedInt(chatId)) return undefined;
+  if (topicId !== undefined && !isTopic(topicId)) return undefined;
+  return {
+    accountId,
+    chatId: Number(chatId),
+    ...(topicId !== undefined ? { topicId: Number(topicId) } : {}),
+  };
 }

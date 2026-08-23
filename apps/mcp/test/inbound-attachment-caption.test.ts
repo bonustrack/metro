@@ -12,11 +12,11 @@
  * to the message it had just been handed a file from.
  *
  * The stations diverge and the divergence is the whole point of this file:
- * discord, telegram-user and xmtp put an `attachments` array on the envelope
- * payload and therefore buffer; the telegram BOT station does not, which is
+ * discord-bot, telegram and xmtp put an `attachments` array on the envelope
+ * payload and therefore buffer; the telegram-bot BOT station does not, which is
  * the only reason its captions survived. Every fixture below is shaped from
  * the real traffic captured on 2026-08-05 (tail.log), including Less's own
- * "Great caption here" on discord and "Monster truck" on telegram-user.
+ * "Great caption here" on discord-bot and "Monster truck" on telegram.
  */
 
 import { describe, expect, jest, test } from 'bun:test';
@@ -38,7 +38,7 @@ function makeRelay(): { relay: InboundRelay; notifs: Notif[] } {
     } as never,
     log: () => undefined,
     getStations: () =>
-      new Set(['discord', 'telegram', 'telegram-user', 'xmtp']),
+      new Set(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']),
     senderAllowed: () => true,
   });
   return { relay, notifs };
@@ -55,9 +55,9 @@ const discordMsg = (text: string): Record<string, unknown> => ({
   event: { type: 'msg' },
   id: 'msg_a8rbc9lk',
   ts: '2026-08-05T18:33:25.698Z',
-  station: 'discord',
-  line: 'metro://discord/d0/1504226489359401221',
-  from: 'metro://discord/d0/user/238307675501232128',
+  station: 'discord-bot',
+  line: 'metro://discord-bot/d0/1504226489359401221',
+  from: 'metro://discord-bot/d0/user/238307675501232128',
   fromName: 'bonustrack_',
   fromDisplayName: 'less',
   to: 'metro://user',
@@ -78,8 +78,8 @@ const discordMsg = (text: string): Record<string, unknown> => ({
 const discordSaved = (): Record<string, unknown> => ({
   event: { type: 'msg' },
   id: 'msg_j3ix2ppk',
-  station: 'discord',
-  line: 'metro://discord/d0/1504226489359401221',
+  station: 'discord-bot',
+  line: 'metro://discord-bot/d0/1504226489359401221',
   from: 'metro://user',
   text: '📎 saved: /data/.cache/metro/messenger-uploads/msg_1534630426356879_0.html',
   payload: {
@@ -97,13 +97,13 @@ const discordSaved = (): Record<string, unknown> => ({
   },
 });
 
-const telegramUserMsg = (): Record<string, unknown> => ({
+const telegramMsg = (): Record<string, unknown> => ({
   event: { type: 'msg' },
   id: 'msg_69awj0yf',
-  station: 'telegram-user',
-  line: 'metro://telegram-user/default/25220238',
+  station: 'telegram',
+  line: 'metro://telegram/default/25220238',
   lineName: '@bonustrack',
-  from: 'metro://telegram-user/default/user/25220238',
+  from: 'metro://telegram/default/user/25220238',
   fromName: '@bonustrack',
   fromDisplayName: 'less, Snapshot',
   to: 'metro://user',
@@ -116,12 +116,12 @@ const telegramUserMsg = (): Record<string, unknown> => ({
   },
 });
 
-const telegramUserSaved = (): Record<string, unknown> => ({
+const telegramSaved = (): Record<string, unknown> => ({
   event: { type: 'msg' },
   id: 'msg_saved_1976',
-  station: 'telegram-user',
-  line: 'metro://telegram-user/default/25220238',
-  from: 'metro://telegram-user/default/self',
+  station: 'telegram',
+  line: 'metro://telegram/default/25220238',
+  from: 'metro://telegram/default/self',
   text: '📎 saved: /data/.cache/metro/messenger-uploads/msg_1976_0.jpg',
   payload: {
     account: 'default',
@@ -173,7 +173,7 @@ const xmtpSaved = (): Record<string, unknown> => ({
   },
 });
 
-describe('discord: the caption reaches the agent with the attachment', () => {
+describe('discord-bot: the caption reaches the agent with the attachment', () => {
   test("Less's real 'Great caption here' survives the happy path", async () => {
     const { relay, notifs } = makeRelay();
 
@@ -193,17 +193,17 @@ describe('discord: the caption reaches the agent with the attachment', () => {
     expect(metaOf(only).from_name).toBe('bonustrack_');
     expect(metaOf(only).from_display_name).toBe('less');
     expect(metaOf(only).from).toBe(
-      'metro://discord/d0/user/238307675501232128',
+      'metro://discord-bot/d0/user/238307675501232128',
     );
   });
 });
 
-describe('telegram-user: the caption reaches the agent with the attachment', () => {
+describe('telegram: the caption reaches the agent with the attachment', () => {
   test("Less's real 'Monster truck' survives the happy path", async () => {
     const { relay, notifs } = makeRelay();
 
-    await relay.handleEvent(telegramUserMsg());
-    await relay.handleEvent(telegramUserSaved());
+    await relay.handleEvent(telegramMsg());
+    await relay.handleEvent(telegramSaved());
 
     const channel = channelNotifs(notifs);
     expect(channel.length).toBe(1);
@@ -232,17 +232,17 @@ describe('xmtp: the caption reaches the agent with the attachment', () => {
   });
 });
 
-describe('telegram (bot): the station that never buffered is unchanged', () => {
+describe('telegram-bot (bot): the station that never buffered is unchanged', () => {
   test('the caption is emitted on its own and the media note follows', async () => {
     const { relay, notifs } = makeRelay();
 
     await relay.handleEvent({
       event: { type: 'msg' },
       id: 'msg_y48j9o5s',
-      station: 'telegram',
-      line: 'metro://telegram/t0/25220238',
+      station: 'telegram-bot',
+      line: 'metro://telegram-bot/t0/25220238',
       lineName: 'less',
-      from: 'metro://telegram/t0/user/25220238',
+      from: 'metro://telegram-bot/t0/user/25220238',
       fromName: '@bonustrack',
       to: 'metro://user',
       text: 'a caption on the bot station [image]',
@@ -252,8 +252,8 @@ describe('telegram (bot): the station that never buffered is unchanged', () => {
     await relay.handleEvent({
       event: { type: 'msg' },
       id: 'msg_saved_1569',
-      station: 'telegram',
-      line: 'metro://telegram/t0/25220238',
+      station: 'telegram-bot',
+      line: 'metro://telegram-bot/t0/25220238',
       from: 'metro://user',
       text: '📎 saved: /data/.cache/metro/messenger-uploads/msg_1569_0.jpg',
       payload: {

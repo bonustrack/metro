@@ -40,7 +40,7 @@ const deps: RunApiDeps = {
       key: 'mk_agent_key',
       accounts: [
         {
-          station: 'telegram',
+          station: 'telegram-bot',
           id: 'stn00000001',
           allowlist: ['*'],
           config: { botToken: 'secret-token' },
