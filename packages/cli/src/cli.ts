@@ -7,7 +7,7 @@ import {
   NotSignedIn,
   whoisAuthorized,
 } from './api.js';
-import { askLine } from './prompt.js';
+import { askSecret } from './prompt.js';
 import {
   clearToken,
   credentialsPath,
@@ -65,7 +65,7 @@ async function authorizeRuntime(agentId: string): Promise<string> {
   process.stderr.write(
     `Authorize this machine at ${metroWebUrl()}/#/authorize/${agentId}\n`,
   );
-  const code = (await askLine('Paste the code: ')).trim();
+  const code = (await askSecret('Paste the code (input is hidden): ')).trim();
   if (code === '') throw new Error('no code given');
   const claimed = await claimRuntime(code, hostLabel());
   writeRunToken(claimed.agent, claimed.token);
@@ -133,7 +133,7 @@ async function login(): Promise<void> {
     `Choose a connector collection at ${metroWebUrl()}/#/authorize\n`,
   );
   const { token, email, collection } = await claimCode(
-    await askLine('Paste the code here: '),
+    await askSecret('Paste the code here (input is hidden): '),
   );
   writeToken(token);
   process.stderr.write(
