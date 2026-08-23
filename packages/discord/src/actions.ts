@@ -6,8 +6,8 @@ import {
 import {
   accountFor,
   accounts,
-  encodeEmoji,
   lineOf,
+  ownReactionPath,
   rest,
   routeOf,
 } from './accounts.js';
@@ -162,27 +162,20 @@ function listAccounts(id: string): void {
 }
 
 async function react(id: string, args: Record<string, unknown>): Promise<void> {
-  const { line, messageId, emoji, account } = args as {
+  const { line, messageId, emoji, remove, account } = args as {
     line: string;
     messageId: string;
     emoji: string;
+    remove?: boolean;
     account?: string;
   };
   const { accountId, channelId } = routeOf(line, account);
-  if (emoji) {
-    const e = encodeEmoji(emoji);
-    await rest(
-      accountId,
-      'PUT',
-      `/channels/${channelId}/messages/${messageId}/reactions/${e}/@me`,
-    );
+  const path = ownReactionPath(channelId, messageId, emoji);
+  if (!remove && emoji) {
+    await rest(accountId, 'PUT', path);
     emitOutboundReact(accountId, line, messageId, emoji);
   } else {
-    await rest(
-      accountId,
-      'DELETE',
-      `/channels/${channelId}/messages/${messageId}/reactions/@me`,
-    );
+    await rest(accountId, 'DELETE', path);
   }
   respond(id, { result: { ok: true, account: accountId } });
 }
