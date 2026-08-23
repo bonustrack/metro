@@ -62,6 +62,9 @@ const deps: AgentApiDeps = {
   gatherAccounts: () => Promise.resolve({}),
   capabilities: () => ({}),
   liveness: () => new Map(),
+  mintRuntimeCode: () => Promise.resolve({ code: 'mr_x', expiresAt: 0 }),
+  releaseRuntime: () => Promise.resolve(),
+  runtimes: () => Promise.resolve(new Map()),
   attachSessions: {
     start: () => Promise.reject(new AgentAdminError('not here', 400)),
     view: () => {
@@ -229,9 +232,9 @@ beforeAll(async () => {
   const mcp = await createMetroMcp();
   server = await startWebhookServer(
     makeEmit(),
+    { agentApi: deps },
     mcp.httpHandler,
     () => Promise.resolve({ result: 'ok' }),
-    deps,
   );
   mcp.startInbound();
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

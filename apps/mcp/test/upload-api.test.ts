@@ -43,7 +43,7 @@ beforeAll(async () => {
     { key: TWO, agentId: 'agent000002' },
   ]);
   setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
-  server = await startWebhookServer(makeEmit(), undefined, () =>
+  server = await startWebhookServer(makeEmit(), {}, undefined, () =>
     Promise.resolve({ result: null }),
   );
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

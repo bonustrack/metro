@@ -248,10 +248,9 @@ beforeAll(async () => {
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   server = await startWebhookServer(
     makeEmit(),
+    { connectorApi: deps },
     undefined,
     () => Promise.resolve({ result: null }),
-    undefined,
-    deps,
   );
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });

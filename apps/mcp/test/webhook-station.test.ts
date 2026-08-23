@@ -178,7 +178,7 @@ describe('the /hook route', () => {
     seen = [];
     setKeyMap([{ key: 'mk_monitor_is_mounted', agentId: 'agent000001' }]);
     unsubscribe = subscribeEvents((e: MetroEvent) => seen.push(e));
-    server = await startWebhookServer(makeEmit(), undefined, () =>
+    server = await startWebhookServer(makeEmit(), {}, undefined, () =>
       Promise.resolve({ result: null }),
     );
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

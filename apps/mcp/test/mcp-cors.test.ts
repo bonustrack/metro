@@ -11,7 +11,7 @@ beforeAll(async () => {
     20000 + Math.floor(Math.random() * 20000),
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
-  server = await startWebhookServer(makeEmit(), async (_req, res) => {
+  server = await startWebhookServer(makeEmit(), {}, async (_req, res) => {
     res.writeHead(200).end('ok');
   });
   const addr = server.address() as AddressInfo;

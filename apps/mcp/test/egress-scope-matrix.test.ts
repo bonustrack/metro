@@ -127,7 +127,7 @@ beforeAll(async () => {
     24000 + Math.floor(Math.random() * 12000),
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
-  server = await startWebhookServer(makeEmit(), undefined, () =>
+  server = await startWebhookServer(makeEmit(), {}, undefined, () =>
     Promise.resolve({ result: null }),
   );
   monitorBase = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

@@ -2,7 +2,7 @@ import { afterEach, beforeAll, afterAll, describe, expect, test } from 'bun:test
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
-import { signSession } from '../src/daemon/session.ts';
+import { signRunToken, signSession } from '../src/daemon/session.ts';
 import { mcpAddCommand, type AgentApiDeps } from '../src/daemon/agent-api.ts';
 import {
   AgentAdminError,
@@ -140,6 +140,9 @@ const deps: AgentApiDeps = {
   },
   capabilities: () => ({ telegram: ['send'], discord: ['send', 'read'] }),
   liveness: () => liveAgents,
+  mintRuntimeCode: () => Promise.resolve({ code: 'mr_x', expiresAt: 0 }),
+  releaseRuntime: () => Promise.resolve(),
+  runtimes: () => Promise.resolve(new Map()),
   prepareAccount: () =>
     Promise.reject(new AgentAdminError('attaching is not exercised here', 400)),
   attachAccount: () =>
@@ -180,7 +183,7 @@ beforeAll(async () => {
   process.env.METRO_PUBLIC_URL = PUBLIC;
   process.env.METRO_WEBHOOK_PORT = String(20000 + Math.floor(Math.random() * 20000));
   process.env.METRO_HTTP_HOST = '127.0.0.1';
-  server = await startWebhookServer(makeEmit(), undefined, undefined, deps);
+  server = await startWebhookServer(makeEmit(), { agentApi: deps });
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 
@@ -199,6 +202,26 @@ afterEach(() => {
   liveKeys = {};
   leakGrantedKeys = false;
   liveAgents = new Map();
+});
+
+describe('a run token cannot escalate to the agent admin API', () => {
+  const run = (): string =>
+    signRunToken(
+      { email: 'ada@lovelace.dev', agentId: 'agent000001', runtimeId: 'rt1' },
+      SECRET,
+    );
+
+  test('it cannot list agents, so it cannot read any agent key', async () => {
+    const res = await get(run());
+    expect(res.status).toBe(401);
+    expect(await res.text()).not.toContain('mk_fake');
+  });
+
+  test('it cannot create, delete, reset a key, or mint another runtime code', async () => {
+    expect((await post(run(), { name: 'x' })).status).toBe(401);
+    expect((await del(run(), 'agent000001')).status).toBe(401);
+    expect((await del(run(), 'agent000001/runtime')).status).toBe(401);
+  });
 });
 
 describe('/api/agents authentication', () => {
@@ -369,6 +392,7 @@ describe('GET /api/agents key exposure', () => {
       id: 'agent000001',
       name: 'ada-bot',
       owned: true,
+      runtime: null,
       connected: false,
       last_seen: null,
       key: 'mk_fake_ada-bot',
@@ -438,6 +462,7 @@ describe('GET /api/agents key exposure', () => {
       id: 'agent000042',
       name: 'keyless',
       owned: true,
+      runtime: null,
       connected: false,
       last_seen: null,
       key: null,

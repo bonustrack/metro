@@ -1,7 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
-import { verifyCliToken, verifySession, type CliClaims } from './session.js';
+import {
+  verifyCliToken,
+  verifyRunToken,
+  verifySession,
+  type CliClaims,
+  type RunClaims,
+} from './session.js';
 import { extractToken } from '../mcp/request-identity.js';
 
 const BODY_MAX = 4 * 1024;
@@ -43,6 +49,19 @@ export function apiSession(req: IncomingMessage): ApiSession | null {
   try {
     const { email } = verifySession(token, secret);
     return { email: email.toLowerCase() };
+  } catch {
+    return null;
+  }
+}
+
+export function runIdentity(req: IncomingMessage): RunClaims | null {
+  const secret = process.env.METRO_SESSION_SECRET?.trim() ?? '';
+  if (secret === '') return null;
+  const token = extractToken(req) ?? '';
+  if (token === '') return null;
+  try {
+    const claims = verifyRunToken(token, secret);
+    return { ...claims, email: claims.email.toLowerCase() };
   } catch {
     return null;
   }

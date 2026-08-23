@@ -57,6 +57,18 @@ export const agents = pgTable('agents', {
     .notNull()
     .references(() => projects.id, { onDelete: 'restrict' }),
   key: text('key').unique(),
+  runtimeId: text('runtime_id'),
+});
+
+export const runtimes = pgTable('runtimes', {
+  id: text('id').primaryKey(),
+  agentId: text('agent_id')
+    .notNull()
+    .references(() => agents.id, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  createdAt: text('created_at').notNull(),
+  lastSeenAt: text('last_seen_at'),
+  revokedAt: text('revoked_at'),
 });
 
 export const stations = pgTable('stations', {

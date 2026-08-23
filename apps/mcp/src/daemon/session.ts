@@ -104,6 +104,12 @@ export interface CliClaims {
   collectionId: string;
 }
 
+export interface RunClaims {
+  email: string;
+  agentId: string;
+  runtimeId: string;
+}
+
 export function signSession(
   claims: SessionClaims,
   secret: string,
@@ -171,4 +177,42 @@ export function verifyCliToken(
   if (typeof p.sub !== 'string' || typeof p.collection !== 'string')
     throw new SessionError('malformed cli token');
   return { email: p.sub, collectionId: p.collection };
+}
+
+export function signRunToken(
+  claims: RunClaims,
+  secret: string,
+  opts: { ttlSec?: number; now?: number } = {},
+): string {
+  const iat = nowSec(opts.now);
+  return sign(
+    {
+      typ: 'run',
+      sub: claims.email,
+      agent: claims.agentId,
+      rt: claims.runtimeId,
+      iat,
+      exp: iat + (opts.ttlSec ?? 365 * 24 * 3600),
+    },
+    secret,
+  );
+}
+
+export function verifyRunToken(
+  token: string,
+  secret: string,
+  now?: number,
+): RunClaims {
+  const p = verify(token, secret);
+  if (p.typ !== 'run') throw new SessionError('wrong token type');
+  if (typeof p.exp !== 'number' || p.exp < nowSec(now))
+    throw new SessionError('run token expired');
+  if (
+    typeof p.sub !== 'string' ||
+    typeof p.agent !== 'string' ||
+    typeof p.rt !== 'string' ||
+    !ID_RE.test(p.agent)
+  )
+    throw new SessionError('malformed run token');
+  return { email: p.sub, agentId: p.agent, runtimeId: p.rt };
 }

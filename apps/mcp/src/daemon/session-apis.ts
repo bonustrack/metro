@@ -7,6 +7,7 @@ import {
 } from './connector-api.js';
 import { handleCollectionApiRequest } from './collection-api.js';
 import { handleCliPairRequest } from './cli-pair-api.js';
+import { handleRunApiRequest, type RunApiDeps } from './run-api.js';
 import {
   handleProjectApiRequest,
   type ProjectApiDeps,
@@ -16,6 +17,7 @@ export interface SessionApis {
   agentApi?: AgentApiDeps;
   connectorApi?: ConnectorApiDeps;
   projectApi?: ProjectApiDeps;
+  runApi?: RunApiDeps;
 }
 
 export function handleSessionApis(
@@ -23,8 +25,9 @@ export function handleSessionApis(
   res: ServerResponse,
   apis: SessionApis,
 ): boolean {
-  const { agentApi, connectorApi, projectApi } = apis;
+  const { agentApi, connectorApi, projectApi, runApi } = apis;
   const routes: (() => boolean)[] = [() => handleSessionApiRequest(req, res)];
+  if (runApi) routes.push(() => handleRunApiRequest(req, res, runApi));
   if (projectApi)
     routes.push(() => handleProjectApiRequest(req, res, projectApi));
   if (connectorApi)

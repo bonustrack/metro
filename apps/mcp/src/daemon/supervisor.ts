@@ -47,6 +47,10 @@ export class TrainSupervisor {
 
   constructor(private dir: string = TRAINS_DIR) {}
 
+  running(): string[] {
+    return [...this.trains.keys()];
+  }
+
   onTrainEvent(handler: (event: TrainEvent, train: string) => void): void {
     this.onEvent = handler;
   }

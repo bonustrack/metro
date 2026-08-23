@@ -18,6 +18,18 @@ import {
   startWebhookServer,
   trainEventToMetroEvent,
 } from './http.js';
+import { type RunApiDeps } from './run-api.js';
+import {
+  claimRuntime,
+  fenceRuntime,
+  runtimeLabels,
+  touchRuntime,
+} from '../db/runtimes.js';
+import {
+  mintRuntimeCodeForEmail,
+  releaseRuntimeForEmail,
+} from '../db/runtime-admin.js';
+import { loadAgentForRuntime, localAgentKey } from '../db/materialize.js';
 import {
   agentLiveness,
   closeAgentSession,
@@ -30,7 +42,17 @@ import {
   stationByName,
 } from '../stations/registry.js';
 import { prepareAccount } from '../stations/attach.js';
-import { materializeFromDb, reloadAccountsFromDb } from '../db/materialize.js';
+import {
+  materializeFrom,
+  materializeFromDb,
+  reloadAccountsFromDb,
+  reloadFrom,
+} from '../db/materialize.js';
+import {
+  httpSource,
+  runtimeConfigFromEnv,
+  startRuntimePoller,
+} from './runtime-source.js';
 import {  createAgentForEmail,  deleteAgentForEmail,  listAgentsForEmail,  ownedAgentOrThrow,  resetAgentKeyForEmail,    type ResetAgentKey,} from '../db/agent-admin.js';
 import {
   attachAccountToAgent,
@@ -101,6 +123,38 @@ setTrainCallBackend((train, action, args) =>
   supervisor.call(train, action, args),
 );
 
+const runtime = runtimeConfigFromEnv();
+const localSource = runtime === null ? null : httpSource(runtime);
+
+function announceLocalEndpoint(): void {
+  const key = localAgentKey();
+  if (key === null) {
+    log.warn('this agent has no key — reset it in the web UI to connect an agent');
+    return;
+  }
+  const url = `http://127.0.0.1:${String(webhookPort())}/mcp?token=${key}`;
+  process.stderr.write(
+    `\nConnect an agent on this machine:\n\n  claude mcp add --transport http metro "${url}"\n\n`,
+  );
+}
+
+async function applyStations(removed: StationName[]): Promise<void> {
+  for (const station of removed) await supervisor.stopTrain(station);
+}
+
+async function syncLocal(): Promise<void> {
+  if (localSource === null) return;
+  const before = new Set(supervisor.running());
+  const { active, removed } = await reloadFrom(localSource);
+  await applyStations(removed);
+  for (const station of active)
+    if (before.has(station)) supervisor.requestReload(station);
+}
+
+async function stopLocalStations(): Promise<void> {
+  for (const station of supervisor.running()) await supervisor.stopTrain(station);
+}
+
 async function syncStations(station: StationName): Promise<void> {
   const { removed } = await reloadAccountsFromDb();
   if (stationByName(station)?.hasTrain === false) return;
@@ -155,10 +209,20 @@ const agentApi: AgentApiDeps = {
   gatherAccounts: gatherAccountsForAgents,
   capabilities: accountStationCapabilities,
   liveness: agentLiveness,
+  mintRuntimeCode: mintRuntimeCodeForEmail,
+  releaseRuntime: releaseRuntimeForEmail,
+  runtimes: runtimeLabels,
   prepareAccount,
   attachAccount: attachAccountToAgent,
   detachAccount: detachAccountFromAgent,
   syncStations,
+};
+
+const runApi: RunApiDeps = {
+  claimRuntime,
+  fenceRuntime,
+  touchRuntime,
+  loadAgent: loadAgentForRuntime,
 };
 
 const projectApi: ProjectApiDeps = {
@@ -193,20 +257,23 @@ const connectorApi: ConnectorApiDeps = {
 };
 
 async function main(): Promise<void> {
-  await materializeFromDb();
+  if (localSource === null) await materializeFromDb();
+  else await materializeFrom(localSource);
   warnOnLegacyWebhooks();
   supervisor.start();
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(
     emit,
+    { agentApi, connectorApi, projectApi, runApi },
     metroMcp.httpHandler,
     metroCall,
-    agentApi,
-    connectorApi,
-    projectApi,
   );
   metroMcp.startInbound();
   startUploadReaper();
+  if (localSource !== null) {
+    startRuntimePoller({ sync: syncLocal, stopAll: stopLocalStations });
+    announceLocalEndpoint();
+  }
   tunnel?.start();
   log.info(
     { tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' },

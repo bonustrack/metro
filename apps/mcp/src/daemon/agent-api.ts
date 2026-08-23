@@ -50,12 +50,19 @@ export interface AgentApiDeps extends AccountApiDeps {
   }>;
   capabilities: () => Record<string, string[]>;
   liveness: () => Map<string, { connected: boolean; lastSeenAt: number }>;
+  mintRuntimeCode: (
+    email: string,
+    agentId: string,
+  ) => Promise<{ code: string; expiresAt: number }>;
+  releaseRuntime: (email: string, agentId: string) => Promise<void>;
+  runtimes: (agentIds: string[]) => Promise<Map<string, string>>;
 }
 
 type Routable =
   | { kind: 'collection' }
   | { kind: 'agent'; id: string }
   | { kind: 'key'; id: string }
+  | { kind: 'runtime'; id: string }
   | { kind: 'accounts'; id: string; route: AccountRoute };
 
 type Target = Routable | { kind: 'unknown' } | null;
@@ -63,6 +70,8 @@ type Target = Routable | { kind: 'unknown' } | null;
 function subTarget(id: string, rest: string[]): Target {
   if (rest.length === 0) return { kind: 'agent', id };
   if (rest.length === 1 && rest[0] === 'key') return { kind: 'key', id };
+  if (rest.length === 1 && rest[0] === 'runtime')
+    return { kind: 'runtime', id };
   if (rest[0] !== 'accounts') return { kind: 'unknown' };
   const route = accountRoute(rest.slice(1));
   return route === null ? { kind: 'unknown' } : { kind: 'accounts', id, route };
@@ -122,11 +131,13 @@ function livenessPayload(
 function agentPayload(
   agent: AgentSummary,
   live: Map<string, { connected: boolean; lastSeenAt: number }>,
+  runtimes: Map<string, string>,
 ): Record<string, unknown> {
   return {
     id: agent.id,
     name: agent.name,
     owned: agent.owned,
+    runtime: agent.owned ? (runtimes.get(agent.id) ?? null) : null,
     ...livenessPayload(agent, live),
     ...keyPayload(agent),
   };
@@ -150,10 +161,13 @@ async function handleList(
   }
   const list = await deps.listAgents(session.email, project);
   const live = deps.liveness();
+  const held = await deps.runtimes(
+    list.filter((a) => a.owned).map((a) => a.id),
+  );
   const base = {
     email: session.email,
     endpoint: mcpEndpoint(),
-    agents: list.map((a) => agentPayload(a, live)),
+    agents: list.map((a) => agentPayload(a, live, held)),
     capabilities: deps.capabilities(),
     attachable: ATTACHABLE,
   };
@@ -165,6 +179,23 @@ async function handleList(
     new Set(list.map((a) => a.id)),
   );
   sendJson(req, res, 200, { ...base, accounts, unavailable });
+}
+
+async function handleRuntime(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: AgentApiDeps,
+  session: ApiSession,
+  id: string,
+): Promise<void> {
+  if (req.method === 'DELETE') {
+    await deps.releaseRuntime(session.email, id);
+    log.info({ agent: id }, 'agent-api: runtime released');
+    sendJson(req, res, 200, { agent: id, runtime: null });
+    return;
+  }
+  const minted = await deps.mintRuntimeCode(session.email, id);
+  sendJson(req, res, 201, minted);
 }
 
 async function handleCreate(
@@ -238,6 +269,8 @@ async function routeAgent(
 ): Promise<void> {
   try {
     if (tgt.kind === 'key') await handleResetKey(req, res, deps, session, tgt.id);
+    else if (tgt.kind === 'runtime')
+      await handleRuntime(req, res, deps, session, tgt.id);
     else if (tgt.kind === 'agent')
       await handleDelete(req, res, deps, session, tgt.id);
     else if (req.method === 'GET') await handleList(req, res, deps, session);
@@ -251,6 +284,7 @@ const ALLOWED: Record<AgentTarget['kind'], string[]> = {
   collection: ['GET', 'POST'],
   agent: ['DELETE'],
   key: ['POST'],
+  runtime: ['POST', 'DELETE'],
 };
 
 function methodAllowed(tgt: Routable, method: string | undefined): boolean {

@@ -145,6 +145,9 @@ const deps: AgentApiDeps = {
   gatherAccounts: () => Promise.resolve({}),
   capabilities: () => ({}),
   liveness: () => new Map(),
+  mintRuntimeCode: () => Promise.resolve({ code: 'mr_x', expiresAt: 0 }),
+  releaseRuntime: () => Promise.resolve(),
+  runtimes: () => Promise.resolve(new Map()),
   prepareAccount: fakePrepare,
   attachAccount: (email, agentId, station, config) => {
     ownedOrThrow(email, agentId);
@@ -229,7 +232,7 @@ beforeAll(async () => {
   process.env.METRO_WEBHOOK_PORT = String(
     20000 + Math.floor(Math.random() * 20000),
   );
-  server = await startWebhookServer(makeEmit(), undefined, undefined, deps);
+  server = await startWebhookServer(makeEmit(), { agentApi: deps });
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 

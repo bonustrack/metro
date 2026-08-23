@@ -21,7 +21,7 @@ import {
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
 import { carryTokenStores, PREVIOUS_ACCOUNT_ID } from './token-carry.js';
-import { stations, agents, type StationName } from './schema.js';
+import { STATIONS, stations, agents, type StationName } from './schema.js';
 
 interface StationTarget {
   file: string;
@@ -29,14 +29,14 @@ interface StationTarget {
   trainImport: string | null;
 }
 
-interface LoadedAccount {
+export interface LoadedAccount {
   station: StationName;
   id: string;
   allowlist: string[] | null;
   config: Record<string, unknown>;
 }
 
-interface LoadedAgent {
+export interface LoadedAgent {
   id: string;
   name: string;
   accounts: LoadedAccount[];
@@ -92,6 +92,65 @@ function agentFilter(): string | undefined {
   return v;
 }
 
+export type StationSource = () => Promise<LoadedAgent[]>;
+
+export const MOVABLE_STATIONS = new Set<StationName>(
+  STATIONS.filter((s) => s !== 'webhook'),
+);
+
+export function unmovableStations(list: LoadedAccount[]): StationName[] {
+  return [
+    ...new Set(
+      list
+        .map((a) => a.station)
+        .filter((station) => !MOVABLE_STATIONS.has(station)),
+    ),
+  ];
+}
+
+export async function loadAllStationsFor(
+  agentId: string,
+): Promise<LoadedAccount[]> {
+  const rows = await getDb()
+    .select()
+    .from(stations)
+    .where(eq(stations.agentId, agentId));
+  return rows.map((r) => ({
+    station: r.station,
+    id: r.id,
+    allowlist: r.allowlist,
+    config: r.config as Record<string, unknown>,
+  }));
+}
+
+export async function loadAgentForRuntime(
+  agentId: string,
+): Promise<LoadedAgent> {
+  const db = getDb();
+  const rows = await db.select().from(agents).where(eq(agents.id, agentId));
+  const a = rows[0];
+  if (a === undefined) throw new Error(`no such agent '${agentId}'`);
+  const acctRows = await db
+    .select()
+    .from(stations)
+    .where(eq(stations.agentId, a.id));
+  return {
+    id: a.id,
+    name: a.name,
+    key: a.key,
+    accounts: acctRows
+      .filter((r) => MOVABLE_STATIONS.has(r.station))
+      .map((r) => ({
+        station: r.station,
+        id: r.id,
+        allowlist: r.allowlist,
+        config: r.config as Record<string, unknown>,
+      })),
+  };
+}
+
+export const pgSource: StationSource = () => loadAgents();
+
 async function loadAgents(): Promise<LoadedAgent[]> {
   const db = getDb();
   const only = agentFilter();
@@ -104,6 +163,10 @@ async function loadAgents(): Promise<LoadedAgent[]> {
 
   const out: LoadedAgent[] = [];
   for (const a of agentRows) {
+    if (a.runtimeId !== null) {
+      out.push({ id: a.id, name: a.name, accounts: [], key: null });
+      continue;
+    }
     const acctRows = await db
       .select()
       .from(stations)
@@ -111,12 +174,14 @@ async function loadAgents(): Promise<LoadedAgent[]> {
     out.push({
       id: a.id,
       name: a.name,
-      accounts: acctRows.map((r) => ({
-        station: r.station,
-        id: r.id,
-        allowlist: r.allowlist,
-        config: r.config as Record<string, unknown>,
-      })),
+      accounts: acctRows
+        .filter((r) => !MOVABLE_STATIONS.has(r.station))
+        .map((r) => ({
+          station: r.station,
+          id: r.id,
+          allowlist: r.allowlist,
+          config: r.config as Record<string, unknown>,
+        })),
       key: a.key,
     });
   }
@@ -205,6 +270,7 @@ const stationLabels = (m: Map<StationName, number>): string[] =>
   [...m].map(([station, n]) => `${station}(${n})`);
 
 function applyKeyMap(list: LoadedAgent[]): void {
+  lastKey = list.find((a) => a.key !== null)?.key ?? null;
   setKeyMap(
     list.flatMap((agent) =>
       agent.key === null ? [] : [{ key: agent.key, agentId: agent.id }],
@@ -212,22 +278,34 @@ function applyKeyMap(list: LoadedAgent[]): void {
   );
 }
 
-async function loadAndWrite(): Promise<Map<StationName, number>> {
-  const list = await loadAgents();
+let lastKey: string | null = null;
+
+export function localAgentKey(): string | null {
+  return lastKey;
+}
+
+async function loadAndWrite(
+  source: StationSource,
+): Promise<{ active: Map<StationName, number>; agents: number }> {
+  const list = await source();
   applyKeyMap(list);
-  return writeStations(list);
+  return { active: writeStations(list), agents: list.length };
+}
+
+export async function materializeFrom(source: StationSource): Promise<void> {
+  const { active, agents: found } = await loadAndWrite(source);
+  if (found === 0) throw new Error('no agents found — nothing to materialize');
+  log.info(
+    { stations: stationLabels(active), agents: found },
+    'materialized station accounts',
+  );
 }
 
 export async function materializeFromDb(): Promise<void> {
   if (!databaseUrl())
     throw new Error('DATABASE_URL is not set — accounts load from Postgres');
   try {
-    const active = await loadAndWrite();
-    if (active.size === 0) throw new Error('no accounts found in the database');
-    log.info(
-      { stations: stationLabels(active) },
-      'db: materialized accounts from Postgres',
-    );
+    await materializeFrom(pgSource);
   } finally {
     await closeDb();
   }
@@ -238,16 +316,22 @@ export interface ReloadedStations {
   removed: StationName[];
 }
 
-export async function reloadAccountsFromDb(): Promise<ReloadedStations> {
-  if (!databaseUrl())
-    throw new Error('DATABASE_URL is not set — accounts load from Postgres');
-  const active = await loadAndWrite();
+export async function reloadFrom(
+  source: StationSource,
+): Promise<ReloadedStations> {
+  const { active } = await loadAndWrite(source);
   const removed = pruneStations(active);
   log.info(
     { stations: stationLabels(active), removed },
-    'db: reloaded accounts from Postgres',
+    'reloaded station accounts',
   );
   return { active: [...active.keys()], removed };
+}
+
+export async function reloadAccountsFromDb(): Promise<ReloadedStations> {
+  if (!databaseUrl())
+    throw new Error('DATABASE_URL is not set — accounts load from Postgres');
+  return reloadFrom(pgSource);
 }
 
 if (import.meta.main) {

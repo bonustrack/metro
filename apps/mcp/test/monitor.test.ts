@@ -44,7 +44,7 @@ async function start(
       calls.push({ train, action, args });
       return { result: { delivered: true, echo: args } };
     });
-  const server = await startWebhookServer(makeEmit(), undefined, monitorCall);
+  const server = await startWebhookServer(makeEmit(), {}, undefined, monitorCall);
   const addr = server.address() as AddressInfo;
   const h: Harness = { server, base: `http://127.0.0.1:${addr.port}`, calls };
   active = h;

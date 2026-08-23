@@ -53,7 +53,7 @@ beforeAll(async () => {
   process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   process.env.METRO_WEBHOOK_PORT = String(20000 + Math.floor(Math.random() * 20000));
-  server = await startWebhookServer(makeEmit(), undefined, undefined, undefined, deps);
+  server = await startWebhookServer(makeEmit(), { connectorApi: deps });
   base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
 });
 
