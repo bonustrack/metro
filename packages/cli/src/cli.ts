@@ -15,7 +15,7 @@ import {
   metroWebUrl,
   writeToken,
 } from './store.js';
-import { detach, probe, runningPid, stop, tail } from './control.js';
+import { detach, lockedBy, probe, runningPid, stopAll, tail } from './control.js';
 import {
   assertAgentId,
   daemonPlan,
@@ -32,8 +32,8 @@ const USAGE = `metro — the command line for your MCP connectors
 
   metro start <agent-id> [--detach]
                   run that agent's stations on this machine
-  metro stop <agent-id>
-                  stop the daemon started with --detach
+  metro stop [agent-id]
+                  stop every metro daemon on this machine, however it was started
   metro status <agent-id>
                   is it running, and is it healthy
   metro logs <agent-id> [-f]
@@ -75,8 +75,11 @@ async function authorizeRuntime(agentId: string): Promise<string> {
 
 async function start(argv: string[]): Promise<number> {
   const agentId = assertAgentId(argv[0]);
-  if (runningPid(agentId) !== null)
-    throw new Error(`metro is already running for ${agentId} — stop it first`);
+  if (runningPid(agentId) !== null || lockedBy() !== null)
+    throw new Error(
+      'a metro daemon is already running on this machine. ' +
+        'Stop it first: metro stop',
+    );
   const dir = runtimeDir();
   const token = readRunToken(agentId) ?? (await authorizeRuntime(agentId));
   const detached = argv.includes('--detach');
@@ -92,12 +95,15 @@ async function start(argv: string[]): Promise<number> {
 }
 
 async function stopDaemon(argv: string[]): Promise<number> {
-  const agentId = assertAgentId(argv[0]);
-  const stopped = await stop(agentId);
-  process.stderr.write(
-    stopped ? `Stopped metro for ${agentId}\n` : `metro is not running for ${agentId}\n`,
-  );
-  return stopped ? 0 : 1;
+  const agentId = argv[0] === undefined ? undefined : assertAgentId(argv[0]);
+  const stopped = await stopAll(agentId);
+  if (stopped.length === 0) {
+    process.stderr.write('no metro daemon is running on this machine\n');
+    return 1;
+  }
+  for (const d of stopped)
+    process.stderr.write(`Stopped metro (pid ${String(d.pid)}, via ${d.via})\n`);
+  return 0;
 }
 
 async function status(argv: string[]): Promise<number> {

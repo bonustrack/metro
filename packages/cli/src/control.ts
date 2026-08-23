@@ -1,8 +1,9 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -81,21 +82,86 @@ export function detach(opts: DetachOptions): number {
   return pid;
 }
 
-export async function stop(agentId: string, waitMs = 10_000): Promise<boolean> {
-  const pid = runningPid(agentId);
-  if (pid === null) return false;
+async function stopPid(pid: number, waitMs: number): Promise<void> {
   process.kill(pid, 'SIGTERM');
   const until = Date.now() + waitMs;
   while (Date.now() < until) {
-    if (!isAlive(pid)) {
-      clearPid(agentId);
-      return true;
-    }
+    if (!isAlive(pid)) return;
     await new Promise((r) => setTimeout(r, 100));
   }
   process.kill(pid, 'SIGKILL');
-  clearPid(agentId);
-  return true;
+}
+
+const lockPath = (): string =>
+  process.env.METRO_STATE_DIR?.trim()
+    ? join(process.env.METRO_STATE_DIR.trim(), '.tail-lock')
+    : join(homedir(), '.cache', 'metro', '.tail-lock');
+
+function commandOf(pid: number): string {
+  try {
+    return execFileSync('ps', ['-o', 'command=', '-p', String(pid)], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch {
+    return '';
+  }
+}
+
+const looksLikeMetro = (command: string): boolean =>
+  command.includes('server.ts') || command.includes('metro');
+
+export function lockedBy(): number | null {
+  let pid: number;
+  try {
+    pid = Number(readFileSync(lockPath(), 'utf8').trim());
+  } catch {
+    return null;
+  }
+  if (!Number.isInteger(pid) || pid <= 0 || !isAlive(pid)) return null;
+  return looksLikeMetro(commandOf(pid)) ? pid : null;
+}
+
+export interface StoppedDaemon {
+  pid: number;
+  via: string;
+}
+
+function trackedAgents(agentId: string | undefined): Set<string> {
+  const tracked = new Set<string>();
+  if (agentId !== undefined) tracked.add(agentId);
+  try {
+    for (const name of readdirSync(STATE())) {
+      const found = /^run-(.+)\.pid$/.exec(name);
+      if (found?.[1] !== undefined) tracked.add(found[1]);
+    }
+  } catch {
+    return tracked;
+  }
+  return tracked;
+}
+
+export async function stopAll(
+  agentId: string | undefined,
+  waitMs = 10_000,
+): Promise<StoppedDaemon[]> {
+  const stopped: StoppedDaemon[] = [];
+  const seen = new Set<number>();
+  for (const id of trackedAgents(agentId)) {
+    const pid = runningPid(id);
+    if (pid === null || seen.has(pid)) continue;
+    seen.add(pid);
+    await stopPid(pid, waitMs);
+    clearPid(id);
+    stopped.push({ pid, via: id });
+  }
+  const holder = lockedBy();
+  if (holder !== null && !seen.has(holder)) {
+    await stopPid(holder, waitMs);
+    rmSync(lockPath(), { force: true });
+    stopped.push({ pid: holder, via: 'the machine lock' });
+  }
+  return stopped;
 }
 
 export function tail(agentId: string, follow: boolean): Promise<number> {
