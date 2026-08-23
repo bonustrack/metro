@@ -11,6 +11,7 @@ import { BootLoading } from './BootLoading';
 import { Shell } from './Shell';
 import { selectionProject, type Selection } from './selection';
 import { Authorize } from './Authorize';
+import { AuthorizeMachine } from './AuthorizeMachine';
 import { rememberedProject } from '../api/projects';
 import { useProjectsQuery } from '../api/queries';
 import { storeProject } from '../auth/session';
@@ -100,6 +101,8 @@ export function Dashboard({ token, email, onLock }: DashboardProps): ReactNode {
   }, [routed]);
 
   if (selection.kind === 'authorize') return <Authorize token={token} />;
+  if (selection.kind === 'machine')
+    return <AuthorizeMachine token={token} id={selection.id} />;
   if (project === null) return <BootLoading />;
   return (
     <Frame

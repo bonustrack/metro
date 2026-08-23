@@ -192,3 +192,21 @@ describe('every scoped href round-trips back to the same selection', () => {
       expect(routeSelection(orphan)).toEqual({ kind: 'none' });
   });
 });
+
+describe('the machine authorize page is standalone, not project scoped', () => {
+  const AGENT = 'bMcXH2uERTe';
+
+  test('it round-trips, and metro start can build the url from an agent id alone', () => {
+    const hash = routeHash({ kind: 'machine', id: AGENT });
+    expect(hash).toBe(`#/authorize/${AGENT}`);
+    expect(routeSelection(hash)).toEqual({ kind: 'machine', id: AGENT });
+  });
+
+  test('it does not collide with the collection authorize page', () => {
+    expect(routeSelection('#/authorize')).toEqual({ kind: 'authorize' });
+  });
+
+  test('the old project-less agent url the CLI used to print matches nothing', () => {
+    expect(routeSelection(`#/agent/${AGENT}`)).toEqual({ kind: 'none' });
+  });
+});

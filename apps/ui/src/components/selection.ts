@@ -3,6 +3,7 @@ export type Selection =
   | { kind: 'docs' }
   | { kind: 'settings' }
   | { kind: 'authorize' }
+  | { kind: 'machine'; id: string }
   | { kind: 'agents'; project: string }
   | { kind: 'agent'; project: string; id: string }
   | { kind: 'station'; project: string; accountId: string }

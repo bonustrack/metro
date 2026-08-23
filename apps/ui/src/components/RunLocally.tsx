@@ -88,6 +88,10 @@ export function RunLocally({
       {code === null ? null : (
         <CopyBlock label="pairing code" value={code} secret hide={code} />
       )}
+      <Text size="sm" role="secondary">
+        metro start prints this page&apos;s address, so you can authorize from
+        the machine&apos;s own terminal instead.
+      </Text>
       {failed === null ? null : (
         <Text size="sm" role="danger">
           {failed}

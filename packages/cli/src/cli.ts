@@ -63,7 +63,7 @@ function hostLabel(): string {
 
 async function authorizeRuntime(agentId: string): Promise<string> {
   process.stderr.write(
-    `Authorize this machine at ${metroWebUrl()}/#/agent/${agentId}\n`,
+    `Authorize this machine at ${metroWebUrl()}/#/authorize/${agentId}\n`,
   );
   const code = (await askLine('Paste the code: ')).trim();
   if (code === '') throw new Error('no code given');

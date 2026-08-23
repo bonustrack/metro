@@ -6,6 +6,7 @@ const ACCOUNT = '[A-Za-z0-9_-]{1,64}';
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const AUTHORIZE_PATH = /^#?\/authorize$/;
+const MACHINE_PATH = new RegExp(`^#?/authorize/(${ID})$`);
 
 const AGENTS_PATH = new RegExp(`^#?/(${ID})$`);
 const AGENT_PATH = new RegExp(`^#?/(${ID})/agent/(${ID})$`);
@@ -30,7 +31,8 @@ const SCOPED: [RegExp, (project: string, id: string) => Selection][] = [
   [COLLECTION_PATH, (project, id) => ({ kind: 'collection', project, id })],
 ];
 
-const PAGES: [RegExp, (project: string) => Selection][] = [
+const PAGES: [RegExp, (value: string) => Selection][] = [
+  [MACHINE_PATH, (id) => ({ kind: 'machine', id })],
   [CONNECTORS_PATH, (project) => ({ kind: 'connectors', project })],
   [COLLECTIONS_PATH, (project) => ({ kind: 'collections', project })],
   [MEMBERS_PATH, (project) => ({ kind: 'members', project })],
@@ -68,6 +70,7 @@ export function routeHash(selection: Selection): string {
   if (selection.kind === 'docs') return '#/docs/setup';
   if (selection.kind === 'settings') return '#/settings';
   if (selection.kind === 'authorize') return '#/authorize';
+  if (selection.kind === 'machine') return `#/authorize/${selection.id}`;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return '#/';
   return `#/${selection.project}${suffix(selection)}`;
