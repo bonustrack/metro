@@ -144,11 +144,9 @@ async function applyStations(removed: StationName[]): Promise<void> {
 
 async function syncLocal(): Promise<void> {
   if (localSource === null) return;
-  const before = new Set(supervisor.running());
-  const { active, removed } = await reloadFrom(localSource);
+  const { removed, changed } = await reloadFrom(localSource);
   await applyStations(removed);
-  for (const station of active)
-    if (before.has(station)) supervisor.requestReload(station);
+  for (const station of changed) supervisor.requestReload(station);
 }
 
 async function stopLocalStations(): Promise<void> {

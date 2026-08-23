@@ -134,3 +134,52 @@ describe('a station name this build does not know', () => {
     expect(existsSync(file)).toBe(true);
   });
 });
+
+describe('an unchanged poll changes nothing, so trains are not restarted', () => {
+  const source = () =>
+    Promise.resolve([agent([telegramBot('stn00000042', ['*'])])]);
+
+  test('the second identical reload reports zero changed stations', async () => {
+    const { reloadFrom } = await import('../src/db/materialize.ts');
+    const first = await reloadFrom(source);
+    expect(first.changed).toEqual(['telegram-bot']);
+    const second = await reloadFrom(source);
+    expect(second.changed).toEqual([]);
+    expect(second.active).toContain('telegram-bot');
+  });
+
+  test('a credential change is reported for exactly that station', async () => {
+    const { reloadFrom } = await import('../src/db/materialize.ts');
+    await reloadFrom(source);
+    const rotated = () =>
+      Promise.resolve([
+        agent([
+          {
+            station: 'telegram-bot',
+            id: 'stn00000042',
+            allowlist: ['*'],
+            config: { botToken: 'rotated-token' },
+          },
+        ]),
+      ]);
+    const after = await reloadFrom(rotated);
+    expect(after.changed).toEqual(['telegram-bot']);
+  });
+});
+
+describe('a pruned station stays pruned quietly', () => {
+  test('removal is reported once, not on every later reload', async () => {
+    const { reloadFrom } = await import('../src/db/materialize.ts');
+    const withStation = () =>
+      Promise.resolve([agent([telegramBot('stn00000077', ['*'])])]);
+    const without = () =>
+      Promise.resolve([
+        { id: 'agent000001', name: 'local', key: 'mk', accounts: [] },
+      ]);
+    await reloadFrom(withStation);
+    const gone = await reloadFrom(without);
+    expect(gone.removed).toEqual(['telegram-bot']);
+    const again = await reloadFrom(without);
+    expect(again.removed).toEqual([]);
+  });
+});
