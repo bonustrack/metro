@@ -8,6 +8,7 @@ import { detachAccount } from '../api/attach';
 import { resetAgentKey, type AgentSummary } from '../api/client';
 import { AccountList } from './AccountList';
 import { AgentCredentials } from './AgentCredentials';
+import { RunLocally } from './RunLocally';
 import { BackLink } from './BackLink';
 import { routeHash } from '../route';
 import { ConnectStation } from './ConnectStation';
@@ -85,6 +86,7 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
         </Col>
       </Col>
       <AgentCredentials agent={agent} onReset={onReset} />
+      <RunLocally token={token} agent={agent} onChanged={onChanged} />
       <Col gap={10}>
         <Text size="lg" weight="semibold">Stations</Text>
         <AccountList

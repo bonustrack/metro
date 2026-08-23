@@ -381,6 +381,31 @@ Two environment variables matter: `METRO_URL` points at the daemon (default
 `https://mcp.metro.box`) and `METRO_UI_URL` at the web UI (default `https://metro.box`). They
 are different origins; the daemon serves no page.
 
+### Running metro on your own machine
+
+`metro start <agent-id>` runs that agent's stations on your machine instead of on
+metro's servers, so **your messages never pass through them**. It authorizes on first run —
+it prints a URL, you pick the agent in the browser and paste the code back — then caches the
+credential and runs in the foreground, ready for systemd or launchd to supervise. Set
+`METRO_RUN_TOKEN` to start unattended.
+
+Metro no longer runs messenger stations at all: they run on your machine or nowhere. There is
+no fallback to Metro if your machine is down, which is the point. It needs
+[Bun](https://bun.sh) on PATH, and it covers every messenger station — XMTP, Telegram,
+Telegram user accounts, Discord and WhatsApp. Only **webhook endpoints** stay on metro, because
+a third party has to be able to POST to them and your machine has no public URL; an agent
+holding one is refused with a message saying so. While an agent runs locally, metro serves it
+nothing — there is no fallback, and its key stops working against metro so a client pointed at
+the wrong daemon fails loudly instead of going quiet.
+
+One thing to know about XMTP: an inbox allows ten installations and the first start on each
+machine spends one, so metro prints a warning when it does. Restarts on the same machine reuse
+it; only pairing new machines costs.
+
+To be precise about what this does and does not buy: metro still stores your bot tokens, so
+this stops your messages transiting metro — it does not stop metro being able to read them
+from the platform directly.
+
 ### Projects
 
 **A project owns everything.** Agents, connectors and collections all belong to a project, not

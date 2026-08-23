@@ -13,6 +13,7 @@ export interface AgentSummary {
   id: string;
   name: string;
   owned: boolean;
+  runtime: string | null;
   connected: boolean;
   lastSeen: string | null;
   key: string | null;
@@ -92,6 +93,7 @@ function toAgents(value: unknown): AgentSummary[] {
       id: typeof a.id === 'string' ? a.id : '',
       name: typeof a.name === 'string' ? a.name : '',
       owned: a.owned === true,
+      runtime: text(a.runtime),
       connected: a.connected === true,
       lastSeen: text(a.last_seen),
       key: text(cred.key),
@@ -199,6 +201,20 @@ export async function createAgent(
 
 export async function deleteAgent(token: string, id: string): Promise<void> {
   await call(token, { method: 'DELETE', path: `/${id}` });
+}
+
+export async function mintRuntimeCode(
+  token: string,
+  id: string,
+): Promise<string> {
+  const body = await call(token, { method: 'POST', path: `/${id}/runtime` });
+  if (!isRecord(body) || typeof body.code !== 'string')
+    throw new Error('Metro returned an unexpected response.');
+  return body.code;
+}
+
+export async function releaseRuntime(token: string, id: string): Promise<void> {
+  await call(token, { method: 'DELETE', path: `/${id}/runtime` });
 }
 
 export async function resetAgentKey(
