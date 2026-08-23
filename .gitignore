@@ -15,3 +15,6 @@ dist
 
 # generated at runtime by materialize (also generated in the Fly image)
 apps/mcp/trains/
+
+# staged into the published CLI package by scripts/stage-runtime.mjs
+packages/cli/runtime/

@@ -1,8 +1,30 @@
+const STAGED_RUNTIME_DEPENDENCIES = [
+  '@discordjs/voice',
+  '@modelcontextprotocol/sdk',
+  '@mtcute/bun',
+  '@xmtp/content-type-primitives',
+  '@xmtp/content-type-reaction',
+  '@xmtp/content-type-remote-attachment',
+  '@xmtp/content-type-reply',
+  '@xmtp/content-type-wallet-send-calls',
+  '@xmtp/node-bindings',
+  '@xmtp/node-sdk',
+  'baileys',
+  'discord.js',
+  'drizzle-orm',
+  'pino',
+  'pino-pretty',
+  'postgres',
+  'prism-media',
+  'viem',
+  'zod',
+];
+
 import { defineConfig } from '@stage-labs/config';
 
 export default defineConfig({
   eslint: {
-    ignores: ['**/test/**', '**/scripts/**'],
+    ignores: ['**/test/**', '**/scripts/**', 'packages/cli/runtime/**'],
     extends: [
       {
         files: ['**/*.{ts,tsx}'],
@@ -45,7 +67,9 @@ export default defineConfig({
       type: 'library',
       knip: {
         project: ['src/**/*.ts'],
-        ignoreBinaries: ['tail', 'tar', 'bun'],
+        entry: ['src/**/*.ts', 'scripts/*.mjs', 'test/**/*.ts'],
+        ignoreBinaries: ['tail'],
+        ignoreDependencies: STAGED_RUNTIME_DEPENDENCIES,
       },
     },
     'apps/mcp': {
@@ -59,24 +83,15 @@ export default defineConfig({
     },
     'packages/webhook': {
       type: 'library',
-      knip: {
-        project: ['src/**/*.ts'],
-        ignoreBinaries: ['tail', 'tar', 'bun'],
-      },
+      knip: { project: ['src/**/*.ts'] },
     },
     'packages/discord': {
       type: 'library',
-      knip: {
-        project: ['src/**/*.ts'],
-        ignoreBinaries: ['tail', 'tar', 'bun'],
-      },
+      knip: { project: ['src/**/*.ts'] },
     },
     'packages/telegram': {
       type: 'library',
-      knip: {
-        project: ['src/**/*.ts'],
-        ignoreBinaries: ['tail', 'tar', 'bun'],
-      },
+      knip: { project: ['src/**/*.ts'] },
     },
     'packages/telegram-user': {
       type: 'library',
@@ -94,10 +109,7 @@ export default defineConfig({
     },
     'packages/xmtp': {
       type: 'library',
-      knip: {
-        project: ['src/**/*.ts'],
-        ignoreBinaries: ['tail', 'tar', 'bun'],
-      },
+      knip: { project: ['src/**/*.ts'] },
     },
   },
 });

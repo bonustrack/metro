@@ -95,6 +95,27 @@ export async function claimCode(code: string): Promise<Authorized> {
   };
 }
 
+export interface RunClaimed {
+  token: string;
+  agent: string;
+  label: string;
+}
+
+export async function claimRuntime(
+  code: string,
+  label: string,
+): Promise<RunClaimed> {
+  const body = await post('/api/run/claim', { code, label });
+  if (
+    !isRecord(body) ||
+    typeof body.token !== 'string' ||
+    typeof body.agent !== 'string' ||
+    typeof body.label !== 'string'
+  )
+    throw new Error('metro returned an unexpected response');
+  return { token: body.token, agent: body.agent, label: body.label };
+}
+
 export async function mcpServers(): Promise<string> {
   const body = await get('/api/cli/mcp');
   if (!isRecord(body) || typeof body.json !== 'string')
