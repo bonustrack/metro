@@ -60,7 +60,10 @@ export default defineConfig({
     },
     'packages/discord': {
       type: 'library',
-      knip: { project: ['src/**/*.ts'] },
+      knip: {
+        entry: ['scripts/task-status.ts'],
+        project: ['src/**/*.ts'],
+      },
     },
     'packages/telegram': {
       type: 'library',
