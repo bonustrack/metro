@@ -73,11 +73,6 @@ export function AgentRow({
           <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
             {summary(agent, stations)}
           </Text>
-          {agent.owned && agent.runtime !== null ? (
-            <Text size="sm" role="secondary" numberOfLines={1}>
-              on {agent.runtime}
-            </Text>
-          ) : null}
           {agent.owned && agent.connected ? (
             <Row
               width={DOT_SIZE}
