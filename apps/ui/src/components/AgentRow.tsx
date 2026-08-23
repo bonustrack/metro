@@ -15,7 +15,8 @@ const DOT_SIZE = 8;
 
 function liveness(agent: AgentSummary): string | null {
   if (!agent.owned || agent.connected) return null;
-  return agent.lastSeen === null ? 'never connected' : 'not receiving';
+  if (agent.runtime !== null) return null;
+  return agent.lastSeen === null ? null : 'not receiving';
 }
 
 function summary(agent: AgentSummary, stations: number): string {
@@ -72,6 +73,11 @@ export function AgentRow({
           <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
             {summary(agent, stations)}
           </Text>
+          {agent.owned && agent.runtime !== null ? (
+            <Text size="sm" role="secondary" numberOfLines={1}>
+              on {agent.runtime}
+            </Text>
+          ) : null}
           {agent.owned && agent.connected ? (
             <Row
               width={DOT_SIZE}
