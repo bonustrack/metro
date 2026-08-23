@@ -27,7 +27,7 @@
   "scripts": {
     "build": "tsc && node scripts/stage-runtime.mjs",
     "prepublishOnly": "tsc && node scripts/stage-runtime.mjs",
-    "test": "tsc --noEmit && bun test test/"
+    "test": "tsc --noEmit && node scripts/stage-runtime.mjs && bun test test/"
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.2",
