@@ -119,11 +119,22 @@ function servedFromOutbox(
   return message;
 }
 
+const TERMINAL: Record<number, string> = {
+  [DisconnectReason.loggedOut]: ' — re-pair required',
+  [DisconnectReason.connectionReplaced]:
+    ' — another metro took this device; not reconnecting (two sockets on one ' +
+    'identity evict each other and risk a 463 timelock)',
+};
+
+export function terminalReason(code: number | undefined): string | undefined {
+  return code === undefined ? undefined : TERMINAL[code];
+}
+
 function onClose(st: State, code: number | undefined): void {
-  if (st.closed || code === DisconnectReason.loggedOut) {
-    const suffix = code === DisconnectReason.loggedOut ? ' — re-pair required' : '';
+  const terminal = terminalReason(code);
+  if (st.closed || terminal !== undefined) {
     process.stderr.write(
-      `whatsapp[${st.account.id}] disconnected (code=${code ?? '?'})${suffix}\n`,
+      `whatsapp[${st.account.id}] disconnected (code=${code ?? '?'})${terminal ?? ''}\n`,
     );
     return;
   }

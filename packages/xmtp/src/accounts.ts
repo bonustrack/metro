@@ -4,6 +4,7 @@ import {
   type Conversation,
 } from '@xmtp/node-sdk';
 import { homedir } from 'node:os';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { CODECS } from './codecs.js';
 import { expandHome, signerFor, XMTP_ENV } from './identity.js';
@@ -58,9 +59,15 @@ export async function bootAccount(cfg: AccountConfig): Promise<void> {
   const dbPath = expandHome(
     cfg.dbPath ?? join(homedir(), '.metro', `xmtp-${XMTP_ENV}-${cfg.id}.db3`),
   );
+  const fresh = !existsSync(dbPath);
   const options: ClientOptions = { env: XMTP_ENV, codecs: CODECS(), dbPath };
   const client: Client<unknown> = await Client.create(signer, options);
   accounts.set(cfg.id, { cfg, client, inboxId: client.inboxId, address });
+  if (fresh)
+    process.stderr.write(
+      `xmtp[${cfg.id}] registered a NEW installation for this machine — ` +
+        'an inbox allows 10, and each machine you run metro on spends one\n',
+    );
   process.stderr.write(
     `xmtp[${cfg.id}] ready — inbox ${client.inboxId} (${address}, owner=${cfg.owner ?? '(broadcast)'})\n`,
   );
