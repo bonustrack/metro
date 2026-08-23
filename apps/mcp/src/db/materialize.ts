@@ -108,6 +108,24 @@ export function unmovableStations(list: LoadedAccount[]): StationName[] {
   ];
 }
 
+export interface StationRecord {
+  id: string;
+  agentId: string;
+  station: StationName;
+}
+
+export async function listAllStations(): Promise<StationRecord[]> {
+  if (!databaseUrl()) return [];
+  const rows = await getDb()
+    .select({
+      id: stations.id,
+      agentId: stations.agentId,
+      station: stations.station,
+    })
+    .from(stations);
+  return rows;
+}
+
 export async function loadAllStationsFor(
   agentId: string,
 ): Promise<LoadedAccount[]> {
@@ -174,14 +192,12 @@ async function loadAgents(): Promise<LoadedAgent[]> {
     out.push({
       id: a.id,
       name: a.name,
-      accounts: acctRows
-        .filter((r) => !MOVABLE_STATIONS.has(r.station))
-        .map((r) => ({
-          station: r.station,
-          id: r.id,
-          allowlist: r.allowlist,
-          config: r.config as Record<string, unknown>,
-        })),
+      accounts: acctRows.map((r) => ({
+        station: r.station,
+        id: r.id,
+        allowlist: r.allowlist,
+        config: r.config as Record<string, unknown>,
+      })),
       key: a.key,
     });
   }
@@ -214,6 +230,12 @@ export function writeIfChanged(path: string, content: string): boolean {
   return true;
 }
 
+export const isLocalRuntime = (): boolean =>
+  (process.env.METRO_RUN_TOKEN?.trim() ?? '') !== '';
+
+export const stationRunsHere = (station: StationName): boolean =>
+  isLocalRuntime() || !MOVABLE_STATIONS.has(station);
+
 function writeStations(list: LoadedAgent[]): Map<StationName, number> {
   mkdirSync(METRO_DIR, { recursive: true });
   mkdirSync(TRAINS_DIR, { recursive: true });
@@ -225,11 +247,13 @@ function writeStations(list: LoadedAgent[]): Map<StationName, number> {
   for (const agent of list) {
     names[agent.id] = agent.name;
     for (const a of agent.accounts) {
-      const cur = byStation.get(a.station);
-      if (cur) cur.push(a);
-      else byStation.set(a.station, [a]);
       map[`${a.station}/${a.id}`] = agent.id;
       if (a.allowlist) allow[`${a.station}/${a.id}`] = a.allowlist;
+      if (stationRunsHere(a.station)) {
+        const cur = byStation.get(a.station);
+        if (cur) cur.push(a);
+        else byStation.set(a.station, [a]);
+      }
     }
   }
   setAgentMap(map, names);

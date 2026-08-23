@@ -10,12 +10,14 @@ let dir = '';
 let file = '';
 
 beforeEach(() => {
+  process.env.METRO_RUN_TOKEN = 'test-runtime';
   dir = mkdtempSync(join(tmpdir(), 'metro-source-'));
   file = join(dir, 'telegram-accounts.json');
   process.env.TELEGRAM_ACCOUNTS_FILE = file;
 });
 
 afterEach(() => {
+  delete process.env.METRO_RUN_TOKEN;
   if (KEEP.file === undefined) delete process.env.TELEGRAM_ACCOUNTS_FILE;
   else process.env.TELEGRAM_ACCOUNTS_FILE = KEEP.file;
   rmSync(dir, { recursive: true, force: true });
@@ -94,17 +96,27 @@ describe('metro never runs a messenger station, held or not', () => {
     expect(MOVABLE_STATIONS.has('webhook' as never)).toBe(false);
   });
 
-  test('a messenger station simply does not run until a machine claims it', async () => {
-    await materializeFrom(() =>
-      Promise.resolve([agent([telegram('stn00000003', ['*'])])]),
-    );
-    expect(existsSync(file)).toBe(true);
-    rmSync(file, { force: true });
+  test('an agent with no stations writes no account file', async () => {
     await materializeFrom(() =>
       Promise.resolve([
         { id: 'agent000001', name: 'local', key: 'mk', accounts: [] },
       ]),
     );
     expect(existsSync(file)).toBe(false);
+  });
+});
+
+describe('the panel lists what exists, not what happens to be running', () => {
+  test('a station metro does not run is not reported as unavailable', async () => {
+    delete process.env.METRO_RUN_TOKEN;
+    const { setTrainCallBackend } = await import('../src/daemon/train-call.ts');
+    const { gatherAccountsForAgents } = await import('../src/mcp/accounts.ts');
+    const { setAgentMap } = await import('../src/db/agent-map.ts');
+    setAgentMap({ 'telegram/t0': 'agent000001' }, { agent000001: 'Tony' });
+    setTrainCallBackend(() => Promise.reject(new Error('no such train')));
+    const { unavailable } = await gatherAccountsForAgents(
+      new Set(['agent000001']),
+    );
+    expect(unavailable).toEqual([]);
   });
 });

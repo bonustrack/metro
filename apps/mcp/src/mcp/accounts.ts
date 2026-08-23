@@ -6,6 +6,12 @@ import {
 import { listEndpoints } from '../daemon/tunnel.js';
 import { hookUrl } from '../stations/attach.js';
 import { agentIdForAccount } from '../db/agent-map.js';
+import {
+  listAllStations,
+  stationRunsHere,
+  type StationRecord,
+} from '../db/materialize.js';
+import { type StationName } from '../db/schema.js';
 
 const accountId = (acc: unknown): string | undefined => {
   const id = (acc as { id?: unknown }).id;
@@ -74,24 +80,48 @@ export interface ScopedAccounts {
   unavailable: string[];
 }
 
+async function liveAccounts(
+  station: string,
+): Promise<{ rows: unknown[]; reachable: boolean }> {
+  if (!hasTrain(station))
+    return { rows: inCoreAccounts(station), reachable: true };
+  if (!stationRunsHere(station as StationName))
+    return { rows: [], reachable: true };
+  try {
+    const resp = await forwardTrainCall(station, 'accounts', {});
+    const list = (resp.result as { accounts?: unknown[] } | undefined)?.accounts;
+    return { rows: Array.isArray(list) ? list : [], reachable: true };
+  } catch {
+    return { rows: [], reachable: false };
+  }
+}
+
+function mergeKnown(
+  station: string,
+  live: unknown[],
+  known: StationRecord[],
+): unknown[] {
+  const seen = new Set(
+    live.flatMap((row) => {
+      const id = accountId(row);
+      return id === undefined ? [] : [id];
+    }),
+  );
+  const missing = known
+    .filter((r) => r.station === station && !seen.has(r.id))
+    .map((r) => ({ id: r.id }));
+  return [...live, ...missing];
+}
+
 async function loadStations(): Promise<ScopedAccounts> {
   const unavailable: string[] = [];
   const accounts: Record<string, unknown[]> = {};
+  const known = await listAllStations();
   await Promise.all(
     accountStationNames().map(async (station) => {
-      if (!hasTrain(station)) {
-        accounts[station] = inCoreAccounts(station);
-        return;
-      }
-      try {
-        const resp = await forwardTrainCall(station, 'accounts', {});
-        const list = (resp.result as { accounts?: unknown[] } | undefined)
-          ?.accounts;
-        accounts[station] = Array.isArray(list) ? list : [];
-      } catch {
-        accounts[station] = [];
-        unavailable.push(station);
-      }
+      const { rows, reachable } = await liveAccounts(station);
+      if (!reachable) unavailable.push(station);
+      accounts[station] = mergeKnown(station, rows, known);
     }),
   );
   return { accounts, unavailable };
