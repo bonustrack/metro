@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { materializeFrom, MOVABLE_STATIONS } from '../src/db/materialize.ts';
 import { agentIdForKey } from '../src/db/key-map.ts';
+import { agentIdForAccount } from '../src/db/agent-map.ts';
 
 const KEEP = { file: process.env.TELEGRAM_BOT_ACCOUNTS_FILE };
 let dir = '';
@@ -71,11 +72,30 @@ describe('materializing from an injected source', () => {
 });
 
 describe('an agent held by a local runtime is not served by the hosted daemon', () => {
-  const moved = { id: 'agent000009', name: 'moved', key: null, accounts: [] };
+  const moved = {
+    id: 'agent000009',
+    name: 'moved',
+    key: null,
+    accounts: [
+      {
+        station: 'telegram-bot',
+        id: 'stn00000088',
+        allowlist: ['*'],
+        config: { botToken: 'held-secret' },
+      },
+    ],
+  };
 
   test('its key does not register, so a hosted connection is a clean 401', async () => {
     await materializeFrom(() => Promise.resolve([moved]));
     expect(agentIdForKey('mk_test')).toBeUndefined();
+  });
+
+  test('its stations still ATTRIBUTE, so the panel can list them', async () => {
+    delete process.env.METRO_RUN_TOKEN;
+    await materializeFrom(() => Promise.resolve([moved]));
+    expect(agentIdForAccount('telegram-bot', 'stn00000088')).toBe('agent000009');
+    expect(existsSync(file)).toBe(false);
   });
 
   test('but it still counts as an agent, so boot does not crash-loop', async () => {

@@ -181,10 +181,6 @@ async function loadAgents(): Promise<LoadedAgent[]> {
 
   const out: LoadedAgent[] = [];
   for (const a of agentRows) {
-    if (a.runtimeId !== null) {
-      out.push({ id: a.id, name: a.name, accounts: [], key: null });
-      continue;
-    }
     const acctRows = await db
       .select()
       .from(stations)
@@ -198,7 +194,7 @@ async function loadAgents(): Promise<LoadedAgent[]> {
         allowlist: r.allowlist,
         config: r.config as Record<string, unknown>,
       })),
-      key: a.key,
+      key: a.runtimeId === null ? a.key : null,
     });
   }
   return out;
