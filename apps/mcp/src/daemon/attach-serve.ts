@@ -14,7 +14,7 @@ import {
 import { attachmentOwner, recordAttachmentOwner } from './attach-owner.js';
 import { grantAllows, issueAttachmentGrant } from './attach-grant.js';
 import { errMsg, log } from './log.js';
-import { loadTunnelConfig } from './tunnel.js';
+import { loadTunnelConfig, webhookPort } from './tunnel.js';
 
 function authorized(req: IncomingMessage, name: string): boolean {
   const owner = attachmentOwner(name);
@@ -34,14 +34,19 @@ export function publicBaseUrl(): string | null {
   return host ? `https://${host}` : null;
 }
 
+const localBase = (): string | null =>
+  (process.env.METRO_RUN_TOKEN?.trim() ?? '') === ''
+    ? null
+    : `http://127.0.0.1:${String(webhookPort())}`;
+
 export const publicBaseOrDefault = (): string =>
-  publicBaseUrl() ?? DEFAULT_PUBLIC_BASE;
+  publicBaseUrl() ?? localBase() ?? DEFAULT_PUBLIC_BASE;
 
 export function attachmentUrl(
   pathOrName: string,
   agentId: string,
 ): string | null {
-  const base = publicBaseUrl();
+  const base = publicBaseUrl() ?? localBase();
   if (!base) return null;
   const name = pathOrName.split('/').pop();
   if (!name || !resolveCachedAttachment(name)) return null;

@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test';
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -120,6 +128,50 @@ describe('create_upload mints a slot over MCP alone', () => {
     expect(res.isError).toBe(true);
     expect(res.content[0]?.text).toContain('?agent=<id>');
     expect(readdirSync(dir)).toHaveLength(0);
+  });
+});
+
+describe('a local daemon advertises its own loopback base, never hosted metro', () => {
+  const LOCAL_ENV = ['METRO_PUBLIC_URL', 'METRO_RUN_TOKEN', 'METRO_WEBHOOK_PORT'];
+  let stash: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    stash = Object.fromEntries(LOCAL_ENV.map((k) => [k, process.env[k]]));
+    delete process.env.METRO_PUBLIC_URL;
+    delete process.env.METRO_WEBHOOK_PORT;
+    process.env.METRO_RUN_TOKEN = 'rt-test-token';
+  });
+
+  afterEach(() => {
+    for (const key of LOCAL_ENV)
+      if (stash[key] === undefined) delete process.env[key];
+      else process.env[key] = stash[key];
+  });
+
+  test('the minted url names the loopback daemon holding the slot', async () => {
+    const t = ticket((await mint('agent000001', { name: 'plan.pdf' })).text);
+    expect(t.upload_url).toStartWith(
+      `http://127.0.0.1:8420/api/uploads/${t.upload_id}?token=ut_`,
+    );
+    expect(t.curl).toContain(t.upload_url);
+  });
+
+  test('METRO_WEBHOOK_PORT moves the advertised port with the daemon', async () => {
+    process.env.METRO_WEBHOOK_PORT = '9111';
+    const t = ticket((await mint('agent000001')).text);
+    expect(t.upload_url).toStartWith('http://127.0.0.1:9111/api/uploads/');
+  });
+
+  test('an explicit METRO_PUBLIC_URL still wins over the loopback default', async () => {
+    process.env.METRO_PUBLIC_URL = 'https://metro.example.net';
+    const t = ticket((await mint('agent000001')).text);
+    expect(t.upload_url).toStartWith('https://metro.example.net/api/uploads/');
+  });
+
+  test('without a run token the hosted default stands', async () => {
+    delete process.env.METRO_RUN_TOKEN;
+    const t = ticket((await mint('agent000001')).text);
+    expect(t.upload_url).toStartWith('https://mcp.metro.box/api/uploads/');
   });
 });
 
