@@ -73,6 +73,40 @@ async function post(path: string, body: unknown): Promise<unknown> {
   );
 }
 
+export class RuntimeRevoked extends Error {}
+
+export function keyOfRunConfig(body: unknown): string {
+  const agent = isRecord(body) ? body.agent : undefined;
+  const key = isRecord(agent) ? agent.key : undefined;
+  if (typeof key !== 'string' || key === '')
+    throw new Error(
+      'this agent has no key — reset it on its page in the web UI',
+    );
+  return key;
+}
+
+export async function runConfigKey(token: string): Promise<string> {
+  if (!carriesSecretsSafely(metroUrl()))
+    throw new Error(
+      `refusing to send this machine's authorization to ${metroUrl()} in the clear — use https, or a loopback address`,
+    );
+  let res: Response;
+  try {
+    res = await fetch(`${metroUrl()}/api/run/config`, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    throw new Error(`could not reach ${metroUrl()}`);
+  }
+  if (res.status === 401 || res.status === 403 || res.status === 409)
+    throw new RuntimeRevoked(
+      'this machine no longer holds the agent — authorize it again from the agent page',
+    );
+  if (!res.ok) throw new Error(`metro answered ${String(res.status)}`);
+  return keyOfRunConfig(await res.json());
+}
+
 export interface Authorized {
   token: string;
   email: string;

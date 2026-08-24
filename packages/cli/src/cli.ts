@@ -16,6 +16,7 @@ import {
   writeToken,
 } from './store.js';
 import { detach, lockedBy, probe, runningPid, stopAll, tail } from './control.js';
+import { tailEvents } from './tail.js';
 import {
   assertAgentId,
   daemonPlan,
@@ -38,6 +39,8 @@ const USAGE = `metro — the command line for your MCP connectors
                   is it running, and is it healthy
   metro logs <agent-id> [-f]
                   show the detached daemon's log
+  metro tail <agent-id>
+                  follow this machine's inbound events, one JSON line each
   metro login     authorize a connector collection with a code from the web UI
   metro logout    forget this machine's sign-in
   metro whoami    print the account and collection this machine may read
@@ -166,6 +169,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   stop: () => stopDaemon(process.argv.slice(3)),
   status: () => status(process.argv.slice(3)),
   logs: () => logs(process.argv.slice(3)),
+  tail: () => tailEvents(process.argv.slice(3)),
   mcp: async () => {
     process.stdout.write(`${await mcpServers()}\n`);
     return 0;
