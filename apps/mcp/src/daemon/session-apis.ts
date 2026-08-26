@@ -8,6 +8,7 @@ import {
 import { handleCollectionApiRequest } from './collection-api.js';
 import { handleCliPairRequest } from './cli-pair-api.js';
 import { handleRunApiRequest, type RunApiDeps } from './run-api.js';
+import type { RelayApiDeps } from './relay.js';
 import {
   handleProjectApiRequest,
   type ProjectApiDeps,
@@ -18,6 +19,7 @@ export interface SessionApis {
   connectorApi?: ConnectorApiDeps;
   projectApi?: ProjectApiDeps;
   runApi?: RunApiDeps;
+  relayApi?: RelayApiDeps;
 }
 
 export function handleSessionApis(

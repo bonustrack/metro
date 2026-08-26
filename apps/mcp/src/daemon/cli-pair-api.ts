@@ -7,8 +7,10 @@ import {
   readJsonBody,
   sendJson,
 } from './api-http.js';
+import { extractToken } from '../mcp/request-identity.js';
+import { publicBaseOrDefault } from './attach-serve.js';
 import { CLI_CODE_RE, takeCliCode } from './cli-pair.js';
-import { mcpServersJson } from './connector-json.js';
+import { relayServersJson } from './connector-json.js';
 import { sessionTtlFromEnv } from './google-oauth.js';
 import { signCliToken } from './session.js';
 import type { ConnectorApiDeps } from './connector-api.js';
@@ -75,8 +77,13 @@ async function handleRead(
     sendJson(req, res, 200, { email: who.email, collection: collection.name });
     return;
   }
-  const rows = await deps.freshConnectorsByIds(collection.connectorIds);
-  sendJson(req, res, 200, { json: mcpServersJson(rows), collection: collection.name });
+  const entries = await deps.connectorNamesByIds(collection.connectorIds);
+  const json = relayServersJson(
+    entries,
+    publicBaseOrDefault(),
+    extractToken(req) ?? '',
+  );
+  sendJson(req, res, 200, { json, collection: collection.name });
 }
 
 export function handleCliPairRequest(

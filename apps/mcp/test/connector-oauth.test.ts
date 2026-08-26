@@ -185,10 +185,10 @@ describe('token expiry', () => {
     expect(oauthExpired(auth)).toBe(false);
   });
 
-  test('it goes stale a minute BEFORE the deadline, not after', () => {
+  test('it goes stale five minutes BEFORE the deadline, not after', () => {
     const expiresAt = 1_000_000;
-    expect(oauthExpired({ ...auth, expiresAt }, expiresAt - 120_000)).toBe(false);
-    expect(oauthExpired({ ...auth, expiresAt }, expiresAt - 30_000)).toBe(true);
+    expect(oauthExpired({ ...auth, expiresAt }, expiresAt - 360_000)).toBe(false);
+    expect(oauthExpired({ ...auth, expiresAt }, expiresAt - 240_000)).toBe(true);
     expect(oauthExpired({ ...auth, expiresAt }, expiresAt + 1)).toBe(true);
   });
 });

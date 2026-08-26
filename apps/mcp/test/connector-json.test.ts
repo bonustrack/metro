@@ -1,144 +1,54 @@
 import { describe, expect, test } from 'bun:test';
-import {
-  mcpServersJson,
-  type ConnectorEntry,
-} from '../src/daemon/connector-json.ts';
+import { NAME_PREFIX, relayServersJson } from '../src/daemon/connector-json.ts';
 
-const linear: ConnectorEntry = {
-  name: 'linear',
-  url: 'https://mcp.linear.app/mcp',
-  transport: 'http',
-  header: 'Authorization',
-  secret: 'Bearer lin_oauth_7f',
-  bearer: null,
-};
+const BASE = 'https://mcp.metro.box';
+const TOKEN = 'cli-token-abc';
 
-const docs: ConnectorEntry = {
-  name: 'docs',
-  url: 'https://docs.example.com/mcp',
-  transport: 'http',
-  header: null,
-  secret: null,
-  bearer: null,
-};
+const parsed = (json: string): Record<string, unknown> =>
+  (JSON.parse(json) as { mcpServers: Record<string, unknown> }).mcpServers;
 
-const notion: ConnectorEntry = {
-  name: 'notion',
-  url: 'https://mcp.notion.com/mcp',
-  transport: 'http',
-  header: 'X-Api-Key',
-  secret: 'ntn_secret_value',
-  bearer: null,
-};
-
-const signedIn: ConnectorEntry = {
-  name: 'snapshot',
-  url: 'https://mcp.snapshot.box',
-  transport: 'http',
-  header: null,
-  secret: null,
-  bearer: 'oat_live_9c31',
-};
-
-interface ServerBlock {
-  type: string;
-  url: string;
-  headers?: Record<string, string>;
-}
-
-const parse = (json: string): Record<string, ServerBlock> => {
-  const parsed = JSON.parse(json) as { mcpServers: Record<string, ServerBlock> };
-  return parsed.mcpServers;
-};
-
-describe('mcpServersJson composes the paste-ready block', () => {
-  test('an authed connector carries its one header', () => {
-    expect(parse(mcpServersJson([linear])).linear).toEqual({
+describe('the exported block names relays, never vendors', () => {
+  test('each entry is the relay url with the caller token as its only header', () => {
+    const servers = parsed(
+      relayServersJson(
+        [{ id: 'conn0000001', name: 'linear' }],
+        BASE,
+        TOKEN,
+      ),
+    );
+    expect(servers['metro.box linear']).toEqual({
       type: 'http',
-      url: 'https://mcp.linear.app/mcp',
-      headers: { Authorization: 'Bearer lin_oauth_7f' },
+      url: `${BASE}/relay/conn0000001`,
+      headers: { Authorization: `Bearer ${TOKEN}` },
     });
   });
 
-  test('headers is omitted entirely when there is no auth', () => {
-    const json = mcpServersJson([docs]);
-    const block = parse(json).docs;
-    expect(block).toEqual({ type: 'http', url: 'https://docs.example.com/mcp' });
-    expect(block !== undefined && 'headers' in block).toBe(false);
-    expect(json).not.toContain('headers');
-  });
-
-  test('a half-filled auth pair emits no headers rather than a broken one', () => {
-    for (const half of [
-      { ...docs, header: 'Authorization' },
-      { ...docs, secret: 'Bearer lonely' },
-    ])
-      expect(parse(mcpServersJson([half])).docs).toEqual({
-        type: 'http',
-        url: 'https://docs.example.com/mcp',
-      });
-  });
-
-  test('the transport rides through as the block type', () => {
-    expect(parse(mcpServersJson([{ ...docs, transport: 'sse' }])).docs?.type).toBe(
-      'sse',
+  test('the metro.box prefix marks every key', () => {
+    const servers = parsed(
+      relayServersJson(
+        [
+          { id: 'conn0000001', name: 'linear' },
+          { id: 'conn0000002', name: 'notion' },
+        ],
+        BASE,
+        TOKEN,
+      ),
     );
+    for (const key of Object.keys(servers)) expect(key.startsWith(NAME_PREFIX)).toBe(true);
+    expect(Object.keys(servers)).toEqual(['metro.box linear', 'metro.box notion']);
   });
 
-  test('every connector merges into one mcpServers object, in order', () => {
-    const servers = parse(mcpServersJson([linear, docs, notion]));
-    expect(Object.keys(servers)).toEqual(['linear', 'docs', 'notion']);
-    expect(servers.notion?.headers).toEqual({ 'X-Api-Key': 'ntn_secret_value' });
-    expect(servers.docs?.headers).toBeUndefined();
-  });
-
-  test('the name is the object key, so a duplicate silently overwrites', () => {
-    const servers = parse(
-      mcpServersJson([linear, { ...notion, name: 'linear' }]),
+  test('no vendor url or credential can appear, by construction', () => {
+    const json = relayServersJson(
+      [{ id: 'conn0000003', name: 'internal' }],
+      BASE,
+      TOKEN,
     );
-    expect(Object.keys(servers)).toEqual(['linear']);
-    expect(servers.linear?.url).toBe('https://mcp.notion.com/mcp');
+    expect(json).not.toContain('linear.app');
+    expect(json).not.toContain('secret');
   });
 
-  test('no connectors is still a valid, pasteable block', () => {
-    expect(mcpServersJson([])).toBe('{\n  "mcpServers": {}\n}');
-  });
-
-  test('the string is two-space pretty-printed, not minified', () => {
-    const json = mcpServersJson([linear]);
-    expect(json.startsWith('{\n  "mcpServers": {\n    "linear": {\n')).toBe(true);
-    expect(json).toContain('\n      "type": "http"');
-  });
-});
-
-describe('the paste-ready block carries whatever credential the row holds', () => {
-  test('an oauth row exports its access token as a bearer header', () => {
-    const servers = parse(mcpServersJson([signedIn]));
-    expect(servers.snapshot?.headers).toEqual({
-      Authorization: 'Bearer oat_live_9c31',
-    });
-  });
-
-  test('a stored header still wins, so a row never exports two credentials', () => {
-    const both: ConnectorEntry = { ...notion, bearer: 'oat_live_9c31' };
-    expect(parse(mcpServersJson([both])).notion?.headers).toEqual({
-      'X-Api-Key': 'ntn_secret_value',
-    });
-  });
-
-  test('an empty bearer is no bearer, never a literal "Bearer "', () => {
-    const blank: ConnectorEntry = { ...docs, bearer: '' };
-    expect(parse(mcpServersJson([blank])).docs?.headers).toBeUndefined();
-  });
-
-  test('the combined block signs in every row it can, in one copy', () => {
-    const servers = parse(mcpServersJson([linear, docs, signedIn]));
-    expect(servers.linear?.headers).toEqual({
-      Authorization: 'Bearer lin_oauth_7f',
-    });
-    expect(servers.snapshot?.headers).toEqual({
-      Authorization: 'Bearer oat_live_9c31',
-    });
-    expect(servers.docs?.headers).toBeUndefined();
+  test('an empty collection exports an empty block', () => {
+    expect(parsed(relayServersJson([], BASE, TOKEN))).toEqual({});
   });
 });
