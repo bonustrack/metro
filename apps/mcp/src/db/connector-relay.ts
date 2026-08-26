@@ -73,6 +73,18 @@ function refreshOnce(
   return job;
 }
 
+export function unrefreshedTarget(
+  url: string,
+  auth: OAuthAuth,
+  force: boolean,
+  now = Date.now(),
+): RelayTarget {
+  if (force) return { kind: 'signin' };
+  if (staleUsable(auth, now))
+    return { kind: 'ok', url, headers: bearerHeaders(auth.accessToken) };
+  return { kind: 'ok', url, headers: {} };
+}
+
 async function oauthTarget(
   row: ConnectorRow,
   config: ConnectorConfig,
@@ -86,9 +98,7 @@ async function oauthTarget(
     return { kind: 'ok', url: row.url, headers: bearerHeaders(fresh.accessToken) };
   } catch (err) {
     log.warn({ id: row.id, err: errMsg(err) }, 'relay: token refresh failed');
-    if (!force && staleUsable(auth))
-      return { kind: 'ok', url: row.url, headers: bearerHeaders(auth.accessToken) };
-    return { kind: 'signin' };
+    return unrefreshedTarget(row.url, auth, force);
   }
 }
 

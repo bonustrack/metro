@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { fixedTarget, staleUsable } from '../src/db/connector-relay.ts';
+import {
+  fixedTarget,
+  staleUsable,
+  unrefreshedTarget,
+} from '../src/db/connector-relay.ts';
 
 const URL = 'https://mcp.snapshot.box/';
 
@@ -39,5 +43,27 @@ describe('stale-token degradation', () => {
     expect(staleUsable({ ...base, expiresAt: 2_000 }, 1_000)).toBe(true);
     expect(staleUsable({ ...base, expiresAt: 999 }, 1_000)).toBe(false);
     expect(staleUsable(base, 1_000)).toBe(true);
+  });
+
+  test('a failed refresh with time left rides the stale bearer', () => {
+    expect(unrefreshedTarget(URL, { ...base, expiresAt: 2_000 }, false, 1_000)).toEqual({
+      kind: 'ok',
+      url: URL,
+      headers: { Authorization: 'Bearer at' },
+    });
+  });
+
+  test('a dead sign-in degrades to bare, never a pre-emptive refusal', () => {
+    expect(unrefreshedTarget(URL, { ...base, expiresAt: 999 }, false, 1_000)).toEqual({
+      kind: 'ok',
+      url: URL,
+      headers: {},
+    });
+  });
+
+  test('only upstream evidence turns a dead sign-in into a 424', () => {
+    expect(unrefreshedTarget(URL, { ...base, expiresAt: 999 }, true, 1_000)).toEqual({
+      kind: 'signin',
+    });
   });
 });
