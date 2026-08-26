@@ -223,8 +223,13 @@ async function relayExchange(
   deps: RelayApiDeps,
 ): Promise<void> {
   const control = new AbortController();
-  res.on('close', () => {
+  const bail = (): void => {
     if (!res.writableEnded) control.abort();
+  };
+  res.once('close', bail);
+  res.socket?.once('close', bail);
+  res.once('finish', () => {
+    res.socket?.removeListener('close', bail);
   });
   const body = req.method === 'POST' ? await readCapped(req) : null;
   const out = await exchange(

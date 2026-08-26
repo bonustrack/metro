@@ -73,9 +73,6 @@ function serveMcp(req: IncomingMessage, res: ServerResponse, body: string): void
   if (req.method === 'GET') {
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write('id: 1\nevent: message\ndata: {"n":1}\n\n');
-    res.on('close', () => {
-      upstreamAborted = true;
-    });
     return;
   }
   if (body.includes('"initialize"')) {
@@ -101,6 +98,10 @@ beforeAll(async () => {
   process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_RELAY_KEEPALIVE_MS = '60';
   upstream = createServer((req, res) => {
+    if (req.method === 'GET')
+      req.socket.once('close', () => {
+        upstreamAborted = true;
+      });
     bodyOf(req)
       .then((body) => {
         seen.push({

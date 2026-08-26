@@ -2,7 +2,7 @@
 # metro — one process (stations + webhooks + MCP) on :8420.
 # Debian-based Bun image (glibc) so @xmtp/node-bindings loads the linux-x64-gnu
 # binary. No build step: metro runs from source via `bun apps/mcp/src/server.ts`.
-FROM oven/bun:1.3.9
+FROM oven/bun:1.4.0
 
 WORKDIR /app
 
