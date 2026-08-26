@@ -1,0 +1,12 @@
+{
+  "name": "metro",
+  "description": "Metro — connector relay and chat bridge for agents",
+  "owner": { "name": "Bonustrack", "url": "https://metro.box" },
+  "plugins": [
+    {
+      "name": "metro",
+      "source": "./plugin",
+      "description": "Sign in to a metro connector collection and use its MCP servers through metro's relay, credentials injected server-side."
+    }
+  ]
+}

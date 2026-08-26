@@ -1,0 +1,10 @@
+{
+  "name": "metro",
+  "version": "0.1.0",
+  "description": "Metro connectors for Claude Code. Sign in once with /metro:login; your collection's MCP servers ride metro's relay with credentials injected server-side, and /metro:refresh picks up collection changes.",
+  "author": { "name": "Bonustrack", "url": "https://metro.box" },
+  "repository": "https://github.com/bonustrack/metro",
+  "license": "MIT",
+  "keywords": ["metro", "mcp", "connectors", "relay"],
+  "skills": "./skills/"
+}

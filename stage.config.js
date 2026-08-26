@@ -52,7 +52,7 @@ export default defineConfig({
     ],
   },
   knip: {
-    ignore: ['stage.config.js'],
+    ignore: ['stage.config.js', 'plugin/**'],
   },
   workspaces: {
     'apps/ui': {
