@@ -22,7 +22,6 @@ import {
   type ConnectorConfig,
   type ConnectorSignIn,
 } from './connector-config.js';
-import { errMsg, log } from '../daemon/log.js';
 import { newId } from './ids.js';
 import { getDb } from './client.js';
 import { connectors, type ConnectorTransport } from './schema.js';
@@ -131,15 +130,6 @@ export async function listConnectorsForEmail(
   return (await connectorRowsFor(email, project)).map(toConnector);
 }
 
-async function withFreshToken(row: ConnectorRow): Promise<Connector> {
-  const config = readConfig(row.config);
-  if (config.auth.kind !== 'oauth' || !oauthExpired(config.auth))
-    return toConnector(row);
-  const url = parseConnectorUrl(row.url);
-  const auth = await refreshOAuth(config.auth, url.toString());
-  return saveConfig(row, { ...config, auth });
-}
-
 async function rowsByIds(ids: string[]): Promise<ConnectorRow[]> {
   if (ids.length === 0) return [];
   return getDb()
@@ -149,21 +139,10 @@ async function rowsByIds(ids: string[]): Promise<ConnectorRow[]> {
     .orderBy(asc(connectors.id));
 }
 
-export async function listFreshConnectorsByIds(
+export async function connectorNamesByIds(
   ids: string[],
-): Promise<Connector[]> {
-  const rows = await rowsByIds(ids);
-  return Promise.all(
-    rows.map(async (row) =>
-      withFreshToken(row).catch((err: unknown) => {
-        log.warn(
-          { id: row.id, err: errMsg(err) },
-          'connectors: could not refresh the access token',
-        );
-        return toConnector(row);
-      }),
-    ),
-  );
+): Promise<{ id: string; name: string }[]> {
+  return (await rowsByIds(ids)).map((row) => ({ id: row.id, name: row.name }));
 }
 
 export async function getConnectorForEmail(

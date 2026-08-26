@@ -42,16 +42,22 @@ const deps = {
     if (email !== EMAIL || id !== LIST.id) throw new Error('no such collection');
     return Promise.resolve(LIST);
   },
-  freshConnectorsByIds: async (ids: string[]) =>
-    Promise.resolve(ids.includes(CONNECTOR.id) ? [CONNECTOR] : []),
+  connectorNamesByIds: async (ids: string[]) =>
+    Promise.resolve(
+      ids.includes(CONNECTOR.id)
+        ? [{ id: CONNECTOR.id, name: CONNECTOR.name }]
+        : [],
+    ),
 } as unknown as ConnectorApiDeps;
 
 let server: Server;
 let base = '';
 const prev = process.env.METRO_SESSION_SECRET;
+const prevPublic = process.env.METRO_PUBLIC_URL;
 
 beforeAll(async () => {
   process.env.METRO_SESSION_SECRET = SECRET;
+  process.env.METRO_PUBLIC_URL = 'https://relay.metro.test';
   server = createServer((req, res) => {
     if (handleCliPairRequest(req, res, deps)) return;
     if (handleCollectionApiRequest(req, res, deps)) return;
@@ -67,6 +73,8 @@ afterAll(() => {
   server.close();
   if (prev === undefined) delete process.env.METRO_SESSION_SECRET;
   else process.env.METRO_SESSION_SECRET = prev;
+  if (prevPublic === undefined) delete process.env.METRO_PUBLIC_URL;
+  else process.env.METRO_PUBLIC_URL = prevPublic;
 });
 
 const session = (): string => signSession({ email: EMAIL, agentIds: [] }, SECRET);
@@ -134,20 +142,23 @@ describe('a code authorises one collection, not an account', () => {
 });
 
 describe('a CLI token reads its collection and nothing else', () => {
-  test('it hands back the mcpServers block for that collection', async () => {
-    const res = await get('/api/cli/mcp', cliToken());
+  test('it hands back relay urls carrying the caller token, never the vendor credential', async () => {
+    const token = cliToken();
+    const res = await get('/api/cli/mcp', token);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { json: string; collection: string };
     expect(body.collection).toBe('work');
     expect(JSON.parse(body.json)).toEqual({
       mcpServers: {
-        linear: {
+        'metro.box linear': {
           type: 'http',
-          url: 'https://mcp.linear.app/mcp',
-          headers: { Authorization: 'Bearer lin_oauth_7f' },
+          url: `https://relay.metro.test/relay/${CONNECTOR.id}`,
+          headers: { Authorization: `Bearer ${token}` },
         },
       },
     });
+    expect(body.json).not.toContain('lin_oauth');
+    expect(body.json).not.toContain('mcp.linear.app');
   });
 
   test('it identifies itself by account and collection', async () => {

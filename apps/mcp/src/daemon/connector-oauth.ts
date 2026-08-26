@@ -17,7 +17,7 @@ import { startPending, takePending, type PendingAuth } from './oauth-pending.js'
 
 export { takePending, type PendingAuth };
 
-const REFRESH_SKEW_MS = 60_000;
+const REFRESH_SKEW_MS = 300_000;
 
 export const CALLBACK_PATH = '/api/connectors/callback';
 

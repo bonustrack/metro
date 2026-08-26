@@ -63,13 +63,14 @@ import {
   createPendingConnectorForEmail,
   deleteConnectorForEmail,
   disconnectConnectorForEmail,
+  connectorNamesByIds,
   getConnectorForEmail,
   listConnectorsForEmail,
-  listFreshConnectorsByIds,
   renameConnectorForEmail,
   reconnectConnectorForEmail,
   verifyConnectorForEmail,
 } from '../db/connectors.js';
+import { relayTarget } from '../db/connector-relay.js';
 import {
   addMemberForEmail,
   createProjectForEmail,
@@ -236,7 +237,7 @@ const projectApi: ProjectApiDeps = {
 
 const connectorApi: ConnectorApiDeps = {
   listConnectors: listConnectorsForEmail,
-  freshConnectorsByIds: listFreshConnectorsByIds,
+  connectorNamesByIds,
   listCollections: listCollectionsForEmail,
   getCollection: getCollectionForEmail,
   createCollection: createCollectionForEmail,
@@ -262,7 +263,7 @@ async function main(): Promise<void> {
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(
     emit,
-    { agentApi, connectorApi, projectApi, runApi },
+    { agentApi, connectorApi, projectApi, runApi, relayApi: { target: relayTarget } },
     metroMcp.httpHandler,
     metroCall,
   );

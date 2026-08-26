@@ -1,4 +1,5 @@
 import { handleSessionApis, type SessionApis } from './session-apis.js';
+import { handleRelayRequest } from './relay.js';
 import {
   createServer,
   type IncomingMessage,
@@ -334,6 +335,7 @@ async function handlePreMcpRoutes(
   if (handleSessionApis(req, res, apis)) return true;
   if (handleUploadRequest(req, res)) return true;
   if (handleAttachRequest(req, res)) return true;
+  if (apis.relayApi && handleRelayRequest(req, res, apis.relayApi)) return true;
   if (await handleWebhookRoute(req, res, emit)) return true;
   return Boolean(monitorCall && handleMonitorRequest(req, res, monitorCall));
 }

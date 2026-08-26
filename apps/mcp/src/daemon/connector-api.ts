@@ -12,6 +12,7 @@ import {
 } from './api-http.js';
 import { parseId } from '../db/ids.js';
 import type { ConnectorCollectionRow } from '../db/connector-collections.js';
+import type { RelayServerEntry } from './connector-json.js';
 import {
   handleCallback,
   handleConnect,
@@ -34,7 +35,7 @@ const asText = (value: unknown): string =>
 
 export interface ConnectorApiDeps extends OAuthRouteDeps {
   listConnectors: (email: string, project: string) => Promise<Connector[]>;
-  freshConnectorsByIds: (ids: string[]) => Promise<Connector[]>;
+  connectorNamesByIds: (ids: string[]) => Promise<RelayServerEntry[]>;
   listCollections: (
     email: string,
     project: string,
