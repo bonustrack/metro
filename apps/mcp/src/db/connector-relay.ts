@@ -92,6 +92,15 @@ async function oauthTarget(
   }
 }
 
+export function fixedTarget(
+  url: string,
+  auth: Exclude<ConnectorAuth, OAuthAuth>,
+  force: boolean,
+): RelayTarget {
+  if (force) return { kind: 'signin' };
+  return { kind: 'ok', url, headers: headerAuthHeaders(auth) ?? {} };
+}
+
 export async function relayTarget(
   collectionId: string,
   connectorId: string,
@@ -102,9 +111,6 @@ export async function relayTarget(
   parseConnectorUrl(row.url);
   const config = readConfig(row.config);
   const auth = config.auth;
-  const fixed = headerAuthHeaders(auth);
-  if (fixed !== null) return { kind: 'ok', url: row.url, headers: fixed };
   if (auth.kind === 'oauth') return oauthTarget(row, config, auth, force);
-  if (config.oauth) return { kind: 'signin' };
-  return { kind: 'ok', url: row.url, headers: {} };
+  return fixedTarget(row.url, auth, force);
 }
