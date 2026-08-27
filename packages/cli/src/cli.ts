@@ -26,6 +26,7 @@ import {
   runtimeDir,
   writeRunToken,
 } from './runtime.js';
+import { installPlugin, syncPluginServers } from './plugin.js';
 import { update } from './update.js';
 import { currentVersion } from './version.js';
 
@@ -45,6 +46,7 @@ const USAGE = `metro — the command line for your MCP connectors
   metro logout    forget this machine's sign-in
   metro whoami    print the account and collection this machine may read
   metro mcp       print the mcpServers block for the authorized collection
+  metro plugin    set up the Claude Code plugin (connector servers + /metro:login)
   metro update    update to the newest published version
   metro version   print this CLI's version
 
@@ -142,6 +144,11 @@ async function login(): Promise<void> {
   process.stderr.write(
     `Authorized '${collection}' for ${email}. Stored in ${credentialsPath()}\n`,
   );
+  if (syncPluginServers())
+    process.stderr.write(
+      'Claude Code plugin refreshed — new sessions have the connectors; ' +
+        'run /reload-plugins in any session already open.\n',
+    );
 }
 
 async function whoami(): Promise<void> {
@@ -174,6 +181,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
     process.stdout.write(`${await mcpServers()}\n`);
     return 0;
   },
+  plugin: installPlugin,
   update,
   version: async () => {
     process.stdout.write(`${currentVersion()}\n`);

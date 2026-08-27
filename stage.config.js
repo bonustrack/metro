@@ -68,7 +68,7 @@ export default defineConfig({
       knip: {
         project: ['src/**/*.ts'],
         entry: ['src/**/*.ts', 'scripts/*.mjs', 'test/**/*.ts'],
-        ignoreBinaries: ['tail', 'ps'],
+        ignoreBinaries: ['tail', 'ps', 'claude'],
         ignoreDependencies: STAGED_RUNTIME_DEPENDENCIES,
       },
     },
