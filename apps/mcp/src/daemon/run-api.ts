@@ -51,11 +51,16 @@ async function handleClaim(
     return;
   }
   const body = await readJsonBody(req);
-  const code = bodyField(body, 'code');
-  const taken =
-    typeof code === 'string' && RUN_CODE_RE.test(code)
-      ? takeRunCode(code)
-      : undefined;
+  const raw = bodyField(body, 'code');
+  const code = typeof raw === 'string' ? raw.trim() : '';
+  if (!RUN_CODE_RE.test(code)) {
+    sendJson(req, res, 400, {
+      error:
+        'that does not look like a runtime code — metro start wants the mr_… code from the agent page',
+    });
+    return;
+  }
+  const taken = takeRunCode(code);
   if (taken === undefined) {
     sendJson(req, res, 400, {
       error: 'that code has expired or was already used',

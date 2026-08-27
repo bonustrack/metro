@@ -40,11 +40,16 @@ async function handleClaim(
     sendJson(req, res, 503, { error: 'sign-in is not configured' });
     return;
   }
-  const code = bodyField(await readJsonBody(req), 'code');
-  const taken =
-    typeof code === 'string' && CLI_CODE_RE.test(code)
-      ? takeCliCode(code)
-      : undefined;
+  const raw = bodyField(await readJsonBody(req), 'code');
+  const code = typeof raw === 'string' ? raw.trim() : '';
+  if (!CLI_CODE_RE.test(code)) {
+    sendJson(req, res, 400, {
+      error:
+        'that does not look like a collection code — metro login wants the mc_… code from metro.box/#/authorize',
+    });
+    return;
+  }
+  const taken = takeCliCode(code);
   if (taken === undefined) {
     sendJson(req, res, 400, {
       error: 'that code has expired or was already used',

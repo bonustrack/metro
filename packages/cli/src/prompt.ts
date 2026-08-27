@@ -40,7 +40,7 @@ export function askSecret(question: string): Promise<string> {
   stdin.resume();
   stdin.setEncoding('utf8');
   return new Promise<string>((resolve, reject) => {
-    let value = '\u0003';
+    let value = '';
     const finish = (): void => {
       stdin.setRawMode(false);
       stdin.pause();

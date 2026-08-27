@@ -139,6 +139,19 @@ describe('a code authorises one collection, not an account', () => {
     for (const bad of ['mc_aaaaaaaaaaaaaaaa', '', 'nope', 42, null])
       expect((await claim(bad)).status).toBe(400);
   });
+
+  test('malformed and expired are told apart, and pasted whitespace is forgiven', async () => {
+    const unminted = (await (await claim('mc_aaaaaaaaaaaaaaaa')).json()) as {
+      error: string;
+    };
+    expect(unminted.error).toContain('expired');
+    const wrongShape = (await (await claim('mr_aaaaaaaaaaaaaaaa')).json()) as {
+      error: string;
+    };
+    expect(wrongShape.error).toContain('does not look like a collection code');
+    const padded = await claim(`  ${await freshCode()}\r\n`);
+    expect(padded.status).toBe(200);
+  });
 });
 
 describe('a CLI token reads its collection and nothing else', () => {
