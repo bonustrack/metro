@@ -26,6 +26,7 @@ import {
   runtimeDir,
   writeRunToken,
 } from './runtime.js';
+import { launchClaude } from './claude.js';
 import { installPlugin, syncPluginServers } from './plugin.js';
 import { update } from './update.js';
 import { currentVersion } from './version.js';
@@ -47,6 +48,8 @@ const USAGE = `metro — the command line for your MCP connectors
   metro whoami    print the account and collection this machine may read
   metro mcp       print the mcpServers block for the authorized collection
   metro plugin    set up the Claude Code plugin (connector servers + /metro:login)
+  metro claude [args...]
+                  open Claude Code with the metro channel; every argument is passed through
   metro update    update to the newest published version
   metro version   print this CLI's version
 
@@ -182,6 +185,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
     return 0;
   },
   plugin: installPlugin,
+  claude: () => launchClaude(process.argv.slice(3)),
   update,
   version: async () => {
     process.stdout.write(`${currentVersion()}\n`);
