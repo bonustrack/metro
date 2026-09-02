@@ -91,8 +91,10 @@ export function mcpEndpoint(): string {
   return `${publicBaseOrDefault()}/mcp`;
 }
 
+const LOCAL_MCP_ENDPOINT = 'http://127.0.0.1:8420/mcp';
+
 export function mcpAddCommand(key: string): string {
-  const url = `${mcpEndpoint()}?token=${key}`;
+  const url = `${LOCAL_MCP_ENDPOINT}?token=${key}`;
   return `claude mcp add --transport http ${SERVER_NAME} "${url}"`;
 }
 
@@ -102,23 +104,18 @@ interface KeyPayload {
   command: string | null;
 }
 
-const LOCAL_MCP_ENDPOINT = 'http://127.0.0.1:8420/mcp';
-
-function credentials(key: string, heldLocally: boolean): KeyPayload {
-  const url = heldLocally
-    ? `${LOCAL_MCP_ENDPOINT}?token=${key}`
-    : `${mcpEndpoint()}?token=${key}`;
+function credentials(key: string): KeyPayload {
   return {
     key,
-    endpoint: url,
-    command: `claude mcp add --transport http ${SERVER_NAME} "${url}"`,
+    endpoint: `${LOCAL_MCP_ENDPOINT}?token=${key}`,
+    command: mcpAddCommand(key),
   };
 }
 
-function keyPayload(agent: AgentSummary, heldLocally: boolean): KeyPayload {
+function keyPayload(agent: AgentSummary): KeyPayload {
   const value = agent.owned ? agent.key : null;
   if (value === null) return { key: null, endpoint: null, command: null };
-  return credentials(value, heldLocally);
+  return credentials(value);
 }
 
 function livenessPayload(
@@ -144,7 +141,7 @@ function agentPayload(
     owned: agent.owned,
     runtime: agent.owned ? (runtimes.get(agent.id) ?? null) : null,
     ...livenessPayload(agent, live),
-    ...keyPayload(agent, agent.owned && runtimes.has(agent.id)),
+    ...keyPayload(agent),
   };
 }
 
@@ -224,7 +221,7 @@ async function handleCreate(
   sendJson(req, res, 201, {
     id: created.id,
     name: created.name,
-    ...credentials(created.key, false),
+    ...credentials(created.key),
   });
 }
 
@@ -236,7 +233,6 @@ async function handleResetKey(
   id: string,
 ): Promise<void> {
   const reset = await deps.resetKey(session.email, id);
-  const held = (await deps.runtimes([id])).has(id);
   log.info(
     { agent: reset.name, id: reset.id, owner: session.email },
     'agent-api: reset agent key',
@@ -245,7 +241,7 @@ async function handleResetKey(
     id: reset.id,
     name: reset.name,
     reset: true,
-    ...credentials(reset.key, held),
+    ...credentials(reset.key),
   });
 }
 

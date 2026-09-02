@@ -14,6 +14,7 @@ import {
 
 const SECRET = 'agent-api-test-secret';
 const PUBLIC = 'https://mcp.metro.box';
+const LOCAL = 'http://127.0.0.1:8420';
 
 const fakeKey = (agent: string): string => `mk_fake_${agent}`;
 
@@ -398,8 +399,8 @@ describe('GET /api/agents key exposure', () => {
       connected: false,
       last_seen: null,
       key: 'mk_fake_ada-bot',
-      endpoint: `${PUBLIC}/mcp?token=mk_fake_ada-bot`,
-      command: `claude mcp add --transport http metro "${PUBLIC}/mcp?token=mk_fake_ada-bot"`,
+      endpoint: `${LOCAL}/mcp?token=mk_fake_ada-bot`,
+      command: `claude mcp add --transport http metro "${LOCAL}/mcp?token=mk_fake_ada-bot"`,
     });
   });
 
@@ -443,9 +444,13 @@ describe('GET /api/agents key exposure', () => {
     expect(agent?.runtime).toBe('tony');
   });
 
-  test('an unheld agent keeps the hosted command', async () => {
+  test('an unheld agent is handed the same local command', async () => {
     const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.endpoint).toBe(`${PUBLIC}/mcp?token=mk_fake_ada-bot`);
+    expect(agent?.runtime).toBeNull();
+    expect(agent?.endpoint).toBe(
+      'http://127.0.0.1:8420/mcp?token=mk_fake_ada-bot',
+    );
+    expect(agent?.command).not.toContain(PUBLIC);
   });
 
   test('the listed command matches what POST hands back for the same key', async () => {
@@ -524,9 +529,9 @@ describe('POST /api/agents', () => {
     const body = (await (
       await post(session('ada@lovelace.dev'), { name: 'pasteme' })
     ).json()) as CreateBody;
-    expect(body.endpoint).toBe(`${PUBLIC}/mcp?token=mk_key_for_pasteme`);
+    expect(body.endpoint).toBe(`${LOCAL}/mcp?token=mk_key_for_pasteme`);
     expect(body.command).toBe(
-      `claude mcp add --transport http metro "${PUBLIC}/mcp?token=mk_key_for_pasteme"`,
+      `claude mcp add --transport http metro "${LOCAL}/mcp?token=mk_key_for_pasteme"`,
     );
   });
 
@@ -699,7 +704,7 @@ describe('POST /api/agents/:id/key', () => {
     expect(body.name).toBe('ada-bot');
     expect(body.reset).toBe(true);
     expect(body.key).toBe(liveKeys['agent000001']);
-    expect(body.endpoint).toBe(`${PUBLIC}/mcp?token=${body.key}`);
+    expect(body.endpoint).toBe(`${LOCAL}/mcp?token=${body.key}`);
     expect(body.command).toBe(mcpAddCommand(body.key));
   });
 
@@ -802,7 +807,7 @@ describe('POST /api/agents/:id/key', () => {
 describe('mcpAddCommand', () => {
   test('matches the browserbase convention: no --scope, full --transport http', () => {
     expect(mcpAddCommand('mk_x')).toBe(
-      `claude mcp add --transport http metro "${PUBLIC}/mcp?token=mk_x"`,
+      'claude mcp add --transport http metro "http://127.0.0.1:8420/mcp?token=mk_x"',
     );
   });
 

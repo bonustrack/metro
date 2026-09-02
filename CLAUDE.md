@@ -238,8 +238,9 @@ One port (`internal_port=8420`, `webhookPort()` = `METRO_WEBHOOK_PORT || 8420` �
 
 ### The paste-ready command (`mcpAddCommand`)
 
-`claude mcp add --transport http metro "<endpoint>?token=<key>"` — mirrors the Browserbase shape byte for byte.
+`claude mcp add --transport http metro "http://127.0.0.1:8420/mcp?token=<key>"` — mirrors the Browserbase shape byte for byte.
 
+- **The url is ALWAYS the loopback one (`LOCAL_MCP_ENDPOINT`), held or not.** It used to switch: `mcpEndpoint()` (the hosted base) for an agent metro runs, loopback only once a runtime held it. Less's explicit call to make it unconditional. The known cost is accepted and is NOT a bug: an agent that has not been claimed by `metro start <id>` is served by metro, not by loopback, so the command as shown answers nothing until you run the daemon on the machine you paste it into. `mcpEndpoint()` still builds the hosted url for the list payload's `endpoint` field.
 - **No `--scope user`**, so it registers only for the pasting directory. Less's explicit call; do NOT "fix" it. `--transport` stays spelled out for the same reason.
 - **The server name is the constant `metro` for every agent** (#124), never the agent name or a slug. Only `?token=` differs. That constant is also what makes the line safe whatever is in `agents.name` — a name with a space used to paste as a broken two-word server. Known consequence: two metro agents in one Claude Code config collide on the second add. Accepted — it is a collision in the pasting person's own config, and nothing on the auth path reads this string.
 
