@@ -84,6 +84,8 @@ afterAll(async () => {
 afterEach(() => {
   seen = [];
   script = null;
+  proxy.learned.fields.clear();
+  proxy.learned.dropBetas = false;
 });
 
 const call = (
@@ -207,6 +209,45 @@ describe('the proxy over real HTTP', () => {
     expect(seen).toHaveLength(2);
     expect(seen[0]?.body.anthropic_beta).toEqual(['made-up-beta']);
     expect(seen[1]?.body.anthropic_beta).toBeUndefined();
+  });
+
+  test('a field Bedrock refuses as an extra input is dropped, retried, and remembered', async () => {
+    script = (req, res) => {
+      if (req.body.context_management !== undefined) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end('{"message":"context_management: Extra inputs are not permitted"}');
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"id":"msg_4"}');
+    };
+    const withEdits = { ...MESSAGE, context_management: { edits: [{ type: 'clear_tool_uses_20250919' }] } };
+    const first = await call('/v1/messages', withEdits);
+    expect(first.status).toBe(200);
+    expect(seen).toHaveLength(2);
+    expect(seen[0]?.body.context_management).toBeDefined();
+    expect(seen[1]?.body.context_management).toBeUndefined();
+    expect(seen[1]?.body.max_tokens).toBe(8);
+    seen = [];
+    const second = await call('/v1/messages', withEdits);
+    expect(second.status).toBe(200);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.body.context_management).toBeUndefined();
+    expect([...proxy.learned.fields]).toEqual(['context_management']);
+  });
+
+  test('a 400 that names nothing and carries no betas is surfaced as-is', async () => {
+    script = (_req, res) => {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end('{"message":"max_tokens: too large"}');
+    };
+    const res = await call('/v1/messages', MESSAGE);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      type: 'error',
+      error: { type: 'invalid_request_error', message: 'max_tokens: too large' },
+    });
+    expect(seen).toHaveLength(1);
   });
 
   test('an exception frame mid-stream becomes an SSE error event', async () => {

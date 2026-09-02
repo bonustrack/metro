@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   claudeEnv,
+  firstPartyModelId,
   PROVIDER_FLAGS,
   settingsConflicts,
   settingsFiles,
@@ -34,6 +35,20 @@ describe('the environment Claude Code is launched with', () => {
     expect(env.ANTHROPIC_BASE_URL).toBe('http://127.0.0.1:4321');
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('mb_x');
     expect(env.PATH).toBe('/usr/bin');
+  });
+});
+
+describe('the model Claude Code is told it is on', () => {
+  test('a pinned Bedrock id is translated back to its first-party id', () => {
+    expect(firstPartyModelId('eu.anthropic.claude-sonnet-4-6')).toBe('claude-sonnet-4-6');
+    expect(firstPartyModelId('us.anthropic.claude-haiku-4-5-20251001-v1:0')).toBe('claude-haiku-4-5-20251001');
+    expect(firstPartyModelId('anthropic.claude-opus-4-6')).toBe('claude-opus-4-6');
+  });
+
+  test('ANTHROPIC_MODEL follows the pin, but never overrides one the user set', () => {
+    expect(claudeEnv({}, 1, 't', 'eu.anthropic.claude-sonnet-4-6').ANTHROPIC_MODEL).toBe('claude-sonnet-4-6');
+    expect(claudeEnv({ ANTHROPIC_MODEL: 'claude-opus-4-6' }, 1, 't', 'eu.anthropic.claude-sonnet-4-6').ANTHROPIC_MODEL).toBe('claude-opus-4-6');
+    expect(claudeEnv({}, 1, 't', null).ANTHROPIC_MODEL).toBeUndefined();
   });
 });
 

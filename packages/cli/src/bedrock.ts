@@ -63,14 +63,21 @@ export function settingsConflicts(files: string[]): string[] {
   return out;
 }
 
+export function firstPartyModelId(bedrockId: string): string {
+  return bedrockId.replace(/^(?:[a-z-]+\.)?anthropic\./, '').replace(/-v\d+:\d+$/, '');
+}
+
 export function claudeEnv(
   base: NodeJS.ProcessEnv,
   port: number,
   token: string,
+  pinned: string | null = null,
 ): NodeJS.ProcessEnv {
   const kept = Object.entries(base).filter(([key]) => !SCRUBBED.includes(key));
+  const model = (base.ANTHROPIC_MODEL ?? '').trim();
   return {
     ...Object.fromEntries(kept),
+    ...(pinned !== null && model === '' && { ANTHROPIC_MODEL: firstPartyModelId(pinned) }),
     ANTHROPIC_BASE_URL: `http://127.0.0.1:${String(port)}`,
     ANTHROPIC_AUTH_TOKEN: token,
   };
@@ -112,7 +119,10 @@ export async function bedrock(argv: string[]): Promise<number> {
     `metro bedrock: Claude Code → http://127.0.0.1:${String(proxy.port)} → Bedrock ${cfg.region}${pinned}\n`,
   );
   try {
-    return await runClaude(claudeArgs(argv), claudeEnv(process.env, proxy.port, token));
+    return await runClaude(
+      claudeArgs(argv),
+      claudeEnv(process.env, proxy.port, token, cfg.model),
+    );
   } finally {
     await proxy.close();
   }

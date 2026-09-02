@@ -5,12 +5,19 @@ import {
   type ServerResponse,
 } from 'node:http';
 import { EventStreamDecoder, type EventStreamMessage } from './bedrock-eventstream.js';
+import {
+  callBedrock,
+  freshAdaptations,
+  invoke,
+  invokeUrl,
+  upstreamMessage,
+  type Adaptations,
+  type BedrockConfig,
+  type Rewritten,
+  type Upstream,
+} from './bedrock-upstream.js';
 
-export interface BedrockConfig {
-  region: string;
-  bearerToken: string;
-  model: string | null;
-}
+export type { Adaptations, BedrockConfig } from './bedrock-upstream.js';
 
 export class BedrockConfigError extends Error {}
 
@@ -75,13 +82,6 @@ export function mapModel(requested: string, cfg: BedrockConfig): string {
 export const upstreamBase = (cfg: BedrockConfig, override?: string): string =>
   override ?? `https://bedrock-runtime.${cfg.region}.amazonaws.com`;
 
-export interface Rewritten {
-  modelId: string;
-  stream: boolean;
-  body: Record<string, unknown>;
-  betas: string[];
-}
-
 function splitBetas(header: string | string[] | undefined): string[] {
   const raw = Array.isArray(header) ? header.join(',') : (header ?? '');
   return raw
@@ -140,65 +140,6 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   } catch {
     throw new ProxyError(400, 'invalid_request_error', 'body must be JSON');
   }
-}
-
-interface Upstream {
-  cfg: BedrockConfig;
-  base: string;
-}
-
-function invokeUrl(up: Upstream, modelId: string, action: string): string {
-  return `${up.base}/model/${encodeURIComponent(modelId)}/${action}`;
-}
-
-function callBedrock(
-  up: Upstream,
-  url: string,
-  body: unknown,
-  accept: string,
-  signal: AbortSignal,
-): Promise<Response> {
-  return fetch(url, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${up.cfg.bearerToken}`,
-      'content-type': 'application/json',
-      accept,
-    },
-    body: JSON.stringify(body),
-    signal,
-  });
-}
-
-async function invoke(
-  up: Upstream,
-  req: Rewritten,
-  signal: AbortSignal,
-): Promise<Response> {
-  const action = req.stream ? 'invoke-with-response-stream' : 'invoke';
-  const accept = req.stream ? 'application/vnd.amazon.eventstream' : 'application/json';
-  const url = invokeUrl(up, req.modelId, action);
-  const first = await callBedrock(up, url, req.body, accept, signal);
-  if (first.status !== 400 || req.betas.length === 0) return first;
-  await first.text();
-  process.stderr.write(
-    `metro bedrock: retrying without anthropic_beta [${req.betas.join(', ')}]\n`,
-  );
-  const stripped = Object.fromEntries(
-    Object.entries(req.body).filter(([key]) => key !== 'anthropic_beta'),
-  );
-  return callBedrock(up, url, stripped, accept, signal);
-}
-
-function upstreamMessage(text: string): string {
-  try {
-    const parsed = JSON.parse(text) as { message?: unknown; Message?: unknown };
-    const message = parsed.message ?? parsed.Message;
-    if (typeof message === 'string' && message !== '') return message;
-  } catch {
-    return text === '' ? 'Bedrock returned no body' : text;
-  }
-  return text === '' ? 'Bedrock returned no body' : text;
 }
 
 async function relayError(upstream: Response, res: ServerResponse): Promise<void> {
@@ -328,11 +269,12 @@ async function route(
   res: ServerResponse,
   cfg: BedrockConfig,
   opts: ProxyOptions,
+  learned: Adaptations,
 ): Promise<void> {
   if (presentedToken(req) !== opts.token)
     throw new ProxyError(401, 'authentication_error', 'unauthorized');
   const path = (req.url ?? '').split('?')[0] ?? '';
-  const up: Upstream = { cfg, base: upstreamBase(cfg, opts.upstream) };
+  const up: Upstream = { cfg, base: upstreamBase(cfg, opts.upstream), learned };
   if (req.method === 'POST' && path === MESSAGES_PATH) return handleMessages(req, res, up);
   if (req.method === 'POST' && path === COUNT_PATH) return handleCount(req, res, up);
   throw new ProxyError(404, 'not_found_error', 'not found');
@@ -354,6 +296,7 @@ function failed(res: ServerResponse, err: unknown): void {
 export interface RunningProxy {
   port: number;
   server: Server;
+  learned: Adaptations;
   close: () => Promise<void>;
 }
 
@@ -361,8 +304,9 @@ export function startBedrockProxy(
   cfg: BedrockConfig,
   opts: ProxyOptions,
 ): Promise<RunningProxy> {
+  const learned = freshAdaptations();
   const server = createServer((req, res) => {
-    route(req, res, cfg, opts).catch((err: unknown) => {
+    route(req, res, cfg, opts, learned).catch((err: unknown) => {
       failed(res, err);
     });
   });
@@ -374,6 +318,7 @@ export function startBedrockProxy(
       resolve({
         port,
         server,
+        learned,
         close: () =>
           new Promise<void>((done) => {
             server.close(() => {
