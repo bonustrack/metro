@@ -27,6 +27,7 @@ import {
   writeRunToken,
 } from './runtime.js';
 import { launchClaude } from './claude.js';
+import { bedrock } from './bedrock.js';
 import { installPlugin, syncPluginServers } from './plugin.js';
 import { update } from './update.js';
 import { currentVersion } from './version.js';
@@ -50,6 +51,9 @@ const USAGE = `metro — the command line for your MCP connectors
   metro plugin    set up the Claude Code plugin (connector servers + /metro:login)
   metro claude [args...]
                   open Claude Code with the metro channel; every argument is passed through
+  metro bedrock [args...]
+                  the same, with inference on Amazon Bedrock through a local proxy so the
+                  channel still works (needs AWS_BEARER_TOKEN_BEDROCK and AWS_REGION)
   metro update    update to the newest published version
   metro version   print this CLI's version
 
@@ -61,6 +65,9 @@ Start Claude Code with all of them, without writing them to disk:
   METRO_UI_URL       where the web UI lives (default https://metro.box)
   METRO_TOKEN        use this connector sign-in instead of the stored one
   METRO_RUN_TOKEN    use this runtime authorization instead of the stored one
+  METRO_BEDROCK_MODEL
+                     send every request to this Bedrock model id (default: derive from the
+                     model Claude Code asks for, e.g. eu.anthropic.claude-sonnet-4-6)
   METRO_RUNTIME_DIR  run the daemon from this directory instead of the bundled one
 `;
 
@@ -186,6 +193,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   },
   plugin: installPlugin,
   claude: () => launchClaude(process.argv.slice(3)),
+  bedrock: () => bedrock(process.argv.slice(3)),
   update,
   version: async () => {
     process.stdout.write(`${currentVersion()}\n`);
