@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -11,11 +12,17 @@ import {
 
 const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
-const USAGE = 'usage: metro serve [--port <n>]';
+const USAGE = 'usage: metro serve [--port <n>] [--tunnel]';
 
 export interface ServeOptions {
   dir: string;
   port: number;
+  tunnel: boolean;
+}
+
+export interface ServeArgs {
+  port: number;
+  tunnel: boolean;
 }
 
 function portOf(raw: string | undefined): number {
@@ -25,10 +32,15 @@ function portOf(raw: string | undefined): number {
   return n;
 }
 
-export function parseServeArgs(argv: string[]): { port: number } {
+export function parseServeArgs(argv: string[]): ServeArgs {
   let port = localPort();
+  let tunnel = false;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? '';
+    if (arg === '--tunnel') {
+      tunnel = true;
+      continue;
+    }
     const inline = PORT_FLAG.exec(arg);
     if (inline) {
       port = portOf(inline[1]);
@@ -41,7 +53,17 @@ export function parseServeArgs(argv: string[]): { port: number } {
     }
     throw new Error(`unknown argument '${arg}' — ${USAGE}`);
   }
-  return { port };
+  return { port, tunnel };
+}
+
+export function findCloudflared(): void {
+  const found = spawnSync('cloudflared', ['--version'], { stdio: 'ignore' });
+  if (found.error !== undefined || found.status !== 0)
+    throw new Error(
+      'metro serve --tunnel needs cloudflared, which is not on PATH.\n' +
+        'Install it with:  brew install cloudflared  (macOS), or from\n' +
+        'https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/downloads/',
+    );
 }
 
 export function serveStateDir(): string {
@@ -65,13 +87,15 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
       METRO_HTTP_HOST: process.env.METRO_HTTP_HOST ?? '127.0.0.1',
       METRO_TRAINS_DIR: join(opts.dir, 'trains'),
       METRO_STATE_DIR: process.env.METRO_STATE_DIR ?? serveStateDir(),
+      ...(opts.tunnel ? { METRO_TUNNEL: 'quick' } : {}),
     },
   };
 }
 
 export function serve(argv: string[]): Promise<number> {
-  const { port } = parseServeArgs(argv);
-  const plan = servePlan({ dir: runtimeDir(), port });
+  const { port, tunnel } = parseServeArgs(argv);
+  if (tunnel) findCloudflared();
+  const plan = servePlan({ dir: runtimeDir(), port, tunnel });
   process.stderr.write(
     `Starting a metro daemon of your own on http://127.0.0.1:${String(port)}\n`,
   );

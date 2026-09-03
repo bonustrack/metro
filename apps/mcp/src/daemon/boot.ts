@@ -15,9 +15,15 @@ import { installCrashGuard, markDaemonReady } from './crash-guard.js';
 import {
   loadTunnelConfig,
   Tunnel,
+  tunnelConfigFromEnv,
   warnOnLegacyWebhooks,
   webhookPort,
 } from './tunnel.js';
+import {
+  localConnectHint,
+  publicConnectHint,
+  tunnelPendingHint,
+} from './connect-hint.js';
 import { TrainSupervisor } from './supervisor.js';
 import {
   makeEmit,
@@ -39,7 +45,7 @@ import {
 import { loadAgentForRuntime, localAgentKey } from '../db/materialize.js';
 import { fileSource } from '../db/file-source.js';
 import { ensureLocalSessionSecret } from './local-secret.js';
-import { localConnectHint, localSessionApis } from './local-mode.js';
+import { localSessionApis } from './local-mode.js';
 import type { ModeInfo } from './mode-api.js';
 import type { SessionApis } from './session-apis.js';
 import {
@@ -128,8 +134,12 @@ supervisor.onTrainEvent((env, train) => {
 });
 
 let webhookServer: Server | null = null;
-const tunnelCfg = loadTunnelConfig();
-const tunnel = tunnelCfg ? new Tunnel(tunnelCfg, webhookPort()) : null;
+const tunnelCfg = loadTunnelConfig() ?? tunnelConfigFromEnv();
+const tunnel = tunnelCfg ? new Tunnel(tunnelCfg, webhookPort(), announcePublic) : null;
+
+function announcePublic(url: string): void {
+  process.stderr.write(`\n${publicConnectHint(url)}`);
+}
 
 setTrainCallBackend((train, action, args) =>
   supervisor.call(train, action, args),
@@ -140,7 +150,10 @@ const linkedSource = runtime === null ? null : httpSource(runtime);
 const localSource = linkedSource ?? (isLocalMode() ? fileSource : null);
 
 function announceLocalEndpoint(): void {
-  if (isLocalMode()) process.stderr.write(`\n${localConnectHint(webhookPort())}`);
+  if (isLocalMode())
+    process.stderr.write(
+      `\n${tunnel === null ? localConnectHint(webhookPort()) : tunnelPendingHint()}`,
+    );
   const key = localAgentKey();
   if (key === null) {
     if (isLocalMode()) log.info('no agent on this machine yet');
