@@ -251,10 +251,11 @@ tighten permissions expecting that to substitute for the hook.
 
 After this change Metro is the only way the main thread can talk to anyone, so register
 it before the guard goes live. The web UI hands out a paste-ready line for the agent's
-key; see [Connecting a client](README.md#connecting-a-client) for the endpoint shape.
+key. It names the daemon on this machine, so run `metro start <agent-id>` here first; see
+[Connecting a client](README.md#connecting-a-client) for the endpoint shape.
 
 ```sh
-claude mcp add --transport http metro "https://<your-metro-host>/mcp?token=<agent-key>"
+claude mcp add --transport http metro "http://127.0.0.1:8420/mcp?token=<agent-key>"
 ```
 
 **The server name must stay `metro`.** The hook allowlists by the tool-name glob

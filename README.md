@@ -584,11 +584,17 @@ UPDATE accounts SET allowlist = ARRAY['<sender-id>'] WHERE station='xmtp' AND ac
 
 The HTTP server serves the **MCP at the root path** (so it can sit behind its own host,
 e.g. `https://mcp.metro.box`), plus `GET /health` and the webhook receiver. Register it —
-this is the line the control panel hands you:
+this is the line the control panel hands you, and it always names the daemon on the machine
+you paste it into, so `metro start <agent-id>` there first (see
+[Running metro on your own machine](#running-metro-on-your-own-machine)):
 
 ```sh
-claude mcp add --transport http metro "https://mcp.metro.box/mcp?token=<the agent's key>"
+claude mcp add --transport http metro "http://127.0.0.1:8420/mcp?token=<the agent's key>"
 ```
+
+An agent nobody has claimed is still served by metro itself at
+`https://mcp.metro.box/mcp?token=<key>`; that is the shape for an agent that stays hosted,
+such as one holding only a webhook.
 
 Metro is a Claude Code **channel** — it pushes inbound chat into a running session. Start
 Claude Code with the channel flag:
