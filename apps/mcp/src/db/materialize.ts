@@ -229,8 +229,11 @@ export function writeIfChanged(path: string, content: string): boolean {
 export const isLocalRuntime = (): boolean =>
   (process.env.METRO_RUN_TOKEN?.trim() ?? '') !== '';
 
+export const isLocalMode = (): boolean =>
+  process.env.METRO_MODE?.trim() === 'local';
+
 export const stationRunsHere = (station: StationName): boolean =>
-  isLocalRuntime() || !MOVABLE_STATIONS.has(station);
+  isLocalRuntime() || isLocalMode() || !MOVABLE_STATIONS.has(station);
 
 interface WrittenStations {
   active: Map<StationName, number>;
@@ -331,10 +334,18 @@ async function loadAndWrite(
   return { ...writeStations(list), agents: list.length };
 }
 
-export async function materializeFrom(source: StationSource): Promise<void> {
+export interface MaterializeOptions {
+  allowEmpty?: boolean;
+}
+
+export async function materializeFrom(
+  source: StationSource,
+  opts: MaterializeOptions = {},
+): Promise<void> {
   const { active, agents: found } = await loadAndWrite(source);
 
-  if (found === 0) throw new Error('no agents found — nothing to materialize');
+  if (found === 0 && opts.allowEmpty !== true)
+    throw new Error('no agents found — nothing to materialize');
   log.info(
     { stations: stationLabels(active), agents: found },
     'materialized station accounts',

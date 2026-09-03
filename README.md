@@ -425,6 +425,13 @@ holding one is refused with a message saying so. While an agent runs locally, me
 nothing — there is no fallback, and its key stops working against metro so a client pointed at
 the wrong daemon fails loudly instead of going quiet.
 
+**Without any account** (the base of the local-first work in `docs/CLI-REDESIGN.md`): start the
+daemon with `METRO_MODE=local` and it reads its agents from `~/.metro/agents/<name>/agent.json`
+(`METRO_AGENTS_DIR` overrides the directory), each `{ "version": 1, "id", "name", "key",
+"owner", "stations": [...] }`, runs their stations on this machine and prints the paste-ready
+line for Claude Code. No Postgres, no metro.box. The commands and the UI that write those
+files are the next steps; for now the file is written by hand.
+
 One thing to know about XMTP: an inbox allows ten installations and the first start on each
 machine spends one, so metro prints a warning when it does. Restarts on the same machine reuse
 it; only pairing new machines costs.

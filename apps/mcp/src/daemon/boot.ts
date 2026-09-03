@@ -30,7 +30,12 @@ import {
   mintAgentCodeForUser,
   releaseRuntimeForUser,
 } from '../db/runtime-admin.js';
-import { loadAgentForRuntime, localAgentKey } from '../db/materialize.js';
+import {
+  isLocalMode,
+  loadAgentForRuntime,
+  localAgentKey,
+} from '../db/materialize.js';
+import { fileSource } from '../db/file-source.js';
 import {
   agentLiveness,
   closeAgentSession,
@@ -124,12 +129,14 @@ setTrainCallBackend((train, action, args) =>
 );
 
 const runtime = runtimeConfigFromEnv();
-const localSource = runtime === null ? null : httpSource(runtime);
+const linkedSource = runtime === null ? null : httpSource(runtime);
+const localSource = linkedSource ?? (isLocalMode() ? fileSource : null);
 
 function announceLocalEndpoint(): void {
   const key = localAgentKey();
   if (key === null) {
-    log.warn('this agent has no key — reset it in the web UI to connect an agent');
+    if (isLocalMode()) log.info('no agent on this machine yet');
+    else log.warn('this agent has no key — reset it in the web UI to connect an agent');
     return;
   }
   const url = `http://127.0.0.1:${String(webhookPort())}/mcp?token=${key}`;
@@ -259,7 +266,7 @@ const connectorApi: ConnectorApiDeps = {
 
 async function main(): Promise<void> {
   if (localSource === null) await materializeFromDb();
-  else await materializeFrom(localSource);
+  else await materializeFrom(localSource, { allowEmpty: linkedSource === null });
   warnOnLegacyWebhooks();
   supervisor.start();
   const metroMcp = await createMetroMcp();
@@ -278,10 +285,9 @@ async function main(): Promise<void> {
   );
   metroMcp.startInbound();
   startUploadReaper();
-  if (localSource !== null) {
+  if (linkedSource !== null)
     startRuntimePoller({ sync: syncLocal, stopAll: stopLocalStations });
-    announceLocalEndpoint();
-  }
+  if (localSource !== null) announceLocalEndpoint();
   tunnel?.start();
   log.info(
     { tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' },
