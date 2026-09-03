@@ -1,4 +1,8 @@
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { ApiError } from './api-error.js';
+import { configDir } from './paths.js';
+import { writeSecure } from './secure-fs.js';
 import { carriesSecretsSafely, httpSource } from './runtime-source.js';
 import type { LoadedAgent } from '../db/materialize.js';
 
@@ -49,6 +53,14 @@ async function claim(base: string, code: string, label: string): Promise<string>
   return token;
 }
 
+export function storeRunToken(agentId: string, token: string, url: string): string {
+  const dir = configDir();
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const path = join(dir, `runtime-${agentId}.json`);
+  writeSecure(path, `${JSON.stringify({ token, url }, null, 2)}\n`);
+  return path;
+}
+
 export async function fetchAgentWithCode(
   code: string,
   label: string,
@@ -59,5 +71,6 @@ export async function fetchAgentWithCode(
   const agent = agents[0];
   if (agent === undefined || agents.length !== 1)
     throw new ApiError('metro returned no agent for that code', 502);
+  storeRunToken(agent.id, token, base);
   return agent;
 }

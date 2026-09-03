@@ -30,6 +30,7 @@ import { fetchMode, type ModeInfo } from './mode';
 import { daemonBase } from '../auth/session';
 
 const STALE_MS = 60_000;
+const STARTING_POLL_MS = 3_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
 export const sessionKey = (): string[] => ['session'];
@@ -96,6 +97,8 @@ export function useStationsQuery(
   const client = useQueryClient();
   return useQuery({
     queryKey: stationsKey(project),
+    refetchInterval: (query) =>
+      (query.state.data?.unavailable.length ?? 0) > 0 ? STARTING_POLL_MS : false,
     queryFn: async () => {
       const next = await fetchStations(token, project);
       const prev = client.getQueryData<StationsView>(stationsKey(project));

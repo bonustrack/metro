@@ -28,13 +28,17 @@ const SPINNER_SIZE = 20;
 const NO_BROWSER_WALLET =
   'No browser wallet found. WalletConnect and Coinbase Wallet reach the wallet app on your phone; MetaMask or Rabby in this browser would show up here too.';
 
-async function signIn(choice: WalletChoice, dark: boolean): Promise<string> {
+export async function signInTo(
+  choice: WalletChoice,
+  dark: boolean,
+  base?: string,
+): Promise<string> {
   const connected = await connectWallet(choice, dark);
   try {
-    const nonce = await fetchNonce();
+    const nonce = await fetchNonce(base);
     const message = loginMessage(connected.address, nonce);
     const signature = await signWith(connected, message);
-    const token = await verifyLogin(message, signature);
+    const token = await verifyLogin(message, signature, base);
     storeRecentWallet(choice.id);
     return token;
   } finally {
@@ -55,7 +59,7 @@ function WalletIcon({ src }: { src: string | null }): ReactNode {
   );
 }
 
-function WalletRow({
+export function WalletRow({
   choice,
   busy,
   disabled,
@@ -111,7 +115,7 @@ export function Login({ onSignedIn }: LoginProps): ReactNode {
     if (busy !== null) return;
     setBusy(choice.id);
     setError(null);
-    signIn(choice, dark)
+    signInTo(choice, dark)
       .then(onSignedIn)
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Sign-in failed.');

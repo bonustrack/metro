@@ -78,8 +78,9 @@ export function rememberedProject(projects: Project[] | undefined): string | nul
   return projects.find((p) => p.isDefault)?.id ?? projects[0]?.id ?? null;
 }
 
-export async function fetchProjects(token: string): Promise<Project[]> {
-  const body = await call(token, { base: projectsUrl(), method: 'GET' });
+export async function fetchProjects(token: string, daemon?: string): Promise<Project[]> {
+  const base = daemon === undefined ? projectsUrl() : `${daemon}/api/projects`;
+  const body = await call(token, { base, method: 'GET' });
   if (!isRecord(body) || !Array.isArray(body.projects))
     throw new Error('Metro returned an unexpected response.');
   return body.projects.map(toProject);

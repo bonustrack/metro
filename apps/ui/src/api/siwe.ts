@@ -5,10 +5,10 @@ import { daemonBase } from '../auth/session';
 const EXPIRES_MS = 10 * 60_000;
 const STATEMENT = 'Sign in to Metro.';
 
-async function siwe(path: string, init?: RequestInit): Promise<unknown> {
+async function siwe(path: string, init?: RequestInit, base = daemonBase()): Promise<unknown> {
   let res: Response;
   try {
-    res = await fetch(`${daemonBase()}${path}`, init);
+    res = await fetch(`${base}${path}`, init);
   } catch {
     throw new Error('Failed to reach Metro.');
   }
@@ -22,8 +22,8 @@ async function siwe(path: string, init?: RequestInit): Promise<unknown> {
   return body;
 }
 
-export async function fetchNonce(): Promise<string> {
-  const body = await siwe('/auth/siwe/nonce');
+export async function fetchNonce(base?: string): Promise<string> {
+  const body = await siwe('/auth/siwe/nonce', undefined, base);
   if (!isRecord(body) || typeof body.nonce !== 'string')
     throw new Error('Metro returned an unexpected response.');
   return body.nonce;
@@ -50,12 +50,17 @@ export function loginMessage(
 export async function verifyLogin(
   message: string,
   signature: string,
+  base?: string,
 ): Promise<string> {
-  const body = await siwe('/auth/siwe/verify', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ message, signature }),
-  });
+  const body = await siwe(
+    '/auth/siwe/verify',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message, signature }),
+    },
+    base,
+  );
   if (!isRecord(body) || typeof body.session !== 'string')
     throw new Error('Metro returned an unexpected response.');
   return body.session;

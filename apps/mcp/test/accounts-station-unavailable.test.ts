@@ -25,7 +25,7 @@ describe('a station whose train is restarting is unavailable, not empty', () => 
     expect(accounts['telegram-bot']).toHaveLength(1);
   });
 
-  test('a station that really has no accounts is not reported unavailable', async () => {
+  test('a train answering nothing is not unavailable, and the accounts the daemon knows of still show as bare rows', async () => {
     setAgentMap(OWNED, { ['agent000001']: 'Tony' });
     setTrainCallBackend((train) =>
       Promise.resolve({
@@ -34,7 +34,18 @@ describe('a station whose train is restarting is unavailable, not empty', () => 
     );
     const { accounts, unavailable } = await gatherAccountsForAgents(new Set(['agent000001']));
     expect(unavailable).toEqual([]);
-    expect(accounts.xmtp).toEqual([]);
+    expect(accounts.xmtp).toEqual([
+      { id: 'x1', agentId: 'agent000001' },
+      { id: 'tony', agentId: 'agent000001' },
+    ]);
     expect(accounts['telegram-bot']).toHaveLength(1);
+  });
+
+  test('a station nobody holds is simply empty', async () => {
+    setAgentMap({ 'telegram-bot/t0': 'agent000001' }, { ['agent000001']: 'Tony' });
+    setTrainCallBackend(() => Promise.resolve({ result: { accounts: [] } }));
+    const { accounts, unavailable } = await gatherAccountsForAgents(new Set(['agent000001']));
+    expect(unavailable).toEqual([]);
+    expect(accounts.xmtp).toEqual([]);
   });
 });
