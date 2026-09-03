@@ -1,3 +1,4 @@
+import { webhookPort } from './tunnel.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from './log.js';
 import { publicBaseOrDefault } from './attach-serve.js';
@@ -89,10 +90,10 @@ export function mcpEndpoint(): string {
   return `${publicBaseOrDefault()}/mcp`;
 }
 
-const LOCAL_MCP_ENDPOINT = 'http://127.0.0.1:8420/mcp';
+const localMcpEndpoint = (): string => `http://127.0.0.1:${String(webhookPort())}/mcp`;
 
 export function mcpAddCommand(key: string): string {
-  const url = `${LOCAL_MCP_ENDPOINT}?token=${key}`;
+  const url = `${localMcpEndpoint()}?token=${key}`;
   return `claude mcp add --transport http ${SERVER_NAME} "${url}"`;
 }
 
@@ -105,7 +106,7 @@ interface KeyPayload {
 function credentials(key: string): KeyPayload {
   return {
     key,
-    endpoint: `${LOCAL_MCP_ENDPOINT}?token=${key}`,
+    endpoint: `${localMcpEndpoint()}?token=${key}`,
     command: mcpAddCommand(key),
   };
 }
