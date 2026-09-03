@@ -72,9 +72,14 @@ describe('a quick tunnel, against a fake cloudflared', () => {
   test('the address it prints becomes the daemon public base until it exits', async () => {
     fakeCloudflared(`printf '%s\\n' '${BANNER.replace(/'/g, '')}' >&2\nexec sleep 30`);
     const onUrl = { resolve: (_u: string): void => undefined };
-    const tunnel = new Tunnel({ quick: true }, 8420, (u) => {
-      onUrl.resolve(u);
-    });
+    const tunnel = new Tunnel(
+      { quick: true },
+      8420,
+      (u) => {
+        onUrl.resolve(u);
+      },
+      () => Promise.resolve(true),
+    );
     const url = await untilUrl(tunnel, onUrl);
     expect(url).toBe('https://tidy-words-fall-here.trycloudflare.com');
     expect(currentTunnelUrl()).toBe(url);
@@ -90,13 +95,45 @@ describe('a quick tunnel, against a fake cloudflared', () => {
     fakeCloudflared(`printf '%s\\n' '${BANNER.replace(/'/g, '')}' >&2\nexec sleep 30`);
     process.env.METRO_PUBLIC_URL = 'https://metro.example.net/';
     const onUrl = { resolve: (_u: string): void => undefined };
-    const tunnel = new Tunnel({ quick: true }, 8420, (u) => {
-      onUrl.resolve(u);
-    });
+    const tunnel = new Tunnel(
+      { quick: true },
+      8420,
+      (u) => {
+        onUrl.resolve(u);
+      },
+      () => Promise.resolve(true),
+    );
     await untilUrl(tunnel, onUrl);
     expect(publicBaseUrl()).toBe('https://metro.example.net');
     tunnel.stop();
   });
+
+  test('the link is announced only once the name resolves, and the base is live before that', async () => {
+    fakeCloudflared(`printf '%s\\n' '${BANNER.replace(/'/g, '')}' >&2\nexec sleep 30`);
+    const asked: string[] = [];
+    let announced: string | null = null;
+    let ready = false;
+    const tunnel = new Tunnel(
+      { quick: true },
+      8420,
+      (u) => {
+        announced = u;
+      },
+      (host) => {
+        asked.push(host);
+        return Promise.resolve(ready);
+      },
+    );
+    tunnel.start();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(currentTunnelUrl()).toBe('https://tidy-words-fall-here.trycloudflare.com');
+    expect(announced).toBeNull();
+    expect(asked).toEqual(['tidy-words-fall-here.trycloudflare.com']);
+    ready = true;
+    await new Promise((r) => setTimeout(r, 3_400));
+    expect(announced).toBe('https://tidy-words-fall-here.trycloudflare.com');
+    tunnel.stop();
+  }, 10_000);
 
   test('a missing cloudflared is logged once and never retried', async () => {
     process.env.PATH = bin;

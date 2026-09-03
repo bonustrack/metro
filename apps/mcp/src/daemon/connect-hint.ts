@@ -24,8 +24,7 @@ export function publicConnectHint(url: string): string {
     '',
     `  ${connectLink(url)}`,
     '',
-    'It can take a minute to become reachable. Sign in right away: the first',
-    'wallet to sign in owns this machine.',
+    'Sign in right away: the first wallet to sign in owns this machine.',
     '',
   ].join('\n');
 }

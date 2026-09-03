@@ -1,5 +1,6 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
+import { Resolver } from 'node:dns/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { STATE_DIR } from './paths.js';
@@ -34,6 +35,31 @@ export const quickTunnelUrlIn = (text: string): string | null =>
 let liveUrl: string | null = null;
 
 export const currentTunnelUrl = (): string | null => liveUrl;
+
+export type Resolves = (host: string) => Promise<boolean>;
+
+const PUBLIC_RESOLVERS = ['1.1.1.1', '1.0.0.1'];
+const RESOLVE_EVERY_MS = 3_000;
+const RESOLVE_GIVE_UP_MS = 180_000;
+
+export async function resolvesAtCloudflare(host: string): Promise<boolean> {
+  const resolver = new Resolver();
+  resolver.setServers(PUBLIC_RESOLVERS);
+  try {
+    return (await resolver.resolve4(host)).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function untilResolvable(host: string, resolves: Resolves): Promise<boolean> {
+  const deadline = Date.now() + RESOLVE_GIVE_UP_MS;
+  while (Date.now() < deadline) {
+    if (await resolves(host)) return true;
+    await new Promise((r) => setTimeout(r, RESOLVE_EVERY_MS));
+  }
+  return false;
+}
 
 export function configuredTunnelHost(): string | null {
   const cfg = loadTunnelConfig();
@@ -138,6 +164,7 @@ export class Tunnel {
     private cfg: TunnelConfig,
     private port: number,
     private onUrl: (url: string) => void = () => undefined,
+    private resolves: Resolves = resolvesAtCloudflare,
   ) {}
 
   get hostname(): string {
@@ -171,7 +198,16 @@ export class Tunnel {
     const url = quickTunnelUrlIn(text);
     if (url === null || url === liveUrl) return;
     liveUrl = url;
-    log.info({ url }, 'quick tunnel up');
+    log.info({ url }, 'quick tunnel up; waiting for its name to resolve');
+    this.announceWhenResolvable(url).catch((err: unknown) => {
+      log.warn({ err: errMsg(err) }, 'quick tunnel: announce failed');
+    });
+  }
+
+  private async announceWhenResolvable(url: string): Promise<void> {
+    const resolved = await untilResolvable(new URL(url).host, this.resolves);
+    if (liveUrl !== url) return;
+    if (!resolved) log.warn({ url }, 'quick tunnel name still not resolving; announcing anyway');
     this.onUrl(url);
   }
 
