@@ -13,11 +13,6 @@ export function daemonBase(): string {
   }
 }
 
-export function startLoginUrl(): string {
-  const returnTo = window.location.origin + window.location.pathname;
-  return `${daemonBase()}/auth/google/start?return_to=${encodeURIComponent(returnTo)}`;
-}
-
 export function storedSession(): string | null {
   try {
     const v = window.localStorage.getItem(STORAGE_KEY);
@@ -61,7 +56,7 @@ export function clearSession(): void {
 }
 
 export interface SessionClaims {
-  email: string;
+  subject: string;
   expiresAt: number;
 }
 
@@ -86,31 +81,10 @@ export function sessionClaims(token: string): SessionClaims | null {
   if (raw === null) return null;
   const { sub, exp } = raw;
   if (typeof sub !== 'string' || typeof exp !== 'number') return null;
-  return { email: sub, expiresAt: exp * 1000 };
+  return { subject: sub, expiresAt: exp * 1000 };
 }
 
 export function sessionIsFresh(token: string, now = Date.now()): boolean {
   const claims = sessionClaims(token);
   return claims !== null && claims.expiresAt - EXP_SKEW_MS > now;
-}
-
-export interface FragmentResult {
-  session?: string;
-  error?: string;
-}
-
-export function consumeFragment(): FragmentResult {
-  const hash = window.location.hash.replace(/^#/, '');
-  if (hash === '') return {};
-  const params = new URLSearchParams(hash);
-  const session = params.get('session');
-  const error = params.get('error');
-  if (session !== null || error !== null) {
-    const clean = window.location.pathname + window.location.search;
-    window.history.replaceState(null, '', clean);
-  }
-  return {
-    session: session ?? undefined,
-    error: error ?? undefined,
-  };
 }

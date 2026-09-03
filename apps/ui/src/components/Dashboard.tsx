@@ -19,7 +19,7 @@ import { useIsNarrow } from '../media';
 interface FrameProps {
   token: string;
   project: string;
-  email: string;
+  subject: string;
   selection: Selection;
   onSelect: (next: Selection) => void;
   onLock: () => void;
@@ -28,7 +28,7 @@ interface FrameProps {
 function Frame({
   token,
   project,
-  email,
+  subject,
   selection,
   onSelect,
   onLock,
@@ -53,7 +53,7 @@ function Frame({
           token={token}
           project={project}
           selection={selection}
-          email={email}
+          subject={subject}
           onSelect={(next) => {
             setMenuOpen(false);
             onSelect(next);
@@ -69,11 +69,11 @@ function Frame({
 
 interface DashboardProps {
   token: string;
-  email: string;
+  subject: string;
   onLock: () => void;
 }
 
-export function Dashboard({ token, email, onLock }: DashboardProps): ReactNode {
+export function Dashboard({ token, subject, onLock }: DashboardProps): ReactNode {
   const [selection, setSelection] = useState<Selection>(currentSelection);
   const { data } = useProjectsQuery(token);
   const hash = routeHash(selection);
@@ -106,7 +106,7 @@ export function Dashboard({ token, email, onLock }: DashboardProps): ReactNode {
     <Frame
       token={token}
       project={project}
-      email={email}
+      subject={subject}
       selection={selection}
       onSelect={onSelect}
       onLock={onLock}

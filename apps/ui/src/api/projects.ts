@@ -14,9 +14,14 @@ export interface Project {
 
 export interface Member {
   id: string;
-  email: string;
+  address: string | null;
+  email: string | null;
   role: ProjectRole;
   owner: boolean;
+}
+
+export function memberLabel(member: Member): string {
+  return member.address ?? member.email ?? member.id;
 }
 
 const projectsUrl = (): string => `${daemonBase()}/api/projects`;
@@ -44,12 +49,16 @@ function toProject(value: unknown): Project {
   };
 }
 
+const text = (value: unknown): string | null =>
+  typeof value === 'string' && value !== '' ? value : null;
+
 function toMember(value: unknown): Member {
-  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.email !== 'string')
+  if (!isRecord(value) || typeof value.id !== 'string')
     throw new Error('Metro returned an unexpected response.');
   return {
     id: value.id,
-    email: value.email,
+    address: text(value.address),
+    email: text(value.email),
     role: toRole(value.role),
     owner: value.owner === true,
   };
@@ -120,7 +129,7 @@ export async function fetchMembers(
 export async function addMember(
   token: string,
   id: string,
-  email: string,
+  address: string,
   role: ProjectRole,
 ): Promise<Member[]> {
   return membersOf(
@@ -128,7 +137,7 @@ export async function addMember(
       base: projectsUrl(),
       method: 'POST',
       path: `/${id}/members`,
-      ...json({ email, role }),
+      ...json({ address, role }),
     }),
   );
 }

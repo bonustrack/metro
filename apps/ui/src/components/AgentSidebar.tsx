@@ -18,7 +18,7 @@ interface AgentSidebarProps {
   token: string;
   project: string;
   selection: Selection;
-  email: string;
+  subject: string;
   onSelect: (selection: Selection) => void;
   onLock: () => void;
 }
@@ -27,7 +27,7 @@ export function AgentSidebar({
   token,
   project,
   selection,
-  email,
+  subject,
   onSelect,
   onLock,
 }: AgentSidebarProps): ReactNode {
@@ -85,7 +85,7 @@ export function AgentSidebar({
       <SidebarFooter
         token={token}
         project={project}
-        email={email}
+        subject={subject}
         selection={selection}
         onSelect={onSelect}
         onLock={onLock}

@@ -110,23 +110,23 @@ is attributed to it. That is what keeps this UI working against a daemon that pr
 `agentId` field; with more than one agent visible such rows are counted and reported instead
 of shown.
 
-Sign-in is open to any Google account with a verified email, on any domain, and there is no
-cap on how many agents one email owns. Deletion is owner-only and keyed on `agents.id`:
-someone else's agent id is a `404`, and so is an operator-provisioned row
-(`owner_id IS NULL`).
+Sign-in is Sign-In with Ethereum: any wallet may sign in (browser extensions found through
+EIP-6963, WalletConnect, Coinbase Wallet), and there is no cap on how many agents one
+address owns. Deletion is owner-only and keyed on `agents.id`: someone else's agent id is a
+`404`.
 
 ## Config
 
-- `VITE_METRO_MCP_URL` — the daemon base URL (default `https://mcp.metro.box`); its origin
-  is also where the sign-in redirect and `/api/agents` point.
+- `VITE_METRO_MCP_URL` — the daemon base URL (default `https://mcp.metro.box`); the sign-in
+  routes and `/api/agents` live there.
+- `VITE_WC_PROJECT_ID` — overrides the built-in Reown project id used by WalletConnect.
 
-The daemon (apps/mcp) needs `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` and
-`METRO_SESSION_SECRET` (see repo `.env.example`).
+The daemon (apps/mcp) needs `METRO_SESSION_SECRET` (see repo `.env.example`).
 
 ## Run locally
 
 ```
-# terminal 1: a Metro daemon on :8420 (DATABASE_URL + the Google/session envs above)
+# terminal 1: a Metro daemon on :8420 (DATABASE_URL + METRO_SESSION_SECRET)
 bun apps/mcp/src/server.ts
 
 # terminal 2

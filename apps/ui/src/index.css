@@ -415,3 +415,8 @@ textarea:focus-visible {
     animation: none;
   }
 }
+
+.wallet-icon {
+  border-radius: 2px;
+  flex-shrink: 0;
+}

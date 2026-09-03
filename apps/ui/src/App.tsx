@@ -15,29 +15,18 @@ import { atLogin, goToLogin, leaveLogin } from './auth/login-route';
 import { pageTitle } from './title';
 import {
   clearSession,
-  consumeFragment,
   sessionIsFresh,
   storeSession,
   storedSession,
 } from './auth/session';
 
-type State =
-  | { phase: 'login'; error: string | null }
-  | { phase: 'unlocked'; token: string };
+type State = { phase: 'login' } | { phase: 'unlocked'; token: string };
 
 function initialState(): State {
-  const frag = consumeFragment();
-  if (frag.session !== undefined) {
-    storeSession(frag.session);
-    leaveLogin();
-    return { phase: 'unlocked', token: frag.session };
-  }
-  if (frag.error !== undefined)
-    return { phase: 'login', error: 'Sign-in failed. Please try again.' };
   const stored = storedSession();
   return stored !== null && sessionIsFresh(stored)
     ? { phase: 'unlocked', token: stored }
-    : { phase: 'login', error: null };
+    : { phase: 'login' };
 }
 
 function Unreachable({ onRetry }: { onRetry: () => void }): ReactNode {
@@ -56,12 +45,12 @@ interface GateProps {
 }
 
 function Gate({ token, onLock }: GateProps): ReactNode {
-  const { data: email, error, refetch } = useSessionQuery(token);
+  const { data: subject, error, refetch } = useSessionQuery(token);
   const projects = useProjectsQuery(token);
 
   useEffect(() => {
-    if (email === undefined) document.title = pageTitle(null);
-  }, [email]);
+    if (subject === undefined) document.title = pageTitle(null);
+  }, [subject]);
 
   if (error !== null)
     return (
@@ -71,10 +60,10 @@ function Gate({ token, onLock }: GateProps): ReactNode {
         }}
       />
     );
-  if (email === undefined) return <BootLoading />;
+  if (subject === undefined) return <BootLoading />;
   if (projects.data === undefined && projects.error === null)
     return <BootLoading />;
-  return <Dashboard token={token} email={email} onLock={onLock} />;
+  return <Dashboard token={token} subject={subject} onLock={onLock} />;
 }
 
 export function App(): ReactNode {
@@ -82,13 +71,19 @@ export function App(): ReactNode {
 
   const lock = (): void => {
     clearSession();
-    setState({ phase: 'login', error: null });
+    setState({ phase: 'login' });
+  };
+
+  const unlock = (token: string): void => {
+    storeSession(token);
+    leaveLogin();
+    setState({ phase: 'unlocked', token });
   };
 
   const [client] = useState(() =>
     makeQueryClient(() => {
       clearSession();
-      setState({ phase: 'login', error: null });
+      setState({ phase: 'login' });
     }),
   );
 
@@ -104,7 +99,7 @@ export function App(): ReactNode {
     <div className="app-root">
       <QueryClientProvider client={client}>
         {state.phase === 'login' ? (
-          <Login error={state.error} />
+          <Login onSignedIn={unlock} />
         ) : (
           <Gate token={state.token} onLock={lock} />
         )}

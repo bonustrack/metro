@@ -23,7 +23,7 @@ export interface AgentSummary {
 }
 
 export interface AgentsView {
-  email: string;
+  subject: string;
   endpoint: string;
   agents: AgentSummary[];
 }
@@ -130,7 +130,7 @@ function toCapabilities(value: unknown): Record<string, string[]> {
 
 function toAgentsView(body: Record<string, unknown>): AgentsView {
   return {
-    email: typeof body.email === 'string' ? body.email : '',
+    subject: typeof body.subject === 'string' ? body.subject : '',
     endpoint: typeof body.endpoint === 'string' ? body.endpoint : '',
     agents: toAgents(body.agents),
   };
@@ -138,9 +138,9 @@ function toAgentsView(body: Record<string, unknown>): AgentsView {
 
 export async function fetchSession(token: string): Promise<string> {
   const body = await call(token, { base: sessionUrl(), method: 'GET' });
-  if (!isRecord(body) || typeof body.email !== 'string')
+  if (!isRecord(body) || typeof body.subject !== 'string')
     throw new Error('Metro returned an unexpected response.');
-  return body.email;
+  return body.subject;
 }
 
 export async function fetchAgents(

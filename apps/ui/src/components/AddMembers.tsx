@@ -7,16 +7,17 @@ import { GROW } from '../theme';
 import { Modal } from './Modal';
 import { addMember, type ProjectRole } from '../api/projects';
 import { queryError } from '../api/queries';
+import { isAddress } from '../api/address';
 
 const SEPARATORS = /[\s,;]+/;
 const ROLES: ProjectRole[] = ['member', 'admin'];
-const PLACEHOLDER = 'ada@example.com, grace@example.com';
+const PLACEHOLDER = '0x…, one Ethereum address per member';
 
 export function addressesIn(raw: string): string[] {
   const seen = new Set<string>();
   for (const part of raw.split(SEPARATORS)) {
     const address = part.trim().toLowerCase();
-    if (address !== '') seen.add(address);
+    if (isAddress(address)) seen.add(address);
   }
   return [...seen];
 }
@@ -120,7 +121,7 @@ export function AddMembers({
     <Modal title="Add members" open={open} onClose={close}>
       <Col gap={14}>
         <Textarea
-          name="member-emails"
+          name="member-addresses"
           value={raw}
           placeholder={PLACEHOLDER}
           rows={3}

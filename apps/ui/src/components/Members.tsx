@@ -12,7 +12,8 @@ import { CountBadge } from './CountBadge';
 import { KebabMenu } from './KebabMenu';
 import { Loading } from './Loading';
 import { AddMembers } from './AddMembers';
-import { removeMember, setMemberRole, type Member } from '../api/projects';
+import { memberLabel, removeMember, setMemberRole, type Member } from '../api/projects';
+import { shortAddress } from '../api/address';
 import { queryError, refreshProjects, useMembersQuery } from '../api/queries';
 import { useDocumentTitle } from '../title';
 
@@ -42,7 +43,7 @@ function MemberRow({
     >
       <Row gap={10} align="center" flex={1} minWidth={0}>
         <Text size="lg" weight="semibold" numberOfLines={1}>
-          {member.email}
+          {shortAddress(memberLabel(member))}
         </Text>
         <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
           {member.owner ? 'owner' : member.role}
@@ -52,7 +53,7 @@ function MemberRow({
         <Row width={KEBAB_LG} height={KEBAB_LG} />
       ) : (
         <KebabMenu
-          label={`Actions for ${member.email}`}
+          label={`Actions for ${memberLabel(member)}`}
           size="lg"
           items={[
             {

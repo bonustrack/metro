@@ -7,11 +7,12 @@ import { Text } from './ui';
 import { SHRINK } from '../theme';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { type Selection } from './selection';
+import { shortAddress } from '../api/address';
 
 interface SidebarFooterProps {
   token: string;
   project: string;
-  email: string;
+  subject: string;
   selection: Selection;
   onSelect: (selection: Selection) => void;
   onLock: () => void;
@@ -20,7 +21,7 @@ interface SidebarFooterProps {
 export function SidebarFooter({
   token,
   project,
-  email,
+  subject,
   selection,
   onSelect,
   onLock,
@@ -50,9 +51,9 @@ export function SidebarFooter({
         ]}
       >
         <Row {...NAV_ROW_BOX}>
-          <AgentAvatar seed={email} size={NAV_ICON_SIZE} />
+          <AgentAvatar seed={subject} size={NAV_ICON_SIZE} />
           <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>
-            {email}
+            {shortAddress(subject)}
           </Text>
         </Row>
       </Dropdown>
