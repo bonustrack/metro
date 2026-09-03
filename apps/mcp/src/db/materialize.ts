@@ -108,24 +108,6 @@ export function unmovableStations(list: LoadedAccount[]): StationName[] {
   ];
 }
 
-export interface StationRecord {
-  id: string;
-  agentId: string;
-  station: StationName;
-}
-
-export async function listAllStations(): Promise<StationRecord[]> {
-  if (!databaseUrl()) return [];
-  const rows = await getDb()
-    .select({
-      id: stations.id,
-      agentId: stations.agentId,
-      station: stations.station,
-    })
-    .from(stations);
-  return rows;
-}
-
 export async function loadAllStationsFor(
   agentId: string,
 ): Promise<LoadedAccount[]> {

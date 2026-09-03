@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleSessionApis, type SessionApis } from '../src/daemon/session-apis.js';
@@ -25,7 +25,12 @@ const TONY = {
     { station: 'xmtp', id: 'stn00000002', allowlist: ['*'], config: { privateKey: '0x1', dbPath: '~/.metro/x.db3' } },
   ],
 };
-const saved = { dir: process.env.METRO_AGENTS_DIR, secret: process.env.METRO_SESSION_SECRET, url: process.env.METRO_URL };
+const saved = {
+  dir: process.env.METRO_AGENTS_DIR,
+  secret: process.env.METRO_SESSION_SECRET,
+  url: process.env.METRO_URL,
+  config: process.env.METRO_CONFIG_DIR,
+};
 let dir = '';
 let metro: Server;
 let local: Server;
@@ -81,6 +86,7 @@ const listen = (server: Server): Promise<string> =>
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-import-'));
   process.env.METRO_AGENTS_DIR = dir;
+  process.env.METRO_CONFIG_DIR = join(dir, 'config');
   delete process.env.METRO_SESSION_SECRET;
   secret = ensureLocalSessionSecret(dir);
   setKeyMap([]);
@@ -113,6 +119,7 @@ afterAll(() => {
     ['METRO_AGENTS_DIR', saved.dir],
     ['METRO_SESSION_SECRET', saved.secret],
     ['METRO_URL', saved.url],
+    ['METRO_CONFIG_DIR', saved.config],
   ] as const)
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
@@ -159,6 +166,12 @@ describe('importing an agent from metro.box into a local daemon', () => {
     expect(file.stations[1]?.config).toEqual({ privateKey: '0x1', dbPath: '~/.metro/x.db3' });
     expect(agentIdForKey(TONY_KEY)).toBe(TONY.id);
     expect(synced.sort()).toEqual(['telegram-bot', 'xmtp']);
+    const stored = JSON.parse(readFileSync(join(dir, 'config', `runtime-${TONY.id}.json`), 'utf8')) as {
+      token: string;
+      url: string;
+    };
+    expect(stored).toEqual({ token: 'rt-1', url: process.env.METRO_URL });
+    expect((statSync(join(dir, 'config', `runtime-${TONY.id}.json`)).mode & 0o777).toString(8)).toBe('600');
     const list = (await (await fetch(`${base}/api/agents?project=localdaemon`, {
       headers: { authorization: `Bearer ${session(OWNER)}` },
     })).json()) as { agents: { id: string; key: string }[] };

@@ -5,12 +5,8 @@ import {
 } from '../stations/registry.js';
 import { listEndpoints } from '../daemon/tunnel.js';
 import { hookUrl } from '../stations/attach.js';
-import { agentIdForAccount } from '../db/agent-map.js';
-import {
-  listAllStations,
-  stationRunsHere,
-  type StationRecord,
-} from '../db/materialize.js';
+import { agentIdForAccount, knownAccounts, type KnownAccount } from '../db/agent-map.js';
+import { stationRunsHere } from '../db/materialize.js';
 import { type StationName } from '../db/schema.js';
 
 const accountId = (acc: unknown): string | undefined => {
@@ -99,7 +95,7 @@ async function liveAccounts(
 function mergeKnown(
   station: string,
   live: unknown[],
-  known: StationRecord[],
+  known: KnownAccount[],
 ): unknown[] {
   const seen = new Set(
     live.flatMap((row) => {
@@ -116,12 +112,12 @@ function mergeKnown(
 async function loadStations(): Promise<ScopedAccounts> {
   const unavailable: string[] = [];
   const accounts: Record<string, unknown[]> = {};
-  const known = await listAllStations();
+  const known = knownAccounts();
   await Promise.all(
     accountStationNames().map(async (station) => {
       const { rows, reachable } = await liveAccounts(station);
       if (!reachable) unavailable.push(station);
-      accounts[station] = mergeKnown(station, rows, known);
+      accounts[station] = hasTrain(station) ? mergeKnown(station, rows, known) : rows;
     }),
   );
   return { accounts, unavailable };

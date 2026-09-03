@@ -146,8 +146,13 @@ export async function fetchSession(token: string): Promise<string> {
 export async function fetchAgents(
   token: string,
   project: string,
+  daemon?: string,
 ): Promise<AgentsView> {
-  const body = await call(token, { method: 'GET', path: `?project=${project}` });
+  const body = await call(token, {
+    method: 'GET',
+    path: `?project=${project}`,
+    ...(daemon === undefined ? {} : { base: `${daemon}/api/agents` }),
+  });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   return toAgentsView(body);
 }

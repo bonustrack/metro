@@ -73,8 +73,13 @@ export async function setAgentConnectors(
 export async function mintAgentCode(
   token: string,
   agentId: string,
+  daemon?: string,
 ): Promise<AgentCode> {
-  const body = await call(token, { method: 'POST', path: `/${agentId}/code` });
+  const body = await call(token, {
+    method: 'POST',
+    path: `/${agentId}/code`,
+    ...(daemon === undefined ? {} : { base: `${daemon}/api/agents` }),
+  });
   if (
     !isRecord(body) ||
     typeof body.code !== 'string' ||

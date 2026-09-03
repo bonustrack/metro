@@ -45,6 +45,19 @@ export function agentForLine(line: string): string | undefined {
   return id === undefined ? undefined : agentNames[id];
 }
 
+export interface KnownAccount {
+  station: string;
+  id: string;
+  agentId: string;
+}
+
+export function knownAccounts(): KnownAccount[] {
+  return Object.entries(agentMap).flatMap(([key, agentId]) => {
+    const cut = key.indexOf('/');
+    return cut === -1 ? [] : [{ station: key.slice(0, cut), id: key.slice(cut + 1), agentId }];
+  });
+}
+
 export function stationAgentIds(station: string): string[] {
   const prefix = `${station}/`;
   return Object.entries(agentMap)
