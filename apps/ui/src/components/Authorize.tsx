@@ -11,17 +11,19 @@ import { MetroLogo } from './MetroLogo';
 import { PageTitle } from './PageTitle';
 import { CopyBlock } from './CopyBlock';
 import { Loading } from './Loading';
-import { mintCollectionCode, type Collection } from '../api/collections';
+import { mintAgentCode, type AgentCode } from '../api/agent-connectors';
+import { type AgentSummary } from '../api/client';
 import { rememberedProject, type Project } from '../api/projects';
-import {
-  queryError,
-  useCollectionsQuery,
-  useProjectsQuery,
-} from '../api/queries';
+import { queryError, useAgentsQuery, useProjectsQuery } from '../api/queries';
 import { useDocumentTitle } from '../title';
 
 const CARD_WIDTH = 460;
-const EMPTY = 'This project has no collections yet.';
+const TITLE = 'Authorize a machine';
+const EMPTY = 'This project has no agents yet.';
+const HOW =
+  'Paste it into the terminal waiting on metro login or metro start. It works once and expires after ten minutes.';
+const HOW_ONE =
+  'Paste the code into the terminal waiting on metro start: that machine then runs the stations of this agent, so their messages never pass through Metro. The same code signs a machine in with metro login.';
 
 function Card({ children }: { children: ReactNode }): ReactNode {
   const palette = useKitPalette();
@@ -40,7 +42,7 @@ function Card({ children }: { children: ReactNode }): ReactNode {
           <MetroLogo size={48} color={palette.link} />
         </Row>
         <Row justify="center">
-          <PageTitle>Authorize a machine</PageTitle>
+          <PageTitle>{TITLE}</PageTitle>
         </Row>
         {children}
       </Col>
@@ -51,13 +53,13 @@ function Card({ children }: { children: ReactNode }): ReactNode {
 function Choice({
   name,
   detail,
-  busy,
+  disabled,
   label,
   onPick,
 }: {
   name: string;
   detail: string;
-  busy: boolean;
+  disabled: boolean;
   label: string;
   onPick: () => void;
 }): ReactNode {
@@ -83,7 +85,7 @@ function Choice({
         size="md"
         color="primary"
         dark={dark}
-        disabled={busy}
+        disabled={disabled}
         label={label}
         onPress={onPick}
       />
@@ -91,46 +93,64 @@ function Choice({
   );
 }
 
-function CollectionChoices({
-  token,
-  project,
-  onMinted,
-}: {
-  token: string;
-  project: string;
-  onMinted: (code: string, name: string) => void;
-}): ReactNode {
-  const { data, error } = useCollectionsQuery(token, project);
+interface Minting {
+  busy: boolean;
+  failed: string | null;
+  code: AgentCode | null;
+  mint: (agentId: string) => void;
+  reset: () => void;
+}
+
+function useMint(token: string): Minting {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-
-  const pick = (collection: Collection): void => {
+  const [code, setCode] = useState<AgentCode | null>(null);
+  const mint = (agentId: string): void => {
     if (busy) return;
     setBusy(true);
     setFailed(null);
-    mintCollectionCode(token, collection.id)
-      .then((minted) => {
-        onMinted(minted.code, minted.collection);
-      })
+    mintAgentCode(token, agentId)
+      .then(setCode)
       .catch((err: unknown) => {
-        setFailed(queryError(err, 'Could not create a code.'));
+        setFailed(queryError(err, 'Could not create a pairing code.'));
       })
       .finally(() => {
         setBusy(false);
       });
   };
+  const reset = (): void => {
+    setCode(null);
+  };
+  return { busy, failed, code, mint, reset };
+}
 
-  const rows = data ?? [];
+function agentDetail(agent: AgentSummary): string {
+  const n = agent.connectorIds.length;
+  const connectors = `${String(n)} connector${n === 1 ? '' : 's'}`;
+  return agent.owned ? connectors : `${connectors} · not owned`;
+}
+
+function AgentChoices({
+  token,
+  project,
+  minting,
+}: {
+  token: string;
+  project: string;
+  minting: Minting;
+}): ReactNode {
+  const { data, error } = useAgentsQuery(token, project);
+  const rows = data?.agents ?? [];
   return (
     <Col>
-      {failed === null ? null : (
+      {minting.failed === null ? null : (
         <Text size="sm" role="danger">
-          {failed}
+          {minting.failed}
         </Text>
       )}
       {error === null ? null : (
         <Text size="sm" role="danger">
-          {queryError(error, 'Could not load the collections.')}
+          {queryError(error, 'Could not load the agents.')}
         </Text>
       )}
       {data === undefined && error === null ? <Loading /> : null}
@@ -139,15 +159,15 @@ function CollectionChoices({
           {EMPTY}
         </Text>
       ) : null}
-      {rows.map((collection) => (
+      {rows.map((agent) => (
         <Choice
-          key={collection.id}
-          name={collection.name}
-          detail={`${String(collection.connectorIds.length)} connector${collection.connectorIds.length === 1 ? '' : 's'}`}
-          busy={busy}
+          key={agent.id}
+          name={agent.name}
+          detail={agentDetail(agent)}
+          disabled={minting.busy || !agent.owned}
           label="Authorize"
           onPick={() => {
-            pick(collection);
+            minting.mint(agent.id);
           }}
         />
       ))}
@@ -157,20 +177,25 @@ function CollectionChoices({
 
 function Minted({
   code,
-  name,
+  again,
   onAgain,
 }: {
-  code: string;
-  name: string;
+  code: AgentCode;
+  again: string;
   onAgain: () => void;
 }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={16}>
       <Col gap={4}>
-        <CopyBlock label={`Code for '${name}'`} value={code} />
+        <CopyBlock
+          label={`Code for '${code.agent}'`}
+          value={code.code}
+          secret
+          hide={code.code}
+        />
         <Text size="sm" role="secondary">
-          Paste this into the terminal waiting on metro login.
+          {HOW}
         </Text>
       </Col>
       <Button
@@ -178,7 +203,7 @@ function Minted({
         size="md"
         color="secondary"
         dark={dark}
-        label="Authorize another"
+        label={again}
         onPress={onAgain}
       />
     </Col>
@@ -202,7 +227,7 @@ function Picker({
           key={project.id}
           name={project.name}
           detail={project.isDefault ? 'default project' : project.role}
-          busy={false}
+          disabled={false}
           label="Choose"
           onPick={() => {
             onPick(project);
@@ -213,12 +238,11 @@ function Picker({
   );
 }
 
-export function Authorize({ token }: { token: string }): ReactNode {
+function AgentChooser({ token }: { token: string }): ReactNode {
   const { data, error } = useProjectsQuery(token);
   const [picked, setPicked] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
-  const [code, setCode] = useState<{ value: string; name: string } | null>(null);
-  useDocumentTitle('Authorize a machine');
+  const minting = useMint(token);
 
   const projects = data ?? [];
   const projectId = picked ?? rememberedProject(data);
@@ -238,15 +262,13 @@ export function Authorize({ token }: { token: string }): ReactNode {
         <Loading />
       </Card>
     );
-  if (code !== null)
+  if (minting.code !== null)
     return (
       <Card>
         <Minted
-          code={code.value}
-          name={code.name}
-          onAgain={() => {
-            setCode(null);
-          }}
+          code={minting.code}
+          again="Authorize another"
+          onAgain={minting.reset}
         />
       </Card>
     );
@@ -278,14 +300,66 @@ export function Authorize({ token }: { token: string }): ReactNode {
             }}
           />
         </Row>
-        <CollectionChoices
-          token={token}
-          project={current.id}
-          onMinted={(value, name) => {
-            setCode({ value, name });
+        <AgentChoices token={token} project={current.id} minting={minting} />
+      </Col>
+    </Card>
+  );
+}
+
+function AgentAuthorize({
+  token,
+  id,
+}: {
+  token: string;
+  id: string;
+}): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const minting = useMint(token);
+  const code = minting.code;
+  return (
+    <Card>
+      <Col gap={14}>
+        <Text size="sm" role="secondary">
+          {HOW_ONE}
+        </Text>
+        <CopyBlock label="on your machine" value={`metro start ${id}`} />
+        {code === null ? null : (
+          <CopyBlock
+            label={`pairing code for '${code.agent}'`}
+            value={code.code}
+            secret
+            hide={code.code}
+          />
+        )}
+        {minting.failed === null ? null : (
+          <Text size="sm" role="danger">
+            {minting.failed}
+          </Text>
+        )}
+        <Button
+          block
+          size="md"
+          color="primary"
+          dark={dark}
+          loading={minting.busy}
+          label={code === null ? 'Authorize this machine' : 'New code'}
+          onPress={() => {
+            minting.mint(id);
           }}
         />
       </Col>
     </Card>
   );
+}
+
+export function Authorize({
+  token,
+  id,
+}: {
+  token: string;
+  id: string | null;
+}): ReactNode {
+  useDocumentTitle(TITLE);
+  if (id === null) return <AgentChooser token={token} />;
+  return <AgentAuthorize token={token} id={id} />;
 }

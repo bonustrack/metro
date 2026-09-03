@@ -6,35 +6,31 @@ const ACCOUNT = '[A-Za-z0-9_-]{1,64}';
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const AUTHORIZE_PATH = /^#?\/authorize$/;
-const MACHINE_PATH = new RegExp(`^#?/authorize/(${ID})$`);
+const AGENT_AUTHORIZE_PATH = new RegExp(`^#?/authorize/(${ID})$`);
 
 const AGENTS_PATH = new RegExp(`^#?/(${ID})$`);
 const AGENT_PATH = new RegExp(`^#?/(${ID})/agent/(${ID})$`);
 const STATION_PATH = new RegExp(`^#?/(${ID})/station/(${ACCOUNT})$`);
 const CONNECTORS_PATH = new RegExp(`^#?/(${ID})/connectors$`);
 const CONNECTOR_PATH = new RegExp(`^#?/(${ID})/connector/(${ID})$`);
-const COLLECTIONS_PATH = new RegExp(`^#?/(${ID})/collections$`);
-const COLLECTION_PATH = new RegExp(`^#?/(${ID})/collection/(${ID})$`);
 const MEMBERS_PATH = new RegExp(`^#?/(${ID})/members$`);
 const PROJECT_PATH = new RegExp(`^#?/(${ID})/settings$`);
 
 const EXACT: [RegExp, Selection][] = [
   [DOCS_PATH, { kind: 'docs' }],
   [SETTINGS_PATH, { kind: 'settings' }],
-  [AUTHORIZE_PATH, { kind: 'authorize' }],
+  [AUTHORIZE_PATH, { kind: 'authorize', id: null }],
 ];
 
 const SCOPED: [RegExp, (project: string, id: string) => Selection][] = [
   [AGENT_PATH, (project, id) => ({ kind: 'agent', project, id })],
   [STATION_PATH, (project, accountId) => ({ kind: 'station', project, accountId })],
   [CONNECTOR_PATH, (project, id) => ({ kind: 'connector', project, id })],
-  [COLLECTION_PATH, (project, id) => ({ kind: 'collection', project, id })],
 ];
 
 const PAGES: [RegExp, (value: string) => Selection][] = [
-  [MACHINE_PATH, (id) => ({ kind: 'machine', id })],
+  [AGENT_AUTHORIZE_PATH, (id) => ({ kind: 'authorize', id })],
   [CONNECTORS_PATH, (project) => ({ kind: 'connectors', project })],
-  [COLLECTIONS_PATH, (project) => ({ kind: 'collections', project })],
   [MEMBERS_PATH, (project) => ({ kind: 'members', project })],
   [PROJECT_PATH, (project) => ({ kind: 'project', project })],
   [AGENTS_PATH, (project) => ({ kind: 'agents', project })],
@@ -57,20 +53,18 @@ export function routeSelection(hash: string): Selection {
 const SUFFIX: Record<string, (s: Selection) => string> = {
   agents: () => '',
   connectors: () => '/connectors',
-  collections: () => '/collections',
   members: () => '/members',
   project: () => '/settings',
-  agent: (s) => `/agent/${'id' in s ? s.id : ''}`,
-  connector: (s) => `/connector/${'id' in s ? s.id : ''}`,
-  collection: (s) => `/collection/${'id' in s ? s.id : ''}`,
-  station: (s) => `/station/${'accountId' in s ? s.accountId : ''}`,
+  agent: (s) => `/agent/${s.kind === 'agent' ? s.id : ''}`,
+  connector: (s) => `/connector/${s.kind === 'connector' ? s.id : ''}`,
+  station: (s) => `/station/${s.kind === 'station' ? s.accountId : ''}`,
 };
 
 export function routeHash(selection: Selection): string {
   if (selection.kind === 'docs') return '#/docs/setup';
   if (selection.kind === 'settings') return '#/settings';
-  if (selection.kind === 'authorize') return '#/authorize';
-  if (selection.kind === 'machine') return `#/authorize/${selection.id}`;
+  if (selection.kind === 'authorize')
+    return selection.id === null ? '#/authorize' : `#/authorize/${selection.id}`;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return '#/';
   return `#/${selection.project}${suffix(selection)}`;

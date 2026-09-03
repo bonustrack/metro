@@ -48,8 +48,24 @@ describe('the migrations the release command applies', () => {
     );
   });
 
-  test('0018 is the newest migration', () => {
-    expect(journal().at(-1)?.tag).toBe('0018_station_renames');
+  test('0019 is the newest migration', () => {
+    expect(journal().at(-1)?.tag).toBe('0019_agents_own_connectors');
+  });
+
+  test('0019 moves the Internal collection onto Tony, mints no agent, then drops the tables', () => {
+    const sql = readFileSync(join(DIR, '0019_agents_own_connectors.sql'), 'utf8');
+    const create = sql.indexOf('CREATE TABLE "agent_connectors"');
+    const move = sql.indexOf('INSERT INTO "agent_connectors"');
+    const dropItems = sql.indexOf('DROP TABLE "collection_items"');
+    const drop = sql.indexOf('DROP TABLE "collections"');
+    expect(create).toBeGreaterThan(-1);
+    expect(move).toBeGreaterThan(create);
+    expect(dropItems).toBeGreaterThan(move);
+    expect(drop).toBeGreaterThan(dropItems);
+    expect(sql).toContain(`"ci"."collection_id" = 'tnlSpfBErt0'`);
+    expect(sql).toContain(`"a"."id" = 'bMcXH2uERTe' AND "a"."project_id" = "c"."project_id"`);
+    expect(sql).toContain('ON CONFLICT DO NOTHING');
+    expect(sql).not.toContain('INSERT INTO "agents"');
   });
 
   test('0013 stashes the old handle before it drops the column', () => {

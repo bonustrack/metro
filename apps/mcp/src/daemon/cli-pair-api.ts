@@ -1,18 +1,20 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { errMsg, log } from './log.js';
+import { log } from './log.js';
 import {
+  agentIdentity,
+  apiFailure,
+  assertLease,
   bodyField,
-  cliIdentity,
   cors,
   readJsonBody,
   sendJson,
 } from './api-http.js';
 import { extractToken } from '../mcp/request-identity.js';
 import { publicBaseOrDefault } from './attach-serve.js';
-import { CLI_CODE_RE, takeCliCode } from './cli-pair.js';
+import { AGENT_CODE_RE, takeAgentCode } from './agent-pair.js';
 import { relayServersJson } from './connector-json.js';
 import { sessionTtlFromEnv } from './google-oauth.js';
-import { signCliToken } from './session.js';
+import { signAgentToken } from './session.js';
 import type { ConnectorApiDeps } from './connector-api.js';
 
 const CLAIM_PATH = '/api/cli/claim';
@@ -42,28 +44,28 @@ async function handleClaim(
   }
   const raw = bodyField(await readJsonBody(req), 'code');
   const code = typeof raw === 'string' ? raw.trim() : '';
-  if (!CLI_CODE_RE.test(code)) {
+  if (!AGENT_CODE_RE.test(code)) {
     sendJson(req, res, 400, {
       error:
-        'that does not look like a collection code — metro login wants the mc_… code from metro.box/#/authorize',
+        'that does not look like an agent code — metro login wants the ma_… code from the agent page',
     });
     return;
   }
-  const taken = takeCliCode(code);
+  const taken = takeAgentCode(code);
   if (taken === undefined) {
     sendJson(req, res, 400, {
       error: 'that code has expired or was already used',
     });
     return;
   }
-  const collection = await deps.getCollection(taken.email, taken.collectionId);
-  const token = signCliToken(
-    { email: taken.email, collectionId: collection.id },
+  const agent = await deps.agentConnectors(taken.email, taken.agentId);
+  const token = signAgentToken(
+    { email: taken.email, agentId: agent.id },
     secret,
     { ttlSec: sessionTtlFromEnv() },
   );
-  log.info({ email: taken.email, collection: collection.id }, 'cli: code claimed');
-  sendJson(req, res, 200, { token, email: taken.email, collection: collection.name });
+  log.info({ email: taken.email, agent: agent.id }, 'cli: code claimed');
+  sendJson(req, res, 200, { token, email: taken.email, agent: agent.name });
 }
 
 async function handleRead(
@@ -72,23 +74,24 @@ async function handleRead(
   deps: ConnectorApiDeps,
   path: string,
 ): Promise<void> {
-  const who = cliIdentity(req);
+  const who = agentIdentity(req);
   if (who === null) {
     sendJson(req, res, 401, { error: 'unauthorized' });
     return;
   }
-  const collection = await deps.getCollection(who.email, who.collectionId);
+  await assertLease(who, deps.fenceRuntime);
+  const agent = await deps.agentConnectors(who.email, who.agentId);
   if (path === SESSION_PATH) {
-    sendJson(req, res, 200, { email: who.email, collection: collection.name });
+    sendJson(req, res, 200, { email: who.email, agent: agent.name });
     return;
   }
-  const entries = await deps.connectorNamesByIds(collection.connectorIds);
+  const entries = await deps.connectorNamesByIds(agent.connectorIds);
   const json = relayServersJson(
     entries,
     publicBaseOrDefault(),
     extractToken(req) ?? '',
   );
-  sendJson(req, res, 200, { json, collection: collection.name });
+  sendJson(req, res, 200, { json, agent: agent.name });
 }
 
 export function handleCliPairRequest(
@@ -116,8 +119,7 @@ export function handleCliPairRequest(
       ? handleClaim(req, res, deps)
       : handleRead(req, res, deps, path);
   work.catch((err: unknown) => {
-    log.warn({ err: errMsg(err) }, 'cli: unhandled error');
-    if (!res.headersSent) sendJson(req, res, 500, { error: 'cli api failed' });
+    apiFailure(req, res, err, 'cli');
   });
   return true;
 }

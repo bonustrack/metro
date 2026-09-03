@@ -145,9 +145,9 @@ const deps: AgentApiDeps = {
   gatherAccounts: () => Promise.resolve({}),
   capabilities: () => ({}),
   liveness: () => new Map(),
-  mintRuntimeCode: () => Promise.resolve({ code: 'mr_x', expiresAt: 0 }),
   releaseRuntime: () => Promise.resolve(),
   runtimes: () => Promise.resolve(new Map()),
+  connectorIds: () => Promise.resolve(new Map()),
   prepareAccount: fakePrepare,
   attachAccount: (email, agentId, station, config) => {
     ownedOrThrow(email, agentId);

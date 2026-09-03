@@ -188,7 +188,7 @@ export async function deleteProjectForEmail(
     await getDb().delete(projects).where(eq(projects.id, access.projectId));
   } catch {
     throw new ProjectError(
-      'this project still holds agents, connectors or collections',
+      'this project still holds agents or connectors',
       409,
     );
   }

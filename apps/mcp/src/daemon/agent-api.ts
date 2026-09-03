@@ -50,12 +50,9 @@ export interface AgentApiDeps extends AccountApiDeps {
   }>;
   capabilities: () => Record<string, string[]>;
   liveness: () => Map<string, { connected: boolean; lastSeenAt: number }>;
-  mintRuntimeCode: (
-    email: string,
-    agentId: string,
-  ) => Promise<{ code: string; expiresAt: number }>;
   releaseRuntime: (email: string, agentId: string) => Promise<void>;
   runtimes: (agentIds: string[]) => Promise<Map<string, string>>;
+  connectorIds: (agentIds: string[]) => Promise<Map<string, string[]>>;
 }
 
 type Routable =
@@ -134,12 +131,14 @@ function agentPayload(
   agent: AgentSummary,
   live: Map<string, { connected: boolean; lastSeenAt: number }>,
   runtimes: Map<string, string>,
+  connectors: Map<string, string[]>,
 ): Record<string, unknown> {
   return {
     id: agent.id,
     name: agent.name,
     owned: agent.owned,
     runtime: agent.owned ? (runtimes.get(agent.id) ?? null) : null,
+    connector_ids: connectors.get(agent.id) ?? [],
     ...livenessPayload(agent, live),
     ...keyPayload(agent),
   };
@@ -166,10 +165,11 @@ async function handleList(
   const held = await deps.runtimes(
     list.filter((a) => a.owned).map((a) => a.id),
   );
+  const connectors = await deps.connectorIds(list.map((a) => a.id));
   const base = {
     email: session.email,
     endpoint: mcpEndpoint(),
-    agents: list.map((a) => agentPayload(a, live, held)),
+    agents: list.map((a) => agentPayload(a, live, held, connectors)),
     capabilities: deps.capabilities(),
     attachable: ATTACHABLE,
   };
@@ -190,14 +190,9 @@ async function handleRuntime(
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  if (req.method === 'DELETE') {
-    await deps.releaseRuntime(session.email, id);
-    log.info({ agent: id }, 'agent-api: runtime released');
-    sendJson(req, res, 200, { agent: id, runtime: null });
-    return;
-  }
-  const minted = await deps.mintRuntimeCode(session.email, id);
-  sendJson(req, res, 201, minted);
+  await deps.releaseRuntime(session.email, id);
+  log.info({ agent: id }, 'agent-api: runtime released');
+  sendJson(req, res, 200, { agent: id, runtime: null });
 }
 
 async function handleCreate(
@@ -286,7 +281,7 @@ const ALLOWED: Record<AgentTarget['kind'], string[]> = {
   collection: ['GET', 'POST'],
   agent: ['DELETE'],
   key: ['POST'],
-  runtime: ['POST', 'DELETE'],
+  runtime: ['DELETE'],
 };
 
 function methodAllowed(tgt: Routable, method: string | undefined): boolean {

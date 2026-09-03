@@ -48,7 +48,7 @@ describe('the exported block names relays, never vendors', () => {
     expect(json).not.toContain('secret');
   });
 
-  test('an empty collection exports an empty block', () => {
+  test('an agent with no connectors exports an empty block', () => {
     expect(parsed(relayServersJson([], BASE, TOKEN))).toEqual({});
   });
 });

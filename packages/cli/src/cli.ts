@@ -44,10 +44,11 @@ const USAGE = `metro — the command line for your MCP connectors
                   show the detached daemon's log
   metro tail <agent-id>
                   follow this machine's inbound events, one JSON line each
-  metro login     authorize a connector collection with a code from the web UI
+  metro login [code]
+                  authorize this machine for one agent with a code from its page
   metro logout    forget this machine's sign-in
-  metro whoami    print the account and collection this machine may read
-  metro mcp       print the mcpServers block for the authorized collection
+  metro whoami    print the account and agent this machine may read
+  metro mcp       print the mcpServers block of the authorized agent's connectors
   metro plugin    set up the Claude Code plugin (connector servers + /metro:login)
   metro claude [args...]
                   open Claude Code with the metro channel; every argument is passed through
@@ -63,7 +64,8 @@ Start Claude Code with all of them, without writing them to disk:
 
   METRO_URL          the metro to talk to (default https://mcp.metro.box)
   METRO_UI_URL       where the web UI lives (default https://metro.box)
-  METRO_TOKEN        use this connector sign-in instead of the stored one
+  METRO_TOKEN        use this agent sign-in instead of the stored one; with neither,
+                     a machine running metro start uses its run token
   METRO_RUN_TOKEN    use this runtime authorization instead of the stored one
   METRO_BEDROCK_MODEL
                      send every request to this Bedrock model id (default: derive from the
@@ -143,16 +145,19 @@ function logs(argv: string[]): Promise<number> {
   return tail(agentId, argv.includes('-f') || argv.includes('--follow'));
 }
 
-async function login(): Promise<void> {
+async function pastedCode(given: string | undefined): Promise<string> {
+  if (given !== undefined && given.trim() !== '') return given.trim();
   process.stderr.write(
-    `Choose a connector collection at ${metroWebUrl()}/#/authorize\n`,
+    `Get a pairing code from the agent's page, or pick the agent at ${metroWebUrl()}/#/authorize\n`,
   );
-  const { token, email, collection } = await claimCode(
-    await askSecret('Paste the code here (input is hidden): '),
-  );
+  return askSecret('Paste the code here (input is hidden): ');
+}
+
+async function login(given: string | undefined): Promise<void> {
+  const { token, email, agent } = await claimCode(await pastedCode(given));
   writeToken(token);
   process.stderr.write(
-    `Authorized '${collection}' for ${email}. Stored in ${credentialsPath()}\n`,
+    `Authorized '${agent}' for ${email}. Stored in ${credentialsPath()}\n`,
   );
   if (syncPluginServers())
     process.stderr.write(
@@ -162,15 +167,15 @@ async function login(): Promise<void> {
 }
 
 async function whoami(): Promise<void> {
-  const { email, collection } = await whoisAuthorized();
-  process.stdout.write(`${email} · collection '${collection}' on ${metroUrl()}\n`);
+  const { email, agent } = await whoisAuthorized();
+  process.stdout.write(`${email} · agent '${agent}' on ${metroUrl()}\n`);
 }
 
 const HELP = new Set([undefined, 'help', '--help', '-h']);
 
 const COMMANDS: Record<string, () => Promise<number>> = {
   login: async () => {
-    await login();
+    await login(process.argv[3]);
     return 0;
   },
   logout: async () => {

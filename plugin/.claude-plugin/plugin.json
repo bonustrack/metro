@@ -1,7 +1,7 @@
 {
   "name": "metro",
-  "version": "0.1.0",
-  "description": "Metro connectors for Claude Code. Sign in once with /metro:login; your collection's MCP servers ride metro's relay with credentials injected server-side, and /metro:refresh picks up collection changes.",
+  "version": "0.2.0",
+  "description": "Metro connectors for Claude Code. Sign in once with /metro:login as one metro agent; that agent's connectors ride metro's relay with credentials injected server-side, and /metro:refresh picks up changes to what it holds.",
   "author": { "name": "Bonustrack", "url": "https://metro.box" },
   "repository": "https://github.com/bonustrack/metro",
   "license": "MIT",

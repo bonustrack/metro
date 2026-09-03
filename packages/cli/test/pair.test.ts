@@ -33,39 +33,39 @@ async function serve(status: number, body: unknown): Promise<void> {
 }
 
 describe('trading a pairing code for a session', () => {
-  test('a good code comes back as a token bound to one named collection', async () => {
+  test('a good code comes back as a token bound to one named agent', async () => {
     await serve(200, {
       token: 'cli-token',
       email: 'less@bonustrack.co',
-      collection: 'work',
+      agent: 'suzy',
     });
-    expect(await claimCode('mc_abcdefghijklmnop')).toEqual({
+    expect(await claimCode('ma_abcdefghijklmnop')).toEqual({
       token: 'cli-token',
       email: 'less@bonustrack.co',
-      collection: 'work',
+      agent: 'suzy',
     });
-    expect(JSON.parse(seen)).toEqual({ code: 'mc_abcdefghijklmnop' });
+    expect(JSON.parse(seen)).toEqual({ code: 'ma_abcdefghijklmnop' });
   });
 
-  test('a response missing the collection is refused rather than half-used', async () => {
+  test('a response missing the agent is refused rather than half-used', async () => {
     await serve(200, { token: 'cli-token', email: 'less@bonustrack.co' });
-    expect(claimCode('mc_abcdefghijklmnop')).rejects.toThrow('unexpected');
+    expect(claimCode('ma_abcdefghijklmnop')).rejects.toThrow('unexpected');
   });
 
   test("metro's own words reach the user, not a bare status code", async () => {
     await serve(400, { error: 'that code has expired or was already used' });
-    expect(claimCode('mc_abcdefghijklmnop')).rejects.toThrow(
+    expect(claimCode('ma_abcdefghijklmnop')).rejects.toThrow(
       'that code has expired or was already used',
     );
   });
 
   test('a refusal with no message still fails rather than looking like success', async () => {
     await serve(500, {});
-    expect(claimCode('mc_abcdefghijklmnop')).rejects.toThrow('metro answered 500');
+    expect(claimCode('ma_abcdefghijklmnop')).rejects.toThrow('metro answered 500');
   });
 
   test('the code never goes out over plaintext to a remote host', async () => {
     process.env.METRO_URL = 'http://mcp.metro.box';
-    expect(claimCode('mc_abcdefghijklmnop')).rejects.toThrow('in the clear');
+    expect(claimCode('ma_abcdefghijklmnop')).rejects.toThrow('in the clear');
   });
 });

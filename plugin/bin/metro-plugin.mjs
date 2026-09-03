@@ -75,7 +75,7 @@ function tokenOrExplain() {
   const token = readToken();
   if (token === null)
     throw new Error(
-      `this machine is not signed in — get a code at ${metroWebUrl()}/#/authorize and run /metro:login <code>`,
+      `this machine is not signed in — get a code from the agent's page at ${metroWebUrl()}/#/authorize and run /metro:login <code>`,
     );
   return token;
 }
@@ -103,7 +103,7 @@ async function refresh() {
   writeFileSync(mcpPath, `${JSON.stringify(servers, null, 2)}\n`);
   const names = Object.keys(servers);
   process.stdout.write(
-    `collection '${body.collection}': ${names.length} server(s) written to the plugin\n` +
+    `agent '${body.agent}': ${names.length} server(s) written to the plugin\n` +
       (names.length ? `  ${names.join('\n  ')}\n` : '') +
       'Run /reload-plugins to apply in this session.\n',
   );
@@ -112,7 +112,7 @@ async function refresh() {
 async function login(code) {
   if (!code)
     throw new Error(
-      `no code given — get one at ${metroWebUrl()}/#/authorize, then run /metro:login <code>`,
+      `no code given — get one from the agent's page at ${metroWebUrl()}/#/authorize, then run /metro:login <code>`,
     );
   const body = await api('/api/cli/claim', {
     method: 'POST',
@@ -120,7 +120,7 @@ async function login(code) {
     body: JSON.stringify({ code: code.trim() }),
   });
   writeToken(body.token);
-  process.stdout.write(`Authorized '${body.collection}' for ${body.email}.\n`);
+  process.stdout.write(`Authorized '${body.agent}' for ${body.email}.\n`);
   await refresh();
 }
 
@@ -144,7 +144,7 @@ async function status() {
     count = 0;
   }
   process.stdout.write(
-    `${body.email} · collection '${body.collection}' on ${metroUrl()} · ${count} server(s) loaded\n`,
+    `${body.email} · agent '${body.agent}' on ${metroUrl()} · ${count} server(s) loaded\n`,
   );
 }
 

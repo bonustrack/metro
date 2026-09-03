@@ -8,7 +8,7 @@ import {
   runIdentity,
   sendJson,
 } from './api-http.js';
-import { RUN_CODE_RE, takeRunCode } from './run-pair.js';
+import { AGENT_CODE_RE, takeAgentCode } from './agent-pair.js';
 import { sessionTtlFromEnv } from './google-oauth.js';
 import { signRunToken } from './session.js';
 import type { LoadedAgent } from '../db/materialize.js';
@@ -27,6 +27,7 @@ export interface RunApiDeps {
   fenceRuntime: (runtimeId: string, agentId: string) => Promise<void>;
   touchRuntime: (runtimeId: string) => Promise<void>;
   loadAgent: (agentId: string) => Promise<LoadedAgent>;
+  blockedStations: (agentId: string) => Promise<string[]>;
 }
 
 function secretOrNull(): string | null {
@@ -53,17 +54,25 @@ async function handleClaim(
   const body = await readJsonBody(req);
   const raw = bodyField(body, 'code');
   const code = typeof raw === 'string' ? raw.trim() : '';
-  if (!RUN_CODE_RE.test(code)) {
+  if (!AGENT_CODE_RE.test(code)) {
     sendJson(req, res, 400, {
       error:
-        'that does not look like a runtime code — metro start wants the mr_… code from the agent page',
+        'that does not look like an agent code — metro start wants the ma_… code from the agent page',
     });
     return;
   }
-  const taken = takeRunCode(code);
+  const taken = takeAgentCode(code);
   if (taken === undefined) {
     sendJson(req, res, 400, {
       error: 'that code has expired or was already used',
+    });
+    return;
+  }
+  const blocked = await deps.blockedStations(taken.agentId);
+  if (blocked.length > 0) {
+    sendJson(req, res, 409, {
+      error:
+        `this agent holds ${blocked.join(', ')}, which only runs on metro because a webhook url has to be publicly reachable. Detach it, or move it to a second agent that stays on metro, then start this one.`,
     });
     return;
   }

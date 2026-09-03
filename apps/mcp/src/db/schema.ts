@@ -97,34 +97,20 @@ export const connectors = pgTable(
   },
 );
 
-export const collections = pgTable(
-  'collections',
+export const agentConnectors = pgTable(
+  'agent_connectors',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
+    agentId: text('agent_id')
       .notNull()
-      .references(() => projects.id, { onDelete: 'restrict' }),
-    name: text('name').notNull(),
-  },
-  (t) => [
-    unique('collections_project_id_name_unique').on(t.projectId, t.name),
-  ],
-);
-
-export const collectionItems = pgTable(
-  'collection_items',
-  {
-    id: text('id').primaryKey(),
-    collectionId: text('collection_id')
-      .notNull()
-      .references(() => collections.id, { onDelete: 'cascade' }),
+      .references(() => agents.id, { onDelete: 'cascade' }),
     connectorId: text('connector_id')
       .notNull()
       .references(() => connectors.id, { onDelete: 'cascade' }),
   },
   (t) => [
-    unique('collection_items_collection_id_connector_id_unique').on(
-      t.collectionId,
+    unique('agent_connectors_agent_id_connector_id_unique').on(
+      t.agentId,
       t.connectorId,
     ),
   ],

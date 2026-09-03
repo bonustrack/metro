@@ -7,12 +7,13 @@ import {
 } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleRelayRequest, type RelayApiDeps } from '../src/daemon/relay.ts';
-import { signCliToken, signSession } from '../src/daemon/session.ts';
+import { signAgentToken, signRunToken, signSession } from '../src/daemon/session.ts';
 import type { RelayTarget } from '../src/db/connector-relay.ts';
+import { ApiError } from '../src/daemon/api-error.ts';
 
 const SECRET = 'relay-test-secret';
 const EMAIL = 'less@bonustrack.co';
-const COLL = 'coll0000001';
+const AGENT = 'agent000001';
 const CONN = 'conn0000001';
 
 interface Seen {
@@ -36,8 +37,8 @@ let mode: Mode = 'ok';
 let forceCalls = 0;
 
 const deps: RelayApiDeps = {
-  target: (collectionId, connectorId, force): Promise<RelayTarget> => {
-    if (collectionId !== COLL || connectorId !== CONN)
+  target: (agentId, connectorId, force): Promise<RelayTarget> => {
+    if (agentId !== AGENT || connectorId !== CONN)
       return Promise.resolve({ kind: 'missing' });
     if (force) forceCalls += 1;
     if (mode === 'signin') return Promise.resolve({ kind: 'signin' });
@@ -51,6 +52,10 @@ const deps: RelayApiDeps = {
       headers: { 'x-vendor': vendor },
     });
   },
+  fence: (runtimeId) =>
+    runtimeId === 'rt1'
+      ? Promise.resolve()
+      : Promise.reject(new ApiError('this runtime no longer holds the agent', 409)),
 };
 
 async function bodyOf(req: IncomingMessage): Promise<string> {
@@ -150,8 +155,10 @@ beforeEach(() => {
   upstreamAborted = false;
 });
 
-const cliToken = (collection = COLL): string =>
-  signCliToken({ email: EMAIL, collectionId: collection }, SECRET);
+const cliToken = (agent = AGENT): string =>
+  signAgentToken({ email: EMAIL, agentId: agent }, SECRET);
+const runToken = (agent = AGENT): string =>
+  signRunToken({ email: EMAIL, agentId: agent, runtimeId: 'rt1' }, SECRET);
 
 const call = (
   path: string,
@@ -184,12 +191,27 @@ describe('who may speak to a relay', () => {
     expect(seen).toHaveLength(0);
   });
 
-  test('a connector outside the collection is a flat 404', async () => {
-    const other = cliToken('coll0000002');
+  test('a connector the agent does not hold is a flat 404', async () => {
+    const other = cliToken('agent000002');
     const res = await call(`/relay/${CONN}`, { method: 'POST' }, other);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'no such connector' });
     expect(seen).toHaveLength(0);
+  });
+
+  test('a run token whose lease was taken back is 401, before any upstream contact', async () => {
+    const stale = signRunToken({ email: EMAIL, agentId: AGENT, runtimeId: 'rt0' }, SECRET);
+    const res = await call(`/relay/${CONN}`, { method: 'DELETE' }, stale);
+    expect(res.status).toBe(401);
+    expect(seen).toHaveLength(0);
+  });
+
+  test('a run token speaks for its agent too, and only its agent', async () => {
+    const res = await call(`/relay/${CONN}`, { method: 'DELETE' }, runToken());
+    expect(res.status).toBe(200);
+    const other = await call(`/relay/${CONN}`, { method: 'DELETE' }, runToken('agent000002'));
+    expect(other.status).toBe(404);
+    expect(seen).toHaveLength(1);
   });
 
   test('a malformed id and a bare /relay are 404, a wrong method 405', async () => {
@@ -200,7 +222,7 @@ describe('who may speak to a relay', () => {
 });
 
 describe('what the upstream sees', () => {
-  test('the vendor credential is injected and the CLI token never travels', async () => {
+  test('the vendor credential is injected and the agent token never travels', async () => {
     const res = await post(INIT, { 'mcp-protocol-version': '2025-06-18' });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');

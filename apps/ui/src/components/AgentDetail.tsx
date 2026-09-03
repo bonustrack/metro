@@ -9,6 +9,7 @@ import { resetAgentKey, type AgentSummary } from '../api/client';
 import { AccountList } from './AccountList';
 import { AgentCredentials } from './AgentCredentials';
 import { RunLocally } from './RunLocally';
+import { AgentConnectors } from './AgentConnectors';
 import { BackLink } from './BackLink';
 import { routeHash } from '../route';
 import { ConnectStation } from './ConnectStation';
@@ -36,6 +37,7 @@ interface AgentDetailProps {
   attachable: string[];
   unattributed: number;
   onOpenStation: (accountId: string) => void;
+  onOpenConnector: (id: string) => void;
   onChanged: (dropped?: string[]) => void;
   onDelete: (id: string) => Promise<void>;
   onBack: () => void;
@@ -97,6 +99,12 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
           onDetach={agent.owned ? onDetach : undefined}
         />
       </Col>
+      <AgentConnectors
+        token={token}
+        project={props.project}
+        agent={agent}
+        onOpen={props.onOpenConnector}
+      />
       {agent.owned ? (
         <ConnectStation
           token={token}

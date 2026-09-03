@@ -93,7 +93,7 @@ describe('the connectors surface is its own endpoint', () => {
     expect(calls[0]?.method).toBe('GET');
   });
 
-  test('a create posts the collection itself', async () => {
+  test('a create posts the row itself', async () => {
     serve(ROW, 201);
     await createConnector('session', PROJECT, NEW);
     expect(calls).toEqual([

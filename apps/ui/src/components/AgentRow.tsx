@@ -19,8 +19,13 @@ function liveness(agent: AgentSummary): string | null {
   return agent.lastSeen === null ? null : 'not receiving';
 }
 
+function plural(n: number, word: string): string {
+  return `${String(n)} ${word}${n === 1 ? '' : 's'}`;
+}
+
 function summary(agent: AgentSummary, stations: number): string {
-  const label = `${String(stations)} station${stations === 1 ? '' : 's'}`;
+  const held = plural(agent.connectorIds.length, 'connector');
+  const label = `${plural(stations, 'station')} · ${held}`;
   return agent.owned ? label : `${label} · not owned`;
 }
 

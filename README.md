@@ -244,20 +244,19 @@ auth gate:
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/agents` | The signed-in email, the `/mcp` endpoint, the agents that email may see, and those agents' accounts + station capabilities. Every account carries the `agentId` it belongs to. For agents the email **owns**, each carries its key value, its `?token=` endpoint and the paste-ready `claude mcp add …` command. |
+| `GET /api/agents?project=<id>` | The signed-in email, the `/mcp` endpoint, that project's agents (each with its `connector_ids`, its runtime label and liveness), and with `&accounts=1` their accounts + station capabilities. Every account carries the `agentId` it belongs to. For agents the email **owns**, each carries its key value, its `?token=` endpoint and the paste-ready `claude mcp add …` command. |
 | `POST /api/agents` `{"name":"…"}` | Create an agent, mint its key, return both with the paste-ready command. |
 | `DELETE /api/agents/<id>` | Delete an agent you **own**, and revoke its key. |
 | `POST /api/agents/<id>/key` | Reset the key of an agent you **own**. |
 | `POST /api/agents/<id>/accounts/start` | Attach a station account. Validates the credential against the provider first, writes the row, reloads that station. |
 | `DELETE /api/agents/<id>/accounts/<station>/<account_id>` | Detach an account, forget its credentials, reload (or stop) the station. |
-| `GET /api/connectors` | Your [connectors](#connectors). Carries **no credential** — the `mcpServers` block is added only for a CLI session (see [The metro CLI](#the-metro-cli)). |
+| `GET /api/connectors` | Your [connectors](#connectors). Carries **no credential**; the paste-ready `mcpServers` block comes from `GET /api/cli/mcp` with an agent token (see [The metro CLI](#the-metro-cli)). |
 | `POST /api/connectors` `{"name","url","header","value"}` | Verify a remote MCP server and store it. `header`/`value` are optional and go together. |
 | `POST /api/connectors/<id>/verify` | Re-check a stored connector. `200 {ok:true, verified}` or `200 {ok:false, reason}`. |
-| `POST /api/connectors/<id>/rename` `{"name"}` | Rename a connector you own. `409` only if the new name collides inside a collection it belongs to. |
+| `POST /api/connectors/<id>/rename` `{"name"}` | Rename a connector you own. `409` only if the new name collides on an agent that holds it. |
 | `GET`/`POST /api/projects` | Your [projects](#projects), and create one. `POST /<id>/rename`, `DELETE /<id>`, and `/<id>/members` for the roster. |
-| `GET`/`POST /api/collections?project=<id>` | That project's [collections](#collections), and create one. |
-| `POST /api/collections/<id>/items` `{"connectorId"}` | Add a connector. `DELETE /<id>/items/<connectorId>` removes it. |
-| `POST /api/collections/<id>/code` | Mint the pairing code that authorizes this collection on one machine. |
+| `GET`/`POST /api/agents/<id>/connectors` `{"connectorId"}` | The [connectors an agent holds](#agents-hold-connectors), and add one. `DELETE /<id>/connectors/<connectorId>` removes it. |
+| `POST /api/agents/<id>/code` | Mint the single-use pairing code that `metro login` and `metro start` both take. |
 | `DELETE /api/connectors/<id>` | Delete a connector you own. |
 
 Sign-in is **open**: any Google account whose `email_verified` claim is true may sign in
@@ -267,10 +266,9 @@ checked, and an unverified email refused.
 
 Auth is the daemon-signed session JWT, as `Authorization: Bearer` or `?token=`.
 **Authorisation is per-agent and keyed on `agents.id`:** a session may only see agents
-whose `owner_id` is the `users` row for its verified email. The email resolves to a
+of a [project](#projects) its verified email is a member of. The email resolves to a
 `users.id` per request, never read from the JWT, so a freshly created agent shows up
-without re-login. An email with no `users` row owns nothing — `owner_id IS NULL` is not
-"no user", it is the operator-provisioned marker.
+without re-login. An email with no `users` row is a member of nothing.
 
 **The key value is served for agents you own, and only those.** `agents.key` is stored in
 plaintext so it can be re-served rather than shown once, which is what lets the panel put
@@ -348,9 +346,9 @@ without the credentials touching disk, argv or shell history.
 ```bash
 npm i -g @stage-labs/metro@beta   # `latest` is an older line; the tag matters
 
-metro login     # paste a code from https://metro.box/#/settings
-metro mcp       # prints {"mcpServers": {...}} on stdout
-metro whoami    # which account this machine is signed in as
+metro login     # paste the pairing code from an agent's page (or pick it at https://metro.box/#/authorize)
+metro mcp       # prints {"mcpServers": {...}} on stdout: that agent's connectors, through the relay
+metro whoami    # which account and agent this machine is signed in as
 metro update    # update to the newest published version
 ```
 
@@ -365,21 +363,42 @@ stores the refreshed pair, so a block you pipe into a client is live rather than
 A token endpoint that will not answer is logged and that one connector goes out with what was
 stored; the rest are unaffected.
 
-Sign-in authorizes **one collection**, not your account: pick one at `#/authorize`, and the UI
-mints a single-use code (`mc_` + 16 base64url, ten-minute TTL, in memory only) which you paste
-into `metro login`. The
-CLI trades it for a token. There is no localhost listener and no callback, which is exactly
-why it works over SSH. A server appears in the client under the connector's own name, so
-rename one (from either kebab menu) if two of them would collide.
+Sign-in authorizes **one agent**, not your account: pick it at `#/authorize` (or open the
+agent's page), and the UI mints a single-use code (`ma_` + 16 base64url, ten-minute TTL, in
+memory only) which you paste into `metro login`. The CLI trades it for a token. The same code
+is what `metro start` takes, so one code pairs a machine whichever way you use it. There is no
+localhost listener and no callback, which is exactly why it works over SSH. A server appears in
+the client under the connector's own name, so rename one (from either kebab menu) if two of
+them would collide.
 
-**That token is not a session.** It is a distinct type (`typ: 'cli'`) carrying the collection it
+**That token is not a session.** It is a distinct type (`typ: 'agent'`) carrying the agent it
 was minted for, and `apiSession()` refuses it — so a token left on a shared box cannot read your
-agents, cannot add or delete a connector, and cannot see any other collection. It can fetch its
-own collection's `mcpServers` block and say who it is. Nothing else.
+agents, cannot add or delete a connector, and cannot see any other agent. It can fetch its own
+agent's `mcpServers` block, say who it is, and relay to the connectors that agent holds.
+Nothing else. A machine running `metro start` uses its run token on the same routes, so it
+needs no second sign-in.
 
 Two environment variables matter: `METRO_URL` points at the daemon (default
 `https://mcp.metro.box`) and `METRO_UI_URL` at the web UI (default `https://metro.box`). They
 are different origins; the daemon serves no page.
+
+### The Claude Code plugin
+
+The same sign-in also works as a Claude Code plugin, for sessions that would rather not
+shell out to `metro mcp`. This repository is its marketplace:
+
+```bash
+metro plugin    # claude plugin marketplace add bonustrack/metro, then claude plugin install metro@metro
+```
+
+Inside Claude Code, `/metro:login <code>` claims a pairing code from an agent's page and
+writes the same `~/.config/metro/credentials.json` the CLI uses, so the two sign-ins are
+interchangeable; `/metro:refresh` re-reads what the agent holds and rewrites the plugin's
+server list. Plugin MCP registration is a snapshot, so after either one run `/reload-plugins`
+(or `claude plugin update metro@metro`) for the servers to connect; `metro login` refreshes
+the plugin by itself when it is installed. The generated server list carries no credential:
+each entry names metro's relay url and a helper that prints the agent token fresh from the
+credentials file on every connect, so a re-login propagates with nothing to regenerate.
 
 ### Running metro on your own machine
 
@@ -387,7 +406,9 @@ are different origins; the daemon serves no page.
 metro's servers, so **your messages never pass through them**. It authorizes on first run —
 it prints a URL, you pick the agent in the browser and paste the code back — then caches the
 credential and runs in the foreground, ready for systemd or launchd to supervise. Set
-`METRO_RUN_TOKEN` to start unattended.
+`METRO_RUN_TOKEN` to start unattended. A machine that runs an agent is also signed in as
+it: `metro mcp` and `metro whoami` use the run token when no `metro login` sign-in is
+stored, so one pairing code covers both.
 
 Metro no longer runs messenger stations at all: they run on your machine or nowhere. There is
 no fallback to Metro if your machine is down, which is the point. It needs
@@ -408,7 +429,7 @@ from the platform directly.
 
 ### Projects
 
-**A project owns everything.** Agents, connectors and collections all belong to a project, not
+**A project owns everything.** Agents and connectors both belong to a project, not
 to you; the only thing you own directly is the project itself. Your account gets a **Personal**
 project on first sign-in, and that one cannot be deleted.
 
@@ -416,7 +437,7 @@ Anyone can create a project and invite people to it by email. Members carry a ro
 renames the project and manages its members, a **member** does everything else inside it, and
 only the **owner** can delete it. The owner cannot be demoted or removed.
 
-The project is part of the url — `#/<projectId>/connectors`, `#/<projectId>/collections`,
+The project is part of the url — `#/<projectId>/connectors`, `#/<projectId>/agent/<agentId>`,
 `#/<projectId>/members` — so a link says exactly what it shows, and the switcher at the bottom
 of the sidebar moves between them. A project you are not a member of answers `404`, the same as
 one that never existed.
@@ -424,22 +445,25 @@ one that never existed.
 The MCP path is unaffected: an agent's key resolves straight to its agent, with no user or
 project in the way, so connected clients keep working.
 
-### Collections
+### Agents hold connectors
 
-A **collection** is a named set of connectors, and it is the unit a machine gets authorized for.
-`metro login` asks which one; that machine can then read those connectors and nothing else on
-your account — not your agents, not your other collections, and it cannot add or delete
-anything. A connector can sit in as many collections as you like.
+An **agent** is the unit a machine gets authorized for, and it holds a list of connectors.
+`metro login` asks which agent; that machine can then read those connectors and nothing else
+on your account — not your other agents, and it cannot add or delete anything. A connector can
+be held by as many agents as you like.
 
-Collections live at `#/collections` in the panel, before Connectors. Membership is edited from
-the **connector**, not the collection: each connector's ⋮ menu has *Add to collection*, with a
-checkbox per collection. The collection's own page lists what is in it and lets you drop a
-member, rename it, or delete it. Deleting a connector removes it from every collection.
+Membership is edited from either end. Each connector's ⋮ menu has *Add to agent*, with a
+checkbox per agent of the project; the agent's own page has a Connectors section that lists
+what it holds, with *Add connectors* and a per-row *Remove from agent*. Deleting a connector
+removes it from every agent, and deleting an agent forgets what it held.
 
-Two connectors in one project may share a name, but two in the same **collection** may not: the
-name is the key in the exported `mcpServers` block, so a collision there would silently drop one
-of them. Adding a connector to a collection, or renaming one that is already in a collection,
-is refused `409` when it would collide.
+Two connectors in one project may share a name, but two held by the same **agent** may not:
+the name is the key in the exported `mcpServers` block, so a collision there would silently
+drop one of them. Adding a connector to an agent, or renaming one an agent already holds, is
+refused `409` when it would collide.
+
+Collections used to be this unit. They were dropped, and their connectors stayed in the
+project without an agent; add them to the agents that should hold them from an agent's page.
 
 ### Inbound webhooks
 

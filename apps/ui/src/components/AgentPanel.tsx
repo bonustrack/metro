@@ -5,8 +5,6 @@ import { deleteConnector } from '../api/connectors';
 import { ConnectorPage } from './ConnectorPage';
 import { Connectors } from './Connectors';
 import { Docs } from './Docs';
-import { CollectionPage } from './CollectionPage';
-import { Collections } from './Collections';
 import { Members } from './Members';
 import { ProjectSettings } from './ProjectSettings';
 import { Settings } from './Settings';
@@ -30,30 +28,6 @@ function connectorRoutes(
   selection: Selection,
   go: (next: Selection) => void,
 ): ReactNode {
-  if (selection.kind === 'collections')
-    return (
-      <Collections
-        token={token}
-        project={project}
-        onOpen={(id) => {
-          go({ kind: 'collection', project, id });
-        }}
-      />
-    );
-  if (selection.kind === 'collection')
-    return (
-      <CollectionPage
-        token={token}
-        project={project}
-        id={selection.id}
-        onBack={() => {
-          go({ kind: 'collections', project });
-        }}
-        onGone={() => {
-          go({ kind: 'collections', project });
-        }}
-      />
-    );
   if (selection.kind === 'connectors')
     return (
       <Connectors
@@ -124,6 +98,9 @@ function ScopedPanel({
         id={selection.id}
         onOpenStation={(accountId) => {
           go({ kind: 'station', project, accountId });
+        }}
+        onOpenConnector={(id) => {
+          go({ kind: 'connector', project, id });
         }}
         onGone={() => {
           go({ kind: 'agents', project });

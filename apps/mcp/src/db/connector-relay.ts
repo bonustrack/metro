@@ -8,7 +8,7 @@ import {
 import { errMsg, log } from '../daemon/log.js';
 import { readConfig, type ConnectorConfig } from './connector-config.js';
 import { getDb } from './client.js';
-import { collectionItems, connectors } from './schema.js';
+import { agentConnectors, connectors } from './schema.js';
 
 export type RelayTarget =
   | { kind: 'ok'; url: string; headers: Record<string, string> }
@@ -32,17 +32,17 @@ export function headerAuthHeaders(
 }
 
 async function memberRow(
-  collectionId: string,
+  agentId: string,
   connectorId: string,
 ): Promise<ConnectorRow | undefined> {
   const rows = await getDb()
     .select({ connector: connectors })
-    .from(collectionItems)
-    .innerJoin(connectors, eq(collectionItems.connectorId, connectors.id))
+    .from(agentConnectors)
+    .innerJoin(connectors, eq(agentConnectors.connectorId, connectors.id))
     .where(
       and(
-        eq(collectionItems.collectionId, collectionId),
-        eq(collectionItems.connectorId, connectorId),
+        eq(agentConnectors.agentId, agentId),
+        eq(agentConnectors.connectorId, connectorId),
       ),
     );
   return rows[0]?.connector;
@@ -112,11 +112,11 @@ export function fixedTarget(
 }
 
 export async function relayTarget(
-  collectionId: string,
+  agentId: string,
   connectorId: string,
   force: boolean,
 ): Promise<RelayTarget> {
-  const row = await memberRow(collectionId, connectorId);
+  const row = await memberRow(agentId, connectorId);
   if (row === undefined) return { kind: 'missing' };
   parseConnectorUrl(row.url);
   const config = readConfig(row.config);

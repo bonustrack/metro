@@ -14,7 +14,7 @@ import { setKeyMap } from '../src/db/key-map.ts';
 const SECRET = 'connector-api-test-secret';
 const ADA = 'ada@lovelace.dev';
 const BOB = 'bob@builder.dev';
-const CLASHES_IN_COLLECTION = 'already-in-work';
+const CLASHES_IN_AGENT = 'already-on-suzy';
 
 const AGENT_KEY = 'mk_connector_surface_probe';
 
@@ -192,9 +192,9 @@ const deps: ConnectorApiDeps = {
   renameConnector: async (email, id, name) => {
     calls.push(`rename ${email} ${id} ${name}`);
     const row = ownedOrThrow(email, id);
-    if (name === CLASHES_IN_COLLECTION)
+    if (name === CLASHES_IN_AGENT)
       throw new ApiError(
-        `the collection 'work' already has a connector named '${name}'`,
+        `the agent 'suzy' already has a connector named '${name}'`,
         409,
       );
     const next: Row = { ...row, name };
@@ -514,7 +514,7 @@ describe('a connector can be renamed', () => {
     expect((await listFor(ADA)).map((c) => c.name)).toContain('Linear · prod');
   });
 
-  test('a name another of yours already has is fine — names are unique per collection', async () => {
+  test('a name another of yours already has is fine, names are unique per agent', async () => {
     const res = await call('POST', '/api/connectors/agent000001/rename', session(ADA), {
       name: 'docs',
     });
@@ -522,13 +522,13 @@ describe('a connector can be renamed', () => {
     expect((await listFor(ADA)).filter((c) => c.name === 'docs')).toHaveLength(2);
   });
 
-  test('a name that would collide inside a collection is 409, not a silent overwrite', async () => {
+  test('a name that would collide on an agent is 409, not a silent overwrite', async () => {
     const res = await call('POST', '/api/connectors/agent000001/rename', session(ADA), {
-      name: CLASHES_IN_COLLECTION,
+      name: CLASHES_IN_AGENT,
     });
     expect(res.status).toBe(409);
     expect((await res.json()) as { error: string }).toEqual({
-      error: `the collection 'work' already has a connector named '${CLASHES_IN_COLLECTION}'`,
+      error: `the agent 'suzy' already has a connector named '${CLASHES_IN_AGENT}'`,
     });
   });
 

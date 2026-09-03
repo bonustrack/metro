@@ -1,15 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { RelayTarget } from '../db/connector-relay.js';
-import { cliIdentity } from './api-http.js';
+import { agentIdentity, assertLease, type Fence } from './api-http.js';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
 
 export interface RelayApiDeps {
   target: (
-    collectionId: string,
+    agentId: string,
     connectorId: string,
     force: boolean,
   ) => Promise<RelayTarget>;
+  fence: Fence;
 }
 
 const ID_PATH_RE = /^\/relay\/([A-Za-z0-9][A-Za-z0-9_-]{10})$/;
@@ -196,18 +197,18 @@ type Exchanged =
 
 async function exchange(
   req: IncomingMessage,
-  collectionId: string,
+  agentId: string,
   connectorId: string,
   deps: RelayApiDeps,
   body: Uint8Array<ArrayBuffer> | null,
   signal: AbortSignal,
 ): Promise<Exchanged> {
-  const target = await deps.target(collectionId, connectorId, false);
+  const target = await deps.target(agentId, connectorId, false);
   if (target.kind !== 'ok') return { kind: target.kind };
   let upstream = await forward(req, target, body, signal);
   if (!authFailed(upstream.status)) return { kind: 'response', upstream };
   await upstream.body?.cancel();
-  const fresh = await deps.target(collectionId, connectorId, true);
+  const fresh = await deps.target(agentId, connectorId, true);
   if (fresh.kind !== 'ok') return { kind: 'signin' };
   upstream = await forward(req, fresh, body, signal);
   if (!authFailed(upstream.status)) return { kind: 'response', upstream };
@@ -218,7 +219,7 @@ async function exchange(
 async function relayExchange(
   req: IncomingMessage,
   res: ServerResponse,
-  collectionId: string,
+  agentId: string,
   connectorId: string,
   deps: RelayApiDeps,
 ): Promise<void> {
@@ -234,7 +235,7 @@ async function relayExchange(
   const body = req.method === 'POST' ? await readCapped(req) : null;
   const out = await exchange(
     req,
-    collectionId,
+    agentId,
     connectorId,
     deps,
     body,
@@ -262,13 +263,14 @@ function dispatch(
   connectorId: string,
   deps: RelayApiDeps,
 ): void {
-  const who = cliIdentity(req);
+  const who = agentIdentity(req);
   if (who === null) {
     answer(res, 401, { error: 'unauthorized' });
     return;
   }
-  relayExchange(req, res, who.collectionId, connectorId, deps).catch(
-    (err: unknown) => {
+  assertLease(who, deps.fence)
+    .then(() => relayExchange(req, res, who.agentId, connectorId, deps))
+    .catch((err: unknown) => {
       if (err instanceof ApiError) {
         answer(res, err.status, { error: err.message });
       } else {
@@ -277,8 +279,7 @@ function dispatch(
         if (!res.writableEnded) res.end();
       }
       closeIfBodyUnread(req, res);
-    },
-  );
+    });
 }
 
 export function handleRelayRequest(

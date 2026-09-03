@@ -19,6 +19,7 @@ export interface AgentSummary {
   key: string | null;
   endpoint: string | null;
   command: string | null;
+  connectorIds: string[];
 }
 
 export interface AgentsView {
@@ -99,6 +100,7 @@ function toAgents(value: unknown): AgentSummary[] {
       key: text(cred.key),
       endpoint: text(cred.endpoint),
       command: text(cred.command),
+      connectorIds: toStationList(a.connector_ids),
     };
   });
 }
@@ -201,16 +203,6 @@ export async function createAgent(
 
 export async function deleteAgent(token: string, id: string): Promise<void> {
   await call(token, { method: 'DELETE', path: `/${id}` });
-}
-
-export async function mintRuntimeCode(
-  token: string,
-  id: string,
-): Promise<string> {
-  const body = await call(token, { method: 'POST', path: `/${id}/runtime` });
-  if (!isRecord(body) || typeof body.code !== 'string')
-    throw new Error('Metro returned an unexpected response.');
-  return body.code;
 }
 
 export async function releaseRuntime(token: string, id: string): Promise<void> {

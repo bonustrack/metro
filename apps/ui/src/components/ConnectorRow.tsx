@@ -15,7 +15,7 @@ import {
 import { queryError } from '../api/queries';
 import { ConnectorFavicon } from './ConnectorFavicon';
 import { DeleteConnector } from './DeleteConnector';
-import { CollectionPicker } from './CollectionPicker';
+import { AgentPicker } from './AgentPicker';
 import { RenameConnector } from './RenameConnector';
 import { opensElsewhere } from './link';
 import { routeHash } from '../route';
@@ -103,7 +103,7 @@ function RowActions({
         size="lg"
         extra={[
           {
-            label: 'Add to collection',
+            label: 'Add to agent',
             onSelect: () => {
               setPicking(true);
             },
@@ -154,7 +154,7 @@ function RowModals({
 }): ReactNode {
   return (
     <>
-      <CollectionPicker
+      <AgentPicker
         token={token}
         project={project}
         connectorId={row.id}

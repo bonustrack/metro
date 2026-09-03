@@ -178,7 +178,7 @@ export function ProjectSettings({
         title="Delete project"
         lines={[
           `'${row.name}' and everything scoped to it will be gone.`,
-          'Its agents, connectors and collections must be removed first.',
+          'Its agents and connectors must be removed first.',
         ]}
         prompt={`Type ${row.name} to confirm.`}
         confirmWord={row.name}

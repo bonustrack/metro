@@ -2,9 +2,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleRunApiRequest, type RunApiDeps } from '../src/daemon/run-api.js';
-import { mintRunCode } from '../src/daemon/run-pair.js';
+import { mintAgentCode } from '../src/daemon/agent-pair.js';
 import {
-  signCliToken,
+  signAgentToken,
   signRunToken,
   signSession,
 } from '../src/daemon/session.js';
@@ -17,6 +17,7 @@ const AGENT = 'agent000001';
 let holder: string | null = null;
 let touched: string[] = [];
 let claims = 0;
+let blocked: string[] = [];
 
 const deps: RunApiDeps = {
   claimRuntime: (agentId, label) => {
@@ -47,6 +48,7 @@ const deps: RunApiDeps = {
         },
       ],
     }),
+  blockedStations: () => Promise.resolve(blocked),
 };
 
 let server: Server;
@@ -69,6 +71,7 @@ beforeEach(() => {
   holder = null;
   touched = [];
   claims = 0;
+  blocked = [];
 });
 
 afterAll(() => {
@@ -93,7 +96,7 @@ const call = (
   });
 
 async function claim(): Promise<string> {
-  const { code } = mintRunCode({ email: ADA, agentId: AGENT });
+  const { code } = mintAgentCode({ email: ADA, agentId: AGENT });
   const res = await call('POST', '/api/run/claim', undefined, {
     code,
     label: 'lisa',
@@ -103,7 +106,7 @@ async function claim(): Promise<string> {
 
 describe('claiming an agent for a local runtime', () => {
   test('a fresh code is traded for a run token', async () => {
-    const { code } = mintRunCode({ email: ADA, agentId: AGENT });
+    const { code } = mintAgentCode({ email: ADA, agentId: AGENT });
     const res = await call('POST', '/api/run/claim', undefined, {
       code,
       label: 'lisa',
@@ -113,7 +116,7 @@ describe('claiming an agent for a local runtime', () => {
   });
 
   test('a code is single-use', async () => {
-    const { code } = mintRunCode({ email: ADA, agentId: AGENT });
+    const { code } = mintAgentCode({ email: ADA, agentId: AGENT });
     await call('POST', '/api/run/claim', undefined, { code });
     const again = await call('POST', '/api/run/claim', undefined, { code });
     expect(again.status).toBe(400);
@@ -125,6 +128,17 @@ describe('claiming an agent for a local runtime', () => {
     });
     expect(res.status).toBe(400);
     expect(claims).toBe(0);
+  });
+
+  test('an agent holding a webhook cannot leave metro, and the code is still spent', async () => {
+    blocked = ['webhook'];
+    const { code } = mintAgentCode({ email: ADA, agentId: AGENT });
+    const res = await call('POST', '/api/run/claim', undefined, { code });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain('webhook');
+    expect(claims).toBe(0);
+    blocked = [];
+    expect((await call('POST', '/api/run/claim', undefined, { code })).status).toBe(400);
   });
 });
 
@@ -164,9 +178,9 @@ describe('the run token is its own capability, in both directions', () => {
     expect((await call('GET', '/api/run/config', session)).status).toBe(401);
   });
 
-  test('a CLI token cannot read station config', async () => {
-    const cli = signCliToken({ email: ADA, collectionId: 'col00000001' }, SECRET);
-    expect((await call('GET', '/api/run/config', cli)).status).toBe(401);
+  test('an agent token cannot read station config', async () => {
+    const agent = signAgentToken({ email: ADA, agentId: AGENT }, SECRET);
+    expect((await call('GET', '/api/run/config', agent)).status).toBe(401);
   });
 
   test('a run token signed with another secret is refused', async () => {

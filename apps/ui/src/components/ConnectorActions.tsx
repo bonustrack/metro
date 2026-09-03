@@ -9,7 +9,7 @@ import {
 } from '../api/connectors';
 import { queryError } from '../api/queries';
 import { DeleteConnector } from './DeleteConnector';
-import { CollectionPicker } from './CollectionPicker';
+import { AgentPicker } from './AgentPicker';
 import { RenameConnector } from './RenameConnector';
 
 interface ConnectorActionsProps {
@@ -81,7 +81,7 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
         size="lg"
         extra={[
           {
-            label: 'Add to collection',
+            label: 'Add to agent',
             onSelect: () => {
               setPicking(true);
             },
@@ -101,7 +101,7 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
             : []),
         ]}
       />
-      <CollectionPicker
+      <AgentPicker
         token={token}
         project={project}
         connectorId={connector.id}

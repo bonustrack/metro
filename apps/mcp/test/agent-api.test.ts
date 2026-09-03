@@ -32,6 +32,7 @@ const OWNED: Record<string, AgentSummary[]> = {
 let leakGrantedKeys = false;
 let liveAgents = new Map<string, { connected: boolean; lastSeenAt: number }>();
 let heldAgents = new Map<string, string>();
+let heldConnectors = new Map<string, string[]>();
 
 const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
   ["agent000001"]: ['telegram-bot', { id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }],
@@ -142,9 +143,9 @@ const deps: AgentApiDeps = {
   },
   capabilities: () => ({ 'telegram-bot': ['send'], 'discord-bot': ['send', 'read'] }),
   liveness: () => liveAgents,
-  mintRuntimeCode: () => Promise.resolve({ code: 'mr_x', expiresAt: 0 }),
   releaseRuntime: () => Promise.resolve(),
   runtimes: () => Promise.resolve(heldAgents),
+  connectorIds: () => Promise.resolve(heldConnectors),
   prepareAccount: () =>
     Promise.reject(new AgentAdminError('attaching is not exercised here', 400)),
   attachAccount: () =>
@@ -205,6 +206,7 @@ afterEach(() => {
   leakGrantedKeys = false;
   liveAgents = new Map();
   heldAgents = new Map();
+  heldConnectors = new Map();
 });
 
 describe('a run token cannot escalate to the agent admin API', () => {
@@ -220,7 +222,7 @@ describe('a run token cannot escalate to the agent admin API', () => {
     expect(await res.text()).not.toContain('mk_fake');
   });
 
-  test('it cannot create, delete, reset a key, or mint another runtime code', async () => {
+  test('it cannot create, delete, reset a key, or release the runtime', async () => {
     expect((await post(run(), { name: 'x' })).status).toBe(401);
     expect((await del(run(), 'agent000001')).status).toBe(401);
     expect((await del(run(), 'agent000001/runtime')).status).toBe(401);
@@ -273,6 +275,7 @@ interface WireAgent {
   key: string | null;
   endpoint: string | null;
   command: string | null;
+  connector_ids: string[];
 }
 
 interface ListBody {
@@ -398,6 +401,7 @@ describe('GET /api/agents key exposure', () => {
       runtime: null,
       connected: false,
       last_seen: null,
+      connector_ids: [],
       key: 'mk_fake_ada-bot',
       endpoint: `${LOCAL}/mcp?token=mk_fake_ada-bot`,
       command: `claude mcp add --transport http metro "${LOCAL}/mcp?token=mk_fake_ada-bot"`,
@@ -489,6 +493,7 @@ describe('GET /api/agents key exposure', () => {
       runtime: null,
       connected: false,
       last_seen: null,
+      connector_ids: [],
       key: null,
       endpoint: null,
       command: null,
@@ -832,5 +837,15 @@ describe('mcpAddCommand', () => {
 
   test('no --scope flag is emitted at all', () => {
     expect(mcpAddCommand('mk_x')).not.toContain('--scope');
+  });
+});
+
+describe('GET /api/agents carries what each agent holds', () => {
+  test('connector ids ride on the agent, empty when it holds nothing', async () => {
+    heldConnectors = new Map([['agent000001', ['conn0000001', 'conn0000002']]]);
+    const [agent] = await listAgents('ada@lovelace.dev');
+    expect(agent?.connector_ids).toEqual(['conn0000001', 'conn0000002']);
+    const [other] = await listAgents('bob@builder.dev');
+    expect(other?.connector_ids).toEqual([]);
   });
 });

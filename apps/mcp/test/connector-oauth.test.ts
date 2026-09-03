@@ -238,7 +238,7 @@ describe('the callback route', () => {
     expect(res.status).toBe(405);
   });
 
-  test('the collection route is still session gated', async () => {
+  test('the list route is still session gated', async () => {
     expect((await fetch(`${base}/api/connectors?project=p0000000001`)).status).toBe(
       401,
     );

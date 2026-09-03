@@ -3,7 +3,8 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { CopyBlock } from './CopyBlock';
-import { mintRuntimeCode, releaseRuntime, type AgentSummary } from '../api/client';
+import { releaseRuntime, type AgentSummary } from '../api/client';
+import { mintAgentCode } from '../api/agent-connectors';
 import { queryError } from '../api/queries';
 
 interface RunLocallyProps {
@@ -83,6 +84,7 @@ export function RunLocally({
       <Text size="sm" role="secondary">
         Run this agent&apos;s stations yourself so its messages never pass
         through Metro. Start it with the command below, then paste this code.
+        The same code also signs a machine in with metro login.
       </Text>
       <CopyBlock label="on your machine" value={`metro start ${agent.id}`} />
       {code === null ? null : (
@@ -106,7 +108,7 @@ export function RunLocally({
           label={code === null ? 'Authorize a machine' : 'New code'}
           onPress={() => {
             run(
-              mintRuntimeCode(token, agent.id),
+              mintAgentCode(token, agent.id).then((minted) => minted.code),
               'Could not create a pairing code.',
             );
           }}

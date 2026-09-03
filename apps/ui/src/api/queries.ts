@@ -8,8 +8,10 @@ import {
 import { carryForward, type AccountGroup } from './accounts';
 import {
   AuthError,
+  fetchAgents,
   fetchSession,
   fetchStations,
+  type AgentsView,
   type StationsView,
 } from './client';
 import {
@@ -18,7 +20,6 @@ import {
   type Connector,
   type ConnectorsView,
 } from './connectors';
-import { fetchCollection, fetchCollections, type Collection } from './collections';
 import {
   fetchMembers,
   fetchProjects,
@@ -42,11 +43,6 @@ export const connectorKey = (id: string): (string | number)[] => [
   'connector',
   id,
 ];
-export const collectionsKey = (project: string): string[] => [
-  'collections',
-  project,
-];
-export const collectionKey = (id: string): (string | number)[] => ['list', id];
 
 export function makeQueryClient(onAuthError: () => void): QueryClient {
   return new QueryClient({
@@ -77,6 +73,16 @@ export function useSessionQuery(token: string): UseQueryResult<string> {
     queryKey: sessionKey(),
     queryFn: () => fetchSession(token),
     staleTime: 5 * 60_000,
+  });
+}
+
+export function useAgentsQuery(
+  token: string,
+  project: string,
+): UseQueryResult<AgentsView> {
+  return useQuery({
+    queryKey: agentsKey(project),
+    queryFn: () => fetchAgents(token, project),
   });
 }
 
@@ -116,11 +122,19 @@ export function useMembersQuery(
   });
 }
 
+function invalidate(client: QueryClient, keys: (string | number)[][]): void {
+  for (const queryKey of keys)
+    client.invalidateQueries({ queryKey }).catch(() => undefined);
+}
+
 export function refreshProjects(client: QueryClient, project?: string): void {
   const keys: (string | number)[][] = [projectsKey()];
   if (project !== undefined) keys.push(membersKey(project));
-  for (const queryKey of keys)
-    client.invalidateQueries({ queryKey }).catch(() => undefined);
+  invalidate(client, keys);
+}
+
+export function refreshAgents(client: QueryClient, project: string): void {
+  invalidate(client, [agentsKey(project), stationsKey(project)]);
 }
 
 export function useConnectorsQuery(
@@ -140,39 +154,11 @@ export function refreshConnectors(
 ): void {
   const keys: (string | number)[][] = [
     connectorsKey(project),
-    collectionsKey(project),
+    agentsKey(project),
+    stationsKey(project),
   ];
   if (id !== undefined) keys.push(connectorKey(id));
-  for (const queryKey of keys)
-    client.invalidateQueries({ queryKey }).catch(() => undefined);
-}
-
-export function refreshCollections(
-  client: QueryClient,
-  project: string,
-  id?: string,
-): void {
-  const keys: (string | number)[][] = [collectionsKey(project)];
-  if (id !== undefined) keys.push(collectionKey(id));
-  for (const queryKey of keys)
-    client.invalidateQueries({ queryKey }).catch(() => undefined);
-}
-
-export function useCollectionsQuery(
-  token: string,
-  project: string,
-): UseQueryResult<Collection[]> {
-  return useQuery({
-    queryKey: collectionsKey(project),
-    queryFn: () => fetchCollections(token, project),
-  });
-}
-
-export function useCollectionQuery(
-  token: string,
-  id: string,
-): UseQueryResult<Collection> {
-  return useQuery({ queryKey: collectionKey(id), queryFn: () => fetchCollection(token, id) });
+  invalidate(client, keys);
 }
 
 export function useConnectorQuery(

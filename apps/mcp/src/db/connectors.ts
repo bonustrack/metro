@@ -1,4 +1,4 @@
-import { assertRenameFreeOfClash } from './connector-collections.js';
+import { assertRenameFreeOfClash } from './agent-connectors.js';
 import { projectIdOrThrow } from './projects.js';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import {

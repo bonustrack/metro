@@ -5,7 +5,7 @@ import {
   handleProjectApiRequest,
   type ProjectApiDeps,
 } from '../src/daemon/project-api.js';
-import { signCliToken, signSession } from '../src/daemon/session.js';
+import { signAgentToken, signSession } from '../src/daemon/session.js';
 import { ApiError } from '../src/daemon/api-error.js';
 import type { Member, Project } from '../src/db/projects.js';
 
@@ -192,8 +192,8 @@ describe('a project is what everything else hangs off', () => {
       expect((await call(method ?? '', path ?? '')).status).toBe(401);
   });
 
-  test('a CLI token is not a session here either', async () => {
-    const cli = signCliToken({ email: ADA, collectionId: 'col00000001' }, SECRET);
+  test('an agent token is not a session here either', async () => {
+    const cli = signAgentToken({ email: ADA, agentId: 'agent000001' }, SECRET);
     expect((await call('GET', '/api/projects', cli)).status).toBe(401);
   });
 

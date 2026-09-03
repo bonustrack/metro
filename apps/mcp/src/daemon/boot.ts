@@ -26,7 +26,8 @@ import {
   touchRuntime,
 } from '../db/runtimes.js';
 import {
-  mintRuntimeCodeForEmail,
+  blockedStationsFor,
+  mintAgentCodeForEmail,
   releaseRuntimeForEmail,
 } from '../db/runtime-admin.js';
 import { loadAgentForRuntime, localAgentKey } from '../db/materialize.js';
@@ -82,14 +83,12 @@ import {
   setMemberRoleForEmail,
 } from '../db/projects.js';
 import {
-  addToCollectionForEmail,
-  createCollectionForEmail,
-  deleteCollectionForEmail,
-  getCollectionForEmail,
-  listCollectionsForEmail,
-  removeFromCollectionForEmail,
-  renameCollectionForEmail,
-} from '../db/connector-collections.js';
+  addConnectorToAgentForEmail,
+  agentConnectorsForEmail,
+  connectorIdsByAgent,
+  removeConnectorFromAgentForEmail,
+} from '../db/agent-connectors.js';
+import type { AgentConnectorApiDeps } from './agent-connector-api.js';
 import type { StationName } from '../db/schema.js';
 import { AttachSessions } from './attach-session.js';
 import { startUploadReaper } from './upload-store.js';
@@ -208,8 +207,8 @@ const agentApi: AgentApiDeps = {
   gatherAccounts: gatherAccountsForAgents,
   capabilities: accountStationCapabilities,
   liveness: agentLiveness,
-  mintRuntimeCode: mintRuntimeCodeForEmail,
   releaseRuntime: releaseRuntimeForEmail,
+  connectorIds: connectorIdsByAgent,
   runtimes: runtimeLabels,
   prepareAccount,
   attachAccount: attachAccountToAgent,
@@ -222,6 +221,14 @@ const runApi: RunApiDeps = {
   fenceRuntime,
   touchRuntime,
   loadAgent: loadAgentForRuntime,
+  blockedStations: blockedStationsFor,
+};
+
+const agentConnectorApi: AgentConnectorApiDeps = {
+  agentConnectors: agentConnectorsForEmail,
+  addConnector: addConnectorToAgentForEmail,
+  removeConnector: removeConnectorFromAgentForEmail,
+  mintCode: mintAgentCodeForEmail,
 };
 
 const projectApi: ProjectApiDeps = {
@@ -238,13 +245,8 @@ const projectApi: ProjectApiDeps = {
 const connectorApi: ConnectorApiDeps = {
   listConnectors: listConnectorsForEmail,
   connectorNamesByIds,
-  listCollections: listCollectionsForEmail,
-  getCollection: getCollectionForEmail,
-  createCollection: createCollectionForEmail,
-  renameCollection: renameCollectionForEmail,
-  deleteCollection: deleteCollectionForEmail,
-  addToCollection: addToCollectionForEmail,
-  removeFromCollection: removeFromCollectionForEmail,
+  agentConnectors: agentConnectorsForEmail,
+  fenceRuntime,
   renameConnector: renameConnectorForEmail,
   createConnector: createConnectorForEmail,
   createPendingConnector: createPendingConnectorForEmail,
@@ -263,7 +265,14 @@ async function main(): Promise<void> {
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(
     emit,
-    { agentApi, connectorApi, projectApi, runApi, relayApi: { target: relayTarget } },
+    {
+      agentApi,
+      agentConnectorApi,
+      connectorApi,
+      projectApi,
+      runApi,
+      relayApi: { target: relayTarget, fence: fenceRuntime },
+    },
     metroMcp.httpHandler,
     metroCall,
   );

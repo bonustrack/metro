@@ -9,9 +9,10 @@ import {
   readJsonBody,
   sendJson,
   type ApiSession,
+  type Fence,
 } from './api-http.js';
 import { parseId } from '../db/ids.js';
-import type { ConnectorCollectionRow } from '../db/connector-collections.js';
+import type { AgentConnectors } from '../db/agent-connectors.js';
 import type { RelayServerEntry } from './connector-json.js';
 import {
   handleCallback,
@@ -36,35 +37,8 @@ const asText = (value: unknown): string =>
 export interface ConnectorApiDeps extends OAuthRouteDeps {
   listConnectors: (email: string, project: string) => Promise<Connector[]>;
   connectorNamesByIds: (ids: string[]) => Promise<RelayServerEntry[]>;
-  listCollections: (
-    email: string,
-    project: string,
-  ) => Promise<ConnectorCollectionRow[]>;
-  getCollection: (email: string, id: string) => Promise<ConnectorCollectionRow>;
-  createCollection: (
-    email: string,
-    project: string,
-    name: string,
-  ) => Promise<ConnectorCollectionRow>;
-  renameCollection: (
-    email: string,
-    id: string,
-    name: string,
-  ) => Promise<ConnectorCollectionRow>;
-  deleteCollection: (
-    email: string,
-    id: string,
-  ) => Promise<{ id: string; name: string }>;
-  addToCollection: (
-    email: string,
-    id: string,
-    connectorId: string,
-  ) => Promise<ConnectorCollectionRow>;
-  removeFromCollection: (
-    email: string,
-    id: string,
-    connectorId: string,
-  ) => Promise<ConnectorCollectionRow>;
+  agentConnectors: (email: string, agentId: string) => Promise<AgentConnectors>;
+  fenceRuntime: Fence;
   createConnector: (
     email: string,
     project: string,

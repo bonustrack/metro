@@ -2,10 +2,10 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
 import {
-  verifyCliToken,
+  verifyAgentToken,
   verifyRunToken,
   verifySession,
-  type CliClaims,
+  type AgentClaims,
   type RunClaims,
 } from './session.js';
 import { extractToken } from '../mcp/request-identity.js';
@@ -67,16 +67,39 @@ export function runIdentity(req: IncomingMessage): RunClaims | null {
   }
 }
 
-export function cliIdentity(req: IncomingMessage): CliClaims | null {
+export interface AgentIdentity extends AgentClaims {
+  runtimeId?: string;
+}
+
+export function agentIdentity(req: IncomingMessage): AgentIdentity | null {
   const secret = process.env.METRO_SESSION_SECRET?.trim() ?? '';
   if (secret === '') return null;
   const token = extractToken(req) ?? '';
   if (token === '') return null;
   try {
-    const { email, collectionId } = verifyCliToken(token, secret);
-    return { email: email.toLowerCase(), collectionId };
+    const { email, agentId } = verifyAgentToken(token, secret);
+    return { email: email.toLowerCase(), agentId };
   } catch {
-    return null;
+    const run = runIdentity(req);
+    if (run === null) return null;
+    return { email: run.email, agentId: run.agentId, runtimeId: run.runtimeId };
+  }
+}
+
+export type Fence = (runtimeId: string, agentId: string) => Promise<void>;
+
+const RELEASED = 'this machine no longer holds the agent';
+
+export async function assertLease(
+  who: AgentIdentity,
+  fence: Fence,
+): Promise<void> {
+  if (who.runtimeId === undefined) return;
+  try {
+    await fence(who.runtimeId, who.agentId);
+  } catch (err) {
+    if (err instanceof ApiError) throw new ApiError(RELEASED, 401);
+    throw err;
   }
 }
 

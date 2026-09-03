@@ -13,7 +13,6 @@ interface AddConnectorsProps {
   action: string;
   initial: string[];
   open: boolean;
-  onBack?: () => void;
   onClose: () => void;
   onSubmit: (connectorIds: string[]) => Promise<unknown>;
 }
@@ -25,7 +24,6 @@ export function AddConnectors({
   action,
   initial,
   open,
-  onBack,
   onClose,
   onSubmit,
 }: AddConnectorsProps): ReactNode {
@@ -79,8 +77,8 @@ export function AddConnectors({
             color="secondary"
             dark={dark}
             disabled={busy}
-            onPress={onBack ?? close}
-            label={onBack === undefined ? 'Cancel' : 'Back'}
+            onPress={close}
+            label="Cancel"
           />
           <Button
             color="primary"

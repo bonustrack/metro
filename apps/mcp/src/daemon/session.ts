@@ -99,9 +99,9 @@ interface SessionClaims {
   agentIds: string[];
 }
 
-export interface CliClaims {
+export interface AgentClaims {
   email: string;
-  collectionId: string;
+  agentId: string;
 }
 
 export interface RunClaims {
@@ -147,17 +147,17 @@ export function verifySession(
   return { email: p.sub, agentIds: ids as string[] };
 }
 
-export function signCliToken(
-  claims: CliClaims,
+export function signAgentToken(
+  claims: AgentClaims,
   secret: string,
   opts: { ttlSec?: number; now?: number } = {},
 ): string {
   const iat = nowSec(opts.now);
   return sign(
     {
-      typ: 'cli',
+      typ: 'agent',
       sub: claims.email,
-      collection: claims.collectionId,
+      agent: claims.agentId,
       iat,
       exp: iat + (opts.ttlSec ?? 30 * 24 * 3600),
     },
@@ -165,18 +165,18 @@ export function signCliToken(
   );
 }
 
-export function verifyCliToken(
+export function verifyAgentToken(
   token: string,
   secret: string,
   now?: number,
-): CliClaims {
+): AgentClaims {
   const p = verify(token, secret);
-  if (p.typ !== 'cli') throw new SessionError('wrong token type');
+  if (p.typ !== 'agent') throw new SessionError('wrong token type');
   if (typeof p.exp !== 'number' || p.exp < nowSec(now))
-    throw new SessionError('cli token expired');
-  if (typeof p.sub !== 'string' || typeof p.collection !== 'string')
-    throw new SessionError('malformed cli token');
-  return { email: p.sub, collectionId: p.collection };
+    throw new SessionError('agent token expired');
+  if (typeof p.sub !== 'string' || typeof p.agent !== 'string')
+    throw new SessionError('malformed agent token');
+  return { email: p.sub, agentId: p.agent };
 }
 
 export function signRunToken(

@@ -1,4 +1,11 @@
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -33,10 +40,10 @@ interface Stored {
   url: string;
 }
 
-function readStored(): Stored | null {
+function readStoredAt(path: string): Stored | null {
   let raw: string;
   try {
-    raw = readFileSync(credentialsPath(), 'utf8');
+    raw = readFileSync(path, 'utf8');
   } catch {
     return null;
   }
@@ -50,6 +57,28 @@ function readStored(): Stored | null {
   const { token, url } = parsed as Record<string, unknown>;
   if (typeof token !== 'string' || token === '') return null;
   return { token, url: typeof url === 'string' ? url : DEFAULT_BASE };
+}
+
+const readStored = (): Stored | null => readStoredAt(credentialsPath());
+
+const RUN_TOKEN_FILE = /^runtime-[A-Za-z0-9_-]{11}\.json$/;
+
+export function readRunTokens(): string[] {
+  const fromEnv = process.env.METRO_RUN_TOKEN?.trim();
+  if (fromEnv !== undefined && fromEnv !== '') return [fromEnv];
+  let names: string[];
+  try {
+    names = readdirSync(configDir());
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  for (const name of names) {
+    if (!RUN_TOKEN_FILE.test(name)) continue;
+    const stored = readStoredAt(join(configDir(), name));
+    if (stored !== null && stored.url === metroUrl()) out.push(stored.token);
+  }
+  return out;
 }
 
 export function readToken(): string | null {

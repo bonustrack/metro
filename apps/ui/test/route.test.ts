@@ -147,13 +147,12 @@ describe('routeHash', () => {
       { kind: 'agent', project: PROJECT, id: 'id000000007' } as const,
       { kind: 'station', project: PROJECT, accountId: 'a1-e5036b5f' } as const,
       { kind: 'connectors', project: PROJECT } as const,
-      { kind: 'collections', project: PROJECT } as const,
       { kind: 'members', project: PROJECT } as const,
       { kind: 'project', project: PROJECT } as const,
       { kind: 'agents', project: PROJECT } as const,
       { kind: 'docs' } as const,
       { kind: 'settings' } as const,
-      { kind: 'authorize' } as const,
+      { kind: 'authorize', id: null } as const,
       { kind: 'none' } as const,
     ])
       expect(routeSelection(routeHash(selection))).toEqual(selection);
@@ -169,8 +168,6 @@ describe('every scoped href round-trips back to the same selection', () => {
     { kind: 'station', project: OWNER, accountId: 'a1-deadbeef' },
     { kind: 'connectors', project: OWNER },
     { kind: 'connector', project: OWNER, id: ID },
-    { kind: 'collections', project: OWNER },
-    { kind: 'collection', project: OWNER, id: ID },
     { kind: 'members', project: OWNER },
     { kind: 'project', project: OWNER },
   ];
@@ -193,17 +190,28 @@ describe('every scoped href round-trips back to the same selection', () => {
   });
 });
 
-describe('the machine authorize page is standalone, not project scoped', () => {
+describe('the authorize page is standalone, not project scoped', () => {
   const AGENT = 'bMcXH2uERTe';
 
   test('it round-trips, and metro start can build the url from an agent id alone', () => {
-    const hash = routeHash({ kind: 'machine', id: AGENT });
+    const hash = routeHash({ kind: 'authorize', id: AGENT });
     expect(hash).toBe(`#/authorize/${AGENT}`);
-    expect(routeSelection(hash)).toEqual({ kind: 'machine', id: AGENT });
+    expect(routeSelection(hash)).toEqual({ kind: 'authorize', id: AGENT });
   });
 
-  test('it does not collide with the collection authorize page', () => {
-    expect(routeSelection('#/authorize')).toEqual({ kind: 'authorize' });
+  test('without an agent it is the chooser metro login points at', () => {
+    expect(routeSelection('#/authorize')).toEqual({ kind: 'authorize', id: null });
+    expect(routeHash({ kind: 'authorize', id: null })).toBe('#/authorize');
+  });
+
+  test('the retired collection urls match nothing', () => {
+    for (const gone of [
+      '#/prj00000001/collections',
+      '#/prj00000001/collection/nONaK77lT9Q',
+      '#/authorize/',
+      '#/authorize/short',
+    ])
+      expect(routeSelection(gone)).toEqual({ kind: 'none' });
   });
 
   test('the old project-less agent url the CLI used to print matches nothing', () => {

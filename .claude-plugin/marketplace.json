@@ -6,7 +6,7 @@
     {
       "name": "metro",
       "source": "./plugin",
-      "description": "Sign in to a metro connector collection and use its MCP servers through metro's relay, credentials injected server-side."
+      "description": "Sign in as one metro agent and use the connectors it holds as MCP servers through metro's relay, credentials injected server-side."
     }
   ]
 }

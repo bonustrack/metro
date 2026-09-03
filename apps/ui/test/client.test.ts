@@ -53,6 +53,7 @@ describe('agent credentials on the wire', () => {
       key: 'mk_fake',
       endpoint: 'https://mcp.metro.box/mcp?token=mk_fake',
       command: 'claude mcp add x',
+      connectorIds: [],
     });
   });
 
@@ -70,6 +71,7 @@ describe('agent credentials on the wire', () => {
       key: null,
       endpoint: null,
       command: null,
+      connectorIds: [],
     });
   });
 
@@ -114,6 +116,7 @@ describe('agent credentials on the wire', () => {
         key: null,
         endpoint: null,
         command: null,
+        connectorIds: [],
       },
     ]);
   });
@@ -145,5 +148,22 @@ describe('resetAgentKey', () => {
   test('a response without a key is rejected rather than shown as empty', async () => {
     serve({ id: 'id000000007', name: 'tony', reset: true });
     await expect(resetAgentKey('session', 7)).rejects.toThrow('unexpected');
+  });
+});
+
+describe('what an agent holds', () => {
+  test('connector ids ride on the agent and junk entries are dropped', async () => {
+    const [agent] = await dashboard([
+      {
+        id: 'id000000001',
+        name: 'ada-bot',
+        owned: true,
+        key: null,
+        endpoint: null,
+        command: null,
+        connector_ids: ['id000000012', 7, null],
+      },
+    ]);
+    expect(agent?.connectorIds).toEqual(['id000000012']);
   });
 });

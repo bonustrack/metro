@@ -1,4 +1,4 @@
-import { metroUrl, readToken } from './store.js';
+import { metroUrl, readRunTokens, readToken } from './store.js';
 
 export class NotSignedIn extends Error {}
 
@@ -22,10 +22,17 @@ function tokenOrThrow(): string {
     throw new Error(
       `refusing to send your session to ${metroUrl()} in the clear — use https, or a loopback address`,
     );
-  const token = readToken();
+  const token = readToken() ?? soleRunToken();
   if (token === null)
-    throw new NotSignedIn('not signed in — run `metro login` first');
+    throw new NotSignedIn(
+      'not signed in — run `metro login`, or `metro start <agent-id>` on this machine',
+    );
   return token;
+}
+
+function soleRunToken(): string | null {
+  const tokens = readRunTokens();
+  return tokens.length === 1 ? (tokens[0] ?? null) : null;
 }
 
 async function get(path: string): Promise<unknown> {
@@ -40,7 +47,9 @@ async function get(path: string): Promise<unknown> {
     throw new Error(`could not reach ${metroUrl()}`);
   }
   if (res.status === 401)
-    throw new NotSignedIn('that sign-in has expired — run `metro login` again');
+    throw new NotSignedIn(
+      "metro refused this machine's sign-in — run `metro login` again",
+    );
   if (!res.ok) throw new Error(`metro answered ${String(res.status)}`);
   return res.json();
 }
@@ -110,7 +119,7 @@ export async function runConfigKey(token: string): Promise<string> {
 export interface Authorized {
   token: string;
   email: string;
-  collection: string;
+  agent: string;
 }
 
 export async function claimCode(code: string): Promise<Authorized> {
@@ -119,14 +128,10 @@ export async function claimCode(code: string): Promise<Authorized> {
     !isRecord(body) ||
     typeof body.token !== 'string' ||
     typeof body.email !== 'string' ||
-    typeof body.collection !== 'string'
+    typeof body.agent !== 'string'
   )
     throw new Error('metro returned an unexpected response');
-  return {
-    token: body.token,
-    email: body.email,
-    collection: body.collection,
-  };
+  return { token: body.token, email: body.email, agent: body.agent };
 }
 
 export interface RunClaimed {
@@ -159,14 +164,14 @@ export async function mcpServers(): Promise<string> {
 
 export async function whoisAuthorized(): Promise<{
   email: string;
-  collection: string;
+  agent: string;
 }> {
   const body = await get('/api/cli/session');
   if (
     !isRecord(body) ||
     typeof body.email !== 'string' ||
-    typeof body.collection !== 'string'
+    typeof body.agent !== 'string'
   )
     throw new Error('metro returned an unexpected response');
-  return { email: body.email, collection: body.collection };
+  return { email: body.email, agent: body.agent };
 }
