@@ -13,6 +13,14 @@ import { join } from 'node:path';
 
 const STATE = (): string => join(homedir(), '.metro');
 
+export function serveStateDir(): string {
+  const xdg = process.env.XDG_CACHE_HOME?.trim();
+  const base = xdg === undefined || xdg === '' ? join(homedir(), '.cache') : xdg;
+  return join(base, 'metro', 'serve');
+}
+
+const serveLockPath = (): string => join(serveStateDir(), '.tail-lock');
+
 const pidPath = (agentId: string): string =>
   join(STATE(), `run-${agentId}.pid`);
 
@@ -111,16 +119,20 @@ function commandOf(pid: number): string {
 const looksLikeMetro = (command: string): boolean =>
   command.includes('server.ts') || command.includes('metro');
 
-export function lockedBy(): number | null {
+function holderOf(lockFile: string): number | null {
   let pid: number;
   try {
-    pid = Number(readFileSync(lockPath(), 'utf8').trim());
+    pid = Number(readFileSync(lockFile, 'utf8').trim());
   } catch {
     return null;
   }
   if (!Number.isInteger(pid) || pid <= 0 || !isAlive(pid)) return null;
   return looksLikeMetro(commandOf(pid)) ? pid : null;
 }
+
+export const lockedBy = (): number | null => holderOf(lockPath());
+
+export const serveLockedBy = (): number | null => holderOf(serveLockPath());
 
 export interface StoppedDaemon {
   pid: number;
@@ -157,9 +169,16 @@ export async function stopAll(
   }
   const holder = lockedBy();
   if (holder !== null && !seen.has(holder)) {
+    seen.add(holder);
     await stopPid(holder, waitMs);
     rmSync(lockPath(), { force: true });
     stopped.push({ pid: holder, via: 'the machine lock' });
+  }
+  const served = serveLockedBy();
+  if (served !== null && !seen.has(served)) {
+    await stopPid(served, waitMs);
+    rmSync(serveLockPath(), { force: true });
+    stopped.push({ pid: served, via: 'metro serve' });
   }
   return stopped;
 }

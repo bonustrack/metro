@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { serveLockedBy, serveStateDir } from './control.js';
 import {
   findBun,
   localPort,
@@ -66,12 +66,6 @@ export function findCloudflared(): void {
     );
 }
 
-export function serveStateDir(): string {
-  const xdg = process.env.XDG_CACHE_HOME?.trim();
-  const base = xdg === undefined || xdg === '' ? join(homedir(), '.cache') : xdg;
-  return join(base, 'metro', 'serve');
-}
-
 export function servePlan(opts: ServeOptions): DaemonPlan {
   const env: NodeJS.ProcessEnv = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !SCRUBBED.has(key)),
@@ -94,6 +88,12 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
 
 export function serve(argv: string[]): Promise<number> {
   const { port, tunnel } = parseServeArgs(argv);
+  const running = serveLockedBy();
+  if (running !== null)
+    throw new Error(
+      `a metro serve daemon is already running on this machine (pid ${String(running)}). ` +
+        'Stop it first: metro stop',
+    );
   if (tunnel) findCloudflared();
   const plan = servePlan({ dir: runtimeDir(), port, tunnel });
   process.stderr.write(
