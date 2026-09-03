@@ -15,6 +15,8 @@ import { Spinner } from './Spinner';
 import { fetchNonce, loginMessage, verifyLogin } from '../api/siwe';
 import { storeRecentWallet } from '../auth/recent';
 import { connectWallet, signWith, useWallets } from '../auth/wallet';
+import { daemonHost } from '../auth/daemon';
+import { daemonBase } from '../auth/session';
 import { type WalletChoice } from '../auth/wallet-options';
 
 const CARD_WIDTH = 400;
@@ -134,6 +136,14 @@ export function Login({ onSignedIn }: LoginProps): ReactNode {
         </Row>
         <Row justify="center">
           <PageTitle>Sign in</PageTitle>
+        </Row>
+        <Row justify="center">
+          <Text size="sm" role="secondary">
+            to {daemonHost(daemonBase())} ·{' '}
+            <a className="hint-link" href="#/connect">
+              change
+            </a>
+          </Text>
         </Row>
         {wallets.some((w) => w.kind === 'injected') ? null : (
           <Text size="sm" role="secondary">

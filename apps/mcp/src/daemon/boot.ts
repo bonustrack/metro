@@ -4,7 +4,13 @@ import { type Server } from 'node:http';
 import { selfLine, userSelf } from './events.js';
 import { setTrainCallBackend } from './train-call.js';
 import { errMsg, log, logFatalSync } from './log.js';
-import { acquireLock, loadMetroEnv, STATE_DIR } from './paths.js';
+import {
+  acquireLock,
+  isLocalMode,
+  loadMetroEnv,
+  STATE_DIR,
+  trainsDir,
+} from './paths.js';
 import { installCrashGuard, markDaemonReady } from './crash-guard.js';
 import {
   loadTunnelConfig,
@@ -12,7 +18,7 @@ import {
   warnOnLegacyWebhooks,
   webhookPort,
 } from './tunnel.js';
-import { TrainSupervisor, TRAINS_DIR } from './supervisor.js';
+import { TrainSupervisor } from './supervisor.js';
 import {
   makeEmit,
   startWebhookServer,
@@ -31,6 +37,11 @@ import {
   releaseRuntimeForUser,
 } from '../db/runtime-admin.js';
 import { loadAgentForRuntime, localAgentKey } from '../db/materialize.js';
+import { fileSource } from '../db/file-source.js';
+import { ensureLocalSessionSecret } from './local-secret.js';
+import { localConnectHint, localSessionApis } from './local-mode.js';
+import type { ModeInfo } from './mode-api.js';
+import type { SessionApis } from './session-apis.js';
 import {
   agentLiveness,
   closeAgentSession,
@@ -48,6 +59,7 @@ import {
   materializeFromDb,
   reloadAccountsFromDb,
   reloadFrom,
+  type ReloadedStations,
 } from '../db/materialize.js';
 import {
   httpSource,
@@ -124,12 +136,15 @@ setTrainCallBackend((train, action, args) =>
 );
 
 const runtime = runtimeConfigFromEnv();
-const localSource = runtime === null ? null : httpSource(runtime);
+const linkedSource = runtime === null ? null : httpSource(runtime);
+const localSource = linkedSource ?? (isLocalMode() ? fileSource : null);
 
 function announceLocalEndpoint(): void {
+  if (isLocalMode()) process.stderr.write(`\n${localConnectHint(webhookPort())}`);
   const key = localAgentKey();
   if (key === null) {
-    log.warn('this agent has no key — reset it in the web UI to connect an agent');
+    if (isLocalMode()) log.info('no agent on this machine yet');
+    else log.warn('this agent has no key — reset it in the web UI to connect an agent');
     return;
   }
   const url = `http://127.0.0.1:${String(webhookPort())}/mcp?token=${key}`;
@@ -153,8 +168,11 @@ async function stopLocalStations(): Promise<void> {
   for (const station of supervisor.running()) await supervisor.stopTrain(station);
 }
 
+const reloadStations = (): Promise<ReloadedStations> =>
+  localSource === null ? reloadAccountsFromDb() : reloadFrom(localSource);
+
 async function syncStations(station: StationName): Promise<void> {
-  const { removed } = await reloadAccountsFromDb();
+  const { removed } = await reloadStations();
   if (stationByName(station)?.hasTrain === false) return;
   if (removed.includes(station)) await supervisor.stopTrain(station);
   else supervisor.requestReload(station);
@@ -257,34 +275,54 @@ const connectorApi: ConnectorApiDeps = {
   deleteConnector: deleteConnectorForUser,
 };
 
+const hostedMode = (): ModeInfo => ({
+  mode: linkedSource === null ? 'hosted' : 'linked',
+  owner: null,
+  project: null,
+});
+
+function sessionApis(): SessionApis {
+  if (isLocalMode())
+    return localSessionApis({
+      syncStations,
+      closeAgentSession,
+      gatherAccounts: gatherAccountsForAgents,
+      capabilities: accountStationCapabilities,
+      liveness: agentLiveness,
+      prepareAccount,
+    });
+  return {
+    agentApi,
+    agentConnectorApi,
+    connectorApi,
+    projectApi,
+    runApi,
+    relayApi: { target: relayTarget, fence: fenceRuntime },
+    mode: hostedMode,
+  };
+}
+
 async function main(): Promise<void> {
+  if (isLocalMode()) ensureLocalSessionSecret();
   if (localSource === null) await materializeFromDb();
-  else await materializeFrom(localSource);
+  else await materializeFrom(localSource, { allowEmpty: linkedSource === null });
   warnOnLegacyWebhooks();
   supervisor.start();
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(
     emit,
-    {
-      agentApi,
-      agentConnectorApi,
-      connectorApi,
-      projectApi,
-      runApi,
-      relayApi: { target: relayTarget, fence: fenceRuntime },
-    },
+    sessionApis(),
     metroMcp.httpHandler,
     metroCall,
   );
   metroMcp.startInbound();
   startUploadReaper();
-  if (localSource !== null) {
+  if (linkedSource !== null)
     startRuntimePoller({ sync: syncLocal, stopAll: stopLocalStations });
-    announceLocalEndpoint();
-  }
+  if (localSource !== null) announceLocalEndpoint();
   tunnel?.start();
   log.info(
-    { tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' },
+    { tunnel: !!tunnel, trainsDir: trainsDir(), mcp: '/' },
     'dispatcher ready',
   );
   markDaemonReady();

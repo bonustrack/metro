@@ -137,6 +137,15 @@ VITE_METRO_MCP_URL=http://localhost:8420 bun run dev   # http://localhost:5175
 Register `http://localhost:8420/auth/google/callback` as a redirect URI on the OAuth client
 for local sign-in; localhost `return_to` is allowed by default.
 
+### Any daemon, not just the built-in one
+
+Open `#/connect` (or the `#/connect/<url>` link a `METRO_MODE=local` daemon prints at boot) and
+enter the daemon's address. Plain http is accepted for loopback only, so from another computer
+forward the port first (`ssh -L 8420:127.0.0.1:8420 <host>`); https addresses are accepted
+anywhere. The address and the session it signed in with are kept per daemon in localStorage, and
+`GET /api/mode` tells the pages which kind of daemon they are on, so a local one hides connectors,
+members and project settings, which it does not serve.
+
 ## Build / deploy
 
 ```

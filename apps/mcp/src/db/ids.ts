@@ -17,3 +17,5 @@ export function parseId(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   return ID_RE.test(raw) ? raw : null;
 }
+
+export const AGENT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;

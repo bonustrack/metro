@@ -8,6 +8,11 @@ import { SHRINK } from '../theme';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { type Selection } from './selection';
 import { shortAddress } from '../api/address';
+import { daemonHost, storedDaemon } from '../auth/daemon';
+
+const goToConnect = (): void => {
+  window.location.hash = '#/connect';
+};
 
 interface SidebarFooterProps {
   token: string;
@@ -26,6 +31,7 @@ export function SidebarFooter({
   onSelect,
   onLock,
 }: SidebarFooterProps): ReactNode {
+  const daemon = storedDaemon();
   return (
     <Col gap={NAV_GAP} padding={{ x: 24, bottom: 24, top: 16 }}>
       <NavRow
@@ -36,6 +42,11 @@ export function SidebarFooter({
         onSelect={onSelect}
       />
       <ProjectSwitcher token={token} project={project} onSelect={onSelect} />
+      {daemon === null ? null : (
+        <Text size="sm" role="secondary" numberOfLines={1}>
+          via {daemonHost(daemon)}
+        </Text>
+      )}
       <Dropdown
         className="account-trigger"
         label="Account menu"
@@ -47,6 +58,7 @@ export function SidebarFooter({
               onSelect({ kind: 'settings' });
             },
           },
+          { label: 'Switch daemon', onSelect: goToConnect },
           { label: 'Log out', danger: true, onSelect: onLock },
         ]}
       >

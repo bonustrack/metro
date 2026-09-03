@@ -71,9 +71,16 @@ export function daemonSelf(): Line {
 }
 
 export function selfLine(): Line | null {
-  if (process.env.CLAUDECODE) {
-    const s = claudeSessionId();
-    return s ? Line.claude(claudeUserId(), s) : null;
+  if (!process.env.CLAUDECODE) return null;
+  const s = claudeSessionId();
+  if (!s) return null;
+  try {
+    return Line.claude(claudeUserId(), s);
+  } catch (e) {
+    log.warn(
+      { reason: errMsg(e) },
+      'could not resolve a Claude account id; relaying with no self line',
+    );
+    return null;
   }
-  return null;
 }

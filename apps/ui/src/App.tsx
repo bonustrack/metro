@@ -4,6 +4,7 @@ import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './components/ui';
 import { Login } from './components/Login';
+import { Connect } from './components/Connect';
 import { BootLoading } from './components/BootLoading';
 import { Dashboard } from './components/Dashboard';
 import {
@@ -12,13 +13,16 @@ import {
   useSessionQuery,
 } from './api/queries';
 import { atLogin, goToLogin, leaveLogin } from './auth/login-route';
+import { connectRoute, currentSelection, subscribeRoute } from './route';
 import { pageTitle } from './title';
 import {
   clearSession,
+  daemonBase,
   sessionIsFresh,
   storeSession,
   storedSession,
 } from './auth/session';
+import { daemonHost } from './auth/daemon';
 
 type State = { phase: 'login' } | { phase: 'unlocked'; token: string };
 
@@ -33,8 +37,13 @@ function Unreachable({ onRetry }: { onRetry: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={12} align="center" padding={48}>
-      <Text role="secondary">Could not reach Metro.</Text>
+      <Text role="secondary">Could not reach Metro at {daemonHost(daemonBase())}.</Text>
       <Button color="secondary" dark={dark} label="Try again" onPress={onRetry} />
+      <Text size="sm" role="secondary">
+        <a className="hint-link" href="#/connect">
+          Switch daemon
+        </a>
+      </Text>
     </Col>
   );
 }
@@ -68,6 +77,14 @@ function Gate({ token, onLock }: GateProps): ReactNode {
 
 export function App(): ReactNode {
   const [state, setState] = useState<State>(initialState);
+  const [connect, setConnect] = useState(() => connectRoute(currentSelection()));
+  useEffect(
+    () =>
+      subscribeRoute((selection) => {
+        setConnect(connectRoute(selection));
+      }),
+    [],
+  );
 
   const lock = (): void => {
     clearSession();
@@ -88,17 +105,20 @@ export function App(): ReactNode {
   );
 
   useEffect(() => {
-    if (state.phase === 'login') {
+    if (connect !== null) document.title = pageTitle('Connect');
+    else if (state.phase === 'login') {
       client.clear();
       goToLogin();
       document.title = pageTitle('Log in');
     } else if (atLogin()) leaveLogin();
-  }, [state.phase, client]);
+  }, [state.phase, client, connect]);
 
   return (
     <div className="app-root">
       <QueryClientProvider client={client}>
-        {state.phase === 'login' ? (
+        {connect !== null ? (
+          <Connect url={connect.url} />
+        ) : state.phase === 'login' ? (
           <Login onSignedIn={unlock} />
         ) : (
           <Gate token={state.token} onLock={lock} />

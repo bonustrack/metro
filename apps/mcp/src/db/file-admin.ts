@@ -1,0 +1,250 @@
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  rmdirSync,
+  rmSync,
+  writeSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import { ApiError } from '../daemon/api-error.js';
+import { ensureSecureDir, writeSecure } from '../daemon/secure-fs.js';
+import {
+  AgentAdminError,
+  newApiKey,
+  normalizeAgentName,
+  type AgentSummary,
+  type CreatedAgent,
+  type DeletedAgent,
+  type OwnedAgent,
+  type ResetAgentKey,
+} from './agent-admin.js';
+import type { AccountRef } from './account-attach.js';
+import {
+  AGENT_FILE,
+  agentsDir,
+  listAgentFiles,
+  readAgentFile,
+  type AgentFile,
+} from './file-source.js';
+import { newId } from './ids.js';
+import { registerKey, rotateAgentKey, unregisterAgentKey } from './key-map.js';
+import { MOVABLE_STATIONS } from './materialize.js';
+import type { StationName } from './schema.js';
+import { normalizeAddress } from './users.js';
+
+export const LOCAL_PROJECT_ID = 'localdaemon';
+const OWNER_FILE = '.owner';
+
+interface Stored {
+  path: string;
+  file: AgentFile;
+}
+
+const missing = (): AgentAdminError => new AgentAdminError('no such agent', 404);
+
+export function localOwner(dir = agentsDir()): string | null {
+  try {
+    return normalizeAddress(readFileSync(join(dir, OWNER_FILE), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeOwnerOnce(path: string, address: string): boolean {
+  let fd: number;
+  try {
+    fd = openSync(path, 'wx', 0o600);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw err;
+  }
+  writeSync(fd, `${address}\n`);
+  closeSync(fd);
+  return true;
+}
+
+export function claimLocalOwner(raw: string, dir = agentsDir()): Promise<string> {
+  const address = normalizeAddress(raw);
+  if (address === null)
+    return Promise.reject(new ApiError('an Ethereum address is required', 400));
+  ensureSecureDir(dir);
+  if (writeOwnerOnce(join(dir, OWNER_FILE), address))
+    return Promise.resolve(address);
+  if (localOwner(dir) !== address)
+    return Promise.reject(
+      new ApiError('this machine belongs to another wallet', 403),
+    );
+  return Promise.resolve(address);
+}
+
+function isOwner(subject: string, dir: string): boolean {
+  const owner = localOwner(dir);
+  return owner !== null && owner === normalizeAddress(subject);
+}
+
+function storedAgents(dir: string): Stored[] {
+  return listAgentFiles(dir).map((path) => ({ path, file: readAgentFile(path) }));
+}
+
+function save(stored: Stored): void {
+  writeSecure(stored.path, `${JSON.stringify(stored.file, null, 2)}\n`);
+}
+
+function ownedOrThrow(subject: string, id: string, dir: string): Stored {
+  if (!isOwner(subject, dir)) throw missing();
+  const found = storedAgents(dir).find((s) => s.file.id === id);
+  if (found === undefined) throw missing();
+  return found;
+}
+
+export async function localOwnedAgentOrThrow(
+  subject: string,
+  id: string,
+  dir = agentsDir(),
+): Promise<{ agent: OwnedAgent }> {
+  const { file } = ownedOrThrow(subject, id, dir);
+  return Promise.resolve({ agent: { id: file.id, name: file.name } });
+}
+
+export async function localListAgents(
+  subject: string,
+  project: string,
+  dir = agentsDir(),
+): Promise<AgentSummary[]> {
+  if (project !== LOCAL_PROJECT_ID || !isOwner(subject, dir))
+    throw new AgentAdminError('no such project', 404);
+  return Promise.resolve(
+    storedAgents(dir)
+      .map(({ file }) => ({ id: file.id, name: file.name, owned: true, key: file.key }))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
+  );
+}
+
+function freshId(taken: Set<string>): string {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const id = newId();
+    if (!taken.has(id)) return id;
+  }
+  throw new AgentAdminError('could not allocate a free id', 500);
+}
+
+export async function localCreateAgent(
+  subject: string,
+  project: string,
+  rawName: string,
+  dir = agentsDir(),
+): Promise<CreatedAgent> {
+  if (project !== LOCAL_PROJECT_ID || !isOwner(subject, dir))
+    throw new AgentAdminError('no such project', 404);
+  const name = normalizeAgentName(rawName);
+  const folder = join(dir, name);
+  if (existsSync(join(folder, AGENT_FILE)))
+    throw new AgentAdminError(
+      `an agent named '${name}' already exists on this machine`,
+      409,
+    );
+  const existing = storedAgents(dir);
+  const id = freshId(new Set(existing.map((s) => s.file.id)));
+  const key = newApiKey();
+  ensureSecureDir(folder);
+  save({
+    path: join(folder, AGENT_FILE),
+    file: { version: 1, id, name, key, owner: localOwner(dir), stations: [] },
+  });
+  registerKey(key, id);
+  return Promise.resolve({ id, name, key });
+}
+
+export async function localResetAgentKey(
+  subject: string,
+  id: string,
+  dir = agentsDir(),
+): Promise<ResetAgentKey> {
+  const stored = ownedOrThrow(subject, id, dir);
+  const key = newApiKey();
+  stored.file.key = key;
+  save(stored);
+  rotateAgentKey(id, key);
+  return Promise.resolve({ id, name: stored.file.name, key });
+}
+
+export async function localDeleteAgent(
+  subject: string,
+  id: string,
+  dir = agentsDir(),
+): Promise<DeletedAgent> {
+  const stored = ownedOrThrow(subject, id, dir);
+  const attached = stored.file.stations.length;
+  if (attached > 0)
+    throw new AgentAdminError(
+      `agent '${stored.file.name}' still has ${String(attached)} station account(s) attached — detach them first`,
+      409,
+    );
+  rmSync(stored.path);
+  removeIfEmpty(join(stored.path, '..'));
+  unregisterAgentKey(id);
+  return Promise.resolve({ id, name: stored.file.name });
+}
+
+function removeIfEmpty(folder: string): void {
+  try {
+    rmdirSync(folder);
+  } catch {
+    return;
+  }
+}
+
+function assertTokenFree(all: Stored[], station: StationName, token: string): void {
+  const taken = all.some((s) =>
+    s.file.stations.some(
+      (a) => a.station === station && a.config.token === token,
+    ),
+  );
+  if (taken)
+    throw new AgentAdminError(
+      'that bot token is already attached to an agent on this machine',
+      409,
+    );
+}
+
+export async function localAttachAccount(
+  subject: string,
+  agentId: string,
+  station: StationName,
+  config: Record<string, unknown>,
+  dir = agentsDir(),
+): Promise<AccountRef> {
+  const stored = ownedOrThrow(subject, agentId, dir);
+  if (!MOVABLE_STATIONS.has(station))
+    throw new AgentAdminError(
+      `a ${station} endpoint needs a public url and cannot live on a local daemon`,
+      400,
+    );
+  const token = config.token;
+  if (typeof token === 'string') assertTokenFree(storedAgents(dir), station, token);
+  const taken = new Set(stored.file.stations.map((a) => a.id));
+  const accountId = freshId(taken);
+  stored.file.stations.push({ station, id: accountId, allowlist: ['*'], config });
+  save(stored);
+  return Promise.resolve({ agentId, station, accountId });
+}
+
+export async function localDetachAccount(
+  subject: string,
+  agentId: string,
+  station: StationName,
+  accountId: string,
+  dir = agentsDir(),
+): Promise<AccountRef> {
+  const stored = ownedOrThrow(subject, agentId, dir);
+  const before = stored.file.stations.length;
+  stored.file.stations = stored.file.stations.filter(
+    (a) => !(a.station === station && a.id === accountId),
+  );
+  if (stored.file.stations.length === before)
+    throw new AgentAdminError('no such account on this agent', 404);
+  save(stored);
+  return Promise.resolve({ agentId, station, accountId });
+}

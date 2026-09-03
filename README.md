@@ -60,11 +60,11 @@ bun run start            # serves on http://127.0.0.1:8420
 ```
 
 Accounts load from Postgres at boot. The daemon materializes them into a one-line train
-file per active station under `~/.metro/trains/*.ts`, then the supervisor spawns and
+file per active station under `apps/mcp/trains/*.ts` (`METRO_TRAINS_DIR` overrides), then the supervisor spawns and
 hot-reloads one subprocess per file:
 
 ```ts
-// ~/.metro/trains/xmtp.ts   (generated from the DB — you don't hand-write these)
+// apps/mcp/trains/xmtp.ts   (generated from the DB — you don't hand-write these)
 import '@metro-labs/xmtp/train';
 ```
 
@@ -424,6 +424,16 @@ a third party has to be able to POST to them and your machine has no public URL;
 holding one is refused with a message saying so. While an agent runs locally, metro serves it
 nothing — there is no fallback, and its key stops working against metro so a client pointed at
 the wrong daemon fails loudly instead of going quiet.
+
+**Without any account** (the base of the local-first work in `docs/CLI-REDESIGN.md`): start the
+daemon with `METRO_MODE=local` and it reads its agents from `~/.metro/agents/<name>/agent.json`
+(`METRO_AGENTS_DIR` overrides the directory), each `{ "version": 1, "id", "name", "key",
+"owner", "stations": [...] }`, runs their stations on this machine and prints the paste-ready
+line for Claude Code. No Postgres, no metro.box. It serves the same API as metro.box: sign in
+with your wallet (the first wallet to sign in owns the machine), create agents and attach
+stations, all written to those files. Open the link it prints: metro.box connects to the daemon on
+your machine (from another computer, forward the port first with `ssh -L 8420:127.0.0.1:8420 <host>`)
+and manages it from the same pages, while your messages stay on that machine.
 
 One thing to know about XMTP: an inbox allows ten installations and the first start on each
 machine spends one, so metro prints a warning when it does. Restarts on the same machine reuse

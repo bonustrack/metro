@@ -1,21 +1,21 @@
+import { builtInDaemon, storedDaemon } from './daemon';
+
 const STORAGE_KEY = 'metro.session';
 const PROJECT_KEY = 'metro.project';
-const DEFAULT_DAEMON = 'https://mcp.metro.box';
 const EXP_SKEW_MS = 60_000;
 
 export function daemonBase(): string {
-  const configured = import.meta.env.VITE_METRO_MCP_URL?.trim();
-  const base = configured !== undefined && configured !== '' ? configured : DEFAULT_DAEMON;
-  try {
-    return new URL(base, window.location.origin).origin;
-  } catch {
-    return DEFAULT_DAEMON;
-  }
+  return storedDaemon() ?? builtInDaemon();
+}
+
+function sessionKey(): string {
+  const base = daemonBase();
+  return base === builtInDaemon() ? STORAGE_KEY : `${STORAGE_KEY}:${base}`;
 }
 
 export function storedSession(): string | null {
   try {
-    const v = window.localStorage.getItem(STORAGE_KEY);
+    const v = window.localStorage.getItem(sessionKey());
     return v !== null && v.length > 0 ? v : null;
   } catch {
     return null;
@@ -24,7 +24,7 @@ export function storedSession(): string | null {
 
 export function storeSession(token: string): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, token);
+    window.localStorage.setItem(sessionKey(), token);
   } catch {
     return;
   }
@@ -49,7 +49,7 @@ export function storeProject(id: string): void {
 
 export function clearSession(): void {
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(sessionKey());
   } catch {
     return;
   }

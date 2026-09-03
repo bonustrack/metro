@@ -16,6 +16,8 @@ import {
   handleAgentConnectorRequest,
   type AgentConnectorApiDeps,
 } from './agent-connector-api.js';
+import type { SiweRouteDeps } from './siwe-routes.js';
+import type { ModeInfo } from './mode-api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
@@ -24,6 +26,8 @@ export interface SessionApis {
   projectApi?: ProjectApiDeps;
   runApi?: RunApiDeps;
   relayApi?: RelayApiDeps;
+  siwe?: SiweRouteDeps;
+  mode?: () => ModeInfo;
 }
 
 export function handleSessionApis(

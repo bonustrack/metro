@@ -3,6 +3,7 @@ export type Selection =
   | { kind: 'docs' }
   | { kind: 'settings' }
   | { kind: 'authorize'; id: string | null }
+  | { kind: 'connect'; url: string | null }
   | { kind: 'agents'; project: string }
   | { kind: 'agent'; project: string; id: string }
   | { kind: 'station'; project: string; accountId: string }

@@ -3,12 +3,11 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
 import { registerKey, rotateAgentKey, unregisterAgentKey } from './key-map.js';
-import { newId, parseId } from './ids.js';
+import { AGENT_NAME_RE, newId, parseId } from './ids.js';
 import { agents, stations } from './schema.js';
 import { isUniqueViolation } from './users.js';
 import { projectIdOrThrow } from './projects.js';
 
-export const AGENT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/;
 const KEY_ATTEMPTS = 5;
 
 export class AgentAdminError extends ApiError {}

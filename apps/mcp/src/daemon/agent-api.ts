@@ -49,6 +49,7 @@ export interface AgentApiDeps extends AccountApiDeps {
     unavailable: string[];
   }>;
   capabilities: () => Record<string, string[]>;
+  attachable?: string[];
   liveness: () => Map<string, { connected: boolean; lastSeenAt: number }>;
   releaseRuntime: (subject: string, agentId: string) => Promise<void>;
   runtimes: (agentIds: string[]) => Promise<Map<string, string>>;
@@ -171,7 +172,7 @@ async function handleList(
     endpoint: mcpEndpoint(),
     agents: list.map((a) => agentPayload(a, live, held, connectors)),
     capabilities: deps.capabilities(),
-    attachable: ATTACHABLE,
+    attachable: deps.attachable ?? ATTACHABLE,
   };
   if (!wantsAccounts(req)) {
     sendJson(req, res, 200, base);

@@ -6,6 +6,7 @@ const ACCOUNT = '[A-Za-z0-9_-]{1,64}';
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const AUTHORIZE_PATH = /^#?\/authorize$/;
+const CONNECT_PATH = /^#?\/connect(?:\/(.*))?$/;
 const AGENT_AUTHORIZE_PATH = new RegExp(`^#?/authorize/(${ID})$`);
 
 const AGENTS_PATH = new RegExp(`^#?/(${ID})$`);
@@ -36,9 +37,30 @@ const PAGES: [RegExp, (value: string) => Selection][] = [
   [AGENTS_PATH, (project) => ({ kind: 'agents', project })],
 ];
 
-export function routeSelection(hash: string): Selection {
+function decodeConnect(raw: string | undefined): string | null {
+  if (raw === undefined || raw === '') return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function connectRoute(selection: Selection): { url: string | null } | null {
+  return selection.kind === 'connect' ? { url: selection.url } : null;
+}
+
+function exactSelection(hash: string): Selection | null {
+  const connect = CONNECT_PATH.exec(hash);
+  if (connect) return { kind: 'connect', url: decodeConnect(connect[1]) };
   for (const [pattern, selection] of EXACT)
     if (pattern.test(hash)) return selection;
+  return null;
+}
+
+export function routeSelection(hash: string): Selection {
+  const exact = exactSelection(hash);
+  if (exact !== null) return exact;
   for (const [pattern, make] of SCOPED) {
     const found = pattern.exec(hash);
     if (found) return make(found[1] ?? '', found[2] ?? '');
@@ -65,6 +87,10 @@ export function routeHash(selection: Selection): string {
   if (selection.kind === 'settings') return '#/settings';
   if (selection.kind === 'authorize')
     return selection.id === null ? '#/authorize' : `#/authorize/${selection.id}`;
+  if (selection.kind === 'connect')
+    return selection.url === null
+      ? '#/connect'
+      : `#/connect/${encodeURIComponent(selection.url)}`;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return '#/';
   return `#/${selection.project}${suffix(selection)}`;

@@ -11,7 +11,12 @@ beforeAll(async () => {
     10000 + Math.floor(Math.random() * 20000),
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
-  server = await startWebhookServer(makeEmit(), {}, async (_req, res) => {
+  const mode = (): { mode: 'hosted'; owner: null; project: null } => ({
+    mode: 'hosted',
+    owner: null,
+    project: null,
+  });
+  server = await startWebhookServer(makeEmit(), { mode }, async (_req, res) => {
     res.writeHead(200).end('ok');
   });
   const addr = server.address() as AddressInfo;
@@ -42,6 +47,21 @@ describe('MCP CORS (browser cross-origin from the accounts UI)', () => {
     expect(
       (res.headers.get('access-control-expose-headers') ?? '').toLowerCase(),
     ).toContain('mcp-session-id');
+    await res.text();
+  });
+
+  test('an API preflight from metro.box is allowed to reach a private-network daemon', async () => {
+    const res = await fetch(`${base}/api/mode`, {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://metro.box',
+        'access-control-request-method': 'GET',
+        'access-control-request-private-network': 'true',
+      },
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-private-network')).toBe('true');
+    expect(res.headers.get('access-control-allow-origin')).toBe('https://metro.box');
     await res.text();
   });
 

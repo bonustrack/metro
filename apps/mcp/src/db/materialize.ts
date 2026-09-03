@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { log } from '../daemon/log.js';
 import { writeSecure } from '../daemon/secure-fs.js';
+import { isLocalMode, trainsDir } from '../daemon/paths.js';
 import { closeDb, databaseUrl, getDb } from './client.js';
 import {
   setAgentMap,
@@ -44,7 +45,6 @@ export interface LoadedAgent {
 }
 
 const METRO_DIR = join(homedir(), '.metro');
-const TRAINS_DIR = process.env.METRO_TRAINS_DIR ?? join(METRO_DIR, 'trains');
 
 const STATION_TARGETS: Record<StationName, StationTarget> = {
   xmtp: {
@@ -209,7 +209,7 @@ function trainConfig(
 }
 
 function trainStubPath(station: StationName): string {
-  return join(TRAINS_DIR, `${station}.ts`);
+  return join(trainsDir(), `${station}.ts`);
 }
 
 function currentText(path: string): string | null {
@@ -230,7 +230,7 @@ export const isLocalRuntime = (): boolean =>
   (process.env.METRO_RUN_TOKEN?.trim() ?? '') !== '';
 
 export const stationRunsHere = (station: StationName): boolean =>
-  isLocalRuntime() || !MOVABLE_STATIONS.has(station);
+  isLocalRuntime() || isLocalMode() || !MOVABLE_STATIONS.has(station);
 
 interface WrittenStations {
   active: Map<StationName, number>;
@@ -239,7 +239,7 @@ interface WrittenStations {
 
 function writeStations(list: LoadedAgent[]): WrittenStations {
   mkdirSync(METRO_DIR, { recursive: true });
-  mkdirSync(TRAINS_DIR, { recursive: true });
+  mkdirSync(trainsDir(), { recursive: true });
 
   const byStation = new Map<StationName, LoadedAccount[]>();
   const map: AgentMap = {};
@@ -331,12 +331,21 @@ async function loadAndWrite(
   return { ...writeStations(list), agents: list.length };
 }
 
-export async function materializeFrom(source: StationSource): Promise<void> {
+export interface MaterializeOptions {
+  allowEmpty?: boolean;
+}
+
+export async function materializeFrom(
+  source: StationSource,
+  opts: MaterializeOptions = {},
+): Promise<void> {
   const { active, agents: found } = await loadAndWrite(source);
 
-  if (found === 0) throw new Error('no agents found — nothing to materialize');
+  if (found === 0 && opts.allowEmpty !== true)
+    throw new Error('no agents found — nothing to materialize');
+  const removed = pruneStations(active);
   log.info(
-    { stations: stationLabels(active), agents: found },
+    { stations: stationLabels(active), agents: found, removed },
     'materialized station accounts',
   );
 }
