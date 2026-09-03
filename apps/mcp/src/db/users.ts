@@ -8,12 +8,17 @@ const UNIQUE_VIOLATION = '23505';
 
 export class UserError extends ApiError {}
 
+const CAUSE_DEPTH = 5;
+
 export function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    (err as { code?: unknown }).code === UNIQUE_VIOLATION
-  );
+  let current: unknown = err;
+  for (let depth = 0; depth < CAUSE_DEPTH; depth += 1) {
+    if (typeof current !== 'object' || current === null) return false;
+    const { code, cause } = current as { code?: unknown; cause?: unknown };
+    if (code === UNIQUE_VIOLATION) return true;
+    current = cause;
+  }
+  return false;
 }
 
 export function normalizeEmail(raw: string): string {
