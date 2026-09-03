@@ -4,6 +4,8 @@ import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { signRunToken, signSession } from '../src/daemon/session.ts';
 import { mcpAddCommand, type AgentApiDeps } from '../src/daemon/agent-api.ts';
+
+const PORT = (): string => process.env.METRO_WEBHOOK_PORT ?? '8420';
 import {
   AgentAdminError,
   normalizeAgentName,
@@ -14,7 +16,7 @@ import {
 
 const SECRET = 'agent-api-test-secret';
 const PUBLIC = 'https://mcp.metro.box';
-const LOCAL = 'http://127.0.0.1:8420';
+const LOCAL = (): string => `http://127.0.0.1:${PORT()}`;
 
 const fakeKey = (agent: string): string => `mk_fake_${agent}`;
 
@@ -403,8 +405,8 @@ describe('GET /api/agents key exposure', () => {
       last_seen: null,
       connector_ids: [],
       key: 'mk_fake_ada-bot',
-      endpoint: `${LOCAL}/mcp?token=mk_fake_ada-bot`,
-      command: `claude mcp add --transport http metro "${LOCAL}/mcp?token=mk_fake_ada-bot"`,
+      endpoint: `${LOCAL()}/mcp?token=mk_fake_ada-bot`,
+      command: `claude mcp add --transport http metro "${LOCAL()}/mcp?token=mk_fake_ada-bot"`,
     });
   });
 
@@ -440,10 +442,10 @@ describe('GET /api/agents key exposure', () => {
     heldAgents = new Map([['agent000001', 'tony']]);
     const [agent] = await listAgents('ada@lovelace.dev');
     expect(agent?.endpoint).toBe(
-      'http://127.0.0.1:8420/mcp?token=mk_fake_ada-bot',
+      `http://127.0.0.1:${PORT()}/mcp?token=mk_fake_ada-bot`,
     );
     expect(agent?.command).toBe(
-      'claude mcp add --transport http metro "http://127.0.0.1:8420/mcp?token=mk_fake_ada-bot"',
+      `claude mcp add --transport http metro "http://127.0.0.1:${PORT()}/mcp?token=mk_fake_ada-bot"`,
     );
     expect(agent?.runtime).toBe('tony');
   });
@@ -452,7 +454,7 @@ describe('GET /api/agents key exposure', () => {
     const [agent] = await listAgents('ada@lovelace.dev');
     expect(agent?.runtime).toBeNull();
     expect(agent?.endpoint).toBe(
-      'http://127.0.0.1:8420/mcp?token=mk_fake_ada-bot',
+      `http://127.0.0.1:${PORT()}/mcp?token=mk_fake_ada-bot`,
     );
     expect(agent?.command).not.toContain(PUBLIC);
   });
@@ -534,9 +536,9 @@ describe('POST /api/agents', () => {
     const body = (await (
       await post(session('ada@lovelace.dev'), { name: 'pasteme' })
     ).json()) as CreateBody;
-    expect(body.endpoint).toBe(`${LOCAL}/mcp?token=mk_key_for_pasteme`);
+    expect(body.endpoint).toBe(`${LOCAL()}/mcp?token=mk_key_for_pasteme`);
     expect(body.command).toBe(
-      `claude mcp add --transport http metro "${LOCAL}/mcp?token=mk_key_for_pasteme"`,
+      `claude mcp add --transport http metro "${LOCAL()}/mcp?token=mk_key_for_pasteme"`,
     );
   });
 
@@ -709,7 +711,7 @@ describe('POST /api/agents/:id/key', () => {
     expect(body.name).toBe('ada-bot');
     expect(body.reset).toBe(true);
     expect(body.key).toBe(liveKeys['agent000001']);
-    expect(body.endpoint).toBe(`${LOCAL}/mcp?token=${body.key}`);
+    expect(body.endpoint).toBe(`${LOCAL()}/mcp?token=${body.key}`);
     expect(body.command).toBe(mcpAddCommand(body.key));
   });
 
@@ -810,9 +812,17 @@ describe('POST /api/agents/:id/key', () => {
 });
 
 describe('mcpAddCommand', () => {
+  test('the loopback url follows the port this daemon listens on', () => {
+    const before = process.env.METRO_WEBHOOK_PORT;
+    process.env.METRO_WEBHOOK_PORT = '8421';
+    expect(mcpAddCommand('mk_x')).toContain('http://127.0.0.1:8421/mcp?token=mk_x');
+    if (before === undefined) delete process.env.METRO_WEBHOOK_PORT;
+    else process.env.METRO_WEBHOOK_PORT = before;
+  });
+
   test('matches the browserbase convention: no --scope, full --transport http', () => {
     expect(mcpAddCommand('mk_x')).toBe(
-      'claude mcp add --transport http metro "http://127.0.0.1:8420/mcp?token=mk_x"',
+      `claude mcp add --transport http metro "http://127.0.0.1:${PORT()}/mcp?token=mk_x"`,
     );
   });
 
