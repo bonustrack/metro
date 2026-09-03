@@ -14,7 +14,7 @@ import {
 import { attachmentOwner, recordAttachmentOwner } from './attach-owner.js';
 import { grantAllows, issueAttachmentGrant } from './attach-grant.js';
 import { errMsg, log } from './log.js';
-import { loadTunnelConfig, webhookPort } from './tunnel.js';
+import { configuredTunnelHost, currentTunnelUrl, webhookPort } from './tunnel.js';
 import { isLocalMode } from './paths.js';
 
 function authorized(req: IncomingMessage, name: string): boolean {
@@ -31,7 +31,9 @@ const DEFAULT_PUBLIC_BASE = 'https://mcp.metro.box';
 export function publicBaseUrl(): string | null {
   const env = process.env.METRO_PUBLIC_URL?.trim();
   if (env) return env.replace(/\/+$/, '');
-  const host = loadTunnelConfig()?.hostname;
+  const live = currentTunnelUrl();
+  if (live !== null) return live;
+  const host = configuredTunnelHost();
   return host ? `https://${host}` : null;
 }
 

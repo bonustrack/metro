@@ -73,7 +73,7 @@ export default defineConfig({
       knip: {
         project: ['src/**/*.ts'],
         entry: ['src/**/*.ts', 'scripts/*.mjs', 'test/**/*.ts'],
-        ignoreBinaries: ['tail', 'ps', 'claude'],
+        ignoreBinaries: ['tail', 'ps', 'claude', 'cloudflared'],
         ignoreDependencies: STAGED_RUNTIME_DEPENDENCIES,
       },
     },
@@ -82,7 +82,7 @@ export default defineConfig({
       knip: {
         entry: ['src/daemon/**/*.ts', 'test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
-        ignoreBinaries: ['mktemp', 'claude', 'ps'],
+        ignoreBinaries: ['mktemp', 'claude', 'ps', 'cloudflared'],
         ignore: ['src/daemon/tunnel.ts'],
       },
     },

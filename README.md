@@ -420,7 +420,11 @@ stored, so one pairing code covers both.
 agents and stations live in `~/.metro/agents` on this machine (the file mode described further
 down), and the page at metro.box manages it through the link it prints. From another computer,
 forward the port first (`ssh -L 8420:127.0.0.1:8420 <host>`); on a box already running
-`metro start`, pick another port with `--port 8421`.
+`metro start`, pick another port with `--port 8421`. `metro serve --tunnel` skips the forwarding:
+it runs a Cloudflare quick tunnel (`cloudflared`, no account) and the link it prints carries a
+public `https://…trycloudflare.com` address that works from any browser, behind NAT included.
+The address changes on every start, Cloudflare terminates TLS and promises no uptime for quick
+tunnels, and the daemon is unowned until the first wallet signs in, so sign in right away.
 
 Metro no longer runs messenger stations at all: they run on your machine or nowhere. There is
 no fallback to Metro if your machine is down, which is the point. It needs

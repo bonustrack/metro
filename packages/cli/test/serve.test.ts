@@ -23,16 +23,17 @@ afterEach(() => {
 describe('metro serve arguments', () => {
   test('no arguments means 8420, or METRO_WEBHOOK_PORT when set', () => {
     delete process.env.METRO_WEBHOOK_PORT;
-    expect(parseServeArgs([])).toEqual({ port: 8420 });
+    expect(parseServeArgs([])).toEqual({ port: 8420, tunnel: false });
     process.env.METRO_WEBHOOK_PORT = '8422';
-    expect(parseServeArgs([])).toEqual({ port: 8422 });
+    expect(parseServeArgs([])).toEqual({ port: 8422, tunnel: false });
   });
 
   test('--port in its three spellings wins over the environment', () => {
     process.env.METRO_WEBHOOK_PORT = '8422';
-    expect(parseServeArgs(['--port', '8421'])).toEqual({ port: 8421 });
-    expect(parseServeArgs(['--port=9000'])).toEqual({ port: 9000 });
-    expect(parseServeArgs(['-p', '1'])).toEqual({ port: 1 });
+    expect(parseServeArgs(['--port', '8421'])).toEqual({ port: 8421, tunnel: false });
+    expect(parseServeArgs(['--port=9000'])).toEqual({ port: 9000, tunnel: false });
+    expect(parseServeArgs(['-p', '1'])).toEqual({ port: 1, tunnel: false });
+    expect(parseServeArgs(['--tunnel', '--port', '8421'])).toEqual({ port: 8421, tunnel: true });
   });
 
   test('a bad port or an unknown flag is refused with the usage', () => {
@@ -50,7 +51,8 @@ describe('the daemon a serve plan starts', () => {
     delete process.env.METRO_HTTP_HOST;
     delete process.env.METRO_STATE_DIR;
     process.env.XDG_CACHE_HOME = '/tmp/cache-home';
-    const plan = servePlan({ dir: '/opt/metro/runtime', port: 8421 });
+    const plan = servePlan({ dir: '/opt/metro/runtime', port: 8421, tunnel: false });
+    expect(plan.env.METRO_TUNNEL).toBeUndefined();
     expect(plan.args).toEqual([SERVER_ENTRY]);
     expect(plan.cwd).toBe('/opt/metro/runtime');
     expect(plan.env.METRO_MODE).toBe('local');
@@ -66,7 +68,8 @@ describe('the daemon a serve plan starts', () => {
   test('an explicit host or state dir is kept', () => {
     process.env.METRO_HTTP_HOST = '0.0.0.0';
     process.env.METRO_STATE_DIR = '/var/lib/metro';
-    const plan = servePlan({ dir: '/opt/metro/runtime', port: 8420 });
+    const plan = servePlan({ dir: '/opt/metro/runtime', port: 8420, tunnel: true });
+    expect(plan.env.METRO_TUNNEL).toBe('quick');
     expect(plan.env.METRO_HTTP_HOST).toBe('0.0.0.0');
     expect(plan.env.METRO_STATE_DIR).toBe('/var/lib/metro');
   });

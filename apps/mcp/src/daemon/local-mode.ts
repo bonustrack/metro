@@ -129,20 +129,6 @@ const agentConnectorApi: AgentConnectorApiDeps = {
     Promise.reject(new ApiError('a local daemon has no pairing codes', 400)),
 };
 
-export function localConnectHint(port: number): string {
-  const ui = process.env.METRO_UI_URL ?? 'https://metro.box';
-  const here = `http://127.0.0.1:${String(port)}`;
-  const forward = `ssh -L ${String(port)}:127.0.0.1:${String(port)} ${hostname()}`;
-  return [
-    'Manage this machine from the web UI:',
-    '',
-    `  ${ui}/#/connect/${encodeURIComponent(here)}`,
-    '',
-    `From another computer, forward the port first:  ${forward}`,
-    '',
-  ].join('\n');
-}
-
 export function localModeInfo(): ModeInfo {
   return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID };
 }
