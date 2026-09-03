@@ -143,6 +143,19 @@ describe('importing an agent from metro.box', () => {
     expect((await localListAgents(OWNER, LOCAL_PROJECT_ID, dir)).map((a) => a.id)).toEqual(['agentTony01']);
   });
 
+  test("metro.box's older 64-character keys import as they are", async () => {
+    const old = `mk_${'A1b2'.repeat(15)}z`;
+    const made = await localImportAgent(OWNER, loaded({ key: old, name: 'Old' }), dir);
+    expect(made.key).toBe(old);
+    expect(agentIdForKey(old)).toBe('agentTony01');
+  });
+
+  test('a shape the file cannot hold is a 400 naming the field, not a bare 500', async () => {
+    const bad = localImportAgent(OWNER, loaded({ name: 'Bad', id: 'agentTony09', key: 'mk_nope' }), dir);
+    await expect(bad).rejects.toThrow(/not an mk_ key/);
+    expect(await status(localImportAgent(OWNER, loaded({ name: 'Bad', id: 'agentTony09', key: 'mk_nope' }), dir))).toBe(400);
+  });
+
   test('a stranger, a webhook station, a keyless agent and every clash are refused', async () => {
     expect(await status(localImportAgent(OTHER, loaded(), dir))).toBe(404);
     expect(await status(localImportAgent(OWNER, loaded({ accounts: [{ station: 'webhook', id: 'stn00000003', allowlist: null, config: {} }] }), dir))).toBe(400);

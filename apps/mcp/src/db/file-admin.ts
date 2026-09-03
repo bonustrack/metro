@@ -23,6 +23,7 @@ import {
 import type { AccountRef } from './account-attach.js';
 import {
   AGENT_FILE,
+  AgentFileError,
   agentsDir,
   listAgentFiles,
   parseAgentFile,
@@ -224,17 +225,7 @@ export async function localImportAgent(
       409,
     );
   assertUnclaimed(storedAgents(dir), agent);
-  const file = parseAgentFile(
-    JSON.stringify({
-      version: 1,
-      id: agent.id,
-      name: agent.name,
-      key: agent.key,
-      owner: localOwner(dir),
-      stations: agent.accounts.map((a) => ({ ...a, allowlist: a.allowlist ?? ['*'] })),
-    }),
-    path,
-  );
+  const file = fileFor(agent, localOwner(dir), path);
   ensureSecureDir(folder);
   save({ path, file });
   registerKey(agent.key, agent.id);
@@ -244,6 +235,26 @@ export async function localImportAgent(
     key: agent.key,
     stations: agent.accounts.length,
   });
+}
+
+function fileFor(agent: LoadedAgent, owner: string | null, path: string): AgentFile {
+  try {
+    return parseAgentFile(
+      JSON.stringify({
+        version: 1,
+        id: agent.id,
+        name: agent.name,
+        key: agent.key,
+        owner,
+        stations: agent.accounts.map((a) => ({ ...a, allowlist: a.allowlist ?? ['*'] })),
+      }),
+      path,
+    );
+  } catch (err) {
+    if (err instanceof AgentFileError)
+      throw new AgentAdminError(`metro's copy of this agent cannot be written here: ${err.message}`, 400);
+    throw err;
+  }
 }
 
 function removeIfEmpty(folder: string): void {

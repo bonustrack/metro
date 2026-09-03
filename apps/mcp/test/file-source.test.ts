@@ -2,14 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  AgentFileError,
-  type AgentFile,
-  fileSource,
-  listAgentFiles,
-  loadFileAgents,
-  parseAgentFile,
-} from '../src/db/file-source.ts';
+import { AgentFileError, fileSource, listAgentFiles, loadFileAgents, parseAgentFile, readAgentFile, type AgentFile } from '../src/db/file-source.ts';
 import { materializeFrom, stationRunsHere } from '../src/db/materialize.ts';
 
 const KEY = `mk_${'a'.repeat(43)}`;
@@ -147,5 +140,21 @@ describe('train stubs at first boot', () => {
     expect(readFileSync(join(trains, 'telegram-bot.ts'), 'utf8')).toBe(
       "import '@metro-labs/telegram-bot/train';\n",
     );
+  });
+});
+
+describe('keys of every vintage', () => {
+  test("a metro.box key older than today's 46-character shape is still a key", () => {
+    const old = `mk_${'A1b2'.repeat(15)}z`;
+    expect(old).toHaveLength(64);
+    const path = write('suzy', agent({ key: old }));
+    expect(readAgentFile(path).key).toBe(old);
+  });
+
+  test('but not something that only starts with mk_', () => {
+    const path = write('suzy', agent({ key: 'mk_short' }));
+    expect(() => readAgentFile(path)).toThrow(/not an mk_ key/);
+    const spaced = write('tony', agent({ id: 'agent000002', key: `mk_${'x'.repeat(20)} y` }));
+    expect(() => readAgentFile(spaced)).toThrow(/not an mk_ key/);
   });
 });
