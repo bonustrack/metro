@@ -32,9 +32,11 @@ export function settingsFiles(
   const explicit = env.CLAUDE_CONFIG_DIR?.trim() ?? '';
   const configDir = explicit === '' ? join(homedir(), '.claude') : explicit;
   return [
-    join(configDir, 'settings.json'),
-    join(cwd, '.claude', 'settings.json'),
-    join(cwd, '.claude', 'settings.local.json'),
+    ...new Set([
+      join(configDir, 'settings.json'),
+      join(cwd, '.claude', 'settings.json'),
+      join(cwd, '.claude', 'settings.local.json'),
+    ]),
   ];
 }
 

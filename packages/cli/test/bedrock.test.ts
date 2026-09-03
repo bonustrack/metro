@@ -74,6 +74,11 @@ describe('settings that would defeat the proxy', () => {
     expect(settingsConflicts(settingsFiles(join(dir, 'nowhere'), { CLAUDE_CONFIG_DIR: clean }))).toEqual([]);
   });
 
+  test('a home directory used as the project does not list the same file twice', () => {
+    const files = settingsFiles('/home/u', { CLAUDE_CONFIG_DIR: '/home/u/.claude' });
+    expect(files).toEqual(['/home/u/.claude/settings.json', '/home/u/.claude/settings.local.json']);
+  });
+
   test('CLAUDE_CONFIG_DIR picks the profile, so a separate one keeps Bedrock mode elsewhere', () => {
     const files = settingsFiles('/work', { CLAUDE_CONFIG_DIR: '/profiles/mb' });
     expect(files[0]).toBe('/profiles/mb/settings.json');
