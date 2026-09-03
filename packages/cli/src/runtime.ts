@@ -7,7 +7,7 @@ import { homedir } from 'node:os';
 import { metroUrl } from './store.js';
 
 const AGENT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
-const SERVER_ENTRY = join(
+export const SERVER_ENTRY = join(
   'node_modules',
   '@metro-labs',
   'mcp',
@@ -115,6 +115,10 @@ export function daemonPlan(opts: SpawnOptions): DaemonPlan {
 
 export function runDaemon(agentId: string, plan: DaemonPlan): Promise<number> {
   process.stderr.write(`Starting metro for ${agentId}\n`);
+  return spawnPlan(plan);
+}
+
+export function spawnPlan(plan: DaemonPlan): Promise<number> {
   const child = spawn(plan.command, plan.args, {
     cwd: plan.cwd,
     env: plan.env,

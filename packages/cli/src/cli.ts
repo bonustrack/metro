@@ -30,12 +30,16 @@ import { launchClaude } from './claude.js';
 import { bedrock } from './bedrock.js';
 import { installPlugin, syncPluginServers } from './plugin.js';
 import { update } from './update.js';
+import { serve } from './serve.js';
 import { currentVersion } from './version.js';
 
 const USAGE = `metro — the command line for your MCP connectors
 
   metro start <agent-id> [--detach]
                   run that agent's stations on this machine
+  metro serve [--port <n>]
+                  run a daemon of your own: its agents and stations live in ~/.metro/agents
+                  here, and metro.box manages it through the link it prints
   metro stop [agent-id]
                   stop every metro daemon on this machine, however it was started
   metro status <agent-id>
@@ -188,6 +192,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
     return 0;
   },
   start: () => start(process.argv.slice(3)),
+  serve: () => serve(process.argv.slice(3)),
   stop: () => stopDaemon(process.argv.slice(3)),
   status: () => status(process.argv.slice(3)),
   logs: () => logs(process.argv.slice(3)),

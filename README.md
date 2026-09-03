@@ -416,6 +416,12 @@ credential and runs in the foreground, ready for systemd or launchd to supervise
 it: `metro mcp` and `metro whoami` use the run token when no `metro login` sign-in is
 stored, so one pairing code covers both.
 
+`metro serve` is the other way to run a daemon here, with **nothing on metro.box at all**: its
+agents and stations live in `~/.metro/agents` on this machine (the file mode described further
+down), and the page at metro.box manages it through the link it prints. From another computer,
+forward the port first (`ssh -L 8420:127.0.0.1:8420 <host>`); on a box already running
+`metro start`, pick another port with `--port 8421`.
+
 Metro no longer runs messenger stations at all: they run on your machine or nowhere. There is
 no fallback to Metro if your machine is down, which is the point. It needs
 [Bun](https://bun.sh) on PATH, and it covers every messenger station — XMTP, Telegram,
@@ -433,7 +439,8 @@ line for Claude Code. No Postgres, no metro.box. It serves the same API as metro
 with your wallet (the first wallet to sign in owns the machine), create agents and attach
 stations, all written to those files. Open the link it prints: metro.box connects to the daemon on
 your machine (from another computer, forward the port first with `ssh -L 8420:127.0.0.1:8420 <host>`)
-and manages it from the same pages, while your messages stay on that machine.
+and manages it from the same pages, while your messages stay on that machine. With the published
+CLI this is `metro serve`; a checkout runs it as `METRO_MODE=local bun apps/mcp/src/server.ts`.
 
 One thing to know about XMTP: an inbox allows ten installations and the first start on each
 machine spends one, so metro prints a warning when it does. Restarts on the same machine reuse
