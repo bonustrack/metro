@@ -4,7 +4,13 @@ import { type Server } from 'node:http';
 import { selfLine, userSelf } from './events.js';
 import { setTrainCallBackend } from './train-call.js';
 import { errMsg, log, logFatalSync } from './log.js';
-import { acquireLock, loadMetroEnv, STATE_DIR } from './paths.js';
+import {
+  acquireLock,
+  isLocalMode,
+  loadMetroEnv,
+  STATE_DIR,
+  trainsDir,
+} from './paths.js';
 import { installCrashGuard, markDaemonReady } from './crash-guard.js';
 import {
   loadTunnelConfig,
@@ -12,7 +18,7 @@ import {
   warnOnLegacyWebhooks,
   webhookPort,
 } from './tunnel.js';
-import { TrainSupervisor, TRAINS_DIR } from './supervisor.js';
+import { TrainSupervisor } from './supervisor.js';
 import {
   makeEmit,
   startWebhookServer,
@@ -30,11 +36,7 @@ import {
   mintAgentCodeForUser,
   releaseRuntimeForUser,
 } from '../db/runtime-admin.js';
-import {
-  isLocalMode,
-  loadAgentForRuntime,
-  localAgentKey,
-} from '../db/materialize.js';
+import { loadAgentForRuntime, localAgentKey } from '../db/materialize.js';
 import { fileSource } from '../db/file-source.js';
 import { ensureLocalSessionSecret } from './local-secret.js';
 import { localConnectHint, localSessionApis } from './local-mode.js';
@@ -320,7 +322,7 @@ async function main(): Promise<void> {
   if (localSource !== null) announceLocalEndpoint();
   tunnel?.start();
   log.info(
-    { tunnel: !!tunnel, trainsDir: TRAINS_DIR, mcp: '/' },
+    { tunnel: !!tunnel, trainsDir: trainsDir(), mcp: '/' },
     'dispatcher ready',
   );
   markDaemonReady();

@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { log } from './log.js';
 
 export const STATE_DIR =
@@ -22,6 +23,15 @@ export const CONFIG_DIR =
 export const CONFIG_ENV_FILE = join(CONFIG_DIR, '.env');
 
 export const TRAINS_ENV_FILE = join(homedir(), '.metro', '.env');
+
+export function trainsDir(): string {
+  const env = process.env.METRO_TRAINS_DIR?.trim();
+  if (env !== undefined && env !== '') return env;
+  return fileURLToPath(new URL('../../trains', import.meta.url));
+}
+
+export const isLocalMode = (): boolean =>
+  process.env.METRO_MODE?.trim() === 'local';
 
 export const envSources = (): readonly string[] => [
   join(process.cwd(), '.env'),

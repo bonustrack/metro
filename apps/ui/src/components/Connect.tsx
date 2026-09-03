@@ -9,7 +9,7 @@ import { Text, Button, Input } from './ui';
 import { GROW } from '../theme';
 import { MetroLogo } from './MetroLogo';
 import { PageTitle } from './PageTitle';
-import { fetchMode } from '../api/mode';
+import { connectRefusal, fetchMode } from '../api/mode';
 import {
   builtInDaemon,
   daemonHost,
@@ -47,7 +47,13 @@ export function Connect({ url }: { url: string | null }): ReactNode {
     setBusy(true);
     setError(null);
     fetchMode(target.base)
-      .then(() => {
+      .then((info) => {
+        const refused = connectRefusal(info);
+        if (refused !== null) {
+          setError(refused);
+          setBusy(false);
+          return;
+        }
         switchTo(target.base === builtInDaemon() ? null : target.base);
       })
       .catch((err: unknown) => {

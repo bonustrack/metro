@@ -60,11 +60,11 @@ bun run start            # serves on http://127.0.0.1:8420
 ```
 
 Accounts load from Postgres at boot. The daemon materializes them into a one-line train
-file per active station under `~/.metro/trains/*.ts`, then the supervisor spawns and
+file per active station under `apps/mcp/trains/*.ts` (`METRO_TRAINS_DIR` overrides), then the supervisor spawns and
 hot-reloads one subprocess per file:
 
 ```ts
-// ~/.metro/trains/xmtp.ts   (generated from the DB — you don't hand-write these)
+// apps/mcp/trains/xmtp.ts   (generated from the DB — you don't hand-write these)
 import '@metro-labs/xmtp/train';
 ```
 

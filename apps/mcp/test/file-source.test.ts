@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -18,6 +18,7 @@ const saved = {
   agents: process.env.METRO_AGENTS_DIR,
   mode: process.env.METRO_MODE,
   file: process.env.TELEGRAM_BOT_ACCOUNTS_FILE,
+  trains: process.env.METRO_TRAINS_DIR,
 };
 let dir = '';
 
@@ -51,6 +52,7 @@ beforeEach(() => {
   process.env.METRO_AGENTS_DIR = dir;
   process.env.METRO_MODE = 'local';
   process.env.TELEGRAM_BOT_ACCOUNTS_FILE = join(dir, 'telegram-bot-accounts.json');
+  process.env.METRO_TRAINS_DIR = join(dir, 'trains');
 });
 
 afterEach(() => {
@@ -58,6 +60,7 @@ afterEach(() => {
     ['METRO_AGENTS_DIR', saved.agents],
     ['METRO_MODE', saved.mode],
     ['TELEGRAM_BOT_ACCOUNTS_FILE', saved.file],
+    ['METRO_TRAINS_DIR', saved.trains],
   ] as const)
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -130,5 +133,19 @@ describe('agents kept as files', () => {
     rmSync(join(dir, 'copy'), { recursive: true });
     write('twin', agent({ id: 'agent000002', name: 'twin' }));
     expect(() => loadFileAgents(dir)).toThrow('key is already used');
+  });
+});
+
+describe('train stubs at first boot', () => {
+  test('a stale stub for a station with no account is removed and the live one is written', async () => {
+    write('suzy', agent());
+    const trains = join(dir, 'trains');
+    mkdirSync(trains, { recursive: true });
+    writeFileSync(join(trains, 'discord-bot.ts'), "import '@metro-labs/discord-bot/train';\n");
+    await materializeFrom(fileSource);
+    expect(existsSync(join(trains, 'discord-bot.ts'))).toBe(false);
+    expect(readFileSync(join(trains, 'telegram-bot.ts'), 'utf8')).toBe(
+      "import '@metro-labs/telegram-bot/train';\n",
+    );
   });
 });

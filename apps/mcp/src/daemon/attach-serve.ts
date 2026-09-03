@@ -15,6 +15,7 @@ import { attachmentOwner, recordAttachmentOwner } from './attach-owner.js';
 import { grantAllows, issueAttachmentGrant } from './attach-grant.js';
 import { errMsg, log } from './log.js';
 import { loadTunnelConfig, webhookPort } from './tunnel.js';
+import { isLocalMode } from './paths.js';
 
 function authorized(req: IncomingMessage, name: string): boolean {
   const owner = attachmentOwner(name);
@@ -34,10 +35,11 @@ export function publicBaseUrl(): string | null {
   return host ? `https://${host}` : null;
 }
 
+const servesLocally = (): boolean =>
+  (process.env.METRO_RUN_TOKEN?.trim() ?? '') !== '' || isLocalMode();
+
 const localBase = (): string | null =>
-  (process.env.METRO_RUN_TOKEN?.trim() ?? '') === ''
-    ? null
-    : `http://127.0.0.1:${String(webhookPort())}`;
+  servesLocally() ? `http://127.0.0.1:${String(webhookPort())}` : null;
 
 export const publicBaseOrDefault = (): string =>
   publicBaseUrl() ?? localBase() ?? DEFAULT_PUBLIC_BASE;

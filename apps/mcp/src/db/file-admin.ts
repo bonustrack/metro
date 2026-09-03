@@ -1,4 +1,12 @@
-import { existsSync, readFileSync, rmdirSync, rmSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  rmdirSync,
+  rmSync,
+  writeSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { ApiError } from '../daemon/api-error.js';
 import { ensureSecureDir, writeSecure } from '../daemon/secure-fs.js';
@@ -44,17 +52,27 @@ export function localOwner(dir = agentsDir()): string | null {
   }
 }
 
+function writeOwnerOnce(path: string, address: string): boolean {
+  let fd: number;
+  try {
+    fd = openSync(path, 'wx', 0o600);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw err;
+  }
+  writeSync(fd, `${address}\n`);
+  closeSync(fd);
+  return true;
+}
+
 export function claimLocalOwner(raw: string, dir = agentsDir()): Promise<string> {
   const address = normalizeAddress(raw);
   if (address === null)
     return Promise.reject(new ApiError('an Ethereum address is required', 400));
-  const owner = localOwner(dir);
-  if (owner === null) {
-    ensureSecureDir(dir);
-    writeSecure(join(dir, OWNER_FILE), `${address}\n`);
+  ensureSecureDir(dir);
+  if (writeOwnerOnce(join(dir, OWNER_FILE), address))
     return Promise.resolve(address);
-  }
-  if (owner !== address)
+  if (localOwner(dir) !== address)
     return Promise.reject(
       new ApiError('this machine belongs to another wallet', 403),
     );

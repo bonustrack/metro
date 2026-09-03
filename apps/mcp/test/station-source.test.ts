@@ -6,7 +6,10 @@ import { materializeFrom, MOVABLE_STATIONS } from '../src/db/materialize.ts';
 import { agentIdForKey } from '../src/db/key-map.ts';
 import { agentIdForAccount } from '../src/db/agent-map.ts';
 
-const KEEP = { file: process.env.TELEGRAM_BOT_ACCOUNTS_FILE };
+const KEEP = {
+  file: process.env.TELEGRAM_BOT_ACCOUNTS_FILE,
+  trains: process.env.METRO_TRAINS_DIR,
+};
 let dir = '';
 let file = '';
 
@@ -15,12 +18,15 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'metro-source-'));
   file = join(dir, 'telegram-bot-accounts.json');
   process.env.TELEGRAM_BOT_ACCOUNTS_FILE = file;
+  process.env.METRO_TRAINS_DIR = join(dir, 'trains');
 });
 
 afterEach(() => {
   delete process.env.METRO_RUN_TOKEN;
   if (KEEP.file === undefined) delete process.env.TELEGRAM_BOT_ACCOUNTS_FILE;
   else process.env.TELEGRAM_BOT_ACCOUNTS_FILE = KEEP.file;
+  if (KEEP.trains === undefined) delete process.env.METRO_TRAINS_DIR;
+  else process.env.METRO_TRAINS_DIR = KEEP.trains;
   rmSync(dir, { recursive: true, force: true });
 });
 

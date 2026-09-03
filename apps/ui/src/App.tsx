@@ -17,10 +17,12 @@ import { connectRoute, currentSelection, subscribeRoute } from './route';
 import { pageTitle } from './title';
 import {
   clearSession,
+  daemonBase,
   sessionIsFresh,
   storeSession,
   storedSession,
 } from './auth/session';
+import { daemonHost } from './auth/daemon';
 
 type State = { phase: 'login' } | { phase: 'unlocked'; token: string };
 
@@ -35,8 +37,13 @@ function Unreachable({ onRetry }: { onRetry: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={12} align="center" padding={48}>
-      <Text role="secondary">Could not reach Metro.</Text>
+      <Text role="secondary">Could not reach Metro at {daemonHost(daemonBase())}.</Text>
       <Button color="secondary" dark={dark} label="Try again" onPress={onRetry} />
+      <Text size="sm" role="secondary">
+        <a className="hint-link" href="#/connect">
+          Switch daemon
+        </a>
+      </Text>
     </Col>
   );
 }

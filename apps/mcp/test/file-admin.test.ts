@@ -47,6 +47,17 @@ describe('who owns a local daemon', () => {
     expect(await status(claimLocalOwner('nope', dir))).toBe(400);
     expect((statSync(join(dir, '.owner')).mode & 0o777).toString(8)).toBe('600');
   });
+
+  test('two wallets racing for a fresh machine: exactly one wins, the first', async () => {
+    const fresh = mkdtempSync(join(tmpdir(), 'metro-fresh-'));
+    const results = await Promise.allSettled([
+      claimLocalOwner(OWNER, fresh),
+      claimLocalOwner(OTHER, fresh),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(['fulfilled', 'rejected']);
+    expect(localOwner(fresh)).toBe(OWNER);
+    rmSync(fresh, { recursive: true, force: true });
+  });
 });
 
 describe('agents kept as files', () => {

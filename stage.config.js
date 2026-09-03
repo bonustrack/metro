@@ -24,7 +24,12 @@ import { defineConfig } from '@stage-labs/config';
 
 export default defineConfig({
   eslint: {
-    ignores: ['**/test/**', '**/scripts/**', 'packages/cli/runtime/**'],
+    ignores: [
+      '**/test/**',
+      '**/scripts/**',
+      'packages/cli/runtime/**',
+      'apps/mcp/trains/**',
+    ],
     extends: [
       {
         files: ['**/*.{ts,tsx}'],

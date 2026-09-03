@@ -1,5 +1,4 @@
 import { mkdirSync, statSync, type FSWatcher } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { daemonSelf } from './events.js';
@@ -22,9 +21,7 @@ import {
   startWatcher,
   type TrainState,
 } from './supervisor-io.js';
-
-export const TRAINS_DIR =
-  process.env.METRO_TRAINS_DIR ?? join(homedir(), '.metro', 'trains');
+import { trainsDir } from './paths.js';
 
 const DYLD_FALLBACK_ENV: Record<string, string> =
   process.platform === 'darwin'
@@ -45,7 +42,7 @@ export class TrainSupervisor {
   private watcher: FSWatcher | null = null;
   private reloadTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  constructor(private dir: string = TRAINS_DIR) {}
+  constructor(private dir: string = trainsDir()) {}
 
   running(): string[] {
     return [...this.trains.keys()];

@@ -22,6 +22,12 @@ export function toMode(body: unknown): ModeInfo | null {
   return { mode, owner: text(body.owner), project: text(body.project) };
 }
 
+export function connectRefusal(info: ModeInfo): string | null {
+  return info.mode === 'linked'
+    ? 'That daemon runs an agent for metro.box (metro start) and has no pages of its own. Manage that agent on metro.box.'
+    : null;
+}
+
 export async function fetchMode(base = daemonBase()): Promise<ModeInfo> {
   let res: Response;
   try {
