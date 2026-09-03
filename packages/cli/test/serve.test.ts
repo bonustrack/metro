@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { parseServeArgs, servePlan, serveStateDir } from '../src/serve.ts';
+import { parseServeArgs, servePlan } from '../src/serve.ts';
+import { serveStateDir } from '../src/control.ts';
 import { SERVER_ENTRY } from '../src/runtime.ts';
 
 const KEYS = [

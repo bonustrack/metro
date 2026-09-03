@@ -3,9 +3,13 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { lockedBy, stopAll } from '../src/control.ts';
+import { lockedBy, serveLockedBy, stopAll } from '../src/control.ts';
 
-const KEEP = { state: process.env.METRO_STATE_DIR, home: process.env.HOME };
+const KEEP = {
+  state: process.env.METRO_STATE_DIR,
+  home: process.env.HOME,
+  cache: process.env.XDG_CACHE_HOME,
+};
 const children: ChildProcess[] = [];
 const dirs: string[] = [];
 
@@ -33,6 +37,8 @@ afterEach(() => {
   else process.env.METRO_STATE_DIR = KEEP.state;
   if (KEEP.home === undefined) delete process.env.HOME;
   else process.env.HOME = KEEP.home;
+  if (KEEP.cache === undefined) delete process.env.XDG_CACHE_HOME;
+  else process.env.XDG_CACHE_HOME = KEEP.cache;
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
@@ -95,6 +101,28 @@ describe('metro stop sweeps everything, however it was started', () => {
     expect(stopped).toEqual([]);
     expect(sleeper.killed).toBe(false);
     expect(sleeper.exitCode).toBeNull();
+  });
+
+  test('a metro serve daemon, which keeps its own state dir, is found and stopped too', async () => {
+    stateDir();
+    homeDir();
+    const cache = mkdtempSync(join(tmpdir(), 'metro-cache-'));
+    dirs.push(cache);
+    process.env.XDG_CACHE_HOME = cache;
+    const serveDir = join(cache, 'metro', 'serve');
+    mkdirSync(serveDir, { recursive: true });
+    const fake = spawn('bash', ['-c', 'exec -a fake-metro-serve-server.ts sleep 30'], {
+      stdio: 'ignore',
+    });
+    children.push(fake);
+    await wait(150);
+    writeFileSync(join(serveDir, '.tail-lock'), String(fake.pid));
+    expect(serveLockedBy()).toBe(fake.pid ?? -1);
+    expect(lockedBy()).toBeNull();
+    const stopped = await stopAll(undefined, 3_000);
+    expect(stopped.map((s) => s.via)).toEqual(['metro serve']);
+    await wait(150);
+    expect(serveLockedBy()).toBeNull();
   });
 
   test('nothing running is an honest empty result', async () => {
