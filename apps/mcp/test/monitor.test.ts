@@ -34,7 +34,7 @@ async function start(
   setKeyMap(keys);
   setAgentMap(AGENTS, NAMES);
   process.env.METRO_WEBHOOK_PORT = String(
-    20000 + Math.floor(Math.random() * 20000),
+    10000 + Math.floor(Math.random() * 20000),
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   const calls: Harness['calls'] = [];

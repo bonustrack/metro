@@ -172,7 +172,7 @@ describe('the /hook route', () => {
 
   beforeEach(async () => {
     process.env.METRO_WEBHOOK_PORT = String(
-      24000 + Math.floor(Math.random() * 12000),
+      12000 + Math.floor(Math.random() * 12000),
     );
     process.env.METRO_HTTP_HOST = '127.0.0.1';
     seen = [];

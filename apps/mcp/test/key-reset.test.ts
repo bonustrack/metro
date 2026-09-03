@@ -217,7 +217,7 @@ beforeAll(async () => {
   process.env.METRO_XMTP_ATTACH_DIR = attachDir;
   process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box';
   process.env.METRO_WEBHOOK_PORT = String(
-    20000 + Math.floor(Math.random() * 20000),
+    10000 + Math.floor(Math.random() * 20000),
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   keys = { [ADA]: mint(ADA), [BOB]: mint(BOB) };

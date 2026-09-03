@@ -35,7 +35,7 @@ beforeAll(async () => {
     join(tmpdir(), 'metro-upload-cache-'),
   );
   process.env.METRO_WEBHOOK_PORT = String(
-    20000 + Math.floor(Math.random() * 20000),
+    10000 + Math.floor(Math.random() * 20000),
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   setKeyMap([

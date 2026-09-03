@@ -55,6 +55,7 @@ The repo doubles as a plugin marketplace: root `.claude-plugin/marketplace.json`
 - Local run: `bun apps/mcp/src/server.ts`. Prod runs TS from source — `dist/` is built by the gate only, never used at runtime.
 - **The gate, all of it, before any PR:** `bun run build && bun run typecheck && bun run lint && bun run knip && bun run madge && bun run test`. Must be green.
 - Tests set `DYLD_FALLBACK_LIBRARY_PATH=/usr/lib` (prebuilt `@xmtp/node-bindings` links a nix libiconv; without it the gate is red on darwin only) and `METRO_STATE_DIR="$(mktemp -d …)"`. Run the whole suite; don't assert an exact test count.
+- **Tests that boot the HTTP server pick a port in 10000–29999, BELOW Linux's ephemeral range (32768–60999).** They used 20000–39999, and the CI runner's own outbound sockets landed on the chosen port often enough to fail `attach-serve` on a docs-only commit. `webhookPort()` reads `Number(env) || 8420`, so port 0 cannot be requested through the env; keep the range, do not "simplify" it to 0.
 - turbo's `test` `dependsOn ["^build"]`, so a core edit invalidates the station packages' cached results.
 
 ## Conventions (strict `@stage-labs/config` — HARD constraints)
