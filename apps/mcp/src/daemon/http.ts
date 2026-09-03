@@ -28,6 +28,7 @@ import {
 import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry } from '@metro-labs/webhook';
 import { handleSiweAuthRequest } from './siwe-routes.js';
+import { handleModeRequest } from './mode-api.js';
 import { handleUploadRequest } from './upload-api.js';
 import {
   handleMonitorRequest,
@@ -323,6 +324,15 @@ async function handleWebhookRoute(
   return true;
 }
 
+function handleSignInRoutes(
+  req: IncomingMessage,
+  res: ServerResponse,
+  apis: SessionApis,
+): boolean {
+  if (handleSiweAuthRequest(req, res, apis.siwe)) return true;
+  return apis.mode !== undefined && handleModeRequest(req, res, apis.mode);
+}
+
 async function handlePreMcpRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -331,7 +341,7 @@ async function handlePreMcpRoutes(
   monitorCall?: MonitorCall,
 ): Promise<boolean> {
   if (handleHealth(req, res)) return true;
-  if (handleSiweAuthRequest(req, res)) return true;
+  if (handleSignInRoutes(req, res, apis)) return true;
   if (handleSessionApis(req, res, apis)) return true;
   if (handleUploadRequest(req, res)) return true;
   if (handleAttachRequest(req, res)) return true;

@@ -36,6 +36,10 @@ import {
   localAgentKey,
 } from '../db/materialize.js';
 import { fileSource } from '../db/file-source.js';
+import { ensureLocalSessionSecret } from './local-secret.js';
+import { localSessionApis } from './local-mode.js';
+import type { ModeInfo } from './mode-api.js';
+import type { SessionApis } from './session-apis.js';
 import {
   agentLiveness,
   closeAgentSession,
@@ -53,6 +57,7 @@ import {
   materializeFromDb,
   reloadAccountsFromDb,
   reloadFrom,
+  type ReloadedStations,
 } from '../db/materialize.js';
 import {
   httpSource,
@@ -160,8 +165,11 @@ async function stopLocalStations(): Promise<void> {
   for (const station of supervisor.running()) await supervisor.stopTrain(station);
 }
 
+const reloadStations = (): Promise<ReloadedStations> =>
+  localSource === null ? reloadAccountsFromDb() : reloadFrom(localSource);
+
 async function syncStations(station: StationName): Promise<void> {
-  const { removed } = await reloadAccountsFromDb();
+  const { removed } = await reloadStations();
   if (stationByName(station)?.hasTrain === false) return;
   if (removed.includes(station)) await supervisor.stopTrain(station);
   else supervisor.requestReload(station);
@@ -264,7 +272,35 @@ const connectorApi: ConnectorApiDeps = {
   deleteConnector: deleteConnectorForUser,
 };
 
+const hostedMode = (): ModeInfo => ({
+  mode: linkedSource === null ? 'hosted' : 'linked',
+  owner: null,
+  project: null,
+});
+
+function sessionApis(): SessionApis {
+  if (isLocalMode())
+    return localSessionApis({
+      syncStations,
+      closeAgentSession,
+      gatherAccounts: gatherAccountsForAgents,
+      capabilities: accountStationCapabilities,
+      liveness: agentLiveness,
+      prepareAccount,
+    });
+  return {
+    agentApi,
+    agentConnectorApi,
+    connectorApi,
+    projectApi,
+    runApi,
+    relayApi: { target: relayTarget, fence: fenceRuntime },
+    mode: hostedMode,
+  };
+}
+
 async function main(): Promise<void> {
+  if (isLocalMode()) ensureLocalSessionSecret();
   if (localSource === null) await materializeFromDb();
   else await materializeFrom(localSource, { allowEmpty: linkedSource === null });
   warnOnLegacyWebhooks();
@@ -272,14 +308,7 @@ async function main(): Promise<void> {
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(
     emit,
-    {
-      agentApi,
-      agentConnectorApi,
-      connectorApi,
-      projectApi,
-      runApi,
-      relayApi: { target: relayTarget, fence: fenceRuntime },
-    },
+    sessionApis(),
     metroMcp.httpHandler,
     metroCall,
   );

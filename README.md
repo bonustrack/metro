@@ -429,8 +429,9 @@ the wrong daemon fails loudly instead of going quiet.
 daemon with `METRO_MODE=local` and it reads its agents from `~/.metro/agents/<name>/agent.json`
 (`METRO_AGENTS_DIR` overrides the directory), each `{ "version": 1, "id", "name", "key",
 "owner", "stations": [...] }`, runs their stations on this machine and prints the paste-ready
-line for Claude Code. No Postgres, no metro.box. The commands and the UI that write those
-files are the next steps; for now the file is written by hand.
+line for Claude Code. No Postgres, no metro.box. It serves the same API as metro.box: sign in
+with your wallet (the first wallet to sign in owns the machine), create agents and attach
+stations, all written to those files. Teaching the metro.box UI to talk to it is the next step.
 
 One thing to know about XMTP: an inbox allows ten installations and the first start on each
 machine spends one, so metro prints a warning when it does. Restarts on the same machine reuse
