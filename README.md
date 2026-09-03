@@ -445,6 +445,11 @@ stations, all written to those files. Open the link it prints: metro.box connect
 your machine (from another computer, forward the port first with `ssh -L 8420:127.0.0.1:8420 <host>`)
 and manages it from the same pages, while your messages stay on that machine. With the published
 CLI this is `metro serve`; a checkout runs it as `METRO_MODE=local bun apps/mcp/src/server.ts`.
+An agent that lives on metro.box can move here: *Import from metro.box* on the Agents page takes
+the pairing code from the agent's page (the same one `metro start` takes) and brings the agent
+over with its stations and their credentials, same id and same key, so nothing changes on the
+Claude Code side. Stop `metro start` for that agent first; metro.box keeps its copy until you
+delete the agent there.
 
 One thing to know about XMTP: an inbox allows ten installations and the first start on each
 machine spends one, so metro prints a warning when it does. Restarts on the same machine reuse

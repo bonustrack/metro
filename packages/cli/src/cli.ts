@@ -24,6 +24,7 @@ import {
   readRunToken,
   runDaemon,
   runtimeDir,
+  runTokenState,
   writeRunToken,
 } from './runtime.js';
 import { launchClaude } from './claude.js';
@@ -96,6 +97,18 @@ async function authorizeRuntime(agentId: string): Promise<string> {
   return claimed.token;
 }
 
+async function usableRunToken(agentId: string): Promise<string> {
+  const stored = readRunToken(agentId);
+  if (stored === null) return authorizeRuntime(agentId);
+  const state = await runTokenState(stored);
+  if (state !== 'stale') return stored;
+  process.stderr.write(
+    `metro no longer recognises this machine as the holder of ${agentId}: ` +
+      'it was taken back, or another machine claimed it since. Authorize it again.\n',
+  );
+  return authorizeRuntime(agentId);
+}
+
 async function start(argv: string[]): Promise<number> {
   const agentId = assertAgentId(argv[0]);
   if (runningPid(agentId) !== null || lockedBy() !== null)
@@ -104,7 +117,7 @@ async function start(argv: string[]): Promise<number> {
         'Stop it first: metro stop',
     );
   const dir = runtimeDir();
-  const token = readRunToken(agentId) ?? (await authorizeRuntime(agentId));
+  const token = await usableRunToken(agentId);
   const detached = argv.includes('--detach');
   const plan = daemonPlan({ agentId, token, dir });
   if (!detached) return runDaemon(agentId, plan);

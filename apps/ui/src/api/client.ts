@@ -201,6 +201,28 @@ export async function createAgent(
   };
 }
 
+export interface ImportedAgent {
+  id: string;
+  name: string;
+  stations: number;
+}
+
+export async function importAgent(token: string, code: string): Promise<ImportedAgent> {
+  const body = await call(token, {
+    method: 'POST',
+    path: '/import',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!isRecord(body) || typeof body.id !== 'string' || typeof body.name !== 'string')
+    throw new Error('Metro returned an unexpected response.');
+  return {
+    id: body.id,
+    name: body.name,
+    stations: typeof body.stations === 'number' ? body.stations : 0,
+  };
+}
+
 export async function deleteAgent(token: string, id: string): Promise<void> {
   await call(token, { method: 'DELETE', path: `/${id}` });
 }

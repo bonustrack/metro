@@ -25,12 +25,13 @@ import {
   AGENT_FILE,
   agentsDir,
   listAgentFiles,
+  parseAgentFile,
   readAgentFile,
   type AgentFile,
 } from './file-source.js';
 import { newId } from './ids.js';
 import { registerKey, rotateAgentKey, unregisterAgentKey } from './key-map.js';
-import { MOVABLE_STATIONS } from './materialize.js';
+import { MOVABLE_STATIONS, type LoadedAgent } from './materialize.js';
 import type { StationName } from './schema.js';
 import { normalizeAddress } from './users.js';
 
@@ -186,6 +187,63 @@ export async function localDeleteAgent(
   removeIfEmpty(join(stored.path, '..'));
   unregisterAgentKey(id);
   return Promise.resolve({ id, name: stored.file.name });
+}
+
+function assertUnclaimed(existing: Stored[], agent: LoadedAgent): void {
+  for (const { file } of existing) {
+    if (file.id === agent.id)
+      throw new AgentAdminError(`agent ${agent.id} is already on this machine`, 409);
+    if (agent.key !== null && file.key === agent.key)
+      throw new AgentAdminError('that agent key is already on this machine', 409);
+  }
+}
+
+export function assertLocalOwner(subject: string, dir = agentsDir()): void {
+  if (!isOwner(subject, dir)) throw new AgentAdminError('no such project', 404);
+}
+
+export async function localImportAgent(
+  subject: string,
+  agent: LoadedAgent,
+  dir = agentsDir(),
+): Promise<{ id: string; name: string; key: string; stations: number }> {
+  assertLocalOwner(subject, dir);
+  const immovable = agent.accounts.find((a) => !MOVABLE_STATIONS.has(a.station));
+  if (immovable !== undefined)
+    throw new AgentAdminError(
+      `a ${immovable.station} endpoint needs a public url and cannot live on a local daemon`,
+      400,
+    );
+  if (agent.key === null)
+    throw new AgentAdminError('that agent has no key; reset it on metro.box first', 400);
+  const folder = join(dir, agent.name);
+  const path = join(folder, AGENT_FILE);
+  if (existsSync(path))
+    throw new AgentAdminError(
+      `an agent named '${agent.name}' already exists on this machine`,
+      409,
+    );
+  assertUnclaimed(storedAgents(dir), agent);
+  const file = parseAgentFile(
+    JSON.stringify({
+      version: 1,
+      id: agent.id,
+      name: agent.name,
+      key: agent.key,
+      owner: localOwner(dir),
+      stations: agent.accounts.map((a) => ({ ...a, allowlist: a.allowlist ?? ['*'] })),
+    }),
+    path,
+  );
+  ensureSecureDir(folder);
+  save({ path, file });
+  registerKey(agent.key, agent.id);
+  return Promise.resolve({
+    id: agent.id,
+    name: agent.name,
+    key: agent.key,
+    stations: agent.accounts.length,
+  });
 }
 
 function removeIfEmpty(folder: string): void {
