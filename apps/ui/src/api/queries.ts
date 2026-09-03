@@ -26,11 +26,14 @@ import {
   type Member,
   type Project,
 } from './projects';
+import { fetchMode, type ModeInfo } from './mode';
+import { daemonBase } from '../auth/session';
 
 const STALE_MS = 60_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
 export const sessionKey = (): string[] => ['session'];
+export const modeKey = (): string[] => ['mode', daemonBase()];
 export const projectsKey = (): string[] => ['projects'];
 export const membersKey = (project: string): string[] => ['members', project];
 export const agentsKey = (project: string): string[] => ['agents', project];
@@ -101,6 +104,14 @@ export function useStationsQuery(
         groups: carryForward(next.groups, prev?.groups ?? [], next.unavailable),
       };
     },
+  });
+}
+
+export function useModeQuery(): UseQueryResult<ModeInfo> {
+  return useQuery({
+    queryKey: modeKey(),
+    queryFn: () => fetchMode(),
+    staleTime: Infinity,
   });
 }
 

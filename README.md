@@ -431,7 +431,9 @@ daemon with `METRO_MODE=local` and it reads its agents from `~/.metro/agents/<na
 "owner", "stations": [...] }`, runs their stations on this machine and prints the paste-ready
 line for Claude Code. No Postgres, no metro.box. It serves the same API as metro.box: sign in
 with your wallet (the first wallet to sign in owns the machine), create agents and attach
-stations, all written to those files. Teaching the metro.box UI to talk to it is the next step.
+stations, all written to those files. Open the link it prints: metro.box connects to the daemon on
+your machine (from another computer, forward the port first with `ssh -L 8420:127.0.0.1:8420 <host>`)
+and manages it from the same pages, while your messages stay on that machine.
 
 One thing to know about XMTP: an inbox allows ten installations and the first start on each
 machine spends one, so metro prints a warning when it does. Restarts on the same machine reuse

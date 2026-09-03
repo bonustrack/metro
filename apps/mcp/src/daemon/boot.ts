@@ -37,7 +37,7 @@ import {
 } from '../db/materialize.js';
 import { fileSource } from '../db/file-source.js';
 import { ensureLocalSessionSecret } from './local-secret.js';
-import { localSessionApis } from './local-mode.js';
+import { localConnectHint, localSessionApis } from './local-mode.js';
 import type { ModeInfo } from './mode-api.js';
 import type { SessionApis } from './session-apis.js';
 import {
@@ -138,6 +138,7 @@ const linkedSource = runtime === null ? null : httpSource(runtime);
 const localSource = linkedSource ?? (isLocalMode() ? fileSource : null);
 
 function announceLocalEndpoint(): void {
+  if (isLocalMode()) process.stderr.write(`\n${localConnectHint(webhookPort())}`);
   const key = localAgentKey();
   if (key === null) {
     if (isLocalMode()) log.info('no agent on this machine yet');

@@ -14,6 +14,7 @@ import { BackLink } from './BackLink';
 import { routeHash } from '../route';
 import { ConnectStation } from './ConnectStation';
 import { DeleteAgent } from './DeleteAgent';
+import { useModeQuery } from '../api/queries';
 
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -21,6 +22,20 @@ function plural(n: number, word: string): string {
 
 function subtitle(agent: AgentSummary): string {
   return agent.owned ? `id ${agent.id}` : `id ${agent.id} · not owned`;
+}
+
+function RunsHere(): ReactNode {
+  return (
+    <Col gap={10}>
+      <Text size="lg" weight="semibold">
+        Runs on this machine
+      </Text>
+      <Text size="sm" role="secondary">
+        This daemon runs the agent&apos;s stations right here, so its messages
+        never pass through Metro&apos;s servers.
+      </Text>
+    </Col>
+  );
 }
 
 function emptyStations(agent: AgentSummary, unattributed: number): string {
@@ -46,6 +61,7 @@ interface AgentDetailProps {
 export function AgentDetail(props: AgentDetailProps): ReactNode {
   const { token, agent, groups, attachable, unattributed, onChanged } = props;
   const dark = useKitScheme() === 'dark';
+  const local = useModeQuery().data?.mode === 'local';
   const [connecting, setConnecting] = useState(false);
   const mine = accountsForAgent(groups, agent.id);
 
@@ -88,7 +104,11 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
         </Col>
       </Col>
       <AgentCredentials agent={agent} onReset={onReset} />
-      <RunLocally token={token} agent={agent} onChanged={onChanged} />
+      {local ? (
+        <RunsHere />
+      ) : (
+        <RunLocally token={token} agent={agent} onChanged={onChanged} />
+      )}
       <Col gap={10}>
         <Text size="lg" weight="semibold">Stations</Text>
         <AccountList
@@ -99,12 +119,14 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
           onDetach={agent.owned ? onDetach : undefined}
         />
       </Col>
-      <AgentConnectors
-        token={token}
-        project={props.project}
-        agent={agent}
-        onOpen={props.onOpenConnector}
-      />
+      {local ? null : (
+        <AgentConnectors
+          token={token}
+          project={props.project}
+          agent={agent}
+          onOpen={props.onOpenConnector}
+        />
+      )}
       {agent.owned ? (
         <ConnectStation
           token={token}

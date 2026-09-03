@@ -9,7 +9,7 @@ import { Dropdown, type MenuItem } from './Dropdown';
 import { NAV_ICON_SIZE, NAV_ROW_BOX } from './NavRow';
 import { NameModal } from './NameModal';
 import { createProject } from '../api/projects';
-import { refreshProjects, useProjectsQuery } from '../api/queries';
+import { refreshProjects, useModeQuery, useProjectsQuery } from '../api/queries';
 import { type Selection } from './selection';
 
 interface ProjectSwitcherProps {
@@ -26,26 +26,26 @@ export function ProjectSwitcher({
   const palette = useKitPalette();
   const client = useQueryClient();
   const { data } = useProjectsQuery(token);
+  const local = useModeQuery().data?.mode === 'local';
   const [creating, setCreating] = useState(false);
 
   const projects = data ?? [];
   const current = projects.find((p) => p.id === project);
 
-  const items: MenuItem[] = [
-    ...projects.map((p) => ({
-      label: p.id === project ? `${p.name} ✓` : p.name,
-      onSelect: () => {
-        onSelect({ kind: 'agents', project: p.id });
-      },
-    })),
-    {
+  const items: MenuItem[] = projects.map((p) => ({
+    label: p.id === project ? `${p.name} ✓` : p.name,
+    onSelect: () => {
+      onSelect({ kind: 'agents', project: p.id });
+    },
+  }));
+  if (!local)
+    items.push({
       label: 'Add project',
       icon: 'plus',
       onSelect: () => {
         setCreating(true);
       },
-    },
-  ];
+    });
 
   return (
     <>

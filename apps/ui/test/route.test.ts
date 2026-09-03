@@ -218,3 +218,25 @@ describe('the authorize page is standalone, not project scoped', () => {
     expect(routeSelection(`#/agent/${AGENT}`)).toEqual({ kind: 'none' });
   });
 });
+
+describe('the connect route', () => {
+  test('carries an optional daemon address, percent-encoded', () => {
+    expect(routeSelection('#/connect')).toEqual({ kind: 'connect', url: null });
+    expect(routeSelection('#/connect/')).toEqual({ kind: 'connect', url: null });
+    expect(routeSelection('#/connect/http%3A%2F%2F127.0.0.1%3A8420')).toEqual({
+      kind: 'connect',
+      url: 'http://127.0.0.1:8420',
+    });
+    expect(routeSelection('#/connect/%E0%A4%A')).toEqual({ kind: 'connect', url: null });
+  });
+
+  test('round-trips through routeHash', () => {
+    for (const url of [null, 'http://127.0.0.1:8420', 'https://suzy.tail1234.ts.net']) {
+      const selection: Selection = { kind: 'connect', url };
+      expect(routeSelection(routeHash(selection))).toEqual(selection);
+    }
+    expect(routeHash({ kind: 'connect', url: 'http://127.0.0.1:8420' })).toBe(
+      '#/connect/http%3A%2F%2F127.0.0.1%3A8420',
+    );
+  });
+});

@@ -8,6 +8,7 @@ import { SidebarFooter } from './SidebarFooter';
 import { opensElsewhere } from './link';
 import { routeHash } from '../route';
 import { type Selection } from './selection';
+import { useModeQuery } from '../api/queries';
 
 const SCROLL = { flex: 1 } as const;
 const SCROLL_CONTENT = { padding: 24 } as const;
@@ -32,6 +33,7 @@ export function AgentSidebar({
   onLock,
 }: AgentSidebarProps): ReactNode {
   const palette = useKitPalette();
+  const local = useModeQuery().data?.mode === 'local';
   return (
     <Col flex={1} minHeight={0}>
       <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
@@ -58,6 +60,31 @@ export function AgentSidebar({
               target={{ kind: 'agents', project }}
               onSelect={onSelect}
             />
+            {local ? null : (
+              <ProjectRows project={project} selection={selection} onSelect={onSelect} />
+            )}
+          </Col>
+        </Col>
+      </ScrollView>
+      <SidebarFooter
+        token={token}
+        project={project}
+        subject={subject}
+        selection={selection}
+        onSelect={onSelect}
+        onLock={onLock}
+      />
+    </Col>
+  );
+}
+
+function ProjectRows({
+  project,
+  selection,
+  onSelect,
+}: Pick<AgentSidebarProps, 'project' | 'selection' | 'onSelect'>): ReactNode {
+  return (
+    <>
             <NavRow
               label="Connectors"
               icon="viewGridAdd"
@@ -79,17 +106,6 @@ export function AgentSidebar({
               target={{ kind: 'project', project }}
               onSelect={onSelect}
             />
-          </Col>
-        </Col>
-      </ScrollView>
-      <SidebarFooter
-        token={token}
-        project={project}
-        subject={subject}
-        selection={selection}
-        onSelect={onSelect}
-        onLock={onLock}
-      />
-    </Col>
+    </>
   );
 }

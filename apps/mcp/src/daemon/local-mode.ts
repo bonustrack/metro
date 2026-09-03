@@ -3,7 +3,7 @@ import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
 import { AttachSessions } from './attach-session.js';
 import type { AgentApiDeps } from './agent-api.js';
-import type { AccountApiDeps } from './account-api.js';
+import { ATTACHABLE, type AccountApiDeps } from './account-api.js';
 import type { AgentConnectorApiDeps } from './agent-connector-api.js';
 import type { ProjectApiDeps } from './project-api.js';
 import type { SessionApis } from './session-apis.js';
@@ -84,6 +84,7 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     },
     gatherAccounts: deps.gatherAccounts,
     capabilities: deps.capabilities,
+    attachable: ATTACHABLE.filter((s) => s !== 'webhook'),
     liveness: deps.liveness,
     releaseRuntime: () => notHere('runtime leases'),
     runtimes: () => Promise.resolve(new Map()),
@@ -127,6 +128,20 @@ const agentConnectorApi: AgentConnectorApiDeps = {
   mintCode: () =>
     Promise.reject(new ApiError('a local daemon has no pairing codes', 400)),
 };
+
+export function localConnectHint(port: number): string {
+  const ui = process.env.METRO_UI_URL ?? 'https://metro.box';
+  const here = `http://127.0.0.1:${String(port)}`;
+  const forward = `ssh -L ${String(port)}:127.0.0.1:${String(port)} ${hostname()}`;
+  return [
+    'Manage this machine from the web UI:',
+    '',
+    `  ${ui}/#/connect/${encodeURIComponent(here)}`,
+    '',
+    `From another computer, forward the port first:  ${forward}`,
+    '',
+  ].join('\n');
+}
 
 export function localModeInfo(): ModeInfo {
   return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID };
