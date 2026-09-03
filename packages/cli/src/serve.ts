@@ -61,8 +61,13 @@ export function findCloudflared(): void {
   if (found.error !== undefined || found.status !== 0)
     throw new Error(
       'metro serve --tunnel needs cloudflared, which is not on PATH.\n' +
-        'Install it with:  brew install cloudflared  (macOS), or from\n' +
-        'https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/downloads/',
+        'Debian/Ubuntu (it is not in the distro repos; this adds Cloudflare\'s signed one):\n' +
+        '  sudo mkdir -p --mode=0755 /usr/share/keyrings\n' +
+        '  curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null\n' +
+        "  echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list\n" +
+        '  sudo apt-get update && sudo apt-get install cloudflared\n' +
+        'macOS:  brew install cloudflared\n' +
+        'Others: https://pkg.cloudflare.com/',
     );
 }
 
