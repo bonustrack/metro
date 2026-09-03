@@ -21,7 +21,11 @@ const STRANGER = privateKeyToAccount(
   '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a',
 );
 const PROJECT = 'localdaemon';
-const saved = { dir: process.env.METRO_AGENTS_DIR, secret: process.env.METRO_SESSION_SECRET };
+const saved = {
+  dir: process.env.METRO_AGENTS_DIR,
+  secret: process.env.METRO_SESSION_SECRET,
+  port: process.env.METRO_WEBHOOK_PORT,
+};
 let dir = '';
 let server: Server;
 let base = '';
@@ -31,6 +35,7 @@ const synced: string[] = [];
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-local-'));
   process.env.METRO_AGENTS_DIR = dir;
+  process.env.METRO_WEBHOOK_PORT = '8420';
   delete process.env.METRO_SESSION_SECRET;
   secret = ensureLocalSessionSecret(dir);
   setKeyMap([]);
@@ -65,6 +70,8 @@ afterAll(() => {
   else process.env.METRO_AGENTS_DIR = saved.dir;
   if (saved.secret === undefined) delete process.env.METRO_SESSION_SECRET;
   else process.env.METRO_SESSION_SECRET = saved.secret;
+  if (saved.port === undefined) delete process.env.METRO_WEBHOOK_PORT;
+  else process.env.METRO_WEBHOOK_PORT = saved.port;
 });
 
 const J = { 'content-type': 'application/json' };
