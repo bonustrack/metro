@@ -147,8 +147,8 @@ Four small tables ([`schema.ts`](apps/mcp/src/db/schema.ts)). **Every `id` is an
 `users.id` (`agents.owner_id` and `connectors.user_id`, each `ON DELETE RESTRICT`);
 `stations` references its agent by a plain text column with none.
 
-- **`users`** — `id`, `email` (lowercased verified Google email, `UNIQUE`). One row per
-  person, created on first sign-in.
+- **`users`** — `id`, `address` (the lowercased wallet address, `UNIQUE`), `email` (nullable,
+  only on rows from before wallet sign-in). One row per person, created on first sign-in.
 - **`agents`** — `id` (**the identity**: every scoping decision compares `agents.id`,
   never the name), `name` (a display label with no uniqueness of any kind, stored with the
   casing typed, so two agents may both be `Lisa`), `owner_id` (nullable → `users.id`,
@@ -238,7 +238,7 @@ DATABASE_URL='postgres://…' bun --filter @metro-labs/mcp db:migrate
 
 ### Self-serve agents from the web UI
 
-[`apps/ui`](apps/ui) lets a person sign in with Google and create their own agent without
+[`apps/ui`](apps/ui) lets a person sign in with an Ethereum wallet and create their own agent without
 operator SQL. The daemon exposes session-gated JSON routes for it, mounted before the MCP
 auth gate:
 
@@ -259,21 +259,27 @@ auth gate:
 | `POST /api/agents/<id>/code` | Mint the single-use pairing code that `metro login` and `metro start` both take. |
 | `DELETE /api/connectors/<id>` | Delete a connector you own. |
 
-Sign-in is **open**: any Google account whose `email_verified` claim is true may sign in
-and create agents. There is no domain allowlist and no cap. The id token is still fully
-verified — RS256 against Google's JWKS, `iss`/`aud`/`exp` and the login `nonce` all
-checked, and an unverified email refused.
+Sign-in is **open** and is [Sign-In with Ethereum](https://eips.ethereum.org/EIPS/eip-4361):
+any wallet may sign in and create agents, with no allowlist and no cap. The page fetches a
+single-use nonce from `GET /auth/siwe/nonce`, the wallet signs the message, and
+`POST /auth/siwe/verify` checks the signature, the site the message names, the nonce and the
+expiry before it answers with the session. The login page offers every wallet extension
+the browser announces (MetaMask, Rabby, …), **WalletConnect** for the wallet app on your phone
+(a Reown project id is built in; `VITE_WC_PROJECT_ID` overrides it at build time) and **Coinbase Wallet**; the two SDKs load only when their button is pressed.
+Externally owned accounts only for now; a smart-contract wallet is refused with a message
+saying so. Your wallet is your account: lose it and another admin of your projects has to
+invite the new address.
 
 Auth is the daemon-signed session JWT, as `Authorization: Bearer` or `?token=`.
 **Authorisation is per-agent and keyed on `agents.id`:** a session may only see agents
-of a [project](#projects) its verified email is a member of. The email resolves to a
+of a [project](#projects) its address is a member of. The address resolves to a
 `users.id` per request, never read from the JWT, so a freshly created agent shows up
-without re-login. An email with no `users` row is a member of nothing.
+without re-login. An address with no `users` row is a member of nothing.
 
 **The key value is served for agents you own, and only those.** `agents.key` is stored in
 plaintext so it can be re-served rather than shown once, which is what lets the panel put
 the key next to the endpoint and hand you a ready `claude mcp add` line. The exposure is
-gated in two independent places, both load-bearing: `listAgentsForEmail` issues two
+gated in two independent places, both load-bearing: `listAgentsForUser` issues two
 disjoint queries (the list selects only id/name/owner_id, and `key` is re-read for owned
 ids only, so a not-owned agent's secret never leaves Postgres), and `agent-api.ts`
 re-checks `agent.owned` when it serialises. The UI masks the value behind a **Reveal**
@@ -300,7 +306,7 @@ each carries its own per-attachment token.
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `METRO_SESSION_SECRET` | — | Required for `/api/agents`, `/api/connectors` and Google login. Unset → 401. |
+| `METRO_SESSION_SECRET` | — | Required for `/api/agents`, `/api/connectors` and wallet sign-in. Unset → 401. |
 
 ### Connectors
 
@@ -333,7 +339,7 @@ redirects. Nothing about the remote's answer is echoed back to you.
 stored header value, no OAuth access token and no `mcpServers` block, so the panel has nothing
 to render and an open devtools window has nothing to take. The block that *does* carry the
 credentials is attached only when the caller presents a **CLI session** — one minted by the
-pairing code, which a Google sign-in in the browser can never hold. The boundary is the kind of
+pairing code, which a browser session can never hold. The boundary is the kind of
 token, not the route. Neither the url nor any value is ever logged. The webhook endpoint url is
 now the only credential any Metro API returns.
 
@@ -433,7 +439,7 @@ from the platform directly.
 to you; the only thing you own directly is the project itself. Your account gets a **Personal**
 project on first sign-in, and that one cannot be deleted.
 
-Anyone can create a project and invite people to it by email. Members carry a role: an **admin**
+Anyone can create a project and invite people to it by wallet address. Members carry a role: an **admin**
 renames the project and manages its members, a **member** does everything else inside it, and
 only the **owner** can delete it. The owner cannot be demoted or removed.
 
@@ -539,7 +545,7 @@ Rules that hold for every station:
   disk is discarded. "Well-formed" is never enough: a generated XMTP key is well-formed by
   construction, which is exactly why it is registered before it is stored.
 - **Authorisation is the same predicate as delete.** `ownedAgentOrThrow` is one function
-  used by both: the agent's `owner_id` must be the `users` row for the session email.
+  used by both: the agent's `owner_id` must be the `users` row for the session subject.
   Somebody else's agent, an unknown id, or an operator-provisioned row is a flat `404`.
 - **`account_id` is generated by the server** (`a<agent-id>-<8 hex>`), never taken from the
   request, so two people cannot collide in the shared primary key and nobody can probe

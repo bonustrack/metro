@@ -17,7 +17,7 @@ Goals
 Non-goals
 
 - Running messenger stations on hosted metro. The rule stays: metro never runs a messenger station.
-- Replacing Google sign-in. SIWE is added beside it.
+- Keeping Google sign-in. SIWE replaced it outright (migration `0020`), on metro.box today and on the local daemon later.
 - Supporting smart-contract or MPC wallets as key sources (see 4.2).
 - Object storage. Bundles are bounded and versioned in Postgres; moving them out is a later decision if sizes ever demand it.
 
@@ -142,7 +142,7 @@ WhatsApp, XMTP and telegram-user are single-writer by nature; the others would d
 - Plaintext in Postgres: agent id and name, station rows as `(station, account_id, allowlist, handle)`, `agent_connectors`, connector rows (url, name, tool catalog, OAuth state, as today), the bundle index, the lease. That is what the dashboard, scoping, the relay and the webhook station need.
 - Ciphertext: every movable station's `config`. It leaves the `stations` table and lives only in the bundle. Connector vendor credentials stay server-side because the relay injects them; that is the relay's whole point and is unchanged.
 - Webhook stays hosted and plaintext, because metro runs it and generates its secret.
-- SIWE beside Google. The address that unlocks the agent owns the project.
+- SIWE only, Google is gone. The address that unlocks the agent owns the project.
 - `link` registers a locally created agent id with the server ("adopt id"; ids are 64-bit random, collisions rejected). `unlink --export` pulls a hosted agent into a local bundle.
 
 ### 4.9 The local UI
