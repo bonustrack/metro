@@ -7,7 +7,7 @@ import type { LoadedAccount, LoadedAgent, StationSource } from './materialize.js
 
 export const AGENT_FILE = 'agent.json';
 
-const KEY_RE = /^mk_[A-Za-z0-9_-]{43}$/;
+const KEY_RE = /^mk_[A-Za-z0-9_-]{16,128}$/;
 const ADDRESS_RE = /^0x[0-9a-f]{40}$/;
 const STATION_NAMES = new Set<string>(STATIONS);
 
