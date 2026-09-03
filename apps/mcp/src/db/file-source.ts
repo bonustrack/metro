@@ -7,7 +7,7 @@ import type { LoadedAccount, LoadedAgent, StationSource } from './materialize.js
 
 export const AGENT_FILE = 'agent.json';
 
-const KEY_RE = /^mk_[A-Za-z0-9_-]{16,128}$/;
+const KEY_RE = /^[A-Za-z0-9_-]{16,128}$/;
 const ADDRESS_RE = /^0x[0-9a-f]{40}$/;
 const STATION_NAMES = new Set<string>(STATIONS);
 
@@ -85,7 +85,7 @@ export function parseAgentFile(raw: string, path: string): AgentFile {
     fail(path, 'id is not an 11-character id');
   if (typeof name !== 'string' || !AGENT_NAME_RE.test(name))
     fail(path, 'name is not a valid agent name');
-  const key = optionalMatch(parsed.key, KEY_RE, path, 'key is not an mk_ key');
+  const key = optionalMatch(parsed.key, KEY_RE, path, 'key is not an agent key');
   const owner = optionalMatch(
     parsed.owner,
     ADDRESS_RE,

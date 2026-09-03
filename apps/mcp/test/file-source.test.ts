@@ -144,17 +144,19 @@ describe('train stubs at first boot', () => {
 });
 
 describe('keys of every vintage', () => {
-  test("a metro.box key older than today's 46-character shape is still a key", () => {
-    const old = `mk_${'A1b2'.repeat(15)}z`;
-    expect(old).toHaveLength(64);
-    const path = write('suzy', agent({ key: old }));
-    expect(readAgentFile(path).key).toBe(old);
+  test("metro.box keys older than today's mk_ shape, plain 64-hex included, are still keys", () => {
+    const hex = 'a1b2c3d4'.repeat(8);
+    expect(hex).toHaveLength(64);
+    expect(readAgentFile(write('suzy', agent({ key: hex }))).key).toBe(hex);
+    const mid = `mk_${'A1b2'.repeat(15)}z`;
+    expect(readAgentFile(write('tony', agent({ id: 'agent000002', key: mid }))).key).toBe(mid);
   });
 
-  test('but not something that only starts with mk_', () => {
-    const path = write('suzy', agent({ key: 'mk_short' }));
-    expect(() => readAgentFile(path)).toThrow(/not an mk_ key/);
+  test('but not something too short, or carrying a character a url would mangle', () => {
+    expect(() => readAgentFile(write('suzy', agent({ key: 'mk_short' })))).toThrow(/not an agent key/);
     const spaced = write('tony', agent({ id: 'agent000002', key: `mk_${'x'.repeat(20)} y` }));
-    expect(() => readAgentFile(spaced)).toThrow(/not an mk_ key/);
+    expect(() => readAgentFile(spaced)).toThrow(/not an agent key/);
+    const plus = write('lisa', agent({ id: 'agent000003', key: `${'x'.repeat(20)}+/=` }));
+    expect(() => readAgentFile(plus)).toThrow(/not an agent key/);
   });
 });
