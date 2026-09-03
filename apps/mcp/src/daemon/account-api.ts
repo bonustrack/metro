@@ -51,13 +51,13 @@ export interface AccountApiDeps {
   attachSessions: AttachSessionApi;
   prepareAccount: (input: AttachInput) => Promise<PreparedAccount>;
   attachAccount: (
-    email: string,
+    subject: string,
     agentId: string,
     station: StationName,
     config: Record<string, unknown>,
   ) => Promise<AccountRef>;
   detachAccount: (
-    email: string,
+    subject: string,
     agentId: string,
     station: StationName,
     accountId: string,
@@ -146,7 +146,7 @@ async function storeAccount(
 ): Promise<AccountRef> {
   try {
     return await deps.attachAccount(
-      session.email,
+      session.subject,
       agentId,
       station,
       prepared.config,
@@ -158,7 +158,7 @@ async function storeAccount(
 }
 
 function ownerOf(session: ApiSession, agentId: string): AttachOwner {
-  return { email: session.email, agentId };
+  return { subject: session.subject, agentId };
 }
 
 function asInput(body: unknown): Record<string, unknown> {
@@ -224,7 +224,7 @@ async function handleDetach(
   target: { station: StationName; accountId: string },
 ): Promise<void> {
   const ref = await deps.detachAccount(
-    session.email,
+    session.subject,
     agentId,
     target.station,
     target.accountId,

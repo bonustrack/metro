@@ -91,7 +91,7 @@ function fakePrepare(input: AttachInput): Promise<PreparedAccount> {
 const attachSessions = new AttachSessions({
   authorize: (owner) => {
     try {
-      ownedOrThrow(owner.email, owner.agentId);
+      ownedOrThrow(owner.subject, owner.agentId);
     } catch (err) {
       return Promise.reject(err as Error);
     }
@@ -101,7 +101,7 @@ const attachSessions = new AttachSessions({
     nextAccount += 1;
     const accountId = `acct${String(nextAccount).padStart(7, '0')}`;
     try {
-      ownedOrThrow(owner.email, owner.agentId);
+      ownedOrThrow(owner.subject, owner.agentId);
     } catch (err) {
       return Promise.reject(err as Error);
     }
@@ -188,7 +188,7 @@ const deps: AgentApiDeps = {
 };
 
 const session = (email: string, secret = SECRET): string =>
-  signSession({ email, agentIds: [] }, secret);
+  signSession({ subject: email, agentIds: [] }, secret);
 
 const start = (
   token: string | undefined,

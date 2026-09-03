@@ -17,8 +17,8 @@ import type { RequestIdentity } from '../src/mcp/request-identity.ts';
 const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
 const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
 const TONY_OWNER: RequestIdentity = {
-  kind: 'google',
-  email: 'tony@example.test',
+  kind: 'session',
+  subject: 'tony@example.test',
   agentIds: ['agent000001'],
 };
 

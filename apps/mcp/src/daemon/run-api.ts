@@ -9,7 +9,7 @@ import {
   sendJson,
 } from './api-http.js';
 import { AGENT_CODE_RE, takeAgentCode } from './agent-pair.js';
-import { sessionTtlFromEnv } from './google-oauth.js';
+import { sessionTtlFromEnv } from './session-config.js';
 import { signRunToken } from './session.js';
 import type { LoadedAgent } from '../db/materialize.js';
 import type { RuntimeLease } from '../db/runtimes.js';
@@ -78,7 +78,7 @@ async function handleClaim(
   }
   const lease = await deps.claimRuntime(taken.agentId, labelOf(body));
   const token = signRunToken(
-    { email: taken.email, agentId: lease.agentId, runtimeId: lease.runtimeId },
+    { subject: taken.subject, agentId: lease.agentId, runtimeId: lease.runtimeId },
     secret,
     { ttlSec: sessionTtlFromEnv() },
   );

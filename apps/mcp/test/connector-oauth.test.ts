@@ -242,7 +242,7 @@ describe('the callback route', () => {
     expect((await fetch(`${base}/api/connectors?project=p0000000001`)).status).toBe(
       401,
     );
-    const token = signSession({ email: 'ada@lovelace.dev', agentIds: [] }, SECRET);
+    const token = signSession({ subject: 'ada@lovelace.dev', agentIds: [] }, SECRET);
     const ok = await fetch(`${base}/api/connectors?project=p0000000001`, {
       headers: { authorization: `Bearer ${token}` },
     });

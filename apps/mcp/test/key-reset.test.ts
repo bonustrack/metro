@@ -80,7 +80,7 @@ const deps: AgentApiDeps = {
 };
 
 const session = (email: string): string =>
-  signSession({ email, agentIds: [] }, SECRET);
+  signSession({ subject: email, agentIds: [] }, SECRET);
 
 const msg = (line: string, text: string): MetroEvent =>
   ({

@@ -19,7 +19,8 @@ export type StationName = (typeof STATIONS)[number];
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
-  email: text('email').notNull().unique(),
+  email: text('email').unique(),
+  address: text('address').unique(),
 });
 
 export const PROJECT_ROLES = ['admin', 'member'] as const;

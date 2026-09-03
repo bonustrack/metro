@@ -48,8 +48,26 @@ describe('the migrations the release command applies', () => {
     );
   });
 
-  test('0019 is the newest migration', () => {
-    expect(journal().at(-1)?.tag).toBe('0019_agents_own_connectors');
+  test('0020 is the newest migration', () => {
+    expect(journal().at(-1)?.tag).toBe('0020_users_address');
+  });
+
+  test('0020 maps the one kept account to its address, refuses to wipe everyone, then removes the rest in dependency order', () => {
+    const sql = readFileSync(join(DIR, '0020_users_address.sql'), 'utf8');
+    const order = [
+      'ADD COLUMN "address"',
+      `SET "address" = '0xef8305e140ac520225daf050e2f71d5fbcc543e7' WHERE "email" = 'fabien@bonustrack.co'`,
+      'RAISE EXCEPTION',
+      'DELETE FROM "stations"',
+      'DELETE FROM "agents"',
+      'DELETE FROM "connectors"',
+      'DELETE FROM "project_members"',
+      'DELETE FROM "projects"',
+      'DELETE FROM "users"',
+    ].map((needle) => sql.indexOf(needle));
+    expect(order.every((at) => at > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(sql).toContain('ALTER COLUMN "email" DROP NOT NULL');
   });
 
   test('0019 moves the Internal collection onto Tony, mints no agent, then drops the tables', () => {

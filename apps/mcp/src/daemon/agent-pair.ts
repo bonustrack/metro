@@ -1,7 +1,7 @@
 import { makeCodeStore } from './pair-codes.js';
 
 export interface AgentCode {
-  email: string;
+  subject: string;
   agentId: string;
 }
 

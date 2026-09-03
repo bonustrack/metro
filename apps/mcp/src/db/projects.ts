@@ -1,4 +1,8 @@
-import { ensureUser, normalizeEmail, userIdForEmail } from './users.js';
+import {
+  ensureUserByAddress,
+  normalizeAddress,
+  userIdForSubject,
+} from './users.js';
 import { and, asc, eq } from 'drizzle-orm';
 import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
@@ -17,7 +21,8 @@ export interface Project {
 
 export interface Member {
   id: string;
-  email: string;
+  address: string | null;
+  email: string | null;
   role: ProjectRole;
   owner: boolean;
 }
@@ -50,10 +55,10 @@ export interface Access {
 }
 
 export async function memberAccessOrThrow(
-  email: string,
+  subject: string,
   projectId: string,
 ): Promise<Access> {
-  const userId = await userIdForEmail(email);
+  const userId = await userIdForSubject(subject);
   if (userId === null) throw missing();
   const rows = await getDb()
     .select({
@@ -79,10 +84,10 @@ export async function memberAccessOrThrow(
 }
 
 export async function projectIdOrThrow(
-  email: string,
+  subject: string,
   projectId: string,
 ): Promise<string> {
-  return (await memberAccessOrThrow(email, projectId)).projectId;
+  return (await memberAccessOrThrow(subject, projectId)).projectId;
 }
 
 async function addMemberRow(
@@ -111,14 +116,14 @@ export async function ensureDefaultProject(userId: string): Promise<string> {
   return id;
 }
 
-export async function ensureUserWithProject(rawEmail: string): Promise<string> {
-  const userId = await ensureUser(rawEmail);
+export async function ensureUserWithProject(address: string): Promise<string> {
+  const userId = await ensureUserByAddress(address);
   await ensureDefaultProject(userId);
   return userId;
 }
 
-export async function listProjectsForEmail(email: string): Promise<Project[]> {
-  const userId = await userIdForEmail(email);
+export async function listProjectsForUser(subject: string): Promise<Project[]> {
+  const userId = await userIdForSubject(subject);
   if (userId === null) return [];
   const rows = await getDb()
     .select({
@@ -141,25 +146,26 @@ export async function listProjectsForEmail(email: string): Promise<Project[]> {
   }));
 }
 
-export async function createProjectForEmail(
-  email: string,
+export async function createProjectForUser(
+  subject: string,
   raw: unknown,
 ): Promise<Project> {
   const name = projectName(raw);
-  const userId = await ensureUser(email);
+  const userId = await userIdForSubject(subject);
+  if (userId === null) throw new ProjectError('unknown account', 401);
   const id = newId();
   await getDb().insert(projects).values({ id, name, ownerId: userId });
   await addMemberRow(id, userId, 'admin');
   return { id, name, isDefault: false, owner: true, role: 'admin' };
 }
 
-export async function renameProjectForEmail(
-  email: string,
+export async function renameProjectForUser(
+  subject: string,
   projectId: string,
   raw: unknown,
 ): Promise<Project> {
   const name = projectName(raw);
-  const access = await memberAccessOrThrow(email, projectId);
+  const access = await memberAccessOrThrow(subject, projectId);
   if (access.role !== 'admin')
     throw forbidden('only an admin can rename a project');
   await getDb()
@@ -175,11 +181,11 @@ export async function renameProjectForEmail(
   };
 }
 
-export async function deleteProjectForEmail(
-  email: string,
+export async function deleteProjectForUser(
+  subject: string,
   projectId: string,
 ): Promise<{ id: string; name: string }> {
-  const access = await memberAccessOrThrow(email, projectId);
+  const access = await memberAccessOrThrow(subject, projectId);
   if (access.ownerId !== access.userId)
     throw forbidden('only the owner can delete a project');
   if (access.isDefault)
@@ -195,14 +201,15 @@ export async function deleteProjectForEmail(
   return { id: access.projectId, name: access.name };
 }
 
-export async function listMembersForEmail(
-  email: string,
+export async function listMembersForUser(
+  subject: string,
   projectId: string,
 ): Promise<Member[]> {
-  const access = await memberAccessOrThrow(email, projectId);
+  const access = await memberAccessOrThrow(subject, projectId);
   const rows = await getDb()
     .select({
       id: projectMembers.id,
+      address: users.address,
       email: users.email,
       role: projectMembers.role,
       userId: projectMembers.userId,
@@ -213,6 +220,7 @@ export async function listMembersForEmail(
     .orderBy(asc(projectMembers.id));
   return rows.map((r) => ({
     id: r.id,
+    address: r.address,
     email: r.email,
     role: r.role,
     owner: r.userId === access.ownerId,
@@ -225,29 +233,30 @@ function readRole(raw: unknown): ProjectRole {
 }
 
 async function adminAccessOrThrow(
-  email: string,
+  subject: string,
   projectId: string,
 ): Promise<Access> {
-  const access = await memberAccessOrThrow(email, projectId);
+  const access = await memberAccessOrThrow(subject, projectId);
   if (access.role !== 'admin')
     throw forbidden('only an admin can manage members');
   return access;
 }
 
-export async function addMemberForEmail(
-  email: string,
+export async function addMemberForUser(
+  subject: string,
   projectId: string,
   raw: unknown,
   rawRole: unknown,
 ): Promise<Member[]> {
-  const access = await adminAccessOrThrow(email, projectId);
+  const access = await adminAccessOrThrow(subject, projectId);
   const role = readRole(rawRole);
-  const invited = normalizeEmail(typeof raw === 'string' ? raw : '');
-  if (invited === '') throw new ProjectError('an email is required', 400);
-  const invitedId = await ensureUser(invited);
+  const invited = normalizeAddress(typeof raw === 'string' ? raw : '');
+  if (invited === null)
+    throw new ProjectError('an Ethereum address is required', 400);
+  const invitedId = await ensureUserByAddress(invited);
   await ensureDefaultProject(invitedId);
   await addMemberRow(access.projectId, invitedId, role);
-  return listMembersForEmail(email, projectId);
+  return listMembersForUser(subject, projectId);
 }
 
 async function memberRowOrThrow(
@@ -268,13 +277,13 @@ async function memberRowOrThrow(
   return row;
 }
 
-export async function setMemberRoleForEmail(
-  email: string,
+export async function setMemberRoleForUser(
+  subject: string,
   projectId: string,
   memberId: string,
   rawRole: unknown,
 ): Promise<Member[]> {
-  const access = await adminAccessOrThrow(email, projectId);
+  const access = await adminAccessOrThrow(subject, projectId);
   const role = readRole(rawRole);
   const member = await memberRowOrThrow(access.projectId, memberId);
   if (member.userId === access.ownerId)
@@ -283,18 +292,18 @@ export async function setMemberRoleForEmail(
     .update(projectMembers)
     .set({ role })
     .where(eq(projectMembers.id, memberId));
-  return listMembersForEmail(email, projectId);
+  return listMembersForUser(subject, projectId);
 }
 
-export async function removeMemberForEmail(
-  email: string,
+export async function removeMemberForUser(
+  subject: string,
   projectId: string,
   memberId: string,
 ): Promise<Member[]> {
-  const access = await adminAccessOrThrow(email, projectId);
+  const access = await adminAccessOrThrow(subject, projectId);
   const member = await memberRowOrThrow(access.projectId, memberId);
   if (member.userId === access.ownerId)
     throw forbidden('the owner cannot be removed from their own project');
   await getDb().delete(projectMembers).where(eq(projectMembers.id, memberId));
-  return listMembersForEmail(email, projectId);
+  return listMembersForUser(subject, projectId);
 }

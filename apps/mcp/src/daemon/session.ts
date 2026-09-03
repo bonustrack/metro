@@ -95,17 +95,17 @@ export function verifyState(
 }
 
 interface SessionClaims {
-  email: string;
+  subject: string;
   agentIds: string[];
 }
 
 export interface AgentClaims {
-  email: string;
+  subject: string;
   agentId: string;
 }
 
 export interface RunClaims {
-  email: string;
+  subject: string;
   agentId: string;
   runtimeId: string;
 }
@@ -119,7 +119,7 @@ export function signSession(
   return sign(
     {
       typ: 'session',
-      sub: claims.email,
+      sub: claims.subject,
       agent_ids: claims.agentIds,
       iat,
       exp: iat + (opts.ttlSec ?? 30 * 24 * 3600),
@@ -144,7 +144,7 @@ export function verifySession(
     ids.some((a) => typeof a !== 'string' || !ID_RE.test(a))
   )
     throw new SessionError('malformed session');
-  return { email: p.sub, agentIds: ids as string[] };
+  return { subject: p.sub, agentIds: ids as string[] };
 }
 
 export function signAgentToken(
@@ -156,7 +156,7 @@ export function signAgentToken(
   return sign(
     {
       typ: 'agent',
-      sub: claims.email,
+      sub: claims.subject,
       agent: claims.agentId,
       iat,
       exp: iat + (opts.ttlSec ?? 30 * 24 * 3600),
@@ -176,7 +176,7 @@ export function verifyAgentToken(
     throw new SessionError('agent token expired');
   if (typeof p.sub !== 'string' || typeof p.agent !== 'string')
     throw new SessionError('malformed agent token');
-  return { email: p.sub, agentId: p.agent };
+  return { subject: p.sub, agentId: p.agent };
 }
 
 export function signRunToken(
@@ -188,7 +188,7 @@ export function signRunToken(
   return sign(
     {
       typ: 'run',
-      sub: claims.email,
+      sub: claims.subject,
       agent: claims.agentId,
       rt: claims.runtimeId,
       iat,
@@ -214,5 +214,5 @@ export function verifyRunToken(
     !ID_RE.test(p.agent)
   )
     throw new SessionError('malformed run token');
-  return { email: p.sub, agentId: p.agent, runtimeId: p.rt };
+  return { subject: p.sub, agentId: p.agent, runtimeId: p.rt };
 }

@@ -142,7 +142,7 @@ afterAll(async () => {
 const identityFor = (reader: Reader): RequestIdentity | undefined =>
   reader.scope.size === 0
     ? undefined
-    : { kind: 'google', email: `${reader.label}@example.test`, agentIds: [...reader.scope] };
+    : { kind: 'session', subject: `${reader.label}@example.test`, agentIds: [...reader.scope] };
 
 const stationOf = (line: string): string => line.split('/')[2] ?? 'whatsapp';
 

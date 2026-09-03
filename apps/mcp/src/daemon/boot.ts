@@ -27,8 +27,8 @@ import {
 } from '../db/runtimes.js';
 import {
   blockedStationsFor,
-  mintAgentCodeForEmail,
-  releaseRuntimeForEmail,
+  mintAgentCodeForUser,
+  releaseRuntimeForUser,
 } from '../db/runtime-admin.js';
 import { loadAgentForRuntime, localAgentKey } from '../db/materialize.js';
 import {
@@ -54,39 +54,39 @@ import {
   runtimeConfigFromEnv,
   startRuntimePoller,
 } from './runtime-source.js';
-import {  createAgentForEmail,  deleteAgentForEmail,  listAgentsForEmail,  ownedAgentOrThrow,  resetAgentKeyForEmail,    type ResetAgentKey,} from '../db/agent-admin.js';
+import {  createAgentForUser,  deleteAgentForUser,  listAgentsForUser,  ownedAgentOrThrow,  resetAgentKeyForUser,    type ResetAgentKey,} from '../db/agent-admin.js';
 import {
   attachAccountToAgent,
   detachAccountFromAgent,
 } from '../db/account-attach.js';
 import {
-  createConnectorForEmail,
-  createPendingConnectorForEmail,
-  deleteConnectorForEmail,
-  disconnectConnectorForEmail,
+  createConnectorForUser,
+  createPendingConnectorForUser,
+  deleteConnectorForUser,
+  disconnectConnectorForUser,
   connectorNamesByIds,
-  getConnectorForEmail,
-  listConnectorsForEmail,
-  renameConnectorForEmail,
-  reconnectConnectorForEmail,
-  verifyConnectorForEmail,
+  getConnectorForUser,
+  listConnectorsForUser,
+  renameConnectorForUser,
+  reconnectConnectorForUser,
+  verifyConnectorForUser,
 } from '../db/connectors.js';
 import { relayTarget } from '../db/connector-relay.js';
 import {
-  addMemberForEmail,
-  createProjectForEmail,
-  deleteProjectForEmail,
-  listMembersForEmail,
-  listProjectsForEmail,
-  removeMemberForEmail,
-  renameProjectForEmail,
-  setMemberRoleForEmail,
+  addMemberForUser,
+  createProjectForUser,
+  deleteProjectForUser,
+  listMembersForUser,
+  listProjectsForUser,
+  removeMemberForUser,
+  renameProjectForUser,
+  setMemberRoleForUser,
 } from '../db/projects.js';
 import {
-  addConnectorToAgentForEmail,
-  agentConnectorsForEmail,
+  addConnectorToAgentForUser,
+  agentConnectorsForUser,
   connectorIdsByAgent,
-  removeConnectorFromAgentForEmail,
+  removeConnectorFromAgentForUser,
 } from '../db/agent-connectors.js';
 import type { AgentConnectorApiDeps } from './agent-connector-api.js';
 import type { StationName } from '../db/schema.js';
@@ -162,11 +162,11 @@ async function syncStations(station: StationName): Promise<void> {
 
 const attachSessions = new AttachSessions({
   authorize: async (owner) => {
-    await ownedAgentOrThrow(owner.email, owner.agentId);
+    await ownedAgentOrThrow(owner.subject, owner.agentId);
   },
   complete: async (owner, station, config) => {
     const ref = await attachAccountToAgent(
-      owner.email,
+      owner.subject,
       owner.agentId,
       station,
       config,
@@ -186,10 +186,10 @@ const attachSessions = new AttachSessions({
 });
 
 async function resetAgentKey(
-  email: string,
+  subject: string,
   id: string,
 ): Promise<ResetAgentKey> {
-  const reset = await resetAgentKeyForEmail(email, id);
+  const reset = await resetAgentKeyForUser(subject, id);
   const closed = await closeAgentSession(id);
   log.info(
     { agent: reset.name, id: reset.id, sessionClosed: closed },
@@ -200,14 +200,14 @@ async function resetAgentKey(
 
 const agentApi: AgentApiDeps = {
   attachSessions,
-  listAgents: listAgentsForEmail,
-  createAgent: createAgentForEmail,
-  deleteAgent: deleteAgentForEmail,
+  listAgents: listAgentsForUser,
+  createAgent: createAgentForUser,
+  deleteAgent: deleteAgentForUser,
   resetKey: resetAgentKey,
   gatherAccounts: gatherAccountsForAgents,
   capabilities: accountStationCapabilities,
   liveness: agentLiveness,
-  releaseRuntime: releaseRuntimeForEmail,
+  releaseRuntime: releaseRuntimeForUser,
   connectorIds: connectorIdsByAgent,
   runtimes: runtimeLabels,
   prepareAccount,
@@ -225,36 +225,36 @@ const runApi: RunApiDeps = {
 };
 
 const agentConnectorApi: AgentConnectorApiDeps = {
-  agentConnectors: agentConnectorsForEmail,
-  addConnector: addConnectorToAgentForEmail,
-  removeConnector: removeConnectorFromAgentForEmail,
-  mintCode: mintAgentCodeForEmail,
+  agentConnectors: agentConnectorsForUser,
+  addConnector: addConnectorToAgentForUser,
+  removeConnector: removeConnectorFromAgentForUser,
+  mintCode: mintAgentCodeForUser,
 };
 
 const projectApi: ProjectApiDeps = {
-  listProjects: listProjectsForEmail,
-  createProject: createProjectForEmail,
-  renameProject: renameProjectForEmail,
-  deleteProject: deleteProjectForEmail,
-  listMembers: listMembersForEmail,
-  addMember: addMemberForEmail,
-  setMemberRole: setMemberRoleForEmail,
-  removeMember: removeMemberForEmail,
+  listProjects: listProjectsForUser,
+  createProject: createProjectForUser,
+  renameProject: renameProjectForUser,
+  deleteProject: deleteProjectForUser,
+  listMembers: listMembersForUser,
+  addMember: addMemberForUser,
+  setMemberRole: setMemberRoleForUser,
+  removeMember: removeMemberForUser,
 };
 
 const connectorApi: ConnectorApiDeps = {
-  listConnectors: listConnectorsForEmail,
+  listConnectors: listConnectorsForUser,
   connectorNamesByIds,
-  agentConnectors: agentConnectorsForEmail,
+  agentConnectors: agentConnectorsForUser,
   fenceRuntime,
-  renameConnector: renameConnectorForEmail,
-  createConnector: createConnectorForEmail,
-  createPendingConnector: createPendingConnectorForEmail,
-  reconnectConnector: reconnectConnectorForEmail,
-  getConnector: getConnectorForEmail,
-  verifyConnector: verifyConnectorForEmail,
-  disconnectConnector: disconnectConnectorForEmail,
-  deleteConnector: deleteConnectorForEmail,
+  renameConnector: renameConnectorForUser,
+  createConnector: createConnectorForUser,
+  createPendingConnector: createPendingConnectorForUser,
+  reconnectConnector: reconnectConnectorForUser,
+  getConnector: getConnectorForUser,
+  verifyConnector: verifyConnectorForUser,
+  disconnectConnector: disconnectConnectorForUser,
+  deleteConnector: deleteConnectorForUser,
 };
 
 async function main(): Promise<void> {

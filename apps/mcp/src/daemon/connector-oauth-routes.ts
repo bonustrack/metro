@@ -24,16 +24,16 @@ export function hostOf(url: string): string {
 
 export interface OAuthRouteDeps {
   createPendingConnector: (
-    email: string,
+    subject: string,
     project: string,
     input: { name: unknown; url: unknown },
   ) => Promise<Connector>;
   reconnectConnector: (
-    email: string,
+    subject: string,
     id: string,
     auth: OAuthAuth,
   ) => Promise<Connector>;
-  getConnector: (email: string, id: string) => Promise<Connector>;
+  getConnector: (subject: string, id: string) => Promise<Connector>;
 }
 
 export async function startOAuth(
@@ -46,12 +46,12 @@ export async function startOAuth(
   payload: (row: Connector) => Record<string, unknown>,
 ): Promise<void> {
   const url = parseConnectorUrl(bodyField(body, 'url'));
-  const row = await deps.createPendingConnector(session.email, project, {
+  const row = await deps.createPendingConnector(session.subject, project, {
     name: bodyField(body, 'name'),
     url: bodyField(body, 'url'),
   });
   const authorize = await beginOAuth({
-    email: session.email,
+    subject: session.subject,
     name: row.name,
     url,
     returnTo: asText(bodyField(body, 'returnTo')),
@@ -71,11 +71,11 @@ export async function handleConnect(
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  const row = await deps.getConnector(session.email, id);
+  const row = await deps.getConnector(session.subject, id);
   const url = parseConnectorUrl(row.url);
   const body = await readJsonBody(req);
   const authorize = await beginOAuth({
-    email: session.email,
+    subject: session.subject,
     name: row.name,
     url,
     returnTo: asText(bodyField(body, 'returnTo')),
@@ -110,7 +110,7 @@ async function saveOAuth(
   entry: PendingAuth,
   auth: OAuthAuth,
 ): Promise<Connector> {
-  return deps.reconnectConnector(entry.email, entry.connectorId, auth);
+  return deps.reconnectConnector(entry.subject, entry.connectorId, auth);
 }
 
 async function settleCallback(

@@ -11,6 +11,7 @@ import type { Member, Project } from '../src/db/projects.js';
 
 const SECRET = 'a-test-session-secret';
 const ADA = 'ada@lovelace.dev';
+const CAROL = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 const BOB = 'bob@example.com';
 
 interface Row extends Project {
@@ -104,7 +105,8 @@ const deps: ProjectApiDeps = {
       throw new ApiError("a role is 'admin' or 'member'", 400);
     row.members.push({
       id: `mem0000010${String(row.members.length)}`,
-      email: String(invited),
+      address: String(invited),
+      email: null,
       role,
       owner: false,
     });
@@ -156,7 +158,7 @@ afterAll(() => {
 });
 
 const session = (email: string): string =>
-  signSession({ email, agentIds: [] }, SECRET);
+  signSession({ subject: email, agentIds: [] }, SECRET);
 
 const call = (
   method: string,
@@ -193,7 +195,7 @@ describe('a project is what everything else hangs off', () => {
   });
 
   test('an agent token is not a session here either', async () => {
-    const cli = signAgentToken({ email: ADA, agentId: 'agent000001' }, SECRET);
+    const cli = signAgentToken({ subject: ADA, agentId: 'agent000001' }, SECRET);
     expect((await call('GET', '/api/projects', cli)).status).toBe(401);
   });
 
@@ -251,11 +253,11 @@ describe('members', () => {
   test('a member can be added, promoted and removed', async () => {
     const added = (await (
       await call('POST', '/api/projects/prj00000002/members', session(ADA), {
-        email: 'carol@example.com',
+        address: CAROL,
         role: 'member',
       })
     ).json()) as { members: Member[] };
-    const carol = added.members.find((m) => m.email === 'carol@example.com');
+    const carol = added.members.find((m) => m.address === CAROL);
     expect(carol?.role).toBe('member');
     const promoted = (await (
       await call(
@@ -265,7 +267,7 @@ describe('members', () => {
         { role: 'admin' },
       )
     ).json()) as { members: Member[] };
-    expect(promoted.members.find((m) => m.email === 'carol@example.com')?.role).toBe(
+    expect(promoted.members.find((m) => m.address === CAROL)?.role).toBe(
       'admin',
     );
     const left = (await (

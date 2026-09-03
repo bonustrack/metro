@@ -51,15 +51,15 @@ describe('state token', () => {
   });
 
   test('rejects a session token presented as state (typ guard)', () => {
-    const s = signSession({ email: 'a@b.co', agentIds: ['agent000001'] }, SECRET);
+    const s = signSession({ subject: 'a@b.co', agentIds: ['agent000001'] }, SECRET);
     expect(() => verifyState(s, SECRET)).toThrow(/token type/);
   });
 });
 
 describe('session token', () => {
-  test('round-trips email and agent ids', () => {
-    const t = signSession({ email: 'a@b.co', agentIds: ['agent000001', 'agent000002'] }, SECRET);
-    expect(verifySession(t, SECRET)).toEqual({ email: 'a@b.co', agentIds: ['agent000001', 'agent000002'] });
+  test('round-trips the subject and agent ids', () => {
+    const t = signSession({ subject: 'a@b.co', agentIds: ['agent000001', 'agent000002'] }, SECRET);
+    expect(verifySession(t, SECRET)).toEqual({ subject: 'a@b.co', agentIds: ['agent000001', 'agent000002'] });
   });
 
   test('rejects a correctly signed legacy session that scopes by agent NAME', () => {
@@ -70,7 +70,7 @@ describe('session token', () => {
   test('rejects non-integer or non-positive agent ids', () => {
     for (const bad of [['tony'], [1.5], [0], [-2], 'tony']) {
       const t = signSession(
-        { email: 'a@b.co', agentIds: bad as unknown as number[] },
+        { subject: 'a@b.co', agentIds: bad as unknown as number[] },
         SECRET,
       );
       expect(() => verifySession(t, SECRET)).toThrow(/malformed session/);
@@ -78,12 +78,12 @@ describe('session token', () => {
   });
 
   test('rejects an expired session', () => {
-    const t = signSession({ email: 'a@b.co', agentIds: ['agent000001'] }, SECRET, { ttlSec: -5 });
+    const t = signSession({ subject: 'a@b.co', agentIds: ['agent000001'] }, SECRET, { ttlSec: -5 });
     expect(() => verifySession(t, SECRET)).toThrow(/expired/);
   });
 
   test('rejects a wrong secret', () => {
-    const t = signSession({ email: 'a@b.co', agentIds: ['agent000001'] }, SECRET);
+    const t = signSession({ subject: 'a@b.co', agentIds: ['agent000001'] }, SECRET);
     expect(() => verifySession(t, 'other')).toThrow(SessionError);
   });
 
@@ -93,6 +93,6 @@ describe('session token', () => {
   });
 
   test('signing with an empty secret throws', () => {
-    expect(() => signSession({ email: 'a@b.co', agentIds: [] }, '')).toThrow(SessionError);
+    expect(() => signSession({ subject: 'a@b.co', agentIds: [] }, '')).toThrow(SessionError);
   });
 });

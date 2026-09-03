@@ -141,6 +141,13 @@
       "when": 1787407088624,
       "tag": "0019_agents_own_connectors",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787407088625,
+      "tag": "0020_users_address",
+      "breakpoints": true
     }
   ]
 }

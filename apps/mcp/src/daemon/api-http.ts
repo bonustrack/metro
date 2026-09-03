@@ -14,7 +14,7 @@ const BODY_MAX = 4 * 1024;
 const DRAIN_MAX = 2 * BODY_MAX;
 
 export interface ApiSession {
-  email: string;
+  subject: string;
 }
 
 export function cors(req: IncomingMessage): Record<string, string> {
@@ -47,8 +47,8 @@ export function apiSession(req: IncomingMessage): ApiSession | null {
   const token = extractToken(req) ?? '';
   if (token === '') return null;
   try {
-    const { email } = verifySession(token, secret);
-    return { email: email.toLowerCase() };
+    const { subject } = verifySession(token, secret);
+    return { subject: subject.toLowerCase() };
   } catch {
     return null;
   }
@@ -61,7 +61,7 @@ export function runIdentity(req: IncomingMessage): RunClaims | null {
   if (token === '') return null;
   try {
     const claims = verifyRunToken(token, secret);
-    return { ...claims, email: claims.email.toLowerCase() };
+    return { ...claims, subject: claims.subject.toLowerCase() };
   } catch {
     return null;
   }
@@ -77,12 +77,12 @@ export function agentIdentity(req: IncomingMessage): AgentIdentity | null {
   const token = extractToken(req) ?? '';
   if (token === '') return null;
   try {
-    const { email, agentId } = verifyAgentToken(token, secret);
-    return { email: email.toLowerCase(), agentId };
+    const { subject, agentId } = verifyAgentToken(token, secret);
+    return { subject: subject.toLowerCase(), agentId };
   } catch {
     const run = runIdentity(req);
     if (run === null) return null;
-    return { email: run.email, agentId: run.agentId, runtimeId: run.runtimeId };
+    return { subject: run.subject, agentId: run.agentId, runtimeId: run.runtimeId };
   }
 }
 

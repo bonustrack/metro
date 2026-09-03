@@ -195,7 +195,7 @@ describe('an upload belongs to the agent that made it', () => {
     labels = ['file'];
     const id = stored('agent000001');
     const res = await runWithIdentity(
-      { kind: 'google', email: 'x@y.z', agentIds: ['agent000001', 'agent000003'] },
+      { kind: 'session', subject: 'x@y.z', agentIds: ['agent000001', 'agent000003'] },
       () => dispatchMessageTool('send', { line: WHATSAPP, attachments: [{ upload: id }] }),
     );
     expect(res.isError).toBeUndefined();

@@ -22,6 +22,6 @@ export function handleSessionApiRequest(
     sendJson(req, res, 401, { error: 'unauthorized' });
     return true;
   }
-  sendJson(req, res, 200, { email: session.email });
+  sendJson(req, res, 200, { subject: session.subject });
   return true;
 }

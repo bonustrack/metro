@@ -30,18 +30,18 @@ const PREFIX = '/api/agents';
 const SERVER_NAME = 'metro';
 
 export interface AgentApiDeps extends AccountApiDeps {
-  listAgents: (email: string, project: string) => Promise<AgentSummary[]>;
+  listAgents: (subject: string, project: string) => Promise<AgentSummary[]>;
   createAgent: (
-    email: string,
+    subject: string,
     project: string,
     name: string,
   ) => Promise<CreatedAgent>;
   deleteAgent: (
-    email: string,
+    subject: string,
     id: string,
   ) => Promise<DeletedAgent>;
   resetKey: (
-    email: string,
+    subject: string,
     id: string,
   ) => Promise<ResetAgentKey>;
   gatherAccounts: (allowed: Set<string>) => Promise<{
@@ -50,7 +50,7 @@ export interface AgentApiDeps extends AccountApiDeps {
   }>;
   capabilities: () => Record<string, string[]>;
   liveness: () => Map<string, { connected: boolean; lastSeenAt: number }>;
-  releaseRuntime: (email: string, agentId: string) => Promise<void>;
+  releaseRuntime: (subject: string, agentId: string) => Promise<void>;
   runtimes: (agentIds: string[]) => Promise<Map<string, string>>;
   connectorIds: (agentIds: string[]) => Promise<Map<string, string[]>>;
 }
@@ -160,14 +160,14 @@ async function handleList(
     sendJson(req, res, 400, { error: 'a project is required' });
     return;
   }
-  const list = await deps.listAgents(session.email, project);
+  const list = await deps.listAgents(session.subject, project);
   const live = deps.liveness();
   const held = await deps.runtimes(
     list.filter((a) => a.owned).map((a) => a.id),
   );
   const connectors = await deps.connectorIds(list.map((a) => a.id));
   const base = {
-    email: session.email,
+    subject: session.subject,
     endpoint: mcpEndpoint(),
     agents: list.map((a) => agentPayload(a, live, held, connectors)),
     capabilities: deps.capabilities(),
@@ -190,7 +190,7 @@ async function handleRuntime(
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  await deps.releaseRuntime(session.email, id);
+  await deps.releaseRuntime(session.subject, id);
   log.info({ agent: id }, 'agent-api: runtime released');
   sendJson(req, res, 200, { agent: id, runtime: null });
 }
@@ -208,9 +208,9 @@ async function handleCreate(
     sendJson(req, res, 400, { error: 'a project is required' });
     return;
   }
-  const created = await deps.createAgent(session.email, project, name as string);
+  const created = await deps.createAgent(session.subject, project, name as string);
   log.info(
-    { agent: created.name, id: created.id, owner: session.email },
+    { agent: created.name, id: created.id, owner: session.subject },
     'agent-api: created agent',
   );
   sendJson(req, res, 201, {
@@ -227,9 +227,9 @@ async function handleResetKey(
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  const reset = await deps.resetKey(session.email, id);
+  const reset = await deps.resetKey(session.subject, id);
   log.info(
-    { agent: reset.name, id: reset.id, owner: session.email },
+    { agent: reset.name, id: reset.id, owner: session.subject },
     'agent-api: reset agent key',
   );
   sendJson(req, res, 200, {
@@ -247,9 +247,9 @@ async function handleDelete(
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  const gone = await deps.deleteAgent(session.email, id);
+  const gone = await deps.deleteAgent(session.subject, id);
   log.info(
-    { agent: gone.name, id: gone.id, owner: session.email },
+    { agent: gone.name, id: gone.id, owner: session.subject },
     'agent-api: deleted agent',
   );
   sendJson(req, res, 200, { id: gone.id, name: gone.name, deleted: true });

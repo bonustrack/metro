@@ -22,8 +22,8 @@ const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
 const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
 const MO: RequestIdentity = { kind: 'agent', agentId: 'agent000007' };
 const TONY_OWNER: RequestIdentity = {
-  kind: 'google',
-  email: 'tony@example.test',
+  kind: 'session',
+  subject: 'tony@example.test',
   agentIds: ['agent000001'],
 };
 

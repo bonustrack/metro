@@ -47,28 +47,28 @@ describe('authenticate', () => {
   });
 
   test('accepts a valid daemon session JWT and scopes to its agents', () => {
-    const token = signSession({ email: 'fabien@bonustrack.co', agentIds: ['agent000001'] }, SECRET);
+    const token = signSession({ subject: 'fabien@bonustrack.co', agentIds: ['agent000001'] }, SECRET);
     expect(authenticate(req(`/mcp?token=${token}`), cfg())).toEqual({
-      kind: 'google',
-      email: 'fabien@bonustrack.co',
+      kind: 'session',
+      subject: 'fabien@bonustrack.co',
       agentIds: ['agent000001'],
     });
   });
 
   test('rejects a session signed with a different secret', () => {
-    const token = signSession({ email: 'x@y.z', agentIds: ['agent000001'] }, 'other-secret');
+    const token = signSession({ subject: 'x@y.z', agentIds: ['agent000001'] }, 'other-secret');
     expect(authenticate(req(`/mcp?token=${token}`), cfg())).toBeNull();
   });
 
   test('rejects an expired session', () => {
-    const token = signSession({ email: 'x@y.z', agentIds: ['agent000001'] }, SECRET, {
+    const token = signSession({ subject: 'x@y.z', agentIds: ['agent000001'] }, SECRET, {
       ttlSec: -10,
     });
     expect(authenticate(req(`/mcp?token=${token}`), cfg())).toBeNull();
   });
 
   test('rejects a tampered session payload', () => {
-    const token = signSession({ email: 'x@y.z', agentIds: ['agent000001'] }, SECRET);
+    const token = signSession({ subject: 'x@y.z', agentIds: ['agent000001'] }, SECRET);
     const [h, , s] = token.split('.');
     const forged = Buffer.from(
       JSON.stringify({ typ: 'session', sub: 'x@y.z', agent_ids: [99], exp: 9_999_999_999 }),
@@ -142,12 +142,12 @@ describe('allowedAgents', () => {
 
   test('a google session is scoped to its granted agent ids', () => {
     expect(
-      allowedAgents({ kind: 'google', email: 'a@b.co', agentIds: ['agent000001', 'agent000002'] }),
+      allowedAgents({ kind: 'session', subject: 'a@b.co', agentIds: ['agent000001', 'agent000002'] }),
     ).toEqual(new Set(['agent000001', 'agent000002']));
   });
 
   test('a google session with no agents is scoped to nothing (not everything)', () => {
-    const scope = allowedAgents({ kind: 'google', email: 'a@b.co', agentIds: [] });
+    const scope = allowedAgents({ kind: 'session', subject: 'a@b.co', agentIds: [] });
     expect(scope).toEqual(new Set());
     expect(scope?.size).toBe(0);
   });

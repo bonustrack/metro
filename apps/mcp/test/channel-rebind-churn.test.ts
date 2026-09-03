@@ -20,18 +20,18 @@ import type { RequestIdentity } from '../src/mcp/request-identity.ts';
 const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
 const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
 const TONY_OWNER: RequestIdentity = {
-  kind: 'google',
-  email: 'tony@example.test',
+  kind: 'session',
+  subject: 'tony@example.test',
   agentIds: ['agent000001'],
 };
 const BOTH: RequestIdentity = {
-  kind: 'google',
-  email: 'ops@example.test',
+  kind: 'session',
+  subject: 'ops@example.test',
   agentIds: ['agent000034', 'agent000001'],
 };
 const NO_AGENTS: RequestIdentity = {
-  kind: 'google',
-  email: 'newcomer@example.test',
+  kind: 'session',
+  subject: 'newcomer@example.test',
   agentIds: [],
 };
 
@@ -106,14 +106,14 @@ describe('sessionScopeKey', () => {
 
   test('the key is order independent', () => {
     expect(
-      sessionScopeKey({ kind: 'google', email: 'a@b.test', agentIds: ['agent000001', 'agent000034'] }),
+      sessionScopeKey({ kind: 'session', subject: 'a@b.test', agentIds: ['agent000001', 'agent000034'] }),
     ).toBe(sessionScopeKey(BOTH));
   });
 
-  test('a session owning no agent is keyed by email, not pooled with every other', () => {
-    expect(sessionScopeKey(NO_AGENTS)).toBe('email:newcomer@example.test');
+  test('a session owning no agent is keyed by its subject, not pooled with every other', () => {
+    expect(sessionScopeKey(NO_AGENTS)).toBe('user:newcomer@example.test');
     expect(sessionScopeKey(NO_AGENTS)).not.toBe(
-      sessionScopeKey({ kind: 'google', email: 'other@x.test', agentIds: [] }),
+      sessionScopeKey({ kind: 'session', subject: 'other@x.test', agentIds: [] }),
     );
   });
 });

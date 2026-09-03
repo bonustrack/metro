@@ -15,32 +15,32 @@ import type { Member, Project } from '../db/projects.js';
 const PREFIX = '/api/projects';
 
 export interface ProjectApiDeps {
-  listProjects: (email: string) => Promise<Project[]>;
-  createProject: (email: string, name: unknown) => Promise<Project>;
+  listProjects: (subject: string) => Promise<Project[]>;
+  createProject: (subject: string, name: unknown) => Promise<Project>;
   renameProject: (
-    email: string,
+    subject: string,
     id: string,
     name: unknown,
   ) => Promise<Project>;
   deleteProject: (
-    email: string,
+    subject: string,
     id: string,
   ) => Promise<{ id: string; name: string }>;
-  listMembers: (email: string, id: string) => Promise<Member[]>;
+  listMembers: (subject: string, id: string) => Promise<Member[]>;
   addMember: (
-    email: string,
+    subject: string,
     id: string,
     invited: unknown,
     role: unknown,
   ) => Promise<Member[]>;
   setMemberRole: (
-    email: string,
+    subject: string,
     id: string,
     memberId: string,
     role: unknown,
   ) => Promise<Member[]>;
   removeMember: (
-    email: string,
+    subject: string,
     id: string,
     memberId: string,
   ) => Promise<Member[]>;
@@ -98,11 +98,11 @@ async function handleIndex(
   session: ApiSession,
 ): Promise<void> {
   if (req.method === 'GET') {
-    sendJson(req, res, 200, { projects: await deps.listProjects(session.email) });
+    sendJson(req, res, 200, { projects: await deps.listProjects(session.subject) });
     return;
   }
   const made = await deps.createProject(
-    session.email,
+    session.subject,
     bodyField(await readJsonBody(req), 'name'),
   );
   log.info({ id: made.id, name: made.name }, 'project-api: created project');
@@ -117,14 +117,14 @@ async function handleMembers(
   id: string,
 ): Promise<void> {
   if (req.method === 'GET') {
-    sendJson(req, res, 200, { members: await deps.listMembers(session.email, id) });
+    sendJson(req, res, 200, { members: await deps.listMembers(session.subject, id) });
     return;
   }
   const body = await readJsonBody(req);
   const members = await deps.addMember(
-    session.email,
+    session.subject,
     id,
-    bodyField(body, 'email'),
+    bodyField(body, 'address'),
     bodyField(body, 'role'),
   );
   sendJson(req, res, 200, { members });
@@ -138,12 +138,12 @@ async function handleMember(
   tgt: { id: string; memberId: string },
 ): Promise<void> {
   if (req.method === 'DELETE') {
-    const members = await deps.removeMember(session.email, tgt.id, tgt.memberId);
+    const members = await deps.removeMember(session.subject, tgt.id, tgt.memberId);
     sendJson(req, res, 200, { members });
     return;
   }
   const members = await deps.setMemberRole(
-    session.email,
+    session.subject,
     tgt.id,
     tgt.memberId,
     bodyField(await readJsonBody(req), 'role'),
@@ -170,12 +170,12 @@ async function route(
         res,
         200,
         await deps.renameProject(
-          session.email,
+          session.subject,
           tgt.id,
           bodyField(await readJsonBody(req), 'name'),
         ),
       );
-    else sendJson(req, res, 200, await deps.deleteProject(session.email, tgt.id));
+    else sendJson(req, res, 200, await deps.deleteProject(session.subject, tgt.id));
   } catch (err) {
     apiFailure(req, res, err, 'project-api');
   }

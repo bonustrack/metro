@@ -210,7 +210,7 @@ const deps: ConnectorApiDeps = {
 };
 
 const session = (email: string, secret = SECRET): string =>
-  signSession({ email, agentIds: [] }, secret);
+  signSession({ subject: email, agentIds: [] }, secret);
 
 const withProject = (path: string): string =>
   path.includes('?')
@@ -284,7 +284,7 @@ describe('/api/connectors is the Google session surface', () => {
   });
 
   test('an expired session is 401', async () => {
-    const stale = signSession({ email: ADA, agentIds: [] }, SECRET, {
+    const stale = signSession({ subject: ADA, agentIds: [] }, SECRET, {
       ttlSec: -10,
     });
     expect((await call('GET', '/api/connectors', stale)).status).toBe(401);

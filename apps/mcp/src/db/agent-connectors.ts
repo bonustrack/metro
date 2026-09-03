@@ -86,11 +86,11 @@ export async function connectorIdsByAgent(
   return out;
 }
 
-export async function agentConnectorsForEmail(
-  email: string,
+export async function agentConnectorsForUser(
+  subject: string,
   agentId: string,
 ): Promise<AgentConnectors> {
-  const { agent } = await ownedAgentOrThrow(email, agentId);
+  const { agent } = await ownedAgentOrThrow(subject, agentId);
   return { ...agent, connectorIds: await connectorIdsOfAgent(agent.id) };
 }
 
@@ -105,12 +105,12 @@ async function connectorNameIn(
   return rows[0]?.name ?? null;
 }
 
-export async function addConnectorToAgentForEmail(
-  email: string,
+export async function addConnectorToAgentForUser(
+  subject: string,
   agentId: string,
   connectorId: string,
 ): Promise<AgentConnectors> {
-  const { agent, projectId } = await ownedAgentOrThrow(email, agentId);
+  const { agent, projectId } = await ownedAgentOrThrow(subject, agentId);
   const name = await connectorNameIn(projectId, connectorId);
   if (name === null) throw new ConnectorError('no such connector', 404);
   const clash = await collidingAgent([agent.id], name, connectorId);
@@ -125,12 +125,12 @@ export async function addConnectorToAgentForEmail(
   return { ...agent, connectorIds: await connectorIdsOfAgent(agent.id) };
 }
 
-export async function removeConnectorFromAgentForEmail(
-  email: string,
+export async function removeConnectorFromAgentForUser(
+  subject: string,
   agentId: string,
   connectorId: string,
 ): Promise<AgentConnectors> {
-  const { agent } = await ownedAgentOrThrow(email, agentId);
+  const { agent } = await ownedAgentOrThrow(subject, agentId);
   await getDb()
     .delete(agentConnectors)
     .where(

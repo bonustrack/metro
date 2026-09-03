@@ -11,10 +11,10 @@ import type { DriverHooks } from '../src/stations/attach-interactive.ts';
 const FAKE_SESSION = 'fake-mtproto-session-string';
 
 const ADA: AttachOwner = {
-  email: 'ada@lovelace.dev',
+  subject: 'ada@lovelace.dev',
   agentId: 'agent000001',
 };
-const BOB: AttachOwner = { email: 'bob@builder.dev', agentId: 'agent000002' };
+const BOB: AttachOwner = { subject: 'bob@builder.dev', agentId: 'agent000002' };
 
 interface Recorded {
   config: Record<string, unknown>;
@@ -187,7 +187,7 @@ describe('attach sessions are owned', () => {
     await store.stop();
   });
 
-  test('the same email on a different agent is still refused', async () => {
+  test('the same account on a different agent is still refused', async () => {
     const store = sessions();
     const { attachId } = await store.start(ADA, 'telegram', {});
     expect(() =>

@@ -50,7 +50,7 @@ const agentDeps: AgentConnectorApiDeps = {
   removeConnector: () => Promise.reject(new Error('not under test')),
   mintCode: async (email, agentId) => {
     const agent = await agentConnectors(email, agentId);
-    return { ...mintAgentCode({ email, agentId }), agent: agent.name };
+    return { ...mintAgentCode({ subject: email, agentId }), agent: agent.name };
   },
 };
 
@@ -81,11 +81,11 @@ afterAll(() => {
   else process.env.METRO_PUBLIC_URL = prevPublic;
 });
 
-const session = (): string => signSession({ email: EMAIL, agentIds: [] }, SECRET);
+const session = (): string => signSession({ subject: EMAIL, agentIds: [] }, SECRET);
 const agentToken = (agentId = AGENT.id): string =>
-  signAgentToken({ email: EMAIL, agentId }, SECRET);
+  signAgentToken({ subject: EMAIL, agentId }, SECRET);
 const runToken = (): string =>
-  signRunToken({ email: EMAIL, agentId: AGENT.id, runtimeId: 'rt1' }, SECRET);
+  signRunToken({ subject: EMAIL, agentId: AGENT.id, runtimeId: 'rt1' }, SECRET);
 
 const get = (path: string, token?: string): Promise<Response> =>
   fetch(`${base}${path}`, {
@@ -131,7 +131,7 @@ describe('a code authorises one agent, not an account', () => {
     const body = (await res.json()) as { token: string; agent: string };
     expect(body.agent).toBe('suzy');
     expect(verifyAgentToken(body.token, SECRET)).toEqual({
-      email: EMAIL,
+      subject: EMAIL,
       agentId: AGENT.id,
     });
   });
@@ -183,9 +183,10 @@ describe('an agent token reads its agent and nothing else', () => {
   test('it identifies itself by account and agent', async () => {
     const body = (await (await get('/api/cli/session', agentToken())).json()) as {
       email: string;
+      subject: string;
       agent: string;
     };
-    expect(body).toEqual({ email: EMAIL, agent: 'suzy' });
+    expect(body).toEqual({ email: EMAIL, subject: EMAIL, agent: 'suzy' });
   });
 
   test('a run token is the same capability here: metro start needs no second sign-in', async () => {
@@ -197,7 +198,7 @@ describe('an agent token reads its agent and nothing else', () => {
 
   test('a run token whose lease was taken back is refused', async () => {
     const stale = signRunToken(
-      { email: EMAIL, agentId: AGENT.id, runtimeId: 'rt0' },
+      { subject: EMAIL, agentId: AGENT.id, runtimeId: 'rt0' },
       SECRET,
     );
     expect((await get('/api/cli/session', stale)).status).toBe(401);
@@ -220,7 +221,7 @@ describe('an agent token reads its agent and nothing else', () => {
   });
 
   test('an agent token signed by another secret is refused', async () => {
-    const other = signAgentToken({ email: EMAIL, agentId: AGENT.id }, 'other');
+    const other = signAgentToken({ subject: EMAIL, agentId: AGENT.id }, 'other');
     expect((await get('/api/cli/mcp', other)).status).toBe(401);
   });
 

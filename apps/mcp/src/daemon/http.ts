@@ -27,7 +27,7 @@ import {
 } from './tunnel.js';
 import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry } from '@metro-labs/webhook';
-import { handleGoogleAuthRequest } from './google-oauth.js';
+import { handleSiweAuthRequest } from './siwe-routes.js';
 import { handleUploadRequest } from './upload-api.js';
 import {
   handleMonitorRequest,
@@ -331,7 +331,7 @@ async function handlePreMcpRoutes(
   monitorCall?: MonitorCall,
 ): Promise<boolean> {
   if (handleHealth(req, res)) return true;
-  if (await handleGoogleAuthRequest(req, res)) return true;
+  if (handleSiweAuthRequest(req, res)) return true;
   if (handleSessionApis(req, res, apis)) return true;
   if (handleUploadRequest(req, res)) return true;
   if (handleAttachRequest(req, res)) return true;

@@ -88,7 +88,7 @@ afterAll(() => {
 });
 
 const session = (email = ADA): string =>
-  signSession({ email, agentIds: [] }, SECRET);
+  signSession({ subject: email, agentIds: [] }, SECRET);
 
 const call = (
   method: string,
@@ -114,7 +114,7 @@ describe('what an agent holds', () => {
   test('reading needs the signed-in owner, never an agent token', async () => {
     expect((await call('GET', LIST)).status).toBe(401);
     expect((await call('GET', LIST, 'junk')).status).toBe(401);
-    const agent = signAgentToken({ email: ADA, agentId: AGENT }, SECRET);
+    const agent = signAgentToken({ subject: ADA, agentId: AGENT }, SECRET);
     expect((await call('GET', LIST, agent)).status).toBe(401);
   });
 

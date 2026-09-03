@@ -15,19 +15,19 @@ import type { AgentConnectors } from '../db/agent-connectors.js';
 const PREFIX = '/api/agents';
 
 export interface AgentConnectorApiDeps {
-  agentConnectors: (email: string, agentId: string) => Promise<AgentConnectors>;
+  agentConnectors: (subject: string, agentId: string) => Promise<AgentConnectors>;
   addConnector: (
-    email: string,
+    subject: string,
     agentId: string,
     connectorId: string,
   ) => Promise<AgentConnectors>;
   removeConnector: (
-    email: string,
+    subject: string,
     agentId: string,
     connectorId: string,
   ) => Promise<AgentConnectors>;
   mintCode: (
-    email: string,
+    subject: string,
     agentId: string,
   ) => Promise<{ code: string; expiresAt: number; agent: string }>;
 }
@@ -73,7 +73,7 @@ async function handleConnectors(
   id: string,
 ): Promise<void> {
   if (req.method === 'GET') {
-    sendJson(req, res, 200, await deps.agentConnectors(session.email, id));
+    sendJson(req, res, 200, await deps.agentConnectors(session.subject, id));
     return;
   }
   const connectorId = bodyField(await readJsonBody(req), 'connectorId');
@@ -81,7 +81,7 @@ async function handleConnectors(
     sendJson(req, res, 400, { error: 'connectorId is required' });
     return;
   }
-  sendJson(req, res, 200, await deps.addConnector(session.email, id, connectorId));
+  sendJson(req, res, 200, await deps.addConnector(session.subject, id, connectorId));
 }
 
 async function handleCode(
@@ -91,8 +91,8 @@ async function handleCode(
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  const minted = await deps.mintCode(session.email, id);
-  log.info({ agent: id, email: session.email }, 'agent-api: minted pairing code');
+  const minted = await deps.mintCode(session.subject, id);
+  log.info({ agent: id, subject: session.subject }, 'agent-api: minted pairing code');
   sendJson(req, res, 201, minted);
 }
 
@@ -111,7 +111,7 @@ async function route(
         req,
         res,
         200,
-        await deps.removeConnector(session.email, tgt.id, tgt.connectorId),
+        await deps.removeConnector(session.subject, tgt.id, tgt.connectorId),
       );
   } catch (err) {
     apiFailure(req, res, err, 'agent-api');

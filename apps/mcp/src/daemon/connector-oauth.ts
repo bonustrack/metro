@@ -4,7 +4,7 @@ import {
   type OAuthAuth,
   type OAuthTokens,
 } from './connector-verify.js';
-import { validateReturnTo } from './google-oauth.js';
+import { validateReturnTo } from './session-config.js';
 import {
   authorizeUrl,
   exchangeCode,
@@ -32,7 +32,7 @@ const resourceOf = (url: URL): string => url.toString();
 
 export interface BeginInput {
   connectorId: string;
-  email: string;
+  subject: string;
   name: string;
   url: URL;
   returnTo: string;
@@ -47,7 +47,7 @@ export async function beginOAuth(input: BeginInput): Promise<string> {
   const verifier = newVerifier();
   const resource = resourceOf(input.url);
   const state = startPending({
-    email: input.email,
+    subject: input.subject,
     name: input.name,
     url: input.url.toString(),
     resource,

@@ -35,23 +35,23 @@ const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
 
 export interface ConnectorApiDeps extends OAuthRouteDeps {
-  listConnectors: (email: string, project: string) => Promise<Connector[]>;
+  listConnectors: (subject: string, project: string) => Promise<Connector[]>;
   connectorNamesByIds: (ids: string[]) => Promise<RelayServerEntry[]>;
-  agentConnectors: (email: string, agentId: string) => Promise<AgentConnectors>;
+  agentConnectors: (subject: string, agentId: string) => Promise<AgentConnectors>;
   fenceRuntime: Fence;
   createConnector: (
-    email: string,
+    subject: string,
     project: string,
     input: ConnectorInput,
   ) => Promise<Connector>;
-  verifyConnector: (email: string, id: string) => Promise<ConnectorCheck>;
-  disconnectConnector: (email: string, id: string) => Promise<Connector>;
+  verifyConnector: (subject: string, id: string) => Promise<ConnectorCheck>;
+  disconnectConnector: (subject: string, id: string) => Promise<Connector>;
   renameConnector: (
-    email: string,
+    subject: string,
     id: string,
     name: string,
   ) => Promise<Connector>;
-  deleteConnector: (email: string, id: string) => Promise<DeletedConnector>;
+  deleteConnector: (subject: string, id: string) => Promise<DeletedConnector>;
 }
 
 type Routable =
@@ -115,7 +115,7 @@ async function handleList(
     sendJson(req, res, 400, { error: 'a project is required' });
     return;
   }
-  const rows = await deps.listConnectors(session.email, project);
+  const rows = await deps.listConnectors(session.subject, project);
   sendJson(req, res, 200, {
     connectors: rows.map((row) => connectorPayload(row)),
   });
@@ -135,7 +135,7 @@ async function handleCreate(
   }
   const offered = asText(bodyField(body, 'value')).trim() !== '';
   try {
-    const created = await deps.createConnector(session.email, project, {
+    const created = await deps.createConnector(session.subject, project, {
       name: bodyField(body, 'name'),
       url: bodyField(body, 'url'),
       header: bodyField(body, 'header'),
@@ -161,7 +161,7 @@ async function handleVerify(
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  const check = await deps.verifyConnector(session.email, id);
+  const check = await deps.verifyConnector(session.subject, id);
   log.info(
     { id: check.id, name: check.name, ok: check.ok },
     'connector-api: re-verified connector',
@@ -176,7 +176,7 @@ async function handleDisconnect(
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  const row = await deps.disconnectConnector(session.email, id);
+  const row = await deps.disconnectConnector(session.subject, id);
   log.info(
     { id: row.id, name: row.name },
     'connector-api: signed the connector out',
@@ -191,7 +191,7 @@ async function handleDelete(
   session: ApiSession,
   id: string,
 ): Promise<void> {
-  const gone = await deps.deleteConnector(session.email, id);
+  const gone = await deps.deleteConnector(session.subject, id);
   log.info(
     { id: gone.id, name: gone.name },
     'connector-api: deleted connector',
@@ -210,7 +210,7 @@ async function handleConnector(
     await handleDelete(req, res, deps, session, id);
     return;
   }
-  const row = await deps.getConnector(session.email, id);
+  const row = await deps.getConnector(session.subject, id);
   sendJson(req, res, 200, connectorPayload(row, true));
 }
 
@@ -226,7 +226,7 @@ async function handleRename(
     sendJson(req, res, 400, { error: 'name is required' });
     return;
   }
-  const row = await deps.renameConnector(session.email, id, name);
+  const row = await deps.renameConnector(session.subject, id, name);
   log.info({ id: row.id, name: row.name }, 'connector-api: renamed connector');
   sendJson(req, res, 200, connectorPayload(row));
 }

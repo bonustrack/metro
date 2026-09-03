@@ -156,9 +156,9 @@ beforeEach(() => {
 });
 
 const cliToken = (agent = AGENT): string =>
-  signAgentToken({ email: EMAIL, agentId: agent }, SECRET);
+  signAgentToken({ subject: EMAIL, agentId: agent }, SECRET);
 const runToken = (agent = AGENT): string =>
-  signRunToken({ email: EMAIL, agentId: agent, runtimeId: 'rt1' }, SECRET);
+  signRunToken({ subject: EMAIL, agentId: agent, runtimeId: 'rt1' }, SECRET);
 
 const call = (
   path: string,
@@ -185,7 +185,7 @@ const INIT = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
 describe('who may speak to a relay', () => {
   test('no token, a session JWT, and garbage are all 401', async () => {
     expect((await call(`/relay/${CONN}`, { method: 'POST' }, null)).status).toBe(401);
-    const jwt = signSession({ email: EMAIL, agentIds: [] }, SECRET);
+    const jwt = signSession({ subject: EMAIL, agentIds: [] }, SECRET);
     expect((await call(`/relay/${CONN}`, { method: 'POST' }, jwt)).status).toBe(401);
     expect((await call(`/relay/${CONN}`, { method: 'POST' }, 'junk')).status).toBe(401);
     expect(seen).toHaveLength(0);
@@ -200,7 +200,7 @@ describe('who may speak to a relay', () => {
   });
 
   test('a run token whose lease was taken back is 401, before any upstream contact', async () => {
-    const stale = signRunToken({ email: EMAIL, agentId: AGENT, runtimeId: 'rt0' }, SECRET);
+    const stale = signRunToken({ subject: EMAIL, agentId: AGENT, runtimeId: 'rt0' }, SECRET);
     const res = await call(`/relay/${CONN}`, { method: 'DELETE' }, stale);
     expect(res.status).toBe(401);
     expect(seen).toHaveLength(0);

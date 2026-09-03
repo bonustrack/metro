@@ -156,7 +156,7 @@ const deps: AgentApiDeps = {
 };
 
 const session = (email: string, secret = SECRET): string =>
-  signSession({ email, agentIds: [] }, secret);
+  signSession({ subject: email, agentIds: [] }, secret);
 
 const get = (token?: string): Promise<Response> =>
   fetch(`${base}/api/agents?project=${PROJECT}`, {
@@ -212,7 +212,7 @@ afterEach(() => {
 describe('a run token cannot escalate to the agent admin API', () => {
   const run = (): string =>
     signRunToken(
-      { email: 'ada@lovelace.dev', agentId: 'agent000001', runtimeId: 'rt1' },
+      { subject: 'ada@lovelace.dev', agentId: 'agent000001', runtimeId: 'rt1' },
       SECRET,
     );
 
@@ -239,7 +239,7 @@ describe('/api/agents authentication', () => {
   });
 
   test('an expired session is 401', async () => {
-    const stale = signSession({ email: 'ada@lovelace.dev', agentIds: [] }, SECRET, {
+    const stale = signSession({ subject: 'ada@lovelace.dev', agentIds: [] }, SECRET, {
       ttlSec: -10,
     });
     expect((await get(stale)).status).toBe(401);
@@ -292,7 +292,7 @@ describe('GET /api/agents ownership', () => {
   test('returns only the caller own agents and their accounts', async () => {
     const res = await getFull(session('ada@lovelace.dev'));
     const body = (await res.json()) as ListBody;
-    expect(body.email).toBe('ada@lovelace.dev');
+    expect(body.subject).toBe('ada@lovelace.dev');
     expect(body.endpoint).toBe(`${PUBLIC}/mcp`);
     expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
     expect(body.accounts['telegram-bot']).toEqual([{ id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }]);
@@ -361,7 +361,7 @@ describe('GET /api/agents is light unless accounts are asked for', () => {
     const body = (await res.json()) as Record<string, unknown>;
     expect(res.status).toBe(200);
     expect(body.agents).toBeDefined();
-    expect(body.email).toBe('ada@lovelace.dev');
+    expect(body.subject).toBe('ada@lovelace.dev');
     expect(body.capabilities).toBeDefined();
     expect(body.attachable).toBeDefined();
     expect(body.accounts).toBeUndefined();

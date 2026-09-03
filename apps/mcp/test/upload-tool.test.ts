@@ -122,7 +122,7 @@ describe('create_upload mints a slot over MCP alone', () => {
 
   test('a multi-agent sign-in is refused and told how to name the agent', async () => {
     const res = await runWithIdentity(
-      { kind: 'google', email: 'x@y.z', agentIds: ['agent000001', 'agent000002'] },
+      { kind: 'session', subject: 'x@y.z', agentIds: ['agent000001', 'agent000002'] },
       () => callToolHandler({ params: { name: 'create_upload', arguments: {} } }),
     );
     expect(res.isError).toBe(true);

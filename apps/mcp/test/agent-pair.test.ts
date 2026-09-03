@@ -7,7 +7,7 @@ import {
 } from '../src/daemon/agent-pair.js';
 
 const TTL_MS = 10 * 60_000;
-const SEED = { email: 'less@bonustrack.co', agentId: 'agent000001' };
+const SEED = { subject: 'less@bonustrack.co', agentId: 'agent000001' };
 
 describe('the pairing code the agent page shows', () => {
   test('it is prefixed, fixed width and unguessable', () => {

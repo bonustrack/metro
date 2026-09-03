@@ -96,7 +96,7 @@ const call = (
   });
 
 async function claim(): Promise<string> {
-  const { code } = mintAgentCode({ email: ADA, agentId: AGENT });
+  const { code } = mintAgentCode({ subject: ADA, agentId: AGENT });
   const res = await call('POST', '/api/run/claim', undefined, {
     code,
     label: 'lisa',
@@ -106,7 +106,7 @@ async function claim(): Promise<string> {
 
 describe('claiming an agent for a local runtime', () => {
   test('a fresh code is traded for a run token', async () => {
-    const { code } = mintAgentCode({ email: ADA, agentId: AGENT });
+    const { code } = mintAgentCode({ subject: ADA, agentId: AGENT });
     const res = await call('POST', '/api/run/claim', undefined, {
       code,
       label: 'lisa',
@@ -116,7 +116,7 @@ describe('claiming an agent for a local runtime', () => {
   });
 
   test('a code is single-use', async () => {
-    const { code } = mintAgentCode({ email: ADA, agentId: AGENT });
+    const { code } = mintAgentCode({ subject: ADA, agentId: AGENT });
     await call('POST', '/api/run/claim', undefined, { code });
     const again = await call('POST', '/api/run/claim', undefined, { code });
     expect(again.status).toBe(400);
@@ -132,7 +132,7 @@ describe('claiming an agent for a local runtime', () => {
 
   test('an agent holding a webhook cannot leave metro, and the code is still spent', async () => {
     blocked = ['webhook'];
-    const { code } = mintAgentCode({ email: ADA, agentId: AGENT });
+    const { code } = mintAgentCode({ subject: ADA, agentId: AGENT });
     const res = await call('POST', '/api/run/claim', undefined, { code });
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: string }).error).toContain('webhook');
@@ -174,18 +174,18 @@ describe('reading the station config', () => {
 
 describe('the run token is its own capability, in both directions', () => {
   test('a session JWT cannot read station config', async () => {
-    const session = signSession({ email: ADA, agentIds: [AGENT] }, SECRET);
+    const session = signSession({ subject: ADA, agentIds: [AGENT] }, SECRET);
     expect((await call('GET', '/api/run/config', session)).status).toBe(401);
   });
 
   test('an agent token cannot read station config', async () => {
-    const agent = signAgentToken({ email: ADA, agentId: AGENT }, SECRET);
+    const agent = signAgentToken({ subject: ADA, agentId: AGENT }, SECRET);
     expect((await call('GET', '/api/run/config', agent)).status).toBe(401);
   });
 
   test('a run token signed with another secret is refused', async () => {
     const forged = signRunToken(
-      { email: ADA, agentId: AGENT, runtimeId: 'rt1' },
+      { subject: ADA, agentId: AGENT, runtimeId: 'rt1' },
       'a-different-secret',
     );
     expect((await call('GET', '/api/run/config', forged)).status).toBe(401);

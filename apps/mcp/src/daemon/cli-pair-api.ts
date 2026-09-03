@@ -13,7 +13,7 @@ import { extractToken } from '../mcp/request-identity.js';
 import { publicBaseOrDefault } from './attach-serve.js';
 import { AGENT_CODE_RE, takeAgentCode } from './agent-pair.js';
 import { relayServersJson } from './connector-json.js';
-import { sessionTtlFromEnv } from './google-oauth.js';
+import { sessionTtlFromEnv } from './session-config.js';
 import { signAgentToken } from './session.js';
 import type { ConnectorApiDeps } from './connector-api.js';
 
@@ -58,14 +58,19 @@ async function handleClaim(
     });
     return;
   }
-  const agent = await deps.agentConnectors(taken.email, taken.agentId);
+  const agent = await deps.agentConnectors(taken.subject, taken.agentId);
   const token = signAgentToken(
-    { email: taken.email, agentId: agent.id },
+    { subject: taken.subject, agentId: agent.id },
     secret,
     { ttlSec: sessionTtlFromEnv() },
   );
-  log.info({ email: taken.email, agent: agent.id }, 'cli: code claimed');
-  sendJson(req, res, 200, { token, email: taken.email, agent: agent.name });
+  log.info({ subject: taken.subject, agent: agent.id }, 'cli: code claimed');
+  sendJson(req, res, 200, {
+    token,
+    email: taken.subject,
+    subject: taken.subject,
+    agent: agent.name,
+  });
 }
 
 async function handleRead(
@@ -80,9 +85,13 @@ async function handleRead(
     return;
   }
   await assertLease(who, deps.fenceRuntime);
-  const agent = await deps.agentConnectors(who.email, who.agentId);
+  const agent = await deps.agentConnectors(who.subject, who.agentId);
   if (path === SESSION_PATH) {
-    sendJson(req, res, 200, { email: who.email, agent: agent.name });
+    sendJson(req, res, 200, {
+      email: who.subject,
+      subject: who.subject,
+      agent: agent.name,
+    });
     return;
   }
   const entries = await deps.connectorNamesByIds(agent.connectorIds);

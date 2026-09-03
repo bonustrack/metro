@@ -80,7 +80,7 @@ const missing = (): ConnectorError =>
   new ConnectorError('no such connector', 404);
 
 async function ownedConnectorOrThrow(
-  email: string,
+  subject: string,
   id: string,
 ): Promise<ConnectorRow> {
   const rows = await getDb()
@@ -90,7 +90,7 @@ async function ownedConnectorOrThrow(
   const row = rows[0];
   if (row === undefined) throw missing();
   try {
-    await projectIdOrThrow(email, row.projectId);
+    await projectIdOrThrow(subject, row.projectId);
   } catch {
     throw missing();
   }
@@ -112,10 +112,10 @@ async function saveConfig(
 }
 
 async function connectorRowsFor(
-  email: string,
+  subject: string,
   project: string,
 ): Promise<ConnectorRow[]> {
-  const projectId = await projectIdOrThrow(email, project);
+  const projectId = await projectIdOrThrow(subject, project);
   return getDb()
     .select()
     .from(connectors)
@@ -123,11 +123,11 @@ async function connectorRowsFor(
     .orderBy(asc(connectors.id));
 }
 
-export async function listConnectorsForEmail(
-  email: string,
+export async function listConnectorsForUser(
+  subject: string,
   project: string,
 ): Promise<Connector[]> {
-  return (await connectorRowsFor(email, project)).map(toConnector);
+  return (await connectorRowsFor(subject, project)).map(toConnector);
 }
 
 async function rowsByIds(ids: string[]): Promise<ConnectorRow[]> {
@@ -145,11 +145,11 @@ export async function connectorNamesByIds(
   return (await rowsByIds(ids)).map((row) => ({ id: row.id, name: row.name }));
 }
 
-export async function getConnectorForEmail(
-  email: string,
+export async function getConnectorForUser(
+  subject: string,
   id: string,
 ): Promise<Connector> {
-  return toConnector(await ownedConnectorOrThrow(email, id));
+  return toConnector(await ownedConnectorOrThrow(subject, id));
 }
 
 async function insertConnector(
@@ -185,14 +185,14 @@ const UNVERIFIED = {
   catalog: [],
 };
 
-export async function createPendingConnectorForEmail(
-  email: string,
+export async function createPendingConnectorForUser(
+  subject: string,
   project: string,
   input: { name: unknown; url: unknown },
 ): Promise<Connector> {
   const name = connectorName(input.name);
   const url = parseConnectorUrl(input.url);
-  const projectId = await projectIdOrThrow(email, project);
+  const projectId = await projectIdOrThrow(subject, project);
   return insertConnector(projectId, name, url, {
     auth: { kind: 'none' },
     createdAt: new Date().toISOString(),
@@ -201,15 +201,15 @@ export async function createPendingConnectorForEmail(
   });
 }
 
-export async function createConnectorForEmail(
-  email: string,
+export async function createConnectorForUser(
+  subject: string,
   project: string,
   input: ConnectorInput,
 ): Promise<Connector> {
   const name = connectorName(input.name);
   const url = parseConnectorUrl(input.url);
   const auth = connectorAuth(input.header, input.value);
-  const projectId = await projectIdOrThrow(email, project);
+  const projectId = await projectIdOrThrow(subject, project);
   const verified = stamp(await verifyRemoteMcp(url, auth));
   return insertConnector(projectId, name, url, {
     auth,
@@ -233,34 +233,34 @@ async function freshAuth(
   return refreshOAuth(auth, resource);
 }
 
-export async function reconnectConnectorForEmail(
-  email: string,
+export async function reconnectConnectorForUser(
+  subject: string,
   id: string,
   auth: OAuthAuth,
 ): Promise<Connector> {
-  const row = await ownedConnectorOrThrow(email, id);
+  const row = await ownedConnectorOrThrow(subject, id);
   const config = readConfig(row.config);
   const url = parseConnectorUrl(row.url);
   const verified = stamp(await verifyRemoteMcp(url, auth));
   return saveConfig(row, { ...config, auth, verified, oauth: true });
 }
 
-export async function disconnectConnectorForEmail(
-  email: string,
+export async function disconnectConnectorForUser(
+  subject: string,
   id: string,
 ): Promise<Connector> {
-  const row = await ownedConnectorOrThrow(email, id);
+  const row = await ownedConnectorOrThrow(subject, id);
   const config = readConfig(row.config);
   if (config.auth.kind !== 'oauth')
     throw new ConnectorError('that connector is not signed in', 400);
   return saveConfig(row, { ...config, auth: { kind: 'none' }, oauth: true });
 }
 
-export async function verifyConnectorForEmail(
-  email: string,
+export async function verifyConnectorForUser(
+  subject: string,
   id: string,
 ): Promise<ConnectorCheck> {
-  const row = await ownedConnectorOrThrow(email, id);
+  const row = await ownedConnectorOrThrow(subject, id);
   const config = readConfig(row.config);
   try {
     const url = parseConnectorUrl(row.url);
@@ -275,13 +275,13 @@ export async function verifyConnectorForEmail(
   }
 }
 
-export async function renameConnectorForEmail(
-  email: string,
+export async function renameConnectorForUser(
+  subject: string,
   id: string,
   raw: string,
 ): Promise<Connector> {
   const name = connectorName(raw);
-  const row = await ownedConnectorOrThrow(email, id);
+  const row = await ownedConnectorOrThrow(subject, id);
   await assertRenameFreeOfClash(row.id, name);
   const rows = await getDb()
     .update(connectors)
@@ -293,11 +293,11 @@ export async function renameConnectorForEmail(
   return toConnector(saved);
 }
 
-export async function deleteConnectorForEmail(
-  email: string,
+export async function deleteConnectorForUser(
+  subject: string,
   id: string,
 ): Promise<DeletedConnector> {
-  const row = await ownedConnectorOrThrow(email, id);
+  const row = await ownedConnectorOrThrow(subject, id);
   const gone = await getDb()
     .delete(connectors)
     .where(eq(connectors.id, row.id))

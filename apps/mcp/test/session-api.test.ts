@@ -13,7 +13,7 @@ let savedHost: string | undefined;
 
 const session = (email: string, secret = SECRET, ttlSec?: number): string =>
   signSession(
-    { email, agentIds: [] },
+    { subject: email, agentIds: [] },
     secret,
     ttlSec === undefined ? undefined : { ttlSec },
   );
@@ -46,15 +46,15 @@ afterAll(async () => {
 });
 
 describe('GET /api/session is the boot gate', () => {
-  test('a valid session returns the email the JWT was signed for', async () => {
+  test('a valid session returns the subject the JWT was signed for', async () => {
     const res = await get(session('ada@lovelace.dev'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ email: 'ada@lovelace.dev' });
+    expect(await res.json()).toEqual({ subject: 'ada@lovelace.dev' });
   });
 
-  test('the email is lowercased, so it matches every other API', async () => {
+  test('the subject is lowercased, so it matches every other API', async () => {
     const res = await get(session('Ada@Lovelace.DEV'));
-    expect(await res.json()).toEqual({ email: 'ada@lovelace.dev' });
+    expect(await res.json()).toEqual({ subject: 'ada@lovelace.dev' });
   });
 
   test('no token is a 401', async () => {

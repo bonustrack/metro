@@ -93,11 +93,11 @@ async function selectKeyRows(ids: string[]): Promise<KeyRow[]> {
     .where(inArray(agents.id, ids));
 }
 
-export async function listAgentsForEmail(
-  email: string,
+export async function listAgentsForUser(
+  subject: string,
   project: string,
 ): Promise<AgentSummary[]> {
-  const projectId = await projectIdOrThrow(email, project);
+  const projectId = await projectIdOrThrow(subject, project);
   const rows = await getDb()
     .select({ id: agents.id, name: agents.name, projectId: agents.projectId })
     .from(agents)
@@ -123,14 +123,14 @@ async function insertAgent(
   return id;
 }
 
-export async function createAgentForEmail(
-  email: string,
+export async function createAgentForUser(
+  subject: string,
   project: string,
   rawName: string,
 ): Promise<CreatedAgent> {
   const name = normalizeAgentName(rawName);
   const key = newApiKey();
-  const id = await insertAgent(await projectIdOrThrow(email, project), name, key);
+  const id = await insertAgent(await projectIdOrThrow(subject, project), name, key);
   if (servesEveryAgent()) registerKey(key, id);
   return { id, name, key };
 }
@@ -145,7 +145,7 @@ interface Deletable {
 }
 
 export async function ownedAgentOrThrow(
-  email: string,
+  subject: string,
   id: string,
 ): Promise<Deletable> {
   const rows = await getDb().select().from(agents).where(eq(agents.id, id));
@@ -153,7 +153,7 @@ export async function ownedAgentOrThrow(
   const missing = new AgentAdminError('no such agent', 404);
   if (!row) throw missing;
   try {
-    await projectIdOrThrow(email, row.projectId);
+    await projectIdOrThrow(subject, row.projectId);
   } catch {
     throw missing;
   }
@@ -179,21 +179,21 @@ async function writeNewKey(id: string, projectId: string): Promise<string> {
   throw new AgentAdminError('could not allocate a free api key', 500);
 }
 
-export async function resetAgentKeyForEmail(
-  email: string,
+export async function resetAgentKeyForUser(
+  subject: string,
   id: string,
 ): Promise<ResetAgentKey> {
-  const { agent, projectId } = await ownedAgentOrThrow(email, id);
+  const { agent, projectId } = await ownedAgentOrThrow(subject, id);
   const key = await writeNewKey(agent.id, projectId);
   rotateAgentKey(agent.id, daemonServesAgent(agent.id) ? key : null);
   return { id: agent.id, name: agent.name, key };
 }
 
-export async function deleteAgentForEmail(
-  email: string,
+export async function deleteAgentForUser(
+  subject: string,
   id: string,
 ): Promise<DeletedAgent> {
-  const { agent, projectId } = await ownedAgentOrThrow(email, id);
+  const { agent, projectId } = await ownedAgentOrThrow(subject, id);
   await getDb().transaction(async (tx) => {
     const attached = await tx
       .select({ id: stations.id })
