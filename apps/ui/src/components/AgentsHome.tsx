@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   createAgent,
   deleteAgent,
+  importAgent,
   type AgentSummary,
   type CreatedAgent,
 } from '../api/client';
@@ -15,12 +16,14 @@ import {
   agentsKey,
   queryError,
   stationsKey,
+  useModeQuery,
   useStationsQuery,
 } from '../api/queries';
 import { stationCount, type AccountGroup } from '../api/accounts';
 import { AgentRow } from './AgentRow';
 import { CountBadge } from './CountBadge';
 import { CreateAgent } from './CreateAgent';
+import { ImportAgent } from './ImportAgent';
 import { Loading } from './Loading';
 import { NewAgentKey } from './NewAgentKey';
 import { useDocumentTitle } from '../title';
@@ -58,6 +61,27 @@ function AgentCards({
   );
 }
 
+function HomeActions({
+  local,
+  dark,
+  onImport,
+  onCreate,
+}: {
+  local: boolean;
+  dark: boolean;
+  onImport: () => void;
+  onCreate: () => void;
+}): ReactNode {
+  return (
+    <Row gap={8} align="center" wrap>
+      {local ? (
+        <Button color="secondary" dark={dark} label="Import from metro.box" onPress={onImport} />
+      ) : null}
+      <Button color="primary" dark={dark} label="New agent" onPress={onCreate} />
+    </Row>
+  );
+}
+
 interface AgentsHomeProps {
   token: string;
   project: string;
@@ -73,8 +97,17 @@ export function AgentsHome({
   const client = useQueryClient();
   const { data, error } = useStationsQuery(token, project);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [created, setCreated] = useState<CreatedAgent | null>(null);
+  const local = useModeQuery().data?.mode === 'local';
   useDocumentTitle('Agents');
+
+  const doImport = async (code: string): Promise<void> => {
+    const made = await importAgent(token, code);
+    await client.invalidateQueries({ queryKey: agentsKey(project) });
+    await client.invalidateQueries({ queryKey: stationsKey(project) });
+    onOpen(made.id);
+  };
 
   const create = async (name: string): Promise<void> => {
     const agent = await createAgent(token, project, name);
@@ -100,11 +133,13 @@ export function AgentsHome({
             )}
           </Row>
         </Col>
-        <Button
-          color="primary"
+        <HomeActions
+          local={local}
           dark={dark}
-          label="New agent"
-          onPress={() => {
+          onImport={() => {
+            setImporting(true);
+          }}
+          onCreate={() => {
             setCreating(true);
           }}
         />
@@ -133,6 +168,13 @@ export function AgentsHome({
         />
       )}
 
+      <ImportAgent
+        open={importing}
+        onClose={() => {
+          setImporting(false);
+        }}
+        onImport={doImport}
+      />
       <CreateAgent
         open={creating}
         first={data?.agents.length === 0}

@@ -78,6 +78,28 @@ export function writeRunToken(agentId: string, token: string): void {
   chmodSync(path, 0o600);
 }
 
+const PROBE_TIMEOUT_MS = 15_000;
+
+export type RunTokenState = 'ok' | 'stale' | 'unreachable';
+
+export async function runTokenState(token: string): Promise<RunTokenState> {
+  let res: Response;
+  try {
+    res = await fetch(`${metroUrl()}/api/run/config`, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      redirect: 'manual',
+    });
+  } catch {
+    return 'unreachable';
+  }
+  await res.arrayBuffer().catch(() => undefined);
+  if (res.ok) return 'ok';
+  return res.status === 401 || res.status === 403 || res.status === 409
+    ? 'stale'
+    : 'unreachable';
+}
+
 export const localPort = (): number =>
   Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 

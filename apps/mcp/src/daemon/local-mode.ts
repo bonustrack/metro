@@ -8,13 +8,17 @@ import type { AgentConnectorApiDeps } from './agent-connector-api.js';
 import type { ProjectApiDeps } from './project-api.js';
 import type { SessionApis } from './session-apis.js';
 import type { ModeInfo } from './mode-api.js';
+import type { ImportApiDeps } from './import-api.js';
+import { fetchAgentWithCode } from './agent-import.js';
 import {
+  assertLocalOwner,
   claimLocalOwner,
   LOCAL_PROJECT_ID,
   localAttachAccount,
   localCreateAgent,
   localDeleteAgent,
   localDetachAccount,
+  localImportAgent,
   localListAgents,
   localOwnedAgentOrThrow,
   localOwner,
@@ -26,6 +30,7 @@ import type { StationName } from '../db/schema.js';
 
 export interface LocalModeDeps {
   syncStations: (station: StationName) => Promise<void>;
+  fetchAgent?: (code: string, label: string) => ReturnType<typeof fetchAgentWithCode>;
   closeAgentSession: (id: string) => Promise<boolean>;
   gatherAccounts: AgentApiDeps['gatherAccounts'];
   capabilities: AgentApiDeps['capabilities'];
@@ -129,6 +134,25 @@ const agentConnectorApi: AgentConnectorApiDeps = {
     Promise.reject(new ApiError('a local daemon has no pairing codes', 400)),
 };
 
+function importApi(deps: LocalModeDeps): ImportApiDeps {
+  const fetchAgent = deps.fetchAgent ?? fetchAgentWithCode;
+  return {
+    importAgent: async (subject, code) => {
+      assertLocalOwner(subject);
+      const agent = await fetchAgent(code, hostname());
+      const made = await localImportAgent(subject, agent);
+      for (const station of new Set(agent.accounts.map((a) => a.station)))
+        await deps.syncStations(station).catch((err: unknown) => {
+          log.warn(
+            { station, err: errMsg(err) },
+            'import: station reload failed, the change lands at the next boot',
+          );
+        });
+      return made;
+    },
+  };
+}
+
 export function localModeInfo(): ModeInfo {
   return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID };
 }
@@ -137,6 +161,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
   return {
     agentApi: agentApi(deps),
     agentConnectorApi,
+    importApi: importApi(deps),
     projectApi,
     siwe: { ensureUser: claimLocalOwner },
     mode: localModeInfo,
