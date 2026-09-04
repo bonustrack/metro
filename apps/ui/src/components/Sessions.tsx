@@ -1,53 +1,53 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
-import { useQueryClient } from '@tanstack/react-query';
-import { KebabMenu } from './KebabMenu';
-import { ConfirmModal } from './ConfirmModal';
 import { SHRINK } from '../theme';
 import { BackLink } from './BackLink';
 import { ClaudeProjects } from './ClaudeProjects';
 import { Loading } from './Loading';
 import { PageTitle } from './PageTitle';
+import { SessionMenu } from './SessionMenu';
 import { Transcript } from './Transcript';
+import { opensElsewhere } from './link';
 import { routeHash } from '../route';
 import { type Selection } from './selection';
 import { type ClaudeSession } from '../api/claude';
-import { queryError, removeClaudeSession, useClaudeSessionsQuery } from '../api/queries';
+import { queryError, useClaudeSessionsQuery } from '../api/queries';
 import { sizeLabel, whenLabel } from '../api/when';
 import { useDocumentTitle } from '../title';
 
 const ROW_PAD_Y = 12;
 
 function SessionRow({
+  token,
+  claudeProject,
   session,
+  target,
   onOpen,
-  onDelete,
 }: {
+  token: string;
+  claudeProject: string;
   session: ClaudeSession;
+  target: Selection;
   onOpen: () => void;
-  onDelete: () => void;
 }): ReactNode {
   const palette = useKitPalette();
-  const detail = [
-    session.lastAt === null ? null : whenLabel(session.lastAt),
-    session.gitBranch,
-    sizeLabel(session.bytes),
-  ]
+  const detail = [session.lastAt === null ? null : whenLabel(session.lastAt), session.gitBranch, sizeLabel(session.bytes)]
     .filter((s): s is string => s !== null)
     .join(' · ');
   return (
-    <a
-      className="row-link"
-      href="#"
-      onClick={(e) => {
-        e.preventDefault();
-        onOpen();
-      }}
-    >
-      <Row gap={10} align="center" flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }} border={{ bottom: { width: 1, color: palette.border } }}>
-        <Col style={SHRINK} flex={1}>
+    <Row justify="between" align="center" gap={12} border={{ bottom: { width: 1, color: palette.border } }}>
+      <a
+        className="row-link"
+        href={routeHash(target)}
+        onClick={(e) => {
+          if (opensElsewhere(e)) return;
+          e.preventDefault();
+          onOpen();
+        }}
+      >
+        <Col style={SHRINK} flex={1} padding={{ y: ROW_PAD_Y }}>
           <Text size="md" weight="semibold" numberOfLines={1}>
             {session.title}
           </Text>
@@ -55,75 +55,84 @@ function SessionRow({
             {detail}
           </Text>
         </Col>
-        <KebabMenu label={`Actions for ${session.title}`} size="lg" items={[{ label: 'Delete session', danger: true, onSelect: onDelete }]} />
-      </Row>
-    </a>
+      </a>
+      <SessionMenu token={token} claudeProject={claudeProject} id={session.id} title={session.title} onDeleted={() => undefined} />
+    </Row>
   );
 }
 
 function SessionList({
   token,
+  project,
   claudeProject,
   onOpen,
 }: {
   token: string;
+  project: string;
   claudeProject: string;
   onOpen: (id: string) => void;
 }): ReactNode {
-  const client = useQueryClient();
   const { data, error } = useClaudeSessionsQuery(token, claudeProject);
-  const [doomed, setDoomed] = useState<ClaudeSession | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
   if (data === undefined) return <Loading />;
-  const confirm = (): void => {
-    if (doomed === null || busy) return;
-    setBusy(true);
-    setFailed(null);
-    removeClaudeSession(client, token, claudeProject, doomed.id)
-      .then(() => {
-        setDoomed(null);
-      })
-      .catch((err: unknown) => {
-        setFailed(queryError(err, 'Could not delete the session.'));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
+  if (data.length === 0) return <Text size="sm" role="secondary">No session here yet.</Text>;
   return (
     <Col>
-      {data.length === 0 ? <Text size="sm" role="secondary">No session here yet.</Text> : null}
       {data.map((s) => (
         <SessionRow
           key={s.id}
+          token={token}
+          claudeProject={claudeProject}
           session={s}
+          target={{ kind: 'sessions', project, claudeProject, id: s.id }}
           onOpen={() => {
             onOpen(s.id);
           }}
-          onDelete={() => {
-            setFailed(null);
-            setDoomed(s);
-          }}
         />
       ))}
-      <ConfirmModal
-        open={doomed !== null}
-        title="Delete this session?"
-        lines={[
-          `“${doomed?.title ?? ''}” and everything Claude did in it are removed from this machine. If the session is still running, Claude keeps going, but nothing more is saved.`,
-        ]}
-        prompt="Type delete to confirm."
-        confirmWord="delete"
-        confirmLabel="Delete session"
-        busy={busy}
-        error={failed}
-        onClose={() => {
-          if (!busy) setDoomed(null);
-        }}
-        onConfirm={confirm}
-      />
+    </Col>
+  );
+}
+
+function SessionView({
+  token,
+  project,
+  claudeProject,
+  id,
+  onSelect,
+}: {
+  token: string;
+  project: string;
+  claudeProject: string;
+  id: string;
+  onSelect: (selection: Selection) => void;
+}): ReactNode {
+  const list: Selection = { kind: 'sessions', project, claudeProject, id: null };
+  const { data } = useClaudeSessionsQuery(token, claudeProject);
+  const title = data?.find((s) => s.id === id)?.title ?? id;
+  useDocumentTitle(title);
+  return (
+    <Col gap={16}>
+      <Row justify="between" align="center" gap={12}>
+        <BackLink
+          label="Sessions"
+          href={routeHash(list)}
+          onPress={() => {
+            onSelect(list);
+          }}
+        />
+        <SessionMenu
+          token={token}
+          claudeProject={claudeProject}
+          id={id}
+          title={title}
+          onDeleted={() => {
+            onSelect(list);
+          }}
+        />
+      </Row>
+      <PageTitle>{title}</PageTitle>
+      <Transcript token={token} project={claudeProject} id={id} />
     </Col>
   );
 }
@@ -154,7 +163,6 @@ export function Sessions({ token, project, claudeProject, id, onSelect }: Sessio
         />
       </Col>
     );
-  const list: Selection = { kind: 'sessions', project, claudeProject, id: null };
   if (id === null)
     return (
       <Col gap={16}>
@@ -168,6 +176,7 @@ export function Sessions({ token, project, claudeProject, id, onSelect }: Sessio
         <PageTitle>Sessions</PageTitle>
         <SessionList
           token={token}
+          project={project}
           claudeProject={claudeProject}
           onOpen={(sid) => {
             onSelect({ kind: 'sessions', project, claudeProject, id: sid });
@@ -175,16 +184,5 @@ export function Sessions({ token, project, claudeProject, id, onSelect }: Sessio
         />
       </Col>
     );
-  return (
-    <Col gap={16}>
-      <BackLink
-        label="Sessions"
-        href={routeHash(list)}
-        onPress={() => {
-          onSelect(list);
-        }}
-      />
-      <Transcript token={token} project={claudeProject} id={id} />
-    </Col>
-  );
+  return <SessionView token={token} project={project} claudeProject={claudeProject} id={id} onSelect={onSelect} />;
 }
