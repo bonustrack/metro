@@ -48,8 +48,8 @@ describe('the migrations the release command applies', () => {
     );
   });
 
-  test('0023 is the newest migration', () => {
-    expect(journal().at(-1)?.tag).toBe('0023_drop_users');
+  test('0024 is the newest migration', () => {
+    expect(journal().at(-1)?.tag).toBe('0024_servers');
   });
 
   test('0020 maps the one kept account to its address, refuses to wipe everyone, then removes the rest in dependency order', () => {

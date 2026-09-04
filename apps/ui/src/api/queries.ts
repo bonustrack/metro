@@ -31,6 +31,7 @@ import {
 } from './claude';
 import { fetchMode, type ModeInfo } from './mode';
 import { fetchUpdate, type UpdateCheck } from './update';
+import { fetchServers, probeServer, type Server, type ServerStatus } from './servers';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -54,7 +55,7 @@ export function makeQueryClient(onAuthError: () => void): QueryClient {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (err) => {
-        if (err instanceof AuthError) onAuthError();
+        if (err instanceof AuthError && !err.refused) onAuthError();
       },
     }),
     defaultOptions: {
@@ -81,6 +82,27 @@ export function useUpdateQuery(): UseQueryResult<UpdateCheck> {
     staleTime: 10 * 60_000,
     retry: false,
   });
+}
+
+export const serversKey = (): string[] => ['servers'];
+const STATUS_POLL_MS = 15_000;
+
+export function useServersQuery(): UseQueryResult<Server[]> {
+  return useQuery({ queryKey: serversKey(), queryFn: () => fetchServers(), staleTime: 30_000 });
+}
+
+export function useServerStatus(host: string): UseQueryResult<ServerStatus> {
+  return useQuery({
+    queryKey: ['server-status', host],
+    queryFn: () => probeServer(host),
+    refetchInterval: STATUS_POLL_MS,
+    staleTime: 5_000,
+    retry: false,
+  });
+}
+
+export function refreshServers(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ queryKey: serversKey() });
 }
 
 export function useModeQuery(): UseQueryResult<ModeInfo> {

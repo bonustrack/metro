@@ -15,6 +15,7 @@ import { handleLocalCliRequest, type LocalCliDeps } from './local-cli-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from './claude-api.js';
 import type { ModeInfo } from './mode-api.js';
 import { handleVaultApiRequest, type VaultApiDeps } from './vault-api.js';
+import { handleServersApiRequest, type ServersApiDeps } from './servers-api.js';
 import { handleBundleRequest, type BundleApiDeps } from './bundle-api.js';
 import { handleUpdateRequest, type UpdateApiDeps } from './update-api.js';
 
@@ -23,6 +24,7 @@ export interface SessionApis {
   agentConnectorApi?: AgentConnectorApiDeps;
   bundleApi?: BundleApiDeps;
   vaultApi?: VaultApiDeps;
+  serversApi?: ServersApiDeps;
   updateApi?: UpdateApiDeps;
   localCli?: LocalCliDeps;
   claudeApi?: ClaudeApiDeps;
@@ -46,6 +48,7 @@ export function handleSessionApis(
     ...when(apis.connectorApi, (d) => handleConnectorApiRequest(req, res, d)),
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.vaultApi, (d) => handleVaultApiRequest(req, res, d)),
+    ...when(apis.serversApi, (d) => handleServersApiRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
     ...when(apis.claudeApi, (d) => handleClaudeRequest(req, res, d)),
     ...when(apis.agentConnectorApi, (d) => handleAgentConnectorRequest(req, res, d)),

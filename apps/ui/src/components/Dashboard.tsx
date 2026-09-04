@@ -4,8 +4,7 @@ import { AgentPanel } from './AgentPanel';
 import { AgentSidebar } from './AgentSidebar';
 import { Shell } from './Shell';
 import { selectionProject, type Selection } from './selection';
-import { baseFromSegment, segmentOf, storeDaemon, storedDaemon } from '../auth/daemon';
-import { rememberDaemon } from '../auth/daemons';
+import { currentServer, storeDaemon, baseFromSegment, storedServerId, storeServerId } from '../auth/daemon';
 import { useIsNarrow } from '../media';
 
 interface FrameProps {
@@ -55,11 +54,6 @@ interface DashboardProps {
   onLock: () => void;
 }
 
-function lastDaemonSegment(): string | null {
-  const stored = storedDaemon();
-  return stored === null ? null : segmentOf(stored);
-}
-
 export function Dashboard({ subject, onLock }: DashboardProps): ReactNode {
   const [selection, setSelection] = useState<Selection>(currentSelection);
   const hash = routeHash(selection);
@@ -75,18 +69,14 @@ export function Dashboard({ subject, onLock }: DashboardProps): ReactNode {
   };
 
   const routed = selectionProject(selection);
-  const project = routed ?? lastDaemonSegment();
+  const project = routed ?? storedServerId();
 
   useEffect(() => {
-    if (routed === null) return;
-    storeDaemon(baseFromSegment(routed));
-    rememberDaemon(baseFromSegment(routed));
+    const server = currentServer();
+    if (routed === null || server === null) return;
+    storeServerId(server.id);
+    storeDaemon(baseFromSegment(server.host));
   }, [routed]);
-  useEffect(() => {
-    if (selection.kind !== 'none') return;
-    if (project === null) window.location.hash = '#/connect';
-    else onSelect({ kind: 'home', project });
-  }, [project, selection.kind]);
 
   if (project === null) return null;
   return <Frame project={project} subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />;

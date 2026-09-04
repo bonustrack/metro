@@ -118,12 +118,19 @@ async function sessionApis(): Promise<SessionApis> {
       prepareAccount,
     });
   const vault = await import('../db/vault.js');
+  const servers = await import('../db/servers.js');
   return {
     vaultApi: {
       list: vault.listVaultForOwner,
       put: vault.putVaultForOwner,
       get: vault.getVaultForOwner,
       remove: vault.deleteVaultForOwner,
+    },
+    serversApi: {
+      list: servers.listServersForOwner,
+      add: servers.addServerForOwner,
+      rename: servers.renameServerForOwner,
+      remove: servers.deleteServerForOwner,
     },
     mode: hostedMode,
   };

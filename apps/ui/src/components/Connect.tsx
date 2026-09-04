@@ -10,73 +10,25 @@ import { GROW } from '../theme';
 import { MetroLogo } from './MetroLogo';
 import { PageTitle } from './PageTitle';
 import { connectRefusal, fetchMode } from '../api/mode';
-import {
-  builtInDaemon,
-  daemonHost,
-  parseDaemonUrl,
-  storeDaemon,
-  storedDaemon,
-} from '../auth/daemon';
-import { goToDaemon, knownDaemons, rememberDaemon, type KnownDaemon } from '../auth/daemons';
+import { parseDaemonUrl, segmentOf } from '../auth/daemon';
+import { addServer } from '../api/servers';
 
 const CARD_WIDTH = 400;
 const HINT =
   'A Metro daemon running on your own machine serves these same pages, and your messages never leave it. Paste the address it printed at start-up, usually http://127.0.0.1:8420. From another computer, forward its port first: ssh -L 8420:127.0.0.1:8420 <host>.';
 
-function switchTo(base: string): void {
-  storeDaemon(base);
-  rememberDaemon(base);
-  goToDaemon(base);
-}
-
-function KnownServers({ servers, current }: { servers: KnownDaemon[]; current: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  if (servers.length === 0) return null;
-  return (
-    <Col gap={8}>
-      <Text size="sm" role="secondary">
-        Servers this browser knows
-      </Text>
-      {servers.map((server) => (
-        <Row key={server.base} justify="between" align="center" gap={12}>
-          <Col style={GROW}>
-            <Text size="md" numberOfLines={1}>
-              {server.name ?? daemonHost(server.base)}
-            </Text>
-            {server.name === null ? null : (
-              <Text size="sm" role="secondary" numberOfLines={1}>
-                {daemonHost(server.base)}
-              </Text>
-            )}
-          </Col>
-          {server.base === current ? (
-            <Text size="sm" role="secondary">
-              current
-            </Text>
-          ) : (
-            <Button
-              color="secondary"
-              dark={dark}
-              label="Open"
-              onPress={() => {
-                switchTo(server.base);
-              }}
-            />
-          )}
-        </Row>
-      ))}
-    </Col>
-  );
+async function switchTo(base: string): Promise<void> {
+  const server = await addServer(segmentOf(base));
+  window.location.hash = `#/${server.id}`;
 }
 
 export function Connect(): ReactNode {
   const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
-  const [value, setValue] = useState(storedDaemon() ?? '');
+  const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const side = { width: 1, color: palette.border };
-  const current = storedDaemon() ?? builtInDaemon();
 
   const connect = (): void => {
     if (busy) return;
@@ -95,7 +47,7 @@ export function Connect(): ReactNode {
           setBusy(false);
           return;
         }
-        switchTo(target.base);
+        return switchTo(target.base);
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not reach that daemon.');
@@ -147,11 +99,10 @@ export function Connect(): ReactNode {
           />
         </Row>
         <Text size="sm" role="secondary">
-          {current === builtInDaemon()
-            ? 'This page is not connected to a daemon yet.'
-            : `This page currently talks to ${daemonHost(current)}.`}
+          <a className="hint-link" href="#/">
+            Back to your servers
+          </a>
         </Text>
-        <KnownServers servers={knownDaemons()} current={current} />
       </Col>
     </Row>
   );
