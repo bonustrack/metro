@@ -4,6 +4,7 @@ import { apiFailure, apiSession, cors, sendJson } from './api-http.js';
 import { ApiError } from './api-error.js';
 import {
   claudeDir,
+  deleteClaudeSession,
   listClaudeProjects,
   listClaudeSessions,
   listMemory,
@@ -48,9 +49,14 @@ const ITEMS: Record<string, Handler> = {
   memory: (query, dir, name) => ({ name, content: readMemoryFile(projectOf(query), name, dir) }),
 };
 
-function answer(path: string, query: URLSearchParams, dir: string): unknown {
+function answer(method: string, path: string, query: URLSearchParams, dir: string): unknown {
   const rest = path.slice(PREFIX.length + 1).split('/').filter(Boolean);
   const [head = '', item] = rest;
+  if (method === 'DELETE') {
+    if (rest.length !== 2 || head !== 'sessions') throw new ApiError('method not allowed', 405);
+    deleteClaudeSession(projectOf(query), item ?? '', dir);
+    return { deleted: item };
+  }
   const handler = rest.length === 1 ? COLLECTIONS[head] : rest.length === 2 ? ITEMS[head] : undefined;
   if (handler === undefined) throw new ApiError('no such route', 404);
   return handler(query, dir, item ?? '');
@@ -67,7 +73,7 @@ export function handleClaudeRequest(
     res.writeHead(204, cors(req)).end();
     return true;
   }
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'DELETE') {
     sendJson(req, res, 405, { error: 'method not allowed' });
     return true;
   }
@@ -79,7 +85,7 @@ export function handleClaudeRequest(
   Promise.resolve()
     .then(() => {
       deps.authorize(session.subject);
-      return answer(path, new URLSearchParams(search), (deps.dir ?? claudeDir)());
+      return answer(req.method ?? 'GET', path, new URLSearchParams(search), (deps.dir ?? claudeDir)());
     })
     .then((body) => {
       sendJson(req, res, 200, body);

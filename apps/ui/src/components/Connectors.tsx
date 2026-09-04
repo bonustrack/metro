@@ -75,13 +75,13 @@ export function Connectors({
 }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const { data, error } = useConnectorsQuery(token, project);
+  const { data, error } = useConnectorsQuery(token);
   const reload = (): void => {
-    refreshConnectors(client, project);
+    refreshConnectors(client);
   };
   const remove = (id: string): Promise<void> =>
     deleteConnector(token, id).then(() => {
-      refreshConnectors(client, project);
+      refreshConnectors(client);
     });
   useDocumentTitle('Connectors');
   const [adding, setAdding] = useState(false);
@@ -133,7 +133,6 @@ export function Connectors({
 
       <AddConnector
         token={token}
-        project={project}
         open={adding}
         onClose={() => {
           setAdding(false);

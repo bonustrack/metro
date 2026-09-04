@@ -111,7 +111,6 @@ function PickerBody({
 
 interface AgentPickerProps {
   token: string;
-  project: string;
   connectorId: string;
   connectorName: string;
   open: boolean;
@@ -123,7 +122,6 @@ const holders = (agents: AgentSummary[], connectorId: string): string[] =>
 
 export function AgentPicker({
   token,
-  project,
   connectorId,
   connectorName,
   open,
@@ -131,7 +129,7 @@ export function AgentPicker({
 }: AgentPickerProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const { data, error } = useAgentsQuery(token, project);
+  const { data, error } = useAgentsQuery(token);
   const [staged, setStaged] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -167,7 +165,7 @@ export function AgentPicker({
       ...dropped.map((id) => removeAgentConnector(token, id, connectorId)),
     ])
       .then(() => {
-        refreshAgents(client, project);
+        refreshAgents(client);
         close();
       })
       .catch((err: unknown) => {

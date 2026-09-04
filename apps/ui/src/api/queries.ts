@@ -21,17 +21,11 @@ import {
   type ConnectorsView,
 } from './connectors';
 import {
-  fetchMembers,
-  fetchProjects,
-  type Member,
-  type Project,
-} from './projects';
-import { fetchMode, type ModeInfo } from './mode';
-import {
   fetchClaudeProjects,
   fetchClaudeSessions,
   fetchMemory,
   fetchMemoryFile,
+  deleteClaudeSession,
   type ClaudeProject,
   type ClaudeSession,
   type MemoryListing,
@@ -43,21 +37,15 @@ const STARTING_POLL_MS = 3_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
 export const sessionKey = (): string[] => ['session'];
-export const modeKey = (): string[] => ['mode', daemonBase()];
 export const claudeProjectsKey = (): string[] => ['claude', 'projects'];
 export const claudeSessionsKey = (project: string): string[] => ['claude', 'sessions', project];
 export const memoryKey = (project: string): string[] => ['claude', 'memory', project];
 export const memoryFileKey = (project: string, name: string): string[] => ['claude', 'memory', project, name];
 const LIVE_LIST_MS = 5_000;
 const LIVE_MEMORY_MS = 5_000;
-export const projectsKey = (): string[] => ['projects'];
-export const membersKey = (project: string): string[] => ['members', project];
-export const agentsKey = (project: string): string[] => ['agents', project];
-export const stationsKey = (project: string): string[] => ['stations', project];
-export const connectorsKey = (project: string): string[] => [
-  'connectors',
-  project,
-];
+export const agentsKey = (): string[] => ['agents', daemonBase()];
+export const stationsKey = (): string[] => ['stations', daemonBase()];
+export const connectorsKey = (): string[] => ['connectors', daemonBase()];
 export const connectorKey = (id: string): (string | number)[] => [
   'connector',
   id,
@@ -95,41 +83,27 @@ export function useSessionQuery(token: string): UseQueryResult<string> {
   });
 }
 
-export function useAgentsQuery(
-  token: string,
-  project: string,
-): UseQueryResult<AgentsView> {
+export function useAgentsQuery(token: string): UseQueryResult<AgentsView> {
   return useQuery({
-    queryKey: agentsKey(project),
-    queryFn: () => fetchAgents(token, project),
+    queryKey: agentsKey(),
+    queryFn: () => fetchAgents(token),
   });
 }
 
-export function useStationsQuery(
-  token: string,
-  project: string,
-): UseQueryResult<StationsView> {
+export function useStationsQuery(token: string): UseQueryResult<StationsView> {
   const client = useQueryClient();
   return useQuery({
-    queryKey: stationsKey(project),
+    queryKey: stationsKey(),
     refetchInterval: (query) =>
       (query.state.data?.unavailable.length ?? 0) > 0 ? STARTING_POLL_MS : false,
     queryFn: async () => {
-      const next = await fetchStations(token, project);
-      const prev = client.getQueryData<StationsView>(stationsKey(project));
+      const next = await fetchStations(token);
+      const prev = client.getQueryData<StationsView>(stationsKey());
       return {
         ...next,
         groups: carryForward(next.groups, prev?.groups ?? [], next.unavailable),
       };
     },
-  });
-}
-
-export function useModeQuery(): UseQueryResult<ModeInfo> {
-  return useQuery({
-    queryKey: modeKey(),
-    queryFn: () => fetchMode(),
-    staleTime: Infinity,
   });
 }
 
@@ -149,6 +123,12 @@ export function useClaudeSessionsQuery(token: string, project: string): UseQuery
   });
 }
 
+export function removeClaudeSession(client: QueryClient, token: string, project: string, id: string): Promise<void> {
+  return deleteClaudeSession(token, project, id).then(() => {
+    invalidate(client, [claudeSessionsKey(project), claudeProjectsKey()]);
+  });
+}
+
 export function useMemoryQuery(token: string, project: string): UseQueryResult<MemoryListing> {
   return useQuery({
     queryKey: memoryKey(project),
@@ -165,59 +145,24 @@ export function useMemoryFileQuery(token: string, project: string, name: string)
   });
 }
 
-export function useProjectsQuery(token: string): UseQueryResult<Project[]> {
-  return useQuery({
-    queryKey: projectsKey(),
-    queryFn: () => fetchProjects(token),
-    staleTime: 5 * 60_000,
-  });
-}
-
-export function useMembersQuery(
-  token: string,
-  project: string,
-): UseQueryResult<Member[]> {
-  return useQuery({
-    queryKey: membersKey(project),
-    queryFn: () => fetchMembers(token, project),
-  });
-}
-
 function invalidate(client: QueryClient, keys: (string | number)[][]): void {
   for (const queryKey of keys)
     client.invalidateQueries({ queryKey }).catch(() => undefined);
 }
 
-export function refreshProjects(client: QueryClient, project?: string): void {
-  const keys: (string | number)[][] = [projectsKey()];
-  if (project !== undefined) keys.push(membersKey(project));
-  invalidate(client, keys);
+export function refreshAgents(client: QueryClient): void {
+  invalidate(client, [agentsKey(), stationsKey()]);
 }
 
-export function refreshAgents(client: QueryClient, project: string): void {
-  invalidate(client, [agentsKey(project), stationsKey(project)]);
-}
-
-export function useConnectorsQuery(
-  token: string,
-  project: string,
-): UseQueryResult<ConnectorsView> {
+export function useConnectorsQuery(token: string): UseQueryResult<ConnectorsView> {
   return useQuery({
-    queryKey: connectorsKey(project),
-    queryFn: () => fetchConnectors(token, project),
+    queryKey: connectorsKey(),
+    queryFn: () => fetchConnectors(token),
   });
 }
 
-export function refreshConnectors(
-  client: QueryClient,
-  project: string,
-  id?: string,
-): void {
-  const keys: (string | number)[][] = [
-    connectorsKey(project),
-    agentsKey(project),
-    stationsKey(project),
-  ];
+export function refreshConnectors(client: QueryClient, id?: string): void {
+  const keys: (string | number)[][] = [connectorsKey(), agentsKey(), stationsKey()];
   if (id !== undefined) keys.push(connectorKey(id));
   invalidate(client, keys);
 }
@@ -246,13 +191,8 @@ function withoutAccount(
     .filter((g) => g.rows.length > 0);
 }
 
-export function dropAccount(
-  client: QueryClient,
-  station: string,
-  accountId: string,
-  project: string,
-): void {
-  client.setQueryData<StationsView>(stationsKey(project), (prev) =>
+export function dropAccount(client: QueryClient, station: string, accountId: string): void {
+  client.setQueryData<StationsView>(stationsKey(), (prev) =>
     prev === undefined
       ? prev
       : { ...prev, groups: withoutAccount(prev.groups, station, accountId) },

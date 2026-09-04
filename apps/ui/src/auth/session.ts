@@ -1,11 +1,10 @@
-import { builtInDaemon, storedDaemon } from './daemon';
+import { builtInDaemon, routedDaemon, storedDaemon } from './daemon';
 
 const STORAGE_KEY = 'metro.session';
-const PROJECT_KEY = 'metro.project';
 const EXP_SKEW_MS = 60_000;
 
 export function daemonBase(): string {
-  return storedDaemon() ?? builtInDaemon();
+  return routedDaemon() ?? storedDaemon() ?? builtInDaemon();
 }
 
 const keyFor = (base: string): string =>
@@ -52,23 +51,6 @@ export function storedSession(): string | null {
 export function storeSession(token: string): void {
   try {
     window.localStorage.setItem(sessionKey(), token);
-  } catch {
-    return;
-  }
-}
-
-export function storedProject(): string | null {
-  try {
-    const v = window.localStorage.getItem(PROJECT_KEY);
-    return v !== null && v.length > 0 ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-export function storeProject(id: string): void {
-  try {
-    window.localStorage.setItem(PROJECT_KEY, id);
   } catch {
     return;
   }

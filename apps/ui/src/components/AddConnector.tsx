@@ -59,14 +59,12 @@ function FormField(props: FormFieldProps): ReactNode {
 
 interface ConnectorFormProps {
   token: string;
-  project: string;
   onAdded: (result: Connector) => void;
   onCancel: () => void;
 }
 
 function ConnectorForm({
   token,
-  project,
   onAdded,
   onCancel,
 }: ConnectorFormProps): ReactNode {
@@ -86,7 +84,7 @@ function ConnectorForm({
     if (busy || !complete) return;
     setBusy(true);
     setError(null);
-    createConnector(token, project, trimmed(values))
+    createConnector(token, trimmed(values))
       .then((result) => {
         if (result.kind === 'oauth') {
           window.location.assign(result.authorizeUrl);
@@ -168,20 +166,18 @@ function ConnectorForm({
 
 interface AddConnectorProps {
   token: string;
-  project: string;
   open: boolean;
   onClose: () => void;
   onAdded: (id: string) => void;
 }
 
 export function AddConnector(props: AddConnectorProps): ReactNode {
-  const { token, project, open, onClose, onAdded } = props;
+  const { token, open, onClose, onAdded } = props;
 
   return (
     <Modal title="Add connector" open={open} onClose={onClose}>
       <ConnectorForm
         token={token}
-        project={project}
         onCancel={onClose}
         onAdded={(result) => {
           onClose();

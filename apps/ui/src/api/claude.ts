@@ -133,6 +133,14 @@ export async function fetchTranscript(
   };
 }
 
+export async function deleteClaudeSession(token: string, project: string, id: string): Promise<void> {
+  await call(token, {
+    base: base(),
+    path: `/sessions/${id}?project=${encodeURIComponent(project)}`,
+    method: 'DELETE',
+  });
+}
+
 export async function fetchMemory(token: string, project: string): Promise<MemoryListing> {
   const body = await call(token, { base: base(), path: `/memory?project=${encodeURIComponent(project)}`, method: 'GET' });
   if (!isRecord(body)) throw unexpected();

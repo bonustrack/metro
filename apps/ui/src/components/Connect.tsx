@@ -14,6 +14,7 @@ import {
   builtInDaemon,
   daemonHost,
   parseDaemonUrl,
+  segmentOf,
   storeDaemon,
   storedDaemon,
 } from '../auth/daemon';
@@ -22,9 +23,9 @@ const CARD_WIDTH = 400;
 const HINT =
   'A Metro daemon running on your own machine serves these same pages, and your messages never leave it. Paste the address it printed at start-up, usually http://127.0.0.1:8420. From another computer, forward its port first: ssh -L 8420:127.0.0.1:8420 <host>.';
 
-function switchTo(base: string | null): void {
+function switchTo(base: string): void {
   storeDaemon(base);
-  window.location.hash = '#/';
+  window.location.hash = `#/${segmentOf(base)}`;
   window.location.reload();
 }
 
@@ -54,7 +55,7 @@ export function Connect({ url }: { url: string | null }): ReactNode {
           setBusy(false);
           return;
         }
-        switchTo(target.base === builtInDaemon() ? null : target.base);
+        switchTo(target.base);
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not reach that daemon.');
@@ -98,15 +99,6 @@ export function Connect({ url }: { url: string | null }): ReactNode {
         )}
         <Row justify="between" align="center" gap={12} wrap>
           <Button
-            color="secondary"
-            dark={dark}
-            disabled={busy}
-            label={`Use ${daemonHost(builtInDaemon())}`}
-            onPress={() => {
-              switchTo(null);
-            }}
-          />
-          <Button
             color="primary"
             dark={dark}
             loading={busy}
@@ -115,7 +107,9 @@ export function Connect({ url }: { url: string | null }): ReactNode {
           />
         </Row>
         <Text size="sm" role="secondary">
-          This page currently talks to {daemonHost(current)}.
+          {current === builtInDaemon()
+            ? 'This page is not connected to a daemon yet.'
+            : `This page currently talks to ${daemonHost(current)}.`}
         </Text>
       </Col>
     </Row>

@@ -7,11 +7,7 @@ import { Login } from './components/Login';
 import { Connect } from './components/Connect';
 import { BootLoading } from './components/BootLoading';
 import { Dashboard } from './components/Dashboard';
-import {
-  makeQueryClient,
-  useProjectsQuery,
-  useSessionQuery,
-} from './api/queries';
+import { makeQueryClient, useSessionQuery } from './api/queries';
 import { atLogin, goToLogin, leaveLogin } from './auth/login-route';
 import { connectRoute, currentSelection, subscribeRoute } from './route';
 import { pageTitle } from './title';
@@ -55,7 +51,6 @@ interface GateProps {
 
 function Gate({ token, onLock }: GateProps): ReactNode {
   const { data: subject, error, refetch } = useSessionQuery(token);
-  const projects = useProjectsQuery(token);
 
   useEffect(() => {
     if (subject === undefined) document.title = pageTitle(null);
@@ -70,8 +65,6 @@ function Gate({ token, onLock }: GateProps): ReactNode {
       />
     );
   if (subject === undefined) return <BootLoading />;
-  if (projects.data === undefined && projects.error === null)
-    return <BootLoading />;
   return <Dashboard token={token} subject={subject} onLock={onLock} />;
 }
 

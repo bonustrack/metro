@@ -1,5 +1,5 @@
 import { daemonBase } from '../auth/session';
-import { call } from './client';
+import { call, LOCAL_PROJECT } from './client';
 import { isRecord } from './accounts';
 
 export type ConnectorAuth = 'header' | 'oauth' | 'none';
@@ -169,14 +169,11 @@ function payload(input: NewConnector): Record<string, string> {
   return out;
 }
 
-export async function fetchConnectors(
-  token: string,
-  project: string,
-): Promise<ConnectorsView> {
+export async function fetchConnectors(token: string): Promise<ConnectorsView> {
   const body = await call(token, {
     method: 'GET',
     base: connectorsUrl(),
-    path: `?project=${project}`,
+    path: `?project=${LOCAL_PROJECT}`,
   });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   const rows = Array.isArray(body.connectors) ? body.connectors : [];
@@ -187,15 +184,11 @@ export type AddResult =
   | { kind: 'added'; connector: Connector }
   | { kind: 'oauth'; connector: Connector; authorizeUrl: string };
 
-export async function createConnector(
-  token: string,
-  project: string,
-  input: NewConnector,
-): Promise<AddResult> {
+export async function createConnector(token: string, input: NewConnector): Promise<AddResult> {
   const body = await call(token, {
     method: 'POST',
     base: connectorsUrl(),
-    path: `?project=${project}`,
+    path: `?project=${LOCAL_PROJECT}`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ ...payload(input), returnTo: returnTo() }),
   });

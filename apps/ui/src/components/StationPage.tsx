@@ -29,7 +29,7 @@ export function StationPage({
   onOpenAgent,
 }: StationPageProps): ReactNode {
   const client = useQueryClient();
-  const { data, error } = useStationsQuery(token, project);
+  const { data, error } = useStationsQuery(token);
   useDocumentTitle(accountId);
 
   if (error !== null)
@@ -59,8 +59,8 @@ export function StationPage({
         agent?.owned === true && owner !== null
           ? async (station, id) => {
               await detachAccount(token, owner, station, id);
-              dropAccount(client, station, id, project);
-              await client.invalidateQueries({ queryKey: stationsKey(project) });
+              dropAccount(client, station, id);
+              await client.invalidateQueries({ queryKey: stationsKey() });
             }
           : undefined
       }

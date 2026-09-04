@@ -8,47 +8,14 @@ import { SidebarFooter } from './SidebarFooter';
 import { opensElsewhere } from './link';
 import { routeHash } from '../route';
 import { type Selection } from './selection';
-import { useModeQuery } from '../api/queries';
 
 const SCROLL = { flex: 1 } as const;
 const SCROLL_CONTENT = { padding: 24 } as const;
-const AGENT_PAGES: Selection['kind'][] = ['none', 'agents', 'agent', 'station'];
+const HOME_PAGES: Selection['kind'][] = ['home', 'none'];
+const STATION_PAGES: Selection['kind'][] = ['stations', 'station'];
 const CONNECTOR_PAGES: Selection['kind'][] = ['connectors', 'connector'];
 
-function LocalRows({
-  project,
-  selection,
-  onSelect,
-}: Pick<AgentSidebarProps, 'project' | 'selection' | 'onSelect'>): ReactNode {
-  return (
-    <>
-      <NavRow
-        label="Connectors"
-        icon="viewGridAdd"
-        selected={CONNECTOR_PAGES.includes(selection.kind)}
-        target={{ kind: 'connectors', project }}
-        onSelect={onSelect}
-      />
-      <NavRow
-        label="Sessions"
-        icon="folder"
-        selected={selection.kind === 'sessions'}
-        target={{ kind: 'sessions', project, claudeProject: null, id: null }}
-        onSelect={onSelect}
-      />
-      <NavRow
-        label="Memory"
-        icon="bookOpen"
-        selected={selection.kind === 'memory'}
-        target={{ kind: 'memory', project, claudeProject: null, file: null }}
-        onSelect={onSelect}
-      />
-    </>
-  );
-}
-
 interface AgentSidebarProps {
-  token: string;
   project: string;
   selection: Selection;
   subject: string;
@@ -56,16 +23,9 @@ interface AgentSidebarProps {
   onLock: () => void;
 }
 
-export function AgentSidebar({
-  token,
-  project,
-  selection,
-  subject,
-  onSelect,
-  onLock,
-}: AgentSidebarProps): ReactNode {
+export function AgentSidebar({ project, selection, subject, onSelect, onLock }: AgentSidebarProps): ReactNode {
   const palette = useKitPalette();
-  const local = useModeQuery().data?.mode === 'local';
+  const home: Selection = { kind: 'home', project };
   return (
     <Col flex={1} minHeight={0}>
       <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
@@ -73,73 +33,27 @@ export function AgentSidebar({
           <Row padding={{ bottom: 22 }}>
             <a
               className="nav-link"
-              href={routeHash({ kind: 'agents', project })}
-              aria-label="Metro dashboard"
+              href={routeHash(home)}
+              aria-label="This machine"
               onClick={(e) => {
                 if (opensElsewhere(e)) return;
                 e.preventDefault();
-                onSelect({ kind: 'agents', project });
+                onSelect(home);
               }}
             >
               <MetroLogo size={32} color={palette.link} />
             </a>
           </Row>
           <Col gap={NAV_GAP}>
-            <NavRow
-              label="Agents"
-              icon="lightningBolt"
-              selected={AGENT_PAGES.includes(selection.kind)}
-              target={{ kind: 'agents', project }}
-              onSelect={onSelect}
-            />
-            {local ? (
-              <LocalRows project={project} selection={selection} onSelect={onSelect} />
-            ) : (
-              <ProjectRows project={project} selection={selection} onSelect={onSelect} />
-            )}
+            <NavRow label="Agent" icon="lightningBolt" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />
+            <NavRow label="Stations" icon="users" selected={STATION_PAGES.includes(selection.kind)} target={{ kind: 'stations', project }} onSelect={onSelect} />
+            <NavRow label="Connectors" icon="viewGridAdd" selected={CONNECTOR_PAGES.includes(selection.kind)} target={{ kind: 'connectors', project }} onSelect={onSelect} />
+            <NavRow label="Sessions" icon="folder" selected={selection.kind === 'sessions'} target={{ kind: 'sessions', project, claudeProject: null, id: null }} onSelect={onSelect} />
+            <NavRow label="Memory" icon="bookOpen" selected={selection.kind === 'memory'} target={{ kind: 'memory', project, claudeProject: null, file: null }} onSelect={onSelect} />
           </Col>
         </Col>
       </ScrollView>
-      <SidebarFooter
-        token={token}
-        project={project}
-        subject={subject}
-        selection={selection}
-        onSelect={onSelect}
-        onLock={onLock}
-      />
+      <SidebarFooter project={project} subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />
     </Col>
-  );
-}
-
-function ProjectRows({
-  project,
-  selection,
-  onSelect,
-}: Pick<AgentSidebarProps, 'project' | 'selection' | 'onSelect'>): ReactNode {
-  return (
-    <>
-            <NavRow
-              label="Connectors"
-              icon="viewGridAdd"
-              selected={CONNECTOR_PAGES.includes(selection.kind)}
-              target={{ kind: 'connectors', project }}
-              onSelect={onSelect}
-            />
-            <NavRow
-              label="Members"
-              icon="users"
-              selected={selection.kind === 'members'}
-              target={{ kind: 'members', project }}
-              onSelect={onSelect}
-            />
-            <NavRow
-              label="Settings"
-              icon="cog"
-              selected={selection.kind === 'project'}
-              target={{ kind: 'project', project }}
-              onSelect={onSelect}
-            />
-    </>
   );
 }

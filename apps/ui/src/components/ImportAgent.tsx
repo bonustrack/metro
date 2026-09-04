@@ -20,7 +20,7 @@ import {
   storeSessionFor,
 } from '../auth/session';
 import { fetchProjects } from '../api/projects';
-import { AuthError, fetchAgents } from '../api/client';
+import { AuthError, fetchAgentsAt } from '../api/client';
 import { mintAgentCode } from '../api/agent-connectors';
 
 const HOW =
@@ -37,7 +37,7 @@ async function listRemote(token: string, base: string): Promise<Remote[]> {
   const projects = await fetchProjects(token, base);
   const per = await Promise.all(
     projects.map(async (p) =>
-      (await fetchAgents(token, p.id, base)).agents.map((a) => ({
+      (await fetchAgentsAt(token, p.id, base)).agents.map((a) => ({
         id: a.id,
         name: a.name,
         project: p.name,

@@ -1,7 +1,10 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
+import { useQueryClient } from '@tanstack/react-query';
+import { KebabMenu } from './KebabMenu';
+import { ConfirmModal } from './ConfirmModal';
 import { SHRINK } from '../theme';
 import { BackLink } from './BackLink';
 import { ClaudeProjects } from './ClaudeProjects';
@@ -11,13 +14,21 @@ import { Transcript } from './Transcript';
 import { routeHash } from '../route';
 import { type Selection } from './selection';
 import { type ClaudeSession } from '../api/claude';
-import { queryError, useClaudeSessionsQuery } from '../api/queries';
+import { queryError, removeClaudeSession, useClaudeSessionsQuery } from '../api/queries';
 import { sizeLabel, whenLabel } from '../api/when';
 import { useDocumentTitle } from '../title';
 
 const ROW_PAD_Y = 12;
 
-function SessionRow({ session, onOpen }: { session: ClaudeSession; onOpen: () => void }): ReactNode {
+function SessionRow({
+  session,
+  onOpen,
+  onDelete,
+}: {
+  session: ClaudeSession;
+  onOpen: () => void;
+  onDelete: () => void;
+}): ReactNode {
   const palette = useKitPalette();
   const detail = [
     session.lastAt === null ? null : whenLabel(session.lastAt),
@@ -44,6 +55,7 @@ function SessionRow({ session, onOpen }: { session: ClaudeSession; onOpen: () =>
             {detail}
           </Text>
         </Col>
+        <KebabMenu label={`Actions for ${session.title}`} size="lg" items={[{ label: 'Delete session', danger: true, onSelect: onDelete }]} />
       </Row>
     </a>
   );
@@ -58,12 +70,31 @@ function SessionList({
   claudeProject: string;
   onOpen: (id: string) => void;
 }): ReactNode {
+  const client = useQueryClient();
   const { data, error } = useClaudeSessionsQuery(token, claudeProject);
+  const [doomed, setDoomed] = useState<ClaudeSession | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
   if (data === undefined) return <Loading />;
-  if (data.length === 0) return <Text size="sm" role="secondary">No session here yet.</Text>;
+  const confirm = (): void => {
+    if (doomed === null || busy) return;
+    setBusy(true);
+    setFailed(null);
+    removeClaudeSession(client, token, claudeProject, doomed.id)
+      .then(() => {
+        setDoomed(null);
+      })
+      .catch((err: unknown) => {
+        setFailed(queryError(err, 'Could not delete the session.'));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
   return (
     <Col>
+      {data.length === 0 ? <Text size="sm" role="secondary">No session here yet.</Text> : null}
       {data.map((s) => (
         <SessionRow
           key={s.id}
@@ -71,8 +102,28 @@ function SessionList({
           onOpen={() => {
             onOpen(s.id);
           }}
+          onDelete={() => {
+            setFailed(null);
+            setDoomed(s);
+          }}
         />
       ))}
+      <ConfirmModal
+        open={doomed !== null}
+        title="Delete this session?"
+        lines={[
+          `“${doomed?.title ?? ''}” and everything Claude did in it are removed from this machine. If the session is still running, Claude keeps going, but nothing more is saved.`,
+        ]}
+        prompt="Type delete to confirm."
+        confirmWord="delete"
+        confirmLabel="Delete session"
+        busy={busy}
+        error={failed}
+        onClose={() => {
+          if (!busy) setDoomed(null);
+        }}
+        onConfirm={confirm}
+      />
     </Col>
   );
 }

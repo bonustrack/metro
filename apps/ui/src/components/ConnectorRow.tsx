@@ -38,7 +38,6 @@ type ActionProps = Omit<ConnectorRowProps, 'onOpen'>;
 
 function RowActions({
   token,
-  project,
   row,
   onChanged,
   onDelete,
@@ -121,7 +120,6 @@ function RowActions({
       />
       <RowModals
         token={token}
-        project={project}
         row={row}
         picking={picking}
         renaming={renaming}
@@ -137,7 +135,6 @@ function RowActions({
 
 function RowModals({
   token,
-  project,
   row,
   picking,
   renaming,
@@ -145,7 +142,6 @@ function RowModals({
   onChanged,
 }: {
   token: string;
-  project: string;
   row: Connector;
   picking: boolean;
   renaming: boolean;
@@ -156,7 +152,6 @@ function RowModals({
     <>
       <AgentPicker
         token={token}
-        project={project}
         connectorId={row.id}
         connectorName={row.name}
         open={picking}
