@@ -157,10 +157,15 @@ describe('a funnel, against a fake tailscale', () => {
     const probed: string[] = [];
     const onUrl = { resolve: (_u: string): void => undefined };
     const tunnel = new Tunnel(
-      funnelDriver(8420, 'tailscale', (url) => {
-        probed.push(url);
-        return Promise.resolve(true);
-      }),
+      funnelDriver(
+        8420,
+        'tailscale',
+        (url, owner) => {
+          probed.push(`${url} as ${owner ?? 'anyone'}`);
+          return Promise.resolve(true);
+        },
+        () => '0xef8305e140ac520225daf050e2f71d5fbcc543e7',
+      ),
       (u) => {
         onUrl.resolve(u);
       },
@@ -168,7 +173,7 @@ describe('a funnel, against a fake tailscale', () => {
     );
     const url = await untilUrl(tunnel, onUrl);
     expect(url).toBe('https://suzy.tail1234.ts.net');
-    expect(probed).toEqual(['https://suzy.tail1234.ts.net']);
+    expect(probed).toEqual(['https://suzy.tail1234.ts.net as 0xef8305e140ac520225daf050e2f71d5fbcc543e7']);
     expect(currentTunnelUrl()).toBe(url);
     tunnel.stop();
   });

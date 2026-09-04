@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './components/ui';
 import { Login } from './components/Login';
@@ -19,19 +19,22 @@ import { clearIdentity, loadIdentity } from './auth/identity';
 import { daemonBase, daemonHost, isServerId, setCurrentServer, storedServerId } from './auth/daemon';
 
 type Phase = 'loading' | 'login' | 'unlocked';
+const NOTICE_WIDTH = 480;
 
 function Notice({ text, onRetry, retryLabel }: { text: string; onRetry: () => void; retryLabel: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
-    <Col gap={12} align="center" padding={48}>
-      <Text role="secondary">{text}</Text>
-      <Button color="secondary" dark={dark} label={retryLabel} onPress={onRetry} />
-      <Text size="sm" role="secondary">
-        <a className="hint-link" href="#/">
-          All servers
-        </a>
-      </Text>
-    </Col>
+    <Row justify="center" align="center" flex={1} padding={24}>
+      <Col gap={16} align="center" width="100%" maxWidth={NOTICE_WIDTH}>
+        <Text role="secondary">{text}</Text>
+        <Button color="secondary" dark={dark} label={retryLabel} onPress={onRetry} />
+        <Text size="sm" role="secondary">
+          <a className="hint-link" href="#/">
+            All servers
+          </a>
+        </Text>
+      </Col>
+    </Row>
   );
 }
 
