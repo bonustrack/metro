@@ -8,12 +8,14 @@ import type { AgentConnectorApiDeps } from './agent-connector-api.js';
 import type { SessionApis } from './session-apis.js';
 import type { ModeInfo } from './mode-api.js';
 import type { ImportApiDeps } from './import-api.js';
+import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from './bundle-api.js';
 import { fetchAgentWithCode } from './agent-import.js';
 import type { ConnectorApiDeps } from './connector-api.js';
 import { allowLocalConnectors } from './connector-url.js';
 import { keyIdentity, type LocalCliDeps } from './local-cli-api.js';
 import type { RelayApiDeps } from './relay.js';
 import {
+  readLocalConnectors,
   localImportConnectors,
   localAddConnector,
   localAgentConnectors,
@@ -33,7 +35,6 @@ import {
 } from '../db/local-connectors.js';
 import {
   assertLocalOwner,
-  ownerSignIn,
   connectorIdsOfLocalAgent,
   LOCAL_PROJECT_ID,
   localAttachAccount,
@@ -45,6 +46,8 @@ import {
   localOwnedAgentOrThrow,
   localOwner,
   localResetAgentKey,
+  ownerSignIn,
+  readLocalAgentFile,
 } from '../db/file-admin.js';
 import { listAgentFiles, readAgentFile } from '../db/file-source.js';
 import type { StationName } from '../db/schema.js';
@@ -158,6 +161,35 @@ const localCli: LocalCliDeps = {
   connectorSummaries: (agentId) => localConnectorSummariesByIds(connectorIdsOfLocalAgent(agentId) ?? []),
 };
 
+function bundleApi(deps: LocalModeDeps): BundleApiDeps {
+  return {
+    bundle: async (subject, agentId) => {
+      const { agent } = await localOwnedAgentOrThrow(subject, agentId);
+      const file = readLocalAgentFile(agentId);
+      const held = new Set(file.connectors);
+      const bundle: AgentBundle = {
+        version: 1,
+        agent: { id: file.id, name: file.name, key: file.key ?? '', stations: file.stations },
+        connectors: readLocalConnectors()
+          .filter((c) => held.has(c.id))
+          .map((c) => ({ id: c.id, name: c.name, url: c.url, transport: c.transport, config: { ...c.config } })),
+      };
+      if (bundle.agent.key === '') throw new ApiError(`agent '${agent.name}' has no key to bundle`, 400);
+      return bundle;
+    },
+    restore: async (subject, bundle) => {
+      assertLocalOwner(subject);
+      const made = await localImportAgent(subject, loadedAgentOf(bundle));
+      const connectors = localImportConnectors(bundle.connectors);
+      for (const station of new Set(bundle.agent.stations.map((a) => a.station)))
+        await deps.syncStations(station).catch((err: unknown) => {
+          log.warn({ station, err: errMsg(err) }, 'restore: station reload failed, the change lands at the next boot');
+        });
+      return { id: made.id, name: made.name, stations: made.stations, connectors };
+    },
+  };
+}
+
 function importApi(deps: LocalModeDeps): ImportApiDeps {
   const fetchAgent = deps.fetchAgent ?? fetchAgentWithCode;
   return {
@@ -188,6 +220,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     agentApi: agentApi(deps),
     agentConnectorApi,
     importApi: importApi(deps),
+    bundleApi: bundleApi(deps),
     connectorApi,
     relayApi,
     localCli,

@@ -55,7 +55,8 @@ line does not change.
 2. **Page local-only.** Remove hosted mode, *Switch daemon*, projects, members and project
    settings from the page; the connect card only chooses which local daemon.
 3. **Vault and Sync.** The vault routes on metro.box, browser-side sealing, *Sync with Metro*
-   and *Restore*.
+   and *Restore*. Shipped 2026-09-04 (`0021_vault`, `/api/vault`, `/api/agents/<id>/bundle`,
+   `/api/agents/restore`, `apps/ui/src/vault/`).
 4. **Retire the hosted paths** named above, after the agents have moved.
 
 Each step ships on its own and leaves a working product.
@@ -74,17 +75,18 @@ types:   EncryptionKey { purpose: string, keyVersion: uint256 }
 message: { purpose: "encryption-key", keyVersion: 1 }
 ```
 
-`HKDF-SHA256(ikm = signature bytes, salt = "metro", info = "x25519")` gives 32 bytes, the X25519
-private key; the public key is registered on the wallet's profile. Nothing has to be recovered:
-the same signature reproduces the keypair anywhere.
+`HKDF-SHA256(ikm = signature bytes, salt = "metro", info = "secp256k1", 48 bytes)` mapped to a
+scalar is the wallet's secp256k1 private key (Ethereum's curve, the ECIES shape XMTP used for its
+wallet-derived key bundles). Nothing has to be recovered or registered: the same signature
+reproduces the keypair anywhere, and it never leaves the browser.
 
-**An agent has one random data key (DEK)**, never derived from anything. The bundle is
-AES-256-GCM under it, and the DEK is wrapped to each authorized wallet's public key (X25519
-sealed box). The wrapped keys travel in the bundle header in the clear and are useless without
+**An agent has one random data key (DEK)**, minted at every sync. The bundle is AES-256-GCM
+under it, and the DEK is wrapped to the wallet's public key (ephemeral secp256k1 ECDH, HKDF,
+AES-256-GCM). The wrapped keys travel in the bundle header in the clear and are useless without
 the matching private key.
 
-- EOAs only. The wallet signs twice at first use; a mismatch means a non-deterministic signer
-  (ERC-1271 contract wallets, some MPC wallets) and the flow refuses.
+- EOAs only. The wallet signs once per action; a non-deterministic signer (ERC-1271 contract
+  wallets, some MPC wallets) derives another key at restore and fails by name, never silently.
 - Each wrapped key records the recipient's address and public key, so the wrong wallet fails
   with "this wallet does not unlock this agent", never a decryption error.
 - Rotating a wallet keypair bumps `keyVersion`: the wallet re-signs and every agent it can open

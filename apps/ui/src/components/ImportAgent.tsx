@@ -48,7 +48,7 @@ async function listRemote(token: string, base: string): Promise<Remote[]> {
   return per.flat().sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function freshSession(base: string): string | null {
+export function freshSession(base: string): string | null {
   const token = sessionFor(base);
   return token !== null && sessionIsFresh(token) ? token : null;
 }
@@ -125,7 +125,7 @@ function useRemoteAgents(
   return { remote, error };
 }
 
-function HostedSignIn({
+export function HostedSignIn({
   host,
   busy,
   onPick,

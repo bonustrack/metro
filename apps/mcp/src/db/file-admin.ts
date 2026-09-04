@@ -271,6 +271,12 @@ function fileFor(
   }
 }
 
+export function readLocalAgentFile(agentId: string, dir = agentsDir()): AgentFile {
+  const found = storedAgents(dir).find((s) => s.file.id === agentId);
+  if (found === undefined) throw missing();
+  return found.file;
+}
+
 export function connectorIdsOfLocalAgent(agentId: string, dir = agentsDir()): string[] | null {
   const found = storedAgents(dir).find((s) => s.file.id === agentId);
   return found === undefined ? null : found.file.connectors;

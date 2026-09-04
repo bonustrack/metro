@@ -451,6 +451,13 @@ the agent over with its stations, its connectors and their credentials, same id 
 nothing changes on the Claude Code side; *Import again* refreshes an agent already here. Stop `metro start` for that agent first; metro.box keeps its copy until you
 delete the agent there.
 
+**Sync with Metro** keeps a copy of the agent on metro.box that metro.box cannot read: the page
+fetches the agent, its stations, its connectors and their credentials from the daemon, seals them in
+the browser to a key derived from one signature of the owner wallet (secp256k1, the Ethereum curve),
+and stores only the sealed bundle. **Restore from Metro** on a fresh daemon downloads it, opens it
+with the same signature, and hands the plaintext to that daemon, which writes the files and starts
+the stations; the same id and key carry over. Only the owner wallet can open a bundle.
+
 One thing to know about XMTP: an inbox allows ten installations and the first start on each
 machine spends one, so metro prints a warning when it does. Restarts on the same machine reuse
 it; only pairing new machines costs.

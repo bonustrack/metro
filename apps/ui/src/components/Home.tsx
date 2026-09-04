@@ -7,11 +7,14 @@ import { PageTitle } from './PageTitle';
 import { AgentCredentials } from './AgentCredentials';
 import { CreateAgent } from './CreateAgent';
 import { ImportAgent } from './ImportAgent';
+import { SyncAgent } from './SyncAgent';
+import { RestoreAgent } from './RestoreAgent';
 import { Loading } from './Loading';
 import { NewAgentKey } from './NewAgentKey';
 import { createAgent, importAgent, resetAgentKey, type CreatedAgent } from '../api/client';
 import { stationCount } from '../api/accounts';
 import { queryError, refreshAgents, refreshConnectors, useStationsQuery } from '../api/queries';
+import { type AgentSummary } from '../api/client';
 import { routeHash } from '../route';
 import { opensElsewhere } from './link';
 import { type Selection } from './selection';
@@ -57,6 +60,7 @@ function NoAgent({ token, onDone }: { token: string; onDone: () => void }): Reac
   const client = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   return (
     <Col gap={16}>
@@ -81,7 +85,27 @@ function NoAgent({ token, onDone }: { token: string; onDone: () => void }): Reac
             setImporting(true);
           }}
         />
+        <Button
+          color="secondary"
+          dark={dark}
+          label="Restore from Metro"
+          onPress={() => {
+            setRestoring(true);
+          }}
+        />
       </Row>
+      <RestoreAgent
+        open={restoring}
+        token={token}
+        onClose={() => {
+          setRestoring(false);
+        }}
+        onRestored={() => {
+          refreshAgents(client);
+          refreshConnectors(client);
+          onDone();
+        }}
+      />
       {created === null ? null : (
         <NewAgentKey
           created={created}
@@ -122,10 +146,57 @@ interface HomeProps {
   onSelect: (selection: Selection) => void;
 }
 
-export function Home({ token, project, onSelect }: HomeProps): ReactNode {
+function AgentActions({ token, agent }: { token: string; agent: AgentSummary }): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const [importing, setImporting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  return (
+    <>
+      <Row gap={8} wrap>
+        <Button
+          color="primary"
+          dark={dark}
+          label="Sync with Metro"
+          onPress={() => {
+            setSyncing(true);
+          }}
+        />
+        <Button
+          color="secondary"
+          dark={dark}
+          label="Import again from metro.box"
+          onPress={() => {
+            setImporting(true);
+          }}
+        />
+      </Row>
+      <SyncAgent
+        open={syncing}
+        token={token}
+        agent={{ id: agent.id, name: agent.name }}
+        onClose={() => {
+          setSyncing(false);
+        }}
+        onSynced={() => undefined}
+      />
+      <ImportAgent
+        open={importing}
+        onClose={() => {
+          setImporting(false);
+        }}
+        onImport={async (code) => {
+          await importAgent(token, code);
+          refreshAgents(client);
+          refreshConnectors(client);
+        }}
+      />
+    </>
+  );
+}
+
+export function Home({ token, project, onSelect }: HomeProps): ReactNode {
+  const client = useQueryClient();
   const { data, error } = useStationsQuery(token);
   const agent = data?.agents[0];
   useDocumentTitle(agent?.name ?? 'This machine');
@@ -159,27 +230,7 @@ export function Home({ token, project, onSelect }: HomeProps): ReactNode {
         <Summary label="Stations" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
         <Summary label="Connectors" count={agent.connectorIds.length} target={{ kind: 'connectors', project }} onSelect={onSelect} />
       </Col>
-      <Row>
-        <Button
-          color="secondary"
-          dark={dark}
-          label="Import again from metro.box"
-          onPress={() => {
-            setImporting(true);
-          }}
-        />
-      </Row>
-      <ImportAgent
-        open={importing}
-        onClose={() => {
-          setImporting(false);
-        }}
-        onImport={async (code) => {
-          await importAgent(token, code);
-          refreshAgents(client);
-          refreshConnectors(client);
-        }}
-      />
+      <AgentActions token={token} agent={agent} />
     </Col>
   );
 }

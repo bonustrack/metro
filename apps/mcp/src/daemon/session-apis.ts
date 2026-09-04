@@ -21,11 +21,15 @@ import { handleImportRequest, type ImportApiDeps } from './import-api.js';
 import { handleLocalCliRequest, type LocalCliDeps } from './local-cli-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from './claude-api.js';
 import type { ModeInfo } from './mode-api.js';
+import { handleVaultApiRequest, type VaultApiDeps } from './vault-api.js';
+import { handleBundleRequest, type BundleApiDeps } from './bundle-api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
   agentConnectorApi?: AgentConnectorApiDeps;
   importApi?: ImportApiDeps;
+  bundleApi?: BundleApiDeps;
+  vaultApi?: VaultApiDeps;
   localCli?: LocalCliDeps;
   claudeApi?: ClaudeApiDeps;
   connectorApi?: ConnectorApiDeps;
@@ -36,27 +40,27 @@ export interface SessionApis {
   mode?: () => ModeInfo;
 }
 
+const when = <T>(dep: T | undefined, run: (dep: T) => boolean): (() => boolean)[] =>
+  dep === undefined ? [] : [() => run(dep)];
+
 export function handleSessionApis(
   req: IncomingMessage,
   res: ServerResponse,
   apis: SessionApis,
 ): boolean {
-  const { agentApi, agentConnectorApi, connectorApi, projectApi, runApi, importApi } = apis;
-  const { localCli, claudeApi } = apis;
-  const routes: (() => boolean)[] = [() => handleSessionApiRequest(req, res)];
-  if (localCli) routes.push(() => handleLocalCliRequest(req, res, localCli));
-  if (runApi) routes.push(() => handleRunApiRequest(req, res, runApi));
-  if (projectApi)
-    routes.push(() => handleProjectApiRequest(req, res, projectApi));
-  if (connectorApi)
-    routes.push(
-      () => handleCliPairRequest(req, res, connectorApi),
-      () => handleConnectorApiRequest(req, res, connectorApi),
-    );
-  if (importApi) routes.push(() => handleImportRequest(req, res, importApi));
-  if (claudeApi) routes.push(() => handleClaudeRequest(req, res, claudeApi));
-  if (agentConnectorApi)
-    routes.push(() => handleAgentConnectorRequest(req, res, agentConnectorApi));
-  if (agentApi) routes.push(() => handleAgentApiRequest(req, res, agentApi));
+  const routes: (() => boolean)[] = [
+    () => handleSessionApiRequest(req, res),
+    ...when(apis.localCli, (d) => handleLocalCliRequest(req, res, d)),
+    ...when(apis.runApi, (d) => handleRunApiRequest(req, res, d)),
+    ...when(apis.projectApi, (d) => handleProjectApiRequest(req, res, d)),
+    ...when(apis.connectorApi, (d) => handleCliPairRequest(req, res, d)),
+    ...when(apis.connectorApi, (d) => handleConnectorApiRequest(req, res, d)),
+    ...when(apis.importApi, (d) => handleImportRequest(req, res, d)),
+    ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
+    ...when(apis.vaultApi, (d) => handleVaultApiRequest(req, res, d)),
+    ...when(apis.claudeApi, (d) => handleClaudeRequest(req, res, d)),
+    ...when(apis.agentConnectorApi, (d) => handleAgentConnectorRequest(req, res, d)),
+    ...when(apis.agentApi, (d) => handleAgentApiRequest(req, res, d)),
+  ];
   return routes.some((run) => run());
 }

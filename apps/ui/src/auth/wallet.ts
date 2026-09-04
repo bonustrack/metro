@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { createWalletClient, custom, type EIP1193Provider } from 'viem';
+import { createWalletClient, custom, type EIP1193Provider, type TypedDataDefinition } from 'viem';
 import { readRecentWallet } from './recent';
 import { walletChoices, type WalletChoice } from './wallet-options';
 
@@ -181,10 +181,13 @@ export function connectWallet(choice: WalletChoice, dark: boolean): Promise<Conn
   return connectInjected(choice);
 }
 
+const clientFor = (connected: Connected) =>
+  createWalletClient({ account: connected.address, transport: custom(connected.provider) });
+
 export function signWith(connected: Connected, message: string): Promise<`0x${string}`> {
-  const client = createWalletClient({
-    account: connected.address,
-    transport: custom(connected.provider),
-  });
-  return client.signMessage({ message });
+  return clientFor(connected).signMessage({ message });
+}
+
+export function signTypedDataWith(connected: Connected, typedData: TypedDataDefinition): Promise<`0x${string}`> {
+  return clientFor(connected).signTypedData(typedData);
 }
