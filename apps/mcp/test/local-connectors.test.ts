@@ -10,7 +10,7 @@ import { ensureLocalSessionSecret } from '../src/daemon/local-secret.js';
 import { signSession } from '../src/daemon/session.js';
 import { claimLocalOwner, localCreateAgent, LOCAL_PROJECT_ID } from '../src/db/file-admin.js';
 import { setKeyMap } from '../src/db/key-map.js';
-import { forgetHostedConnectors, hostedCredentialFor } from '../src/daemon/hosted-connectors.js';
+import { forgetHostedConnectors, hostedCredentialsFor } from '../src/daemon/hosted-connectors.js';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
@@ -32,6 +32,8 @@ let secret = '';
 let tony = { id: '', key: '' };
 let orphan = { id: '', key: '' };
 const asked: string[] = [];
+const loginTokenFor = (agentId: string): string =>
+  `h.${Buffer.from(JSON.stringify({ agent: agentId })).toString('base64url')}.s`;
 
 const listen = (server: Server): Promise<string> =>
   new Promise((done) => {
@@ -54,7 +56,9 @@ beforeAll(async () => {
   orphan = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'orphan', dir);
   metro = createServer((req, res) => {
     asked.push(req.headers.authorization ?? '');
-    if (req.url === '/api/cli/connectors' && req.headers.authorization === 'Bearer rt-tony') {
+    const auth = req.headers.authorization ?? '';
+    const accepted = auth === 'Bearer rt-tony' || auth === `Bearer ${loginTokenFor(tony.id)}`;
+    if (req.url === '/api/cli/connectors' && accepted) {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ agent: 'Tony', connectors: SUMMARIES }));
       return;
@@ -100,13 +104,31 @@ const get = (path: string, subject = OWNER): Promise<Response> =>
   fetch(`${base}${path}`, { headers: { authorization: `Bearer ${signSession({ subject, agentIds: [] }, secret)}` } });
 
 describe('connectors on a local daemon come from metro.box through the agent\'s own token', () => {
-  test('the credential is the runtime file the import wrote, else a matching metro login', () => {
-    expect(hostedCredentialFor(tony.id, join(dir, 'config'))).toEqual({ token: 'rt-tony', url: process.env.METRO_URL });
-    expect(hostedCredentialFor(orphan.id, join(dir, 'config'))).toBeNull();
-    const payload = Buffer.from(JSON.stringify({ agent: orphan.id })).toString('base64url');
-    writeFileSync(join(dir, 'config', 'credentials.json'), JSON.stringify({ token: `h.${payload}.s`, url: process.env.METRO_URL }));
-    expect(hostedCredentialFor(orphan.id, join(dir, 'config'))?.token).toBe(`h.${payload}.s`);
-    rmSync(join(dir, 'config', 'credentials.json'));
+  test('the credentials are a matching metro login first, then the runtime file the import wrote', () => {
+    const cfg = join(dir, 'config');
+    expect(hostedCredentialsFor(tony.id, cfg)).toEqual([{ token: 'rt-tony', url: process.env.METRO_URL }]);
+    expect(hostedCredentialsFor(orphan.id, cfg)).toEqual([]);
+    writeFileSync(join(cfg, 'credentials.json'), JSON.stringify({ token: loginTokenFor(orphan.id), url: process.env.METRO_URL }));
+    expect(hostedCredentialsFor(orphan.id, cfg).map((c) => c.token)).toEqual([loginTokenFor(orphan.id)]);
+    expect(hostedCredentialsFor(tony.id, cfg).map((c) => c.token)).toEqual(['rt-tony']);
+    writeFileSync(join(cfg, 'credentials.json'), JSON.stringify({ token: loginTokenFor(tony.id), url: process.env.METRO_URL }));
+    expect(hostedCredentialsFor(tony.id, cfg).map((c) => c.token)).toEqual([loginTokenFor(tony.id), 'rt-tony']);
+    rmSync(join(cfg, 'credentials.json'));
+  });
+
+  test('a stale runtime token from an old metro start does not hide a working metro login', async () => {
+    const cfg = join(dir, 'config');
+    forgetHostedConnectors();
+    writeFileSync(join(cfg, `runtime-${tony.id}.json`), JSON.stringify({ token: 'rt-stale', url: process.env.METRO_URL }));
+    writeFileSync(join(cfg, 'credentials.json'), JSON.stringify({ token: loginTokenFor(tony.id), url: process.env.METRO_URL }));
+    const res = await get(`/api/agents/${tony.id}/connectors`);
+    expect(((await res.json()) as { connectorIds: string[] }).connectorIds).toEqual(['conn0000001', 'conn0000002']);
+    rmSync(join(cfg, 'credentials.json'));
+    forgetHostedConnectors();
+    const alone = await get(`/api/agents/${tony.id}/connectors`);
+    expect(((await alone.json()) as { connectorIds: string[] }).connectorIds).toEqual([]);
+    writeFileSync(join(cfg, `runtime-${tony.id}.json`), JSON.stringify({ token: 'rt-tony', url: process.env.METRO_URL }));
+    forgetHostedConnectors();
   });
 
   test('the agent lists its metro.box connectors, and the agents list carries their ids', async () => {

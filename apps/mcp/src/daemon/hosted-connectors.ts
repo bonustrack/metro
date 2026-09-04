@@ -45,11 +45,16 @@ function credential(file: Record<string, unknown> | null): HostedCredential | nu
   return { token: file.token, url: typeof file.url === 'string' && file.url !== '' ? file.url : metroBaseUrl() };
 }
 
-export function hostedCredentialFor(agentId: string, dir = configDir()): HostedCredential | null {
-  const runtime = join(dir, `runtime-${agentId}.json`);
-  if (existsSync(runtime)) return credential(readJsonFile(runtime));
+export function hostedCredentialsFor(agentId: string, dir = configDir()): HostedCredential[] {
+  const out: HostedCredential[] = [];
   const login = credential(readJsonFile(join(dir, 'credentials.json')));
-  return login !== null && agentOfToken(login.token) === agentId ? login : null;
+  if (login !== null && agentOfToken(login.token) === agentId) out.push(login);
+  const runtime = join(dir, `runtime-${agentId}.json`);
+  if (existsSync(runtime)) {
+    const cred = credential(readJsonFile(runtime));
+    if (cred !== null) out.push(cred);
+  }
+  return out;
 }
 
 const isConnector = (v: unknown): v is HostedConnector =>
@@ -58,15 +63,33 @@ const isConnector = (v: unknown): v is HostedConnector =>
   typeof (v as { id?: unknown }).id === 'string' &&
   typeof (v as { name?: unknown }).name === 'string';
 
+class Refused extends Error {}
+
 async function fetchHosted(cred: HostedCredential): Promise<HostedConnector[]> {
   const res = await fetch(`${cred.url}/api/cli/connectors`, {
     headers: { authorization: `Bearer ${cred.token}` },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     redirect: 'manual',
   });
+  if (res.status === 401 || res.status === 403 || res.status === 409) {
+    await res.arrayBuffer().catch(() => undefined);
+    throw new Refused(`metro no longer accepts this credential (${String(res.status)})`);
+  }
   if (!res.ok) throw new Error(`metro answered ${String(res.status)} for the connectors`);
   const body = (await res.json()) as { connectors?: unknown };
   return Array.isArray(body.connectors) ? body.connectors.filter(isConnector) : [];
+}
+
+async function firstAccepted(agentId: string, creds: HostedCredential[]): Promise<HostedConnector[] | null> {
+  for (const cred of creds) {
+    try {
+      return await fetchHosted(cred);
+    } catch (err) {
+      if (!(err instanceof Refused)) throw err;
+      log.warn({ agent: agentId, reason: errMsg(err) }, 'hosted connectors: credential refused, trying the next');
+    }
+  }
+  return null;
 }
 
 const cache = new Map<string, { at: number; list: HostedConnector[] }>();
@@ -74,10 +97,14 @@ const cache = new Map<string, { at: number; list: HostedConnector[] }>();
 export async function hostedConnectorsFor(agentId: string, dir = configDir()): Promise<HostedConnector[]> {
   const hit = cache.get(agentId);
   if (hit !== undefined && Date.now() - hit.at < CACHE_MS) return hit.list;
-  const cred = hostedCredentialFor(agentId, dir);
-  if (cred === null) return [];
+  const creds = hostedCredentialsFor(agentId, dir);
+  if (creds.length === 0) return [];
   try {
-    const list = await fetchHosted(cred);
+    const list = await firstAccepted(agentId, creds);
+    if (list === null) {
+      log.warn({ agent: agentId }, 'hosted connectors: every stored credential is stale; metro login again');
+      return [];
+    }
     cache.set(agentId, { at: Date.now(), list });
     return list;
   } catch (err) {
