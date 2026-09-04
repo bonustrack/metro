@@ -260,8 +260,9 @@ identity so every device sees the same list, with their live status; opening a d
 adds it to that list and gives it a short address like `https://metro.box/#/4naAzZIxZZo`. From another computer, forward the port first
 (`ssh -L 8420:127.0.0.1:8420 <host>`), or simply open the public address: `metro serve` needs
 Tailscale installed and signed in on the box and publishes the daemon through Tailscale
-Funnel at `https://<machine>.<tailnet>.ts.net`, a permanent name that survives restarts and
-needs nothing on the laptop or the phone that opens it (enable Funnel once on your tailnet
+Funnel at `https://metro-xxxxxx.<tailnet>.ts.net` (metro names the machine on your tailnet
+itself, once), a permanent name that survives restarts and needs nothing on the laptop or
+the phone that opens it (enable Funnel once on your tailnet
 when Tailscale asks). The certificate lives on your box, so the browser's TLS session ends at the
 daemon and Tailscale's relays never decrypt it. The daemon only ever lets one wallet in, the one named with `--owner <address>` (asked
 for once and remembered in `~/.metro/agents/.owner`); until an owner is set, every sign-in is
