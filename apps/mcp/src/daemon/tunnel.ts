@@ -100,18 +100,23 @@ export const currentTunnelUrl = (): string | null => liveUrl;
 
 export type Resolves = (host: string) => Promise<boolean>;
 
-const PUBLIC_RESOLVERS = ['1.1.1.1', '1.0.0.1'];
+const PUBLIC_RESOLVERS = ['1.1.1.1', '8.8.8.8'];
 const RESOLVE_EVERY_MS = 3_000;
 const RESOLVE_GIVE_UP_MS = 180_000;
 
-export async function resolvesAtCloudflare(host: string): Promise<boolean> {
+async function resolvesAt(server: string, host: string): Promise<boolean> {
   const resolver = new Resolver();
-  resolver.setServers(PUBLIC_RESOLVERS);
-  try {
-    return (await resolver.resolve4(host)).length > 0;
-  } catch {
-    return false;
-  }
+  resolver.setServers([server]);
+  const answers = await Promise.all([
+    resolver.resolve4(host).catch(() => []),
+    resolver.resolve6(host).catch(() => []),
+  ]);
+  return answers.some((a) => a.length > 0);
+}
+
+export async function resolvesAtCloudflare(host: string): Promise<boolean> {
+  const found = await Promise.all(PUBLIC_RESOLVERS.map((server) => resolvesAt(server, host)));
+  return found.some(Boolean);
 }
 
 async function untilResolvable(host: string, resolves: Resolves): Promise<boolean> {
