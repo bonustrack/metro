@@ -1,3 +1,5 @@
+import { routedDaemon, storeDaemon } from './daemon';
+
 const LOGIN_HASH = '#/login';
 
 const LOGIN_ROUTE = '/login';
@@ -50,6 +52,8 @@ export function goToLogin(): void {
     writeStored(safeRedirect(hashParts().query.get('redirect')));
     return;
   }
+  const heading = routedDaemon();
+  if (heading !== null) storeDaemon(heading);
   const from = safeRedirect(hashParts().route);
   writeStored(from);
   const query = from === null ? '' : `?redirect=${encodeURIComponent(from)}`;
