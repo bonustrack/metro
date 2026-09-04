@@ -4,8 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   currentTunnelUrl,
+  quickDriver,
   quickTunnelUrlIn,
   Tunnel,
+  tunnelKind,
   quickTunnelWanted,
 } from '../src/daemon/tunnel.ts';
 import { publicBaseUrl } from '../src/daemon/attach-serve.ts';
@@ -65,6 +67,10 @@ describe('reading cloudflared', () => {
     expect(quickTunnelWanted()).toBe(true);
     process.env.METRO_TUNNEL = 'named';
     expect(quickTunnelWanted()).toBe(false);
+    expect(tunnelKind()).toBeNull();
+    process.env.METRO_TUNNEL = 'tailscale';
+    expect(tunnelKind()).toBe('tailscale');
+    expect(quickTunnelWanted()).toBe(false);
   });
 });
 
@@ -73,7 +79,7 @@ describe('a quick tunnel, against a fake cloudflared', () => {
     fakeCloudflared(`printf '%s\\n' '${BANNER.replace(/'/g, '')}' >&2\nexec sleep 30`);
     const onUrl = { resolve: (_u: string): void => undefined };
     const tunnel = new Tunnel(
-      8420,
+      quickDriver(8420),
       (u) => {
         onUrl.resolve(u);
       },
@@ -94,7 +100,7 @@ describe('a quick tunnel, against a fake cloudflared', () => {
     process.env.METRO_PUBLIC_URL = 'https://metro.example.net/';
     const onUrl = { resolve: (_u: string): void => undefined };
     const tunnel = new Tunnel(
-      8420,
+      quickDriver(8420),
       (u) => {
         onUrl.resolve(u);
       },
@@ -111,7 +117,7 @@ describe('a quick tunnel, against a fake cloudflared', () => {
     let announced: string | null = null;
     let ready = false;
     const tunnel = new Tunnel(
-      8420,
+      quickDriver(8420),
       (u) => {
         announced = u;
       },
@@ -133,7 +139,7 @@ describe('a quick tunnel, against a fake cloudflared', () => {
 
   test('a missing cloudflared is logged once and never retried', async () => {
     process.env.PATH = bin;
-    const tunnel = new Tunnel(8420, () => undefined);
+    const tunnel = new Tunnel(quickDriver(8420), () => undefined);
     tunnel.start();
     await new Promise((r) => setTimeout(r, 300));
     expect(currentTunnelUrl()).toBeNull();
