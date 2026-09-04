@@ -79,7 +79,7 @@ beforeAll(async () => {
   attachDir = mkdtempSync(join(tmpdir(), 'metro-discord-bot-url-'));
   for (const name of [FIXED, CDN_ONLY]) writeFileSync(join(attachDir, name), BODY);
   process.env.METRO_XMTP_ATTACH_DIR = attachDir;
-  process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box';
+  process.env.METRO_PUBLIC_URL = 'https://api.metro.box';
   process.env.METRO_WEBHOOK_PORT = String(
     10000 + Math.floor(Math.random() * 20000),
   );
@@ -104,7 +104,7 @@ describe('a discord-bot attachmentSaved event with no station url', () => {
   test('is enriched with a metro url and an owner sidecar', () => {
     const out = emitAndCapture(savedEvent(FIXED));
     const url = String((out.payload as { url?: string }).url);
-    expect(url).toStartWith(`https://mcp.metro.box/attach/${FIXED}?token=at_`);
+    expect(url).toStartWith(`https://api.metro.box/attach/${FIXED}?token=at_`);
     expect(attachmentOwner(FIXED)).toBe('agent000007');
     expect(existsSync(join(attachDir, `${FIXED}.owner`))).toBe(true);
     expect(existsSync(join(attachDir, `${FIXED}.grant`))).toBe(true);

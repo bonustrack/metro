@@ -39,7 +39,7 @@ beforeAll(async () => {
   for (const name of [CACHE_NAME, OTHER_NAME, THIRD_NAME, KEYLESS_NAME])
     writeFileSync(join(attachDir, name), PNG);
   process.env.METRO_XMTP_ATTACH_DIR = attachDir;
-  process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box/';
+  process.env.METRO_PUBLIC_URL = 'https://api.metro.box/';
   process.env.METRO_WEBHOOK_PORT = String(
     10000 + Math.floor(Math.random() * 20000),
   );
@@ -69,7 +69,7 @@ afterAll(async () => {
 
 describe('attachment url helpers', () => {
   test('publicBaseUrl trims trailing slash from METRO_PUBLIC_URL', () => {
-    expect(publicBaseUrl()).toBe('https://mcp.metro.box');
+    expect(publicBaseUrl()).toBe('https://api.metro.box');
   });
 
   test('attachmentUrl records the owner and mints a per-attachment token', () => {
@@ -77,7 +77,7 @@ describe('attachment url helpers', () => {
       `/data/.cache/metro/messenger-uploads/${CACHE_NAME}`,
       'agent000001',
     );
-    expect(url).toStartWith(`https://mcp.metro.box/attach/${CACHE_NAME}?token=`);
+    expect(url).toStartWith(`https://api.metro.box/attach/${CACHE_NAME}?token=`);
     expect(attachmentOwner(CACHE_NAME)).toBe('agent000001');
     expect(existsSync(join(attachDir, `${CACHE_NAME}.owner`))).toBe(true);
     expect(existsSync(join(attachDir, `${CACHE_NAME}.grant`))).toBe(true);
@@ -124,7 +124,7 @@ describe('attachment url helpers', () => {
         { contentType: 'attachmentSaved', localPath: `/data/x/${CACHE_NAME}` },
         1,
       ),
-    ).toStartWith(`https://mcp.metro.box/attach/${CACHE_NAME}?token=at_`);
+    ).toStartWith(`https://api.metro.box/attach/${CACHE_NAME}?token=at_`);
     expect(
       attachmentEventUrl(
         {

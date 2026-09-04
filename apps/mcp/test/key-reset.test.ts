@@ -212,7 +212,7 @@ beforeAll(async () => {
   writeFileSync(join(attachDir, ADA_FILE), PNG);
   writeFileSync(join(attachDir, BOB_FILE), PNG);
   process.env.METRO_XMTP_ATTACH_DIR = attachDir;
-  process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box';
+  process.env.METRO_PUBLIC_URL = 'https://api.metro.box';
   process.env.METRO_WEBHOOK_PORT = String(
     10000 + Math.floor(Math.random() * 20000),
   );
@@ -253,7 +253,7 @@ afterAll(async () => {
   setAgentMap({}, {});
 });
 
-const localise = (url: string): string => url.replace('https://mcp.metro.box', base);
+const localise = (url: string): string => url.replace('https://api.metro.box', base);
 
 describe('resetting a key revokes the old one everywhere', () => {
   test('the old key stops authenticating on mcp, tail and attach; the new one works', async () => {

@@ -29,7 +29,7 @@ const prev = {
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'metro-upload-tool-'));
   process.env.METRO_UPLOAD_DIR = dir;
-  process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box/';
+  process.env.METRO_PUBLIC_URL = 'https://api.metro.box/';
 });
 
 afterAll(() => {
@@ -76,7 +76,7 @@ describe('create_upload mints a slot over MCP alone', () => {
     const t = ticket(res.text);
     expect(UPLOAD_ID_RE.test(t.upload_id)).toBe(true);
     expect(t.upload_url).toStartWith(
-      `https://mcp.metro.box/api/uploads/${t.upload_id}?token=ut_`,
+      `https://api.metro.box/api/uploads/${t.upload_id}?token=ut_`,
     );
     expect(t.curl).toContain(t.upload_url);
     expect(t.name).toBe('q3.pdf');
@@ -171,7 +171,7 @@ describe('a local daemon advertises its own loopback base, never hosted metro', 
   test('outside local mode the hosted default stands', async () => {
     delete process.env.METRO_MODE;
     const t = ticket((await mint('agent000001')).text);
-    expect(t.upload_url).toStartWith('https://mcp.metro.box/api/uploads/');
+    expect(t.upload_url).toStartWith('https://api.metro.box/api/uploads/');
   });
 });
 

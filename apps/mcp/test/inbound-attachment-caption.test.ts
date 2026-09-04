@@ -93,7 +93,7 @@ const discordSaved = (): Record<string, unknown> => ({
       '/data/.cache/metro/messenger-uploads/msg_1534630426356879_0.html',
     mime: 'text/html; charset=utf-8',
     name: 'exploding-kittens-bot.html',
-    url: 'https://mcp.metro.box/attach/msg_1534630426356879_0.html?token=at_grant',
+    url: 'https://api.metro.box/attach/msg_1534630426356879_0.html?token=at_grant',
   },
 });
 
@@ -132,7 +132,7 @@ const telegramSaved = (): Record<string, unknown> => ({
     localPath: '/data/.cache/metro/messenger-uploads/msg_1976_0.jpg',
     mime: 'image/jpeg',
     name: 'msg_1976_0.jpg',
-    url: 'https://mcp.metro.box/attach/msg_1976_0.jpg?token=at_grant',
+    url: 'https://api.metro.box/attach/msg_1976_0.jpg?token=at_grant',
   },
 });
 
@@ -169,7 +169,7 @@ const xmtpSaved = (): Record<string, unknown> => ({
     localPath: '/data/.cache/metro/messenger-uploads/msg_82c863542725f2d7_0.pdf',
     mime: 'application/pdf',
     name: 'deck.pdf',
-    url: 'https://mcp.metro.box/attach/msg_82c863542725f2d7_0.pdf?token=at_grant',
+    url: 'https://api.metro.box/attach/msg_82c863542725f2d7_0.pdf?token=at_grant',
   },
 });
 
@@ -264,7 +264,7 @@ describe('telegram-bot (bot): the station that never buffered is unchanged', () 
         attachmentPath: '/data/.cache/metro/messenger-uploads/msg_1569_0.jpg',
         localPath: '/data/.cache/metro/messenger-uploads/msg_1569_0.jpg',
         mime: 'image/jpeg',
-        url: 'https://mcp.metro.box/attach/msg_1569_0.jpg?token=at_grant',
+        url: 'https://api.metro.box/attach/msg_1569_0.jpg?token=at_grant',
       },
     });
 
@@ -365,7 +365,7 @@ describe('the media note tells the truth about where the file is', () => {
 
     const content = contentOf(channelNotifs(notifs)[0] as Notif);
     expect(content).toContain(
-      'Public URL: https://mcp.metro.box/attach/msg_1534630426356879_0.html?token=at_grant',
+      'Public URL: https://api.metro.box/attach/msg_1534630426356879_0.html?token=at_grant',
     );
     expect(content).toContain(
       'Daemon-host path: /data/.cache/metro/messenger-uploads/msg_1534630426356879_0.html',

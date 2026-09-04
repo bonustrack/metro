@@ -14,7 +14,7 @@ the UI ships no Google JavaScript at all.
 - The gate is a single **Continue with Google** button. It navigates the browser to
   `<daemon>/auth/google/start?return_to=<this origin+path>`.
 - The daemon runs the OAuth code flow with Google (redirect URI
-  `https://mcp.metro.box/auth/google/callback`), verifies the returned ID token, mints a
+  `https://api.metro.box/auth/google/callback`), verifies the returned ID token, mints a
   **daemon-signed session JWT** (HS256), and redirects back to `return_to` with the token
   in the **URL fragment** (`#session=…`).
 - On load the app reads `#session` from the fragment, stores it in `localStorage`
@@ -80,7 +80,7 @@ never touches the transport. Do not reintroduce an MCP client here.
 ### Why the token comes back in the URL fragment
 
 The UI (metro.box, and especially `deploy-preview-N--metro-ui.netlify.app`) is a
-**different origin** from the daemon (`mcp.metro.box`), so a `SameSite` cookie set by the
+**different origin** from the daemon (`api.metro.box`), so a `SameSite` cookie set by the
 daemon would not be sent by the UI's cross-origin requests. The fragment (`#session=…`) is
 never sent to any server, is readable only by the destination page, and is stripped from
 history on arrival. `return_to` is validated server-side (metro.box,
@@ -117,7 +117,7 @@ address owns. Deletion is owner-only and keyed on `agents.id`: someone else's ag
 
 ## Config
 
-- `VITE_METRO_MCP_URL` — the daemon base URL (default `https://mcp.metro.box`); the sign-in
+- `VITE_METRO_MCP_URL` — the daemon base URL (default `https://api.metro.box`); the sign-in
   routes and `/api/agents` live there.
 - `VITE_WC_PROJECT_ID` — overrides the built-in Reown project id used by WalletConnect.
 

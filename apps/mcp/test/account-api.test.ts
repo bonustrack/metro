@@ -222,7 +222,7 @@ interface AttachBody {
 }
 
 beforeAll(async () => {
-  process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box';
+  process.env.METRO_PUBLIC_URL = 'https://api.metro.box';
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   process.env.METRO_WEBHOOK_PORT = String(
     10000 + Math.floor(Math.random() * 20000),

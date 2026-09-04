@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { NAME_PREFIX, relayServersJson } from '../src/daemon/connector-json.ts';
 
-const BASE = 'https://mcp.metro.box';
+const BASE = 'https://api.metro.box';
 const TOKEN = 'cli-token-abc';
 
 const parsed = (json: string): Record<string, unknown> =>

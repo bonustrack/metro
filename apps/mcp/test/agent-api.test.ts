@@ -14,7 +14,7 @@ import {
   type ResetAgentKey,
 } from '../src/db/agent-admin.ts';
 
-const PUBLIC = 'https://mcp.metro.box';
+const PUBLIC = 'https://api.metro.box';
 const LOCAL = (): string => `http://127.0.0.1:${PORT()}`;
 
 const fakeKey = (agent: string): string => `mk_fake_${agent}`;

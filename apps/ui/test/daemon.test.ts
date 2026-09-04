@@ -21,7 +21,7 @@ describe('the daemon address a person types', () => {
 
   test('https is fine anywhere', () => {
     expect(base('https://suzy.tail1234.ts.net')).toBe('https://suzy.tail1234.ts.net');
-    expect(base('https://mcp.metro.box/')).toBe('https://mcp.metro.box');
+    expect(base('https://api.metro.box/')).toBe('https://api.metro.box');
   });
 
   test('plain http to another machine is refused with the way out named', () => {
@@ -37,7 +37,7 @@ describe('the daemon address a person types', () => {
   });
 
   test('the host is what the pages show', () => {
-    expect(daemonHost('https://mcp.metro.box')).toBe('mcp.metro.box');
+    expect(daemonHost('https://api.metro.box')).toBe('api.metro.box');
     expect(daemonHost('http://127.0.0.1:8420')).toBe('127.0.0.1:8420');
     expect(daemonHost('nonsense')).toBe('nonsense');
   });
