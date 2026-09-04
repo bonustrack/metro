@@ -36,7 +36,6 @@ const HINT =
   'Grouping comes from the annotations the server publishes. A tool counts as read-only only when it says so, so anything unannotated is grouped with write/delete. These are hints, not guarantees — MCP says to treat them as untrusted unless you trust the server.';
 
 interface ConnectorPageProps {
-  token: string;
   project: string;
   id: string;
   onDelete: (id: string) => Promise<void>;
@@ -91,14 +90,13 @@ function ConnectorHeading({
 }
 
 export function ConnectorPage({
-  token,
   project,
   id,
   onDelete,
   onBack,
 }: ConnectorPageProps): ReactNode {
   const client = useQueryClient();
-  const { data, error } = useConnectorQuery(token, id);
+  const { data, error } = useConnectorQuery(id);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   useDocumentTitle(data?.name ?? 'Connector');
@@ -112,7 +110,7 @@ export function ConnectorPage({
     if (busy) return;
     setBusy(true);
     setStatus(null);
-    verifyConnector(token, id)
+    verifyConnector(id)
       .then((result) => {
         setStatus(result.ok ? 'Answered just now.' : (result.reason ?? 'It did not answer.'));
         refreshConnectors(client, id);
@@ -140,7 +138,6 @@ export function ConnectorPage({
             onPress={onBack}
           />
           <ConnectorActions
-            token={token}
             connector={data}
             refreshing={busy}
             onRefresh={recheck}

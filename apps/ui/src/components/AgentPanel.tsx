@@ -12,7 +12,6 @@ import { Stations } from './Stations';
 import { type Selection } from './selection';
 
 interface AgentPanelProps {
-  token: string;
   selection: Selection;
   onSelect: (selection: Selection) => void;
 }
@@ -23,11 +22,10 @@ interface ScopedProps extends AgentPanelProps {
 
 type Go = (next: Selection) => void;
 
-function connectorRoutes(token: string, project: string, selection: Selection, go: Go): ReactNode {
+function connectorRoutes(project: string, selection: Selection, go: Go): ReactNode {
   if (selection.kind === 'connectors')
     return (
       <Connectors
-        token={token}
         project={project}
         onOpen={(id) => {
           go({ kind: 'connector', project, id });
@@ -37,11 +35,10 @@ function connectorRoutes(token: string, project: string, selection: Selection, g
   if (selection.kind === 'connector')
     return (
       <ConnectorPage
-        token={token}
         project={project}
         id={selection.id}
         onDelete={async (id) => {
-          await deleteConnector(token, id);
+          await deleteConnector(id);
           go({ kind: 'connectors', project });
         }}
         onBack={() => {
@@ -52,26 +49,25 @@ function connectorRoutes(token: string, project: string, selection: Selection, g
   return null;
 }
 
-function claudeRoutes(token: string, project: string, selection: Selection, go: Go): ReactNode {
+function claudeRoutes(project: string, selection: Selection, go: Go): ReactNode {
   if (selection.kind === 'sessions')
-    return <Sessions token={token} project={project} claudeProject={selection.claudeProject} id={selection.id} onSelect={go} />;
+    return <Sessions project={project} claudeProject={selection.claudeProject} id={selection.id} onSelect={go} />;
   if (selection.kind === 'memory')
-    return <Memory token={token} project={project} claudeProject={selection.claudeProject} file={selection.file} onSelect={go} />;
+    return <Memory project={project} claudeProject={selection.claudeProject} file={selection.file} onSelect={go} />;
   return null;
 }
 
-function ScopedPanel({ token, project, selection, onSelect }: ScopedProps): ReactNode {
+function ScopedPanel({ project, selection, onSelect }: ScopedProps): ReactNode {
   const go: Go = (next) => {
     onSelect(next);
   };
-  const connector = connectorRoutes(token, project, selection, go);
+  const connector = connectorRoutes(project, selection, go);
   if (connector !== null) return connector;
-  const claude = claudeRoutes(token, project, selection, go);
+  const claude = claudeRoutes(project, selection, go);
   if (claude !== null) return claude;
   if (selection.kind === 'stations')
     return (
       <Stations
-        token={token}
         project={project}
         onOpen={(accountId) => {
           go({ kind: 'station', project, accountId });
@@ -81,7 +77,6 @@ function ScopedPanel({ token, project, selection, onSelect }: ScopedProps): Reac
   if (selection.kind === 'station')
     return (
       <StationPage
-        token={token}
         project={project}
         accountId={selection.accountId}
         onOpenAgent={() => {
@@ -89,7 +84,7 @@ function ScopedPanel({ token, project, selection, onSelect }: ScopedProps): Reac
         }}
       />
     );
-  return <Home token={token} project={project} onSelect={go} />;
+  return <Home project={project} onSelect={go} />;
 }
 
 export function AgentPanel(props: AgentPanelProps): ReactNode {

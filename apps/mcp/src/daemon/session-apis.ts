@@ -10,7 +10,7 @@ import {
   handleAgentConnectorRequest,
   type AgentConnectorApiDeps,
 } from './agent-connector-api.js';
-import type { SiweRouteDeps } from './siwe-routes.js';
+import type { IdentityRouteDeps } from './identity-routes.js';
 import { handleLocalCliRequest, type LocalCliDeps } from './local-cli-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from './claude-api.js';
 import type { ModeInfo } from './mode-api.js';
@@ -28,7 +28,7 @@ export interface SessionApis {
   claudeApi?: ClaudeApiDeps;
   connectorApi?: ConnectorApiDeps;
   relayApi?: RelayApiDeps;
-  siwe?: SiweRouteDeps;
+  identity?: IdentityRouteDeps;
   mode?: () => ModeInfo;
 }
 

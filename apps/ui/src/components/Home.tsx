@@ -55,7 +55,7 @@ function Summary({
   );
 }
 
-function NoAgent({ token, onDone }: { token: string; onDone: () => void }): ReactNode {
+function NoAgent({ onDone }: { onDone: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -87,7 +87,6 @@ function NoAgent({ token, onDone }: { token: string; onDone: () => void }): Reac
       </Row>
       <RestoreAgent
         open={restoring}
-        token={token}
         onClose={() => {
           setRestoring(false);
         }}
@@ -112,7 +111,7 @@ function NoAgent({ token, onDone }: { token: string; onDone: () => void }): Reac
           setCreating(false);
         }}
         onCreate={async (name) => {
-          setCreated(await createAgent(token, name));
+          setCreated(await createAgent(name));
           refreshAgents(client);
         }}
       />
@@ -121,12 +120,11 @@ function NoAgent({ token, onDone }: { token: string; onDone: () => void }): Reac
 }
 
 interface HomeProps {
-  token: string;
   project: string;
   onSelect: (selection: Selection) => void;
 }
 
-function AgentActions({ token, agent }: { token: string; agent: AgentSummary }): ReactNode {
+function AgentActions({ agent }: { agent: AgentSummary }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [syncing, setSyncing] = useState(false);
   return (
@@ -143,7 +141,6 @@ function AgentActions({ token, agent }: { token: string; agent: AgentSummary }):
       </Row>
       <SyncAgent
         open={syncing}
-        token={token}
         agent={{ id: agent.id, name: agent.name }}
         onClose={() => {
           setSyncing(false);
@@ -154,9 +151,9 @@ function AgentActions({ token, agent }: { token: string; agent: AgentSummary }):
   );
 }
 
-export function Home({ token, project, onSelect }: HomeProps): ReactNode {
+export function Home({ project, onSelect }: HomeProps): ReactNode {
   const client = useQueryClient();
-  const { data, error } = useStationsQuery(token);
+  const { data, error } = useStationsQuery();
   const agent = data?.agents[0];
   useDocumentTitle(agent?.name ?? 'This machine');
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
@@ -164,7 +161,6 @@ export function Home({ token, project, onSelect }: HomeProps): ReactNode {
   if (agent === undefined)
     return (
       <NoAgent
-        token={token}
         onDone={() => {
           onSelect({ kind: 'stations', project });
         }}
@@ -177,12 +173,12 @@ export function Home({ token, project, onSelect }: HomeProps): ReactNode {
         <Text size="sm" role="secondary">
           id {agent.id} · runs on this machine, so its messages never pass through Metro&apos;s servers
         </Text>
-        <MetroVersion token={token} />
+        <MetroVersion />
       </Col>
       <AgentCredentials
         agent={agent}
         onReset={async (id) => {
-          await resetAgentKey(token, id);
+          await resetAgentKey(id);
           refreshAgents(client);
         }}
       />
@@ -190,7 +186,7 @@ export function Home({ token, project, onSelect }: HomeProps): ReactNode {
         <Summary label="Channels" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
         <Summary label="Connectors" count={agent.connectorIds.length} target={{ kind: 'connectors', project }} onSelect={onSelect} />
       </Col>
-      <AgentActions token={token} agent={agent} />
+      <AgentActions agent={agent} />
     </Col>
   );
 }

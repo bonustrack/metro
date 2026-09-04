@@ -81,15 +81,18 @@ message: { purpose: "encryption-key", keyVersion: 1 }
 
 `HKDF-SHA256(ikm = signature bytes, salt = "metro", info = "secp256k1", 48 bytes)` mapped to a
 scalar is the wallet's secp256k1 private key (Ethereum's curve, the ECIES shape XMTP used for its
-wallet-derived key bundles). Nothing has to be recovered or registered: the same signature
-reproduces the keypair anywhere, and it never leaves the browser.
+wallet-derived key bundles). Nothing has to be recovered: the same signature reproduces the
+keypair anywhere. Since 2026-09-04 that one signature is also the sign-in: the page keeps it in
+the browser, derives a second secp256k1 key from it (`info = "vault-secp256k1"`) and signs every
+request to the local daemon and to the vault with that identity, so a wallet is prompted once per
+browser, not once per action.
 
 **An agent has one random data key (DEK)**, minted at every sync. The bundle is AES-256-GCM
 under it, and the DEK is wrapped to the wallet's public key (ephemeral secp256k1 ECDH, HKDF,
 AES-256-GCM). The wrapped keys travel in the bundle header in the clear and are useless without
 the matching private key.
 
-- EOAs only. The wallet signs once per action; a non-deterministic signer (ERC-1271 contract
+- EOAs only. The wallet signs once per browser; a non-deterministic signer (ERC-1271 contract
   wallets, some MPC wallets) derives another key at restore and fails by name, never silently.
 - Each wrapped key records the recipient's address and public key, so the wrong wallet fails
   with "this wallet does not unlock this agent", never a decryption error.

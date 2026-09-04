@@ -182,12 +182,11 @@ function toAttachResult(station: string, body: unknown): AttachResult {
 }
 
 export async function startAttach(
-  token: string,
   agentId: string,
   station: string,
   fields: Record<string, string>,
 ): Promise<AttachStarted> {
-  const body = await call(token, {
+  const body = await call({
     method: 'POST',
     path: `/${agentId}/accounts/start`,
     headers: { 'content-type': 'application/json' },
@@ -198,12 +197,11 @@ export async function startAttach(
 }
 
 export async function detachAccount(
-  token: string,
   agentId: string,
   station: string,
   accountId: string,
 ): Promise<void> {
-  await call(token, {
+  await call({
     method: 'DELETE',
     path: `/${agentId}/accounts/${encodeURIComponent(station)}/${encodeURIComponent(accountId)}`,
   });

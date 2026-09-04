@@ -1,6 +1,6 @@
 import { call } from './client';
 import { isRecord } from './accounts';
-import { signVaultRequest, type Envelope, type WalletKeys } from '../vault/crypto';
+import { type Envelope } from '../vault/crypto';
 
 export interface VaultEntry {
   id: string;
@@ -37,34 +37,30 @@ function toEntry(value: unknown): VaultEntry {
 }
 
 async function vaultCall(
-  keys: WalletKeys,
   base: string,
   method: 'GET' | 'PUT' | 'DELETE',
   path: string,
   body?: string,
 ): Promise<unknown> {
-  const route = `/api/vault${path}`;
-  return call('', {
+  return call({
     method,
-    base: `${base}${route}`,
-    auth: await signVaultRequest(keys, method, route),
+    base: `${base}/api/vault${path}`,
     ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body }),
   });
 }
 
-export async function listVault(keys: WalletKeys, base: string): Promise<VaultEntry[]> {
-  const body = await vaultCall(keys, base, 'GET', '');
+export async function listVault(base: string): Promise<VaultEntry[]> {
+  const body = await vaultCall(base, 'GET', '');
   if (!isRecord(body) || !Array.isArray(body.entries)) throw unexpected();
   return body.entries.map(toEntry);
 }
 
 export async function putVault(
-  keys: WalletKeys,
   base: string,
   id: string,
   input: { name: string; stations: string[]; envelope: Envelope },
 ): Promise<VaultEntry> {
-  return toEntry(await vaultCall(keys, base, 'PUT', `/${id}`, JSON.stringify(input)));
+  return toEntry(await vaultCall(base, 'PUT', `/${id}`, JSON.stringify(input)));
 }
 
 function toEnvelope(value: unknown): Envelope {
@@ -92,14 +88,14 @@ function toEnvelope(value: unknown): Envelope {
   };
 }
 
-export async function getVault(keys: WalletKeys, base: string, id: string): Promise<Envelope> {
-  const body = await vaultCall(keys, base, 'GET', `/${id}`);
+export async function getVault(base: string, id: string): Promise<Envelope> {
+  const body = await vaultCall(base, 'GET', `/${id}`);
   if (!isRecord(body)) throw unexpected();
   return toEnvelope(body.envelope);
 }
 
-export async function fetchBundle(token: string, agentId: string): Promise<AgentBundle> {
-  const body = await call(token, { method: 'GET', path: `/${agentId}/bundle` });
+export async function fetchBundle(agentId: string): Promise<AgentBundle> {
+  const body = await call({ method: 'GET', path: `/${agentId}/bundle` });
   if (!isRecord(body) || body.version !== 1 || !isRecord(body.agent)) throw unexpected();
   const agent = body.agent;
   if (typeof agent.id !== 'string' || typeof agent.name !== 'string' || typeof agent.key !== 'string') throw unexpected();
@@ -115,8 +111,8 @@ export async function fetchBundle(token: string, agentId: string): Promise<Agent
 
 export const stationKinds = (bundle: AgentBundle): string[] => [...new Set(bundle.agent.stations.map((s) => s.station))];
 
-export async function restoreBundle(token: string, bundle: unknown): Promise<RestoredAgent> {
-  const body = await call(token, {
+export async function restoreBundle(bundle: unknown): Promise<RestoredAgent> {
+  const body = await call({
     method: 'POST',
     path: '/restore',
     headers: { 'content-type': 'application/json' },

@@ -2,18 +2,17 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { allowLocalConnectors } from '../src/daemon/connector-url.ts';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { privateKeyToAccount } from 'viem/accounts';
-import { createSiweMessage } from 'viem/siwe';
-import { handleSiweAuthRequest } from '../src/daemon/siwe-routes.js';
+import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
+import { handleIdentityRequest } from '../src/daemon/identity-routes.js';
+import { ENCRYPTION_KEY_TYPED_DATA, deriveIdentityKey } from '../src/daemon/identity-key.js';
+import { auth, type Who } from './identity-helper.ts';
 import { handleModeRequest } from '../src/daemon/mode-api.js';
 import { handleSessionApis, type SessionApis } from '../src/daemon/session-apis.js';
 import { setLocalOwner } from '../src/db/file-admin.ts';
 import { localSessionApis } from '../src/daemon/local-mode.js';
-import { ensureLocalSessionSecret } from '../src/daemon/local-secret.js';
-import { signSession } from '../src/daemon/session.js';
 import { agentIdForKey, setKeyMap } from '../src/db/key-map.js';
 
 const OWNER = privateKeyToAccount(
@@ -25,21 +24,17 @@ const STRANGER = privateKeyToAccount(
 const PROJECT = 'localdaemon';
 const saved = {
   dir: process.env.METRO_AGENTS_DIR,
-  secret: process.env.METRO_SESSION_SECRET,
   port: process.env.METRO_WEBHOOK_PORT,
 };
 let dir = '';
 let server: Server;
 let base = '';
-let secret = '';
 const synced: string[] = [];
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-local-'));
   process.env.METRO_AGENTS_DIR = dir;
   process.env.METRO_WEBHOOK_PORT = '8420';
-  delete process.env.METRO_SESSION_SECRET;
-  secret = ensureLocalSessionSecret(dir);
   setKeyMap([]);
   const apis: SessionApis = localSessionApis({
     syncStations: (station) => {
@@ -55,7 +50,7 @@ beforeAll(async () => {
       Promise.resolve({ config: { token: String(input.token) }, identity: { handle: '@bot' } }),
   });
   server = createServer((req, res) => {
-    if (handleSiweAuthRequest(req, res, apis.siwe)) return;
+    if (apis.identity && handleIdentityRequest(req, res, apis.identity)) return;
     if (apis.mode && handleModeRequest(req, res, apis.mode)) return;
     if (handleSessionApis(req, res, apis)) return;
     res.writeHead(404).end();
@@ -75,64 +70,55 @@ afterAll(() => {
   rmSync(dir, { recursive: true, force: true });
   if (saved.dir === undefined) delete process.env.METRO_AGENTS_DIR;
   else process.env.METRO_AGENTS_DIR = saved.dir;
-  if (saved.secret === undefined) delete process.env.METRO_SESSION_SECRET;
-  else process.env.METRO_SESSION_SECRET = saved.secret;
   if (saved.port === undefined) delete process.env.METRO_WEBHOOK_PORT;
   else process.env.METRO_WEBHOOK_PORT = saved.port;
 });
 
 const J = { 'content-type': 'application/json' };
-const call = (method: string, path: string, token?: string, body?: unknown): Promise<Response> =>
+const call = async (method: string, path: string, token?: Who, body?: unknown): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
     headers: {
-      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+      ...(token === undefined ? {} : { authorization: await auth(method, path, token) }),
       ...(body === undefined ? {} : J),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
-async function signIn(account: typeof OWNER): Promise<Response> {
-  const { nonce } = (await (await fetch(`${base}/auth/siwe/nonce`)).json()) as { nonce: string };
-  const now = new Date();
-  const message = createSiweMessage({
-    address: account.address,
-    chainId: 1,
-    domain: 'metro.box',
-    uri: 'https://metro.box',
-    version: '1',
-    nonce,
-    issuedAt: now,
-    expirationTime: new Date(now.getTime() + 600_000),
-  });
-  const signature = await account.signMessage({ message });
-  return call('POST', '/auth/siwe/verify', undefined, { message, signature });
+async function signIn(account: PrivateKeyAccount): Promise<Response> {
+  const signature = await account.signTypedData(ENCRYPTION_KEY_TYPED_DATA);
+  return call('POST', '/auth/identity', undefined, { signature });
 }
 
-let session = '';
+async function identityOf(account: PrivateKeyAccount): Promise<PrivateKeyAccount> {
+  return privateKeyToAccount(deriveIdentityKey(await account.signTypedData(ENCRYPTION_KEY_TYPED_DATA)));
+}
+
+let session: PrivateKeyAccount = STRANGER;
 let agentId = '';
 let key = '';
 
 describe('a local daemon, end to end over http', () => {
-  test('it says it is local, unowned, with a machine project, and minted its own secret', async () => {
+  test('it says it is local, unowned, with a machine project', async () => {
     expect(await (await call('GET', '/api/mode')).json()).toEqual({ mode: 'local', owner: null, project: PROJECT, version: expect.any(String) });
-    expect(secret.length).toBeGreaterThan(30);
-    expect((statSync(join(dir, '.session-secret')).mode & 0o777).toString(8)).toBe('600');
-    expect(ensureLocalSessionSecret(dir)).toBe(secret);
     expect((await call('OPTIONS', '/api/mode')).status).toBe(204);
     expect((await call('POST', '/api/mode')).status).toBe(405);
   });
 
-  test('nobody can sign in until the operator sets the owner; then only that wallet can', async () => {
+  test('nobody can sign in until the operator sets the owner; then only that wallet can, with one typed-data signature', async () => {
     expect((await signIn(OWNER)).status).toBe(403);
     setLocalOwner(OWNER.address, dir);
     const res = await signIn(OWNER);
     expect(res.status).toBe(200);
-    session = ((await res.json()) as { session: string }).session;
+    session = await identityOf(OWNER);
+    expect(await res.json()).toEqual({ address: session.address.toLowerCase(), owner: OWNER.address.toLowerCase() });
     expect(((await (await call('GET', '/api/mode')).json()) as { owner: string }).owner).toBe(
       OWNER.address.toLowerCase(),
     );
     expect((await signIn(STRANGER)).status).toBe(403);
+    expect((await call('POST', '/auth/identity', undefined, { signature: '0x12' })).status).toBe(400);
+    expect((await call('GET', '/auth/identity')).status).toBe(405);
+    expect((await call('GET', `/api/agents?project=${PROJECT}`, await identityOf(STRANGER))).status).toBe(401);
   });
 
 
@@ -189,8 +175,8 @@ describe('a local daemon, end to end over http', () => {
     expect((await call('POST', `/api/agents/${made.id}/code`, session)).status).toBe(404);
     expect((await call('POST', `/api/agents/${made.id}/connectors`, session, { connectorId: 'conn0000001' })).status).toBe(404);
     expect((await call('DELETE', `/api/agents/${made.id}/runtime`, session)).status).toBe(404);
-    const stranger = signSession({ subject: STRANGER.address.toLowerCase(), agentIds: [] }, secret);
-    expect((await call('GET', `/api/agents?project=${PROJECT}`, stranger)).status).toBe(404);
-    expect((await call('GET', `/api/agents/${made.id}/connectors`, stranger)).status).toBe(404);
+    const stranger = await identityOf(STRANGER);
+    expect((await call('GET', `/api/agents?project=${PROJECT}`, stranger)).status).toBe(401);
+    expect((await call('GET', `/api/agents/${made.id}/connectors`, stranger)).status).toBe(401);
   });
 });

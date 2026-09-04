@@ -4,7 +4,6 @@ import { guessMime } from '../stations/attachments.js';
 import { safeFileName } from '../stations/attach-inline.js';
 import {
   allowedAgents,
-  authConfigFromEnv,
   authenticate,
   extractToken,
 } from '../mcp/request-identity.js';
@@ -69,7 +68,7 @@ const query = (req: IncomingMessage, key: string): string | undefined =>
   new URL(req.url ?? '/', 'http://localhost').searchParams.get(key) ?? undefined;
 
 const identityScope = (req: IncomingMessage): Set<string> =>
-  allowedAgents(authenticate(req, authConfigFromEnv()) ?? undefined);
+  allowedAgents(authenticate(req) ?? undefined);
 
 function ownerFromScope(req: IncomingMessage, allowed: Set<string>): string {
   const requested = query(req, 'agent');

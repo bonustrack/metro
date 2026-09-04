@@ -20,7 +20,6 @@ import {
 } from './http.js';
 import { localAgentKey } from '../db/materialize.js';
 import { fileSource } from '../db/file-source.js';
-import { ensureLocalSessionSecret } from './local-secret.js';
 import { applyLocalOwner } from './local-owner.js';
 import { localOwner } from '../db/file-admin.js';
 import { ensureStationDeps } from './runtime-deps.js';
@@ -119,7 +118,6 @@ async function sessionApis(): Promise<SessionApis> {
       prepareAccount,
     });
   const vault = await import('../db/vault.js');
-  const users = await import('../db/users.js');
   return {
     vaultApi: {
       list: vault.listVaultForOwner,
@@ -127,14 +125,12 @@ async function sessionApis(): Promise<SessionApis> {
       get: vault.getVaultForOwner,
       remove: vault.deleteVaultForOwner,
     },
-    siwe: { ensureUser: users.ensureUserByAddress },
     mode: hostedMode,
   };
 }
 
 async function main(): Promise<void> {
   if (isLocalMode()) {
-    ensureLocalSessionSecret();
     applyLocalOwner();
     await materializeFrom(fileSource, { allowEmpty: true });
   }

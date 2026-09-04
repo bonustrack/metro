@@ -77,13 +77,9 @@ export function handleClaudeRequest(
     sendJson(req, res, 405, { error: 'method not allowed' });
     return true;
   }
-  const session = apiSession(req);
-  if (!session) {
-    sendJson(req, res, 401, { error: 'unauthorized' });
-    return true;
-  }
-  Promise.resolve()
-    .then(() => {
+  apiSession(req)
+    .then((session) => {
+      if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
       return answer(req.method ?? 'GET', path, new URLSearchParams(search), (deps.dir ?? claudeDir)());
     })

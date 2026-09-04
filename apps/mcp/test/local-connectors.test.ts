@@ -7,22 +7,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { localSessionApis } from '../src/daemon/local-mode.ts';
-import { ensureLocalSessionSecret } from '../src/daemon/local-secret.ts';
-import { signSession } from '../src/daemon/session.ts';
 import { setLocalOwner, localCreateAgent, LOCAL_PROJECT_ID } from '../src/db/file-admin.ts';
 import { setKeyMap } from '../src/db/key-map.ts';
+import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 const saved = {
   dir: process.env.METRO_AGENTS_DIR,
-  secret: process.env.METRO_SESSION_SECRET,
   port: process.env.METRO_WEBHOOK_PORT,
   host: process.env.METRO_HTTP_HOST,
   pub: process.env.METRO_PUBLIC_URL,
 };
 let dir = '';
-let secret = '';
 let vendor: Server;
 let vendorBase = '';
 let daemon: Server;
@@ -63,9 +60,7 @@ const listen = (server: Server): Promise<string> =>
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-local-conn-'));
   process.env.METRO_AGENTS_DIR = dir;
-  delete process.env.METRO_SESSION_SECRET;
   delete process.env.METRO_PUBLIC_URL;
-  secret = ensureLocalSessionSecret(dir);
   setKeyMap([]);
   setLocalOwner(OWNER, dir);
   tony = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'Tony', dir);
@@ -109,7 +104,6 @@ afterAll(async () => {
   delete process.env.METRO_MODE;
   for (const [k, v] of [
     ['METRO_AGENTS_DIR', saved.dir],
-    ['METRO_SESSION_SECRET', saved.secret],
     ['METRO_WEBHOOK_PORT', saved.port],
     ['METRO_HTTP_HOST', saved.host],
     ['METRO_PUBLIC_URL', saved.pub],
@@ -119,11 +113,11 @@ afterAll(async () => {
 });
 
 const J = { 'content-type': 'application/json' };
-const session = (subject = OWNER): string => signSession({ subject, agentIds: [] }, secret);
-const call = (method: string, path: string, body?: unknown, token = session()): Promise<Response> =>
+const session = (subject = OWNER): string => subject;
+const call = async (method: string, path: string, body?: unknown, token: Who = session()): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
-    headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : J) },
+    headers: { authorization: await auth(method, path, token), ...(body === undefined ? {} : J) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 

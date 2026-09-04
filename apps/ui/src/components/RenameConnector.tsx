@@ -3,7 +3,6 @@ import { renameConnector, type Connector } from '../api/connectors';
 import { NameModal } from './NameModal';
 
 interface RenameConnectorProps {
-  token: string;
   connector: Connector;
   open: boolean;
   onClose: () => void;
@@ -11,7 +10,6 @@ interface RenameConnectorProps {
 }
 
 export function RenameConnector({
-  token,
   connector,
   open,
   onClose,
@@ -27,7 +25,7 @@ export function RenameConnector({
       open={open}
       onClose={onClose}
       onSubmit={async (name) => {
-        const row = await renameConnector(token, connector.id, name);
+        const row = await renameConnector(connector.id, name);
         onRenamed();
         return row;
       }}

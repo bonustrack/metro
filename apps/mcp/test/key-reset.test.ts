@@ -7,7 +7,6 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { attachmentUrl } from '../src/daemon/attach-serve.ts';
-import { signSession } from '../src/daemon/session.ts';
 import { publishEvent, type MetroEvent } from '../src/daemon/events.ts';
 import { asLine } from '../src/stations/lines.ts';
 import { closeAgentSession, createMetroMcp } from '../src/mcp/index.ts';
@@ -15,8 +14,8 @@ import { agentIdForKey, rotateAgentKey, setKeyMap } from '../src/db/key-map.ts';
 import { setAgentMap } from '../src/db/agent-map.ts';
 import { AgentAdminError } from '../src/db/agent-admin.ts';
 import type { AgentApiDeps } from '../src/daemon/agent-api.ts';
+import { auth } from './identity-helper.ts';
 
-const SECRET = 'key-reset-test-secret';
 const ADA = 'agent000001';
 const BOB = 'agent000002';
 const ADA_ACCOUNT = 'a1-adawa';
@@ -79,8 +78,7 @@ const deps: AgentApiDeps = {
   syncStations: () => Promise.resolve(),
 };
 
-const session = (email: string): string =>
-  signSession({ subject: email, agentIds: [] }, SECRET);
+const session = (email: string): string => email;
 
 const msg = (line: string, text: string): MetroEvent =>
   ({
@@ -200,17 +198,16 @@ const waitFor = async (predicate: () => boolean, ms = 5000): Promise<void> => {
 
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 150));
 
-const doReset = (email: string, id: number): Promise<Response> =>
+const doReset = async (email: string, id: number): Promise<Response> =>
   fetch(`${base}/api/agents/${id}/key`, {
     method: 'POST',
     headers: {
-      authorization: `Bearer ${session(email)}`,
+      authorization: await auth('POST', `/api/agents/${String(id)}/key`, session(email)),
       connection: 'close',
     },
   });
 
 beforeAll(async () => {
-  process.env.METRO_SESSION_SECRET = SECRET;
   attachDir = mkdtempSync(join(tmpdir(), 'metro-keyreset-'));
   writeFileSync(join(attachDir, ADA_FILE), PNG);
   writeFileSync(join(attachDir, BOB_FILE), PNG);
@@ -250,7 +247,6 @@ afterAll(async () => {
       new Promise<void>((r) => setTimeout(r, 2000).unref()),
     ]);
   }
-  delete process.env.METRO_SESSION_SECRET;
   delete process.env.METRO_XMTP_ATTACH_DIR;
   delete process.env.METRO_PUBLIC_URL;
   setKeyMap([]);

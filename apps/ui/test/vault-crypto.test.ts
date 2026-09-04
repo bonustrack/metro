@@ -6,9 +6,9 @@ import {
   fromBase64Url,
   openBundle,
   sealBundle,
-  signVaultRequest,
+  signRequest,
   toBase64Url,
-  vaultChallenge,
+  requestChallenge,
   walletKeys,
   type Envelope,
 } from '../src/vault/crypto';
@@ -38,12 +38,12 @@ describe('the wallet key', () => {
 
   test('a vault request is signed by the derived identity, and only it verifies', async () => {
     const keys = await walletKeys(OWNER.address, await signFor(OWNER));
-    const header = await signVaultRequest(keys, 'GET', '/api/vault', 1_700_000_000_000);
+    const header = await signRequest(keys, 'GET', '/api/vault', 1_700_000_000_000);
     const [scheme, address, at, signature] = header.split(' ');
-    expect(scheme).toBe('Vault');
+    expect(scheme).toBe('Metro');
     expect(address).toBe(keys.vault.address);
     expect(at).toBe('1700000000000');
-    const message = vaultChallenge('GET', '/api/vault', 1_700_000_000_000);
+    const message = requestChallenge('GET', '/api/vault', 1_700_000_000_000);
     expect(await verifyMessage({ address: keys.vault.address, message, signature: signature as `0x${string}` })).toBe(true);
     expect(await verifyMessage({ address: OWNER.address, message, signature: signature as `0x${string}` })).toBe(false);
   });

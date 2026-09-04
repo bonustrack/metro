@@ -12,11 +12,14 @@ import { MetroLogo } from './MetroLogo';
 import { PageTitle } from './PageTitle';
 import { Pill } from './Pill';
 import { Spinner } from './Spinner';
-import { fetchNonce, loginMessage, verifyLogin } from '../api/siwe';
 import { storeRecentWallet } from '../auth/recent';
-import { connectWallet, signWith, useWallets } from '../auth/wallet';
-import { daemonHost } from '../auth/daemon';
-import { daemonBase } from '../auth/session';
+import { connectWallet, signTypedDataWith, useWallets } from '../auth/wallet';
+import { registerIdentity } from '../api/client';
+import { fetchMode } from '../api/mode';
+import { shortAddress } from '../api/address';
+import { identityFrom, storeIdentity, type Identity } from '../auth/identity';
+import { ENCRYPTION_KEY_TYPED_DATA } from '../vault/crypto';
+import { daemonBase, daemonHost } from '../auth/daemon';
 import { type WalletChoice } from '../auth/wallet-options';
 
 const CARD_WIDTH = 400;
@@ -28,19 +31,26 @@ const SPINNER_SIZE = 20;
 const NO_BROWSER_WALLET =
   'No browser wallet found. WalletConnect and Coinbase Wallet reach the wallet app on your phone; MetaMask or Rabby in this browser would show up here too.';
 
+const ONE_SIGNATURE =
+  'One signature unlocks this daemon and derives the key that seals your agent on metro.box. It stays in this browser, so you are not asked again.';
+
 export async function signInTo(
   choice: WalletChoice,
   dark: boolean,
-  base?: string,
-): Promise<string> {
+  base = daemonBase(),
+): Promise<Identity> {
   const connected = await connectWallet(choice, dark);
   try {
-    const nonce = await fetchNonce(base);
-    const message = loginMessage(connected.address, nonce);
-    const signature = await signWith(connected, message);
-    const token = await verifyLogin(message, signature, base);
+    const { owner } = await fetchMode(base);
+    if (owner !== null && connected.address.toLowerCase() !== owner.toLowerCase())
+      throw new Error(`Sign with the wallet that owns this machine, ${shortAddress(owner)}.`);
+    const signature = await signTypedDataWith(connected, ENCRYPTION_KEY_TYPED_DATA);
+    const identity = await identityFrom(connected.address, signature);
+    const registered = await registerIdentity(identity, base);
+    if (!registered.ok) throw new Error(registered.error);
+    storeIdentity(identity);
     storeRecentWallet(choice.id);
-    return token;
+    return identity;
   } finally {
     await connected.release();
   }
@@ -100,7 +110,7 @@ export function WalletRow({
 }
 
 interface LoginProps {
-  onSignedIn: (token: string) => void;
+  onSignedIn: () => void;
 }
 
 export function Login({ onSignedIn }: LoginProps): ReactNode {
@@ -116,7 +126,9 @@ export function Login({ onSignedIn }: LoginProps): ReactNode {
     setBusy(choice.id);
     setError(null);
     signInTo(choice, dark)
-      .then(onSignedIn)
+      .then(() => {
+        onSignedIn();
+      })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Sign-in failed.');
       })
@@ -149,6 +161,9 @@ export function Login({ onSignedIn }: LoginProps): ReactNode {
             </a>
           </Text>
         </Row>
+        <Text size="sm" role="secondary">
+          {ONE_SIGNATURE}
+        </Text>
         {wallets.some((w) => w.kind === 'injected') ? null : (
           <Text size="sm" role="secondary">
             {NO_BROWSER_WALLET}

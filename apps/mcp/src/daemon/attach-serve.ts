@@ -7,7 +7,6 @@ import {
 } from '../stations/attachments.js';
 import {
   allowedAgents,
-  authConfigFromEnv,
   authenticate,
   extractToken,
 } from '../mcp/request-identity.js';
@@ -21,7 +20,7 @@ function authorized(req: IncomingMessage, name: string): boolean {
   const owner = attachmentOwner(name);
   if (owner === undefined) return false;
   if (grantAllows(name, owner, extractToken(req) ?? '')) return true;
-  return allowedAgents(authenticate(req, authConfigFromEnv()) ?? undefined).has(
+  return allowedAgents(authenticate(req) ?? undefined).has(
     owner,
   );
 }

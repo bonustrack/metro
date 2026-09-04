@@ -44,7 +44,6 @@ import {
   localOwnedAgentOrThrow,
   localOwner,
   localResetAgentKey,
-  ownerSignIn,
   readLocalAgentFile,
 } from '../db/file-admin.js';
 import { listAgentFiles, readAgentFile } from '../db/file-source.js';
@@ -191,7 +190,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     localCli,
     claudeApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     updateApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart },
-    siwe: { ensureUser: ownerSignIn },
+    identity: { owner: localOwner },
     mode: localModeInfo,
   };
 }

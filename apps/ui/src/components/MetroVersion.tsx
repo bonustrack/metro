@@ -24,11 +24,11 @@ async function untilVersion(version: string): Promise<void> {
 
 type Phase = { kind: 'idle' } | { kind: 'updating'; to: string } | { kind: 'done'; to: string };
 
-export function MetroVersion({ token }: { token: string }): ReactNode {
+export function MetroVersion(): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const mode = useModeQuery();
-  const check = useUpdateQuery(token);
+  const check = useUpdateQuery();
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [error, setError] = useState<string | null>(null);
   const version = mode.data?.version ?? null;
@@ -38,7 +38,7 @@ export function MetroVersion({ token }: { token: string }): ReactNode {
     const to = check.data?.latest ?? '';
     setPhase({ kind: 'updating', to });
     setError(null);
-    runUpdate(token)
+    runUpdate()
       .then(async (result) => {
         if (result.restarting) await untilVersion(result.version);
         setPhase({ kind: 'done', to: result.version });

@@ -1,8 +1,8 @@
+import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
 import { afterEach, beforeAll, afterAll, describe, expect, test } from 'bun:test';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
-import { signSession } from '../src/daemon/session.ts';
 import type { AgentApiDeps } from '../src/daemon/agent-api.ts';
 import { AttachSessions } from '../src/daemon/attach-session.ts';
 import { AgentAdminError, type AgentSummary } from '../src/db/agent-admin.ts';
@@ -13,7 +13,6 @@ import {
   type PreparedAccount,
 } from '../src/stations/attach.ts';
 
-const SECRET = 'account-api-test-secret';
 const FAKE_TOKEN = 'fake-bot-token-not-real';
 const FAKE_KEY = '0xfeed0000000000000000000000000000000000000000000000000000000fake1';
 const FAKE_HOOK_SECRET = 'b'.repeat(64);
@@ -185,11 +184,10 @@ const deps: AgentApiDeps = {
   },
 };
 
-const session = (email: string, secret = SECRET): string =>
-  signSession({ subject: email, agentIds: [] }, secret);
+const session = (email: string): string => email;
 
-const start = (
-  token: string | undefined,
+const start = async (
+  token: Who | undefined,
   agentId: string,
   body: unknown,
 ): Promise<Response> =>
@@ -197,19 +195,19 @@ const start = (
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+      ...(token === undefined ? {} : { authorization: await auth('POST', `/api/agents/${agentId}/accounts/start`, token) }),
     },
     body: JSON.stringify(body),
   });
 
-const detach = (
-  token: string | undefined,
+const detach = async (
+  token: Who | undefined,
   agentId: string,
   path: string,
 ): Promise<Response> =>
   fetch(`${base}/api/agents/${agentId}/accounts/${path}`, {
     method: 'DELETE',
-    headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
+    headers: token === undefined ? {} : { authorization: await auth('DELETE', `/api/agents/${agentId}/accounts/${path}`, token) },
   });
 
 interface AttachBody {
@@ -224,7 +222,6 @@ interface AttachBody {
 }
 
 beforeAll(async () => {
-  process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_PUBLIC_URL = 'https://mcp.metro.box';
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   process.env.METRO_WEBHOOK_PORT = String(
@@ -236,7 +233,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((r) => server.close(() => r()));
-  delete process.env.METRO_SESSION_SECRET;
   delete process.env.METRO_PUBLIC_URL;
 });
 
@@ -263,7 +259,7 @@ describe('POST /api/agents/:id/accounts/start authorisation', () => {
   });
 
   test('a session signed with another secret attaches nothing', async () => {
-    const res = await start(session('ada@lovelace.dev', 'other'), 'agent000001', {
+    const res = await start(TEST_STRANGER, 'agent000001', {
       station: 'telegram-bot',
       token: FAKE_TOKEN,
     });
@@ -434,11 +430,10 @@ describe('POST /api/agents/:id/accounts/start', () => {
   });
 
   test('GET and DELETE on the start path are 405', async () => {
-    const headers = { authorization: `Bearer ${session('ada@lovelace.dev')}` };
     for (const method of ['GET', 'DELETE']) {
       const res = await fetch(`${base}/api/agents/agent000001/accounts/start`, {
         method,
-        headers,
+        headers: { authorization: await auth(method, '/api/agents/agent000001/accounts/start', 'ada@lovelace.dev') },
       });
       expect(res.status).toBe(405);
     }
@@ -447,7 +442,7 @@ describe('POST /api/agents/:id/accounts/start', () => {
   test('a non-JSON body is 400', async () => {
     const res = await fetch(`${base}/api/agents/agent000001/accounts/start`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('POST', `${base}/api/agents/agent000001/accounts/start`, 'ada@lovelace.dev') },
       body: 'not json',
     });
     expect(res.status).toBe(400);
@@ -596,7 +591,7 @@ describe('DELETE /api/agents/:id/accounts/:station/:account', () => {
   test('POST on an account path is 405', async () => {
     const res = await fetch(`${base}/api/agents/agent000001/accounts/telegram-bot/a1-0000`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('POST', `${base}/api/agents/agent000001/accounts/telegram-bot/a1-0000`, 'ada@lovelace.dev') },
     });
     expect(res.status).toBe(405);
   });
@@ -605,7 +600,7 @@ describe('DELETE /api/agents/:id/accounts/:station/:account', () => {
 describe('GET /api/agents advertises what can be attached', () => {
   test('lists the attachable stations', async () => {
     const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('GET', `${base}/api/agents?project=${PROJECT}`, 'ada@lovelace.dev') },
     });
     const body = (await res.json()) as { attachable?: string[] };
     expect(body.attachable).toEqual([
@@ -665,7 +660,7 @@ describe('interactive attach sessions over HTTP', () => {
     const res = await fetch(`${sessionUrl('agent000001', attachId)}/step`, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${session('ada@lovelace.dev')}`,
+        authorization: await auth('POST', `${sessionUrl('agent000001', attachId)}/step`, 'ada@lovelace.dev'),
         'content-type': 'application/json',
       },
       body: JSON.stringify({ code: '12345' }),
@@ -673,7 +668,7 @@ describe('interactive attach sessions over HTTP', () => {
     expect(res.status).toBe(200);
     await new Promise((r) => setTimeout(r, 10));
     const poll = await fetch(sessionUrl('agent000001', attachId), {
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('GET', sessionUrl('agent000001', attachId), 'ada@lovelace.dev') },
     });
     expect(((await poll.json()) as SessionBody).status).toBe('done');
     expect(rows[0]?.station).toBe('telegram');
@@ -684,27 +679,27 @@ describe('interactive attach sessions over HTTP', () => {
     await fetch(`${sessionUrl('agent000001', attachId)}/step`, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${session('ada@lovelace.dev')}`,
+        authorization: await auth('POST', `${sessionUrl('agent000001', attachId)}/step`, 'ada@lovelace.dev'),
         'content-type': 'application/json',
       },
       body: JSON.stringify({ code: '12345' }),
     });
     await new Promise((r) => setTimeout(r, 10));
     const poll = await fetch(sessionUrl('agent000001', attachId), {
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('GET', sessionUrl('agent000001', attachId), 'ada@lovelace.dev') },
     });
     expect(await poll.text()).not.toContain('fake-session-for-');
   });
 
   test('another signed-in user cannot poll or step somebody else session', async () => {
     const attachId = await startSession('ada@lovelace.dev');
-    const bob = { authorization: `Bearer ${session('bob@builder.dev')}` };
-    expect((await fetch(sessionUrl('agent000001', attachId), { headers: bob })).status).toBe(
-      404,
-    );
+    const bob = (method: string, url: string): Promise<string> => auth(method, url, 'bob@builder.dev');
+    expect(
+      (await fetch(sessionUrl('agent000001', attachId), { headers: { authorization: await bob('GET', sessionUrl('agent000001', attachId)) } })).status,
+    ).toBe(404);
     const step = await fetch(`${sessionUrl('agent000001', attachId)}/step`, {
       method: 'POST',
-      headers: { ...bob, 'content-type': 'application/json' },
+      headers: { authorization: await bob('POST', `${sessionUrl('agent000001', attachId)}/step`), 'content-type': 'application/json' },
       body: JSON.stringify({ code: '12345' }),
     });
     expect(step.status).toBe(404);
@@ -720,12 +715,12 @@ describe('interactive attach sessions over HTTP', () => {
     const attachId = await startSession('ada@lovelace.dev');
     const res = await fetch(sessionUrl('agent000001', attachId), {
       method: 'DELETE',
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('DELETE', sessionUrl('agent000001', attachId), 'ada@lovelace.dev') },
     });
     expect(res.status).toBe(200);
     expect(((await res.json()) as SessionBody).cancelled).toBe(true);
     const poll = await fetch(sessionUrl('agent000001', attachId), {
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('GET', sessionUrl('agent000001', attachId), 'ada@lovelace.dev') },
     });
     expect(poll.status).toBe(404);
   });
@@ -733,7 +728,7 @@ describe('interactive attach sessions over HTTP', () => {
   test('an id that is not an attach id never reaches the session store', async () => {
     for (const bad of ['as_short', 'as_' + 'x'.repeat(30), 'notasession']) {
       const res = await fetch(sessionUrl('agent000001', bad), {
-        headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+        headers: { authorization: await auth('GET', sessionUrl('agent000001', bad), 'ada@lovelace.dev') },
       });
       expect(res.status).toBe(404);
     }
@@ -772,7 +767,7 @@ describe('interactive attach sessions over HTTP', () => {
     const attachId = await startSession('ada@lovelace.dev');
     const res = await fetch(sessionUrl('agent000001', attachId), {
       method: 'PUT',
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('PUT', sessionUrl('agent000001', attachId), 'ada@lovelace.dev') },
     });
     expect(res.status).toBe(405);
   });
@@ -795,16 +790,16 @@ describe('a sign-in that never completes leaves the accounts table alone', () =>
   const poll = async (attachId: string): Promise<SessionBody> => {
     await new Promise((r) => setTimeout(r, 10));
     const res = await fetch(sessionUrl('agent000001', attachId), {
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('GET', sessionUrl('agent000001', attachId), 'ada@lovelace.dev') },
     });
     return (await res.json()) as SessionBody;
   };
 
-  const step = (attachId: string, code: string): Promise<Response> =>
+  const step = async (attachId: string, code: string): Promise<Response> =>
     fetch(`${sessionUrl('agent000001', attachId)}/step`, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${session('ada@lovelace.dev')}`,
+        authorization: await auth('POST', `${sessionUrl('agent000001', attachId)}/step`, 'ada@lovelace.dev'),
         'content-type': 'application/json',
       },
       body: JSON.stringify({ code }),
@@ -840,7 +835,7 @@ describe('a sign-in that never completes leaves the accounts table alone', () =>
     const attachId = await startSession('ada@lovelace.dev');
     await fetch(sessionUrl('agent000001', attachId), {
       method: 'DELETE',
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('DELETE', sessionUrl('agent000001', attachId), 'ada@lovelace.dev') },
     });
     expect(rows.length).toBe(before.length);
     expect(rows).toEqual(before);

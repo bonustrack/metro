@@ -4,7 +4,7 @@ import {
   type OAuthAuth,
   type OAuthTokens,
 } from './connector-verify.js';
-import { validateReturnTo } from './session-config.js';
+import { validateReturnTo } from './return-to.js';
 import {
   authorizeUrl,
   exchangeCode,

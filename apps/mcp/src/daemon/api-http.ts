@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
-import { verifySession } from './session.js';
-import { extractToken } from '../mcp/request-identity.js';
+import { signedIdentity } from './signed-identity.js';
+import { identitySubject } from './identity-registry.js';
 
 const BODY_MAX = 4 * 1024;
 
@@ -35,17 +35,10 @@ export function sendJson(
   res.end(JSON.stringify(body));
 }
 
-export function apiSession(req: IncomingMessage): ApiSession | null {
-  const secret = process.env.METRO_SESSION_SECRET?.trim() ?? '';
-  if (secret === '') return null;
-  const token = extractToken(req) ?? '';
-  if (token === '') return null;
-  try {
-    const { subject } = verifySession(token, secret);
-    return { subject: subject.toLowerCase() };
-  } catch {
-    return null;
-  }
+export async function apiSession(req: IncomingMessage): Promise<ApiSession | null> {
+  const address = await signedIdentity(req);
+  const subject = address === null ? undefined : identitySubject(address);
+  return subject === undefined ? null : { subject };
 }
 
 export interface AgentIdentity {

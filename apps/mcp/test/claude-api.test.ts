@@ -5,12 +5,11 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/daemon/claude-api.js';
-import { signSession } from '../src/daemon/session.js';
 import { ApiError } from '../src/daemon/api-error.js';
+import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
-const SECRET = 'claude-test-secret';
 const PROJECT = '-home-me-proj';
 const SESSION = '11111111-2222-4333-8444-555555555555';
 const line = (o: unknown): string => `${JSON.stringify(o)}\n`;
@@ -19,10 +18,8 @@ const base_ = { cwd: '/home/me/proj', sessionId: SESSION, version: '2.1.237', gi
 let dir = '';
 let server: Server;
 let base = '';
-const prev = process.env.METRO_SESSION_SECRET;
 
 beforeAll(async () => {
-  process.env.METRO_SESSION_SECRET = SECRET;
   dir = mkdtempSync(join(tmpdir(), 'metro-claude-'));
   const project = join(dir, 'projects', PROJECT);
   mkdirSync(join(project, 'memory'), { recursive: true });
@@ -61,12 +58,10 @@ beforeAll(async () => {
 afterAll(() => {
   server.close();
   rmSync(dir, { recursive: true, force: true });
-  if (prev === undefined) delete process.env.METRO_SESSION_SECRET;
-  else process.env.METRO_SESSION_SECRET = prev;
 });
 
-const get = (path: string, subject = OWNER): Promise<Response> =>
-  fetch(`${base}${path}`, { headers: { authorization: `Bearer ${signSession({ subject, agentIds: [] }, SECRET)}` } });
+const get = async (path: string, subject = OWNER): Promise<Response> =>
+  fetch(`${base}${path}`, { headers: { authorization: await auth('GET', path, subject) } });
 const json = async <T>(path: string): Promise<T> => (await (await get(path)).json()) as T;
 
 describe('Claude Code sessions and memory, read from the disk the daemon runs on', () => {
@@ -130,10 +125,10 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
   test('a session can be deleted, with its sidecar directory, once', async () => {
     mkdirSync(join(dir, 'projects', PROJECT, SESSION), { recursive: true });
     writeFileSync(join(dir, 'projects', PROJECT, SESSION, 'tool-results.json'), '{}');
-    const del = (subject = OWNER): Promise<Response> =>
+    const del = async (subject = OWNER): Promise<Response> =>
       fetch(`${base}/api/claude/sessions/${SESSION}?project=${PROJECT}`, {
         method: 'DELETE',
-        headers: { authorization: `Bearer ${signSession({ subject, agentIds: [] }, SECRET)}` },
+        headers: { authorization: await auth('DELETE', `/api/claude/sessions/${SESSION}`, subject) },
       });
     expect((await del(STRANGER)).status).toBe(404);
     const res = await del();
@@ -142,7 +137,7 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect(existsSync(join(dir, 'projects', PROJECT, `${SESSION}.jsonl`))).toBe(false);
     expect(existsSync(join(dir, 'projects', PROJECT, SESSION))).toBe(false);
     expect((await del()).status).toBe(404);
-    expect((await fetch(`${base}/api/claude/projects`, { method: 'DELETE', headers: { authorization: `Bearer ${signSession({ subject: OWNER, agentIds: [] }, SECRET)}` } })).status).toBe(405);
+    expect((await fetch(`${base}/api/claude/projects`, { method: 'DELETE', headers: { authorization: await auth('DELETE', '/api/claude/projects', OWNER) } })).status).toBe(405);
   });
 
   test('a stranger gets 404s, no session gets 401, and only GET is served', async () => {

@@ -265,7 +265,7 @@ const ALLOWED: Record<Routable['kind'], string[]> = {
   rename: ['POST'],
 };
 
-function dispatch(
+async function dispatch(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
@@ -273,14 +273,14 @@ function dispatch(
 ): Promise<void> {
   if (tgt.kind === 'callback') {
     handleCallback(req, res, deps);
-    return Promise.resolve();
+    return;
   }
-  const session = apiSession(req);
+  const session = await apiSession(req);
   if (!session) {
     sendJson(req, res, 401, { error: 'unauthorized' });
-    return Promise.resolve();
+    return;
   }
-  return route(req, res, deps, session, tgt);
+  await route(req, res, deps, session, tgt);
 }
 
 export function handleConnectorApiRequest(

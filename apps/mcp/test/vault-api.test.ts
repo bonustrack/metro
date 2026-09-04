@@ -2,12 +2,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { privateKeyToAccount } from 'viem/accounts';
-import { handleVaultApiRequest, vaultChallenge, type VaultApiDeps } from '../src/daemon/vault-api.js';
-import { signSession } from '../src/daemon/session.js';
+import { handleVaultApiRequest, type VaultApiDeps } from '../src/daemon/vault-api.js';
+import { identityChallenge } from '../src/daemon/signed-identity.js';
 import { VaultError } from '../src/db/vault.js';
 import type { VaultBundle } from '../src/daemon/vault-types.js';
 
-const SECRET = 'a-test-session-secret';
 const OWNER_ACCOUNT = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
 const OTHER_ACCOUNT = privateKeyToAccount('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a');
 const OWNER = OWNER_ACCOUNT.address.toLowerCase();
@@ -43,10 +42,8 @@ const deps: VaultApiDeps = {
 
 let server: Server;
 let base = '';
-const saved = process.env.METRO_SESSION_SECRET;
 
 beforeAll(async () => {
-  process.env.METRO_SESSION_SECRET = SECRET;
   server = createServer((req, res) => {
     if (handleVaultApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
@@ -58,7 +55,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  process.env.METRO_SESSION_SECRET = saved;
   await new Promise<void>((r) => {
     server.close(() => {
       r();
@@ -74,8 +70,8 @@ type Who = typeof OWNER_ACCOUNT | string | null;
 async function authHeader(who: Who, method: string, path: string, at = Date.now()): Promise<Record<string, string>> {
   if (who === null) return {};
   if (typeof who === 'string') return { authorization: who };
-  const signature = await who.signMessage({ message: vaultChallenge(method, path, at) });
-  return { authorization: `Vault ${who.address} ${String(at)} ${signature}` };
+  const signature = await who.signMessage({ message: identityChallenge(method, path, at) });
+  return { authorization: `Metro ${who.address} ${String(at)} ${signature}` };
 }
 const call = async (method: string, path: string, who: Who, body?: unknown, at?: number): Promise<Response> =>
   fetch(`${base}${path}`, {
@@ -86,7 +82,7 @@ const call = async (method: string, path: string, who: Who, body?: unknown, at?:
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-const session = (subject: string): string => `Bearer ${signSession({ subject, agentIds: [] }, SECRET)}`;
+const session = (subject: string): string => `Bearer session-for-${subject}`;
 const ENVELOPE = { v: 1, agentId: AGENT, nonce: 'n', ciphertext: 'c', key: { recipient: OWNER } };
 
 describe('the vault routes', () => {

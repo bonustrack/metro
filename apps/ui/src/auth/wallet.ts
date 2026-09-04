@@ -184,9 +184,6 @@ export function connectWallet(choice: WalletChoice, dark: boolean): Promise<Conn
 const clientFor = (connected: Connected) =>
   createWalletClient({ account: connected.address, transport: custom(connected.provider) });
 
-export function signWith(connected: Connected, message: string): Promise<`0x${string}`> {
-  return clientFor(connected).signMessage({ message });
-}
 
 export function signTypedDataWith(connected: Connected, typedData: TypedDataDefinition): Promise<`0x${string}`> {
   return clientFor(connected).signTypedData(typedData);

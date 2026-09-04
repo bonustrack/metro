@@ -12,7 +12,6 @@ import { DeleteConnector } from './DeleteConnector';
 import { RenameConnector } from './RenameConnector';
 
 interface ConnectorActionsProps {
-  token: string;
   connector: Connector;
   refreshing: boolean;
   onRefresh: () => void;
@@ -22,7 +21,7 @@ interface ConnectorActionsProps {
 }
 
 export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
-  const { token, connector, refreshing, onRefresh, onError } = props;
+  const { connector, refreshing, onRefresh, onError } = props;
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -31,7 +30,7 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
   const connect = (): void => {
     setBusy(true);
     const tab = window.open('', '_blank');
-    connectConnector(token, connector.id).then(
+    connectConnector(connector.id).then(
       (authorizeUrl) => {
         setBusy(false);
         if (tab === null) window.location.assign(authorizeUrl);
@@ -47,7 +46,7 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
 
   const disconnect = (): void => {
     setBusy(true);
-    disconnectConnector(token, connector.id).then(
+    disconnectConnector(connector.id).then(
       () => {
         setBusy(false);
         props.onChanged();
@@ -93,7 +92,6 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
       />
       <RenameConnector
         key={connector.name}
-        token={token}
         connector={connector}
         open={renaming}
         onClose={() => {

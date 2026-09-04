@@ -5,7 +5,6 @@ import {
 } from '../daemon/http.js';
 import {
   allowedAgents,
-  authConfigFromEnv,
   authenticate,
   runWithIdentity,
   type RequestIdentity,
@@ -156,7 +155,7 @@ export async function createMetroMcp(): Promise<{
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> => {
-    const identity = authenticate(req, authConfigFromEnv());
+    const identity = authenticate(req);
     if (!identity) {
       res.writeHead(401).end('unauthorized');
       return;

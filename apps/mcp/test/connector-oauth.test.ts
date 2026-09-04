@@ -1,8 +1,8 @@
+import { auth } from './identity-helper.ts';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
-import { signSession } from '../src/daemon/session.ts';
 import { authorizeUrl, challengeOf, newVerifier } from '../src/daemon/oauth-client.ts';
 import { resourceMetadataUrls } from '../src/daemon/oauth-discovery.ts';
 import {
@@ -12,10 +12,8 @@ import {
 } from '../src/daemon/oauth-pending.ts';
 import { oauthExpired } from '../src/daemon/connector-oauth.ts';
 
-const SECRET = 'connector-oauth-secret';
 let server: Server;
 let base = '';
-let savedSecret: string | undefined;
 let savedHost: string | undefined;
 
 const SERVER = {
@@ -48,9 +46,7 @@ const deps = {
 };
 
 beforeAll(async () => {
-  savedSecret = process.env.METRO_SESSION_SECRET;
   savedHost = process.env.METRO_HTTP_HOST;
-  process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
   server = await startWebhookServer(makeEmit(), { connectorApi: deps });
@@ -58,8 +54,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedSecret === undefined) delete process.env.METRO_SESSION_SECRET;
-  else process.env.METRO_SESSION_SECRET = savedSecret;
   if (savedHost === undefined) delete process.env.METRO_HTTP_HOST;
   else process.env.METRO_HTTP_HOST = savedHost;
   await new Promise<void>((r) => {
@@ -242,9 +236,8 @@ describe('the callback route', () => {
     expect((await fetch(`${base}/api/connectors?project=p0000000001`)).status).toBe(
       401,
     );
-    const token = signSession({ subject: 'ada@lovelace.dev', agentIds: [] }, SECRET);
     const ok = await fetch(`${base}/api/connectors?project=p0000000001`, {
-      headers: { authorization: `Bearer ${token}` },
+      headers: { authorization: await auth('GET', '/api/connectors', 'ada@lovelace.dev') },
     });
     expect(ok.status).toBe(200);
   });

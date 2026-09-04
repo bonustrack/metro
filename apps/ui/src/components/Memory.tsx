@@ -43,19 +43,17 @@ function FileRow({ file, onOpen }: { file: MemoryFile; onOpen: () => void }): Re
 const MEMORY_LINK = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.md$/;
 
 function MemoryIndex({
-  token,
   project,
   claudeProject,
   onOpen,
   onSelect,
 }: {
-  token: string;
   project: string;
   claudeProject: string;
   onOpen: (name: string) => void;
   onSelect: (selection: Selection) => void;
 }): ReactNode {
-  const { data, error } = useMemoryQuery(token, claudeProject);
+  const { data, error } = useMemoryQuery(claudeProject);
   const resolveLink = (href: string): string | null =>
     MEMORY_LINK.test(href) ? routeHash({ kind: 'memory', project, claudeProject, file: href }) : null;
   const navigate = (hash: string): void => {
@@ -97,22 +95,21 @@ function MemoryIndex({
   );
 }
 
-function MemoryFileView({ token, claudeProject, file }: { token: string; claudeProject: string; file: string }): ReactNode {
-  const { data, error } = useMemoryFileQuery(token, claudeProject, file);
+function MemoryFileView({ claudeProject, file }: { claudeProject: string; file: string }): ReactNode {
+  const { data, error } = useMemoryFileQuery(claudeProject, file);
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the file.')}</Text>;
   if (data === undefined) return <Loading />;
   return <MarkdownBlock text={data} />;
 }
 
 interface MemoryProps {
-  token: string;
   project: string;
   claudeProject: string | null;
   file: string | null;
   onSelect: (selection: Selection) => void;
 }
 
-export function Memory({ token, project, claudeProject, file, onSelect }: MemoryProps): ReactNode {
+export function Memory({ project, claudeProject, file, onSelect }: MemoryProps): ReactNode {
   useDocumentTitle('Memory');
   if (claudeProject === null)
     return (
@@ -122,7 +119,6 @@ export function Memory({ token, project, claudeProject, file, onSelect }: Memory
           What Claude Code remembers about each project on this machine. Pick a project.
         </Text>
         <ClaudeProjects
-          token={token}
           onlyWithMemory
           onOpen={(cp) => {
             onSelect({ kind: 'memory', project, claudeProject: cp, file: null });
@@ -143,7 +139,6 @@ export function Memory({ token, project, claudeProject, file, onSelect }: Memory
         />
         <PageTitle>Memory</PageTitle>
         <MemoryIndex
-          token={token}
           project={project}
           claudeProject={claudeProject}
           onOpen={(name) => {
@@ -163,7 +158,7 @@ export function Memory({ token, project, claudeProject, file, onSelect }: Memory
         }}
       />
       <PageTitle>{file}</PageTitle>
-      <MemoryFileView token={token} claudeProject={claudeProject} file={file} />
+      <MemoryFileView claudeProject={claudeProject} file={file} />
     </Col>
   );
 }

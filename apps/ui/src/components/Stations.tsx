@@ -17,15 +17,14 @@ import { useDocumentTitle } from '../title';
 const FALLBACK = 'Could not load the channels.';
 
 interface StationsProps {
-  token: string;
   project: string;
   onOpen: (accountId: string) => void;
 }
 
-export function Stations({ token, project, onOpen }: StationsProps): ReactNode {
+export function Stations({ project, onOpen }: StationsProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const { data, error } = useStationsQuery(token);
+  const { data, error } = useStationsQuery();
   const [connecting, setConnecting] = useState(false);
   useDocumentTitle('Channels');
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
@@ -57,13 +56,12 @@ export function Stations({ token, project, onOpen }: StationsProps): ReactNode {
         empty="No channel yet. Connect one with the button above."
         onOpen={onOpen}
         onDetach={async (station, accountId) => {
-          await detachAccount(token, agent.id, station, accountId);
+          await detachAccount(agent.id, station, accountId);
           dropAccount(client, station, accountId);
           refreshAgents(client);
         }}
       />
       <ConnectStation
-        token={token}
         agentId={agent.id}
         attachable={data.attachable}
         open={connecting}

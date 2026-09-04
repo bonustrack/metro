@@ -12,7 +12,6 @@ import {
   localListAgents,
   localOwner,
   localResetAgentKey,
-  ownerSignIn,
   setLocalOwner,
 } from '../src/db/file-admin.ts';
 import { agentIdForKey, setKeyMap } from '../src/db/key-map.ts';
@@ -51,14 +50,6 @@ describe('who owns a local daemon', () => {
     setLocalOwner(OWNER, dir);
   });
 
-  test('sign-in never claims: only the set owner passes, and nobody does on a machine without one', async () => {
-    expect(await ownerSignIn(OWNER.toUpperCase().replace('0X', '0x'), dir)).toBe(OWNER);
-    expect(await status(ownerSignIn(OTHER, dir))).toBe(403);
-    const fresh = mkdtempSync(join(tmpdir(), 'metro-fresh-'));
-    expect(await status(ownerSignIn(OWNER, fresh))).toBe(403);
-    expect(localOwner(fresh)).toBeNull();
-    rmSync(fresh, { recursive: true, force: true });
-  });
 });
 
 describe('agents kept as files', () => {

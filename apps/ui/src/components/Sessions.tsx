@@ -20,13 +20,11 @@ import { useDocumentTitle } from '../title';
 const ROW_PAD_Y = 12;
 
 function SessionRow({
-  token,
   claudeProject,
   session,
   target,
   onOpen,
 }: {
-  token: string;
   claudeProject: string;
   session: ClaudeSession;
   target: Selection;
@@ -56,23 +54,21 @@ function SessionRow({
           </Text>
         </Col>
       </a>
-      <SessionMenu token={token} claudeProject={claudeProject} id={session.id} title={session.title} onDeleted={() => undefined} />
+      <SessionMenu claudeProject={claudeProject} id={session.id} title={session.title} onDeleted={() => undefined} />
     </Row>
   );
 }
 
 function SessionList({
-  token,
   project,
   claudeProject,
   onOpen,
 }: {
-  token: string;
   project: string;
   claudeProject: string;
   onOpen: (id: string) => void;
 }): ReactNode {
-  const { data, error } = useClaudeSessionsQuery(token, claudeProject);
+  const { data, error } = useClaudeSessionsQuery(claudeProject);
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
   if (data === undefined) return <Loading />;
   if (data.length === 0) return <Text size="sm" role="secondary">No session here yet.</Text>;
@@ -81,7 +77,6 @@ function SessionList({
       {data.map((s) => (
         <SessionRow
           key={s.id}
-          token={token}
           claudeProject={claudeProject}
           session={s}
           target={{ kind: 'sessions', project, claudeProject, id: s.id }}
@@ -95,20 +90,18 @@ function SessionList({
 }
 
 function SessionView({
-  token,
   project,
   claudeProject,
   id,
   onSelect,
 }: {
-  token: string;
   project: string;
   claudeProject: string;
   id: string;
   onSelect: (selection: Selection) => void;
 }): ReactNode {
   const list: Selection = { kind: 'sessions', project, claudeProject, id: null };
-  const { data } = useClaudeSessionsQuery(token, claudeProject);
+  const { data } = useClaudeSessionsQuery(claudeProject);
   const title = data?.find((s) => s.id === id)?.title ?? id;
   useDocumentTitle(title);
   return (
@@ -122,7 +115,6 @@ function SessionView({
           }}
         />
         <SessionMenu
-          token={token}
           claudeProject={claudeProject}
           id={id}
           title={title}
@@ -132,20 +124,19 @@ function SessionView({
         />
       </Row>
       <PageTitle>{title}</PageTitle>
-      <Transcript token={token} project={claudeProject} id={id} />
+      <Transcript project={claudeProject} id={id} />
     </Col>
   );
 }
 
 interface SessionsProps {
-  token: string;
   project: string;
   claudeProject: string | null;
   id: string | null;
   onSelect: (selection: Selection) => void;
 }
 
-export function Sessions({ token, project, claudeProject, id, onSelect }: SessionsProps): ReactNode {
+export function Sessions({ project, claudeProject, id, onSelect }: SessionsProps): ReactNode {
   useDocumentTitle('Sessions');
   if (claudeProject === null)
     return (
@@ -155,7 +146,6 @@ export function Sessions({ token, project, claudeProject, id, onSelect }: Sessio
           Claude Code sessions on this machine, read from its own files. Pick a project.
         </Text>
         <ClaudeProjects
-          token={token}
           onlyWithMemory={false}
           onOpen={(cp) => {
             onSelect({ kind: 'sessions', project, claudeProject: cp, id: null });
@@ -175,7 +165,6 @@ export function Sessions({ token, project, claudeProject, id, onSelect }: Sessio
         />
         <PageTitle>Sessions</PageTitle>
         <SessionList
-          token={token}
           project={project}
           claudeProject={claudeProject}
           onOpen={(sid) => {
@@ -184,5 +173,5 @@ export function Sessions({ token, project, claudeProject, id, onSelect }: Sessio
         />
       </Col>
     );
-  return <SessionView token={token} project={project} claudeProject={claudeProject} id={id} onSelect={onSelect} />;
+  return <SessionView project={project} claudeProject={claudeProject} id={id} onSelect={onSelect} />;
 }

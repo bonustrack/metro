@@ -38,7 +38,6 @@ function submitLabel(form: Form): string {
 }
 
 interface StationFormProps {
-  token: string;
   agentId: string;
   station: string;
   onBack: () => void;
@@ -47,7 +46,7 @@ interface StationFormProps {
 }
 
 export function StationForm(props: StationFormProps): ReactNode {
-  const { token, agentId, station, onBack, onAttached, onPending } = props;
+  const { agentId, station, onBack, onAttached, onPending } = props;
   const dark = useKitScheme() === 'dark';
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -61,7 +60,7 @@ export function StationForm(props: StationFormProps): ReactNode {
     if (busy || !complete) return;
     setBusy(true);
     setError(null);
-    startAttach(token, agentId, station, trimmed(form, values))
+    startAttach(agentId, station, trimmed(form, values))
       .then((started) => {
         if (started.kind === 'pending') onPending(started.session);
         else onAttached(started.result);

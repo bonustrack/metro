@@ -1,5 +1,11 @@
+import { beforeAll } from 'bun:test';
+import { installTestIdentity } from './identity-fixture';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { fetchStations, resetAgentKey, type AgentSummary } from '../src/api/client';
+
+beforeAll(async () => {
+  await installTestIdentity();
+});
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -28,7 +34,7 @@ function serve(body: unknown, status = 200): void {
 
 const dashboard = async (agents: unknown): Promise<AgentSummary[]> => {
   serve({ agents });
-  return (await fetchStations('session')).agents;
+  return (await fetchStations()).agents;
 };
 
 describe('agent credentials on the wire', () => {
@@ -79,7 +85,7 @@ describe('resetAgentKey', () => {
 
   test('POSTs to the agent key sub-resource', async () => {
     serve(ROTATED);
-    await resetAgentKey('session', 7);
+    await resetAgentKey(7);
     expect(calls).toEqual([
       { url: 'https://mcp.metro.box/api/agents/7/key', method: 'POST' },
     ]);
@@ -87,12 +93,12 @@ describe('resetAgentKey', () => {
 
   test('a refusal is surfaced with the daemon own message', async () => {
     serve({ error: 'no such agent' }, 404);
-    await expect(resetAgentKey('session', 8)).rejects.toThrow('no such agent');
+    await expect(resetAgentKey(8)).rejects.toThrow('no such agent');
   });
 
   test('a response without a key is rejected rather than shown as empty', async () => {
     serve({ id: 'id000000007', name: 'tony', reset: true });
-    await expect(resetAgentKey('session', 7)).rejects.toThrow('unexpected');
+    await expect(resetAgentKey(7)).rejects.toThrow('unexpected');
   });
 });
 

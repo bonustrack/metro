@@ -1,3 +1,5 @@
+import { beforeAll } from 'bun:test';
+import { installTestIdentity } from './identity-fixture';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { AuthError } from '../src/api/client';
 import {
@@ -10,6 +12,10 @@ import {
   verifyConnector,
   type Connector,
 } from '../src/api/connectors';
+
+beforeAll(async () => {
+  await installTestIdentity();
+});
 
 const PROJECT = 'localdaemon';
 
@@ -81,13 +87,13 @@ const NEW = {
 
 const list = async (body: unknown): Promise<Connector[]> => {
   serve(body);
-  return (await fetchConnectors('session')).connectors;
+  return (await fetchConnectors()).connectors;
 };
 
 describe('the connectors surface is its own endpoint', () => {
   test('a list reads /api/connectors, never a path under /api/agents', async () => {
     serve({ connectors: [], json: '{}' });
-    await fetchConnectors('session');
+    await fetchConnectors();
     expect(calls[0]?.url).toBe(`${CONNECTORS}?project=${PROJECT}`);
     expect(calls[0]?.url).not.toContain('/api/agents');
     expect(calls[0]?.method).toBe('GET');
@@ -95,13 +101,13 @@ describe('the connectors surface is its own endpoint', () => {
 
   test('a create posts the row itself', async () => {
     serve(ROW, 201);
-    await createConnector('session', NEW);
+    await createConnector(NEW);
     expect(calls).toEqual([
       {
         url: `${CONNECTORS}?project=${PROJECT}`,
         method: 'POST',
         body: { name: 'linear', url: 'https://mcp.linear.app/mcp', returnTo: '' },
-        authorization: 'Bearer session',
+        authorization: expect.stringMatching(/^Metro 0x[0-9a-fA-F]{40} \d+ 0x[0-9a-f]{130}$/),
         contentType: 'application/json',
       },
     ]);
@@ -109,24 +115,24 @@ describe('the connectors surface is its own endpoint', () => {
 
   test('a verify posts the id sub-resource', async () => {
     serve({ id: 'id000000012', name: 'linear', ok: true, verified: VERIFIED });
-    await verifyConnector('session', 12);
+    await verifyConnector(12);
     expect(calls[0]?.url).toBe(`${CONNECTORS}/12/verify`);
     expect(calls[0]?.method).toBe('POST');
   });
 
   test('a delete addresses the row by id', async () => {
     serve({ id: 'id000000012', name: 'linear', deleted: true });
-    await deleteConnector('session', 12);
+    await deleteConnector(12);
     expect(calls[0]?.url).toBe(`${CONNECTORS}/12`);
     expect(calls[0]?.method).toBe('DELETE');
-    expect(calls[0]?.authorization).toBe('Bearer session');
+    expect(calls[0]?.authorization).toMatch(/^Metro 0x[0-9a-fA-F]{40} \d+ 0x[0-9a-f]{130}$/);
   });
 });
 
 describe('the create body carries only what was filled in', () => {
   test('an auth pair is sent as header and value', async () => {
     serve(ROW, 201);
-    await createConnector('session', {
+    await createConnector({
       ...NEW,
       header: 'Authorization',
       value: 'Bearer lin_oauth_7f',
@@ -142,7 +148,7 @@ describe('the create body carries only what was filled in', () => {
 
   test('a value with no header leaves the header to the daemon default', async () => {
     serve(ROW, 201);
-    await createConnector('session', { ...NEW, value: 'Bearer lin_oauth_7f' });
+    await createConnector({ ...NEW, value: 'Bearer lin_oauth_7f' });
     expect(calls[0]?.body).toEqual({
       name: 'linear',
       url: 'https://mcp.linear.app/mcp',
@@ -153,7 +159,7 @@ describe('the create body carries only what was filled in', () => {
 
   test('an empty pair sends neither field rather than two empty strings', async () => {
     serve(ROW, 201);
-    await createConnector('session', NEW);
+    await createConnector(NEW);
     expect(calls[0]?.body).toEqual({
       name: 'linear',
       url: 'https://mcp.linear.app/mcp',
@@ -264,12 +270,12 @@ describe('a connector row is coerced field by field', () => {
 
   test('a row with no name is refused rather than rendered as blank', async () => {
     serve({ connectors: [{ id: 'id000000012' }], json: '{}' });
-    await expect(fetchConnectors('session')).rejects.toThrow('unexpected');
+    await expect(fetchConnectors()).rejects.toThrow('unexpected');
   });
 
   test('a body that is not an object is refused', async () => {
     serve([ROW]);
-    await expect(fetchConnectors('session')).rejects.toThrow('unexpected');
+    await expect(fetchConnectors()).rejects.toThrow('unexpected');
   });
 
   test('a body with no connectors array lists nothing rather than throwing', async () => {
@@ -279,7 +285,7 @@ describe('a connector row is coerced field by field', () => {
 
   test('a create answers with the same shape a list row has', async () => {
     serve(ROW, 201);
-    const result = await createConnector('session', NEW);
+    const result = await createConnector(NEW);
     if (result.kind !== 'added') throw new Error('expected an added connector');
     expect(result.connector.id).toBe('id000000012');
     expect(result.connector.name).toBe('linear');
@@ -288,7 +294,7 @@ describe('a connector row is coerced field by field', () => {
 
   test('an oauth answer carries the STORED row as well as the sign-in to follow', async () => {
     serve({ ...ROW, authorizeUrl: 'https://as.example.com/authorize?x=1' }, 201);
-    const result = await createConnector('session', NEW);
+    const result = await createConnector(NEW);
     if (result.kind !== 'oauth') throw new Error('expected an oauth result');
     expect(result.authorizeUrl).toBe('https://as.example.com/authorize?x=1');
     expect(result.connector.id).toBe('id000000012');
@@ -296,19 +302,19 @@ describe('a connector row is coerced field by field', () => {
 
   test('a create with no authorize url is simply added', async () => {
     serve(ROW, 201);
-    expect((await createConnector('session', NEW)).kind).toBe('added');
+    expect((await createConnector(NEW)).kind).toBe('added');
   });
 
   test('a create answering with no name is refused', async () => {
     serve({ id: 'id000000012' }, 201);
-    await expect(createConnector('session', NEW)).rejects.toThrow('unexpected');
+    await expect(createConnector(NEW)).rejects.toThrow('unexpected');
   });
 });
 
 describe('a re-verify reports its own verdict', () => {
   test('a passing check carries the fresh verified block', async () => {
     serve({ id: 'id000000012', name: 'linear', ok: true, verified: VERIFIED });
-    expect(await verifyConnector('session', 12)).toEqual({
+    expect(await verifyConnector(12)).toEqual({
       id: 'id000000012',
       name: 'linear',
       ok: true,
@@ -324,7 +330,7 @@ describe('a re-verify reports its own verdict', () => {
       ok: false,
       reason: 'mcp.linear.app rejected that credential.',
     });
-    expect(await verifyConnector('session', 12)).toEqual({
+    expect(await verifyConnector(12)).toEqual({
       id: 'id000000012',
       name: 'linear',
       ok: false,
@@ -335,42 +341,42 @@ describe('a re-verify reports its own verdict', () => {
 
   test('anything other than a literal true is not a pass', async () => {
     serve({ id: 'id000000012', name: 'linear', ok: 'true' });
-    expect((await verifyConnector('session', 12)).ok).toBe(false);
+    expect((await verifyConnector(12)).ok).toBe(false);
   });
 
   test('a response with no id falls back to the id that was asked about', async () => {
     serve({ name: 'linear', ok: true, verified: VERIFIED });
-    expect((await verifyConnector('session', 12)).id).toBe(12);
+    expect((await verifyConnector(12)).id).toBe(12);
   });
 
   test('a body that is not an object is refused', async () => {
     serve('ok');
-    await expect(verifyConnector('session', 12)).rejects.toThrow('unexpected');
+    await expect(verifyConnector(12)).rejects.toThrow('unexpected');
   });
 });
 
 describe('daemon refusals reach the page as themselves', () => {
   test('a 404 surfaces the daemon own wording', async () => {
     serve({ error: 'no such connector' }, 404);
-    await expect(deleteConnector('session', 99)).rejects.toThrow(
+    await expect(deleteConnector(99)).rejects.toThrow(
       'no such connector',
     );
   });
 
   test('a remote refusal arrives as a 400, and stays a plain error', async () => {
     serve({ error: 'mcp.linear.app rejected that credential.' }, 400);
-    await expect(createConnector('session', NEW)).rejects.toThrow(
+    await expect(createConnector(NEW)).rejects.toThrow(
       'rejected that credential',
     );
     serve({ error: 'mcp.linear.app rejected that credential.' }, 400);
-    await expect(createConnector('session', NEW)).rejects.not.toBeInstanceOf(
+    await expect(createConnector(NEW)).rejects.not.toBeInstanceOf(
       AuthError,
     );
   });
 
   test('an expired metro session is an AuthError, not a message', async () => {
     serve({ error: 'not authorized' }, 401);
-    await expect(fetchConnectors('session')).rejects.toBeInstanceOf(AuthError);
+    await expect(fetchConnectors()).rejects.toBeInstanceOf(AuthError);
   });
 });
 

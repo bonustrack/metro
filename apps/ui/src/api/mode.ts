@@ -1,6 +1,5 @@
 import { isRecord } from './accounts';
-import { daemonHost } from '../auth/daemon';
-import { daemonBase } from '../auth/session';
+import { daemonBase, daemonHost } from '../auth/daemon';
 
 export type DaemonMode = 'hosted' | 'linked' | 'local';
 

@@ -26,7 +26,6 @@ import { useDocumentTitle } from '../title';
 const FALLBACK = 'Could not load your connectors.';
 
 interface ConnectorsBodyProps {
-  token: string;
   project: string;
   onChanged: () => void;
   data: ConnectorsView;
@@ -36,7 +35,6 @@ interface ConnectorsBodyProps {
 }
 
 function ConnectorsBody({
-  token,
   project,
   onChanged,
   data,
@@ -51,7 +49,6 @@ function ConnectorsBody({
       {rows.map((row) => (
         <ConnectorRow
           key={row.id}
-          token={token}
           project={project}
           onChanged={onChanged}
           row={row}
@@ -65,22 +62,20 @@ function ConnectorsBody({
 }
 
 export function Connectors({
-  token,
   project,
   onOpen,
 }: {
-  token: string;
   project: string;
   onOpen: (id: string) => void;
 }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const { data, error } = useConnectorsQuery(token);
+  const { data, error } = useConnectorsQuery();
   const reload = (): void => {
     refreshConnectors(client);
   };
   const remove = (id: string): Promise<void> =>
-    deleteConnector(token, id).then(() => {
+    deleteConnector(id).then(() => {
       refreshConnectors(client);
     });
   useDocumentTitle('Connectors');
@@ -121,7 +116,6 @@ export function Connectors({
       {data === undefined && error === null ? <Loading /> : null}
       {data === undefined ? null : (
         <ConnectorsBody
-          token={token}
           project={project}
           onChanged={reload}
           data={data}
@@ -132,7 +126,6 @@ export function Connectors({
       )}
 
       <AddConnector
-        token={token}
         open={adding}
         onClose={() => {
           setAdding(false);

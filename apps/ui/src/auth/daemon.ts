@@ -94,3 +94,7 @@ export function storeDaemon(base: string | null): void {
     return;
   }
 }
+
+export function daemonBase(): string {
+  return routedDaemon() ?? storedDaemon() ?? builtInDaemon();
+}

@@ -24,7 +24,6 @@ const ICON_SIZE = 16;
 const CENTER_SELF = { alignSelf: 'center' } as const;
 
 interface ConnectorRowProps {
-  token: string;
   project: string;
   row: Connector;
   onOpen: (id: string) => void;
@@ -36,7 +35,6 @@ interface ConnectorRowProps {
 type ActionProps = Omit<ConnectorRowProps, 'onOpen'>;
 
 function RowActions({
-  token,
   row,
   onChanged,
   onDelete,
@@ -50,7 +48,7 @@ function RowActions({
     if (busy) return;
     setBusy(true);
     const tab = window.open('', '_blank');
-    connectConnector(token, row.id).then(
+    connectConnector(row.id).then(
       (authorizeUrl) => {
         setBusy(false);
         if (tab === null) window.location.assign(authorizeUrl);
@@ -67,7 +65,7 @@ function RowActions({
   const disconnect = (): void => {
     if (busy) return;
     setBusy(true);
-    disconnectConnector(token, row.id).then(
+    disconnectConnector(row.id).then(
       () => {
         setBusy(false);
         onChanged();
@@ -111,7 +109,6 @@ function RowActions({
       />
       <RenameConnector
         key={row.name}
-        token={token}
         connector={row}
         open={renaming}
         onClose={() => {

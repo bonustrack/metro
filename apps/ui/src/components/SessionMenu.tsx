@@ -5,14 +5,13 @@ import { KebabMenu } from './KebabMenu';
 import { queryError, removeClaudeSession } from '../api/queries';
 
 interface SessionMenuProps {
-  token: string;
   claudeProject: string;
   id: string;
   title: string;
   onDeleted: () => void;
 }
 
-export function SessionMenu({ token, claudeProject, id, title, onDeleted }: SessionMenuProps): ReactNode {
+export function SessionMenu({ claudeProject, id, title, onDeleted }: SessionMenuProps): ReactNode {
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -22,7 +21,7 @@ export function SessionMenu({ token, claudeProject, id, title, onDeleted }: Sess
     if (busy) return;
     setBusy(true);
     setFailed(null);
-    removeClaudeSession(client, token, claudeProject, id)
+    removeClaudeSession(client, claudeProject, id)
       .then(() => {
         setOpen(false);
         onDeleted();

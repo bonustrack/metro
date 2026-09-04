@@ -4,30 +4,26 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { signSession } from '../src/daemon/session.ts';
-import { ensureLocalSessionSecret } from '../src/daemon/local-secret.ts';
 import { localSessionApis } from '../src/daemon/local-mode.ts';
 import { handleSessionApis, type SessionApis } from '../src/daemon/session-apis.ts';
 import { agentIdForKey, setKeyMap } from '../src/db/key-map.ts';
 import { localAttachAccount, localCreateAgent, LOCAL_PROJECT_ID, setLocalOwner } from '../src/db/file-admin.ts';
 import { localImportConnectors } from '../src/db/local-connectors.ts';
 import { parseBundle } from '../src/daemon/bundle-api.ts';
+import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
-const saved = { dir: process.env.METRO_AGENTS_DIR, secret: process.env.METRO_SESSION_SECRET };
+const saved = { dir: process.env.METRO_AGENTS_DIR };
 let dir = '';
 let server: Server;
 let base = '';
-let secret = '';
 const synced: string[] = [];
 let tony = { id: '', key: '' };
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-bundle-'));
   process.env.METRO_AGENTS_DIR = dir;
-  delete process.env.METRO_SESSION_SECRET;
-  secret = ensureLocalSessionSecret(dir);
   setKeyMap([]);
   setLocalOwner(OWNER, dir);
   const made = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'Tony', dir);
@@ -66,15 +62,14 @@ afterAll(async () => {
     });
   });
   process.env.METRO_AGENTS_DIR = saved.dir;
-  process.env.METRO_SESSION_SECRET = saved.secret;
   rmSync(dir, { recursive: true, force: true });
 });
 
-const session = (subject = OWNER): string => signSession({ subject, agentIds: [] }, secret);
-const call = (method: string, path: string, body?: unknown, token = session()): Promise<Response> =>
+const session = (subject = OWNER): string => subject;
+const call = async (method: string, path: string, body?: unknown, token: Who = session()): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
-    headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    headers: { authorization: await auth(method, path, token), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 

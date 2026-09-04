@@ -44,6 +44,7 @@
     "@metro-labs/whatsapp": "workspace:*",
     "@metro-labs/xmtp": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "@noble/curves": "^1.9.7",
     "drizzle-kit": "^0.31.0",
     "drizzle-orm": "^0.44.0",
     "pino": "^9.5.0",

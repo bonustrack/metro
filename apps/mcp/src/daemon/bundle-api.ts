@@ -92,12 +92,11 @@ export function handleBundleRequest(req: IncomingMessage, res: ServerResponse, d
     sendJson(req, res, 405, { error: 'method not allowed' });
     return true;
   }
-  const session = apiSession(req);
-  if (!session) {
-    sendJson(req, res, 401, { error: 'unauthorized' });
-    return true;
-  }
-  answer(req, deps, session.subject, path)
+  apiSession(req)
+    .then((session) => {
+      if (!session) throw new ApiError('unauthorized', 401);
+      return answer(req, deps, session.subject, path);
+    })
     .then((body) => {
       sendJson(req, res, isRestore ? 201 : 200, body);
     })

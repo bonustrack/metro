@@ -108,7 +108,6 @@ overrides), all `0600`:
 - **`connectors.json`** — the daemon's connectors, `{ id, name, url, transport, config }` each,
   `config` holding the auth header or the OAuth tokens.
 - **`.owner`** — the one wallet allowed to sign in, written by `metro serve --owner`.
-- **`.session-secret`** — minted on first boot; sessions survive restarts.
 - **`~/.metro/runtime`** — metro's code plus the SDKs of the channels this agent has, installed
   by `metro serve` with `bun`; the npm package itself ships none of them.
 
@@ -153,13 +152,13 @@ DATABASE_URL='postgres://…' bun --filter @metro-labs/mcp db:migrate
 ### The daemon's API
 
 [`apps/ui`](apps/ui), the page at metro.box, manages **one local daemon**, the one in its
-address (`https://metro.box/#/<host:port>`), through session-gated JSON routes mounted before
-the MCP auth gate:
+address (`https://metro.box/#/<host:port>`), through JSON routes that take a signed request, mounted
+before the MCP auth gate:
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/mode` | `{ mode, owner, project, version }`, unauthenticated: what the page reads first. |
-| `GET /auth/siwe/nonce`, `POST /auth/siwe/verify` | Sign-In with Ethereum. On a local daemon only the owner wallet passes. |
+| `POST /auth/identity` | Registers the identity the page derived from the owner wallet's signature. Only the owner wallet passes. |
 | `GET /api/agents?project=localdaemon` | The agents here, each with its `connector_ids`; with `&accounts=1` their accounts and channel capabilities. An owned agent carries its key value and the paste-ready `claude mcp add …` command. |
 | `POST /api/agents` `{"name":"…"}` | Create an agent, mint its key, return both with the paste-ready command. |
 | `DELETE /api/agents/<id>`, `POST /api/agents/<id>/key` | Delete an agent (refused while channels are attached), reset its key. |
@@ -176,10 +175,13 @@ On metro.box the same program serves sign-in (open to any wallet) and
 `GET /api/vault`, `PUT`/`GET`/`DELETE /api/vault/<agentId>` — see
 [Sync with Metro and Restore](#sync-with-metro-and-restore). Nothing else answers there.
 
-Sign-in is [Sign-In with Ethereum](https://eips.ethereum.org/EIPS/eip-4361): the page fetches a
-single-use nonce, the wallet signs the message, and `POST /auth/siwe/verify` checks the
-signature, the site the message names, the nonce and the expiry before it answers with the
-session. The login page offers every wallet extension the browser announces (MetaMask, Rabby,
+Sign-in is one signature. The owner wallet signs a small typed message once (`EncryptionKey`,
+the same one that seals agents on metro.box); the page derives two keys from it in the browser,
+the key that encrypts your agent and an identity key that signs every request to the daemon
+(`Authorization: Metro <address> <time> <signature>`), and keeps the signature in this browser
+so you are not asked again. `POST /auth/identity` hands the daemon that signature once: it
+checks it against the owner wallet and remembers the derived identity until it restarts, when
+the page registers it again on its own. The login page offers every wallet extension the browser announces (MetaMask, Rabby,
 …), **WalletConnect** for the wallet app on your phone (a Reown project id is built in;
 `VITE_WC_PROJECT_ID` overrides it at build time) and **Coinbase Wallet**. Externally owned
 accounts only; a smart-contract wallet is refused with a message saying so.
@@ -203,7 +205,7 @@ Nothing is stored until the probe succeeds — **except for a server that demand
 stored unverified so it appears in your list whether or not you finish signing in, and shows a
 **Connect** button until you do. The OAuth flow lands on the daemon's own address, loopback or
 tunnel. A refusal by the remote while you are adding one is a `400` with a plain reason, never
-a `401`, which is reserved for your own expired session. Re-checking a connector that has
+a `401`, which is reserved for a request the daemon could not attribute to its owner. Re-checking a connector that has
 stopped answering is a `200` carrying `ok: false`; the row stays. A connector name is unique on
 the daemon (`409` at create and rename) because it is the key in the exported block. On a local
 daemon `http://` and private hosts are allowed: local MCP servers are the point.
@@ -415,8 +417,8 @@ backlog or replay — and can be attached mid-session.
 
 It uses the same credential as `/mcp` and is **scoped like `/mcp`**: the tail carries only
 events on the caller's own channel accounts, and a call may only drive a line that belongs
-to one of them. While the daemon holds no credential at all — no `agents.key` and no
-`METRO_SESSION_SECRET` — the whole `/api/*` surface stays disabled (404).
+to one of them. While the daemon holds no agent key at all, the whole `/api/*` surface stays
+disabled (404).
 
 | Endpoint | Purpose |
 | --- | --- |
