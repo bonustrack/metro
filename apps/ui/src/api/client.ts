@@ -1,9 +1,16 @@
-import { daemonBase } from '../auth/daemon';
+import { builtInDaemon, daemonBase } from '../auth/daemon';
 import { activeIdentity, type Identity } from '../auth/identity';
 import { signRequest } from '../vault/crypto';
 import { attributeUntagged, groupAccounts, isRecord, type AccountGroup } from './accounts';
 
-export class AuthError extends Error {}
+export class AuthError extends Error {
+  constructor(
+    message: string,
+    readonly refused = false,
+  ) {
+    super(message);
+  }
+}
 
 export interface AgentSummary {
   id: string;
@@ -86,12 +93,12 @@ export async function call(init: CallInit): Promise<unknown> {
   if (identity === null) throw new AuthError('not signed in');
   const url = `${init.base ?? agentsUrl()}${init.path ?? ''}`;
   let res = await send(url, init, identity);
-  if (res.status === 401 && sameOrigin(url, daemonBase())) {
+  if (res.status === 401 && sameOrigin(url, daemonBase()) && !sameOrigin(url, builtInDaemon())) {
     const registered = await registerIdentity(identity);
-    if (!registered.ok) throw new AuthError(registered.error);
+    if (!registered.ok) throw new AuthError(registered.error, true);
     res = await send(url, init, identity);
   }
-  if (res.status === 401) throw new AuthError('not authorized');
+  if (res.status === 401) throw new AuthError('not authorized', true);
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok) throw new Error(errorText(body, res.status));
   return body;

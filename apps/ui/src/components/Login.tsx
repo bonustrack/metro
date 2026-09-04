@@ -14,13 +14,9 @@ import { Pill } from './Pill';
 import { Spinner } from './Spinner';
 import { storeRecentWallet } from '../auth/recent';
 import { connectWallet, signTypedDataWith, useWallets } from '../auth/wallet';
-import { registerIdentity } from '../api/client';
-import { fetchMode } from '../api/mode';
-import { shortAddress } from '../api/address';
 import { identityFrom, storeIdentity, type Identity } from '../auth/identity';
 import { ENCRYPTION_KEY_TYPED_DATA } from '../vault/crypto';
-import { daemonBase, daemonHost } from '../auth/daemon';
-import { daemonName } from '../auth/daemons';
+import { daemonHost, routedDaemon } from '../auth/daemon';
 import { type WalletChoice } from '../auth/wallet-options';
 
 const CARD_WIDTH = 400;
@@ -33,22 +29,13 @@ const NO_BROWSER_WALLET =
   'No browser wallet found. WalletConnect and Coinbase Wallet reach the wallet app on your phone; MetaMask or Rabby in this browser would show up here too.';
 
 const ONE_SIGNATURE =
-  'One signature unlocks this daemon and derives the key that seals your agent on metro.box. It stays in this browser, so you are not asked again.';
+  'One signature signs you in everywhere: it unlocks your daemons and derives the key that seals your agents on metro.box. It stays in this browser, so you are not asked again.';
 
-export async function signInTo(
-  choice: WalletChoice,
-  dark: boolean,
-  base = daemonBase(),
-): Promise<Identity> {
+export async function signInTo(choice: WalletChoice, dark: boolean): Promise<Identity> {
   const connected = await connectWallet(choice, dark);
   try {
-    const { owner } = await fetchMode(base);
-    if (owner !== null && connected.address.toLowerCase() !== owner.toLowerCase())
-      throw new Error(`Sign with the wallet that owns this machine, ${shortAddress(owner)}.`);
     const signature = await signTypedDataWith(connected, ENCRYPTION_KEY_TYPED_DATA);
     const identity = await identityFrom(connected.address, signature);
-    const registered = await registerIdentity(identity, base);
-    if (!registered.ok) throw new Error(registered.error);
     storeIdentity(identity);
     storeRecentWallet(choice.id);
     return identity;
@@ -114,12 +101,6 @@ interface LoginProps {
   onSignedIn: () => void;
 }
 
-function serverLabel(): string {
-  const target = daemonBase();
-  const name = daemonName(target);
-  return name === null ? daemonHost(target) : `${name} (${daemonHost(target)})`;
-}
-
 export function Login({ onSignedIn }: LoginProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
@@ -160,14 +141,13 @@ export function Login({ onSignedIn }: LoginProps): ReactNode {
         <Row justify="center">
           <PageTitle>Sign in</PageTitle>
         </Row>
-        <Row justify="center">
-          <Text size="sm" role="secondary">
-            to {serverLabel()} ·{' '}
-            <a className="hint-link" href="#/connect">
-              change
-            </a>
-          </Text>
-        </Row>
+        {routedDaemon() === null ? null : (
+          <Row justify="center">
+            <Text size="sm" role="secondary">
+              then on to {daemonHost(routedDaemon() ?? '')}
+            </Text>
+          </Row>
+        )}
         <Text size="sm" role="secondary">
           {ONE_SIGNATURE}
         </Text>

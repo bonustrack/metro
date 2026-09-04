@@ -37,11 +37,16 @@ describe('the first segment is the daemon', () => {
     expect(routeHash({ kind: 'connect' })).toBe('#/connect');
   });
 
+  test('the root is the server list, and a server id is a first segment like a host', () => {
+    for (const root of ['#/', '#', '']) expect(routeSelection(root)).toEqual({ kind: 'servers' });
+    expect(routeHash({ kind: 'servers' })).toBe('#/');
+    expect(routeSelection('#/aB3-_xYz9Qw')).toEqual({ kind: 'home', project: 'aB3-_xYz9Qw' });
+    expect(routeSelection('#/aB3-_xYz9Qw/channels')).toEqual({ kind: 'stations', project: 'aB3-_xYz9Qw' });
+    expect(routeHash({ kind: 'connectors', project: 'aB3-_xYz9Qw' })).toBe('#/aB3-_xYz9Qw/connectors');
+  });
+
   test('what is not a route', () => {
     for (const bad of [
-      '#/',
-      '#',
-      '',
       '#/host with space/connectors',
       '#/x.tail1234.ts.net/agents',
       '#/x.tail1234.ts.net/agent/aB3-_xYz9Qw',

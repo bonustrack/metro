@@ -169,6 +169,13 @@
       "when": 1788539837471,
       "tag": "0023_drop_users",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788556460117,
+      "tag": "0024_servers",
+      "breakpoints": true
     }
   ]
 }

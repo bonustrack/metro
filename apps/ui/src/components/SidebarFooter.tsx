@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { useQueryClient } from '@tanstack/react-query';
 import { AgentAvatar } from './AgentAvatar';
 import { Dropdown, type MenuItem } from './Dropdown';
 import { NameModal } from './NameModal';
@@ -9,8 +10,8 @@ import { Text } from './ui';
 import { SHRINK } from '../theme';
 import { type Selection } from './selection';
 import { shortAddress } from '../api/address';
-import { baseFromSegment, daemonHost } from '../auth/daemon';
-import { daemonLabel, daemonName, forgetDaemon, goToDaemon, knownDaemons, nameDaemon } from '../auth/daemons';
+import { removeServer, renameServer, serverLabel, type Server } from '../api/servers';
+import { refreshServers, useServersQuery } from '../api/queries';
 
 interface SidebarFooterProps {
   project: string;
@@ -20,39 +21,47 @@ interface SidebarFooterProps {
   onLock: () => void;
 }
 
-function serverItems(current: string, onRename: () => void): MenuItem[] {
-  const others = knownDaemons().filter((d) => d.base !== current);
+function serverItems(servers: Server[], current: Server | undefined, onRename: () => void, onForget: () => void): MenuItem[] {
+  const others = servers.filter((s) => s.id !== current?.id);
   return [
-    ...others.map((d) => ({
-      label: d.name ?? daemonHost(d.base),
+    ...others.map((s) => ({
+      label: serverLabel(s),
       onSelect: () => {
-        goToDaemon(d.base);
+        window.location.hash = `#/${s.id}`;
       },
     })),
-    { label: daemonName(current) === null ? 'Name this server' : 'Rename this server', icon: 'pencil' as const, onSelect: onRename },
     {
-      label: 'Add a server',
-      icon: 'plus' as const,
+      label: 'All servers',
+      icon: 'viewList' as const,
       onSelect: () => {
-        window.location.hash = '#/connect';
+        window.location.hash = '#/';
       },
     },
-    {
-      label: 'Forget this server',
-      danger: true,
-      onSelect: () => {
-        forgetDaemon(current);
-        window.location.hash = '#/connect';
-      },
-    },
+    ...(current === undefined
+      ? []
+      : [
+          { label: current.name === null ? 'Name this server' : 'Rename this server', icon: 'pencil' as const, onSelect: onRename },
+          { label: 'Remove this server', danger: true, onSelect: onForget },
+        ]),
   ];
 }
 
 export function SidebarFooter({ project, subject, selection, onSelect, onLock }: SidebarFooterProps): ReactNode {
   const palette = useKitPalette();
-  const current = baseFromSegment(project);
+  const client = useQueryClient();
+  const { data } = useServersQuery();
+  const servers = data ?? [];
+  const current = servers.find((s) => s.id === project);
   const [renaming, setRenaming] = useState(false);
-  const [, setVersion] = useState(0);
+  const forget = (): void => {
+    if (current === undefined) return;
+    removeServer(current.id)
+      .then(() => refreshServers(client))
+      .then(() => {
+        window.location.hash = '#/';
+      })
+      .catch(() => undefined);
+  };
   return (
     <Col gap={NAV_GAP} padding={{ x: 24, bottom: 24, top: 16 }}>
       <NavRow label="Documentation" icon="bookOpen" selected={selection.kind === 'docs'} target={{ kind: 'docs' }} onSelect={onSelect} />
@@ -60,31 +69,32 @@ export function SidebarFooter({ project, subject, selection, onSelect, onLock }:
         className="account-trigger"
         label="Server menu"
         align="start"
-        items={serverItems(current, () => {
+        items={serverItems(servers, current, () => {
           setRenaming(true);
-        })}
+        }, forget)}
       >
         <Row {...NAV_ROW_BOX}>
           <NavIcon name="globeAlt" color={palette.sub} />
           <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>
-            {daemonLabel(current)}
+            {current === undefined ? project : serverLabel(current)}
           </Text>
         </Row>
       </Dropdown>
       <NameModal
         title="Name this server"
         action="Save"
-        placeholder={daemonHost(current)}
-        initial={daemonName(current) ?? ''}
+        placeholder={current?.host ?? ''}
+        initial={current?.name ?? ''}
         failure="Could not save the name."
         open={renaming}
         onClose={() => {
           setRenaming(false);
         }}
-        onSubmit={(name) => {
-          nameDaemon(current, name);
-          setVersion((v) => v + 1);
-          return Promise.resolve(name);
+        onSubmit={async (name) => {
+          if (current === undefined) return null;
+          const saved = await renameServer(current.id, name);
+          await refreshServers(client);
+          return saved;
         }}
       />
       <Dropdown

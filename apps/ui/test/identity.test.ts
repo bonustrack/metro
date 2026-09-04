@@ -3,6 +3,7 @@ import { verifyMessage } from 'viem';
 import { activeIdentity, clearIdentity, identityFrom } from '../src/auth/identity';
 import { AuthError, call } from '../src/api/client';
 import { requestChallenge } from '../src/vault/crypto';
+import { setCurrentServer } from '../src/auth/daemon';
 import { installTestIdentity, TEST_IDENTITY_ADDRESS, TEST_SIGNATURE, TEST_WALLET } from './identity-fixture';
 
 interface Seen {
@@ -30,11 +31,13 @@ const json = (body: unknown, status = 200): Response =>
 
 beforeEach(async () => {
   await installTestIdentity();
+  setCurrentServer({ id: 'aB3-_xYz9Qw', host: '127.0.0.1:8420' });
 });
 
 afterEach(() => {
   globalThis.fetch = realFetch;
   clearIdentity();
+  setCurrentServer(null);
 });
 
 describe('the identity derived from the sign-in signature', () => {

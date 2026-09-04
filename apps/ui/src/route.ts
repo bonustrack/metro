@@ -1,11 +1,12 @@
 import { type Selection } from './components/selection';
 import { RESERVED_SEGMENTS } from './auth/daemon';
 
-const HOST = '[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?';
+const HOST = '[A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?';
 const ID = '[A-Za-z0-9_-]{11}';
 const ACCOUNT = '[A-Za-z0-9_-]{1,64}';
 const CLAUDE = '[A-Za-z0-9._-]+';
 
+const SERVERS_PATH = /^#?\/?$/;
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const CONNECT_PATH = /^#?\/connect$/;
@@ -17,9 +18,8 @@ const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
 const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/(${CLAUDE}\\.md))?)?$`);
 
-export const connectRoute = (selection: Selection): boolean => selection.kind === 'connect';
-
 function exactSelection(hash: string): Selection | null {
+  if (SERVERS_PATH.test(hash)) return { kind: 'servers' };
   if (DOCS_PATH.test(hash)) return { kind: 'docs' };
   if (SETTINGS_PATH.test(hash)) return { kind: 'settings' };
   if (CONNECT_PATH.test(hash)) return { kind: 'connect' };
@@ -63,6 +63,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
 };
 
 export function routeHash(selection: Selection): string {
+  if (selection.kind === 'servers' || selection.kind === 'none') return '#/';
   if (selection.kind === 'docs') return '#/docs/setup';
   if (selection.kind === 'settings') return '#/settings';
   if (selection.kind === 'connect') return '#/connect';

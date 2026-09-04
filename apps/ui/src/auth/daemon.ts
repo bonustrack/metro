@@ -1,4 +1,6 @@
 const DAEMON_KEY = 'metro.daemon';
+const SERVER_KEY = 'metro.server';
+export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
 const HOSTED_DAEMON = 'https://mcp.metro.box';
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
@@ -45,7 +47,7 @@ export function parseDaemonUrl(raw: string): DaemonParse {
   return refused === null ? { base: url.origin } : { error: refused };
 }
 
-const HOST_SEGMENT = /^#\/([A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?)(?:\/|$)/;
+const FIRST_SEGMENT = /^#\/([A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?)(?:\/|$)/;
 export const RESERVED_SEGMENTS = new Set(['docs', 'settings', 'connect', 'login']);
 
 export function segmentOf(base: string): string {
@@ -61,12 +63,43 @@ export function baseFromSegment(segment: string): string {
   return `${LOOPBACK.has(host) ? 'http' : 'https'}://${segment}`;
 }
 
-export function routedDaemon(hash?: string): string | null {
+export function routedSegment(hash?: string): string | null {
   const current = hash ?? (typeof window === 'undefined' ? '' : window.location.hash);
-  const found = HOST_SEGMENT.exec(current);
-  const segment = found?.[1];
-  if (segment === undefined || RESERVED_SEGMENTS.has(segment)) return null;
-  return baseFromSegment(segment);
+  const segment = FIRST_SEGMENT.exec(current)?.[1];
+  return segment === undefined || RESERVED_SEGMENTS.has(segment) ? null : segment;
+}
+
+export const isServerId = (segment: string): boolean => ID_RE.test(segment);
+
+export function routedDaemon(hash?: string): string | null {
+  const segment = routedSegment(hash);
+  return segment === null || isServerId(segment) ? null : baseFromSegment(segment);
+}
+
+let current: { id: string; host: string } | null = null;
+
+export function setCurrentServer(server: { id: string; host: string } | null): void {
+  current = server;
+}
+
+export const currentServer = (): { id: string; host: string } | null => current;
+
+export function storedServerId(): string | null {
+  try {
+    const v = window.localStorage.getItem(SERVER_KEY);
+    return v !== null && ID_RE.test(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function storeServerId(id: string | null): void {
+  try {
+    if (id === null) window.localStorage.removeItem(SERVER_KEY);
+    else window.localStorage.setItem(SERVER_KEY, id);
+  } catch {
+    return;
+  }
 }
 
 export function daemonHost(base: string): string {
@@ -96,5 +129,8 @@ export function storeDaemon(base: string | null): void {
 }
 
 export function daemonBase(): string {
-  return routedDaemon() ?? storedDaemon() ?? builtInDaemon();
+  const routed = routedDaemon();
+  if (routed !== null) return routed;
+  if (current !== null) return baseFromSegment(current.host);
+  return storedDaemon() ?? builtInDaemon();
 }
