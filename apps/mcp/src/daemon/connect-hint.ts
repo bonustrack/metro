@@ -2,13 +2,8 @@ import { hostname } from 'node:os';
 
 const uiBase = (): string => process.env.METRO_UI_URL ?? 'https://metro.box';
 
-export const connectLink = (base: string): string => {
-  try {
-    return `${uiBase()}/#/${new URL(base).host}`;
-  } catch {
-    return `${uiBase()}/#/connect/${encodeURIComponent(base)}`;
-  }
-};
+export const connectLink = (base: string): string =>
+  `${uiBase()}/#/${new URL(base).host}`;
 
 export function localConnectHint(port: number): string {
   const here = `http://127.0.0.1:${String(port)}`;

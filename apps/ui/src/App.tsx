@@ -98,7 +98,7 @@ export function App(): ReactNode {
   );
 
   useEffect(() => {
-    if (connect !== null) document.title = pageTitle('Connect');
+    if (connect) document.title = pageTitle('Connect');
     else if (state.phase === 'login') {
       client.clear();
       goToLogin();
@@ -109,8 +109,8 @@ export function App(): ReactNode {
   return (
     <div className="app-root">
       <QueryClientProvider client={client}>
-        {connect !== null ? (
-          <Connect url={connect.url} />
+        {connect ? (
+          <Connect />
         ) : state.phase === 'login' ? (
           <Login onSignedIn={unlock} />
         ) : (

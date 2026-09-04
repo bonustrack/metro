@@ -175,10 +175,10 @@ async function pastedCode(given: string | undefined): Promise<string> {
 }
 
 async function login(given: string | undefined): Promise<void> {
-  const { token, email, agent } = await claimCode(await pastedCode(given));
+  const { token, subject, agent } = await claimCode(await pastedCode(given));
   writeToken(token);
   process.stderr.write(
-    `Authorized '${agent}' for ${email}. Stored in ${credentialsPath()}\n`,
+    `Authorized '${agent}' for ${subject}. Stored in ${credentialsPath()}\n`,
   );
   if (syncPluginServers())
     process.stderr.write(
@@ -188,8 +188,8 @@ async function login(given: string | undefined): Promise<void> {
 }
 
 async function whoami(wanted: string | undefined): Promise<void> {
-  const { email, agent, where } = await whoisAuthorized(wanted);
-  process.stdout.write(`${email} · agent '${agent}' on ${where}\n`);
+  const { subject, agent, where } = await whoisAuthorized(wanted);
+  process.stdout.write(`${subject} · agent '${agent}' on ${where}\n`);
 }
 
 const HELP = new Set([undefined, 'help', '--help', '-h']);

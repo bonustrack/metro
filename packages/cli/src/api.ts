@@ -120,7 +120,7 @@ export async function runConfigKey(token: string): Promise<string> {
 
 export interface Authorized {
   token: string;
-  email: string;
+  subject: string;
   agent: string;
 }
 
@@ -129,11 +129,11 @@ export async function claimCode(code: string): Promise<Authorized> {
   if (
     !isRecord(body) ||
     typeof body.token !== 'string' ||
-    typeof body.email !== 'string' ||
+    typeof body.subject !== 'string' ||
     typeof body.agent !== 'string'
   )
     throw new Error('metro returned an unexpected response');
-  return { token: body.token, email: body.email, agent: body.agent };
+  return { token: body.token, subject: body.subject, agent: body.agent };
 }
 
 export interface RunClaimed {
@@ -169,7 +169,7 @@ export async function mcpServers(wanted?: string): Promise<string> {
 }
 
 export async function whoisAuthorized(wanted?: string): Promise<{
-  email: string;
+  subject: string;
   agent: string;
   where: string;
 }> {
@@ -177,22 +177,22 @@ export async function whoisAuthorized(wanted?: string): Promise<{
     const agents = localAgents();
     if (agents.length > 0) {
       const agent = pickLocalAgent(agents, wanted);
-      return { email: 'this machine', agent: agent.name, where: `${localUrl()} (local)` };
+      return { subject: 'this machine', agent: agent.name, where: `${localUrl()} (local)` };
     }
   }
   return { ...(await hostedIdentity()), where: metroUrl() };
 }
 
 async function hostedIdentity(): Promise<{
-  email: string;
+  subject: string;
   agent: string;
 }> {
   const body = await get('/api/cli/session');
   if (
     !isRecord(body) ||
-    typeof body.email !== 'string' ||
+    typeof body.subject !== 'string' ||
     typeof body.agent !== 'string'
   )
     throw new Error('metro returned an unexpected response');
-  return { email: body.email, agent: body.agent };
+  return { subject: body.subject, agent: body.agent };
 }

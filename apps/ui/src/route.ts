@@ -1,4 +1,5 @@
 import { type Selection } from './components/selection';
+import { RESERVED_SEGMENTS } from './auth/daemon';
 
 const HOST = '[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?';
 const ID = '[A-Za-z0-9_-]{11}';
@@ -7,7 +8,7 @@ const CLAUDE = '[A-Za-z0-9._-]+';
 
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
-const CONNECT_PATH = /^#?\/connect(?:\/(.*))?$/;
+const CONNECT_PATH = /^#?\/connect$/;
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const STATIONS_PATH = new RegExp(`^#?/(${HOST})/stations$`);
 const STATION_PATH = new RegExp(`^#?/(${HOST})/station/(${ACCOUNT})$`);
@@ -15,26 +16,13 @@ const CONNECTORS_PATH = new RegExp(`^#?/(${HOST})/connectors$`);
 const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
 const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/(${CLAUDE}\\.md))?)?$`);
-const RESERVED = new Set(['docs', 'settings', 'connect', 'login', 'authorize']);
 
-function decodeConnect(raw: string | undefined): string | null {
-  if (raw === undefined || raw === '') return null;
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return null;
-  }
-}
-
-export function connectRoute(selection: Selection): { url: string | null } | null {
-  return selection.kind === 'connect' ? { url: selection.url } : null;
-}
+export const connectRoute = (selection: Selection): boolean => selection.kind === 'connect';
 
 function exactSelection(hash: string): Selection | null {
   if (DOCS_PATH.test(hash)) return { kind: 'docs' };
   if (SETTINGS_PATH.test(hash)) return { kind: 'settings' };
-  const connect = CONNECT_PATH.exec(hash);
-  if (connect) return { kind: 'connect', url: decodeConnect(connect[1]) };
+  if (CONNECT_PATH.test(hash)) return { kind: 'connect' };
   return null;
 }
 
@@ -53,7 +41,7 @@ export function routeSelection(hash: string): Selection {
   if (exact !== null) return exact;
   for (const [pattern, make] of SCOPED) {
     const found = pattern.exec(hash);
-    if (found && !RESERVED.has(found[1] ?? '')) return make(found[1] ?? '', found[2] ?? '', found[3] ?? '');
+    if (found && !RESERVED_SEGMENTS.has(found[1] ?? '')) return make(found[1] ?? '', found[2] ?? '', found[3] ?? '');
   }
   return { kind: 'none' };
 }
@@ -77,8 +65,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
 export function routeHash(selection: Selection): string {
   if (selection.kind === 'docs') return '#/docs/setup';
   if (selection.kind === 'settings') return '#/settings';
-  if (selection.kind === 'connect')
-    return selection.url === null ? '#/connect' : `#/connect/${encodeURIComponent(selection.url)}`;
+  if (selection.kind === 'connect') return '#/connect';
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return '#/';
   return `#/${selection.project}${suffix(selection)}`;

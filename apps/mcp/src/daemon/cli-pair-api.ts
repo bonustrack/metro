@@ -69,7 +69,6 @@ async function handleClaim(
   log.info({ subject: taken.subject, agent: agent.id }, 'cli: code claimed');
   sendJson(req, res, 200, {
     token,
-    email: taken.subject,
     subject: taken.subject,
     agent: agent.name,
   });
@@ -90,7 +89,6 @@ async function handleRead(
   const agent = await deps.agentConnectors(who.subject, who.agentId);
   if (path === SESSION_PATH) {
     sendJson(req, res, 200, {
-      email: who.subject,
       subject: who.subject,
       agent: agent.name,
     });

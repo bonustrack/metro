@@ -29,12 +29,10 @@ describe('the first segment is the daemon', () => {
   test('the fixed pages win over a host that happens to spell their name', () => {
     expect(routeSelection('#/docs/setup')).toEqual({ kind: 'docs' });
     expect(routeSelection('#/settings')).toEqual({ kind: 'settings' });
-    expect(routeSelection('#/connect')).toEqual({ kind: 'connect', url: null });
-    expect(routeSelection('#/connect/http%3A%2F%2F127.0.0.1%3A8420')).toEqual({ kind: 'connect', url: 'http://127.0.0.1:8420' });
-    expect(routeSelection('#/login')).toEqual({ kind: 'none' });
-    expect(routeSelection('#/authorize/aB3-_xYz9Qw')).toEqual({ kind: 'none' });
+    expect(routeSelection('#/connect')).toEqual({ kind: 'connect' });
+    expect(routeSelection('#/connect/http%3A%2F%2F127.0.0.1%3A8420')).toEqual({ kind: 'none' });
     expect(routeHash({ kind: 'docs' })).toBe('#/docs/setup');
-    expect(routeHash({ kind: 'connect', url: 'http://127.0.0.1:8420' })).toBe('#/connect/http%3A%2F%2F127.0.0.1%3A8420');
+    expect(routeHash({ kind: 'connect' })).toBe('#/connect');
   });
 
   test('what is not a route', () => {

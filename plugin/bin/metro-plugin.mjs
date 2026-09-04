@@ -120,7 +120,7 @@ async function login(code) {
     body: JSON.stringify({ code: code.trim() }),
   });
   writeToken(body.token);
-  process.stdout.write(`Authorized '${body.agent}' for ${body.email}.\n`);
+  process.stdout.write(`Authorized '${body.agent}' for ${body.subject}.\n`);
   await refresh();
 }
 
@@ -144,7 +144,7 @@ async function status() {
     count = 0;
   }
   process.stdout.write(
-    `${body.email} · agent '${body.agent}' on ${metroUrl()} · ${count} server(s) loaded\n`,
+    `${body.subject} · agent '${body.agent}' on ${metroUrl()} · ${count} server(s) loaded\n`,
   );
 }
 
