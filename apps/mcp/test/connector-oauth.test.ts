@@ -83,7 +83,7 @@ describe('the authorize url', () => {
       authorizeUrl({
         server: SERVER,
         client: CLIENT,
-        redirectUri: 'https://mcp.metro.box/api/connectors/callback',
+        redirectUri: 'https://api.metro.box/api/connectors/callback',
         state: 'st-1',
         verifier: 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk',
         resource: 'https://mcp.example.com/',
@@ -98,7 +98,7 @@ describe('the authorize url', () => {
     expect(url.searchParams.get('state')).toBe('st-1');
     expect(url.searchParams.get('resource')).toBe('https://mcp.example.com/');
     expect(url.searchParams.get('redirect_uri')).toBe(
-      'https://mcp.metro.box/api/connectors/callback',
+      'https://api.metro.box/api/connectors/callback',
     );
   });
 
@@ -107,7 +107,7 @@ describe('the authorize url', () => {
     const url = authorizeUrl({
       server: SERVER,
       client: CLIENT,
-      redirectUri: 'https://mcp.metro.box/api/connectors/callback',
+      redirectUri: 'https://api.metro.box/api/connectors/callback',
       state: 'st-2',
       verifier,
       resource: 'https://mcp.example.com/',

@@ -19,7 +19,7 @@ beforeAll(async () => {
 
 const PROJECT = 'localdaemon';
 
-const CONNECTORS = 'https://mcp.metro.box/api/connectors';
+const CONNECTORS = 'https://api.metro.box/api/connectors';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {

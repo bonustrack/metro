@@ -87,7 +87,7 @@ describe('resetAgentKey', () => {
     serve(ROTATED);
     await resetAgentKey(7);
     expect(calls).toEqual([
-      { url: 'https://mcp.metro.box/api/agents/7/key', method: 'POST' },
+      { url: 'https://api.metro.box/api/agents/7/key', method: 'POST' },
     ]);
   });
 

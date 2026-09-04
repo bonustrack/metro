@@ -1,7 +1,7 @@
 const DAEMON_KEY = 'metro.daemon';
 const SERVER_KEY = 'metro.server';
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
-const HOSTED_DAEMON = 'https://mcp.metro.box';
+const HOSTED_DAEMON = 'https://api.metro.box';
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
 const PLAIN_HTTP =

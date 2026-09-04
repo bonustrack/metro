@@ -68,7 +68,7 @@ and hot-reloads one subprocess per file:
 import '@metro-labs/xmtp/train';
 ```
 
-The hosted daemon at `mcp.metro.box` is the same program without `METRO_MODE=local`: it runs no
+The hosted daemon at `api.metro.box` is the same program without `METRO_MODE=local`: it runs no
 channel, and serves wallet sign-in, the [vault](#sync-with-metro-and-restore) and `/health`
 from Postgres (`bun run start` with `DATABASE_URL` set).
 
@@ -382,7 +382,7 @@ The `allowlist` of a channel account (default `["*"]`) is edited in the agent fi
 ## Connecting a client
 
 The HTTP server serves the **MCP at the root path** (so it can sit behind its own host,
-e.g. `https://mcp.metro.box`), plus `GET /health` and the webhook receiver. Register it —
+e.g. `https://api.metro.box`), plus `GET /health` and the webhook receiver. Register it —
 this is the line the agent page hands you, and it names the daemon on the machine you paste
 it into (see [Running metro on your own machine](#running-metro-on-your-own-machine)):
 
@@ -480,10 +480,10 @@ daemon, so they never pass through the model's context and nothing is published:
 ```bash
 # 1. MCP, no shell needed: mint a slot
 #    create_upload({name: "q3-results.pdf"})
-#    -> { upload_id: "up_…", upload_url: "https://mcp.metro.box/api/uploads/up_…?token=ut_…", curl: "…" }
+#    -> { upload_id: "up_…", upload_url: "https://api.metro.box/api/uploads/up_…?token=ut_…", curl: "…" }
 
 # 2. the one step that needs a shell — push the bytes
-curl -sS -T q3-results.pdf "https://mcp.metro.box/api/uploads/up_…?token=ut_…"
+curl -sS -T q3-results.pdf "https://api.metro.box/api/uploads/up_…?token=ut_…"
 
 # 3. MCP again: attach it
 #    send({line, text: "the numbers", attachments: [{upload: "up_…"}]})
@@ -500,7 +500,7 @@ With the agent's key to hand you can skip `create_upload` and post the file in o
 ```bash
 curl -sS -H "Authorization: Bearer $METRO_AGENT_KEY" \
      --data-binary @q3-results.pdf \
-     "https://mcp.metro.box/api/uploads?name=q3-results.pdf"
+     "https://api.metro.box/api/uploads?name=q3-results.pdf"
 ```
 
 An upload is **owned by the uploading agent and scoped exactly like an attachment**: the

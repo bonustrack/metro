@@ -46,7 +46,7 @@ describe('inbound attachment urls on a local daemon', () => {
   });
 
   test('outside local mode, uploads fall back to the hosted base and media to nothing', () => {
-    expect(publicBaseOrDefault()).toBe('https://mcp.metro.box');
+    expect(publicBaseOrDefault()).toBe('https://api.metro.box');
     expect(attachmentUrl(NAME, 'agent000001')).toBeNull();
   });
 

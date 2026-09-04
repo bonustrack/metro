@@ -25,7 +25,7 @@ function authorized(req: IncomingMessage, name: string): boolean {
   );
 }
 
-const DEFAULT_PUBLIC_BASE = 'https://mcp.metro.box';
+const DEFAULT_PUBLIC_BASE = 'https://api.metro.box';
 
 export function publicBaseUrl(): string | null {
   const env = process.env.METRO_PUBLIC_URL?.trim();
