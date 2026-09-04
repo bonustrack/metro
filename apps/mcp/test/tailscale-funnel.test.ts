@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { currentTunnelUrl, driverFor, funnelDriver, funnelUrlIn, Tunnel } from '../src/daemon/tunnel.ts';
+import { currentTunnelUrl, driverFor, funnelAlreadyServing, funnelDriver, funnelUrlIn, Tunnel } from '../src/daemon/tunnel.ts';
 import { publicBaseUrl } from '../src/daemon/attach-serve.ts';
 import { tunnelPendingHint } from '../src/daemon/connect-hint.ts';
 
@@ -21,6 +21,16 @@ const REFUSED = [
   '',
   '\thttps://login.tailscale.com/f/funnel?node=nabc123',
 ].join('\n');
+
+const TAKEN = 'sending serve config: updating config: listener already exists for port 443';
+const STATUS_FUNNEL = [
+  '# Funnel on:',
+  '#     - https://suzy.tail1234.ts.net',
+  '',
+  'https://suzy.tail1234.ts.net (Funnel on)',
+  '|-- / proxy http://127.0.0.1:8420',
+].join('\n');
+const STATUS_SERVE = ['https://suzy.tail1234.ts.net (tailnet only)', '|-- / proxy http://127.0.0.1:8420'].join('\n');
 
 const saved = { path: process.env.PATH, bin: process.env.METRO_TAILSCALE_BIN, pub: process.env.METRO_PUBLIC_URL };
 let dir = '';
@@ -64,6 +74,13 @@ describe('reading tailscale funnel', () => {
     expect(funnelUrlIn('https://evil.example.com/suzy.tail1234.ts.net')).toBeNull();
     expect(funnelUrlIn('https://suzy.tail1234.ts.net.evil.example')).toBeNull();
     expect(funnelUrlIn(REFUSED)).toBeNull();
+  });
+
+  test('an existing funnel on the daemon port is adopted; a tailnet-only serve or another port is not', () => {
+    expect(funnelAlreadyServing(STATUS_FUNNEL, 8420)).toEqual({ url: 'https://suzy.tail1234.ts.net', hint: expect.stringContaining('using it') });
+    expect(funnelAlreadyServing(STATUS_FUNNEL, 8421)).toMatchObject({ url: null, hint: expect.stringContaining('tailscale serve reset') });
+    expect(funnelAlreadyServing(STATUS_SERVE, 8420)).toMatchObject({ url: null, hint: expect.stringContaining('tailnet-only') });
+    expect(funnelAlreadyServing('No serve config', 8420).url).toBeNull();
   });
 
   test('the driver runs the foreground funnel on the daemon port, from the binary the CLI found', () => {
@@ -114,6 +131,35 @@ describe('a funnel, against a fake tailscale', () => {
     });
     tunnel.start();
     await new Promise((r) => setTimeout(r, 400));
+    expect(announced).toBeNull();
+    expect(currentTunnelUrl()).toBeNull();
+    tunnel.stop();
+  });
+
+  test('when port 443 is already held by a funnel to this daemon, that address is adopted instead of looping', async () => {
+    fakeTailscale(`if [ "$2" = "status" ]; then printf '%s\\n' '${STATUS_FUNNEL.replace(/'/g, '')}'; exit 0; fi\necho '${TAKEN}' >&2\nexit 1`);
+    const onUrl = { resolve: (_u: string): void => undefined };
+    const tunnel = new Tunnel(
+      funnelDriver(8420, 'tailscale'),
+      (u) => {
+        onUrl.resolve(u);
+      },
+      () => Promise.resolve(true),
+    );
+    const url = await untilUrl(tunnel, onUrl);
+    expect(url).toBe('https://suzy.tail1234.ts.net');
+    expect(currentTunnelUrl()).toBe(url);
+    tunnel.stop();
+  });
+
+  test('when 443 is held by a tailnet-only serve, nothing is announced and the retry backs off', async () => {
+    fakeTailscale(`if [ "$2" = "status" ]; then printf '%s\\n' '${STATUS_SERVE.replace(/'/g, '')}'; exit 0; fi\necho '${TAKEN}' >&2\nexit 1`);
+    let announced: string | null = null;
+    const tunnel = new Tunnel(funnelDriver(8420, 'tailscale'), (u) => {
+      announced = u;
+    });
+    tunnel.start();
+    await new Promise((r) => setTimeout(r, 600));
     expect(announced).toBeNull();
     expect(currentTunnelUrl()).toBeNull();
     tunnel.stop();
