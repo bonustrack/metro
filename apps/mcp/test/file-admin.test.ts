@@ -150,6 +150,20 @@ describe('importing an agent from metro.box', () => {
     expect(agentIdForKey(old)).toBe('agentTony01');
   });
 
+  test('importing the same agent again refreshes it in place and keeps what was attached here', async () => {
+    await localImportAgent(OWNER, loaded(), dir);
+    await localAttachAccount(OWNER, 'agentTony01', 'discord-bot', { token: 'd' }, dir);
+    const again = await localImportAgent(
+      OWNER,
+      loaded({ accounts: [{ station: 'telegram-bot', id: 'stn00000001', allowlist: null, config: { token: 't2' } }] }),
+      dir,
+    );
+    expect(again.stations).toBe(3);
+    const file = stored('Tony');
+    expect(file.stations.map((s) => s.config)).toEqual([{ token: 't2' }, { privateKey: '0x1' }, { token: 'd' }]);
+    expect(agentIdForKey(TONY_KEY)).toBe('agentTony01');
+  });
+
   test('a shape the file cannot hold is a 400 naming the field, not a bare 500', async () => {
     const bad = localImportAgent(OWNER, loaded({ name: 'Bad', id: 'agentTony09', key: 'mk_nope' }), dir);
     await expect(bad).rejects.toThrow(/not an agent key/);
@@ -161,8 +175,8 @@ describe('importing an agent from metro.box', () => {
     expect(await status(localImportAgent(OWNER, loaded({ accounts: [{ station: 'webhook', id: 'stn00000003', allowlist: null, config: {} }] }), dir))).toBe(400);
     expect(await status(localImportAgent(OWNER, loaded({ key: null }), dir))).toBe(400);
     await localImportAgent(OWNER, loaded(), dir);
-    expect(await status(localImportAgent(OWNER, loaded(), dir))).toBe(409);
-    expect(await status(localImportAgent(OWNER, loaded({ name: 'tony2' }), dir))).toBe(409);
+    expect(await status(localImportAgent(OWNER, loaded({ name: 'tony2' }), dir))).toBe(0);
+    expect(stored('Tony').stations).toHaveLength(2);
     expect(await status(localImportAgent(OWNER, loaded({ name: 'tony3', id: 'agentTony02' }), dir))).toBe(409);
     const suzy = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
     expect(await status(localImportAgent(OWNER, loaded({ name: 'suzy', id: 'agentTony03', key: `mk_${'c'.repeat(43)}` }), dir))).toBe(409);

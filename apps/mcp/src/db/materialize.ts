@@ -21,7 +21,14 @@ import {
   type AllowlistMap,
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
-import { STATIONS, stations, agents, type StationName } from './schema.js';
+import {
+  agentConnectors,
+  agents,
+  connectors,
+  stations,
+  STATIONS,
+  type StationName,
+} from './schema.js';
 
 interface StationTarget {
   file: string;
@@ -36,11 +43,20 @@ export interface LoadedAccount {
   config: Record<string, unknown>;
 }
 
+export interface LoadedConnector {
+  id: string;
+  name: string;
+  url: string;
+  transport: 'http';
+  config: Record<string, unknown>;
+}
+
 export interface LoadedAgent {
   id: string;
   name: string;
   accounts: LoadedAccount[];
   key: string | null;
+  connectors?: LoadedConnector[];
 }
 
 const METRO_DIR = join(homedir(), '.metro');
@@ -133,10 +149,22 @@ export async function loadAgentForRuntime(
     .select()
     .from(stations)
     .where(eq(stations.agentId, a.id));
+  const held = await db
+    .select({ id: connectors.id, name: connectors.name, url: connectors.url, config: connectors.config })
+    .from(agentConnectors)
+    .innerJoin(connectors, eq(connectors.id, agentConnectors.connectorId))
+    .where(eq(agentConnectors.agentId, a.id));
   return {
     id: a.id,
     name: a.name,
     key: a.key,
+    connectors: held.map((c) => ({
+      id: c.id,
+      name: c.name,
+      url: c.url,
+      transport: 'http' as const,
+      config: c.config as Record<string, unknown>,
+    })),
     accounts: acctRows
       .filter((r) => MOVABLE_STATIONS.has(r.station))
       .map((r) => ({

@@ -15,6 +15,7 @@ const PATH = '/api/agents/import';
 
 export interface ImportedAgent extends CreatedAgent {
   stations: number;
+  connectors: number;
 }
 
 export interface ImportApiDeps {
@@ -31,7 +32,7 @@ async function handle(
     const code = parsePairingCode(bodyField(await readJsonBody(req), 'code'));
     const made = await deps.importAgent(subject, code);
     log.info(
-      { agent: made.name, id: made.id, stations: made.stations },
+      { agent: made.name, id: made.id, stations: made.stations, connectors: made.connectors },
       'import-api: agent imported from metro',
     );
     sendJson(req, res, 201, made);

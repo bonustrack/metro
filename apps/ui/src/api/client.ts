@@ -170,6 +170,7 @@ export interface ImportedAgent {
   id: string;
   name: string;
   stations: number;
+  connectors: number;
 }
 
 export async function importAgent(token: string, code: string): Promise<ImportedAgent> {
@@ -185,6 +186,7 @@ export async function importAgent(token: string, code: string): Promise<Imported
     id: body.id,
     name: body.name,
     stations: typeof body.stations === 'number' ? body.stations : 0,
+    connectors: typeof body.connectors === 'number' ? body.connectors : 0,
   };
 }
 

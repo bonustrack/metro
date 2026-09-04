@@ -447,8 +447,8 @@ and manages it from the same pages, while your messages stay on that machine. Wi
 CLI this is `metro serve`; a checkout runs it as `METRO_MODE=local bun apps/mcp/src/server.ts`.
 An agent that lives on metro.box can move here: *Import from metro.box* on the agent page lists
 the wallet's agents, mints the pairing code itself (the same one `metro start` takes) and brings
-the agent over with its stations and their credentials, same id and same key, so nothing changes
-on the Claude Code side. Stop `metro start` for that agent first; metro.box keeps its copy until you
+the agent over with its stations, its connectors and their credentials, same id and same key, so
+nothing changes on the Claude Code side; *Import again* refreshes an agent already here. Stop `metro start` for that agent first; metro.box keeps its copy until you
 delete the agent there.
 
 One thing to know about XMTP: an inbox allows ten installations and the first start on each

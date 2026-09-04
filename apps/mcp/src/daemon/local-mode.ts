@@ -14,6 +14,7 @@ import { allowLocalConnectors } from './connector-url.js';
 import { keyIdentity, type LocalCliDeps } from './local-cli-api.js';
 import type { RelayApiDeps } from './relay.js';
 import {
+  localImportConnectors,
   localAddConnector,
   localAgentConnectors,
   localConnectorNamesByIds,
@@ -164,6 +165,7 @@ function importApi(deps: LocalModeDeps): ImportApiDeps {
       assertLocalOwner(subject);
       const agent = await fetchAgent(code, hostname());
       const made = await localImportAgent(subject, agent);
+      const connectors = localImportConnectors(agent.connectors ?? []);
       for (const station of new Set(agent.accounts.map((a) => a.station)))
         await deps.syncStations(station).catch((err: unknown) => {
           log.warn(
@@ -171,7 +173,7 @@ function importApi(deps: LocalModeDeps): ImportApiDeps {
             'import: station reload failed, the change lands at the next boot',
           );
         });
-      return made;
+      return { ...made, connectors };
     },
   };
 }
