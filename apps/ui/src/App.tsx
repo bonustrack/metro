@@ -20,6 +20,7 @@ import { daemonBase, daemonHost, isServerId, setCurrentServer, storedServerId } 
 
 type Phase = 'loading' | 'login' | 'unlocked';
 const NOTICE_WIDTH = 480;
+const CENTER_SELF = { alignSelf: 'center' } as const;
 
 function Notice({ text, onRetry, retryLabel }: { text: string; onRetry: () => void; retryLabel: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -27,7 +28,7 @@ function Notice({ text, onRetry, retryLabel }: { text: string; onRetry: () => vo
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={16} align="center" width="100%" maxWidth={NOTICE_WIDTH}>
         <Text role="secondary">{text}</Text>
-        <Button color="secondary" dark={dark} label={retryLabel} onPress={onRetry} />
+        <Button color="secondary" dark={dark} label={retryLabel} onPress={onRetry} style={CENTER_SELF} />
         <Text size="sm" role="secondary">
           <a className="hint-link" href="#/">
             All servers
