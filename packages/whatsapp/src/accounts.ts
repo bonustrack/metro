@@ -28,7 +28,6 @@ function validateAccount(
 export const { loadAccounts } = makeAccountStore<WhatsAppAccount>({
   prefix: 'whatsapp',
   file: ACCOUNTS_FILE,
-  allowlistEnv: ['WHATSAPP_ONLY_ACCOUNTS', 'WHATSAPP_ACCOUNTS'],
   validate(raw, die) {
     const seen = new Set<string>();
     for (const a of raw) validateAccount(a, seen, die);

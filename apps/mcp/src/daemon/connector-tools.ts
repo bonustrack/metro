@@ -1,3 +1,5 @@
+import { isRecord } from './is-record.js';
+
 export const TOOL_KINDS = ['read', 'write'] as const;
 
 export type ToolKind = (typeof TOOL_KINDS)[number];
@@ -15,10 +17,6 @@ export interface ToolInfo {
 
 const MAX_TOOLS = 500;
 const MAX_DESCRIPTION = 400;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 const str = (value: unknown, cap: number): string =>
   typeof value === 'string' ? value.slice(0, cap) : '';

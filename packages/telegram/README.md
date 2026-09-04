@@ -38,7 +38,6 @@ string once, locally, with `scripts/login.ts` (below).
 
 | Env var | Meaning |
 | --- | --- |
-| `TELEGRAM_ONLY_ACCOUNTS` / `TELEGRAM_ACCOUNTS` | Optional comma-separated `account_id` filter — boot only these accounts |
 | `TELEGRAM_ACCOUNTS_FILE` | Optional override for the materialized accounts file path |
 | `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | Only for `scripts/login.ts` when generating a session |
 

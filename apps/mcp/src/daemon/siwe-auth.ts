@@ -10,16 +10,8 @@ export interface SiweLogin {
   signature: string;
 }
 
-export interface SiweVerifyArgs {
-  address: `0x${string}`;
-  message: string;
-  signature: Hex;
-}
-
 export interface SiweDeps {
   takeNonce: (nonce: string) => boolean;
-  now?: number;
-  verify?: (args: SiweVerifyArgs) => Promise<boolean>;
 }
 
 const HEX_SIGNATURE = /^0x[0-9a-fA-F]{130}$/;
@@ -66,14 +58,13 @@ export async function verifySiweLogin(
   if (!HEX_SIGNATURE.test(input.signature))
     throw new SiweError('that is not an Ethereum signature', 400);
   const { address, domain, nonce, parsed } = fieldsOrThrow(input.message);
-  const time = new Date(deps.now ?? Date.now());
+  const time = new Date();
   if (!validateSiweMessage({ message: parsed, domain, nonce, time }))
     throw new SiweError('this sign-in message is expired or does not match', 400);
   if (!deps.takeNonce(nonce))
     throw new SiweError('that sign-in has expired or was already used', 400);
-  const verify = deps.verify ?? verifyMessage;
   const signature = input.signature as Hex;
-  if (!(await verify({ address, message: input.message, signature })))
+  if (!(await verifyMessage({ address, message: input.message, signature })))
     throw new SiweError(
       'the signature does not match the address; smart-contract wallets are not supported yet',
       401,

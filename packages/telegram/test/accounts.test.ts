@@ -3,10 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const ENV_KEYS = [
-  'TELEGRAM_ACCOUNTS_FILE',
-  'TELEGRAM_ONLY_ACCOUNTS',
-] as const;
+const ENV_KEYS = ['TELEGRAM_ACCOUNTS_FILE'] as const;
 
 let saved: Record<string, string | undefined> = {};
 let dir = '';
@@ -49,20 +46,6 @@ describe('telegram account store', () => {
     ]);
   });
 
-  test('allowlist filters the accounts file', async () => {
-    const file = join(dir, 'accounts.json');
-    writeFileSync(
-      file,
-      JSON.stringify([
-        { id: 'alice', session: 's1', apiId: 111, apiHash: 'h1' },
-        { id: 'bob', session: 's2', apiId: 222, apiHash: 'h2' },
-      ]),
-    );
-    process.env.TELEGRAM_ACCOUNTS_FILE = file;
-    process.env.TELEGRAM_ONLY_ACCOUNTS = 'bob';
-    const { loadAccounts } = await fresh();
-    expect(loadAccounts().map((a: { id: string }) => a.id)).toEqual(['bob']);
-  });
 });
 
 describe('telegram line helpers', () => {

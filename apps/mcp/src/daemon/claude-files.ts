@@ -12,6 +12,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { ApiError } from './api-error.js';
+import { isRecord } from './is-record.js';
 
 const PROJECT_RE = /^[A-Za-z0-9._-]{1,200}$/;
 const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
@@ -30,9 +31,6 @@ export function claudeDir(): string {
   if (cfg !== undefined && cfg !== '') return cfg;
   return join(homedir(), '.claude');
 }
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 

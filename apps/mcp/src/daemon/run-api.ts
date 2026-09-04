@@ -9,7 +9,7 @@ import {
   sendJson,
 } from './api-http.js';
 import { AGENT_CODE_RE, takeAgentCode } from './agent-pair.js';
-import { sessionTtlFromEnv } from './session-config.js';
+import { SESSION_TTL_SEC } from './session-config.js';
 import { signRunToken } from './session.js';
 import type { LoadedAgent } from '../db/materialize.js';
 import type { RuntimeLease } from '../db/runtimes.js';
@@ -80,7 +80,7 @@ async function handleClaim(
   const token = signRunToken(
     { subject: taken.subject, agentId: lease.agentId, runtimeId: lease.runtimeId },
     secret,
-    { ttlSec: sessionTtlFromEnv() },
+    { ttlSec: SESSION_TTL_SEC },
   );
   log.info(
     { agent: lease.agentId, runtime: lease.runtimeId, label: lease.label },

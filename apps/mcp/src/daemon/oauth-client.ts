@@ -4,6 +4,7 @@ import {
   type OAuthTokens,
 } from './connector-verify.js';
 import type { OAuthServer } from './oauth-discovery.js';
+import { isRecord } from './is-record.js';
 
 const TOKEN_TIMEOUT_MS = 15_000;
 const CLIENT_NAME = 'Metro';
@@ -15,10 +16,6 @@ export interface OAuthClient {
 
 function refused(message: string): ConnectorVerifyError {
   return new ConnectorVerifyError(message, 400);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function newVerifier(): string {

@@ -21,7 +21,6 @@ import {
   type AllowlistMap,
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
-import { carryTokenStores, PREVIOUS_ACCOUNT_ID } from './token-carry.js';
 import { STATIONS, stations, agents, type StationName } from './schema.js';
 
 interface StationTarget {
@@ -182,14 +181,6 @@ async function loadAgents(): Promise<LoadedAgent[]> {
   return out;
 }
 
-function trainConfig(
-  config: Record<string, unknown>,
-): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(config).filter(([key]) => key !== PREVIOUS_ACCOUNT_ID),
-  );
-}
-
 function trainStubPath(station: StationName): string {
   return join(trainsDir(), `${station}.ts`);
 }
@@ -248,12 +239,11 @@ function writeStations(list: LoadedAgent[]): WrittenStations {
   }
   setAgentMap(map, names);
   setAllowlistMap(allow);
-  carryTokenStores(list.flatMap((agent) => agent.accounts));
 
   const active = new Map<StationName, number>();
   const changed: StationName[] = [];
   for (const [station, accts] of byStation) {
-    const records = accts.map((a) => ({ id: a.id, ...trainConfig(a.config) }));
+    const records = accts.map((a) => ({ id: a.id, ...a.config }));
     const path = accountFilePath(station);
     const content = JSON.stringify(records, null, 2);
     if (currentText(path) !== content) {

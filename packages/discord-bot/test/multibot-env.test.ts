@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const ENV_KEYS = ['DISCORD_BOT_ACCOUNTS_FILE', 'DISCORD_BOT_ONLY_ACCOUNTS'] as const;
+const ENV_KEYS = ['DISCORD_BOT_ACCOUNTS_FILE'] as const;
 let saved: Record<string, string | undefined> = {};
 let dir = '';
 let counter = 0;
@@ -34,14 +34,4 @@ describe('discord-bot accounts file', () => {
     ]);
   });
 
-  test('allowlist filters the file', async () => {
-    const file = join(dir, 'discord2.json');
-    writeFileSync(file, JSON.stringify([
-      { id: 'd0', token: 't1' }, { id: 'd1', token: 't2' },
-    ]));
-    process.env.DISCORD_BOT_ACCOUNTS_FILE = file;
-    process.env.DISCORD_BOT_ONLY_ACCOUNTS = 'd0';
-    const { loadAccounts } = await fresh();
-    expect(loadAccounts()).toEqual([{ id: 'd0', token: 't1' }]);
-  });
 });

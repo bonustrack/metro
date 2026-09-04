@@ -29,7 +29,7 @@ export function keyIdentity(req: IncomingMessage): AgentIdentity | null {
 
 async function answer(path: string, key: string, agentId: string, deps: LocalCliDeps): Promise<unknown> {
   const agent = deps.agentName(agentId) ?? '';
-  if (path === `${PREFIX}/session`) return { email: 'this machine', subject: 'this machine', agent };
+  if (path === `${PREFIX}/session`) return { subject: 'this machine', agent };
   if (path === `${PREFIX}/connectors`) return { agent, connectors: await deps.connectorSummaries(agentId) };
   return { json: relayServersJson(await deps.connectorEntries(agentId), publicBaseOrDefault(), key), agent };
 }

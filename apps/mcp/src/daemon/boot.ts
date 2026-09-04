@@ -1,24 +1,12 @@
 import type { ProjectApiDeps } from './project-api.js';
 import { join } from 'node:path';
 import { type Server } from 'node:http';
-import { selfLine, userSelf } from './events.js';
+import { userSelf } from './events.js';
 import { setTrainCallBackend } from './train-call.js';
 import { errMsg, log, logFatalSync } from './log.js';
-import {
-  acquireLock,
-  isLocalMode,
-  loadMetroEnv,
-  STATE_DIR,
-  trainsDir,
-} from './paths.js';
+import { acquireLock, isLocalMode, STATE_DIR, trainsDir } from './paths.js';
 import { installCrashGuard, markDaemonReady } from './crash-guard.js';
-import {
-  loadTunnelConfig,
-  Tunnel,
-  tunnelConfigFromEnv,
-  warnOnLegacyWebhooks,
-  webhookPort,
-} from './tunnel.js';
+import { quickTunnelWanted, Tunnel, webhookPort } from './tunnel.js';
 import {
   localConnectHint,
   publicConnectHint,
@@ -115,11 +103,9 @@ import type { AgentApiDeps } from './agent-api.js';
 import type { ConnectorApiDeps } from './connector-api.js';
 
 installCrashGuard();
-loadMetroEnv();
 acquireLock(join(STATE_DIR, '.tail-lock'));
 
-const self = userSelf();
-log.info({ self, line: selfLine() }, 'user identity');
+log.info({ self: userSelf() }, 'user identity');
 
 process.stdout.on('error', (err) => {
   if ((err as NodeJS.ErrnoException).code !== 'EPIPE')
@@ -135,8 +121,7 @@ supervisor.onTrainEvent((env, train) => {
 });
 
 let webhookServer: Server | null = null;
-const tunnelCfg = loadTunnelConfig() ?? tunnelConfigFromEnv();
-const tunnel = tunnelCfg ? new Tunnel(tunnelCfg, webhookPort(), announcePublic) : null;
+const tunnel = quickTunnelWanted() ? new Tunnel(webhookPort(), announcePublic) : null;
 
 function announcePublic(url: string): void {
   process.stderr.write(`\n${publicConnectHint(url)}`);
@@ -321,7 +306,6 @@ async function main(): Promise<void> {
   if (isLocalMode()) ensureLocalSessionSecret();
   if (localSource === null) await materializeFromDb();
   else await materializeFrom(localSource, { allowEmpty: linkedSource === null });
-  warnOnLegacyWebhooks();
   supervisor.start();
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(
@@ -373,8 +357,6 @@ const onShutdown = (): void => {
     process.exit(1);
   });
 };
-if (process.env.METRO_STDIN_SHUTDOWN === '1')
-  process.stdin.on('end', onShutdown).on('close', onShutdown);
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, onShutdown);
 
 await main().catch((err: unknown) => {

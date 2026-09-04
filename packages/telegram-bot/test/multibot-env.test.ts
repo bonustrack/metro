@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const ENV_KEYS = ['TELEGRAM_BOT_ACCOUNTS_FILE', 'TELEGRAM_BOT_ONLY_ACCOUNTS'] as const;
+const ENV_KEYS = ['TELEGRAM_BOT_ACCOUNTS_FILE'] as const;
 let saved: Record<string, string | undefined> = {};
 let dir = '';
 let counter = 0;
@@ -32,14 +32,4 @@ describe('telegram-bot accounts file', () => {
     expect(loadAccounts()).toEqual([{ id: 't0', token: 'a' }, { id: 't1', token: 'b' }]);
   });
 
-  test('allowlist filters the file', async () => {
-    const file = join(dir, 'telegram2.json');
-    writeFileSync(file, JSON.stringify([
-      { id: 't0', token: 'a' }, { id: 't1', token: 'b' },
-    ]));
-    process.env.TELEGRAM_BOT_ACCOUNTS_FILE = file;
-    process.env.TELEGRAM_BOT_ONLY_ACCOUNTS = 't1';
-    const { loadAccounts } = await fresh();
-    expect(loadAccounts()).toEqual([{ id: 't1', token: 'b' }]);
-  });
 });

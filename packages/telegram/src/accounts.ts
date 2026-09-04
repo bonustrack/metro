@@ -29,7 +29,6 @@ function validateAccount(a: UserAccount, seen: Set<string>, die: Die): void {
 export const { loadAccounts } = makeAccountStore<UserAccount>({
   prefix: 'telegram',
   file: ACCOUNTS_FILE,
-  allowlistEnv: ['TELEGRAM_ONLY_ACCOUNTS', 'TELEGRAM_ACCOUNTS'],
   validate(raw, die) {
     const seen = new Set<string>();
     for (const a of raw) validateAccount(a, seen, die);

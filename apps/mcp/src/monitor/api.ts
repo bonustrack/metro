@@ -9,6 +9,7 @@ import {
   authConfigFromEnv,
   authenticate,
 } from '../mcp/request-identity.js';
+import { METRO_VERSION } from '../daemon/version.js';
 
 export type MonitorCall = (
   train: string,
@@ -18,7 +19,6 @@ export type MonitorCall = (
 
 const KEEPALIVE_MS = 25_000;
 const CALL_BODY_MAX = 256 * 1024;
-const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
 
 function monitorEnabled(): boolean {
   return hasAnyKey() || authConfigFromEnv().sessionSecret !== '';

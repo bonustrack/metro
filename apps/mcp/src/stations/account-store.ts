@@ -7,7 +7,6 @@ export type Die = (msg: string) => never;
 export interface MakeLoaderOpts<T> {
   prefix: string;
   file: string;
-  allowlistEnv: string[];
   validate: (raw: T[], die: Die) => void;
 }
 
@@ -24,17 +23,6 @@ export function makeAccountStore<T extends { id: string }>(
     process.exit(2);
   };
 
-  let allowlistRaw: string | undefined;
-  for (const k of opts.allowlistEnv) {
-    allowlistRaw ??= process.env[k];
-  }
-  const allowlist = new Set(
-    (allowlistRaw ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
-  );
-
   function loadAccounts(): T[] {
     if (!existsSync(opts.file))
       return die(
@@ -50,15 +38,7 @@ export function makeAccountStore<T extends { id: string }>(
     if (!Array.isArray(raw) || raw.length === 0)
       die(`${opts.file} must be a non-empty array`);
     opts.validate(raw, die);
-    const selected = allowlist.size
-      ? raw.filter((a) => allowlist.has(a.id))
-      : raw;
-    if (selected.length === 0) {
-      die(
-        `no accounts match ${opts.allowlistEnv[0]} (${[...allowlist].join(', ')})`,
-      );
-    }
-    return selected;
+    return raw;
   }
 
   return { die, loadAccounts };

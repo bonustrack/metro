@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const ENV_KEYS = ['WHATSAPP_ACCOUNTS_FILE', 'WHATSAPP_ONLY_ACCOUNTS'] as const;
+const ENV_KEYS = ['WHATSAPP_ACCOUNTS_FILE'] as const;
 
 let saved: Record<string, string | undefined> = {};
 let dir = '';
@@ -43,20 +43,6 @@ describe('whatsapp account store', () => {
     expect(loadAccounts().map((a: { id: string }) => a.id)).toEqual(['w0', 'w1']);
   });
 
-  test('allowlist filters the accounts file', async () => {
-    const file = join(dir, 'accounts.json');
-    writeFileSync(
-      file,
-      JSON.stringify([
-        { id: 'w0', phone: '111' },
-        { id: 'w1', phone: '222' },
-      ]),
-    );
-    process.env.WHATSAPP_ACCOUNTS_FILE = file;
-    process.env.WHATSAPP_ONLY_ACCOUNTS = 'w1';
-    const { loadAccounts } = await fresh();
-    expect(loadAccounts().map((a: { id: string }) => a.id)).toEqual(['w1']);
-  });
 });
 
 describe('whatsapp line helpers', () => {

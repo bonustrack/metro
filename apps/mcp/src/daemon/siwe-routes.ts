@@ -10,7 +10,7 @@ import {
 import { mintNonce, takeNonce } from './siwe-nonces.js';
 import { verifySiweLogin } from './siwe-auth.js';
 import { signSession } from './session.js';
-import { sessionTtlFromEnv } from './session-config.js';
+import { SESSION_TTL_SEC } from './session-config.js';
 import { ensureUserWithProject } from '../db/projects.js';
 
 const NONCE_PATH = '/auth/siwe/nonce';
@@ -39,7 +39,7 @@ async function handleVerify(
   const userId = await deps.ensureUser(address);
   log.info({ userId, address }, 'siwe: session issued');
   const session = signSession({ subject: address, agentIds: [] }, secret, {
-    ttlSec: sessionTtlFromEnv(),
+    ttlSec: SESSION_TTL_SEC,
   });
   sendJson(req, res, 200, { session, address });
 }

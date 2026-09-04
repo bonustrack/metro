@@ -1,11 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { Line, asLine } from '@metro-labs/mcp/lines';
+import { Line } from '@metro-labs/mcp/lines';
 import { mintId, type MetroEvent } from '@metro-labs/mcp/events';
 import type { Endpoint } from '@metro-labs/mcp/endpoints';
 import type { Station, Verb } from '@metro-labs/mcp/stations/types';
-
-const sessionOwner = (sessionId: string): Line =>
-  asLine(`metro://session/${sessionId}`);
 
 export const webhookStation: Station = {
   name: 'webhook',
@@ -31,7 +28,7 @@ export function webhookEntry(
     line,
     lineName: endpoint.label,
     from: line,
-    to: endpoint.session ? sessionOwner(endpoint.session) : line,
+    to: line,
     messageId:
       headers['x-github-delivery'] ?? headers['x-request-id'] ?? randomUUID(),
     text: `${headers['x-github-event'] ?? headers['x-intercom-topic'] ?? 'event'} ${method} ${url}`,
