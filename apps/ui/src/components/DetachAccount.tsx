@@ -25,7 +25,7 @@ export function DetachAccount({
     setBusy(true);
     setError(null);
     onDetach(station, accountId).catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : 'Could not delete the station.');
+      setError(err instanceof Error ? err.message : 'Could not delete the channel.');
       setBusy(false);
     });
   };
@@ -33,11 +33,11 @@ export function DetachAccount({
   return (
     <>
       <KebabMenu
-        label="Station actions"
+        label="Channel actions"
         size="lg"
         items={[
           {
-            label: 'Delete station',
+            label: 'Delete channel',
             danger: true,
             onSelect: () => {
               setError(null);
@@ -48,14 +48,14 @@ export function DetachAccount({
       />
       <ConfirmModal
         open={open}
-        title="Delete station"
+        title="Delete channel"
         lines={[
-          'This deletes the station and the credentials Metro stores for it. It stops relaying immediately.',
+          'This deletes the channel and the credentials Metro stores for it. It stops relaying immediately.',
           reconnectNote,
         ]}
         prompt={`Type ${accountId} to confirm.`}
         confirmWord={accountId}
-        confirmLabel="Delete station"
+        confirmLabel="Delete channel"
         busy={busy}
         error={error}
         onClose={() => {

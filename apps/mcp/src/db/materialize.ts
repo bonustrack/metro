@@ -6,13 +6,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { ID_RE } from './ids.js';
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
 import { log } from '../daemon/log.js';
 import { writeSecure } from '../daemon/secure-fs.js';
 import { isLocalMode, trainsDir } from '../daemon/paths.js';
-import { closeDb, databaseUrl, getDb } from './client.js';
 import {
   setAgentMap,
   setAllowlistMap,
@@ -21,14 +18,7 @@ import {
   type AllowlistMap,
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
-import {
-  agentConnectors,
-  agents,
-  connectors,
-  stations,
-  STATIONS,
-  type StationName,
-} from './schema.js';
+import { STATIONS, type StationName } from './schema.js';
 
 interface StationTarget {
   file: string;
@@ -99,115 +89,11 @@ function accountFilePath(station: StationName): string {
   return process.env[target.fileEnv] ?? join(METRO_DIR, target.file);
 }
 
-function agentFilter(): string | undefined {
-  const v = process.env.METRO_AGENT?.trim();
-  if (!v) return undefined;
-  if (!ID_RE.test(v))
-    throw new Error(`METRO_AGENT must be an 11-character agent id, got '${v}'`);
-  return v;
-}
-
 export type StationSource = () => Promise<LoadedAgent[]>;
 
 export const MOVABLE_STATIONS = new Set<StationName>(
   STATIONS.filter((s) => s !== 'webhook'),
 );
-
-export function unmovableStations(list: LoadedAccount[]): StationName[] {
-  return [
-    ...new Set(
-      list
-        .map((a) => a.station)
-        .filter((station) => !MOVABLE_STATIONS.has(station)),
-    ),
-  ];
-}
-
-export async function loadAllStationsFor(
-  agentId: string,
-): Promise<LoadedAccount[]> {
-  const rows = await getDb()
-    .select()
-    .from(stations)
-    .where(eq(stations.agentId, agentId));
-  return rows.map((r) => ({
-    station: r.station,
-    id: r.id,
-    allowlist: r.allowlist,
-    config: r.config as Record<string, unknown>,
-  }));
-}
-
-export async function loadAgentForRuntime(
-  agentId: string,
-): Promise<LoadedAgent> {
-  const db = getDb();
-  const rows = await db.select().from(agents).where(eq(agents.id, agentId));
-  const a = rows[0];
-  if (a === undefined) throw new Error(`no such agent '${agentId}'`);
-  const acctRows = await db
-    .select()
-    .from(stations)
-    .where(eq(stations.agentId, a.id));
-  const held = await db
-    .select({ id: connectors.id, name: connectors.name, url: connectors.url, config: connectors.config })
-    .from(agentConnectors)
-    .innerJoin(connectors, eq(connectors.id, agentConnectors.connectorId))
-    .where(eq(agentConnectors.agentId, a.id));
-  return {
-    id: a.id,
-    name: a.name,
-    key: a.key,
-    connectors: held.map((c) => ({
-      id: c.id,
-      name: c.name,
-      url: c.url,
-      transport: 'http' as const,
-      config: c.config as Record<string, unknown>,
-    })),
-    accounts: acctRows
-      .filter((r) => MOVABLE_STATIONS.has(r.station))
-      .map((r) => ({
-        station: r.station,
-        id: r.id,
-        allowlist: r.allowlist,
-        config: r.config as Record<string, unknown>,
-      })),
-  };
-}
-
-const pgSource: StationSource = () => loadAgents();
-
-async function loadAgents(): Promise<LoadedAgent[]> {
-  const db = getDb();
-  const only = agentFilter();
-  const agentRows =
-    only !== undefined
-      ? await db.select().from(agents).where(eq(agents.id, only))
-      : await db.select().from(agents);
-  if (only !== undefined && agentRows.length === 0)
-    throw new Error(`METRO_AGENT=${only} does not match any agent`);
-
-  const out: LoadedAgent[] = [];
-  for (const a of agentRows) {
-    const acctRows = await db
-      .select()
-      .from(stations)
-      .where(eq(stations.agentId, a.id));
-    out.push({
-      id: a.id,
-      name: a.name,
-      accounts: acctRows.map((r) => ({
-        station: r.station,
-        id: r.id,
-        allowlist: r.allowlist,
-        config: r.config as Record<string, unknown>,
-      })),
-      key: a.runtimeId === null ? a.key : null,
-    });
-  }
-  return out;
-}
 
 function trainStubPath(station: StationName): string {
   return join(trainsDir(), `${station}.ts`);
@@ -227,11 +113,8 @@ export function writeIfChanged(path: string, content: string): boolean {
   return true;
 }
 
-const isLocalRuntime = (): boolean =>
-  (process.env.METRO_RUN_TOKEN?.trim() ?? '') !== '';
-
 export const stationRunsHere = (station: StationName): boolean =>
-  isLocalRuntime() || isLocalMode() || !MOVABLE_STATIONS.has(station);
+  isLocalMode() || !MOVABLE_STATIONS.has(station);
 
 interface WrittenStations {
   active: Map<StationName, number>;
@@ -350,16 +233,6 @@ export async function materializeFrom(
   );
 }
 
-export async function materializeFromDb(): Promise<void> {
-  if (!databaseUrl())
-    throw new Error('DATABASE_URL is not set — accounts load from Postgres');
-  try {
-    await materializeFrom(pgSource);
-  } finally {
-    await closeDb();
-  }
-}
-
 export interface ReloadedStations {
   active: StationName[];
   removed: StationName[];
@@ -377,15 +250,4 @@ export async function reloadFrom(
       'reloaded station accounts',
     );
   return { active: [...active.keys()], removed, changed };
-}
-
-export async function reloadAccountsFromDb(): Promise<ReloadedStations> {
-  if (!databaseUrl())
-    throw new Error('DATABASE_URL is not set — accounts load from Postgres');
-  return reloadFrom(pgSource);
-}
-
-if (import.meta.main) {
-  await materializeFromDb();
-  process.exit(0);
 }

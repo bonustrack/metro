@@ -1,4 +1,4 @@
-import { eq, type SQL } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
 import { newId } from './ids.js';
@@ -22,51 +22,24 @@ export function isUniqueViolation(err: unknown): boolean {
   return false;
 }
 
-export function normalizeEmail(raw: string): string {
-  return raw.trim().toLowerCase();
-}
-
 export function normalizeAddress(raw: string): string | null {
   const address = raw.trim().toLowerCase();
   return ADDRESS_RE.test(address) ? address : null;
 }
 
-async function userIdWhere(where: SQL): Promise<string | null> {
-  const rows = await getDb().select({ id: users.id }).from(users).where(where);
-  return rows[0]?.id ?? null;
-}
-
-export async function userIdForSubject(subject: string): Promise<string | null> {
-  const address = normalizeAddress(subject);
-  if (address !== null) return userIdWhere(eq(users.address, address));
-  return userIdWhere(eq(users.email, normalizeEmail(subject)));
-}
-
-export async function resolveUserId(
-  insert: () => Promise<string | undefined>,
-  lookup: () => Promise<string | null>,
-): Promise<string> {
-  const inserted = await insert();
-  if (inserted !== undefined) return inserted;
-  const existing = await lookup();
-  if (existing === null)
-    throw new UserError('user lookup returned no id', 500);
-  return existing;
-}
-
 export async function ensureUserByAddress(raw: string): Promise<string> {
   const address = normalizeAddress(raw);
-  if (address === null)
-    throw new UserError('an Ethereum address is required', 400);
-  return resolveUserId(
-    async () => {
-      const rows = await getDb()
-        .insert(users)
-        .values({ id: newId(), address })
-        .onConflictDoNothing({ target: users.address })
-        .returning({ id: users.id });
-      return rows[0]?.id;
-    },
-    () => userIdWhere(eq(users.address, address)),
-  );
+  if (address === null) throw new UserError('an Ethereum address is required', 400);
+  const db = getDb();
+  const inserted = await db
+    .insert(users)
+    .values({ id: newId(), address })
+    .onConflictDoNothing({ target: users.address })
+    .returning({ id: users.id });
+  const id = inserted[0]?.id;
+  if (id !== undefined) return id;
+  const rows = await db.select({ id: users.id }).from(users).where(eq(users.address, address));
+  const existing = rows[0]?.id;
+  if (existing === undefined) throw new UserError('user lookup returned no id', 500);
+  return existing;
 }

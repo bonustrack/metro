@@ -26,7 +26,7 @@ the UI ships no Google JavaScript at all.
   **New agent** button. That button is the create entry point and is rendered in every
   state — none, one, many — never only in the empty state, and it sits above the list so a
   long list cannot scroll it out of view. Everything else
-  belongs to the agent you pick and lives in the main pane: its accounts grouped by station,
+  belongs to the agent you pick and lives in the main pane: its accounts grouped by channel,
   its MCP endpoint, its API key, the paste-ready `claude mcp add …` line and its **Delete**
   button. Accounts are never listed globally, so which account belongs to which agent is
   structural rather than something you infer.
@@ -53,12 +53,12 @@ the UI ships no Google JavaScript at all.
   looking at, or you are on `#/`) → a prompt to pick one on the left, carrying its own
   **New agent** button so that state is never a dead end; **a routed id this account cannot
   resolve** → the neutral not-available message with the same **New agent** button;
-  **an agent with no stations** → its
-  credentials plus a line saying no station is connected yet.
+  **an agent with no channels** → its
+  credentials plus a line saying no channel is connected yet.
 - **Start a Claude Code session** is a page of its own at `#/start`, reached from the
   **Claude Code** button in the top bar. It leads with the command that starts a session
   with the Metro channel enabled, carries the `-c` resume variant under it, and then lists
-  what has to exist first: an agent with a key, a station attached to it, the server
+  what has to exist first: an agent with a key, a channel attached to it, the server
   registered locally under the name `metro`, a recent Claude Code on first-party auth, and
   telemetry left on. The registration line it shows is built from the daemon's own endpoint
   with a **placeholder where the key goes** (`src/components/start-session.ts`, pinned by
@@ -144,7 +144,7 @@ route: `#/127.0.0.1:8420`, `#/<words>.trycloudflare.com/connectors`. Loopback ho
 reached over http, everything else over https. Open the `#/<host:port>` link a daemon prints
 at boot, or `#/connect` to type an address; `#/` goes back to the last daemon used. The session
 you sign in with is kept per daemon in localStorage. There is no hosted mode in the page: it
-shows one agent, its stations, its connectors, and the Claude Code sessions and memory on that
+shows one agent, its channels, its connectors, and the Claude Code sessions and memory on that
 machine.
 
 ## Build / deploy

@@ -8,7 +8,7 @@ import { Field } from './Field';
 
 function activationNote(result: AttachResult): string {
   if (!result.activated)
-    return 'The station is stored, but Metro could not reload it. It becomes live at the next daemon restart.';
+    return 'The channel is stored, but Metro could not reload it. It becomes live at the next daemon restart.';
   if (result.station === 'webhook')
     return 'The endpoint is live now. Anything posted to it reaches your agent.';
   return `The ${stationLabel(result.station)} station is restarting to pick it up. It appears in the list above once it is connected.`;

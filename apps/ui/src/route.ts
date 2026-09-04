@@ -10,8 +10,8 @@ const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const CONNECT_PATH = /^#?\/connect$/;
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
-const STATIONS_PATH = new RegExp(`^#?/(${HOST})/stations$`);
-const STATION_PATH = new RegExp(`^#?/(${HOST})/station/(${ACCOUNT})$`);
+const STATIONS_PATH = new RegExp(`^#?/(${HOST})/channels$`);
+const STATION_PATH = new RegExp(`^#?/(${HOST})/channel/(${ACCOUNT})$`);
 const CONNECTORS_PATH = new RegExp(`^#?/(${HOST})/connectors$`);
 const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
@@ -48,8 +48,8 @@ export function routeSelection(hash: string): Selection {
 
 const SUFFIX: Record<string, (s: Selection) => string> = {
   home: () => '',
-  stations: () => '/stations',
-  station: (s) => `/station/${s.kind === 'station' ? s.accountId : ''}`,
+  stations: () => '/channels',
+  station: (s) => `/channel/${s.kind === 'station' ? s.accountId : ''}`,
   connectors: () => '/connectors',
   connector: (s) => `/connector/${s.kind === 'connector' ? s.id : ''}`,
   sessions: (s) =>

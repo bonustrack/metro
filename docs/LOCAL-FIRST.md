@@ -5,7 +5,7 @@
 ## The shape
 
 The machine is the product. `metro serve` runs a daemon that owns its agents outright:
-the agent files, the station credentials, the connectors with their OAuth tokens, and the
+the agent files, the channel credentials, the connectors with their OAuth tokens, and the
 relay to every connector's vendor. Claude Code on that machine talks to that daemon and to
 nothing else. The web page at metro.box is a static page that talks to **one local daemon**,
 over loopback or over the daemon's tunnel; there is no hosted mode in the page and no
@@ -13,8 +13,8 @@ over loopback or over the daemon's tunnel; there is no hosted mode in the page a
 
 metro.box keeps exactly two things per wallet:
 
-- **the list of agents**: id, name, station kinds, last sync time, nothing that opens anything;
-- **a vault**: one ciphertext blob per agent holding the agent file, its stations' credentials
+- **the list of agents**: id, name, channel kinds, last sync time, nothing that opens anything;
+- **a vault**: one ciphertext blob per agent holding the agent file, its channels' credentials
   and its connectors' credentials, sealed so that only the wallet that owns the agent can open it.
 
 Sealing and opening happen **in the browser**. The wallet signs one EIP-712 message once; the
@@ -26,7 +26,7 @@ metro.box holds ciphertext and the wrapped key and cannot open either.
 **Sync with Metro** on the local page reads the agent's bundle from the daemon, seals it, and
 pushes it. **Restore** on a fresh machine lists the wallet's agents from metro.box, downloads
 one, opens it in the browser, and hands the plaintext to that machine's daemon, which writes
-the files and starts the stations. The same id and key carry over, so the `claude mcp add`
+the files and starts the channels. The same id and key carry over, so the `claude mcp add`
 line does not change.
 
 ## What goes
@@ -34,14 +34,14 @@ line does not change.
 - Teams: projects, members and project settings. The vault is per wallet.
 - `metro start` and the runtime lease: every box runs `metro serve`; an agent reaches a new
   box by restore, not by a pull from metro.box.
-- Plaintext station rows and connectors on metro.box, and the hosted relay. Once every agent
+- Plaintext channel rows and connectors on metro.box, and the hosted relay. Once every agent
   has been synced and restored, those tables and routes are deleted.
 - The import from metro.box, replaced by restore.
 
 ## What stays hosted
 
 - Sign-in with the wallet, because the vault is keyed by it.
-- **Inbound webhooks**, the one station that needs a stable public address providers can be
+- **Inbound webhooks**, the one channel that needs a stable public address providers can be
   given. metro.box keeps the endpoint and forwards each delivery to the agent's daemon; how
   the daemon receives it (an outbound subscription, or a push over its tunnel) is decided with
   that slice.
@@ -57,7 +57,11 @@ line does not change.
 3. **Vault and Sync.** The vault routes on metro.box, browser-side sealing, *Sync with Metro*
    and *Restore*. Shipped 2026-09-04 (`0021_vault`, `/api/vault`, `/api/agents/<id>/bundle`,
    `/api/agents/restore`, `apps/ui/src/vault/`).
-4. **Retire the hosted paths** named above, after the agents have moved.
+4. **Retire the hosted paths** named above, after the agents have moved. Shipped 2026-09-04
+   (`0022_local_only`): metro.box keeps `users` and `vault`; `metro start`, the leases, the
+   pairing codes, the hosted relay, the import and the project and member APIs are gone, the
+   CLI is `serve`/`stop`/`tail`/`whoami`/`mcp`/`plugin`/`claude`/`bedrock`/`update`, and the
+   plugin reads the local daemon. Webhooks wait for the forwarding slice.
 
 Each step ships on its own and leaves a working product.
 

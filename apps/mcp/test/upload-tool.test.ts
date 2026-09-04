@@ -132,14 +132,14 @@ describe('create_upload mints a slot over MCP alone', () => {
 });
 
 describe('a local daemon advertises its own loopback base, never hosted metro', () => {
-  const LOCAL_ENV = ['METRO_PUBLIC_URL', 'METRO_RUN_TOKEN', 'METRO_WEBHOOK_PORT'];
+  const LOCAL_ENV = ['METRO_PUBLIC_URL', 'METRO_MODE', 'METRO_WEBHOOK_PORT'];
   let stash: Record<string, string | undefined>;
 
   beforeEach(() => {
     stash = Object.fromEntries(LOCAL_ENV.map((k) => [k, process.env[k]]));
     delete process.env.METRO_PUBLIC_URL;
     delete process.env.METRO_WEBHOOK_PORT;
-    process.env.METRO_RUN_TOKEN = 'rt-test-token';
+    process.env.METRO_MODE = 'local';
   });
 
   afterEach(() => {
@@ -168,8 +168,8 @@ describe('a local daemon advertises its own loopback base, never hosted metro', 
     expect(t.upload_url).toStartWith('https://metro.example.net/api/uploads/');
   });
 
-  test('without a run token the hosted default stands', async () => {
-    delete process.env.METRO_RUN_TOKEN;
+  test('outside local mode the hosted default stands', async () => {
+    delete process.env.METRO_MODE;
     const t = ticket((await mint('agent000001')).text);
     expect(t.upload_url).toStartWith('https://mcp.metro.box/api/uploads/');
   });

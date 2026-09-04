@@ -11,7 +11,7 @@ import { mintNonce, takeNonce } from './siwe-nonces.js';
 import { verifySiweLogin } from './siwe-auth.js';
 import { signSession } from './session.js';
 import { SESSION_TTL_SEC } from './session-config.js';
-import { ensureUserWithProject } from '../db/projects.js';
+import { ensureUserByAddress } from '../db/users.js';
 
 const NONCE_PATH = '/auth/siwe/nonce';
 const VERIFY_PATH = '/auth/siwe/verify';
@@ -20,7 +20,7 @@ export interface SiweRouteDeps {
   ensureUser: (address: string) => Promise<string>;
 }
 
-const defaultDeps: SiweRouteDeps = { ensureUser: ensureUserWithProject };
+const defaultDeps: SiweRouteDeps = { ensureUser: ensureUserByAddress };
 
 async function handleVerify(
   req: IncomingMessage,

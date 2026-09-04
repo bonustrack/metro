@@ -155,6 +155,13 @@
       "when": 1788529462367,
       "tag": "0021_vault",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788532122333,
+      "tag": "0022_local_only",
+      "breakpoints": true
     }
   ]
 }

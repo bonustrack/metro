@@ -7,7 +7,6 @@ export interface AgentSummary {
   id: string;
   name: string;
   owned: boolean;
-  runtime: string | null;
   key: string | null;
   command: string | null;
   connectorIds: string[];
@@ -45,6 +44,7 @@ export interface CallInit {
   path?: string;
   headers?: Record<string, string>;
   body?: string;
+  auth?: string;
 }
 
 export async function call(token: string, init: CallInit): Promise<unknown> {
@@ -52,7 +52,7 @@ export async function call(token: string, init: CallInit): Promise<unknown> {
   try {
     res = await fetch(`${init.base ?? agentsUrl()}${init.path ?? ''}`, {
       method: init.method,
-      headers: { authorization: `Bearer ${token}`, ...init.headers },
+      headers: { authorization: init.auth ?? `Bearer ${token}`, ...init.headers },
       body: init.body,
     });
   } catch {
@@ -73,7 +73,6 @@ function toAgents(value: unknown): AgentSummary[] {
     id: typeof a.id === 'string' ? a.id : '',
     name: typeof a.name === 'string' ? a.name : '',
     owned: a.owned === true,
-    runtime: text(a.runtime),
     key: text(a.key),
     command: text(a.command),
     connectorIds: toStationList(a.connector_ids),
@@ -112,26 +111,6 @@ export async function fetchSession(token: string): Promise<string> {
   return body.subject;
 }
 
-export async function fetchAgentsAt(
-  token: string,
-  project: string,
-  daemon: string,
-): Promise<AgentsView> {
-  const body = await call(token, {
-    method: 'GET',
-    path: `?project=${project}`,
-    base: `${daemon}/api/agents`,
-  });
-  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
-  return toAgentsView(body);
-}
-
-export async function fetchAgents(token: string): Promise<AgentsView> {
-  const body = await call(token, { method: 'GET', path: `?project=${LOCAL_PROJECT}` });
-  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
-  return toAgentsView(body);
-}
-
 export async function fetchStations(token: string): Promise<StationsView> {
   const body = await call(token, {
     method: 'GET',
@@ -164,30 +143,6 @@ export async function createAgent(token: string, name: string): Promise<CreatedA
   )
     throw new Error('Metro returned an unexpected response.');
   return { name: body.name, key: body.key, command: body.command };
-}
-
-export interface ImportedAgent {
-  id: string;
-  name: string;
-  stations: number;
-  connectors: number;
-}
-
-export async function importAgent(token: string, code: string): Promise<ImportedAgent> {
-  const body = await call(token, {
-    method: 'POST',
-    path: '/import',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ code }),
-  });
-  if (!isRecord(body) || typeof body.id !== 'string' || typeof body.name !== 'string')
-    throw new Error('Metro returned an unexpected response.');
-  return {
-    id: body.id,
-    name: body.name,
-    stations: typeof body.stations === 'number' ? body.stations : 0,
-    connectors: typeof body.connectors === 'number' ? body.connectors : 0,
-  };
 }
 
 export async function resetAgentKey(

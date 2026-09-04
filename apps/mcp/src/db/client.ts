@@ -30,8 +30,3 @@ export function getDb(): Db {
   return db;
 }
 
-export async function closeDb(): Promise<void> {
-  if (sql) await sql.end({ timeout: 5 });
-  sql = null;
-  db = null;
-}

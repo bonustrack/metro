@@ -32,7 +32,7 @@ const missing = (): VaultError => new VaultError('no such bundle', 404);
 
 function ownerOf(subject: string): string {
   const address = normalizeAddress(subject);
-  if (address === null) throw new VaultError('the vault needs a wallet sign-in', 403);
+  if (address === null) throw new VaultError('the vault needs a vault identity', 403);
   return address;
 }
 
@@ -44,12 +44,12 @@ function stationsOf(raw: unknown): string[] {
   return [...new Set(list)];
 }
 
-function envelopeOf(raw: unknown, id: string, owner: string): Record<string, unknown> {
+function envelopeOf(raw: unknown, id: string): Record<string, unknown> {
   if (!isRecord(raw) || raw.v !== 1 || raw.agentId !== id)
     throw new VaultError('envelope must be a v1 envelope for this agent', 400);
   const key = raw.key;
-  if (!isRecord(key) || key.recipient !== owner)
-    throw new VaultError('envelope must be sealed to the signed-in wallet', 400);
+  if (!isRecord(key) || normalizeAddress(typeof key.recipient === 'string' ? key.recipient : '') === null)
+    throw new VaultError('envelope must name the wallet it was sealed to', 400);
   if (typeof raw.ciphertext !== 'string' || typeof raw.nonce !== 'string')
     throw new VaultError('envelope carries no ciphertext', 400);
   if (JSON.stringify(raw).length > ENVELOPE_MAX)
@@ -63,7 +63,7 @@ export function parseVaultInput(subject: string, id: string, body: unknown): Vau
   if (!isRecord(body)) throw new VaultError('body must be an object', 400);
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!AGENT_NAME_RE.test(name)) throw new VaultError('name is not an agent name', 400);
-  return { owner, name, stations: stationsOf(body.stations), envelope: envelopeOf(body.envelope, id, owner) };
+  return { owner, name, stations: stationsOf(body.stations), envelope: envelopeOf(body.envelope, id) };
 }
 
 const entryOf = (row: { id: string; name: string; stations: unknown; syncedAt: string }): VaultEntry => ({

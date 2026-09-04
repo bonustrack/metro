@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { fetchAgents, resetAgentKey, type AgentSummary } from '../src/api/client';
+import { fetchStations, resetAgentKey, type AgentSummary } from '../src/api/client';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -28,7 +28,7 @@ function serve(body: unknown, status = 200): void {
 
 const dashboard = async (agents: unknown): Promise<AgentSummary[]> => {
   serve({ agents });
-  return (await fetchAgents('session')).agents;
+  return (await fetchStations('session')).agents;
 };
 
 describe('agent credentials on the wire', () => {
@@ -40,7 +40,6 @@ describe('agent credentials on the wire', () => {
       id: 'id000000001',
       name: 'ada-bot',
       owned: true,
-      runtime: null,
       key: 'mk_fake',
       command: 'claude mcp add x',
       connectorIds: [],
@@ -55,7 +54,6 @@ describe('agent credentials on the wire', () => {
       id: 'id000000005',
       name: 'legacy',
       owned: false,
-      runtime: null,
       key: null,
       command: null,
       connectorIds: [],
@@ -65,7 +63,7 @@ describe('agent credentials on the wire', () => {
   test('a malformed agent entry never throws and never invents a key', async () => {
     const agents = await dashboard([{ id: 7, key: 9 }, null, 7]);
     expect(agents).toEqual([
-      { id: '', name: '', owned: false, runtime: null, key: null, command: null, connectorIds: [] },
+      { id: '', name: '', owned: false, key: null, command: null, connectorIds: [] },
     ]);
   });
 });

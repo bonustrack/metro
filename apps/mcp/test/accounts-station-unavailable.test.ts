@@ -6,11 +6,11 @@ import { setAgentMap } from '../src/db/agent-map.ts';
 const OWNED = { 'xmtp/x1': 'agent000001', 'xmtp/tony': 'agent000001', 'telegram-bot/t0': 'agent000001' };
 
 beforeAll(() => {
-  process.env.METRO_RUN_TOKEN = 'test-runtime';
+  process.env.METRO_MODE = 'local';
 });
 
 afterAll(() => {
-  delete process.env.METRO_RUN_TOKEN;
+  delete process.env.METRO_MODE;
 });
 
 describe('a station whose train is restarting is unavailable, not empty', () => {

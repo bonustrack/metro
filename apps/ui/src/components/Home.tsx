@@ -6,12 +6,11 @@ import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
 import { AgentCredentials } from './AgentCredentials';
 import { CreateAgent } from './CreateAgent';
-import { ImportAgent } from './ImportAgent';
 import { SyncAgent } from './SyncAgent';
 import { RestoreAgent } from './RestoreAgent';
 import { Loading } from './Loading';
 import { NewAgentKey } from './NewAgentKey';
-import { createAgent, importAgent, resetAgentKey, type CreatedAgent } from '../api/client';
+import { createAgent, resetAgentKey, type CreatedAgent } from '../api/client';
 import { stationCount } from '../api/accounts';
 import { queryError, refreshAgents, refreshConnectors, useModeQuery, useStationsQuery } from '../api/queries';
 import { type AgentSummary } from '../api/client';
@@ -59,14 +58,13 @@ function NoAgent({ token, onDone }: { token: string; onDone: () => void }): Reac
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [creating, setCreating] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   return (
     <Col gap={16}>
       <PageTitle>This machine</PageTitle>
       <Text size="sm" role="secondary">
-        No agent lives here yet. Create one, or bring one over from metro.box.
+        No agent lives here yet. Create one, or restore one you synced to Metro.
       </Text>
       <Row gap={8} wrap>
         <Button
@@ -75,14 +73,6 @@ function NoAgent({ token, onDone }: { token: string; onDone: () => void }): Reac
           label="Create agent"
           onPress={() => {
             setCreating(true);
-          }}
-        />
-        <Button
-          color="secondary"
-          dark={dark}
-          label="Import from metro.box"
-          onPress={() => {
-            setImporting(true);
           }}
         />
         <Button
@@ -125,17 +115,6 @@ function NoAgent({ token, onDone }: { token: string; onDone: () => void }): Reac
           refreshAgents(client);
         }}
       />
-      <ImportAgent
-        open={importing}
-        onClose={() => {
-          setImporting(false);
-        }}
-        onImport={async (code) => {
-          await importAgent(token, code);
-          refreshAgents(client);
-          onDone();
-        }}
-      />
     </Col>
   );
 }
@@ -147,9 +126,7 @@ interface HomeProps {
 }
 
 function AgentActions({ token, agent }: { token: string; agent: AgentSummary }): ReactNode {
-  const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
-  const [importing, setImporting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   return (
     <>
@@ -162,14 +139,6 @@ function AgentActions({ token, agent }: { token: string; agent: AgentSummary }):
             setSyncing(true);
           }}
         />
-        <Button
-          color="secondary"
-          dark={dark}
-          label="Import again from metro.box"
-          onPress={() => {
-            setImporting(true);
-          }}
-        />
       </Row>
       <SyncAgent
         open={syncing}
@@ -179,17 +148,6 @@ function AgentActions({ token, agent }: { token: string; agent: AgentSummary }):
           setSyncing(false);
         }}
         onSynced={() => undefined}
-      />
-      <ImportAgent
-        open={importing}
-        onClose={() => {
-          setImporting(false);
-        }}
-        onImport={async (code) => {
-          await importAgent(token, code);
-          refreshAgents(client);
-          refreshConnectors(client);
-        }}
       />
     </>
   );
@@ -230,7 +188,7 @@ export function Home({ token, project, onSelect }: HomeProps): ReactNode {
         }}
       />
       <Col>
-        <Summary label="Stations" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
+        <Summary label="Channels" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
         <Summary label="Connectors" count={agent.connectorIds.length} target={{ kind: 'connectors', project }} onSelect={onSelect} />
       </Col>
       <AgentActions token={token} agent={agent} />

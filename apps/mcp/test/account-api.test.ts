@@ -145,8 +145,6 @@ const deps: AgentApiDeps = {
   gatherAccounts: () => Promise.resolve({}),
   capabilities: () => ({}),
   liveness: () => new Map(),
-  releaseRuntime: () => Promise.resolve(),
-  runtimes: () => Promise.resolve(new Map()),
   connectorIds: () => Promise.resolve(new Map()),
   prepareAccount: fakePrepare,
   attachAccount: (email, agentId, station, config) => {

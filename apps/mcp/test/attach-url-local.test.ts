@@ -9,7 +9,6 @@ const NAME = 'msg_localmedia1_0.jpg';
 const ENV_KEYS = [
   'METRO_XMTP_ATTACH_DIR',
   'METRO_PUBLIC_URL',
-  'METRO_RUN_TOKEN',
   'METRO_WEBHOOK_PORT',
   'METRO_MODE',
 ] as const;
@@ -34,12 +33,11 @@ afterAll(() => {
 beforeEach(() => {
   delete process.env.METRO_PUBLIC_URL;
   delete process.env.METRO_WEBHOOK_PORT;
-  delete process.env.METRO_RUN_TOKEN;
   delete process.env.METRO_MODE;
 });
 
 describe('inbound attachment urls on a local daemon', () => {
-  test('a METRO_MODE=local daemon advertises loopback for media and uploads, with no run token', () => {
+  test('a METRO_MODE=local daemon advertises loopback for media and uploads', () => {
     process.env.METRO_MODE = 'local';
     expect(attachmentUrl(NAME, 'agent000001')).toStartWith(
       `http://127.0.0.1:8420/attach/${NAME}?token=`,
@@ -47,27 +45,27 @@ describe('inbound attachment urls on a local daemon', () => {
     expect(publicBaseOrDefault()).toBe('http://127.0.0.1:8420');
   });
 
-  test('with neither a run token nor local mode, uploads fall back to the hosted base and media to nothing', () => {
+  test('outside local mode, uploads fall back to the hosted base and media to nothing', () => {
     expect(publicBaseOrDefault()).toBe('https://mcp.metro.box');
     expect(attachmentUrl(NAME, 'agent000001')).toBeNull();
   });
 
   test('a local daemon serves its own loopback url and records the owner', () => {
-    process.env.METRO_RUN_TOKEN = 'rt-test-token';
+    process.env.METRO_MODE = 'local';
     const url = attachmentUrl(`/data/cache/${NAME}`, 'agent000001');
     expect(url).toStartWith(`http://127.0.0.1:8420/attach/${NAME}?token=`);
     expect(attachmentOwner(NAME)).toBe('agent000001');
   });
 
   test('the advertised port follows METRO_WEBHOOK_PORT', () => {
-    process.env.METRO_RUN_TOKEN = 'rt-test-token';
+    process.env.METRO_MODE = 'local';
     process.env.METRO_WEBHOOK_PORT = '9111';
     const url = attachmentUrl(NAME, 'agent000001');
     expect(url).toStartWith(`http://127.0.0.1:9111/attach/${NAME}?token=`);
   });
 
   test('an explicit METRO_PUBLIC_URL still wins on a local daemon', () => {
-    process.env.METRO_RUN_TOKEN = 'rt-test-token';
+    process.env.METRO_MODE = 'local';
     process.env.METRO_PUBLIC_URL = 'https://metro.example.net';
     const url = attachmentUrl(NAME, 'agent000001');
     expect(url).toStartWith(`https://metro.example.net/attach/${NAME}?token=`);

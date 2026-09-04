@@ -1,5 +1,5 @@
-import { runConfigKey } from './api.js';
-import { assertAgentId, localUrl, readRunToken } from './runtime.js';
+import { localAgents } from './local.js';
+import { assertAgentId, localUrl } from './runtime.js';
 
 const BACKOFF_MS = [1_000, 2_000, 5_000] as const;
 const STALL_MS = 90_000;
@@ -34,13 +34,12 @@ function keySource(agentId: string): KeySource {
     return { resolve: () => Promise.resolve(fromEnv), fixed: true };
   return {
     resolve: (): Promise<string> => {
-      const token = readRunToken(agentId);
-      if (token === null)
+      const agent = localAgents().find((a) => a.id === agentId);
+      if (agent === undefined)
         throw new Error(
-          `this machine is not authorized for ${agentId} — ` +
-            `run 'metro start ${agentId}' once, or set METRO_AGENT_KEY`,
+          `no agent ${agentId} on this machine — create or restore it in the web UI of metro serve, or set METRO_AGENT_KEY`,
         );
-      return runConfigKey(token);
+      return Promise.resolve(agent.key);
     },
     fixed: false,
   };
@@ -132,7 +131,7 @@ async function settle(
     return source.resolve();
   }
   if (end === 'unreachable')
-    note(state, `no metro daemon on ${localUrl()} — run 'metro start ${agentId}'`);
+    note(state, `no metro daemon on ${localUrl()} — run 'metro serve' (agent ${agentId})`);
   else note(state, 'stream ended — reconnecting');
   return key;
 }

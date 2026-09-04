@@ -16,9 +16,6 @@ export const STATE_DIR =
   process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
 mkdirSync(STATE_DIR, { recursive: true });
 
-export const configDir = (): string =>
-  process.env.METRO_CONFIG_DIR ??
-  join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'metro');
 
 export function trainsDir(): string {
   const env = process.env.METRO_TRAINS_DIR?.trim();

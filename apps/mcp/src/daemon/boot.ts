@@ -1,4 +1,3 @@
-import type { ProjectApiDeps } from './project-api.js';
 import { join } from 'node:path';
 import { type Server } from 'node:http';
 import { userSelf } from './events.js';
@@ -19,19 +18,7 @@ import {
   startWebhookServer,
   trainEventToMetroEvent,
 } from './http.js';
-import { type RunApiDeps } from './run-api.js';
-import {
-  claimRuntime,
-  fenceRuntime,
-  runtimeLabels,
-  touchRuntime,
-} from '../db/runtimes.js';
-import {
-  blockedStationsFor,
-  mintAgentCodeForUser,
-  releaseRuntimeForUser,
-} from '../db/runtime-admin.js';
-import { loadAgentForRuntime, localAgentKey } from '../db/materialize.js';
+import { localAgentKey } from '../db/materialize.js';
 import { fileSource } from '../db/file-source.js';
 import { ensureLocalSessionSecret } from './local-secret.js';
 import { applyLocalOwner } from './local-owner.js';
@@ -51,60 +38,15 @@ import {
   stationByName,
 } from '../stations/registry.js';
 import { prepareAccount } from '../stations/attach.js';
+import { materializeFrom, reloadFrom } from '../db/materialize.js';
 import {
-  materializeFrom,
-  materializeFromDb,
-  reloadAccountsFromDb,
-  reloadFrom,
-  type ReloadedStations,
-} from '../db/materialize.js';
-import {
-  httpSource,
-  runtimeConfigFromEnv,
-  startRuntimePoller,
-} from './runtime-source.js';
-import {  createAgentForUser,  deleteAgentForUser,  listAgentsForUser,  ownedAgentOrThrow,  resetAgentKeyForUser,    type ResetAgentKey,} from '../db/agent-admin.js';
-import {
-  attachAccountToAgent,
-  detachAccountFromAgent,
-} from '../db/account-attach.js';
-import {
-  createConnectorForUser,
-  createPendingConnectorForUser,
-  deleteConnectorForUser,
-  disconnectConnectorForUser,
-  connectorNamesByIds,
-  connectorSummariesByIds,
-  getConnectorForUser,
-  listConnectorsForUser,
-  renameConnectorForUser,
-  reconnectConnectorForUser,
-  verifyConnectorForUser,
-} from '../db/connectors.js';
-import { relayTarget } from '../db/connector-relay.js';
-import {
-  addMemberForUser,
-  createProjectForUser,
-  deleteProjectForUser,
-  listMembersForUser,
-  listProjectsForUser,
-  removeMemberForUser,
-  renameProjectForUser,
-  setMemberRoleForUser,
-} from '../db/projects.js';
-import {
-  addConnectorToAgentForUser,
-  agentConnectorsForUser,
-  connectorIdsByAgent,
-  removeConnectorFromAgentForUser,
-} from '../db/agent-connectors.js';
-import type { AgentConnectorApiDeps } from './agent-connector-api.js';
+  deleteVaultForOwner,
+  getVaultForOwner,
+  listVaultForOwner,
+  putVaultForOwner,
+} from '../db/vault.js';
 import type { StationName } from '../db/schema.js';
-import { AttachSessions } from './attach-session.js';
 import { startUploadReaper } from './upload-store.js';
-import type { AgentApiDeps } from './agent-api.js';
-import type { ConnectorApiDeps } from './connector-api.js';
-import { deleteVaultForOwner, getVaultForOwner, listVaultForOwner, putVaultForOwner } from '../db/vault.js';
 
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -135,19 +77,13 @@ setTrainCallBackend((train, action, args) =>
   supervisor.call(train, action, args),
 );
 
-const runtime = runtimeConfigFromEnv();
-const linkedSource = runtime === null ? null : httpSource(runtime);
-const localSource = linkedSource ?? (isLocalMode() ? fileSource : null);
-
 function announceLocalEndpoint(): void {
-  if (isLocalMode())
-    process.stderr.write(
-      `\n${tunnel === null ? localConnectHint(webhookPort(), localOwner()) : tunnelPendingHint()}`,
-    );
+  process.stderr.write(
+    `\n${tunnel === null ? localConnectHint(webhookPort(), localOwner()) : tunnelPendingHint()}`,
+  );
   const key = localAgentKey();
   if (key === null) {
-    if (isLocalMode()) log.info('no agent on this machine yet');
-    else log.warn('this agent has no key — reset it in the web UI to connect an agent');
+    log.info('no agent on this machine yet');
     return;
   }
   const url = `http://127.0.0.1:${String(webhookPort())}/mcp?token=${key}`;
@@ -156,131 +92,15 @@ function announceLocalEndpoint(): void {
   );
 }
 
-async function applyStations(removed: StationName[]): Promise<void> {
-  for (const station of removed) await supervisor.stopTrain(station);
-}
-
-async function syncLocal(): Promise<void> {
-  if (localSource === null) return;
-  const { removed, changed } = await reloadFrom(localSource);
-  await applyStations(removed);
-  for (const station of changed) supervisor.requestReload(station);
-}
-
-async function stopLocalStations(): Promise<void> {
-  for (const station of supervisor.running()) await supervisor.stopTrain(station);
-}
-
-const reloadStations = (): Promise<ReloadedStations> =>
-  localSource === null ? reloadAccountsFromDb() : reloadFrom(localSource);
-
 async function syncStations(station: StationName): Promise<void> {
-  const { removed } = await reloadStations();
+  const { removed } = await reloadFrom(fileSource);
   if (stationByName(station)?.hasTrain === false) return;
   if (removed.includes(station)) await supervisor.stopTrain(station);
   else supervisor.requestReload(station);
 }
 
-const attachSessions = new AttachSessions({
-  authorize: async (owner) => {
-    await ownedAgentOrThrow(owner.subject, owner.agentId);
-  },
-  complete: async (owner, station, config) => {
-    const ref = await attachAccountToAgent(
-      owner.subject,
-      owner.agentId,
-      station,
-      config,
-    );
-    const activated = await syncStations(station).then(
-      () => true,
-      (err: unknown) => {
-        log.warn(
-          { station, err: errMsg(err) },
-          'attach-session: station reload failed, the change lands at the next boot',
-        );
-        return false;
-      },
-    );
-    return { accountId: ref.accountId, activated };
-  },
-});
-
-async function resetAgentKey(
-  subject: string,
-  id: string,
-): Promise<ResetAgentKey> {
-  const reset = await resetAgentKeyForUser(subject, id);
-  const closed = await closeAgentSession(id);
-  log.info(
-    { agent: reset.name, id: reset.id, sessionClosed: closed },
-    'agent-api: key rotated, live session dropped',
-  );
-  return reset;
-}
-
-const agentApi: AgentApiDeps = {
-  attachSessions,
-  listAgents: listAgentsForUser,
-  createAgent: createAgentForUser,
-  deleteAgent: deleteAgentForUser,
-  resetKey: resetAgentKey,
-  gatherAccounts: gatherAccountsForAgents,
-  capabilities: accountStationCapabilities,
-  liveness: agentLiveness,
-  releaseRuntime: releaseRuntimeForUser,
-  connectorIds: connectorIdsByAgent,
-  runtimes: runtimeLabels,
-  prepareAccount,
-  attachAccount: attachAccountToAgent,
-  detachAccount: detachAccountFromAgent,
-  syncStations,
-};
-
-const runApi: RunApiDeps = {
-  claimRuntime,
-  fenceRuntime,
-  touchRuntime,
-  loadAgent: loadAgentForRuntime,
-  blockedStations: blockedStationsFor,
-};
-
-const agentConnectorApi: AgentConnectorApiDeps = {
-  agentConnectors: agentConnectorsForUser,
-  addConnector: addConnectorToAgentForUser,
-  removeConnector: removeConnectorFromAgentForUser,
-  mintCode: mintAgentCodeForUser,
-};
-
-const projectApi: ProjectApiDeps = {
-  listProjects: listProjectsForUser,
-  createProject: createProjectForUser,
-  renameProject: renameProjectForUser,
-  deleteProject: deleteProjectForUser,
-  listMembers: listMembersForUser,
-  addMember: addMemberForUser,
-  setMemberRole: setMemberRoleForUser,
-  removeMember: removeMemberForUser,
-};
-
-const connectorApi: ConnectorApiDeps = {
-  listConnectors: listConnectorsForUser,
-  connectorNamesByIds,
-  connectorSummariesByIds,
-  agentConnectors: agentConnectorsForUser,
-  fenceRuntime,
-  renameConnector: renameConnectorForUser,
-  createConnector: createConnectorForUser,
-  createPendingConnector: createPendingConnectorForUser,
-  reconnectConnector: reconnectConnectorForUser,
-  getConnector: getConnectorForUser,
-  verifyConnector: verifyConnectorForUser,
-  disconnectConnector: disconnectConnectorForUser,
-  deleteConnector: deleteConnectorForUser,
-};
-
 const hostedMode = (): ModeInfo => ({
-  mode: linkedSource === null ? 'hosted' : 'linked',
+  mode: 'hosted',
   owner: null,
   project: null,
   version: METRO_VERSION,
@@ -297,13 +117,12 @@ function sessionApis(): SessionApis {
       prepareAccount,
     });
   return {
-    agentApi,
-    agentConnectorApi,
-    connectorApi,
-    projectApi,
-    runApi,
-    relayApi: { target: relayTarget, fence: fenceRuntime },
-    vaultApi: { list: listVaultForOwner, put: putVaultForOwner, get: getVaultForOwner, remove: deleteVaultForOwner },
+    vaultApi: {
+      list: listVaultForOwner,
+      put: putVaultForOwner,
+      get: getVaultForOwner,
+      remove: deleteVaultForOwner,
+    },
     mode: hostedMode,
   };
 }
@@ -312,9 +131,8 @@ async function main(): Promise<void> {
   if (isLocalMode()) {
     ensureLocalSessionSecret();
     applyLocalOwner();
+    await materializeFrom(fileSource, { allowEmpty: true });
   }
-  if (localSource === null) await materializeFromDb();
-  else await materializeFrom(localSource, { allowEmpty: linkedSource === null });
   supervisor.start();
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(
@@ -325,12 +143,10 @@ async function main(): Promise<void> {
   );
   metroMcp.startInbound();
   startUploadReaper();
-  if (linkedSource !== null)
-    startRuntimePoller({ sync: syncLocal, stopAll: stopLocalStations });
-  if (localSource !== null) announceLocalEndpoint();
+  if (isLocalMode()) announceLocalEndpoint();
   tunnel?.start();
   log.info(
-    { tunnel: !!tunnel, trainsDir: trainsDir(), mcp: '/' },
+    { tunnel: !!tunnel, trainsDir: trainsDir(), mcp: '/', version: METRO_VERSION },
     'dispatcher ready',
   );
   markDaemonReady();
@@ -356,7 +172,6 @@ async function shutdown(): Promise<void> {
       }),
     ]);
   }
-  await attachSessions.stop();
   await supervisor.stop();
   process.exit(0);
 }
