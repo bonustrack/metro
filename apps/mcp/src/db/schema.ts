@@ -7,8 +7,8 @@ export { STATIONS, type ConnectorTransport, type StationName };
 export type ProjectRole = 'admin' | 'member';
 
 
-export const vault = pgTable(
-  'vault',
+export const vaults = pgTable(
+  'vaults',
   {
     id: text('id').primaryKey(),
     owner: text('owner').notNull(),
@@ -17,7 +17,7 @@ export const vault = pgTable(
     envelope: jsonb('envelope').notNull(),
     syncedAt: text('synced_at').notNull(),
   },
-  (t) => [index('vault_owner_idx').on(t.owner)],
+  (t) => [index('vaults_owner_idx').on(t.owner)],
 );
 
 export const servers = pgTable(
