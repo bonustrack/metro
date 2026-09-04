@@ -258,9 +258,13 @@ connectors live in `~/.metro/agents` on this machine, and the page at metro.box 
 through the link it prints. From another computer, forward the port first
 (`ssh -L 8420:127.0.0.1:8420 <host>`). `metro serve --tunnel` skips the forwarding: it runs a
 Cloudflare quick tunnel (`cloudflared`, no account) and the link it prints carries a public
-`https://…trycloudflare.com` address that works from any browser, behind NAT included. The
-address changes on every start, Cloudflare terminates TLS and promises no uptime for quick
-tunnels. The daemon only ever lets one wallet in, the one named with `--owner <address>` (asked
+`https://…trycloudflare.com` address that works from any browser, behind NAT included. That
+address changes on every start, so `metro serve --tunnel tailscale` is the one to keep: with
+Tailscale installed and signed in on the box, it publishes the daemon through Tailscale Funnel
+at `https://<machine>.<tailnet>.ts.net`, a name that survives restarts and needs nothing on the
+laptop or the phone that opens it (enable Funnel once on your tailnet when Tailscale asks).
+Cloudflare terminates TLS and promises no uptime for quick tunnels; Tailscale's edge does the
+same for Funnel. The daemon only ever lets one wallet in, the one named with `--owner <address>` (asked
 for once and remembered in `~/.metro/agents/.owner`); until an owner is set, every sign-in is
 refused. It needs [Bun](https://bun.sh) on PATH and covers every messenger channel: XMTP,
 Telegram, Telegram user accounts, Discord and WhatsApp. The npm package carries only metro's own

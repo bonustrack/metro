@@ -11,18 +11,23 @@ const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
 const OWNER_FLAG = /^--owner=(.*)$/;
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-const USAGE = 'usage: metro serve [--port <n>] [--tunnel] [--owner <address>]';
+const USAGE = 'usage: metro serve [--port <n>] [--tunnel [quick|tailscale]] [--owner <address>]';
+const TUNNEL_FLAG = /^--tunnel=(.*)$/;
+const TAILSCALE_APP = '/Applications/Tailscale.app/Contents/MacOS/Tailscale';
+
+export type TunnelKind = 'quick' | 'tailscale';
 
 interface ServeOptions {
   runtime: PreparedRuntime;
   port: number;
-  tunnel: boolean;
+  tunnel: TunnelKind | null;
+  tailscaleBin?: string;
   owner: string | null;
 }
 
 interface ServeArgs {
   port: number;
-  tunnel: boolean;
+  tunnel: TunnelKind | null;
   owner: string | null;
 }
 
@@ -33,6 +38,22 @@ function portOf(raw: string | undefined): number {
   return n;
 }
 
+function tunnelOf(raw: string | undefined): TunnelKind {
+  if (raw === undefined || raw === '' || raw === 'quick') return 'quick';
+  if (raw === 'tailscale') return 'tailscale';
+  throw new Error(`'${raw}' is not a tunnel kind (quick or tailscale) — ${USAGE}`);
+}
+
+function tunnelFlag(argv: string[], i: number): { kind: TunnelKind; consumed: number } | null {
+  const arg = argv[i] ?? '';
+  const inline = TUNNEL_FLAG.exec(arg);
+  if (inline) return { kind: tunnelOf(inline[1]), consumed: 0 };
+  if (arg !== '--tunnel') return null;
+  const next = argv[i + 1];
+  const takesValue = next !== undefined && !next.startsWith('-');
+  return { kind: tunnelOf(takesValue ? next : undefined), consumed: takesValue ? 1 : 0 };
+}
+
 function ownerOf(raw: string | undefined): string {
   if (raw === undefined || !ADDRESS.test(raw))
     throw new Error(`'${raw ?? ''}' is not an Ethereum address — ${USAGE}`);
@@ -41,12 +62,14 @@ function ownerOf(raw: string | undefined): string {
 
 export function parseServeArgs(argv: string[]): ServeArgs {
   let port = localPort();
-  let tunnel = false;
+  let tunnel: TunnelKind | null = null;
   let owner: string | null = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? '';
-    if (arg === '--tunnel') {
-      tunnel = true;
+    const tunnelArg = tunnelFlag(argv, i);
+    if (tunnelArg) {
+      tunnel = tunnelArg.kind;
+      i += tunnelArg.consumed;
       continue;
     }
     const inlineOwner = OWNER_FLAG.exec(arg);
@@ -84,6 +107,37 @@ export function requireOwner(owner: string | null, dir = agentsDir()): void {
   );
 }
 
+function tailscaleStatus(bin: string): { ok: true } | { ok: false; state: string } {
+  const run = spawnSync(bin, ['status', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  if (run.error !== undefined || run.status !== 0) return { ok: false, state: 'not running' };
+  try {
+    const parsed = JSON.parse(run.stdout) as { BackendState?: unknown };
+    return parsed.BackendState === 'Running' ? { ok: true } : { ok: false, state: String(parsed.BackendState) };
+  } catch {
+    return { ok: false, state: 'unreadable' };
+  }
+}
+
+export function findTailscale(candidates = ['tailscale', TAILSCALE_APP]): string {
+  const bin = candidates.find(
+    (c) => spawnSync(c, ['version'], { stdio: 'ignore' }).status === 0,
+  );
+  if (bin === undefined)
+    throw new Error(
+      'metro serve --tunnel tailscale needs Tailscale on this machine.\n' +
+        'macOS:  brew install --cask tailscale   (or the App Store app)\n' +
+        'Linux:  curl -fsSL https://tailscale.com/install.sh | sh\n' +
+        'Then sign the machine in:  tailscale up',
+    );
+  const status = tailscaleStatus(bin);
+  if (!status.ok)
+    throw new Error(
+      `Tailscale is installed but this machine is not connected (${status.state}). Sign it in first:  tailscale up\n` +
+        'Funnel also has to be enabled once on your tailnet: https://tailscale.com/kb/1223/funnel',
+    );
+  return bin;
+}
+
 function findCloudflared(): void {
   const found = spawnSync('cloudflared', ['--version'], { stdio: 'ignore' });
   if (found.error !== undefined || found.status !== 0)
@@ -119,7 +173,8 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
         ? {}
         : { METRO_RUNTIME_STORE: opts.runtime.dir, METRO_RUNTIME_MANIFEST: opts.runtime.manifest }),
       METRO_STATE_DIR: process.env.METRO_STATE_DIR ?? serveStateDir(),
-      ...(opts.tunnel ? { METRO_TUNNEL: 'quick' } : {}),
+      ...(opts.tunnel === null ? {} : { METRO_TUNNEL: opts.tunnel }),
+      ...(opts.tailscaleBin === undefined ? {} : { METRO_TAILSCALE_BIN: opts.tailscaleBin }),
       ...(opts.owner === null ? {} : { METRO_OWNER: opts.owner }),
     },
   };
@@ -134,9 +189,12 @@ export function serve(argv: string[]): Promise<number> {
         'Stop it first: metro stop',
     );
   requireOwner(owner);
-  if (tunnel) findCloudflared();
+  if (tunnel === 'quick') findCloudflared();
+  const tailscaleBin = tunnel === 'tailscale' ? findTailscale() : undefined;
   process.stderr.write(
     `Starting a metro daemon of your own on http://127.0.0.1:${String(port)}\n`,
   );
-  return spawnPlan(() => servePlan({ runtime: prepareRuntime(), port, tunnel, owner }));
+  return spawnPlan(() =>
+    servePlan({ runtime: prepareRuntime(), port, tunnel, owner, ...(tailscaleBin === undefined ? {} : { tailscaleBin }) }),
+  );
 }
