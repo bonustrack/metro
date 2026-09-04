@@ -24,7 +24,7 @@ export function SidebarFooter({ project, subject, selection, onSelect, onLock }:
     <Col gap={NAV_GAP} padding={{ x: 24, bottom: 24, top: 16 }}>
       <NavRow label="Documentation" icon="bookOpen" selected={selection.kind === 'docs'} target={{ kind: 'docs' }} onSelect={onSelect} />
       <Row {...NAV_ROW_BOX}>
-        <Icon name="desktopComputer" size={NAV_ICON_SIZE} color={palette.sub} />
+        <Icon name="globeAlt" size={NAV_ICON_SIZE} color={palette.sub} />
         <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>
           {project}
         </Text>
