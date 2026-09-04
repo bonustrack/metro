@@ -60,7 +60,9 @@ export interface DaemonPlan {
   env: NodeJS.ProcessEnv;
 }
 
-export function spawnPlan(plan: DaemonPlan): Promise<number> {
+export const RESTART_CODE = 75;
+
+function spawnOnce(plan: DaemonPlan): Promise<number> {
   const child = spawn(plan.command, plan.args, {
     cwd: plan.cwd,
     env: plan.env,
@@ -69,11 +71,23 @@ export function spawnPlan(plan: DaemonPlan): Promise<number> {
   const relay = (sig: NodeJS.Signals) => () => {
     child.kill(sig);
   };
-  process.on('SIGINT', relay('SIGINT'));
-  process.on('SIGTERM', relay('SIGTERM'));
+  const onInt = relay('SIGINT');
+  const onTerm = relay('SIGTERM');
+  process.on('SIGINT', onInt);
+  process.on('SIGTERM', onTerm);
   return new Promise<number>((resolve) => {
     child.on('exit', (code) => {
+      process.off('SIGINT', onInt);
+      process.off('SIGTERM', onTerm);
       resolve(code ?? 0);
     });
   });
+}
+
+export async function spawnPlan(plan: () => DaemonPlan): Promise<number> {
+  for (;;) {
+    const code = await spawnOnce(plan());
+    if (code !== RESTART_CODE) return code;
+    process.stderr.write('metro was updated; restarting the daemon on the new version\n');
+  }
 }

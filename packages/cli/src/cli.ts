@@ -32,7 +32,7 @@ const USAGE = `metro — run your agent on this machine
   metro bedrock [args...]
                   the same, with inference on Amazon Bedrock through a local proxy so the
                   channel still works (needs AWS_BEARER_TOKEN_BEDROCK and AWS_REGION)
-  metro update    update to the newest published version
+  metro update    update to the newest published version (--check only reports)
   metro version   print this CLI's version
 
 Start Claude Code with every connector, writing nothing to disk:
@@ -77,7 +77,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   plugin: installPlugin,
   claude: () => launchClaude(process.argv.slice(3)),
   bedrock: () => bedrock(process.argv.slice(3)),
-  update,
+  update: () => update(process.argv.slice(3)),
   version: async () => {
     process.stdout.write(`${currentVersion()}\n`);
     return Promise.resolve(0);

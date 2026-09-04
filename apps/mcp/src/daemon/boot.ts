@@ -110,6 +110,10 @@ function sessionApis(): SessionApis {
   if (isLocalMode())
     return localSessionApis({
       syncStations,
+      restart: () => {
+        exitCode = RESTART_EXIT;
+        onShutdown();
+      },
       closeAgentSession,
       gatherAccounts: gatherAccountsForAgents,
       capabilities: accountStationCapabilities,
@@ -153,6 +157,8 @@ async function main(): Promise<void> {
 }
 
 const SHUTDOWN_TIMEOUT_MS = 3_000;
+const RESTART_EXIT = 75;
+let exitCode = 0;
 let shuttingDown = false;
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
@@ -173,7 +179,7 @@ async function shutdown(): Promise<void> {
     ]);
   }
   await supervisor.stop();
-  process.exit(0);
+  process.exit(exitCode);
 }
 const onShutdown = (): void => {
   shutdown().catch((err: unknown) => {

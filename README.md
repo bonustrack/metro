@@ -168,6 +168,7 @@ the MCP auth gate:
 | `GET /api/cli/mcp`, `/api/cli/session`, `/api/cli/connectors` | Agent key only: the `mcpServers` block pointing at this daemon's relay, who it is, and its connectors. |
 | `POST`/`GET`/`DELETE /relay/<connector-id>` | Agent key only: MCP passthrough to the connector, the vendor credential injected here. |
 | `GET /api/claude/projects`, `/sessions`, `/memory`, `DELETE /api/claude/sessions/<id>` | Claude Code's own session transcripts and memory files on this machine, read-only apart from delete. |
+| `GET`/`POST /api/update` | Whether a newer metro is published, and update this machine to it: the daemon runs `metro update` and restarts itself on the new version. The agent page shows the version with an **Update** button. |
 
 On metro.box the same program serves sign-in (open to any wallet) and
 `GET /api/vault`, `PUT`/`GET`/`DELETE /api/vault/<agentId>` — see

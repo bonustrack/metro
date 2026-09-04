@@ -117,6 +117,7 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
       ...env,
       METRO_MODE: 'local',
       METRO_VERSION: currentVersion(),
+      METRO_CLI_BIN: process.argv[1] ?? '',
       METRO_WEBHOOK_PORT: String(opts.port),
       METRO_HTTP_HOST: process.env.METRO_HTTP_HOST ?? '127.0.0.1',
       METRO_TRAINS_DIR: join(opts.dir, 'trains'),
@@ -137,9 +138,9 @@ export function serve(argv: string[]): Promise<number> {
     );
   requireOwner(owner);
   if (tunnel) findCloudflared();
-  const plan = servePlan({ dir: runtimeDir(), port, tunnel, owner });
+  const dir = runtimeDir();
   process.stderr.write(
     `Starting a metro daemon of your own on http://127.0.0.1:${String(port)}\n`,
   );
-  return spawnPlan(plan);
+  return spawnPlan(() => servePlan({ dir, port, tunnel, owner }));
 }
