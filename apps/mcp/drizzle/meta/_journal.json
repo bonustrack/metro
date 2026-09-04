@@ -148,6 +148,13 @@
       "when": 1787407088625,
       "tag": "0020_users_address",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788529462367,
+      "tag": "0021_vault",
+      "breakpoints": true
     }
   ]
 }

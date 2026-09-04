@@ -103,6 +103,7 @@ import { AttachSessions } from './attach-session.js';
 import { startUploadReaper } from './upload-store.js';
 import type { AgentApiDeps } from './agent-api.js';
 import type { ConnectorApiDeps } from './connector-api.js';
+import { deleteVaultForOwner, getVaultForOwner, listVaultForOwner, putVaultForOwner } from '../db/vault.js';
 
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -300,6 +301,7 @@ function sessionApis(): SessionApis {
     projectApi,
     runApi,
     relayApi: { target: relayTarget, fence: fenceRuntime },
+    vaultApi: { list: listVaultForOwner, put: putVaultForOwner, get: getVaultForOwner, remove: deleteVaultForOwner },
     mode: hostedMode,
   };
 }

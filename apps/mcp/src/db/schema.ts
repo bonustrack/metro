@@ -1,10 +1,4 @@
-import {
-  boolean,
-  jsonb,
-  pgTable,
-  text,
-  unique,
-} from 'drizzle-orm/pg-core';
+import { boolean, index, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 
 export const STATIONS = [
   'xmtp',
@@ -113,4 +107,17 @@ export const agentConnectors = pgTable(
       t.connectorId,
     ),
   ],
+);
+
+export const vault = pgTable(
+  'vault',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    name: text('name').notNull(),
+    stations: jsonb('stations').notNull(),
+    envelope: jsonb('envelope').notNull(),
+    syncedAt: text('synced_at').notNull(),
+  },
+  (t) => [index('vault_owner_idx').on(t.owner)],
 );
