@@ -180,6 +180,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     agentConnectorApi,
     importApi: importApi(deps),
     localConnectors: { listConnectors: connectorsOfOwner },
+    claudeApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     projectApi,
     siwe: { ensureUser: claimLocalOwner },
     mode: localModeInfo,

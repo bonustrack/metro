@@ -16,6 +16,9 @@ const CONNECTORS_PATH = new RegExp(`^#?/(${ID})/connectors$`);
 const CONNECTOR_PATH = new RegExp(`^#?/(${ID})/connector/(${ID})$`);
 const MEMBERS_PATH = new RegExp(`^#?/(${ID})/members$`);
 const PROJECT_PATH = new RegExp(`^#?/(${ID})/settings$`);
+const CLAUDE = '[A-Za-z0-9._-]+';
+const SESSIONS_PATH = new RegExp(`^#?/(${ID})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
+const MEMORY_PATH = new RegExp(`^#?/(${ID})/memory(?:/(${CLAUDE})(?:/(${CLAUDE}\\.md))?)?$`);
 
 const EXACT: [RegExp, Selection][] = [
   [DOCS_PATH, { kind: 'docs' }],
@@ -50,9 +53,21 @@ export function connectRoute(selection: Selection): { url: string | null } | nul
   return selection.kind === 'connect' ? { url: selection.url } : null;
 }
 
+function claudeSelection(hash: string): Selection | null {
+  const sessions = SESSIONS_PATH.exec(hash);
+  if (sessions)
+    return { kind: 'sessions', project: sessions[1] ?? '', claudeProject: sessions[2] ?? null, id: sessions[3] ?? null };
+  const memory = MEMORY_PATH.exec(hash);
+  if (memory)
+    return { kind: 'memory', project: memory[1] ?? '', claudeProject: memory[2] ?? null, file: memory[3] ?? null };
+  return null;
+}
+
 function exactSelection(hash: string): Selection | null {
   const connect = CONNECT_PATH.exec(hash);
   if (connect) return { kind: 'connect', url: decodeConnect(connect[1]) };
+  const claude = claudeSelection(hash);
+  if (claude) return claude;
   for (const [pattern, selection] of EXACT)
     if (pattern.test(hash)) return selection;
   return null;
@@ -76,6 +91,14 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   agents: () => '',
   connectors: () => '/connectors',
   members: () => '/members',
+  sessions: (s) =>
+    s.kind === 'sessions'
+      ? `/sessions${s.claudeProject === null ? '' : `/${s.claudeProject}`}${s.id === null ? '' : `/${s.id}`}`
+      : '',
+  memory: (s) =>
+    s.kind === 'memory'
+      ? `/memory${s.claudeProject === null ? '' : `/${s.claudeProject}`}${s.file === null ? '' : `/${s.file}`}`
+      : '',
   project: () => '/settings',
   agent: (s) => `/agent/${s.kind === 'agent' ? s.id : ''}`,
   connector: (s) => `/connector/${s.kind === 'connector' ? s.id : ''}`,

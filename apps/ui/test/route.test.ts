@@ -240,3 +240,24 @@ describe('the connect route', () => {
     );
   });
 });
+
+describe('sessions and memory routes', () => {
+  test('carry an optional Claude project and an optional item', () => {
+    for (const selection of [
+      { kind: 'sessions', project: PROJECT, claudeProject: null, id: null },
+      { kind: 'sessions', project: PROJECT, claudeProject: '-home-me-proj', id: null },
+      { kind: 'sessions', project: PROJECT, claudeProject: '-home-me-proj', id: '11111111-2222-4333-8444-555555555555' },
+      { kind: 'memory', project: PROJECT, claudeProject: null, file: null },
+      { kind: 'memory', project: PROJECT, claudeProject: '-Users-less-Cursor-bonustrack-metro', file: null },
+      { kind: 'memory', project: PROJECT, claudeProject: '-Users-less-Cursor-bonustrack-metro', file: 'project_cli_redesign.md' },
+    ] as const) {
+      expect(routeSelection(routeHash(selection))).toEqual(selection);
+    }
+    expect(routeHash({ kind: 'memory', project: PROJECT, claudeProject: '-x', file: 'a.md' })).toBe(`#/${PROJECT}/memory/-x/a.md`);
+  });
+
+  test('a memory file that is not markdown, or a session id with odd characters, is not a route', () => {
+    expect(routeSelection(`#/${PROJECT}/memory/-x/notes.txt`)).toEqual({ kind: 'none' });
+    expect(routeSelection(`#/${PROJECT}/sessions/-x/id with space`)).toEqual({ kind: 'none' });
+  });
+});

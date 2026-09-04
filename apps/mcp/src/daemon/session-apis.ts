@@ -22,6 +22,7 @@ import {
   handleLocalConnectorsRequest,
   type LocalConnectorsDeps,
 } from './local-connectors-api.js';
+import { handleClaudeRequest, type ClaudeApiDeps } from './claude-api.js';
 import type { ModeInfo } from './mode-api.js';
 
 export interface SessionApis {
@@ -29,6 +30,7 @@ export interface SessionApis {
   agentConnectorApi?: AgentConnectorApiDeps;
   importApi?: ImportApiDeps;
   localConnectors?: LocalConnectorsDeps;
+  claudeApi?: ClaudeApiDeps;
   connectorApi?: ConnectorApiDeps;
   projectApi?: ProjectApiDeps;
   runApi?: RunApiDeps;
@@ -43,7 +45,7 @@ export function handleSessionApis(
   apis: SessionApis,
 ): boolean {
   const { agentApi, agentConnectorApi, connectorApi, projectApi, runApi, importApi } = apis;
-  const { localConnectors } = apis;
+  const { localConnectors, claudeApi } = apis;
   const routes: (() => boolean)[] = [() => handleSessionApiRequest(req, res)];
   if (runApi) routes.push(() => handleRunApiRequest(req, res, runApi));
   if (projectApi)
@@ -56,6 +58,7 @@ export function handleSessionApis(
   if (importApi) routes.push(() => handleImportRequest(req, res, importApi));
   if (localConnectors)
     routes.push(() => handleLocalConnectorsRequest(req, res, localConnectors));
+  if (claudeApi) routes.push(() => handleClaudeRequest(req, res, claudeApi));
   if (agentConnectorApi)
     routes.push(() => handleAgentConnectorRequest(req, res, agentConnectorApi));
   if (agentApi) routes.push(() => handleAgentApiRequest(req, res, agentApi));

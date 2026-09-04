@@ -420,3 +420,26 @@ textarea:focus-visible {
   border-radius: 2px;
   flex-shrink: 0;
 }
+
+.tool-call {
+  border: 1px solid var(--metro-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--metro-sub);
+}
+.tool-call summary {
+  cursor: pointer;
+  user-select: none;
+}
+.tool-call pre {
+  margin: 8px 0 2px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+}
+.tool-call-error summary {
+  color: var(--metro-danger, #e5484d);
+}
