@@ -19,7 +19,27 @@ export function installArgs(manager: Manager, version: string): string[] {
     : ['install', '--global', spec];
 }
 
-export async function update(): Promise<number> {
+export interface UpdateCheck {
+  current: string;
+  latest: string;
+  newer: boolean;
+}
+
+export const checkReport = (current: string, latest: string): UpdateCheck => ({
+  current,
+  latest,
+  newer: latest !== '' && isNewer(latest, current),
+});
+
+export async function updateCheck(): Promise<UpdateCheck> {
+  return checkReport(currentVersion(), await publishedVersion());
+}
+
+export async function update(argv: string[] = []): Promise<number> {
+  if (argv.includes('--check')) {
+    process.stdout.write(`${JSON.stringify(await updateCheck())}\n`);
+    return 0;
+  }
   const current = currentVersion();
   const newest = await publishedVersion();
   if (newest === '') {

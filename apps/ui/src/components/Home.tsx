@@ -12,7 +12,8 @@ import { Loading } from './Loading';
 import { NewAgentKey } from './NewAgentKey';
 import { createAgent, resetAgentKey, type CreatedAgent } from '../api/client';
 import { stationCount } from '../api/accounts';
-import { queryError, refreshAgents, refreshConnectors, useModeQuery, useStationsQuery } from '../api/queries';
+import { queryError, refreshAgents, refreshConnectors, useStationsQuery } from '../api/queries';
+import { MetroVersion } from './MetroVersion';
 import { type AgentSummary } from '../api/client';
 import { routeHash } from '../route';
 import { opensElsewhere } from './link';
@@ -156,8 +157,6 @@ function AgentActions({ token, agent }: { token: string; agent: AgentSummary }):
 export function Home({ token, project, onSelect }: HomeProps): ReactNode {
   const client = useQueryClient();
   const { data, error } = useStationsQuery(token);
-  const mode = useModeQuery();
-  const version = mode.data?.version ?? null;
   const agent = data?.agents[0];
   useDocumentTitle(agent?.name ?? 'This machine');
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
@@ -177,8 +176,8 @@ export function Home({ token, project, onSelect }: HomeProps): ReactNode {
         <PageTitle>{agent.name}</PageTitle>
         <Text size="sm" role="secondary">
           id {agent.id} · runs on this machine, so its messages never pass through Metro&apos;s servers
-          {version === null ? '' : ` · metro ${version}`}
         </Text>
+        <MetroVersion token={token} />
       </Col>
       <AgentCredentials
         agent={agent}

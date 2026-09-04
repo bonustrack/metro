@@ -30,6 +30,7 @@ import {
 } from './claude';
 import { daemonBase } from '../auth/session';
 import { fetchMode, type ModeInfo } from './mode';
+import { fetchUpdate, type UpdateCheck } from './update';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -71,6 +72,15 @@ export function makeQueryClient(onAuthError: () => void): QueryClient {
 export function queryError(err: unknown, fallback: string): string {
   if (err instanceof AuthError) return EXPIRED;
   return err instanceof Error ? err.message : fallback;
+}
+
+export function useUpdateQuery(token: string): UseQueryResult<UpdateCheck> {
+  return useQuery({
+    queryKey: ['update', daemonBase()],
+    queryFn: () => fetchUpdate(token),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
 }
 
 export function useModeQuery(): UseQueryResult<ModeInfo> {

@@ -67,6 +67,7 @@ describe('the daemon a serve plan starts', () => {
     expect(plan.cwd).toBe('/opt/metro/runtime');
     expect(plan.env.METRO_MODE).toBe('local');
     expect(plan.env.METRO_VERSION).toMatch(/^\d+\.\d+\.\d+/);
+    expect(plan.env.METRO_CLI_BIN).toBe(process.argv[1] ?? '');
     expect(plan.env.METRO_WEBHOOK_PORT).toBe('8421');
     expect(plan.env.METRO_HTTP_HOST).toBe('127.0.0.1');
     expect(plan.env.METRO_TRAINS_DIR).toBe(join('/opt/metro/runtime', 'trains'));

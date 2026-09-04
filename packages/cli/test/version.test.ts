@@ -6,7 +6,7 @@ import {
   newestOf,
   parseVersion,
 } from '../src/version.ts';
-import { installArgs, managerFor } from '../src/update.ts';
+import { checkReport, installArgs, managerFor } from '../src/update.ts';
 
 describe('comparing versions the way npm does', () => {
   test('a release outranks any prerelease of the same core', () => {
@@ -97,5 +97,14 @@ describe('updating through whichever manager installed it', () => {
 describe('the CLI knows its own version', () => {
   test('it reads the shipped package.json rather than a baked-in constant', () => {
     expect(parseVersion(currentVersion())).not.toBe(null);
+  });
+});
+
+describe('metro update --check', () => {
+  test('reports both versions and whether the published one is newer', () => {
+    expect(checkReport('0.1.0-beta.51', '0.1.0-beta.52')).toEqual({ current: '0.1.0-beta.51', latest: '0.1.0-beta.52', newer: true });
+    expect(checkReport('0.1.0-beta.52', '0.1.0-beta.52').newer).toBe(false);
+    expect(checkReport('0.1.0-beta.52', '0.1.0-beta.51').newer).toBe(false);
+    expect(checkReport('0.1.0-beta.52', '').newer).toBe(false);
   });
 });

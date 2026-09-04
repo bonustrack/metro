@@ -85,6 +85,7 @@ beforeAll(async () => {
   process.env.METRO_MODE = 'local';
   const apis = localSessionApis({
     syncStations: () => Promise.resolve(),
+    restart: () => undefined,
     closeAgentSession: () => Promise.resolve(true),
     gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }),
     capabilities: () => ({}),
