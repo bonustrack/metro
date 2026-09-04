@@ -140,7 +140,7 @@ for local sign-in; localhost `return_to` is allowed by default.
 ### One daemon, in the address
 
 The page manages one local daemon at a time, and that daemon is the first segment of every
-route: `#/127.0.0.1:8420`, `#/<words>.trycloudflare.com/connectors`. Loopback hosts are
+route: `#/127.0.0.1:8420`, `#/<server id>/connectors`. Loopback hosts are
 reached over http, everything else over https. Open the `#/<host:port>` link a daemon prints
 at boot, or `#/connect` to type an address; `#/` goes back to the last daemon used. The session
 you sign in with is kept per daemon in localStorage. There is no hosted mode in the page: it
