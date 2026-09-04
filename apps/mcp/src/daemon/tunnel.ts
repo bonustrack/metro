@@ -40,6 +40,47 @@ const runText = (command: string, args: string[]): Promise<string> =>
     });
   });
 
+export type Probe = (url: string) => Promise<boolean>;
+
+const PROBE_MS = 5_000;
+
+export async function daemonAnswersAt(url: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, PROBE_MS);
+  try {
+    const res = await fetch(`${url}/api/mode`, { signal: controller.signal });
+    if (!res.ok) return false;
+    const body: unknown = await res.json();
+    return typeof body === 'object' && body !== null && (body as { mode?: unknown }).mode === 'local';
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function nodeNameIn(statusJson: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(statusJson);
+    const self = typeof parsed === 'object' && parsed !== null ? (parsed as { Self?: { DNSName?: unknown } }).Self : undefined;
+    const name = typeof self?.DNSName === 'string' ? self.DNSName.replace(/\.$/, '').toLowerCase() : '';
+    return name === '' ? null : name;
+  } catch {
+    return null;
+  }
+}
+
+async function adoptFunnel(bin: string, port: number, probe: Probe): Promise<Adopted> {
+  const name = nodeNameIn(await runText(bin, ['status', '--json']));
+  if (name !== null) {
+    const url = `https://${name}`;
+    if (await probe(url)) return { url, hint: `a Funnel already publishes this daemon at ${url}; using it` };
+  }
+  return funnelAlreadyServing(await runText(bin, ['funnel', 'status']), port);
+}
+
 export function funnelAlreadyServing(status: string, port: number): Adopted {
   const lines = status.split('\n');
   const target = `http://127.0.0.1:${String(port)}`;
@@ -63,13 +104,13 @@ function tailscaleBin(): string {
   return configured === '' ? 'tailscale' : configured;
 }
 
-export const funnelDriver = (port: number, bin = tailscaleBin()): TunnelDriver => ({
+export const funnelDriver = (port: number, bin = tailscaleBin(), probe: Probe = daemonAnswersAt): TunnelDriver => ({
   name: 'tailscale funnel',
   command: bin,
   args: ['funnel', String(port)],
   urlIn: funnelUrlIn,
   waitsForDns: true,
-  adopt: async () => funnelAlreadyServing(await runText(bin, ['funnel', 'status']), port),
+  adopt: () => adoptFunnel(bin, port, probe),
 });
 
 let liveUrl: string | null = null;
