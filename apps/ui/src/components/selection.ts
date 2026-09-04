@@ -10,6 +10,8 @@ export type Selection =
   | { kind: 'connectors'; project: string }
   | { kind: 'connector'; project: string; id: string }
   | { kind: 'members'; project: string }
+  | { kind: 'sessions'; project: string; claudeProject: string | null; id: string | null }
+  | { kind: 'memory'; project: string; claudeProject: string | null; file: string | null }
   | { kind: 'project'; project: string };
 
 export function selectionProject(selection: Selection): string | null {

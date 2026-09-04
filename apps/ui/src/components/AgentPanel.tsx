@@ -9,6 +9,8 @@ import { Members } from './Members';
 import { ProjectSettings } from './ProjectSettings';
 import { Settings } from './Settings';
 import { StationPage } from './StationPage';
+import { Sessions } from './Sessions';
+import { Memory } from './Memory';
 import { type Selection } from './selection';
 
 interface AgentPanelProps {
@@ -65,6 +67,26 @@ function ScopedPanel({
   const go = (next: Selection): void => {
     onSelect(next);
   };
+  if (selection.kind === 'sessions')
+    return (
+      <Sessions
+        token={token}
+        project={project}
+        claudeProject={selection.claudeProject}
+        id={selection.id}
+        onSelect={go}
+      />
+    );
+  if (selection.kind === 'memory')
+    return (
+      <Memory
+        token={token}
+        project={project}
+        claudeProject={selection.claudeProject}
+        file={selection.file}
+        onSelect={go}
+      />
+    );
   if (selection.kind === 'members')
     return <Members token={token} project={project} />;
   if (selection.kind === 'project')

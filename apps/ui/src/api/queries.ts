@@ -27,6 +27,15 @@ import {
   type Project,
 } from './projects';
 import { fetchMode, type ModeInfo } from './mode';
+import {
+  fetchClaudeProjects,
+  fetchClaudeSessions,
+  fetchMemory,
+  fetchMemoryFile,
+  type ClaudeProject,
+  type ClaudeSession,
+  type MemoryListing,
+} from './claude';
 import { daemonBase } from '../auth/session';
 
 const STALE_MS = 60_000;
@@ -35,6 +44,12 @@ const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
 export const sessionKey = (): string[] => ['session'];
 export const modeKey = (): string[] => ['mode', daemonBase()];
+export const claudeProjectsKey = (): string[] => ['claude', 'projects'];
+export const claudeSessionsKey = (project: string): string[] => ['claude', 'sessions', project];
+export const memoryKey = (project: string): string[] => ['claude', 'memory', project];
+export const memoryFileKey = (project: string, name: string): string[] => ['claude', 'memory', project, name];
+const LIVE_LIST_MS = 5_000;
+const LIVE_MEMORY_MS = 5_000;
 export const projectsKey = (): string[] => ['projects'];
 export const membersKey = (project: string): string[] => ['members', project];
 export const agentsKey = (project: string): string[] => ['agents', project];
@@ -115,6 +130,38 @@ export function useModeQuery(): UseQueryResult<ModeInfo> {
     queryKey: modeKey(),
     queryFn: () => fetchMode(),
     staleTime: Infinity,
+  });
+}
+
+export function useClaudeProjectsQuery(token: string): UseQueryResult<ClaudeProject[]> {
+  return useQuery({
+    queryKey: claudeProjectsKey(),
+    queryFn: () => fetchClaudeProjects(token),
+    refetchInterval: LIVE_LIST_MS,
+  });
+}
+
+export function useClaudeSessionsQuery(token: string, project: string): UseQueryResult<ClaudeSession[]> {
+  return useQuery({
+    queryKey: claudeSessionsKey(project),
+    queryFn: () => fetchClaudeSessions(token, project),
+    refetchInterval: LIVE_LIST_MS,
+  });
+}
+
+export function useMemoryQuery(token: string, project: string): UseQueryResult<MemoryListing> {
+  return useQuery({
+    queryKey: memoryKey(project),
+    queryFn: () => fetchMemory(token, project),
+    refetchInterval: LIVE_MEMORY_MS,
+  });
+}
+
+export function useMemoryFileQuery(token: string, project: string, name: string): UseQueryResult<string> {
+  return useQuery({
+    queryKey: memoryFileKey(project, name),
+    queryFn: () => fetchMemoryFile(token, project, name),
+    refetchInterval: LIVE_MEMORY_MS,
   });
 }
 

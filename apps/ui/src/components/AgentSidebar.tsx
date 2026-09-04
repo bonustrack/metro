@@ -15,6 +15,31 @@ const SCROLL_CONTENT = { padding: 24 } as const;
 const AGENT_PAGES: Selection['kind'][] = ['none', 'agents', 'agent', 'station'];
 const CONNECTOR_PAGES: Selection['kind'][] = ['connectors', 'connector'];
 
+function LocalRows({
+  project,
+  selection,
+  onSelect,
+}: Pick<AgentSidebarProps, 'project' | 'selection' | 'onSelect'>): ReactNode {
+  return (
+    <>
+      <NavRow
+        label="Sessions"
+        icon="folder"
+        selected={selection.kind === 'sessions'}
+        target={{ kind: 'sessions', project, claudeProject: null, id: null }}
+        onSelect={onSelect}
+      />
+      <NavRow
+        label="Memory"
+        icon="bookOpen"
+        selected={selection.kind === 'memory'}
+        target={{ kind: 'memory', project, claudeProject: null, file: null }}
+        onSelect={onSelect}
+      />
+    </>
+  );
+}
+
 interface AgentSidebarProps {
   token: string;
   project: string;
@@ -60,7 +85,9 @@ export function AgentSidebar({
               target={{ kind: 'agents', project }}
               onSelect={onSelect}
             />
-            {local ? null : (
+            {local ? (
+              <LocalRows project={project} selection={selection} onSelect={onSelect} />
+            ) : (
               <ProjectRows project={project} selection={selection} onSelect={onSelect} />
             )}
           </Col>
