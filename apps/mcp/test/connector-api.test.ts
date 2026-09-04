@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
+import { allowLocalConnectors } from '../src/daemon/connector-url.ts';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
@@ -267,6 +268,10 @@ afterEach(() => {
   rows = [...SEED];
   nextId = 10;
   calls = [];
+});
+
+beforeAll(() => {
+  allowLocalConnectors(false);
 });
 
 describe('/api/connectors is the Google session surface', () => {

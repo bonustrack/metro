@@ -124,7 +124,6 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
         project={props.project}
         agent={agent}
         onOpen={props.onOpenConnector}
-        readOnly={local}
       />
       {agent.owned ? (
         <ConnectStation

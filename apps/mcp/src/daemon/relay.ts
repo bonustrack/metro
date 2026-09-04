@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { RelayTarget } from '../db/connector-relay.js';
-import { agentIdentity, assertLease, type Fence } from './api-http.js';
+import { agentIdentity, assertLease, type AgentIdentity, type Fence } from './api-http.js';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
 
@@ -11,6 +11,7 @@ export interface RelayApiDeps {
     force: boolean,
   ) => Promise<RelayTarget>;
   fence: Fence;
+  identify?: (req: IncomingMessage) => AgentIdentity | null;
 }
 
 const ID_PATH_RE = /^\/relay\/([A-Za-z0-9][A-Za-z0-9_-]{10})$/;
@@ -263,7 +264,7 @@ function dispatch(
   connectorId: string,
   deps: RelayApiDeps,
 ): void {
-  const who = agentIdentity(req);
+  const who = (deps.identify ?? agentIdentity)(req);
   if (who === null) {
     answer(res, 401, { error: 'unauthorized' });
     return;

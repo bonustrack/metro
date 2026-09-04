@@ -11,7 +11,6 @@ import { askSecret } from './prompt.js';
 import {
   clearToken,
   credentialsPath,
-  metroUrl,
   metroWebUrl,
   writeToken,
 } from './store.js';
@@ -54,8 +53,11 @@ const USAGE = `metro — the command line for your MCP connectors
   metro login [code]
                   authorize this machine for one agent with a code from its page
   metro logout    forget this machine's sign-in
-  metro whoami    print the account and agent this machine may read
-  metro mcp       print the mcpServers block of the authorized agent's connectors
+  metro whoami [agent]
+                  print the account and agent this machine may read
+  metro mcp [agent]
+                  print the mcpServers block of the agent's connectors; with a local daemon
+                  running, its agent's connectors (name one if several)
   metro plugin    set up the Claude Code plugin (connector servers + /metro:login)
   metro claude [args...]
                   open Claude Code with the metro channel; every argument is passed through
@@ -185,9 +187,9 @@ async function login(given: string | undefined): Promise<void> {
     );
 }
 
-async function whoami(): Promise<void> {
-  const { email, agent } = await whoisAuthorized();
-  process.stdout.write(`${email} · agent '${agent}' on ${metroUrl()}\n`);
+async function whoami(wanted: string | undefined): Promise<void> {
+  const { email, agent, where } = await whoisAuthorized(wanted);
+  process.stdout.write(`${email} · agent '${agent}' on ${where}\n`);
 }
 
 const HELP = new Set([undefined, 'help', '--help', '-h']);
@@ -203,7 +205,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
     return Promise.resolve(0);
   },
   whoami: async () => {
-    await whoami();
+    await whoami(process.argv[3]);
     return 0;
   },
   start: () => start(process.argv.slice(3)),
@@ -213,7 +215,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   logs: () => logs(process.argv.slice(3)),
   tail: () => tailEvents(process.argv.slice(3)),
   mcp: async () => {
-    process.stdout.write(`${await mcpServers()}\n`);
+    process.stdout.write(`${await mcpServers(process.argv[3])}\n`);
     return 0;
   },
   plugin: installPlugin,

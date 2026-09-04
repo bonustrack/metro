@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { allowLocalConnectors } from '../src/daemon/connector-url.ts';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
@@ -61,6 +62,10 @@ beforeAll(async () => {
     server.listen(0, '127.0.0.1', done);
   });
   base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+});
+
+afterAll(() => {
+  allowLocalConnectors(false);
 });
 
 afterAll(() => {
@@ -184,7 +189,7 @@ describe('a local daemon, end to end over http', () => {
   test('what a local daemon refuses, and what a stranger sees', async () => {
     const made = (await (await call('POST', `/api/agents?project=${PROJECT}`, session, { name: 'tony' })).json()) as { id: string };
     expect((await call('POST', `/api/agents/${made.id}/code`, session)).status).toBe(400);
-    expect((await call('POST', `/api/agents/${made.id}/connectors`, session, { connectorId: 'conn0000001' })).status).toBe(400);
+    expect((await call('POST', `/api/agents/${made.id}/connectors`, session, { connectorId: 'conn0000001' })).status).toBe(404);
     expect((await call('DELETE', `/api/agents/${made.id}/runtime`, session)).status).toBe(400);
     expect((await call('POST', '/api/projects', session, { name: 'x' })).status).toBe(400);
     const stranger = signSession({ subject: STRANGER.address.toLowerCase(), agentIds: [] }, secret);

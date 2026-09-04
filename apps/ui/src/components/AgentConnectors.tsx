@@ -26,8 +26,6 @@ const ICON_SIZE = 16;
 const EMPTY =
   'No connectors yet. Add some with the button above, or open a connector and use Add to agent from its menu.';
 const EMPTY_READ_ONLY = 'This agent holds no connectors.';
-const MANAGED_ELSEWHERE =
-  'Managed on metro.box and relayed through it. Claude Code on this machine gets them with metro mcp.';
 
 function RowBody({ connector }: { connector: Connector }): ReactNode {
   return (
@@ -57,7 +55,7 @@ function MemberRow({
   connector: Connector;
   project: string;
   busy: boolean;
-  onOpen: ((id: string) => void) | null;
+  onOpen: (id: string) => void;
   onRemove?: () => void;
 }): ReactNode {
   const palette = useKitPalette();
@@ -68,11 +66,6 @@ function MemberRow({
       gap={12}
       border={{ bottom: { width: 1, color: palette.border } }}
     >
-      {onOpen === null ? (
-        <Row gap={10} align="center" flex={1} minWidth={0}>
-          <RowBody connector={connector} />
-        </Row>
-      ) : (
       <a
         className="row-link"
         href={routeHash({ kind: 'connector', project, id: connector.id })}
@@ -84,7 +77,6 @@ function MemberRow({
       >
         <RowBody connector={connector} />
       </a>
-      )}
       {onRemove === undefined ? null : (
         <KebabMenu
           label={`Actions for ${connector.name}`}
@@ -139,7 +131,6 @@ function Members({
   owned,
   busy,
   onOpen,
-  readOnly,
   onDrop,
 }: {
   rows: Connector[];
@@ -147,7 +138,6 @@ function Members({
   owned: boolean;
   busy: boolean;
   onOpen: (id: string) => void;
-  readOnly: boolean;
   onDrop: (id: string) => void;
 }): ReactNode {
   if (rows.length === 0)
@@ -164,7 +154,7 @@ function Members({
           connector={row}
           project={project}
           busy={busy}
-          onOpen={readOnly ? null : onOpen}
+          onOpen={onOpen}
           onRemove={
             owned
               ? () => {
@@ -183,7 +173,6 @@ interface AgentConnectorsProps {
   project: string;
   agent: AgentSummary;
   onOpen: (id: string) => void;
-  readOnly?: boolean;
 }
 
 export function AgentConnectors({
@@ -191,7 +180,6 @@ export function AgentConnectors({
   project,
   agent,
   onOpen,
-  readOnly = false,
 }: AgentConnectorsProps): ReactNode {
   const client = useQueryClient();
   const { data, error } = useConnectorsQuery(token, project);
@@ -200,7 +188,7 @@ export function AgentConnectors({
   const [failed, setFailed] = useState<string | null>(null);
   const all = data?.connectors ?? [];
   const rows = all.filter((row) => agent.connectorIds.includes(row.id));
-  const editable = agent.owned && !readOnly;
+  const editable = agent.owned;
 
   const reload = (): void => {
     refreshAgents(client, project);
@@ -229,11 +217,6 @@ export function AgentConnectors({
           setAdding(true);
         }}
       />
-      {readOnly ? (
-        <Text size="sm" role="secondary">
-          {MANAGED_ELSEWHERE}
-        </Text>
-      ) : null}
       {error === null ? null : (
         <Text size="sm" role="danger">
           {queryError(error, 'Could not load the connectors.')}
@@ -250,7 +233,6 @@ export function AgentConnectors({
         owned={editable}
         busy={busy}
         onOpen={onOpen}
-        readOnly={readOnly}
         onDrop={drop}
       />
       {agent.owned ? (

@@ -8,7 +8,7 @@ import { ClaudeProjects } from './ClaudeProjects';
 import { Loading } from './Loading';
 import { MarkdownBlock } from './MarkdownBlock';
 import { PageTitle } from './PageTitle';
-import { routeHash } from '../route';
+import { applyRoute, routeHash, routeSelection } from '../route';
 import { type Selection } from './selection';
 import { type MemoryFile } from '../api/claude';
 import { queryError, useMemoryFileQuery, useMemoryQuery } from '../api/queries';
@@ -40,16 +40,31 @@ function FileRow({ file, onOpen }: { file: MemoryFile; onOpen: () => void }): Re
   );
 }
 
+const MEMORY_LINK = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.md$/;
+
 function MemoryIndex({
   token,
+  project,
   claudeProject,
   onOpen,
+  onSelect,
 }: {
   token: string;
+  project: string;
   claudeProject: string;
   onOpen: (name: string) => void;
+  onSelect: (selection: Selection) => void;
 }): ReactNode {
   const { data, error } = useMemoryQuery(token, claudeProject);
+  const resolveLink = (href: string): string | null =>
+    MEMORY_LINK.test(href) ? routeHash({ kind: 'memory', project, claudeProject, file: href }) : null;
+  const navigate = (hash: string): void => {
+    const next = routeSelection(hash);
+    if (next.kind !== 'none') {
+      onSelect(next);
+      applyRoute(next, false);
+    }
+  };
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the memory.')}</Text>;
   if (data === undefined) return <Loading />;
   return (
@@ -57,7 +72,7 @@ function MemoryIndex({
       {data.index === null ? (
         <Text size="sm" role="secondary">No MEMORY.md in this project yet.</Text>
       ) : (
-        <MarkdownBlock text={data.index} />
+        <MarkdownBlock text={data.index} resolveLink={resolveLink} onNavigate={navigate} />
       )}
       {data.files.length === 0 ? null : (
         <Col gap={6}>
@@ -129,10 +144,12 @@ export function Memory({ token, project, claudeProject, file, onSelect }: Memory
         <PageTitle>Memory</PageTitle>
         <MemoryIndex
           token={token}
+          project={project}
           claudeProject={claudeProject}
           onOpen={(name) => {
             onSelect({ kind: 'memory', project, claudeProject, file: name });
           }}
+          onSelect={onSelect}
         />
       </Col>
     );

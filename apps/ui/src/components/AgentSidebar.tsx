@@ -23,6 +23,13 @@ function LocalRows({
   return (
     <>
       <NavRow
+        label="Connectors"
+        icon="viewGridAdd"
+        selected={CONNECTOR_PAGES.includes(selection.kind)}
+        target={{ kind: 'connectors', project }}
+        onSelect={onSelect}
+      />
+      <NavRow
         label="Sessions"
         icon="folder"
         selected={selection.kind === 'sessions'}

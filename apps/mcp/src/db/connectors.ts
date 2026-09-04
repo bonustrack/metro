@@ -58,7 +58,15 @@ export interface DeletedConnector {
 
 type ConnectorRow = typeof connectors.$inferSelect;
 
-function toConnector(row: ConnectorRow): Connector {
+export interface ConnectorLike {
+  id: string;
+  name: string;
+  url: string;
+  transport: ConnectorTransport;
+  config: unknown;
+}
+
+export function connectorFromRow(row: ConnectorLike): Connector {
   const config = readConfig(row.config);
   const auth = config.auth;
   return {
@@ -75,6 +83,8 @@ function toConnector(row: ConnectorRow): Connector {
     verified: config.verified,
   };
 }
+
+const toConnector = (row: ConnectorRow): Connector => connectorFromRow(row);
 
 const missing = (): ConnectorError =>
   new ConnectorError('no such connector', 404);
@@ -193,7 +203,7 @@ async function insertConnector(
   return toConnector(row);
 }
 
-const UNVERIFIED = {
+export const UNVERIFIED = {
   at: '',
   server: '',
   version: '',

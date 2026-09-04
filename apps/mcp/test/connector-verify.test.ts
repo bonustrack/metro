@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { allowLocalConnectors } from '../src/daemon/connector-url.ts';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
@@ -149,6 +150,10 @@ afterAll(async () => {
 beforeEach(() => {
   seen = [];
   reply = sseServer();
+});
+
+beforeAll(() => {
+  allowLocalConnectors(false);
 });
 
 describe('parseConnectorUrl is the security boundary', () => {

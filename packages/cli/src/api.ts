@@ -1,4 +1,6 @@
 import { metroUrl, readRunTokens, readToken } from './store.js';
+import { localAgents, localDaemonUp, localMcpServers, pickLocalAgent } from './local.js';
+import { localUrl } from './runtime.js';
 
 export class NotSignedIn extends Error {}
 
@@ -155,14 +157,33 @@ export async function claimRuntime(
   return { token: body.token, agent: body.agent, label: body.label };
 }
 
-export async function mcpServers(): Promise<string> {
+export async function mcpServers(wanted?: string): Promise<string> {
+  if (await localDaemonUp()) {
+    const agents = localAgents();
+    if (agents.length > 0) return localMcpServers(pickLocalAgent(agents, wanted));
+  }
   const body = await get('/api/cli/mcp');
   if (!isRecord(body) || typeof body.json !== 'string')
     throw new Error('metro returned an unexpected response');
   return body.json;
 }
 
-export async function whoisAuthorized(): Promise<{
+export async function whoisAuthorized(wanted?: string): Promise<{
+  email: string;
+  agent: string;
+  where: string;
+}> {
+  if (await localDaemonUp()) {
+    const agents = localAgents();
+    if (agents.length > 0) {
+      const agent = pickLocalAgent(agents, wanted);
+      return { email: 'this machine', agent: agent.name, where: `${localUrl()} (local)` };
+    }
+  }
+  return { ...(await hostedIdentity()), where: metroUrl() };
+}
+
+async function hostedIdentity(): Promise<{
   email: string;
   agent: string;
 }> {
