@@ -11,13 +11,13 @@ import { currentVersion } from './version.js';
 
 const USAGE = `metro — run your agent on this machine
 
-  metro serve [--port <n>] [--tunnel] [--owner <address>]
+  metro serve [--port <n>] [--owner <address>]
                   run the daemon: the agent, its channels and its connectors live in
-                  ~/.metro/agents here, and the page at metro.box manages it through the
-                  link it prints; --owner names the one wallet that may sign in (remembered
-                  after the first start); --tunnel publishes the daemon through Tailscale
-                  Funnel at a permanent https://<machine>.<tailnet>.ts.net (Tailscale
-                  installed and signed in on this machine), so the link works from anywhere
+                  ~/.metro/agents here, and it is published through Tailscale Funnel at a
+                  permanent https://<machine>.<tailnet>.ts.net (Tailscale installed and
+                  signed in on this machine); the page at metro.box manages it through the
+                  link it prints; --owner names the one wallet that may sign in, needed on
+                  the first start only
   metro stop      stop the metro daemon on this machine
   metro tail <agent-id>
                   follow this machine's inbound events, one JSON line each

@@ -11,21 +11,19 @@ const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
 const OWNER_FLAG = /^--owner=(.*)$/;
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-const USAGE = 'usage: metro serve [--port <n>] [--tunnel] [--owner <address>]';
-const TUNNEL_FLAG = /^--tunnel=(.*)$/;
+const USAGE = 'usage: metro serve [--port <n>] [--owner <address>]';
+const TUNNEL_FLAG = /^--(no-)?tunnel(=.*)?$/;
 const TAILSCALE_APP = '/Applications/Tailscale.app/Contents/MacOS/Tailscale';
 
 interface ServeOptions {
   runtime: PreparedRuntime;
   port: number;
-  tunnel: boolean;
-  tailscaleBin?: string;
+  tailscaleBin: string;
   owner: string | null;
 }
 
 interface ServeArgs {
   port: number;
-  tunnel: boolean;
   owner: string | null;
 }
 
@@ -36,21 +34,6 @@ function portOf(raw: string | undefined): number {
   return n;
 }
 
-function tunnelOf(raw: string | undefined): true {
-  if (raw === undefined || raw === '' || raw === 'tailscale') return true;
-  throw new Error(`'${raw}' is not a tunnel metro knows; the public address is Tailscale Funnel — ${USAGE}`);
-}
-
-function tunnelFlag(argv: string[], i: number): { consumed: number } | null {
-  const arg = argv[i] ?? '';
-  const inline = TUNNEL_FLAG.exec(arg);
-  if (inline) return { consumed: Number(tunnelOf(inline[1])) - 1 };
-  if (arg !== '--tunnel') return null;
-  const next = argv[i + 1];
-  const takesValue = next !== undefined && !next.startsWith('-');
-  tunnelOf(takesValue ? next : undefined);
-  return { consumed: takesValue ? 1 : 0 };
-}
 
 function ownerOf(raw: string | undefined): string {
   if (raw === undefined || !ADDRESS.test(raw))
@@ -60,16 +43,11 @@ function ownerOf(raw: string | undefined): string {
 
 export function parseServeArgs(argv: string[]): ServeArgs {
   let port = localPort();
-  let tunnel = false;
   let owner: string | null = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? '';
-    const tunnelArg = tunnelFlag(argv, i);
-    if (tunnelArg) {
-      tunnel = true;
-      i += tunnelArg.consumed;
-      continue;
-    }
+    if (TUNNEL_FLAG.test(arg))
+      throw new Error('--tunnel is gone: metro serve always publishes through Tailscale Funnel — ' + USAGE);
     const inlineOwner = OWNER_FLAG.exec(arg);
     if (inlineOwner) {
       owner = ownerOf(inlineOwner[1]);
@@ -92,7 +70,7 @@ export function parseServeArgs(argv: string[]): ServeArgs {
     }
     throw new Error(`unknown argument '${arg}' — ${USAGE}`);
   }
-  return { port, tunnel, owner };
+  return { port, owner };
 }
 
 export function requireOwner(owner: string | null, dir = agentsDir()): void {
@@ -122,7 +100,7 @@ export function findTailscale(candidates = ['tailscale', TAILSCALE_APP]): string
   );
   if (bin === undefined)
     throw new Error(
-      'metro serve --tunnel tailscale needs Tailscale on this machine.\n' +
+      'metro serve needs Tailscale on this machine: the daemon is published through Tailscale Funnel.\n' +
         'macOS:  brew install --cask tailscale   (or the App Store app)\n' +
         'Linux:  curl -fsSL https://tailscale.com/install.sh | sh\n' +
         'Then sign the machine in:  tailscale up',
@@ -157,15 +135,15 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
         ? {}
         : { METRO_RUNTIME_STORE: opts.runtime.dir, METRO_RUNTIME_MANIFEST: opts.runtime.manifest }),
       METRO_STATE_DIR: process.env.METRO_STATE_DIR ?? serveStateDir(),
-      ...(opts.tunnel ? { METRO_TUNNEL: 'tailscale' } : {}),
-      ...(opts.tailscaleBin === undefined ? {} : { METRO_TAILSCALE_BIN: opts.tailscaleBin }),
+      METRO_TUNNEL: 'tailscale',
+      METRO_TAILSCALE_BIN: opts.tailscaleBin,
       ...(opts.owner === null ? {} : { METRO_OWNER: opts.owner }),
     },
   };
 }
 
 export function serve(argv: string[]): Promise<number> {
-  const { port, tunnel, owner } = parseServeArgs(argv);
+  const { port, owner } = parseServeArgs(argv);
   const running = serveLockedBy();
   if (running !== null)
     throw new Error(
@@ -173,11 +151,11 @@ export function serve(argv: string[]): Promise<number> {
         'Stop it first: metro stop',
     );
   requireOwner(owner);
-  const tailscaleBin = tunnel ? findTailscale() : undefined;
+  const tailscaleBin = findTailscale();
   process.stderr.write(
     `Starting a metro daemon of your own on http://127.0.0.1:${String(port)}\n`,
   );
   return spawnPlan(() =>
-    servePlan({ runtime: prepareRuntime(), port, tunnel, owner, ...(tailscaleBin === undefined ? {} : { tailscaleBin }) }),
+    servePlan({ runtime: prepareRuntime(), port, owner, tailscaleBin }),
   );
 }

@@ -218,7 +218,7 @@ and the commands around it:
 ```bash
 npm i -g @stage-labs/metro@beta   # `latest` is an older line; the tag matters
 
-metro serve --tunnel --owner 0x…   # run the daemon; the page at metro.box manages it through the link it prints
+metro serve --owner 0x…            # run the daemon; the page at metro.box manages it through the link it prints
 metro stop      # stop it
 metro mcp       # print {"mcpServers": {...}}: the agent's connectors, through the daemon's relay
 metro whoami    # which agent this machine runs
@@ -255,14 +255,14 @@ that prints the agent key fresh from the agent file on every connect.
 
 `metro serve` runs a daemon with **nothing on metro.box at all**: the agent, its channels and its
 connectors live in `~/.metro/agents` on this machine, and the page at metro.box manages it
-through the link it prints. Sign in once and metro.box shows your servers, kept under your
+through the link it prints, and it is always published through Tailscale Funnel (below). Sign in once and metro.box shows your servers, kept under your
 identity so every device sees the same list, with their live status; opening a daemon's link
 adds it to that list and gives it a short address like `https://metro.box/#/4naAzZIxZZo`. From another computer, forward the port first
-(`ssh -L 8420:127.0.0.1:8420 <host>`). `metro serve --tunnel` skips the forwarding: with
-Tailscale installed and signed in on the box, it publishes the daemon through Tailscale Funnel
-at `https://<machine>.<tailnet>.ts.net`, a permanent name that survives restarts and needs
-nothing on the laptop or the phone that opens it (enable Funnel once on your tailnet when
-Tailscale asks). The certificate lives on your box, so the browser's TLS session ends at the
+(`ssh -L 8420:127.0.0.1:8420 <host>`), or simply open the public address: `metro serve` needs
+Tailscale installed and signed in on the box and publishes the daemon through Tailscale
+Funnel at `https://<machine>.<tailnet>.ts.net`, a permanent name that survives restarts and
+needs nothing on the laptop or the phone that opens it (enable Funnel once on your tailnet
+when Tailscale asks). The certificate lives on your box, so the browser's TLS session ends at the
 daemon and Tailscale's relays never decrypt it. The daemon only ever lets one wallet in, the one named with `--owner <address>` (asked
 for once and remembered in `~/.metro/agents/.owner`); until an owner is set, every sign-in is
 refused. It needs [Bun](https://bun.sh) on PATH and covers every messenger channel: XMTP,
