@@ -259,20 +259,20 @@ function methodAllowed(tgt: Routable, method: string | undefined): boolean {
   return ALLOWED[tgt.kind].includes(method ?? '');
 }
 
-function dispatch(
+async function dispatch(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AgentApiDeps,
   tgt: Routable,
 ): Promise<void> {
-  const session = apiSession(req);
+  const session = await apiSession(req);
   if (!session) {
     sendJson(req, res, 401, { error: 'unauthorized' });
-    return Promise.resolve();
+    return;
   }
   if (tgt.kind === 'accounts')
-    return handleAccountRoute(req, res, deps, session, tgt.id, tgt.route);
-  return routeAgent(req, res, deps, session, tgt);
+    await handleAccountRoute(req, res, deps, session, tgt.id, tgt.route);
+  else await routeAgent(req, res, deps, session, tgt);
 }
 
 export function handleAgentApiRequest(

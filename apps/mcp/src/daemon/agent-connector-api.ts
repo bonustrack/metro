@@ -122,12 +122,15 @@ export function handleAgentConnectorRequest(
     sendJson(req, res, 405, { error: 'method not allowed' });
     return true;
   }
-  const session = apiSession(req);
-  if (!session) {
-    sendJson(req, res, 401, { error: 'unauthorized' });
-    return true;
-  }
-  route(req, res, deps, session, tgt).catch((err: unknown) => {
+  apiSession(req)
+    .then((session) => {
+      if (!session) {
+        sendJson(req, res, 401, { error: 'unauthorized' });
+        return;
+      }
+      return route(req, res, deps, session, tgt);
+    })
+    .catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'agent-api: unhandled error');
     if (!res.headersSent) sendJson(req, res, 500, { error: 'agent api failed' });
   });

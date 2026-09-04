@@ -93,13 +93,10 @@ export function handleUpdateRequest(req: IncomingMessage, res: ServerResponse, d
     sendJson(req, res, 405, { error: 'method not allowed' });
     return true;
   }
-  const session = apiSession(req);
-  if (!session) {
-    sendJson(req, res, 401, { error: 'unauthorized' });
-    return true;
-  }
   Promise.resolve()
     .then(async (): Promise<unknown> => {
+      const session = await apiSession(req);
+      if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
       const bin = binOrThrow(deps);
       if (req.method === 'GET') return { ...(await check(bin)), running: METRO_VERSION };

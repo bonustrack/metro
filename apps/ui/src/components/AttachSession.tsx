@@ -20,7 +20,6 @@ import { stationLabel, type AttachResult } from '../api/attach';
 const POLL_MS = 2_000;
 
 interface AttachSessionProps {
-  token: string;
   agentId: string;
   session: Session;
   onUpdate: (session: Session) => void;
@@ -124,7 +123,7 @@ function StepBody({
 }
 
 export function AttachSession(props: AttachSessionProps): ReactNode {
-  const { token, agentId, session, onUpdate, onDone, onClose } = props;
+  const { agentId, session, onUpdate, onDone, onClose } = props;
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +139,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
   useEffect(() => {
     if (session.status !== 'pending') return undefined;
     const timer = setInterval(() => {
-      void pollAttachSession(token, agentId, session.attachId)
+      void pollAttachSession(agentId, session.attachId)
         .then((next) => {
           if (live.current) onUpdate(next);
         })
@@ -149,7 +148,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
     return () => {
       clearInterval(timer);
     };
-  }, [session.attachId, session.status, token, agentId]);
+  }, [session.attachId, session.status, agentId]);
 
   useEffect(() => {
     if (session.status !== 'done') return;
@@ -165,7 +164,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
   const submit = (input: { code?: string; password?: string }): void => {
     setBusy(true);
     setError(null);
-    submitAttachStep(token, agentId, session.attachId, input)
+    submitAttachStep(agentId, session.attachId, input)
       .then((next) => {
         if (live.current) onUpdate(next);
       })
@@ -178,7 +177,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
   };
 
   const stop = (): void => {
-    void cancelAttachSession(token, agentId, session.attachId).catch(
+    void cancelAttachSession(agentId, session.attachId).catch(
       () => undefined,
     );
     onClose();

@@ -1,4 +1,3 @@
-export const SESSION_TTL_SEC = 30 * 24 * 3600;
 const PREVIEW = /^([a-z0-9-]+--)?metro-ui\.netlify\.app$/;
 
 export function allowedWebHost(host: string): boolean {

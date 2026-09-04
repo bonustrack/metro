@@ -16,20 +16,18 @@ import { useDocumentTitle } from '../title';
 const FALLBACK = 'Could not load this station.';
 
 interface StationPageProps {
-  token: string;
   project: string;
   accountId: string;
   onOpenAgent: (id: string) => void;
 }
 
 export function StationPage({
-  token,
   project,
   accountId,
   onOpenAgent,
 }: StationPageProps): ReactNode {
   const client = useQueryClient();
-  const { data, error } = useStationsQuery(token);
+  const { data, error } = useStationsQuery();
   useDocumentTitle(accountId);
 
   if (error !== null)
@@ -58,7 +56,7 @@ export function StationPage({
       onDetach={
         owner !== null
           ? async (station, id) => {
-              await detachAccount(token, owner, station, id);
+              await detachAccount(owner, station, id);
               dropAccount(client, station, id);
               await client.invalidateQueries({ queryKey: stationsKey() });
             }

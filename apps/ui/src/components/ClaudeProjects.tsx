@@ -54,15 +54,13 @@ function ProjectRow({ project, onOpen }: { project: ClaudeProject; onOpen: () =>
 }
 
 export function ClaudeProjects({
-  token,
   onlyWithMemory,
   onOpen,
 }: {
-  token: string;
   onlyWithMemory: boolean;
   onOpen: (id: string) => void;
 }): ReactNode {
-  const { data, error } = useClaudeProjectsQuery(token);
+  const { data, error } = useClaudeProjectsQuery();
   if (error !== null)
     return <Text size="sm" role="danger">{queryError(error, 'Could not list Claude Code projects.')}</Text>;
   if (data === undefined) return <Loading />;

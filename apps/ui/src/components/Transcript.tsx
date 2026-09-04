@@ -67,12 +67,11 @@ function Entry({ entry }: { entry: TranscriptEntry }): ReactNode {
 }
 
 interface TranscriptProps {
-  token: string;
   project: string;
   id: string;
 }
 
-export function Transcript({ token, project, id }: TranscriptProps): ReactNode {
+export function Transcript({ project, id }: TranscriptProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [entries, setEntries] = useState<TranscriptEntry[] | null>(null);
   const [from, setFrom] = useState(0);
@@ -85,10 +84,10 @@ export function Transcript({ token, project, id }: TranscriptProps): ReactNode {
     let cancelled = false;
     setEntries(null);
     setError(null);
-    fetchTranscript(token, project, id, 0, 1)
+    fetchTranscript(project, id, 0, 1)
       .then(async (probe) => {
         const start = Math.max(0, probe.total - PAGE);
-        const page = await fetchTranscript(token, project, id, start, PAGE);
+        const page = await fetchTranscript(project, id, start, PAGE);
         if (cancelled) return;
         setEntries(page.entries);
         setFrom(start);
@@ -101,12 +100,12 @@ export function Transcript({ token, project, id }: TranscriptProps): ReactNode {
     return () => {
       cancelled = true;
     };
-  }, [token, project, id]);
+  }, [project, id]);
 
   useEffect(() => {
     if (entries === null) return;
     const timer = setInterval(() => {
-      fetchTranscript(token, project, id, seen.current, PAGE)
+      fetchTranscript(project, id, seen.current, PAGE)
         .then((page) => {
           if (page.entries.length === 0) return;
           seen.current = page.total;
@@ -118,13 +117,13 @@ export function Transcript({ token, project, id }: TranscriptProps): ReactNode {
     return () => {
       clearInterval(timer);
     };
-  }, [token, project, id, entries === null]);
+  }, [project, id, entries === null]);
 
   const earlier = (): void => {
     if (busy || from === 0) return;
     setBusy(true);
     const start = Math.max(0, from - PAGE);
-    fetchTranscript(token, project, id, start, from - start)
+    fetchTranscript(project, id, start, from - start)
       .then((page) => {
         setEntries((prev) => [...page.entries, ...(prev ?? [])]);
         setFrom(start);

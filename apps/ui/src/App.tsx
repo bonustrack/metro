@@ -11,23 +11,10 @@ import { makeQueryClient, useSessionQuery } from './api/queries';
 import { atLogin, goToLogin, leaveLogin } from './auth/login-route';
 import { connectRoute, currentSelection, subscribeRoute } from './route';
 import { pageTitle } from './title';
-import {
-  clearSession,
-  daemonBase,
-  sessionIsFresh,
-  storeSession,
-  storedSession,
-} from './auth/session';
-import { daemonHost } from './auth/daemon';
+import { clearIdentity, loadIdentity } from './auth/identity';
+import { daemonBase, daemonHost } from './auth/daemon';
 
-type State = { phase: 'login' } | { phase: 'unlocked'; token: string };
-
-function initialState(): State {
-  const stored = storedSession();
-  return stored !== null && sessionIsFresh(stored)
-    ? { phase: 'unlocked', token: stored }
-    : { phase: 'login' };
-}
+type Phase = 'loading' | 'login' | 'unlocked';
 
 function Unreachable({ onRetry }: { onRetry: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -44,13 +31,8 @@ function Unreachable({ onRetry }: { onRetry: () => void }): ReactNode {
   );
 }
 
-interface GateProps {
-  token: string;
-  onLock: () => void;
-}
-
-function Gate({ token, onLock }: GateProps): ReactNode {
-  const { data: subject, error, refetch } = useSessionQuery(token);
+function Gate({ onLock }: { onLock: () => void }): ReactNode {
+  const { data: subject, error, refetch } = useSessionQuery();
 
   useEffect(() => {
     if (subject === undefined) document.title = pageTitle(null);
@@ -65,11 +47,11 @@ function Gate({ token, onLock }: GateProps): ReactNode {
       />
     );
   if (subject === undefined) return <BootLoading />;
-  return <Dashboard token={token} subject={subject} onLock={onLock} />;
+  return <Dashboard subject={subject} onLock={onLock} />;
 }
 
 export function App(): ReactNode {
-  const [state, setState] = useState<State>(initialState);
+  const [phase, setPhase] = useState<Phase>('loading');
   const [connect, setConnect] = useState(() => connectRoute(currentSelection()));
   useEffect(
     () =>
@@ -79,42 +61,48 @@ export function App(): ReactNode {
     [],
   );
 
+  useEffect(() => {
+    loadIdentity()
+      .then((identity) => {
+        setPhase(identity === null ? 'login' : 'unlocked');
+      })
+      .catch(() => {
+        setPhase('login');
+      });
+  }, []);
+
   const lock = (): void => {
-    clearSession();
-    setState({ phase: 'login' });
+    clearIdentity();
+    setPhase('login');
   };
 
-  const unlock = (token: string): void => {
-    storeSession(token);
+  const unlock = (): void => {
     leaveLogin();
-    setState({ phase: 'unlocked', token });
+    setPhase('unlocked');
   };
 
-  const [client] = useState(() =>
-    makeQueryClient(() => {
-      clearSession();
-      setState({ phase: 'login' });
-    }),
-  );
+  const [client] = useState(() => makeQueryClient(lock));
 
   useEffect(() => {
     if (connect) document.title = pageTitle('Connect');
-    else if (state.phase === 'login') {
+    else if (phase === 'login') {
       client.clear();
       goToLogin();
-      document.title = pageTitle('Log in');
-    } else if (atLogin()) leaveLogin();
-  }, [state.phase, client, connect]);
+      document.title = pageTitle('Sign in');
+    } else if (phase === 'unlocked' && atLogin()) leaveLogin();
+  }, [phase, client, connect]);
 
   return (
     <div className="app-root">
       <QueryClientProvider client={client}>
         {connect ? (
           <Connect />
-        ) : state.phase === 'login' ? (
+        ) : phase === 'loading' ? (
+          <BootLoading />
+        ) : phase === 'login' ? (
           <Login onSignedIn={unlock} />
         ) : (
-          <Gate token={state.token} onLock={lock} />
+          <Gate onLock={lock} />
         )}
       </QueryClientProvider>
     </div>

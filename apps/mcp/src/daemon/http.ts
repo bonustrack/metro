@@ -27,7 +27,7 @@ import {
 } from './tunnel.js';
 import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry } from '@metro-labs/webhook';
-import { handleSiweAuthRequest } from './siwe-routes.js';
+import { handleIdentityRequest } from './identity-routes.js';
 import { handleModeRequest } from './mode-api.js';
 import { handleUploadRequest } from './upload-api.js';
 import {
@@ -328,7 +328,7 @@ function handleSignInRoutes(
   res: ServerResponse,
   apis: SessionApis,
 ): boolean {
-  if (apis.siwe !== undefined && handleSiweAuthRequest(req, res, apis.siwe)) return true;
+  if (apis.identity !== undefined && handleIdentityRequest(req, res, apis.identity)) return true;
   return apis.mode !== undefined && handleModeRequest(req, res, apis.mode);
 }
 

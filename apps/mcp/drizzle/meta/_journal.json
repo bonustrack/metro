@@ -162,6 +162,13 @@
       "when": 1788532122333,
       "tag": "0022_local_only",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788539837471,
+      "tag": "0023_drop_users",
+      "breakpoints": true
     }
   ]
 }

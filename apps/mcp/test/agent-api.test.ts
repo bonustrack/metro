@@ -2,8 +2,8 @@ import { afterEach, beforeAll, afterAll, describe, expect, test } from 'bun:test
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
-import { signSession } from '../src/daemon/session.ts';
 import { mcpAddCommand, type AgentApiDeps } from '../src/daemon/agent-api.ts';
+import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
 
 const PORT = (): string => process.env.METRO_WEBHOOK_PORT ?? '8420';
 import {
@@ -14,7 +14,6 @@ import {
   type ResetAgentKey,
 } from '../src/db/agent-admin.ts';
 
-const SECRET = 'agent-api-test-secret';
 const PUBLIC = 'https://mcp.metro.box';
 const LOCAL = (): string => `http://127.0.0.1:${PORT()}`;
 
@@ -154,34 +153,32 @@ const deps: AgentApiDeps = {
   syncStations: () => Promise.resolve(),
 };
 
-const session = (email: string, secret = SECRET): string =>
-  signSession({ subject: email, agentIds: [] }, secret);
+const session = (email: string): string => email;
 
-const get = (token?: string): Promise<Response> =>
+const get = async (token?: Who): Promise<Response> =>
   fetch(`${base}/api/agents?project=${PROJECT}`, {
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: token ? { authorization: await auth('GET', '/api/agents', token) } : {},
   });
 
-const getFull = (token?: string): Promise<Response> =>
+const getFull = async (token?: Who): Promise<Response> =>
   fetch(`${base}/api/agents?accounts=1&project=${PROJECT}`, {
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: token ? { authorization: await auth('GET', '/api/agents', token) } : {},
   });
 
-const post = (token: string, body: unknown): Promise<Response> =>
+const post = async (token: Who, body: unknown): Promise<Response> =>
   fetch(`${base}/api/agents?project=${PROJECT}`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: { authorization: await auth('POST', '/api/agents', token), 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 
-const del = (token: string | undefined, path: string): Promise<Response> =>
+const del = async (token: Who | undefined, path: string): Promise<Response> =>
   fetch(`${base}/api/agents/${path}`, {
     method: 'DELETE',
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: token ? { authorization: await auth('DELETE', `/api/agents/${path}`, token) } : {},
   });
 
 beforeAll(async () => {
-  process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_PUBLIC_URL = PUBLIC;
   process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
   process.env.METRO_HTTP_HOST = '127.0.0.1';
@@ -191,7 +188,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((r) => server.close(() => r()));
-  delete process.env.METRO_SESSION_SECRET;
   delete process.env.METRO_PUBLIC_URL;
 });
 
@@ -213,21 +209,19 @@ describe('/api/agents authentication', () => {
   });
 
   test('a session signed with another secret is 401', async () => {
-    expect((await get(session('ada@lovelace.dev', 'other-secret'))).status).toBe(401);
+    expect((await get(TEST_STRANGER)).status).toBe(401);
   });
 
-  test('an expired session is 401', async () => {
-    const stale = signSession({ subject: 'ada@lovelace.dev', agentIds: [] }, SECRET, {
-      ttlSec: -10,
+  test('a signature older than five minutes is 401', async () => {
+    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
+      headers: { authorization: await auth('GET', '/api/agents', 'ada@lovelace.dev', Date.now() - 6 * 60_000) },
     });
-    expect((await get(stale)).status).toBe(401);
+    expect(res.status).toBe(401);
   });
 
-  test('a ?token= query param authenticates too', async () => {
-    const res = await fetch(
-      `${base}/api/agents?project=${PROJECT}&token=${encodeURIComponent(session('ada@lovelace.dev'))}`,
-    );
-    expect(res.status).toBe(200);
+  test('a ?token= query param never carries a browser identity', async () => {
+    const res = await fetch(`${base}/api/agents?project=${PROJECT}&token=${encodeURIComponent(await auth('GET', '/api/agents', 'ada@lovelace.dev'))}`);
+    expect(res.status).toBe(401);
   });
 
   test('OPTIONS preflight is 204 with CORS', async () => {
@@ -239,7 +233,7 @@ describe('/api/agents authentication', () => {
   test('DELETE on the collection is 405 — deletion is per-agent-id only', async () => {
     const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
       method: 'DELETE',
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('DELETE', `${base}/api/agents?project=${PROJECT}`, 'ada@lovelace.dev') },
     });
     expect(res.status).toBe(405);
     expect(deleteCalls).toEqual([]);
@@ -355,7 +349,7 @@ describe('GET /api/agents is light unless accounts are asked for', () => {
     const before = scopes.length;
     for (const q of ['accounts=0', 'accounts=true', 'accounts=', 'accounts']) {
       const res = await fetch(`${base}/api/agents?${q}`, {
-        headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+        headers: { authorization: await auth('GET', `${base}/api/agents?${q}`, 'ada@lovelace.dev') },
       });
       const body = (await res.json()) as Record<string, unknown>;
       expect(body.accounts).toBeUndefined();
@@ -536,7 +530,7 @@ describe('POST /api/agents', () => {
   test('a non-JSON body is 400', async () => {
     const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('POST', `${base}/api/agents?project=${PROJECT}`, 'ada@lovelace.dev') },
       body: 'not json',
     });
     expect(res.status).toBe(400);
@@ -590,7 +584,7 @@ describe('DELETE /api/agents/:id', () => {
   });
 
   test('a session signed with another secret deletes nothing', async () => {
-    const res = await del(session('ada@lovelace.dev', 'other-secret'), 'agent000001');
+    const res = await del(TEST_STRANGER, 'agent000001');
     expect(res.status).toBe(401);
     expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
   });
@@ -607,11 +601,12 @@ describe('DELETE /api/agents/:id', () => {
   });
 
   test('GET and POST on a single agent are 405', async () => {
-    const token = session('ada@lovelace.dev');
-    const headers = { authorization: `Bearer ${token}` };
-    expect((await fetch(`${base}/api/agents/agent000001`, { headers })).status).toBe(405);
+    const headers = async (method: string): Promise<Record<string, string>> => ({
+      authorization: await auth(method, '/api/agents/agent000001', 'ada@lovelace.dev'),
+    });
+    expect((await fetch(`${base}/api/agents/agent000001`, { headers: await headers('GET') })).status).toBe(405);
     expect(
-      (await fetch(`${base}/api/agents/agent000001`, { method: 'POST', headers })).status,
+      (await fetch(`${base}/api/agents/agent000001`, { method: 'POST', headers: await headers('POST') })).status,
     ).toBe(405);
     expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
   });
@@ -652,10 +647,10 @@ interface ResetBody {
   error?: string;
 }
 
-const resetKey = (token: string | undefined, path: string): Promise<Response> =>
+const resetKey = async (token: Who | undefined, path: string): Promise<Response> =>
   fetch(`${base}/api/agents/${path}/key`, {
     method: 'POST',
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: token ? { authorization: await auth('POST', `/api/agents/${path}/key`, token) } : {},
   });
 
 describe('POST /api/agents/:id/key', () => {
@@ -709,13 +704,13 @@ describe('POST /api/agents/:id/key', () => {
   });
 
   test('a session signed with another secret rotates nothing', async () => {
-    const res = await resetKey(session('ada@lovelace.dev', 'other-secret'), 'agent000001');
+    const res = await resetKey(TEST_STRANGER, 'agent000001');
     expect(res.status).toBe(401);
     expect(resetCalls).toEqual([]);
   });
 
   test('an agent key is not a session and cannot reach the reset route', async () => {
-    const res = await resetKey('mk_fake_ada-bot', 'agent000001');
+    const res = await fetch(`${base}/api/agents/agent000001/key`, { method: 'POST', headers: { authorization: 'Bearer mk_fake_ada-bot' } });
     expect(res.status).toBe(401);
     expect(resetCalls).toEqual([]);
   });
@@ -728,8 +723,8 @@ describe('POST /api/agents/:id/key', () => {
   });
 
   test('GET and DELETE on the key sub-resource are 405', async () => {
-    const headers = { authorization: `Bearer ${session('ada@lovelace.dev')}` };
     for (const method of ['GET', 'DELETE']) {
+      const headers = { authorization: await auth(method, '/api/agents/agent000001/key', 'ada@lovelace.dev') };
       const res = await fetch(`${base}/api/agents/agent000001/key`, { method, headers });
       expect(res.status).toBe(405);
     }
@@ -745,7 +740,7 @@ describe('POST /api/agents/:id/key', () => {
   test('a deeper path under key is a 404, not a reset', async () => {
     const res = await fetch(`${base}/api/agents/agent000001/key/rotate`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${session('ada@lovelace.dev')}` },
+      headers: { authorization: await auth('POST', `${base}/api/agents/agent000001/key/rotate`, 'ada@lovelace.dev') },
     });
     expect(res.status).toBe(404);
     expect(resetCalls).toEqual([]);

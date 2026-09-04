@@ -4,12 +4,6 @@ import { STATIONS, type ConnectorTransport, type StationName } from './stations.
 
 export { STATIONS, type ConnectorTransport, type StationName };
 
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  email: text('email').unique(),
-  address: text('address').unique(),
-});
-
 export type ProjectRole = 'admin' | 'member';
 
 

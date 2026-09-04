@@ -29,7 +29,6 @@ type Step =
   | { kind: 'done'; result: AttachResult };
 
 interface ConnectStationProps {
-  token: string;
   agentId: string;
   attachable: string[];
   open: boolean;
@@ -38,7 +37,7 @@ interface ConnectStationProps {
 }
 
 export function ConnectStation(props: ConnectStationProps): ReactNode {
-  const { token, agentId, attachable, open, onClose, onChanged } = props;
+  const { agentId, attachable, open, onClose, onChanged } = props;
   const [step, setStep] = useState<Step>({ kind: 'pick' });
   const known = orderStations(attachable);
 
@@ -68,7 +67,6 @@ export function ConnectStation(props: ConnectStationProps): ReactNode {
 
       {step.kind === 'form' ? (
         <StationForm
-          token={token}
           agentId={agentId}
           station={step.station}
           onBack={() => {
@@ -86,7 +84,6 @@ export function ConnectStation(props: ConnectStationProps): ReactNode {
 
       {step.kind === 'session' ? (
         <AttachSession
-          token={token}
           agentId={agentId}
           session={step.session}
           onUpdate={(session) => {

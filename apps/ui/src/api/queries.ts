@@ -1,3 +1,4 @@
+import { daemonBase } from '../auth/daemon';
 import {
   QueryCache,
   QueryClient,
@@ -28,7 +29,6 @@ import {
   type ClaudeSession,
   type MemoryListing,
 } from './claude';
-import { daemonBase } from '../auth/session';
 import { fetchMode, type ModeInfo } from './mode';
 import { fetchUpdate, type UpdateCheck } from './update';
 
@@ -74,10 +74,10 @@ export function queryError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
-export function useUpdateQuery(token: string): UseQueryResult<UpdateCheck> {
+export function useUpdateQuery(): UseQueryResult<UpdateCheck> {
   return useQuery({
     queryKey: ['update', daemonBase()],
-    queryFn: () => fetchUpdate(token),
+    queryFn: () => fetchUpdate(),
     staleTime: 10 * 60_000,
     retry: false,
   });
@@ -91,22 +91,22 @@ export function useModeQuery(): UseQueryResult<ModeInfo> {
   });
 }
 
-export function useSessionQuery(token: string): UseQueryResult<string> {
+export function useSessionQuery(): UseQueryResult<string> {
   return useQuery({
     queryKey: sessionKey(),
-    queryFn: () => fetchSession(token),
+    queryFn: () => fetchSession(),
     staleTime: 5 * 60_000,
   });
 }
 
-export function useStationsQuery(token: string): UseQueryResult<StationsView> {
+export function useStationsQuery(): UseQueryResult<StationsView> {
   const client = useQueryClient();
   return useQuery({
     queryKey: stationsKey(),
     refetchInterval: (query) =>
       (query.state.data?.unavailable.length ?? 0) > 0 ? STARTING_POLL_MS : false,
     queryFn: async () => {
-      const next = await fetchStations(token);
+      const next = await fetchStations();
       const prev = client.getQueryData<StationsView>(stationsKey());
       return {
         ...next,
@@ -116,40 +116,40 @@ export function useStationsQuery(token: string): UseQueryResult<StationsView> {
   });
 }
 
-export function useClaudeProjectsQuery(token: string): UseQueryResult<ClaudeProject[]> {
+export function useClaudeProjectsQuery(): UseQueryResult<ClaudeProject[]> {
   return useQuery({
     queryKey: claudeProjectsKey(),
-    queryFn: () => fetchClaudeProjects(token),
+    queryFn: () => fetchClaudeProjects(),
     refetchInterval: LIVE_LIST_MS,
   });
 }
 
-export function useClaudeSessionsQuery(token: string, project: string): UseQueryResult<ClaudeSession[]> {
+export function useClaudeSessionsQuery(project: string): UseQueryResult<ClaudeSession[]> {
   return useQuery({
     queryKey: claudeSessionsKey(project),
-    queryFn: () => fetchClaudeSessions(token, project),
+    queryFn: () => fetchClaudeSessions(project),
     refetchInterval: LIVE_LIST_MS,
   });
 }
 
-export function removeClaudeSession(client: QueryClient, token: string, project: string, id: string): Promise<void> {
-  return deleteClaudeSession(token, project, id).then(() => {
+export function removeClaudeSession(client: QueryClient, project: string, id: string): Promise<void> {
+  return deleteClaudeSession(project, id).then(() => {
     invalidate(client, [claudeSessionsKey(project), claudeProjectsKey()]);
   });
 }
 
-export function useMemoryQuery(token: string, project: string): UseQueryResult<MemoryListing> {
+export function useMemoryQuery(project: string): UseQueryResult<MemoryListing> {
   return useQuery({
     queryKey: memoryKey(project),
-    queryFn: () => fetchMemory(token, project),
+    queryFn: () => fetchMemory(project),
     refetchInterval: LIVE_MEMORY_MS,
   });
 }
 
-export function useMemoryFileQuery(token: string, project: string, name: string): UseQueryResult<string> {
+export function useMemoryFileQuery(project: string, name: string): UseQueryResult<string> {
   return useQuery({
     queryKey: memoryFileKey(project, name),
-    queryFn: () => fetchMemoryFile(token, project, name),
+    queryFn: () => fetchMemoryFile(project, name),
     refetchInterval: LIVE_MEMORY_MS,
   });
 }
@@ -163,10 +163,10 @@ export function refreshAgents(client: QueryClient): void {
   invalidate(client, [stationsKey()]);
 }
 
-export function useConnectorsQuery(token: string): UseQueryResult<ConnectorsView> {
+export function useConnectorsQuery(): UseQueryResult<ConnectorsView> {
   return useQuery({
     queryKey: connectorsKey(),
-    queryFn: () => fetchConnectors(token),
+    queryFn: () => fetchConnectors(),
   });
 }
 
@@ -177,12 +177,11 @@ export function refreshConnectors(client: QueryClient, id?: string): void {
 }
 
 export function useConnectorQuery(
-  token: string,
   id: string,
 ): UseQueryResult<Connector> {
   return useQuery({
     queryKey: connectorKey(id),
-    queryFn: () => fetchConnector(token, id),
+    queryFn: () => fetchConnector(id),
   });
 }
 

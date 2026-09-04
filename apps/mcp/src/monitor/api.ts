@@ -6,7 +6,6 @@ import { callTargetDenied, eventInScope } from '../db/agent-scope.js';
 import { hasAnyKey } from '../db/key-map.js';
 import {
   allowedAgents,
-  authConfigFromEnv,
   authenticate,
 } from '../mcp/request-identity.js';
 import { METRO_VERSION } from '../daemon/version.js';
@@ -20,9 +19,7 @@ export type MonitorCall = (
 const KEEPALIVE_MS = 25_000;
 const CALL_BODY_MAX = 256 * 1024;
 
-function monitorEnabled(): boolean {
-  return hasAnyKey() || authConfigFromEnv().sessionSecret !== '';
-}
+const monitorEnabled = (): boolean => hasAnyKey();
 
 function cors(req: IncomingMessage): Record<string, string> {
   return {
@@ -230,7 +227,7 @@ export function handleMonitorRequest(
   const path = (req.url ?? '').split('?', 2)[0] ?? '';
   if (!path.startsWith('/api/')) return false;
   if (preflight(req, res, path)) return true;
-  const identity = authenticate(req, authConfigFromEnv());
+  const identity = authenticate(req);
   if (!identity) {
     sendJson(res, req, 401, { error: 'unauthorized' });
     return true;

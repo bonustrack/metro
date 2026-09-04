@@ -1,6 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage } from 'node:http';
-import { verifySession } from '../daemon/session.js';
 import { agentIdForKey } from '../db/key-map.js';
 
 export type RequestIdentity =
@@ -20,14 +19,6 @@ export function currentIdentity(): RequestIdentity | undefined {
   return storage.getStore();
 }
 
-export interface AuthConfig {
-  sessionSecret: string;
-}
-
-export function authConfigFromEnv(): AuthConfig {
-  return { sessionSecret: process.env.METRO_SESSION_SECRET?.trim() ?? '' };
-}
-
 export function extractToken(req: IncomingMessage): string | undefined {
   const header = req.headers.authorization;
   if (header?.startsWith('Bearer ')) {
@@ -40,28 +31,11 @@ export function extractToken(req: IncomingMessage): string | undefined {
   return qt ?? undefined;
 }
 
-const looksLikeJwt = (token: string): boolean =>
-  /^[\w-]+\.[\w-]+\.[\w-]+$/.test(token);
-
-export function authenticate(
-  req: IncomingMessage,
-  cfg: AuthConfig,
-): RequestIdentity | null {
+export function authenticate(req: IncomingMessage): RequestIdentity | null {
   const token = extractToken(req);
   if (!token) return null;
-
   const agentId = agentIdForKey(token);
-  if (agentId !== undefined) return { kind: 'agent', agentId };
-
-  if (cfg.sessionSecret !== '' && looksLikeJwt(token)) {
-    try {
-      const { subject, agentIds } = verifySession(token, cfg.sessionSecret);
-      return { kind: 'session', subject, agentIds };
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  return agentId === undefined ? null : { kind: 'agent', agentId };
 }
 
 export function allowedAgents(

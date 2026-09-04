@@ -1,42 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from './log.js';
-import { verifyMessage } from 'viem';
 import { apiFailure, cors, readJsonBody, sendJson } from './api-http.js';
-import { normalizeAddress } from '../db/address.js';
 import { parseId } from '../db/ids.js';
 import { ENVELOPE_MAX, type VaultBundle, type VaultEntry } from './vault-types.js';
+import { signedIdentity } from './signed-identity.js';
 
 const PREFIX = '/api/vault';
 const BODY_MAX = ENVELOPE_MAX + 64 * 1024;
-const SKEW_MS = 5 * 60_000;
-const SIGNATURE_RE = /^0x[0-9a-fA-F]{130}$/;
-
-export const vaultChallenge = (method: string, path: string, at: number): string =>
-  `metro-vault\n${method} ${path}\n${String(at)}`;
-
-interface VaultProof {
-  address: string;
-  at: number;
-  signature: `0x${string}`;
-}
-
-function parseVaultHeader(header: string): VaultProof | null {
-  const [scheme, rawAddress, rawAt, signature] = header.trim().split(/\s+/);
-  if (scheme !== 'Vault' || rawAddress === undefined || rawAt === undefined || signature === undefined) return null;
-  const address = normalizeAddress(rawAddress);
-  const at = Number(rawAt);
-  if (address === null || !Number.isFinite(at) || !SIGNATURE_RE.test(signature)) return null;
-  return { address, at, signature: signature as `0x${string}` };
-}
-
-export async function vaultIdentity(req: IncomingMessage, now = Date.now()): Promise<string | null> {
-  const proof = parseVaultHeader(req.headers.authorization ?? '');
-  if (proof === null || Math.abs(now - proof.at) > SKEW_MS) return null;
-  const path = (req.url ?? '').split('?')[0] ?? '';
-  const message = vaultChallenge(req.method ?? '', path, proof.at);
-  const ok = await verifyMessage({ address: proof.address as `0x${string}`, message, signature: proof.signature }).catch(() => false);
-  return ok ? proof.address : null;
-}
 
 export interface VaultApiDeps {
   list: (subject: string) => Promise<VaultEntry[]>;
@@ -64,7 +34,7 @@ async function route(
   tgt: { kind: 'index' } | { kind: 'bundle'; id: string },
 ): Promise<void> {
   try {
-    const owner = await vaultIdentity(req);
+    const owner = await signedIdentity(req);
     if (owner === null) {
       sendJson(req, res, 401, { error: 'unauthorized' });
       return;

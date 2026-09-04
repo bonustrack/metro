@@ -8,7 +8,6 @@ import { baseFromSegment, segmentOf, storeDaemon, storedDaemon } from '../auth/d
 import { useIsNarrow } from '../media';
 
 interface FrameProps {
-  token: string;
   project: string;
   subject: string;
   selection: Selection;
@@ -16,7 +15,7 @@ interface FrameProps {
   onLock: () => void;
 }
 
-function Frame({ token, project, subject, selection, onSelect, onLock }: FrameProps): ReactNode {
+function Frame({ project, subject, selection, onSelect, onLock }: FrameProps): ReactNode {
   const narrow = useIsNarrow();
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -45,13 +44,12 @@ function Frame({ token, project, subject, selection, onSelect, onLock }: FramePr
         />
       }
     >
-      <AgentPanel token={token} selection={selection} onSelect={onSelect} />
+      <AgentPanel selection={selection} onSelect={onSelect} />
     </Shell>
   );
 }
 
 interface DashboardProps {
-  token: string;
   subject: string;
   onLock: () => void;
 }
@@ -61,7 +59,7 @@ function lastDaemonSegment(): string | null {
   return stored === null ? null : segmentOf(stored);
 }
 
-export function Dashboard({ token, subject, onLock }: DashboardProps): ReactNode {
+export function Dashboard({ subject, onLock }: DashboardProps): ReactNode {
   const [selection, setSelection] = useState<Selection>(currentSelection);
   const hash = routeHash(selection);
 
@@ -88,5 +86,5 @@ export function Dashboard({ token, subject, onLock }: DashboardProps): ReactNode
   }, [project, selection.kind]);
 
   if (project === null) return null;
-  return <Frame token={token} project={project} subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />;
+  return <Frame project={project} subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />;
 }

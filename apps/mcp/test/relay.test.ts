@@ -7,10 +7,8 @@ import {
 } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleRelayRequest, type RelayApiDeps } from '../src/daemon/relay.ts';
-import { signSession } from '../src/daemon/session.ts';
 import type { RelayTarget } from '../src/db/connector-relay.ts';
 
-const SECRET = 'relay-test-secret';
 const EMAIL = 'less@bonustrack.co';
 const AGENT = 'agent000001';
 const CONN = 'conn0000001';
@@ -101,7 +99,6 @@ function serveMcp(req: IncomingMessage, res: ServerResponse, body: string): void
 }
 
 beforeAll(async () => {
-  process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_RELAY_KEEPALIVE_MS = '60';
   upstream = createServer((req, res) => {
     if (req.method === 'GET')
@@ -144,7 +141,6 @@ beforeAll(async () => {
 afterAll(() => {
   upstream.close();
   relay.close();
-  delete process.env.METRO_SESSION_SECRET;
   delete process.env.METRO_RELAY_KEEPALIVE_MS;
 });
 
@@ -183,7 +179,7 @@ const INIT = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
 describe('who may speak to a relay', () => {
   test('no key, a session JWT, and garbage are all 401', async () => {
     expect((await call(`/relay/${CONN}`, { method: 'POST' }, null)).status).toBe(401);
-    const jwt = signSession({ subject: EMAIL, agentIds: [] }, SECRET);
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.c2ln';
     expect((await call(`/relay/${CONN}`, { method: 'POST' }, jwt)).status).toBe(401);
     expect((await call(`/relay/${CONN}`, { method: 'POST' }, 'junk')).status).toBe(401);
     expect(seen).toHaveLength(0);

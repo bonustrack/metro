@@ -1,6 +1,6 @@
+import { daemonBase } from '../auth/daemon';
 import { call } from './client';
 import { isRecord } from './accounts';
-import { daemonBase } from '../auth/session';
 
 export interface ClaudeProject {
   id: string;
@@ -101,26 +101,25 @@ function toEntry(v: unknown): TranscriptEntry | null {
 const list = <T>(v: unknown, make: (x: unknown) => T | null): T[] =>
   Array.isArray(v) ? v.map(make).filter((x): x is T => x !== null) : [];
 
-export async function fetchClaudeProjects(token: string): Promise<ClaudeProject[]> {
-  const body = await call(token, { base: base(), path: '/projects', method: 'GET' });
+export async function fetchClaudeProjects(): Promise<ClaudeProject[]> {
+  const body = await call({ base: base(), path: '/projects', method: 'GET' });
   if (!isRecord(body)) throw unexpected();
   return list(body.projects, toProject);
 }
 
-export async function fetchClaudeSessions(token: string, project: string): Promise<ClaudeSession[]> {
-  const body = await call(token, { base: base(), path: `/sessions?project=${encodeURIComponent(project)}`, method: 'GET' });
+export async function fetchClaudeSessions(project: string): Promise<ClaudeSession[]> {
+  const body = await call({ base: base(), path: `/sessions?project=${encodeURIComponent(project)}`, method: 'GET' });
   if (!isRecord(body)) throw unexpected();
   return list(body.sessions, toSession);
 }
 
 export async function fetchTranscript(
-  token: string,
   project: string,
   id: string,
   offset: number,
   limit: number,
 ): Promise<TranscriptPage> {
-  const body = await call(token, {
+  const body = await call({
     base: base(),
     path: `/sessions/${id}?project=${encodeURIComponent(project)}&offset=${String(offset)}&limit=${String(limit)}`,
     method: 'GET',
@@ -133,16 +132,16 @@ export async function fetchTranscript(
   };
 }
 
-export async function deleteClaudeSession(token: string, project: string, id: string): Promise<void> {
-  await call(token, {
+export async function deleteClaudeSession(project: string, id: string): Promise<void> {
+  await call({
     base: base(),
     path: `/sessions/${id}?project=${encodeURIComponent(project)}`,
     method: 'DELETE',
   });
 }
 
-export async function fetchMemory(token: string, project: string): Promise<MemoryListing> {
-  const body = await call(token, { base: base(), path: `/memory?project=${encodeURIComponent(project)}`, method: 'GET' });
+export async function fetchMemory(project: string): Promise<MemoryListing> {
+  const body = await call({ base: base(), path: `/memory?project=${encodeURIComponent(project)}`, method: 'GET' });
   if (!isRecord(body)) throw unexpected();
   const files = Array.isArray(body.files)
     ? body.files.flatMap((f: unknown) =>
@@ -154,8 +153,8 @@ export async function fetchMemory(token: string, project: string): Promise<Memor
   return { files, index: text(body.index) };
 }
 
-export async function fetchMemoryFile(token: string, project: string, name: string): Promise<string> {
-  const body = await call(token, {
+export async function fetchMemoryFile(project: string, name: string): Promise<string> {
+  const body = await call({
     base: base(),
     path: `/memory/${encodeURIComponent(name)}?project=${encodeURIComponent(project)}`,
     method: 'GET',

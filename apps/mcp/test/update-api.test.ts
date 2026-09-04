@@ -5,10 +5,9 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleUpdateRequest, type UpdateApiDeps } from '../src/daemon/update-api.ts';
-import { signSession } from '../src/daemon/session.ts';
 import { ApiError } from '../src/daemon/api-error.ts';
+import { auth, type Who } from './identity-helper.ts';
 
-const SECRET = 'update-test-secret';
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const OTHER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 
@@ -17,7 +16,6 @@ let bin = '';
 let restarts = 0;
 let server: Server;
 let base = '';
-const saved = process.env.METRO_SESSION_SECRET;
 
 function fakeCli(script: string): void {
   writeFileSync(bin, script);
@@ -34,7 +32,6 @@ const deps: UpdateApiDeps = {
 };
 
 beforeAll(async () => {
-  process.env.METRO_SESSION_SECRET = SECRET;
   dir = mkdtempSync(join(tmpdir(), 'metro-update-'));
   bin = join(dir, 'cli.mjs');
   server = createServer((req, res) => {
@@ -48,7 +45,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  process.env.METRO_SESSION_SECRET = saved;
   await new Promise<void>((r) => {
     server.close(() => {
       r();
@@ -61,9 +57,9 @@ beforeEach(() => {
   restarts = 0;
 });
 
-const session = (subject = OWNER): string => signSession({ subject, agentIds: [] }, SECRET);
-const call = (method: string, token: string | null): Promise<Response> =>
-  fetch(`${base}/api/update`, { method, headers: token === null ? {} : { authorization: `Bearer ${token}` } });
+const session = (subject = OWNER): string => subject;
+const call = async (method: string, token: Who | null): Promise<Response> =>
+  fetch(`${base}/api/update`, { method, headers: token === null ? {} : { authorization: await auth(method, '/api/update', token) } });
 
 describe('updating metro from the page', () => {
   test('the check reports the running, current and latest versions, and only the owner may ask', async () => {
@@ -101,7 +97,7 @@ describe('updating metro from the page', () => {
   });
 
   test('without a CLI path the daemon says it cannot update itself', async () => {
-    const res = await fetch(`${base}/api/update`, { headers: { authorization: `Bearer ${session()}` } }).then(async (r) => {
+    const res = await fetch(`${base}/api/update`, { headers: { authorization: await auth('GET', '/api/update', session()) } }).then(async (r) => {
       const local = createServer((req, out) => {
         if (handleUpdateRequest(req, out, { ...deps, cliBin: () => '' })) return;
         out.writeHead(404).end();
@@ -110,7 +106,7 @@ describe('updating metro from the page', () => {
         local.listen(0, '127.0.0.1', done);
       });
       const port = (local.address() as AddressInfo).port;
-      const answer = await fetch(`http://127.0.0.1:${String(port)}/api/update`, { headers: { authorization: `Bearer ${session()}` } });
+      const answer = await fetch(`http://127.0.0.1:${String(port)}/api/update`, { headers: { authorization: await auth('GET', '/api/update', session()) } });
       local.close();
       return r.ok ? answer : answer;
     });

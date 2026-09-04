@@ -54,16 +54,6 @@ export function setLocalOwner(raw: string, dir = agentsDir()): string {
   return address;
 }
 
-export function ownerSignIn(raw: string, dir = agentsDir()): Promise<string> {
-  const owner = localOwner(dir);
-  if (owner === null)
-    return Promise.reject(
-      new ApiError('this machine has no owner yet: start it with metro serve --owner <address>', 403),
-    );
-  if (owner !== normalizeAddress(raw))
-    return Promise.reject(new ApiError('this machine belongs to another wallet', 403));
-  return Promise.resolve(owner);
-}
 
 function isOwner(subject: string, dir: string): boolean {
   const owner = localOwner(dir);

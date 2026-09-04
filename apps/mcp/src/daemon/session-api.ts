@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { apiSession, cors, sendJson } from './api-http.js';
+import { apiFailure, apiSession, cors, sendJson } from './api-http.js';
 
 const PATH = '/api/session';
 
@@ -17,11 +17,13 @@ export function handleSessionApiRequest(
     sendJson(req, res, 405, { error: 'method not allowed' });
     return true;
   }
-  const session = apiSession(req);
-  if (!session) {
-    sendJson(req, res, 401, { error: 'unauthorized' });
-    return true;
-  }
-  sendJson(req, res, 200, { subject: session.subject });
+  apiSession(req)
+    .then((session) => {
+      if (!session) sendJson(req, res, 401, { error: 'unauthorized' });
+      else sendJson(req, res, 200, { subject: session.subject });
+    })
+    .catch((err: unknown) => {
+      apiFailure(req, res, err, 'session');
+    });
   return true;
 }

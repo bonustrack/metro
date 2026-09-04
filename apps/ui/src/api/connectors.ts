@@ -1,4 +1,4 @@
-import { daemonBase } from '../auth/session';
+import { daemonBase } from '../auth/daemon';
 import { call, LOCAL_PROJECT } from './client';
 import { isRecord } from './accounts';
 
@@ -169,8 +169,8 @@ function payload(input: NewConnector): Record<string, string> {
   return out;
 }
 
-export async function fetchConnectors(token: string): Promise<ConnectorsView> {
-  const body = await call(token, {
+export async function fetchConnectors(): Promise<ConnectorsView> {
+  const body = await call({
     method: 'GET',
     base: connectorsUrl(),
     path: `?project=${LOCAL_PROJECT}`,
@@ -184,8 +184,8 @@ export type AddResult =
   | { kind: 'added'; connector: Connector }
   | { kind: 'oauth'; connector: Connector; authorizeUrl: string };
 
-export async function createConnector(token: string, input: NewConnector): Promise<AddResult> {
-  const body = await call(token, {
+export async function createConnector(input: NewConnector): Promise<AddResult> {
+  const body = await call({
     method: 'POST',
     base: connectorsUrl(),
     path: `?project=${LOCAL_PROJECT}`,
@@ -214,10 +214,9 @@ export function takeConnectorError(): string | null {
 }
 
 export async function fetchConnector(
-  token: string,
   id: string,
 ): Promise<Connector> {
-  const body = await call(token, {
+  const body = await call({
     method: 'GET',
     base: connectorsUrl(),
     path: `/${id}`,
@@ -226,10 +225,9 @@ export async function fetchConnector(
 }
 
 export async function verifyConnector(
-  token: string,
   id: string,
 ): Promise<VerifyResult> {
-  const body = await call(token, {
+  const body = await call({
     method: 'POST',
     base: connectorsUrl(),
     path: `/${id}/verify`,
@@ -245,10 +243,9 @@ export async function verifyConnector(
 }
 
 export async function connectConnector(
-  token: string,
   id: string,
 ): Promise<string> {
-  const body = await call(token, {
+  const body = await call({
     method: 'POST',
     base: connectorsUrl(),
     path: `/${id}/connect`,
@@ -261,10 +258,9 @@ export async function connectConnector(
 }
 
 export async function disconnectConnector(
-  token: string,
   id: string,
 ): Promise<Connector> {
-  const body = await call(token, {
+  const body = await call({
     method: 'POST',
     base: connectorsUrl(),
     path: `/${id}/disconnect`,
@@ -273,11 +269,10 @@ export async function disconnectConnector(
 }
 
 export async function renameConnector(
-  token: string,
   id: string,
   name: string,
 ): Promise<Connector> {
-  const body = await call(token, {
+  const body = await call({
     method: 'POST',
     base: connectorsUrl(),
     path: `/${id}/rename`,
@@ -287,8 +282,8 @@ export async function renameConnector(
   return toConnector(body);
 }
 
-export async function deleteConnector(token: string, id: string): Promise<void> {
-  await call(token, {
+export async function deleteConnector(id: string): Promise<void> {
+  await call({
     method: 'DELETE',
     base: connectorsUrl(),
     path: `/${id}`,

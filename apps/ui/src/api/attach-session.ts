@@ -59,23 +59,21 @@ const sessionPath = (agentId: string, attachId: string): string =>
   `/${agentId}/accounts/${encodeURIComponent(attachId)}`;
 
 export async function pollAttachSession(
-  token: string,
   agentId: string,
   attachId: string,
 ): Promise<AttachSession> {
   return toSession(
-    await call(token, { method: 'GET', path: sessionPath(agentId, attachId) }),
+    await call({ method: 'GET', path: sessionPath(agentId, attachId) }),
   );
 }
 
 export async function submitAttachStep(
-  token: string,
   agentId: string,
   attachId: string,
   input: { code?: string; password?: string },
 ): Promise<AttachSession> {
   return toSession(
-    await call(token, {
+    await call({
       method: 'POST',
       path: `${sessionPath(agentId, attachId)}/step`,
       headers: { 'content-type': 'application/json' },
@@ -85,11 +83,10 @@ export async function submitAttachStep(
 }
 
 export async function cancelAttachSession(
-  token: string,
   agentId: string,
   attachId: string,
 ): Promise<void> {
-  await call(token, {
+  await call({
     method: 'DELETE',
     path: sessionPath(agentId, attachId),
   });

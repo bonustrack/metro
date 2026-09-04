@@ -130,12 +130,12 @@ export async function walletKeys(address: string, signature: string): Promise<Wa
   };
 }
 
-export const vaultChallenge = (method: string, path: string, at: number): string =>
-  `metro-vault\n${method} ${path}\n${String(at)}`;
+export const requestChallenge = (method: string, path: string, at: number): string =>
+  `metro-auth\n${method} ${path}\n${String(at)}`;
 
-export async function signVaultRequest(keys: WalletKeys, method: string, path: string, at = Date.now()): Promise<string> {
-  const signature = await keys.vault.signMessage({ message: vaultChallenge(method, path, at) });
-  return `Vault ${keys.vault.address} ${String(at)} ${signature}`;
+export async function signRequest(keys: WalletKeys, method: string, path: string, at = Date.now()): Promise<string> {
+  const signature = await keys.vault.signMessage({ message: requestChallenge(method, path, at) });
+  return `Metro ${keys.vault.address} ${String(at)} ${signature}`;
 }
 
 function concat(a: Uint8Array, b: Uint8Array): Uint8Array {

@@ -1,3 +1,4 @@
+import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -5,11 +6,9 @@ import {
   handleAgentConnectorRequest,
   type AgentConnectorApiDeps,
 } from '../src/daemon/agent-connector-api.js';
-import { signSession } from '../src/daemon/session.js';
 import { ApiError } from '../src/daemon/api-error.js';
 import type { AgentConnectors } from '../src/daemon/agent-connector-api.js';
 
-const SECRET = 'a-test-session-secret';
 const ADA = 'ada@lovelace.dev';
 const BOB = 'bob@example.com';
 const AGENT = 'agent000001';
@@ -55,10 +54,8 @@ const deps: AgentConnectorApiDeps = {
 
 let server: Server;
 let base = '';
-const prev = process.env.METRO_SESSION_SECRET;
 
 beforeAll(async () => {
-  process.env.METRO_SESSION_SECRET = SECRET;
   server = createServer((req, res) => {
     if (handleAgentConnectorRequest(req, res, deps)) return;
     res.writeHead(418).end();
@@ -75,23 +72,20 @@ beforeEach(() => {
 
 afterAll(() => {
   server.close();
-  if (prev === undefined) delete process.env.METRO_SESSION_SECRET;
-  else process.env.METRO_SESSION_SECRET = prev;
 });
 
-const session = (email = ADA): string =>
-  signSession({ subject: email, agentIds: [] }, SECRET);
+const session = (email = ADA): string => email;
 
-const call = (
+const call = async (
   method: string,
   path: string,
-  token?: string,
+  token?: Who,
   body?: unknown,
 ): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
     headers: {
-      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+      ...(token === undefined ? {} : { authorization: await auth(method, path, token) }),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -105,7 +99,8 @@ const ids = async (res: Response): Promise<string[]> =>
 describe('what an agent holds', () => {
   test('reading needs the signed-in owner', async () => {
     expect((await call('GET', LIST)).status).toBe(401);
-    expect((await call('GET', LIST, 'junk')).status).toBe(401);
+    expect((await call('GET', LIST, TEST_STRANGER)).status).toBe(401);
+    expect((await fetch(`${base}${LIST}`, { headers: { authorization: 'Bearer junk' } })).status).toBe(401);
   });
 
   test('the list is the agent with its connector ids', async () => {

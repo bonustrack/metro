@@ -1,9 +1,9 @@
+import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { allowLocalConnectors } from '../src/daemon/connector-url.ts';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
-import { signSession } from '../src/daemon/session.ts';
 import { ApiError } from '../src/daemon/api-error.ts';
 import {
   ConnectorVerifyError,
@@ -12,7 +12,6 @@ import {
 import type { ConnectorApiDeps } from '../src/daemon/connector-api.ts';
 import { setKeyMap } from '../src/db/key-map.ts';
 
-const SECRET = 'connector-api-test-secret';
 const ADA = 'ada@lovelace.dev';
 const BOB = 'bob@builder.dev';
 const CLASHES_IN_AGENT = 'already-on-suzy';
@@ -89,7 +88,6 @@ let base: string;
 let rows: Row[] = [...SEED];
 let nextId = 10;
 let calls: string[] = [];
-let priorSecret: string | undefined;
 let priorHost: string | undefined;
 
 const VERIFIED = {
@@ -210,26 +208,32 @@ const deps: ConnectorApiDeps = {
   },
 };
 
-const session = (email: string, secret = SECRET): string =>
-  signSession({ subject: email, agentIds: [] }, secret);
+const session = (email: string): string => email;
 
 const withProject = (path: string): string =>
   path.includes('?')
     ? `${path}&project=${PROJECT}`
     : `${path}?project=${PROJECT}`;
 
-const call = (
+const call = async (
   method: string,
   path: string,
-  token?: string,
+  token?: Who,
   body?: unknown,
 ): Promise<Response> =>
   fetch(`${base}${withProject(path)}`, {
     method,
     headers: {
-      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+      ...(token === undefined ? {} : { authorization: await auth(method, path, token) }),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+
+const keyed = (method: string, path: string, key: string, body?: unknown): Promise<Response> =>
+  fetch(`${base}${withProject(path)}`, {
+    method,
+    headers: { authorization: `Bearer ${key}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
@@ -240,9 +244,7 @@ const listFor = async (email: string): Promise<WireConnector[]> => {
 };
 
 beforeAll(async () => {
-  priorSecret = process.env.METRO_SESSION_SECRET;
   priorHost = process.env.METRO_HTTP_HOST;
-  process.env.METRO_SESSION_SECRET = SECRET;
   process.env.METRO_WEBHOOK_PORT = String(
     10000 + Math.floor(Math.random() * 20000),
   );
@@ -258,8 +260,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((r) => server.close(() => r()));
-  if (priorSecret === undefined) delete process.env.METRO_SESSION_SECRET;
-  else process.env.METRO_SESSION_SECRET = priorSecret;
   if (priorHost === undefined) delete process.env.METRO_HTTP_HOST;
   else process.env.METRO_HTTP_HOST = priorHost;
 });
@@ -283,35 +283,30 @@ describe('/api/connectors is the Google session surface', () => {
   });
 
   test('a session signed with another secret is 401', async () => {
-    const res = await call('GET', '/api/connectors', session(ADA, 'other-secret'));
+    const res = await call('GET', '/api/connectors', TEST_STRANGER);
     expect(res.status).toBe(401);
     expect(calls).toEqual([]);
   });
 
-  test('an expired session is 401', async () => {
-    const stale = signSession({ subject: ADA, agentIds: [] }, SECRET, {
-      ttlSec: -10,
+  test('a signature older than five minutes is 401', async () => {
+    const res = await fetch(`${base}${withProject('/api/connectors')}`, {
+      headers: { authorization: await auth('GET', '/api/connectors', ADA, Date.now() - 6 * 60_000) },
     });
-    expect((await call('GET', '/api/connectors', stale)).status).toBe(401);
-    expect(calls).toEqual([]);
+    expect(res.status).toBe(401);
   });
 
-  test('a ?token= query param authenticates too', async () => {
-    const res = await fetch(
-      `${base}/api/connectors?project=${PROJECT}&token=${encodeURIComponent(session(ADA))}`,
-    );
-    expect(res.status).toBe(200);
-    expect(calls).toEqual([`list ${ADA}`]);
+  test('a ?token= query param never authenticates a browser', async () => {
+    const res = await fetch(`${base}/api/connectors?project=${PROJECT}&token=${AGENT_KEY}`);
+    expect(res.status).toBe(401);
+    expect(calls).toEqual([]);
   });
 
   test('a live agent key opens the monitor but never this surface', async () => {
     setKeyMap([{ key: AGENT_KEY, agentId: 'agent000001' }]);
     try {
-      expect((await call('GET', '/api/connectors', AGENT_KEY)).status).toBe(401);
-      expect((await call('POST', '/api/connectors', AGENT_KEY, {})).status).toBe(
-        401,
-      );
-      expect((await call('POST', '/api/tail', AGENT_KEY)).status).toBe(405);
+      expect((await keyed('GET', '/api/connectors', AGENT_KEY)).status).toBe(401);
+      expect((await keyed('POST', '/api/connectors', AGENT_KEY, {})).status).toBe(401);
+      expect((await keyed('POST', '/api/tail', AGENT_KEY)).status).toBe(405);
     } finally {
       setKeyMap([]);
     }
@@ -433,12 +428,8 @@ describe('a connector can be signed out without being deleted', () => {
 
   test('disconnect is session-gated, never open to an agent key', async () => {
     const bare = await call('POST', '/api/connectors/agent000001/disconnect');
-    const keyed = await call(
-      'POST',
-      '/api/connectors/agent000001/disconnect',
-      AGENT_KEY,
-    );
-    expect([bare.status, keyed.status]).toEqual([401, 401]);
+    const withKey = await keyed('POST', '/api/connectors/agent000001/disconnect', AGENT_KEY);
+    expect([bare.status, withKey.status]).toEqual([401, 401]);
     expect(calls).toEqual([]);
   });
 
@@ -685,7 +676,7 @@ describe('POST /api/connectors', () => {
     const res = await fetch(`${base}/api/connectors`, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${session(ADA)}`,
+        authorization: await auth('POST', `${base}/api/connectors`, ADA),
         'content-type': 'application/json',
       },
       body: 'not json',
@@ -769,6 +760,13 @@ describe('verify and delete', () => {
 });
 
 describe('the mounting order inside handlePreMcpRoutes', () => {
+  beforeAll(() => {
+    setKeyMap([{ key: AGENT_KEY, agentId: 'agent000001' }]);
+  });
+  afterAll(() => {
+    setKeyMap([]);
+  });
+
   test('the monitor router claims /api/* and must not swallow this one', async () => {
     expect((await fetch(`${base}/api/tail`)).status).toBe(401);
     const res = await call('GET', '/api/connectors', session(ADA));
