@@ -423,7 +423,8 @@ forward the port first (`ssh -L 8420:127.0.0.1:8420 <host>`); on a box already r
 it runs a Cloudflare quick tunnel (`cloudflared`, no account) and the link it prints carries a
 public `https://…trycloudflare.com` address that works from any browser, behind NAT included.
 The address changes on every start, Cloudflare terminates TLS and promises no uptime for quick
-tunnels, and the daemon is unowned until the first wallet signs in, so sign in right away.
+tunnels. The daemon only ever lets one wallet in, the one named with `--owner <address>` (asked
+for once and remembered in `~/.metro/agents/.owner`); until an owner is set, every sign-in is refused.
 
 Metro no longer runs messenger stations at all: they run on your machine or nowhere. There is
 no fallback to Metro if your machine is down, which is the point. It needs
@@ -439,7 +440,7 @@ daemon with `METRO_MODE=local` and it reads its agents from `~/.metro/agents/<na
 (`METRO_AGENTS_DIR` overrides the directory), each `{ "version": 1, "id", "name", "key",
 "owner", "stations": [...] }`, runs their stations on this machine and prints the paste-ready
 line for Claude Code. No Postgres, no metro.box. It serves the same API as metro.box: sign in
-with your wallet (the first wallet to sign in owns the machine), create agents and attach
+with your wallet (only the one named with `metro serve --owner`), create agents and attach
 stations, all written to those files. Open the link it prints: metro.box connects to the daemon on
 your machine (from another computer, forward the port first with `ssh -L 8420:127.0.0.1:8420 <host>`)
 and manages it from the same pages, while your messages stay on that machine. With the published

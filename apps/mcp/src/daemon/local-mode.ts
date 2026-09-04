@@ -32,7 +32,7 @@ import {
 } from '../db/local-connectors.js';
 import {
   assertLocalOwner,
-  claimLocalOwner,
+  ownerSignIn,
   connectorIdsOfLocalAgent,
   LOCAL_PROJECT_ID,
   localAttachAccount,
@@ -190,7 +190,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     relayApi,
     localCli,
     claudeApi: { authorize: (subject) => { assertLocalOwner(subject); } },
-    siwe: { ensureUser: claimLocalOwner },
+    siwe: { ensureUser: ownerSignIn },
     mode: localModeInfo,
   };
 }

@@ -10,6 +10,7 @@ import { createSiweMessage } from 'viem/siwe';
 import { handleSiweAuthRequest } from '../src/daemon/siwe-routes.js';
 import { handleModeRequest } from '../src/daemon/mode-api.js';
 import { handleSessionApis, type SessionApis } from '../src/daemon/session-apis.js';
+import { setLocalOwner } from '../src/db/file-admin.ts';
 import { localSessionApis } from '../src/daemon/local-mode.js';
 import { ensureLocalSessionSecret } from '../src/daemon/local-secret.js';
 import { signSession } from '../src/daemon/session.js';
@@ -121,7 +122,9 @@ describe('a local daemon, end to end over http', () => {
     expect((await call('POST', '/api/mode')).status).toBe(405);
   });
 
-  test('the first wallet to sign in owns the machine; the next one is refused', async () => {
+  test('nobody can sign in until the operator sets the owner; then only that wallet can', async () => {
+    expect((await signIn(OWNER)).status).toBe(403);
+    setLocalOwner(OWNER.address, dir);
     const res = await signIn(OWNER);
     expect(res.status).toBe(200);
     session = ((await res.json()) as { session: string }).session;

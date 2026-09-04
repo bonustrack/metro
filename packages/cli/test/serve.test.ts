@@ -24,17 +24,24 @@ afterEach(() => {
 describe('metro serve arguments', () => {
   test('no arguments means 8420, or METRO_WEBHOOK_PORT when set', () => {
     delete process.env.METRO_WEBHOOK_PORT;
-    expect(parseServeArgs([])).toEqual({ port: 8420, tunnel: false });
+    expect(parseServeArgs([])).toEqual({ port: 8420, tunnel: false, owner: null });
     process.env.METRO_WEBHOOK_PORT = '8422';
-    expect(parseServeArgs([])).toEqual({ port: 8422, tunnel: false });
+    expect(parseServeArgs([])).toEqual({ port: 8422, tunnel: false, owner: null });
   });
 
   test('--port in its three spellings wins over the environment', () => {
     process.env.METRO_WEBHOOK_PORT = '8422';
-    expect(parseServeArgs(['--port', '8421'])).toEqual({ port: 8421, tunnel: false });
-    expect(parseServeArgs(['--port=9000'])).toEqual({ port: 9000, tunnel: false });
-    expect(parseServeArgs(['-p', '1'])).toEqual({ port: 1, tunnel: false });
-    expect(parseServeArgs(['--tunnel', '--port', '8421'])).toEqual({ port: 8421, tunnel: true });
+    expect(parseServeArgs(['--port', '8421'])).toEqual({ port: 8421, tunnel: false, owner: null });
+    expect(parseServeArgs(['--port=9000'])).toEqual({ port: 9000, tunnel: false, owner: null });
+    expect(parseServeArgs(['-p', '1'])).toEqual({ port: 1, tunnel: false, owner: null });
+    expect(parseServeArgs(['--tunnel', '--port', '8421'])).toEqual({ port: 8421, tunnel: true, owner: null });
+    expect(parseServeArgs(['--owner', '0xEF8305E140ac520225DAf050e2f71d5fBCC543e7'])).toEqual({
+      port: 8422,
+      tunnel: false,
+      owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7',
+    });
+    expect(parseServeArgs(['--owner=0xef8305e140ac520225daf050e2f71d5fbcc543e7']).owner).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
+    expect(() => parseServeArgs(['--owner', 'less.eth'])).toThrow(/not an Ethereum address/);
   });
 
   test('a bad port or an unknown flag is refused with the usage', () => {
@@ -52,8 +59,10 @@ describe('the daemon a serve plan starts', () => {
     delete process.env.METRO_HTTP_HOST;
     delete process.env.METRO_STATE_DIR;
     process.env.XDG_CACHE_HOME = '/tmp/cache-home';
-    const plan = servePlan({ dir: '/opt/metro/runtime', port: 8421, tunnel: false });
+    const plan = servePlan({ dir: '/opt/metro/runtime', port: 8421, tunnel: false, owner: null });
     expect(plan.env.METRO_TUNNEL).toBeUndefined();
+    expect(plan.env.METRO_OWNER).toBeUndefined();
+    expect(servePlan({ dir: '/opt/metro/runtime', port: 8421, tunnel: true, owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7' }).env.METRO_OWNER).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
     expect(plan.args).toEqual([SERVER_ENTRY]);
     expect(plan.cwd).toBe('/opt/metro/runtime');
     expect(plan.env.METRO_MODE).toBe('local');

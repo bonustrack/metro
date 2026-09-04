@@ -5,7 +5,12 @@ const uiBase = (): string => process.env.METRO_UI_URL ?? 'https://metro.box';
 const connectLink = (base: string): string =>
   `${uiBase()}/#/${new URL(base).host}`;
 
-export function localConnectHint(port: number): string {
+const ownerLine = (owner: string | null): string =>
+  owner === null
+    ? 'No owner is set, so no wallet can sign in. Restart with:  metro serve --owner <address>'
+    : `Only ${owner} can sign in.`;
+
+export function localConnectHint(port: number, owner: string | null): string {
   const here = `http://127.0.0.1:${String(port)}`;
   const forward = `ssh -L ${String(port)}:127.0.0.1:${String(port)} ${hostname()}`;
   return [
@@ -14,17 +19,18 @@ export function localConnectHint(port: number): string {
     `  ${connectLink(here)}`,
     '',
     `From another computer, forward the port first:  ${forward}`,
+    ownerLine(owner),
     '',
   ].join('\n');
 }
 
-export function publicConnectHint(url: string): string {
+export function publicConnectHint(url: string, owner: string | null): string {
   return [
     'Manage this machine from the web UI, from anywhere:',
     '',
     `  ${connectLink(url)}`,
     '',
-    'Sign in right away: the first wallet to sign in owns this machine.',
+    ownerLine(owner),
     '',
   ].join('\n');
 }
