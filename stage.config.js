@@ -51,7 +51,7 @@ export default defineConfig({
       knip: {
         project: ['src/**/*.ts'],
         entry: ['scripts/*.mjs', 'test/**/*.ts'],
-        ignoreBinaries: ['ps', 'claude', 'cloudflared'],
+        ignoreBinaries: ['ps', 'claude'],
       },
     },
     'apps/mcp': {
@@ -59,7 +59,7 @@ export default defineConfig({
       knip: {
         entry: ['test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
-        ignoreBinaries: ['mktemp', 'ps', 'cloudflared'],
+        ignoreBinaries: ['mktemp', 'ps'],
       },
     },
     'packages/webhook': {
