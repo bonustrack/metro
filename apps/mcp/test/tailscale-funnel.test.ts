@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { currentTunnelUrl, funnelAlreadyServing, funnelDriver, funnelUrlIn, Tunnel, tunnelWanted } from '../src/daemon/tunnel.ts';
+import { currentTunnelUrl, funnelAlreadyServing, funnelDriver, funnelUrlIn, nodeNameIn, Tunnel, tunnelWanted } from '../src/daemon/tunnel.ts';
 import { publicBaseUrl } from '../src/daemon/attach-serve.ts';
 import { tunnelPendingHint } from '../src/daemon/connect-hint.ts';
 
@@ -95,6 +95,12 @@ describe('reading tailscale funnel', () => {
     expect(funnelAlreadyServing('No serve config', 8420).url).toBeNull();
   });
 
+  test('the node name comes out of tailscale status, without its trailing dot', () => {
+    expect(nodeNameIn('{"Self":{"DNSName":"Suzy.tail1234.ts.net."}}')).toBe('suzy.tail1234.ts.net');
+    expect(nodeNameIn('{"Self":{}}')).toBeNull();
+    expect(nodeNameIn('not json')).toBeNull();
+  });
+
   test('the driver runs the foreground funnel on the daemon port, from the binary the CLI found', () => {
     expect(funnelDriver(8420, '/Applications/Tailscale.app/Contents/MacOS/Tailscale')).toMatchObject({
       command: '/Applications/Tailscale.app/Contents/MacOS/Tailscale',
@@ -146,11 +152,15 @@ describe('a funnel, against a fake tailscale', () => {
     tunnel.stop();
   });
 
-  test('when port 443 is already held by a funnel to this daemon, that address is adopted instead of looping', async () => {
-    fakeTailscale(`if [ "$2" = "status" ]; then printf '%s\\n' '${STATUS_FUNNEL.replace(/'/g, '')}'; exit 0; fi\necho '${TAKEN}' >&2\nexit 1`);
+  test('when port 443 is taken and the node already answers as this daemon, that address is adopted instead of looping', async () => {
+    fakeTailscale(`if [ "$1" = "status" ]; then echo '{"Self":{"DNSName":"suzy.tail1234.ts.net."}}'; exit 0; fi\nif [ "$2" = "status" ]; then echo 'No serve config'; exit 0; fi\necho '${TAKEN}' >&2\nexit 1`);
+    const probed: string[] = [];
     const onUrl = { resolve: (_u: string): void => undefined };
     const tunnel = new Tunnel(
-      funnelDriver(8420, 'tailscale'),
+      funnelDriver(8420, 'tailscale', (url) => {
+        probed.push(url);
+        return Promise.resolve(true);
+      }),
       (u) => {
         onUrl.resolve(u);
       },
@@ -158,14 +168,15 @@ describe('a funnel, against a fake tailscale', () => {
     );
     const url = await untilUrl(tunnel, onUrl);
     expect(url).toBe('https://suzy.tail1234.ts.net');
+    expect(probed).toEqual(['https://suzy.tail1234.ts.net']);
     expect(currentTunnelUrl()).toBe(url);
     tunnel.stop();
   });
 
-  test('when 443 is held by a tailnet-only serve, nothing is announced and the retry backs off', async () => {
-    fakeTailscale(`if [ "$2" = "status" ]; then printf '%s\\n' '${STATUS_SERVE.replace(/'/g, '')}'; exit 0; fi\necho '${TAKEN}' >&2\nexit 1`);
+  test('when 443 is held by a tailnet-only serve and nothing answers, nothing is announced and the retry backs off', async () => {
+    fakeTailscale(`if [ "$1" = "status" ]; then echo '{"Self":{"DNSName":"suzy.tail1234.ts.net."}}'; exit 0; fi\nif [ "$2" = "status" ]; then printf '%s\\n' '${STATUS_SERVE.replace(/'/g, '')}'; exit 0; fi\necho '${TAKEN}' >&2\nexit 1`);
     let announced: string | null = null;
-    const tunnel = new Tunnel(funnelDriver(8420, 'tailscale'), (u) => {
+    const tunnel = new Tunnel(funnelDriver(8420, 'tailscale', () => Promise.resolve(false)), (u) => {
       announced = u;
     });
     tunnel.start();
