@@ -140,6 +140,7 @@ export function Transcript({ token, project, id }: TranscriptProps): ReactNode {
   if (error !== null) return <Text size="sm" role="danger">{error}</Text>;
   if (entries === null) return <Loading />;
   return (
+    <div className="transcript">
     <Col gap={4}>
       {from > 0 ? (
         <Row>
@@ -162,5 +163,6 @@ export function Transcript({ token, project, id }: TranscriptProps): ReactNode {
         {String(total)} turn{total === 1 ? '' : 's'} · updates every few seconds while the session runs
       </Text>
     </Col>
+    </div>
   );
 }

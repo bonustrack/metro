@@ -421,16 +421,45 @@ textarea:focus-visible {
   flex-shrink: 0;
 }
 
+.markdown-compact,
+.markdown-compact p,
+.markdown-compact li,
+.markdown-compact code,
+.markdown-compact pre,
+.transcript,
+.transcript .tool-call,
+.transcript .tool-call summary,
+.transcript .tool-call pre {
+  font-family: var(--metro-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--metro-text);
+}
+.markdown-compact p {
+  margin: 0 0 8px;
+}
+.markdown-compact li {
+  margin: 0 0 4px;
+}
+.markdown-compact pre,
+.markdown-compact code {
+  font-size: 13px;
+}
+.markdown-compact h1 { font-size: 22px; }
+.markdown-compact h2 { font-size: 18px; }
+.markdown-compact h3 { font-size: 16px; }
+.markdown-compact h4,
+.markdown-compact h5,
+.markdown-compact h6 { font-size: 15px; }
 .tool-call {
   border: 1px solid var(--metro-border);
   border-radius: 8px;
   padding: 6px 10px;
-  font-size: 13px;
-  color: var(--metro-sub);
 }
 .tool-call summary {
   cursor: pointer;
   user-select: none;
+  color: var(--metro-sub);
 }
 .tool-call pre {
   margin: 8px 0 2px;
@@ -438,7 +467,6 @@ textarea:focus-visible {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 12px;
 }
 .tool-call-error summary {
   color: var(--metro-danger, #e5484d);

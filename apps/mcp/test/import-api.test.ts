@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { allowLocalConnectors } from '../src/daemon/connector-url.ts';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
@@ -109,6 +110,10 @@ beforeAll(async () => {
     res.writeHead(404).end();
   });
   base = await listen(local);
+});
+
+afterAll(() => {
+  allowLocalConnectors(false);
 });
 
 afterAll(() => {

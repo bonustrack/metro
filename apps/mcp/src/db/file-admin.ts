@@ -153,7 +153,7 @@ export async function localCreateAgent(
   ensureSecureDir(folder);
   save({
     path: join(folder, AGENT_FILE),
-    file: { version: 1, id, name, key, owner: localOwner(dir), stations: [] },
+    file: { version: 1, id, name, key, owner: localOwner(dir), stations: [], connectors: [] },
   });
   registerKey(key, id);
   return Promise.resolve({ id, name, key });
@@ -247,6 +247,7 @@ function fileFor(agent: LoadedAgent, owner: string | null, path: string): AgentF
         key: agent.key,
         owner,
         stations: agent.accounts.map((a) => ({ ...a, allowlist: a.allowlist ?? ['*'] })),
+        connectors: [],
       }),
       path,
     );
@@ -254,6 +255,40 @@ function fileFor(agent: LoadedAgent, owner: string | null, path: string): AgentF
     if (err instanceof AgentFileError)
       throw new AgentAdminError(`metro's copy of this agent cannot be written here: ${err.message}`, 400);
     throw err;
+  }
+}
+
+export function connectorIdsOfLocalAgent(agentId: string, dir = agentsDir()): string[] | null {
+  const found = storedAgents(dir).find((s) => s.file.id === agentId);
+  return found === undefined ? null : found.file.connectors;
+}
+
+export function localAgentConnectorIds(subject: string, agentId: string, dir = agentsDir()): string[] {
+  return ownedOrThrow(subject, agentId, dir).file.connectors;
+}
+
+export function localSetAgentConnectors(
+  subject: string,
+  agentId: string,
+  ids: string[],
+  dir = agentsDir(),
+): void {
+  const stored = ownedOrThrow(subject, agentId, dir);
+  stored.file.connectors = ids;
+  save(stored);
+}
+
+export function localAgentsWith(connectorId: string, dir = agentsDir()): { id: string; name: string }[] {
+  return storedAgents(dir)
+    .filter((s) => s.file.connectors.includes(connectorId))
+    .map((s) => ({ id: s.file.id, name: s.file.name }));
+}
+
+export function localDropConnectorEverywhere(connectorId: string, dir = agentsDir()): void {
+  for (const stored of storedAgents(dir)) {
+    if (!stored.file.connectors.includes(connectorId)) continue;
+    stored.file.connectors = stored.file.connectors.filter((id) => id !== connectorId);
+    save(stored);
   }
 }
 

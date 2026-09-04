@@ -20,6 +20,7 @@ export interface AgentFile {
   key: string | null;
   owner: string | null;
   stations: LoadedAccount[];
+  connectors: string[];
 }
 
 export function agentsDir(): string {
@@ -71,6 +72,15 @@ function optionalMatch(
   return value;
 }
 
+function connectorsOf(raw: unknown, path: string): string[] {
+  if (raw === undefined || raw === null) return [];
+  const list: unknown[] = Array.isArray(raw) ? raw.map((item: unknown) => item) : [];
+  const ids = list.filter((id): id is string => typeof id === 'string' && ID_RE.test(id));
+  if (!Array.isArray(raw) || ids.length !== list.length)
+    fail(path, 'connectors is not a list of 11-character ids');
+  return ids;
+}
+
 export function parseAgentFile(raw: string, path: string): AgentFile {
   let parsed: unknown;
   try {
@@ -100,6 +110,7 @@ export function parseAgentFile(raw: string, path: string): AgentFile {
     key,
     owner,
     stations: stations.map((s, i) => stationOf(s, path, i)),
+    connectors: connectorsOf(parsed.connectors, path),
   };
 }
 
