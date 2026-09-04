@@ -57,12 +57,11 @@ function Heading({
   agent,
   onOpenAgent,
 }: StationDetailProps): ReactNode {
-  const palette = useKitPalette();
   const handle = stationFields(row).handle ?? row.id ?? stationLabel(station);
   return (
     <Col gap={8}>
       <Row gap={10} align="center">
-        <StationIcon station={station} size={18} color={palette.sub} />
+        <StationIcon station={station} size={18} />
         <Text size="sm" role="secondary">{stationLabel(station)}</Text>
       </Row>
       <PageTitle>{handle}</PageTitle>

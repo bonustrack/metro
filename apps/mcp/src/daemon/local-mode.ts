@@ -9,6 +9,7 @@ import type { SessionApis } from './session-apis.js';
 import type { ModeInfo } from './mode-api.js';
 import type { ImportApiDeps } from './import-api.js';
 import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from './bundle-api.js';
+import { METRO_VERSION } from './version.js';
 import { fetchAgentWithCode } from './agent-import.js';
 import type { ConnectorApiDeps } from './connector-api.js';
 import { allowLocalConnectors } from './connector-url.js';
@@ -211,7 +212,7 @@ function importApi(deps: LocalModeDeps): ImportApiDeps {
 }
 
 function localModeInfo(): ModeInfo {
-  return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID };
+  return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID, version: METRO_VERSION };
 }
 
 export function localSessionApis(deps: LocalModeDeps): SessionApis {

@@ -9,6 +9,7 @@ export interface ModeInfo {
   mode: DaemonMode;
   owner: string | null;
   project: string | null;
+  version: string;
 }
 
 export function handleModeRequest(

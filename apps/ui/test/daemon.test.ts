@@ -46,10 +46,11 @@ describe('the daemon address a person types', () => {
 describe('what /api/mode says', () => {
   test('a known mode with its owner and project', () => {
     expect(
-      toMode({ mode: 'local', owner: '0xabc', project: 'localdaemon' }),
-    ).toEqual({ mode: 'local', owner: '0xabc', project: 'localdaemon' });
+      toMode({ mode: 'local', owner: '0xabc', project: 'localdaemon', version: '0.1.0-beta.50' }),
+    ).toEqual({ mode: 'local', owner: '0xabc', project: 'localdaemon', version: '0.1.0-beta.50' });
     expect(toMode({ mode: 'hosted', owner: null, project: null })).toEqual({
       mode: 'hosted',
+      version: null,
       owner: null,
       project: null,
     });

@@ -1,18 +1,19 @@
-import { type ReactElement } from 'react';
-import { Path, Svg } from 'react-native-svg';
-import { stationGlyph } from './station-icons.data';
+import { type ReactNode } from 'react';
+import { ConnectorFavicon } from './ConnectorFavicon';
+
+const STATION_SITES: Record<string, string> = {
+  xmtp: 'https://xmtp.org',
+  'telegram-bot': 'https://telegram.org',
+  telegram: 'https://telegram.org',
+  'discord-bot': 'https://discord.com',
+  whatsapp: 'https://whatsapp.com',
+};
 
 export interface StationIconProps {
   station: string;
   size?: number;
-  color: string;
 }
 
-export function StationIcon({ station, size = 20, color }: StationIconProps): ReactElement {
-  const glyph = stationGlyph(station);
-  return (
-    <Svg width={size} height={size} viewBox={glyph.viewBox ?? '0 0 24 24'}>
-      <Path d={glyph.d} fill={color} fillRule={glyph.evenOdd === true ? 'evenodd' : 'nonzero'} />
-    </Svg>
-  );
+export function StationIcon({ station, size = 20 }: StationIconProps): ReactNode {
+  return <ConnectorFavicon name={station} url={STATION_SITES[station] ?? ''} size={size} />;
 }

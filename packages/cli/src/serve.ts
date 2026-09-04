@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentsDir } from './local.js';
+import { currentVersion } from './version.js';
 import { serveLockedBy, serveStateDir } from './control.js';
 import {
   findBun,
@@ -115,6 +116,7 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
     env: {
       ...env,
       METRO_MODE: 'local',
+      METRO_VERSION: currentVersion(),
       METRO_WEBHOOK_PORT: String(opts.port),
       METRO_HTTP_HOST: process.env.METRO_HTTP_HOST ?? '127.0.0.1',
       METRO_TRAINS_DIR: join(opts.dir, 'trains'),
