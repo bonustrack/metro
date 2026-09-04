@@ -5,7 +5,6 @@ import { AttachSessions } from './attach-session.js';
 import type { AgentApiDeps } from './agent-api.js';
 import { ATTACHABLE, type AccountApiDeps } from './account-api.js';
 import type { AgentConnectorApiDeps } from './agent-connector-api.js';
-import type { ProjectApiDeps } from './project-api.js';
 import type { SessionApis } from './session-apis.js';
 import type { ModeInfo } from './mode-api.js';
 import type { ImportApiDeps } from './import-api.js';
@@ -46,9 +45,7 @@ import {
   localOwner,
   localResetAgentKey,
 } from '../db/file-admin.js';
-import { normalizeAddress } from '../db/users.js';
 import { listAgentFiles, readAgentFile } from '../db/file-source.js';
-import type { Project } from '../db/projects.js';
 import type { StationName } from '../db/schema.js';
 
 export interface LocalModeDeps {
@@ -65,16 +62,6 @@ const notHere = (what: string): Promise<never> =>
   Promise.reject(
     new ApiError(`${what} are managed on metro.box, not on a local daemon`, 400),
   );
-
-function localProject(): Project {
-  return {
-    id: LOCAL_PROJECT_ID,
-    name: hostname(),
-    isDefault: true,
-    owner: true,
-    role: 'admin',
-  };
-}
 
 function attachSessions(deps: LocalModeDeps): AttachSessions {
   return new AttachSessions({
@@ -123,28 +110,6 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     syncStations: deps.syncStations,
   };
 }
-
-const projectApi: ProjectApiDeps = {
-  listProjects: (subject) => {
-    const owner = localOwner();
-    const mine = owner !== null && owner === normalizeAddress(subject);
-    return Promise.resolve(mine ? [localProject()] : []);
-  },
-  createProject: () => notHere('projects'),
-  renameProject: () => notHere('projects'),
-  deleteProject: () => notHere('projects'),
-  listMembers: (subject, id) => {
-    const owner = localOwner();
-    if (id !== LOCAL_PROJECT_ID || owner === null || owner !== normalizeAddress(subject))
-      return Promise.reject(new ApiError('no such project', 404));
-    return Promise.resolve([
-      { id: 'owner', address: owner, email: null, role: 'admin', owner: true },
-    ]);
-  },
-  addMember: () => notHere('members'),
-  setMemberRole: () => notHere('members'),
-  removeMember: () => notHere('members'),
-};
 
 function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>> {
   return Promise.resolve(new Map(ids.map((id) => [id, connectorIdsOfLocalAgent(id) ?? []] as const)));
@@ -225,7 +190,6 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     relayApi,
     localCli,
     claudeApi: { authorize: (subject) => { assertLocalOwner(subject); } },
-    projectApi,
     siwe: { ensureUser: claimLocalOwner },
     mode: localModeInfo,
   };

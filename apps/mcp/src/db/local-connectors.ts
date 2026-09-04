@@ -41,8 +41,8 @@ import {
   assertLocalOwner,
   connectorIdsOfLocalAgent,
   localAgentConnectorIds,
-  localAgentsWith,
   localDropConnectorEverywhere,
+  localHoldEverywhere,
   localOwnedAgentOrThrow,
   localSetAgentConnectors,
   LOCAL_PROJECT_ID,
@@ -125,9 +125,16 @@ export async function localGetConnector(subject: string, id: string, dir = agent
   return Promise.resolve(connectorFromRow(rowOrThrow(subject, id, dir)));
 }
 
+function assertNameFree(name: string, exceptId: string | null, dir: string): void {
+  if (readLocalConnectors(dir).some((r) => r.id !== exceptId && r.name === name))
+    throw new ConnectorError(`a connector named '${name}' already exists on this daemon`, 409);
+}
+
 function insert(dir: string, name: string, url: URL, config: ConnectorConfig): Connector {
+  assertNameFree(name, null, dir);
   const row: LocalConnectorRow = { id: newId(), name, url: connectorUrlText(url), transport: 'http', config };
   writeRows(dir, [...readLocalConnectors(dir), row]);
+  localHoldEverywhere(row.id, dir);
   return connectorFromRow(row);
 }
 
@@ -201,24 +208,10 @@ export async function localVerifyConnector(subject: string, id: string, dir = ag
   }
 }
 
-const nameClash = (name: string, agent: string): ConnectorError =>
-  new ConnectorError(`the agent '${agent}' already has a connector named '${name}'`, 409);
-
-function clashFor(name: string, exceptId: string, agentIds: string[], dir: string): string | null {
-  const rows = readLocalConnectors(dir);
-  for (const agentId of agentIds) {
-    const held = connectorIdsOfLocalAgent(agentId, dir) ?? [];
-    const other = rows.find((r) => r.id !== exceptId && held.includes(r.id) && r.name === name);
-    if (other !== undefined) return localAgentsWith(other.id, dir).find((a) => a.id === agentId)?.name ?? agentId;
-  }
-  return null;
-}
-
 export async function localRenameConnector(subject: string, id: string, raw: string, dir = agentsDir()): Promise<Connector> {
   const name = connectorName(raw);
   const row = rowOrThrow(subject, id, dir);
-  const clash = clashFor(name, id, localAgentsWith(id, dir).map((a) => a.id), dir);
-  if (clash !== null) throw nameClash(name, clash);
+  assertNameFree(name, id, dir);
   return Promise.resolve(replace(dir, { ...row, name }));
 }
 
@@ -252,11 +245,7 @@ export async function localAddConnector(subject: string, agentId: string, connec
   const row = readLocalConnectors(dir).find((r) => r.id === connectorId);
   if (row === undefined) throw missing();
   const held = localAgentConnectorIds(subject, agentId, dir);
-  if (!held.includes(connectorId)) {
-    const clash = clashFor(row.name, connectorId, [agentId], dir);
-    if (clash !== null) throw nameClash(row.name, clash);
-    localSetAgentConnectors(subject, agentId, [...held, connectorId], dir);
-  }
+  if (!held.includes(connectorId)) localSetAgentConnectors(subject, agentId, [...held, connectorId], dir);
   return { ...agent, connectorIds: localAgentConnectorIds(subject, agentId, dir) };
 }
 

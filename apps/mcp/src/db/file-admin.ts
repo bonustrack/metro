@@ -284,6 +284,14 @@ export function localAgentsWith(connectorId: string, dir = agentsDir()): { id: s
     .map((s) => ({ id: s.file.id, name: s.file.name }));
 }
 
+export function localHoldEverywhere(connectorId: string, dir = agentsDir()): void {
+  for (const stored of storedAgents(dir)) {
+    if (stored.file.connectors.includes(connectorId)) continue;
+    stored.file.connectors = [...stored.file.connectors, connectorId];
+    save(stored);
+  }
+}
+
 export function localDropConnectorEverywhere(connectorId: string, dir = agentsDir()): void {
   for (const stored of storedAgents(dir)) {
     if (!stored.file.connectors.includes(connectorId)) continue;
