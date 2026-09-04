@@ -6,7 +6,7 @@ import { errMsg, log, logFatalSync } from './log.js';
 import { acquireLock, isLocalMode, STATE_DIR, trainsDir } from './paths.js';
 import { installCrashGuard, markDaemonReady } from './crash-guard.js';
 import { METRO_VERSION } from './version.js';
-import { driverFor, Tunnel, tunnelKind, webhookPort } from './tunnel.js';
+import { funnelDriver, Tunnel, tunnelWanted, webhookPort } from './tunnel.js';
 import {
   localConnectHint,
   publicConnectHint,
@@ -61,8 +61,7 @@ supervisor.onTrainEvent((env, train) => {
 });
 
 let webhookServer: Server | null = null;
-const tunnelWanted = tunnelKind();
-const tunnel = tunnelWanted === null ? null : new Tunnel(driverFor(tunnelWanted, webhookPort()), announcePublic);
+const tunnel = tunnelWanted() ? new Tunnel(funnelDriver(webhookPort()), announcePublic) : null;
 
 function announcePublic(url: string): void {
   process.stderr.write(`\n${publicConnectHint(url, localOwner())}`);
@@ -74,7 +73,7 @@ setTrainCallBackend((train, action, args) =>
 
 function announceLocalEndpoint(): void {
   process.stderr.write(
-    `\n${tunnelWanted === null ? localConnectHint(webhookPort(), localOwner()) : tunnelPendingHint(tunnelWanted)}`,
+    `\n${tunnel === null ? localConnectHint(webhookPort(), localOwner()) : tunnelPendingHint()}`,
   );
   const key = localAgentKey();
   if (key === null) {

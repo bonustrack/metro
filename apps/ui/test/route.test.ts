@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { routeHash, routeSelection } from '../src/route';
 import { type Selection } from '../src/components/selection';
 
-const HOSTS = ['127.0.0.1:8420', 'localhost:8421', 'jelsoft-chan-rooms.trycloudflare.com', 'suzy.tail1234.ts.net'];
+const HOSTS = ['127.0.0.1:8420', 'localhost:8421', 'jelsoft-chan-rooms.tail1234.ts.net', 'suzy.tail1234.ts.net'];
 
 describe('the first segment is the daemon', () => {
   test('every page round-trips for every kind of host', () => {
@@ -21,7 +21,7 @@ describe('the first segment is the daemon', () => {
       ];
       for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);
     }
-    expect(routeHash({ kind: 'connectors', project: 'x.trycloudflare.com' })).toBe('#/x.trycloudflare.com/connectors');
+    expect(routeHash({ kind: 'connectors', project: 'x.tail1234.ts.net' })).toBe('#/x.tail1234.ts.net/connectors');
     expect(routeHash({ kind: 'home', project: '127.0.0.1:8420' })).toBe('#/127.0.0.1:8420');
     expect(routeSelection('#/127.0.0.1:8420/')).toEqual({ kind: 'home', project: '127.0.0.1:8420' });
   });
@@ -43,13 +43,13 @@ describe('the first segment is the daemon', () => {
       '#',
       '',
       '#/host with space/connectors',
-      '#/x.trycloudflare.com/agents',
-      '#/x.trycloudflare.com/agent/aB3-_xYz9Qw',
-      '#/x.trycloudflare.com/members',
-      '#/x.trycloudflare.com/connector/short',
-      '#/x.trycloudflare.com/channel/../etc',
-      '#/x.trycloudflare.com/memory/-x/notes.txt',
-      '#/x.trycloudflare.com/sessions/-x/id with space',
+      '#/x.tail1234.ts.net/agents',
+      '#/x.tail1234.ts.net/agent/aB3-_xYz9Qw',
+      '#/x.tail1234.ts.net/members',
+      '#/x.tail1234.ts.net/connector/short',
+      '#/x.tail1234.ts.net/channel/../etc',
+      '#/x.tail1234.ts.net/memory/-x/notes.txt',
+      '#/x.tail1234.ts.net/sessions/-x/id with space',
       '#/-leadingdash/connectors',
     ])
       expect(routeSelection(bad)).toEqual({ kind: 'none' });

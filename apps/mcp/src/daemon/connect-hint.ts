@@ -35,7 +35,5 @@ export function publicConnectHint(url: string, owner: string | null): string {
   ].join('\n');
 }
 
-export const tunnelPendingHint = (kind: 'quick' | 'tailscale'): string =>
-  kind === 'quick'
-    ? 'Bringing up a public address through a Cloudflare quick tunnel…\n'
-    : 'Publishing this daemon through Tailscale Funnel… (if Tailscale asks to enable Funnel, its link is in the log)\n';
+export const tunnelPendingHint = (): string =>
+  'Publishing this daemon through Tailscale Funnel… (if Tailscale asks to enable Funnel, its link is in the log)\n';

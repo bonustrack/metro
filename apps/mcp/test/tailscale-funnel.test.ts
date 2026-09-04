@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { currentTunnelUrl, driverFor, funnelAlreadyServing, funnelDriver, funnelUrlIn, Tunnel } from '../src/daemon/tunnel.ts';
+import { currentTunnelUrl, funnelAlreadyServing, funnelDriver, funnelUrlIn, Tunnel, tunnelWanted } from '../src/daemon/tunnel.ts';
 import { publicBaseUrl } from '../src/daemon/attach-serve.ts';
 import { tunnelPendingHint } from '../src/daemon/connect-hint.ts';
 
@@ -68,6 +68,18 @@ const untilUrl = (tunnel: Tunnel, onUrl: { resolve: (u: string) => void }): Prom
   });
 
 describe('reading tailscale funnel', () => {
+  test('METRO_TUNNEL=tailscale is the only spelling that publishes one', () => {
+    const saved = process.env.METRO_TUNNEL;
+    delete process.env.METRO_TUNNEL;
+    expect(tunnelWanted()).toBe(false);
+    process.env.METRO_TUNNEL = 'quick';
+    expect(tunnelWanted()).toBe(false);
+    process.env.METRO_TUNNEL = 'tailscale';
+    expect(tunnelWanted()).toBe(true);
+    if (saved === undefined) delete process.env.METRO_TUNNEL;
+    else process.env.METRO_TUNNEL = saved;
+  });
+
   test('the node name is picked out of the foreground block, with or without a port, and nowhere else', () => {
     expect(funnelUrlIn(FOREGROUND)).toBe('https://suzy.tail1234.ts.net');
     expect(funnelUrlIn('https://Suzy.Tail1234.ts.net:8443/')).toBe('https://suzy.tail1234.ts.net:8443');
@@ -90,10 +102,8 @@ describe('reading tailscale funnel', () => {
       waitsForDns: true,
     });
     process.env.METRO_TAILSCALE_BIN = '/opt/bin/tailscale';
-    expect(driverFor('tailscale', 8421).command).toBe('/opt/bin/tailscale');
-    expect(driverFor('quick', 8421).command).toBe('cloudflared');
-    expect(tunnelPendingHint('tailscale')).toContain('Tailscale Funnel');
-    expect(tunnelPendingHint('quick')).toContain('quick tunnel');
+    expect(funnelDriver(8421).command).toBe('/opt/bin/tailscale');
+    expect(tunnelPendingHint()).toContain('Tailscale Funnel');
   });
 });
 

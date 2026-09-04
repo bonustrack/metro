@@ -11,21 +11,10 @@ const RESTART_DELAY_MAX_MS = 30_000;
 const TAKEN_RE = /listener already exists/i;
 const FUNNEL_ON_RE = /\(Funnel on\)/i;
 
-export type TunnelKind = 'quick' | 'tailscale';
+export const tunnelWanted = (): boolean => process.env.METRO_TUNNEL?.trim() === 'tailscale';
 
-export function tunnelKind(): TunnelKind | null {
-  const raw = process.env.METRO_TUNNEL?.trim();
-  return raw === 'quick' || raw === 'tailscale' ? raw : null;
-}
-
-export const quickTunnelWanted = (): boolean => tunnelKind() === 'quick';
-
-const QUICK_URL_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/;
 const FUNNEL_URL_RE = /https:\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)+\.ts\.net(?::\d{2,5})?(?=[\s/]|$)/i;
 const SILENT_MS = 20_000;
-
-export const quickTunnelUrlIn = (text: string): string | null =>
-  QUICK_URL_RE.exec(text)?.[0] ?? null;
 
 export const funnelUrlIn = (text: string): string | null =>
   FUNNEL_URL_RE.exec(text)?.[0]?.toLowerCase() ?? null;
@@ -69,14 +58,6 @@ export function funnelAlreadyServing(status: string, port: number): Adopted {
   return { url: null, hint: 'port 443 is held by another serve config on this node; run: tailscale serve reset' };
 }
 
-export const quickDriver = (port: number): TunnelDriver => ({
-  name: 'cloudflared quick tunnel',
-  command: 'cloudflared',
-  args: ['--no-autoupdate', 'tunnel', '--url', `http://127.0.0.1:${String(port)}`],
-  urlIn: quickTunnelUrlIn,
-  waitsForDns: true,
-});
-
 function tailscaleBin(): string {
   const configured = process.env.METRO_TAILSCALE_BIN?.trim() ?? '';
   return configured === '' ? 'tailscale' : configured;
@@ -90,9 +71,6 @@ export const funnelDriver = (port: number, bin = tailscaleBin()): TunnelDriver =
   waitsForDns: true,
   adopt: async () => funnelAlreadyServing(await runText(bin, ['funnel', 'status']), port),
 });
-
-export const driverFor = (kind: TunnelKind, port: number): TunnelDriver =>
-  kind === 'quick' ? quickDriver(port) : funnelDriver(port);
 
 let liveUrl: string | null = null;
 
@@ -114,7 +92,7 @@ async function resolvesAt(server: string, host: string): Promise<boolean> {
   return answers.some((a) => a.length > 0);
 }
 
-export async function resolvesAtCloudflare(host: string): Promise<boolean> {
+export async function resolvesPublicly(host: string): Promise<boolean> {
   const found = await Promise.all(PUBLIC_RESOLVERS.map((server) => resolvesAt(server, host)));
   return found.some(Boolean);
 }
@@ -193,7 +171,7 @@ export class Tunnel {
   constructor(
     private driver: TunnelDriver,
     private onUrl: (url: string) => void = () => undefined,
-    private resolves: Resolves = resolvesAtCloudflare,
+    private resolves: Resolves = resolvesPublicly,
   ) {}
 
   private noticeUrl(text: string): void {

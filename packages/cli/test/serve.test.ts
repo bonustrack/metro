@@ -33,24 +33,24 @@ afterEach(() => {
 describe('metro serve arguments', () => {
   test('no arguments means 8420, or METRO_WEBHOOK_PORT when set', () => {
     delete process.env.METRO_WEBHOOK_PORT;
-    expect(parseServeArgs([])).toEqual({ port: 8420, tunnel: null, owner: null });
+    expect(parseServeArgs([])).toEqual({ port: 8420, tunnel: false, owner: null });
     process.env.METRO_WEBHOOK_PORT = '8422';
-    expect(parseServeArgs([])).toEqual({ port: 8422, tunnel: null, owner: null });
+    expect(parseServeArgs([])).toEqual({ port: 8422, tunnel: false, owner: null });
   });
 
   test('--port in its three spellings wins over the environment', () => {
     process.env.METRO_WEBHOOK_PORT = '8422';
-    expect(parseServeArgs(['--port', '8421'])).toEqual({ port: 8421, tunnel: null, owner: null });
-    expect(parseServeArgs(['--port=9000'])).toEqual({ port: 9000, tunnel: null, owner: null });
-    expect(parseServeArgs(['-p', '1'])).toEqual({ port: 1, tunnel: null, owner: null });
-    expect(parseServeArgs(['--tunnel', '--port', '8421'])).toEqual({ port: 8421, tunnel: 'quick', owner: null });
-    expect(parseServeArgs(['--tunnel', 'tailscale'])).toEqual({ port: 8422, tunnel: 'tailscale', owner: null });
-    expect(parseServeArgs(['--tunnel=tailscale', '--port', '8421'])).toEqual({ port: 8421, tunnel: 'tailscale', owner: null });
-    expect(parseServeArgs(['--tunnel', 'quick'])).toEqual({ port: 8422, tunnel: 'quick', owner: null });
-    expect(() => parseServeArgs(['--tunnel', 'ngrok'])).toThrow(/not a tunnel kind/);
+    expect(parseServeArgs(['--port', '8421'])).toEqual({ port: 8421, tunnel: false, owner: null });
+    expect(parseServeArgs(['--port=9000'])).toEqual({ port: 9000, tunnel: false, owner: null });
+    expect(parseServeArgs(['-p', '1'])).toEqual({ port: 1, tunnel: false, owner: null });
+    expect(parseServeArgs(['--tunnel', '--port', '8421'])).toEqual({ port: 8421, tunnel: true, owner: null });
+    expect(parseServeArgs(['--tunnel', 'tailscale'])).toEqual({ port: 8422, tunnel: true, owner: null });
+    expect(parseServeArgs(['--tunnel=tailscale', '--port', '8421'])).toEqual({ port: 8421, tunnel: true, owner: null });
+    expect(() => parseServeArgs(['--tunnel', 'quick'])).toThrow(/Tailscale Funnel/);
+    expect(() => parseServeArgs(['--tunnel', 'ngrok'])).toThrow(/Tailscale Funnel/);
     expect(parseServeArgs(['--owner', '0xEF8305E140ac520225DAf050e2f71d5fBCC543e7'])).toEqual({
       port: 8422,
-      tunnel: null,
+      tunnel: false,
       owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7',
     });
     expect(parseServeArgs(['--owner=0xef8305e140ac520225daf050e2f71d5fbcc543e7']).owner).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
@@ -72,10 +72,10 @@ describe('the daemon a serve plan starts', () => {
     delete process.env.METRO_HTTP_HOST;
     delete process.env.METRO_STATE_DIR;
     process.env.XDG_CACHE_HOME = '/tmp/cache-home';
-    const plan = servePlan({ runtime: RUNTIME, port: 8421, tunnel: null, owner: null });
+    const plan = servePlan({ runtime: RUNTIME, port: 8421, tunnel: false, owner: null });
     expect(plan.env.METRO_TUNNEL).toBeUndefined();
     expect(plan.env.METRO_OWNER).toBeUndefined();
-    expect(servePlan({ runtime: RUNTIME, port: 8421, tunnel: 'quick', owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7' }).env.METRO_OWNER).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
+    expect(servePlan({ runtime: RUNTIME, port: 8421, tunnel: true, owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7' }).env.METRO_OWNER).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
     expect(plan.args).toEqual([SERVER_ENTRY]);
     expect(plan.cwd).toBe('/opt/metro/runtime');
     expect(plan.env.METRO_MODE).toBe('local');
@@ -94,7 +94,7 @@ describe('the daemon a serve plan starts', () => {
 
   test('a runtime store names itself and its manifest to the daemon, so channels attached later install their SDK', () => {
     const store = { dir: '/home/u/.metro/runtime', entry: '/home/u/.metro/runtime/x', trains: '/home/u/.metro/runtime/trains', manifest: '/opt/cli/runtime/stations.json' };
-    const plan = servePlan({ runtime: store, port: 8420, tunnel: null, owner: null });
+    const plan = servePlan({ runtime: store, port: 8420, tunnel: false, owner: null });
     expect(plan.cwd).toBe('/home/u/.metro/runtime');
     expect(plan.env.METRO_TRAINS_DIR).toBe('/home/u/.metro/runtime/trains');
     expect(plan.env.METRO_RUNTIME_STORE).toBe('/home/u/.metro/runtime');
@@ -102,17 +102,17 @@ describe('the daemon a serve plan starts', () => {
   });
 
   test('a tailscale funnel names the binary the CLI found', () => {
-    const plan = servePlan({ runtime: RUNTIME, port: 8420, tunnel: 'tailscale', tailscaleBin: '/Applications/Tailscale.app/Contents/MacOS/Tailscale', owner: null });
+    const plan = servePlan({ runtime: RUNTIME, port: 8420, tunnel: true, tailscaleBin: '/Applications/Tailscale.app/Contents/MacOS/Tailscale', owner: null });
     expect(plan.env.METRO_TUNNEL).toBe('tailscale');
     expect(plan.env.METRO_TAILSCALE_BIN).toBe('/Applications/Tailscale.app/Contents/MacOS/Tailscale');
-    expect(servePlan({ runtime: RUNTIME, port: 8420, tunnel: 'quick', owner: null }).env.METRO_TAILSCALE_BIN).toBeUndefined();
+    expect(servePlan({ runtime: RUNTIME, port: 8420, tunnel: true, owner: null }).env.METRO_TAILSCALE_BIN).toBeUndefined();
   });
 
   test('an explicit host or state dir is kept', () => {
     process.env.METRO_HTTP_HOST = '0.0.0.0';
     process.env.METRO_STATE_DIR = '/var/lib/metro';
-    const plan = servePlan({ runtime: RUNTIME, port: 8420, tunnel: 'quick', owner: null });
-    expect(plan.env.METRO_TUNNEL).toBe('quick');
+    const plan = servePlan({ runtime: RUNTIME, port: 8420, tunnel: true, owner: null });
+    expect(plan.env.METRO_TUNNEL).toBe('tailscale');
     expect(plan.env.METRO_HTTP_HOST).toBe('0.0.0.0');
     expect(plan.env.METRO_STATE_DIR).toBe('/var/lib/metro');
   });

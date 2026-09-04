@@ -256,15 +256,12 @@ that prints the agent key fresh from the agent file on every connect.
 `metro serve` runs a daemon with **nothing on metro.box at all**: the agent, its channels and its
 connectors live in `~/.metro/agents` on this machine, and the page at metro.box manages it
 through the link it prints. From another computer, forward the port first
-(`ssh -L 8420:127.0.0.1:8420 <host>`). `metro serve --tunnel` skips the forwarding: it runs a
-Cloudflare quick tunnel (`cloudflared`, no account) and the link it prints carries a public
-`https://…trycloudflare.com` address that works from any browser, behind NAT included. That
-address changes on every start, so `metro serve --tunnel tailscale` is the one to keep: with
+(`ssh -L 8420:127.0.0.1:8420 <host>`). `metro serve --tunnel` skips the forwarding: with
 Tailscale installed and signed in on the box, it publishes the daemon through Tailscale Funnel
-at `https://<machine>.<tailnet>.ts.net`, a name that survives restarts and needs nothing on the
-laptop or the phone that opens it (enable Funnel once on your tailnet when Tailscale asks).
-Cloudflare terminates TLS and promises no uptime for quick tunnels; Tailscale's edge does the
-same for Funnel. The daemon only ever lets one wallet in, the one named with `--owner <address>` (asked
+at `https://<machine>.<tailnet>.ts.net`, a permanent name that survives restarts and needs
+nothing on the laptop or the phone that opens it (enable Funnel once on your tailnet when
+Tailscale asks). The certificate lives on your box, so the browser's TLS session ends at the
+daemon and Tailscale's relays never decrypt it. The daemon only ever lets one wallet in, the one named with `--owner <address>` (asked
 for once and remembered in `~/.metro/agents/.owner`); until an owner is set, every sign-in is
 refused. It needs [Bun](https://bun.sh) on PATH and covers every messenger channel: XMTP,
 Telegram, Telegram user accounts, Discord and WhatsApp. The npm package carries only metro's own
@@ -300,8 +297,8 @@ renaming one is refused `409` when it would collide.
 ### Inbound webhooks
 
 The webhook channel is **off until metro.box can forward deliveries to your daemon**: a webhook
-endpoint needs a stable public URL that providers can be given, which a machine behind NAT or a
-quick tunnel does not have, and metro.box no longer stores channels. The channel code stays
+endpoint needs a stable public URL that providers can be given, which a machine behind NAT
+without a Funnel does not have, and metro.box no longer stores channels. The channel code stays
 (`POST /api/webhooks/<webhook_id>/<token>`, the whole URL being the credential, events on
 `metro://webhook/<account_id>` with the pretty-printed body and an allowlist of headers); a
 local daemon refuses to attach one, with a message saying so. The forwarding design is the next
