@@ -1,10 +1,12 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
 import { Resolver } from 'node:dns/promises';
+import { request as httpsRequest } from 'node:https';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from './log.js';
 import { readJson } from './secure-fs.js';
+import { localOwner } from '../db/file-admin.js';
 
 const RESTART_DELAY_MS = 2_000;
 const RESTART_DELAY_MAX_MS = 30_000;
@@ -40,25 +42,54 @@ const runText = (command: string, args: string[]): Promise<string> =>
     });
   });
 
-export type Probe = (url: string) => Promise<boolean>;
+export type Probe = (url: string, owner: string | null) => Promise<boolean>;
 
 const PROBE_MS = 5_000;
 
-export async function daemonAnswersAt(url: string): Promise<boolean> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, PROBE_MS);
-  try {
-    const res = await fetch(`${url}/api/mode`, { signal: controller.signal });
-    if (!res.ok) return false;
-    const body: unknown = await res.json();
-    return typeof body === 'object' && body !== null && (body as { mode?: unknown }).mode === 'local';
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
+async function publicAddresses(host: string): Promise<string[]> {
+  const found = await Promise.all(
+    PUBLIC_RESOLVERS.map(async (server) => {
+      const resolver = new Resolver();
+      resolver.setServers([server]);
+      const [v4, v6] = await Promise.all([resolver.resolve4(host).catch(() => []), resolver.resolve6(host).catch(() => [])]);
+      return [...v4, ...v6];
+    }),
+  );
+  return [...new Set(found.flat())];
+}
+
+function modeThrough(ip: string, host: string): Promise<{ mode?: unknown; owner?: unknown } | null> {
+  return new Promise((resolve) => {
+    const req = httpsRequest(
+      { host: ip, servername: host, port: 443, path: '/api/mode', method: 'GET', headers: { host }, timeout: PROBE_MS },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => {
+          try {
+            resolve(res.statusCode === 200 ? (JSON.parse(Buffer.concat(chunks).toString('utf8')) as { mode?: unknown }) : null);
+          } catch {
+            resolve(null);
+          }
+        });
+      },
+    );
+    req.on('timeout', () => {
+      req.destroy();
+    });
+    req.on('error', () => {
+      resolve(null);
+    });
+    req.end();
+  });
+}
+
+export async function daemonAnswersAt(url: string, owner: string | null): Promise<boolean> {
+  const host = new URL(url).host;
+  const addresses = await publicAddresses(host);
+  if (addresses.length === 0) return false;
+  const body = await modeThrough(addresses[0] ?? '', host);
+  return body !== null && body.mode === 'local' && (owner === null || body.owner === owner);
 }
 
 export function nodeNameIn(statusJson: string): string | null {
@@ -72,11 +103,11 @@ export function nodeNameIn(statusJson: string): string | null {
   }
 }
 
-async function adoptFunnel(bin: string, port: number, probe: Probe): Promise<Adopted> {
+async function adoptFunnel(bin: string, port: number, probe: Probe, owner: () => string | null): Promise<Adopted> {
   const name = nodeNameIn(await runText(bin, ['status', '--json']));
   if (name !== null) {
     const url = `https://${name}`;
-    if (await probe(url)) return { url, hint: `a Funnel already publishes this daemon at ${url}; using it` };
+    if (await probe(url, owner())) return { url, hint: `a Funnel already publishes this daemon at ${url}; using it` };
   }
   return funnelAlreadyServing(await runText(bin, ['funnel', 'status']), port);
 }
@@ -104,13 +135,18 @@ function tailscaleBin(): string {
   return configured === '' ? 'tailscale' : configured;
 }
 
-export const funnelDriver = (port: number, bin = tailscaleBin(), probe: Probe = daemonAnswersAt): TunnelDriver => ({
+export const funnelDriver = (
+  port: number,
+  bin = tailscaleBin(),
+  probe: Probe = daemonAnswersAt,
+  owner: () => string | null = localOwner,
+): TunnelDriver => ({
   name: 'tailscale funnel',
   command: bin,
   args: ['funnel', String(port)],
   urlIn: funnelUrlIn,
   waitsForDns: true,
-  adopt: () => adoptFunnel(bin, port, probe),
+  adopt: () => adoptFunnel(bin, port, probe, owner),
 });
 
 let liveUrl: string | null = null;
