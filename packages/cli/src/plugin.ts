@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { readToken } from './store.js';
 
 const MARKETPLACE_REPO = 'bonustrack/metro';
 const PLUGIN_SPEC = 'metro@metro';
@@ -56,7 +55,7 @@ const tolerable = (output: string): boolean =>
 
 export function syncPluginServers(): boolean {
   const path = pluginInstallPath();
-  if (path === null || readToken() === null) return false;
+  if (path === null) return false;
   const script = join(path, 'bin', 'metro-plugin.mjs');
   const refreshed = spawnSync(process.execPath, [script, 'refresh'], {
     stdio: ['ignore', 'inherit', 'inherit'],
@@ -86,8 +85,7 @@ export async function installPlugin(): Promise<number> {
     return 0;
   }
   process.stderr.write(
-    'Now sign in: metro login (with a pairing code from https://metro.box), ' +
-      'or run /metro:login <code> inside Claude Code.\n',
+    'Start the daemon on this machine (metro serve), then run /metro:refresh inside Claude Code.\n',
   );
   return Promise.resolve(0);
 }

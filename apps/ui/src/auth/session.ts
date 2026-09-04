@@ -14,30 +14,8 @@ function sessionKey(): string {
   return keyFor(daemonBase());
 }
 
-export function sessionFor(base: string): string | null {
-  try {
-    const v = window.localStorage.getItem(keyFor(base));
-    return v !== null && v.length > 0 ? v : null;
-  } catch {
-    return null;
-  }
-}
 
-export function storeSessionFor(base: string, token: string): void {
-  try {
-    window.localStorage.setItem(keyFor(base), token);
-  } catch {
-    return;
-  }
-}
 
-export function clearSessionFor(base: string): void {
-  try {
-    window.localStorage.removeItem(keyFor(base));
-  } catch {
-    return;
-  }
-}
 
 export function storedSession(): string | null {
   try {

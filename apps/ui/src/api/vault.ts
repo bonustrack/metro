@@ -1,6 +1,6 @@
 import { call } from './client';
 import { isRecord } from './accounts';
-import { type Envelope } from '../vault/crypto';
+import { signVaultRequest, type Envelope, type WalletKeys } from '../vault/crypto';
 
 export interface VaultEntry {
   id: string;
@@ -23,7 +23,6 @@ export interface RestoredAgent {
 }
 
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
-const vaultUrl = (base: string): string => `${base}/api/vault`;
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((s): s is string => typeof s === 'string') : [];
 
@@ -37,27 +36,35 @@ function toEntry(value: unknown): VaultEntry {
   };
 }
 
-export async function listVault(token: string, base: string): Promise<VaultEntry[]> {
-  const body = await call(token, { method: 'GET', base: vaultUrl(base) });
+async function vaultCall(
+  keys: WalletKeys,
+  base: string,
+  method: 'GET' | 'PUT' | 'DELETE',
+  path: string,
+  body?: string,
+): Promise<unknown> {
+  const route = `/api/vault${path}`;
+  return call('', {
+    method,
+    base: `${base}${route}`,
+    auth: await signVaultRequest(keys, method, route),
+    ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body }),
+  });
+}
+
+export async function listVault(keys: WalletKeys, base: string): Promise<VaultEntry[]> {
+  const body = await vaultCall(keys, base, 'GET', '');
   if (!isRecord(body) || !Array.isArray(body.entries)) throw unexpected();
   return body.entries.map(toEntry);
 }
 
 export async function putVault(
-  token: string,
+  keys: WalletKeys,
   base: string,
   id: string,
   input: { name: string; stations: string[]; envelope: Envelope },
 ): Promise<VaultEntry> {
-  return toEntry(
-    await call(token, {
-      method: 'PUT',
-      base: vaultUrl(base),
-      path: `/${id}`,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-    }),
-  );
+  return toEntry(await vaultCall(keys, base, 'PUT', `/${id}`, JSON.stringify(input)));
 }
 
 function toEnvelope(value: unknown): Envelope {
@@ -85,8 +92,8 @@ function toEnvelope(value: unknown): Envelope {
   };
 }
 
-export async function getVault(token: string, base: string, id: string): Promise<Envelope> {
-  const body = await call(token, { method: 'GET', base: vaultUrl(base), path: `/${id}` });
+export async function getVault(keys: WalletKeys, base: string, id: string): Promise<Envelope> {
+  const body = await vaultCall(keys, base, 'GET', `/${id}`);
   if (!isRecord(body)) throw unexpected();
   return toEnvelope(body.envelope);
 }

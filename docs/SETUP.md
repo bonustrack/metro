@@ -251,7 +251,7 @@ tighten permissions expecting that to substitute for the hook.
 
 After this change Metro is the only way the main thread can talk to anyone, so register
 it before the guard goes live. The web UI hands out a paste-ready line for the agent's
-key. It names the daemon on this machine, so run `metro start <agent-id>` here first; see
+key. It names the daemon on this machine, so run `metro serve` here first; see
 [Connecting a client](README.md#connecting-a-client) for the endpoint shape.
 
 ```sh

@@ -48,12 +48,12 @@ export function ConnectStation(props: ConnectStationProps): ReactNode {
   };
 
   return (
-    <Modal title="Connect station" open={open} onClose={close}>
+    <Modal title="Connect channel" open={open} onClose={close}>
       {step.kind === 'pick' ? (
         <Col gap={12}>
           <Text size="sm" role="secondary">
             {known.length === 0
-              ? 'This Metro daemon offers no station you can connect.'
+              ? 'This Metro daemon offers no channel you can connect.'
               : 'Pick the network this agent should be reachable on.'}
           </Text>
           <StationPicker

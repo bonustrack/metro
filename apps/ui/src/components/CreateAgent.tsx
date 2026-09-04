@@ -48,7 +48,7 @@ export function CreateAgent({ open, first, onClose, onCreate }: CreateAgentProps
       <Col gap={14}>
         <Text size="sm" role="secondary">
           Pick a name. Metro generates an API key and the registration command for Claude Code.
-          Stations are attached to the agent, and show up on its page.
+          Channels are attached to the agent, and show up on its page.
         </Text>
         <Input
           name="agent-name"

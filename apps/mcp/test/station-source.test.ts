@@ -14,7 +14,7 @@ let dir = '';
 let file = '';
 
 beforeEach(() => {
-  process.env.METRO_RUN_TOKEN = 'test-runtime';
+  process.env.METRO_MODE = 'local';
   dir = mkdtempSync(join(tmpdir(), 'metro-source-'));
   file = join(dir, 'telegram-bot-accounts.json');
   process.env.TELEGRAM_BOT_ACCOUNTS_FILE = file;
@@ -22,7 +22,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete process.env.METRO_RUN_TOKEN;
+  delete process.env.METRO_MODE;
   if (KEEP.file === undefined) delete process.env.TELEGRAM_BOT_ACCOUNTS_FILE;
   else process.env.TELEGRAM_BOT_ACCOUNTS_FILE = KEEP.file;
   if (KEEP.trains === undefined) delete process.env.METRO_TRAINS_DIR;
@@ -98,7 +98,7 @@ describe('an agent held by a local runtime is not served by the hosted daemon', 
   });
 
   test('its stations still ATTRIBUTE, so the panel can list them', async () => {
-    delete process.env.METRO_RUN_TOKEN;
+    delete process.env.METRO_MODE;
     await materializeFrom(() => Promise.resolve([moved]));
     expect(agentIdForAccount('telegram-bot', 'stn00000088')).toBe('agent000009');
     expect(existsSync(file)).toBe(false);
@@ -134,7 +134,7 @@ describe('metro never runs a messenger station, held or not', () => {
 
 describe('the panel lists what exists, not what happens to be running', () => {
   test('a station metro does not run is not reported as unavailable', async () => {
-    delete process.env.METRO_RUN_TOKEN;
+    delete process.env.METRO_MODE;
     const { setTrainCallBackend } = await import('../src/daemon/train-call.ts');
     const { gatherAccountsForAgents } = await import('../src/mcp/accounts.ts');
     const { setAgentMap } = await import('../src/db/agent-map.ts');

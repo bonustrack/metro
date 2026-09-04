@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { privateKeyToAccount } from 'viem/accounts';
+import { verifyMessage } from 'viem';
 import {
   ENCRYPTION_KEY_TYPED_DATA,
   fromBase64Url,
   openBundle,
   sealBundle,
+  signVaultRequest,
   toBase64Url,
+  vaultChallenge,
   walletKeys,
   type Envelope,
 } from '../src/vault/crypto';
@@ -28,6 +31,21 @@ describe('the wallet key', () => {
     expect(a.address).toBe(OWNER.address.toLowerCase());
     const other = await walletKeys(OTHER.address, await signFor(OTHER));
     expect(toBase64Url(other.publicKey)).not.toBe(toBase64Url(a.publicKey));
+    expect(a.vault.address).toBe(b.vault.address);
+    expect(a.vault.address).not.toBe(other.vault.address);
+    expect(a.vault.address.toLowerCase()).not.toBe(OWNER.address.toLowerCase());
+  });
+
+  test('a vault request is signed by the derived identity, and only it verifies', async () => {
+    const keys = await walletKeys(OWNER.address, await signFor(OWNER));
+    const header = await signVaultRequest(keys, 'GET', '/api/vault', 1_700_000_000_000);
+    const [scheme, address, at, signature] = header.split(' ');
+    expect(scheme).toBe('Vault');
+    expect(address).toBe(keys.vault.address);
+    expect(at).toBe('1700000000000');
+    const message = vaultChallenge('GET', '/api/vault', 1_700_000_000_000);
+    expect(await verifyMessage({ address: keys.vault.address, message, signature: signature as `0x${string}` })).toBe(true);
+    expect(await verifyMessage({ address: OWNER.address, message, signature: signature as `0x${string}` })).toBe(false);
   });
 
   test('the typed data pins the domain and message the doc names', () => {

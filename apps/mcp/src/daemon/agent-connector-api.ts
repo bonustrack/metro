@@ -10,9 +10,14 @@ import {
   type ApiSession,
 } from './api-http.js';
 import { parseId } from '../db/ids.js';
-import type { AgentConnectors } from '../db/agent-connectors.js';
 
 const PREFIX = '/api/agents';
+
+export interface AgentConnectors {
+  id: string;
+  name: string;
+  connectorIds: string[];
+}
 
 export interface AgentConnectorApiDeps {
   agentConnectors: (subject: string, agentId: string) => Promise<AgentConnectors>;
@@ -26,23 +31,17 @@ export interface AgentConnectorApiDeps {
     agentId: string,
     connectorId: string,
   ) => Promise<AgentConnectors>;
-  mintCode: (
-    subject: string,
-    agentId: string,
-  ) => Promise<{ code: string; expiresAt: number; agent: string }>;
 }
 
 type Routable =
   | { kind: 'connectors'; id: string }
-  | { kind: 'connector'; id: string; connectorId: string }
-  | { kind: 'code'; id: string };
+  | { kind: 'connector'; id: string; connectorId: string };
 
 type Target = Routable | { kind: 'unknown' } | null;
 
 const ALLOWED: Record<Routable['kind'], string[]> = {
   connectors: ['GET', 'POST'],
   connector: ['DELETE'],
-  code: ['POST'],
 };
 
 function connectorTarget(id: string, rest: string[]): Target {
@@ -61,7 +60,6 @@ export function target(path: string): Target {
   const head = segments[1];
   if (id === null || head === undefined) return null;
   if (head === 'connectors') return connectorTarget(id, segments.slice(1));
-  if (head === 'code' && segments.length === 2) return { kind: 'code', id };
   return null;
 }
 
@@ -84,18 +82,6 @@ async function handleConnectors(
   sendJson(req, res, 200, await deps.addConnector(session.subject, id, connectorId));
 }
 
-async function handleCode(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: AgentConnectorApiDeps,
-  session: ApiSession,
-  id: string,
-): Promise<void> {
-  const minted = await deps.mintCode(session.subject, id);
-  log.info({ agent: id, subject: session.subject }, 'agent-api: minted pairing code');
-  sendJson(req, res, 201, minted);
-}
-
 async function route(
   req: IncomingMessage,
   res: ServerResponse,
@@ -105,7 +91,6 @@ async function route(
 ): Promise<void> {
   try {
     if (tgt.kind === 'connectors') await handleConnectors(req, res, deps, session, tgt.id);
-    else if (tgt.kind === 'code') await handleCode(req, res, deps, session, tgt.id);
     else
       sendJson(
         req,

@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import { backoffAt, sseDataLines } from '../src/tail.ts';
-import { keyOfRunConfig } from '../src/api.ts';
 
 const FRAME =
   'id: 1\nevent: live\ndata: {"station":"telegram","text":"hi"}\n\n';
@@ -56,25 +55,5 @@ describe('reconnect backoff', () => {
     expect(backoffAt(1)).toBe(2_000);
     expect(backoffAt(2)).toBe(5_000);
     expect(backoffAt(50)).toBe(5_000);
-  });
-});
-
-describe('reading the agent key out of a run config', () => {
-  test('a keyed agent resolves to its key', () => {
-    expect(keyOfRunConfig({ agent: { id: 'a', key: 'mk_test' } })).toBe(
-      'mk_test',
-    );
-  });
-
-  test('a null key names the fix instead of returning junk', () => {
-    expect(() => keyOfRunConfig({ agent: { id: 'a', key: null } })).toThrow(
-      'no key',
-    );
-  });
-
-  test('an unexpected shape throws rather than tailing as nobody', () => {
-    expect(() => keyOfRunConfig(null)).toThrow();
-    expect(() => keyOfRunConfig({ agent: 'nope' })).toThrow();
-    expect(() => keyOfRunConfig({ agent: { key: '' } })).toThrow();
   });
 });

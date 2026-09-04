@@ -10,10 +10,8 @@ import {
   readJsonBody,
   sendJson,
   type ApiSession,
-  type Fence,
 } from './api-http.js';
 import { parseId } from '../db/ids.js';
-import type { AgentConnectors } from '../db/agent-connectors.js';
 import type { RelayServerEntry } from './connector-json.js';
 import {
   handleCallback,
@@ -39,8 +37,6 @@ export interface ConnectorApiDeps extends OAuthRouteDeps {
   listConnectors: (subject: string, project: string) => Promise<Connector[]>;
   connectorSummariesByIds: (ids: string[]) => Promise<ConnectorSummary[]>;
   connectorNamesByIds: (ids: string[]) => Promise<RelayServerEntry[]>;
-  agentConnectors: (subject: string, agentId: string) => Promise<AgentConnectors>;
-  fenceRuntime: Fence;
   createConnector: (
     subject: string,
     project: string,

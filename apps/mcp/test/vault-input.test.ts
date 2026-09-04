@@ -30,13 +30,13 @@ describe('what the vault accepts', () => {
     expect(out.envelope.agentId).toBe(AGENT);
   });
 
-  test('an email session has no vault', () => {
+  test('an identity that is not an address has no vault', () => {
     expect(status(() => parseVaultInput('ada@lovelace.dev', AGENT, { name: 'Tony', stations: [], envelope: envelope() }))).toBe(403);
   });
 
-  test('the envelope must be for this agent, sealed to this wallet, and carry ciphertext', () => {
+  test('the envelope must be for this agent, name the wallet it is sealed to, and carry ciphertext', () => {
     expect(status(() => parseVaultInput(OWNER, AGENT, { name: 'Tony', stations: [], envelope: envelope({ agentId: 'other000000' }) }))).toBe(400);
-    expect(status(() => parseVaultInput(OWNER, AGENT, { name: 'Tony', stations: [], envelope: envelope({ key: { recipient: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8' } }) }))).toBe(400);
+    expect(status(() => parseVaultInput(OWNER, AGENT, { name: 'Tony', stations: [], envelope: envelope({ key: { recipient: 'nobody' } }) }))).toBe(400);
     expect(status(() => parseVaultInput(OWNER, AGENT, { name: 'Tony', stations: [], envelope: envelope({ ciphertext: 7 }) }))).toBe(400);
     expect(status(() => parseVaultInput(OWNER, AGENT, { name: 'Tony', stations: [], envelope: envelope({ v: 2 }) }))).toBe(400);
   });

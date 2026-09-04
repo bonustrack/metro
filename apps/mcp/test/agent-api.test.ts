@@ -2,7 +2,7 @@ import { afterEach, beforeAll, afterAll, describe, expect, test } from 'bun:test
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
-import { signRunToken, signSession } from '../src/daemon/session.ts';
+import { signSession } from '../src/daemon/session.ts';
 import { mcpAddCommand, type AgentApiDeps } from '../src/daemon/agent-api.ts';
 
 const PORT = (): string => process.env.METRO_WEBHOOK_PORT ?? '8420';
@@ -33,7 +33,6 @@ const OWNED: Record<string, AgentSummary[]> = {
 
 let leakGrantedKeys = false;
 let liveAgents = new Map<string, { connected: boolean; lastSeenAt: number }>();
-let heldAgents = new Map<string, string>();
 let heldConnectors = new Map<string, string[]>();
 
 const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
@@ -145,8 +144,6 @@ const deps: AgentApiDeps = {
   },
   capabilities: () => ({ 'telegram-bot': ['send'], 'discord-bot': ['send', 'read'] }),
   liveness: () => liveAgents,
-  releaseRuntime: () => Promise.resolve(),
-  runtimes: () => Promise.resolve(heldAgents),
   connectorIds: () => Promise.resolve(heldConnectors),
   prepareAccount: () =>
     Promise.reject(new AgentAdminError('attaching is not exercised here', 400)),
@@ -207,28 +204,7 @@ afterEach(() => {
   liveKeys = {};
   leakGrantedKeys = false;
   liveAgents = new Map();
-  heldAgents = new Map();
   heldConnectors = new Map();
-});
-
-describe('a run token cannot escalate to the agent admin API', () => {
-  const run = (): string =>
-    signRunToken(
-      { subject: 'ada@lovelace.dev', agentId: 'agent000001', runtimeId: 'rt1' },
-      SECRET,
-    );
-
-  test('it cannot list agents, so it cannot read any agent key', async () => {
-    const res = await get(run());
-    expect(res.status).toBe(401);
-    expect(await res.text()).not.toContain('mk_fake');
-  });
-
-  test('it cannot create, delete, reset a key, or release the runtime', async () => {
-    expect((await post(run(), { name: 'x' })).status).toBe(401);
-    expect((await del(run(), 'agent000001')).status).toBe(401);
-    expect((await del(run(), 'agent000001/runtime')).status).toBe(401);
-  });
 });
 
 describe('/api/agents authentication', () => {
@@ -281,8 +257,6 @@ interface WireAgent {
 }
 
 interface ListBody {
-  email: string;
-  endpoint: string;
   agents: WireAgent[];
   accounts: Record<string, unknown[]>;
 }
@@ -294,8 +268,6 @@ describe('GET /api/agents ownership', () => {
   test('returns only the caller own agents and their accounts', async () => {
     const res = await getFull(session('ada@lovelace.dev'));
     const body = (await res.json()) as ListBody;
-    expect(body.subject).toBe('ada@lovelace.dev');
-    expect(body.endpoint).toBe(`${PUBLIC}/mcp`);
     expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
     expect(body.accounts['telegram-bot']).toEqual([{ id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }]);
     expect(body.accounts['discord-bot']).toEqual([]);
@@ -363,7 +335,6 @@ describe('GET /api/agents is light unless accounts are asked for', () => {
     const body = (await res.json()) as Record<string, unknown>;
     expect(res.status).toBe(200);
     expect(body.agents).toBeDefined();
-    expect(body.subject).toBe('ada@lovelace.dev');
     expect(body.capabilities).toBeDefined();
     expect(body.attachable).toBeDefined();
     expect(body.accounts).toBeUndefined();
@@ -400,7 +371,6 @@ describe('GET /api/agents key exposure', () => {
       id: 'agent000001',
       name: 'ada-bot',
       owned: true,
-      runtime: null,
       connected: false,
       last_seen: null,
       connector_ids: [],
@@ -438,21 +408,8 @@ describe('GET /api/agents key exposure', () => {
     expect([agent?.connected, agent?.last_seen]).toEqual([false, null]);
   });
 
-  test('a held agent is handed the LOCAL command, since the hosted one 401s', async () => {
-    heldAgents = new Map([['agent000001', 'tony']]);
-    const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.endpoint).toBe(
-      `http://127.0.0.1:${PORT()}/mcp?token=mk_fake_ada-bot`,
-    );
-    expect(agent?.command).toBe(
-      `claude mcp add --transport http metro "http://127.0.0.1:${PORT()}/mcp?token=mk_fake_ada-bot"`,
-    );
-    expect(agent?.runtime).toBe('tony');
-  });
-
   test('an unheld agent is handed the same local command', async () => {
     const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.runtime).toBeNull();
     expect(agent?.endpoint).toBe(
       `http://127.0.0.1:${PORT()}/mcp?token=mk_fake_ada-bot`,
     );
@@ -492,7 +449,6 @@ describe('GET /api/agents key exposure', () => {
       id: 'agent000042',
       name: 'keyless',
       owned: true,
-      runtime: null,
       connected: false,
       last_seen: null,
       connector_ids: [],

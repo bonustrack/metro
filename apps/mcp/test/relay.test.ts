@@ -7,9 +7,8 @@ import {
 } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleRelayRequest, type RelayApiDeps } from '../src/daemon/relay.ts';
-import { signAgentToken, signRunToken, signSession } from '../src/daemon/session.ts';
+import { signSession } from '../src/daemon/session.ts';
 import type { RelayTarget } from '../src/db/connector-relay.ts';
-import { ApiError } from '../src/daemon/api-error.ts';
 
 const SECRET = 'relay-test-secret';
 const EMAIL = 'less@bonustrack.co';
@@ -52,10 +51,12 @@ const deps: RelayApiDeps = {
       headers: { 'x-vendor': vendor },
     });
   },
-  fence: (runtimeId) =>
-    runtimeId === 'rt1'
-      ? Promise.resolve()
-      : Promise.reject(new ApiError('this runtime no longer holds the agent', 409)),
+  identify: (req) => {
+    const header = req.headers.authorization ?? '';
+    const key = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
+    const found = /^key-(agent[0-9]{6})$/.exec(key);
+    return found?.[1] === undefined ? null : { subject: 'agent-key', agentId: found[1] };
+  },
 };
 
 async function bodyOf(req: IncomingMessage): Promise<string> {
@@ -155,10 +156,7 @@ beforeEach(() => {
   upstreamAborted = false;
 });
 
-const cliToken = (agent = AGENT): string =>
-  signAgentToken({ subject: EMAIL, agentId: agent }, SECRET);
-const runToken = (agent = AGENT): string =>
-  signRunToken({ subject: EMAIL, agentId: agent, runtimeId: 'rt1' }, SECRET);
+const cliToken = (agent = AGENT): string => `key-${agent}`;
 
 const call = (
   path: string,
@@ -183,7 +181,7 @@ const post = (body: unknown, headers: Record<string, string> = {}): Promise<Resp
 const INIT = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
 
 describe('who may speak to a relay', () => {
-  test('no token, a session JWT, and garbage are all 401', async () => {
+  test('no key, a session JWT, and garbage are all 401', async () => {
     expect((await call(`/relay/${CONN}`, { method: 'POST' }, null)).status).toBe(401);
     const jwt = signSession({ subject: EMAIL, agentIds: [] }, SECRET);
     expect((await call(`/relay/${CONN}`, { method: 'POST' }, jwt)).status).toBe(401);
@@ -199,20 +197,6 @@ describe('who may speak to a relay', () => {
     expect(seen).toHaveLength(0);
   });
 
-  test('a run token whose lease was taken back is 401, before any upstream contact', async () => {
-    const stale = signRunToken({ subject: EMAIL, agentId: AGENT, runtimeId: 'rt0' }, SECRET);
-    const res = await call(`/relay/${CONN}`, { method: 'DELETE' }, stale);
-    expect(res.status).toBe(401);
-    expect(seen).toHaveLength(0);
-  });
-
-  test('a run token speaks for its agent too, and only its agent', async () => {
-    const res = await call(`/relay/${CONN}`, { method: 'DELETE' }, runToken());
-    expect(res.status).toBe(200);
-    const other = await call(`/relay/${CONN}`, { method: 'DELETE' }, runToken('agent000002'));
-    expect(other.status).toBe(404);
-    expect(seen).toHaveLength(1);
-  });
 
   test('a malformed id and a bare /relay are 404, a wrong method 405', async () => {
     expect((await call('/relay/short', { method: 'POST' })).status).toBe(404);

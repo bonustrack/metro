@@ -1,4 +1,3 @@
-import { hostname } from 'node:os';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
 import { AttachSessions } from './attach-session.js';
@@ -7,10 +6,8 @@ import { ATTACHABLE, type AccountApiDeps } from './account-api.js';
 import type { AgentConnectorApiDeps } from './agent-connector-api.js';
 import type { SessionApis } from './session-apis.js';
 import type { ModeInfo } from './mode-api.js';
-import type { ImportApiDeps } from './import-api.js';
 import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from './bundle-api.js';
 import { METRO_VERSION } from './version.js';
-import { fetchAgentWithCode } from './agent-import.js';
 import type { ConnectorApiDeps } from './connector-api.js';
 import { allowLocalConnectors } from './connector-url.js';
 import { keyIdentity, type LocalCliDeps } from './local-cli-api.js';
@@ -55,18 +52,12 @@ import type { StationName } from '../db/schema.js';
 
 export interface LocalModeDeps {
   syncStations: (station: StationName) => Promise<void>;
-  fetchAgent?: (code: string, label: string) => ReturnType<typeof fetchAgentWithCode>;
   closeAgentSession: (id: string) => Promise<boolean>;
   gatherAccounts: AgentApiDeps['gatherAccounts'];
   capabilities: AgentApiDeps['capabilities'];
   liveness: AgentApiDeps['liveness'];
   prepareAccount: AccountApiDeps['prepareAccount'];
 }
-
-const notHere = (what: string): Promise<never> =>
-  Promise.reject(
-    new ApiError(`${what} are managed on metro.box, not on a local daemon`, 400),
-  );
 
 function attachSessions(deps: LocalModeDeps): AttachSessions {
   return new AttachSessions({
@@ -106,8 +97,6 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     capabilities: deps.capabilities,
     attachable: ATTACHABLE.filter((s) => s !== 'webhook'),
     liveness: deps.liveness,
-    releaseRuntime: () => notHere('runtime leases'),
-    runtimes: () => Promise.resolve(new Map()),
     connectorIds: connectorIdsOfLocalAgents,
     prepareAccount: deps.prepareAccount,
     attachAccount: localAttachAccount,
@@ -124,16 +113,12 @@ const agentConnectorApi: AgentConnectorApiDeps = {
   agentConnectors: localAgentConnectors,
   addConnector: localAddConnector,
   removeConnector: localRemoveConnector,
-  mintCode: () =>
-    Promise.reject(new ApiError('a local daemon has no pairing codes', 400)),
 };
 
 const connectorApi: ConnectorApiDeps = {
   listConnectors: localListConnectors,
   connectorSummariesByIds: (ids) => localConnectorSummariesByIds(ids),
   connectorNamesByIds: (ids) => localConnectorNamesByIds(ids),
-  agentConnectors: localAgentConnectors,
-  fenceRuntime: () => Promise.resolve(),
   createConnector: localCreateConnector,
   verifyConnector: localVerifyConnector,
   disconnectConnector: localDisconnectConnector,
@@ -146,7 +131,6 @@ const connectorApi: ConnectorApiDeps = {
 
 const relayApi: RelayApiDeps = {
   target: (agentId, connectorId, force) => localRelayTarget(agentId, connectorId, force),
-  fence: () => Promise.resolve(),
   identify: keyIdentity,
 };
 
@@ -191,26 +175,6 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
   };
 }
 
-function importApi(deps: LocalModeDeps): ImportApiDeps {
-  const fetchAgent = deps.fetchAgent ?? fetchAgentWithCode;
-  return {
-    importAgent: async (subject, code) => {
-      assertLocalOwner(subject);
-      const agent = await fetchAgent(code, hostname());
-      const made = await localImportAgent(subject, agent);
-      const connectors = localImportConnectors(agent.connectors ?? []);
-      for (const station of new Set(agent.accounts.map((a) => a.station)))
-        await deps.syncStations(station).catch((err: unknown) => {
-          log.warn(
-            { station, err: errMsg(err) },
-            'import: station reload failed, the change lands at the next boot',
-          );
-        });
-      return { ...made, connectors };
-    },
-  };
-}
-
 function localModeInfo(): ModeInfo {
   return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID, version: METRO_VERSION };
 }
@@ -220,7 +184,6 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
   return {
     agentApi: agentApi(deps),
     agentConnectorApi,
-    importApi: importApi(deps),
     bundleApi: bundleApi(deps),
     connectorApi,
     relayApi,

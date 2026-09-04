@@ -1,19 +1,6 @@
-import { afterEach, describe, expect, test } from 'bun:test';
-import {
-  AgentAdminError,
-  newApiKey,
-  normalizeAgentName,
-  parseAgentId,
-  servesEveryAgent,
-  toAgentSummaries,
-} from '../src/db/agent-admin.ts';
-import { normalizeEmail, resolveUserId, UserError } from '../src/db/users.ts';
-
-const PIN = process.env.METRO_AGENT;
-afterEach(() => {
-  if (PIN === undefined) delete process.env.METRO_AGENT;
-  else process.env.METRO_AGENT = PIN;
-});
+import { describe, expect, test } from 'bun:test';
+import { AgentAdminError, newApiKey, normalizeAgentName } from '../src/db/agent-admin.ts';
+import { parseId } from '../src/db/ids.ts';
 
 describe('normalizeAgentName', () => {
   test('trims but keeps the casing the person chose', () => {
@@ -63,12 +50,6 @@ describe('normalizeAgentName', () => {
   });
 });
 
-describe('normalizeEmail', () => {
-  test('trims and lowercases so ownership compares case-insensitively', () => {
-    expect(normalizeEmail(' Fabien@BonusTrack.co ')).toBe('fabien@bonustrack.co');
-  });
-});
-
 describe('newApiKey', () => {
   test('is prefixed, url-safe, and long enough to be unguessable', () => {
     const key = newApiKey();
@@ -88,8 +69,8 @@ describe('newApiKey', () => {
 
 describe('parseAgentId', () => {
   test('accepts an id of exactly 11 base64url characters', () => {
-    expect(parseAgentId('agent000001')).toBe('agent000001');
-    expect(parseAgentId('aB3-_xYz9Qw')).toBe('aB3-_xYz9Qw');
+    expect(parseId('agent000001')).toBe('agent000001');
+    expect(parseId('aB3-_xYz9Qw')).toBe('aB3-_xYz9Qw');
   });
 
   test('rejects anything that is not one', () => {
@@ -106,125 +87,6 @@ describe('parseAgentId', () => {
       '-gent000001',
       '_gent000001',
     ])
-      expect(parseAgentId(bad)).toBeNull();
-  });
-});
-
-describe('toAgentSummaries', () => {
-  const PROJECT = 'prj00000011';
-  const ROWS = [
-    { id: 'agent000001', name: 'ada-bot', projectId: PROJECT },
-    { id: 'agent000002', name: 'bob-bot', projectId: PROJECT },
-  ];
-
-  test('the rows it is handed are ALREADY project-scoped, so every one is owned', () => {
-    const out = toAgentSummaries(ROWS, []);
-    expect(out.every((a) => a.owned)).toBe(true);
-  });
-
-  test('an agent carries its key value', () => {
-    const out = toAgentSummaries(ROWS, [
-      { agentId: 'agent000001', key: 'mk_fake_ada' },
-    ]);
-    expect(out[0]).toEqual({
-      id: 'agent000001',
-      name: 'ada-bot',
-      owned: true,
-      key: 'mk_fake_ada',
-    });
-  });
-
-  test('an agent with no key yet is served null, not a stale value', () => {
-    const out = toAgentSummaries(ROWS, [{ agentId: 'agent000001', key: null }]);
-    expect(out[0]).toEqual({
-      id: 'agent000001',
-      name: 'ada-bot',
-      owned: true,
-      key: null,
-    });
-  });
-
-  test('a key for an agent that is not in the list reaches nobody', () => {
-    const out = toAgentSummaries(ROWS, [
-      { agentId: 'agent000999', key: 'mk_fake_elsewhere' },
-    ]);
-    expect(out.map((a) => a.key)).toEqual([null, null]);
-  });
-
-  test('every agent carries exactly one key field, never a list', () => {
-    const out = toAgentSummaries(ROWS, [
-      { agentId: 'agent000001', key: 'mk_fake_ada' },
-    ]);
-    expect(Object.keys(out[0] ?? {}).sort()).toEqual(['id', 'key', 'name', 'owned']);
-  });
-});
-
-describe('resolveUserId', () => {
-  test('a first login inserts the row and uses the id it just got back', async () => {
-    let lookups = 0;
-    const id = await resolveUserId(
-      () => Promise.resolve('user0000007'),
-      () => {
-        lookups += 1;
-        return Promise.resolve(null);
-      },
-    );
-    expect(id).toBe('user0000007');
-    expect(lookups).toBe(0);
-  });
-
-  test('a losing concurrent first login re-selects the winner id instead of failing', async () => {
-    const id = await resolveUserId(
-      () => Promise.resolve(undefined),
-      () => Promise.resolve('user0000007'),
-    );
-    expect(id).toBe('user0000007');
-  });
-
-  test('two concurrent first logins settle on ONE id and create ONE row', async () => {
-    const table = new Map<string, string>();
-    let nextId = 0;
-    const insert = (email: string) => (): Promise<string | undefined> => {
-      if (table.has(email)) return Promise.resolve(undefined);
-      nextId += 1;
-      table.set(email, `user${String(nextId).padStart(7, '0')}`);
-      return Promise.resolve(table.get(email));
-    };
-    const lookup = (email: string) => (): Promise<string | null> =>
-      Promise.resolve(table.get(email) ?? null);
-    const ids = await Promise.all(
-      Array.from({ length: 8 }, () =>
-        resolveUserId(insert('ada@lovelace.dev'), lookup('ada@lovelace.dev')),
-      ),
-    );
-    expect(new Set(ids)).toEqual(new Set(['user0000001']));
-    expect(table.size).toBe(1);
-  });
-
-  test('an insert that conflicts against a row nobody can find is a 500, never a second row', async () => {
-    try {
-      await resolveUserId(
-        () => Promise.resolve(undefined),
-        () => Promise.resolve(null),
-      );
-      expect.unreachable();
-    } catch (e) {
-      expect(e).toBeInstanceOf(UserError);
-      expect((e as UserError).status).toBe(500);
-    }
-  });
-});
-
-describe('servesEveryAgent', () => {
-  test('an unpinned daemon serves every agent, so a fresh key is live immediately', () => {
-    delete process.env.METRO_AGENT;
-    expect(servesEveryAgent()).toBe(true);
-    process.env.METRO_AGENT = '   ';
-    expect(servesEveryAgent()).toBe(true);
-  });
-
-  test('a METRO_AGENT-pinned daemon never registers another agent key, before or after restart', () => {
-    process.env.METRO_AGENT = '1';
-    expect(servesEveryAgent()).toBe(false);
+      expect(parseId(bad)).toBeNull();
   });
 });

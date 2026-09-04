@@ -6,15 +6,12 @@ import {
   assertAgentId,
   localUrl,
   MissingRuntime,
-  readRunToken,
   runtimeDir,
-  writeRunToken,
 } from '../src/runtime.ts';
 
 const KEEP = {
   dir: process.env.METRO_RUNTIME_DIR,
   xdg: process.env.XDG_CONFIG_HOME,
-  token: process.env.METRO_RUN_TOKEN,
   url: process.env.METRO_URL,
 };
 const made: string[] = [];
@@ -29,7 +26,6 @@ afterEach(() => {
   for (const [k, v] of Object.entries({
     METRO_RUNTIME_DIR: KEEP.dir,
     XDG_CONFIG_HOME: KEEP.xdg,
-    METRO_RUN_TOKEN: KEEP.token,
     METRO_URL: KEEP.url,
   }))
     if (v === undefined) delete process.env[k];
@@ -80,33 +76,3 @@ describe('the local endpoint', () => {
   });
 });
 
-describe('the run token is stored per agent and per metro', () => {
-  test('a written token reads back for that agent', () => {
-    process.env.XDG_CONFIG_HOME = scratch();
-    delete process.env.METRO_RUN_TOKEN;
-    writeRunToken('HURgz4SdQvG', 'run-token-1');
-    expect(readRunToken('HURgz4SdQvG')).toBe('run-token-1');
-  });
-
-  test('another agent on the same machine does not share it', () => {
-    process.env.XDG_CONFIG_HOME = scratch();
-    delete process.env.METRO_RUN_TOKEN;
-    writeRunToken('HURgz4SdQvG', 'run-token-1');
-    expect(readRunToken('nONaK77lT9Q')).toBeNull();
-  });
-
-  test('a token stored against another metro is not reused', () => {
-    process.env.XDG_CONFIG_HOME = scratch();
-    delete process.env.METRO_RUN_TOKEN;
-    process.env.METRO_URL = 'https://mcp.metro.box';
-    writeRunToken('HURgz4SdQvG', 'run-token-1');
-    process.env.METRO_URL = 'https://other.example.com';
-    expect(readRunToken('HURgz4SdQvG')).toBeNull();
-  });
-
-  test('METRO_RUN_TOKEN wins, so an unattended start needs no store', () => {
-    process.env.XDG_CONFIG_HOME = scratch();
-    process.env.METRO_RUN_TOKEN = 'from-the-environment';
-    expect(readRunToken('HURgz4SdQvG')).toBe('from-the-environment');
-  });
-});

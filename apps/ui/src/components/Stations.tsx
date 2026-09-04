@@ -14,7 +14,7 @@ import { detachAccount } from '../api/attach';
 import { dropAccount, queryError, refreshAgents, useStationsQuery } from '../api/queries';
 import { useDocumentTitle } from '../title';
 
-const FALLBACK = 'Could not load the stations.';
+const FALLBACK = 'Could not load the channels.';
 
 interface StationsProps {
   token: string;
@@ -27,7 +27,7 @@ export function Stations({ token, project, onOpen }: StationsProps): ReactNode {
   const client = useQueryClient();
   const { data, error } = useStationsQuery(token);
   const [connecting, setConnecting] = useState(false);
-  useDocumentTitle('Stations');
+  useDocumentTitle('Channels');
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
   const agent = data.agents[0];
@@ -38,14 +38,14 @@ export function Stations({ token, project, onOpen }: StationsProps): ReactNode {
       <Row justify="between" align="start" gap={12} wrap>
         <Col gap={8} style={SHRINK}>
           <Row gap={10} align="center">
-            <PageTitle>Stations</PageTitle>
+            <PageTitle>Channels</PageTitle>
             <CountBadge count={mine.reduce((n, g) => n + g.rows.length, 0)} beside="title" />
           </Row>
         </Col>
         <Button
           color="primary"
           dark={dark}
-          label="Connect station"
+          label="Connect channel"
           onPress={() => {
             setConnecting(true);
           }}
@@ -54,7 +54,7 @@ export function Stations({ token, project, onOpen }: StationsProps): ReactNode {
       <AccountList
         groups={mine}
         project={project}
-        empty="No station yet. Connect one with the button above."
+        empty="No channel yet. Connect one with the button above."
         onOpen={onOpen}
         onDetach={async (station, accountId) => {
           await detachAccount(token, agent.id, station, accountId);

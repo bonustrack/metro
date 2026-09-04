@@ -1,5 +1,4 @@
 import { type ReactNode, useState } from 'react';
-import { colors } from '@stage-labs/kit/tokens';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui';
 import { faviconUrl } from '../api/favicon';
@@ -30,7 +29,7 @@ export function ConnectorFavicon({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     overflow: 'hidden' as const,
-    background: blank ? palette.inputBg : colors['bg-light'],
+    background: blank ? palette.inputBg : 'transparent',
   };
   if (blank)
     return (

@@ -1,5 +1,6 @@
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { mapHashToField } from '@noble/curves/abstract/modular';
+import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 
 export const ENCRYPTION_KEY_TYPED_DATA = {
   domain: { name: 'metro', version: '1' },
@@ -19,6 +20,7 @@ export interface WalletKeys {
   address: string;
   privateKey: Uint8Array;
   publicKey: Uint8Array;
+  vault: PrivateKeyAccount;
 }
 
 export interface WrappedKey {
@@ -40,6 +42,7 @@ export interface Envelope {
 
 const KEY_SALT = 'metro';
 const KEY_INFO = 'secp256k1';
+const VAULT_INFO = 'vault-secp256k1';
 const KEY_HASH_BYTES = 48;
 const WRAP_SALT = 'metro-wrap';
 const NONCE_BYTES = 12;
@@ -112,9 +115,27 @@ async function decrypt(rawKey: Uint8Array, nonce: Uint8Array, ciphertext: Uint8A
   }
 }
 
+const toHex = (bytes: Uint8Array): `0x${string}` =>
+  `0x${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+
 export async function walletKeys(address: string, signature: string): Promise<WalletKeys> {
-  const privateKey = toScalar(await hkdf(hexToBytes(signature), KEY_SALT, utf8(KEY_INFO), KEY_HASH_BYTES));
-  return { address: address.toLowerCase(), privateKey, publicKey: secp256k1.getPublicKey(privateKey, true) };
+  const ikm = hexToBytes(signature);
+  const privateKey = toScalar(await hkdf(ikm, KEY_SALT, utf8(KEY_INFO), KEY_HASH_BYTES));
+  const vaultKey = toScalar(await hkdf(ikm, KEY_SALT, utf8(VAULT_INFO), KEY_HASH_BYTES));
+  return {
+    address: address.toLowerCase(),
+    privateKey,
+    publicKey: secp256k1.getPublicKey(privateKey, true),
+    vault: privateKeyToAccount(toHex(vaultKey)),
+  };
+}
+
+export const vaultChallenge = (method: string, path: string, at: number): string =>
+  `metro-vault\n${method} ${path}\n${String(at)}`;
+
+export async function signVaultRequest(keys: WalletKeys, method: string, path: string, at = Date.now()): Promise<string> {
+  const signature = await keys.vault.signMessage({ message: vaultChallenge(method, path, at) });
+  return `Vault ${keys.vault.address} ${String(at)} ${signature}`;
 }
 
 function concat(a: Uint8Array, b: Uint8Array): Uint8Array {

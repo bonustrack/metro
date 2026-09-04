@@ -73,7 +73,7 @@ export default defineConfig({
       knip: {
         project: ['src/**/*.ts'],
         entry: ['scripts/*.mjs', 'test/**/*.ts'],
-        ignoreBinaries: ['tail', 'ps', 'claude', 'cloudflared'],
+        ignoreBinaries: ['ps', 'claude', 'cloudflared'],
         ignoreDependencies: STAGED_RUNTIME_DEPENDENCIES,
       },
     },
@@ -103,10 +103,7 @@ export default defineConfig({
     },
     'packages/whatsapp': {
       type: 'library',
-      knip: {
-        entry: ['scripts/login.ts'],
-        project: ['src/**/*.ts'],
-      },
+      knip: { project: ['src/**/*.ts'] },
     },
     'packages/xmtp': {
       type: 'library',

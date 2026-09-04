@@ -1,11 +1,42 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from './log.js';
-import { apiFailure, apiSession, cors, readJsonBody, sendJson, type ApiSession } from './api-http.js';
+import { verifyMessage } from 'viem';
+import { apiFailure, cors, readJsonBody, sendJson } from './api-http.js';
+import { normalizeAddress } from '../db/users.js';
 import { parseId } from '../db/ids.js';
 import { ENVELOPE_MAX, type VaultBundle, type VaultEntry } from '../db/vault.js';
 
 const PREFIX = '/api/vault';
 const BODY_MAX = ENVELOPE_MAX + 64 * 1024;
+const SKEW_MS = 5 * 60_000;
+const SIGNATURE_RE = /^0x[0-9a-fA-F]{130}$/;
+
+export const vaultChallenge = (method: string, path: string, at: number): string =>
+  `metro-vault\n${method} ${path}\n${String(at)}`;
+
+interface VaultProof {
+  address: string;
+  at: number;
+  signature: `0x${string}`;
+}
+
+function parseVaultHeader(header: string): VaultProof | null {
+  const [scheme, rawAddress, rawAt, signature] = header.trim().split(/\s+/);
+  if (scheme !== 'Vault' || rawAddress === undefined || rawAt === undefined || signature === undefined) return null;
+  const address = normalizeAddress(rawAddress);
+  const at = Number(rawAt);
+  if (address === null || !Number.isFinite(at) || !SIGNATURE_RE.test(signature)) return null;
+  return { address, at, signature: signature as `0x${string}` };
+}
+
+export async function vaultIdentity(req: IncomingMessage, now = Date.now()): Promise<string | null> {
+  const proof = parseVaultHeader(req.headers.authorization ?? '');
+  if (proof === null || Math.abs(now - proof.at) > SKEW_MS) return null;
+  const path = (req.url ?? '').split('?')[0] ?? '';
+  const message = vaultChallenge(req.method ?? '', path, proof.at);
+  const ok = await verifyMessage({ address: proof.address as `0x${string}`, message, signature: proof.signature }).catch(() => false);
+  return ok ? proof.address : null;
+}
 
 export interface VaultApiDeps {
   list: (subject: string) => Promise<VaultEntry[]>;
@@ -30,18 +61,22 @@ async function route(
   req: IncomingMessage,
   res: ServerResponse,
   deps: VaultApiDeps,
-  session: ApiSession,
   tgt: { kind: 'index' } | { kind: 'bundle'; id: string },
 ): Promise<void> {
   try {
-    if (tgt.kind === 'index') {
-      sendJson(req, res, 200, { entries: await deps.list(session.subject) });
+    const owner = await vaultIdentity(req);
+    if (owner === null) {
+      sendJson(req, res, 401, { error: 'unauthorized' });
       return;
     }
-    if (req.method === 'GET') sendJson(req, res, 200, await deps.get(session.subject, tgt.id));
-    else if (req.method === 'DELETE') sendJson(req, res, 200, await deps.remove(session.subject, tgt.id));
+    if (tgt.kind === 'index') {
+      sendJson(req, res, 200, { entries: await deps.list(owner) });
+      return;
+    }
+    if (req.method === 'GET') sendJson(req, res, 200, await deps.get(owner, tgt.id));
+    else if (req.method === 'DELETE') sendJson(req, res, 200, await deps.remove(owner, tgt.id));
     else {
-      const saved = await deps.put(session.subject, tgt.id, await readJsonBody(req, BODY_MAX));
+      const saved = await deps.put(owner, tgt.id, await readJsonBody(req, BODY_MAX));
       log.info({ id: saved.id, name: saved.name }, 'vault-api: bundle stored');
       sendJson(req, res, 200, saved);
     }
@@ -65,12 +100,7 @@ export function handleVaultApiRequest(req: IncomingMessage, res: ServerResponse,
     sendJson(req, res, 405, { error: 'method not allowed' });
     return true;
   }
-  const session = apiSession(req);
-  if (!session) {
-    sendJson(req, res, 401, { error: 'unauthorized' });
-    return true;
-  }
-  route(req, res, deps, session, tgt).catch((err: unknown) => {
+  route(req, res, deps, tgt).catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'vault-api: unhandled error');
     if (!res.headersSent) sendJson(req, res, 500, { error: 'vault api failed' });
   });

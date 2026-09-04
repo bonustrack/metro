@@ -145,9 +145,9 @@ describe('a local daemon, end to end over http', () => {
     expect(existsSync(join(dir, 'suzy', 'agent.json'))).toBe(true);
     expect(agentIdForKey(key)).toBe(agentId);
     const list = (await (await call('GET', `/api/agents?project=${PROJECT}`, session)).json()) as {
-      agents: { id: string; key: string; connector_ids: string[]; runtime: null }[];
+      agents: { id: string; key: string; connector_ids: string[] }[];
     };
-    expect(list.agents).toMatchObject([{ id: agentId, key, connector_ids: [], runtime: null }]);
+    expect(list.agents).toMatchObject([{ id: agentId, key, connector_ids: [] }]);
   });
 
   test('attaching a station lands in the file and reloads that station', async () => {
@@ -185,9 +185,9 @@ describe('a local daemon, end to end over http', () => {
 
   test('what a local daemon refuses, and what a stranger sees', async () => {
     const made = (await (await call('POST', `/api/agents?project=${PROJECT}`, session, { name: 'tony' })).json()) as { id: string };
-    expect((await call('POST', `/api/agents/${made.id}/code`, session)).status).toBe(400);
+    expect((await call('POST', `/api/agents/${made.id}/code`, session)).status).toBe(404);
     expect((await call('POST', `/api/agents/${made.id}/connectors`, session, { connectorId: 'conn0000001' })).status).toBe(404);
-    expect((await call('DELETE', `/api/agents/${made.id}/runtime`, session)).status).toBe(400);
+    expect((await call('DELETE', `/api/agents/${made.id}/runtime`, session)).status).toBe(404);
     const stranger = signSession({ subject: STRANGER.address.toLowerCase(), agentIds: [] }, secret);
     expect((await call('GET', `/api/agents?project=${PROJECT}`, stranger)).status).toBe(404);
     expect((await call('GET', `/api/agents/${made.id}/connectors`, stranger)).status).toBe(404);

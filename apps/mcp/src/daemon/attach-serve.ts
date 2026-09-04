@@ -34,8 +34,7 @@ export function publicBaseUrl(): string | null {
   return currentTunnelUrl();
 }
 
-const servesLocally = (): boolean =>
-  (process.env.METRO_RUN_TOKEN?.trim() ?? '') !== '' || isLocalMode();
+const servesLocally = (): boolean => isLocalMode();
 
 const localBase = (): string | null =>
   servesLocally() ? `http://127.0.0.1:${String(webhookPort())}` : null;

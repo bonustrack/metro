@@ -5,9 +5,9 @@ import {
   handleAgentConnectorRequest,
   type AgentConnectorApiDeps,
 } from '../src/daemon/agent-connector-api.js';
-import { signAgentToken, signSession } from '../src/daemon/session.js';
+import { signSession } from '../src/daemon/session.js';
 import { ApiError } from '../src/daemon/api-error.js';
-import type { AgentConnectors } from '../src/db/agent-connectors.js';
+import type { AgentConnectors } from '../src/daemon/agent-connector-api.js';
 
 const SECRET = 'a-test-session-secret';
 const ADA = 'ada@lovelace.dev';
@@ -50,14 +50,6 @@ const deps: AgentConnectorApiDeps = {
     own(email, agentId);
     held = held.filter((id) => id !== connectorId);
     return Promise.resolve(view());
-  },
-  mintCode: (email, agentId) => {
-    own(email, agentId);
-    return Promise.resolve({
-      code: 'ma_aaaaaaaaaaaaaaaa',
-      expiresAt: 0,
-      agent: 'suzy',
-    });
   },
 };
 
@@ -111,11 +103,9 @@ const ids = async (res: Response): Promise<string[]> =>
   ((await res.json()) as AgentConnectors).connectorIds;
 
 describe('what an agent holds', () => {
-  test('reading needs the signed-in owner, never an agent token', async () => {
+  test('reading needs the signed-in owner', async () => {
     expect((await call('GET', LIST)).status).toBe(401);
     expect((await call('GET', LIST, 'junk')).status).toBe(401);
-    const agent = signAgentToken({ subject: ADA, agentId: AGENT }, SECRET);
-    expect((await call('GET', LIST, agent)).status).toBe(401);
   });
 
   test('the list is the agent with its connector ids', async () => {
@@ -171,24 +161,6 @@ describe('adding and removing', () => {
     const res = await call('DELETE', `${LIST}/${LINEAR}`, session());
     expect(res.status).toBe(200);
     expect(await ids(res)).toEqual([GITHUB]);
-  });
-});
-
-describe('the pairing code', () => {
-  test('POST /code mints one for the owner and names the agent', async () => {
-    const res = await call('POST', `/api/agents/${AGENT}/code`, session());
-    expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({
-      code: 'ma_aaaaaaaaaaaaaaaa',
-      expiresAt: 0,
-      agent: 'suzy',
-    });
-  });
-
-  test('it is owner-only and POST-only', async () => {
-    expect((await call('POST', `/api/agents/${AGENT}/code`)).status).toBe(401);
-    expect((await call('POST', `/api/agents/${AGENT}/code`, session(BOB))).status).toBe(404);
-    expect((await call('GET', `/api/agents/${AGENT}/code`, session())).status).toBe(405);
   });
 });
 

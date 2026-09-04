@@ -35,7 +35,7 @@ import {
   type ConnectorSummary,
   type DeletedConnector,
 } from './connectors.js';
-import type { AgentConnectors } from './agent-connectors.js';
+import type { AgentConnectors } from '../daemon/agent-connector-api.js';
 import { agentsDir } from './file-source.js';
 import {
   assertLocalOwner,

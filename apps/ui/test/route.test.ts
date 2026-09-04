@@ -47,7 +47,7 @@ describe('the first segment is the daemon', () => {
       '#/x.trycloudflare.com/agent/aB3-_xYz9Qw',
       '#/x.trycloudflare.com/members',
       '#/x.trycloudflare.com/connector/short',
-      '#/x.trycloudflare.com/station/../etc',
+      '#/x.trycloudflare.com/channel/../etc',
       '#/x.trycloudflare.com/memory/-x/notes.txt',
       '#/x.trycloudflare.com/sessions/-x/id with space',
       '#/-leadingdash/connectors',

@@ -58,17 +58,6 @@ interface SessionClaims {
   agentIds: string[];
 }
 
-export interface AgentClaims {
-  subject: string;
-  agentId: string;
-}
-
-export interface RunClaims {
-  subject: string;
-  agentId: string;
-  runtimeId: string;
-}
-
 export function signSession(
   claims: SessionClaims,
   secret: string,
@@ -104,74 +93,4 @@ export function verifySession(
   )
     throw new SessionError('malformed session');
   return { subject: p.sub, agentIds: ids as string[] };
-}
-
-export function signAgentToken(
-  claims: AgentClaims,
-  secret: string,
-  opts: { ttlSec?: number; now?: number } = {},
-): string {
-  const iat = nowSec(opts.now);
-  return sign(
-    {
-      typ: 'agent',
-      sub: claims.subject,
-      agent: claims.agentId,
-      iat,
-      exp: iat + (opts.ttlSec ?? 30 * 24 * 3600),
-    },
-    secret,
-  );
-}
-
-export function verifyAgentToken(
-  token: string,
-  secret: string,
-  now?: number,
-): AgentClaims {
-  const p = verify(token, secret);
-  if (p.typ !== 'agent') throw new SessionError('wrong token type');
-  if (typeof p.exp !== 'number' || p.exp < nowSec(now))
-    throw new SessionError('agent token expired');
-  if (typeof p.sub !== 'string' || typeof p.agent !== 'string')
-    throw new SessionError('malformed agent token');
-  return { subject: p.sub, agentId: p.agent };
-}
-
-export function signRunToken(
-  claims: RunClaims,
-  secret: string,
-  opts: { ttlSec?: number; now?: number } = {},
-): string {
-  const iat = nowSec(opts.now);
-  return sign(
-    {
-      typ: 'run',
-      sub: claims.subject,
-      agent: claims.agentId,
-      rt: claims.runtimeId,
-      iat,
-      exp: iat + (opts.ttlSec ?? 365 * 24 * 3600),
-    },
-    secret,
-  );
-}
-
-export function verifyRunToken(
-  token: string,
-  secret: string,
-  now?: number,
-): RunClaims {
-  const p = verify(token, secret);
-  if (p.typ !== 'run') throw new SessionError('wrong token type');
-  if (typeof p.exp !== 'number' || p.exp < nowSec(now))
-    throw new SessionError('run token expired');
-  if (
-    typeof p.sub !== 'string' ||
-    typeof p.agent !== 'string' ||
-    typeof p.rt !== 'string' ||
-    !ID_RE.test(p.agent)
-  )
-    throw new SessionError('malformed run token');
-  return { subject: p.sub, agentId: p.agent, runtimeId: p.rt };
 }
