@@ -73,7 +73,7 @@ function Heading({
             <Text size="sm" role="secondary">on</Text>
             <a
               className="hint-link"
-              href={routeHash({ kind: 'agent', project, id: agent.id })}
+              href={routeHash({ kind: 'home', project })}
               onClick={(e) => {
                 if (opensElsewhere(e)) return;
                 e.preventDefault();
@@ -104,7 +104,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
           ) : (
             <BackLink
               label={agent.name}
-              href={routeHash({ kind: 'agent', project, id: agent.id })}
+              href={routeHash({ kind: 'home', project })}
               onPress={() => {
                 onOpenAgent(agent.id);
               }}

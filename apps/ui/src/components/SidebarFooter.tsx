@@ -1,21 +1,16 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Icon } from '@stage-labs/kit/react-native/icon';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AgentAvatar } from './AgentAvatar';
 import { Dropdown } from './Dropdown';
 import { NAV_GAP, NAV_ICON_SIZE, NAV_ROW_BOX, NavRow } from './NavRow';
 import { Text } from './ui';
 import { SHRINK } from '../theme';
-import { ProjectSwitcher } from './ProjectSwitcher';
 import { type Selection } from './selection';
 import { shortAddress } from '../api/address';
-import { daemonHost, storedDaemon } from '../auth/daemon';
-
-const goToConnect = (): void => {
-  window.location.hash = '#/connect';
-};
 
 interface SidebarFooterProps {
-  token: string;
   project: string;
   subject: string;
   selection: Selection;
@@ -23,30 +18,17 @@ interface SidebarFooterProps {
   onLock: () => void;
 }
 
-export function SidebarFooter({
-  token,
-  project,
-  subject,
-  selection,
-  onSelect,
-  onLock,
-}: SidebarFooterProps): ReactNode {
-  const daemon = storedDaemon();
+export function SidebarFooter({ project, subject, selection, onSelect, onLock }: SidebarFooterProps): ReactNode {
+  const palette = useKitPalette();
   return (
     <Col gap={NAV_GAP} padding={{ x: 24, bottom: 24, top: 16 }}>
-      <NavRow
-        label="Documentation"
-        icon="bookOpen"
-        selected={selection.kind === 'docs'}
-        target={{ kind: 'docs' }}
-        onSelect={onSelect}
-      />
-      <ProjectSwitcher token={token} project={project} onSelect={onSelect} />
-      {daemon === null ? null : (
-        <Text size="sm" role="secondary" numberOfLines={1}>
-          via {daemonHost(daemon)}
+      <NavRow label="Documentation" icon="bookOpen" selected={selection.kind === 'docs'} target={{ kind: 'docs' }} onSelect={onSelect} />
+      <Row {...NAV_ROW_BOX}>
+        <Icon name="cog" size={NAV_ICON_SIZE} color={palette.sub} />
+        <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>
+          {project}
         </Text>
-      )}
+      </Row>
       <Dropdown
         className="account-trigger"
         label="Account menu"
@@ -58,7 +40,6 @@ export function SidebarFooter({
               onSelect({ kind: 'settings' });
             },
           },
-          { label: 'Switch daemon', onSelect: goToConnect },
           { label: 'Log out', danger: true, onSelect: onLock },
         ]}
       >

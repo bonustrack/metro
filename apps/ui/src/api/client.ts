@@ -44,6 +44,7 @@ export interface CreatedAgent {
   command: string;
 }
 
+export const LOCAL_PROJECT = 'localdaemon';
 const agentsUrl = (): string => `${daemonBase()}/api/agents`;
 const sessionUrl = (): string => `${daemonBase()}/api/session`;
 
@@ -143,27 +144,30 @@ export async function fetchSession(token: string): Promise<string> {
   return body.subject;
 }
 
-export async function fetchAgents(
+export async function fetchAgentsAt(
   token: string,
   project: string,
-  daemon?: string,
+  daemon: string,
 ): Promise<AgentsView> {
   const body = await call(token, {
     method: 'GET',
     path: `?project=${project}`,
-    ...(daemon === undefined ? {} : { base: `${daemon}/api/agents` }),
+    base: `${daemon}/api/agents`,
   });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   return toAgentsView(body);
 }
 
-export async function fetchStations(
-  token: string,
-  project: string,
-): Promise<StationsView> {
+export async function fetchAgents(token: string): Promise<AgentsView> {
+  const body = await call(token, { method: 'GET', path: `?project=${LOCAL_PROJECT}` });
+  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
+  return toAgentsView(body);
+}
+
+export async function fetchStations(token: string): Promise<StationsView> {
   const body = await call(token, {
     method: 'GET',
-    path: `?accounts=1&project=${project}`,
+    path: `?accounts=1&project=${LOCAL_PROJECT}`,
   });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   const view = toAgentsView(body);
@@ -178,14 +182,10 @@ export async function fetchStations(
   };
 }
 
-export async function createAgent(
-  token: string,
-  project: string,
-  name: string,
-): Promise<CreatedAgent> {
+export async function createAgent(token: string, name: string): Promise<CreatedAgent> {
   const body = await call(token, {
     method: 'POST',
-    path: `?project=${project}`,
+    path: `?project=${LOCAL_PROJECT}`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name }),
   });
@@ -226,14 +226,6 @@ export async function importAgent(token: string, code: string): Promise<Imported
     name: body.name,
     stations: typeof body.stations === 'number' ? body.stations : 0,
   };
-}
-
-export async function deleteAgent(token: string, id: string): Promise<void> {
-  await call(token, { method: 'DELETE', path: `/${id}` });
-}
-
-export async function releaseRuntime(token: string, id: string): Promise<void> {
-  await call(token, { method: 'DELETE', path: `/${id}/runtime` });
 }
 
 export async function resetAgentKey(

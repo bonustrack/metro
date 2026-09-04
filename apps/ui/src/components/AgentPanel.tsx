@@ -1,16 +1,14 @@
 import { type ReactNode } from 'react';
-import { AgentPage } from './AgentPage';
-import { AgentsHome } from './AgentsHome';
 import { deleteConnector } from '../api/connectors';
 import { ConnectorPage } from './ConnectorPage';
 import { Connectors } from './Connectors';
 import { Docs } from './Docs';
-import { Members } from './Members';
-import { ProjectSettings } from './ProjectSettings';
+import { Home } from './Home';
+import { Memory } from './Memory';
+import { Sessions } from './Sessions';
 import { Settings } from './Settings';
 import { StationPage } from './StationPage';
-import { Sessions } from './Sessions';
-import { Memory } from './Memory';
+import { Stations } from './Stations';
 import { type Selection } from './selection';
 
 interface AgentPanelProps {
@@ -23,13 +21,9 @@ interface ScopedProps extends AgentPanelProps {
   project: string;
 }
 
+type Go = (next: Selection) => void;
 
-function connectorRoutes(
-  token: string,
-  project: string,
-  selection: Selection,
-  go: (next: Selection) => void,
-): ReactNode {
+function connectorRoutes(token: string, project: string, selection: Selection, go: Go): ReactNode {
   if (selection.kind === 'connectors')
     return (
       <Connectors
@@ -58,89 +52,44 @@ function connectorRoutes(
   return null;
 }
 
-function ScopedPanel({
-  token,
-  project,
-  selection,
-  onSelect,
-}: ScopedProps): ReactNode {
-  const go = (next: Selection): void => {
+function claudeRoutes(token: string, project: string, selection: Selection, go: Go): ReactNode {
+  if (selection.kind === 'sessions')
+    return <Sessions token={token} project={project} claudeProject={selection.claudeProject} id={selection.id} onSelect={go} />;
+  if (selection.kind === 'memory')
+    return <Memory token={token} project={project} claudeProject={selection.claudeProject} file={selection.file} onSelect={go} />;
+  return null;
+}
+
+function ScopedPanel({ token, project, selection, onSelect }: ScopedProps): ReactNode {
+  const go: Go = (next) => {
     onSelect(next);
   };
-  if (selection.kind === 'sessions')
+  const connector = connectorRoutes(token, project, selection, go);
+  if (connector !== null) return connector;
+  const claude = claudeRoutes(token, project, selection, go);
+  if (claude !== null) return claude;
+  if (selection.kind === 'stations')
     return (
-      <Sessions
+      <Stations
         token={token}
         project={project}
-        claudeProject={selection.claudeProject}
-        id={selection.id}
-        onSelect={go}
-      />
-    );
-  if (selection.kind === 'memory')
-    return (
-      <Memory
-        token={token}
-        project={project}
-        claudeProject={selection.claudeProject}
-        file={selection.file}
-        onSelect={go}
-      />
-    );
-  if (selection.kind === 'members')
-    return <Members token={token} project={project} />;
-  if (selection.kind === 'project')
-    return (
-      <ProjectSettings
-        token={token}
-        project={project}
-        onGone={() => {
-          go({ kind: 'none' });
+        onOpen={(accountId) => {
+          go({ kind: 'station', project, accountId });
         }}
       />
     );
-  const scoped = connectorRoutes(token, project, selection, go);
-  if (scoped !== null) return scoped;
   if (selection.kind === 'station')
     return (
       <StationPage
         token={token}
         project={project}
         accountId={selection.accountId}
-        onOpenAgent={(id) => {
-          go({ kind: 'agent', project, id });
+        onOpenAgent={() => {
+          go({ kind: 'home', project });
         }}
       />
     );
-  if (selection.kind === 'agent')
-    return (
-      <AgentPage
-        token={token}
-        project={project}
-        id={selection.id}
-        onOpenStation={(accountId) => {
-          go({ kind: 'station', project, accountId });
-        }}
-        onOpenConnector={(id) => {
-          go({ kind: 'connector', project, id });
-        }}
-        onGone={() => {
-          go({ kind: 'agents', project });
-        }}
-        onBack={() => {
-          go({ kind: 'agents', project });
-        }}
-      />
-    );
-  return (
-    <AgentsHome
-      token={token}
-      project={project}
-      onOpen={(id) => {
-        go({ kind: 'agent', project, id });
-      }}
-    />
-  );
+  return <Home token={token} project={project} onSelect={go} />;
 }
 
 export function AgentPanel(props: AgentPanelProps): ReactNode {

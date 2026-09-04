@@ -137,14 +137,15 @@ VITE_METRO_MCP_URL=http://localhost:8420 bun run dev   # http://localhost:5175
 Register `http://localhost:8420/auth/google/callback` as a redirect URI on the OAuth client
 for local sign-in; localhost `return_to` is allowed by default.
 
-### Any daemon, not just the built-in one
+### One daemon, in the address
 
-Open `#/connect` (or the `#/connect/<url>` link a `METRO_MODE=local` daemon prints at boot) and
-enter the daemon's address. Plain http is accepted for loopback only, so from another computer
-forward the port first (`ssh -L 8420:127.0.0.1:8420 <host>`); https addresses are accepted
-anywhere. The address and the session it signed in with are kept per daemon in localStorage, and
-`GET /api/mode` tells the pages which kind of daemon they are on, so a local one hides connectors,
-members and project settings, which it does not serve.
+The page manages one local daemon at a time, and that daemon is the first segment of every
+route: `#/127.0.0.1:8420`, `#/<words>.trycloudflare.com/connectors`. Loopback hosts are
+reached over http, everything else over https. Open the `#/connect/<url>` link a daemon prints
+at boot, or `#/connect` to type an address; `#/` goes back to the last daemon used. The session
+you sign in with is kept per daemon in localStorage. There is no hosted mode in the page: it
+shows one agent, its stations, its connectors, and the Claude Code sessions and memory on that
+machine.
 
 ## Build / deploy
 

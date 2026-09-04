@@ -5,6 +5,7 @@ import {
   openSync,
   readdirSync,
   readSync,
+  rmSync,
   statSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
@@ -271,6 +272,15 @@ export async function readTranscript(
     total += 1;
   }
   return { entries, total, next: offset + limit < total ? offset + limit : null };
+}
+
+export function deleteClaudeSession(project: string, session: string, dir = claudeDir()): void {
+  const root = projectDir(project, dir);
+  const id = safeName(session, SESSION_RE, 'session id');
+  const file = join(root, `${id}.jsonl`);
+  if (!existsSync(file)) throw new ApiError('no such session', 404);
+  rmSync(file);
+  rmSync(join(root, id), { recursive: true, force: true });
 }
 
 export interface MemoryFile {

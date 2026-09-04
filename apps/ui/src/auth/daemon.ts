@@ -45,6 +45,30 @@ export function parseDaemonUrl(raw: string): DaemonParse {
   return refused === null ? { base: url.origin } : { error: refused };
 }
 
+const HOST_SEGMENT = /^#\/([A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?)(?:\/|$)/;
+const RESERVED_SEGMENTS = new Set(['docs', 'settings', 'connect', 'login', 'authorize']);
+
+export function segmentOf(base: string): string {
+  try {
+    return new URL(base).host;
+  } catch {
+    return base;
+  }
+}
+
+export function baseFromSegment(segment: string): string {
+  const host = segment.replace(/:\d+$/, '');
+  return `${LOOPBACK.has(host) ? 'http' : 'https'}://${segment}`;
+}
+
+export function routedDaemon(hash?: string): string | null {
+  const current = hash ?? (typeof window === 'undefined' ? '' : window.location.hash);
+  const found = HOST_SEGMENT.exec(current);
+  const segment = found?.[1];
+  if (segment === undefined || RESERVED_SEGMENTS.has(segment)) return null;
+  return baseFromSegment(segment);
+}
+
 export function daemonHost(base: string): string {
   try {
     return new URL(base).host;

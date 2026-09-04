@@ -105,7 +105,7 @@ export function ConnectorPage({
 
   const reload = (): void => {
     setStatus(null);
-    refreshConnectors(client, project, id);
+    refreshConnectors(client, id);
   };
 
   const recheck = (): void => {
@@ -115,7 +115,7 @@ export function ConnectorPage({
     verifyConnector(token, id)
       .then((result) => {
         setStatus(result.ok ? 'Answered just now.' : (result.reason ?? 'It did not answer.'));
-        refreshConnectors(client, project, id);
+        refreshConnectors(client, id);
       })
       .catch((err: unknown) => {
         setStatus(queryError(err, 'Could not check the connector.'));
@@ -141,7 +141,6 @@ export function ConnectorPage({
           />
           <ConnectorActions
             token={token}
-            project={project}
             connector={data}
             refreshing={busy}
             onRefresh={recheck}

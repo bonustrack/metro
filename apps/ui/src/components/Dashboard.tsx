@@ -1,19 +1,10 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import {
-  applyRoute,
-  currentSelection,
-  routeHash,
-  subscribeRoute,
-} from '../route';
+import { applyRoute, currentSelection, routeHash, subscribeRoute } from '../route';
 import { AgentPanel } from './AgentPanel';
 import { AgentSidebar } from './AgentSidebar';
-import { BootLoading } from './BootLoading';
 import { Shell } from './Shell';
 import { selectionProject, type Selection } from './selection';
-import { Authorize } from './Authorize';
-import { rememberedProject } from '../api/projects';
-import { useProjectsQuery } from '../api/queries';
-import { storeProject } from '../auth/session';
+import { baseFromSegment, segmentOf, storeDaemon, storedDaemon } from '../auth/daemon';
 import { useIsNarrow } from '../media';
 
 interface FrameProps {
@@ -25,14 +16,7 @@ interface FrameProps {
   onLock: () => void;
 }
 
-function Frame({
-  token,
-  project,
-  subject,
-  selection,
-  onSelect,
-  onLock,
-}: FrameProps): ReactNode {
+function Frame({ token, project, subject, selection, onSelect, onLock }: FrameProps): ReactNode {
   const narrow = useIsNarrow();
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -50,7 +34,6 @@ function Frame({
       }}
       sidebar={
         <AgentSidebar
-          token={token}
           project={project}
           selection={selection}
           subject={subject}
@@ -73,9 +56,13 @@ interface DashboardProps {
   onLock: () => void;
 }
 
+function lastDaemonSegment(): string | null {
+  const stored = storedDaemon();
+  return stored === null ? null : segmentOf(stored);
+}
+
 export function Dashboard({ token, subject, onLock }: DashboardProps): ReactNode {
   const [selection, setSelection] = useState<Selection>(currentSelection);
-  const { data } = useProjectsQuery(token);
   const hash = routeHash(selection);
 
   useEffect(() => subscribeRoute(setSelection), []);
@@ -89,27 +76,17 @@ export function Dashboard({ token, subject, onLock }: DashboardProps): ReactNode
   };
 
   const routed = selectionProject(selection);
-  const project = routed ?? rememberedProject(data);
+  const project = routed ?? lastDaemonSegment();
 
   useEffect(() => {
-    if (project !== null && selection.kind === 'none')
-      onSelect({ kind: 'agents', project });
-  }, [project, selection.kind]);
-  useEffect(() => {
-    if (routed !== null) storeProject(routed);
+    if (routed !== null) storeDaemon(baseFromSegment(routed));
   }, [routed]);
+  useEffect(() => {
+    if (selection.kind !== 'none') return;
+    if (project === null) window.location.hash = '#/connect';
+    else onSelect({ kind: 'home', project });
+  }, [project, selection.kind]);
 
-  if (selection.kind === 'authorize')
-    return <Authorize token={token} id={selection.id} />;
-  if (project === null) return <BootLoading />;
-  return (
-    <Frame
-      token={token}
-      project={project}
-      subject={subject}
-      selection={selection}
-      onSelect={onSelect}
-      onLock={onLock}
-    />
-  );
+  if (project === null) return null;
+  return <Frame token={token} project={project} subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />;
 }

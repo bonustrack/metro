@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/daemon/claude-api.js';
@@ -125,6 +125,24 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect((await get(`/api/claude/sessions/00000000-0000-4000-8000-000000000000?project=${PROJECT}`)).status).toBe(404);
     expect((await get('/api/claude/sessions')).status).toBe(400);
     expect((await get('/api/claude/nope')).status).toBe(404);
+  });
+
+  test('a session can be deleted, with its sidecar directory, once', async () => {
+    mkdirSync(join(dir, 'projects', PROJECT, SESSION), { recursive: true });
+    writeFileSync(join(dir, 'projects', PROJECT, SESSION, 'tool-results.json'), '{}');
+    const del = (subject = OWNER): Promise<Response> =>
+      fetch(`${base}/api/claude/sessions/${SESSION}?project=${PROJECT}`, {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${signSession({ subject, agentIds: [] }, SECRET)}` },
+      });
+    expect((await del(STRANGER)).status).toBe(404);
+    const res = await del();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deleted: SESSION });
+    expect(existsSync(join(dir, 'projects', PROJECT, `${SESSION}.jsonl`))).toBe(false);
+    expect(existsSync(join(dir, 'projects', PROJECT, SESSION))).toBe(false);
+    expect((await del()).status).toBe(404);
+    expect((await fetch(`${base}/api/claude/projects`, { method: 'DELETE', headers: { authorization: `Bearer ${signSession({ subject: OWNER, agentIds: [] }, SECRET)}` } })).status).toBe(405);
   });
 
   test('a stranger gets 404s, no session gets 401, and only GET is served', async () => {
