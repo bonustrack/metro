@@ -53,7 +53,7 @@ export const funnelDriver = (port: number, bin = tailscaleBin()): TunnelDriver =
   command: bin,
   args: ['funnel', String(port)],
   urlIn: funnelUrlIn,
-  waitsForDns: false,
+  waitsForDns: true,
 });
 
 export const driverFor = (kind: TunnelKind, port: number): TunnelDriver =>

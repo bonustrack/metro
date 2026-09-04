@@ -70,7 +70,7 @@ describe('reading tailscale funnel', () => {
     expect(funnelDriver(8420, '/Applications/Tailscale.app/Contents/MacOS/Tailscale')).toMatchObject({
       command: '/Applications/Tailscale.app/Contents/MacOS/Tailscale',
       args: ['funnel', '8420'],
-      waitsForDns: false,
+      waitsForDns: true,
     });
     process.env.METRO_TAILSCALE_BIN = '/opt/bin/tailscale';
     expect(driverFor('tailscale', 8421).command).toBe('/opt/bin/tailscale');
@@ -81,7 +81,7 @@ describe('reading tailscale funnel', () => {
 });
 
 describe('a funnel, against a fake tailscale', () => {
-  test('the node address is announced at once, no DNS wait, and is the public base until it exits', async () => {
+  test('the node address is the public base at once but is announced only once public DNS knows it', async () => {
     fakeTailscale(`printf '%s\\n' '${FOREGROUND.replace(/'/g, '')}'\nexec sleep 30`);
     const onUrl = { resolve: (_u: string): void => undefined };
     const asked: string[] = [];
@@ -92,12 +92,12 @@ describe('a funnel, against a fake tailscale', () => {
       },
       (host) => {
         asked.push(host);
-        return Promise.resolve(false);
+        return Promise.resolve(true);
       },
     );
     const url = await untilUrl(tunnel, onUrl);
     expect(url).toBe('https://suzy.tail1234.ts.net');
-    expect(asked).toEqual([]);
+    expect(asked).toEqual(['suzy.tail1234.ts.net']);
     expect(currentTunnelUrl()).toBe(url);
     expect(publicBaseUrl()).toBe(url);
     tunnel.stop();
