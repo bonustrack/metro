@@ -20,6 +20,7 @@ import { shortAddress } from '../api/address';
 import { identityFrom, storeIdentity, type Identity } from '../auth/identity';
 import { ENCRYPTION_KEY_TYPED_DATA } from '../vault/crypto';
 import { daemonBase, daemonHost } from '../auth/daemon';
+import { daemonName } from '../auth/daemons';
 import { type WalletChoice } from '../auth/wallet-options';
 
 const CARD_WIDTH = 400;
@@ -113,6 +114,12 @@ interface LoginProps {
   onSignedIn: () => void;
 }
 
+function serverLabel(): string {
+  const target = daemonBase();
+  const name = daemonName(target);
+  return name === null ? daemonHost(target) : `${name} (${daemonHost(target)})`;
+}
+
 export function Login({ onSignedIn }: LoginProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
@@ -155,7 +162,7 @@ export function Login({ onSignedIn }: LoginProps): ReactNode {
         </Row>
         <Row justify="center">
           <Text size="sm" role="secondary">
-            to {daemonHost(daemonBase())} ·{' '}
+            to {serverLabel()} ·{' '}
             <a className="hint-link" href="#/connect">
               change
             </a>

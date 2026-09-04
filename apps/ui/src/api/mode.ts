@@ -34,7 +34,7 @@ export async function fetchMode(base = daemonBase()): Promise<ModeInfo> {
     res = await fetch(`${base}/api/mode`);
   } catch {
     throw new Error(
-      `No Metro daemon answered at ${daemonHost(base)}. Is it running, and is the port forwarded?`,
+      `No Metro daemon answered at ${daemonHost(base)}. Is it running, and can this browser reach it?`,
     );
   }
   const info = toMode(await res.json().catch(() => null));

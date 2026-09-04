@@ -14,10 +14,10 @@ import {
   builtInDaemon,
   daemonHost,
   parseDaemonUrl,
-  segmentOf,
   storeDaemon,
   storedDaemon,
 } from '../auth/daemon';
+import { goToDaemon, knownDaemons, rememberDaemon, type KnownDaemon } from '../auth/daemons';
 
 const CARD_WIDTH = 400;
 const HINT =
@@ -25,8 +25,48 @@ const HINT =
 
 function switchTo(base: string): void {
   storeDaemon(base);
-  window.location.hash = `#/${segmentOf(base)}`;
-  window.location.reload();
+  rememberDaemon(base);
+  goToDaemon(base);
+}
+
+function KnownServers({ servers, current }: { servers: KnownDaemon[]; current: string }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  if (servers.length === 0) return null;
+  return (
+    <Col gap={8}>
+      <Text size="sm" role="secondary">
+        Servers this browser knows
+      </Text>
+      {servers.map((server) => (
+        <Row key={server.base} justify="between" align="center" gap={12}>
+          <Col style={GROW}>
+            <Text size="md" numberOfLines={1}>
+              {server.name ?? daemonHost(server.base)}
+            </Text>
+            {server.name === null ? null : (
+              <Text size="sm" role="secondary" numberOfLines={1}>
+                {daemonHost(server.base)}
+              </Text>
+            )}
+          </Col>
+          {server.base === current ? (
+            <Text size="sm" role="secondary">
+              current
+            </Text>
+          ) : (
+            <Button
+              color="secondary"
+              dark={dark}
+              label="Open"
+              onPress={() => {
+                switchTo(server.base);
+              }}
+            />
+          )}
+        </Row>
+      ))}
+    </Col>
+  );
 }
 
 export function Connect(): ReactNode {
@@ -111,6 +151,7 @@ export function Connect(): ReactNode {
             ? 'This page is not connected to a daemon yet.'
             : `This page currently talks to ${daemonHost(current)}.`}
         </Text>
+        <KnownServers servers={knownDaemons()} current={current} />
       </Col>
     </Row>
   );

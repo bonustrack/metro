@@ -5,6 +5,7 @@ import { AgentSidebar } from './AgentSidebar';
 import { Shell } from './Shell';
 import { selectionProject, type Selection } from './selection';
 import { baseFromSegment, segmentOf, storeDaemon, storedDaemon } from '../auth/daemon';
+import { rememberDaemon } from '../auth/daemons';
 import { useIsNarrow } from '../media';
 
 interface FrameProps {
@@ -77,7 +78,9 @@ export function Dashboard({ subject, onLock }: DashboardProps): ReactNode {
   const project = routed ?? lastDaemonSegment();
 
   useEffect(() => {
-    if (routed !== null) storeDaemon(baseFromSegment(routed));
+    if (routed === null) return;
+    storeDaemon(baseFromSegment(routed));
+    rememberDaemon(baseFromSegment(routed));
   }, [routed]);
   useEffect(() => {
     if (selection.kind !== 'none') return;
