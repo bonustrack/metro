@@ -6,6 +6,7 @@ import { currentVersion } from './version.js';
 import { serveLockedBy, serveStateDir } from './control.js';
 import { findBun, localPort, SERVER_ENTRY, spawnPlan, type DaemonPlan } from './runtime.js';
 import { prepareRuntime, type PreparedRuntime } from './runtime-install.js';
+import { ensureNodeName } from './node-name.js';
 
 const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
@@ -152,8 +153,9 @@ export function serve(argv: string[]): Promise<number> {
     );
   requireOwner(owner);
   const tailscaleBin = findTailscale();
+  const node = ensureNodeName(tailscaleBin);
   process.stderr.write(
-    `Starting a metro daemon of your own on http://127.0.0.1:${String(port)}\n`,
+    `Starting a metro daemon of your own on http://127.0.0.1:${String(port)}, published as ${node} on your tailnet\n`,
   );
   return spawnPlan(() =>
     servePlan({ runtime: prepareRuntime(), port, owner, tailscaleBin }),
