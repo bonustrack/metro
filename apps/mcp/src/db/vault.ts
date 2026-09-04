@@ -3,7 +3,7 @@ import { ApiError } from '../daemon/api-error.js';
 import { isRecord } from '../daemon/is-record.js';
 import { getDb } from './client.js';
 import { AGENT_NAME_RE, parseId } from './ids.js';
-import { vault } from './schema.js';
+import { vaults } from './schema.js';
 import { STATIONS } from './stations.js';
 import { normalizeAddress } from './address.js';
 
@@ -66,10 +66,10 @@ const entryOf = (row: { id: string; name: string; stations: unknown; syncedAt: s
 export async function listVaultForOwner(subject: string): Promise<VaultEntry[]> {
   const owner = ownerOf(subject);
   const rows = await getDb()
-    .select({ id: vault.id, name: vault.name, stations: vault.stations, syncedAt: vault.syncedAt })
-    .from(vault)
-    .where(eq(vault.owner, owner))
-    .orderBy(asc(vault.name));
+    .select({ id: vaults.id, name: vaults.name, stations: vaults.stations, syncedAt: vaults.syncedAt })
+    .from(vaults)
+    .where(eq(vaults.owner, owner))
+    .orderBy(asc(vaults.name));
   return rows.map(entryOf);
 }
 
@@ -78,19 +78,19 @@ export async function putVaultForOwner(subject: string, id: string, body: unknow
   const syncedAt = new Date().toISOString();
   const values = { id, owner: input.owner, name: input.name, stations: input.stations, envelope: input.envelope, syncedAt };
   const db = getDb();
-  const held = await db.select({ owner: vault.owner }).from(vault).where(eq(vault.id, id));
+  const held = await db.select({ owner: vaults.owner }).from(vaults).where(eq(vaults.id, id));
   if (held[0] !== undefined && held[0].owner !== input.owner) throw missing();
   await db
-    .insert(vault)
+    .insert(vaults)
     .values(values)
-    .onConflictDoUpdate({ target: vault.id, set: { name: input.name, stations: input.stations, envelope: input.envelope, syncedAt } });
+    .onConflictDoUpdate({ target: vaults.id, set: { name: input.name, stations: input.stations, envelope: input.envelope, syncedAt } });
   return entryOf(values);
 }
 
 export async function getVaultForOwner(subject: string, id: string): Promise<VaultBundle> {
   const owner = ownerOf(subject);
   if (parseId(id) === null) throw missing();
-  const rows = await getDb().select().from(vault).where(and(eq(vault.id, id), eq(vault.owner, owner)));
+  const rows = await getDb().select().from(vaults).where(and(eq(vaults.id, id), eq(vaults.owner, owner)));
   const row = rows[0];
   if (row === undefined) throw missing();
   return { ...entryOf(row), envelope: isRecord(row.envelope) ? row.envelope : {} };
@@ -100,9 +100,9 @@ export async function deleteVaultForOwner(subject: string, id: string): Promise<
   const owner = ownerOf(subject);
   if (parseId(id) === null) throw missing();
   const gone = await getDb()
-    .delete(vault)
-    .where(and(eq(vault.id, id), eq(vault.owner, owner)))
-    .returning({ id: vault.id, name: vault.name });
+    .delete(vaults)
+    .where(and(eq(vaults.id, id), eq(vaults.owner, owner)))
+    .returning({ id: vaults.id, name: vaults.name });
   const row = gone[0];
   if (row === undefined) throw missing();
   return row;
