@@ -5,7 +5,7 @@ import { ApiError } from './api-error.js';
 import { isRecord } from './is-record.js';
 import { parseId } from '../db/ids.js';
 import type { LoadedAccount, LoadedAgent, LoadedConnector } from '../db/materialize.js';
-import { STATIONS } from '../db/schema.js';
+import { STATIONS } from '../db/stations.js';
 
 const AGENTS = '/api/agents';
 const RESTORE_PATH = `${AGENTS}/restore`;

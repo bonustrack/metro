@@ -109,6 +109,8 @@ overrides), all `0600`:
   `config` holding the auth header or the OAuth tokens.
 - **`.owner`** — the one wallet allowed to sign in, written by `metro serve --owner`.
 - **`.session-secret`** — minted on first boot; sessions survive restarts.
+- **`~/.metro/runtime`** — metro's code plus the SDKs of the channels this agent has, installed
+  by `metro serve` with `bun`; the npm package itself ships none of them.
 
 Per-channel `config` (connection secrets + optional `owner`):
 
@@ -259,7 +261,9 @@ address changes on every start, Cloudflare terminates TLS and promises no uptime
 tunnels. The daemon only ever lets one wallet in, the one named with `--owner <address>` (asked
 for once and remembered in `~/.metro/agents/.owner`); until an owner is set, every sign-in is
 refused. It needs [Bun](https://bun.sh) on PATH and covers every messenger channel: XMTP,
-Telegram, Telegram user accounts, Discord and WhatsApp. Metro's servers run no channel and see
+Telegram, Telegram user accounts, Discord and WhatsApp. The npm package carries only metro's own
+code: the first `metro serve` installs, into `~/.metro/runtime`, the SDKs of the channels the
+agent actually has, and an update that changes no SDK downloads under a megabyte. Metro's servers run no channel and see
 no message; there is no fallback if your machine is down, which is the point.
 
 ### Sync with Metro and Restore

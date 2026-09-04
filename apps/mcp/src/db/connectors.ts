@@ -1,6 +1,6 @@
 import type { ConnectorAuth, VerifiedRecord } from '../daemon/connector-verify.js';
 import { readConfig, signInState, type ConnectorSignIn } from './connector-config.js';
-import type { ConnectorTransport } from './schema.js';
+import type { ConnectorTransport } from './stations.js';
 
 export interface Connector {
   id: string;

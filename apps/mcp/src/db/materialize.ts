@@ -18,7 +18,7 @@ import {
   type AllowlistMap,
 } from './agent-map.js';
 import { setKeyMap } from './key-map.js';
-import { STATIONS, type StationName } from './schema.js';
+import { STATIONS, type StationName } from './stations.js';
 
 interface StationTarget {
   file: string;

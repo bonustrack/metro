@@ -328,7 +328,7 @@ function handleSignInRoutes(
   res: ServerResponse,
   apis: SessionApis,
 ): boolean {
-  if (handleSiweAuthRequest(req, res, apis.siwe)) return true;
+  if (apis.siwe !== undefined && handleSiweAuthRequest(req, res, apis.siwe)) return true;
   return apis.mode !== undefined && handleModeRequest(req, res, apis.mode);
 }
 

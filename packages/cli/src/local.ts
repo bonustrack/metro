@@ -35,6 +35,27 @@ export function localAgents(dir = agentsDir()): LocalAgent[] {
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export function localStations(dir = agentsDir()): string[] {
+  if (!existsSync(dir)) return [];
+  const out = new Set<string>();
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const path = join(dir, entry.name, 'agent.json');
+    if (!existsSync(path)) continue;
+    try {
+      const file = JSON.parse(readFileSync(path, 'utf8')) as { stations?: unknown };
+      if (!Array.isArray(file.stations)) continue;
+      for (const s of file.stations) {
+        const station = (s as { station?: unknown }).station;
+        if (typeof station === 'string') out.add(station);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return [...out].sort();
+}
+
 export function pickLocalAgent(agents: LocalAgent[], wanted?: string): LocalAgent {
   if (wanted !== undefined && wanted !== '') {
     const found = agents.find((a) => a.name === wanted || a.id === wanted);

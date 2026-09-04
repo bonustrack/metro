@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { AGENT_NAME_RE, ID_RE } from './ids.js';
-import { STATIONS, type StationName } from './schema.js';
+import { STATIONS, type StationName } from './stations.js';
 import type { LoadedAccount, LoadedAgent, StationSource } from './materialize.js';
 import { isRecord } from '../daemon/is-record.js';
 

@@ -1,15 +1,8 @@
 import { index, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
 
-export const STATIONS = [
-  'xmtp',
-  'telegram-bot',
-  'telegram',
-  'discord-bot',
-  'whatsapp',
-  'webhook',
-] as const;
+import { STATIONS, type ConnectorTransport, type StationName } from './stations.js';
 
-export type StationName = (typeof STATIONS)[number];
+export { STATIONS, type ConnectorTransport, type StationName };
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -19,7 +12,6 @@ export const users = pgTable('users', {
 
 export type ProjectRole = 'admin' | 'member';
 
-export type ConnectorTransport = 'http' | 'sse';
 
 export const vault = pgTable(
   'vault',

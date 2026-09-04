@@ -3,29 +3,19 @@ import { ApiError } from '../daemon/api-error.js';
 import { isRecord } from '../daemon/is-record.js';
 import { getDb } from './client.js';
 import { AGENT_NAME_RE, parseId } from './ids.js';
-import { STATIONS, vault } from './schema.js';
-import { normalizeAddress } from './users.js';
+import { vault } from './schema.js';
+import { STATIONS } from './stations.js';
+import { normalizeAddress } from './address.js';
 
 export class VaultError extends ApiError {}
 
-export interface VaultEntry {
-  id: string;
-  name: string;
-  stations: string[];
-  syncedAt: string;
-}
-
-export interface VaultBundle extends VaultEntry {
-  envelope: Record<string, unknown>;
-}
+import { ENVELOPE_MAX, type VaultBundle, type VaultEntry } from '../daemon/vault-types.js';
 
 export interface VaultInput {
   name: string;
   stations: string[];
   envelope: Record<string, unknown>;
 }
-
-export const ENVELOPE_MAX = 2 * 1024 * 1024;
 const STATION_NAMES = new Set<string>(STATIONS);
 
 const missing = (): VaultError => new VaultError('no such bundle', 404);

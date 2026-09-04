@@ -1,4 +1,4 @@
-import { STATIONS, type StationName } from './schema.js';
+import { STATIONS, type StationName } from './stations.js';
 
 const ACCOUNT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
