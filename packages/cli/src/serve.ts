@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { agentsDir } from './local.js';
 import { serveLockedBy, serveStateDir } from './control.js';
 import {
   findBun,
@@ -12,17 +14,21 @@ import {
 
 const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
-const USAGE = 'usage: metro serve [--port <n>] [--tunnel]';
+const OWNER_FLAG = /^--owner=(.*)$/;
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const USAGE = 'usage: metro serve [--port <n>] [--tunnel] [--owner <address>]';
 
 interface ServeOptions {
   dir: string;
   port: number;
   tunnel: boolean;
+  owner: string | null;
 }
 
 interface ServeArgs {
   port: number;
   tunnel: boolean;
+  owner: string | null;
 }
 
 function portOf(raw: string | undefined): number {
@@ -32,13 +38,30 @@ function portOf(raw: string | undefined): number {
   return n;
 }
 
+function ownerOf(raw: string | undefined): string {
+  if (raw === undefined || !ADDRESS.test(raw))
+    throw new Error(`'${raw ?? ''}' is not an Ethereum address — ${USAGE}`);
+  return raw.toLowerCase();
+}
+
 export function parseServeArgs(argv: string[]): ServeArgs {
   let port = localPort();
   let tunnel = false;
+  let owner: string | null = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? '';
     if (arg === '--tunnel') {
       tunnel = true;
+      continue;
+    }
+    const inlineOwner = OWNER_FLAG.exec(arg);
+    if (inlineOwner) {
+      owner = ownerOf(inlineOwner[1]);
+      continue;
+    }
+    if (arg === '--owner') {
+      owner = ownerOf(argv[i + 1]);
+      i += 1;
       continue;
     }
     const inline = PORT_FLAG.exec(arg);
@@ -53,7 +76,17 @@ export function parseServeArgs(argv: string[]): ServeArgs {
     }
     throw new Error(`unknown argument '${arg}' — ${USAGE}`);
   }
-  return { port, tunnel };
+  return { port, tunnel, owner };
+}
+
+export function requireOwner(owner: string | null, dir = agentsDir()): void {
+  if (owner !== null || existsSync(join(dir, '.owner'))) return;
+  throw new Error(
+    'no owner is set for this machine, so no wallet could sign in.\n' +
+      'Pass the wallet that owns it once; it is remembered in ' +
+      join(dir, '.owner') +
+      ':\n  metro serve --owner <address>',
+  );
 }
 
 function findCloudflared(): void {
@@ -87,20 +120,22 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
       METRO_TRAINS_DIR: join(opts.dir, 'trains'),
       METRO_STATE_DIR: process.env.METRO_STATE_DIR ?? serveStateDir(),
       ...(opts.tunnel ? { METRO_TUNNEL: 'quick' } : {}),
+      ...(opts.owner === null ? {} : { METRO_OWNER: opts.owner }),
     },
   };
 }
 
 export function serve(argv: string[]): Promise<number> {
-  const { port, tunnel } = parseServeArgs(argv);
+  const { port, tunnel, owner } = parseServeArgs(argv);
   const running = serveLockedBy();
   if (running !== null)
     throw new Error(
       `a metro serve daemon is already running on this machine (pid ${String(running)}). ` +
         'Stop it first: metro stop',
     );
+  requireOwner(owner);
   if (tunnel) findCloudflared();
-  const plan = servePlan({ dir: runtimeDir(), port, tunnel });
+  const plan = servePlan({ dir: runtimeDir(), port, tunnel, owner });
   process.stderr.write(
     `Starting a metro daemon of your own on http://127.0.0.1:${String(port)}\n`,
   );

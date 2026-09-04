@@ -9,7 +9,7 @@ import { handleSessionApis, type SessionApis } from '../src/daemon/session-apis.
 import { localSessionApis } from '../src/daemon/local-mode.js';
 import { ensureLocalSessionSecret } from '../src/daemon/local-secret.js';
 import { signSession } from '../src/daemon/session.js';
-import { claimLocalOwner } from '../src/db/file-admin.js';
+import { setLocalOwner } from '../src/db/file-admin.js';
 import { agentIdForKey, setKeyMap } from '../src/db/key-map.js';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
@@ -91,7 +91,7 @@ beforeAll(async () => {
   delete process.env.METRO_SESSION_SECRET;
   secret = ensureLocalSessionSecret(dir);
   setKeyMap([]);
-  await claimLocalOwner(OWNER, dir);
+  setLocalOwner(OWNER, dir);
   metro = fakeMetro();
   process.env.METRO_URL = await listen(metro);
   const apis: SessionApis = localSessionApis({

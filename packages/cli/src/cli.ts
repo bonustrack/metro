@@ -37,7 +37,7 @@ const USAGE = `metro — the command line for your MCP connectors
 
   metro start <agent-id> [--detach]
                   run that agent's stations on this machine
-  metro serve [--port <n>] [--tunnel]
+  metro serve [--port <n>] [--tunnel] [--owner <address>]
                   run a daemon of your own: its agents and stations live in ~/.metro/agents
                   here, and metro.box manages it through the link it prints; --tunnel adds
                   a public https address through a Cloudflare quick tunnel (needs

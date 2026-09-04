@@ -9,7 +9,7 @@ import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { localSessionApis } from '../src/daemon/local-mode.ts';
 import { ensureLocalSessionSecret } from '../src/daemon/local-secret.ts';
 import { signSession } from '../src/daemon/session.ts';
-import { claimLocalOwner, localCreateAgent, LOCAL_PROJECT_ID } from '../src/db/file-admin.ts';
+import { setLocalOwner, localCreateAgent, LOCAL_PROJECT_ID } from '../src/db/file-admin.ts';
 import { setKeyMap } from '../src/db/key-map.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
@@ -67,7 +67,7 @@ beforeAll(async () => {
   delete process.env.METRO_PUBLIC_URL;
   secret = ensureLocalSessionSecret(dir);
   setKeyMap([]);
-  await claimLocalOwner(OWNER, dir);
+  setLocalOwner(OWNER, dir);
   tony = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'Tony', dir);
   suzy = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'Suzy', dir);
   vendor = createServer((req, res) => {

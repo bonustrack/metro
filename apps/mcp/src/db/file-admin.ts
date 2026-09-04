@@ -1,12 +1,4 @@
-import {
-  closeSync,
-  existsSync,
-  openSync,
-  readFileSync,
-  rmdirSync,
-  rmSync,
-  writeSync,
-} from 'node:fs';
+import { existsSync, readFileSync, rmdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { ApiError } from '../daemon/api-error.js';
 import { ensureSecureDir, writeSecure } from '../daemon/secure-fs.js';
@@ -54,31 +46,23 @@ export function localOwner(dir = agentsDir()): string | null {
   }
 }
 
-function writeOwnerOnce(path: string, address: string): boolean {
-  let fd: number;
-  try {
-    fd = openSync(path, 'wx', 0o600);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'EEXIST') return false;
-    throw err;
-  }
-  writeSync(fd, `${address}\n`);
-  closeSync(fd);
-  return true;
+export function setLocalOwner(raw: string, dir = agentsDir()): string {
+  const address = normalizeAddress(raw);
+  if (address === null) throw new ApiError(`'${raw}' is not an Ethereum address`, 400);
+  ensureSecureDir(dir);
+  writeSecure(join(dir, OWNER_FILE), `${address}\n`);
+  return address;
 }
 
-export function claimLocalOwner(raw: string, dir = agentsDir()): Promise<string> {
-  const address = normalizeAddress(raw);
-  if (address === null)
-    return Promise.reject(new ApiError('an Ethereum address is required', 400));
-  ensureSecureDir(dir);
-  if (writeOwnerOnce(join(dir, OWNER_FILE), address))
-    return Promise.resolve(address);
-  if (localOwner(dir) !== address)
+export function ownerSignIn(raw: string, dir = agentsDir()): Promise<string> {
+  const owner = localOwner(dir);
+  if (owner === null)
     return Promise.reject(
-      new ApiError('this machine belongs to another wallet', 403),
+      new ApiError('this machine has no owner yet: start it with metro serve --owner <address>', 403),
     );
-  return Promise.resolve(address);
+  if (owner !== normalizeAddress(raw))
+    return Promise.reject(new ApiError('this machine belongs to another wallet', 403));
+  return Promise.resolve(owner);
 }
 
 function isOwner(subject: string, dir: string): boolean {

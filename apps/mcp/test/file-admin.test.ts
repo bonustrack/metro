@@ -3,7 +3,6 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  claimLocalOwner,
   LOCAL_PROJECT_ID,
   localAttachAccount,
   localCreateAgent,
@@ -13,6 +12,8 @@ import {
   localListAgents,
   localOwner,
   localResetAgentKey,
+  ownerSignIn,
+  setLocalOwner,
 } from '../src/db/file-admin.ts';
 import { agentIdForKey, setKeyMap } from '../src/db/key-map.ts';
 import { ApiError } from '../src/daemon/api-error.ts';
@@ -24,7 +25,7 @@ let dir = '';
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-admin-'));
   setKeyMap([]);
-  await claimLocalOwner(OWNER.toUpperCase().replace('0X', '0x'), dir);
+  setLocalOwner(OWNER.toUpperCase().replace('0X', '0x'), dir);
 });
 
 afterEach(() => {
@@ -41,22 +42,21 @@ const stored = (name: string): { key: string; owner: string; stations: { id: str
   JSON.parse(readFileSync(join(dir, name, 'agent.json'), 'utf8')) as never;
 
 describe('who owns a local daemon', () => {
-  test('the first wallet claims it, lowercased, and only that wallet may claim again', async () => {
+  test('the operator sets the owner, lowercased, 0600, and may change it', () => {
     expect(localOwner(dir)).toBe(OWNER);
-    expect(await claimLocalOwner(OWNER, dir)).toBe(OWNER);
-    expect(await status(claimLocalOwner(OTHER, dir))).toBe(403);
-    expect(await status(claimLocalOwner('nope', dir))).toBe(400);
     expect((statSync(join(dir, '.owner')).mode & 0o777).toString(8)).toBe('600');
+    expect(() => setLocalOwner('nope', dir)).toThrow(/not an Ethereum address/);
+    expect(setLocalOwner(OTHER, dir)).toBe(OTHER);
+    expect(localOwner(dir)).toBe(OTHER);
+    setLocalOwner(OWNER, dir);
   });
 
-  test('two wallets racing for a fresh machine: exactly one wins, the first', async () => {
+  test('sign-in never claims: only the set owner passes, and nobody does on a machine without one', async () => {
+    expect(await ownerSignIn(OWNER.toUpperCase().replace('0X', '0x'), dir)).toBe(OWNER);
+    expect(await status(ownerSignIn(OTHER, dir))).toBe(403);
     const fresh = mkdtempSync(join(tmpdir(), 'metro-fresh-'));
-    const results = await Promise.allSettled([
-      claimLocalOwner(OWNER, fresh),
-      claimLocalOwner(OTHER, fresh),
-    ]);
-    expect(results.map((r) => r.status)).toEqual(['fulfilled', 'rejected']);
-    expect(localOwner(fresh)).toBe(OWNER);
+    expect(await status(ownerSignIn(OWNER, fresh))).toBe(403);
+    expect(localOwner(fresh)).toBeNull();
     rmSync(fresh, { recursive: true, force: true });
   });
 });

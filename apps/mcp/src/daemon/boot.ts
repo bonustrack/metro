@@ -33,6 +33,8 @@ import {
 import { loadAgentForRuntime, localAgentKey } from '../db/materialize.js';
 import { fileSource } from '../db/file-source.js';
 import { ensureLocalSessionSecret } from './local-secret.js';
+import { applyLocalOwner } from './local-owner.js';
+import { localOwner } from '../db/file-admin.js';
 import { localSessionApis } from './local-mode.js';
 import type { ModeInfo } from './mode-api.js';
 import type { SessionApis } from './session-apis.js';
@@ -124,7 +126,7 @@ let webhookServer: Server | null = null;
 const tunnel = quickTunnelWanted() ? new Tunnel(webhookPort(), announcePublic) : null;
 
 function announcePublic(url: string): void {
-  process.stderr.write(`\n${publicConnectHint(url)}`);
+  process.stderr.write(`\n${publicConnectHint(url, localOwner())}`);
 }
 
 setTrainCallBackend((train, action, args) =>
@@ -138,7 +140,7 @@ const localSource = linkedSource ?? (isLocalMode() ? fileSource : null);
 function announceLocalEndpoint(): void {
   if (isLocalMode())
     process.stderr.write(
-      `\n${tunnel === null ? localConnectHint(webhookPort()) : tunnelPendingHint()}`,
+      `\n${tunnel === null ? localConnectHint(webhookPort(), localOwner()) : tunnelPendingHint()}`,
     );
   const key = localAgentKey();
   if (key === null) {
@@ -303,7 +305,10 @@ function sessionApis(): SessionApis {
 }
 
 async function main(): Promise<void> {
-  if (isLocalMode()) ensureLocalSessionSecret();
+  if (isLocalMode()) {
+    ensureLocalSessionSecret();
+    applyLocalOwner();
+  }
   if (localSource === null) await materializeFromDb();
   else await materializeFrom(localSource, { allowEmpty: linkedSource === null });
   supervisor.start();
