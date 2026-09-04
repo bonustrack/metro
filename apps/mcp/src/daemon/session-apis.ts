@@ -18,12 +18,17 @@ import {
 } from './agent-connector-api.js';
 import type { SiweRouteDeps } from './siwe-routes.js';
 import { handleImportRequest, type ImportApiDeps } from './import-api.js';
+import {
+  handleLocalConnectorsRequest,
+  type LocalConnectorsDeps,
+} from './local-connectors-api.js';
 import type { ModeInfo } from './mode-api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
   agentConnectorApi?: AgentConnectorApiDeps;
   importApi?: ImportApiDeps;
+  localConnectors?: LocalConnectorsDeps;
   connectorApi?: ConnectorApiDeps;
   projectApi?: ProjectApiDeps;
   runApi?: RunApiDeps;
@@ -38,6 +43,7 @@ export function handleSessionApis(
   apis: SessionApis,
 ): boolean {
   const { agentApi, agentConnectorApi, connectorApi, projectApi, runApi, importApi } = apis;
+  const { localConnectors } = apis;
   const routes: (() => boolean)[] = [() => handleSessionApiRequest(req, res)];
   if (runApi) routes.push(() => handleRunApiRequest(req, res, runApi));
   if (projectApi)
@@ -48,6 +54,8 @@ export function handleSessionApis(
       () => handleConnectorApiRequest(req, res, connectorApi),
     );
   if (importApi) routes.push(() => handleImportRequest(req, res, importApi));
+  if (localConnectors)
+    routes.push(() => handleLocalConnectorsRequest(req, res, localConnectors));
   if (agentConnectorApi)
     routes.push(() => handleAgentConnectorRequest(req, res, agentConnectorApi));
   if (agentApi) routes.push(() => handleAgentApiRequest(req, res, agentApi));

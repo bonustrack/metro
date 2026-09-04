@@ -83,6 +83,7 @@ import {
   deleteConnectorForUser,
   disconnectConnectorForUser,
   connectorNamesByIds,
+  connectorSummariesByIds,
   getConnectorForUser,
   listConnectorsForUser,
   renameConnectorForUser,
@@ -276,6 +277,7 @@ const projectApi: ProjectApiDeps = {
 const connectorApi: ConnectorApiDeps = {
   listConnectors: listConnectorsForUser,
   connectorNamesByIds,
+  connectorSummariesByIds,
   agentConnectors: agentConnectorsForUser,
   fenceRuntime,
   renameConnector: renameConnectorForUser,

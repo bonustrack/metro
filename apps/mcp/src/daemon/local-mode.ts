@@ -10,6 +10,7 @@ import type { SessionApis } from './session-apis.js';
 import type { ModeInfo } from './mode-api.js';
 import type { ImportApiDeps } from './import-api.js';
 import { fetchAgentWithCode } from './agent-import.js';
+import { forgetHostedConnectors, hostedConnectorsFor, type HostedConnector } from './hosted-connectors.js';
 import {
   assertLocalOwner,
   claimLocalOwner,
@@ -93,7 +94,7 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     liveness: deps.liveness,
     releaseRuntime: () => notHere('runtime leases'),
     runtimes: () => Promise.resolve(new Map()),
-    connectorIds: () => Promise.resolve(new Map()),
+    connectorIds: connectorIdsOfLocalAgents,
     prepareAccount: deps.prepareAccount,
     attachAccount: localAttachAccount,
     detachAccount: localDetachAccount,
@@ -123,10 +124,25 @@ const projectApi: ProjectApiDeps = {
   removeMember: () => notHere('members'),
 };
 
+async function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>> {
+  const pairs = await Promise.all(
+    ids.map(async (id) => [id, (await hostedConnectorsFor(id)).map((c) => c.id)] as const),
+  );
+  return new Map(pairs);
+}
+
+async function connectorsOfOwner(subject: string): Promise<HostedConnector[]> {
+  const agents = await localListAgents(subject, LOCAL_PROJECT_ID).catch(() => []);
+  const lists = await Promise.all(agents.map((a) => hostedConnectorsFor(a.id)));
+  const seen = new Map<string, HostedConnector>();
+  for (const c of lists.flat()) seen.set(c.id, c);
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 const agentConnectorApi: AgentConnectorApiDeps = {
   agentConnectors: async (subject, id) => {
     const { agent } = await localOwnedAgentOrThrow(subject, id);
-    return { ...agent, connectorIds: [] };
+    return { ...agent, connectorIds: (await hostedConnectorsFor(id)).map((c) => c.id) };
   },
   addConnector: () => notHere('connectors'),
   removeConnector: () => notHere('connectors'),
@@ -141,6 +157,7 @@ function importApi(deps: LocalModeDeps): ImportApiDeps {
       assertLocalOwner(subject);
       const agent = await fetchAgent(code, hostname());
       const made = await localImportAgent(subject, agent);
+      forgetHostedConnectors();
       for (const station of new Set(agent.accounts.map((a) => a.station)))
         await deps.syncStations(station).catch((err: unknown) => {
           log.warn(
@@ -162,6 +179,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     agentApi: agentApi(deps),
     agentConnectorApi,
     importApi: importApi(deps),
+    localConnectors: { listConnectors: connectorsOfOwner },
     projectApi,
     siwe: { ensureUser: claimLocalOwner },
     mode: localModeInfo,

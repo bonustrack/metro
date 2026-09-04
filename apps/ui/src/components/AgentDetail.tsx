@@ -119,14 +119,13 @@ export function AgentDetail(props: AgentDetailProps): ReactNode {
           onDetach={agent.owned ? onDetach : undefined}
         />
       </Col>
-      {local ? null : (
-        <AgentConnectors
-          token={token}
-          project={props.project}
-          agent={agent}
-          onOpen={props.onOpenConnector}
-        />
-      )}
+      <AgentConnectors
+        token={token}
+        project={props.project}
+        agent={agent}
+        onOpen={props.onOpenConnector}
+        readOnly={local}
+      />
       {agent.owned ? (
         <ConnectStation
           token={token}

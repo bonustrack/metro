@@ -20,11 +20,13 @@ import type { ConnectorApiDeps } from './connector-api.js';
 const CLAIM_PATH = '/api/cli/claim';
 const MCP_PATH = '/api/cli/mcp';
 const SESSION_PATH = '/api/cli/session';
+const CONNECTORS_PATH = '/api/cli/connectors';
 
 const ALLOWED: Record<string, string> = {
   [CLAIM_PATH]: 'POST',
   [MCP_PATH]: 'GET',
   [SESSION_PATH]: 'GET',
+  [CONNECTORS_PATH]: 'GET',
 };
 
 function secretOrNull(): string | null {
@@ -91,6 +93,13 @@ async function handleRead(
       email: who.subject,
       subject: who.subject,
       agent: agent.name,
+    });
+    return;
+  }
+  if (path === CONNECTORS_PATH) {
+    sendJson(req, res, 200, {
+      agent: agent.name,
+      connectors: await deps.connectorSummariesByIds(agent.connectorIds),
     });
     return;
   }
