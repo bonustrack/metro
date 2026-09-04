@@ -3,9 +3,9 @@ import { ApiError } from '../daemon/api-error.js';
 import { getDb } from './client.js';
 import { newId } from './ids.js';
 import { users } from './schema.js';
+import { normalizeAddress } from './address.js';
 
 const UNIQUE_VIOLATION = '23505';
-const ADDRESS_RE = /^0x[0-9a-f]{40}$/;
 
 export class UserError extends ApiError {}
 
@@ -22,10 +22,6 @@ export function isUniqueViolation(err: unknown): boolean {
   return false;
 }
 
-export function normalizeAddress(raw: string): string | null {
-  const address = raw.trim().toLowerCase();
-  return ADDRESS_RE.test(address) ? address : null;
-}
 
 export async function ensureUserByAddress(raw: string): Promise<string> {
   const address = normalizeAddress(raw);

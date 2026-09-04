@@ -4,6 +4,13 @@ import { parseServeArgs, servePlan } from '../src/serve.ts';
 import { serveStateDir } from '../src/control.ts';
 import { SERVER_ENTRY } from '../src/runtime.ts';
 
+const RUNTIME = {
+  dir: '/opt/metro/runtime',
+  entry: join('/opt/metro/runtime', SERVER_ENTRY),
+  trains: join('/opt/metro/runtime', 'trains'),
+  manifest: null,
+};
+
 const KEYS = [
   'METRO_WEBHOOK_PORT',
   'METRO_RUN_TOKEN',
@@ -59,10 +66,10 @@ describe('the daemon a serve plan starts', () => {
     delete process.env.METRO_HTTP_HOST;
     delete process.env.METRO_STATE_DIR;
     process.env.XDG_CACHE_HOME = '/tmp/cache-home';
-    const plan = servePlan({ dir: '/opt/metro/runtime', port: 8421, tunnel: false, owner: null });
+    const plan = servePlan({ runtime: RUNTIME, port: 8421, tunnel: false, owner: null });
     expect(plan.env.METRO_TUNNEL).toBeUndefined();
     expect(plan.env.METRO_OWNER).toBeUndefined();
-    expect(servePlan({ dir: '/opt/metro/runtime', port: 8421, tunnel: true, owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7' }).env.METRO_OWNER).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
+    expect(servePlan({ runtime: RUNTIME, port: 8421, tunnel: true, owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7' }).env.METRO_OWNER).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
     expect(plan.args).toEqual([SERVER_ENTRY]);
     expect(plan.cwd).toBe('/opt/metro/runtime');
     expect(plan.env.METRO_MODE).toBe('local');
@@ -75,12 +82,23 @@ describe('the daemon a serve plan starts', () => {
     expect(plan.env.METRO_RUN_TOKEN).toBeUndefined();
     expect(plan.env.METRO_AGENT).toBeUndefined();
     expect(plan.env.DATABASE_URL).toBeUndefined();
+    expect(plan.env.METRO_RUNTIME_STORE).toBeUndefined();
+    expect(plan.env.METRO_RUNTIME_MANIFEST).toBeUndefined();
+  });
+
+  test('a runtime store names itself and its manifest to the daemon, so channels attached later install their SDK', () => {
+    const store = { dir: '/home/u/.metro/runtime', entry: '/home/u/.metro/runtime/x', trains: '/home/u/.metro/runtime/trains', manifest: '/opt/cli/runtime/stations.json' };
+    const plan = servePlan({ runtime: store, port: 8420, tunnel: false, owner: null });
+    expect(plan.cwd).toBe('/home/u/.metro/runtime');
+    expect(plan.env.METRO_TRAINS_DIR).toBe('/home/u/.metro/runtime/trains');
+    expect(plan.env.METRO_RUNTIME_STORE).toBe('/home/u/.metro/runtime');
+    expect(plan.env.METRO_RUNTIME_MANIFEST).toBe('/opt/cli/runtime/stations.json');
   });
 
   test('an explicit host or state dir is kept', () => {
     process.env.METRO_HTTP_HOST = '0.0.0.0';
     process.env.METRO_STATE_DIR = '/var/lib/metro';
-    const plan = servePlan({ dir: '/opt/metro/runtime', port: 8420, tunnel: true });
+    const plan = servePlan({ runtime: RUNTIME, port: 8420, tunnel: true, owner: null });
     expect(plan.env.METRO_TUNNEL).toBe('quick');
     expect(plan.env.METRO_HTTP_HOST).toBe('0.0.0.0');
     expect(plan.env.METRO_STATE_DIR).toBe('/var/lib/metro');

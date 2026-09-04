@@ -7,7 +7,7 @@ import { listEndpoints } from '../daemon/tunnel.js';
 import { hookUrl } from '../stations/attach.js';
 import { agentIdForAccount, knownAccounts, type KnownAccount } from '../db/agent-map.js';
 import { stationRunsHere } from '../db/materialize.js';
-import { type StationName } from '../db/schema.js';
+import { type StationName } from '../db/stations.js';
 
 const accountId = (acc: unknown): string | undefined => {
   const id = (acc as { id?: unknown }).id;

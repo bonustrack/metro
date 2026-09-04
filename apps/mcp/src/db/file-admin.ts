@@ -25,8 +25,8 @@ import {
 import { newId } from './ids.js';
 import { registerKey, rotateAgentKey, unregisterAgentKey } from './key-map.js';
 import { MOVABLE_STATIONS, type LoadedAgent } from './materialize.js';
-import type { StationName } from './schema.js';
-import { normalizeAddress } from './users.js';
+import type { StationName } from './stations.js';
+import { normalizeAddress } from './address.js';
 
 export const LOCAL_PROJECT_ID = 'localdaemon';
 const OWNER_FILE = '.owner';

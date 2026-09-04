@@ -3,7 +3,7 @@ import {
   agentIdForAccount,
   stationAgentIds,
 } from './agent-map.js';
-import { STATIONS } from './schema.js';
+import { STATIONS } from './stations.js';
 
 const ACCOUNT_STATIONS = new Set<string>(STATIONS);
 

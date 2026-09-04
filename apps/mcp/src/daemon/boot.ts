@@ -23,6 +23,7 @@ import { fileSource } from '../db/file-source.js';
 import { ensureLocalSessionSecret } from './local-secret.js';
 import { applyLocalOwner } from './local-owner.js';
 import { localOwner } from '../db/file-admin.js';
+import { ensureStationDeps } from './runtime-deps.js';
 import { localSessionApis } from './local-mode.js';
 import type { ModeInfo } from './mode-api.js';
 import type { SessionApis } from './session-apis.js';
@@ -39,13 +40,7 @@ import {
 } from '../stations/registry.js';
 import { prepareAccount } from '../stations/attach.js';
 import { materializeFrom, reloadFrom } from '../db/materialize.js';
-import {
-  deleteVaultForOwner,
-  getVaultForOwner,
-  listVaultForOwner,
-  putVaultForOwner,
-} from '../db/vault.js';
-import type { StationName } from '../db/schema.js';
+import type { StationName } from '../db/stations.js';
 import { startUploadReaper } from './upload-store.js';
 
 installCrashGuard();
@@ -96,7 +91,10 @@ async function syncStations(station: StationName): Promise<void> {
   const { removed } = await reloadFrom(fileSource);
   if (stationByName(station)?.hasTrain === false) return;
   if (removed.includes(station)) await supervisor.stopTrain(station);
-  else supervisor.requestReload(station);
+  else {
+    ensureStationDeps(station);
+    supervisor.requestReload(station);
+  }
 }
 
 const hostedMode = (): ModeInfo => ({
@@ -106,7 +104,7 @@ const hostedMode = (): ModeInfo => ({
   version: METRO_VERSION,
 });
 
-function sessionApis(): SessionApis {
+async function sessionApis(): Promise<SessionApis> {
   if (isLocalMode())
     return localSessionApis({
       syncStations,
@@ -120,13 +118,16 @@ function sessionApis(): SessionApis {
       liveness: agentLiveness,
       prepareAccount,
     });
+  const vault = await import('../db/vault.js');
+  const users = await import('../db/users.js');
   return {
     vaultApi: {
-      list: listVaultForOwner,
-      put: putVaultForOwner,
-      get: getVaultForOwner,
-      remove: deleteVaultForOwner,
+      list: vault.listVaultForOwner,
+      put: vault.putVaultForOwner,
+      get: vault.getVaultForOwner,
+      remove: vault.deleteVaultForOwner,
     },
+    siwe: { ensureUser: users.ensureUserByAddress },
     mode: hostedMode,
   };
 }
@@ -141,7 +142,7 @@ async function main(): Promise<void> {
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(
     emit,
-    sessionApis(),
+    await sessionApis(),
     metroMcp.httpHandler,
     metroCall,
   );

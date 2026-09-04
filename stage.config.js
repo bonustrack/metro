@@ -1,25 +1,3 @@
-const STAGED_RUNTIME_DEPENDENCIES = [
-  '@discordjs/voice',
-  '@modelcontextprotocol/sdk',
-  '@mtcute/bun',
-  '@xmtp/content-type-primitives',
-  '@xmtp/content-type-reaction',
-  '@xmtp/content-type-remote-attachment',
-  '@xmtp/content-type-reply',
-  '@xmtp/content-type-wallet-send-calls',
-  '@xmtp/node-bindings',
-  '@xmtp/node-sdk',
-  'baileys',
-  'discord.js',
-  'drizzle-orm',
-  'pino',
-  'pino-pretty',
-  'postgres',
-  'prism-media',
-  'viem',
-  'zod',
-];
-
 import { defineConfig } from '@stage-labs/config';
 
 export default defineConfig({
@@ -74,7 +52,6 @@ export default defineConfig({
         project: ['src/**/*.ts'],
         entry: ['scripts/*.mjs', 'test/**/*.ts'],
         ignoreBinaries: ['ps', 'claude', 'cloudflared'],
-        ignoreDependencies: STAGED_RUNTIME_DEPENDENCIES,
       },
     },
     'apps/mcp': {

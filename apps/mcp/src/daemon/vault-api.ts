@@ -2,9 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from './log.js';
 import { verifyMessage } from 'viem';
 import { apiFailure, cors, readJsonBody, sendJson } from './api-http.js';
-import { normalizeAddress } from '../db/users.js';
+import { normalizeAddress } from '../db/address.js';
 import { parseId } from '../db/ids.js';
-import { ENVELOPE_MAX, type VaultBundle, type VaultEntry } from '../db/vault.js';
+import { ENVELOPE_MAX, type VaultBundle, type VaultEntry } from './vault-types.js';
 
 const PREFIX = '/api/vault';
 const BODY_MAX = ENVELOPE_MAX + 64 * 1024;

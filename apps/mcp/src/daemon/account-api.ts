@@ -13,7 +13,7 @@ import {
   parseAccountId,
   type AccountRef,
 } from '../db/account-attach.js';
-import type { StationName } from '../db/schema.js';
+import type { StationName } from '../db/stations.js';
 import {
   ATTACHABLE_STATIONS,
   isAttachStation,

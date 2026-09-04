@@ -48,7 +48,7 @@ import {
   readLocalAgentFile,
 } from '../db/file-admin.js';
 import { listAgentFiles, readAgentFile } from '../db/file-source.js';
-import type { StationName } from '../db/schema.js';
+import type { StationName } from '../db/stations.js';
 
 export interface LocalModeDeps {
   syncStations: (station: StationName) => Promise<void>;

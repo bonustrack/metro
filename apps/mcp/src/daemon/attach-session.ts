@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
-import type { StationName } from '../db/schema.js';
+import type { StationName } from '../db/stations.js';
+import { ensureStationDeps } from './runtime-deps.js';
 import {
   startInteractiveAttach,
   type AttachDriver,
@@ -216,6 +217,7 @@ export class AttachSessions {
     };
     this.sessions.set(attachId, session);
     try {
+      ensureStationDeps(station);
       const started = await (this.deps.start ?? startInteractiveAttach)(
         station,
         input,

@@ -4,7 +4,8 @@ import type { AddressInfo } from 'node:net';
 import { privateKeyToAccount } from 'viem/accounts';
 import { handleVaultApiRequest, vaultChallenge, type VaultApiDeps } from '../src/daemon/vault-api.js';
 import { signSession } from '../src/daemon/session.js';
-import { VaultError, type VaultBundle } from '../src/db/vault.js';
+import { VaultError } from '../src/db/vault.js';
+import type { VaultBundle } from '../src/daemon/vault-types.js';
 
 const SECRET = 'a-test-session-secret';
 const OWNER_ACCOUNT = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');

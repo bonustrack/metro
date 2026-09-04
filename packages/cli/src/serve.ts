@@ -4,14 +4,8 @@ import { join } from 'node:path';
 import { agentsDir } from './local.js';
 import { currentVersion } from './version.js';
 import { serveLockedBy, serveStateDir } from './control.js';
-import {
-  findBun,
-  localPort,
-  runtimeDir,
-  SERVER_ENTRY,
-  spawnPlan,
-  type DaemonPlan,
-} from './runtime.js';
+import { findBun, localPort, SERVER_ENTRY, spawnPlan, type DaemonPlan } from './runtime.js';
+import { prepareRuntime, type PreparedRuntime } from './runtime-install.js';
 
 const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
@@ -20,7 +14,7 @@ const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const USAGE = 'usage: metro serve [--port <n>] [--tunnel] [--owner <address>]';
 
 interface ServeOptions {
-  dir: string;
+  runtime: PreparedRuntime;
   port: number;
   tunnel: boolean;
   owner: string | null;
@@ -112,7 +106,7 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
   return {
     command: findBun(),
     args: [SERVER_ENTRY],
-    cwd: opts.dir,
+    cwd: opts.runtime.dir,
     env: {
       ...env,
       METRO_MODE: 'local',
@@ -120,7 +114,10 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
       METRO_CLI_BIN: process.argv[1] ?? '',
       METRO_WEBHOOK_PORT: String(opts.port),
       METRO_HTTP_HOST: process.env.METRO_HTTP_HOST ?? '127.0.0.1',
-      METRO_TRAINS_DIR: join(opts.dir, 'trains'),
+      METRO_TRAINS_DIR: opts.runtime.trains,
+      ...(opts.runtime.manifest === null
+        ? {}
+        : { METRO_RUNTIME_STORE: opts.runtime.dir, METRO_RUNTIME_MANIFEST: opts.runtime.manifest }),
       METRO_STATE_DIR: process.env.METRO_STATE_DIR ?? serveStateDir(),
       ...(opts.tunnel ? { METRO_TUNNEL: 'quick' } : {}),
       ...(opts.owner === null ? {} : { METRO_OWNER: opts.owner }),
@@ -138,9 +135,8 @@ export function serve(argv: string[]): Promise<number> {
     );
   requireOwner(owner);
   if (tunnel) findCloudflared();
-  const dir = runtimeDir();
   process.stderr.write(
     `Starting a metro daemon of your own on http://127.0.0.1:${String(port)}\n`,
   );
-  return spawnPlan(() => servePlan({ dir, port, tunnel, owner }));
+  return spawnPlan(() => servePlan({ runtime: prepareRuntime(), port, tunnel, owner }));
 }

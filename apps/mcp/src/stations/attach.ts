@@ -8,6 +8,7 @@ import {
   verifyTelegramBotToken,
 } from '@metro-labs/telegram-bot/verify';
 import { ApiError } from '../daemon/api-error.js';
+import { ensureStationDeps } from '../daemon/runtime-deps.js';
 import { publicBaseOrDefault } from '../daemon/attach-serve.js';
 import {
   discardXmtpDb,
@@ -175,6 +176,7 @@ export async function prepareAccount(
   input: AttachInput,
   verify: VerifyXmtpKey = verifyXmtpKeyOutOfProcess,
 ): Promise<PreparedAccount> {
+  ensureStationDeps(input.station);
   if (input.station === 'discord-bot') return prepareDiscord(input.token);
   if (input.station === 'telegram-bot') return prepareTelegram(input.token);
   if (input.station === 'webhook') return prepareWebhook();
