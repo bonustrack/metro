@@ -29,6 +29,7 @@ import {
   type MemoryListing,
 } from './claude';
 import { daemonBase } from '../auth/session';
+import { fetchMode, type ModeInfo } from './mode';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -70,6 +71,14 @@ export function makeQueryClient(onAuthError: () => void): QueryClient {
 export function queryError(err: unknown, fallback: string): string {
   if (err instanceof AuthError) return EXPIRED;
   return err instanceof Error ? err.message : fallback;
+}
+
+export function useModeQuery(): UseQueryResult<ModeInfo> {
+  return useQuery({
+    queryKey: ['mode', daemonBase()],
+    queryFn: () => fetchMode(),
+    staleTime: 60_000,
+  });
 }
 
 export function useSessionQuery(token: string): UseQueryResult<string> {

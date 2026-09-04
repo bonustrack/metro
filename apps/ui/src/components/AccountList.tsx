@@ -43,7 +43,7 @@ function StationRow({
   const { handle, url } = stationFields(row);
   const body = (
     <>
-      <StationIcon station={station} size={ICON_SIZE} color={palette.text} />
+      <StationIcon station={station} size={ICON_SIZE} />
       <Row gap={10} align="center" flex={1} minWidth={0}>
         <span className="row-title">
           <Text size="lg" weight="semibold" numberOfLines={1}>

@@ -1,1 +1,2 @@
-export const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
+export const METRO_VERSION =
+  process.env.METRO_VERSION ?? process.env.npm_package_version ?? 'dev';

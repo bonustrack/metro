@@ -1,9 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import {
-  useKitPalette,
-  useKitScheme,
-} from '@stage-labs/kit/react-native/theme-context';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Input } from './ui';
 import { GROW } from '../theme';
 import { matchStations, stationLabel } from '../api/attach';
@@ -26,7 +23,6 @@ function Option({
   disabled: boolean;
   onPick: (station: string) => void;
 }): ReactNode {
-  const palette = useKitPalette();
   return (
     <button
       type="button"
@@ -36,7 +32,7 @@ function Option({
         onPick(station);
       }}
     >
-      <StationIcon station={station} size={ICON_SIZE} color={palette.link} />
+      <StationIcon station={station} size={ICON_SIZE} />
       <Text size="lg" weight="semibold">{stationLabel(station)}</Text>
     </button>
   );

@@ -6,6 +6,7 @@ import { setTrainCallBackend } from './train-call.js';
 import { errMsg, log, logFatalSync } from './log.js';
 import { acquireLock, isLocalMode, STATE_DIR, trainsDir } from './paths.js';
 import { installCrashGuard, markDaemonReady } from './crash-guard.js';
+import { METRO_VERSION } from './version.js';
 import { quickTunnelWanted, Tunnel, webhookPort } from './tunnel.js';
 import {
   localConnectHint,
@@ -282,6 +283,7 @@ const hostedMode = (): ModeInfo => ({
   mode: linkedSource === null ? 'hosted' : 'linked',
   owner: null,
   project: null,
+  version: METRO_VERSION,
 });
 
 function sessionApis(): SessionApis {

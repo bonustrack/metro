@@ -114,7 +114,7 @@ let key = '';
 
 describe('a local daemon, end to end over http', () => {
   test('it says it is local, unowned, with a machine project, and minted its own secret', async () => {
-    expect(await (await call('GET', '/api/mode')).json()).toEqual({ mode: 'local', owner: null, project: PROJECT });
+    expect(await (await call('GET', '/api/mode')).json()).toEqual({ mode: 'local', owner: null, project: PROJECT, version: expect.any(String) });
     expect(secret.length).toBeGreaterThan(30);
     expect((statSync(join(dir, '.session-secret')).mode & 0o777).toString(8)).toBe('600');
     expect(ensureLocalSessionSecret(dir)).toBe(secret);
