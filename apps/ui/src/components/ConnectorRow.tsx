@@ -15,7 +15,6 @@ import {
 import { queryError } from '../api/queries';
 import { ConnectorFavicon } from './ConnectorFavicon';
 import { DeleteConnector } from './DeleteConnector';
-import { AgentPicker } from './AgentPicker';
 import { RenameConnector } from './RenameConnector';
 import { opensElsewhere } from './link';
 import { routeHash } from '../route';
@@ -46,7 +45,6 @@ function RowActions({
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
-  const [picking, setPicking] = useState(false);
 
   const connect = (): void => {
     if (busy) return;
@@ -99,14 +97,7 @@ function RowActions({
         connector={row}
         onDelete={onDelete}
         onError={onError}
-        size="lg"
         extra={[
-          {
-            label: 'Add to agent',
-            onSelect: () => {
-              setPicking(true);
-            },
-          },
           {
             label: 'Rename',
             onSelect: () => {
@@ -118,54 +109,17 @@ function RowActions({
             : []),
         ]}
       />
-      <RowModals
-        token={token}
-        row={row}
-        picking={picking}
-        renaming={renaming}
-        onDone={() => {
-          setPicking(false);
-          setRenaming(false);
-        }}
-        onChanged={onChanged}
-      />
-    </Row>
-  );
-}
-
-function RowModals({
-  token,
-  row,
-  picking,
-  renaming,
-  onDone,
-  onChanged,
-}: {
-  token: string;
-  row: Connector;
-  picking: boolean;
-  renaming: boolean;
-  onDone: () => void;
-  onChanged: () => void;
-}): ReactNode {
-  return (
-    <>
-      <AgentPicker
-        token={token}
-        connectorId={row.id}
-        connectorName={row.name}
-        open={picking}
-        onClose={onDone}
-      />
       <RenameConnector
         key={row.name}
         token={token}
         connector={row}
         open={renaming}
-        onClose={onDone}
+        onClose={() => {
+          setRenaming(false);
+        }}
         onRenamed={onChanged}
       />
-    </>
+    </Row>
   );
 }
 

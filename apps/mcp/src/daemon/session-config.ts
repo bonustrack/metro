@@ -1,10 +1,5 @@
-const DEFAULT_SESSION_TTL_SEC = 30 * 24 * 3600;
+export const SESSION_TTL_SEC = 30 * 24 * 3600;
 const PREVIEW = /^([a-z0-9-]+--)?metro-ui\.netlify\.app$/;
-
-export function sessionTtlFromEnv(): number {
-  const ttl = Number(process.env.METRO_SESSION_TTL_SEC);
-  return Number.isFinite(ttl) && ttl > 0 ? ttl : DEFAULT_SESSION_TTL_SEC;
-}
 
 export function allowedWebHost(host: string): boolean {
   if (host === 'metro.box' || host === 'localhost' || host === '127.0.0.1')

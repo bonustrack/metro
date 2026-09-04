@@ -46,7 +46,7 @@ export function parseDaemonUrl(raw: string): DaemonParse {
 }
 
 const HOST_SEGMENT = /^#\/([A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?)(?:\/|$)/;
-const RESERVED_SEGMENTS = new Set(['docs', 'settings', 'connect', 'login', 'authorize']);
+export const RESERVED_SEGMENTS = new Set(['docs', 'settings', 'connect']);
 
 export function segmentOf(base: string): string {
   try {

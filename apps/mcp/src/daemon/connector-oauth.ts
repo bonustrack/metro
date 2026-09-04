@@ -19,9 +19,9 @@ export { takePending, type PendingAuth };
 
 const REFRESH_SKEW_MS = 300_000;
 
-export const CALLBACK_PATH = '/api/connectors/callback';
+const CALLBACK_PATH = '/api/connectors/callback';
 
-export const callbackUri = (): string =>
+const callbackUri = (): string =>
   `${publicBaseOrDefault()}${CALLBACK_PATH}`;
 
 function refused(message: string): ConnectorVerifyError {

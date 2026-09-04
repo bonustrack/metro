@@ -21,7 +21,7 @@ export type { Adaptations, BedrockConfig } from './bedrock-upstream.js';
 
 export class BedrockConfigError extends Error {}
 
-export class ProxyError extends Error {
+class ProxyError extends Error {
   constructor(
     readonly status: number,
     readonly kind: string,

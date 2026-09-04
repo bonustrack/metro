@@ -35,10 +35,9 @@ import {
   type MonitorCall,
 } from '../monitor/api.js';
 import { applyMcpCors, handleMcpPreflight } from './cors.js';
+import { METRO_VERSION } from './version.js';
 
 const LRU_CAP = 2_000;
-
-const METRO_VERSION = process.env.npm_package_version ?? '0.1.0-beta.15';
 
 function dedupKey(
   e: Pick<MetroEvent, 'station' | 'line' | 'messageId'>,

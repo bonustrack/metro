@@ -85,7 +85,7 @@ function decodeClaims(token: string): RawClaims | null {
   }
 }
 
-export function sessionClaims(token: string): SessionClaims | null {
+function sessionClaims(token: string): SessionClaims | null {
   const raw = decodeClaims(token);
   if (raw === null) return null;
   const { sub, exp } = raw;

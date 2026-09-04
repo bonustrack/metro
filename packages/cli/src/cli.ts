@@ -89,7 +89,7 @@ function hostLabel(): string {
 
 async function authorizeRuntime(agentId: string): Promise<string> {
   process.stderr.write(
-    `Authorize this machine at ${metroWebUrl()}/#/authorize/${agentId}\n`,
+    `Authorize this machine with a pairing code for agent ${agentId} from ${metroWebUrl()}\n`,
   );
   const code = (await askSecret('Paste the code (input is hidden): ')).trim();
   if (code === '') throw new Error('no code given');
@@ -169,16 +169,16 @@ function logs(argv: string[]): Promise<number> {
 async function pastedCode(given: string | undefined): Promise<string> {
   if (given !== undefined && given.trim() !== '') return given.trim();
   process.stderr.write(
-    `Get a pairing code from the agent's page, or pick the agent at ${metroWebUrl()}/#/authorize\n`,
+    `Get a pairing code for the agent from ${metroWebUrl()}\n`,
   );
   return askSecret('Paste the code here (input is hidden): ');
 }
 
 async function login(given: string | undefined): Promise<void> {
-  const { token, email, agent } = await claimCode(await pastedCode(given));
+  const { token, subject, agent } = await claimCode(await pastedCode(given));
   writeToken(token);
   process.stderr.write(
-    `Authorized '${agent}' for ${email}. Stored in ${credentialsPath()}\n`,
+    `Authorized '${agent}' for ${subject}. Stored in ${credentialsPath()}\n`,
   );
   if (syncPluginServers())
     process.stderr.write(
@@ -188,8 +188,8 @@ async function login(given: string | undefined): Promise<void> {
 }
 
 async function whoami(wanted: string | undefined): Promise<void> {
-  const { email, agent, where } = await whoisAuthorized(wanted);
-  process.stdout.write(`${email} · agent '${agent}' on ${where}\n`);
+  const { subject, agent, where } = await whoisAuthorized(wanted);
+  process.stdout.write(`${subject} · agent '${agent}' on ${where}\n`);
 }
 
 const HELP = new Set([undefined, 'help', '--help', '-h']);

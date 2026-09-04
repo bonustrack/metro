@@ -22,7 +22,6 @@ export interface AccountConfig {
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'discord-bot',
   file: ACCOUNTS_FILE,
-  allowlistEnv: ['DISCORD_BOT_ONLY_ACCOUNTS', 'DISCORD_BOT_ACCOUNTS'],
   validate(raw, die) {
     const seen = new Set<string>();
     for (const a of raw) {

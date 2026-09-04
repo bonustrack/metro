@@ -91,7 +91,7 @@ export async function runtimeLabels(
   return out;
 }
 
-export async function runtimeFor(agentId: string): Promise<RuntimeView | null> {
+async function runtimeFor(agentId: string): Promise<RuntimeView | null> {
   const rows = await getDb()
     .select({
       id: runtimes.id,

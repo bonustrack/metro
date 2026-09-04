@@ -36,7 +36,6 @@ daemon materializes it to the accounts file the train reads. See the
 
 | Env var | Meaning |
 | --- | --- |
-| `XMTP_ONLY_ACCOUNTS` / `XMTP_ACCOUNTS` | Optional comma-separated `account_id` filter — boot only these accounts |
 | `XMTP_ACCOUNTS_FILE` | Optional override for the materialized accounts file path |
 | `XMTP_SYNC_MS` | Optional conversation sync interval |
 | `METRO_WHISPER_BIN` / `METRO_WHISPER_MODEL` / `METRO_FFMPEG_BIN` | Optional binaries for voice-note transcription |

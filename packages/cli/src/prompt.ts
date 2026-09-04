@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline';
 const CTRL_C = '\u0003';
 const BACKSPACE = '\u007f';
 
-export function askLine(question: string): Promise<string> {
+function askLine(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
   return new Promise<string>((resolve) => {
     rl.question(question, (answer: string) => {

@@ -86,7 +86,7 @@ export async function installPlugin(): Promise<number> {
     return 0;
   }
   process.stderr.write(
-    'Now sign in: metro login (get a code at https://metro.box/#/authorize), ' +
+    'Now sign in: metro login (with a pairing code from https://metro.box), ' +
       'or run /metro:login <code> inside Claude Code.\n',
   );
   return Promise.resolve(0);

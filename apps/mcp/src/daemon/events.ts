@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Line } from '../stations/lines.js';
 
-export { userSelf, daemonSelf, selfLine } from './identity.js';
+export { userSelf, daemonSelf } from './identity.js';
 
 export type StructuredEvent =
   | { type: 'msg' }
@@ -81,7 +81,7 @@ export interface BufferedEvent {
   event: MetroEvent;
 }
 
-export const BUS_BUFFER_MAX = 500;
+const BUS_BUFFER_MAX = 500;
 
 const listeners = new Set<BusListener>();
 const buffer: BufferedEvent[] = [];

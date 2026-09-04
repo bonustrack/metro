@@ -36,19 +36,19 @@ describe('trading a pairing code for a session', () => {
   test('a good code comes back as a token bound to one named agent', async () => {
     await serve(200, {
       token: 'cli-token',
-      email: 'less@bonustrack.co',
+      subject: '0xef8305e140ac520225daf050e2f71d5fbcc543e7',
       agent: 'suzy',
     });
     expect(await claimCode('ma_abcdefghijklmnop')).toEqual({
       token: 'cli-token',
-      email: 'less@bonustrack.co',
+      subject: '0xef8305e140ac520225daf050e2f71d5fbcc543e7',
       agent: 'suzy',
     });
     expect(JSON.parse(seen)).toEqual({ code: 'ma_abcdefghijklmnop' });
   });
 
   test('a response missing the agent is refused rather than half-used', async () => {
-    await serve(200, { token: 'cli-token', email: 'less@bonustrack.co' });
+    await serve(200, { token: 'cli-token', subject: '0xef8305e140ac520225daf050e2f71d5fbcc543e7' });
     expect(claimCode('ma_abcdefghijklmnop')).rejects.toThrow('unexpected');
   });
 

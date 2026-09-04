@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ID_RE } from '../db/ids.js';
 
 export class SessionError extends Error {}
@@ -52,47 +52,6 @@ function verify(token: string, secret: string): Record<string, unknown> {
 }
 
 const nowSec = (now?: number): number => Math.floor((now ?? Date.now()) / 1000);
-
-export function newNonce(): string {
-  return b64url(randomBytes(16));
-}
-
-interface StateClaims {
-  return_to: string;
-  nonce: string;
-}
-
-export function signState(
-  claims: StateClaims,
-  secret: string,
-  opts: { ttlSec?: number; now?: number } = {},
-): string {
-  const iat = nowSec(opts.now);
-  return sign(
-    {
-      typ: 'state',
-      return_to: claims.return_to,
-      nonce: claims.nonce,
-      iat,
-      exp: iat + (opts.ttlSec ?? 600),
-    },
-    secret,
-  );
-}
-
-export function verifyState(
-  token: string,
-  secret: string,
-  now?: number,
-): StateClaims {
-  const p = verify(token, secret);
-  if (p.typ !== 'state') throw new SessionError('wrong token type');
-  if (typeof p.exp !== 'number' || p.exp < nowSec(now))
-    throw new SessionError('state expired');
-  if (typeof p.return_to !== 'string' || typeof p.nonce !== 'string')
-    throw new SessionError('malformed state');
-  return { return_to: p.return_to, nonce: p.nonce };
-}
 
 interface SessionClaims {
   subject: string;

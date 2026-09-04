@@ -1,6 +1,4 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui';
 import { type AgentSummary } from '../api/client';
 import { CopyBlock } from './CopyBlock';
 import { ResetAgentKey } from './ResetAgentKey';
@@ -10,33 +8,16 @@ interface AgentCredentialsProps {
   onReset: (id: string) => Promise<void>;
 }
 
-export function AgentCredentials({
-  agent,
-  onReset,
-}: AgentCredentialsProps): ReactNode {
+export function AgentCredentials({ agent, onReset }: AgentCredentialsProps): ReactNode {
+  if (agent.command === null) return null;
   return (
-    <Col gap={12}>
-      {agent.command !== null ? (
-        <CopyBlock
-          key={agent.command}
-          label={
-            agent.runtime === null
-              ? 'add to claude code'
-              : `add to claude code on ${agent.runtime}`
-          }
-          value={agent.command}
-          hide={agent.key}
-          secret
-          actions={
-            agent.owned ? <ResetAgentKey agent={agent} onReset={onReset} /> : null
-          }
-        />
-      ) : null}
-      {agent.command === null && !agent.owned ? (
-        <Text size="sm" role="secondary">
-          The registration command is only shown for agents you own.
-        </Text>
-      ) : null}
-    </Col>
+    <CopyBlock
+      key={agent.command}
+      label="add to claude code"
+      value={agent.command}
+      hide={agent.key}
+      secret
+      actions={<ResetAgentKey agent={agent} onReset={onReset} />}
+    />
   );
 }

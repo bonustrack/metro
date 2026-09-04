@@ -4,7 +4,6 @@ import {
   attributeUntagged,
   groupAccounts,
   stationFields,
-  unattributedAccounts,
   type AccountRow,
 } from '../src/api/accounts';
 
@@ -41,7 +40,6 @@ describe('groupAccounts carries the owning agent', () => {
   test('an account with no agent id reads as unattributed', () => {
     const groups = groupAccounts({ 'telegram-bot': [{ id: 'orphan' }] });
     expect(groups[0]?.rows[0]?.agentId).toBeNull();
-    expect(unattributedAccounts(groups)).toBe(1);
   });
 });
 
@@ -76,7 +74,6 @@ describe('attributeUntagged', () => {
     const groups = attributeUntagged(groupAccounts({ 'telegram-bot': [{ id: 'a' }] }), 'agent000004');
     expect(groups[0]?.rows[0]?.agentId).toBe('agent000004');
     expect(accountsForAgent(groups, 'agent000004')).toHaveLength(1);
-    expect(unattributedAccounts(groups)).toBe(0);
   });
 
   test('never overwrites an agent id the daemon did send', () => {

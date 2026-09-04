@@ -30,7 +30,6 @@ reads. See the [root README "Configuration"](../../README.md#configuration).
 
 | Env var | Meaning |
 | --- | --- |
-| `DISCORD_BOT_ONLY_ACCOUNTS` / `DISCORD_BOT_ACCOUNTS` | Optional comma-separated `account_id` filter — boot only these accounts |
 | `DISCORD_BOT_ACCOUNTS_FILE` | Optional override for the materialized accounts file path |
 | `FFMPEG_BIN` | Optional ffmpeg binary for voice audio |
 | `WHISPER_CLI` / `WHISPER_MODEL` | Optional whisper binary + model for voice transcription |

@@ -29,10 +29,10 @@ function switchTo(base: string): void {
   window.location.reload();
 }
 
-export function Connect({ url }: { url: string | null }): ReactNode {
+export function Connect(): ReactNode {
   const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
-  const [value, setValue] = useState(url ?? storedDaemon() ?? '');
+  const [value, setValue] = useState(storedDaemon() ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const side = { width: 1, color: palette.border };

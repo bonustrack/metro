@@ -34,7 +34,7 @@ function parseGrant(raw: string): AttachmentGrant | undefined {
   };
 }
 
-export function readGrant(path: string): AttachmentGrant | undefined {
+function readGrant(path: string): AttachmentGrant | undefined {
   try {
     return parseGrant(readFileSync(`${path}${GRANT_SUFFIX}`, 'utf8'));
   } catch {

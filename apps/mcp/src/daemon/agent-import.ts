@@ -9,7 +9,7 @@ import type { LoadedAgent } from '../db/materialize.js';
 const CLAIM_TIMEOUT_MS = 15_000;
 const CODE_RE = /^ma_[A-Za-z0-9_-]{16}$/;
 
-export function metroBaseUrl(): string {
+function metroBaseUrl(): string {
   const raw = (process.env.METRO_URL?.trim() ?? '').replace(/\/+$/, '');
   const url = raw === '' ? 'https://mcp.metro.box' : raw;
   if (!carriesSecretsSafely(url))
@@ -53,7 +53,7 @@ async function claim(base: string, code: string, label: string): Promise<string>
   return token;
 }
 
-export function storeRunToken(agentId: string, token: string, url: string): string {
+function storeRunToken(agentId: string, token: string, url: string): string {
   const dir = configDir();
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const path = join(dir, `runtime-${agentId}.json`);

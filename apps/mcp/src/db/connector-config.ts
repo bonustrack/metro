@@ -5,6 +5,7 @@ import type {
   VerifiedServer,
 } from '../daemon/connector-verify.js';
 import { readStoredTools } from '../daemon/connector-tools.js';
+import { isRecord } from '../daemon/is-record.js';
 
 const CONNECTOR_NAME_MAX = 64;
 const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
@@ -20,10 +21,6 @@ export interface ConnectorConfig {
   createdAt: string;
   verified: VerifiedRecord;
   oauth: boolean;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function text(value: unknown): string {

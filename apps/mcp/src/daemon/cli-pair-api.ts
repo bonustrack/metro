@@ -13,7 +13,7 @@ import { extractToken } from '../mcp/request-identity.js';
 import { publicBaseOrDefault } from './attach-serve.js';
 import { AGENT_CODE_RE, takeAgentCode } from './agent-pair.js';
 import { relayServersJson } from './connector-json.js';
-import { sessionTtlFromEnv } from './session-config.js';
+import { SESSION_TTL_SEC } from './session-config.js';
 import { signAgentToken } from './session.js';
 import type { ConnectorApiDeps } from './connector-api.js';
 
@@ -64,12 +64,11 @@ async function handleClaim(
   const token = signAgentToken(
     { subject: taken.subject, agentId: agent.id },
     secret,
-    { ttlSec: sessionTtlFromEnv() },
+    { ttlSec: SESSION_TTL_SEC },
   );
   log.info({ subject: taken.subject, agent: agent.id }, 'cli: code claimed');
   sendJson(req, res, 200, {
     token,
-    email: taken.subject,
     subject: taken.subject,
     agent: agent.name,
   });
@@ -90,7 +89,6 @@ async function handleRead(
   const agent = await deps.agentConnectors(who.subject, who.agentId);
   if (path === SESSION_PATH) {
     sendJson(req, res, 200, {
-      email: who.subject,
       subject: who.subject,
       agent: agent.name,
     });

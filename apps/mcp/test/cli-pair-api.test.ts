@@ -186,7 +186,7 @@ describe('an agent token reads its agent and nothing else', () => {
       subject: string;
       agent: string;
     };
-    expect(body).toEqual({ email: EMAIL, subject: EMAIL, agent: 'suzy' });
+    expect(body).toEqual({ subject: EMAIL, agent: 'suzy' });
   });
 
   test('a run token is the same capability here: metro start needs no second sign-in', async () => {

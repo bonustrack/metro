@@ -14,7 +14,7 @@ export interface LocalCliDeps {
   connectorSummaries: (agentId: string) => Promise<ConnectorSummary[]>;
 }
 
-export function keyOf(req: IncomingMessage): string {
+function keyOf(req: IncomingMessage): string {
   const header = req.headers.authorization ?? '';
   if (header.toLowerCase().startsWith('bearer ')) return header.slice(7).trim();
   const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
@@ -29,7 +29,7 @@ export function keyIdentity(req: IncomingMessage): AgentIdentity | null {
 
 async function answer(path: string, key: string, agentId: string, deps: LocalCliDeps): Promise<unknown> {
   const agent = deps.agentName(agentId) ?? '';
-  if (path === `${PREFIX}/session`) return { email: 'this machine', subject: 'this machine', agent };
+  if (path === `${PREFIX}/session`) return { subject: 'this machine', agent };
   if (path === `${PREFIX}/connectors`) return { agent, connectors: await deps.connectorSummaries(agentId) };
   return { json: relayServersJson(await deps.connectorEntries(agentId), publicBaseOrDefault(), key), agent };
 }

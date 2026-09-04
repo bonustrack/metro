@@ -148,21 +148,20 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     expect(list.connectors.map((c) => c.id)).toEqual([linear]);
   });
 
-  test('agents hold connectors through their files; the same name twice on one agent is refused', async () => {
-    const added = await call('POST', `/api/agents/${tony.id}/connectors`, { connectorId: linear });
-    expect(added.status).toBe(200);
-    expect(((await added.json()) as { connectorIds: string[] }).connectorIds).toEqual([linear]);
+  test('every agent on the daemon holds a new connector, and a name is unique on the daemon', async () => {
     const file = JSON.parse(readFileSync(join(dir, 'Tony', 'agent.json'), 'utf8')) as { connectors: string[] };
     expect(file.connectors).toEqual([linear]);
-    const twin = (await (await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, { name: 'linear', url: `${vendorBase}/other`, header: null, value: null })).json()) as { id: string };
-    expect((await call('POST', `/api/agents/${tony.id}/connectors`, { connectorId: twin.id })).status).toBe(409);
-    expect((await call('POST', `/api/agents/${suzy.id}/connectors`, { connectorId: twin.id })).status).toBe(200);
     const agents = (await (await call('GET', `/api/agents?project=${LOCAL_PROJECT_ID}`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
     expect(agents.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
-    expect((await call('POST', `/api/connectors/${twin.id}/rename`, { name: 'jira' })).status).toBe(200);
-    expect((await call('DELETE', `/api/connectors/${twin.id}`)).status).toBe(200);
+    expect(agents.agents.find((a) => a.id === suzy.id)?.connector_ids).toEqual([linear]);
+    const twin = await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, { name: 'linear', url: `${vendorBase}/other`, header: null, value: null });
+    expect(twin.status).toBe(409);
+    const jira = (await (await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, { name: 'jira', url: `${vendorBase}/other`, header: null, value: null })).json()) as { id: string };
+    expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'linear' })).status).toBe(409);
+    expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'jira2' })).status).toBe(200);
+    expect((await call('DELETE', `/api/connectors/${jira.id}`)).status).toBe(200);
     const suzyNow = (await (await call('GET', `/api/agents/${suzy.id}/connectors`)).json()) as { connectorIds: string[] };
-    expect(suzyNow.connectorIds).toEqual([]);
+    expect(suzyNow.connectorIds).toEqual([linear]);
   });
 
   test('the cli routes answer to the agent key with a relay block pointing at this daemon', async () => {
@@ -190,7 +189,7 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('fakevendor');
     expect(seenAuth.at(-1)).toBe('Bearer vendor-secret');
-    expect((await fetch(`${base}/relay/${linear}`, { method: 'POST', headers: { authorization: `Bearer ${suzy.key}`, 'content-type': 'application/json' }, body: JSON.stringify(init) })).status).toBe(404);
+    expect((await fetch(`${base}/relay/${linear}`, { method: 'POST', headers: { authorization: 'Bearer mk_wrong', 'content-type': 'application/json' }, body: JSON.stringify(init) })).status).toBe(401);
     expect((await fetch(`${base}/relay/${linear}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(init) })).status).toBe(401);
   });
 

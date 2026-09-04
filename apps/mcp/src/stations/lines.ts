@@ -5,7 +5,7 @@ const PREFIX = 'metro://';
 const build = (station: string, ...seg: (string | number)[]): Line =>
   asLine(`${PREFIX}${station}/${seg.map(String).join('/')}`);
 
-export function parseAccountScoped(
+function parseAccountScoped(
   line: Line | string,
   station: string,
   validate?: (resource: string) => boolean,

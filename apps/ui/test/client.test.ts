@@ -27,97 +27,45 @@ function serve(body: unknown, status = 200): void {
 }
 
 const dashboard = async (agents: unknown): Promise<AgentSummary[]> => {
-  serve({ email: 'ada@lovelace.dev', endpoint: 'https://mcp.metro.box/mcp', agents });
+  serve({ agents });
   return (await fetchAgents('session')).agents;
 };
 
 describe('agent credentials on the wire', () => {
-  test('an owned agent carries one key, its endpoint and its command', async () => {
+  test('an owned agent carries its key and its command', async () => {
     const [agent] = await dashboard([
-      {
-        id: 'id000000001',
-        name: 'ada-bot',
-        owned: true,
-        key: 'mk_fake',
-        endpoint: 'https://mcp.metro.box/mcp?token=mk_fake',
-        command: 'claude mcp add x',
-      },
+      { id: 'id000000001', name: 'ada-bot', owned: true, key: 'mk_fake', command: 'claude mcp add x' },
     ]);
     expect(agent).toEqual({
       id: 'id000000001',
       name: 'ada-bot',
       owned: true,
       runtime: null,
-      connected: false,
-      lastSeen: null,
       key: 'mk_fake',
-      endpoint: 'https://mcp.metro.box/mcp?token=mk_fake',
       command: 'claude mcp add x',
       connectorIds: [],
     });
   });
 
-  test('a not-owned agent carries no key, endpoint or command', async () => {
+  test('a not-owned agent carries no key or command', async () => {
     const [agent] = await dashboard([
-      { id: 'id000000005', name: 'legacy', owned: false, key: null, endpoint: null, command: null },
+      { id: 'id000000005', name: 'legacy', owned: false, key: null, command: null },
     ]);
     expect(agent).toEqual({
       id: 'id000000005',
       name: 'legacy',
       owned: false,
       runtime: null,
-      connected: false,
-      lastSeen: null,
       key: null,
-      endpoint: null,
       command: null,
       connectorIds: [],
     });
   });
 
-  test('a daemon that still sends the old keys array is read from its first entry', async () => {
-    const [agent] = await dashboard([
-      {
-        id: 'id000000001',
-        name: 'ada-bot',
-        owned: true,
-        keys: [
-          {
-            name: 'default',
-            key: 'mk_legacy',
-            endpoint: 'https://mcp.metro.box/mcp?token=mk_legacy',
-            command: 'claude mcp add legacy',
-          },
-        ],
-      },
-    ]);
-    expect(agent?.key).toBe('mk_legacy');
-    expect(agent?.command).toBe('claude mcp add legacy');
-    expect(agent?.name).toBe('ada-bot');
-  });
-
-  test('an old-daemon agent with an empty keys array reads as no key', async () => {
-    const [agent] = await dashboard([
-      { id: 'id000000001', name: 'ada-bot', owned: true, keys: [] },
-    ]);
-    expect([agent?.key, agent?.endpoint, agent?.command]).toEqual([null, null, null]);
-  });
-
   test('a malformed agent entry never throws and never invents a key', async () => {
-    const agents = await dashboard([{ id: 7, keys: 'not-an-array' }, null, 7]);
+    const agents = await dashboard([{ id: 7, key: 9 }, null, 7]);
     expect(agents).toEqual([
-      {
-        id: '',
-        name: '',
-        owned: false,
-      runtime: null,
-        connected: false,
-        lastSeen: null,
-        key: null,
-        endpoint: null,
-        command: null,
-        connectorIds: [],
-      },
+      { id: '', name: '', owned: false, runtime: null, key: null, command: null, connectorIds: [] },
     ]);
   });
 });
@@ -128,7 +76,6 @@ describe('resetAgentKey', () => {
     name: 'tony',
     reset: true,
     key: 'mk_rotated',
-    endpoint: 'https://mcp.metro.box/mcp?token=mk_rotated',
     command: 'claude mcp add --transport http metro "x"',
   };
 
@@ -154,15 +101,7 @@ describe('resetAgentKey', () => {
 describe('what an agent holds', () => {
   test('connector ids ride on the agent and junk entries are dropped', async () => {
     const [agent] = await dashboard([
-      {
-        id: 'id000000001',
-        name: 'ada-bot',
-        owned: true,
-        key: null,
-        endpoint: null,
-        command: null,
-        connector_ids: ['id000000012', 7, null],
-      },
+      { id: 'id000000001', name: 'ada-bot', owned: true, key: null, command: null, connector_ids: ['id000000012', 7, null] },
     ]);
     expect(agent?.connectorIds).toEqual(['id000000012']);
   });

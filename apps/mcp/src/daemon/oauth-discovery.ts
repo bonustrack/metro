@@ -1,4 +1,5 @@
 import { ConnectorVerifyError, parseConnectorUrl } from './connector-verify.js';
+import { isRecord } from './is-record.js';
 
 const DISCOVERY_TIMEOUT_MS = 10_000;
 
@@ -12,10 +13,6 @@ export interface OAuthServer {
 
 function refused(message: string): ConnectorVerifyError {
   return new ConnectorVerifyError(message, 400);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 const str = (value: unknown): string =>

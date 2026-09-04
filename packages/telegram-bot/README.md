@@ -29,7 +29,6 @@ file the train reads. See the [root README "Configuration"](../../README.md#conf
 
 | Env var | Meaning |
 | --- | --- |
-| `TELEGRAM_BOT_ONLY_ACCOUNTS` / `TELEGRAM_BOT_ACCOUNTS` | Optional comma-separated `account_id` filter — boot only these accounts |
 | `TELEGRAM_BOT_ACCOUNTS_FILE` | Optional override for the materialized accounts file path |
 
 No persistent state of its own — Telegram is server-side, so this station is safe to

@@ -8,10 +8,8 @@ import {
 import { carryForward, type AccountGroup } from './accounts';
 import {
   AuthError,
-  fetchAgents,
   fetchSession,
   fetchStations,
-  type AgentsView,
   type StationsView,
 } from './client';
 import {
@@ -37,16 +35,15 @@ const STARTING_POLL_MS = 3_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
 export const sessionKey = (): string[] => ['session'];
-export const claudeProjectsKey = (): string[] => ['claude', 'projects'];
-export const claudeSessionsKey = (project: string): string[] => ['claude', 'sessions', project];
-export const memoryKey = (project: string): string[] => ['claude', 'memory', project];
-export const memoryFileKey = (project: string, name: string): string[] => ['claude', 'memory', project, name];
+const claudeProjectsKey = (): string[] => ['claude', 'projects'];
+const claudeSessionsKey = (project: string): string[] => ['claude', 'sessions', project];
+const memoryKey = (project: string): string[] => ['claude', 'memory', project];
+const memoryFileKey = (project: string, name: string): string[] => ['claude', 'memory', project, name];
 const LIVE_LIST_MS = 5_000;
 const LIVE_MEMORY_MS = 5_000;
-export const agentsKey = (): string[] => ['agents', daemonBase()];
 export const stationsKey = (): string[] => ['stations', daemonBase()];
-export const connectorsKey = (): string[] => ['connectors', daemonBase()];
-export const connectorKey = (id: string): (string | number)[] => [
+const connectorsKey = (): string[] => ['connectors', daemonBase()];
+const connectorKey = (id: string): (string | number)[] => [
   'connector',
   id,
 ];
@@ -80,13 +77,6 @@ export function useSessionQuery(token: string): UseQueryResult<string> {
     queryKey: sessionKey(),
     queryFn: () => fetchSession(token),
     staleTime: 5 * 60_000,
-  });
-}
-
-export function useAgentsQuery(token: string): UseQueryResult<AgentsView> {
-  return useQuery({
-    queryKey: agentsKey(),
-    queryFn: () => fetchAgents(token),
   });
 }
 
@@ -151,7 +141,7 @@ function invalidate(client: QueryClient, keys: (string | number)[][]): void {
 }
 
 export function refreshAgents(client: QueryClient): void {
-  invalidate(client, [agentsKey(), stationsKey()]);
+  invalidate(client, [stationsKey()]);
 }
 
 export function useConnectorsQuery(token: string): UseQueryResult<ConnectorsView> {
@@ -162,7 +152,7 @@ export function useConnectorsQuery(token: string): UseQueryResult<ConnectorsView
 }
 
 export function refreshConnectors(client: QueryClient, id?: string): void {
-  const keys: (string | number)[][] = [connectorsKey(), agentsKey(), stationsKey()];
+  const keys: (string | number)[][] = [connectorsKey(), stationsKey()];
   if (id !== undefined) keys.push(connectorKey(id));
   invalidate(client, keys);
 }

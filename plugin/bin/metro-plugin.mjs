@@ -75,7 +75,7 @@ function tokenOrExplain() {
   const token = readToken();
   if (token === null)
     throw new Error(
-      `this machine is not signed in — get a code from the agent's page at ${metroWebUrl()}/#/authorize and run /metro:login <code>`,
+      `this machine is not signed in — get a pairing code for the agent from ${metroWebUrl()} and run /metro:login <code>`,
     );
   return token;
 }
@@ -112,7 +112,7 @@ async function refresh() {
 async function login(code) {
   if (!code)
     throw new Error(
-      `no code given — get one from the agent's page at ${metroWebUrl()}/#/authorize, then run /metro:login <code>`,
+      `no code given — get a pairing code for the agent from ${metroWebUrl()}, then run /metro:login <code>`,
     );
   const body = await api('/api/cli/claim', {
     method: 'POST',
@@ -120,7 +120,7 @@ async function login(code) {
     body: JSON.stringify({ code: code.trim() }),
   });
   writeToken(body.token);
-  process.stdout.write(`Authorized '${body.agent}' for ${body.email}.\n`);
+  process.stdout.write(`Authorized '${body.agent}' for ${body.subject}.\n`);
   await refresh();
 }
 
@@ -144,7 +144,7 @@ async function status() {
     count = 0;
   }
   process.stdout.write(
-    `${body.email} · agent '${body.agent}' on ${metroUrl()} · ${count} server(s) loaded\n`,
+    `${body.subject} · agent '${body.agent}' on ${metroUrl()} · ${count} server(s) loaded\n`,
   );
 }
 

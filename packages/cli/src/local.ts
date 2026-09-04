@@ -6,7 +6,7 @@ import { localUrl } from './runtime.js';
 const PROBE_MS = 3_000;
 const READ_MS = 20_000;
 
-export interface LocalAgent {
+interface LocalAgent {
   id: string;
   name: string;
   key: string;

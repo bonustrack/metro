@@ -1,6 +1,6 @@
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
-export function isAddress(value: string): boolean {
+function isAddress(value: string): boolean {
   return ADDRESS_RE.test(value);
 }
 

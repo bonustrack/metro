@@ -28,7 +28,6 @@ export interface AccountConfig {
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'xmtp',
   file: ACCOUNTS_FILE,
-  allowlistEnv: ['XMTP_ONLY_ACCOUNTS', 'XMTP_ACCOUNTS'],
   validate(raw, die) {
     const seen = new Set<string>();
     for (const a of raw) {

@@ -10,7 +10,7 @@ import { whenLabel } from '../api/when';
 
 const ROW_PAD_Y = 12;
 
-export function projectLabel(project: ClaudeProject): string {
+function projectLabel(project: ClaudeProject): string {
   return project.cwd ?? project.id;
 }
 

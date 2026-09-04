@@ -2,7 +2,7 @@ export type Selection =
   | { kind: 'none' }
   | { kind: 'docs' }
   | { kind: 'settings' }
-  | { kind: 'connect'; url: string | null }
+  | { kind: 'connect' }
   | { kind: 'home'; project: string }
   | { kind: 'stations'; project: string }
   | { kind: 'station'; project: string; accountId: string }

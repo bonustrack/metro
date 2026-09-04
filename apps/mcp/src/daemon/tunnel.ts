@@ -1,31 +1,15 @@
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
 import { Resolver } from 'node:dns/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { STATE_DIR } from './paths.js';
 import { errMsg, log } from './log.js';
 import { readJson } from './secure-fs.js';
 
-const FILE = join(STATE_DIR, 'tunnel.json');
-const LEGACY_WEBHOOKS_FILE = join(STATE_DIR, 'webhooks.json');
 const RESTART_DELAY_MS = 2_000;
 
-interface NamedTunnel {
-  name: string;
-  hostname: string;
-}
-
-interface QuickTunnel {
-  quick: true;
-}
-
-export type TunnelConfig = NamedTunnel | QuickTunnel;
-
-const isQuick = (cfg: TunnelConfig): cfg is QuickTunnel => 'quick' in cfg;
-
-export const tunnelConfigFromEnv = (): TunnelConfig | null =>
-  process.env.METRO_TUNNEL?.trim() === 'quick' ? { quick: true } : null;
+export const quickTunnelWanted = (): boolean =>
+  process.env.METRO_TUNNEL?.trim() === 'quick';
 
 const QUICK_URL_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/;
 
@@ -61,17 +45,11 @@ async function untilResolvable(host: string, resolves: Resolves): Promise<boolea
   return false;
 }
 
-export function configuredTunnelHost(): string | null {
-  const cfg = loadTunnelConfig();
-  return cfg !== null && !isQuick(cfg) ? cfg.hostname : null;
-}
-
 export interface Endpoint {
   id: string;
   webhookId?: string;
   label: string;
   secret?: string;
-  session?: string;
   createdAt: string;
 }
 interface AccountRecord {
@@ -79,7 +57,6 @@ interface AccountRecord {
   webhookId?: unknown;
   label?: unknown;
   secret?: unknown;
-  session?: unknown;
   createdAt?: unknown;
 }
 
@@ -101,7 +78,6 @@ function toEndpoint(raw: AccountRecord): Endpoint | null {
     webhookId: str(raw.webhookId),
     label: str(raw.label) ?? id,
     secret: str(raw.secret),
-    session: str(raw.session),
     createdAt: str(raw.createdAt) ?? '',
   };
 }
@@ -125,76 +101,21 @@ export function tokenMatches(secret: string, given: string): boolean {
   return want.length === got.length && timingSafeEqual(want, got);
 }
 
-export function warnOnLegacyWebhooks(): void {
-  const legacy = readJson<{ endpoints?: unknown[] }>(LEGACY_WEBHOOKS_FILE, {});
-  const count = Array.isArray(legacy.endpoints) ? legacy.endpoints.length : 0;
-  if (count > 0)
-    log.warn(
-      { file: LEGACY_WEBHOOKS_FILE, endpoints: count },
-      'webhook: webhooks.json is no longer read — endpoints live in the accounts table; these endpoints are inactive',
-    );
-}
-
-export const loadTunnelConfig = (): TunnelConfig | null =>
-  readJson<TunnelConfig | null>(FILE, null, {
-    warn: 'tunnel.json: malformed, ignoring',
-  });
-
-function fetchTunnelToken(name: string): string | null {
-  const r = spawnSync('cloudflared', ['tunnel', 'token', name], {
-    encoding: 'utf8',
-  });
-  if (r.status !== 0) return null;
-  const token = r.stdout.trim();
-  return token.length > 0 ? token : null;
-}
-
-interface Plan {
-  args: string[];
-  env: NodeJS.ProcessEnv;
-  mode: string;
-}
-
 export class Tunnel {
   private child: ChildProcess | null = null;
   private closed = false;
-  private token: string | null | undefined = undefined;
 
   constructor(
-    private cfg: TunnelConfig,
     private port: number,
     private onUrl: (url: string) => void = () => undefined,
     private resolves: Resolves = resolvesAtCloudflare,
   ) {}
 
-  get hostname(): string {
-    if (!isQuick(this.cfg)) return this.cfg.hostname;
-    return liveUrl === null ? '' : new URL(liveUrl).host;
-  }
-
   private origin(): string {
     return `http://127.0.0.1:${String(this.port)}`;
   }
 
-  private plan(): Plan {
-    if (isQuick(this.cfg))
-      return {
-        args: ['--no-autoupdate', 'tunnel', '--url', this.origin()],
-        env: process.env,
-        mode: 'quick',
-      };
-    if (this.token === undefined) this.token = fetchTunnelToken(this.cfg.name);
-    const args = ['--no-autoupdate', 'tunnel', 'run', '--url', this.origin()];
-    if (!this.token) args.push(this.cfg.name);
-    return {
-      args,
-      env: this.token ? { ...process.env, TUNNEL_TOKEN: this.token } : process.env,
-      mode: this.token ? 'token' : 'named',
-    };
-  }
-
   private noticeUrl(text: string): void {
-    if (!isQuick(this.cfg)) return;
     const url = quickTunnelUrlIn(text);
     if (url === null || url === liveUrl) return;
     liveUrl = url;
@@ -213,15 +134,12 @@ export class Tunnel {
 
   start(): void {
     if (this.closed) return;
-    const plan = this.plan();
-    log.info(
-      { tunnel: isQuick(this.cfg) ? 'quick' : this.cfg.name, port: this.port, mode: plan.mode },
-      'cloudflared tunnel starting',
+    log.info({ port: this.port }, 'cloudflared quick tunnel starting');
+    const child = spawn(
+      'cloudflared',
+      ['--no-autoupdate', 'tunnel', '--url', this.origin()],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
     );
-    const child = spawn('cloudflared', plan.args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: plan.env,
-    });
     this.child = child;
     child.stderr?.on('data', (d: Buffer | string) => {
       const text = (typeof d === 'string' ? d : d.toString('utf8')).trim();

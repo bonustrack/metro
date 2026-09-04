@@ -131,12 +131,6 @@ describe('a local daemon, end to end over http', () => {
     expect((await signIn(STRANGER)).status).toBe(403);
   });
 
-  test('the owner sees exactly one project, this machine, with themself as the only member', async () => {
-    const projects = (await (await call('GET', '/api/projects', session)).json()) as { projects: { id: string; role: string; owner: boolean }[] };
-    expect(projects.projects).toMatchObject([{ id: PROJECT, role: 'admin', owner: true }]);
-    const members = (await (await call('GET', `/api/projects/${PROJECT}/members`, session)).json()) as { members: { address: string }[] };
-    expect(members.members.map((m) => m.address)).toEqual([OWNER.address.toLowerCase()]);
-  });
 
   test('creating an agent writes its file, registers its key and lists it', async () => {
     const res = await call('POST', `/api/agents?project=${PROJECT}`, session, { name: 'suzy' });
@@ -191,9 +185,7 @@ describe('a local daemon, end to end over http', () => {
     expect((await call('POST', `/api/agents/${made.id}/code`, session)).status).toBe(400);
     expect((await call('POST', `/api/agents/${made.id}/connectors`, session, { connectorId: 'conn0000001' })).status).toBe(404);
     expect((await call('DELETE', `/api/agents/${made.id}/runtime`, session)).status).toBe(400);
-    expect((await call('POST', '/api/projects', session, { name: 'x' })).status).toBe(400);
     const stranger = signSession({ subject: STRANGER.address.toLowerCase(), agentIds: [] }, secret);
-    expect(((await (await call('GET', '/api/projects', stranger)).json()) as { projects: unknown[] }).projects).toEqual([]);
     expect((await call('GET', `/api/agents?project=${PROJECT}`, stranger)).status).toBe(404);
     expect((await call('GET', `/api/agents/${made.id}/connectors`, stranger)).status).toBe(404);
   });

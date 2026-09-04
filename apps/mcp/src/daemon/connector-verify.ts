@@ -13,6 +13,7 @@ export {
   connectorUrlText,
   parseConnectorUrl,
 } from './connector-url.js';
+import { isRecord } from './is-record.js';
 
 export interface OAuthTokens {
   accessToken: string;
@@ -57,10 +58,6 @@ function notMcp(url: URL): ConnectorNotMcp {
 }
 const PROBE_TIMEOUT_MS = 10_000;
 const ACCEPT = 'application/json, text/event-stream';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 async function discard(res: Response): Promise<void> {
   await res.body?.cancel().catch((err: unknown) => {

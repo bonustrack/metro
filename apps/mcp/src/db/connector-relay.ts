@@ -25,7 +25,7 @@ export function staleUsable(auth: OAuthAuth, now = Date.now()): boolean {
   return auth.expiresAt === undefined || auth.expiresAt > now;
 }
 
-export function headerAuthHeaders(
+function headerAuthHeaders(
   auth: ConnectorAuth,
 ): Record<string, string> | null {
   return auth.kind === 'header' ? { [auth.name]: auth.value } : null;

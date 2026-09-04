@@ -19,7 +19,6 @@ export interface AccountConfig {
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'telegram-bot',
   file: ACCOUNTS_FILE,
-  allowlistEnv: ['TELEGRAM_BOT_ONLY_ACCOUNTS', 'TELEGRAM_BOT_ACCOUNTS'],
   validate(raw, die) {
     const seenId = new Set<string>();
     const seenTok = new Set<string>();

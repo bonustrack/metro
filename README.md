@@ -352,7 +352,7 @@ without the credentials touching disk, argv or shell history.
 ```bash
 npm i -g @stage-labs/metro@beta   # `latest` is an older line; the tag matters
 
-metro login     # paste the pairing code from an agent's page (or pick it at https://metro.box/#/authorize)
+metro login     # paste a pairing code for the agent
 metro mcp       # prints {"mcpServers": {...}} on stdout: that agent's connectors, through the relay
 metro whoami    # which account and agent this machine is signed in as
 metro update    # update to the newest published version
@@ -369,9 +369,8 @@ stores the refreshed pair, so a block you pipe into a client is live rather than
 A token endpoint that will not answer is logged and that one connector goes out with what was
 stored; the rest are unaffected.
 
-Sign-in authorizes **one agent**, not your account: pick it at `#/authorize` (or open the
-agent's page), and the UI mints a single-use code (`ma_` + 16 base64url, ten-minute TTL, in
-memory only) which you paste into `metro login`. The CLI trades it for a token. The same code
+Sign-in authorizes **one agent**, not your account: metro.box mints a single-use code for it
+(`ma_` + 16 base64url, ten-minute TTL, in memory only) which you paste into `metro login`. The CLI trades it for a token. The same code
 is what `metro start` takes, so one code pairs a machine whichever way you use it. There is no
 localhost listener and no callback, which is exactly why it works over SSH. A server appears in
 the client under the connector's own name, so rename one (from either kebab menu) if two of
@@ -435,7 +434,7 @@ holding one is refused with a message saying so. While an agent runs locally, me
 nothing — there is no fallback, and its key stops working against metro so a client pointed at
 the wrong daemon fails loudly instead of going quiet.
 
-**Without any account** (the base of the local-first work in `docs/CLI-REDESIGN.md`): start the
+**Without any account** (the base of the local-first work in `docs/LOCAL-FIRST.md`): start the
 daemon with `METRO_MODE=local` and it reads its agents from `~/.metro/agents/<name>/agent.json`
 (`METRO_AGENTS_DIR` overrides the directory), each `{ "version": 1, "id", "name", "key",
 "owner", "stations": [...] }`, runs their stations on this machine and prints the paste-ready
@@ -445,10 +444,10 @@ stations, all written to those files. Open the link it prints: metro.box connect
 your machine (from another computer, forward the port first with `ssh -L 8420:127.0.0.1:8420 <host>`)
 and manages it from the same pages, while your messages stay on that machine. With the published
 CLI this is `metro serve`; a checkout runs it as `METRO_MODE=local bun apps/mcp/src/server.ts`.
-An agent that lives on metro.box can move here: *Import from metro.box* on the Agents page takes
-the pairing code from the agent's page (the same one `metro start` takes) and brings the agent
-over with its stations and their credentials, same id and same key, so nothing changes on the
-Claude Code side. Stop `metro start` for that agent first; metro.box keeps its copy until you
+An agent that lives on metro.box can move here: *Import from metro.box* on the agent page lists
+the wallet's agents, mints the pairing code itself (the same one `metro start` takes) and brings
+the agent over with its stations and their credentials, same id and same key, so nothing changes
+on the Claude Code side. Stop `metro start` for that agent first; metro.box keeps its copy until you
 delete the agent there.
 
 One thing to know about XMTP: an inbox allows ten installations and the first start on each
@@ -459,43 +458,13 @@ To be precise about what this does and does not buy: metro still stores your bot
 this stops your messages transiting metro — it does not stop metro being able to read them
 from the platform directly.
 
-### Projects
+### One agent, its connectors
 
-**A project owns everything.** Agents and connectors both belong to a project, not
-to you; the only thing you own directly is the project itself. Your account gets a **Personal**
-project on first sign-in, and that one cannot be deleted.
-
-Anyone can create a project and invite people to it by wallet address. Members carry a role: an **admin**
-renames the project and manages its members, a **member** does everything else inside it, and
-only the **owner** can delete it. The owner cannot be demoted or removed.
-
-The project is part of the url — `#/<projectId>/connectors`, `#/<projectId>/agent/<agentId>`,
-`#/<projectId>/members` — so a link says exactly what it shows, and the switcher at the bottom
-of the sidebar moves between them. A project you are not a member of answers `404`, the same as
-one that never existed.
-
-The MCP path is unaffected: an agent's key resolves straight to its agent, with no user or
-project in the way, so connected clients keep working.
-
-### Agents hold connectors
-
-An **agent** is the unit a machine gets authorized for, and it holds a list of connectors.
-`metro login` asks which agent; that machine can then read those connectors and nothing else
-on your account — not your other agents, and it cannot add or delete anything. A connector can
-be held by as many agents as you like.
-
-Membership is edited from either end. Each connector's ⋮ menu has *Add to agent*, with a
-checkbox per agent of the project; the agent's own page has a Connectors section that lists
-what it holds, with *Add connectors* and a per-row *Remove from agent*. Deleting a connector
-removes it from every agent, and deleting an agent forgets what it held.
-
-Two connectors in one project may share a name, but two held by the same **agent** may not:
-the name is the key in the exported `mcpServers` block, so a collision there would silently
-drop one of them. Adding a connector to an agent, or renaming one an agent already holds, is
-refused `409` when it would collide.
-
-Collections used to be this unit. They were dropped, and their connectors stayed in the
-project without an agent; add them to the agents that should hold them from an agent's page.
+The page is about one agent, the one the daemon in the address runs, and every connector on
+that daemon is held by it: `metro mcp` exports them all, and deleting a connector removes it
+from the agent. Two connectors may not share a name, because the name is the key in the
+exported `mcpServers` block and a collision there would silently drop one of them; adding or
+renaming one is refused `409` when it would collide.
 
 ### Inbound webhooks
 

@@ -33,7 +33,7 @@ const CONTROL = /[\u0000-\u001f\u007f]/;
 const missing = (): ProjectError => new ProjectError('no such project', 404);
 const forbidden = (why: string): ProjectError => new ProjectError(why, 403);
 
-export function projectName(raw: unknown): string {
+function projectName(raw: unknown): string {
   const name = typeof raw === 'string' ? raw.trim() : '';
   if (name === '' || name.length > NAME_MAX)
     throw new ProjectError(
@@ -54,7 +54,7 @@ export interface Access {
   role: ProjectRole;
 }
 
-export async function memberAccessOrThrow(
+async function memberAccessOrThrow(
   subject: string,
   projectId: string,
 ): Promise<Access> {
@@ -101,7 +101,7 @@ async function addMemberRow(
     .onConflictDoNothing();
 }
 
-export async function ensureDefaultProject(userId: string): Promise<string> {
+async function ensureDefaultProject(userId: string): Promise<string> {
   const existing = await getDb()
     .select({ id: projects.id })
     .from(projects)

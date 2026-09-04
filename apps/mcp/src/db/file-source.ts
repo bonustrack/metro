@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { AGENT_NAME_RE, ID_RE } from './ids.js';
 import { STATIONS, type StationName } from './schema.js';
 import type { LoadedAccount, LoadedAgent, StationSource } from './materialize.js';
+import { isRecord } from '../daemon/is-record.js';
 
 export const AGENT_FILE = 'agent.json';
 
@@ -29,9 +30,6 @@ export function agentsDir(): string {
     ? explicit
     : join(homedir(), '.metro', 'agents');
 }
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 function fail(path: string, reason: string): never {
   throw new AgentFileError(`${path}: ${reason}`);

@@ -36,11 +36,8 @@ describe('a station that could not be reached keeps its last known cards', () =>
 
 describe('a detached account cannot be resurrected by carry-forward', () => {
   const view = (groups: AccountGroup[]): StationsView => ({
-    email: 'a@b.c',
-    endpoint: '',
     agents: [],
     groups,
-    unattributed: 0,
     attachable: [],
     unavailable: ['xmtp'],
     capabilities: {},

@@ -14,13 +14,13 @@ const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
 const USAGE = 'usage: metro serve [--port <n>] [--tunnel]';
 
-export interface ServeOptions {
+interface ServeOptions {
   dir: string;
   port: number;
   tunnel: boolean;
 }
 
-export interface ServeArgs {
+interface ServeArgs {
   port: number;
   tunnel: boolean;
 }
@@ -56,7 +56,7 @@ export function parseServeArgs(argv: string[]): ServeArgs {
   return { port, tunnel };
 }
 
-export function findCloudflared(): void {
+function findCloudflared(): void {
   const found = spawnSync('cloudflared', ['--version'], { stdio: 'ignore' });
   if (found.error !== undefined || found.status !== 0)
     throw new Error(
