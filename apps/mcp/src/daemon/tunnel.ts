@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
 import { Resolver } from 'node:dns/promises';
 import { homedir } from 'node:os';
@@ -7,6 +7,9 @@ import { errMsg, log } from './log.js';
 import { readJson } from './secure-fs.js';
 
 const RESTART_DELAY_MS = 2_000;
+const RESTART_DELAY_MAX_MS = 30_000;
+const TAKEN_RE = /listener already exists/i;
+const FUNNEL_ON_RE = /\(Funnel on\)/i;
 
 export type TunnelKind = 'quick' | 'tailscale';
 
@@ -27,12 +30,43 @@ export const quickTunnelUrlIn = (text: string): string | null =>
 export const funnelUrlIn = (text: string): string | null =>
   FUNNEL_URL_RE.exec(text)?.[0]?.toLowerCase() ?? null;
 
+export interface Adopted {
+  url: string | null;
+  hint: string;
+}
+
 export interface TunnelDriver {
   name: string;
   command: string;
   args: string[];
   urlIn: (text: string) => string | null;
   waitsForDns: boolean;
+  adopt?: () => Promise<Adopted>;
+}
+
+const runText = (command: string, args: string[]): Promise<string> =>
+  new Promise((resolve) => {
+    execFile(command, args, { encoding: 'utf8', timeout: 10_000 }, (_err, stdout, stderr) => {
+      resolve(`${stdout}\n${stderr}`);
+    });
+  });
+
+export function funnelAlreadyServing(status: string, port: number): Adopted {
+  const lines = status.split('\n');
+  const target = `http://127.0.0.1:${String(port)}`;
+  for (const [i, line] of lines.entries()) {
+    if (line.trimStart().startsWith('#')) continue;
+    const url = funnelUrlIn(line);
+    if (url === null) continue;
+    const body = lines.slice(i + 1, i + 6).join('\n');
+    if (!body.includes(target)) continue;
+    if (FUNNEL_ON_RE.test(line)) return { url, hint: `a Funnel already publishes this daemon at ${url}; using it` };
+    return {
+      url: null,
+      hint: `${url} is a tailnet-only serve config on this node, not a Funnel; run: tailscale serve reset`,
+    };
+  }
+  return { url: null, hint: 'port 443 is held by another serve config on this node; run: tailscale serve reset' };
 }
 
 export const quickDriver = (port: number): TunnelDriver => ({
@@ -53,7 +87,8 @@ export const funnelDriver = (port: number, bin = tailscaleBin()): TunnelDriver =
   command: bin,
   args: ['funnel', String(port)],
   urlIn: funnelUrlIn,
-  waitsForDns: false,
+  waitsForDns: true,
+  adopt: async () => funnelAlreadyServing(await runText(bin, ['funnel', 'status']), port),
 });
 
 export const driverFor = (kind: TunnelKind, port: number): TunnelDriver =>
@@ -148,6 +183,7 @@ export class Tunnel {
   private child: ChildProcess | null = null;
   private closed = false;
   private output: string[] = [];
+  private restartDelay = RESTART_DELAY_MS;
 
   constructor(
     private driver: TunnelDriver,
@@ -159,6 +195,7 @@ export class Tunnel {
     const url = this.driver.urlIn(text);
     if (url === null || url === liveUrl) return;
     liveUrl = url;
+    this.restartDelay = RESTART_DELAY_MS;
     if (!this.driver.waitsForDns) {
       log.info({ url }, `${this.driver.name} up`);
       this.onUrl(url);
@@ -212,10 +249,9 @@ export class Tunnel {
       this.child = null;
       liveUrl = null;
       if (this.closed) return;
-      log.warn({ code, output: this.output.slice(-5).join('\n') }, `${this.driver.name} exited; restarting`);
-      setTimeout(() => {
-        this.start();
-      }, RESTART_DELAY_MS);
+      this.afterExit(code).catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, `${this.driver.name}: exit handling failed`);
+      });
     });
     child.on('error', (err) => {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -228,6 +264,24 @@ export class Tunnel {
       }
       log.warn({ err: errMsg(err) }, `${this.driver.name} spawn error`);
     });
+  }
+
+  private async afterExit(code: number | null): Promise<void> {
+    const output = this.output.join('\n');
+    if (this.driver.adopt !== undefined && TAKEN_RE.test(output)) {
+      const found = await this.driver.adopt();
+      if (this.closed) return;
+      if (found.url !== null) {
+        log.info({ url: found.url }, `${this.driver.name}: ${found.hint}`);
+        this.noticeUrl(found.url);
+        return;
+      }
+      log.error({ output }, `${this.driver.name}: ${found.hint}`);
+    } else log.warn({ code, output: this.output.slice(-5).join('\n') }, `${this.driver.name} exited; restarting`);
+    setTimeout(() => {
+      this.start();
+    }, this.restartDelay);
+    this.restartDelay = Math.min(this.restartDelay * 2, RESTART_DELAY_MAX_MS);
   }
 
   stop(): void {
