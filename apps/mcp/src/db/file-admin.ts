@@ -187,12 +187,7 @@ export function assertLocalOwner(subject: string, dir = agentsDir()): void {
   if (!isOwner(subject, dir)) throw new AgentAdminError('no such project', 404);
 }
 
-export async function localImportAgent(
-  subject: string,
-  agent: LoadedAgent,
-  dir = agentsDir(),
-): Promise<{ id: string; name: string; key: string; stations: number }> {
-  assertLocalOwner(subject, dir);
+function assertImportable(agent: LoadedAgent): asserts agent is LoadedAgent & { key: string } {
   const immovable = agent.accounts.find((a) => !MOVABLE_STATIONS.has(a.station));
   if (immovable !== undefined)
     throw new AgentAdminError(
@@ -201,37 +196,71 @@ export async function localImportAgent(
     );
   if (agent.key === null)
     throw new AgentAdminError('that agent has no key; reset it on metro.box first', 400);
-  const folder = join(dir, agent.name);
-  const path = join(folder, AGENT_FILE);
-  if (existsSync(path))
+}
+
+interface ImportTarget {
+  path: string;
+  previous: AgentFile | undefined;
+}
+
+function importTarget(dir: string, agent: LoadedAgent & { key: string }): ImportTarget {
+  const existing = storedAgents(dir);
+  const same = existing.find((s) => s.file.id === agent.id);
+  const fresh = join(dir, agent.name, AGENT_FILE);
+  if (same === undefined && existsSync(fresh))
     throw new AgentAdminError(
       `an agent named '${agent.name}' already exists on this machine`,
       409,
     );
-  assertUnclaimed(storedAgents(dir), agent);
-  const file = fileFor(agent, localOwner(dir), path);
-  ensureSecureDir(folder);
+  assertUnclaimed(existing.filter((s) => s !== same), agent);
+  return { path: same?.path ?? fresh, previous: same?.file };
+}
+
+export async function localImportAgent(
+  subject: string,
+  agent: LoadedAgent,
+  dir = agentsDir(),
+): Promise<{ id: string; name: string; key: string; stations: number }> {
+  assertLocalOwner(subject, dir);
+  assertImportable(agent);
+  const { path, previous } = importTarget(dir, agent);
+  const file = fileFor(agent, localOwner(dir), path, previous);
+  ensureSecureDir(join(path, '..'));
   save({ path, file });
+  if (previous !== undefined && previous.key !== agent.key) unregisterAgentKey(agent.id);
   registerKey(agent.key, agent.id);
   return Promise.resolve({
     id: agent.id,
     name: agent.name,
     key: agent.key,
-    stations: agent.accounts.length,
+    stations: file.stations.length,
   });
 }
 
-function fileFor(agent: LoadedAgent, owner: string | null, path: string): AgentFile {
+function mergedStations(agent: LoadedAgent, previous: AgentFile | undefined): AgentFile['stations'] {
+  const fromMetro = agent.accounts.map((a) => ({ ...a, allowlist: a.allowlist ?? ['*'] }));
+  const kept = (previous?.stations ?? []).filter(
+    (s) => !fromMetro.some((m) => m.station === s.station && m.id === s.id),
+  );
+  return [...fromMetro, ...kept];
+}
+
+function fileFor(
+  agent: LoadedAgent,
+  owner: string | null,
+  path: string,
+  previous?: AgentFile,
+): AgentFile {
   try {
     return parseAgentFile(
       JSON.stringify({
         version: 1,
         id: agent.id,
-        name: agent.name,
+        name: previous?.name ?? agent.name,
         key: agent.key,
         owner,
-        stations: agent.accounts.map((a) => ({ ...a, allowlist: a.allowlist ?? ['*'] })),
-        connectors: [],
+        stations: mergedStations(agent, previous),
+        connectors: previous?.connectors ?? [],
       }),
       path,
     );

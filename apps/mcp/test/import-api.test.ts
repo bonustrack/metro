@@ -25,6 +25,15 @@ const TONY = {
     { station: 'telegram-bot', id: 'stn00000001', allowlist: ['*'], config: { token: 'bot-token' } },
     { station: 'xmtp', id: 'stn00000002', allowlist: ['*'], config: { privateKey: '0x1', dbPath: '~/.metro/x.db3' } },
   ],
+  connectors: [
+    {
+      id: 'conn0000001',
+      name: 'linear',
+      url: 'https://mcp.linear.app/mcp',
+      transport: 'http',
+      config: { auth: { kind: 'header', name: 'Authorization', value: 'Bearer vendor' }, createdAt: '2026-09-01T00:00:00.000Z', verified: { at: '2026-09-01T00:00:00.000Z', server: 'linear', tools: [] } },
+    },
+  ],
 };
 const saved = {
   dir: process.env.METRO_AGENTS_DIR,
@@ -155,7 +164,7 @@ describe('importing an agent from metro.box into a local daemon', () => {
   test('the good code claims the agent, writes its file with the same id and key, and reloads its stations', async () => {
     const res = await post(session(OWNER), { code: GOOD });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ id: TONY.id, name: 'Tony', key: TONY_KEY, stations: 2 });
+    expect(await res.json()).toEqual({ id: TONY.id, name: 'Tony', key: TONY_KEY, stations: 2, connectors: 1 });
     expect(claims).toHaveLength(1);
     const file = JSON.parse(readFileSync(join(dir, 'Tony', 'agent.json'), 'utf8')) as {
       id: string;
@@ -170,6 +179,10 @@ describe('importing an agent from metro.box into a local daemon', () => {
     ]);
     expect(file.stations[1]?.config).toEqual({ privateKey: '0x1', dbPath: '~/.metro/x.db3' });
     expect(agentIdForKey(TONY_KEY)).toBe(TONY.id);
+    const held = JSON.parse(readFileSync(join(dir, 'Tony', 'agent.json'), 'utf8')) as { connectors: string[] };
+    expect(held.connectors).toEqual(['conn0000001']);
+    const rows = JSON.parse(readFileSync(join(dir, 'connectors.json'), 'utf8')) as { connectors: { id: string; name: string; config: { auth: { value?: string } } }[] };
+    expect(rows.connectors.map((c) => [c.id, c.name, c.config.auth.value])).toEqual([['conn0000001', 'linear', 'Bearer vendor']]);
     expect(synced.sort()).toEqual(['telegram-bot', 'xmtp']);
     const stored = JSON.parse(readFileSync(join(dir, 'config', `runtime-${TONY.id}.json`), 'utf8')) as {
       token: string;
@@ -183,8 +196,10 @@ describe('importing an agent from metro.box into a local daemon', () => {
     expect(list.agents).toMatchObject([{ id: TONY.id, key: TONY_KEY }]);
   });
 
-  test('importing it twice is a 409, and metro refusals come through with their reason', async () => {
-    expect((await post(session(OWNER), { code: GOOD })).status).toBe(409);
+  test('importing it twice refreshes it in place, and metro refusals come through with their reason', async () => {
+    const again = await post(session(OWNER), { code: GOOD });
+    expect(again.status).toBe(201);
+    expect(await again.json()).toEqual({ id: TONY.id, name: 'Tony', key: TONY_KEY, stations: 2, connectors: 1 });
     const unknown = await post(session(OWNER), { code: `ma_${'z'.repeat(16)}` });
     expect(unknown.status).toBe(400);
     expect(((await unknown.json()) as { error: string }).error).toBe('no such code');

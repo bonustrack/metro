@@ -48,6 +48,7 @@ import {
   LOCAL_PROJECT_ID,
 } from './file-admin.js';
 import { newId } from './ids.js';
+import type { LoadedConnector } from './materialize.js';
 
 export interface LocalConnectorRow {
   id: string;
@@ -111,6 +112,26 @@ async function oauthCapable(url: URL, auth: ConnectorAuth): Promise<boolean> {
   if (auth.kind === 'oauth') return true;
   if (auth.kind === 'header') return false;
   return advertisesOAuth(url);
+}
+
+export function localImportConnectors(rows: LoadedConnector[], dir = agentsDir()): number {
+  const current = readLocalConnectors(dir);
+  for (const row of rows) {
+    const other = current.find((r) => r.id !== row.id && r.name === row.name);
+    if (other !== undefined)
+      throw new ConnectorError(`a connector named '${row.name}' already exists on this daemon; rename it first`, 409);
+  }
+  const imported: LocalConnectorRow[] = rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    transport: 'http',
+    config: readConfig(row.config),
+  }));
+  const ids = new Set(imported.map((r) => r.id));
+  writeRows(dir, [...current.filter((r) => !ids.has(r.id)), ...imported]);
+  for (const row of imported) localHoldEverywhere(row.id, dir);
+  return imported.length;
 }
 
 export async function localListConnectors(

@@ -11,7 +11,7 @@ import { Loading } from './Loading';
 import { NewAgentKey } from './NewAgentKey';
 import { createAgent, importAgent, resetAgentKey, type CreatedAgent } from '../api/client';
 import { stationCount } from '../api/accounts';
-import { queryError, refreshAgents, useStationsQuery } from '../api/queries';
+import { queryError, refreshAgents, refreshConnectors, useStationsQuery } from '../api/queries';
 import { routeHash } from '../route';
 import { opensElsewhere } from './link';
 import { type Selection } from './selection';
@@ -124,6 +124,8 @@ interface HomeProps {
 
 export function Home({ token, project, onSelect }: HomeProps): ReactNode {
   const client = useQueryClient();
+  const dark = useKitScheme() === 'dark';
+  const [importing, setImporting] = useState(false);
   const { data, error } = useStationsQuery(token);
   const agent = data?.agents[0];
   useDocumentTitle(agent?.name ?? 'This machine');
@@ -157,6 +159,27 @@ export function Home({ token, project, onSelect }: HomeProps): ReactNode {
         <Summary label="Stations" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
         <Summary label="Connectors" count={agent.connectorIds.length} target={{ kind: 'connectors', project }} onSelect={onSelect} />
       </Col>
+      <Row>
+        <Button
+          color="secondary"
+          dark={dark}
+          label="Import again from metro.box"
+          onPress={() => {
+            setImporting(true);
+          }}
+        />
+      </Row>
+      <ImportAgent
+        open={importing}
+        onClose={() => {
+          setImporting(false);
+        }}
+        onImport={async (code) => {
+          await importAgent(token, code);
+          refreshAgents(client);
+          refreshConnectors(client);
+        }}
+      />
     </Col>
   );
 }

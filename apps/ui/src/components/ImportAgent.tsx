@@ -24,7 +24,7 @@ import { AuthError, fetchAgentsAt } from '../api/client';
 import { mintAgentCode } from '../api/agent-connectors';
 
 const HOW =
-  'The agent moves to this machine with its stations and their credentials, keeps its id and key, and runs here from now on. If metro start runs it somewhere, stop that first.';
+  'The agent moves to this machine with its stations, its connectors and their credentials, keeps its id and key, and runs here from now on. Importing it again refreshes what is here. If metro start runs it somewhere, stop that first.';
 
 interface Remote {
   id: string;
