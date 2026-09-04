@@ -139,6 +139,24 @@ async function rowsByIds(ids: string[]): Promise<ConnectorRow[]> {
     .orderBy(asc(connectors.id));
 }
 
+export interface ConnectorSummary {
+  id: string;
+  name: string;
+  url: string;
+  transport: string;
+  signIn: ConnectorSignIn;
+}
+
+export async function connectorSummariesByIds(ids: string[]): Promise<ConnectorSummary[]> {
+  return (await rowsByIds(ids)).map((row) => ({
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    transport: row.transport,
+    signIn: signInState(readConfig(row.config)),
+  }));
+}
+
 export async function connectorNamesByIds(
   ids: string[],
 ): Promise<{ id: string; name: string }[]> {
