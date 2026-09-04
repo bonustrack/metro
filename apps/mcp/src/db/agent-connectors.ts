@@ -56,7 +56,7 @@ export async function assertRenameFreeOfClash(
   if (clash !== null) throw nameClash(name, clash);
 }
 
-export async function connectorIdsOfAgent(agentId: string): Promise<string[]> {
+async function connectorIdsOfAgent(agentId: string): Promise<string[]> {
   const rows = await getDb()
     .select({ connectorId: agentConnectors.connectorId })
     .from(agentConnectors)

@@ -1,11 +1,5 @@
 import { daemonBase } from '../auth/session';
-import {
-  attributeUntagged,
-  groupAccounts,
-  isRecord,
-  unattributedAccounts,
-  type AccountGroup,
-} from './accounts';
+import { attributeUntagged, groupAccounts, isRecord, type AccountGroup } from './accounts';
 
 export class AuthError extends Error {}
 
@@ -14,33 +8,25 @@ export interface AgentSummary {
   name: string;
   owned: boolean;
   runtime: string | null;
-  connected: boolean;
-  lastSeen: string | null;
   key: string | null;
-  endpoint: string | null;
   command: string | null;
   connectorIds: string[];
 }
 
 export interface AgentsView {
-  subject: string;
-  endpoint: string;
   agents: AgentSummary[];
 }
 
 export interface StationsView extends AgentsView {
   groups: AccountGroup[];
-  unattributed: number;
   attachable: string[];
   unavailable: string[];
   capabilities: Record<string, string[]>;
 }
 
 export interface CreatedAgent {
-  id: string;
   name: string;
   key: string;
-  endpoint: string;
   command: string;
 }
 
@@ -81,29 +67,17 @@ export async function call(token: string, init: CallInit): Promise<unknown> {
 const text = (value: unknown): string | null =>
   typeof value === 'string' && value !== '' ? value : null;
 
-function credentials(a: Record<string, unknown>): Record<string, unknown> {
-  if (a.key !== undefined || !Array.isArray(a.keys)) return a;
-  const first: unknown = a.keys[0];
-  return isRecord(first) ? first : {};
-}
-
 function toAgents(value: unknown): AgentSummary[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(isRecord).map((a) => {
-    const cred = credentials(a);
-    return {
-      id: typeof a.id === 'string' ? a.id : '',
-      name: typeof a.name === 'string' ? a.name : '',
-      owned: a.owned === true,
-      runtime: text(a.runtime),
-      connected: a.connected === true,
-      lastSeen: text(a.last_seen),
-      key: text(cred.key),
-      endpoint: text(cred.endpoint),
-      command: text(cred.command),
-      connectorIds: toStationList(a.connector_ids),
-    };
-  });
+  return value.filter(isRecord).map((a) => ({
+    id: typeof a.id === 'string' ? a.id : '',
+    name: typeof a.name === 'string' ? a.name : '',
+    owned: a.owned === true,
+    runtime: text(a.runtime),
+    key: text(a.key),
+    command: text(a.command),
+    connectorIds: toStationList(a.connector_ids),
+  }));
 }
 
 function attributedGroups(
@@ -129,13 +103,7 @@ function toCapabilities(value: unknown): Record<string, string[]> {
   return out;
 }
 
-function toAgentsView(body: Record<string, unknown>): AgentsView {
-  return {
-    subject: typeof body.subject === 'string' ? body.subject : '',
-    endpoint: typeof body.endpoint === 'string' ? body.endpoint : '',
-    agents: toAgents(body.agents),
-  };
-}
+const toAgentsView = (body: Record<string, unknown>): AgentsView => ({ agents: toAgents(body.agents) });
 
 export async function fetchSession(token: string): Promise<string> {
   const body = await call(token, { base: sessionUrl(), method: 'GET' });
@@ -175,7 +143,6 @@ export async function fetchStations(token: string): Promise<StationsView> {
   return {
     ...view,
     groups,
-    unattributed: unattributedAccounts(groups),
     attachable: toStationList(body.attachable),
     unavailable: toStationList(body.unavailable),
     capabilities: toCapabilities(body.capabilities),
@@ -193,17 +160,10 @@ export async function createAgent(token: string, name: string): Promise<CreatedA
     !isRecord(body) ||
     typeof body.name !== 'string' ||
     typeof body.key !== 'string' ||
-    typeof body.command !== 'string' ||
-    typeof body.endpoint !== 'string'
+    typeof body.command !== 'string'
   )
     throw new Error('Metro returned an unexpected response.');
-  return {
-    id: typeof body.id === 'string' ? body.id : '',
-    name: body.name,
-    key: body.key,
-    endpoint: body.endpoint,
-    command: body.command,
-  };
+  return { name: body.name, key: body.key, command: body.command };
 }
 
 export interface ImportedAgent {
@@ -233,12 +193,6 @@ export async function resetAgentKey(
   id: string,
 ): Promise<void> {
   const body = await call(token, { method: 'POST', path: `/${id}/key` });
-  if (
-    !isRecord(body) ||
-    typeof body.name !== 'string' ||
-    typeof body.key !== 'string' ||
-    typeof body.command !== 'string' ||
-    typeof body.endpoint !== 'string'
-  )
+  if (!isRecord(body) || typeof body.key !== 'string')
     throw new Error('Metro returned an unexpected response.');
 }

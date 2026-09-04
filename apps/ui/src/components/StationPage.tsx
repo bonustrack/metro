@@ -56,7 +56,7 @@ export function StationPage({
       verbs={data.capabilities[found.station] ?? []}
       onOpenAgent={onOpenAgent}
       onDetach={
-        agent?.owned === true && owner !== null
+        owner !== null
           ? async (station, id) => {
               await detachAccount(token, owner, station, id);
               dropAccount(client, station, id);

@@ -11,7 +11,7 @@ export {
   type TrainErrorInfo,
 } from './train-error.js';
 
-export const CALL_TIMEOUT_MS = 60_000;
+const CALL_TIMEOUT_MS = 60_000;
 
 export interface Pending {
   resolve: (r: TrainCallResponse) => void;
@@ -24,7 +24,7 @@ export interface CallTarget {
   proc: ({ stdin?: unknown } & Record<string, unknown>) | null;
 }
 
-export const STDOUT_LINE_MAX = 4 * 1024 * 1024;
+const STDOUT_LINE_MAX = 4 * 1024 * 1024;
 
 export type TrainEvent = {
   station?: string;
@@ -149,7 +149,7 @@ export function readCalls(
   });
 }
 
-export function encodeCall(id: string, action: string, args: unknown): string {
+function encodeCall(id: string, action: string, args: unknown): string {
   return JSON.stringify({ op: 'call', id, action, args }) + '\n';
 }
 

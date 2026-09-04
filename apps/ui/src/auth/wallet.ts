@@ -60,7 +60,7 @@ function announce(event: Event): void {
   for (const listener of listeners) listener();
 }
 
-export function subscribeWallets(listener: () => void): () => void {
+function subscribeWallets(listener: () => void): () => void {
   listeners.add(listener);
   if (!subscribed) {
     subscribed = true;
@@ -72,7 +72,7 @@ export function subscribeWallets(listener: () => void): () => void {
   };
 }
 
-export function currentWallets(): WalletChoice[] {
+function currentWallets(): WalletChoice[] {
   snapshot ??= walletChoices(
     announced,
     browserWallet() !== null,

@@ -2,7 +2,7 @@
   "name": "@metro-labs/mcp",
   "version": "0.1.0-beta.15",
   "private": true,
-  "description": "Event-interception wire. Supervises train subprocesses in ~/.metro/trains/, multiplexes their JSON event stream onto stdout, and routes outbound action calls back via stdin. Per-platform code is written by the agent (or user) as train scripts — metro core is pure transport.",
+  "description": "Event-interception wire. Supervises train subprocesses in ~/.metro/trains/, multiplexes their JSON event stream onto stdout, and routes outbound action calls back via stdin. Per-platform code is written by the agent (or user) as train scripts \u2014 metro core is pure transport.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,12 +14,8 @@
   "engines": {
     "node": ">=22"
   },
-  "bin": {
-    "metro-daemon": "./dist/server.js"
-  },
   "exports": {
     ".": "./src/mcp/index.ts",
-    "./server": "./dist/server.js",
     "./log": "./src/daemon/log.ts",
     "./train-error": "./src/daemon/train-error.ts",
     "./secure-fs": "./src/daemon/secure-fs.ts",

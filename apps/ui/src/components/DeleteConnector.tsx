@@ -7,7 +7,6 @@ interface DeleteConnectorProps {
   connector: Connector;
   onDelete: (id: string) => Promise<void>;
   onError: (message: string) => void;
-  size?: 'sm' | 'lg';
   extra?: MenuItem[];
 }
 
@@ -15,7 +14,6 @@ export function DeleteConnector({
   connector,
   onDelete,
   onError,
-  size,
   extra = [],
 }: DeleteConnectorProps): ReactNode {
   const remove = (): void => {
@@ -29,7 +27,7 @@ export function DeleteConnector({
   return (
     <KebabMenu
       label="Connector actions"
-      size={size}
+      size="lg"
       items={[...extra, { label: 'Remove', danger: true, onSelect: remove }]}
     />
   );

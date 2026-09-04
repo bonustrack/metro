@@ -6,7 +6,7 @@ import type {
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { frameInScope, frameLine } from './frame-scope.js';
 
-export const EVENT_STORE_MAX = 500;
+const EVENT_STORE_MAX = 500;
 
 interface StoredEvent {
   eventId: EventId;

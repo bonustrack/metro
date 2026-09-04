@@ -1,4 +1,4 @@
-export const LOGIN_HASH = '#/login';
+const LOGIN_HASH = '#/login';
 
 const LOGIN_ROUTE = '/login';
 const STORE_KEY = 'metro.redirect';
@@ -17,7 +17,7 @@ export function atLogin(): boolean {
   return hashParts().route === LOGIN_ROUTE;
 }
 
-export function safeRedirect(raw: string | null): string | null {
+function safeRedirect(raw: string | null): string | null {
   if (raw === null || raw === '' || raw === '/') return null;
   if (!raw.startsWith('/') || raw.startsWith('//')) return null;
   if (raw === LOGIN_ROUTE) return null;

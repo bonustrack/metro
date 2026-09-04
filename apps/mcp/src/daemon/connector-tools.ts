@@ -64,7 +64,7 @@ export function toToolList(raw: unknown): ToolInfo[] {
   return out;
 }
 
-export function toStoredTool(raw: unknown): ToolInfo | null {
+function toStoredTool(raw: unknown): ToolInfo | null {
   if (!isRecord(raw)) return null;
   const name = str(raw.name, 200);
   if (name === '') return null;

@@ -81,7 +81,7 @@ export interface BufferedEvent {
   event: MetroEvent;
 }
 
-export const BUS_BUFFER_MAX = 500;
+const BUS_BUFFER_MAX = 500;
 
 const listeners = new Set<BusListener>();
 const buffer: BufferedEvent[] = [];

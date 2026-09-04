@@ -75,7 +75,7 @@ function tokenOrExplain() {
   const token = readToken();
   if (token === null)
     throw new Error(
-      `this machine is not signed in — get a code from the agent's page at ${metroWebUrl()}/#/authorize and run /metro:login <code>`,
+      `this machine is not signed in — get a pairing code for the agent from ${metroWebUrl()} and run /metro:login <code>`,
     );
   return token;
 }
@@ -112,7 +112,7 @@ async function refresh() {
 async function login(code) {
   if (!code)
     throw new Error(
-      `no code given — get one from the agent's page at ${metroWebUrl()}/#/authorize, then run /metro:login <code>`,
+      `no code given — get a pairing code for the agent from ${metroWebUrl()}, then run /metro:login <code>`,
     );
   const body = await api('/api/cli/claim', {
     method: 'POST',

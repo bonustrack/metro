@@ -148,7 +148,7 @@ export async function loadAgentForRuntime(
   };
 }
 
-export const pgSource: StationSource = () => loadAgents();
+const pgSource: StationSource = () => loadAgents();
 
 async function loadAgents(): Promise<LoadedAgent[]> {
   const db = getDb();
@@ -199,7 +199,7 @@ export function writeIfChanged(path: string, content: string): boolean {
   return true;
 }
 
-export const isLocalRuntime = (): boolean =>
+const isLocalRuntime = (): boolean =>
   (process.env.METRO_RUN_TOKEN?.trim() ?? '') !== '';
 
 export const stationRunsHere = (station: StationName): boolean =>

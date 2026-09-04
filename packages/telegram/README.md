@@ -33,43 +33,13 @@ other unconfigured station.
 Each user session is a `telegram` account row in the DB with
 `{ session, apiId, apiHash }` in `accounts.config` jsonb; optional `owner`. The daemon
 materializes it to the accounts file the train reads. See the
-[root README "Configuration"](../../README.md#configuration). Generate the `session`
-string once, locally, with `scripts/login.ts` (below).
+[root README "Configuration"](../../README.md#configuration). The session string is
+produced by the interactive attach in the web UI, which signs the account in over MTProto.
 
 | Env var | Meaning |
 | --- | --- |
 | `TELEGRAM_ACCOUNTS_FILE` | Optional override for the materialized accounts file path |
-| `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | Only for `scripts/login.ts` when generating a session |
 
-## Login (out-of-band)
-
-`TELEGRAM_SESSION` is produced once, locally, by the maintainer — never in prod.
-`scripts/login.ts` is a dev tool (not part of the train); it runs the interactive
-MTProto sign-in and prints the session string.
-
-**QR login (default).** The script starts the [QR login flow](https://core.telegram.org/api/qr-login)
-(`client.signInQr`), renders the login token as a QR code in the terminal, and waits for
-you to scan it. If the account has 2FA enabled, it prompts for the password to finish.
-
-```sh
-export TELEGRAM_API_ID=...      # from my.telegram.org
-export TELEGRAM_API_HASH=...
-bun packages/telegram/scripts/login.ts
-# scan the QR in Telegram → Settings → Devices → Link Desktop Device
-# (or open the printed tg://… link on the logged-in device), enter 2FA if prompted.
-# Then put the printed session in the account's DB config:
-#   UPDATE accounts SET config = config || '{"session":"<session>"}'::jsonb
-#     WHERE station='telegram' AND account_id='default';
-```
-
-**Phone fallback.** Pass `--phone` to use the classic phone → code → optional 2FA flow:
-
-```sh
-bun packages/telegram/scripts/login.ts --phone
-```
-
-The login client uses in-memory storage, so nothing is written to disk locally. Treat the
-printed session like a password: it is a full login credential. Never commit or log it.
 
 ## Local testing
 
@@ -78,17 +48,10 @@ run the daemon:
 
 1. **Get `api_id` / `api_hash`** from [my.telegram.org](https://my.telegram.org)
    → *API development tools*.
-2. **Get a session string** via the QR login (in-memory storage, writes nothing to disk):
+2. **Attach the account** from the web UI (*Connect station* → Telegram): the interactive
+   attach signs in over MTProto and stores the session in the account's `config`.
 
-   ```sh
-   export TELEGRAM_API_ID=... TELEGRAM_API_HASH=...
-   bun packages/telegram/scripts/login.ts
-   # scan the QR in Telegram → Settings → Devices → Link Desktop Device
-   ```
-
-3. **Insert a `telegram` account** into your local DB with the session in `config`
-   (`{ session, apiId, apiHash }` — see the root README's Configuration section), then
-   `bun run start`. Send yourself a Telegram message and watch the inbound
+3. Run `bun run start`. Send yourself a Telegram message and watch the inbound
    `metro://telegram/default/<peer>` event in the logs.
 
 ## Constraints

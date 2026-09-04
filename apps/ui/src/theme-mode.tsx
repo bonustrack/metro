@@ -26,7 +26,7 @@ function isMode(value: string | null): value is ThemeMode {
   return value === 'system' || value === 'light' || value === 'dark';
 }
 
-export function storedMode(): ThemeMode {
+function storedMode(): ThemeMode {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     return isMode(raw) ? raw : 'system';
@@ -47,7 +47,7 @@ function systemScheme(): Scheme {
   return window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
 }
 
-export function resolveScheme(mode: ThemeMode, system: Scheme): Scheme {
+function resolveScheme(mode: ThemeMode, system: Scheme): Scheme {
   return mode === 'system' ? system : mode;
 }
 

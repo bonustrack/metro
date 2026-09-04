@@ -65,14 +65,14 @@ export default defineConfig({
       knip: {
         entry: ['index.html'],
         project: ['src/**/*.{ts,tsx}'],
-        ignoreDependencies: ['react-native-web', '@types/qrcode'],
+        ignoreDependencies: ['react-native-web'],
       },
     },
     'packages/cli': {
       type: 'library',
       knip: {
         project: ['src/**/*.ts'],
-        entry: ['src/**/*.ts', 'scripts/*.mjs', 'test/**/*.ts'],
+        entry: ['scripts/*.mjs', 'test/**/*.ts'],
         ignoreBinaries: ['tail', 'ps', 'claude', 'cloudflared'],
         ignoreDependencies: STAGED_RUNTIME_DEPENDENCIES,
       },
@@ -80,10 +80,9 @@ export default defineConfig({
     'apps/mcp': {
       type: 'library',
       knip: {
-        entry: ['src/daemon/**/*.ts', 'test/**/*.{ts,mjs}'],
+        entry: ['test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
-        ignoreBinaries: ['mktemp', 'claude', 'ps'],
-        ignore: ['src/daemon/tunnel.ts'],
+        ignoreBinaries: ['mktemp', 'ps', 'cloudflared'],
       },
     },
     'packages/webhook': {
@@ -100,10 +99,7 @@ export default defineConfig({
     },
     'packages/telegram': {
       type: 'library',
-      knip: {
-        entry: ['scripts/login.ts'],
-        project: ['src/**/*.ts'],
-      },
+      knip: { project: ['src/**/*.ts'] },
     },
     'packages/whatsapp': {
       type: 'library',

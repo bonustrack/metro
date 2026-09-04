@@ -38,7 +38,7 @@ const VAGUE_MIMES = new Set([
 
 const mib = (n: number): string => `${Math.round(n / (1024 * 1024))} MiB`;
 
-export const uploadLimit = (): string =>
+const uploadLimit = (): string =>
   `${mib(MAX_UPLOAD_BYTES)} (${MAX_UPLOAD_BYTES} bytes)`;
 
 const tooLarge = (): string =>

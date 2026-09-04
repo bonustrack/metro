@@ -23,9 +23,8 @@ export const users = pgTable('users', {
   address: text('address').unique(),
 });
 
-export const PROJECT_ROLES = ['admin', 'member'] as const;
 
-export type ProjectRole = (typeof PROJECT_ROLES)[number];
+export type ProjectRole = 'admin' | 'member';
 
 export const projects = pgTable('projects', {
   id: text('id').primaryKey(),
@@ -80,9 +79,8 @@ export const stations = pgTable('stations', {
   config: jsonb('config').notNull(),
 });
 
-export const CONNECTOR_TRANSPORTS = ['http', 'sse'] as const;
 
-export type ConnectorTransport = (typeof CONNECTOR_TRANSPORTS)[number];
+export type ConnectorTransport = 'http' | 'sse';
 
 export const connectors = pgTable(
   'connectors',

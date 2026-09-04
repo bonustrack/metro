@@ -136,7 +136,7 @@ export async function claimCode(code: string): Promise<Authorized> {
   return { token: body.token, subject: body.subject, agent: body.agent };
 }
 
-export interface RunClaimed {
+interface RunClaimed {
   token: string;
   agent: string;
   label: string;

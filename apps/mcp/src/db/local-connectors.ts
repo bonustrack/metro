@@ -70,7 +70,7 @@ const isRow = (v: unknown): v is { id: string; name: string; url: string; config
 const asList = (value: unknown): unknown[] =>
   Array.isArray(value) ? value.map((item: unknown) => item) : [];
 
-export function readLocalConnectors(dir = agentsDir()): LocalConnectorRow[] {
+function readLocalConnectors(dir = agentsDir()): LocalConnectorRow[] {
   const raw = readJson<{ connectors?: unknown }>(filePath(dir), {}, {
     warn: 'connectors.json: malformed, ignoring',
   });

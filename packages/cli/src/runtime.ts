@@ -30,7 +30,7 @@ export function runtimeDir(): string {
   return dir;
 }
 
-export class MissingBun extends Error {}
+class MissingBun extends Error {}
 
 export function assertAgentId(id: string | undefined): string {
   if (id === undefined || !AGENT_RE.test(id))
@@ -80,7 +80,7 @@ export function writeRunToken(agentId: string, token: string): void {
 
 const PROBE_TIMEOUT_MS = 15_000;
 
-export type RunTokenState = 'ok' | 'stale' | 'unreachable';
+type RunTokenState = 'ok' | 'stale' | 'unreachable';
 
 export async function runTokenState(token: string): Promise<RunTokenState> {
   let res: Response;
@@ -106,7 +106,7 @@ export const localPort = (): number =>
 export const localUrl = (): string =>
   `http://127.0.0.1:${String(localPort())}`;
 
-export interface SpawnOptions {
+interface SpawnOptions {
   agentId: string;
   token: string;
   dir: string;

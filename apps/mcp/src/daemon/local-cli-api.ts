@@ -14,7 +14,7 @@ export interface LocalCliDeps {
   connectorSummaries: (agentId: string) => Promise<ConnectorSummary[]>;
 }
 
-export function keyOf(req: IncomingMessage): string {
+function keyOf(req: IncomingMessage): string {
   const header = req.headers.authorization ?? '';
   if (header.toLowerCase().startsWith('bearer ')) return header.slice(7).trim();
   const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');

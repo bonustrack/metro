@@ -151,7 +151,7 @@ const sourcesOf = (a: CanonicalAttachment): string[] =>
     return typeof v === 'string' && v.length > 0;
   });
 
-export async function resolveAttachment(
+async function resolveAttachment(
   a: CanonicalAttachment,
   budget: InlineBudget = { used: 0 },
   opts: ResolveOptions = {},

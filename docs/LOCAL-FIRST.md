@@ -1,8 +1,6 @@
 # Local first
 
-*Decided with Less on 2026-09-04. This replaces the "Phase 1" notes in `CLI-REDESIGN.md` for
-what runs where; the encryption scheme there (one EIP-712 signature per wallet, X25519 keys,
-a DEK per agent wrapped to the wallet) still holds and is used below.*
+*Decided with Less on 2026-09-04.*
 
 ## The shape
 
@@ -61,3 +59,35 @@ line does not change.
 4. **Retire the hosted paths** named above, after the agents have moved.
 
 Each step ships on its own and leaves a working product.
+
+## Keys
+
+Two layers, so an agent can be opened by more than one wallet.
+
+**A wallet has one deterministic encryption keypair**, derived from a single EIP-712 signature
+that is the same for every agent the wallet touches. These values sit in every wrapped key and
+must not change:
+
+```
+domain:  { name: "metro", version: "1" }
+types:   EncryptionKey { purpose: string, keyVersion: uint256 }
+message: { purpose: "encryption-key", keyVersion: 1 }
+```
+
+`HKDF-SHA256(ikm = signature bytes, salt = "metro", info = "x25519")` gives 32 bytes, the X25519
+private key; the public key is registered on the wallet's profile. Nothing has to be recovered:
+the same signature reproduces the keypair anywhere.
+
+**An agent has one random data key (DEK)**, never derived from anything. The bundle is
+AES-256-GCM under it, and the DEK is wrapped to each authorized wallet's public key (X25519
+sealed box). The wrapped keys travel in the bundle header in the clear and are useless without
+the matching private key.
+
+- EOAs only. The wallet signs twice at first use; a mismatch means a non-deterministic signer
+  (ERC-1271 contract wallets, some MPC wallets) and the flow refuses.
+- Each wrapped key records the recipient's address and public key, so the wrong wallet fails
+  with "this wallet does not unlock this agent", never a decryption error.
+- Rotating a wallet keypair bumps `keyVersion`: the wallet re-signs and every agent it can open
+  is re-wrapped. Rotating a DEK re-encrypts at the next sync.
+- The signature is taken in the page with the wallet the browser already has and never reaches
+  metro's servers.

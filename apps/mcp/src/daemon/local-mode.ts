@@ -211,7 +211,7 @@ function importApi(deps: LocalModeDeps): ImportApiDeps {
   };
 }
 
-export function localModeInfo(): ModeInfo {
+function localModeInfo(): ModeInfo {
   return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID };
 }
 

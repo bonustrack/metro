@@ -89,7 +89,7 @@ function hostLabel(): string {
 
 async function authorizeRuntime(agentId: string): Promise<string> {
   process.stderr.write(
-    `Authorize this machine at ${metroWebUrl()}/#/authorize/${agentId}\n`,
+    `Authorize this machine with a pairing code for agent ${agentId} from ${metroWebUrl()}\n`,
   );
   const code = (await askSecret('Paste the code (input is hidden): ')).trim();
   if (code === '') throw new Error('no code given');
@@ -169,7 +169,7 @@ function logs(argv: string[]): Promise<number> {
 async function pastedCode(given: string | undefined): Promise<string> {
   if (given !== undefined && given.trim() !== '') return given.trim();
   process.stderr.write(
-    `Get a pairing code from the agent's page, or pick the agent at ${metroWebUrl()}/#/authorize\n`,
+    `Get a pairing code for the agent from ${metroWebUrl()}\n`,
   );
   return askSecret('Paste the code here (input is hidden): ');
 }

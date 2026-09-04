@@ -129,7 +129,7 @@ export function stationLabel(station: string): string {
   return STATION_FORMS[station]?.label ?? station;
 }
 
-export const STATIONS_SHOWN = 3;
+const STATIONS_SHOWN = 3;
 
 export function matchStations(
   stations: string[],
@@ -169,7 +169,7 @@ export type AttachStarted =
   | { kind: 'done'; result: AttachResult }
   | { kind: 'pending'; session: AttachSession };
 
-export function toAttachResult(station: string, body: unknown): AttachResult {
+function toAttachResult(station: string, body: unknown): AttachResult {
   if (!isRecord(body) || typeof body.accountId !== 'string')
     throw new Error('Metro returned an unexpected response.');
   return {

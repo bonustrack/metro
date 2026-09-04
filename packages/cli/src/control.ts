@@ -66,7 +66,7 @@ function clearPid(agentId: string): void {
   rmSync(pidPath(agentId), { force: true });
 }
 
-export interface DetachOptions {
+interface DetachOptions {
   agentId: string;
   command: string;
   args: string[];
@@ -134,7 +134,7 @@ export const lockedBy = (): number | null => holderOf(lockPath());
 
 export const serveLockedBy = (): number | null => holderOf(serveLockPath());
 
-export interface StoppedDaemon {
+interface StoppedDaemon {
   pid: number;
   via: string;
 }
@@ -198,7 +198,7 @@ export function tail(agentId: string, follow: boolean): Promise<number> {
   });
 }
 
-export interface Health {
+interface Health {
   status: string;
   uptime: number;
 }

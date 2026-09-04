@@ -19,8 +19,14 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { crashCount } from '../src/daemon/crash-guard.ts';
 
 const GUARD = resolve(import.meta.dir, '../src/daemon/crash-guard.ts');
+
+test('the test process itself has counted no crash', () => {
+  expect(crashCount('unhandledRejection')).toBe(0);
+  expect(crashCount('uncaughtException')).toBe(0);
+});
 
 interface Ran {
   code: number;

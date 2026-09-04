@@ -9,7 +9,6 @@ import {
 } from '../api/connectors';
 import { queryError } from '../api/queries';
 import { DeleteConnector } from './DeleteConnector';
-import { AgentPicker } from './AgentPicker';
 import { RenameConnector } from './RenameConnector';
 
 interface ConnectorActionsProps {
@@ -27,7 +26,6 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
-  const [picking, setPicking] = useState(false);
   const signIn = connector.signIn;
 
   const connect = (): void => {
@@ -77,14 +75,7 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
         connector={connector}
         onDelete={props.onDelete}
         onError={onError}
-        size="lg"
         extra={[
-          {
-            label: 'Add to agent',
-            onSelect: () => {
-              setPicking(true);
-            },
-          },
           {
             label: 'Rename',
             onSelect: () => {
@@ -99,15 +90,6 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
             ? [{ label: 'Disconnect', danger: true, onSelect: disconnect }]
             : []),
         ]}
-      />
-      <AgentPicker
-        token={token}
-        connectorId={connector.id}
-        connectorName={connector.name}
-        open={picking}
-        onClose={() => {
-          setPicking(false);
-        }}
       />
       <RenameConnector
         key={connector.name}

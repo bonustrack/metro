@@ -151,10 +151,3 @@ export function carryForward(
   const fresh = next.filter((g) => !unavailable.includes(g.station));
   return [...fresh, ...kept].sort((x, y) => x.station.localeCompare(y.station));
 }
-
-export function unattributedAccounts(groups: AccountGroup[]): number {
-  return groups.reduce(
-    (n, g) => n + g.rows.filter((r) => r.agentId === null).length,
-    0,
-  );
-}
