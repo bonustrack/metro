@@ -278,12 +278,6 @@ export function localSetAgentConnectors(
   save(stored);
 }
 
-export function localAgentsWith(connectorId: string, dir = agentsDir()): { id: string; name: string }[] {
-  return storedAgents(dir)
-    .filter((s) => s.file.connectors.includes(connectorId))
-    .map((s) => ({ id: s.file.id, name: s.file.name }));
-}
-
 export function localHoldEverywhere(connectorId: string, dir = agentsDir()): void {
   for (const stored of storedAgents(dir)) {
     if (stored.file.connectors.includes(connectorId)) continue;
