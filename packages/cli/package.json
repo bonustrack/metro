@@ -1,6 +1,6 @@
 {
   "name": "@stage-labs/metro",
-  "version": "0.1.0-beta.65",
+  "version": "0.1.0-beta.66",
   "description": "The metro command line. Sign in once per machine, then hand your MCP connector list to Claude Code without the credentials touching disk, argv or shell history.",
   "license": "MIT",
   "repository": {

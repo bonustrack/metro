@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import WebSocket from 'ws';
 import { makeEmit, startWebhookServer } from '../src/daemon/http.ts';
 import { mintTerminalTicket, pendingTerminalTickets, takeTerminalTicket } from '../src/daemon/terminal-tickets.ts';
+import { resizeWindowArgs } from '../src/daemon/terminal-ws.ts';
 import { auth, TEST_STRANGER } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
@@ -59,6 +60,12 @@ function collect(ws: WebSocket, until: (text: string) => boolean, ms = 5_000): P
     });
   });
 }
+
+describe('the tmux window follows the browser', () => {
+  test('a resize is also pushed to the tmux window of that session', () => {
+    expect(resizeWindowArgs('metro', 132, 41)).toEqual(['resize-window', '-t', 'metro:', '-x', '132', '-y', '41']);
+  });
+});
 
 describe('terminal tickets', () => {
   test('a ticket is single use and expires after thirty seconds', () => {

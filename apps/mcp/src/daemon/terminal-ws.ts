@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
@@ -19,10 +20,28 @@ export interface TerminalSocketDeps {
 const rawBytes = (data: RawData): Buffer =>
   Buffer.isBuffer(data) ? data : Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data);
 
+export const resizeWindowArgs = (session: string, cols: number, rows: number): string[] => [
+  'resize-window',
+  '-t',
+  `${session}:`,
+  '-x',
+  String(cols),
+  '-y',
+  String(rows),
+];
+
+function sizeTmuxWindow(command: string[], session: string, cols: number, rows: number): void {
+  if (command[0] !== 'tmux') return;
+  const child = spawn('tmux', resizeWindowArgs(session, cols, rows), { stdio: 'ignore' });
+  child.on('error', (err) => {
+    log.debug({ err: errMsg(err) }, 'terminal: resize-window failed');
+  });
+}
+
 const dimension = (raw: unknown, fallback: number): number =>
   typeof raw === 'number' && Number.isInteger(raw) && raw > 1 && raw <= MAX_DIMENSION ? raw : fallback;
 
-function runTerminal(ws: WebSocket, command: string[], subject: string): void {
+function runTerminal(ws: WebSocket, command: string[], subject: string, session: string): void {
   const terminal = new Bun.Terminal({
     cols: DEFAULT_COLS,
     rows: DEFAULT_ROWS,
@@ -43,8 +62,12 @@ function runTerminal(ws: WebSocket, command: string[], subject: string): void {
     }
     try {
       const control: unknown = JSON.parse(bytes.toString('utf8'));
-      if (isRecord(control) && 'cols' in control)
-        terminal.resize(dimension(control.cols, DEFAULT_COLS), dimension(control.rows, DEFAULT_ROWS));
+      if (isRecord(control) && 'cols' in control) {
+        const cols = dimension(control.cols, DEFAULT_COLS);
+        const rows = dimension(control.rows, DEFAULT_ROWS);
+        terminal.resize(cols, rows);
+        sizeTmuxWindow(command, session, cols, rows);
+      }
     } catch (err) {
       log.warn({ err: errMsg(err) }, 'terminal: bad control frame');
     }
@@ -85,7 +108,7 @@ export function attachTerminalSockets(server: Server, deps: TerminalSocketDeps):
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
-      runTerminal(ws, deps.command(grant.session), grant.subject);
+      runTerminal(ws, deps.command(grant.session), grant.subject, grant.session);
     });
   });
 }
