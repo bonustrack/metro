@@ -3,7 +3,7 @@ import type { Duplex } from 'node:stream';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { errMsg, log } from './log.js';
 import { isRecord } from './is-record.js';
-import { takeTerminalTicket } from './terminal-tickets.js';
+import { takeTerminalTicket, type TerminalGrant } from './terminal-tickets.js';
 
 const TICKET_PATH = /^\/api\/terminal\/([A-Za-z0-9_-]{43})$/;
 const MAX_MESSAGE = 1024 * 1024;
@@ -12,8 +12,8 @@ const DEFAULT_ROWS = 36;
 const MAX_DIMENSION = 500;
 
 export interface TerminalSocketDeps {
-  command: string[];
-  takeTicket?: (ticket: string) => string | null;
+  command: (session: string) => string[];
+  takeTicket?: (ticket: string) => TerminalGrant | null;
 }
 
 const rawBytes = (data: RawData): Buffer =>
@@ -79,13 +79,13 @@ export function attachTerminalSockets(server: Server, deps: TerminalSocketDeps):
       refuse(socket, 404, 'Not Found');
       return;
     }
-    const subject = take(found[1] ?? '');
-    if (subject === null) {
+    const grant = take(found[1] ?? '');
+    if (grant === null) {
       refuse(socket, 401, 'Unauthorized');
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
-      runTerminal(ws, deps.command, subject);
+      runTerminal(ws, deps.command(grant.session), grant.subject);
     });
   });
 }

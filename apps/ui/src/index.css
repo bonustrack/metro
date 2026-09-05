@@ -483,3 +483,9 @@ textarea:focus-visible {
   padding: 8px;
   background: var(--metro-bg);
 }
+
+.terminal-box:fullscreen {
+  height: 100vh;
+  border-radius: 0;
+  padding: 12px;
+}

@@ -29,7 +29,7 @@ import { attachmentEventUrl, handleAttachRequest } from './attach-serve.js';
 import { webhookEntry } from '@metro-labs/webhook';
 import { handleIdentityRequest } from './identity-routes.js';
 import { attachTerminalSockets } from './terminal-ws.js';
-import { DEFAULT_TERMINAL_COMMAND } from './terminal-api.js';
+import { tmuxCommand } from './terminal-api.js';
 import { handleModeRequest } from './mode-api.js';
 import { handleUploadRequest } from './upload-api.js';
 import {
@@ -176,7 +176,7 @@ export async function startWebhookServer(
     });
   });
   if (apis.terminalApi !== undefined)
-    attachTerminalSockets(server, { command: apis.terminalApi.command ?? DEFAULT_TERMINAL_COMMAND });
+    attachTerminalSockets(server, { command: apis.terminalApi.command ?? tmuxCommand });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
     const host = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
