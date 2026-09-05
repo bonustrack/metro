@@ -1,7 +1,7 @@
 import { beforeAll } from 'bun:test';
 import { installTestIdentity } from './identity-fixture';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { fetchStations, resetAgentKey, type AgentSummary } from '../src/api/client';
+import { fetchSession, fetchStations, resetAgentKey, StoppedError, type AgentSummary } from '../src/api/client';
 
 beforeAll(async () => {
   await installTestIdentity();
@@ -108,5 +108,16 @@ describe('what an agent holds', () => {
       { id: 'id000000001', name: 'ada-bot', owned: true, key: null, command: null, connector_ids: ['id000000012', 7, null] },
     ]);
     expect(agent?.connectorIds).toEqual(['id000000012']);
+  });
+});
+
+describe('a parked daemon', () => {
+  test('answers 503 with stopped, which every page reads as one StoppedError', async () => {
+    serve({ error: 'metro is stopped on this machine.', stopped: true }, 503);
+    await expect(fetchSession()).rejects.toBeInstanceOf(StoppedError);
+    serve({ error: 'busy' }, 503);
+    const plain = await fetchSession().catch((err: unknown) => err);
+    expect(plain).toBeInstanceOf(Error);
+    expect(plain).not.toBeInstanceOf(StoppedError);
   });
 });

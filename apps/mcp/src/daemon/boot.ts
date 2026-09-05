@@ -111,6 +111,10 @@ async function sessionApis(): Promise<SessionApis> {
         exitCode = RESTART_EXIT;
         onShutdown();
       },
+      stop: () => {
+        exitCode = HOLD_EXIT;
+        onShutdown();
+      },
       closeAgentSession,
       gatherAccounts: gatherAccountsForAgents,
       capabilities: accountStationCapabilities,
@@ -162,6 +166,7 @@ async function main(): Promise<void> {
 
 const SHUTDOWN_TIMEOUT_MS = 3_000;
 const RESTART_EXIT = 75;
+const HOLD_EXIT = 76;
 let exitCode = 0;
 let shuttingDown = false;
 async function shutdown(): Promise<void> {

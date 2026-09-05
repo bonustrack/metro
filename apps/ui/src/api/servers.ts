@@ -10,7 +10,13 @@ export interface Server {
   addedAt: string;
 }
 
-export type ServerStatus = { live: true; version: string | null; owner: string | null } | { live: false };
+export type ServerState = 'live' | 'stopped' | 'offline';
+
+export interface ServerStatus {
+  state: ServerState;
+  version: string | null;
+  owner: string | null;
+}
 
 const PROBE_MS = 6_000;
 const listUrl = (): string => `${builtInDaemon()}/api/servers`;
@@ -55,11 +61,11 @@ export async function removeServer(id: string): Promise<void> {
   await call({ method: 'DELETE', base: listUrl(), path: `/${id}` });
 }
 
-const offline = (): ServerStatus => ({ live: false });
+const offline = (): ServerStatus => ({ state: 'offline', version: null, owner: null });
 
 export function probeServer(host: string): Promise<ServerStatus> {
   const probe = fetchMode(baseFromSegment(host)).then(
-    (mode): ServerStatus => ({ live: true, version: mode.version, owner: mode.owner }),
+    (mode): ServerStatus => ({ state: mode.stopped ? 'stopped' : 'live', version: mode.version, owner: mode.owner }),
     offline,
   );
   const late = new Promise<ServerStatus>((resolve) => {

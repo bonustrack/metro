@@ -12,6 +12,8 @@ export class AuthError extends Error {
   }
 }
 
+export class StoppedError extends Error {}
+
 export interface AgentSummary {
   id: string;
   name: string;
@@ -88,6 +90,12 @@ async function send(url: string, init: CallInit, identity: Identity): Promise<Re
 
 const sameOrigin = (a: string, b: string): boolean => new URL(a).origin === new URL(b).origin;
 
+function failure(res: Response, body: unknown): Error | null {
+  if (res.status === 401) return new AuthError('not authorized', true);
+  if (res.status === 503 && isRecord(body) && body.stopped === true) return new StoppedError(errorText(body, res.status));
+  return res.ok ? null : new Error(errorText(body, res.status));
+}
+
 export async function call(init: CallInit): Promise<unknown> {
   const identity = activeIdentity();
   if (identity === null) throw new AuthError('not signed in');
@@ -98,9 +106,9 @@ export async function call(init: CallInit): Promise<unknown> {
     if (!registered.ok) throw new AuthError(registered.error, true);
     res = await send(url, init, identity);
   }
-  if (res.status === 401) throw new AuthError('not authorized', true);
   const body: unknown = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(errorText(body, res.status));
+  const failed = failure(res, body);
+  if (failed !== null) throw failed;
   return body;
 }
 

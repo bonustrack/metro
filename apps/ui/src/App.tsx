@@ -10,7 +10,8 @@ import { Dashboard } from './components/Dashboard';
 import { Servers } from './components/Servers';
 import { selectionProject, type Selection } from './components/selection';
 import { makeQueryClient, refreshServers, useServersQuery, useSessionQuery } from './api/queries';
-import { AuthError } from './api/client';
+import { AuthError, StoppedError } from './api/client';
+import { StoppedNotice } from './components/StoppedNotice';
 import { addServer } from './api/servers';
 import { atLogin, goToLogin, leaveLogin } from './auth/login-route';
 import { currentSelection, subscribeRoute } from './route';
@@ -48,6 +49,14 @@ function Gate({ onLock }: { onLock: () => void }): ReactNode {
 
   if (error instanceof AuthError && error.refused)
     return <Notice text={`${daemonHost(daemonBase())} refused this wallet: ${error.message}`} onRetry={onLock} retryLabel="Sign in with another wallet" />;
+  if (error instanceof StoppedError)
+    return (
+      <StoppedNotice
+        onStarted={() => {
+          refetch().catch(() => undefined);
+        }}
+      />
+    );
   if (error !== null)
     return (
       <Notice

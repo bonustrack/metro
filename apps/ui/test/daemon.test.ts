@@ -47,19 +47,25 @@ describe('what /api/mode says', () => {
   test('a known mode with its owner and project', () => {
     expect(
       toMode({ mode: 'local', owner: '0xabc', project: 'localdaemon', version: '0.1.0-beta.50' }),
-    ).toEqual({ mode: 'local', owner: '0xabc', project: 'localdaemon', version: '0.1.0-beta.50' });
+    ).toEqual({ mode: 'local', owner: '0xabc', project: 'localdaemon', version: '0.1.0-beta.50', stopped: false });
     expect(toMode({ mode: 'hosted', owner: null, project: null })).toEqual({
       mode: 'hosted',
       version: null,
       owner: null,
       project: null,
+      stopped: false,
     });
   });
 
+  test('a parked daemon says so, and only a literal true counts', () => {
+    expect(toMode({ mode: 'local', owner: '0xabc', project: 'localdaemon', version: '1', stopped: true })?.stopped).toBe(true);
+    expect(toMode({ mode: 'local', owner: '0xabc', project: 'localdaemon', version: '1', stopped: 'yes' })?.stopped).toBe(false);
+  });
+
   test('a linked daemon is refused by the connect card, the others are not', () => {
-    expect(connectRefusal({ mode: 'linked', owner: null, project: null })).toContain('metro start');
-    expect(connectRefusal({ mode: 'local', owner: null, project: 'localdaemon' })).toBeNull();
-    expect(connectRefusal({ mode: 'hosted', owner: null, project: null })).toBeNull();
+    expect(connectRefusal({ mode: 'linked', owner: null, project: null, version: null, stopped: false })).toContain('metro start');
+    expect(connectRefusal({ mode: 'local', owner: null, project: 'localdaemon', version: null, stopped: false })).toBeNull();
+    expect(connectRefusal({ mode: 'hosted', owner: null, project: null, version: null, stopped: false })).toBeNull();
   });
 
   test('anything else is not a mode', () => {

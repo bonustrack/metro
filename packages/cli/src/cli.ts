@@ -7,6 +7,7 @@ import { bedrock } from './bedrock.js';
 import { installPlugin } from './plugin.js';
 import { update } from './update.js';
 import { serve } from './serve.js';
+import { service } from './service.js';
 import { currentVersion } from './version.js';
 
 const USAGE = `metro — run your agent on this machine
@@ -17,8 +18,13 @@ const USAGE = `metro — run your agent on this machine
                   permanent https://<machine>.<tailnet>.ts.net (Tailscale installed and
                   signed in on this machine); the page at metro.box manages it through the
                   link it prints; --owner names the one wallet that may sign in, needed on
-                  the first start only
-  metro stop      stop the metro daemon on this machine
+                  the first start only; Stop on the page parks the daemon and keeps the
+                  address, so Start works from the page too
+  metro service install [--port <n>] [--owner <address>]
+                  run metro serve as a service (systemd on Linux, launchd on macOS): it
+                  starts at boot and after a crash, so the page can stop, start and
+                  restart it with no shell; metro service uninstall and status as well
+  metro stop      stop metro on this machine, metro serve included
   metro tail <agent-id>
                   follow this machine's inbound events, one JSON line each
   metro whoami [agent]
@@ -68,6 +74,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
     return 0;
   },
   serve: () => serve(process.argv.slice(3)),
+  service: () => service(process.argv.slice(3)),
   stop: stopDaemon,
   tail: () => tailEvents(process.argv.slice(3)),
   mcp: async () => {

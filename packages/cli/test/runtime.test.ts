@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   assertAgentId,
+  HOLD_CODE,
   localUrl,
   MissingRuntime,
+  RESTART_CODE,
   runtimeDir,
+  spawnPlan,
+  type DaemonPlan,
 } from '../src/runtime.ts';
 
 const KEEP = {
@@ -76,3 +80,46 @@ describe('the local endpoint', () => {
   });
 });
 
+
+describe('the serve loop', () => {
+  function counting(dir: string, codes: number[]): { plan: () => DaemonPlan; runs: () => number } {
+    const script = join(dir, 'child.mjs');
+    const counter = join(dir, 'count');
+    writeFileSync(counter, '0');
+    writeFileSync(
+      script,
+      "import { readFileSync, writeFileSync } from 'node:fs';\n" +
+        'const [file, ...codes] = process.argv.slice(2);\n' +
+        "const n = Number(readFileSync(file, 'utf8'));\n" +
+        'writeFileSync(file, String(n + 1));\n' +
+        'process.exit(Number(codes[n] ?? 0));\n',
+    );
+    return {
+      plan: () => ({ command: process.execPath, args: [script, counter, ...codes.map(String)], cwd: dir, env: process.env }),
+      runs: () => Number(readFileSync(counter, 'utf8')),
+    };
+  }
+
+  test('75 respawns on the new plan, any other code ends the loop with that code', async () => {
+    const child = counting(scratch(), [RESTART_CODE, 3]);
+    expect(await spawnPlan(child.plan)).toBe(3);
+    expect(child.runs()).toBe(2);
+  });
+
+  test('76 parks in the hold: start respawns, exit ends the loop cleanly', async () => {
+    const child = counting(scratch(), [HOLD_CODE, HOLD_CODE, 9]);
+    const ends: ('start' | 'exit')[] = ['start', 'exit'];
+    const seen: number[] = [];
+    const code = await spawnPlan(child.plan, () => {
+      seen.push(child.runs());
+      return Promise.resolve(ends.shift() ?? 'exit');
+    });
+    expect(code).toBe(0);
+    expect(seen).toEqual([1, 2]);
+  });
+
+  test('without a hold, 76 is an exit code like any other', async () => {
+    const child = counting(scratch(), [HOLD_CODE]);
+    expect(await spawnPlan(child.plan)).toBe(HOLD_CODE);
+  });
+});

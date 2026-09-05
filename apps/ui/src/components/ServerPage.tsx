@@ -7,6 +7,7 @@ import { SHRINK } from '../theme';
 import { PageTitle } from './PageTitle';
 import { Loading } from './Loading';
 import { MetroVersion } from './MetroVersion';
+import { DaemonControls } from './DaemonControls';
 import { NameModal } from './NameModal';
 import { queryError, refreshServers, useMachineQuery, useServersQuery } from '../api/queries';
 import { removeServer, renameServer, serverLabel, type Server } from '../api/servers';
@@ -142,6 +143,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
           </Text>
         ) : null}
         <MetroVersion />
+        <DaemonControls />
       </Col>
       {machine.error !== null ? (
         <Text size="sm" role="danger">

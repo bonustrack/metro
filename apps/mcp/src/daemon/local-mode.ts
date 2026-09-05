@@ -52,6 +52,7 @@ import type { StationName } from '../db/stations.js';
 export interface LocalModeDeps {
   syncStations: (station: StationName) => Promise<void>;
   restart: () => void;
+  stop: () => void;
   closeAgentSession: (id: string) => Promise<boolean>;
   gatherAccounts: AgentApiDeps['gatherAccounts'];
   capabilities: AgentApiDeps['capabilities'];
@@ -190,6 +191,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     localCli,
     claudeApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     updateApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart },
+    controlApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart, stop: deps.stop },
     machineApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     terminalApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     identity: { owner: localOwner },
