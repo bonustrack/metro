@@ -23,15 +23,15 @@ function InfoRow({ label, value, href }: { label: string; value: string; href?: 
       <Text size="sm" role="secondary">
         {label}
       </Text>
-      {href === undefined ? (
-        <Text size="sm" numberOfLines={1} style={SHRINK}>
-          {value}
-        </Text>
-      ) : (
-        <a className="hint-link" href={href} target="_blank" rel="noreferrer">
-          {value}
-        </a>
-      )}
+      <Text size="sm" numberOfLines={1} style={SHRINK}>
+        {href === undefined ? (
+          value
+        ) : (
+          <a className="hint-link" href={href} target="_blank" rel="noreferrer">
+            {value}
+          </a>
+        )}
+      </Text>
     </Row>
   );
 }
