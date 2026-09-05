@@ -13,7 +13,6 @@ import { NewAgentKey } from './NewAgentKey';
 import { createAgent, resetAgentKey, type CreatedAgent } from '../api/client';
 import { stationCount } from '../api/accounts';
 import { queryError, refreshAgents, refreshConnectors, useStationsQuery } from '../api/queries';
-import { MetroVersion } from './MetroVersion';
 import { type AgentSummary } from '../api/client';
 import { routeHash } from '../route';
 import { opensElsewhere } from './link';
@@ -173,7 +172,6 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
         <Text size="sm" role="secondary">
           id {agent.id} · runs on this machine, so its messages never pass through Metro&apos;s servers
         </Text>
-        <MetroVersion />
       </Col>
       <AgentCredentials
         agent={agent}

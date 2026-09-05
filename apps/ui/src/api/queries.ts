@@ -32,6 +32,7 @@ import {
 import { fetchMode, type ModeInfo } from './mode';
 import { fetchUpdate, type UpdateCheck } from './update';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers';
+import { fetchMachine, type Machine } from './machine';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -103,6 +104,15 @@ export function useServerStatus(host: string): UseQueryResult<ServerStatus> {
 
 export function refreshServers(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: serversKey() });
+}
+
+export function useMachineQuery(): UseQueryResult<Machine> {
+  return useQuery({
+    queryKey: ['machine', daemonBase()],
+    queryFn: () => fetchMachine(),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 }
 
 export function useModeQuery(): UseQueryResult<ModeInfo> {
