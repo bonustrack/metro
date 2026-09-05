@@ -8,10 +8,12 @@ const PAGE = {
   paddingTop: 24,
   paddingBottom: 64,
 } as const;
+const FLUSH = { width: '100%' } as const;
 
 interface ShellProps {
   narrow: boolean;
   menuOpen: boolean;
+  flush?: boolean;
   onOpenMenu: () => void;
   onCloseMenu: () => void;
   sidebar: ReactNode;
@@ -21,6 +23,7 @@ interface ShellProps {
 export function Shell({
   narrow,
   menuOpen,
+  flush = false,
   onOpenMenu,
   onCloseMenu,
   sidebar,
@@ -33,7 +36,7 @@ export function Shell({
       ) : null}
       <div className="app-main">
         {narrow ? <TopBar onOpenMenu={onOpenMenu} /> : null}
-        <Col gap={24} style={PAGE}>
+        <Col gap={24} style={flush ? FLUSH : PAGE}>
           {children}
         </Col>
       </div>

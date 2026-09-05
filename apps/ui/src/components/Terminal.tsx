@@ -2,10 +2,8 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
-import { PageTitle } from './PageTitle';
 import { Dropdown, type MenuItem } from './Dropdown';
 import { NameModal } from './NameModal';
 import { mintTerminalTicket, SESSION_RE, terminalSocketUrl, terminalStatus } from '../api/terminal';
@@ -14,7 +12,6 @@ import { useDocumentTitle } from '../title';
 
 type Phase = { kind: 'connecting' } | { kind: 'open' } | { kind: 'closed'; reason: string };
 
-const HOW = 'A tmux session on the machine. It keeps running when you leave; closing this tab only detaches, and opening it takes the session over from any other client.';
 const CLOSED = 'The terminal closed.';
 const DEFAULT_SESSION = 'metro';
 
@@ -143,25 +140,25 @@ export function TerminalPage(): ReactNode {
 
   return (
     <div className="terminal-page">
-      <Row justify="between" align="center" gap={12} wrap>
-        <PageTitle>Terminal</PageTitle>
-        <Row gap={8} align="center">
-          <Dropdown
-            className="account-trigger"
-            label="tmux session"
-            items={sessionItems(sessions, session, setSession, () => {
-              setNaming(true);
-            })}
-          >
-            <Text size="sm">{`tmux: ${session}`}</Text>
-          </Dropdown>
-          {phase.kind === 'closed' ? <Button size="sm" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
-        </Row>
-      </Row>
-      <Text size="sm" role="secondary">
-        {phase.kind === 'closed' ? phase.reason : phase.kind === 'connecting' ? 'Connecting…' : HOW}
-      </Text>
       <div ref={box} className="terminal-box" />
+      <div className="terminal-float">
+        {phase.kind === 'closed' ? <Button size="sm" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
+        <Dropdown
+          className="terminal-session"
+          label="tmux session"
+          button={{ label: `tmux: ${session}`, size: 'sm' }}
+          items={sessionItems(sessions, session, setSession, () => {
+            setNaming(true);
+          })}
+        />
+      </div>
+      {phase.kind === 'open' ? null : (
+        <div className="terminal-note">
+          <Text size="sm" role="secondary">
+            {phase.kind === 'closed' ? phase.reason : 'Connecting…'}
+          </Text>
+        </div>
+      )}
       <NameModal
         title="New tmux session"
         action="Open"

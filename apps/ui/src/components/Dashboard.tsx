@@ -25,6 +25,7 @@ function Frame({ project, subject, selection, onSelect, onLock }: FrameProps): R
     <Shell
       narrow={narrow}
       menuOpen={menuOpen}
+      flush={selection.kind === 'terminal'}
       onOpenMenu={() => {
         setMenuOpen(true);
       }}

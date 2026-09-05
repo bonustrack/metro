@@ -1,13 +1,20 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Button } from './ui';
 
 export interface MenuItem {
   label: string;
   icon?: HeroIconName;
   danger?: boolean;
   onSelect: () => void;
+}
+
+export interface TriggerButton {
+  label: string;
+  color?: 'primary' | 'secondary';
+  size?: 'sm' | 'md';
 }
 
 const ITEM_ICON_SIZE = 16;
@@ -22,7 +29,8 @@ interface DropdownProps {
   label: string;
   className: string;
   align?: 'start' | 'end';
-  children: ReactNode;
+  button?: TriggerButton;
+  children?: ReactNode;
 }
 
 function placement(box: DOMRect, count: number, align: 'start' | 'end'): { top: number; left: number } {
@@ -41,10 +49,15 @@ export function Dropdown({
   label,
   className,
   align = 'end',
+  button,
   children,
 }: DropdownProps): ReactNode {
   const palette = useKitPalette();
-  const trigger = useRef<HTMLButtonElement>(null);
+  const dark = useKitScheme() === 'dark';
+  const trigger = useRef<HTMLElement | null>(null);
+  const setTrigger = (el: HTMLElement | null): void => {
+    trigger.current = el;
+  };
   const [at, setAt] = useState<{ top: number; left: number } | null>(null);
 
   const open = (): void => {
@@ -58,16 +71,28 @@ export function Dropdown({
 
   return (
     <>
-      <button
-        ref={trigger}
-        type="button"
-        className={className}
-        aria-label={label}
-        aria-haspopup="menu"
-        onClick={open}
-      >
-        {children}
-      </button>
+      {button === undefined ? (
+        <button
+          ref={setTrigger}
+          type="button"
+          className={className}
+          aria-label={label}
+          aria-haspopup="menu"
+          onClick={open}
+        >
+          {children}
+        </button>
+      ) : (
+        <div ref={setTrigger} className={className}>
+          <Button
+            color={button.color ?? 'primary'}
+            size={button.size ?? 'md'}
+            dark={dark}
+            label={button.label}
+            onPress={open}
+          />
+        </div>
+      )}
       {at !== null
         ? createPortal(
             <div
