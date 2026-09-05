@@ -10,7 +10,7 @@ const TICKETS = `${PREFIX}/tickets`;
 export const TMUX_SESSION = 'metro';
 const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 
-export const tmuxCommand = (session: string): string[] => ['tmux', 'new-session', '-A', '-D', '-s', session];
+export const tmuxCommand = (session: string): string[] => ['tmux', 'new-session', '-A', '-D', '-s', session, ';', 'set-option', '-g', 'mouse', 'on'];
 
 export interface TerminalApiDeps {
   authorize: (subject: string) => void;

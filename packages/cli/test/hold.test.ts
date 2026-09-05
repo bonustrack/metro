@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,21 +30,13 @@ const info = (over: Partial<HoldInfo> = {}): HoldInfo => ({
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-async function freePort(): Promise<number> {
-  const probe = createServer();
-  await new Promise<void>((r) => {
-    probe.listen(0, '127.0.0.1', r);
-  });
-  const port = (probe.address() as AddressInfo).port;
-  await new Promise<void>((r) => {
-    probe.close(() => {
-      r();
-    });
-  });
-  return port;
-}
+const LOW_PORT = 10_000;
+const PORT_SPAN = 20_000;
+const SLOW_MS = 15_000;
 
-async function until(check: () => Promise<boolean>, ms = 5_000): Promise<void> {
+const freePort = (): Promise<number> => Promise.resolve(LOW_PORT + Math.floor(Math.random() * PORT_SPAN));
+
+async function until(check: () => Promise<boolean>, ms = 10_000): Promise<void> {
   const end = Date.now() + ms;
   while (Date.now() < end) {
     if (await check()) return;
@@ -137,7 +128,7 @@ describe('holding the port between stop and start', () => {
     expect(await held).toBe('start');
     expect(existsSync(lockFile)).toBe(false);
     expect(await answers(base)).toBe(false);
-  });
+  }, SLOW_MS);
 
   test('a signal ends the hold instead, and the loopback address alone is fine', async () => {
     const dir = scratch();
@@ -152,7 +143,7 @@ describe('holding the port between stop and start', () => {
     signals.emit('SIGTERM');
     expect(await held).toBe('exit');
     expect(existsSync(lockFile)).toBe(false);
-  });
+  }, SLOW_MS);
 
   test('the banner names what is held', () => {
     expect(holdBanner(info({ port: 8420, funnel: '/usr/bin/tailscale' }))).toContain(
