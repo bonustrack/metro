@@ -18,6 +18,7 @@ import { handleVaultApiRequest, type VaultApiDeps } from './vault-api.js';
 import { handleServersApiRequest, type ServersApiDeps } from './servers-api.js';
 import { handleBundleRequest, type BundleApiDeps } from './bundle-api.js';
 import { handleUpdateRequest, type UpdateApiDeps } from './update-api.js';
+import { handleMachineRequest, type MachineApiDeps } from './machine-api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
@@ -26,6 +27,7 @@ export interface SessionApis {
   vaultApi?: VaultApiDeps;
   serversApi?: ServersApiDeps;
   updateApi?: UpdateApiDeps;
+  machineApi?: MachineApiDeps;
   localCli?: LocalCliDeps;
   claudeApi?: ClaudeApiDeps;
   connectorApi?: ConnectorApiDeps;
@@ -50,6 +52,7 @@ export function handleSessionApis(
     ...when(apis.vaultApi, (d) => handleVaultApiRequest(req, res, d)),
     ...when(apis.serversApi, (d) => handleServersApiRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
+    ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),
     ...when(apis.claudeApi, (d) => handleClaudeRequest(req, res, d)),
     ...when(apis.agentConnectorApi, (d) => handleAgentConnectorRequest(req, res, d)),
     ...when(apis.agentApi, (d) => handleAgentApiRequest(req, res, d)),
