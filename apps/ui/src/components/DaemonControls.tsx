@@ -5,22 +5,29 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { ConfirmModal } from './ConfirmModal';
 import { awaitRestart, awaitStopped, restartDaemon, stopDaemon } from '../api/control';
-import { queryError } from '../api/queries';
+import { queryError, useModeQuery } from '../api/queries';
+import { olderThan } from '../api/version';
 
 type Phase = 'idle' | 'restarting' | 'restarted' | 'stopping';
 
+const CONTROLS_SINCE = '0.1.0-beta.67';
 const STOP_LINES = [
   'Channels and connectors go offline until metro starts again.',
   'metro serve keeps holding the address, so Start works from this page and from the server list.',
 ];
+const PHASE_TEXT: Partial<Record<Phase, string>> = {
+  restarting: 'The daemon is coming back…',
+  restarted: 'Restarted.',
+};
 
-export function DaemonControls(): ReactNode {
+function Controls(): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const [phase, setPhase] = useState<Phase>('idle');
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busy = phase === 'restarting' || phase === 'stopping';
+  const note = PHASE_TEXT[phase];
 
   const restart = (): void => {
     setPhase('restarting');
@@ -73,16 +80,11 @@ export function DaemonControls(): ReactNode {
           setConfirming(true);
         }}
       />
-      {phase === 'restarting' ? (
+      {note === undefined ? null : (
         <Text size="sm" role="secondary">
-          The daemon is coming back…
+          {note}
         </Text>
-      ) : null}
-      {phase === 'restarted' ? (
-        <Text size="sm" role="secondary">
-          Restarted.
-        </Text>
-      ) : null}
+      )}
       {error !== null && !confirming ? (
         <Text size="sm" role="danger">
           {error}
@@ -104,4 +106,15 @@ export function DaemonControls(): ReactNode {
       />
     </Row>
   );
+}
+
+export function DaemonControls(): ReactNode {
+  const mode = useModeQuery();
+  if (olderThan(mode.data?.version ?? null, CONTROLS_SINCE))
+    return (
+      <Text size="sm" role="secondary">
+        Stop and Restart need metro {CONTROLS_SINCE} or newer on the machine. Update first.
+      </Text>
+    );
+  return <Controls />;
 }
