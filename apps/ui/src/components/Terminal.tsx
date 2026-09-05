@@ -34,7 +34,9 @@ function keepFitted(fit: FitAddon, box: HTMLDivElement): () => void {
   watch.observe(box);
   window.addEventListener('resize', refit);
   document.fonts.ready.then(refit).catch(() => undefined);
+  const later = [50, 250, 1_000].map((ms) => setTimeout(refit, ms));
   return () => {
+    for (const timer of later) clearTimeout(timer);
     watch.disconnect();
     window.removeEventListener('resize', refit);
   };
