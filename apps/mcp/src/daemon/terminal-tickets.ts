@@ -3,8 +3,12 @@ import { randomBytes } from 'node:crypto';
 const TTL_MS = 30_000;
 const MAX_OPEN = 20;
 
-interface Pending {
+export interface TerminalGrant {
   subject: string;
+  session: string;
+}
+
+interface Pending extends TerminalGrant {
   expiresAt: number;
 }
 
@@ -19,18 +23,18 @@ function prune(now: number): void {
   }
 }
 
-export function mintTerminalTicket(subject: string, now = Date.now()): { ticket: string; expiresAt: number } {
+export function mintTerminalTicket(subject: string, session: string, now = Date.now()): { ticket: string; expiresAt: number } {
   prune(now);
   const ticket = randomBytes(32).toString('base64url');
   const expiresAt = now + TTL_MS;
-  pending.set(ticket, { subject, expiresAt });
+  pending.set(ticket, { subject, session, expiresAt });
   return { ticket, expiresAt };
 }
 
-export function takeTerminalTicket(ticket: string, now = Date.now()): string | null {
+export function takeTerminalTicket(ticket: string, now = Date.now()): TerminalGrant | null {
   const entry = pending.get(ticket);
   pending.delete(ticket);
-  return entry !== undefined && entry.expiresAt > now ? entry.subject : null;
+  return entry !== undefined && entry.expiresAt > now ? { subject: entry.subject, session: entry.session } : null;
 }
 
 export const pendingTerminalTickets = (): number => pending.size;

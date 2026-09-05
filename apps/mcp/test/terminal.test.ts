@@ -19,7 +19,7 @@ beforeAll(async () => {
       authorize: (subject) => {
         if (subject !== OWNER) throw new Error('no such project');
       },
-      command: ['sh', '-c', 'echo READY; cat'],
+      command: (session) => ['sh', '-c', `echo READY ${session}; cat`],
     },
   });
   base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
@@ -37,8 +37,12 @@ afterAll(async () => {
   });
 });
 
-const signed = async (method: string, path: string, who: string | typeof TEST_STRANGER = OWNER): Promise<Response> =>
-  fetch(`${base}${path}`, { method, headers: { authorization: await auth(method, path, who) } });
+const signed = async (method: string, path: string, who: string | typeof TEST_STRANGER = OWNER, body?: unknown): Promise<Response> =>
+  fetch(`${base}${path}`, {
+    method,
+    headers: { authorization: await auth(method, path, who), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
 
 function collect(ws: WebSocket, until: (text: string) => boolean, ms = 5_000): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -59,14 +63,14 @@ function collect(ws: WebSocket, until: (text: string) => boolean, ms = 5_000): P
 describe('terminal tickets', () => {
   test('a ticket is single use and expires after thirty seconds', () => {
     const now = 1_700_000_000_000;
-    const { ticket, expiresAt } = mintTerminalTicket('owner', now);
+    const { ticket, expiresAt } = mintTerminalTicket('owner', 'metro', now);
     expect(ticket).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(expiresAt).toBe(now + 30_000);
-    expect(takeTerminalTicket(ticket, now + 1_000)).toBe('owner');
+    expect(takeTerminalTicket(ticket, now + 1_000)).toEqual({ subject: 'owner', session: 'metro' });
     expect(takeTerminalTicket(ticket, now + 1_000)).toBeNull();
-    const late = mintTerminalTicket('owner', now).ticket;
+    const late = mintTerminalTicket('owner', 'metro', now).ticket;
     expect(takeTerminalTicket(late, now + 31_000)).toBeNull();
-    for (let i = 0; i < 25; i += 1) mintTerminalTicket('owner', now);
+    for (let i = 0; i < 25; i += 1) mintTerminalTicket('owner', 'metro', now);
     expect(pendingTerminalTickets()).toBeLessThanOrEqual(20);
   });
 });
@@ -75,26 +79,30 @@ describe('the terminal over http and a websocket', () => {
   test('the owner reads availability and mints a ticket; a stranger and a wrong method are refused', async () => {
     const status = await signed('GET', '/api/terminal');
     expect(status.status).toBe(200);
-    expect(await status.json()).toMatchObject({ session: 'metro', available: true, command: ['sh', '-c', 'echo READY; cat'] });
+    expect(await status.json()).toMatchObject({ session: 'metro', available: true, sessions: expect.any(Array) });
     expect((await fetch(`${base}/api/terminal`)).status).toBe(401);
     expect((await signed('GET', '/api/terminal', TEST_STRANGER)).status).toBe(401);
     expect((await signed('POST', '/api/terminal')).status).toBe(405);
     expect((await signed('GET', '/api/terminal/tickets')).status).toBe(405);
     const minted = await signed('POST', '/api/terminal/tickets');
     expect(minted.status).toBe(200);
-    const body = (await minted.json()) as { ticket: string; path: string };
+    const body = (await minted.json()) as { ticket: string; path: string; session: string };
     expect(body.path).toBe(`/api/terminal/${body.ticket}`);
+    expect(body.session).toBe('metro');
+    expect(((await (await signed('POST', '/api/terminal/tickets', OWNER, { session: 'dev-1' })).json()) as { session: string }).session).toBe('dev-1');
+    expect((await signed('POST', '/api/terminal/tickets', OWNER, { session: 'bad name' })).status).toBe(400);
+    expect((await signed('POST', '/api/terminal/tickets', OWNER, { session: '-x' })).status).toBe(400);
   });
 
   test('a ticket opens the command in a pty, keystrokes go in, output comes out, and the ticket is spent', async () => {
-    const { path } = (await (await signed('POST', '/api/terminal/tickets')).json()) as { path: string };
+    const { path } = (await (await signed('POST', '/api/terminal/tickets', OWNER, { session: 'work' })).json()) as { path: string };
     const ws = new WebSocket(`${base.replace('http', 'ws')}${path}`);
     await new Promise<void>((resolve, reject) => {
       ws.once('open', resolve);
       ws.once('error', reject);
     });
-    const ready = collect(ws, (t) => t.includes('READY'));
-    expect(await ready).toContain('READY');
+    const ready = collect(ws, (t) => t.includes('READY work'));
+    expect(await ready).toContain('READY work');
     const echoed = collect(ws, (t) => t.includes('hello from the page'));
     ws.send(JSON.stringify({ cols: 100, rows: 30 }));
     ws.send(Buffer.from('hello from the page\n'));

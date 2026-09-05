@@ -6,31 +6,54 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
-import { mintTerminalTicket, terminalSocketUrl, terminalStatus } from '../api/terminal';
+import { Dropdown, type MenuItem } from './Dropdown';
+import { NameModal } from './NameModal';
+import { mintTerminalTicket, SESSION_RE, terminalSocketUrl, terminalStatus } from '../api/terminal';
 import { queryError } from '../api/queries';
 import { useDocumentTitle } from '../title';
 
 type Phase = { kind: 'connecting' } | { kind: 'open' } | { kind: 'closed'; reason: string };
 
-const HOW = 'A tmux session on the machine, named metro. It keeps running when you leave; closing this tab only detaches.';
+const HOW = 'A tmux session on the machine. It keeps running when you leave; closing this tab only detaches, and opening it takes the session over from any other client.';
 const CLOSED = 'The terminal closed.';
+const DEFAULT_SESSION = 'metro';
 
 interface Live {
   term: XTerm;
-  fit: FitAddon;
   socket: WebSocket;
-  watch: ResizeObserver;
+  stop: () => void;
 }
 
-function resizeMessage(term: XTerm): string {
-  return JSON.stringify({ cols: term.cols, rows: term.rows });
+const resizeMessage = (term: XTerm): string => JSON.stringify({ cols: term.cols, rows: term.rows });
+
+function keepFitted(fit: FitAddon, box: HTMLDivElement): () => void {
+  const refit = (): void => {
+    fit.fit();
+  };
+  const watch = new ResizeObserver(refit);
+  watch.observe(box);
+  window.addEventListener('resize', refit);
+  document.addEventListener('fullscreenchange', refit);
+  document.fonts.ready.then(refit).catch(() => undefined);
+  return () => {
+    watch.disconnect();
+    window.removeEventListener('resize', refit);
+    document.removeEventListener('fullscreenchange', refit);
+  };
 }
 
-async function open(box: HTMLDivElement, colors: { background: string; foreground: string }, onPhase: (p: Phase) => void): Promise<Live> {
+async function open(
+  box: HTMLDivElement,
+  session: string,
+  colors: { background: string; foreground: string },
+  onPhase: (p: Phase) => void,
+  onSessions: (s: string[]) => void,
+): Promise<Live> {
   const status = await terminalStatus();
   if (!status.available) throw new Error('tmux is not installed on that machine. Install it and reopen this tab.');
-  const path = await mintTerminalTicket();
-  const term = new XTerm({ cursorBlink: true, fontSize: 13, theme: colors, scrollback: 5_000, allowProposedApi: true });
+  onSessions(status.sessions);
+  const path = await mintTerminalTicket(session);
+  const term = new XTerm({ cursorBlink: true, fontSize: 13, theme: colors, scrollback: 5_000 });
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(box);
@@ -39,6 +62,7 @@ async function open(box: HTMLDivElement, colors: { background: string; foregroun
   socket.binaryType = 'arraybuffer';
   const encoder = new TextEncoder();
   socket.onopen = () => {
+    fit.fit();
     socket.send(resizeMessage(term));
     onPhase({ kind: 'open' });
     term.focus();
@@ -58,18 +82,34 @@ async function open(box: HTMLDivElement, colors: { background: string; foregroun
   term.onResize(() => {
     if (socket.readyState === WebSocket.OPEN) socket.send(resizeMessage(term));
   });
-  const watch = new ResizeObserver(() => {
-    fit.fit();
-  });
-  watch.observe(box);
-  return { term, fit, socket, watch };
+  const stop = keepFitted(fit, box);
+  return { term, socket, stop };
 }
 
 function close(live: Live): void {
-  live.watch.disconnect();
+  live.stop();
   live.socket.onclose = null;
   live.socket.close();
   live.term.dispose();
+}
+
+function sessionItems(sessions: string[], current: string, pick: (s: string) => void, create: () => void): MenuItem[] {
+  const known = [...new Set([current, ...sessions])];
+  return [
+    ...known.map((name) => ({
+      label: name === current ? `${name} (open)` : name,
+      onSelect: () => {
+        pick(name);
+      },
+    })),
+    { label: 'New session', icon: 'plus' as const, onSelect: create },
+  ];
+}
+
+function fullscreen(box: HTMLDivElement | null): void {
+  if (box === null) return;
+  if (document.fullscreenElement !== null) document.exitFullscreen().catch(() => undefined);
+  else box.requestFullscreen().catch(() => undefined);
 }
 
 export function TerminalPage(): ReactNode {
@@ -77,7 +117,10 @@ export function TerminalPage(): ReactNode {
   const dark = useKitScheme() === 'dark';
   const box = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'connecting' });
+  const [session, setSession] = useState(DEFAULT_SESSION);
+  const [sessions, setSessions] = useState<string[]>([]);
   const [attempt, setAttempt] = useState(0);
+  const [naming, setNaming] = useState(false);
   useDocumentTitle('Terminal');
 
   useEffect(() => {
@@ -86,7 +129,7 @@ export function TerminalPage(): ReactNode {
     let live: Live | null = null;
     let gone = false;
     setPhase({ kind: 'connecting' });
-    open(node, { background: palette.bg, foreground: palette.text }, setPhase)
+    open(node, session, { background: palette.bg, foreground: palette.text }, setPhase, setSessions)
       .then((opened) => {
         if (gone) close(opened);
         else live = opened;
@@ -98,27 +141,57 @@ export function TerminalPage(): ReactNode {
       gone = true;
       if (live !== null) close(live);
     };
-  }, [attempt, palette.bg, palette.text]);
+  }, [attempt, session, palette.bg, palette.text]);
+
+  const reconnect = (): void => {
+    setAttempt((n) => n + 1);
+  };
 
   return (
     <Col gap={12} flex={1}>
       <Row justify="between" align="center" gap={12} wrap>
         <PageTitle>Terminal</PageTitle>
-        {phase.kind === 'closed' ? (
+        <Row gap={8} align="center">
+          <Dropdown
+            className="account-trigger"
+            label="tmux session"
+            items={sessionItems(sessions, session, setSession, () => {
+              setNaming(true);
+            })}
+          >
+            <Text size="sm">{`tmux: ${session}`}</Text>
+          </Dropdown>
           <Button
+            size="sm"
             color="secondary"
             dark={dark}
-            label="Reconnect"
+            label="Full screen"
             onPress={() => {
-              setAttempt((n) => n + 1);
+              fullscreen(box.current);
             }}
           />
-        ) : null}
+          {phase.kind === 'closed' ? <Button size="sm" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
+        </Row>
       </Row>
       <Text size="sm" role="secondary">
         {phase.kind === 'closed' ? phase.reason : phase.kind === 'connecting' ? 'Connecting…' : HOW}
       </Text>
       <div ref={box} className="terminal-box" />
+      <NameModal
+        title="New tmux session"
+        action="Open"
+        placeholder="name"
+        failure="That is not a session name: 1 to 32 letters, digits, dots, dashes or underscores."
+        open={naming}
+        onClose={() => {
+          setNaming(false);
+        }}
+        onSubmit={(name) => {
+          if (!SESSION_RE.test(name)) return Promise.reject(new Error('bad name'));
+          setSession(name);
+          return Promise.resolve(name);
+        }}
+      />
     </Col>
   );
 }
