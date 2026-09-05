@@ -474,18 +474,26 @@ textarea:focus-visible {
   color: var(--metro-danger, #e5484d);
 }
 
+.terminal-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: calc(100dvh - 48px);
+  margin-bottom: -40px;
+  min-height: 360px;
+}
+
 .terminal-box {
   flex: 1 1 auto;
-  min-height: 360px;
-  height: calc(100vh - 220px);
+  min-height: 0;
   border-radius: 8px;
   overflow: hidden;
   padding: 8px;
   background: var(--metro-bg);
 }
 
-.terminal-box:fullscreen {
-  height: 100vh;
-  border-radius: 0;
-  padding: 12px;
+@media (max-width: 900px) {
+  .terminal-page {
+    height: calc(100dvh - 104px);
+  }
 }

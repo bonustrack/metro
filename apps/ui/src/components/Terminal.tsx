@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui';
 import { PageTitle } from './PageTitle';
@@ -33,12 +33,10 @@ function keepFitted(fit: FitAddon, box: HTMLDivElement): () => void {
   const watch = new ResizeObserver(refit);
   watch.observe(box);
   window.addEventListener('resize', refit);
-  document.addEventListener('fullscreenchange', refit);
   document.fonts.ready.then(refit).catch(() => undefined);
   return () => {
     watch.disconnect();
     window.removeEventListener('resize', refit);
-    document.removeEventListener('fullscreenchange', refit);
   };
 }
 
@@ -106,12 +104,6 @@ function sessionItems(sessions: string[], current: string, pick: (s: string) => 
   ];
 }
 
-function fullscreen(box: HTMLDivElement | null): void {
-  if (box === null) return;
-  if (document.fullscreenElement !== null) document.exitFullscreen().catch(() => undefined);
-  else box.requestFullscreen().catch(() => undefined);
-}
-
 export function TerminalPage(): ReactNode {
   const palette = useKitPalette();
   const dark = useKitScheme() === 'dark';
@@ -148,7 +140,7 @@ export function TerminalPage(): ReactNode {
   };
 
   return (
-    <Col gap={12} flex={1}>
+    <div className="terminal-page">
       <Row justify="between" align="center" gap={12} wrap>
         <PageTitle>Terminal</PageTitle>
         <Row gap={8} align="center">
@@ -161,15 +153,6 @@ export function TerminalPage(): ReactNode {
           >
             <Text size="sm">{`tmux: ${session}`}</Text>
           </Dropdown>
-          <Button
-            size="sm"
-            color="secondary"
-            dark={dark}
-            label="Full screen"
-            onPress={() => {
-              fullscreen(box.current);
-            }}
-          />
           {phase.kind === 'closed' ? <Button size="sm" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
         </Row>
       </Row>
@@ -192,6 +175,6 @@ export function TerminalPage(): ReactNode {
           return Promise.resolve(name);
         }}
       />
-    </Col>
+    </div>
   );
 }
