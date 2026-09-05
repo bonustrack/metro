@@ -61,6 +61,7 @@ export interface DaemonPlan {
 }
 
 export const RESTART_CODE = 75;
+export const HOLD_CODE = 76;
 
 function spawnOnce(plan: DaemonPlan): Promise<number> {
   const child = spawn(plan.command, plan.args, {
@@ -84,10 +85,17 @@ function spawnOnce(plan: DaemonPlan): Promise<number> {
   });
 }
 
-export async function spawnPlan(plan: () => DaemonPlan): Promise<number> {
+export type Hold = () => Promise<'start' | 'exit'>;
+
+export async function spawnPlan(plan: () => DaemonPlan, hold?: Hold): Promise<number> {
   for (;;) {
     const code = await spawnOnce(plan());
-    if (code !== RESTART_CODE) return code;
-    process.stderr.write('metro was updated; restarting the daemon on the new version\n');
+    if (code === RESTART_CODE) {
+      process.stderr.write('metro was updated; restarting the daemon on the new version\n');
+      continue;
+    }
+    if (code !== HOLD_CODE || hold === undefined) return code;
+    if ((await hold()) === 'exit') return 0;
+    process.stderr.write('starting the daemon again\n');
   }
 }

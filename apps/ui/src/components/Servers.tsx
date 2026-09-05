@@ -15,7 +15,9 @@ import { AgentAvatar } from './AgentAvatar';
 import { Loading } from './Loading';
 import { opensElsewhere } from './link';
 import { removeServer, renameServer, serverLabel, type Server } from '../api/servers';
-import { queryError, refreshServers, useServersQuery, useServerStatus } from '../api/queries';
+import { awaitLive, startDaemon } from '../api/control';
+import { queryError, refreshServers, refreshServerStatus, useServersQuery, useServerStatus } from '../api/queries';
+import { baseFromSegment } from '../auth/daemon';
 import { shortAddress } from '../api/address';
 import { activeIdentity } from '../auth/identity';
 import { useDocumentTitle } from '../title';
@@ -27,15 +29,50 @@ const HOW = 'Every daemon you open lands here, on every device you sign in from.
 function StatusDot({ host }: { host: string }): ReactNode {
   const palette = useKitPalette();
   const { data } = useServerStatus(host);
-  const color = data === undefined ? palette.border : data.live ? palette.success : palette.sub;
+  const color =
+    data === undefined ? palette.border : data.state === 'live' ? palette.success : data.state === 'stopped' ? palette.danger : palette.sub;
   return <Row width={DOT} height={DOT} radius={DOT} background={color} />;
 }
 
 function StatusText({ host }: { host: string }): ReactNode {
   const { data } = useServerStatus(host);
   if (data === undefined) return <Pill label="Checking" />;
-  if (!data.live) return <Pill label="Offline" />;
+  if (data.state === 'offline') return <Pill label="Offline" />;
+  if (data.state === 'stopped') return <Pill label="Stopped" />;
   return <Pill label={data.version === null ? 'Live' : `Live · ${data.version}`} variant="primary" />;
+}
+
+function StartButton({ host }: { host: string }): ReactNode {
+  const client = useQueryClient();
+  const dark = useKitScheme() === 'dark';
+  const { data } = useServerStatus(host);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (data?.state !== 'stopped' && !busy) return null;
+  const start = (): void => {
+    const base = baseFromSegment(host);
+    setBusy(true);
+    setError(null);
+    startDaemon(base)
+      .then(() => awaitLive(base))
+      .then(() => refreshServerStatus(client, host))
+      .catch((err: unknown) => {
+        setError(queryError(err, 'Could not start metro.'));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+  return (
+    <Row gap={8} align="center">
+      {error !== null ? (
+        <Text size="sm" role="danger" numberOfLines={1}>
+          {error}
+        </Text>
+      ) : null}
+      <Button size="sm" color="secondary" dark={dark} label={busy ? 'Starting…' : 'Start'} loading={busy} disabled={busy} onPress={start} />
+    </Row>
+  );
 }
 
 interface RowProps {
@@ -78,6 +115,7 @@ function ServerRow({ server, last, onRename, onRemove }: RowProps): ReactNode {
         </Col>
       </a>
       <StatusText host={server.host} />
+      <StartButton host={server.host} />
       <KebabMenu
         label={`Server menu for ${serverLabel(server)}`}
         items={[

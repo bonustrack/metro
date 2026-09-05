@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentsDir } from './local.js';
 import { currentVersion } from './version.js';
@@ -7,6 +7,7 @@ import { serveLockedBy, serveStateDir } from './control.js';
 import { findBun, localPort, SERVER_ENTRY, spawnPlan, type DaemonPlan } from './runtime.js';
 import { prepareRuntime, type PreparedRuntime } from './runtime-install.js';
 import { ensureNodeName } from './node-name.js';
+import { holdUntilStart, type HoldInfo } from './hold.js';
 
 const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
@@ -84,6 +85,26 @@ export function requireOwner(owner: string | null, dir = agentsDir()): void {
   );
 }
 
+export function readOwner(dir = agentsDir()): string | null {
+  try {
+    const raw = readFileSync(join(dir, '.owner'), 'utf8').trim().toLowerCase();
+    return ADDRESS.test(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+export function holdInfo(port: number, owner: string | null, tailscaleBin: string | null): HoldInfo {
+  return {
+    port,
+    host: process.env.METRO_HTTP_HOST ?? '127.0.0.1',
+    owner: owner ?? readOwner(),
+    version: currentVersion(),
+    funnel: tailscaleBin,
+    lockFile: join(process.env.METRO_STATE_DIR ?? serveStateDir(), '.tail-lock'),
+  };
+}
+
 function tailscaleStatus(bin: string): { ok: true } | { ok: false; state: string } {
   const run = spawnSync(bin, ['status', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (run.error !== undefined || run.status !== 0) return { ok: false, state: 'not running' };
@@ -157,7 +178,8 @@ export function serve(argv: string[]): Promise<number> {
   process.stderr.write(
     `Starting a metro daemon of your own on http://127.0.0.1:${String(port)}, published as ${node} on your tailnet\n`,
   );
-  return spawnPlan(() =>
-    servePlan({ runtime: prepareRuntime(), port, owner, tailscaleBin }),
+  return spawnPlan(
+    () => servePlan({ runtime: prepareRuntime(), port, owner, tailscaleBin }),
+    () => holdUntilStart(holdInfo(port, owner, tailscaleBin)),
   );
 }

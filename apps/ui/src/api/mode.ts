@@ -8,6 +8,7 @@ export interface ModeInfo {
   owner: string | null;
   project: string | null;
   version: string | null;
+  stopped: boolean;
 }
 
 const MODES: DaemonMode[] = ['hosted', 'linked', 'local'];
@@ -19,7 +20,13 @@ export function toMode(body: unknown): ModeInfo | null {
   if (!isRecord(body)) return null;
   const mode = MODES.find((m) => m === body.mode);
   if (mode === undefined) return null;
-  return { mode, owner: text(body.owner), project: text(body.project), version: text(body.version) };
+  return {
+    mode,
+    owner: text(body.owner),
+    project: text(body.project),
+    version: text(body.version),
+    stopped: body.stopped === true,
+  };
 }
 
 export function connectRefusal(info: ModeInfo): string | null {

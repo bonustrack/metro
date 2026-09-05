@@ -5,6 +5,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { MetroLogo } from './MetroLogo';
 import { NAV_GAP, NavRow } from './NavRow';
 import { SidebarFooter } from './SidebarFooter';
+import { ServerSwitcher } from './ServerSwitcher';
 import { opensElsewhere } from './link';
 import { routeHash } from '../route';
 import { type Selection } from './selection';
@@ -44,6 +45,7 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
               <MetroLogo size={32} color={palette.link} />
             </a>
           </Row>
+          <ServerSwitcher project={project} />
           <Col gap={NAV_GAP}>
             <NavRow label="Agent" icon="user" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />
             <NavRow label="Server" icon="server" selected={selection.kind === 'server'} target={{ kind: 'server', project }} onSelect={onSelect} />
@@ -55,7 +57,7 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
           </Col>
         </Col>
       </ScrollView>
-      <SidebarFooter project={project} subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />
+      <SidebarFooter subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />
     </Col>
   );
 }

@@ -170,6 +170,7 @@ before the MCP auth gate:
 | `POST`/`GET`/`DELETE /relay/<connector-id>` | Agent key only: MCP passthrough to the connector, the vendor credential injected here. |
 | `GET /api/claude/projects`, `/sessions`, `/memory`, `DELETE /api/claude/sessions/<id>` | Claude Code's own session transcripts and memory files on this machine, read-only apart from delete. |
 | `GET`/`POST /api/update` | Whether a newer metro is published, and update this machine to it: the daemon runs `metro update` and restarts itself on the new version. The agent page shows the version with an **Update** button. |
+| `POST /api/stop`, `POST /api/restart`, `POST /api/start` | Stop, restart and start the daemon from the Server page. Stop parks it: `metro serve` keeps holding the address (and the Funnel) and answers `/api/mode` with `stopped: true` until Start, so no shell is needed. Install it as a service (`metro service install`) and the machine comes back on its own after a reboot too. |
 
 On metro.box the same program serves sign-in (open to any wallet) and
 `GET /api/vault`, `PUT`/`GET`/`DELETE /api/vault/<agentId>` — see
@@ -224,6 +225,7 @@ metro mcp       # print {"mcpServers": {...}}: the agent's connectors, through t
 metro whoami    # which agent this machine runs
 metro tail <agent-id>   # follow this machine's inbound events as JSON lines
 metro update    # update to the newest published version
+metro service install   # run metro serve as a service (systemd or launchd): boot, crash, and Stop/Start from the page
 ```
 
 Start a session with every connector, writing nothing to disk:

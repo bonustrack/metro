@@ -9,6 +9,7 @@ import {
 import { carryForward, type AccountGroup } from './accounts';
 import {
   AuthError,
+  StoppedError,
   fetchSession,
   fetchStations,
   type StationsView,
@@ -65,7 +66,7 @@ export function makeQueryClient(onAuthError: () => void): QueryClient {
         gcTime: 30 * 60_000,
         refetchOnWindowFocus: false,
         refetchOnMount: false,
-        retry: (count, err) => !(err instanceof AuthError) && count < 2,
+        retry: (count, err) => !(err instanceof AuthError) && !(err instanceof StoppedError) && count < 2,
       },
     },
   });
@@ -104,6 +105,10 @@ export function useServerStatus(host: string): UseQueryResult<ServerStatus> {
 
 export function refreshServers(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: serversKey() });
+}
+
+export function refreshServerStatus(client: QueryClient, host: string): Promise<void> {
+  return client.invalidateQueries({ queryKey: ['server-status', host] });
 }
 
 export function useMachineQuery(): UseQueryResult<Machine> {

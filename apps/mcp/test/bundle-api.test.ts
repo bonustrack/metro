@@ -39,6 +39,7 @@ beforeAll(async () => {
       return Promise.resolve();
     },
     restart: () => undefined,
+    stop: () => undefined,
     closeAgentSession: () => Promise.resolve(true),
     gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }),
     capabilities: () => ({}),
