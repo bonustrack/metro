@@ -191,6 +191,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     claudeApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     updateApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart },
     machineApi: { authorize: (subject) => { assertLocalOwner(subject); } },
+    terminalApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     identity: { owner: localOwner },
     mode: localModeInfo,
   };

@@ -59,7 +59,7 @@ export default defineConfig({
       knip: {
         entry: ['test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
-        ignoreBinaries: ['mktemp', 'ps'],
+        ignoreBinaries: ['mktemp', 'ps', 'tmux'],
       },
     },
     'packages/webhook': {

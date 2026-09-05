@@ -19,6 +19,7 @@ import { handleServersApiRequest, type ServersApiDeps } from './servers-api.js';
 import { handleBundleRequest, type BundleApiDeps } from './bundle-api.js';
 import { handleUpdateRequest, type UpdateApiDeps } from './update-api.js';
 import { handleMachineRequest, type MachineApiDeps } from './machine-api.js';
+import { handleTerminalRequest, type TerminalApiDeps } from './terminal-api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
@@ -28,6 +29,7 @@ export interface SessionApis {
   serversApi?: ServersApiDeps;
   updateApi?: UpdateApiDeps;
   machineApi?: MachineApiDeps;
+  terminalApi?: TerminalApiDeps;
   localCli?: LocalCliDeps;
   claudeApi?: ClaudeApiDeps;
   connectorApi?: ConnectorApiDeps;
@@ -53,6 +55,7 @@ export function handleSessionApis(
     ...when(apis.serversApi, (d) => handleServersApiRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
     ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),
+    ...when(apis.terminalApi, (d) => handleTerminalRequest(req, res, d)),
     ...when(apis.claudeApi, (d) => handleClaudeRequest(req, res, d)),
     ...when(apis.agentConnectorApi, (d) => handleAgentConnectorRequest(req, res, d)),
     ...when(apis.agentApi, (d) => handleAgentApiRequest(req, res, d)),

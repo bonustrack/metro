@@ -7,6 +7,7 @@ import { Home } from './Home';
 import { Memory } from './Memory';
 import { Sessions } from './Sessions';
 import { ServerPage } from './ServerPage';
+import { TerminalPage } from './Terminal';
 import { Settings } from './Settings';
 import { StationPage } from './StationPage';
 import { Stations } from './Stations';
@@ -67,6 +68,7 @@ function ScopedPanel({ project, selection, onSelect }: ScopedProps): ReactNode {
   const claude = claudeRoutes(project, selection, go);
   if (claude !== null) return claude;
   if (selection.kind === 'server') return <ServerPage project={project} />;
+  if (selection.kind === 'terminal') return <TerminalPage />;
   if (selection.kind === 'stations')
     return (
       <Stations
