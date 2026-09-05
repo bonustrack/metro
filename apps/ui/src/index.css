@@ -473,3 +473,13 @@ textarea:focus-visible {
 .tool-call-error summary {
   color: var(--metro-danger, #e5484d);
 }
+
+.terminal-box {
+  flex: 1 1 auto;
+  min-height: 360px;
+  height: calc(100vh - 220px);
+  border-radius: 8px;
+  overflow: hidden;
+  padding: 8px;
+  background: var(--metro-bg);
+}

@@ -255,7 +255,9 @@ that prints the agent key fresh from the agent file on every connect.
 
 `metro serve` runs a daemon with **nothing on metro.box at all**: the agent, its channels and its
 connectors live in `~/.metro/agents` on this machine, and the page at metro.box manages it
-through the link it prints, and it is always published through Tailscale Funnel (below). Sign in once and metro.box shows your servers, kept under your
+through the link it prints, and it is always published through Tailscale Funnel (below). The
+page's Terminal tab opens a tmux session on the box, so Claude Code can be driven from any
+browser. Sign in once and metro.box shows your servers, kept under your
 identity so every device sees the same list, with their live status; opening a daemon's link
 adds it to that list and gives it a short address like `https://metro.box/#/4naAzZIxZZo`. From another computer, forward the port first
 (`ssh -L 8420:127.0.0.1:8420 <host>`), or simply open the public address: `metro serve` needs

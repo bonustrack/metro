@@ -12,6 +12,7 @@ const SETTINGS_PATH = /^#?\/settings$/;
 const CONNECT_PATH = /^#?\/connect$/;
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
+const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
 const STATIONS_PATH = new RegExp(`^#?/(${HOST})/channels$`);
 const STATION_PATH = new RegExp(`^#?/(${HOST})/channel/(${ACCOUNT})$`);
 const CONNECTORS_PATH = new RegExp(`^#?/(${HOST})/connectors$`);
@@ -30,6 +31,7 @@ function exactSelection(hash: string): Selection | null {
 const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] = [
   [HOME_PATH, (project) => ({ kind: 'home', project })],
   [SERVER_PATH, (project) => ({ kind: 'server', project })],
+  [TERMINAL_PATH, (project) => ({ kind: 'terminal', project })],
   [STATIONS_PATH, (project) => ({ kind: 'stations', project })],
   [STATION_PATH, (project, accountId) => ({ kind: 'station', project, accountId })],
   [CONNECTORS_PATH, (project) => ({ kind: 'connectors', project })],
@@ -51,6 +53,7 @@ export function routeSelection(hash: string): Selection {
 const SUFFIX: Record<string, (s: Selection) => string> = {
   home: () => '',
   server: () => '/server',
+  terminal: () => '/terminal',
   stations: () => '/channels',
   station: (s) => `/channel/${s.kind === 'station' ? s.accountId : ''}`,
   connectors: () => '/connectors',
