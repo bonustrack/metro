@@ -226,6 +226,10 @@ body {
   overflow-x: hidden;
 }
 
+.app-root a {
+  font-family: var(--metro-font-sans);
+}
+
 .hint-link {
   color: var(--metro-heading);
   text-decoration: underline;
