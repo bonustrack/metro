@@ -16,6 +16,7 @@ interface MessageArgs {
   line: string;
   a: Record<string, unknown>;
   ctx: ReturnType<typeof makeCtx>;
+  onSent?: (messageId: string) => void;
   station: Station;
 }
 
@@ -105,6 +106,10 @@ const unsupported = (station: Station, atts: CanonicalAttachment[]): string =>
     .map((a) => kindOf(a.mime ?? '', a.path ?? a.url ?? a.name ?? ''))
     .join(', ')}); send a link in \`text\` instead`;
 
+function noteSent(m: MessageArgs, messageId: string | undefined): void {
+  if (messageId !== undefined) m.onSent?.(messageId);
+}
+
 async function handleSend(m: MessageArgs): Promise<ToolResult> {
   const text = m.a.text as string | undefined;
   const replyTo = m.a.reply_to as string | undefined;
@@ -125,6 +130,7 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
       : await sendForwarded(m, text, replyTo, atts);
     if (!sent.labels.length)
       return errResult('send requires `text` or `attachments`');
+    noteSent(m, sent.messageId);
     return ok(withId(`sent: ${sent.labels.join(', ')}`, sent.messageId));
   } finally {
     await cleanupAttachments(atts);
@@ -158,7 +164,7 @@ const MESSAGE_VERBS: Record<string, VerbSpec> = {
 };
 
 function makeVerbHandler(verb: string, spec: VerbSpec): MessageHandler {
-  return async ({ line, a, ctx }) => {
+  return async ({ line, a, ctx, onSent }) => {
     const payload: Record<string, unknown> = { line };
     for (const [snake, camel] of spec.args) {
       const value = str(a[snake]);
@@ -169,7 +175,9 @@ function makeVerbHandler(verb: string, spec: VerbSpec): MessageHandler {
       payload[camel] = value;
     }
     const response = await ctx.call(verb, payload);
-    return ok(withId(spec.success, messageIdOf(response)));
+    const messageId = messageIdOf(response);
+    if (verb === 'reply' && messageId !== undefined) onSent?.(messageId);
+    return ok(withId(spec.success, messageId));
   };
 }
 
@@ -181,9 +189,14 @@ const MESSAGE_HANDLERS: Record<string, MessageHandler> = {
   ),
 };
 
+export interface ToolHooks {
+  onSent?: (messageId: string) => void;
+}
+
 export async function dispatchMessageTool(
   name: string,
   a: Record<string, unknown>,
+  hooks: ToolHooks = {},
 ): Promise<ToolResult> {
   const line = str(a.line);
   if (!line) return errResult(`${name} requires \`line\``);
@@ -196,7 +209,7 @@ export async function dispatchMessageTool(
   const handler = MESSAGE_HANDLERS[name];
   if (!handler) return errResult(`unknown tool: ${name}`);
   try {
-    return await handler({ line, a, ctx: makeCtx(station.name), station });
+    return await handler({ line, a, ctx: makeCtx(station.name), station, onSent: hooks.onSent });
   } catch (e) {
     return toErr(name, e);
   }

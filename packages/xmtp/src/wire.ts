@@ -37,3 +37,17 @@ export function resolveMsgId(rawId: string): string {
       '(not seen by this train; pass the raw xmtp message_id)',
   );
 }
+
+const SENT_MAX = 5000;
+const sentIds = new Set<string>();
+
+export function rememberSent(xmtpId: string | undefined): void {
+  if (!xmtpId) return;
+  sentIds.add(xmtpId);
+  if (sentIds.size > SENT_MAX) {
+    const oldest = sentIds.values().next().value;
+    if (oldest !== undefined) sentIds.delete(oldest);
+  }
+}
+
+export const sentByMe = (xmtpId: string): boolean => sentIds.has(xmtpId);

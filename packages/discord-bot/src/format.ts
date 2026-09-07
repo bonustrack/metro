@@ -65,6 +65,15 @@ function tagFor(att: {
   return `[${kind}: ${att.name ?? kind}]`;
 }
 
+function addressing(accountId: string, m: Message): { mentions_self: boolean; reply_to_self: boolean } {
+  const me = accounts.get(accountId)?.client.user ?? null;
+  if (me === null) return { mentions_self: false, reply_to_self: false };
+  return {
+    mentions_self: m.mentions.has(me, { ignoreRepliedUser: true, ignoreEveryone: true }),
+    reply_to_self: m.mentions.repliedUser?.id === me.id,
+  };
+}
+
 export function messageEnvelope(
   accountId: string,
   m: Message,
@@ -112,6 +121,7 @@ export function messageEnvelope(
     text,
     is_private: m.guildId == null,
     reply_to: m.reference?.messageId ?? undefined,
+    ...addressing(accountId, m),
     ...(m.reference?.messageId
       ? { event: { type: 'reply', replyTo: m.reference.messageId } }
       : {}),

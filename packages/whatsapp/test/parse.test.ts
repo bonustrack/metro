@@ -231,3 +231,36 @@ describe('toReaction', () => {
     expect(toReaction('w0', event)).toBeUndefined();
   });
 });
+
+describe('toInbound addressing facts', () => {
+  const quoted = (contextInfo: Record<string, unknown>): WAMessage =>
+    asMessage({
+      key: { remoteJid: '999-1@g.us', id: 'm2', participant: '111@s.whatsapp.net' },
+      messageTimestamp: 1_700_000_000,
+      message: { extendedTextMessage: { text: 'hi', contextInfo } },
+    });
+  const self = { jids: new Set(['222@s.whatsapp.net']), sentByMe: (_jid: string, id: string) => id === 'sent-by-me' };
+
+  test('a quote names its target, and quoting or mentioning this account is known from the account jids', () => {
+    const m = toInbound('w0', quoted({ stanzaId: 'q1', participant: '222@s.whatsapp.net', mentionedJid: ['222@s.whatsapp.net'] }), self);
+    expect(m?.replyTo).toBe('q1');
+    expect(m?.mentionsSelf).toBe(true);
+    expect(m?.replyToSelf).toBe(true);
+  });
+
+  test('a quote of a message the key cache remembers as ours counts too; a stranger quote does not', () => {
+    const ours = toInbound('w0', quoted({ stanzaId: 'sent-by-me', participant: '111@s.whatsapp.net' }), self);
+    expect(ours?.replyToSelf).toBe(true);
+    expect(ours?.mentionsSelf).toBeUndefined();
+    const theirs = toInbound('w0', quoted({ stanzaId: 'q3', participant: '333@s.whatsapp.net' }), self);
+    expect(theirs?.replyTo).toBe('q3');
+    expect(theirs?.replyToSelf).toBeUndefined();
+  });
+
+  test('without the account identity only the quote target is reported', () => {
+    const m = toInbound('w0', quoted({ stanzaId: 'q4', participant: '222@s.whatsapp.net', mentionedJid: ['222@s.whatsapp.net'] }));
+    expect(m?.replyTo).toBe('q4');
+    expect(m?.mentionsSelf).toBeUndefined();
+    expect(m?.replyToSelf).toBeUndefined();
+  });
+});

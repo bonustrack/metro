@@ -37,6 +37,8 @@ export type TrainEvent = {
   message_id?: string;
   reply_to?: string;
   is_private?: boolean;
+  mentions_self?: boolean;
+  reply_to_self?: boolean;
   text?: string;
   emoji?: string;
   payload?: unknown;

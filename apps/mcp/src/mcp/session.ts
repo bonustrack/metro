@@ -99,6 +99,10 @@ export class McpSession {
       deliver: (send): void => {
         this.deliverSchemaNotice(send, 'request');
       },
+    }, {
+      onSent: (id): void => {
+        this.relay.noteSent(id);
+      },
     });
     this.relay = new InboundRelay({
       mcp: this.server,

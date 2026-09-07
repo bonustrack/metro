@@ -13,6 +13,9 @@ export interface InboundMessage {
   isPrivate: boolean;
   pushName?: string;
   media?: WAMediaRef;
+  replyTo?: string;
+  mentionsSelf?: boolean;
+  replyToSelf?: boolean;
 }
 
 export interface ReactionInput {
@@ -48,6 +51,9 @@ export function envelope(m: InboundMessage): Record<string, unknown> {
     message_id: m.messageId,
     text: m.text,
     is_private: m.isPrivate,
+    ...(m.replyTo === undefined ? {} : { reply_to: m.replyTo, event: { type: 'reply', replyTo: m.replyTo } }),
+    ...(m.mentionsSelf === true ? { mentions_self: true } : {}),
+    ...(m.replyToSelf === true ? { reply_to_self: true } : {}),
     payload: {
       account: m.accountId,
       message_id: m.messageId,

@@ -394,4 +394,7 @@ export const MCP_INSTRUCTIONS =
   'straight to metro and never through this conversation), then `send` with ' +
   'attachments:[{upload:"<upload_id>"}]. Inline `data` is for tiny files only, `url` only for ' +
   'an already-public file, and `path` is read on the DAEMON host, not yours. Tool-approval ' +
-  'prompts are relayed to the same chat - answer "yes <id>"/"no <id>".';
+  'prompts are relayed to the same chat - answer "yes <id>"/"no <id>". A message meant for you ' +
+  'carries addressed="direct" (a private chat), "mention" (you were named) or "reply" (it ' +
+  'answers one of your own messages); one without `addressed` merely happened in a room you ' +
+  'watch, so treat it as context and do not answer unless the person plainly wants you.';

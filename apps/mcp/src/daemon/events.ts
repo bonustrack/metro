@@ -24,6 +24,9 @@ export interface MetroEvent {
   text?: string;
   messageId?: string;
   replyTo?: string;
+  isPrivate?: boolean;
+  mentionsSelf?: boolean;
+  replyToSelf?: boolean;
   payload?: unknown;
   display?: string;
   event?: StructuredEvent;

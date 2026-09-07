@@ -45,6 +45,20 @@ export function isOwnEcho(m: Message): boolean {
   return isUser(sender) && sender.isSelf;
 }
 
+function replyMeta(m: Message): Record<string, unknown> {
+  const replied = m.replyToMessage;
+  const target = replied?.id;
+  if (replied === null || typeof target !== 'number') return {};
+  if (m.isTopicMessage && target === replied.threadId) return {};
+  const id = String(target);
+  const sender = replied.sender;
+  return {
+    reply_to: id,
+    event: { type: 'reply', replyTo: id },
+    reply_to_self: sender?.type === 'user' && sender.isSelf,
+  };
+}
+
 export function envelope(
   accountId: string,
   m: Message,
@@ -71,6 +85,7 @@ export function envelope(
     text: projectText(m),
     is_private: isPrivate,
     has_media: media !== null,
+    ...replyMeta(m),
     payload: {
       account: accountId,
       message_id: String(m.id),

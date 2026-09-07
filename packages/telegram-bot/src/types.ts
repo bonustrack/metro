@@ -1,4 +1,14 @@
+export interface TgEntity {
+  type: string;
+  offset: number;
+  length: number;
+  user?: { id: number };
+}
+
 export interface TgMsg {
+  entities?: TgEntity[];
+  caption_entities?: TgEntity[];
+  reply_to_message?: { message_id: number; from?: { id: number; username?: string; is_bot?: boolean } };
   message_id: number;
   date: number;
   chat: { id: number; type: string; title?: string; first_name?: string };

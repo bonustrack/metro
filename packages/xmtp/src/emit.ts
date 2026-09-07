@@ -1,6 +1,6 @@
 import type { Conversation, DecodedMessage } from '@xmtp/node-sdk';
 import { lineOf, parseLine } from './accounts.js';
-import { emit, mintId, rememberUid, SELF_URI } from './wire.js';
+import { emit, mintId, rememberSent, rememberUid, SELF_URI } from './wire.js';
 import { fcmPushToAll } from './push.js';
 import { emitInbound, emitAttachmentSaved } from './emit-core.js';
 import { typedEnvelope, type EnvelopeCtx } from './emit-payloads.js';
@@ -23,6 +23,7 @@ export function envelope(
     line,
     from: `metro://xmtp/${accountId}/user/${msg.senderInboxId}`,
     message_id: msg.id,
+    is_private: typeof (conv as unknown as { peerInboxId?: unknown }).peerInboxId === 'function',
   };
   rememberUid(base.id, msg.id);
   if (typeof c === 'string')
@@ -53,6 +54,7 @@ export function emitOutbound(
 ): void {
   const uid = mintId();
   rememberUid(uid, messageId);
+  rememberSent(messageId);
   emit({
     kind: 'outbound',
     id: uid,

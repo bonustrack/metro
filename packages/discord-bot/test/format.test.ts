@@ -9,12 +9,16 @@
 import { describe, expect, test } from 'bun:test';
 import type { Message, MessageReaction, User } from 'discord.js';
 import { messageEnvelope, reactionEnvelope } from '../src/format.ts';
+import { accounts } from '../src/accounts.ts';
 
 const emptyCollection = { map: () => [], values: () => [].values() };
 
-const fakeMessage = (author: Record<string, unknown>): Message =>
+const noMentions = { has: () => false, repliedUser: null };
+
+const fakeMessage = (author: Record<string, unknown>, mentions: Record<string, unknown> = noMentions): Message =>
   ({
     author: { bot: false, id: '999', ...author },
+    mentions,
     attachments: emptyCollection,
     stickers: emptyCollection,
     content: 'hello',
@@ -65,5 +69,30 @@ describe('discord-bot reactionEnvelope sender identity', () => {
     expect(env).not.toBeNull();
     expect(env?.from_name).toBe('bonustrack_');
     expect(env?.from_display_name).toBe('less');
+  });
+});
+
+describe('discord-bot messageEnvelope addressing facts', () => {
+  test('a ping and a reply to the bot are reported separately, from the live client identity', () => {
+    accounts.set('d0', { cfg: { id: 'd0', token: 't' }, client: { user: { id: 'bot1' } } } as never);
+    try {
+      const pinged = messageEnvelope('d0', fakeMessage({ username: 'x', globalName: null }, { has: () => true, repliedUser: null }));
+      expect(pinged?.mentions_self).toBe(true);
+      expect(pinged?.reply_to_self).toBe(false);
+      const replied = messageEnvelope('d0', fakeMessage({ username: 'x', globalName: null }, { has: () => false, repliedUser: { id: 'bot1' } }));
+      expect(replied?.mentions_self).toBe(false);
+      expect(replied?.reply_to_self).toBe(true);
+      const other = messageEnvelope('d0', fakeMessage({ username: 'x', globalName: null }, { has: () => false, repliedUser: { id: 'someone' } }));
+      expect(other?.mentions_self).toBe(false);
+      expect(other?.reply_to_self).toBe(false);
+    } finally {
+      accounts.delete('d0');
+    }
+  });
+
+  test('without a live client neither fact is claimed', () => {
+    const env = messageEnvelope('d9', fakeMessage({ username: 'x', globalName: null }, { has: () => true, repliedUser: { id: 'bot1' } }));
+    expect(env?.mentions_self).toBe(false);
+    expect(env?.reply_to_self).toBe(false);
   });
 });

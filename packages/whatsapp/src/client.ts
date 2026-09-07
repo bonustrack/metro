@@ -1,4 +1,5 @@
 import makeWASocket, {
+  jidNormalizedUser,
   Browsers,
   DisconnectReason,
   fetchLatestWaWebVersion,
@@ -11,7 +12,7 @@ import { TrainError } from '@metro-labs/mcp/train-error';
 import { errMsg } from '@metro-labs/mcp/log';
 import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
-import { toInbound, toReaction, type ReactionEvent } from './parse.js';
+import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';
 import { baileysLogger } from './logger.js';
 import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
@@ -72,13 +73,21 @@ function resetGate(st: State): void {
   });
 }
 
+function selfRef(st: State, sock: WASocket): SelfRef {
+  const jids = new Set<string>();
+  const me = sock.user;
+  if (me?.id) jids.add(jidNormalizedUser(me.id));
+  if (me?.lid) jids.add(jidNormalizedUser(me.lid));
+  return { jids, sentByMe: (jid, id) => st.keys.lookup(jid, id)?.fromMe === true };
+}
+
 function bindInbound(st: State, sock: WASocket): void {
   sock.ev.on('messages.upsert', ({ messages, type }) => {
     for (const m of messages) st.keys.remember(m.key);
     if (type !== 'notify' || !st.handlers) return;
     for (const m of messages) {
       if (m.key.fromMe) continue;
-      const inbound = toInbound(st.account.id, m);
+      const inbound = toInbound(st.account.id, m, selfRef(st, sock));
       if (inbound) st.handlers.onMessage(inbound, m);
     }
   });

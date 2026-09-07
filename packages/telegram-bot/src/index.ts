@@ -48,6 +48,12 @@ async function runAccount(acct: Account): Promise<void> {
       `telegram-bot[${id}] deleteWebhook: ${errMsg(err)}\n`,
     );
   }
+  try {
+    const me = await tg<{ username?: string }>(id, 'getMe', {});
+    if (typeof me.username === 'string') acct.username = me.username;
+  } catch (err) {
+    process.stderr.write(`telegram-bot[${id}] getMe: ${errMsg(err)}\n`);
+  }
 
   for (;;) {
     try {

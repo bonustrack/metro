@@ -8,6 +8,7 @@ import {
   type SavedMedia,
 } from './media-note.js';
 import { buildWebhookNote } from './webhook-note.js';
+import { replyMeta } from './addressed.js';
 import {
   capSet,
   displayNameMeta,
@@ -31,6 +32,7 @@ const DEDUPE_TTL_MS = 30_000;
 const DEDUPE_MAX = 2_000;
 const ALLOWED_LINES_MAX = 2_000;
 const PENDING_PERMISSIONS_MAX = 500;
+const SENT_IDS_MAX = 2_000;
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
@@ -43,6 +45,7 @@ export class InboundRelay {
   private readonly seenEvents = new Map<string, number>();
   private readonly allowedLines = new Set<string>();
   private readonly pendingPermissions = new Set<string>();
+  private readonly sentIds = new Set<string>();
   private lastLine: string | undefined;
 
   constructor(deps: InboundDeps) {
@@ -56,6 +59,12 @@ export class InboundRelay {
   registerPermission(requestId: string): void {
     this.pendingPermissions.add(requestId);
     capSet(this.pendingPermissions, PENDING_PERMISSIONS_MAX);
+  }
+
+  noteSent(messageId: string): void {
+    if (!messageId) return;
+    this.sentIds.add(messageId);
+    capSet(this.sentIds, SENT_IDS_MAX);
   }
 
   private notify(method: string, params: Record<string, unknown>): Promise<void> {
@@ -318,6 +327,7 @@ export class InboundRelay {
         line_name: str(ev.lineName),
         from_name: str(ev.fromName),
         ...displayNameMeta(ev.fromDisplayName),
+        ...replyMeta(ev, this.sentIds),
       },
     });
   }

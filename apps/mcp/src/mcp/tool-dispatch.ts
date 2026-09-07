@@ -12,7 +12,7 @@ import {
 import type { Station, StationTool, ToolResult } from '../stations/types.js';
 import { COMMON_TOOLS, LIST_ACCOUNTS_TOOL } from './tool-schemas.js';
 import { errResult, makeCtx, okJson, toErr } from './ctx.js';
-import { dispatchMessageTool } from './call-tools.js';
+import { dispatchMessageTool, type ToolHooks } from './call-tools.js';
 import { dispatchListMembers } from './member-tools.js';
 import {
   dispatchAddMembers,
@@ -142,9 +142,10 @@ function logToolFailure(
   );
 }
 
-async function runTool(req: {
-  params: { name: string; arguments?: Record<string, unknown> };
-}): Promise<ToolResult> {
+async function runTool(
+  req: { params: { name: string; arguments?: Record<string, unknown> } },
+  hooks: ToolHooks,
+): Promise<ToolResult> {
   const name = req.params.name;
   const a = req.params.arguments ?? {};
 
@@ -166,13 +167,14 @@ async function runTool(req: {
 
   if (name === 'list_accounts') return handleListAccounts(identity);
 
-  return dispatchMessageTool(name, a);
+  return dispatchMessageTool(name, a, hooks);
 }
 
-export async function callToolHandler(req: {
-  params: { name: string; arguments?: Record<string, unknown> };
-}): Promise<ToolResult> {
-  const result = await runTool(req);
+export async function callToolHandler(
+  req: { params: { name: string; arguments?: Record<string, unknown> } },
+  hooks: ToolHooks = {},
+): Promise<ToolResult> {
+  const result = await runTool(req, hooks);
   if (result.isError === true)
     logToolFailure(req.params.name, req.params.arguments ?? {}, result);
   return result;
@@ -192,6 +194,7 @@ interface NotifyingExtra {
 export function registerToolHandlers(
   server: Server,
   notice?: SchemaNotice,
+  hooks: ToolHooks = {},
 ): void {
   server.setRequestHandler(ListToolsRequestSchema, () => {
     notice?.markCurrent();
@@ -206,7 +209,7 @@ export function registerToolHandlers(
       notice?.deliver(() =>
         extra.sendNotification({ method: TOOL_LIST_CHANGED }),
       );
-      return callToolHandler(req);
+      return callToolHandler(req, hooks);
     }) as Parameters<typeof server.setRequestHandler>[1],
   );
 }

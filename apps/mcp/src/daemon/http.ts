@@ -128,6 +128,17 @@ function eventText(env: TrainEvent): string | undefined {
   return env.emoji ? `[react ${env.emoji}]` : undefined;
 }
 
+function addressingFacts(
+  env: TrainEvent,
+  isPrivate: boolean,
+): Pick<MetroEvent, 'isPrivate' | 'mentionsSelf' | 'replyToSelf'> {
+  return {
+    ...(isPrivate ? { isPrivate: true } : {}),
+    ...(env.mentions_self === true ? { mentionsSelf: true } : {}),
+    ...(env.reply_to_self === true ? { replyToSelf: true } : {}),
+  };
+}
+
 export function trainEventToMetroEvent(
   env: TrainEvent,
   trainName: string,
@@ -155,6 +166,7 @@ export function trainEventToMetroEvent(
     text,
     messageId: env.message_id,
     replyTo: env.reply_to,
+    ...addressingFacts(env, isPrivate),
     payload: env.payload,
   };
 }

@@ -8,6 +8,7 @@ import {
   type RemoteEntry,
 } from './attachments.js';
 import { emitInbound, emitAttachmentSaved } from './emit-core.js';
+import { sentByMe } from './wire.js';
 
 export interface EnvelopeCtx {
   accountId: string;
@@ -150,6 +151,7 @@ function replyPayload(
         ? c.content
         : `[reply with ${c.contentType?.typeId ?? 'unknown'}]`,
     event: { type: 'reply', replyTo: c.reference },
+    ...(sentByMe(c.reference) ? { reply_to_self: true } : {}),
     payload: {
       contentType: typeId,
       replyTo: c.reference,

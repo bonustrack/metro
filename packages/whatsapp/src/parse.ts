@@ -80,9 +80,52 @@ function senderJidOf(key: WAMessageKey, chatJid: string): string {
   return chatJid;
 }
 
+export interface SelfRef {
+  jids: ReadonlySet<string>;
+  sentByMe: (chatJid: string, id: string) => boolean;
+}
+
+const QUOTING_NODES = [
+  'extendedTextMessage',
+  'imageMessage',
+  'videoMessage',
+  'documentMessage',
+  'audioMessage',
+  'stickerMessage',
+] as const;
+
+function contextInfoOf(inner: proto.IMessage): proto.IContextInfo | undefined {
+  for (const node of QUOTING_NODES) {
+    const ctx = inner[node]?.contextInfo;
+    if (ctx) return ctx;
+  }
+  return undefined;
+}
+
+function quoteFacts(ctx: proto.IContextInfo, replyTo: string | undefined, chatJid: string, self: SelfRef): Addressing {
+  const quotedBy = typeof ctx.participant === 'string' ? ctx.participant : '';
+  const mentioned = (ctx.mentionedJid ?? []).some((jid) => self.jids.has(jid));
+  const replyToSelf = replyTo !== undefined && (self.jids.has(quotedBy) || self.sentByMe(chatJid, replyTo));
+  return {
+    ...(mentioned ? { mentionsSelf: true } : {}),
+    ...(replyToSelf ? { replyToSelf: true } : {}),
+  };
+}
+
+type Addressing = Pick<InboundMessage, 'replyTo' | 'mentionsSelf' | 'replyToSelf'>;
+
+function addressing(inner: proto.IMessage, chatJid: string, self: SelfRef | undefined): Addressing {
+  const ctx = contextInfoOf(inner);
+  if (ctx === undefined) return {};
+  const replyTo = typeof ctx.stanzaId === 'string' && ctx.stanzaId !== '' ? ctx.stanzaId : undefined;
+  const base: Addressing = replyTo === undefined ? {} : { replyTo };
+  return self === undefined ? base : { ...base, ...quoteFacts(ctx, replyTo, chatJid, self) };
+}
+
 export function toInbound(
   accountId: string,
   m: WAMessage,
+  self?: SelfRef,
 ): InboundMessage | undefined {
   const chatJid = m.key.remoteJid;
   const messageId = m.key.id;
@@ -102,6 +145,7 @@ export function toInbound(
     isPrivate: isPrivateJid(chatJid),
     ...(m.pushName ? { pushName: m.pushName } : {}),
     ...(media ? { media } : {}),
+    ...addressing(inner, chatJid, self),
   };
 }
 

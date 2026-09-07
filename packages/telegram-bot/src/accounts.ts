@@ -42,6 +42,7 @@ export interface Account {
   api: string;
   fileApi: string;
   offset: number;
+  username?: string;
 }
 export const accounts = new Map<string, Account>();
 

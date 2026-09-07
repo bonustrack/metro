@@ -44,6 +44,34 @@ function projectText(m: TgMsg): string {
   return [m.text ?? m.caption, ...tags].filter(Boolean).join(' ');
 }
 
+const botIdOf = (accountId: string): number | null => {
+  const token = accounts.get(accountId)?.cfg.token ?? '';
+  const id = Number(token.split(':')[0]);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
+
+function mentionsBot(m: TgMsg, botId: number | null, username: string | undefined): boolean {
+  const text = m.text ?? m.caption ?? '';
+  const handle = username === undefined ? null : `@${username.toLowerCase()}`;
+  return [...(m.entities ?? []), ...(m.caption_entities ?? [])].some((e) => {
+    if (e.type === 'text_mention') return botId !== null && e.user?.id === botId;
+    if (e.type !== 'mention' || handle === null) return false;
+    return text.slice(e.offset, e.offset + e.length).toLowerCase() === handle;
+  });
+}
+
+function addressing(accountId: string, m: TgMsg): Record<string, unknown> {
+  const botId = botIdOf(accountId);
+  const topicRoot = m.is_topic_message === true && m.reply_to_message?.message_id === m.message_thread_id;
+  const replied = topicRoot ? undefined : m.reply_to_message;
+  const replyTo = replied === undefined ? undefined : String(replied.message_id);
+  return {
+    ...(replyTo === undefined ? {} : { reply_to: replyTo, event: { type: 'reply', replyTo } }),
+    mentions_self: mentionsBot(m, botId, accounts.get(accountId)?.username),
+    reply_to_self: botId !== null && replied?.from?.id === botId,
+  };
+}
+
 export function envelope(accountId: string, m: TgMsg): Record<string, unknown> {
   const { line } = lineForMsg(accountId, m);
   return {
@@ -60,6 +88,7 @@ export function envelope(accountId: string, m: TgMsg): Record<string, unknown> {
     text: projectText(m),
     payload: m,
     is_private: m.chat.type === 'private',
+    ...addressing(accountId, m),
   };
 }
 

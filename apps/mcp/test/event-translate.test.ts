@@ -161,3 +161,20 @@ describe('trainEventToMetroEvent — passthrough fields', () => {
     expect(e!.payload).toBeUndefined();
   });
 });
+
+describe('trainEventToMetroEvent — addressing facts', () => {
+  test('is_private, mentions_self and reply_to_self ride along only when literally true', () => {
+    const e = trainEventToMetroEvent(
+      { line: 'metro://discord-bot/1', is_private: true, mentions_self: true, reply_to_self: true, reply_to: 'x' },
+      'discord-bot',
+    );
+    expect(e).toMatchObject({ isPrivate: true, mentionsSelf: true, replyToSelf: true, replyTo: 'x' });
+    const bare = trainEventToMetroEvent(
+      { line: 'metro://discord-bot/1', is_private: false, mentions_self: 'yes' as unknown as boolean },
+      'discord-bot',
+    );
+    expect(bare).not.toHaveProperty('isPrivate');
+    expect(bare).not.toHaveProperty('mentionsSelf');
+    expect(bare).not.toHaveProperty('replyToSelf');
+  });
+});
