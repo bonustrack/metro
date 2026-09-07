@@ -34,6 +34,7 @@ import { fetchMode, type ModeInfo } from './mode';
 import { fetchUpdate, type UpdateCheck } from './update';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers';
 import { fetchMachine, type Machine } from './machine';
+import { fetchModel, type ModelSettings } from './model';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -118,6 +119,18 @@ export function useMachineQuery(): UseQueryResult<Machine> {
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
+}
+
+export function useModelQuery(): UseQueryResult<ModelSettings> {
+  return useQuery({
+    queryKey: ['model', daemonBase()],
+    queryFn: () => fetchModel(),
+    staleTime: 30_000,
+  });
+}
+
+export function refreshModel(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ queryKey: ['model', daemonBase()] });
 }
 
 export function useModeQuery(): UseQueryResult<ModeInfo> {

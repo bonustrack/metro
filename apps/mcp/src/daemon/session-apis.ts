@@ -16,6 +16,8 @@ import { handleBundleRequest, type BundleApiDeps } from './bundle-api.js';
 import { handleUpdateRequest, type UpdateApiDeps } from './update-api.js';
 import { handleControlRequest, type ControlApiDeps } from './control-api.js';
 import { handleMachineRequest, type MachineApiDeps } from './machine-api.js';
+import { handleModelRequest, type ModelApiDeps } from './model-api.js';
+import type { GatewayDeps } from '../gateway/gateway.js';
 import { handleTerminalRequest, type TerminalApiDeps } from './terminal-api.js';
 
 export interface SessionApis {
@@ -26,6 +28,8 @@ export interface SessionApis {
   updateApi?: UpdateApiDeps;
   controlApi?: ControlApiDeps;
   machineApi?: MachineApiDeps;
+  modelApi?: ModelApiDeps;
+  gateway?: GatewayDeps;
   terminalApi?: TerminalApiDeps;
   localCli?: LocalCliDeps;
   claudeApi?: ClaudeApiDeps;
@@ -53,6 +57,7 @@ export function handleSessionApis(
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
     ...when(apis.controlApi, (d) => handleControlRequest(req, res, d)),
     ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),
+    ...when(apis.modelApi, (d) => handleModelRequest(req, res, d)),
     ...when(apis.terminalApi, (d) => handleTerminalRequest(req, res, d)),
     ...when(apis.claudeApi, (d) => handleClaudeRequest(req, res, d)),
     ...when(apis.agentApi, (d) => handleAgentApiRequest(req, res, d)),

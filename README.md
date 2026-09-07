@@ -168,7 +168,9 @@ before the MCP auth gate:
 | `GET /api/cli/mcp` | Agent key only: the `mcpServers` block pointing at this daemon's relay. |
 | `POST`/`GET`/`DELETE /relay/<connector-id>` | Agent key only: MCP passthrough to the connector, the vendor credential injected here. |
 | `GET /api/claude/projects`, `/sessions`, `/memory`, `DELETE /api/claude/sessions/<id>` | Claude Code's own session transcripts and memory files on this machine, read-only apart from delete. |
-| `GET`/`POST /api/update` | Whether a newer metro is published, and update this machine to it: the daemon runs `metro update` and restarts itself on the new version. The agent page shows the version with an **Update** button. |
+| `GET`/`POST /api/update` | Whether a newer metro is published, and update this machine to it: the daemon runs `metro update` and restarts itself on the new version. The Server tab shows the version with an **Update** button. |
+| `GET`/`PUT /api/model` | Where Claude Code's inference goes for sessions started with `metro claude` on this box: Anthropic (your login, passed through), Amazon Bedrock, OpenRouter, or Codex on your ChatGPT subscription (sign in from the page; unofficial, it speaks the Codex CLI protocol), with the provider keys and tokens kept on the daemon and never returned. The **Model** tab edits it; the change applies to the next request, no restart. |
+| `POST /gateway/v1/messages`, `GET /gateway/v1/models` | The Anthropic-format gateway Claude Code talks to, authenticated with the agent key in `x-metro-key`. A plain model id follows the Model tab; `/model bedrock:<id>`, `/model openrouter:<id>` or `/model codex:<id>` in a session overrides it for that session. |
 | `POST /api/stop`, `POST /api/restart`, `POST /api/start` | Stop, restart and start the daemon from the Server page. Stop parks it: `metro serve` keeps holding the address (and the Funnel) and answers `/api/mode` with `stopped: true` until Start, so no shell is needed. Install it as a service (`metro service install`) and the machine comes back on its own after a reboot too. |
 
 On metro.box the same program serves sign-in (open to any wallet) and

@@ -8,6 +8,7 @@ import { Memory } from './Memory';
 import { Sessions } from './Sessions';
 import { ServerPage } from './ServerPage';
 import { TerminalPage } from './Terminal';
+import { ModelPage } from './ModelPage';
 import { Settings } from './Settings';
 import { StationPage } from './StationPage';
 import { Stations } from './Stations';
@@ -69,6 +70,7 @@ function ScopedPanel({ project, selection, onSelect }: ScopedProps): ReactNode {
   if (claude !== null) return claude;
   if (selection.kind === 'server') return <ServerPage project={project} />;
   if (selection.kind === 'terminal') return <TerminalPage />;
+  if (selection.kind === 'model') return <ModelPage />;
   if (selection.kind === 'stations')
     return (
       <Stations

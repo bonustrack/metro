@@ -41,6 +41,7 @@ import {
   readLocalAgentFile,
 } from '../db/file-admin.js';
 import { listAgentFiles, readAgentFile } from '../db/file-source.js';
+import { readModelConfig } from '../gateway/model-config.js';
 import type { StationName } from '../db/stations.js';
 
 export interface LocalModeDeps {
@@ -177,6 +178,8 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     updateApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart },
     controlApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart, stop: deps.stop },
     machineApi: { authorize: (subject) => { assertLocalOwner(subject); } },
+    modelApi: { authorize: (subject) => { assertLocalOwner(subject); } },
+    gateway: { config: readModelConfig },
     terminalApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     identity: { owner: localOwner },
     mode: localModeInfo,

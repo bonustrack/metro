@@ -13,6 +13,7 @@ const CONNECT_PATH = /^#?\/connect$/;
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
 const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
+const MODEL_PATH = new RegExp(`^#?/(${HOST})/model$`);
 const STATIONS_PATH = new RegExp(`^#?/(${HOST})/channels$`);
 const STATION_PATH = new RegExp(`^#?/(${HOST})/channel/(${ACCOUNT})$`);
 const CONNECTORS_PATH = new RegExp(`^#?/(${HOST})/connectors$`);
@@ -32,6 +33,7 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [HOME_PATH, (project) => ({ kind: 'home', project })],
   [SERVER_PATH, (project) => ({ kind: 'server', project })],
   [TERMINAL_PATH, (project) => ({ kind: 'terminal', project })],
+  [MODEL_PATH, (project) => ({ kind: 'model', project })],
   [STATIONS_PATH, (project) => ({ kind: 'stations', project })],
   [STATION_PATH, (project, accountId) => ({ kind: 'station', project, accountId })],
   [CONNECTORS_PATH, (project) => ({ kind: 'connectors', project })],
@@ -54,6 +56,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   home: () => '',
   server: () => '/server',
   terminal: () => '/terminal',
+  model: () => '/model',
   stations: () => '/channels',
   station: (s) => `/channel/${s.kind === 'station' ? s.accountId : ''}`,
   connectors: () => '/connectors',
