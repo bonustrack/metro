@@ -1,4 +1,5 @@
 import { handleSessionApis, type SessionApis } from './session-apis.js';
+import { handleGatewayRequest } from '../gateway/gateway.js';
 import { handleRelayRequest } from './relay.js';
 import {
   createServer,
@@ -348,6 +349,13 @@ function handleSignInRoutes(
   return apis.mode !== undefined && handleModeRequest(req, res, apis.mode);
 }
 
+function handleEarlyRoutes(req: IncomingMessage, res: ServerResponse, apis: SessionApis): boolean {
+  if (handleHealth(req, res)) return true;
+  if (apis.gateway !== undefined && handleGatewayRequest(req, res, apis.gateway)) return true;
+  if (handleSignInRoutes(req, res, apis)) return true;
+  return handleSessionApis(req, res, apis);
+}
+
 async function handlePreMcpRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -355,9 +363,7 @@ async function handlePreMcpRoutes(
   apis: SessionApis,
   monitorCall?: MonitorCall,
 ): Promise<boolean> {
-  if (handleHealth(req, res)) return true;
-  if (handleSignInRoutes(req, res, apis)) return true;
-  if (handleSessionApis(req, res, apis)) return true;
+  if (handleEarlyRoutes(req, res, apis)) return true;
   if (handleUploadRequest(req, res)) return true;
   if (handleAttachRequest(req, res)) return true;
   if (apis.relayApi && handleRelayRequest(req, res, apis.relayApi)) return true;

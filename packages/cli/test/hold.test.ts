@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -34,7 +35,26 @@ const LOW_PORT = 10_000;
 const PORT_SPAN = 20_000;
 const SLOW_MS = 15_000;
 
-const freePort = (): Promise<number> => Promise.resolve(LOW_PORT + Math.floor(Math.random() * PORT_SPAN));
+function isFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = createServer();
+    probe.once('error', () => {
+      resolve(false);
+    });
+    probe.listen(port, '127.0.0.1', () => {
+      probe.close(() => {
+        resolve(true);
+      });
+    });
+  });
+}
+
+async function freePort(): Promise<number> {
+  for (;;) {
+    const port = LOW_PORT + Math.floor(Math.random() * PORT_SPAN);
+    if (await isFree(port)) return port;
+  }
+}
 
 async function until(check: () => Promise<boolean>, ms = 10_000): Promise<void> {
   const end = Date.now() + ms;
@@ -47,7 +67,7 @@ async function until(check: () => Promise<boolean>, ms = 10_000): Promise<void> 
 
 const answers = async (base: string): Promise<boolean> => {
   try {
-    const res = await fetch(`${base}/api/mode`);
+    const res = await fetch(`${base}/api/mode`, { signal: AbortSignal.timeout(1_000) });
     return res.status === 200;
   } catch {
     return false;

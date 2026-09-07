@@ -166,9 +166,13 @@ async function listen(server: Server, info: HoldInfo): Promise<void> {
   }
 }
 
+const CLOSE_WAIT_MS = 2_000;
+
 const close = (server: Server): Promise<void> =>
   new Promise((resolve) => {
+    const timer = setTimeout(resolve, CLOSE_WAIT_MS);
     server.close(() => {
+      clearTimeout(timer);
       resolve();
     });
     server.closeAllConnections();
