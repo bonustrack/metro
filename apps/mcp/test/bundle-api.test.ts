@@ -101,7 +101,7 @@ describe('an agent bundle on a local daemon', () => {
     expect(await res.json()).toEqual({ id: tony.id, name: 'Tony', stations: 1, connectors: 1 });
     expect(agentIdForKey(tony.key)).toBe(tony.id);
     const file = JSON.parse(readFileSync(join(dir, 'Tony', 'agent.json'), 'utf8')) as { id: string; key: string; connectors: string[]; stations: { config: { token: string } }[] };
-    expect(file).toMatchObject({ id: tony.id, key: tony.key, connectors: ['conn0000001'] });
+    expect(file).toMatchObject({ id: tony.id, key: tony.key, connectors: [] });
     expect(file.stations[0]?.config.token).toBe('bot-token');
     expect(existsSync(join(dir, 'connectors.json'))).toBe(true);
     expect(synced).toContain('telegram-bot');

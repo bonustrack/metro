@@ -34,9 +34,8 @@ let mode: Mode = 'ok';
 let forceCalls = 0;
 
 const deps: RelayApiDeps = {
-  target: (agentId, connectorId, force): Promise<RelayTarget> => {
-    if (agentId !== AGENT || connectorId !== CONN)
-      return Promise.resolve({ kind: 'missing' });
+  target: (connectorId, force): Promise<RelayTarget> => {
+    if (connectorId !== CONN) return Promise.resolve({ kind: 'missing' });
     if (force) forceCalls += 1;
     if (mode === 'signin') return Promise.resolve({ kind: 'signin' });
     if (mode === 'redirect')
@@ -185,9 +184,9 @@ describe('who may speak to a relay', () => {
     expect(seen).toHaveLength(0);
   });
 
-  test('a connector the agent does not hold is a flat 404', async () => {
+  test('an unknown connector id is a flat 404, whoever asks', async () => {
     const other = cliToken('agent000002');
-    const res = await call(`/relay/${CONN}`, { method: 'POST' }, other);
+    const res = await call('/relay/conn0000009', { method: 'POST' }, other);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'no such connector' });
     expect(seen).toHaveLength(0);

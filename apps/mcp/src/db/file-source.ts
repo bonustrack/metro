@@ -70,14 +70,8 @@ function optionalMatch(
   return value;
 }
 
-function connectorsOf(raw: unknown, path: string): string[] {
-  if (raw === undefined || raw === null) return [];
-  const list: unknown[] = Array.isArray(raw) ? raw.map((item: unknown) => item) : [];
-  const ids = list.filter((id): id is string => typeof id === 'string' && ID_RE.test(id));
-  if (!Array.isArray(raw) || ids.length !== list.length)
-    fail(path, 'connectors is not a list of 11-character ids');
-  return ids;
-}
+const connectorsOf = (raw: unknown): string[] =>
+  Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && ID_RE.test(id)) : [];
 
 export function parseAgentFile(raw: string, path: string): AgentFile {
   let parsed: unknown;
@@ -108,7 +102,7 @@ export function parseAgentFile(raw: string, path: string): AgentFile {
     key,
     owner,
     stations: stations.map((s, i) => stationOf(s, path, i)),
-    connectors: connectorsOf(parsed.connectors, path),
+    connectors: connectorsOf(parsed.connectors),
   };
 }
 

@@ -108,23 +108,11 @@ function headers() {
   process.stdout.write(`${JSON.stringify({ Authorization: `Bearer ${agent.key}` })}\n`);
 }
 
-async function status() {
-  const agent = pickAgent();
-  const body = await api('/api/cli/session', agent.key);
-  let count = 0;
-  try {
-    count = Object.keys(JSON.parse(readFileSync(mcpPath, 'utf8'))).length;
-  } catch {
-    count = 0;
-  }
-  process.stdout.write(`agent '${body.agent}' on ${localUrl()} · ${count} server(s) loaded\n`);
-}
-
 const command = process.argv[2];
-const run = { refresh, headers: () => Promise.resolve(headers()), status }[command];
+const run = { refresh, headers: () => Promise.resolve(headers()) }[command];
 
 if (run === undefined) {
-  process.stderr.write('usage: metro-plugin.mjs <refresh|headers|status>\n');
+  process.stderr.write('usage: metro-plugin.mjs <refresh|headers>\n');
   process.exit(1);
 }
 

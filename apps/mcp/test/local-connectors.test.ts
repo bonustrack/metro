@@ -144,9 +144,9 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     expect(list.connectors.map((c) => c.id)).toEqual([linear]);
   });
 
-  test('every agent on the daemon holds a new connector, and a name is unique on the daemon', async () => {
+  test('every agent on the daemon holds every connector, and a name is unique on the daemon', async () => {
     const file = JSON.parse(readFileSync(join(dir, 'Tony', 'agent.json'), 'utf8')) as { connectors: string[] };
-    expect(file.connectors).toEqual([linear]);
+    expect(file.connectors).toEqual([]);
     const agents = (await (await call('GET', `/api/agents?project=${LOCAL_PROJECT_ID}`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
     expect(agents.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
     expect(agents.agents.find((a) => a.id === suzy.id)?.connector_ids).toEqual([linear]);
@@ -156,8 +156,9 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'linear' })).status).toBe(409);
     expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'jira2' })).status).toBe(200);
     expect((await call('DELETE', `/api/connectors/${jira.id}`)).status).toBe(200);
-    const suzyNow = (await (await call('GET', `/api/agents/${suzy.id}/connectors`)).json()) as { connectorIds: string[] };
-    expect(suzyNow.connectorIds).toEqual([linear]);
+    const after = (await (await call('GET', `/api/agents?project=${LOCAL_PROJECT_ID}`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
+    expect(after.agents.find((a) => a.id === suzy.id)?.connector_ids).toEqual([linear]);
+    expect((await call('GET', `/api/agents/${suzy.id}/connectors`)).status).toBe(404);
   });
 
   test('the cli routes answer to the agent key with a relay block pointing at this daemon', async () => {
@@ -170,9 +171,8 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     expect(entry?.url).toBe(`http://127.0.0.1:${process.env.METRO_WEBHOOK_PORT ?? ''}/relay/${linear}`);
     expect(entry?.headers.Authorization).toBe(`Bearer ${tony.key}`);
     expect((await fetch(`${base}/api/cli/mcp`, { headers: { authorization: 'Bearer mk_wrong' } })).status).toBe(401);
-    expect((await fetch(`${base}/api/cli/session?token=${tony.key}`)).status).toBe(200);
-    const summaries = (await (await fetch(`${base}/api/cli/connectors`, { headers: { authorization: `Bearer ${tony.key}` } })).json()) as { connectors: { name: string }[] };
-    expect(summaries.connectors.map((c) => c.name)).toEqual(['linear']);
+    expect((await fetch(`${base}/api/cli/session?token=${tony.key}`)).status).toBe(404);
+    expect((await fetch(`${base}/api/cli/connectors`, { headers: { authorization: `Bearer ${tony.key}` } })).status).toBe(404);
   });
 
   test('the relay proxies to the vendor with the stored credential, only for an agent holding the connector', async () => {

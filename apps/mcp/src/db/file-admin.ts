@@ -267,42 +267,6 @@ export function readLocalAgentFile(agentId: string, dir = agentsDir()): AgentFil
   return found.file;
 }
 
-export function connectorIdsOfLocalAgent(agentId: string, dir = agentsDir()): string[] | null {
-  const found = storedAgents(dir).find((s) => s.file.id === agentId);
-  return found === undefined ? null : found.file.connectors;
-}
-
-export function localAgentConnectorIds(subject: string, agentId: string, dir = agentsDir()): string[] {
-  return ownedOrThrow(subject, agentId, dir).file.connectors;
-}
-
-export function localSetAgentConnectors(
-  subject: string,
-  agentId: string,
-  ids: string[],
-  dir = agentsDir(),
-): void {
-  const stored = ownedOrThrow(subject, agentId, dir);
-  stored.file.connectors = ids;
-  save(stored);
-}
-
-export function localHoldEverywhere(connectorId: string, dir = agentsDir()): void {
-  for (const stored of storedAgents(dir)) {
-    if (stored.file.connectors.includes(connectorId)) continue;
-    stored.file.connectors = [...stored.file.connectors, connectorId];
-    save(stored);
-  }
-}
-
-export function localDropConnectorEverywhere(connectorId: string, dir = agentsDir()): void {
-  for (const stored of storedAgents(dir)) {
-    if (!stored.file.connectors.includes(connectorId)) continue;
-    stored.file.connectors = stored.file.connectors.filter((id) => id !== connectorId);
-    save(stored);
-  }
-}
-
 function removeIfEmpty(folder: string): void {
   try {
     rmdirSync(folder);

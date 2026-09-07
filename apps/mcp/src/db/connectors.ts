@@ -58,14 +58,6 @@ export function connectorFromRow(row: ConnectorLike): Connector {
   };
 }
 
-export interface ConnectorSummary {
-  id: string;
-  name: string;
-  url: string;
-  transport: string;
-  signIn: ConnectorSignIn;
-}
-
 export const UNVERIFIED = {
   at: '',
   server: '',
