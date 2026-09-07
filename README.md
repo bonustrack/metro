@@ -165,8 +165,7 @@ before the MCP auth gate:
 | `POST /api/agents/<id>/accounts/start`, `DELETE …/accounts/<station>/<account_id>` | Attach a channel account after checking the credential against the provider; detach one. |
 | `GET /api/agents/<id>/bundle`, `POST /api/agents/restore` | The whole agent as one plaintext bundle, for the page to seal; and the reverse, for a bundle the page opened. |
 | `GET`/`POST /api/connectors`, `POST /<id>/verify`, `/connect`, `/disconnect`, `/rename`, `DELETE /<id>` | The daemon's [connectors](#connectors). Carries **no credential**. |
-| `GET`/`POST /api/agents/<id>/connectors`, `DELETE …/<connectorId>` | What an agent holds. Every connector is held by every agent on the daemon from creation. |
-| `GET /api/cli/mcp`, `/api/cli/session`, `/api/cli/connectors` | Agent key only: the `mcpServers` block pointing at this daemon's relay, who it is, and its connectors. |
+| `GET /api/cli/mcp` | Agent key only: the `mcpServers` block pointing at this daemon's relay. |
 | `POST`/`GET`/`DELETE /relay/<connector-id>` | Agent key only: MCP passthrough to the connector, the vendor credential injected here. |
 | `GET /api/claude/projects`, `/sessions`, `/memory`, `DELETE /api/claude/sessions/<id>` | Claude Code's own session transcripts and memory files on this machine, read-only apart from delete. |
 | `GET`/`POST /api/update` | Whether a newer metro is published, and update this machine to it: the daemon runs `metro update` and restarts itself on the new version. The agent page shows the version with an **Update** button. |

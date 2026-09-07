@@ -6,10 +6,6 @@ import {
   type ConnectorApiDeps,
 } from './connector-api.js';
 import type { RelayApiDeps } from './relay.js';
-import {
-  handleAgentConnectorRequest,
-  type AgentConnectorApiDeps,
-} from './agent-connector-api.js';
 import type { IdentityRouteDeps } from './identity-routes.js';
 import { handleLocalCliRequest, type LocalCliDeps } from './local-cli-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from './claude-api.js';
@@ -24,7 +20,6 @@ import { handleTerminalRequest, type TerminalApiDeps } from './terminal-api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
-  agentConnectorApi?: AgentConnectorApiDeps;
   bundleApi?: BundleApiDeps;
   vaultApi?: VaultApiDeps;
   serversApi?: ServersApiDeps;
@@ -60,7 +55,6 @@ export function handleSessionApis(
     ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),
     ...when(apis.terminalApi, (d) => handleTerminalRequest(req, res, d)),
     ...when(apis.claudeApi, (d) => handleClaudeRequest(req, res, d)),
-    ...when(apis.agentConnectorApi, (d) => handleAgentConnectorRequest(req, res, d)),
     ...when(apis.agentApi, (d) => handleAgentApiRequest(req, res, d)),
   ];
   return routes.some((run) => run());

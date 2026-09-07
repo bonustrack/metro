@@ -5,11 +5,7 @@ import { ApiError } from './api-error.js';
 import { errMsg, log } from './log.js';
 
 export interface RelayApiDeps {
-  target: (
-    agentId: string,
-    connectorId: string,
-    force: boolean,
-  ) => Promise<RelayTarget>;
+  target: (connectorId: string, force: boolean) => Promise<RelayTarget>;
   identify: (req: IncomingMessage) => AgentIdentity | null;
 }
 
@@ -197,18 +193,17 @@ type Exchanged =
 
 async function exchange(
   req: IncomingMessage,
-  agentId: string,
   connectorId: string,
   deps: RelayApiDeps,
   body: Uint8Array<ArrayBuffer> | null,
   signal: AbortSignal,
 ): Promise<Exchanged> {
-  const target = await deps.target(agentId, connectorId, false);
+  const target = await deps.target(connectorId, false);
   if (target.kind !== 'ok') return { kind: target.kind };
   let upstream = await forward(req, target, body, signal);
   if (!authFailed(upstream.status)) return { kind: 'response', upstream };
   await upstream.body?.cancel();
-  const fresh = await deps.target(agentId, connectorId, true);
+  const fresh = await deps.target(connectorId, true);
   if (fresh.kind !== 'ok') return { kind: 'signin' };
   upstream = await forward(req, fresh, body, signal);
   if (!authFailed(upstream.status)) return { kind: 'response', upstream };
@@ -219,7 +214,6 @@ async function exchange(
 async function relayExchange(
   req: IncomingMessage,
   res: ServerResponse,
-  agentId: string,
   connectorId: string,
   deps: RelayApiDeps,
 ): Promise<void> {
@@ -235,7 +229,6 @@ async function relayExchange(
   const body = req.method === 'POST' ? await readCapped(req) : null;
   const out = await exchange(
     req,
-    agentId,
     connectorId,
     deps,
     body,
@@ -268,7 +261,7 @@ function dispatch(
     answer(res, 401, { error: 'unauthorized' });
     return;
   }
-  relayExchange(req, res, who.agentId, connectorId, deps)
+  relayExchange(req, res, connectorId, deps)
     .catch((err: unknown) => {
       if (err instanceof ApiError) {
         answer(res, err.status, { error: err.message });

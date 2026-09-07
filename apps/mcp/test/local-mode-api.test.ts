@@ -178,6 +178,6 @@ describe('a local daemon, end to end over http', () => {
     expect((await call('DELETE', `/api/agents/${made.id}/runtime`, session)).status).toBe(404);
     const stranger = await identityOf(STRANGER);
     expect((await call('GET', `/api/agents?project=${PROJECT}`, stranger)).status).toBe(401);
-    expect((await call('GET', `/api/agents/${made.id}/connectors`, stranger)).status).toBe(401);
+    expect((await call('GET', `/api/agents/${made.id}/connectors`, stranger)).status).toBe(404);
   });
 });

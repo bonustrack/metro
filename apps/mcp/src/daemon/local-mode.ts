@@ -3,7 +3,6 @@ import { errMsg, log } from './log.js';
 import { AttachSessions } from './attach-session.js';
 import type { AgentApiDeps } from './agent-api.js';
 import { ATTACHABLE, type AccountApiDeps } from './account-api.js';
-import type { AgentConnectorApiDeps } from './agent-connector-api.js';
 import type { SessionApis } from './session-apis.js';
 import type { ModeInfo } from './mode-api.js';
 import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from './bundle-api.js';
@@ -15,10 +14,7 @@ import type { RelayApiDeps } from './relay.js';
 import {
   readLocalConnectors,
   localImportConnectors,
-  localAddConnector,
-  localAgentConnectors,
   localConnectorNamesByIds,
-  localConnectorSummariesByIds,
   localCreateConnector,
   localCreatePendingConnector,
   localDeleteConnector,
@@ -27,13 +23,11 @@ import {
   localListConnectors,
   localReconnectConnector,
   localRelayTarget,
-  localRemoveConnector,
   localRenameConnector,
   localVerifyConnector,
 } from '../db/local-connectors.js';
 import {
   assertLocalOwner,
-  connectorIdsOfLocalAgent,
   LOCAL_PROJECT_ID,
   localAttachAccount,
   localCreateAgent,
@@ -106,20 +100,15 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
   };
 }
 
-function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>> {
-  return Promise.resolve(new Map(ids.map((id) => [id, connectorIdsOfLocalAgent(id) ?? []] as const)));
-}
+const allConnectorIds = (): string[] => readLocalConnectors().map((c) => c.id);
 
-const agentConnectorApi: AgentConnectorApiDeps = {
-  agentConnectors: localAgentConnectors,
-  addConnector: localAddConnector,
-  removeConnector: localRemoveConnector,
-};
+function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>> {
+  const all = allConnectorIds();
+  return Promise.resolve(new Map(ids.map((id) => [id, all] as const)));
+}
 
 const connectorApi: ConnectorApiDeps = {
   listConnectors: localListConnectors,
-  connectorSummariesByIds: (ids) => localConnectorSummariesByIds(ids),
-  connectorNamesByIds: (ids) => localConnectorNamesByIds(ids),
   createConnector: localCreateConnector,
   verifyConnector: localVerifyConnector,
   disconnectConnector: localDisconnectConnector,
@@ -131,7 +120,7 @@ const connectorApi: ConnectorApiDeps = {
 };
 
 const relayApi: RelayApiDeps = {
-  target: (agentId, connectorId, force) => localRelayTarget(agentId, connectorId, force),
+  target: (connectorId, force) => localRelayTarget(connectorId, force),
   identify: keyIdentity,
 };
 
@@ -143,8 +132,7 @@ function agentNameOf(agentId: string): string | null {
 
 const localCli: LocalCliDeps = {
   agentName: agentNameOf,
-  connectorEntries: (agentId) => localConnectorNamesByIds(connectorIdsOfLocalAgent(agentId) ?? []),
-  connectorSummaries: (agentId) => localConnectorSummariesByIds(connectorIdsOfLocalAgent(agentId) ?? []),
+  connectorEntries: () => localConnectorNamesByIds(allConnectorIds()),
 };
 
 function bundleApi(deps: LocalModeDeps): BundleApiDeps {
@@ -152,13 +140,10 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
     bundle: async (subject, agentId) => {
       const { agent } = await localOwnedAgentOrThrow(subject, agentId);
       const file = readLocalAgentFile(agentId);
-      const held = new Set(file.connectors);
       const bundle: AgentBundle = {
         version: 1,
         agent: { id: file.id, name: file.name, key: file.key ?? '', stations: file.stations },
-        connectors: readLocalConnectors()
-          .filter((c) => held.has(c.id))
-          .map((c) => ({ id: c.id, name: c.name, url: c.url, transport: c.transport, config: { ...c.config } })),
+        connectors: readLocalConnectors().map((c) => ({ id: c.id, name: c.name, url: c.url, transport: c.transport, config: { ...c.config } })),
       };
       if (bundle.agent.key === '') throw new ApiError(`agent '${agent.name}' has no key to bundle`, 400);
       return bundle;
@@ -184,7 +169,6 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
   allowLocalConnectors(true);
   return {
     agentApi: agentApi(deps),
-    agentConnectorApi,
     bundleApi: bundleApi(deps),
     connectorApi,
     relayApi,

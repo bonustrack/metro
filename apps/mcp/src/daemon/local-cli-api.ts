@@ -4,14 +4,12 @@ import { cors, sendJson, type AgentIdentity } from './api-http.js';
 import { publicBaseOrDefault } from './attach-serve.js';
 import { relayServersJson, type RelayServerEntry } from './connector-json.js';
 import { agentIdForKey } from '../db/key-map.js';
-import type { ConnectorSummary } from '../db/connectors.js';
 
-const PREFIX = '/api/cli';
+const PATH = '/api/cli/mcp';
 
 export interface LocalCliDeps {
   agentName: (agentId: string) => string | null;
   connectorEntries: (agentId: string) => Promise<RelayServerEntry[]>;
-  connectorSummaries: (agentId: string) => Promise<ConnectorSummary[]>;
 }
 
 function keyOf(req: IncomingMessage): string {
@@ -27,25 +25,18 @@ export function keyIdentity(req: IncomingMessage): AgentIdentity | null {
   return agentId === undefined ? null : { subject: 'agent-key', agentId };
 }
 
-async function answer(path: string, key: string, agentId: string, deps: LocalCliDeps): Promise<unknown> {
-  const agent = deps.agentName(agentId) ?? '';
-  if (path === `${PREFIX}/session`) return { subject: 'this machine', agent };
-  if (path === `${PREFIX}/connectors`) return { agent, connectors: await deps.connectorSummaries(agentId) };
-  return { json: relayServersJson(await deps.connectorEntries(agentId), publicBaseOrDefault(), key), agent };
-}
-
 export function handleLocalCliRequest(
   req: IncomingMessage,
   res: ServerResponse,
   deps: LocalCliDeps,
 ): boolean {
   const path = (req.url ?? '').split('?')[0] ?? '';
-  if (path !== PREFIX && !path.startsWith(`${PREFIX}/`)) return false;
+  if (path !== PATH && !path.startsWith('/api/cli/')) return false;
   if (req.method === 'OPTIONS') {
     res.writeHead(204, cors(req)).end();
     return true;
   }
-  if (![`${PREFIX}/mcp`, `${PREFIX}/session`, `${PREFIX}/connectors`].includes(path)) {
+  if (path !== PATH) {
     sendJson(req, res, 404, { error: 'not on a local daemon' });
     return true;
   }
@@ -58,9 +49,11 @@ export function handleLocalCliRequest(
     sendJson(req, res, 401, { error: 'unauthorized' });
     return true;
   }
-  answer(path, keyOf(req), who.agentId, deps)
-    .then((body) => {
-      sendJson(req, res, 200, body);
+  deps
+    .connectorEntries(who.agentId)
+    .then((entries) => {
+      const agent = deps.agentName(who.agentId) ?? '';
+      sendJson(req, res, 200, { json: relayServersJson(entries, publicBaseOrDefault(), keyOf(req)), agent });
     })
     .catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'local cli: request failed');

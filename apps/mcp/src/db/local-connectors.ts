@@ -16,7 +16,6 @@ import {
   connectorAuth,
   connectorName,
   readConfig,
-  signInState,
   stamp,
   type ConnectorConfig,
 } from './connector-config.js';
@@ -32,21 +31,10 @@ import {
   type Connector,
   type ConnectorCheck,
   type ConnectorInput,
-  type ConnectorSummary,
   type DeletedConnector,
 } from './connectors.js';
-import type { AgentConnectors } from '../daemon/agent-connector-api.js';
 import { agentsDir } from './file-source.js';
-import {
-  assertLocalOwner,
-  connectorIdsOfLocalAgent,
-  localAgentConnectorIds,
-  localDropConnectorEverywhere,
-  localHoldEverywhere,
-  localOwnedAgentOrThrow,
-  localSetAgentConnectors,
-  LOCAL_PROJECT_ID,
-} from './file-admin.js';
+import { assertLocalOwner, LOCAL_PROJECT_ID } from './file-admin.js';
 import { newId } from './ids.js';
 import type { LoadedConnector } from './materialize.js';
 
@@ -130,7 +118,6 @@ export function localImportConnectors(rows: LoadedConnector[], dir = agentsDir()
   }));
   const ids = new Set(imported.map((r) => r.id));
   writeRows(dir, [...current.filter((r) => !ids.has(r.id)), ...imported]);
-  for (const row of imported) localHoldEverywhere(row.id, dir);
   return imported.length;
 }
 
@@ -155,7 +142,6 @@ function insert(dir: string, name: string, url: URL, config: ConnectorConfig): C
   assertNameFree(name, null, dir);
   const row: LocalConnectorRow = { id: newId(), name, url: connectorUrlText(url), transport: 'http', config };
   writeRows(dir, [...readLocalConnectors(dir), row]);
-  localHoldEverywhere(row.id, dir);
   return connectorFromRow(row);
 }
 
@@ -239,42 +225,14 @@ export async function localRenameConnector(subject: string, id: string, raw: str
 export async function localDeleteConnector(subject: string, id: string, dir = agentsDir()): Promise<DeletedConnector> {
   const row = rowOrThrow(subject, id, dir);
   writeRows(dir, readLocalConnectors(dir).filter((r) => r.id !== id));
-  localDropConnectorEverywhere(id, dir);
   return Promise.resolve({ id: row.id, name: row.name });
 }
 
 const byIds = (ids: string[], dir: string): LocalConnectorRow[] =>
   readLocalConnectors(dir).filter((r) => ids.includes(r.id));
 
-export async function localConnectorSummariesByIds(ids: string[], dir = agentsDir()): Promise<ConnectorSummary[]> {
-  return Promise.resolve(
-    byIds(ids, dir).map((r) => ({ id: r.id, name: r.name, url: r.url, transport: r.transport, signIn: signInState(r.config) })),
-  );
-}
-
 export async function localConnectorNamesByIds(ids: string[], dir = agentsDir()): Promise<{ id: string; name: string }[]> {
   return Promise.resolve(byIds(ids, dir).map((r) => ({ id: r.id, name: r.name })));
-}
-
-export async function localAgentConnectors(subject: string, agentId: string, dir = agentsDir()): Promise<AgentConnectors> {
-  const { agent } = await localOwnedAgentOrThrow(subject, agentId, dir);
-  return { ...agent, connectorIds: localAgentConnectorIds(subject, agentId, dir) };
-}
-
-export async function localAddConnector(subject: string, agentId: string, connectorId: string, dir = agentsDir()): Promise<AgentConnectors> {
-  const { agent } = await localOwnedAgentOrThrow(subject, agentId, dir);
-  const row = readLocalConnectors(dir).find((r) => r.id === connectorId);
-  if (row === undefined) throw missing();
-  const held = localAgentConnectorIds(subject, agentId, dir);
-  if (!held.includes(connectorId)) localSetAgentConnectors(subject, agentId, [...held, connectorId], dir);
-  return { ...agent, connectorIds: localAgentConnectorIds(subject, agentId, dir) };
-}
-
-export async function localRemoveConnector(subject: string, agentId: string, connectorId: string, dir = agentsDir()): Promise<AgentConnectors> {
-  const { agent } = await localOwnedAgentOrThrow(subject, agentId, dir);
-  const held = localAgentConnectorIds(subject, agentId, dir);
-  localSetAgentConnectors(subject, agentId, held.filter((id) => id !== connectorId), dir);
-  return { ...agent, connectorIds: localAgentConnectorIds(subject, agentId, dir) };
 }
 
 const inflight = new Map<string, Promise<OAuthAuth>>();
@@ -306,13 +264,10 @@ async function oauthTarget(row: LocalConnectorRow, auth: OAuthAuth, force: boole
 }
 
 export async function localRelayTarget(
-  agentId: string,
   connectorId: string,
   force: boolean,
   dir = agentsDir(),
 ): Promise<RelayTarget> {
-  const held = connectorIdsOfLocalAgent(agentId, dir);
-  if (!held?.includes(connectorId)) return { kind: 'missing' };
   const row = readLocalConnectors(dir).find((r) => r.id === connectorId);
   if (row === undefined) return { kind: 'missing' };
   parseConnectorUrl(row.url);

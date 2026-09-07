@@ -1,4 +1,3 @@
-import type { ConnectorSummary } from '../db/connectors.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from './log.js';
 import {
@@ -12,7 +11,6 @@ import {
   type ApiSession,
 } from './api-http.js';
 import { parseId } from '../db/ids.js';
-import type { RelayServerEntry } from './connector-json.js';
 import {
   handleCallback,
   handleConnect,
@@ -35,8 +33,6 @@ const asText = (value: unknown): string =>
 
 export interface ConnectorApiDeps extends OAuthRouteDeps {
   listConnectors: (subject: string, project: string) => Promise<Connector[]>;
-  connectorSummariesByIds: (ids: string[]) => Promise<ConnectorSummary[]>;
-  connectorNamesByIds: (ids: string[]) => Promise<RelayServerEntry[]>;
   createConnector: (
     subject: string,
     project: string,
