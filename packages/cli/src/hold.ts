@@ -186,6 +186,13 @@ function releaseLock(lockFile: string): void {
   }
 }
 
+function armFunnel(info: HoldInfo, log: (line: string) => void, ending: HoldEnd | null): HeldFunnel | null {
+  if (info.funnel === null || ending !== null) return null;
+  const funnel = new HeldFunnel(info.funnel, info.port, log);
+  funnel.start();
+  return funnel;
+}
+
 export const holdBanner = (info: HoldInfo): string =>
   `metro is stopped. Holding http://${info.host}:${String(info.port)}${info.funnel === null ? '' : ' and the Funnel address'} ` +
   'until Start on the Server page; Ctrl-C or metro stop ends metro serve';
@@ -198,8 +205,12 @@ export async function holdUntilStart(info: HoldInfo, deps: HoldDeps = {}): Promi
       process.stderr.write(`${line}\n`);
     });
   let finish: (end: HoldEnd) => void = () => undefined;
+  let ending: HoldEnd | null = null;
   const ended = new Promise<HoldEnd>((resolve) => {
-    finish = resolve;
+    finish = (end: HoldEnd): void => {
+      ending ??= end;
+      resolve(end);
+    };
   });
   const server = holdServer(info, () => {
     finish('start');
@@ -207,13 +218,12 @@ export async function holdUntilStart(info: HoldInfo, deps: HoldDeps = {}): Promi
   const onSignal = (): void => {
     finish('exit');
   };
-  if (info.lockFile !== null) writeFileSync(info.lockFile, String(process.pid));
-  await listen(server, info);
-  const funnel = info.funnel === null ? null : new HeldFunnel(info.funnel, info.port, log);
-  funnel?.start();
   signals.on('SIGINT', onSignal);
   signals.on('SIGTERM', onSignal);
-  log(holdBanner(info));
+  if (info.lockFile !== null) writeFileSync(info.lockFile, String(process.pid));
+  await listen(server, info);
+  const funnel = armFunnel(info, log, ending);
+  if (ending === null) log(holdBanner(info));
   const end = await ended;
   signals.off('SIGINT', onSignal);
   signals.off('SIGTERM', onSignal);

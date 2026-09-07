@@ -33,27 +33,38 @@ const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)
 
 const LOW_PORT = 10_000;
 const PORT_SPAN = 20_000;
-const SLOW_MS = 15_000;
+const SLOW_MS = 30_000;
+const PROBE_MS = 2_000;
+const PORT_TRIES = 40;
 
 function isFree(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const probe = createServer();
-    probe.once('error', () => {
+    const give = setTimeout(() => {
+      probe.close();
       resolve(false);
+    }, PROBE_MS);
+    const settle = (free: boolean): void => {
+      clearTimeout(give);
+      resolve(free);
+    };
+    probe.once('error', () => {
+      settle(false);
     });
     probe.listen(port, '127.0.0.1', () => {
       probe.close(() => {
-        resolve(true);
+        settle(true);
       });
     });
   });
 }
 
 async function freePort(): Promise<number> {
-  for (;;) {
+  for (let tries = 0; tries < PORT_TRIES; tries += 1) {
     const port = LOW_PORT + Math.floor(Math.random() * PORT_SPAN);
     if (await isFree(port)) return port;
   }
+  throw new Error('no free port in the test range');
 }
 
 async function until(check: () => Promise<boolean>, ms = 10_000): Promise<void> {
@@ -163,6 +174,35 @@ describe('holding the port between stop and start', () => {
     signals.emit('SIGTERM');
     expect(await held).toBe('exit');
     expect(existsSync(lockFile)).toBe(false);
+  }, SLOW_MS);
+
+  test('a signal during the wait for the port still ends the hold, and nothing is left listening', async () => {
+    const dir = scratch();
+    const lockFile = join(dir, '.tail-lock');
+    const port = await freePort();
+    const blocker = createServer();
+    await new Promise<void>((r) => {
+      blocker.listen(port, '127.0.0.1', r);
+    });
+    const signals = new EventEmitter();
+    const lines: string[] = [];
+    const held = holdUntilStart(info({ port, lockFile }), {
+      signals,
+      log: (line) => {
+        lines.push(line);
+      },
+    });
+    signals.emit('SIGTERM');
+    await wait(200);
+    await new Promise<void>((r) => {
+      blocker.close(() => {
+        r();
+      });
+    });
+    expect(await held).toBe('exit');
+    expect(lines).toEqual([]);
+    expect(existsSync(lockFile)).toBe(false);
+    expect(await answers(`http://127.0.0.1:${String(port)}`)).toBe(false);
   }, SLOW_MS);
 
   test('the banner names what is held', () => {
