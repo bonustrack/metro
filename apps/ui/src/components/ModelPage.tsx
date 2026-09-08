@@ -7,13 +7,22 @@ import { PageTitle } from './PageTitle';
 import { FieldLabel } from './FieldLabel';
 import { Loading } from './Loading';
 import { GROW } from '../theme';
-import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelSettings } from '../api/model';
+import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelSettings, type ProviderInfo } from '../api/model';
 import { queryError, refreshModel, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery } from '../api/queries';
 import { ModelPicker } from './ModelPicker';
 import { useDocumentTitle } from '../title';
 import { whenLabel } from '../api/when';
 import { CodexConnect } from './CodexConnect';
 import { ClaudeLoginCard } from './ClaudeLogin';
+import { ConnectorFavicon } from './ConnectorFavicon';
+
+const LOGO_SIZE = 16;
+const ROUTE_LOGO_SIZE = 20;
+
+function ProviderLogo({ provider, size }: { provider: ProviderInfo | undefined; size: number }): ReactNode {
+  if (provider === undefined) return null;
+  return <ConnectorFavicon name={provider.label} url={provider.site} size={size} />;
+}
 
 const HOW =
   'Claude Code sessions started with metro claude send every request through this daemon, which forwards it to the provider chosen here. A change applies to the next request, no restart needed. Inside a session, /model bedrock:<id>, /model openrouter:<id> or /model codex:<id> switches that session only.';
@@ -223,7 +232,17 @@ function Editor({ settings }: { settings: ModelSettings }): ReactNode {
     <Col gap={20}>
       <Row gap={8} wrap>
         {PROVIDERS.map((p) => (
-          <Button key={p.id} size="sm" dark={dark} color={p.id === draft.provider ? 'primary' : 'secondary'} label={p.label} onPress={() => { set({ provider: p.id }); }} />
+          <Button
+            key={p.id}
+            size="sm"
+            dark={dark}
+            color={p.id === draft.provider ? 'primary' : 'secondary'}
+            label={p.label}
+            icon={<ProviderLogo provider={p} size={LOGO_SIZE} />}
+            onPress={() => {
+              set({ provider: p.id });
+            }}
+          />
         ))}
       </Row>
       <Text size="sm" role="secondary">
@@ -261,7 +280,10 @@ export function ModelPage(): ReactNode {
         <Col gap={20}>
           <Col gap={2}>
             <FieldLabel>In use</FieldLabel>
-            <Text size="sm">{routeLabel(model.data)}</Text>
+            <Row gap={8} align="center">
+              <ProviderLogo provider={PROVIDERS.find((p) => p.id === model.data.provider)} size={ROUTE_LOGO_SIZE} />
+              <Text size="sm">{routeLabel(model.data)}</Text>
+            </Row>
             {model.data.reason !== null ? (
               <Text size="sm" role="danger">
                 {model.data.reason}

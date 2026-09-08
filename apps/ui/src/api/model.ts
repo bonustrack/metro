@@ -7,6 +7,7 @@ export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex';
 export interface ProviderInfo {
   id: Provider;
   label: string;
+  site: string;
   blurb: string;
 }
 
@@ -14,14 +15,16 @@ export const PROVIDERS: ProviderInfo[] = [
   {
     id: 'anthropic',
     label: 'Anthropic',
+    site: 'https://anthropic.com',
     blurb:
       'Claude models. With no key here, the request carries the login of the Claude Code session that sent it, untouched. Add a key and metro bills that key instead, and can pin the model.',
   },
-  { id: 'bedrock', label: 'Amazon Bedrock', blurb: 'Claude models billed to your AWS account, through a Bedrock API key.' },
-  { id: 'openrouter', label: 'OpenRouter', blurb: 'Any model OpenRouter serves, Claude, GPT and Codex, Gemini, through one OpenRouter key.' },
+  { id: 'bedrock', label: 'Amazon Bedrock', site: 'https://aws.amazon.com', blurb: 'Claude models billed to your AWS account, through a Bedrock API key.' },
+  { id: 'openrouter', label: 'OpenRouter', site: 'https://openrouter.ai', blurb: 'Any model OpenRouter serves, Claude, GPT and Codex, Gemini, through one OpenRouter key.' },
   {
     id: 'codex',
     label: 'Codex (ChatGPT)',
+    site: 'https://openai.com',
     blurb: 'GPT and Codex models on your ChatGPT subscription, signed in with your ChatGPT account. Unofficial: metro speaks the Codex CLI protocol, and OpenAI can change it at any time.',
   },
 ];

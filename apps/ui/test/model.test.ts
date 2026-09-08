@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { baseDomain, faviconUrl } from '../src/api/favicon';
 import { afterSave, draftOf, matchModels, patchOf, priceLabel, PROVIDERS, routeLabel, servedLabel, toModelSettings, toServed } from '../src/api/model';
 
 describe('what the Model page reads from the daemon', () => {
@@ -90,5 +91,20 @@ describe('what a model costs, on the row that offers it', () => {
     expect(priceLabel({ id: 'a', name: 'a', prompt: 0, completion: 0 })).toBe('Free');
     expect(priceLabel({ id: 'a', name: 'a', prompt: 0.000003, completion: null })).toBe('');
     expect(priceLabel({ id: 'a', name: 'a' })).toBe('');
+  });
+});
+
+describe('the logo beside each provider', () => {
+  test('every provider names a site whose favicon resolves to a real domain', () => {
+    for (const provider of PROVIDERS) {
+      expect(faviconUrl(provider.site)).toContain('domain=');
+      expect(faviconUrl(provider.site)).not.toBe('');
+    }
+    expect(PROVIDERS.map((p) => baseDomain(new URL(p.site).hostname))).toEqual([
+      'anthropic.com',
+      'amazon.com',
+      'openrouter.ai',
+      'openai.com',
+    ]);
   });
 });
