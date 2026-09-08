@@ -4,20 +4,20 @@ import {
   useKitPalette,
   useKitScheme,
 } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { SHRINK } from '../theme';
+import { Text, Button } from './ui.js';
+import { SHRINK } from '../theme.js';
 import {
   connectConnector,
   connectorHost,
   disconnectConnector,
   type Connector,
-} from '../api/connectors';
-import { queryError } from '../api/queries';
-import { ConnectorFavicon } from './ConnectorFavicon';
-import { DeleteConnector } from './DeleteConnector';
-import { RenameConnector } from './RenameConnector';
-import { opensElsewhere } from './link';
-import { routeHash } from '../route';
+} from '../api/connectors.js';
+import { queryError } from '../api/queries.js';
+import { ConnectorFavicon } from './ConnectorFavicon.js';
+import { DeleteConnector } from './DeleteConnector.js';
+import { RenameConnector } from './RenameConnector.js';
+import { opensElsewhere } from './link.js';
+import { routeHash } from '../route.js';
 
 const ROW_PAD_Y = 12;
 const ICON_SIZE = 16;

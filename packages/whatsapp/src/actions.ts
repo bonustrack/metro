@@ -1,12 +1,12 @@
-import { TrainError } from '@metro-labs/mcp/train-error';
-import { errMsg } from '@metro-labs/mcp/log';
-import { kindOf } from '@metro-labs/mcp/stations/attachments';
+import { TrainError } from '@metro-labs/core/train-error';
+import { errMsg } from '@metro-labs/core/log';
+import { kindOf } from '@metro-labs/core/stations/attachments';
 import {
   makeStation,
   respond,
   type CallMsg,
   type StationHandler,
-} from '@metro-labs/mcp/stations/station-runtime';
+} from '@metro-labs/core/stations/station-runtime';
 import { accountFor, accounts, targetOf } from './accounts.js';
 import { normalizeWhatsApp } from './normalize.js';
 import type { WAClient } from './client.js';

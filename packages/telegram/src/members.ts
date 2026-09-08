@@ -1,4 +1,4 @@
-import type { MemberList, MetroMember } from '@metro-labs/mcp/stations/types';
+import type { MemberList, MetroMember } from '@metro-labs/core/stations/types';
 import type { UserClient } from './client.js';
 
 export interface RawUserMember {

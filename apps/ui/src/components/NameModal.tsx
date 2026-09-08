@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui';
-import { GROW } from '../theme';
-import { Modal } from './Modal';
-import { queryError } from '../api/queries';
+import { Text, Button, Input } from './ui.js';
+import { GROW } from '../theme.js';
+import { Modal } from './Modal.js';
+import { queryError } from '../api/queries.js';
 
 interface NameModalProps {
   title: string;

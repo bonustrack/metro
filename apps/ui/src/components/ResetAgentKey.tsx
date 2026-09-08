@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
-import { type AgentSummary } from '../api/client';
-import { ConfirmModal } from './ConfirmModal';
-import { KebabMenu } from './KebabMenu';
+import { type AgentSummary } from '../api/client.js';
+import { ConfirmModal } from './ConfirmModal.js';
+import { KebabMenu } from './KebabMenu.js';
 
 interface ResetAgentKeyProps {
   agent: AgentSummary;

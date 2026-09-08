@@ -1,6 +1,6 @@
-import { call } from './client';
-import { isRecord } from './accounts';
-import { type Envelope } from '../vault/crypto';
+import { call } from './client.js';
+import { isRecord } from './accounts.js';
+import { type Envelope } from '../vault/crypto.js';
 
 export interface VaultEntry {
   id: string;

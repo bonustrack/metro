@@ -2,10 +2,10 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { awaitLive, startDaemon } from '../api/control';
-import { queryError } from '../api/queries';
-import { daemonBase, daemonHost } from '../auth/daemon';
+import { Text, Button } from './ui.js';
+import { awaitLive, startDaemon } from '../api/control.js';
+import { queryError } from '../api/queries.js';
+import { daemonBase, daemonHost } from '../auth/daemon.js';
 
 const NOTICE_WIDTH = 480;
 const CENTER_SELF = { alignSelf: 'center' } as const;

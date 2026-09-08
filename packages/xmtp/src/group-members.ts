@@ -1,7 +1,7 @@
 import type {
   MemberOutcome,
   MemberOutcomeStatus,
-} from '@metro-labs/mcp/stations/types';
+} from '@metro-labs/core/stations/types';
 
 type Args = Record<string, unknown>;
 

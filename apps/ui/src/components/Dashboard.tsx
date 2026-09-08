@@ -1,11 +1,11 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { applyRoute, currentSelection, routeHash, subscribeRoute } from '../route';
-import { AgentPanel } from './AgentPanel';
-import { AgentSidebar } from './AgentSidebar';
-import { Shell } from './Shell';
-import { selectionProject, type Selection } from './selection';
-import { currentServer, storeDaemon, baseFromSegment, storedServerId, storeServerId } from '../auth/daemon';
-import { useIsNarrow } from '../media';
+import { applyRoute, currentSelection, routeHash, subscribeRoute } from '../route.js';
+import { AgentPanel } from './AgentPanel.js';
+import { AgentSidebar } from './AgentSidebar.js';
+import { Shell } from './Shell.js';
+import { selectionProject, type Selection } from './selection.js';
+import { currentServer, storeDaemon, baseFromSegment, storedServerId, storeServerId } from '../auth/daemon.js';
+import { useIsNarrow } from '../media.js';
 
 interface FrameProps {
   project: string;

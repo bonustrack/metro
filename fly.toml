@@ -21,16 +21,14 @@ primary_region = "iad"
 # uses CMD. With an ENTRYPOINT the release machine would run the daemon instead, never exit,
 # and time the deploy out.
 #
-# `bun --filter` sets cwd to apps/mcp so drizzle.config.ts's relative `out` resolves; that is
+# `bun --filter` sets cwd to apps/api so drizzle.config.ts's relative `out` resolves; that is
 # also why drizzle-kit is a runtime dependency, not a devDependency.
 [deploy]
-  release_command = "bun --filter @metro-labs/mcp db:migrate"
+  release_command = "bun --filter @metro-labs/api db:migrate"
 
 [env]
   HOME = "/data"
   METRO_HTTP_HOST = "0.0.0.0"
-  # Ephemeral (rebuilt at boot from the DB); lives in the image, not the volume.
-  METRO_TRAINS_DIR = "/app/apps/mcp/trains"
   METRO_LOG_LEVEL = "info"
   # HOME=/data puts the durable state on the mounted volume:
   #   XMTP MLS db3s  → /data/.metro/xmtp-production-<id>.db3  (MUST persist)

@@ -55,22 +55,23 @@ each runs as its own supervised subprocess except webhook, which runs in-core.
 
 ```sh
 bun install
-METRO_MODE=local bun apps/mcp/src/server.ts   # a daemon of your own on http://127.0.0.1:8420
+bun apps/daemon/src/server.ts   # a daemon of your own on http://127.0.0.1:8420
 ```
 
 A local daemon reads its agents from `~/.metro/agents/<name>/agent.json` (see
 [Where things live](#where-things-live)) and materializes one one-line train file per active
-channel under `apps/mcp/trains/*.ts` (`METRO_TRAINS_DIR` overrides), then the supervisor spawns
+channel under `apps/daemon/trains/*.ts` (`METRO_TRAINS_DIR` overrides), then the supervisor spawns
 and hot-reloads one subprocess per file:
 
 ```ts
-// apps/mcp/trains/xmtp.ts   (generated from the agent files — you don't hand-write these)
+// apps/daemon/trains/xmtp.ts   (generated from the agent files — you don't hand-write these)
 import '@metro-labs/xmtp/train';
 ```
 
-The hosted daemon at `api.metro.box` is the same program without `METRO_MODE=local`: it runs no
-channel, and serves wallet sign-in, the [vault](#sync-with-metro-and-restore) and `/health`
-from Postgres (`bun run start` with `DATABASE_URL` set).
+`api.metro.box` is a separate, much smaller app, `apps/api`: it runs no channel, and serves
+wallet sign-in, the [vault](#sync-with-metro-and-restore) and `/health` from Postgres
+(`bun --filter @metro-labs/api start` with `DATABASE_URL` set). The daemon and every station
+share one kernel, `packages/core`; the two servers share `packages/http`.
 
 ## Deploying
 
@@ -133,7 +134,7 @@ only**, on `/mcp`, on the Monitor transport, on `/attach` and on the relay. Inbo
 tagged with the owning agent and delivery is scoped to it; an event arriving while its agent is
 disconnected is held and replays on the next connect (bounded by the in-memory ring buffer).
 
-**metro.box keeps two tables** ([`schema.ts`](apps/mcp/src/db/schema.ts)): `users` (one row per
+**metro.box keeps two tables** ([`schema.ts`](apps/daemon/src/db/schema.ts)): `users` (one row per
 wallet that ever signed in) and `vault` (one sealed bundle per agent, see
 [Sync with Metro and Restore](#sync-with-metro-and-restore)). No channel, no connector and no
 key is stored there in the clear; migrations `0021` and `0022` added the vault and dropped
@@ -534,16 +535,16 @@ inbound events to an in-process event bus, the inbound relay subscribes and push
 `notifications/claude/channel`, and outbound dispatches straight to the channels.
 
 Inbound is never journaled to disk: events go to an in-memory bus
-([`events.ts`](apps/mcp/src/daemon/events.ts)) and the relay subscribes. The MCP HTTP
+([`events.ts`](apps/daemon/src/daemon/events.ts)) and the relay subscribes. The MCP HTTP
 transport is session-tolerant: it survives a daemon restart so connected sessions
 auto-resume.
 
 **Lines.** Every conversation is a `metro://<station>/<path>` URI — the channel is the
 host, the path is platform-specific (account-scoped for multi-bot). One parser
-([`lines.ts`](apps/mcp/src/channels/lines.ts)) owns the scheme.
+([`lines.ts`](apps/daemon/src/channels/lines.ts)) owns the scheme.
 
 **Envelope.** Inbound and outbound events share one shape, see
-[`protocol.ts`](apps/mcp/src/daemon/protocol.ts).
+[`protocol.ts`](apps/daemon/src/daemon/protocol.ts).
 
 **State.** A daemon is stateful: the agent files under `~/.metro/agents`, the XMTP MLS
 databases under `~/.metro/` and the lock under `$METRO_STATE_DIR` (default `~/.cache/metro`).
@@ -563,7 +564,7 @@ All six must pass before a PR.
 
 ## Project structure
 
-A bun-workspaces + turborepo monorepo: the core daemon lives in `apps/mcp`, the control
+A bun-workspaces + turborepo monorepo: the core daemon lives in `apps/daemon`, the control
 panel in `apps/ui`, and each messaging platform is a private channel package.
 
 ```
@@ -587,9 +588,9 @@ packages/               # private station packages, each implementing the contra
 ```
 
 The channel contract and runtime live in the core and are re-exported via
-`@metro-labs/mcp/stations/*`; the platform packages depend only on `@metro-labs/mcp` and
+`@metro-labs/core/stations/*`; the platform packages depend only on `@metro-labs/daemon` and
 stay isolated (the XMTP node SDK never enters the core graph). See the per-package READMEs:
-[apps/mcp](apps/mcp/README.md), [apps/ui](apps/ui/README.md),
+[apps/daemon](apps/daemon/README.md), [apps/ui](apps/ui/README.md),
 [xmtp](packages/xmtp/README.md), [telegram-bot](packages/telegram-bot/README.md),
 [telegram](packages/telegram/README.md), [discord-bot](packages/discord-bot/README.md),
 [whatsapp](packages/whatsapp/README.md), [webhook](packages/webhook/README.md).

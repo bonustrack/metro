@@ -11,8 +11,8 @@ import { expandHome, signerFor, XMTP_ENV } from './identity.js';
 import {
   makeAccountStore,
   resolveAccountId,
-} from '@metro-labs/mcp/stations/account-store';
-import { Line } from '@metro-labs/mcp/lines';
+} from '@metro-labs/core/stations/account-store';
+import { Line } from '@metro-labs/core/lines';
 
 const ACCOUNTS_FILE =
   process.env.XMTP_ACCOUNTS_FILE ??

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { daemonHost, parseDaemonUrl } from '../src/auth/daemon';
-import { connectRefusal, toMode } from '../src/api/mode';
+import { daemonHost, parseDaemonUrl } from '../src/auth/daemon.js';
+import { connectRefusal, toMode } from '../src/api/mode.js';
 
 const base = (raw: string): string | null => {
   const parsed = parseDaemonUrl(raw);

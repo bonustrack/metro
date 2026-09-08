@@ -1,0 +1,47 @@
+{
+  "name": "@metro-labs/daemon",
+  "version": "0.1.0-beta.15",
+  "private": true,
+  "description": "The metro daemon a user runs on their own machine with `metro serve`: the MCP server Claude Code connects to, the station subprocesses it supervises, the model gateway, and the signed-identity APIs the page at metro.box talks to.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bonustrack/metro.git"
+  },
+  "homepage": "https://github.com/bonustrack/metro#readme",
+  "bugs": "https://github.com/bonustrack/metro/issues",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": "./src/mcp/index.ts"
+  },
+  "scripts": {
+    "start": "bun src/server.ts",
+    "build": "tsc",
+    "test": "tsc --noEmit && DYLD_FALLBACK_LIBRARY_PATH=/usr/lib METRO_STATE_DIR=\"$(mktemp -d /tmp/metro-test.XXXXXX)\" bun test test/"
+  },
+  "dependencies": {
+    "@metro-labs/core": "workspace:*",
+    "@metro-labs/http": "workspace:*",
+    "@metro-labs/discord-bot": "workspace:*",
+    "@metro-labs/telegram": "workspace:*",
+    "@metro-labs/telegram-bot": "workspace:*",
+    "@metro-labs/webhook": "workspace:*",
+    "@metro-labs/whatsapp": "workspace:*",
+    "@metro-labs/xmtp": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "viem": "2.52.2",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@stage-labs/config": "0.1.0-beta.2",
+    "@types/ws": "^8.18.0",
+    "eslint": "^10.3.0",
+    "knip": "^6.15.0",
+    "madge": "^8.0.0",
+    "typescript": "^5"
+  }
+}

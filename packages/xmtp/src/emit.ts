@@ -4,7 +4,7 @@ import { emit, mintId, rememberSent, rememberUid, SELF_URI } from './wire.js';
 import { fcmPushToAll } from './push.js';
 import { emitInbound, emitAttachmentSaved } from './emit-core.js';
 import { typedEnvelope, type EnvelopeCtx } from './emit-payloads.js';
-import type { StructuredEvent } from '@metro-labs/mcp/events';
+import type { StructuredEvent } from '@metro-labs/core/events';
 
 export { emitInbound, emitAttachmentSaved };
 

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { Line } from '@metro-labs/mcp/lines';
-import { mintId, type MetroEvent } from '@metro-labs/mcp/events';
-import type { Endpoint } from '@metro-labs/mcp/endpoints';
-import type { Station, Verb } from '@metro-labs/mcp/stations/types';
+import { Line } from '@metro-labs/core/lines';
+import { mintId, type MetroEvent } from '@metro-labs/core/events';
+import type { Endpoint } from '@metro-labs/core/endpoints';
+import type { Station, Verb } from '@metro-labs/core/stations/types';
 
 export const webhookStation: Station = {
   name: 'webhook',

@@ -48,7 +48,7 @@ describe('the agent id is validated before anything else happens', () => {
   });
 });
 
-const ENTRY = join('node_modules', '@metro-labs', 'mcp', 'src');
+const ENTRY = join('node_modules', '@metro-labs', 'daemon', 'src');
 
 describe('locating the bundled daemon', () => {
   test('the runtime shipped in the package is found with no configuration', () => {

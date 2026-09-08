@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { faviconUrl } from '../api/favicon';
+import { Text } from './ui.js';
+import { faviconUrl } from '../api/favicon.js';
 
 const REQUEST_SIZE = 32;
 

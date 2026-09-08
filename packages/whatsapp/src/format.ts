@@ -1,4 +1,4 @@
-import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
+import type { SavedAttachment } from '@metro-labs/core/stations/attachments';
 import { lineOf } from './accounts.js';
 import { mintId, SELF_URI } from './wire.js';
 import type { WAMediaRef } from './media.js';

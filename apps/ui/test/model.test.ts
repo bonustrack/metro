@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { baseDomain, faviconUrl } from '../src/api/favicon';
-import { afterSave, draftOf, matchModels, patchOf, priceLabel, PROVIDERS, routeLabel, servedLabel, toModelSettings, toServed } from '../src/api/model';
+import { baseDomain, faviconUrl } from '../src/api/favicon.js';
+import { afterSave, draftOf, matchModels, patchOf, priceLabel, PROVIDERS, routeLabel, servedLabel, toModelSettings, toServed } from '../src/api/model.js';
 
 describe('what the Model page reads from the daemon', () => {
   test('a full answer parses, keys arrive as booleans only', () => {

@@ -1,21 +1,21 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { SHRINK } from '../theme';
-import { BackLink } from './BackLink';
-import { ClaudeProjects } from './ClaudeProjects';
-import { Loading } from './Loading';
-import { PageTitle } from './PageTitle';
-import { SessionMenu } from './SessionMenu';
-import { Transcript } from './Transcript';
-import { opensElsewhere } from './link';
-import { routeHash } from '../route';
-import { type Selection } from './selection';
-import { type ClaudeSession } from '../api/claude';
-import { queryError, useClaudeSessionsQuery } from '../api/queries';
-import { sizeLabel, whenLabel } from '../api/when';
-import { useDocumentTitle } from '../title';
+import { Text } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { BackLink } from './BackLink.js';
+import { ClaudeProjects } from './ClaudeProjects.js';
+import { Loading } from './Loading.js';
+import { PageTitle } from './PageTitle.js';
+import { SessionMenu } from './SessionMenu.js';
+import { Transcript } from './Transcript.js';
+import { opensElsewhere } from './link.js';
+import { routeHash } from '../route.js';
+import { type Selection } from './selection.js';
+import { type ClaudeSession } from '../api/claude.js';
+import { queryError, useClaudeSessionsQuery } from '../api/queries.js';
+import { sizeLabel, whenLabel } from '../api/when.js';
+import { useDocumentTitle } from '../title.js';
 
 const ROW_PAD_Y = 12;
 

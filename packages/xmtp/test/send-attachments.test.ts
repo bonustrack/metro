@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { xmtpSendAttachments } from '../src/tools.ts';
-import type { ToolContext } from '@metro-labs/mcp/stations/types';
+import type { ToolContext } from '@metro-labs/core/stations/types';
 
 interface Sent {
   action: string;

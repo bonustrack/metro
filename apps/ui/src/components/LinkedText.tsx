@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
-import { Text } from './ui';
-import { type HintLink } from '../api/attach';
+import { Text } from './ui.js';
+import { type HintLink } from '../api/attach.js';
 
 function escape(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

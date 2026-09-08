@@ -13,7 +13,7 @@
     "test": "tsc --noEmit && DYLD_FALLBACK_LIBRARY_PATH=/usr/lib bun test test/"
   },
   "dependencies": {
-    "@metro-labs/mcp": "workspace:*",
+    "@metro-labs/core": "workspace:*",
     "@xmtp/content-type-primitives": "^3.0.1",
     "@xmtp/content-type-reaction": "^2.0.2",
     "@xmtp/content-type-remote-attachment": "^2.0.4",

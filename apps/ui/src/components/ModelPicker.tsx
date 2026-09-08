@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Input } from './ui';
-import { FieldLabel } from './FieldLabel';
-import { GROW } from '../theme';
-import { matchModels, priceLabel, type ModelOption } from '../api/model';
+import { Text, Input } from './ui.js';
+import { FieldLabel } from './FieldLabel.js';
+import { GROW } from '../theme.js';
+import { matchModels, priceLabel, type ModelOption } from '../api/model.js';
 
 const FIELD_WIDTH = 420;
 

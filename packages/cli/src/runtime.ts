@@ -7,7 +7,7 @@ const AGENT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
 export const SERVER_ENTRY = join(
   'node_modules',
   '@metro-labs',
-  'mcp',
+  'daemon',
   'src',
   'server.ts',
 );

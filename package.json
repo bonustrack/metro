@@ -14,7 +14,7 @@
     "knip": "stage knip",
     "madge": "stage madge",
     "build": "turbo build",
-    "start": "bun apps/mcp/src/server.ts"
+    "start": "bun apps/daemon/src/server.ts"
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.2",

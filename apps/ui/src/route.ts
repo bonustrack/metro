@@ -1,5 +1,5 @@
-import { type Selection } from './components/selection';
-import { RESERVED_SEGMENTS } from './auth/daemon';
+import { type Selection } from './components/selection.js';
+import { RESERVED_SEGMENTS } from './auth/daemon.js';
 
 const HOST = '[A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?';
 const ID = '[A-Za-z0-9_-]{11}';

@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Text } from './ui';
+import { Text } from './ui.js';
 
 export function PageTitle({ children }: { children: string }): ReactNode {
   return (

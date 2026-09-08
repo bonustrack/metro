@@ -1,5 +1,5 @@
 import type { proto } from 'baileys';
-import { extFromMime } from '@metro-labs/mcp/stations/attachments';
+import { extFromMime } from '@metro-labs/core/stations/attachments';
 
 export type WAMediaKind =
   | 'image'

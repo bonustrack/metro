@@ -1,8 +1,8 @@
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg } from '@metro-labs/core/log';
 import type {
   GroupResult,
   MemberOutcome,
-} from '@metro-labs/mcp/stations/types';
+} from '@metro-labs/core/stations/types';
 import { lineOf } from './accounts.js';
 
 export type RestFn = <T = unknown>(

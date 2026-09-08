@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg } from '@metro-labs/core/log';
 import { spawn } from 'node:child_process';
 import { unlink } from 'node:fs/promises';
 import {

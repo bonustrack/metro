@@ -1,7 +1,7 @@
-import { daemonBase, daemonHost } from '../auth/daemon';
-import { isRecord } from './accounts';
-import { call } from './client';
-import { fetchMode } from './mode';
+import { daemonBase, daemonHost } from '../auth/daemon.js';
+import { isRecord } from './accounts.js';
+import { call } from './client.js';
+import { fetchMode } from './mode.js';
 
 export type DaemonState = 'live' | 'stopped' | 'offline';
 

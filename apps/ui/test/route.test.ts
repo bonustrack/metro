@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { routeHash, routeSelection } from '../src/route';
-import { type Selection } from '../src/components/selection';
+import { routeHash, routeSelection } from '../src/route.js';
+import { type Selection } from '../src/components/selection.js';
 
 const HOSTS = ['127.0.0.1:8420', 'localhost:8421', 'jelsoft-chan-rooms.tail1234.ts.net', 'suzy.tail1234.ts.net'];
 

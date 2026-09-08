@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { opensElsewhere } from './link';
+import { opensElsewhere } from './link.js';
 
 interface MarkdownBlockProps {
   text: string;

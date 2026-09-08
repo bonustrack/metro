@@ -1,7 +1,7 @@
-import { call } from './client';
-import { isRecord } from './accounts';
-import { fetchMode } from './mode';
-import { baseFromSegment, builtInDaemon } from '../auth/daemon';
+import { call } from './client.js';
+import { isRecord } from './accounts.js';
+import { fetchMode } from './mode.js';
+import { baseFromSegment, builtInDaemon } from '../auth/daemon.js';
 
 export interface Server {
   id: string;

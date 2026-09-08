@@ -1,10 +1,10 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { stationLabel, type AttachResult } from '../api/attach';
-import { CopyBlock } from './CopyBlock';
-import { Field } from './Field';
+import { Text, Button } from './ui.js';
+import { stationLabel, type AttachResult } from '../api/attach.js';
+import { CopyBlock } from './CopyBlock.js';
+import { Field } from './Field.js';
 
 function activationNote(result: AttachResult): string {
   if (!result.activated)

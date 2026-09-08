@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg } from '@metro-labs/core/log';
 import {
   Client,
   Events,
@@ -16,7 +16,7 @@ import {
 } from './accounts.js';
 import { emitInbound, messageEnvelope, reactionEnvelope } from './format.js';
 import { mintId } from './wire.js';
-import { readCalls } from '@metro-labs/mcp/trains/protocol';
+import { readCalls } from '@metro-labs/core/trains/protocol';
 import { handleCall } from './actions.js';
 
 readCalls('discord-bot', handleCall);

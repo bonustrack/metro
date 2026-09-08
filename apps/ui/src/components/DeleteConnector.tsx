@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
-import { type Connector } from '../api/connectors';
-import { type MenuItem } from './Dropdown';
-import { KebabMenu } from './KebabMenu';
+import { type Connector } from '../api/connectors.js';
+import { type MenuItem } from './Dropdown.js';
+import { KebabMenu } from './KebabMenu.js';
 
 interface DeleteConnectorProps {
   connector: Connector;

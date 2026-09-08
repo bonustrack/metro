@@ -2,14 +2,14 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
-import { Text, Button } from './ui';
-import { SHRINK } from '../theme';
-import { Modal } from './Modal';
-import { builtInDaemon, daemonHost } from '../auth/daemon';
-import { activeIdentity } from '../auth/identity';
-import { getVault, listVault, restoreBundle, type RestoredAgent, type VaultEntry } from '../api/vault';
-import { whenLabel } from '../api/when';
-import { openBundle } from '../vault/crypto';
+import { Text, Button } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { Modal } from './Modal.js';
+import { builtInDaemon, daemonHost } from '../auth/daemon.js';
+import { activeIdentity } from '../auth/identity.js';
+import { getVault, listVault, restoreBundle, type RestoredAgent, type VaultEntry } from '../api/vault.js';
+import { whenLabel } from '../api/when.js';
+import { openBundle } from '../vault/crypto.js';
 
 const HOW =
   'These are the agents your wallet sealed on metro.box. Restoring one opens it here in the browser, with the key derived from your sign-in signature, and hands the plaintext to this daemon, which writes the files and starts the channels.';

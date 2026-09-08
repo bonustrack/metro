@@ -1,7 +1,7 @@
 import { beforeAll } from 'bun:test';
-import { installTestIdentity } from './identity-fixture';
+import { installTestIdentity } from './identity-fixture.js';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { AuthError } from '../src/api/client';
+import { AuthError } from '../src/api/client.js';
 import {
   connectorHost,
   connectorsInOrder,
@@ -11,7 +11,7 @@ import {
   serverLabel,
   verifyConnector,
   type Connector,
-} from '../src/api/connectors';
+} from '../src/api/connectors.js';
 
 beforeAll(async () => {
   await installTestIdentity();

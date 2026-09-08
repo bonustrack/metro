@@ -1,20 +1,20 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { SHRINK } from '../theme';
-import { stationLabel } from '../api/attach';
+import { Text } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { stationLabel } from '../api/attach.js';
 import {
   flattenAccounts,
   stationFields,
   type AccountGroup,
   type AccountRow,
-} from '../api/accounts';
-import { ChatIcon } from './ChatIcon';
-import { DetachAccount } from './DetachAccount';
-import { opensElsewhere } from './link';
-import { StationIcon } from './StationIcon';
-import { routeHash } from '../route';
+} from '../api/accounts.js';
+import { ChatIcon } from './ChatIcon.js';
+import { DetachAccount } from './DetachAccount.js';
+import { opensElsewhere } from './link.js';
+import { StationIcon } from './StationIcon.js';
+import { routeHash } from '../route.js';
 
 export type DetachHandler = (station: string, accountId: string) => Promise<void>;
 

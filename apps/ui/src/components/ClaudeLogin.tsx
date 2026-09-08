@@ -1,11 +1,11 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui';
-import { FieldLabel } from './FieldLabel';
-import { GROW } from '../theme';
-import { answerClaudeLogin, cancelClaudeLogin, fetchClaudeAccount, pollClaudeLogin, startClaudeLogin, type ClaudeAccount, type ClaudeLogin } from '../api/claude';
-import { queryError } from '../api/queries';
+import { Text, Button, Input } from './ui.js';
+import { FieldLabel } from './FieldLabel.js';
+import { GROW } from '../theme.js';
+import { answerClaudeLogin, cancelClaudeLogin, fetchClaudeAccount, pollClaudeLogin, startClaudeLogin, type ClaudeAccount, type ClaudeLogin } from '../api/claude.js';
+import { queryError } from '../api/queries.js';
 
 const FIELD_WIDTH = 420;
 const POLL_MS = 1_500;

@@ -6,7 +6,7 @@ export default defineConfig({
       '**/test/**',
       '**/scripts/**',
       'packages/cli/runtime/**',
-      'apps/mcp/trains/**',
+      'apps/daemon/trains/**',
     ],
     extends: [
       {
@@ -46,6 +46,13 @@ export default defineConfig({
         ignoreDependencies: ['react-native-web', '@types/qrcode'],
       },
     },
+    'apps/api': {
+      type: 'library',
+      knip: {
+        entry: ['test/**/*.ts'],
+        project: ['src/**/*.ts'],
+      },
+    },
     'packages/cli': {
       type: 'library',
       knip: {
@@ -54,12 +61,27 @@ export default defineConfig({
         ignoreBinaries: ['ps', 'claude'],
       },
     },
-    'apps/mcp': {
+    'apps/daemon': {
       type: 'library',
       knip: {
         entry: ['test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
         ignoreBinaries: ['claude', 'mktemp', 'ps', 'tmux'],
+      },
+    },
+    'packages/core': {
+      type: 'library',
+      knip: {
+        entry: ['test/**/*.ts'],
+        project: ['src/**/*.ts'],
+        ignoreBinaries: ['mktemp'],
+      },
+    },
+    'packages/http': {
+      type: 'library',
+      knip: {
+        entry: ['test/**/*.ts'],
+        project: ['src/**/*.ts'],
       },
     },
     'packages/webhook': {

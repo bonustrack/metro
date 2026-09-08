@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg } from '@metro-labs/core/log';
 import { ConsentState, type DecodedMessage } from '@xmtp/node-sdk';
 import {
   accounts,
@@ -9,7 +9,7 @@ import {
 import { emitInbound, envelope } from './emit.js';
 import { groupNameFor } from './conv-helpers.js';
 import { handleControlDm, pushInbound } from './push.js';
-import { readCalls } from '@metro-labs/mcp/trains/protocol';
+import { readCalls } from '@metro-labs/core/trains/protocol';
 import { handleCall } from './actions.js';
 
 readCalls('xmtp', handleCall);

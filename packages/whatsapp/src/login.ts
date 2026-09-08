@@ -4,7 +4,7 @@ import makeWASocket, {
   fetchLatestWaWebVersion,
   type WASocket,
 } from 'baileys';
-import { errMsg, log } from '@metro-labs/mcp/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import { inMemoryAuthState } from './auth-state.js';
 
 export class WhatsappLoginError extends Error {}

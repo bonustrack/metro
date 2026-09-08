@@ -1,8 +1,8 @@
 import { type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { MetroLogo } from './MetroLogo';
-import { useLoadingVisible } from '../loading-delay';
+import { MetroLogo } from './MetroLogo.js';
+import { useLoadingVisible } from '../loading-delay.js';
 
 const LOGO_SIZE = 64;
 

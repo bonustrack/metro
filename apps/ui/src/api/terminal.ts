@@ -1,6 +1,6 @@
-import { call } from './client';
-import { isRecord } from './accounts';
-import { daemonBase } from '../auth/daemon';
+import { call } from './client.js';
+import { isRecord } from './accounts.js';
+import { daemonBase } from '../auth/daemon.js';
 
 export interface TerminalStatus {
   available: boolean;

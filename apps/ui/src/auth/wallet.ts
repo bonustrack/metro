@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { createWalletClient, custom, type EIP1193Provider, type TypedDataDefinition } from 'viem';
-import { readRecentWallet } from './recent';
-import { walletChoices, type WalletChoice } from './wallet-options';
+import { readRecentWallet } from './recent.js';
+import { walletChoices, type WalletChoice } from './wallet-options.js';
 
 export interface Connected {
   provider: EIP1193Provider;

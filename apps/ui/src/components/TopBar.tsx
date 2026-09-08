@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { MenuIcon } from './MenuIcon';
+import { MenuIcon } from './MenuIcon.js';
 
 interface TopBarProps {
   onOpenMenu: () => void;

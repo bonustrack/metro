@@ -1,11 +1,11 @@
-import { TrainError } from '@metro-labs/mcp/train-error';
-import { errMsg } from '@metro-labs/mcp/log';
+import { TrainError } from '@metro-labs/core/train-error';
+import { errMsg } from '@metro-labs/core/log';
 import {
   makeStation,
   respond,
   type CallMsg,
   type StationHandler,
-} from '@metro-labs/mcp/stations/station-runtime';
+} from '@metro-labs/core/stations/station-runtime';
 import { accountFor, accounts, targetOf } from './accounts.js';
 import type { UserClient } from './client.js';
 import { normalizeTelegramUser } from './normalize.js';

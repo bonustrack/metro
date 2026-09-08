@@ -1,4 +1,4 @@
-import { routedDaemon, storeDaemon } from './daemon';
+import { routedDaemon, storeDaemon } from './daemon.js';
 
 const LOGIN_HASH = '#/login';
 

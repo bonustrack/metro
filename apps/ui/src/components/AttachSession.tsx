@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
 import { colors } from '@stage-labs/kit/tokens';
-import { Text, Button, Input } from './ui';
+import { Text, Button, Input } from './ui.js';
 
 const CODE_INPUT = { flexGrow: 1, minWidth: 200 } as const;
 
@@ -14,8 +14,8 @@ import {
   pollAttachSession,
   submitAttachStep,
   type AttachSession as Session,
-} from '../api/attach-session';
-import { stationLabel, type AttachResult } from '../api/attach';
+} from '../api/attach-session.js';
+import { stationLabel, type AttachResult } from '../api/attach.js';
 
 const POLL_MS = 2_000;
 

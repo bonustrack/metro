@@ -1,13 +1,13 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui';
-import { STATION_FORMS, type AttachResult } from '../api/attach';
-import { type AttachSession as Session } from '../api/attach-session';
-import { AttachedAccount } from './AttachedAccount';
-import { AttachSession } from './AttachSession';
-import { Modal } from './Modal';
-import { StationForm } from './StationForm';
-import { StationPicker } from './StationPicker';
+import { Text } from './ui.js';
+import { STATION_FORMS, type AttachResult } from '../api/attach.js';
+import { type AttachSession as Session } from '../api/attach-session.js';
+import { AttachedAccount } from './AttachedAccount.js';
+import { AttachSession } from './AttachSession.js';
+import { Modal } from './Modal.js';
+import { StationForm } from './StationForm.js';
+import { StationPicker } from './StationPicker.js';
 
 const TAIL = ['xmtp', 'webhook'];
 

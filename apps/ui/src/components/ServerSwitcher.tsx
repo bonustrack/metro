@@ -3,13 +3,13 @@ import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { useQueryClient } from '@tanstack/react-query';
-import { Dropdown, type MenuItem } from './Dropdown';
-import { NameModal } from './NameModal';
-import { NavIcon } from './NavRow';
-import { Text } from './ui';
-import { SHRINK } from '../theme';
-import { removeServer, renameServer, serverLabel, type Server } from '../api/servers';
-import { refreshServers, useServersQuery } from '../api/queries';
+import { Dropdown, type MenuItem } from './Dropdown.js';
+import { NameModal } from './NameModal.js';
+import { NavIcon } from './NavRow.js';
+import { Text } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
+import { refreshServers, useServersQuery } from '../api/queries.js';
 
 function serverItems(servers: Server[], current: Server | undefined, onRename: () => void, onForget: () => void): MenuItem[] {
   const others = servers.filter((s) => s.id !== current?.id);

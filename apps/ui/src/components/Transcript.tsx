@@ -2,11 +2,11 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
-import { Text, Button } from './ui';
-import { Loading } from './Loading';
-import { MarkdownBlock } from './MarkdownBlock';
-import { fetchTranscript, type Block, type TranscriptEntry } from '../api/claude';
-import { queryError } from '../api/queries';
+import { Text, Button } from './ui.js';
+import { Loading } from './Loading.js';
+import { MarkdownBlock } from './MarkdownBlock.js';
+import { fetchTranscript, type Block, type TranscriptEntry } from '../api/claude.js';
+import { queryError } from '../api/queries.js';
 
 const PAGE = 100;
 const LIVE_MS = 4_000;

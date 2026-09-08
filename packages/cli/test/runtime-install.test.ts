@@ -17,8 +17,8 @@ const lines: string[] = [];
 
 function stageSources(version: string): string {
   const sources = join(root, `sources-${version}`);
-  mkdirSync(join(sources, 'node_modules', '@metro-labs', 'mcp', 'src'), { recursive: true });
-  writeFileSync(join(sources, 'node_modules', '@metro-labs', 'mcp', 'src', 'server.ts'), `export const v = '${version}';\n`);
+  mkdirSync(join(sources, 'node_modules', '@metro-labs', 'daemon', 'src'), { recursive: true });
+  writeFileSync(join(sources, 'node_modules', '@metro-labs', 'daemon', 'src', 'server.ts'), `export const v = '${version}';\n`);
   writeFileSync(join(sources, 'runtime.json'), JSON.stringify({ version }));
   writeFileSync(join(sources, 'stations.json'), JSON.stringify(MANIFEST));
   return sources;

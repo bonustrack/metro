@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { untilState, type DaemonState } from '../src/api/control';
+import { untilState, type DaemonState } from '../src/api/control.js';
 
 function script(states: DaemonState[]): () => Promise<DaemonState> {
   let i = 0;

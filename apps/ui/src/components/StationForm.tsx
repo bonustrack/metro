@@ -1,8 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui';
-import { GROW } from '../theme';
+import { Text, Button, Input } from './ui.js';
+import { GROW } from '../theme.js';
 import {
   startAttach,
   stationLabel,
@@ -10,9 +10,9 @@ import {
   type AttachField,
   type AttachResult,
   type StationForm as Form,
-} from '../api/attach';
-import { type AttachSession } from '../api/attach-session';
-import { LinkedText } from './LinkedText';
+} from '../api/attach.js';
+import { type AttachSession } from '../api/attach-session.js';
+import { LinkedText } from './LinkedText.js';
 
 const inputType = (field: AttachField): 'password' | 'number' | 'tel' | 'text' =>
   field.secret ? 'password' : field.kind;

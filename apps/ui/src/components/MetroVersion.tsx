@@ -2,10 +2,10 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { queryError, useModeQuery, useUpdateQuery } from '../api/queries';
-import { fetchMode } from '../api/mode';
-import { runUpdate } from '../api/update';
+import { Text, Button } from './ui.js';
+import { queryError, useModeQuery, useUpdateQuery } from '../api/queries.js';
+import { fetchMode } from '../api/mode.js';
+import { runUpdate } from '../api/update.js';
 
 const POLL_MS = 3_000;
 const POLL_MAX_MS = 4 * 60_000;

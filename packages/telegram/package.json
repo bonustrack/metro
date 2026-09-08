@@ -13,7 +13,7 @@
     "test": "tsc --noEmit && bun test test/"
   },
   "dependencies": {
-    "@metro-labs/mcp": "workspace:*",
+    "@metro-labs/core": "workspace:*",
     "@mtcute/bun": "0.30.1"
   },
   "devDependencies": {

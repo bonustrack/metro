@@ -1,19 +1,19 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { SHRINK } from '../theme';
-import { PageTitle } from './PageTitle';
-import { stationLabel } from '../api/attach';
-import { stationFields, type AccountRow } from '../api/accounts';
-import { type AgentSummary } from '../api/client';
-import { BackLink } from './BackLink';
-import { CopyBlock } from './CopyBlock';
-import { DetachAccount } from './DetachAccount';
-import { opensElsewhere } from './link';
-import { routeHash } from '../route';
-import { StationIcon } from './StationIcon';
-import { type DetachHandler } from './AccountList';
+import { Text } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { PageTitle } from './PageTitle.js';
+import { stationLabel } from '../api/attach.js';
+import { stationFields, type AccountRow } from '../api/accounts.js';
+import { type AgentSummary } from '../api/client.js';
+import { BackLink } from './BackLink.js';
+import { CopyBlock } from './CopyBlock.js';
+import { DetachAccount } from './DetachAccount.js';
+import { opensElsewhere } from './link.js';
+import { routeHash } from '../route.js';
+import { StationIcon } from './StationIcon.js';
+import { type DetachHandler } from './AccountList.js';
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (

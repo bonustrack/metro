@@ -8,8 +8,8 @@ import makeWASocket, {
   type WAMessageKey,
   type WASocket,
 } from 'baileys';
-import { TrainError } from '@metro-labs/mcp/train-error';
-import { errMsg } from '@metro-labs/mcp/log';
+import { TrainError } from '@metro-labs/core/train-error';
+import { errMsg } from '@metro-labs/core/log';
 import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';

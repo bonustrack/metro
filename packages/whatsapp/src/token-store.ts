@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { readJson, writeSecure } from '@metro-labs/mcp/secure-fs';
-import { errMsg } from '@metro-labs/mcp/log';
+import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
+import { errMsg } from '@metro-labs/core/log';
 
 export const PERSISTED_KEY_TYPES = ['tctoken', 'lid-mapping'] as const;
 

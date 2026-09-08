@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg } from '@metro-labs/core/log';
 import {
   joinVoiceChannel,
   getVoiceConnection,

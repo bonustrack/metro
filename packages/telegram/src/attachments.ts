@@ -3,7 +3,7 @@ import { FileLocation } from '@mtcute/bun';
 import {
   saveBufferToCache,
   type SavedAttachment,
-} from '@metro-labs/mcp/stations/attachments';
+} from '@metro-labs/core/stations/attachments';
 import type { UserClient } from './client.js';
 
 type Media = NonNullable<Message['media']>;

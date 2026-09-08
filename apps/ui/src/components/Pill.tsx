@@ -5,7 +5,7 @@ import {
   useKitScheme,
 } from '@stage-labs/kit/react-native/theme-context';
 import { resolveBadgeStyle } from '@stage-labs/kit/badge';
-import { Text } from './ui';
+import { Text } from './ui.js';
 
 const PILL_RADIUS = 999;
 

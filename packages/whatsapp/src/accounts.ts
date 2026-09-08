@@ -4,7 +4,7 @@ import {
   makeAccountStore,
   resolveAccountId,
   type Die,
-} from '@metro-labs/mcp/stations/account-store';
+} from '@metro-labs/core/stations/account-store';
 import type { WhatsAppAccount } from './types.js';
 
 const ACCOUNTS_FILE =

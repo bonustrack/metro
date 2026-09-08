@@ -13,7 +13,7 @@ import {
   TEXT_FONT,
   textSize,
   typeSize,
-} from '../theme';
+} from '../theme.js';
 
 const BUTTON_FONT_SIZE: Record<ButtonSize, number> = {
   '3xs': FONT_SIZE['3xs'],

@@ -1,8 +1,8 @@
 import { type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Spinner } from './Spinner';
-import { useLoadingVisible } from '../loading-delay';
+import { Spinner } from './Spinner.js';
+import { useLoadingVisible } from '../loading-delay.js';
 
 export function Loading(): ReactNode {
   const palette = useKitPalette();

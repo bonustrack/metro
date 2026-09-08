@@ -3,8 +3,8 @@ import Markdown from 'react-markdown';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { PageTitle } from './PageTitle';
-import { useDocumentTitle } from '../title';
+import { PageTitle } from './PageTitle.js';
+import { useDocumentTitle } from '../title.js';
 import setupDoc from '../../../../docs/SETUP.md?raw';
 
 function scrollTo(id: string): void {

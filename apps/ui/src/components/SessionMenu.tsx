@@ -1,8 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ConfirmModal } from './ConfirmModal';
-import { KebabMenu } from './KebabMenu';
-import { queryError, removeClaudeSession } from '../api/queries';
+import { ConfirmModal } from './ConfirmModal.js';
+import { KebabMenu } from './KebabMenu.js';
+import { queryError, removeClaudeSession } from '../api/queries.js';
 
 interface SessionMenuProps {
   claudeProject: string;

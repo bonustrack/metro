@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { sizeLabel, whenLabel } from '../src/api/when';
+import { sizeLabel, whenLabel } from '../src/api/when.js';
 
 describe('human labels', () => {
   test('relative time', () => {
