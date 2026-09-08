@@ -113,6 +113,19 @@ export function forwardedHeaders(req: IncomingMessage): Record<string, string> {
   return out;
 }
 
+export function anthropicHeaders(req: IncomingMessage, apiKey: string): Record<string, string> {
+  const headers = forwardedHeaders(req);
+  delete headers.authorization;
+  const betas = (headers['anthropic-beta'] ?? '')
+    .split(',')
+    .map((beta) => beta.trim())
+    .filter((beta) => beta !== '' && !beta.includes('oauth'));
+  if (betas.length > 0) headers['anthropic-beta'] = betas.join(',');
+  else delete headers['anthropic-beta'];
+  headers['x-api-key'] = apiKey;
+  return headers;
+}
+
 export interface PipeOptions {
   keepalive?: boolean;
   ownCredential?: boolean;
