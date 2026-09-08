@@ -5,6 +5,15 @@ import { ApiError } from './api-error.js';
 import { isRecord } from './is-record.js';
 import { listClaudeSettings, SETTINGS_MAX, writeClaudeSettings } from './claude-settings.js';
 import {
+  answerClaudeLogin,
+  claudeAccount,
+  claudeInstalled,
+  claudeLoginView,
+  endClaudeLogin,
+  startClaudeLogin,
+  type LoginDeps,
+} from './claude-login.js';
+import {
   claudeDir,
   deleteClaudeSession,
   listClaudeProjects,
@@ -16,13 +25,14 @@ import {
 
 const PREFIX = '/api/claude';
 const BODY_MAX = SETTINGS_MAX + 4096;
-const WRITABLE = new Set(['GET', 'DELETE', 'PUT']);
+const WRITABLE = new Set(['GET', 'DELETE', 'PUT', 'POST']);
 const PAGE = 100;
 const PAGE_MAX = 500;
 
 export interface ClaudeApiDeps {
   authorize: (subject: string) => void;
   dir?: () => string;
+  login?: LoginDeps;
 }
 
 function projectOf(query: URLSearchParams): string {
@@ -65,17 +75,38 @@ async function writeAnswer(req: IncomingMessage, path: string, dir: string): Pro
   return writeClaudeSettings(item, body.text, seenAt, dir);
 }
 
+const LOGIN = 'login';
+
+async function loginAnswer(req: IncomingMessage, id: string, deps: ClaudeApiDeps): Promise<unknown> {
+  const method = req.method ?? 'GET';
+  if (id === '') {
+    if (method === 'POST') return startClaudeLogin(deps.login);
+    if (method === 'GET') return { available: claudeInstalled(), ...claudeAccount() };
+    throw new ApiError('method not allowed', 405);
+  }
+  if (method === 'GET') return claudeLoginView(id);
+  if (method === 'DELETE') return endClaudeLogin(id);
+  if (method !== 'POST') throw new ApiError('method not allowed', 405);
+  const body = await readJsonBody(req);
+  if (!isRecord(body) || typeof body.text !== 'string') throw new ApiError('text is required', 400);
+  return answerClaudeLogin(id, body.text);
+}
+
+function removed(rest: string[], query: URLSearchParams, dir: string): unknown {
+  const [head = '', item = ''] = rest;
+  if (rest.length !== 2 || head !== 'sessions') throw new ApiError('method not allowed', 405);
+  deleteClaudeSession(projectOf(query), item, dir);
+  return { deleted: item };
+}
+
 function answer(method: string, path: string, query: URLSearchParams, dir: string): unknown {
   const rest = parts(path);
-  const [head = '', item] = rest;
-  if (method === 'DELETE') {
-    if (rest.length !== 2 || head !== 'sessions') throw new ApiError('method not allowed', 405);
-    deleteClaudeSession(projectOf(query), item ?? '', dir);
-    return { deleted: item };
-  }
+  const [head = '', item = ''] = rest;
+  if (method === 'DELETE') return removed(rest, query, dir);
+  if (method !== 'GET') throw new ApiError('method not allowed', 405);
   const handler = rest.length === 1 ? COLLECTIONS[head] : rest.length === 2 ? ITEMS[head] : undefined;
   if (handler === undefined) throw new ApiError('no such route', 404);
-  return handler(query, dir, item ?? '');
+  return handler(query, dir, item);
 }
 
 export function handleClaudeRequest(
@@ -98,6 +129,8 @@ export function handleClaudeRequest(
       if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
       const dir = (deps.dir ?? claudeDir)();
+      const [head = '', item = ''] = parts(path);
+      if (head === LOGIN) return loginAnswer(req, item, deps);
       if (req.method === 'PUT') return writeAnswer(req, path, dir);
       return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
     })

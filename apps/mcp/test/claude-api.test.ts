@@ -60,6 +60,9 @@ afterAll(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+const signedPost = async (path: string): Promise<Response> =>
+  fetch(`${base}${path}`, { method: 'POST', headers: { authorization: await auth('POST', path, OWNER) } });
+
 const get = async (path: string, subject = OWNER): Promise<Response> =>
   fetch(`${base}${path}`, { headers: { authorization: await auth('GET', path, subject) } });
 const json = async <T>(path: string): Promise<T> => (await (await get(path)).json()) as T;
@@ -143,7 +146,8 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
   test('a stranger gets 404s, no session gets 401, and only GET is served', async () => {
     expect((await get('/api/claude/projects', STRANGER)).status).toBe(404);
     expect((await fetch(`${base}/api/claude/projects`)).status).toBe(401);
-    expect((await fetch(`${base}/api/claude/projects`, { method: 'POST' })).status).toBe(405);
+    expect((await fetch(`${base}/api/claude/projects`, { method: 'POST' })).status).toBe(401);
+    expect((await signedPost('/api/claude/projects')).status).toBe(405);
     expect((await fetch(`${base}/api/claude/projects`, { method: 'OPTIONS' })).status).toBe(204);
   });
 });

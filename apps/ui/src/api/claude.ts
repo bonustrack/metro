@@ -212,3 +212,62 @@ export async function saveClaudeSettings(id: string, content: string, seenAt: st
   if (file === null) throw unexpected();
   return file;
 }
+
+export type LoginState = 'pending' | 'done' | 'failed';
+
+export interface ClaudeLogin {
+  id: string;
+  state: LoginState;
+  url: string | null;
+  output: string;
+  error: string | null;
+}
+
+export interface ClaudeAccount {
+  available: boolean;
+  signedIn: boolean;
+  account: string | null;
+}
+
+const isState = (value: unknown): value is LoginState => value === 'pending' || value === 'done' || value === 'failed';
+
+function toLogin(body: unknown): ClaudeLogin {
+  if (!isRecord(body) || typeof body.id !== 'string' || !isState(body.state)) throw unexpected();
+  return {
+    id: body.id,
+    state: body.state,
+    url: text(body.url),
+    output: typeof body.output === 'string' ? body.output : '',
+    error: text(body.error),
+  };
+}
+
+export async function fetchClaudeAccount(): Promise<ClaudeAccount> {
+  const body = await call({ base: base(), path: '/login', method: 'GET' });
+  if (!isRecord(body)) throw unexpected();
+  return { available: body.available === true, signedIn: body.signedIn === true, account: text(body.account) };
+}
+
+export async function startClaudeLogin(): Promise<ClaudeLogin> {
+  return toLogin(await call({ base: base(), path: '/login', method: 'POST' }));
+}
+
+export async function pollClaudeLogin(id: string): Promise<ClaudeLogin> {
+  return toLogin(await call({ base: base(), path: `/login/${encodeURIComponent(id)}`, method: 'GET' }));
+}
+
+export async function answerClaudeLogin(id: string, code: string): Promise<ClaudeLogin> {
+  return toLogin(
+    await call({
+      base: base(),
+      path: `/login/${encodeURIComponent(id)}`,
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: code }),
+    }),
+  );
+}
+
+export async function cancelClaudeLogin(id: string): Promise<void> {
+  await call({ base: base(), path: `/login/${encodeURIComponent(id)}`, method: 'DELETE' });
+}
