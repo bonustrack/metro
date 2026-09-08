@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { arch, platform, release } from 'node:os';
 import { isRecord } from '../daemon/is-record.js';
-import { errMsg } from '../daemon/log.js';
+import { errMsg, log } from '../daemon/log.js';
 import { refreshTokens, tokensStale, type CodexTokens } from './codex-auth.js';
 import { assembleMessage, CodexEventTranslator, parseEvent, SseParser } from './codex-stream.js';
 import { ToolNames, toResponsesRequest } from './codex-translate.js';
@@ -10,7 +10,8 @@ import { GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, 
 import type { ModelConfig } from './model-config.js';
 
 export const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
-const CODEX_VERSION = '0.104.0';
+const CODEX_VERSION = '0.153.4';
+const VERSION_RE = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/;
 const PING_MS = 25_000;
 const STATUS_OF: Record<string, number> = { rate_limit_error: 429, invalid_request_error: 400, permission_error: 403, overloaded_error: 529 };
 
@@ -30,7 +31,15 @@ export const freshCodexState = (): CodexState => ({ refreshing: null, latest: nu
 
 const OS_NAMES: Record<string, string> = { darwin: 'Mac OS', linux: 'Linux', win32: 'Windows' };
 
-export const userAgent = (): string => `codex_cli_rs/${CODEX_VERSION} (${OS_NAMES[platform()] ?? platform()} ${release()}; ${arch()}) metro`;
+export function codexVersion(): string {
+  const wanted = process.env.METRO_CODEX_VERSION?.trim() ?? '';
+  if (wanted === '') return CODEX_VERSION;
+  if (VERSION_RE.test(wanted)) return wanted;
+  log.warn({ value: wanted }, 'gateway: METRO_CODEX_VERSION is not a version like 0.153.4; using the built-in one');
+  return CODEX_VERSION;
+}
+
+export const userAgent = (): string => `codex_cli_rs/${codexVersion()} (${OS_NAMES[platform()] ?? platform()} ${release()}; ${arch()}) metro`;
 
 function headersFor(tokens: CodexTokens, sessionId: string): Record<string, string> {
   return {
@@ -192,7 +201,7 @@ export function codexCount(res: ServerResponse, body: Record<string, unknown>): 
 }
 
 export async function codexModels(tokens: CodexTokens, deps: Omit<CodexDeps, 'save'>): Promise<string[]> {
-  const res = await (deps.fetchImpl ?? fetch)(`${deps.base ?? CODEX_BASE}/models?client_version=${CODEX_VERSION}`, {
+  const res = await (deps.fetchImpl ?? fetch)(`${deps.base ?? CODEX_BASE}/models?client_version=${codexVersion()}`, {
     headers: { ...headersFor(tokens, randomUUID()), accept: 'application/json' },
     redirect: 'manual',
   });

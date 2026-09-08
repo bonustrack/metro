@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleModelRequest } from '../src/daemon/model-api.ts';
+import { codexVersion, userAgent } from '../src/gateway/codex.ts';
 import { ApiError } from '../src/daemon/api-error.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import { auth, type Who } from './identity-helper.ts';
@@ -20,6 +21,7 @@ let issuerBase = '';
 let backendBase = '';
 let stored: ModelConfig;
 let home = '';
+const seenModelUrls: string[] = [];
 const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
 const idToken = jwt({ email: 'less@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_1', chatgpt_plan_type: 'plus' } });
 
@@ -42,6 +44,7 @@ beforeAll(async () => {
       res.end(JSON.stringify({ data: [{ id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex' }, { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' }, { name: 'no id' }, 7] }));
       return;
     }
+    seenModelUrls.push(req.url ?? '');
     res.end(JSON.stringify({ models: [{ slug: 'gpt-5.3-codex' }] }));
   });
   await new Promise<void>((r) => {
@@ -201,5 +204,23 @@ describe('picking an OpenRouter model without typing its id', () => {
       headers: { authorization: await auth('GET', '/api/model/openrouter/nope', OWNER) },
     });
     expect(wrong.status).toBe(404);
+  });
+});
+
+describe('the Codex client version metro announces', () => {
+  test('is a current one, so the backend offers the models a current client may use, and it can be overridden', async () => {
+    seenModelUrls.length = 0;
+    stored.codex.auth = { accessToken: 'at-1', refreshToken: 'rt-1', idToken, accountId: 'acct_1', email: null, plan: 'pro', savedAt: new Date().toISOString() };
+    await codex('models', 'GET');
+    expect(seenModelUrls.at(-1)).toContain('client_version=0.153.4');
+    expect(codexVersion()).toBe('0.153.4');
+    process.env.METRO_CODEX_VERSION = '0.160.0';
+    await codex('models', 'GET');
+    expect(seenModelUrls.at(-1)).toContain('client_version=0.160.0');
+    expect(userAgent()).toContain('codex_cli_rs/0.160.0');
+    process.env.METRO_CODEX_VERSION = 'not a version';
+    expect(codexVersion()).toBe('0.153.4');
+    delete process.env.METRO_CODEX_VERSION;
+    stored.codex.auth = null;
   });
 });
