@@ -21,10 +21,17 @@ export const PROVIDERS: ProviderInfo[] = [
   },
 ];
 
+export interface Served {
+  provider: string;
+  model: string;
+  at: string;
+}
+
 export interface ModelSettings {
   provider: Provider;
   ready: boolean;
   reason: string | null;
+  lastServed: Served | null;
   bedrock: { region: string; model: string; hasKey: boolean };
   openrouter: { model: string; hasKey: boolean };
   codex: { model: string; signedIn: boolean; account: string | null; plan: string | null };
@@ -42,6 +49,14 @@ const word = (value: unknown): string => (typeof value === 'string' ? value : ''
 const maybe = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 const isProvider = (value: unknown): value is Provider => PROVIDERS.some((p) => p.id === value);
 
+export function toServed(value: unknown): Served | null {
+  if (!isRecord(value)) return null;
+  const provider = word(value.provider);
+  const model = word(value.model);
+  const at = word(value.at);
+  return provider === '' || model === '' || at === '' ? null : { provider, model, at };
+}
+
 export function toModelSettings(body: unknown): ModelSettings {
   if (!isRecord(body) || !isProvider(body.provider)) throw unexpected();
   const bedrock = isRecord(body.bedrock) ? body.bedrock : {};
@@ -51,6 +66,7 @@ export function toModelSettings(body: unknown): ModelSettings {
     provider: body.provider,
     ready: body.ready === true,
     reason: maybe(body.reason),
+    lastServed: toServed(body.lastServed),
     bedrock: { region: word(bedrock.region), model: word(bedrock.model), hasKey: bedrock.hasKey === true },
     openrouter: { model: word(openrouter.model), hasKey: openrouter.hasKey === true },
     codex: { model: word(codex.model), signedIn: codex.signedIn === true, account: maybe(codex.account), plan: maybe(codex.plan) },
@@ -91,6 +107,8 @@ export async function codexModels(): Promise<string[]> {
   if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
   return body.models.filter((m): m is string => typeof m === 'string');
 }
+
+export const servedLabel = (served: Served): string => (served.provider === 'anthropic' ? served.model : `${served.provider}:${served.model}`);
 
 export function routeLabel(settings: ModelSettings): string {
   if (settings.provider === 'bedrock') return `Amazon Bedrock · ${settings.bedrock.model === '' ? 'the model Claude Code asks for' : settings.bedrock.model}`;
@@ -165,13 +183,38 @@ const MATCH_MAX = 40;
 export interface ModelOption {
   id: string;
   name: string;
+  prompt?: number | null;
+  completion?: number | null;
+}
+
+const PER_MILLION = 1_000_000;
+
+const amount = (perToken: number): string => {
+  const each = perToken * PER_MILLION;
+  return `$${String(Number(each.toFixed(each >= 1 ? 2 : 3)))}`;
+};
+
+export function priceLabel(model: ModelOption): string {
+  const { prompt, completion } = model;
+  if (typeof prompt !== 'number' || typeof completion !== 'number') return '';
+  if (prompt === 0 && completion === 0) return 'Free';
+  return `${amount(prompt)} in · ${amount(completion)} out per 1M`;
 }
 
 export async function openrouterModels(): Promise<ModelOption[]> {
   const body = await call({ method: 'GET', base: modelUrl(), path: '/openrouter/models' });
   if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
   return body.models.flatMap((m: unknown) =>
-    isRecord(m) && typeof m.id === 'string' ? [{ id: m.id, name: typeof m.name === 'string' && m.name !== '' ? m.name : m.id }] : [],
+    isRecord(m) && typeof m.id === 'string'
+      ? [
+          {
+            id: m.id,
+            name: typeof m.name === 'string' && m.name !== '' ? m.name : m.id,
+            prompt: typeof m.prompt === 'number' ? m.prompt : null,
+            completion: typeof m.completion === 'number' ? m.completion : null,
+          },
+        ]
+      : [],
   );
 }
 

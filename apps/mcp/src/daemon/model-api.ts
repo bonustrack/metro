@@ -7,6 +7,7 @@ import { beginLogin, CodexAuthError, finishLogin, readCodexCliAuth } from '../ga
 import { beginDeviceLogin, pollDeviceLogin } from '../gateway/codex-device.js';
 import { codexModels, currentTokens, freshCodexState } from '../gateway/codex.js';
 import { openrouterModels } from '../gateway/openrouter.js';
+import { lastServed } from '../gateway/served.js';
 import type { CodexTokens } from '../gateway/codex-auth.js';
 import { GatewayError } from '../gateway/forward.js';
 import {
@@ -49,6 +50,8 @@ interface Route {
   run: Handler;
 }
 
+const settingsBody = (cfg: ModelConfig): Record<string, unknown> => ({ ...publicModelConfig(cfg), lastServed: lastServed() });
+
 function asApiError(err: unknown): never {
   if (err instanceof ModelConfigError || err instanceof CodexAuthError) throw new ApiError(err.message, 400);
   if (err instanceof GatewayError) throw new ApiError(err.message, 502);
@@ -65,13 +68,13 @@ async function update(req: IncomingMessage, store: Store): Promise<unknown> {
   }
   store.write(next);
   log.info({ provider: next.provider }, 'model-api: route updated');
-  return publicModelConfig(next);
+  return settingsBody(next);
 }
 
 function saveCodex(store: Store, cfg: ModelConfig, note: string): unknown {
   store.write(cfg);
   log.info({ signedIn: cfg.codex.auth !== null, plan: cfg.codex.auth?.plan ?? null }, note);
-  return publicModelConfig(cfg);
+  return settingsBody(cfg);
 }
 
 const modelApiState = freshCodexState();
@@ -146,7 +149,7 @@ const named = (table: Record<string, Route>, name: string, method: string | unde
 };
 
 function settingsRoute(method: string | undefined): Route | number {
-  if (method === 'GET') return { method: 'GET', run: (_req, _deps, store) => Promise.resolve(publicModelConfig(store.read())) };
+  if (method === 'GET') return { method: 'GET', run: (_req, _deps, store) => Promise.resolve(settingsBody(store.read())) };
   if (method === 'PUT') return { method: 'POST', run: (req, _deps, store) => update(req, store) };
   return 405;
 }

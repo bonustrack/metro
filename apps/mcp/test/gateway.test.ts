@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../src/gateway/gateway.ts';
+import { lastServed } from '../src/gateway/served.ts';
 import { encodeFrame } from '../src/gateway/eventstream.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import type { CodexTokens } from '../src/gateway/codex-auth.ts';
@@ -377,5 +378,21 @@ describe('what keeps a session alive through a bad hour', () => {
     cfg.provider = 'codex';
     cfg.codex.auth = null;
     expect((await post('/gateway/v1/messages', message('gpt-5.4'))).status).toBe(400);
+  });
+});
+
+describe('what the Model page can show about traffic', () => {
+  test('a served message is remembered with its route, a token count is not, and a reset forgets it', async () => {
+    expect(lastServed()).toBeNull();
+    await post('/gateway/v1/messages', message('claude-sonnet-5'));
+    expect(lastServed()).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5' });
+    expect(Date.parse(lastServed()?.at ?? '')).toBeGreaterThan(0);
+    await post('/gateway/v1/messages', message('bedrock:eu.anthropic.claude-sonnet-4-6'));
+    expect(lastServed()).toMatchObject({ provider: 'bedrock', model: 'eu.anthropic.claude-sonnet-4-6' });
+    const before = lastServed();
+    await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-5'));
+    expect(lastServed()).toEqual(before);
+    resetGatewayState();
+    expect(lastServed()).toBeNull();
   });
 });

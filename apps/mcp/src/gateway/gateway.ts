@@ -13,6 +13,7 @@ import { forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, send
 import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, writeModelConfig, type ModelConfig, type Route } from './model-config.js';
 import { codexCount, codexMessages, freshCodexState, type CodexDeps } from './codex.js';
 import { OPENROUTER_BASE } from './openrouter.js';
+import { forgetServed, noteServed } from './served.js';
 import type { CodexTokens } from './codex-auth.js';
 
 export const GATEWAY_PREFIX = '/gateway';
@@ -35,6 +36,7 @@ const learned: Adaptations = freshAdaptations();
 const codexState = freshCodexState();
 
 export function resetGatewayState(): void {
+  forgetServed();
   learned.fields.clear();
   learned.dropBetas = false;
   Object.assign(codexState, freshCodexState());
@@ -127,6 +129,7 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
   const body = parseJson(raw);
   const route = resolveRoute(requestedModel(body), cfg);
   log.info({ route: routeLabel(route), path }, 'gateway: routing');
+  if (path === MESSAGES) noteServed({ provider: route.provider, model: route.model, at: new Date().toISOString() });
   if (route.provider === 'bedrock') {
     assertBedrockReady(cfg.bedrock);
     const up = { settings: cfg.bedrock, base: deps.bedrockBase ?? bedrockBase(cfg.bedrock.region), learned, watch: watchUpstream(res) };

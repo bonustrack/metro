@@ -1,3 +1,4 @@
+import { isRecord } from '../daemon/is-record.js';
 import { GatewayError } from './forward.js';
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api';
@@ -6,15 +7,23 @@ const MODELS_MAX = 2000;
 export interface OpenRouterModel {
   id: string;
   name: string;
+  prompt: number | null;
+  completion: number | null;
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
+function price(raw: unknown): number | null {
+  const value = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : Number.NaN;
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 function modelOf(entry: unknown): OpenRouterModel | null {
-  if (typeof entry !== 'object' || entry === null) return null;
-  const row = entry as { id?: unknown; name?: unknown };
-  const id = str(row.id);
-  return id === '' ? null : { id, name: str(row.name) || id };
+  if (!isRecord(entry)) return null;
+  const id = str(entry.id);
+  if (id === '') return null;
+  const pricing = isRecord(entry.pricing) ? entry.pricing : {};
+  return { id, name: str(entry.name) || id, prompt: price(pricing.prompt), completion: price(pricing.completion) };
 }
 
 export async function openrouterModels(base = OPENROUTER_BASE, fetchImpl: typeof fetch = fetch): Promise<OpenRouterModel[]> {
