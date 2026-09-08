@@ -158,3 +158,28 @@ export async function pollCodexDevice(id: string): Promise<DevicePoll> {
   if (body.status === 'failed') return { status: 'failed', error: typeof body.error === 'string' ? body.error : 'The sign-in did not finish.' };
   return { status: 'pending' };
 }
+
+export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
+const MATCH_MAX = 40;
+
+export interface OpenRouterModel {
+  id: string;
+  name: string;
+}
+
+export async function openrouterModels(): Promise<OpenRouterModel[]> {
+  const body = await call({ method: 'GET', base: modelUrl(), path: '/openrouter/models' });
+  if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
+  return body.models.flatMap((m: unknown) =>
+    isRecord(m) && typeof m.id === 'string' ? [{ id: m.id, name: typeof m.name === 'string' && m.name !== '' ? m.name : m.id }] : [],
+  );
+}
+
+export function matchModels(models: OpenRouterModel[], query: string, limit = MATCH_MAX): OpenRouterModel[] {
+  const words = query.toLowerCase().split(/\s+/).filter((w) => w !== '');
+  const hit = (model: OpenRouterModel): boolean => {
+    const hay = `${model.id} ${model.name}`.toLowerCase();
+    return words.every((word) => hay.includes(word));
+  };
+  return models.filter(hit).slice(0, limit);
+}

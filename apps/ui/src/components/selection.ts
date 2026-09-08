@@ -13,7 +13,8 @@ export type Selection =
   | { kind: 'connectors'; project: string }
   | { kind: 'connector'; project: string; id: string }
   | { kind: 'sessions'; project: string; claudeProject: string | null; id: string | null }
-  | { kind: 'memory'; project: string; claudeProject: string | null; file: string | null };
+  | { kind: 'memory'; project: string; claudeProject: string | null; file: string | null }
+  | { kind: 'claude'; project: string };
 
 export function selectionProject(selection: Selection): string | null {
   return 'project' in selection ? selection.project : null;

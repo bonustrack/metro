@@ -12,11 +12,11 @@ import {
 import { forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
 import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, writeModelConfig, type ModelConfig, type Route } from './model-config.js';
 import { codexCount, codexMessages, freshCodexState, type CodexDeps } from './codex.js';
+import { OPENROUTER_BASE } from './openrouter.js';
 import type { CodexTokens } from './codex-auth.js';
 
 export const GATEWAY_PREFIX = '/gateway';
 export const ANTHROPIC_BASE = 'https://api.anthropic.com';
-export const OPENROUTER_BASE = 'https://openrouter.ai/api';
 const MESSAGES = '/v1/messages';
 const COUNT = '/v1/messages/count_tokens';
 const MODELS = '/v1/models';

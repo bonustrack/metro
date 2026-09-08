@@ -17,6 +17,7 @@ describe('the first segment is the daemon', () => {
         { kind: 'sessions', project, claudeProject: '-home-me-proj', id: null },
         { kind: 'sessions', project, claudeProject: '-home-me-proj', id: '11111111-2222-4333-8444-555555555555' },
         { kind: 'memory', project, claudeProject: null, file: null },
+        { kind: 'claude', project },
         { kind: 'memory', project, claudeProject: '-Users-less-Cursor-bonustrack-metro', file: 'project_cli_redesign.md' },
       ];
       for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);

@@ -23,18 +23,20 @@ import {
 import {
   fetchClaudeProjects,
   fetchClaudeSessions,
+  fetchClaudeSettings,
   fetchMemory,
   fetchMemoryFile,
   deleteClaudeSession,
   type ClaudeProject,
   type ClaudeSession,
+  type ClaudeSettingsFile,
   type MemoryListing,
 } from './claude';
 import { fetchMode, type ModeInfo } from './mode';
 import { fetchUpdate, type UpdateCheck } from './update';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers';
 import { fetchMachine, type Machine } from './machine';
-import { fetchModel, type ModelSettings } from './model';
+import { fetchModel, openrouterModels, type ModelSettings, type OpenRouterModel } from './model';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -43,6 +45,7 @@ const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 export const sessionKey = (): string[] => ['session'];
 const claudeProjectsKey = (): string[] => ['claude', 'projects'];
 const claudeSessionsKey = (project: string): string[] => ['claude', 'sessions', project];
+const claudeSettingsKey = (): string[] => ['claude', 'settings', daemonBase()];
 const memoryKey = (project: string): string[] => ['claude', 'memory', project];
 const memoryFileKey = (project: string, name: string): string[] => ['claude', 'memory', project, name];
 const LIVE_LIST_MS = 5_000;
@@ -133,6 +136,15 @@ export function refreshModel(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: ['model', daemonBase()] });
 }
 
+export function useOpenRouterModelsQuery(enabled: boolean): UseQueryResult<OpenRouterModel[]> {
+  return useQuery({
+    queryKey: ['openrouter', 'models', daemonBase()],
+    queryFn: () => openrouterModels(),
+    enabled,
+    staleTime: 10 * 60_000,
+  });
+}
+
 export function useModeQuery(): UseQueryResult<ModeInfo> {
   return useQuery({
     queryKey: ['mode', daemonBase()],
@@ -186,6 +198,18 @@ export function removeClaudeSession(client: QueryClient, project: string, id: st
   return deleteClaudeSession(project, id).then(() => {
     invalidate(client, [claudeSessionsKey(project), claudeProjectsKey()]);
   });
+}
+
+export function useClaudeSettingsQuery(): UseQueryResult<ClaudeSettingsFile[]> {
+  return useQuery({
+    queryKey: claudeSettingsKey(),
+    queryFn: () => fetchClaudeSettings(),
+    staleTime: 30_000,
+  });
+}
+
+export function refreshClaudeSettings(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ queryKey: claudeSettingsKey() });
 }
 
 export function useMemoryQuery(project: string): UseQueryResult<MemoryListing> {
