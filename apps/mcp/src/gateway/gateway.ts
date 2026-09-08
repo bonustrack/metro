@@ -9,7 +9,7 @@ import {
   freshAdaptations,
   type Adaptations,
 } from './bedrock.js';
-import { forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
+import { anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
 import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, writeModelConfig, type ModelConfig, type Route } from './model-config.js';
 import { codexCount, codexMessages, freshCodexState, type CodexDeps } from './codex.js';
 import { OPENROUTER_BASE } from './openrouter.js';
@@ -82,14 +82,15 @@ async function toAnthropic(
   const payload = explicit ? Buffer.from(JSON.stringify({ ...body, model: route.model })) : raw;
   const url = `${deps.anthropicBase ?? ANTHROPIC_BASE}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
   const watch = watchUpstream(res);
+  const key = deps.config().anthropic.apiKey;
   const upstream = await fetch(url, {
     method: 'POST',
-    headers: forwardedHeaders(req),
+    headers: key === '' ? forwardedHeaders(req) : anthropicHeaders(req, key),
     body: new Uint8Array(payload),
     signal: watch.signal,
     redirect: 'manual',
   });
-  await pipeResponse(upstream, res, watch);
+  await pipeResponse(upstream, res, watch, key === '' ? {} : { ownCredential: true });
 }
 
 async function toOpenRouter(

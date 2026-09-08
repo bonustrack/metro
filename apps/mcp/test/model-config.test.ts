@@ -27,6 +27,7 @@ afterEach(() => {
 const configured: ModelConfig = {
   version: 1,
   provider: 'bedrock',
+  anthropic: { apiKey: '', model: '' },
   bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
   openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex' },
   codex: { model: '', auth: null },
@@ -38,6 +39,7 @@ describe('the model route on disk', () => {
     expect(readModelConfig(dir).provider).toBe('anthropic');
     writeFileSync(join(dir, 'model.json'), '{"provider":"mars","bedrock":7}');
     expect(readModelConfig(dir)).toEqual({
+      anthropic: { apiKey: '', model: '' },
       version: 1,
       provider: 'anthropic',
       bedrock: { region: '', apiKey: '', model: '' },
@@ -73,6 +75,7 @@ describe('updating the route from the page', () => {
   test('a bad provider, a non-string field or an oversized field is refused by name', () => {
     expect(() => applyModelUpdate(configured, { provider: 'mars' })).toThrow(ModelConfigError);
     expect(() => applyModelUpdate(configured, { bedrock: { region: 5 } })).toThrow(/Bedrock region/);
+    expect(() => applyModelUpdate(configured, { anthropic: { apiKey: 5 } })).toThrow(/Anthropic API key/);
     expect(() => applyModelUpdate(configured, { openrouter: { apiKey: 'x'.repeat(600) } })).toThrow(/too long/);
     expect(() => applyModelUpdate(configured, 'nope')).toThrow(/JSON object/);
   });
@@ -125,5 +128,25 @@ describe('the Codex route', () => {
     expect(resolveRoute('claude-sonnet-5', signedIn)).toEqual({ provider: 'codex', model: 'gpt-5.3-codex' });
     expect(resolveRoute('gpt-5.4', signedIn)).toEqual({ provider: 'codex', model: 'gpt-5.4' });
     expect(resolveRoute('codex:gpt-5.2-codex', configured)).toEqual({ provider: 'codex', model: 'gpt-5.2-codex' });
+  });
+});
+
+describe('the Anthropic route, once metro holds the credential', () => {
+  const withKey: ModelConfig = { ...configured, provider: 'anthropic', anthropic: { apiKey: 'sk-ant-x', model: 'claude-opus-5' } };
+
+  test('a pinned model replaces the one asked for, but a small model is never upgraded', () => {
+    expect(resolveRoute('claude-sonnet-4-6', withKey)).toEqual({ provider: 'anthropic', model: 'claude-opus-5' });
+    expect(resolveRoute('claude-haiku-4-5-20251001', withKey)).toEqual({ provider: 'anthropic', model: 'claude-haiku-4-5-20251001' });
+    expect(resolveRoute('claude-sonnet-4-6', { ...withKey, anthropic: { apiKey: '', model: '' } })).toEqual({ provider: 'anthropic', model: 'claude-sonnet-4-6' });
+    expect(resolveRoute('bedrock:x', withKey)).toEqual({ provider: 'bedrock', model: 'x' });
+  });
+
+  test('the key is stored and never shown, and the page sees only that one is held', () => {
+    const shown = publicModelConfig(withKey);
+    expect(JSON.stringify(shown)).not.toContain('sk-ant-x');
+    expect(shown.anthropic).toEqual({ model: 'claude-opus-5', hasKey: true });
+    expect(publicModelConfig(configured).anthropic).toEqual({ model: '', hasKey: false });
+    expect(applyModelUpdate(configured, { anthropic: { apiKey: 'sk-ant-y' } }).anthropic.apiKey).toBe('sk-ant-y');
+    expect(applyModelUpdate(withKey, { anthropic: { model: 'claude-sonnet-5' } }).anthropic).toEqual({ apiKey: 'sk-ant-x', model: 'claude-sonnet-5' });
   });
 });

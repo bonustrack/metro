@@ -7,6 +7,11 @@ import type { CodexTokens } from './codex-auth.js';
 export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
+export interface AnthropicSettings {
+  apiKey: string;
+  model: string;
+}
+
 export interface BedrockSettings {
   region: string;
   apiKey: string;
@@ -26,6 +31,7 @@ export interface CodexSettings {
 export interface ModelConfig {
   version: 1;
   provider: Provider;
+  anthropic: AnthropicSettings;
   bedrock: BedrockSettings;
   openrouter: OpenRouterSettings;
   codex: CodexSettings;
@@ -41,10 +47,12 @@ export class ModelConfigError extends Error {}
 export const MODEL_FILE = 'model.json';
 const MAX_FIELD = 512;
 const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex):(.+)$/;
+const SMALL_RE = /haiku/i;
 
 const empty = (): ModelConfig => ({
   version: 1,
   provider: 'anthropic',
+  anthropic: { apiKey: '', model: '' },
   bedrock: { region: '', apiKey: '', model: '' },
   openrouter: { apiKey: '', model: '' },
   codex: { model: '', auth: null },
@@ -76,12 +84,14 @@ function tokensFromDisk(raw: unknown): CodexTokens | null {
 function fromDisk(raw: unknown): ModelConfig {
   const base = empty();
   if (!isRecord(raw)) return base;
+  const anthropic = isRecord(raw.anthropic) ? raw.anthropic : {};
   const bedrock = isRecord(raw.bedrock) ? raw.bedrock : {};
   const openrouter = isRecord(raw.openrouter) ? raw.openrouter : {};
   const codex = isRecord(raw.codex) ? raw.codex : {};
   return {
     version: 1,
     provider: isProvider(raw.provider) ? raw.provider : 'anthropic',
+    anthropic: { apiKey: text(anthropic.apiKey), model: text(anthropic.model) },
     bedrock: { region: text(bedrock.region), apiKey: text(bedrock.apiKey), model: text(bedrock.model) },
     openrouter: { apiKey: text(openrouter.apiKey), model: text(openrouter.model) },
     codex: { model: text(codex.model), auth: tokensFromDisk(codex.auth) },
@@ -108,12 +118,17 @@ export function applyModelUpdate(cfg: ModelConfig, patch: unknown): ModelConfig 
   if (!isRecord(patch)) throw new ModelConfigError('body must be a JSON object');
   const provider = 'provider' in patch ? patch.provider : cfg.provider;
   if (!isProvider(provider)) throw new ModelConfigError(`provider must be one of ${PROVIDERS.join(', ')}`);
+  const anthropic = isRecord(patch.anthropic) ? patch.anthropic : {};
   const bedrock = isRecord(patch.bedrock) ? patch.bedrock : {};
   const openrouter = isRecord(patch.openrouter) ? patch.openrouter : {};
   const codex = isRecord(patch.codex) ? patch.codex : {};
   return {
     version: 1,
     provider,
+    anthropic: {
+      apiKey: field(anthropic, 'apiKey', cfg.anthropic.apiKey, 'Anthropic API key'),
+      model: field(anthropic, 'model', cfg.anthropic.model, 'Anthropic model'),
+    },
     bedrock: {
       region: field(bedrock, 'region', cfg.bedrock.region, 'Bedrock region'),
       apiKey: field(bedrock, 'apiKey', cfg.bedrock.apiKey, 'Bedrock API key'),
@@ -155,17 +170,20 @@ export function publicModelConfig(cfg: ModelConfig): Record<string, unknown> {
     provider: cfg.provider,
     ready: notReady(cfg) === null,
     reason: notReady(cfg),
+    anthropic: { model: cfg.anthropic.model, hasKey: cfg.anthropic.apiKey !== '' },
     bedrock: { region: cfg.bedrock.region, model: cfg.bedrock.model, hasKey: cfg.bedrock.apiKey !== '' },
     openrouter: { model: cfg.openrouter.model, hasKey: cfg.openrouter.apiKey !== '' },
     codex: { model: cfg.codex.model, signedIn: auth !== null, account: auth?.email ?? null, plan: auth?.plan ?? null },
   };
 }
 
+export const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
+
 function defaultModelFor(provider: Provider, requested: string, cfg: ModelConfig): string {
   if (provider === 'openrouter') return requested.includes('/') ? requested : cfg.openrouter.model;
   if (provider === 'bedrock') return cfg.bedrock.model === '' ? requested : cfg.bedrock.model;
   if (provider === 'codex') return requested.startsWith('gpt-') ? requested : cfg.codex.model;
-  return requested;
+  return cfg.anthropic.model === '' || isSmallModel(requested) ? requested : cfg.anthropic.model;
 }
 
 export function resolveRoute(requested: string, cfg: ModelConfig): Route {

@@ -7,7 +7,7 @@ import { PageTitle } from './PageTitle';
 import { FieldLabel } from './FieldLabel';
 import { Loading } from './Loading';
 import { GROW } from '../theme';
-import { afterSave, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelSettings } from '../api/model';
+import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelSettings } from '../api/model';
 import { queryError, refreshModel, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery } from '../api/queries';
 import { ModelPicker } from './ModelPicker';
 import { useDocumentTitle } from '../title';
@@ -43,6 +43,47 @@ function KeyField({ label, hasKey, value, forget, onChange, onForget }: KeyField
   );
 }
 
+function KeyLink({ url, label }: { url: string; label: string }): ReactNode {
+  return (
+    <Text size="sm" role="secondary">
+      <a className="hint-link" href={url} target="_blank" rel="noreferrer">
+        {label}
+      </a>
+    </Text>
+  );
+}
+
+function AnthropicFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
+  return (
+    <Col gap={12}>
+      <KeyField
+        label="Anthropic API key"
+        hasKey={settings.anthropic.hasKey}
+        value={draft.anthropicKey}
+        forget={draft.anthropicForget}
+        onChange={(v) => {
+          set({ anthropicKey: v });
+        }}
+        onForget={(f) => {
+          set({ anthropicForget: f });
+        }}
+      />
+      <KeyLink url={ANTHROPIC_KEYS_URL} label="Get a key from the Anthropic Console" />
+      <TextField
+        label="Model"
+        value={draft.anthropicModel}
+        placeholder="empty: the model Claude Code asks for, e.g. claude-opus-5"
+        onChange={(v) => {
+          set({ anthropicModel: v });
+        }}
+      />
+      <Text size="sm" role="secondary">
+        A pinned model does not touch the small ones. A request for Haiku stays Haiku, so background work and subagents pinned to it keep costing what they should.
+      </Text>
+    </Col>
+  );
+}
+
 function OpenRouterFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
   const [wanted, setWanted] = useState(false);
   const models = useOpenRouterModelsQuery(wanted);
@@ -60,11 +101,7 @@ function OpenRouterFields({ draft, settings, set }: { draft: Draft; settings: Mo
           set({ openrouterForget: f });
         }}
       />
-      <Text size="sm" role="secondary">
-        <a className="hint-link" href={OPENROUTER_KEYS_URL} target="_blank" rel="noreferrer">
-          Get a key from OpenRouter
-        </a>
-      </Text>
+      <KeyLink url={OPENROUTER_KEYS_URL} label="Get a key from OpenRouter" />
       <ModelPicker
         label="Model"
         value={draft.openrouterModel}
@@ -128,11 +165,7 @@ function ProviderFields({ draft, settings, set }: { draft: Draft; settings: Mode
     );
   if (draft.provider === 'openrouter') return <OpenRouterFields draft={draft} settings={settings} set={set} />;
   if (draft.provider === 'codex') return <CodexFields draft={draft} settings={settings} set={set} />;
-  return (
-    <Text size="sm" role="secondary">
-      Requests go to api.anthropic.com exactly as Claude Code sent them, with its own login. Nothing to configure.
-    </Text>
-  );
+  return <AnthropicFields draft={draft} settings={settings} set={set} />;
 }
 
 const NOTHING_YET =

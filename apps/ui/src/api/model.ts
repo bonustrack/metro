@@ -11,7 +11,12 @@ export interface ProviderInfo {
 }
 
 export const PROVIDERS: ProviderInfo[] = [
-  { id: 'anthropic', label: 'Anthropic', blurb: 'Your Claude Code login, passed through untouched. Nothing to configure.' },
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    blurb:
+      'Claude models. With no key here, the request carries the login of the Claude Code session that sent it, untouched. Add a key and metro bills that key instead, and can pin the model.',
+  },
   { id: 'bedrock', label: 'Amazon Bedrock', blurb: 'Claude models billed to your AWS account, through a Bedrock API key.' },
   { id: 'openrouter', label: 'OpenRouter', blurb: 'Any model OpenRouter serves, Claude, GPT and Codex, Gemini, through one OpenRouter key.' },
   {
@@ -32,6 +37,7 @@ export interface ModelSettings {
   ready: boolean;
   reason: string | null;
   lastServed: Served | null;
+  anthropic: { model: string; hasKey: boolean };
   bedrock: { region: string; model: string; hasKey: boolean };
   openrouter: { model: string; hasKey: boolean };
   codex: { model: string; signedIn: boolean; account: string | null; plan: string | null };
@@ -39,6 +45,7 @@ export interface ModelSettings {
 
 export interface ModelPatch {
   provider?: Provider;
+  anthropic?: { apiKey?: string; model?: string };
   bedrock?: { region?: string; apiKey?: string; model?: string };
   openrouter?: { apiKey?: string; model?: string };
   codex?: { model?: string };
@@ -59,6 +66,7 @@ export function toServed(value: unknown): Served | null {
 
 export function toModelSettings(body: unknown): ModelSettings {
   if (!isRecord(body) || !isProvider(body.provider)) throw unexpected();
+  const anthropic = isRecord(body.anthropic) ? body.anthropic : {};
   const bedrock = isRecord(body.bedrock) ? body.bedrock : {};
   const openrouter = isRecord(body.openrouter) ? body.openrouter : {};
   const codex = isRecord(body.codex) ? body.codex : {};
@@ -67,6 +75,7 @@ export function toModelSettings(body: unknown): ModelSettings {
     ready: body.ready === true,
     reason: maybe(body.reason),
     lastServed: toServed(body.lastServed),
+    anthropic: { model: word(anthropic.model), hasKey: anthropic.hasKey === true },
     bedrock: { region: word(bedrock.region), model: word(bedrock.model), hasKey: bedrock.hasKey === true },
     openrouter: { model: word(openrouter.model), hasKey: openrouter.hasKey === true },
     codex: { model: word(codex.model), signedIn: codex.signedIn === true, account: maybe(codex.account), plan: maybe(codex.plan) },
@@ -114,11 +123,15 @@ export function routeLabel(settings: ModelSettings): string {
   if (settings.provider === 'bedrock') return `Amazon Bedrock · ${settings.bedrock.model === '' ? 'the model Claude Code asks for' : settings.bedrock.model}`;
   if (settings.provider === 'openrouter') return `OpenRouter · ${settings.openrouter.model === '' ? 'no model chosen' : settings.openrouter.model}`;
   if (settings.provider === 'codex') return `Codex · ${settings.codex.model === '' ? 'no model chosen' : settings.codex.model}`;
-  return 'Anthropic · your Claude Code login';
+  const how = settings.anthropic.hasKey ? 'the key on this page' : 'your Claude Code login';
+  return `Anthropic · ${settings.anthropic.model === '' ? 'the model Claude Code asks for' : settings.anthropic.model} · ${how}`;
 }
 
 export interface Draft {
   provider: Provider;
+  anthropicModel: string;
+  anthropicKey: string;
+  anthropicForget: boolean;
   bedrockRegion: string;
   bedrockModel: string;
   bedrockKey: string;
@@ -131,6 +144,9 @@ export interface Draft {
 
 export const draftOf = (s: ModelSettings): Draft => ({
   provider: s.provider,
+  anthropicModel: s.anthropic.model,
+  anthropicKey: '',
+  anthropicForget: false,
   bedrockRegion: s.bedrock.region,
   bedrockModel: s.bedrock.model,
   bedrockKey: '',
@@ -146,13 +162,22 @@ const keyPatch = (typed: string, forget: boolean): { apiKey?: string } => (forge
 export function patchOf(draft: Draft): ModelPatch {
   return {
     provider: draft.provider,
+    anthropic: { model: draft.anthropicModel, ...keyPatch(draft.anthropicKey, draft.anthropicForget) },
     bedrock: { region: draft.bedrockRegion, model: draft.bedrockModel, ...keyPatch(draft.bedrockKey, draft.bedrockForget) },
     openrouter: { model: draft.openrouterModel, ...keyPatch(draft.openrouterKey, draft.openrouterForget) },
     codex: { model: draft.codexModel },
   };
 }
 
-export const afterSave = (draft: Draft): Draft => ({ ...draft, bedrockKey: '', bedrockForget: false, openrouterKey: '', openrouterForget: false });
+export const afterSave = (draft: Draft): Draft => ({
+  ...draft,
+  anthropicKey: '',
+  anthropicForget: false,
+  bedrockKey: '',
+  bedrockForget: false,
+  openrouterKey: '',
+  openrouterForget: false,
+});
 
 export interface DeviceLogin {
   id: string;
@@ -178,6 +203,7 @@ export async function pollCodexDevice(id: string): Promise<DevicePoll> {
 }
 
 export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
+export const ANTHROPIC_KEYS_URL = 'https://console.anthropic.com/settings/keys';
 const MATCH_MAX = 40;
 
 export interface ModelOption {

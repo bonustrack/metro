@@ -89,7 +89,7 @@ beforeAll(async () => {
     if (req.body.includes('"stream":true')) sse(res, ['message_start', 'message_stop']);
     else {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ echo: JSON.parse(req.body) as unknown, auth: req.headers.authorization, beta: req.headers['anthropic-beta'], key: req.headers['x-metro-key'] ?? null }));
+      res.end(JSON.stringify({ echo: JSON.parse(req.body) as unknown, auth: req.headers.authorization, beta: req.headers['anthropic-beta'], key: req.headers['x-metro-key'] ?? null, apiKey: req.headers['x-api-key'] ?? null }));
     }
   });
   bedrock = await fake((req, res) => {
@@ -146,6 +146,7 @@ beforeEach(() => {
   resetGatewayState();
   cfg = {
     version: 1,
+    anthropic: { apiKey: '', model: '' },
     provider: 'anthropic',
     bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
     openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex' },
@@ -201,6 +202,22 @@ describe('the Anthropic route', () => {
     expect(body.echo).toEqual(message('claude-sonnet-5'));
     expect(anthropic.seen[0]?.url).toBe('/v1/messages?beta=true');
     expect(anthropic.seen[0]?.body).toBe(JSON.stringify(message('claude-sonnet-5')));
+  });
+
+  test('a key on the page replaces Claude Code\'s own login, takes the oauth beta off, and pins the model', async () => {
+    cfg.anthropic = { apiKey: 'sk-ant-page', model: 'claude-opus-5' };
+    const res = await post('/gateway/v1/messages', message('claude-sonnet-5'), {
+      authorization: 'Bearer sk-ant-oat-login',
+      'anthropic-beta': 'oauth-2025-04-20,context-management-2025-06-27',
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { auth?: string; beta: string; apiKey: string | null };
+    expect(body.apiKey).toBe('sk-ant-page');
+    expect(body.auth).toBeUndefined();
+    expect(body.beta).toBe('context-management-2025-06-27');
+    expect((JSON.parse(anthropic.seen[0]?.body ?? '{}') as { model: string }).model).toBe('claude-opus-5');
+    await post('/gateway/v1/messages', message('claude-haiku-4-5-20251001'));
+    expect((JSON.parse(anthropic.seen[1]?.body ?? '{}') as { model: string }).model).toBe('claude-haiku-4-5-20251001');
   });
 
   test('a stream comes back as the same SSE, with the upstream headers, and an explicit prefix strips to the bare id', async () => {

@@ -21,7 +21,9 @@ describe('what the Model page reads from the daemon', () => {
     const bare = toModelSettings({ provider: 'anthropic', ready: true });
     expect(bare.bedrock).toEqual({ region: '', model: '', hasKey: false });
     expect(bare.reason).toBeNull();
-    expect(routeLabel(bare)).toBe('Anthropic · your Claude Code login');
+    expect(bare.anthropic).toEqual({ model: '', hasKey: false });
+    expect(routeLabel(bare)).toBe('Anthropic · the model Claude Code asks for · your Claude Code login');
+    expect(routeLabel({ ...bare, anthropic: { model: 'claude-opus-5', hasKey: true } })).toBe('Anthropic · claude-opus-5 · the key on this page');
     expect(() => toModelSettings({ provider: 'mars' })).toThrow(/unexpected/);
     expect(PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'bedrock', 'openrouter', 'codex']);
     expect(bare.codex).toEqual({ model: '', signedIn: false, account: null, plan: null });
@@ -39,10 +41,12 @@ describe('what Save sends', () => {
     const settings = toModelSettings({ provider: 'bedrock', ready: true, bedrock: { region: 'eu-central-1', model: '', hasKey: true }, openrouter: { model: 'x/y', hasKey: true }, codex: { model: 'gpt-5.4' } });
     const draft = draftOf(settings);
     expect(draft.bedrockKey).toBe('');
-    expect(patchOf(draft)).toEqual({ provider: 'bedrock', bedrock: { region: 'eu-central-1', model: '' }, openrouter: { model: 'x/y' }, codex: { model: 'gpt-5.4' } });
+    expect(patchOf(draft)).toEqual({ provider: 'bedrock', anthropic: { model: '' }, bedrock: { region: 'eu-central-1', model: '' }, openrouter: { model: 'x/y' }, codex: { model: 'gpt-5.4' } });
+    expect(patchOf({ ...draft, anthropicKey: 'sk-ant-x', anthropicModel: 'claude-opus-5' }).anthropic).toEqual({ model: 'claude-opus-5', apiKey: 'sk-ant-x' });
+    expect(patchOf({ ...draft, anthropicForget: true }).anthropic).toEqual({ model: '', apiKey: '' });
     expect(patchOf({ ...draft, bedrockKey: 'new-key' }).bedrock).toEqual({ region: 'eu-central-1', model: '', apiKey: 'new-key' });
     expect(patchOf({ ...draft, openrouterForget: true }).openrouter).toEqual({ model: 'x/y', apiKey: '' });
-    expect(afterSave({ ...draft, bedrockKey: 'new-key', openrouterForget: true })).toMatchObject({ bedrockKey: '', bedrockForget: false, openrouterKey: '', openrouterForget: false, codexModel: 'gpt-5.4' });
+    expect(afterSave({ ...draft, bedrockKey: 'new-key', openrouterForget: true, anthropicKey: 'k' })).toMatchObject({ anthropicKey: '', anthropicForget: false, bedrockKey: '', bedrockForget: false, openrouterKey: '', openrouterForget: false, codexModel: 'gpt-5.4' });
   });
 });
 

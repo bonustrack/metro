@@ -93,7 +93,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  stored = { version: 1, provider: 'anthropic', bedrock: { region: '', apiKey: '', model: '' }, openrouter: { apiKey: '', model: '' }, codex: { model: '', auth: null } };
+  stored = { version: 1, provider: 'anthropic', anthropic: { apiKey: '', model: '' }, bedrock: { region: '', apiKey: '', model: '' }, openrouter: { apiKey: '', model: '' }, codex: { model: '', auth: null } };
 });
 
 const call = async (method: string, who: Who | null, body?: unknown): Promise<Response> =>
