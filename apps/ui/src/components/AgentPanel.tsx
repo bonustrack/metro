@@ -9,6 +9,7 @@ import { Sessions } from './Sessions';
 import { ServerPage } from './ServerPage';
 import { TerminalPage } from './Terminal';
 import { ModelPage } from './ModelPage';
+import { ClaudeSettings } from './ClaudeSettings';
 import { Settings } from './Settings';
 import { StationPage } from './StationPage';
 import { Stations } from './Stations';
@@ -57,6 +58,7 @@ function claudeRoutes(project: string, selection: Selection, go: Go): ReactNode 
     return <Sessions project={project} claudeProject={selection.claudeProject} id={selection.id} onSelect={go} />;
   if (selection.kind === 'memory')
     return <Memory project={project} claudeProject={selection.claudeProject} file={selection.file} onSelect={go} />;
+  if (selection.kind === 'claude') return <ClaudeSettings />;
   return null;
 }
 

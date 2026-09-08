@@ -1,7 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from './log.js';
-import { apiFailure, apiSession, cors, sendJson } from './api-http.js';
+import { apiFailure, apiSession, cors, readJsonBody, sendJson } from './api-http.js';
 import { ApiError } from './api-error.js';
+import { isRecord } from './is-record.js';
+import { listClaudeSettings, SETTINGS_MAX, writeClaudeSettings } from './claude-settings.js';
 import {
   claudeDir,
   deleteClaudeSession,
@@ -13,6 +15,8 @@ import {
 } from './claude-files.js';
 
 const PREFIX = '/api/claude';
+const BODY_MAX = SETTINGS_MAX + 4096;
+const WRITABLE = new Set(['GET', 'DELETE', 'PUT']);
 const PAGE = 100;
 const PAGE_MAX = 500;
 
@@ -39,6 +43,7 @@ const COLLECTIONS: Record<string, Handler> = {
   projects: (_query, dir) => ({ projects: listClaudeProjects(dir) }),
   sessions: (query, dir) => ({ sessions: listClaudeSessions(projectOf(query), dir) }),
   memory: (query, dir) => listMemory(projectOf(query), dir),
+  settings: (_query, dir) => ({ files: listClaudeSettings(dir) }),
 };
 
 const ITEMS: Record<string, Handler> = {
@@ -49,8 +54,19 @@ const ITEMS: Record<string, Handler> = {
   memory: (query, dir, name) => ({ name, content: readMemoryFile(projectOf(query), name, dir) }),
 };
 
+const parts = (path: string): string[] => path.slice(PREFIX.length + 1).split('/').filter(Boolean);
+
+async function writeAnswer(req: IncomingMessage, path: string, dir: string): Promise<unknown> {
+  const [head = '', item = ''] = parts(path);
+  if (head !== 'settings' || item === '') throw new ApiError('method not allowed', 405);
+  const body = await readJsonBody(req, BODY_MAX);
+  if (!isRecord(body) || typeof body.text !== 'string') throw new ApiError('text is required', 400);
+  const seenAt = 'seenAt' in body ? (typeof body.seenAt === 'string' ? body.seenAt : null) : undefined;
+  return writeClaudeSettings(item, body.text, seenAt, dir);
+}
+
 function answer(method: string, path: string, query: URLSearchParams, dir: string): unknown {
-  const rest = path.slice(PREFIX.length + 1).split('/').filter(Boolean);
+  const rest = parts(path);
   const [head = '', item] = rest;
   if (method === 'DELETE') {
     if (rest.length !== 2 || head !== 'sessions') throw new ApiError('method not allowed', 405);
@@ -73,7 +89,7 @@ export function handleClaudeRequest(
     res.writeHead(204, cors(req)).end();
     return true;
   }
-  if (req.method !== 'GET' && req.method !== 'DELETE') {
+  if (!WRITABLE.has(req.method ?? '')) {
     sendJson(req, res, 405, { error: 'method not allowed' });
     return true;
   }
@@ -81,7 +97,9 @@ export function handleClaudeRequest(
     .then((session) => {
       if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
-      return answer(req.method ?? 'GET', path, new URLSearchParams(search), (deps.dir ?? claudeDir)());
+      const dir = (deps.dir ?? claudeDir)();
+      if (req.method === 'PUT') return writeAnswer(req, path, dir);
+      return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
     })
     .then((body) => {
       sendJson(req, res, 200, body);

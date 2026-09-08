@@ -34,12 +34,22 @@ function sizeTmuxWindow(command: string[], session: string, cols: number, rows: 
   if (command[0] !== 'tmux') return;
   const child = spawn('tmux', resizeWindowArgs(session, cols, rows), { stdio: 'ignore' });
   child.on('error', (err) => {
-    log.debug({ err: errMsg(err) }, 'terminal: resize-window failed');
+    log.warn({ err: errMsg(err) }, 'terminal: resize-window could not run');
+  });
+  child.on('exit', (code) => {
+    if (code !== 0) log.warn({ code, session, cols, rows }, 'terminal: tmux refused the window resize');
   });
 }
 
-const dimension = (raw: unknown, fallback: number): number =>
-  typeof raw === 'number' && Number.isInteger(raw) && raw > 1 && raw <= MAX_DIMENSION ? raw : fallback;
+const dimension = (raw: unknown): number | null =>
+  typeof raw === 'number' && Number.isInteger(raw) && raw > 1 && raw <= MAX_DIMENSION ? raw : null;
+
+export function sizeFrom(control: unknown): { cols: number; rows: number } | null {
+  if (!isRecord(control)) return null;
+  const cols = dimension(control.cols);
+  const rows = dimension(control.rows);
+  return cols === null || rows === null ? null : { cols, rows };
+}
 
 function runTerminal(ws: WebSocket, command: string[], subject: string, session: string): void {
   const terminal = new Bun.Terminal({
@@ -61,12 +71,11 @@ function runTerminal(ws: WebSocket, command: string[], subject: string, session:
       return;
     }
     try {
-      const control: unknown = JSON.parse(bytes.toString('utf8'));
-      if (isRecord(control) && 'cols' in control) {
-        const cols = dimension(control.cols, DEFAULT_COLS);
-        const rows = dimension(control.rows, DEFAULT_ROWS);
-        terminal.resize(cols, rows);
-        sizeTmuxWindow(command, session, cols, rows);
+      const size = sizeFrom(JSON.parse(bytes.toString('utf8')));
+      if (size !== null) {
+        terminal.resize(size.cols, size.rows);
+        proc.kill('SIGWINCH');
+        sizeTmuxWindow(command, session, size.cols, size.rows);
       }
     } catch (err) {
       log.warn({ err: errMsg(err) }, 'terminal: bad control frame');

@@ -516,3 +516,36 @@ textarea:focus-visible {
     height: calc(100dvh - 56px);
   }
 }
+
+.model-matches {
+  display: flex;
+  flex-direction: column;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--metro-border);
+  border-radius: 10px;
+  background: var(--metro-surface);
+}
+
+.model-match {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--metro-heading);
+  font-family: var(--metro-font-sans);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-match:hover {
+  background: var(--metro-bg);
+}
+
+.model-match-name {
+  color: var(--metro-sub);
+  font-size: 13px;
+}

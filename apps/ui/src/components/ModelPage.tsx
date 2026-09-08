@@ -7,8 +7,9 @@ import { PageTitle } from './PageTitle';
 import { FieldLabel } from './FieldLabel';
 import { Loading } from './Loading';
 import { GROW } from '../theme';
-import { afterSave, draftOf, patchOf, PROVIDERS, routeLabel, saveModel, type Draft, type ModelSettings } from '../api/model';
-import { queryError, refreshModel, useModelQuery } from '../api/queries';
+import { afterSave, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, type Draft, type ModelSettings } from '../api/model';
+import { queryError, refreshModel, useModelQuery, useOpenRouterModelsQuery } from '../api/queries';
+import { ModelPicker } from './ModelPicker';
 import { useDocumentTitle } from '../title';
 import { CodexConnect, CodexModels } from './CodexConnect';
 
@@ -41,6 +42,46 @@ function KeyField({ label, hasKey, value, forget, onChange, onForget }: KeyField
   );
 }
 
+function OpenRouterFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
+  const [wanted, setWanted] = useState(false);
+  const models = useOpenRouterModelsQuery(wanted);
+  return (
+    <Col gap={12}>
+      <KeyField
+        label="OpenRouter API key"
+        hasKey={settings.openrouter.hasKey}
+        value={draft.openrouterKey}
+        forget={draft.openrouterForget}
+        onChange={(v) => {
+          set({ openrouterKey: v });
+        }}
+        onForget={(f) => {
+          set({ openrouterForget: f });
+        }}
+      />
+      <Text size="sm" role="secondary">
+        <a className="hint-link" href={OPENROUTER_KEYS_URL} target="_blank" rel="noreferrer">
+          Get a key from OpenRouter
+        </a>
+      </Text>
+      <ModelPicker
+        label="Model"
+        value={draft.openrouterModel}
+        placeholder="type to search, e.g. sonnet, gpt-5, gemini"
+        models={models.data}
+        loading={models.isFetching}
+        error={models.error === null ? null : queryError(models.error, 'Could not list the OpenRouter models.')}
+        onOpen={() => {
+          setWanted(true);
+        }}
+        onChange={(v) => {
+          set({ openrouterModel: v });
+        }}
+      />
+    </Col>
+  );
+}
+
 function TextField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (v: string) => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
@@ -60,13 +101,7 @@ function ProviderFields({ draft, settings, set }: { draft: Draft; settings: Mode
         <TextField label="Model" value={draft.bedrockModel} placeholder="empty: the model Claude Code asks for, e.g. eu.anthropic.claude-sonnet-4-6" onChange={(v) => { set({ bedrockModel: v }); }} />
       </Col>
     );
-  if (draft.provider === 'openrouter')
-    return (
-      <Col gap={12}>
-        <KeyField label="OpenRouter API key" hasKey={settings.openrouter.hasKey} value={draft.openrouterKey} forget={draft.openrouterForget} onChange={(v) => { set({ openrouterKey: v }); }} onForget={(f) => { set({ openrouterForget: f }); }} />
-        <TextField label="Model" value={draft.openrouterModel} placeholder="anthropic/claude-sonnet-4.5, openai/gpt-5.2-codex, google/gemini-2.5-pro" onChange={(v) => { set({ openrouterModel: v }); }} />
-      </Col>
-    );
+  if (draft.provider === 'openrouter') return <OpenRouterFields draft={draft} settings={settings} set={set} />;
   if (draft.provider === 'codex')
     return (
       <Col gap={12}>

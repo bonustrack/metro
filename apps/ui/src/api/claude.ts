@@ -162,3 +162,53 @@ export async function fetchMemoryFile(project: string, name: string): Promise<st
   if (!isRecord(body) || typeof body.content !== 'string') throw unexpected();
   return body.content;
 }
+
+const SCOPES = ['user', 'project', 'local'] as const;
+
+export type SettingsScope = (typeof SCOPES)[number];
+
+const isScope = (v: unknown): v is SettingsScope => SCOPES.some((scope) => scope === v);
+
+export interface ClaudeSettingsFile {
+  id: string;
+  scope: SettingsScope;
+  label: string;
+  path: string;
+  exists: boolean;
+  editable: boolean;
+  text: string;
+  modifiedAt: string | null;
+}
+
+export function toSettingsFile(v: unknown): ClaudeSettingsFile | null {
+  if (!isRecord(v) || typeof v.id !== 'string' || !isScope(v.scope) || typeof v.path !== 'string') return null;
+  return {
+    id: v.id,
+    scope: v.scope,
+    label: text(v.label) ?? v.path,
+    path: v.path,
+    exists: v.exists === true,
+    editable: v.editable === true,
+    text: typeof v.text === 'string' ? v.text : '',
+    modifiedAt: text(v.modifiedAt),
+  };
+}
+
+export async function fetchClaudeSettings(): Promise<ClaudeSettingsFile[]> {
+  const body = await call({ base: base(), path: '/settings', method: 'GET' });
+  if (!isRecord(body)) throw unexpected();
+  return list(body.files, toSettingsFile);
+}
+
+export async function saveClaudeSettings(id: string, content: string, seenAt: string | null): Promise<ClaudeSettingsFile> {
+  const body = await call({
+    base: base(),
+    path: `/settings/${encodeURIComponent(id)}`,
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: content, seenAt }),
+  });
+  const file = toSettingsFile(body);
+  if (file === null) throw unexpected();
+  return file;
+}

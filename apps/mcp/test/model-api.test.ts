@@ -36,8 +36,12 @@ beforeAll(async () => {
     issuer.listen(0, '127.0.0.1', r);
   });
   issuerBase = `http://127.0.0.1:${String((issuer.address() as AddressInfo).port)}`;
-  backend = createServer((_req, res) => {
+  backend = createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
+    if ((req.url ?? '').includes('/v1/models')) {
+      res.end(JSON.stringify({ data: [{ id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex' }, { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' }, { name: 'no id' }, 7] }));
+      return;
+    }
     res.end(JSON.stringify({ models: [{ slug: 'gpt-5.3-codex' }] }));
   });
   await new Promise<void>((r) => {
@@ -57,6 +61,7 @@ beforeAll(async () => {
         issuer: issuerBase,
         codexHome: home,
         codexBase: backendBase,
+        openrouterBase: backendBase,
       })
     )
       return;
@@ -173,5 +178,28 @@ describe('the device-code sign-in from the page', () => {
     expect((await codex(`device/${login.id}`, 'GET')).status).toBe(400);
     expect((await codex('device/short', 'GET')).status).toBe(404);
     expect((await codex(`device/${login.id}`, 'POST')).status).toBe(405);
+  });
+});
+
+describe('picking an OpenRouter model without typing its id', () => {
+  test('the daemon lists what OpenRouter serves, sorted, dropping rows with no id', async () => {
+    const res = await fetch(`${base}/api/model/openrouter/models`, {
+      headers: { authorization: await auth('GET', '/api/model/openrouter/models', OWNER) },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      models: [
+        { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' },
+        { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex' },
+      ],
+    });
+    const stranger = await fetch(`${base}/api/model/openrouter/models`, {
+      headers: { authorization: await auth('GET', '/api/model/openrouter/models', OTHER) },
+    });
+    expect(stranger.status).toBe(404);
+    const wrong = await fetch(`${base}/api/model/openrouter/nope`, {
+      headers: { authorization: await auth('GET', '/api/model/openrouter/nope', OWNER) },
+    });
+    expect(wrong.status).toBe(404);
   });
 });

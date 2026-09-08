@@ -21,7 +21,7 @@ beforeAll(async () => {
       authorize: (subject) => {
         if (subject !== OWNER) throw new Error('no such project');
       },
-      command: (session) => ['sh', '-c', `echo READY ${session}; cat`],
+      command: (session) => ['sh', '-c', session === 'sized' ? 'trap "stty size" WINCH; echo READY; while :; do sleep 0.05; done' : `echo READY ${session}; cat`],
     },
   });
   base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
@@ -143,5 +143,28 @@ describe('the terminal over http and a websocket', () => {
       });
     });
     expect(status).toBe(404);
+  });
+});
+
+describe('a resize reaches the program in the pty', () => {
+  test('the new size is applied AND announced with SIGWINCH, and a malformed frame changes nothing', async () => {
+    const { path } = (await (await signed('POST', '/api/terminal/tickets', OWNER, { session: 'sized' })).json()) as { path: string };
+    const ws = new WebSocket(`${base.replace('http', 'ws')}${path}`);
+    await new Promise<void>((resolve, reject) => {
+      ws.once('open', resolve);
+      ws.once('error', reject);
+    });
+    const started = collect(ws, (t) => t.includes('READY'));
+    expect(await started).toContain('READY');
+    const resized = collect(ws, (t) => t.includes('57 146'));
+    ws.send(JSON.stringify({ cols: 146, rows: 57 }));
+    expect(await resized).toContain('57 146');
+    const again = collect(ws, (t) => t.includes('30 100'));
+    for (const bad of [{ cols: 0, rows: 30 }, { cols: 100, rows: 1 }, { cols: 100, rows: 900 }, { cols: '100', rows: 30 }, { hello: 'there' }])
+      ws.send(JSON.stringify(bad));
+    ws.send(JSON.stringify({ cols: 100, rows: 30 }));
+    expect(await again).toContain('30 100');
+    expect(await again).not.toContain('36 120');
+    ws.close();
   });
 });
