@@ -13,6 +13,7 @@ import { ModelPicker } from './ModelPicker';
 import { useDocumentTitle } from '../title';
 import { whenLabel } from '../api/when';
 import { CodexConnect } from './CodexConnect';
+import { ClaudeLoginCard } from './ClaudeLogin';
 
 const HOW =
   'Claude Code sessions started with metro claude send every request through this daemon, which forwards it to the provider chosen here. A change applies to the next request, no restart needed. Inside a session, /model bedrock:<id>, /model openrouter:<id> or /model codex:<id> switches that session only.';
@@ -56,6 +57,7 @@ function KeyLink({ url, label }: { url: string; label: string }): ReactNode {
 function AnthropicFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
   return (
     <Col gap={12}>
+      <ClaudeLoginCard />
       <KeyField
         label="Anthropic API key"
         hasKey={settings.anthropic.hasKey}
