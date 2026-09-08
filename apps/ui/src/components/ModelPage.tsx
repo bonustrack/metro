@@ -7,10 +7,11 @@ import { PageTitle } from './PageTitle';
 import { FieldLabel } from './FieldLabel';
 import { Loading } from './Loading';
 import { GROW } from '../theme';
-import { afterSave, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, type Draft, type ModelSettings } from '../api/model';
+import { afterSave, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelSettings } from '../api/model';
 import { queryError, refreshModel, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery } from '../api/queries';
 import { ModelPicker } from './ModelPicker';
 import { useDocumentTitle } from '../title';
+import { whenLabel } from '../api/when';
 import { CodexConnect } from './CodexConnect';
 
 const HOW =
@@ -134,6 +135,27 @@ function ProviderFields({ draft, settings, set }: { draft: Draft; settings: Mode
   );
 }
 
+const NOTHING_YET =
+  'Nothing has reached the gateway yet. Only a Claude Code session started with metro claude on this machine comes through here, and one started before the daemon had the gateway keeps talking to Anthropic until it is restarted.';
+
+function LastServed({ settings }: { settings: ModelSettings }): ReactNode {
+  const served = settings.lastServed;
+  return (
+    <Col gap={2}>
+      <FieldLabel>Last request</FieldLabel>
+      {served === null ? (
+        <Text size="sm" role="secondary">
+          {NOTHING_YET}
+        </Text>
+      ) : (
+        <Text size="sm">
+          {servedLabel(served)}, {whenLabel(served.at)}
+        </Text>
+      )}
+    </Col>
+  );
+}
+
 function Editor({ settings }: { settings: ModelSettings }): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
@@ -211,6 +233,7 @@ export function ModelPage(): ReactNode {
               </Text>
             ) : null}
           </Col>
+          <LastServed settings={model.data} />
           <Editor settings={model.data} />
         </Col>
       )}

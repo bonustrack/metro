@@ -4,7 +4,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Input } from './ui';
 import { FieldLabel } from './FieldLabel';
 import { GROW } from '../theme';
-import { matchModels, type ModelOption } from '../api/model';
+import { matchModels, priceLabel, type ModelOption } from '../api/model';
 
 const FIELD_WIDTH = 420;
 
@@ -29,22 +29,25 @@ function Matches({ models, query, onPick }: { models: ModelOption[]; query: stri
     );
   return (
     <div className="model-matches">
-      {found.map((model) => (
-        <button
-          key={model.id}
-          type="button"
-          className="model-match"
-          onMouseDown={(e) => {
-            e.preventDefault();
-          }}
-          onClick={() => {
-            onPick(model.id);
-          }}
-        >
-          <span className="model-match-id">{model.id}</span>
-          {model.name === model.id ? null : <span className="model-match-name">{model.name}</span>}
-        </button>
-      ))}
+      {found.map((model) => {
+        const detail = [model.name === model.id ? '' : model.name, priceLabel(model)].filter((part) => part !== '').join(' · ');
+        return (
+          <button
+            key={model.id}
+            type="button"
+            className="model-match"
+            onMouseDown={(e) => {
+              e.preventDefault();
+            }}
+            onClick={() => {
+              onPick(model.id);
+            }}
+          >
+            <span className="model-match-id">{model.id}</span>
+            {detail === '' ? null : <span className="model-match-name">{detail}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

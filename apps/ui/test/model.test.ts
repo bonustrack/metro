@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { afterSave, draftOf, matchModels, patchOf, PROVIDERS, routeLabel, toModelSettings } from '../src/api/model';
+import { afterSave, draftOf, matchModels, patchOf, priceLabel, PROVIDERS, routeLabel, servedLabel, toModelSettings, toServed } from '../src/api/model';
 
 describe('what the Model page reads from the daemon', () => {
   test('a full answer parses, keys arrive as booleans only', () => {
@@ -61,5 +61,30 @@ describe('finding an OpenRouter model by typing', () => {
     expect(matchModels(models, 'claude gpt')).toEqual([]);
     expect(matchModels(models, '  ').map((m) => m.id)).toEqual(models.map((m) => m.id));
     expect(matchModels(models, '', 2)).toHaveLength(2);
+  });
+});
+
+describe('the last request the gateway served', () => {
+  test('is read only when it is whole, and reads as the route that carried it', () => {
+    const row = { provider: 'codex', model: 'gpt-6-astra', at: '2026-09-08T09:00:00.000Z' };
+    expect(toServed(row)).toEqual(row);
+    expect(toServed({ ...row, model: '' })).toBeNull();
+    expect(toServed({ provider: 'codex', model: 'gpt-6-astra' })).toBeNull();
+    expect(toServed(null)).toBeNull();
+    expect(servedLabel(row)).toBe('codex:gpt-6-astra');
+    expect(servedLabel({ ...row, provider: 'anthropic', model: 'claude-sonnet-5' })).toBe('claude-sonnet-5');
+    const settings = toModelSettings({ provider: 'codex', ready: true, bedrock: {}, openrouter: {}, codex: { model: 'gpt-6-astra' }, lastServed: row });
+    expect(settings.lastServed).toEqual(row);
+    expect(toModelSettings({ provider: 'anthropic', bedrock: {}, openrouter: {}, codex: {} }).lastServed).toBeNull();
+  });
+});
+
+describe('what a model costs, on the row that offers it', () => {
+  test('prices are per million tokens, free is named, and a model with no price shows none', () => {
+    expect(priceLabel({ id: 'a', name: 'a', prompt: 0.00001, completion: 0.00005 })).toBe('$10 in · $50 out per 1M');
+    expect(priceLabel({ id: 'a', name: 'a', prompt: 0.00000015, completion: 0.0000006 })).toBe('$0.15 in · $0.6 out per 1M');
+    expect(priceLabel({ id: 'a', name: 'a', prompt: 0, completion: 0 })).toBe('Free');
+    expect(priceLabel({ id: 'a', name: 'a', prompt: 0.000003, completion: null })).toBe('');
+    expect(priceLabel({ id: 'a', name: 'a' })).toBe('');
   });
 });

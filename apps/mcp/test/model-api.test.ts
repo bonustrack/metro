@@ -41,7 +41,16 @@ beforeAll(async () => {
   backend = createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
     if ((req.url ?? '').includes('/v1/models')) {
-      res.end(JSON.stringify({ data: [{ id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex' }, { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' }, { name: 'no id' }, 7] }));
+      res.end(
+        JSON.stringify({
+          data: [
+            { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex', pricing: { prompt: '0.00001', completion: '0.00005' } },
+            { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', pricing: { prompt: '0', completion: '-1' } },
+            { name: 'no id' },
+            7,
+          ],
+        }),
+      );
       return;
     }
     seenModelUrls.push(req.url ?? '');
@@ -192,8 +201,8 @@ describe('picking an OpenRouter model without typing its id', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       models: [
-        { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' },
-        { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex' },
+        { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', prompt: 0, completion: null },
+        { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex', prompt: 0.00001, completion: 0.00005 },
       ],
     });
     const stranger = await fetch(`${base}/api/model/openrouter/models`, {

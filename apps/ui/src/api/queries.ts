@@ -128,7 +128,8 @@ export function useModelQuery(): UseQueryResult<ModelSettings> {
   return useQuery({
     queryKey: ['model', daemonBase()],
     queryFn: () => fetchModel(),
-    staleTime: 30_000,
+    staleTime: 5_000,
+    refetchInterval: 15_000,
   });
 }
 
