@@ -8,10 +8,10 @@ import { FieldLabel } from './FieldLabel';
 import { Loading } from './Loading';
 import { GROW } from '../theme';
 import { afterSave, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, type Draft, type ModelSettings } from '../api/model';
-import { queryError, refreshModel, useModelQuery, useOpenRouterModelsQuery } from '../api/queries';
+import { queryError, refreshModel, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery } from '../api/queries';
 import { ModelPicker } from './ModelPicker';
 import { useDocumentTitle } from '../title';
-import { CodexConnect, CodexModels } from './CodexConnect';
+import { CodexConnect } from './CodexConnect';
 
 const HOW =
   'Claude Code sessions started with metro claude send every request through this daemon, which forwards it to the provider chosen here. A change applies to the next request, no restart needed. Inside a session, /model bedrock:<id>, /model openrouter:<id> or /model codex:<id> switches that session only.';
@@ -31,7 +31,7 @@ function KeyField({ label, hasKey, value, forget, onChange, onForget }: KeyField
   return (
     <Col gap={4} maxWidth={FIELD_WIDTH}>
       <FieldLabel>{label}</FieldLabel>
-      <Input name={label} inputType="password" value={value} placeholder={hasKey ? 'stored on the daemon, paste to replace' : 'paste the key'} dark={dark} onChangeText={onChange} disabled={forget} style={GROW} />
+      <Input name={label} inputType="password" value={value} placeholder={hasKey ? 'stored on the daemon, paste to replace' : 'paste the key'} dark={dark} onChangeText={onChange} disabled={forget} style={GROW} inputProps={{ autoComplete: 'off' }} />
       {hasKey && value === '' ? (
         <Row gap={8} align="center" wrap>
           <Button size="sm" color="secondary" dark={dark} label={forget ? 'Keep the stored key' : 'Forget the stored key'} onPress={() => { onForget(!forget); }} />
@@ -82,6 +82,30 @@ function OpenRouterFields({ draft, settings, set }: { draft: Draft; settings: Mo
   );
 }
 
+function CodexFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
+  const [wanted, setWanted] = useState(false);
+  const models = useCodexModelsQuery(wanted && settings.codex.signedIn);
+  return (
+    <Col gap={12}>
+      <CodexConnect codex={settings.codex} />
+      <ModelPicker
+        label="Model"
+        value={draft.codexModel}
+        placeholder="type to search, e.g. astra, codex, gpt-5"
+        models={models.data}
+        loading={models.isFetching}
+        error={models.error === null ? null : queryError(models.error, 'Could not list the models this account can use.')}
+        onOpen={() => {
+          setWanted(true);
+        }}
+        onChange={(v) => {
+          set({ codexModel: v });
+        }}
+      />
+    </Col>
+  );
+}
+
 function TextField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (v: string) => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
@@ -102,14 +126,7 @@ function ProviderFields({ draft, settings, set }: { draft: Draft; settings: Mode
       </Col>
     );
   if (draft.provider === 'openrouter') return <OpenRouterFields draft={draft} settings={settings} set={set} />;
-  if (draft.provider === 'codex')
-    return (
-      <Col gap={12}>
-        <CodexConnect codex={settings.codex} />
-        <TextField label="Model" value={draft.codexModel} placeholder="gpt-5.3-codex, gpt-5.4, gpt-5.2-codex" onChange={(v) => { set({ codexModel: v }); }} />
-        <CodexModels />
-      </Col>
-    );
+  if (draft.provider === 'codex') return <CodexFields draft={draft} settings={settings} set={set} />;
   return (
     <Text size="sm" role="secondary">
       Requests go to api.anthropic.com exactly as Claude Code sent them, with its own login. Nothing to configure.

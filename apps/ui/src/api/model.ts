@@ -162,12 +162,12 @@ export async function pollCodexDevice(id: string): Promise<DevicePoll> {
 export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
 const MATCH_MAX = 40;
 
-export interface OpenRouterModel {
+export interface ModelOption {
   id: string;
   name: string;
 }
 
-export async function openrouterModels(): Promise<OpenRouterModel[]> {
+export async function openrouterModels(): Promise<ModelOption[]> {
   const body = await call({ method: 'GET', base: modelUrl(), path: '/openrouter/models' });
   if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
   return body.models.flatMap((m: unknown) =>
@@ -175,9 +175,9 @@ export async function openrouterModels(): Promise<OpenRouterModel[]> {
   );
 }
 
-export function matchModels(models: OpenRouterModel[], query: string, limit = MATCH_MAX): OpenRouterModel[] {
+export function matchModels(models: ModelOption[], query: string, limit = MATCH_MAX): ModelOption[] {
   const words = query.toLowerCase().split(/\s+/).filter((w) => w !== '');
-  const hit = (model: OpenRouterModel): boolean => {
+  const hit = (model: ModelOption): boolean => {
     const hay = `${model.id} ${model.name}`.toLowerCase();
     return words.every((word) => hay.includes(word));
   };
