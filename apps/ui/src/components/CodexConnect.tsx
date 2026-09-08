@@ -5,7 +5,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui';
 import { FieldLabel } from './FieldLabel';
 import { GROW } from '../theme';
-import { beginCodexDevice, beginCodexLogin, codexImport, codexLogout, codexModels, finishCodexLogin, pollCodexDevice, type DeviceLogin, type ModelSettings } from '../api/model';
+import { beginCodexDevice, beginCodexLogin, codexImport, codexLogout, finishCodexLogin, pollCodexDevice, type DeviceLogin, type ModelSettings } from '../api/model';
 import { queryError, refreshModel } from '../api/queries';
 
 const FIELD_WIDTH = 420;
@@ -210,38 +210,6 @@ function NotConnected(): ReactNode {
       <Row gap={8} wrap>
         <Button size="sm" color="secondary" dark={dark} label="Use the Codex CLI login on this machine" disabled={busy} onPress={() => { run(codexImport, 'Could not read the Codex CLI login.'); }} />
       </Row>
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
-    </Col>
-  );
-}
-
-export function CodexModels(): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const [models, setModels] = useState<string[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const list = (): void => {
-    setBusy(true);
-    setError(null);
-    codexModels()
-      .then(setModels)
-      .catch((err: unknown) => {
-        setError(queryError(err, 'Could not list the models.'));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
-  return (
-    <Col gap={6}>
-      <Row gap={8} align="center" wrap>
-        <Button size="sm" color="secondary" dark={dark} label={busy ? 'Asking…' : 'List the models this account can use'} disabled={busy} onPress={list} />
-      </Row>
-      {models !== null ? (
-        <Text size="sm" role="secondary">
-          {models.length === 0 ? 'No models were listed.' : models.join(', ')}
-        </Text>
-      ) : null}
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
     </Col>
   );

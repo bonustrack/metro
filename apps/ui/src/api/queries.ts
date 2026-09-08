@@ -36,7 +36,7 @@ import { fetchMode, type ModeInfo } from './mode';
 import { fetchUpdate, type UpdateCheck } from './update';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers';
 import { fetchMachine, type Machine } from './machine';
-import { fetchModel, openrouterModels, type ModelSettings, type OpenRouterModel } from './model';
+import { codexModels, fetchModel, openrouterModels, type ModelOption, type ModelSettings } from './model';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -136,10 +136,19 @@ export function refreshModel(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: ['model', daemonBase()] });
 }
 
-export function useOpenRouterModelsQuery(enabled: boolean): UseQueryResult<OpenRouterModel[]> {
+export function useOpenRouterModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
   return useQuery({
     queryKey: ['openrouter', 'models', daemonBase()],
     queryFn: () => openrouterModels(),
+    enabled,
+    staleTime: 10 * 60_000,
+  });
+}
+
+export function useCodexModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
+  return useQuery({
+    queryKey: ['codex', 'models', daemonBase()],
+    queryFn: async () => (await codexModels()).map((id) => ({ id, name: id })),
     enabled,
     staleTime: 10 * 60_000,
   });

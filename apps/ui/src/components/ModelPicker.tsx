@@ -4,7 +4,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Input } from './ui';
 import { FieldLabel } from './FieldLabel';
 import { GROW } from '../theme';
-import { matchModels, type OpenRouterModel } from '../api/model';
+import { matchModels, type ModelOption } from '../api/model';
 
 const FIELD_WIDTH = 420;
 
@@ -12,14 +12,14 @@ interface PickerProps {
   label: string;
   value: string;
   placeholder: string;
-  models: OpenRouterModel[] | undefined;
+  models: ModelOption[] | undefined;
   loading: boolean;
   error: string | null;
   onOpen: () => void;
   onChange: (value: string) => void;
 }
 
-function Matches({ models, query, onPick }: { models: OpenRouterModel[]; query: string; onPick: (id: string) => void }): ReactNode {
+function Matches({ models, query, onPick }: { models: ModelOption[]; query: string; onPick: (id: string) => void }): ReactNode {
   const found = matchModels(models, query);
   if (found.length === 0)
     return (
@@ -70,6 +70,7 @@ export function ModelPicker({ label, value, placeholder, models, loading, error,
         style={GROW}
         inputProps={{
           autoCapitalize: 'none',
+          autoComplete: 'off',
           autoCorrect: false,
           spellCheck: false,
           onFocus: () => {
@@ -86,7 +87,7 @@ export function ModelPicker({ label, value, placeholder, models, loading, error,
         <Col gap={6}>
           {loading ? (
             <Text size="sm" role="secondary">
-              Asking OpenRouter what it serves…
+              Asking for the models…
             </Text>
           ) : null}
           {error !== null ? (
