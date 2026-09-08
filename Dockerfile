@@ -20,11 +20,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 #    never again silently break the frozen install / Fly auto-deploy.
 COPY package.json bun.lock turbo.json ./
 COPY --parents apps/*/package.json packages/*/package.json ./
-RUN bun install --frozen-lockfile --production
+# --filter installs only what @metro-labs/api and the two packages it depends on need:
+# 68 packages and 168 MB instead of the whole workspace at 1.5 GB (measured 2026-09-09),
+# and no station SDK ever lands in the hosted image. drizzle-kit stays in
+# apps/api/node_modules/.bin, which is where the release command finds it.
+RUN bun install --frozen-lockfile --production --filter @metro-labs/api
 
-# 2) App source. node_modules/.env/.git/dist are excluded via .dockerignore, so the
-#    installed deps and your secrets are never copied over / baked in.
-COPY . .
+# 2) Only the sources the hosted service runs: the app itself and the two packages it
+#    imports. The daemon, the stations and the page never enter this image.
+COPY apps/api ./apps/api
+COPY packages/core ./packages/core
+COPY packages/http ./packages/http
 
 # METRO_HTTP_HOST=0.0.0.0 so the platform proxy can reach the app.
 ENV HOME=/data \
