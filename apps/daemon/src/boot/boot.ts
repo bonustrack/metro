@@ -19,7 +19,10 @@ import {
   trainEventToMetroEvent,
 } from '../routes/http.js';
 import { localAgentKey } from '../stations/materialize.js';
-import { fileSource } from '../agents/files.js';
+import { agentsDir, fileSource } from '../agents/files.js';
+import { ConnectorAggregate } from '../connectors/aggregate.js';
+import { setConnectorToolProvider } from '../mcp/connector-tools.js';
+import { invalidateToolSchema } from '../mcp/tool-dispatch.js';
 import { applyLocalOwner } from './local-owner.js';
 import { localOwner } from '../agents/file-admin.js';
 import { ensureStationDeps } from '../stations/runtime-deps.js';
@@ -29,6 +32,7 @@ import {
   agentLiveness,
   closeAgentSession,
   createMetroMcp,
+  announceToolSchemaToAll,
 } from '../mcp/index.js';
 import { metroCall } from '../mcp/ctx.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
@@ -114,6 +118,22 @@ function sessionApis(): SessionApis {
     });
 }
 
+let connectors: ConnectorAggregate | null = null;
+
+function startConnectors(): void {
+  const aggregate = new ConnectorAggregate(agentsDir(), () => {
+    invalidateToolSchema();
+    announceToolSchemaToAll();
+  });
+  connectors = aggregate;
+  setConnectorToolProvider({
+    list: () => aggregate.list(),
+    owns: (name) => aggregate.owns(name),
+    call: (name, args) => aggregate.call(name, args),
+  });
+  aggregate.start();
+}
+
 async function main(): Promise<void> {
   applyLocalOwner();
   await materializeFrom(fileSource, { allowEmpty: true });
@@ -126,6 +146,7 @@ async function main(): Promise<void> {
     metroCall,
   );
   metroMcp.startInbound();
+  startConnectors();
   startUploadReaper();
   announceLocalEndpoint();
   tunnel?.start();
@@ -145,6 +166,7 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   log.info('dispatcher shutting down');
+  connectors?.stop();
   tunnel?.stop();
   if (webhookServer) {
     const server = webhookServer;

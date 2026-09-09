@@ -31,6 +31,7 @@ import {
   type RequestIdentity,
 } from './request-identity.js';
 import { str } from '@metro-labs/core/str';
+import { callConnectorTool, connectorToolList, isConnectorTool } from './connector-tools.js';
 
 const STATION_TOOLS = new Map<
   string,
@@ -62,10 +63,15 @@ const toolList = (): { tools: unknown[] } => ({
       })),
     ),
     LIST_ACCOUNTS_TOOL,
+    ...connectorToolList(),
   ],
 });
 
 let schemaSignature: string | undefined;
+
+export function invalidateToolSchema(): void {
+  schemaSignature = undefined;
+}
 
 export const toolSchemaSignature = (): string => {
   schemaSignature ??= createHash('sha256')
@@ -149,6 +155,7 @@ async function runTool(
   const name = req.params.name;
   const a = req.params.arguments ?? {};
 
+  if (isConnectorTool(name)) return callConnectorTool(name, a);
   const identity = currentIdentity();
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');

@@ -138,6 +138,10 @@ export function agentLiveness(): Map<string, AgentLiveness> {
   return activeRegistry?.liveness() ?? new Map<string, AgentLiveness>();
 }
 
+export function announceToolSchemaToAll(): void {
+  activeRegistry?.announceToolSchema();
+}
+
 export async function closeAgentSession(agentId: string): Promise<boolean> {
   const scopeKey = sessionScopeKey({ kind: 'agent', agentId });
   return (await activeRegistry?.closeScope(scopeKey)) ?? false;
