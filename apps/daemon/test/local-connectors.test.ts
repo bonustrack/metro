@@ -170,6 +170,11 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     const entry = block.mcpServers['metro.box linear'];
     expect(entry?.url).toBe(`http://127.0.0.1:${process.env.METRO_WEBHOOK_PORT ?? ''}/relay/${linear}`);
     expect(entry?.headers.Authorization).toBe(`Bearer ${tony.key}`);
+    process.env.METRO_PUBLIC_URL = 'https://metro-6vfdky.tail17c4f8.ts.net';
+    const tunnelled = (await (await fetch(`${base}/api/cli/mcp`, { headers: { authorization: `Bearer ${tony.key}` } })).json()) as { json: string };
+    const overTunnel = (JSON.parse(tunnelled.json) as { mcpServers: Record<string, { url: string }> }).mcpServers['metro.box linear'];
+    expect(overTunnel?.url).toBe(`http://127.0.0.1:${process.env.METRO_WEBHOOK_PORT ?? ''}/relay/${linear}`);
+    delete process.env.METRO_PUBLIC_URL;
     expect((await fetch(`${base}/api/cli/mcp`, { headers: { authorization: 'Bearer mk_wrong' } })).status).toBe(401);
     expect((await fetch(`${base}/api/cli/session?token=${tony.key}`)).status).toBe(404);
     expect((await fetch(`${base}/api/cli/connectors`, { headers: { authorization: `Bearer ${tony.key}` } })).status).toBe(404);
