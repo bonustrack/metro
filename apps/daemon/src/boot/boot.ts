@@ -102,6 +102,9 @@ async function syncStations(station: StationName): Promise<void> {
 function sessionApis(): SessionApis {
   return localSessionApis({
       syncStations,
+      reloadAgents: async () => {
+        await reloadFrom(fileSource);
+      },
       restart: () => {
         exitCode = RESTART_EXIT;
         onShutdown();

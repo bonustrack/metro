@@ -1,6 +1,7 @@
 import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
 import { AttachSessions } from '../stations/attach-session.js';
+import { recentSenders } from '../agents/senders.js';
 import type { AgentApiDeps } from '../agents/api.js';
 import { ATTACHABLE, type AccountApiDeps } from '../agents/accounts-api.js';
 import type { SessionApis } from './session-apis.js';
@@ -33,6 +34,7 @@ import {
   localCreateAgent,
   localDeleteAgent,
   localDetachAccount,
+  localSetAllowlist,
   localImportAgent,
   localListAgents,
   localOwnedAgentOrThrow,
@@ -46,6 +48,7 @@ import type { StationName } from '@metro-labs/core/station-names';
 
 export interface LocalModeDeps {
   syncStations: (station: StationName) => Promise<void>;
+  reloadAgents: () => Promise<void>;
   restart: () => void;
   stop: () => void;
   closeAgentSession: (id: string) => Promise<boolean>;
@@ -98,6 +101,9 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     attachAccount: localAttachAccount,
     detachAccount: localDetachAccount,
     syncStations: deps.syncStations,
+    setAllowlist: localSetAllowlist,
+    recentSenders,
+    reloadAgents: deps.reloadAgents,
   };
 }
 

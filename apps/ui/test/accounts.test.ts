@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   accountsForAgent,
   attributeUntagged,
+  allowsEveryone,
   groupAccounts,
   stationFields,
   type AccountRow,
@@ -126,5 +127,24 @@ describe('stationFields', () => {
       }),
     );
     expect(f.details.map((d) => d.label)).toEqual(['address', 'inboxId', 'env']);
+  });
+});
+
+describe('who a station listens to, as the page reads it', () => {
+  test('the allowlist rides on the row instead of the detail fields, and a missing one means everyone', () => {
+    const [group] = groupAccounts({
+      'telegram-bot': [
+        { id: 't1', agentId: 'agent000001', allowlist: ['4242'], handle: 'bot' },
+        { id: 't2', agentId: 'agent000001', allowlist: ['*'] },
+        { id: 't3', agentId: 'agent000001' },
+      ],
+    });
+    const rows = group?.rows ?? [];
+    expect(rows[0]?.allowlist).toEqual(['4242']);
+    expect(rows[0]?.fields.some((f) => f.label === 'allowlist')).toBe(false);
+    expect(allowsEveryone(rows[0]?.allowlist ?? null)).toBe(false);
+    expect(allowsEveryone(rows[1]?.allowlist ?? null)).toBe(true);
+    expect(rows[2]?.allowlist).toBeNull();
+    expect(allowsEveryone(rows[2]?.allowlist ?? null)).toBe(true);
   });
 });

@@ -14,6 +14,7 @@ import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
 import { StationIcon } from './StationIcon.js';
 import { type DetachHandler } from './AccountList.js';
+import { Allowlist } from './Allowlist.js';
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
@@ -48,6 +49,7 @@ interface StationDetailProps {
   verbs: string[];
   onOpenAgent: (id: string) => void;
   onDetach?: DetachHandler;
+  onAllowlistSaved?: () => Promise<unknown>;
 }
 
 function Heading({
@@ -88,9 +90,24 @@ function Heading({
   );
 }
 
+function AllowlistSection({
+  station,
+  row,
+  onSaved,
+}: {
+  station: string;
+  row: AccountRow;
+  onSaved: (() => Promise<unknown>) | undefined;
+}): ReactNode {
+  const agentId = row.agentId;
+  const id = row.id;
+  if (id === null || agentId === null || onSaved === undefined) return null;
+  return <Allowlist agentId={agentId} station={station} accountId={id} allowlist={row.allowlist} onSaved={onSaved} />;
+}
+
 export function StationDetail(props: StationDetailProps): ReactNode {
   const { project } = props;
-  const { station, row, agent, verbs, onOpenAgent, onDetach } = props;
+  const { station, row, agent, verbs, onOpenAgent, onDetach, onAllowlistSaved } = props;
   const { url, endpoint, details } = stationFields(row);
   const id = row.id;
 
@@ -158,6 +175,8 @@ export function StationDetail(props: StationDetailProps): ReactNode {
           </Col>
         </Section>
       )}
+
+      <AllowlistSection station={station} row={row} onSaved={onAllowlistSaved} />
 
       <Section title="What this station can do">
         {verbs.length === 0 ? (
