@@ -6,14 +6,16 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { Text, Button } from './ui.js';
 import { Dropdown, type MenuItem } from './Dropdown.js';
 import { NameModal } from './NameModal.js';
-import { mintTerminalTicket, SESSION_RE, terminalSocketUrl, terminalStatus } from '../api/terminal.js';
+import { mintTerminalTicket, pickSession, rememberSession, SESSION_RE, terminalSocketUrl, terminalStatus, type TerminalStatus } from '../api/terminal.js';
+import { daemonBase } from '../auth/daemon.js';
 import { queryError } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
 
-type Phase = { kind: 'connecting' } | { kind: 'open' } | { kind: 'closed'; reason: string };
+type Phase = { kind: 'connecting' } | { kind: 'open' } | { kind: 'none' } | { kind: 'closed'; reason: string };
 
 const CLOSED = 'The terminal closed.';
-const DEFAULT_SESSION = 'metro';
+const NO_TMUX = 'tmux is not installed on that machine. Install it and reopen this tab.';
+const NONE = 'No tmux session is running on that machine. Open one with New session.';
 
 interface Live {
   term: XTerm;
@@ -39,6 +41,12 @@ function keepFitted(fit: FitAddon, box: HTMLDivElement): () => void {
   };
 }
 
+async function availableStatus(): Promise<TerminalStatus> {
+  const status = await terminalStatus();
+  if (!status.available) throw new Error(NO_TMUX);
+  return status;
+}
+
 async function open(
   box: HTMLDivElement,
   session: string,
@@ -46,8 +54,7 @@ async function open(
   onPhase: (p: Phase) => void,
   onSessions: (s: string[]) => void,
 ): Promise<Live> {
-  const status = await terminalStatus();
-  if (!status.available) throw new Error('tmux is not installed on that machine. Install it and reopen this tab.');
+  const status = await availableStatus();
   onSessions(status.sessions);
   const path = await mintTerminalTicket(session);
   const term = new XTerm({ cursorBlink: true, fontSize: 13, theme: colors, scrollback: 5_000 });
@@ -90,8 +97,8 @@ function close(live: Live): void {
   live.term.dispose();
 }
 
-function sessionItems(sessions: string[], current: string, pick: (s: string) => void, create: () => void): MenuItem[] {
-  const known = [...new Set([current, ...sessions])];
+function sessionItems(sessions: string[], current: string | null, pick: (s: string) => void, create: () => void): MenuItem[] {
+  const known = [...new Set(current === null ? sessions : [current, ...sessions])];
   return [
     ...known.map((name) => ({
       label: name === current ? `${name} (open)` : name,
@@ -103,20 +110,54 @@ function sessionItems(sessions: string[], current: string, pick: (s: string) => 
   ];
 }
 
+function TerminalNote({ phase, dark, onNew }: { phase: Phase; dark: boolean; onNew: () => void }): ReactNode {
+  if (phase.kind === 'open') return null;
+  const text = phase.kind === 'closed' ? phase.reason : phase.kind === 'none' ? NONE : 'Connecting…';
+  return (
+    <div className="terminal-note">
+      <Text size="sm" role="secondary">
+        {text}
+      </Text>
+      {phase.kind === 'none' ? <Button size="sm" dark={dark} label="New session" onPress={onNew} /> : null}
+    </div>
+  );
+}
+
 export function TerminalPage(): ReactNode {
   const palette = useKitPalette();
   const dark = useKitScheme() === 'dark';
   const box = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'connecting' });
-  const [session, setSession] = useState(DEFAULT_SESSION);
+  const [session, setSession] = useState<string | null>(null);
   const [sessions, setSessions] = useState<string[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [naming, setNaming] = useState(false);
   useDocumentTitle('Terminal');
 
   useEffect(() => {
+    if (session !== null) return undefined;
+    let gone = false;
+    setPhase({ kind: 'connecting' });
+    availableStatus()
+      .then((status) => {
+        if (gone) return;
+        setSessions(status.sessions);
+        const picked = pickSession(daemonBase(), status.sessions);
+        if (picked === null) setPhase({ kind: 'none' });
+        else setSession(picked);
+      })
+      .catch((err: unknown) => {
+        if (!gone) setPhase({ kind: 'closed', reason: queryError(err, 'Could not reach the terminal.') });
+      });
+    return () => {
+      gone = true;
+    };
+  }, [attempt, session]);
+
+  useEffect(() => {
     const node = box.current;
-    if (node === null) return undefined;
+    if (node === null || session === null) return undefined;
+    rememberSession(daemonBase(), session);
     let live: Live | null = null;
     let gone = false;
     setPhase({ kind: 'connecting' });
@@ -135,6 +176,7 @@ export function TerminalPage(): ReactNode {
   }, [attempt, session, palette.bg, palette.text]);
 
   const reconnect = (): void => {
+    setSession(null);
     setAttempt((n) => n + 1);
   };
 
@@ -146,19 +188,19 @@ export function TerminalPage(): ReactNode {
         <Dropdown
           className="terminal-session"
           label="tmux session"
-          button={{ label: `tmux: ${session}`, size: 'sm' }}
+          button={{ label: session === null ? 'tmux' : `tmux: ${session}`, size: 'sm' }}
           items={sessionItems(sessions, session, setSession, () => {
             setNaming(true);
           })}
         />
       </div>
-      {phase.kind === 'open' ? null : (
-        <div className="terminal-note">
-          <Text size="sm" role="secondary">
-            {phase.kind === 'closed' ? phase.reason : 'Connecting…'}
-          </Text>
-        </div>
-      )}
+      <TerminalNote
+        phase={phase}
+        dark={dark}
+        onNew={() => {
+          setNaming(true);
+        }}
+      />
       <NameModal
         title="New tmux session"
         action="Open"
