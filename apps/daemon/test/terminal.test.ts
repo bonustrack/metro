@@ -63,8 +63,12 @@ function collect(ws: WebSocket, until: (text: string) => boolean, ms = 5_000): P
 }
 
 describe('the tmux window follows the browser', () => {
-  test('the session opens with the mouse on, so the wheel scrolls tmux history instead of typing arrows', () => {
-    expect(tmuxCommand('metro')).toEqual(['tmux', 'new-session', '-A', '-D', '-s', 'metro', ';', 'set-option', '-g', 'mouse', 'on']);
+  test('the session opens in the home directory with the mouse on, so the wheel scrolls tmux history, and the clipboard forwarded', () => {
+    expect(tmuxCommand('metro', '/root')).toEqual([
+      'tmux', 'new-session', '-A', '-D', '-s', 'metro', '-c', '/root',
+      ';', 'set-option', '-g', 'mouse', 'on',
+      ';', 'set-option', '-s', 'set-clipboard', 'on',
+    ]);
   });
 
   test('a resize is also pushed to the tmux window of that session', () => {

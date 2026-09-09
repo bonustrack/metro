@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { ClipboardAddon } from '@xterm/addon-clipboard';
 import '@xterm/xterm/css/xterm.css';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
@@ -57,9 +58,10 @@ async function open(
   const status = await availableStatus();
   onSessions(status.sessions);
   const path = await mintTerminalTicket(session);
-  const term = new XTerm({ cursorBlink: true, fontSize: 13, theme: colors, scrollback: 5_000 });
+  const term = new XTerm({ cursorBlink: true, fontSize: 13, theme: colors, scrollback: 5_000, macOptionClickForcesSelection: true });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  term.loadAddon(new ClipboardAddon());
   term.open(box);
   fit.fit();
   const socket = new WebSocket(terminalSocketUrl(path));

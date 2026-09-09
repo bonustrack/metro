@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { homedir } from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, bodyField, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
@@ -9,7 +10,26 @@ const PREFIX = '/api/terminal';
 const TICKETS = `${PREFIX}/tickets`;
 const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 
-export const tmuxCommand = (session: string): string[] => ['tmux', 'new-session', '-A', '-D', '-s', session, ';', 'set-option', '-g', 'mouse', 'on'];
+export const tmuxCommand = (session: string, home = homedir()): string[] => [
+  'tmux',
+  'new-session',
+  '-A',
+  '-D',
+  '-s',
+  session,
+  '-c',
+  home,
+  ';',
+  'set-option',
+  '-g',
+  'mouse',
+  'on',
+  ';',
+  'set-option',
+  '-s',
+  'set-clipboard',
+  'on',
+];
 
 export interface TerminalApiDeps {
   authorize: (subject: string) => void;
