@@ -511,6 +511,18 @@ textarea:focus-visible {
   z-index: 2;
 }
 
+.terminal-hint {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  z-index: 2;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--metro-surface);
+  pointer-events: none;
+}
+
 @media (max-width: 900px) {
   .terminal-page {
     height: calc(100dvh - 56px);

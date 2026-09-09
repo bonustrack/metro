@@ -17,6 +17,8 @@ type Phase = { kind: 'connecting' } | { kind: 'open' } | { kind: 'none' } | { ki
 const CLOSED = 'The terminal closed.';
 const NO_TMUX = 'tmux is not installed on that machine. Install it and reopen this tab.';
 const NONE = 'No tmux session is running on that machine. Open one with New session.';
+const COPY_HINT = 'Shift-drag to select, then ⌘C or Ctrl+C. tmux owns a plain drag, which is what makes the wheel scroll.';
+const HINT_MS = 8_000;
 
 interface Live {
   term: XTerm;
@@ -112,6 +114,19 @@ function sessionItems(sessions: string[], current: string | null, pick: (s: stri
   ];
 }
 
+function useTimedHint(on: boolean, show: (v: boolean) => void): void {
+  useEffect(() => {
+    if (!on) return undefined;
+    show(true);
+    const timer = setTimeout(() => {
+      show(false);
+    }, HINT_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [on, show]);
+}
+
 function TerminalNote({ phase, dark, onNew }: { phase: Phase; dark: boolean; onNew: () => void }): ReactNode {
   if (phase.kind === 'open') return null;
   const text = phase.kind === 'closed' ? phase.reason : phase.kind === 'none' ? NONE : 'Connecting…';
@@ -134,7 +149,10 @@ export function TerminalPage(): ReactNode {
   const [sessions, setSessions] = useState<string[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [naming, setNaming] = useState(false);
+  const [hint, setHint] = useState(false);
   useDocumentTitle('Terminal');
+
+  useTimedHint(phase.kind === 'open', setHint);
 
   useEffect(() => {
     if (session !== null) return undefined;
@@ -185,6 +203,11 @@ export function TerminalPage(): ReactNode {
   return (
     <div className="terminal-page">
       <div ref={box} className="terminal-box" />
+      {hint ? (
+        <div className="terminal-hint">
+          <Text size="sm" role="secondary">{COPY_HINT}</Text>
+        </div>
+      ) : null}
       <div className="terminal-float">
         {phase.kind === 'closed' ? <Button size="sm" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
         <Dropdown
