@@ -7,6 +7,17 @@ import { agentsDir } from './local.js';
 const NODE_FILE = '.node';
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 const NAME_RE = /^metro-[a-z0-9]{6}$/;
+const RENAME_WAIT_MS = 30_000;
+const RENAME_POLL_MS = 500;
+const renameWaitMs = (): number => Number(process.env.METRO_NODE_RENAME_WAIT_MS) || RENAME_WAIT_MS;
+
+const pause = (ms: number): void => {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+};
+
+const stderrLine = (line: string): void => {
+  process.stderr.write(`${line}\n`);
+};
 
 export function newNodeName(): string {
   const bytes = randomBytes(6);
@@ -38,7 +49,19 @@ export function currentNodeLabel(bin: string): string | null {
   }
 }
 
-export function ensureNodeName(bin: string, dir = agentsDir()): string {
+function awaitRename(bin: string, wanted: string, warn: (line: string) => void): void {
+  const wait = renameWaitMs();
+  const until = Date.now() + wait;
+  while (Date.now() < until) {
+    if (currentNodeLabel(bin) === wanted) return;
+    pause(RENAME_POLL_MS);
+  }
+  warn(
+    `tailscale still reports the old machine name after ${String(Math.round(wait / 1000))}s; the Funnel address may come up under it until the next restart`,
+  );
+}
+
+export function ensureNodeName(bin: string, dir = agentsDir(), warn: (line: string) => void = stderrLine): string {
   const wanted = nodeName(dir);
   if (currentNodeLabel(bin) === wanted) return wanted;
   const run = spawnSync(bin, ['set', '--hostname', wanted], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -50,5 +73,6 @@ export function ensureNodeName(bin: string, dir = agentsDir()): string {
         `Run it once yourself, then start again:  sudo tailscale set --hostname ${wanted}`,
     );
   }
+  awaitRename(bin, wanted, warn);
   return wanted;
 }
