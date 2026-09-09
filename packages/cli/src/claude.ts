@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgents, pickLocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
@@ -30,6 +30,24 @@ export function gatewayEnv(base: NodeJS.ProcessEnv, agentKey: string | null, por
     ANTHROPIC_CUSTOM_HEADERS: own === '' ? mine : `${own}\n${mine}`,
     CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: '1',
   };
+}
+
+const OWN_CREDENTIALS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'];
+
+export function credentialEnv(env: NodeJS.ProcessEnv, agentKey: string, signedIn: boolean): NodeJS.ProcessEnv {
+  if (signedIn || OWN_CREDENTIALS.some((name) => set(env, name))) return env;
+  return { ...env, ANTHROPIC_AUTH_TOKEN: agentKey };
+}
+
+export function claudeSignedIn(): boolean {
+  const run = spawnSync('claude', ['auth', 'status', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  if (run.error !== undefined || typeof run.stdout !== 'string') return false;
+  try {
+    const parsed = JSON.parse(run.stdout) as { authenticated?: unknown; loggedIn?: unknown; email?: unknown; organization?: unknown };
+    return parsed.authenticated === true || parsed.loggedIn === true || typeof parsed.email === 'string' || typeof parsed.organization === 'string';
+  } catch {
+    return false;
+  }
 }
 
 export function servingDaemon(body: unknown): boolean {
@@ -117,5 +135,9 @@ export async function launchClaude(extra: string[]): Promise<number> {
   }
   const port = localPort();
   process.stderr.write(`metro claude: inference goes through the daemon at http://127.0.0.1:${String(port)}/gateway (the Model page decides where)\n`);
-  return runClaude(claudeArgs(extra), gatewayEnv(process.env, decision.key, port));
+  const routed = gatewayEnv(process.env, decision.key, port);
+  const env = credentialEnv(routed, decision.key, claudeSignedIn());
+  if (env !== routed)
+    process.stderr.write("metro claude: Claude Code has no login of its own here, so metro's key stands in as its credential; the Model page must route to Bedrock, OpenRouter or Codex\n");
+  return runClaude(claudeArgs(extra), env);
 }

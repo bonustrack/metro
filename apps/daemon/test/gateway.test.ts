@@ -204,6 +204,16 @@ describe('the Anthropic route', () => {
     expect(anthropic.seen[0]?.body).toBe(JSON.stringify(message('claude-sonnet-5')));
   });
 
+  test('metro\'s own key standing in for a login is refused on this route by name, before anything reaches Anthropic', async () => {
+    const before = anthropic.seen.length;
+    const res = await post('/gateway/v1/messages', message('claude-sonnet-5'), { authorization: 'Bearer mk_ok' });
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: { type: string; message: string } };
+    expect(body.error.type).toBe('permission_error');
+    expect(body.error.message).toContain('Model page');
+    expect(anthropic.seen.length).toBe(before);
+  });
+
   test('a key on the page replaces Claude Code\'s own login, takes the oauth beta off, and pins the model', async () => {
     cfg.anthropic = { apiKey: 'sk-ant-page', model: 'claude-opus-5' };
     const res = await post('/gateway/v1/messages', message('claude-sonnet-5'), {

@@ -70,6 +70,11 @@ function requestedModel(body: Record<string, unknown>): string {
   return model;
 }
 
+const standsInFor = (req: IncomingMessage): boolean => {
+  const metroKey = req.headers['x-metro-key'];
+  return typeof metroKey === 'string' && metroKey !== '' && req.headers.authorization === `Bearer ${metroKey}`;
+};
+
 async function toAnthropic(
   req: IncomingMessage,
   res: ServerResponse,
@@ -81,8 +86,14 @@ async function toAnthropic(
   const explicit = typeof body.model === 'string' && body.model !== route.model;
   const payload = explicit ? Buffer.from(JSON.stringify({ ...body, model: route.model })) : raw;
   const url = `${deps.anthropicBase ?? ANTHROPIC_BASE}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
-  const watch = watchUpstream(res);
   const key = deps.config().anthropic.apiKey;
+  if (key === '' && standsInFor(req))
+    throw new GatewayError(
+      403,
+      'permission_error',
+      'Claude Code on this machine has no Anthropic login of its own; choose Bedrock, OpenRouter or Codex on the Model page, or sign in on the Claude tab',
+    );
+  const watch = watchUpstream(res);
   const upstream = await fetch(url, {
     method: 'POST',
     headers: key === '' ? forwardedHeaders(req) : anthropicHeaders(req, key),

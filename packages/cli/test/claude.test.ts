@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { agentKey, claudeArgs, gatewayEnv, pinnedBy, servingDaemon } from '../src/claude.ts';
+import { agentKey, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, servingDaemon } from '../src/claude.ts';
 
 describe('metro claude hands everything to claude untouched', () => {
   test('the channel flag comes first, then the user arguments verbatim', () => {
@@ -73,5 +73,21 @@ describe('when metro claude leaves Claude Code alone', () => {
     expect(agentKey([tony, lisa], 'lisa')).toEqual({ key: 'mk_l' });
     expect(JSON.stringify(agentKey([tony, lisa], undefined))).toContain('METRO_AGENT');
     expect(JSON.stringify(agentKey([tony, lisa], 'suzy'))).toContain("'suzy'");
+  });
+});
+
+describe('a box with no Anthropic account at all', () => {
+  const routed = { PATH: '/bin', ANTHROPIC_BASE_URL: 'http://127.0.0.1:8420/gateway' };
+
+  test("without a login or a key of its own, Claude Code gets metro's key as its credential", () => {
+    expect(credentialEnv(routed, 'mk_agent', false)).toEqual({ ...routed, ANTHROPIC_AUTH_TOKEN: 'mk_agent' });
+  });
+
+  test('a claude.ai login, an API key or an auth token the user set are left alone', () => {
+    expect(credentialEnv(routed, 'mk_agent', true)).toBe(routed);
+    const withKey = { ...routed, ANTHROPIC_API_KEY: 'sk-ant-client' };
+    expect(credentialEnv(withKey, 'mk_agent', false)).toBe(withKey);
+    const withToken = { ...routed, ANTHROPIC_AUTH_TOKEN: 'their-gateway' };
+    expect(credentialEnv(withToken, 'mk_agent', false)).toBe(withToken);
   });
 });
