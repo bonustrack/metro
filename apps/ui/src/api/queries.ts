@@ -24,12 +24,16 @@ import {
   fetchClaudeProjects,
   fetchClaudeSessions,
   fetchClaudeSettings,
+  fetchClaudeSkill,
+  fetchClaudeSkills,
   fetchMemory,
   fetchMemoryFile,
   deleteClaudeSession,
   type ClaudeProject,
   type ClaudeSession,
   type ClaudeSettingsFile,
+  type ClaudeSkill,
+  type SkillListing,
   type MemoryListing,
 } from './claude.js';
 import { fetchMode, type ModeInfo } from './mode.js';
@@ -46,6 +50,8 @@ export const sessionKey = (): string[] => ['session'];
 const claudeProjectsKey = (): string[] => ['claude', 'projects'];
 const claudeSessionsKey = (project: string): string[] => ['claude', 'sessions', project];
 const claudeSettingsKey = (): string[] => ['claude', 'settings', daemonBase()];
+const skillsKey = (): string[] => ['claude', 'skills', daemonBase()];
+const skillKey = (id: string): string[] => ['claude', 'skill', daemonBase(), id];
 const memoryKey = (project: string): string[] => ['claude', 'memory', project];
 const memoryFileKey = (project: string, name: string): string[] => ['claude', 'memory', project, name];
 const LIVE_LIST_MS = 5_000;
@@ -220,6 +226,26 @@ export function useClaudeSettingsQuery(): UseQueryResult<ClaudeSettingsFile[]> {
 
 export function refreshClaudeSettings(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: claudeSettingsKey() });
+}
+
+export function useClaudeSkillsQuery(): UseQueryResult<SkillListing> {
+  return useQuery({
+    queryKey: skillsKey(),
+    queryFn: () => fetchClaudeSkills(),
+    refetchInterval: LIVE_LIST_MS,
+  });
+}
+
+export function useClaudeSkillQuery(id: string): UseQueryResult<ClaudeSkill & { text: string }> {
+  return useQuery({
+    queryKey: skillKey(id),
+    queryFn: () => fetchClaudeSkill(id),
+  });
+}
+
+export async function refreshClaudeSkills(client: QueryClient, id?: string): Promise<void> {
+  await client.invalidateQueries({ queryKey: skillsKey() });
+  if (id !== undefined) await client.invalidateQueries({ queryKey: skillKey(id) });
 }
 
 export function useMemoryQuery(project: string): UseQueryResult<MemoryListing> {

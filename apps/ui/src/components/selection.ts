@@ -14,7 +14,9 @@ export type Selection =
   | { kind: 'connector'; project: string; id: string }
   | { kind: 'sessions'; project: string; claudeProject: string | null; id: string | null }
   | { kind: 'memory'; project: string; claudeProject: string | null; file: string | null }
-  | { kind: 'claude'; project: string };
+  | { kind: 'claude'; project: string }
+  | { kind: 'skills'; project: string }
+  | { kind: 'skill'; project: string; id: string };
 
 export function selectionProject(selection: Selection): string | null {
   return 'project' in selection ? selection.project : null;
