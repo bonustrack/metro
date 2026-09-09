@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { claudeDir } from '../claude/files.js';
-import { webhookPort } from '../net/tunnel.js';
+import { loopbackBase } from '../files/attach-serve.js';
 import { readLocalConnectors, type LocalConnectorRow } from './store.js';
 
 const MARKER = join('bin', 'metro-plugin.mjs');
@@ -76,7 +76,7 @@ export interface PluginSyncOptions {
 export function syncPluginServers(opts: PluginSyncOptions = {}): number {
   const files = installedPluginFiles(opts.dir ?? claudeDir());
   if (files.length === 0) return 0;
-  const base = opts.base ?? `http://127.0.0.1:${String(webhookPort())}`;
+  const base = opts.base ?? loopbackBase();
   const rows = opts.agents === undefined ? readLocalConnectors() : readLocalConnectors(opts.agents);
   const servers = pluginServers(rows, base);
   const text = `${JSON.stringify(servers, null, 2)}\n`;

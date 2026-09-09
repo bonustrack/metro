@@ -30,15 +30,15 @@ export function publicBaseUrl(): string | null {
   return currentTunnelUrl();
 }
 
-const localBase = (): string => `http://127.0.0.1:${String(webhookPort())}`;
+export const loopbackBase = (): string => `http://127.0.0.1:${String(webhookPort())}`;
 
-export const publicBaseOrDefault = (): string => publicBaseUrl() ?? localBase();
+export const publicBaseOrDefault = (): string => publicBaseUrl() ?? loopbackBase();
 
 export function attachmentUrl(
   pathOrName: string,
   agentId: string,
 ): string | null {
-  const base = publicBaseUrl() ?? localBase();
+  const base = publicBaseUrl() ?? loopbackBase();
   if (!base) return null;
   const name = pathOrName.split('/').pop();
   if (!name || !resolveCachedAttachment(name)) return null;

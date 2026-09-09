@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { cors, sendJson, type AgentIdentity } from '@metro-labs/http/api-http';
-import { publicBaseOrDefault } from '../files/attach-serve.js';
+import { loopbackBase } from '../files/attach-serve.js';
 import { relayServersJson, type RelayServerEntry } from './json.js';
 import { agentIdForKey } from '../agents/keys.js';
 
@@ -53,7 +53,7 @@ export function handleLocalCliRequest(
     .connectorEntries(who.agentId)
     .then((entries) => {
       const agent = deps.agentName(who.agentId) ?? '';
-      sendJson(req, res, 200, { json: relayServersJson(entries, publicBaseOrDefault(), keyOf(req)), agent });
+      sendJson(req, res, 200, { json: relayServersJson(entries, loopbackBase(), keyOf(req)), agent });
     })
     .catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'local cli: request failed');
