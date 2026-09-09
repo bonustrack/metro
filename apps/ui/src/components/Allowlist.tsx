@@ -13,6 +13,16 @@ const OPEN = 'Messages from anyone else still arrive on this station, and metro 
 const CLOSED = 'Every message on this station reaches the agent.';
 const EMPTY = 'No sender is listed yet, so anyone can reach this agent. Add the first one below.';
 
+const WHERE_TO_FIND: Record<string, string> = {
+  'telegram-bot': 'A Telegram user id is a number. Ask the person to write to the bot once and pick them from the list below, or have them message @userinfobot, which answers with their id.',
+  telegram: 'A Telegram user id is a number. Ask the person to write to this account once and pick them from the list below, or have them message @userinfobot, which answers with their id.',
+  'discord-bot': 'A Discord user id is a long number. Turn on Settings, Advanced, Developer Mode in Discord, then right-click the person and choose Copy User ID.',
+  whatsapp: 'A WhatsApp sender is their number in full international form, no plus and no spaces, followed by @s.whatsapp.net, as in 33612345678@s.whatsapp.net.',
+  xmtp: 'An XMTP sender is their inbox id, the long hex string, not their wallet address. The surest way is to have them write once and pick them from the list below.',
+};
+
+const LINE_HINT = 'The last part of a metro:// line is what goes here, and the whole line works too.';
+
 interface EditorProps {
   entries: string[];
   seen: RecentSender[];
@@ -177,6 +187,7 @@ export function Allowlist({ agentId, station, accountId, allowlist, onSaved }: A
         <Button size="sm" color={editing ? 'primary' : 'secondary'} dark={dark} disabled={busy !== null} label="Only these senders" onPress={openEditor} />
       </Row>
       <Text size="sm" role="secondary">{editing ? OPEN : CLOSED}</Text>
+      {editing ? <Text size="sm" role="secondary">{`${WHERE_TO_FIND[station] ?? ''} ${LINE_HINT}`.trim()}</Text> : null}
       {editing ? <Editor entries={entries} seen={seen} busy={busy} onAdd={add} onRemove={(id) => { save(entries.filter((e) => e !== id), id); }} /> : null}
       {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
     </Col>

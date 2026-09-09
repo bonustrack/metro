@@ -12,12 +12,14 @@ import { ConfirmModal } from './ConfirmModal.js';
 import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
 import { whenLabel } from '../api/when.js';
-import { createClaudeSkill, deleteClaudeSkill, type ClaudeSkill, type SkillPlace } from '../api/claude.js';
-import { queryError, refreshClaudeSkills, useClaudeSkillsQuery } from '../api/queries.js';
+import { createClaudeSkill, deleteClaudeSkill, type ClaudeSkill, type SkillListing, type SkillPlace } from '../api/claude.js';
+import { queryError, refreshClaudeSkills, useClaudeSkillsQuery, useModeQuery } from '../api/queries.js';
+import { olderThan } from '../api/version.js';
 import { useDocumentTitle } from '../title.js';
 
 const WHAT =
   'A skill is a folder of instructions Claude Code loads when the work matches it. These live on this machine: the first group is your whole account, the others belong to a project Claude Code has worked in.';
+const SKILLS_SINCE = '0.1.0-beta.87';
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const NAME_HELP = 'A skill name is lowercase letters, digits and dashes, like write-as-less.';
 
@@ -109,9 +111,47 @@ function PlaceSection({ place, skills, project, onOpen, onDelete, onNew }: Place
   );
 }
 
+interface ListingProps {
+  old: boolean;
+  error: unknown;
+  data: SkillListing | undefined;
+  project: string;
+  onOpen: (id: string) => void;
+  onDelete: (skill: ClaudeSkill) => void;
+  onNew: (place: SkillPlace) => void;
+}
+
+function Listing({ old, error, data, project, onOpen, onDelete, onNew }: ListingProps): ReactNode {
+  if (old)
+    return (
+      <Text size="sm" role="secondary">
+        {`Skills need metro ${SKILLS_SINCE} or newer on this machine. Update it on the Server tab.`}
+      </Text>
+    );
+  if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
+  if (data === undefined) return <Loading />;
+  return (
+    <Col gap={24}>
+      {data.places.map((place) => (
+        <PlaceSection
+          key={place.id}
+          place={place}
+          project={project}
+          skills={data.skills.filter((skill) => skill.id.startsWith(`${place.id}:`))}
+          onOpen={onOpen}
+          onDelete={onDelete}
+          onNew={onNew}
+        />
+      ))}
+    </Col>
+  );
+}
+
 export function Skills({ project, onOpen }: { project: string; onOpen: (id: string) => void }): ReactNode {
   const client = useQueryClient();
-  const { data, error } = useClaudeSkillsQuery();
+  const mode = useModeQuery();
+  const old = olderThan(mode.data?.version ?? null, SKILLS_SINCE);
+  const { data, error } = useClaudeSkillsQuery(!old);
   const [naming, setNaming] = useState<SkillPlace | null>(null);
   const [dropping, setDropping] = useState<ClaudeSkill | null>(null);
   const [busy, setBusy] = useState(false);
@@ -141,25 +181,7 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
         <PageTitle>Skills</PageTitle>
         <Text size="sm" role="secondary">{WHAT}</Text>
       </Col>
-      {error !== null ? (
-        <Text size="sm" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>
-      ) : data === undefined ? (
-        <Loading />
-      ) : (
-        <Col gap={24}>
-          {data.places.map((place) => (
-            <PlaceSection
-              key={place.id}
-              place={place}
-              project={project}
-              skills={data.skills.filter((skill) => skill.id.startsWith(`${place.id}:`))}
-              onOpen={onOpen}
-              onDelete={setDropping}
-              onNew={setNaming}
-            />
-          ))}
-        </Col>
-      )}
+      <Listing old={old} error={error} data={data} project={project} onOpen={onOpen} onDelete={setDropping} onNew={setNaming} />
       <NameModal
         title={naming === null ? 'New skill' : `New skill in ${placeLabel(naming)}`}
         action="Create"

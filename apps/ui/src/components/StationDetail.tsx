@@ -101,7 +101,7 @@ function AllowlistSection({
 }): ReactNode {
   const agentId = row.agentId;
   const id = row.id;
-  if (id === null || agentId === null || onSaved === undefined) return null;
+  if (id === null || agentId === null || onSaved === undefined || row.allowlist === null) return null;
   return <Allowlist agentId={agentId} station={station} accountId={id} allowlist={row.allowlist} onSaved={onSaved} />;
 }
 
