@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { attachAgentIds, scopeAccountsByAgent } from '../src/mcp/accounts.ts';
-import { agentForLine, agentIdForAccount, setAgentMap } from '../src/agents/map.ts';
+import { agentForLine, agentIdForAccount, setAgentMap, setAllowlistMap } from '../src/agents/map.ts';
 
 describe('scopeAccountsByAgent', () => {
   beforeEach(() =>
@@ -85,13 +85,17 @@ describe('two agents with the same name, different owners', () => {
 });
 
 describe('attachAgentIds', () => {
-  beforeEach(() =>
+  beforeEach(() => {
     setAgentMap(
       { 'xmtp/x0': 'agent000001', 'discord-bot/d0': 'agent000001', 'telegram-bot/t0': 'agent000002' },
       { ['agent000001']: 'tony', ['agent000002']: 'wan' },
-    ),
-  );
-  afterAll(() => setAgentMap({}, {}));
+    );
+    setAllowlistMap({});
+  });
+  afterAll(() => {
+    setAgentMap({}, {});
+    setAllowlistMap({});
+  });
 
   test('stamps every account with the id of the agent it belongs to', () => {
     const tagged = attachAgentIds({
@@ -102,6 +106,14 @@ describe('attachAgentIds', () => {
     expect(tagged.xmtp).toEqual([{ id: 'x0', owner: 'a', agentId: 'agent000001' }]);
     expect(tagged['discord-bot']).toEqual([{ id: 'd0', agentId: 'agent000001' }]);
     expect(tagged['telegram-bot']).toEqual([{ id: 't0', agentId: 'agent000002' }]);
+  });
+
+  test('an account whose agent narrowed its senders carries that allowlist to the page', () => {
+    setAllowlistMap({ 'telegram-bot/t0': ['4242'], 'xmtp/x0': ['*'] });
+    const tagged = attachAgentIds({ 'telegram-bot': [{ id: 't0' }], xmtp: [{ id: 'x0' }], 'discord-bot': [{ id: 'd0' }] });
+    expect(tagged['telegram-bot']).toEqual([{ id: 't0', agentId: 'agent000002', allowlist: ['4242'] }]);
+    expect(tagged.xmtp).toEqual([{ id: 'x0', agentId: 'agent000001', allowlist: ['*'] }]);
+    expect(tagged['discord-bot']).toEqual([{ id: 'd0', agentId: 'agent000001' }]);
   });
 
   test('an account with no mapped agent or no id is passed through untouched', () => {
