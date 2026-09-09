@@ -109,8 +109,10 @@ function tailscaleStatus(bin: string): { ok: true } | { ok: false; state: string
   const run = spawnSync(bin, ['status', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (run.error !== undefined || run.status !== 0) return { ok: false, state: 'not running' };
   try {
-    const parsed = JSON.parse(run.stdout) as { BackendState?: unknown };
-    return parsed.BackendState === 'Running' ? { ok: true } : { ok: false, state: String(parsed.BackendState) };
+    const parsed = JSON.parse(run.stdout) as { BackendState?: unknown; Self?: { Online?: unknown } };
+    if (parsed.BackendState !== 'Running') return { ok: false, state: String(parsed.BackendState) };
+    if (parsed.Self?.Online === false) return { ok: false, state: 'Running, but not connected to the tailnet: the machine may have been removed from it' };
+    return { ok: true };
   } catch {
     return { ok: false, state: 'unreadable' };
   }

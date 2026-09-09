@@ -24,6 +24,12 @@ describe('the daemon address a person types', () => {
     expect(base('https://api.metro.box/')).toBe('https://api.metro.box');
   });
 
+  test('a bare host that is not loopback is taken as https, the way a Funnel address is pasted', () => {
+    expect(base('suzy.tail1234.ts.net')).toBe('https://suzy.tail1234.ts.net');
+    expect(base('suzy.tail1234.ts.net:8443/')).toBe('https://suzy.tail1234.ts.net:8443');
+    expect(base('127.0.0.1:8420')).toBe('http://127.0.0.1:8420');
+  });
+
   test('plain http to another machine is refused with the way out named', () => {
     expect(error('http://192.168.1.10:8420')).toContain('ssh -L');
     expect(error('http://suzy.local:8420')).toContain('https');

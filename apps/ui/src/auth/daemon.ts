@@ -22,7 +22,9 @@ export function builtInDaemon(): string {
 
 function parsed(text: string): URL | null {
   try {
-    return new URL(SCHEME.test(text) ? text : `http://${text}`);
+    if (SCHEME.test(text)) return new URL(text);
+    const bare = new URL(`http://${text}`);
+    return LOOPBACK.has(bare.hostname) ? bare : new URL(`https://${text}`);
   } catch {
     return null;
   }

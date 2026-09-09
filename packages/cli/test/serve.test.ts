@@ -135,6 +135,10 @@ describe('finding tailscale', () => {
     const loggedOut = fake('ts-out', `if [ "$1" = "version" ]; then echo 1.102.2; exit 0; fi\necho '{"BackendState":"NeedsLogin"}'`);
     expect(findTailscale([join(dir, 'missing'), running])).toBe(running);
     expect(() => findTailscale([loggedOut])).toThrow(/NeedsLogin[^]*tailscale up/);
+    const offline = fake('ts-offline', `if [ "$1" = "version" ]; then echo 1.102.2; exit 0; fi\necho '{"BackendState":"Running","Self":{"Online":false}}'`);
+    expect(() => findTailscale([offline])).toThrow(/not connected to the tailnet[^]*tailscale up/);
+    const online = fake('ts-online', `if [ "$1" = "version" ]; then echo 1.102.2; exit 0; fi\necho '{"BackendState":"Running","Self":{"Online":true}}'`);
+    expect(findTailscale([online])).toBe(online);
     expect(() => findTailscale([join(dir, 'missing')])).toThrow(/needs Tailscale on this machine/);
   });
 });
