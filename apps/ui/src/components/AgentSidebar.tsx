@@ -6,8 +6,6 @@ import { MetroLogo } from './MetroLogo.js';
 import { NAV_GAP, NavRow } from './NavRow.js';
 import { SidebarFooter } from './SidebarFooter.js';
 import { ServerSwitcher } from './ServerSwitcher.js';
-import { opensElsewhere } from './link.js';
-import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
 
 const SCROLL = { flex: 1 } as const;
@@ -32,16 +30,7 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
       <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
         <Col gap={10}>
           <Row padding={{ bottom: 22 }}>
-            <a
-              className="nav-link"
-              href={routeHash(home)}
-              aria-label="This machine"
-              onClick={(e) => {
-                if (opensElsewhere(e)) return;
-                e.preventDefault();
-                onSelect(home);
-              }}
-            >
+            <a className="nav-link" href="#/" aria-label="All servers">
               <MetroLogo size={32} color={palette.link} />
             </a>
           </Row>
