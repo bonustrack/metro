@@ -1,8 +1,8 @@
 import { IdentifierKind } from '@xmtp/node-sdk';
 import { convOf, type Account } from './accounts.js';
 import { inboxEthCache, cacheInboxEth } from './wire.js';
-import { TrainError } from '@metro-labs/mcp/train-error';
-import type { MemberList, MetroMember } from '@metro-labs/mcp/stations/types';
+import { TrainError } from '@metro-labs/core/train-error';
+import type { MemberList, MetroMember } from '@metro-labs/core/stations/types';
 import { readAppData, type GroupLike } from './labels.js';
 
 export { parseMemberArgs, resolveMembers } from './member-args.js';

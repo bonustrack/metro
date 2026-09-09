@@ -3,7 +3,6 @@ import { mcpServers, whoisAuthorized } from './api.js';
 import { stopAll } from './control.js';
 import { tailEvents } from './tail.js';
 import { launchClaude } from './claude.js';
-import { bedrock } from './bedrock.js';
 import { installPlugin } from './plugin.js';
 import { update } from './update.js';
 import { serve } from './serve.js';
@@ -35,7 +34,6 @@ const USAGE = `metro — run your agent on this machine
   metro plugin    set up the Claude Code plugin (connector servers + /metro:refresh)
   metro claude [args...]
                   open Claude Code with the metro channel; every argument is passed through
-  metro bedrock [args...]
                   the same, with inference on Amazon Bedrock through a local proxy so the
                   channel still works (needs AWS_BEARER_TOKEN_BEDROCK and AWS_REGION)
   metro update    update to the newest published version (--check only reports)
@@ -83,7 +81,6 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   },
   plugin: installPlugin,
   claude: () => launchClaude(process.argv.slice(3)),
-  bedrock: () => bedrock(process.argv.slice(3)),
   update: () => update(process.argv.slice(3)),
   version: async () => {
     process.stdout.write(`${currentVersion()}\n`);

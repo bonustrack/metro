@@ -1,4 +1,4 @@
-import type { Normalized } from '@metro-labs/mcp/stations/messaging-normalize';
+import type { Normalized } from '@metro-labs/core/stations/messaging-normalize';
 
 type Args = Record<string, unknown>;
 

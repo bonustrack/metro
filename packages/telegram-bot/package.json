@@ -13,7 +13,7 @@
     "test": "tsc --noEmit && bun test test/"
   },
   "dependencies": {
-    "@metro-labs/mcp": "workspace:*"
+    "@metro-labs/core": "workspace:*"
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.2",

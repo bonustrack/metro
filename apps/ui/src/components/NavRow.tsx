@@ -2,10 +2,10 @@ import { type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { opensElsewhere } from './link';
-import { routeHash } from '../route';
-import { type Selection } from './selection';
+import { Text } from './ui.js';
+import { opensElsewhere } from './link.js';
+import { routeHash } from '../route.js';
+import { type Selection } from './selection.js';
 
 export const NAV_ROW_BOX = {
   align: 'center',

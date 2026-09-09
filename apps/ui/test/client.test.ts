@@ -1,7 +1,7 @@
 import { beforeAll } from 'bun:test';
-import { installTestIdentity } from './identity-fixture';
+import { installTestIdentity } from './identity-fixture.js';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { fetchSession, fetchStations, resetAgentKey, StoppedError, type AgentSummary } from '../src/api/client';
+import { fetchSession, fetchStations, resetAgentKey, StoppedError, type AgentSummary } from '../src/api/client.js';
 
 beforeAll(async () => {
   await installTestIdentity();

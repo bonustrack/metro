@@ -1,7 +1,7 @@
-import { builtInDaemon, daemonBase } from '../auth/daemon';
-import { activeIdentity, type Identity } from '../auth/identity';
-import { signRequest } from '../vault/crypto';
-import { attributeUntagged, groupAccounts, isRecord, type AccountGroup } from './accounts';
+import { builtInDaemon, daemonBase } from '../auth/daemon.js';
+import { activeIdentity, type Identity } from '../auth/identity.js';
+import { signRequest } from '../vault/crypto.js';
+import { attributeUntagged, groupAccounts, isRecord, type AccountGroup } from './accounts.js';
 
 export class AuthError extends Error {
   constructor(

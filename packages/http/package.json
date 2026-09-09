@@ -1,0 +1,33 @@
+{
+  "name": "@metro-labs/http",
+  "version": "0.1.0",
+  "private": true,
+  "description": "How a metro server authenticates and answers a request: CORS, the JSON helpers, ApiError, the signed-identity header and the identity registry. Shared by the daemon and api.metro.box, never by a station.",
+  "type": "module",
+  "exports": {
+    "./cors": "./src/cors.ts",
+    "./api-http": "./src/api-http.ts",
+    "./api-error": "./src/api-error.ts",
+    "./signed-identity": "./src/signed-identity.ts",
+    "./identity-key": "./src/identity-key.ts",
+    "./identity-registry": "./src/identity-registry.ts",
+    "./return-to": "./src/return-to.ts",
+    "./mode-api": "./src/mode-api.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc --noEmit && bun test test/"
+  },
+  "dependencies": {
+    "@metro-labs/core": "workspace:*",
+    "@noble/curves": "^1.9.7",
+    "viem": "2.52.2"
+  },
+  "devDependencies": {
+    "@stage-labs/config": "0.1.0-beta.2",
+    "eslint": "^10.3.0",
+    "knip": "^6.15.0",
+    "madge": "^8.0.0",
+    "typescript": "^5"
+  }
+}

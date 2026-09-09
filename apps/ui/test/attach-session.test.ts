@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { isAttachSession, toSession } from '../src/api/attach-session';
-import { STATION_FORMS, stationLabel } from '../src/api/attach';
+import { isAttachSession, toSession } from '../src/api/attach-session.js';
+import { STATION_FORMS, stationLabel } from '../src/api/attach.js';
 
 const PENDING = {
   attachId: 'as_AAAAAAAAAAAAAAAAAAAAAA',

@@ -3,12 +3,12 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { Dropdown, type MenuItem } from './Dropdown';
-import { NameModal } from './NameModal';
-import { mintTerminalTicket, SESSION_RE, terminalSocketUrl, terminalStatus } from '../api/terminal';
-import { queryError } from '../api/queries';
-import { useDocumentTitle } from '../title';
+import { Text, Button } from './ui.js';
+import { Dropdown, type MenuItem } from './Dropdown.js';
+import { NameModal } from './NameModal.js';
+import { mintTerminalTicket, SESSION_RE, terminalSocketUrl, terminalStatus } from '../api/terminal.js';
+import { queryError } from '../api/queries.js';
+import { useDocumentTitle } from '../title.js';
 
 type Phase = { kind: 'connecting' } | { kind: 'open' } | { kind: 'closed'; reason: string };
 

@@ -21,8 +21,12 @@ describe('the staged channel manifest', () => {
     stations: Record<string, Record<string, string>>;
   };
 
-  test('core is the daemon package minus the workspace and the hosted-only Postgres stack', () => {
-    expect(manifest.core).toEqual(vendor(join(REPO, 'apps', 'mcp')));
+  test('core is the daemon, the kernel and the http package minus the workspace, and never the Postgres stack', () => {
+    expect(manifest.core).toEqual({
+      ...vendor(join(REPO, 'apps', 'daemon')),
+      ...vendor(join(REPO, 'packages', 'core')),
+      ...vendor(join(REPO, 'packages', 'http')),
+    });
     for (const name of HOSTED_ONLY) expect(manifest.core).not.toHaveProperty(name);
   });
 

@@ -4,9 +4,9 @@ import { Icon } from '@stage-labs/kit/react-native/icon';
 import { Pressable } from '@stage-labs/kit/react-native/pressable';
 import { Spacer } from '@stage-labs/kit/react-native/spacer';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { CountBadge } from './CountBadge';
-import { TOOL_KINDS, type ConnectorTool, type ToolKind } from '../api/connectors';
+import { Text } from './ui.js';
+import { CountBadge } from './CountBadge.js';
+import { TOOL_KINDS, type ConnectorTool, type ToolKind } from '../api/connectors.js';
 
 const LABEL: Record<ToolKind, string> = {
   read: 'Read-only tools',

@@ -17,7 +17,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import type { WAMessage } from 'baileys';
-import { MAX_ATTACHMENT_BYTES } from '@metro-labs/mcp/stations/attachments';
+import { MAX_ATTACHMENT_BYTES } from '@metro-labs/core/stations/attachments';
 import { startInbound } from '../src/inbound.ts';
 import type { InboundHandlers, WAClient } from '../src/client.ts';
 import { toInbound } from '../src/parse.ts';

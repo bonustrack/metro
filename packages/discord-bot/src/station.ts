@@ -1,4 +1,4 @@
-import type { GroupOp, Station, Verb } from '@metro-labs/mcp/stations/types';
+import type { GroupOp, Station, Verb } from '@metro-labs/core/stations/types';
 
 export const discordBotStation: Station = {
   name: 'discord-bot',

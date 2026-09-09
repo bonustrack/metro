@@ -1,13 +1,12 @@
 # syntax=docker/dockerfile:1.7-labs
-# metro — one process (stations + webhooks + MCP) on :8420.
-# Debian-based Bun image (glibc) so @xmtp/node-bindings loads the linux-x64-gnu
-# binary. No build step: metro runs from source via `bun apps/mcp/src/server.ts`.
+# api.metro.box — the hosted service: the vault and the server list on :8420.
+# No station, no MCP, no gateway runs here; those live in the daemon a user runs on
+# their own machine. No build step: it runs from source via `bun apps/api/src/server.ts`.
 FROM oven/bun:1.4.0
 
 WORKDIR /app
 
-# The XMTP native (Rust) binding uses the SYSTEM cert store for its gRPC TLS, but the
-# oven/bun image ships without ca-certificates — install them or XMTP can't connect.
+# Postgres over TLS needs the system cert store, which the oven/bun image ships without.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -21,23 +20,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 #    never again silently break the frozen install / Fly auto-deploy.
 COPY package.json bun.lock turbo.json ./
 COPY --parents apps/*/package.json packages/*/package.json ./
-RUN bun install --frozen-lockfile --production
+# --filter installs only what @metro-labs/api and the two packages it depends on need:
+# 68 packages and 168 MB instead of the whole workspace at 1.5 GB (measured 2026-09-09),
+# and no station SDK ever lands in the hosted image. drizzle-kit stays in
+# apps/api/node_modules/.bin, which is where the release command finds it.
+RUN bun install --frozen-lockfile --production --filter @metro-labs/api
 
-# 2) App source. node_modules/.env/.git/dist are excluded via .dockerignore, so the
-#    installed deps and your secrets are never copied over / baked in.
-COPY . .
+# 2) Only the sources the hosted service runs: the app itself and the two packages it
+#    imports. The daemon, the stations and the page never enter this image.
+COPY apps/api ./apps/api
+COPY packages/core ./packages/core
+COPY packages/http ./packages/http
 
-# HOME=/data → ~/.metro (XMTP MLS DBs) and ~/.cache/metro (state dir) live on the
-# mounted volume. METRO_TRAINS_DIR sits under apps/mcp so the boot-generated train
-# stubs resolve @metro-labs/* from apps/mcp/node_modules with no symlink.
 # METRO_HTTP_HOST=0.0.0.0 so the platform proxy can reach the app.
 ENV HOME=/data \
-    METRO_TRAINS_DIR=/app/apps/mcp/trains \
     METRO_HTTP_HOST=0.0.0.0 \
     METRO_LOG_LEVEL=info
 
 EXPOSE 8420
 # CMD, not ENTRYPOINT: Fly release_command replaces CMD but ENTRYPOINT always runs, so an
-# ENTRYPOINT here would make the release machine boot a SECOND daemon (with an empty
-# /data, i.e. a fresh XMTP installation) instead of running the migration.
-CMD ["bun", "/app/apps/mcp/src/server.ts"]
+# ENTRYPOINT here would make the release machine boot a SECOND server instead of
+# running the migration, and never exit.
+CMD ["bun", "/app/apps/api/src/server.ts"]

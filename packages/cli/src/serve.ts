@@ -147,7 +147,6 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
     cwd: opts.runtime.dir,
     env: {
       ...env,
-      METRO_MODE: 'local',
       METRO_VERSION: currentVersion(),
       METRO_CLI_BIN: process.argv[1] ?? '',
       METRO_WEBHOOK_PORT: String(opts.port),

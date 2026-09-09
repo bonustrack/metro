@@ -1,6 +1,6 @@
 import type { InputMediaLike, Message } from '@mtcute/bun';
 import { InputMedia } from '@mtcute/bun';
-import { isImageMime, isImageExt } from '@metro-labs/mcp/stations/attachments';
+import { isImageMime, isImageExt } from '@metro-labs/core/stations/attachments';
 import type { UserClient } from './client.js';
 
 export interface CanonicalAttachment {

@@ -6,9 +6,9 @@ import {
 import {
   saveBufferToCache,
   assertAttachmentSize,
-} from '@metro-labs/mcp/stations/attachments';
-import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
-import { errMsg } from '@metro-labs/mcp/log';
+} from '@metro-labs/core/stations/attachments';
+import type { SavedAttachment } from '@metro-labs/core/stations/attachments';
+import { errMsg } from '@metro-labs/core/log';
 
 export type { SavedAttachment };
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { olderThan, parseVersion } from '../src/api/version';
+import { olderThan, parseVersion } from '../src/api/version.js';
 
 describe('deciding whether a daemon predates a page feature', () => {
   test('prereleases order by number, a release outranks its own prereleases', () => {

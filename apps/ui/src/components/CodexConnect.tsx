@@ -2,11 +2,11 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui';
-import { FieldLabel } from './FieldLabel';
-import { GROW } from '../theme';
-import { beginCodexDevice, beginCodexLogin, codexImport, codexLogout, finishCodexLogin, pollCodexDevice, type DeviceLogin, type ModelSettings } from '../api/model';
-import { queryError, refreshModel } from '../api/queries';
+import { Text, Button, Input } from './ui.js';
+import { FieldLabel } from './FieldLabel.js';
+import { GROW } from '../theme.js';
+import { beginCodexDevice, beginCodexLogin, codexImport, codexLogout, finishCodexLogin, pollCodexDevice, type DeviceLogin, type ModelSettings } from '../api/model.js';
+import { queryError, refreshModel } from '../api/queries.js';
 
 const FIELD_WIDTH = 420;
 const PASTE_HINT =

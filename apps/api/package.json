@@ -1,0 +1,32 @@
+{
+  "name": "@metro-labs/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "api.metro.box: the vault of sealed agent bundles and each wallet's server list, behind the same signed-identity header every local daemon takes. Nothing else answers there.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "bun src/server.ts",
+    "build": "tsc",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "tsc --noEmit && bun test test/"
+  },
+  "dependencies": {
+    "@metro-labs/core": "workspace:*",
+    "@metro-labs/http": "workspace:*",
+    "drizzle-kit": "^0.31.0",
+    "drizzle-orm": "^0.44.0",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@stage-labs/config": "0.1.0-beta.2",
+    "eslint": "^10.3.0",
+    "knip": "^6.15.0",
+    "madge": "^8.0.0",
+    "typescript": "^5",
+    "viem": "2.52.2"
+  }
+}

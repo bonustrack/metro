@@ -1,4 +1,4 @@
-import { COINBASE_ICON, WALLETCONNECT_ICON } from './wallet-icons';
+import { COINBASE_ICON, WALLETCONNECT_ICON } from './wallet-icons.js';
 
 export type WalletKind = 'injected' | 'walletconnect' | 'coinbase';
 

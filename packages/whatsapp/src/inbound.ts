@@ -1,5 +1,5 @@
 import type { WAMessage } from 'baileys';
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg } from '@metro-labs/core/log';
 import { emit } from './wire.js';
 import {
   attachmentFailedEnvelope,

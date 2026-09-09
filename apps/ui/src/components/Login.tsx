@@ -6,18 +6,18 @@ import {
   useKitScheme,
 } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
-import { Text } from './ui';
-import { GROW } from '../theme';
-import { MetroLogo } from './MetroLogo';
-import { PageTitle } from './PageTitle';
-import { Pill } from './Pill';
-import { Spinner } from './Spinner';
-import { storeRecentWallet } from '../auth/recent';
-import { connectWallet, signTypedDataWith, useWallets } from '../auth/wallet';
-import { identityFrom, storeIdentity, type Identity } from '../auth/identity';
-import { ENCRYPTION_KEY_TYPED_DATA } from '../vault/crypto';
-import { daemonHost, routedDaemon } from '../auth/daemon';
-import { type WalletChoice } from '../auth/wallet-options';
+import { Text } from './ui.js';
+import { GROW } from '../theme.js';
+import { MetroLogo } from './MetroLogo.js';
+import { PageTitle } from './PageTitle.js';
+import { Pill } from './Pill.js';
+import { Spinner } from './Spinner.js';
+import { storeRecentWallet } from '../auth/recent.js';
+import { connectWallet, signTypedDataWith, useWallets } from '../auth/wallet.js';
+import { identityFrom, storeIdentity, type Identity } from '../auth/identity.js';
+import { ENCRYPTION_KEY_TYPED_DATA } from '../vault/crypto.js';
+import { daemonHost, routedDaemon } from '../auth/daemon.js';
+import { type WalletChoice } from '../auth/wallet-options.js';
 
 const CARD_WIDTH = 400;
 const ICON_SIZE = 28;

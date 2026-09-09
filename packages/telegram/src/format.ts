@@ -1,5 +1,5 @@
 import type { Chat, Message, Peer, User } from '@mtcute/bun';
-import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
+import type { SavedAttachment } from '@metro-labs/core/stations/attachments';
 import { lineOf } from './accounts.js';
 import { mintId } from './wire.js';
 import { isDownloadable, pendingDescriptorOf } from './attachments.js';

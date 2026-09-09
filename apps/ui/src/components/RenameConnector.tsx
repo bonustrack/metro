@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
-import { renameConnector, type Connector } from '../api/connectors';
-import { NameModal } from './NameModal';
+import { renameConnector, type Connector } from '../api/connectors.js';
+import { NameModal } from './NameModal.js';
 
 interface RenameConnectorProps {
   connector: Connector;

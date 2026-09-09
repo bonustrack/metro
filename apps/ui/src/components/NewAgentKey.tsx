@@ -1,9 +1,9 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { type CreatedAgent } from '../api/client';
-import { CopyBlock } from './CopyBlock';
+import { Text, Button } from './ui.js';
+import { type CreatedAgent } from '../api/client.js';
+import { CopyBlock } from './CopyBlock.js';
 
 export function NewAgentKey({
   created,

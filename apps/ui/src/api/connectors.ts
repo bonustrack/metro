@@ -1,6 +1,6 @@
-import { daemonBase } from '../auth/daemon';
-import { call, LOCAL_PROJECT } from './client';
-import { isRecord } from './accounts';
+import { daemonBase } from '../auth/daemon.js';
+import { call, LOCAL_PROJECT } from './client.js';
+import { isRecord } from './accounts.js';
 
 export type ConnectorAuth = 'header' | 'oauth' | 'none';
 

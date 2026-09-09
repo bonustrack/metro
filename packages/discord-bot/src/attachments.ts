@@ -1,8 +1,8 @@
 import {
   saveBufferToCache,
   assertContentLength,
-} from '@metro-labs/mcp/stations/attachments';
-import type { SavedAttachment } from '@metro-labs/mcp/stations/attachments';
+} from '@metro-labs/core/stations/attachments';
+import type { SavedAttachment } from '@metro-labs/core/stations/attachments';
 
 export type { SavedAttachment };
 

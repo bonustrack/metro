@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { toSettingsFile } from '../src/api/claude';
+import { toSettingsFile } from '../src/api/claude.js';
 
 describe('the settings files a daemon lists', () => {
   test('a well-formed row keeps every field, a row with an unknown scope is dropped, and missing fields fall back', () => {

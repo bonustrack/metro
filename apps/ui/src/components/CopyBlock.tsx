@@ -1,8 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { FieldLabel } from './FieldLabel';
+import { Text, Button } from './ui.js';
+import { FieldLabel } from './FieldLabel.js';
 
 const MASK = '•'.repeat(5);
 

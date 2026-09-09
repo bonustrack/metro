@@ -2,8 +2,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { TelegramClient } from '@mtcute/bun';
-import { TrainError } from '@metro-labs/mcp/train-error';
-import { errMsg } from '@metro-labs/mcp/log';
+import { TrainError } from '@metro-labs/core/train-error';
+import { errMsg } from '@metro-labs/core/log';
 import type { UserAccount } from './types.js';
 
 const STATE_DIR =

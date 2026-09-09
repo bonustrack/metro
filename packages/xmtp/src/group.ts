@@ -1,5 +1,5 @@
-import { TrainError } from '@metro-labs/mcp/train-error';
-import type { GroupResult } from '@metro-labs/mcp/stations/types';
+import { TrainError } from '@metro-labs/core/train-error';
+import type { GroupResult } from '@metro-labs/core/stations/types';
 import { accountForCall, convOf, lineOf } from './accounts.js';
 import {
   applyMemberOp,

@@ -1,6 +1,6 @@
 import type { Reaction } from '@xmtp/content-type-reaction';
 import type { Reply } from '@xmtp/content-type-reply';
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg } from '@metro-labs/core/log';
 import { transcribeAndEmit } from './transcribe.js';
 import {
   saveInlineAttachment,

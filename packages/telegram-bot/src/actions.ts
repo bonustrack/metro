@@ -1,7 +1,7 @@
 import { accountFor, accounts, tg, targetOf } from './accounts.js';
 import { respond } from './wire.js';
-import { errMsg } from '@metro-labs/mcp/log';
-import { normalizeTelegram } from '@metro-labs/mcp/stations/messaging-normalize';
+import { errMsg } from '@metro-labs/core/log';
+import { normalizeTelegram } from '@metro-labs/core/stations/messaging-normalize';
 import {
   adminMemberList,
   inaccessibleMemberList,
@@ -11,9 +11,9 @@ import {
   makeStation,
   type CallMsg,
   type StationHandler,
-} from '@metro-labs/mcp/stations/station-runtime';
+} from '@metro-labs/core/stations/station-runtime';
 import { mediaKindOf } from './attachments.js';
-import { assertContentLength } from '@metro-labs/mcp/stations/attachments';
+import { assertContentLength } from '@metro-labs/core/stations/attachments';
 import {
   emitOutbound,
   finishSend,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { baseDomain, faviconUrl } from '../src/api/favicon';
+import { baseDomain, faviconUrl } from '../src/api/favicon.js';
 
 describe('the registrable domain, not the host the MCP happens to live on', () => {
   test('an mcp subdomain resolves to the site people would recognise', () => {

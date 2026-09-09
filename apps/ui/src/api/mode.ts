@@ -1,5 +1,5 @@
-import { isRecord } from './accounts';
-import { daemonBase, daemonHost } from '../auth/daemon';
+import { isRecord } from './accounts.js';
+import { daemonBase, daemonHost } from '../auth/daemon.js';
 
 export type DaemonMode = 'hosted' | 'linked' | 'local';
 

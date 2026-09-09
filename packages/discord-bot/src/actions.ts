@@ -13,8 +13,8 @@ import {
 } from './accounts.js';
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
 import { respond } from './wire.js';
-import { normalizeDiscord } from '@metro-labs/mcp/stations/messaging-normalize';
-import { assertContentLength } from '@metro-labs/mcp/stations/attachments';
+import { normalizeDiscord } from '@metro-labs/core/stations/messaging-normalize';
+import { assertContentLength } from '@metro-labs/core/stations/attachments';
 import {
   appendFiles,
   outgoingFiles,
@@ -24,7 +24,7 @@ import {
   makeStation,
   type CallMsg,
   type StationHandler,
-} from '@metro-labs/mcp/stations/station-runtime';
+} from '@metro-labs/core/stations/station-runtime';
 import { joinVoice, leaveVoice, voiceDebug, voiceTranscribe } from './voice.js';
 import { speak } from './voice-speak.js';
 import { discordMembers } from './members.js';

@@ -1,17 +1,17 @@
 import { type ReactNode } from 'react';
-import { Text } from './ui';
-import { findAccount } from '../api/accounts';
-import { detachAccount } from '../api/attach';
+import { Text } from './ui.js';
+import { findAccount } from '../api/accounts.js';
+import { detachAccount } from '../api/attach.js';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   dropAccount,
   queryError,
   stationsKey,
   useStationsQuery,
-} from '../api/queries';
-import { Loading } from './Loading';
-import { StationDetail } from './StationDetail';
-import { useDocumentTitle } from '../title';
+} from '../api/queries.js';
+import { Loading } from './Loading.js';
+import { StationDetail } from './StationDetail.js';
+import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not load this station.';
 

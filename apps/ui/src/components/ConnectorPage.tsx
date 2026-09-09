@@ -1,28 +1,28 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui';
-import { SHRINK } from '../theme';
-import { PageTitle } from './PageTitle';
+import { Text } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { PageTitle } from './PageTitle.js';
 import {
   connectorHost,
   serverLabel,
   verifyConnector,
   type Connector,
-} from '../api/connectors';
+} from '../api/connectors.js';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   queryError,
   refreshConnectors,
   useConnectorQuery,
-} from '../api/queries';
-import { BackLink } from './BackLink';
-import { routeHash } from '../route';
-import { ConnectorActions } from './ConnectorActions';
-import { ConnectorFavicon } from './ConnectorFavicon';
-import { Field } from './Field';
-import { Loading } from './Loading';
-import { ToolList } from './ToolList';
-import { useDocumentTitle } from '../title';
+} from '../api/queries.js';
+import { BackLink } from './BackLink.js';
+import { routeHash } from '../route.js';
+import { ConnectorActions } from './ConnectorActions.js';
+import { ConnectorFavicon } from './ConnectorFavicon.js';
+import { Field } from './Field.js';
+import { Loading } from './Loading.js';
+import { ToolList } from './ToolList.js';
+import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not load this connector.';
 

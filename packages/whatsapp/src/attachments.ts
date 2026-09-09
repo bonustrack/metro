@@ -3,8 +3,8 @@ import {
   assertAttachmentSize,
   saveStreamToCache,
   type SavedAttachment,
-} from '@metro-labs/mcp/stations/attachments';
-import { TrainError } from '@metro-labs/mcp/train-error';
+} from '@metro-labs/core/stations/attachments';
+import { TrainError } from '@metro-labs/core/train-error';
 import { baileysLogger } from './logger.js';
 import type { WAMediaRef } from './media.js';
 

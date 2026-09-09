@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { BROWSER_WALLET, walletChoices, type WalletChoice } from '../src/auth/wallet-options';
+import { BROWSER_WALLET, walletChoices, type WalletChoice } from '../src/auth/wallet-options.js';
 
 const METAMASK: WalletChoice = {
   id: 'io.metamask',

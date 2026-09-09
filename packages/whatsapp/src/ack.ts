@@ -1,4 +1,4 @@
-import { TrainError } from '@metro-labs/mcp/train-error';
+import { TrainError } from '@metro-labs/core/train-error';
 import type { BinaryNode, WASocket } from 'baileys';
 
 const DEFAULT_ACK_WAIT_MS = 5000;

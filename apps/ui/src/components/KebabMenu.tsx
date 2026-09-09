@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Icon } from '@stage-labs/kit/react-native/icon';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Dropdown, type MenuItem } from './Dropdown';
+import { Dropdown, type MenuItem } from './Dropdown.js';
 
 const ICON_SIZE = { sm: 16, lg: 18 } as const;
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { matchStations, stationLabel, STATION_FORMS } from '../src/api/attach';
+import { matchStations, stationLabel, STATION_FORMS } from '../src/api/attach.js';
 
 describe('station attach forms', () => {
   test('every form Metro can render has a human label and a hint', () => {

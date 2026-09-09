@@ -1,12 +1,12 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { AgentAvatar } from './AgentAvatar';
-import { Dropdown } from './Dropdown';
-import { NAV_GAP, NAV_ICON_SIZE, NAV_ROW_BOX, NavRow } from './NavRow';
-import { Text } from './ui';
-import { SHRINK } from '../theme';
-import { type Selection } from './selection';
-import { shortAddress } from '../api/address';
+import { AgentAvatar } from './AgentAvatar.js';
+import { Dropdown } from './Dropdown.js';
+import { NAV_GAP, NAV_ICON_SIZE, NAV_ROW_BOX, NavRow } from './NavRow.js';
+import { Text } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { type Selection } from './selection.js';
+import { shortAddress } from '../api/address.js';
 
 interface SidebarFooterProps {
   subject: string;

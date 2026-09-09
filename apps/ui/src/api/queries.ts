@@ -1,4 +1,4 @@
-import { daemonBase } from '../auth/daemon';
+import { daemonBase } from '../auth/daemon.js';
 import {
   QueryCache,
   QueryClient,
@@ -6,20 +6,20 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import { carryForward, type AccountGroup } from './accounts';
+import { carryForward, type AccountGroup } from './accounts.js';
 import {
   AuthError,
   StoppedError,
   fetchSession,
   fetchStations,
   type StationsView,
-} from './client';
+} from './client.js';
 import {
   fetchConnector,
   fetchConnectors,
   type Connector,
   type ConnectorsView,
-} from './connectors';
+} from './connectors.js';
 import {
   fetchClaudeProjects,
   fetchClaudeSessions,
@@ -31,12 +31,12 @@ import {
   type ClaudeSession,
   type ClaudeSettingsFile,
   type MemoryListing,
-} from './claude';
-import { fetchMode, type ModeInfo } from './mode';
-import { fetchUpdate, type UpdateCheck } from './update';
-import { fetchServers, probeServer, type Server, type ServerStatus } from './servers';
-import { fetchMachine, type Machine } from './machine';
-import { codexModels, fetchModel, openrouterModels, type ModelOption, type ModelSettings } from './model';
+} from './claude.js';
+import { fetchMode, type ModeInfo } from './mode.js';
+import { fetchUpdate, type UpdateCheck } from './update.js';
+import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
+import { fetchMachine, type Machine } from './machine.js';
+import { codexModels, fetchModel, openrouterModels, type ModelOption, type ModelSettings } from './model.js';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;

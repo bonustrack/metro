@@ -1,11 +1,11 @@
-import type { CanonicalAttachment, ToolContext } from '@metro-labs/mcp/stations/types';
-import { TrainError } from '@metro-labs/mcp/train-error';
+import type { CanonicalAttachment, ToolContext } from '@metro-labs/core/stations/types';
+import { TrainError } from '@metro-labs/core/train-error';
 import {
   guessMime,
   isImageMime,
   isImageExt,
   kindOf,
-} from '@metro-labs/mcp/stations/attachments';
+} from '@metro-labs/core/stations/attachments';
 
 export const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 

@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { KitThemeProvider, type KitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { semanticPalette } from '@stage-labs/kit/tokens';
-import { FONT_HEAD, FONT_SANS } from './theme';
+import { FONT_HEAD, FONT_SANS } from './theme.js';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type Scheme = 'light' | 'dark';

@@ -1,11 +1,11 @@
-import { call } from './client';
-import { isRecord } from './accounts';
+import { call } from './client.js';
+import { isRecord } from './accounts.js';
 import {
   isAttachSession,
   toIdentity,
   toSession,
   type AttachSession,
-} from './attach-session';
+} from './attach-session.js';
 
 export type AttachFieldKind = 'text' | 'tel' | 'number';
 

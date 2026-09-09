@@ -5,7 +5,7 @@ import {
   groupAccounts,
   stationFields,
   type AccountRow,
-} from '../src/api/accounts';
+} from '../src/api/accounts.js';
 
 const PAYLOAD = {
   'telegram-bot': [

@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Input } from './ui';
-import { GROW } from '../theme';
-import { matchStations, stationLabel } from '../api/attach';
-import { StationIcon } from './StationIcon';
+import { Text, Input } from './ui.js';
+import { GROW } from '../theme.js';
+import { matchStations, stationLabel } from '../api/attach.js';
+import { StationIcon } from './StationIcon.js';
 
 const ICON_SIZE = 20;
 

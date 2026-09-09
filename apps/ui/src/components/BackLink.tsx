@@ -1,8 +1,8 @@
 import { type ReactElement, type ReactNode } from 'react';
 import { Path, Svg } from 'react-native-svg';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { opensElsewhere } from './link';
+import { Text } from './ui.js';
+import { opensElsewhere } from './link.js';
 
 function BackIcon({ size, color }: { size: number; color: string }): ReactElement {
   return (

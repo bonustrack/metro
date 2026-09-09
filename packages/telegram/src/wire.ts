@@ -1,1 +1,1 @@
-export { emit, mintId } from '@metro-labs/mcp/stations/station-runtime';
+export { emit, mintId } from '@metro-labs/core/stations/station-runtime';

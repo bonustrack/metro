@@ -1,4 +1,4 @@
-import { walletKeys, type WalletKeys } from '../vault/crypto';
+import { walletKeys, type WalletKeys } from '../vault/crypto.js';
 
 const STORAGE_KEY = 'metro.identity';
 

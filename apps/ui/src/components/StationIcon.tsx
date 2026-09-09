@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { ConnectorFavicon } from './ConnectorFavicon';
+import { ConnectorFavicon } from './ConnectorFavicon.js';
 
 const STATION_SITES: Record<string, string> = {
   xmtp: 'https://xmtp.org',

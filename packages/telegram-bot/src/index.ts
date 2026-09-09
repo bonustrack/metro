@@ -1,4 +1,4 @@
-import { errMsg } from '@metro-labs/mcp/log';
+import { errMsg } from '@metro-labs/core/log';
 import { accounts, loadAccounts, tg, type Account } from './accounts.js';
 import { emit } from './wire.js';
 import {
@@ -11,7 +11,7 @@ import {
   type TgReaction,
   type TgReactionCount,
 } from './format.js';
-import { readCalls } from '@metro-labs/mcp/trains/protocol';
+import { readCalls } from '@metro-labs/core/trains/protocol';
 import { handleCall } from './actions.js';
 
 readCalls('telegram-bot', handleCall);

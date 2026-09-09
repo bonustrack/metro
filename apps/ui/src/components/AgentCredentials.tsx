@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
-import { type AgentSummary } from '../api/client';
-import { CopyBlock } from './CopyBlock';
-import { ResetAgentKey } from './ResetAgentKey';
+import { type AgentSummary } from '../api/client.js';
+import { CopyBlock } from './CopyBlock.js';
+import { ResetAgentKey } from './ResetAgentKey.js';
 
 interface AgentCredentialsProps {
   agent: AgentSummary;

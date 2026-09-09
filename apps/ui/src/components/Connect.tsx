@@ -5,13 +5,13 @@ import {
   useKitScheme,
 } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
-import { Text, Button, Input } from './ui';
-import { GROW } from '../theme';
-import { MetroLogo } from './MetroLogo';
-import { PageTitle } from './PageTitle';
-import { connectRefusal, fetchMode } from '../api/mode';
-import { parseDaemonUrl, segmentOf } from '../auth/daemon';
-import { addServer } from '../api/servers';
+import { Text, Button, Input } from './ui.js';
+import { GROW } from '../theme.js';
+import { MetroLogo } from './MetroLogo.js';
+import { PageTitle } from './PageTitle.js';
+import { connectRefusal, fetchMode } from '../api/mode.js';
+import { parseDaemonUrl, segmentOf } from '../auth/daemon.js';
+import { addServer } from '../api/servers.js';
 
 const CARD_WIDTH = 400;
 const HINT =

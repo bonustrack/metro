@@ -1,12 +1,12 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { SHRINK } from '../theme';
-import { Loading } from './Loading';
-import { type ClaudeProject } from '../api/claude';
-import { queryError, useClaudeProjectsQuery } from '../api/queries';
-import { whenLabel } from '../api/when';
+import { Text } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { Loading } from './Loading.js';
+import { type ClaudeProject } from '../api/claude.js';
+import { queryError, useClaudeProjectsQuery } from '../api/queries.js';
+import { whenLabel } from '../api/when.js';
 
 const ROW_PAD_Y = 12;
 

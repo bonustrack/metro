@@ -2,11 +2,11 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { ConfirmModal } from './ConfirmModal';
-import { awaitRestart, awaitStopped, restartDaemon, stopDaemon } from '../api/control';
-import { queryError, useModeQuery } from '../api/queries';
-import { olderThan } from '../api/version';
+import { Text, Button } from './ui.js';
+import { ConfirmModal } from './ConfirmModal.js';
+import { awaitRestart, awaitStopped, restartDaemon, stopDaemon } from '../api/control.js';
+import { queryError, useModeQuery } from '../api/queries.js';
+import { olderThan } from '../api/version.js';
 
 type Phase = 'idle' | 'restarting' | 'restarted' | 'stopping';
 

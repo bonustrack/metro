@@ -1,4 +1,4 @@
-import type { Station, Verb } from '@metro-labs/mcp/stations/types';
+import type { Station, Verb } from '@metro-labs/core/stations/types';
 
 export const telegramBotStation: Station = {
   name: 'telegram-bot',

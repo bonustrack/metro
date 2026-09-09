@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
-import { ConfirmModal } from './ConfirmModal';
-import { KebabMenu } from './KebabMenu';
+import { ConfirmModal } from './ConfirmModal.js';
+import { KebabMenu } from './KebabMenu.js';
 
 interface DetachAccountProps {
   station: string;

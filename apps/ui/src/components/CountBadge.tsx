@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Pill } from './Pill';
+import { Pill } from './Pill.js';
 
 const OPTICAL_NUDGE = 4;
 

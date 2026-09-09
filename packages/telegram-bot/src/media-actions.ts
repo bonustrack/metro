@@ -1,6 +1,6 @@
 import { tg, tgForm, targetOf } from './accounts.js';
 import { emit, mintId, respond, SELF_URI } from './wire.js';
-import { appendFile } from '@metro-labs/mcp/stations/attachments';
+import { appendFile } from '@metro-labs/core/stations/attachments';
 
 export function emitOutbound(
   accountId: string,

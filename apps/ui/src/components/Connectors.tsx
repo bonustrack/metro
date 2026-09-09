@@ -1,26 +1,26 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { SHRINK } from '../theme';
-import { PageTitle } from './PageTitle';
+import { Text, Button } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { PageTitle } from './PageTitle.js';
 import {
   connectorsInOrder,
   deleteConnector,
   takeConnectorError,
   type ConnectorsView,
-} from '../api/connectors';
-import { AddConnector } from './AddConnector';
-import { ConnectorRow } from './ConnectorRow';
-import { CountBadge } from './CountBadge';
-import { Loading } from './Loading';
+} from '../api/connectors.js';
+import { AddConnector } from './AddConnector.js';
+import { ConnectorRow } from './ConnectorRow.js';
+import { CountBadge } from './CountBadge.js';
+import { Loading } from './Loading.js';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   queryError,
   refreshConnectors,
   useConnectorsQuery,
-} from '../api/queries';
-import { useDocumentTitle } from '../title';
+} from '../api/queries.js';
+import { useDocumentTitle } from '../title.js';
 
 
 const FALLBACK = 'Could not load your connectors.';

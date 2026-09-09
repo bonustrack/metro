@@ -1,13 +1,13 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { Modal } from './Modal';
-import { builtInDaemon, daemonHost } from '../auth/daemon';
-import { activeIdentity } from '../auth/identity';
-import { fetchBundle, putVault, stationKinds, type VaultEntry } from '../api/vault';
-import { whenLabel } from '../api/when';
-import { sealBundle } from '../vault/crypto';
+import { Text, Button } from './ui.js';
+import { Modal } from './Modal.js';
+import { builtInDaemon, daemonHost } from '../auth/daemon.js';
+import { activeIdentity } from '../auth/identity.js';
+import { fetchBundle, putVault, stationKinds, type VaultEntry } from '../api/vault.js';
+import { whenLabel } from '../api/when.js';
+import { sealBundle } from '../vault/crypto.js';
 
 const HOW =
   'The agent, its channels, its connectors and their credentials are sealed here in the browser, to the key derived from your sign-in signature. Only the sealed bundle goes to metro.box, and only your wallet can open it, metro.box included.';

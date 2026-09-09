@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { verifyMessage } from 'viem';
-import { activeIdentity, clearIdentity, identityFrom } from '../src/auth/identity';
-import { AuthError, call } from '../src/api/client';
-import { requestChallenge } from '../src/vault/crypto';
-import { setCurrentServer } from '../src/auth/daemon';
-import { installTestIdentity, TEST_IDENTITY_ADDRESS, TEST_SIGNATURE, TEST_WALLET } from './identity-fixture';
+import { activeIdentity, clearIdentity, identityFrom } from '../src/auth/identity.js';
+import { AuthError, call } from '../src/api/client.js';
+import { requestChallenge } from '../src/vault/crypto.js';
+import { setCurrentServer } from '../src/auth/daemon.js';
+import { installTestIdentity, TEST_IDENTITY_ADDRESS, TEST_SIGNATURE, TEST_WALLET } from './identity-fixture.js';
 
 interface Seen {
   url: string;

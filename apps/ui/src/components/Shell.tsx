@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { TopBar } from './TopBar';
+import { TopBar } from './TopBar.js';
 
 const PAGE = {
   width: '100%',

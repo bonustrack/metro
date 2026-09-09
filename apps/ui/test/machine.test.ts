@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { systemLabel, toMachine, uptimeLabel } from '../src/api/machine';
+import { systemLabel, toMachine, uptimeLabel } from '../src/api/machine.js';
 
 describe('what the page shows about a machine', () => {
   test('a daemon answer is read with safe defaults', () => {

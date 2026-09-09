@@ -1,5 +1,5 @@
-import { errMsg } from '@metro-labs/mcp/log';
-import type { MemberList, MetroMember } from '@metro-labs/mcp/stations/types';
+import { errMsg } from '@metro-labs/core/log';
+import type { MemberList, MetroMember } from '@metro-labs/core/stations/types';
 import { rest } from './accounts.js';
 
 export interface DiscordRole {

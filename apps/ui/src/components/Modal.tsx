@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { Pressable } from 'react-native';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { CloseIcon } from './CloseIcon';
+import { Text } from './ui.js';
+import { CloseIcon } from './CloseIcon.js';
 
 interface ModalProps {
   title: string;

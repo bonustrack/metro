@@ -2,15 +2,15 @@ import { type ReactNode, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui';
-import { FieldLabel } from './FieldLabel';
-import { Loading } from './Loading';
-import { PageTitle } from './PageTitle';
-import { GROW } from '../theme';
-import { saveClaudeSettings, type ClaudeSettingsFile } from '../api/claude';
-import { queryError, refreshClaudeSettings, useClaudeSettingsQuery } from '../api/queries';
-import { whenLabel } from '../api/when';
-import { useDocumentTitle } from '../title';
+import { Text, Button, Input } from './ui.js';
+import { FieldLabel } from './FieldLabel.js';
+import { Loading } from './Loading.js';
+import { PageTitle } from './PageTitle.js';
+import { GROW } from '../theme.js';
+import { saveClaudeSettings, type ClaudeSettingsFile } from '../api/claude.js';
+import { queryError, refreshClaudeSettings, useClaudeSettingsQuery } from '../api/queries.js';
+import { whenLabel } from '../api/when.js';
+import { useDocumentTitle } from '../title.js';
 
 const WHAT =
   'Claude Code reads these files when a session starts on this machine. The first is the one for your whole account; the others belong to a project Claude Code has worked in. A change here reaches the next session, not one already running.';

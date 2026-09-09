@@ -1,6 +1,6 @@
-import { TrainError } from '@metro-labs/mcp/train-error';
-import { errMsg } from '@metro-labs/mcp/log';
-import { readCalls } from '@metro-labs/mcp/trains/protocol';
+import { TrainError } from '@metro-labs/core/train-error';
+import { errMsg } from '@metro-labs/core/log';
+import { readCalls } from '@metro-labs/core/trains/protocol';
 import {
   accounts,
   loadAccounts,

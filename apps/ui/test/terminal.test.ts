@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { SESSION_RE, terminalSocketUrl } from '../src/api/terminal';
+import { SESSION_RE, terminalSocketUrl } from '../src/api/terminal.js';
 
 describe('the terminal socket address', () => {
   test('follows the daemon base, ws on loopback and wss through the funnel, ticket in the path', () => {

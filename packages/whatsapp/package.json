@@ -14,7 +14,7 @@
     "test": "tsc --noEmit && bun test test/"
   },
   "dependencies": {
-    "@metro-labs/mcp": "workspace:*",
+    "@metro-labs/core": "workspace:*",
     "baileys": "7.0.0-rc14"
   },
   "devDependencies": {

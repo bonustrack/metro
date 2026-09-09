@@ -1,10 +1,10 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui';
-import { PageTitle } from './PageTitle';
-import { THEME_MODES, useThemeMode } from '../theme-mode';
-import { useDocumentTitle } from '../title';
+import { Text, Button } from './ui.js';
+import { PageTitle } from './PageTitle.js';
+import { THEME_MODES, useThemeMode } from '../theme-mode.js';
+import { useDocumentTitle } from '../title.js';
 
 export function Settings(): ReactNode {
   const dark = useKitScheme() === 'dark';

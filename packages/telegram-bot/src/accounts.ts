@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import {
   makeAccountStore,
   resolveAccountId,
-} from '@metro-labs/mcp/stations/account-store';
-import { Line } from '@metro-labs/mcp/lines';
+} from '@metro-labs/core/stations/account-store';
+import { Line } from '@metro-labs/core/lines';
 
 const ACCOUNTS_FILE =
   process.env.TELEGRAM_BOT_ACCOUNTS_FILE ??

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, test } from 'bun:test';
 import type { BinaryNode, WASocket } from 'baileys';
-import { TrainError } from '@metro-labs/mcp/train-error';
+import { TrainError } from '@metro-labs/core/train-error';
 import {
   ackOf,
   ackWaitMs,

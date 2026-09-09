@@ -2,17 +2,17 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { Text, Button } from './ui';
-import { SHRINK } from '../theme';
-import { PageTitle } from './PageTitle';
-import { AccountList } from './AccountList';
-import { ConnectStation } from './ConnectStation';
-import { CountBadge } from './CountBadge';
-import { Loading } from './Loading';
-import { accountsForAgent } from '../api/accounts';
-import { detachAccount } from '../api/attach';
-import { dropAccount, queryError, refreshAgents, useStationsQuery } from '../api/queries';
-import { useDocumentTitle } from '../title';
+import { Text, Button } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { PageTitle } from './PageTitle.js';
+import { AccountList } from './AccountList.js';
+import { ConnectStation } from './ConnectStation.js';
+import { CountBadge } from './CountBadge.js';
+import { Loading } from './Loading.js';
+import { accountsForAgent } from '../api/accounts.js';
+import { detachAccount } from '../api/attach.js';
+import { dropAccount, queryError, refreshAgents, useStationsQuery } from '../api/queries.js';
+import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not load the channels.';
 

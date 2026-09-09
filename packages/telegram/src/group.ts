@@ -1,9 +1,9 @@
 import type {
   GroupResult,
   MemberOutcome,
-} from '@metro-labs/mcp/stations/types';
-import { TrainError } from '@metro-labs/mcp/train-error';
-import { errMsg } from '@metro-labs/mcp/log';
+} from '@metro-labs/core/stations/types';
+import { TrainError } from '@metro-labs/core/train-error';
+import { errMsg } from '@metro-labs/core/log';
 import type { UserClient } from './client.js';
 import { lineOf } from './accounts.js';
 

@@ -1,5 +1,5 @@
-import { call } from './client';
-import { isRecord } from './accounts';
+import { call } from './client.js';
+import { isRecord } from './accounts.js';
 
 export type AttachStep = 'code' | 'password' | 'scan' | 'pair';
 

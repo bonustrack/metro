@@ -74,7 +74,6 @@ describe('the daemon a serve plan starts', () => {
     expect(servePlan({ runtime: RUNTIME, port: 8421, owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7', tailscaleBin: 'tailscale' }).env.METRO_OWNER).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
     expect(plan.args).toEqual([SERVER_ENTRY]);
     expect(plan.cwd).toBe('/opt/metro/runtime');
-    expect(plan.env.METRO_MODE).toBe('local');
     expect(plan.env.METRO_VERSION).toMatch(/^\d+\.\d+\.\d+/);
     expect(plan.env.METRO_CLI_BIN).toBe(process.argv[1] ?? '');
     expect(plan.env.METRO_WEBHOOK_PORT).toBe('8421');

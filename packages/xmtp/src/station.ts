@@ -1,4 +1,4 @@
-import type { GroupOp, Station, Verb } from '@metro-labs/mcp/stations/types';
+import type { GroupOp, Station, Verb } from '@metro-labs/core/stations/types';
 import { XMTP_TOOLS, xmtpSendAttachments } from './tools.js';
 
 export const xmtpStation: Station = {

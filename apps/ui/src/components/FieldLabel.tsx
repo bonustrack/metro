@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Text } from './ui';
+import { Text } from './ui.js';
 
 const LABEL_STYLE = { textTransform: 'uppercase', letterSpacing: 0.4 } as const;
 

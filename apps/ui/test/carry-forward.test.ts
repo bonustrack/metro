@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { carryForward, type AccountGroup } from '../src/api/accounts';
-import { dropAccount, stationsKey } from '../src/api/queries';
+import { carryForward, type AccountGroup } from '../src/api/accounts.js';
+import { dropAccount, stationsKey } from '../src/api/queries.js';
 import { QueryClient } from '@tanstack/react-query';
-import type { StationsView } from '../src/api/client';
+import type { StationsView } from '../src/api/client.js';
 
 const row = (id: string) => ({ id, agentId: 'agent000001', fields: [] });
 

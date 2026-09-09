@@ -1,19 +1,19 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui';
-import { SHRINK } from '../theme';
-import { BackLink } from './BackLink';
-import { ClaudeProjects } from './ClaudeProjects';
-import { Loading } from './Loading';
-import { MarkdownBlock } from './MarkdownBlock';
-import { PageTitle } from './PageTitle';
-import { applyRoute, routeHash, routeSelection } from '../route';
-import { type Selection } from './selection';
-import { type MemoryFile } from '../api/claude';
-import { queryError, useMemoryFileQuery, useMemoryQuery } from '../api/queries';
-import { sizeLabel, whenLabel } from '../api/when';
-import { useDocumentTitle } from '../title';
+import { Text } from './ui.js';
+import { SHRINK } from '../theme.js';
+import { BackLink } from './BackLink.js';
+import { ClaudeProjects } from './ClaudeProjects.js';
+import { Loading } from './Loading.js';
+import { MarkdownBlock } from './MarkdownBlock.js';
+import { PageTitle } from './PageTitle.js';
+import { applyRoute, routeHash, routeSelection } from '../route.js';
+import { type Selection } from './selection.js';
+import { type MemoryFile } from '../api/claude.js';
+import { queryError, useMemoryFileQuery, useMemoryQuery } from '../api/queries.js';
+import { sizeLabel, whenLabel } from '../api/when.js';
+import { useDocumentTitle } from '../title.js';
 
 const ROW_PAD_Y = 10;
 

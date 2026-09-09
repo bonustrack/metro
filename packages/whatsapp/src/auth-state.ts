@@ -8,7 +8,7 @@ import {
   type SignalDataTypeMap,
   type SignalKeyStore,
 } from 'baileys';
-import { TrainError } from '@metro-labs/mcp/train-error';
+import { TrainError } from '@metro-labs/core/train-error';
 import {
   isPersistedKeyType,
   tokenStoreFor,

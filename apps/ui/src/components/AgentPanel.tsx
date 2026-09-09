@@ -1,19 +1,19 @@
 import { type ReactNode } from 'react';
-import { deleteConnector } from '../api/connectors';
-import { ConnectorPage } from './ConnectorPage';
-import { Connectors } from './Connectors';
-import { Docs } from './Docs';
-import { Home } from './Home';
-import { Memory } from './Memory';
-import { Sessions } from './Sessions';
-import { ServerPage } from './ServerPage';
-import { TerminalPage } from './Terminal';
-import { ModelPage } from './ModelPage';
-import { ClaudeSettings } from './ClaudeSettings';
-import { Settings } from './Settings';
-import { StationPage } from './StationPage';
-import { Stations } from './Stations';
-import { type Selection } from './selection';
+import { deleteConnector } from '../api/connectors.js';
+import { ConnectorPage } from './ConnectorPage.js';
+import { Connectors } from './Connectors.js';
+import { Docs } from './Docs.js';
+import { Home } from './Home.js';
+import { Memory } from './Memory.js';
+import { Sessions } from './Sessions.js';
+import { ServerPage } from './ServerPage.js';
+import { TerminalPage } from './Terminal.js';
+import { ModelPage } from './ModelPage.js';
+import { ClaudeSettings } from './ClaudeSettings.js';
+import { Settings } from './Settings.js';
+import { StationPage } from './StationPage.js';
+import { Stations } from './Stations.js';
+import { type Selection } from './selection.js';
 
 interface AgentPanelProps {
   selection: Selection;
