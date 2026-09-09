@@ -5,7 +5,7 @@ import {
 } from '../stations/registry.js';
 import { listEndpoints } from '../net/tunnel.js';
 import { hookUrl } from '../stations/attach.js';
-import { agentIdForAccount, knownAccounts, type KnownAccount } from '../agents/map.js';
+import { agentIdForAccount, allowlistForAccount, knownAccounts, type KnownAccount } from '../agents/map.js';
 
 const accountId = (acc: unknown): string | undefined => {
   const id = (acc as { id?: unknown }).id;
@@ -23,7 +23,9 @@ function withAgentId(station: string, acc: unknown): unknown {
   const id = typeof rec.id === 'string' ? rec.id : undefined;
   if (id === undefined) return acc;
   const agentId = agentIdForAccount(station, id);
-  return agentId === undefined ? acc : { ...rec, agentId };
+  if (agentId === undefined) return acc;
+  const allowlist = allowlistForAccount(station, id);
+  return allowlist === undefined ? { ...rec, agentId } : { ...rec, agentId, allowlist };
 }
 
 export function attachAgentIds(

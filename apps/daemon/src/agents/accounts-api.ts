@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
+import { normalizeAllowlist } from './allowlist.js';
+import type { RecentSender } from './senders.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import {
   apiFailure,
@@ -63,13 +65,24 @@ export interface AccountApiDeps {
     accountId: string,
   ) => Promise<AccountRef>;
   syncStations: (station: StationName) => Promise<void>;
+  reloadAgents: () => Promise<void>;
+  setAllowlist: (
+    subject: string,
+    agentId: string,
+    station: StationName,
+    accountId: string,
+    allowlist: string[],
+  ) => Promise<string[]>;
+  recentSenders: (station: StationName, accountId: string) => RecentSender[];
 }
 
 export type AccountRoute =
   | { kind: 'start' }
   | { kind: 'session'; attachId: string }
   | { kind: 'step'; attachId: string }
-  | { kind: 'account'; station: StationName; accountId: string };
+  | { kind: 'account'; station: StationName; accountId: string }
+  | { kind: 'allowlist'; station: StationName; accountId: string }
+  | { kind: 'senders'; station: StationName; accountId: string };
 
 export const ATTACHABLE: string[] = [
   ...ATTACHABLE_STATIONS,
@@ -81,6 +94,8 @@ const ROUTE_METHODS: Record<AccountRoute['kind'], string[]> = {
   session: ['GET', 'DELETE'],
   step: ['POST'],
   account: ['DELETE'],
+  allowlist: ['PUT'],
+  senders: ['GET'],
 };
 
 function twoSegmentRoute(head: string, tail: string): AccountRoute | null {
@@ -100,8 +115,15 @@ export function accountRoute(rest: string[]): AccountRoute | null {
       : ATTACH_ID_RE.test(head)
         ? { kind: 'session', attachId: head }
         : null;
+  if (rest.length === 3 && tail !== undefined) return accountSubRoute(head, tail, rest[2]);
   if (rest.length !== 2 || tail === undefined) return null;
   return twoSegmentRoute(head, tail);
+}
+
+function accountSubRoute(head: string, tail: string, sub: string | undefined): AccountRoute | null {
+  if (!isStationName(head) || (sub !== 'allowlist' && sub !== 'senders')) return null;
+  const accountId = parseAccountId(tail);
+  return accountId === null ? null : { kind: sub, station: head, accountId };
 }
 
 export function accountRouteAllows(
@@ -242,6 +264,36 @@ async function handleDetach(
   });
 }
 
+async function applied(deps: AccountApiDeps): Promise<boolean> {
+  try {
+    await deps.reloadAgents();
+    return true;
+  } catch (err) {
+    log.warn({ err: errMsg(err) }, 'account-api: allowlist reload failed, the change lands at the next boot');
+    return false;
+  }
+}
+
+async function handleAllowlist(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: AccountApiDeps,
+  session: ApiSession,
+  agentId: string,
+  target: { station: StationName; accountId: string },
+): Promise<void> {
+  const wanted = normalizeAllowlist(bodyField(await readJsonBody(req), 'allowlist'));
+  const allowlist = await deps.setAllowlist(session.subject, agentId, target.station, target.accountId, wanted);
+  log.info({ agentId, station: target.station, account: target.accountId, senders: allowlist.length }, 'account-api: allowlist set');
+  sendJson(req, res, 200, {
+    agentId,
+    station: target.station,
+    accountId: target.accountId,
+    allowlist,
+    activated: await applied(deps),
+  });
+}
+
 async function handleSession(
   req: IncomingMessage,
   res: ServerResponse,
@@ -292,6 +344,11 @@ async function dispatchRoute(
     );
   if (route.kind === 'step')
     return handleStep(req, res, deps, ownerOf(session, agentId), route.attachId);
+  if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, session, agentId, route);
+  if (route.kind === 'senders') {
+    sendJson(req, res, 200, { senders: deps.recentSenders(route.station, route.accountId) });
+    return;
+  }
   return handleDetach(req, res, deps, session, agentId, route);
 }
 

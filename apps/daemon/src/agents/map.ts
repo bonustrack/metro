@@ -65,6 +65,10 @@ export function stationAgentIds(station: string): string[] {
     .map(([, id]) => id);
 }
 
+export function allowlistForAccount(station: string, accountId: string): string[] | undefined {
+  return allowlistMap[mapKey(station, accountId)];
+}
+
 export function allowlistForLine(line: string): string[] | undefined {
   const a = accountFromLine(line);
   return a ? allowlistMap[mapKey(a.station, a.accountId)] : undefined;

@@ -196,6 +196,45 @@ export async function startAttach(
   return { kind: 'done', result: toAttachResult(station, body) };
 }
 
+export interface RecentSender {
+  id: string;
+  name: string;
+  at: string;
+}
+
+const accountPath = (agentId: string, station: string, accountId: string): string =>
+  `/${agentId}/accounts/${encodeURIComponent(station)}/${encodeURIComponent(accountId)}`;
+
+export async function setAllowlist(
+  agentId: string,
+  station: string,
+  accountId: string,
+  allowlist: string[],
+): Promise<string[]> {
+  const body = await call({
+    method: 'PUT',
+    path: `${accountPath(agentId, station, accountId)}/allowlist`,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ allowlist }),
+  });
+  if (!isRecord(body) || !Array.isArray(body.allowlist)) throw new Error('Metro returned an unexpected response.');
+  return body.allowlist.filter((entry): entry is string => typeof entry === 'string');
+}
+
+export async function fetchRecentSenders(
+  agentId: string,
+  station: string,
+  accountId: string,
+): Promise<RecentSender[]> {
+  const body = await call({ method: 'GET', path: `${accountPath(agentId, station, accountId)}/senders` });
+  if (!isRecord(body) || !Array.isArray(body.senders)) return [];
+  return body.senders.flatMap((raw) =>
+    isRecord(raw) && typeof raw.id === 'string'
+      ? [{ id: raw.id, name: typeof raw.name === 'string' ? raw.name : '', at: typeof raw.at === 'string' ? raw.at : '' }]
+      : [],
+  );
+}
+
 export async function detachAccount(
   agentId: string,
   station: string,

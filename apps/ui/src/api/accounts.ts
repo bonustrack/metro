@@ -6,7 +6,18 @@ export interface AccountField {
 export interface AccountRow {
   id: string | null;
   agentId: string | null;
+  allowlist: string[] | null;
   fields: AccountField[];
+}
+
+export const EVERYONE = '*';
+
+export const allowsEveryone = (allowlist: string[] | null): boolean =>
+  allowlist === null || allowlist.length === 0 || allowlist.includes(EVERYONE);
+
+function allowlistOf(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.filter((entry): entry is string => typeof entry === 'string');
 }
 
 export interface AccountGroup {
@@ -31,23 +42,26 @@ function stringifyValue(value: unknown): string {
 }
 
 const AGENT_ID = 'agentId';
+const ALLOWLIST = 'allowlist';
 
 function toRow(account: unknown): AccountRow {
   if (!isRecord(account))
     return {
       id: null,
       agentId: null,
+      allowlist: null,
       fields: [{ label: 'value', value: stringifyValue(account) }],
     };
   const fields: AccountField[] = [];
   for (const [key, value] of Object.entries(account)) {
-    if (key === AGENT_ID || SECRET_KEY_PATTERN.test(key)) continue;
+    if (key === AGENT_ID || key === ALLOWLIST || SECRET_KEY_PATTERN.test(key)) continue;
     fields.push({ label: key, value: stringifyValue(value) });
   }
   const owner = account[AGENT_ID];
   return {
     id: typeof account.id === 'string' ? account.id : null,
     agentId: typeof owner === 'string' ? owner : null,
+    allowlist: allowlistOf(account[ALLOWLIST]),
     fields,
   };
 }

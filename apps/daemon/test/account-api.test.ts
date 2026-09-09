@@ -23,6 +23,7 @@ interface Row {
   station: StationName;
   accountId: string;
   config: Record<string, unknown>;
+  allowlist?: string[];
 }
 
 const AGENTS: Record<string, AgentSummary[]> = {
@@ -43,6 +44,7 @@ let synced: string[] = [];
 let prepared: AttachInput[] = [];
 let nextAccount = 0;
 let syncFails = false;
+let reloaded = 0;
 let xmtpInboxFails = false;
 let attachFails = false;
 let discarded = 0;
@@ -180,6 +182,19 @@ const deps: AgentApiDeps = {
   syncStations: (station) => {
     if (syncFails) return Promise.reject(new Error('reload blew up'));
     synced.push(station);
+    return Promise.resolve();
+  },
+  setAllowlist: (email, agentId, station, accountId, allowlist) => {
+    ownedOrThrow(email, agentId);
+    const row = rows.find((r) => r.agentId === agentId && r.station === station && r.accountId === accountId);
+    if (row === undefined) throw new AgentAdminError('no such account on this agent', 404);
+    row.allowlist = allowlist;
+    return Promise.resolve(allowlist);
+  },
+  recentSenders: (station, accountId) => [{ id: `${station}-${accountId}-seen`, name: 'Ada', at: '2026-09-10T09:00:00.000Z' }],
+  reloadAgents: () => {
+    if (syncFails) return Promise.reject(new Error('reload blew up'));
+    reloaded += 1;
     return Promise.resolve();
   },
 };
@@ -849,5 +864,49 @@ describe('a sign-in that never completes leaves the accounts table alone', () =>
     expect((await poll(attachId)).status).toBe('done');
     expect(rows.length).toBe(before.length + 1);
     expect(rows.at(-1)?.station).toBe('telegram');
+  });
+});
+
+describe('the allowlist of a station account', () => {
+  const put = async (agentId: string, station: string, accountId: string, body: unknown, who: Who = session('ada@lovelace.dev')): Promise<Response> => {
+    const path = `/api/agents/${agentId}/accounts/${station}/${accountId}/allowlist`;
+    return fetch(`${base}${path}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: await auth('PUT', path, who) },
+      body: JSON.stringify(body),
+    });
+  };
+
+  test('the owner narrows it to named senders, widens it again, and the station reloads each time', async () => {
+    const created = (await (await start(session('ada@lovelace.dev'), 'agent000001', { station: 'telegram-bot', token: 'allowlist-bot-token' })).json()) as AttachBody;
+    synced = [];
+    reloaded = 0;
+    const narrowed = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: [' 4242 ', 'Ada', 'ada', ''] });
+    expect(narrowed.status).toBe(200);
+    expect(await narrowed.json()).toMatchObject({ allowlist: ['4242', 'Ada'], activated: true, station: 'telegram-bot' });
+    expect(rows.find((r) => r.accountId === created.accountId)?.allowlist).toEqual(['4242', 'Ada']);
+    expect(reloaded).toBe(1);
+    expect(synced).toEqual([]);
+    const widened = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', '*'] });
+    expect(await widened.json()).toMatchObject({ allowlist: ['*'] });
+    const emptied = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: [] });
+    expect(await emptied.json()).toMatchObject({ allowlist: ['*'] });
+  });
+
+  test('a bad list, an unknown account and somebody else agent are each refused', async () => {
+    const created = (await (await start(session('ada@lovelace.dev'), 'agent000001', { station: 'telegram-bot', token: 'allowlist-bot-token-2' })).json()) as AttachBody;
+    expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: 'ada' })).status).toBe(400);
+    expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['a'.repeat(201)] })).status).toBe(400);
+    expect((await put('agent000001', 'telegram-bot', 'acct9999999', { allowlist: ['x'] })).status).toBe(404);
+    expect((await put('agent000002', 'telegram-bot', created.accountId, { allowlist: ['x'] }, session('ada@lovelace.dev'))).status).toBe(404);
+    expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['x'] }, TEST_STRANGER)).status).toBe(401);
+  });
+
+  test('the senders seen on a station are offered to the owner, and only to the owner', async () => {
+    const path = '/api/agents/agent000001/accounts/telegram-bot/acct0000001/senders';
+    const mine = await fetch(`${base}${path}`, { headers: { authorization: await auth('GET', path, session('ada@lovelace.dev')) } });
+    expect(mine.status).toBe(200);
+    expect(await mine.json()).toEqual({ senders: [{ id: 'telegram-bot-acct0000001-seen', name: 'Ada', at: '2026-09-10T09:00:00.000Z' }] });
+    expect((await fetch(`${base}${path}`)).status).toBe(401);
   });
 });

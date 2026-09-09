@@ -310,6 +310,22 @@ export async function localAttachAccount(
   return Promise.resolve({ agentId, station, accountId });
 }
 
+export async function localSetAllowlist(
+  subject: string,
+  agentId: string,
+  station: StationName,
+  accountId: string,
+  allowlist: string[],
+  dir = agentsDir(),
+): Promise<string[]> {
+  const stored = ownedOrThrow(subject, agentId, dir);
+  const account = stored.file.stations.find((a) => a.station === station && a.id === accountId);
+  if (account === undefined) throw new AgentAdminError('no such account on this agent', 404);
+  account.allowlist = allowlist;
+  save(stored);
+  return Promise.resolve(allowlist);
+}
+
 export async function localDetachAccount(
   subject: string,
   agentId: string,

@@ -53,6 +53,7 @@ export function StationPage({
       agent={agent}
       verbs={data.capabilities[found.station] ?? []}
       onOpenAgent={onOpenAgent}
+      onAllowlistSaved={() => client.invalidateQueries({ queryKey: stationsKey() })}
       onDetach={
         owner !== null
           ? async (station, id) => {
