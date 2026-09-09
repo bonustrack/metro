@@ -40,6 +40,7 @@ describe('per-account allowlist', () => {
 });
 
 describe('what the page may put in an allowlist', () => {
+  afterAll(() => setAllowlistMap({}));
   test('entries are trimmed, deduped case-insensitively, and an empty list means everyone', () => {
     expect(normalizeAllowlist([' 4242 ', 'Ada', 'ada', ''])).toEqual(['4242', 'Ada']);
     expect(normalizeAllowlist([])).toEqual(['*']);
