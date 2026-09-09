@@ -39,16 +39,31 @@ export function pluginServers(rows: LocalConnectorRow[], base: string): Record<s
   return out;
 }
 
-export function installedPluginFiles(dir = claudeDir()): string[] {
-  const root = join(dir, 'plugins', 'marketplaces');
-  if (!existsSync(root)) return [];
-  const out: string[] = [];
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const plugin = join(root, entry.name, 'plugin');
-    if (existsSync(join(plugin, MARKER))) out.push(join(plugin, FILE));
+const SEARCH_DEPTH = 5;
+
+function pluginRootsUnder(dir: string, depth: number, out: string[]): void {
+  if (depth < 0 || out.length >= 8) return;
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
   }
-  return out;
+  if (entries.some((e) => e.name === 'bin' && e.isDirectory()) && existsSync(join(dir, MARKER))) {
+    out.push(dir);
+    return;
+  }
+  for (const entry of entries)
+    if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules')
+      pluginRootsUnder(join(dir, entry.name), depth - 1, out);
+}
+
+export function installedPluginFiles(dir = claudeDir()): string[] {
+  const root = join(dir, 'plugins');
+  if (!existsSync(root)) return [];
+  const roots: string[] = [];
+  pluginRootsUnder(root, SEARCH_DEPTH, roots);
+  return roots.map((found) => join(found, FILE));
 }
 
 const readOrNull = (path: string): string | null => {

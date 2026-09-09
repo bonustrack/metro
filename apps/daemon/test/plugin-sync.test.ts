@@ -17,8 +17,8 @@ const row = (id: string, name: string): LocalConnectorRow => ({
   config: { auth: { kind: 'none' }, createdAt: '2026-09-10T09:00:00.000Z', oauth: false, verified: { at: '', server: '', version: '', protocol: '', icon: '', tools: 0, catalog: [] } },
 });
 
-function installPlugin(marketplace: string): string {
-  const plugin = join(dir, 'plugins', 'marketplaces', marketplace, 'plugin');
+function installPlugin(...where: string[]): string {
+  const plugin = join(dir, 'plugins', ...where);
   mkdirSync(join(plugin, 'bin'), { recursive: true });
   writeFileSync(join(plugin, 'bin', 'metro-plugin.mjs'), '// metro\n');
   writeFileSync(join(plugin, '.mcp.json'), '{}\n');
@@ -60,10 +60,17 @@ describe('the server list the plugin registers', () => {
     expect(Object.keys(both)).toEqual(['linear', 'linear-conn']);
   });
 
+  test('the plugin is found whatever layout Claude Code used to install it', () => {
+    const marketplace = installPlugin('marketplaces', 'metro', 'plugin');
+    const repo = installPlugin('repos', 'bonustrack', 'metro', 'plugin');
+    expect(installedPluginFiles(dir).sort()).toEqual([marketplace, repo].sort());
+  });
+
   test('only a metro plugin is written, and only when its file would change', () => {
-    const mine = installPlugin('metro');
+    const mine = installPlugin('marketplaces', 'metro', 'plugin');
     const other = join(dir, 'plugins', 'marketplaces', 'someone-else', 'plugin');
-    mkdirSync(other, { recursive: true });
+    mkdirSync(join(other, 'bin'), { recursive: true });
+    writeFileSync(join(other, 'bin', 'other-plugin.mjs'), '// not metro\n');
     writeFileSync(join(other, '.mcp.json'), '{}\n');
     expect(installedPluginFiles(dir)).toEqual([mine]);
 
