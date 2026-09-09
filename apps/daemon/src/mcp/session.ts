@@ -165,7 +165,7 @@ export class McpSession {
     return this.issuedSchema !== toolSchemaSignature();
   }
 
-  private announceToolSchema(): void {
+  announceToolSchema(): void {
     if (!this.streamAttached) return;
     this.deliverSchemaNotice(
       () => this.server.sendToolListChanged(),

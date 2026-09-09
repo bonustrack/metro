@@ -61,6 +61,10 @@ export class SessionRegistry {
     return out;
   }
 
+  announceToolSchema(): void {
+    for (const session of this.byId.values()) session.announceToolSchema();
+  }
+
   forScope(scopeKey: string): McpSession | undefined {
     return this.byScope.get(scopeKey);
   }
