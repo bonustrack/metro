@@ -2,6 +2,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
 import { AttachSessions } from '../stations/attach-session.js';
 import { recentSenders } from '../agents/senders.js';
+import { syncPluginServers } from '../connectors/plugin-sync.js';
 import type { AgentApiDeps } from '../agents/api.js';
 import { ATTACHABLE, type AccountApiDeps } from '../agents/accounts-api.js';
 import type { SessionApis } from './session-apis.js';
@@ -115,7 +116,11 @@ function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>
 }
 
 const connectorApi: ConnectorApiDeps = {
-  listConnectors: localListConnectors,
+  listConnectors: async (subject, project) => {
+    const rows = await localListConnectors(subject, project);
+    syncPluginServers();
+    return rows;
+  },
   createConnector: localCreateConnector,
   verifyConnector: localVerifyConnector,
   disconnectConnector: localDisconnectConnector,

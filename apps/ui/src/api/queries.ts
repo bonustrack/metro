@@ -228,11 +228,12 @@ export function refreshClaudeSettings(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: claudeSettingsKey() });
 }
 
-export function useClaudeSkillsQuery(): UseQueryResult<SkillListing> {
+export function useClaudeSkillsQuery(enabled = true): UseQueryResult<SkillListing> {
   return useQuery({
     queryKey: skillsKey(),
     queryFn: () => fetchClaudeSkills(),
     refetchInterval: LIVE_LIST_MS,
+    enabled,
   });
 }
 
