@@ -35,6 +35,7 @@ for (const [from, name] of [...CORE_SOURCES, ...STATION_SOURCES]) {
 
 mkdirSync(join(OUT, 'trains'), { recursive: true });
 writeFileSync(join(OUT, 'trains', '.keep'), '');
+writeFileSync(join(OUT, 'server.ts'), "import './node_modules/@metro-labs/daemon/src/server.ts';\n");
 
 const vendor = (from) => {
   const { dependencies = {} } = JSON.parse(readFileSync(join(REPO, from, 'package.json'), 'utf8'));

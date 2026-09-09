@@ -12,6 +12,7 @@ import {
   writeInlineTemp,
 } from './attach-inline.js';
 import { realpathSync } from 'node:fs';
+import { log } from '@metro-labs/core/log';
 import { readUpload, UPLOAD_TTL_MS } from '../files/upload-store.js';
 import type { CanonicalAttachment } from '@metro-labs/core/stations/types';
 
@@ -167,6 +168,7 @@ async function resolveAttachment(
         .map((s) => `\`${s}\``)
         .join(', ')}); pass exactly one of \`upload\`, \`data\`, \`url\` or \`path\``,
     );
+  log.info({ source: sources[0] }, 'send: attachment source');
   if (a.upload) return fromUpload(a, a.upload, opts.allowed);
   if (a.data) return fromData(a, a.data, budget);
   if (a.path) return fromPath(a, a.path);

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { agentsDir } from './local.js';
 import { currentVersion } from './version.js';
 import { serveLockedBy, serveStateDir } from './control.js';
-import { findBun, localPort, SERVER_ENTRY, spawnPlan, type DaemonPlan } from './runtime.js';
+import { findBun, localPort, spawnPlan, type DaemonPlan } from './runtime.js';
 import { prepareRuntime, type PreparedRuntime } from './runtime-install.js';
 import { ensureNodeName } from './node-name.js';
 import { holdUntilStart, type HoldInfo } from './hold.js';
@@ -143,7 +143,7 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
   );
   return {
     command: findBun(),
-    args: [SERVER_ENTRY],
+    args: [opts.runtime.entry],
     cwd: opts.runtime.dir,
     env: {
       ...env,

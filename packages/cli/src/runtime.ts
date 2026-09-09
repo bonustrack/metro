@@ -4,13 +4,19 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const AGENT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
-export const SERVER_ENTRY = join(
+export const STORE_ENTRY = 'server.ts';
+export const PACKAGE_ENTRY = join(
   'node_modules',
   '@metro-labs',
   'daemon',
   'src',
   'server.ts',
 );
+
+export const daemonEntry = (dir: string): string =>
+  existsSync(join(dir, STORE_ENTRY))
+    ? join(dir, STORE_ENTRY)
+    : join(dir, PACKAGE_ENTRY);
 
 export class MissingRuntime extends Error {}
 
@@ -20,7 +26,7 @@ export function runtimeDir(): string {
     explicit !== undefined && explicit !== ''
       ? explicit
       : join(dirname(dirname(fileURLToPath(import.meta.url))), 'runtime');
-  if (!existsSync(join(dir, SERVER_ENTRY)))
+  if (!existsSync(daemonEntry(dir)))
     throw new MissingRuntime(
       `no metro daemon at ${dir}. Reinstall with: npm i -g @stage-labs/metro@beta`,
     );

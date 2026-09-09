@@ -225,7 +225,7 @@ and the commands around it:
 npm i -g @stage-labs/metro@beta   # `latest` is an older line; the tag matters
 
 metro serve --owner 0x…            # run the daemon; the page at metro.box manages it through the link it prints
-metro stop      # stop it
+metro stop      # stop it (under metro service it restarts on its own; systemctl stop metro keeps it stopped)
 metro mcp       # print {"mcpServers": {...}}: the agent's connectors, through the daemon's relay
 metro whoami    # which agent this machine runs
 metro tail <agent-id>   # follow this machine's inbound events as JSON lines

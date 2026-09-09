@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { service, servicePlan, type ServiceDeps, type ServiceHost } from '../src/service.ts';
+import { service, servicePlan, type ServiceDeps, type ServiceHost, serviceStopHint } from '../src/service.ts';
 
 const linuxRoot: ServiceHost = {
   platform: 'linux',
@@ -139,6 +139,23 @@ describe('metro service install, uninstall and status', () => {
     const bad = fake(linuxRoot);
     expect(() => service(['install', '--detach'], bad.deps)).toThrow(/unknown argument '--detach'/);
     expect(bad.ran).toEqual([]);
+  });
+
+  test('install on a machine that already has the unit says so and touches nothing', async () => {
+    const f = fake(linuxRoot);
+    f.files.set('/etc/systemd/system/metro.service', 'old');
+    expect(await service(['install'], f.deps)).toBe(0);
+    expect(f.lines[0]).toContain('already installed');
+    expect(f.ran).toEqual([]);
+    expect(f.files.get('/etc/systemd/system/metro.service')).toBe('old');
+  });
+
+  test('metro stop names the service that is about to restart what it stopped', () => {
+    expect(serviceStopHint(linuxRoot, () => false)).toBeNull();
+    expect(serviceStopHint(linuxRoot, () => true)).toContain('systemctl stop metro');
+    expect(serviceStopHint(linuxUser, () => true)).toContain('systemctl --user stop metro');
+    expect(serviceStopHint(mac, () => true)).toContain(`launchctl bootout gui/${String(mac.uid)}/box.metro.serve`);
+    expect(serviceStopHint({ ...linuxRoot, platform: 'win32' }, () => true)).toBeNull();
   });
 
   test('uninstall stops it, removes the unit and reloads; nothing installed is a plain 1', async () => {
