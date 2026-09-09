@@ -91,17 +91,17 @@ describe('the terminal over http and a websocket', () => {
   test('the owner reads availability and mints a ticket; a stranger and a wrong method are refused', async () => {
     const status = await signed('GET', '/api/terminal');
     expect(status.status).toBe(200);
-    expect(await status.json()).toMatchObject({ session: 'metro', available: true, sessions: expect.any(Array) });
+    expect(await status.json()).toEqual({ available: true, sessions: expect.any(Array) });
     expect((await fetch(`${base}/api/terminal`)).status).toBe(401);
     expect((await signed('GET', '/api/terminal', TEST_STRANGER)).status).toBe(401);
     expect((await signed('POST', '/api/terminal')).status).toBe(405);
     expect((await signed('GET', '/api/terminal/tickets')).status).toBe(405);
-    const minted = await signed('POST', '/api/terminal/tickets');
+    expect((await signed('POST', '/api/terminal/tickets')).status).toBe(400);
+    const minted = await signed('POST', '/api/terminal/tickets', OWNER, { session: 'dev-1' });
     expect(minted.status).toBe(200);
     const body = (await minted.json()) as { ticket: string; path: string; session: string };
     expect(body.path).toBe(`/api/terminal/${body.ticket}`);
-    expect(body.session).toBe('metro');
-    expect(((await (await signed('POST', '/api/terminal/tickets', OWNER, { session: 'dev-1' })).json()) as { session: string }).session).toBe('dev-1');
+    expect(body.session).toBe('dev-1');
     expect((await signed('POST', '/api/terminal/tickets', OWNER, { session: 'bad name' })).status).toBe(400);
     expect((await signed('POST', '/api/terminal/tickets', OWNER, { session: '-x' })).status).toBe(400);
   });
