@@ -1,6 +1,6 @@
 {
   "name": "metro",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Metro connectors for Claude Code. Runs beside the metro daemon on this machine: each connector the agent holds is one MCP server relayed through the daemon, the daemon keeps that list current on its own, and /reload-plugins picks up a new one without leaving your session. No vendor credential ever sits in a config file.",
   "author": { "name": "Bonustrack", "url": "https://metro.box" },
   "repository": "https://github.com/bonustrack/metro",
