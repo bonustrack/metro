@@ -178,6 +178,41 @@ describe('a funnel, against a fake tailscale', () => {
     tunnel.stop();
   });
 
+  test('an adopted Funnel that stops answering is replaced by one the daemon runs itself', async () => {
+    process.env.METRO_TUNNEL_WATCH_MS = '25';
+    const marker = join(dir, 'taken-once');
+    fakeTailscale(
+      `if [ "$1" = "status" ]; then echo '{"Self":{"DNSName":"suzy.tail1234.ts.net."}}'; exit 0; fi\nif [ "$2" = "status" ]; then echo 'No serve config'; exit 0; fi\nif [ -f '${marker}' ]; then echo '${FOREGROUND}'; sleep 30; exit 0; fi\ntouch '${marker}'\necho '${TAKEN}' >&2\nexit 1`,
+    );
+    let probes = 0;
+    const urls: string[] = [];
+    const announced = new Promise<void>((resolve, reject) => {
+      setTimeout(() => {
+        reject(new Error('no second announcement within 5s'));
+      }, 5_000).unref();
+      const driver = funnelDriver(8420, 'tailscale', () => Promise.resolve(++probes === 1), () => null);
+      const tunnel = new Tunnel(
+        driver,
+        (u) => {
+          urls.push(u);
+          if (urls.length === 2) {
+            tunnel.stop();
+            resolve();
+          }
+        },
+        () => Promise.resolve(true),
+      );
+      tunnel.start();
+    });
+    try {
+      await announced;
+    } finally {
+      delete process.env.METRO_TUNNEL_WATCH_MS;
+    }
+    expect(urls).toEqual(['https://suzy.tail1234.ts.net', 'https://suzy.tail1234.ts.net']);
+    expect(probes).toBeGreaterThanOrEqual(3);
+  });
+
   test('when 443 is held by a tailnet-only serve and nothing answers, nothing is announced and the retry backs off', async () => {
     fakeTailscale(`if [ "$1" = "status" ]; then echo '{"Self":{"DNSName":"suzy.tail1234.ts.net."}}'; exit 0; fi\nif [ "$2" = "status" ]; then printf '%s\\n' '${STATUS_SERVE.replace(/'/g, '')}'; exit 0; fi\necho '${TAKEN}' >&2\nexit 1`);
     let announced: string | null = null;

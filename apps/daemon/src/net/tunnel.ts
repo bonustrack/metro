@@ -12,6 +12,8 @@ import { localOwner } from '../agents/file-admin.js';
 const RESTART_DELAY_MS = 2_000;
 const RESTART_DELAY_MAX_MS = 30_000;
 const TAKEN_RE = /listener already exists/i;
+const ADOPTED_MISSES = 2;
+const adoptedCheckMs = (): number => Number(process.env.METRO_TUNNEL_WATCH_MS) || 30_000;
 const FUNNEL_ON_RE = /\(Funnel on\)/i;
 
 export const tunnelWanted = (): boolean => process.env.METRO_TUNNEL?.trim() === 'tailscale';
@@ -25,6 +27,7 @@ export const funnelUrlIn = (text: string): string | null =>
 export interface Adopted {
   url: string | null;
   hint: string;
+  alive?: () => Promise<boolean>;
 }
 
 export interface TunnelDriver {
@@ -106,11 +109,17 @@ export function nodeNameIn(statusJson: string): string | null {
 
 async function adoptFunnel(bin: string, port: number, probe: Probe, owner: () => string | null): Promise<Adopted> {
   const name = nodeNameIn(await runText(bin, ['status', '--json']));
+  const watched = (url: string): Adopted => ({
+    url,
+    hint: `a Funnel already publishes this daemon at ${url}; using it`,
+    alive: () => probe(url, owner()),
+  });
   if (name !== null) {
     const url = `https://${name}`;
-    if (await probe(url, owner())) return { url, hint: `a Funnel already publishes this daemon at ${url}; using it` };
+    if (await probe(url, owner())) return watched(url);
   }
-  return funnelAlreadyServing(await runText(bin, ['funnel', 'status']), port);
+  const found = funnelAlreadyServing(await runText(bin, ['funnel', 'status']), port);
+  return found.url === null ? found : watched(found.url);
 }
 
 export function funnelAlreadyServing(status: string, port: number): Adopted {
@@ -240,6 +249,7 @@ export class Tunnel {
   private closed = false;
   private output: string[] = [];
   private restartDelay = RESTART_DELAY_MS;
+  private watch: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private driver: TunnelDriver,
@@ -330,6 +340,7 @@ export class Tunnel {
       if (found.url !== null) {
         log.info({ url: found.url }, `${this.driver.name}: ${found.hint}`);
         this.noticeUrl(found.url);
+        if (found.alive !== undefined) this.watchAdopted(found.url, found.alive);
         return;
       }
       log.error({ output }, `${this.driver.name}: ${found.hint}`);
@@ -340,8 +351,38 @@ export class Tunnel {
     this.restartDelay = Math.min(this.restartDelay * 2, RESTART_DELAY_MAX_MS);
   }
 
+  private watchAdopted(url: string, alive: () => Promise<boolean>): void {
+    let misses = 0;
+    const tick = async (): Promise<void> => {
+      if (this.closed || liveUrl !== url) {
+        this.unwatch();
+        return;
+      }
+      misses = (await alive()) ? 0 : misses + 1;
+      if (misses < ADOPTED_MISSES) return;
+      this.unwatch();
+      log.warn({ url }, `${this.driver.name}: the Funnel this daemon adopted no longer answers; publishing our own`);
+      liveUrl = null;
+      this.restartDelay = RESTART_DELAY_MS;
+      this.start();
+    };
+    this.unwatch();
+    this.watch = setInterval(() => {
+      tick().catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, `${this.driver.name}: adopted-funnel check failed`);
+      });
+    }, adoptedCheckMs());
+    this.watch.unref();
+  }
+
+  private unwatch(): void {
+    if (this.watch !== null) clearInterval(this.watch);
+    this.watch = null;
+  }
+
   stop(): void {
     this.closed = true;
+    this.unwatch();
     this.child?.kill('SIGINT');
     this.child = null;
   }
