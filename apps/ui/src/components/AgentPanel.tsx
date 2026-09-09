@@ -10,6 +10,8 @@ import { ServerPage } from './ServerPage.js';
 import { TerminalPage } from './Terminal.js';
 import { ModelPage } from './ModelPage.js';
 import { ClaudeSettings } from './ClaudeSettings.js';
+import { Skills } from './Skills.js';
+import { SkillPage } from './SkillPage.js';
 import { Settings } from './Settings.js';
 import { StationPage } from './StationPage.js';
 import { Stations } from './Stations.js';
@@ -59,6 +61,25 @@ function claudeRoutes(project: string, selection: Selection, go: Go): ReactNode 
   if (selection.kind === 'memory')
     return <Memory project={project} claudeProject={selection.claudeProject} file={selection.file} onSelect={go} />;
   if (selection.kind === 'claude') return <ClaudeSettings />;
+  if (selection.kind === 'skills')
+    return (
+      <Skills
+        project={project}
+        onOpen={(id) => {
+          go({ kind: 'skill', project, id });
+        }}
+      />
+    );
+  if (selection.kind === 'skill')
+    return (
+      <SkillPage
+        project={project}
+        id={selection.id}
+        onBack={() => {
+          go({ kind: 'skills', project });
+        }}
+      />
+    );
   return null;
 }
 

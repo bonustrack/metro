@@ -5,6 +5,14 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { listClaudeSettings, SETTINGS_MAX, writeClaudeSettings } from './settings.js';
 import {
+  createClaudeSkill,
+  deleteClaudeSkill,
+  listClaudeSkills,
+  readClaudeSkill,
+  skillHomes,
+  writeClaudeSkill,
+} from './skills.js';
+import {
   answerClaudeLogin,
   claudeAccount,
   claudeInstalled,
@@ -54,6 +62,10 @@ const COLLECTIONS: Record<string, Handler> = {
   sessions: (query, dir) => ({ sessions: listClaudeSessions(projectOf(query), dir) }),
   memory: (query, dir) => listMemory(projectOf(query), dir),
   settings: (_query, dir) => ({ files: listClaudeSettings(dir) }),
+  skills: (_query, dir) => ({
+    skills: listClaudeSkills(dir),
+    places: skillHomes(dir).map((home) => ({ id: home.prefix, scope: home.scope, where: home.where })),
+  }),
 };
 
 const ITEMS: Record<string, Handler> = {
@@ -62,17 +74,30 @@ const ITEMS: Record<string, Handler> = {
     return readTranscript(projectOf(query), id, offset, limit, dir);
   },
   memory: (query, dir, name) => ({ name, content: readMemoryFile(projectOf(query), name, dir) }),
+  skills: (_query, dir, id) => readClaudeSkill(decodeURIComponent(id), dir),
 };
 
 const parts = (path: string): string[] => path.slice(PREFIX.length + 1).split('/').filter(Boolean);
 
+const seenIn = (body: Record<string, unknown>): string | null | undefined =>
+  'seenAt' in body ? (typeof body.seenAt === 'string' ? body.seenAt : null) : undefined;
+
 async function writeAnswer(req: IncomingMessage, path: string, dir: string): Promise<unknown> {
   const [head = '', item = ''] = parts(path);
-  if (head !== 'settings' || item === '') throw new ApiError('method not allowed', 405);
+  if ((head !== 'settings' && head !== 'skills') || item === '') throw new ApiError('method not allowed', 405);
   const body = await readJsonBody(req, BODY_MAX);
   if (!isRecord(body) || typeof body.text !== 'string') throw new ApiError('text is required', 400);
-  const seenAt = 'seenAt' in body ? (typeof body.seenAt === 'string' ? body.seenAt : null) : undefined;
-  return writeClaudeSettings(item, body.text, seenAt, dir);
+  if (head === 'skills') return writeClaudeSkill(decodeURIComponent(item), body.text, seenIn(body), dir);
+  return writeClaudeSettings(item, body.text, seenIn(body), dir);
+}
+
+async function created(req: IncomingMessage, path: string, dir: string): Promise<unknown> {
+  const rest = parts(path);
+  if (rest.length !== 1 || rest[0] !== 'skills') throw new ApiError('method not allowed', 405);
+  const body = await readJsonBody(req, BODY_MAX);
+  if (!isRecord(body) || typeof body.name !== 'string') throw new ApiError('name is required', 400);
+  const scope = typeof body.scope === 'string' ? body.scope : undefined;
+  return createClaudeSkill(body.name, scope, typeof body.text === 'string' ? body.text : undefined, dir);
 }
 
 const LOGIN = 'login';
@@ -94,7 +119,9 @@ async function loginAnswer(req: IncomingMessage, id: string, deps: ClaudeApiDeps
 
 function removed(rest: string[], query: URLSearchParams, dir: string): unknown {
   const [head = '', item = ''] = rest;
-  if (rest.length !== 2 || head !== 'sessions') throw new ApiError('method not allowed', 405);
+  if (rest.length !== 2) throw new ApiError('method not allowed', 405);
+  if (head === 'skills') return { deleted: deleteClaudeSkill(decodeURIComponent(item), dir) };
+  if (head !== 'sessions') throw new ApiError('method not allowed', 405);
   deleteClaudeSession(projectOf(query), item, dir);
   return { deleted: item };
 }
@@ -132,6 +159,7 @@ export function handleClaudeRequest(
       const [head = '', item = ''] = parts(path);
       if (head === LOGIN) return loginAnswer(req, item, deps);
       if (req.method === 'PUT') return writeAnswer(req, path, dir);
+      if (req.method === 'POST') return created(req, path, dir);
       return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
     })
     .then((body) => {

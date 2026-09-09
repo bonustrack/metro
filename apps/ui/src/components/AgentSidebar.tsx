@@ -13,6 +13,7 @@ const SCROLL_CONTENT = { padding: 24 } as const;
 const HOME_PAGES: Selection['kind'][] = ['home', 'none'];
 const STATION_PAGES: Selection['kind'][] = ['stations', 'station'];
 const CONNECTOR_PAGES: Selection['kind'][] = ['connectors', 'connector'];
+const SKILL_PAGES: Selection['kind'][] = ['skills', 'skill'];
 
 interface AgentSidebarProps {
   project: string;
@@ -43,6 +44,7 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
             <NavRow label="Channels" icon="chat" selected={STATION_PAGES.includes(selection.kind)} target={{ kind: 'stations', project }} onSelect={onSelect} />
             <NavRow label="Connectors" icon="viewGridAdd" selected={CONNECTOR_PAGES.includes(selection.kind)} target={{ kind: 'connectors', project }} onSelect={onSelect} />
             <NavRow label="Sessions" icon="folder" selected={selection.kind === 'sessions'} target={{ kind: 'sessions', project, claudeProject: null, id: null }} onSelect={onSelect} />
+            <NavRow label="Skills" icon="sparkles" selected={SKILL_PAGES.includes(selection.kind)} target={{ kind: 'skills', project }} onSelect={onSelect} />
             <NavRow label="Memory" icon="bookOpen" selected={selection.kind === 'memory'} target={{ kind: 'memory', project, claudeProject: null, file: null }} onSelect={onSelect} />
             <NavRow label="Claude" icon="cog" selected={selection.kind === 'claude'} target={{ kind: 'claude', project }} onSelect={onSelect} />
           </Col>
