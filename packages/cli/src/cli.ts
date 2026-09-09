@@ -6,7 +6,7 @@ import { launchClaude } from './claude.js';
 import { installPlugin } from './plugin.js';
 import { update } from './update.js';
 import { serve } from './serve.js';
-import { service } from './service.js';
+import { service, serviceStopHint } from './service.js';
 import { currentVersion } from './version.js';
 
 const USAGE = `metro — run your agent on this machine
@@ -60,6 +60,8 @@ async function stopDaemon(): Promise<number> {
   }
   for (const d of stopped)
     process.stderr.write(`Stopped metro (pid ${String(d.pid)}, via ${d.via})\n`);
+  const hint = serviceStopHint();
+  if (hint !== null) process.stderr.write(`${hint}\n`);
   return 0;
 }
 

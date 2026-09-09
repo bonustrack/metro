@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { localStations } from './local.js';
-import { SERVER_ENTRY, findBun, runtimeDir } from './runtime.js';
+import { STORE_ENTRY, daemonEntry, findBun, runtimeDir } from './runtime.js';
 
 export const MANIFEST_FILE = 'stations.json';
 const METRO_SOURCES = join('node_modules', '@metro-labs');
@@ -69,6 +69,8 @@ function readOrNull(path: string): string | null {
 }
 
 function syncSources(sources: string, store: string): boolean {
+  const shim = join(sources, STORE_ENTRY);
+  if (existsSync(shim)) copyFileSync(shim, join(store, STORE_ENTRY));
   const stamp = readOrNull(join(sources, 'runtime.json'));
   if (stamp !== null && readOrNull(join(store, 'runtime.json')) === stamp) return false;
   rmSync(join(store, METRO_SOURCES), { recursive: true, force: true });
@@ -103,7 +105,7 @@ export function prepareRuntime(opts: PrepareOptions = {}): PreparedRuntime {
   const sources = opts.sources ?? runtimeDir();
   const manifestPath = join(sources, MANIFEST_FILE);
   if (!existsSync(manifestPath))
-    return { dir: sources, entry: join(sources, SERVER_ENTRY), trains: join(sources, 'trains'), manifest: null };
+    return { dir: sources, entry: daemonEntry(sources), trains: join(sources, 'trains'), manifest: null };
   const store = opts.store ?? runtimeStore();
   const log =
     opts.log ??
@@ -118,5 +120,5 @@ export function prepareRuntime(opts: PrepareOptions = {}): PreparedRuntime {
     opts.bun ?? findBun(),
     log,
   );
-  return { dir: store, entry: join(store, SERVER_ENTRY), trains: join(store, 'trains'), manifest: manifestPath };
+  return { dir: store, entry: daemonEntry(store), trains: join(store, 'trains'), manifest: manifestPath };
 }

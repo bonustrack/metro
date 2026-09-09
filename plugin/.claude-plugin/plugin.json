@@ -1,7 +1,7 @@
 {
   "name": "metro",
   "version": "0.2.0",
-  "description": "Metro connectors for Claude Code. Sign in once with /metro:login as one metro agent; that agent's connectors ride metro's relay with credentials injected server-side, and /metro:refresh picks up changes to what it holds.",
+  "description": "Metro connectors for Claude Code. Runs beside the metro daemon on this machine: the agent here holds the connectors, and /metro:refresh writes them into this plugin as MCP servers relayed through the daemon, so no vendor credential ever sits in a config file.",
   "author": { "name": "Bonustrack", "url": "https://metro.box" },
   "repository": "https://github.com/bonustrack/metro",
   "license": "MIT",

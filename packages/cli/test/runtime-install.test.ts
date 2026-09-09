@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dependenciesFor, installDependencies, prepareRuntime, readManifest } from '../src/runtime-install.js';
-import { SERVER_ENTRY } from '../src/runtime.js';
+import { PACKAGE_ENTRY } from '../src/runtime.js';
 
 const MANIFEST = {
   core: { pino: '^9', viem: '2.52.2', zod: '^3' },
@@ -19,6 +19,7 @@ function stageSources(version: string): string {
   const sources = join(root, `sources-${version}`);
   mkdirSync(join(sources, 'node_modules', '@metro-labs', 'daemon', 'src'), { recursive: true });
   writeFileSync(join(sources, 'node_modules', '@metro-labs', 'daemon', 'src', 'server.ts'), `export const v = '${version}';\n`);
+  writeFileSync(join(sources, 'server.ts'), "import './node_modules/@metro-labs/daemon/src/server.ts';\n");
   writeFileSync(join(sources, 'runtime.json'), JSON.stringify({ version }));
   writeFileSync(join(sources, 'stations.json'), JSON.stringify(MANIFEST));
   return sources;
@@ -65,8 +66,9 @@ describe('the per-channel runtime store', () => {
       lines.push(line);
     };
     const first = prepareRuntime({ sources, store, agents, bun, log });
-    expect(first).toEqual({ dir: store, entry: join(store, SERVER_ENTRY), trains: join(store, 'trains'), manifest: join(sources, 'stations.json') });
-    expect(readFileSync(first.entry, 'utf8')).toContain("'1'");
+    expect(first).toEqual({ dir: store, entry: join(store, 'server.ts'), trains: join(store, 'trains'), manifest: join(sources, 'stations.json') });
+    expect(readFileSync(join(store, PACKAGE_ENTRY), 'utf8')).toContain("'1'");
+    expect(readFileSync(first.entry, 'utf8')).toContain('@metro-labs/daemon/src/server.ts');
     const pkg = JSON.parse(readFileSync(join(store, 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
     expect(Object.keys(pkg.dependencies)).toEqual(['@xmtp/node-sdk', 'pino', 'viem', 'zod']);
     expect(installs()).toBe(1);
@@ -80,7 +82,7 @@ describe('the per-channel runtime store', () => {
     const agents = agentWith(['xmtp']);
     prepareRuntime({ sources: stageSources('1'), store, agents, bun });
     const next = prepareRuntime({ sources: stageSources('2'), store, agents, bun });
-    expect(readFileSync(next.entry, 'utf8')).toContain("'2'");
+    expect(readFileSync(join(store, PACKAGE_ENTRY), 'utf8')).toContain("'2'");
     expect(installs()).toBe(1);
     prepareRuntime({ sources: stageSources('2'), store, agents: agentWith(['xmtp', 'whatsapp']), bun });
     expect(installs()).toBe(2);
@@ -100,10 +102,21 @@ describe('the per-channel runtime store', () => {
     mkdirSync(sources, { recursive: true });
     expect(prepareRuntime({ sources, store: join(root, 'unused'), bun })).toEqual({
       dir: sources,
-      entry: join(sources, SERVER_ENTRY),
+      entry: join(sources, PACKAGE_ENTRY),
       trains: join(sources, 'trains'),
       manifest: null,
     });
     expect(existsSync(join(root, 'unused'))).toBe(false);
+  });
+
+  test('a store synced before the shim existed gets it on the next serve, stamp or no stamp', () => {
+    const sources = stageSources('1');
+    const store = join(root, 'store');
+    const agents = agentWith(['webhook']);
+    prepareRuntime({ sources, store, agents, bun, log: () => undefined });
+    rmSync(join(store, 'server.ts'));
+    const again = prepareRuntime({ sources, store, agents, bun, log: () => undefined });
+    expect(again.entry).toBe(join(store, 'server.ts'));
+    expect(readFileSync(again.entry, 'utf8')).toContain('@metro-labs/daemon/src/server.ts');
   });
 });

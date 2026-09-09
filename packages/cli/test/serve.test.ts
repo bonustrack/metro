@@ -4,11 +4,10 @@ import { findTailscale, parseServeArgs, servePlan } from '../src/serve.ts';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { serveStateDir } from '../src/control.ts';
-import { SERVER_ENTRY } from '../src/runtime.ts';
 
 const RUNTIME = {
   dir: '/opt/metro/runtime',
-  entry: join('/opt/metro/runtime', SERVER_ENTRY),
+  entry: join('/opt/metro/runtime', 'server.ts'),
   trains: join('/opt/metro/runtime', 'trains'),
   manifest: null,
 };
@@ -72,7 +71,7 @@ describe('the daemon a serve plan starts', () => {
     expect(plan.env.METRO_TUNNEL).toBe('tailscale');
     expect(plan.env.METRO_OWNER).toBeUndefined();
     expect(servePlan({ runtime: RUNTIME, port: 8421, owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7', tailscaleBin: 'tailscale' }).env.METRO_OWNER).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
-    expect(plan.args).toEqual([SERVER_ENTRY]);
+    expect(plan.args).toEqual([RUNTIME.entry]);
     expect(plan.cwd).toBe('/opt/metro/runtime');
     expect(plan.env.METRO_VERSION).toMatch(/^\d+\.\d+\.\d+/);
     expect(plan.env.METRO_CLI_BIN).toBe(process.argv[1] ?? '');

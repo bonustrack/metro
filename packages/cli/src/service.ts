@@ -176,13 +176,19 @@ export function servicePlan(host: ServiceHost, serveArgs: string[]): ServicePlan
 
 function install(serveArgs: string[], deps: ServiceDeps): number {
   const { owner } = parseServeArgs(serveArgs);
+  const plan = servicePlan(deps.host, serveArgs);
+  if (deps.exists(plan.file)) {
+    deps.out(
+      `metro is already installed as a ${plan.kind} service (${plan.file}) and restarts on its own; metro service status says whether it is running. To change its arguments: metro service uninstall, then install again`,
+    );
+    return 0;
+  }
   deps.preflight(owner);
   const pid = deps.running();
   if (pid !== null)
     throw new Error(
       `a metro serve is running on this machine (pid ${String(pid)}). Stop it first (metro stop), then install: the service takes over from there`,
     );
-  const plan = servicePlan(deps.host, serveArgs);
   for (const dir of plan.dirs) deps.mkdir(dir);
   deps.write(plan.file, plan.content);
   for (const command of plan.install) deps.run(command);
@@ -221,18 +227,36 @@ function status(deps: ServiceDeps): number {
   return active ? 0 : 1;
 }
 
-function realDeps(): ServiceDeps {
+function realHost(): ServiceHost {
   const who = userInfo();
   return {
-    host: {
-      platform: platform(),
-      uid: who.uid,
-      user: who.username,
-      home: homedir(),
-      node: process.execPath,
-      cli: resolve(process.argv[1] ?? ''),
-      env: process.env,
-    },
+    platform: platform(),
+    uid: who.uid,
+    user: who.username,
+    home: homedir(),
+    node: process.execPath,
+    cli: resolve(process.argv[1] ?? ''),
+    env: process.env,
+  };
+}
+
+export function serviceStopHint(
+  host: ServiceHost = realHost(),
+  exists: (file: string) => boolean = existsSync,
+): string | null {
+  if (host.platform !== 'linux' && host.platform !== 'darwin') return null;
+  const plan = servicePlan(host, []);
+  if (!exists(plan.file)) return null;
+  const keep =
+    plan.kind === 'systemd'
+      ? `systemctl ${host.uid === 0 ? '' : '--user '}stop ${SERVICE}`
+      : `launchctl bootout gui/${String(host.uid)}/${LABEL}`;
+  return `metro runs as a ${plan.kind} service here (${plan.file}), so it starts again on its own in a moment. To keep it stopped:  ${keep}`;
+}
+
+function realDeps(): ServiceDeps {
+  return {
+    host: realHost(),
     run: (command) => {
       const [bin = '', ...args] = command.args;
       const result = spawnSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
