@@ -18,6 +18,7 @@ import {
 import type { StationName } from '@metro-labs/core/station-names';
 import {
   ATTACHABLE_STATIONS,
+  attachInputOf,
   isAttachStation,
   type AttachInput,
   type OneTimeSecret,
@@ -219,10 +220,7 @@ async function handleStart(
   }
   if (!isAttachStation(station))
     throw new ApiError(`station must be one of ${ATTACHABLE.join(', ')}`, 400);
-  const prepared = await deps.prepareAccount({
-    station,
-    token: bodyField(body, 'token'),
-  });
+  const prepared = await deps.prepareAccount(attachInputOf(station, body));
   const ref = await storeAccount(deps, session, agentId, station, prepared);
   log.info(
     { agentId: ref.agentId, station, account: ref.accountId },

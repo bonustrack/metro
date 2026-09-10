@@ -122,6 +122,7 @@ describe('metro never runs a messenger station, held or not', () => {
       'discord-bot',
       'telegram',
       'telegram-bot',
+      'threema',
       'whatsapp',
       'xmtp',
     ]);

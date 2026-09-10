@@ -11,7 +11,7 @@ describe('station attach forms', () => {
   });
 
   test('every field that carries a credential is masked in the browser', () => {
-    const plain = new Set(['phone', 'apiId']);
+    const plain = new Set(['phone', 'apiId', 'gatewayId']);
     for (const form of Object.values(STATION_FORMS))
       for (const field of form.fields)
         expect(field.secret).toBe(!plain.has(field.key));

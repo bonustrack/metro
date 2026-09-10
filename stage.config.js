@@ -100,6 +100,10 @@ export default defineConfig({
       type: 'library',
       knip: { project: ['src/**/*.ts'] },
     },
+    'packages/threema': {
+      type: 'library',
+      knip: { project: ['src/**/*.ts'] },
+    },
     'packages/whatsapp': {
       type: 'library',
       knip: { project: ['src/**/*.ts'] },

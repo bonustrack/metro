@@ -7,7 +7,13 @@ import {
   TelegramTokenError,
   verifyTelegramBotToken,
 } from '@metro-labs/telegram-bot/verify';
+import {
+  parsePrivateKey,
+  ThreemaGatewayError,
+  verifyThreemaGateway,
+} from '@metro-labs/threema/verify';
 import { ApiError } from '@metro-labs/http/api-error';
+import { bodyField } from '@metro-labs/http/api-http';
 import { ensureStationDeps } from './runtime-deps.js';
 import { publicBaseOrDefault } from '../files/attach-serve.js';
 import {
@@ -21,6 +27,7 @@ import {
 export const ATTACHABLE_STATIONS = [
   'discord-bot',
   'telegram-bot',
+  'threema',
   'xmtp',
   'webhook',
 ] as const;
@@ -32,6 +39,9 @@ export class StationAttachError extends ApiError {}
 export interface AttachInput {
   station: AttachStation;
   token?: unknown;
+  gatewayId?: unknown;
+  secret?: unknown;
+  privateKey?: unknown;
 }
 
 export interface OneTimeSecret {
@@ -52,6 +62,16 @@ const TOKEN_RE = /^[A-Za-z0-9._:-]{8,256}$/;
 const SECP256K1_ORDER = BigInt(
   '0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141',
 );
+
+export function attachInputOf(station: AttachStation, body: unknown): AttachInput {
+  return {
+    station,
+    token: bodyField(body, 'token'),
+    gatewayId: bodyField(body, 'gatewayId'),
+    secret: bodyField(body, 'secret'),
+    privateKey: bodyField(body, 'privateKey'),
+  };
+}
 
 export function isAttachStation(raw: unknown): raw is AttachStation {
   return (
@@ -163,6 +183,49 @@ export function newWebhookId(): string {
   return String(WEBHOOK_ID_FLOOR + (raw % (9n * WEBHOOK_ID_FLOOR)));
 }
 
+export const threemaCallbackUrl = (callbackId: string, token: string): string =>
+  `${publicBaseOrDefault().replace(/\/+$/, '')}/api/threema/${callbackId}/${token}`;
+
+function requireText(raw: unknown, label: string): string {
+  const text = typeof raw === 'string' ? raw.trim() : '';
+  if (text === '')
+    throw new StationAttachError(`the Threema ${label} is required`, 400);
+  return text;
+}
+
+async function prepareThreema(input: AttachInput): Promise<PreparedAccount> {
+  const gatewayId = requireText(input.gatewayId, 'Gateway ID');
+  const secret = requireText(input.secret, 'API secret');
+  const privateKey = requireText(input.privateKey, 'private key');
+  try {
+    const identity = await verifyThreemaGateway({ gatewayId, secret, privateKey });
+    const callbackId = newWebhookId();
+    const callbackToken = randomBytes(48).toString('base64url');
+    return {
+      config: {
+        gatewayId: identity.gatewayId,
+        secret,
+        privateKey: parsePrivateKey(privateKey) ?? privateKey,
+        callbackId,
+        callbackToken,
+        createdAt: new Date().toISOString(),
+      },
+      identity: {
+        gatewayId: identity.gatewayId,
+        credits: String(identity.credits),
+        callback: threemaCallbackUrl(callbackId, callbackToken),
+      },
+    };
+  } catch (err) {
+    if (err instanceof StationAttachError) throw err;
+    return rejected(
+      err,
+      err instanceof ThreemaGatewayError,
+      'Threema rejected those Gateway credentials',
+    );
+  }
+}
+
 function prepareWebhook(): PreparedAccount {
   const secret = randomBytes(48).toString('base64url');
   const webhookId = newWebhookId();
@@ -180,5 +243,6 @@ export async function prepareAccount(
   if (input.station === 'discord-bot') return prepareDiscord(input.token);
   if (input.station === 'telegram-bot') return prepareTelegram(input.token);
   if (input.station === 'webhook') return prepareWebhook();
+  if (input.station === 'threema') return prepareThreema(input);
   return prepareXmtp(verify);
 }

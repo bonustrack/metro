@@ -1,6 +1,10 @@
 import { handleSessionApis, type SessionApis } from './session-apis.js';
 import { handleGatewayRequest } from '../gateway/gateway.js';
 import { handleRelayRequest } from '../connectors/relay.js';
+import { handleThreemaCallback } from './threema-callback.js';
+import { BodyTooLargeError, readBody, WEBHOOK_BODY_MAX } from './body.js';
+
+export { BodyTooLargeError, readBody } from './body.js';
 import {
   createServer,
   type IncomingMessage,
@@ -214,29 +218,6 @@ function isMcpPath(req: IncomingMessage): boolean {
   return path === '/' || path === '/mcp';
 }
 
-export const WEBHOOK_BODY_MAX = 25 * 1024 * 1024;
-
-export class BodyTooLargeError extends Error {
-  constructor(readonly limit: number) {
-    super(`request body exceeds ${limit} bytes`);
-  }
-}
-
-export async function readBody(
-  req: IncomingMessage,
-  maxBytes: number,
-): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const c of req) {
-    const buf = c as Buffer;
-    total += buf.length;
-    if (total > maxBytes) throw new BodyTooLargeError(maxBytes);
-    chunks.push(buf);
-  }
-  return Buffer.concat(chunks);
-}
-
 function flatHeaders(req: IncomingMessage): Record<string, string> {
   return Object.fromEntries(
     Object.entries(req.headers).map(([k, v]) => [
@@ -368,6 +349,7 @@ async function handlePreMcpRoutes(
   if (handleAttachRequest(req, res)) return true;
   if (apis.relayApi && handleRelayRequest(req, res, apis.relayApi)) return true;
   if (await handleWebhookRoute(req, res, emit)) return true;
+  if (await handleThreemaCallback(req, res)) return true;
   return Boolean(monitorCall && handleMonitorRequest(req, res, monitorCall));
 }
 

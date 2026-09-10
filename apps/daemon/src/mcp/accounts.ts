@@ -4,7 +4,7 @@ import {
   stationByName,
 } from '../stations/registry.js';
 import { listEndpoints } from '../net/tunnel.js';
-import { hookUrl } from '../stations/attach.js';
+import { hookUrl, threemaCallbackUrl } from '../stations/attach.js';
 import { accountEnabled, agentIdForAccount, allowlistForAccount, knownAccounts, type KnownAccount } from '../agents/map.js';
 
 const accountId = (acc: unknown): string | undefined => {
@@ -72,6 +72,17 @@ function inCoreAccounts(station: string): unknown[] {
   );
 }
 
+function withCallbackUrl(acc: unknown): unknown {
+  const rec = asRecord(acc);
+  if (rec === undefined) return acc;
+  const { callbackId, callbackToken, ...rest } = rec;
+  if (typeof callbackId !== 'string' || typeof callbackToken !== 'string') return rest;
+  return { ...rest, callback: threemaCallbackUrl(callbackId, callbackToken) };
+}
+
+const decorate = (station: string, rows: unknown[]): unknown[] =>
+  station === 'threema' ? rows.map(withCallbackUrl) : rows;
+
 export interface ScopedAccounts {
   accounts: Record<string, unknown[]>;
   unavailable: string[];
@@ -85,7 +96,7 @@ async function liveAccounts(
   try {
     const resp = await forwardTrainCall(station, 'accounts', {});
     const list = (resp.result as { accounts?: unknown[] } | undefined)?.accounts;
-    return { rows: Array.isArray(list) ? list : [], reachable: true };
+    return { rows: decorate(station, Array.isArray(list) ? list : []), reachable: true };
   } catch {
     return { rows: [], reachable: false };
   }

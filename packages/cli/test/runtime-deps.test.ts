@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const CLI = join(import.meta.dir, '..');
 const REPO = join(CLI, '..', '..');
 const HOSTED_ONLY = ['drizzle-kit', 'drizzle-orm', 'postgres'];
-const STATIONS = ['xmtp', 'telegram-bot', 'telegram', 'discord-bot', 'whatsapp', 'webhook'];
+const STATIONS = ['xmtp', 'telegram-bot', 'telegram', 'discord-bot', 'whatsapp', 'threema', 'webhook'];
 
 const deps = (dir: string): Record<string, string> =>
   (JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { dependencies?: Record<string, string> })
@@ -36,6 +36,7 @@ describe('the staged channel manifest', () => {
       expect(manifest.stations[station]).toEqual(vendor(join(REPO, 'packages', station)));
     expect(manifest.stations.webhook).toEqual({});
     expect(manifest.stations['telegram-bot']).toEqual({});
+    expect(Object.keys(manifest.stations.threema ?? {})).toEqual(['tweetnacl']);
   });
 
   test('the npm package itself carries no runtime dependency at all', () => {

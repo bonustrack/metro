@@ -7,6 +7,7 @@ const STATION_SITES: Record<string, string> = {
   telegram: 'https://telegram.org',
   'discord-bot': 'https://discord.com',
   whatsapp: 'https://whatsapp.com',
+  threema: 'https://threema.ch',
 };
 
 export interface StationIconProps {
