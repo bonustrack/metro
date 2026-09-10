@@ -148,3 +148,13 @@ describe('who a station listens to, as the page reads it', () => {
     expect(allowsEveryone(rows[2]?.allowlist ?? null)).toBe(true);
   });
 });
+
+describe('a station switched off', () => {
+  test('carries enabled false on the row and keeps it out of the detail fields; an absent flag means on', () => {
+    const [group] = groupAccounts({ 'telegram-bot': [{ id: 't1', agentId: 'agent000001', enabled: false }, { id: 't2', agentId: 'agent000001' }] });
+    const rows = group?.rows ?? [];
+    expect(rows[0]?.enabled).toBe(false);
+    expect(rows[0]?.fields.some((f) => f.label === 'enabled')).toBe(false);
+    expect(rows[1]?.enabled).toBe(true);
+  });
+});

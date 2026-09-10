@@ -36,6 +36,7 @@ import {
   localDeleteAgent,
   localDetachAccount,
   localSetAllowlist,
+  localSetAccountEnabled,
   localImportAgent,
   localListAgents,
   localOwnedAgentOrThrow,
@@ -103,6 +104,7 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     detachAccount: localDetachAccount,
     syncStations: deps.syncStations,
     setAllowlist: localSetAllowlist,
+    setAccountEnabled: localSetAccountEnabled,
     recentSenders,
     reloadAgents: deps.reloadAgents,
   };

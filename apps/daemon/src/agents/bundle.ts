@@ -47,7 +47,7 @@ function stationOf(raw: unknown): LoadedAccount {
   const allowlist = Array.isArray(raw.allowlist)
     ? raw.allowlist.filter((s): s is string => typeof s === 'string')
     : null;
-  return { station: raw.station as LoadedAccount['station'], id: raw.id, allowlist, config: raw.config };
+  return { station: raw.station as LoadedAccount['station'], id: raw.id, allowlist, enabled: raw.enabled !== false, config: raw.config };
 }
 
 function connectorOf(raw: unknown): LoadedConnector {

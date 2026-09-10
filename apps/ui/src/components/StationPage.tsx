@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Text } from './ui.js';
 import { findAccount } from '../api/accounts.js';
-import { detachAccount } from '../api/attach.js';
+import { detachAccount, setAccountEnabled } from '../api/attach.js';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   dropAccount,
@@ -54,6 +54,14 @@ export function StationPage({
       verbs={data.capabilities[found.station] ?? []}
       onOpenAgent={onOpenAgent}
       onAllowlistSaved={() => client.invalidateQueries({ queryKey: stationsKey() })}
+      onToggle={
+        owner !== null
+          ? async (station, id, enabled) => {
+              await setAccountEnabled(owner, station, id, enabled);
+              await client.invalidateQueries({ queryKey: stationsKey() });
+            }
+          : undefined
+      }
       onDetach={
         owner !== null
           ? async (station, id) => {

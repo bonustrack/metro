@@ -305,7 +305,7 @@ export async function localAttachAccount(
   if (typeof token === 'string') assertTokenFree(storedAgents(dir), station, token);
   const taken = new Set(stored.file.stations.map((a) => a.id));
   const accountId = freshId(taken);
-  stored.file.stations.push({ station, id: accountId, allowlist: ['*'], config });
+  stored.file.stations.push({ station, id: accountId, allowlist: ['*'], enabled: true, config });
   save(stored);
   return Promise.resolve({ agentId, station, accountId });
 }
@@ -324,6 +324,22 @@ export async function localSetAllowlist(
   account.allowlist = allowlist;
   save(stored);
   return Promise.resolve(allowlist);
+}
+
+export async function localSetAccountEnabled(
+  subject: string,
+  agentId: string,
+  station: StationName,
+  accountId: string,
+  enabled: boolean,
+  dir = agentsDir(),
+): Promise<boolean> {
+  const stored = ownedOrThrow(subject, agentId, dir);
+  const account = stored.file.stations.find((a) => a.station === station && a.id === accountId);
+  if (account === undefined) throw new AgentAdminError('no such account on this agent', 404);
+  account.enabled = enabled;
+  save(stored);
+  return Promise.resolve(enabled);
 }
 
 export async function localDetachAccount(

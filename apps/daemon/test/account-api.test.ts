@@ -24,6 +24,7 @@ interface Row {
   accountId: string;
   config: Record<string, unknown>;
   allowlist?: string[];
+  enabled?: boolean;
 }
 
 const AGENTS: Record<string, AgentSummary[]> = {
@@ -192,6 +193,13 @@ const deps: AgentApiDeps = {
     return Promise.resolve(allowlist);
   },
   recentSenders: (station, accountId) => [{ id: `${station}-${accountId}-seen`, name: 'Ada', at: '2026-09-10T09:00:00.000Z' }],
+  setAccountEnabled: (email, agentId, station, accountId, enabled) => {
+    ownedOrThrow(email, agentId);
+    const row = rows.find((r) => r.agentId === agentId && r.station === station && r.accountId === accountId);
+    if (row === undefined) throw new AgentAdminError('no such account on this agent', 404);
+    row.enabled = enabled;
+    return Promise.resolve(enabled);
+  },
   reloadAgents: () => {
     if (syncFails) return Promise.reject(new Error('reload blew up'));
     reloaded += 1;
@@ -908,5 +916,38 @@ describe('the allowlist of a station account', () => {
     expect(mine.status).toBe(200);
     expect(await mine.json()).toEqual({ senders: [{ id: 'telegram-bot-acct0000001-seen', name: 'Ada', at: '2026-09-10T09:00:00.000Z' }] });
     expect((await fetch(`${base}${path}`)).status).toBe(401);
+  });
+});
+
+describe('switching a station account off and on', () => {
+  const put = async (agentId: string, station: string, accountId: string, body: unknown, who: Who = session('ada@lovelace.dev')): Promise<Response> => {
+    const path = `/api/agents/${agentId}/accounts/${station}/${accountId}/enabled`;
+    return fetch(`${base}${path}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: await auth('PUT', path, who) },
+      body: JSON.stringify(body),
+    });
+  };
+
+  test('the owner disables and enables it, the station reloads each time, and the credentials stay put', async () => {
+    const created = (await (await start(session('ada@lovelace.dev'), 'agent000001', { station: 'telegram-bot', token: 'enabled-bot-token' })).json()) as AttachBody;
+    synced = [];
+    const off = await put('agent000001', 'telegram-bot', created.accountId, { enabled: false });
+    expect(off.status).toBe(200);
+    expect(await off.json()).toMatchObject({ enabled: false, activated: true, station: 'telegram-bot' });
+    const row = rows.find((r) => r.accountId === created.accountId);
+    expect(row?.enabled).toBe(false);
+    expect(row?.config).toEqual({ token: 'enabled-bot-token' });
+    expect(synced).toEqual(['telegram-bot']);
+    expect(await (await put('agent000001', 'telegram-bot', created.accountId, { enabled: true })).json()).toMatchObject({ enabled: true });
+    expect(synced).toEqual(['telegram-bot', 'telegram-bot']);
+  });
+
+  test('anything but a boolean, an unknown account and somebody else agent are refused', async () => {
+    const created = (await (await start(session('ada@lovelace.dev'), 'agent000001', { station: 'telegram-bot', token: 'enabled-bot-token-2' })).json()) as AttachBody;
+    expect((await put('agent000001', 'telegram-bot', created.accountId, { enabled: 'no' })).status).toBe(400);
+    expect((await put('agent000001', 'telegram-bot', 'acct9999999', { enabled: false })).status).toBe(404);
+    expect((await put('agent000002', 'telegram-bot', created.accountId, { enabled: false })).status).toBe(404);
+    expect((await put('agent000001', 'telegram-bot', created.accountId, { enabled: false }, TEST_STRANGER)).status).toBe(401);
   });
 });

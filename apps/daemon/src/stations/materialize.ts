@@ -13,6 +13,7 @@ import { trainsDir } from '../boot/paths.js';
 import {
   setAgentMap,
   setAllowlistMap,
+  setDisabledAccounts,
   type AgentMap,
   type AgentNameMap,
   type AllowlistMap,
@@ -30,6 +31,7 @@ export interface LoadedAccount {
   station: StationName;
   id: string;
   allowlist: string[] | null;
+  enabled?: boolean;
   config: Record<string, unknown>;
 }
 
@@ -126,6 +128,7 @@ function writeStations(list: LoadedAgent[]): WrittenStations {
   const map: AgentMap = {};
   const names: AgentNameMap = {};
   const allow: AllowlistMap = {};
+  const disabled = new Set<string>();
   for (const agent of list) {
     names[agent.id] = agent.name;
     for (const a of agent.accounts) {
@@ -138,6 +141,10 @@ function writeStations(list: LoadedAgent[]): WrittenStations {
       }
       map[`${a.station}/${a.id}`] = agent.id;
       if (a.allowlist) allow[`${a.station}/${a.id}`] = a.allowlist;
+      if (a.enabled === false) {
+        disabled.add(`${a.station}/${a.id}`);
+        continue;
+      }
       const cur = byStation.get(a.station);
       if (cur) cur.push(a);
       else byStation.set(a.station, [a]);
@@ -145,6 +152,7 @@ function writeStations(list: LoadedAgent[]): WrittenStations {
   }
   setAgentMap(map, names);
   setAllowlistMap(allow);
+  setDisabledAccounts(disabled);
 
   const active = new Map<StationName, number>();
   const changed: StationName[] = [];

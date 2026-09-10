@@ -56,7 +56,7 @@ function stationOf(raw: unknown, path: string, index: number): LoadedAccount {
   if (typeof id !== 'string' || !ID_RE.test(id))
     fail(path, `${where}.id is not an 11-character id`);
   if (!isRecord(config)) fail(path, `${where}.config is not an object`);
-  return { station, id, allowlist: allowlistOf(raw.allowlist, path, where), config };
+  return { station, id, allowlist: allowlistOf(raw.allowlist, path, where), enabled: raw.enabled !== false, config };
 }
 
 function optionalMatch(
