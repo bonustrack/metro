@@ -23,6 +23,7 @@ import { agentsDir, fileSource } from '../agents/files.js';
 import { ConnectorWatch } from '../connectors/watch.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
+import { unwatchSession, watchSession } from '../claude/session.js';
 import { applyLocalOwner } from './local-owner.js';
 import { localOwner } from '../agents/file-admin.js';
 import { ensureStationDeps } from '../stations/runtime-deps.js';
@@ -159,6 +160,7 @@ async function main(): Promise<void> {
     .catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');
     });
+  watchSession();
 }
 
 const SHUTDOWN_TIMEOUT_MS = 3_000;
@@ -170,6 +172,7 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   log.info('dispatcher shutting down');
+  unwatchSession();
   connectors?.stop();
   tunnel?.stop();
   if (webhookServer) {

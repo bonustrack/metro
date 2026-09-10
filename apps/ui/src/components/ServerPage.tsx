@@ -8,6 +8,7 @@ import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
+import { ClaudeSession } from './ClaudeSession.js';
 import { NameModal } from './NameModal.js';
 import { queryError, refreshServers, useMachineQuery, useServersQuery } from '../api/queries.js';
 import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
@@ -145,6 +146,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
         <MetroVersion />
         <DaemonControls />
       </Col>
+      <ClaudeSession project={project} />
       {machine.error !== null ? (
         <Text size="sm" role="danger">
           {queryError(machine.error, FALLBACK)}

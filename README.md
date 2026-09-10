@@ -607,6 +607,11 @@ MIT
 Model page, and loads the metro MCP server for the session from the local daemon with the agent's
 own key, so there is nothing to `claude mcp add`. Any argument after it goes to `claude` untouched.
 
+You rarely need to type it: once a box has an agent and a credential (a sign-in on the Model page,
+or another provider chosen there), the daemon starts that session by itself in a tmux session named
+`metro`, answers Claude Code's folder-trust and development-channels prompts, and restarts it if it
+exits. The Server tab shows it, with Stop, Start now and an auto-start switch; the Terminal tab opens it.
+
 ## Launching a box on AWS
 
 The server list on metro.box has **Launch on AWS**: it starts an Ubuntu 24.04 arm64 `t4g.medium`

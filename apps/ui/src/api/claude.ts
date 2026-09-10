@@ -361,3 +361,34 @@ export async function createClaudeSkill(name: string, scope: string): Promise<Cl
 export async function deleteClaudeSkill(id: string): Promise<void> {
   await claudeCall('DELETE', skillPath(id));
 }
+
+export interface ClaudeSessionStatus {
+  name: string;
+  running: boolean;
+  autostart: boolean;
+  blocked: string | null;
+  lastStartedAt: string | null;
+  lastError: string | null;
+}
+
+const optionalText = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
+
+export function toClaudeSession(body: unknown): ClaudeSessionStatus {
+  if (!isRecord(body) || typeof body.running !== 'boolean') throw new Error('Metro returned an unexpected response.');
+  return {
+    name: typeof body.name === 'string' ? body.name : 'metro',
+    running: body.running,
+    autostart: body.autostart !== false,
+    blocked: optionalText(body.blocked),
+    lastStartedAt: optionalText(body.lastStartedAt),
+    lastError: optionalText(body.lastError),
+  };
+}
+
+export async function fetchClaudeSession(): Promise<ClaudeSessionStatus> {
+  return toClaudeSession(await claudeCall('GET', '/session'));
+}
+
+export async function controlClaudeSession(input: { action?: 'start' | 'stop'; autostart?: boolean }): Promise<ClaudeSessionStatus> {
+  return toClaudeSession(await claudeCall('POST', '/session', input));
+}
