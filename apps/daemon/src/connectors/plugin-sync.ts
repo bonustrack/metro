@@ -104,7 +104,7 @@ export function syncPluginServers(opts: PluginSyncOptions = {}): number {
   if (written > 0)
     log.info(
       { files: written, servers: Object.keys(servers).length },
-      'plugin: connector servers written; a Claude Code session started after this sees them, /reload-plugins does not',
+      'plugin: connector servers written; run /reload-plugins --force to pick them up in a running session',
     );
   return written;
 }
