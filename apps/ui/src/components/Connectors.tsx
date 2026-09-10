@@ -25,7 +25,7 @@ import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not load your connectors.';
 const WHAT =
-  'Each of these is its own MCP server in Claude Code on this machine, reached through the daemon so the credential stays here. Adding, renaming or removing one reaches a Claude Code session started afterwards: a running session keeps the list it started with.';
+  'Each of these is its own MCP server in Claude Code on this machine, reached through the daemon so the credential stays here. After adding, renaming or removing one, run /reload-plugins --force in your session: a plain reload keeps the list it already has.';
 
 interface ConnectorsBodyProps {
   project: string;

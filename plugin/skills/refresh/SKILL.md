@@ -11,5 +11,5 @@ The metro daemon writes this plugin's MCP server list itself whenever a connecto
 node "${CLAUDE_PLUGIN_ROOT}/bin/metro-plugin.mjs" refresh
 ```
 
-2. On success, relay the script's output verbatim and tell the user the new list reaches a Claude Code session started after it. `/reload-plugins` does not re-read a plugin's server list, so a running session keeps the old one. You cannot restart their session for them.
+2. On success, relay the script's output verbatim and tell the user to run `/reload-plugins --force`, which re-reads the plugin from disk; a plain `/reload-plugins` reuses a cached manifest and keeps the old list. You cannot run that command for them.
 3. If the script says there is no daemon, tell the user to start one with `metro serve` and stop. If it says there is no agent yet, tell them to create or restore one in the web UI the daemon links to.
