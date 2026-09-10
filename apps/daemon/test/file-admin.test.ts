@@ -13,6 +13,7 @@ import {
   localOwner,
   localResetAgentKey,
   setLocalOwner,
+  localSetAccountEnabled,
 } from '../src/agents/file-admin.ts';
 import { agentIdForKey, setKeyMap } from '../src/agents/keys.ts';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -80,8 +81,14 @@ describe('agents kept as files', () => {
     const ref = await localAttachAccount(OWNER, suzy.id, 'telegram-bot', { token: 'tok' }, dir);
     expect(ref.accountId).toMatch(/^[A-Za-z0-9][A-Za-z0-9_-]{10}$/);
     expect(stored('suzy').stations).toEqual([
-      { station: 'telegram-bot', id: ref.accountId, allowlist: ['*'], config: { token: 'tok' } },
+      { station: 'telegram-bot', id: ref.accountId, allowlist: ['*'], enabled: true, config: { token: 'tok' } },
     ]);
+    expect(await localSetAccountEnabled(OWNER, suzy.id, 'telegram-bot', ref.accountId, false, dir)).toBe(false);
+    expect(stored('suzy').stations[0]).toMatchObject({ id: ref.accountId, enabled: false, config: { token: 'tok' } });
+    expect(await localSetAccountEnabled(OWNER, suzy.id, 'telegram-bot', ref.accountId, true, dir)).toBe(true);
+    expect(stored('suzy').stations[0]).toMatchObject({ enabled: true });
+    expect(await status(localSetAccountEnabled(OWNER, suzy.id, 'telegram-bot', 'acct9999999', false, dir))).toBe(404);
+    expect(await status(localSetAccountEnabled(OTHER, suzy.id, 'telegram-bot', ref.accountId, false, dir))).toBe(404);
     expect(await status(localAttachAccount(OWNER, tony.id, 'telegram-bot', { token: 'tok' }, dir))).toBe(409);
     expect(await status(localAttachAccount(OWNER, tony.id, 'webhook', {}, dir))).toBe(400);
     expect(await status(localAttachAccount(OTHER, suzy.id, 'telegram-bot', { token: 'x' }, dir))).toBe(404);

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { accountEnabled, agentIdForAccount } from '../src/agents/map.ts';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { materializeFrom, MOVABLE_STATIONS } from '../src/stations/materialize.ts';
@@ -66,6 +67,19 @@ describe('materializing from an injected source', () => {
     expect(written[0]?.id).toBe('stn00000001');
     expect(written[0]?.botToken).toBe('secret-token');
     expect(statSync(file).mode & 0o777).toBe(0o600);
+  });
+
+  test('a disabled account stays known and owned, and leaves the train file, so the train never runs it', async () => {
+    await materializeFrom(() =>
+      Promise.resolve([agent([telegramBot('stn00000001', ['*']), { ...telegramBot('stn00000002', ['*']), enabled: false }])]),
+    );
+    const written = JSON.parse(readFileSync(file, 'utf8')) as { id: string }[];
+    expect(written.map((w) => w.id)).toEqual(['stn00000001']);
+    expect(agentIdForAccount('telegram-bot', 'stn00000002')).toBe('agent000001');
+    expect(accountEnabled('telegram-bot', 'stn00000002')).toBe(false);
+    expect(accountEnabled('telegram-bot', 'stn00000001')).toBe(true);
+    await materializeFrom(() => Promise.resolve([agent([{ ...telegramBot('stn00000002', ['*']), enabled: false }])]), { allowEmpty: true });
+    expect(existsSync(file) ? readFileSync(file, 'utf8').trim() : '[]').toBe('[]');
   });
 
   test('the allowlist is relay-only and never reaches the train file', async () => {

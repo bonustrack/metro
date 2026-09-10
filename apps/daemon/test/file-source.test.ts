@@ -76,6 +76,7 @@ describe('agents kept as files', () => {
       station: 'telegram-bot',
       id: 'stn00000001',
       allowlist: ['*'],
+      enabled: true,
       config: { botToken: 'secret-token' },
     });
   });
@@ -84,6 +85,15 @@ describe('agents kept as files', () => {
     expect(loadFileAgents(join(dir, 'nowhere'))).toEqual([]);
     await expect(materializeFrom(fileSource)).rejects.toThrow(/no agents found/);
     await materializeFrom(fileSource, { allowEmpty: true });
+  });
+
+  test('a station is on unless its file says enabled: false, and the flag survives the load', async () => {
+    write('suzy', agent({ stations: [
+      { station: 'telegram-bot', id: 'stn00000001', allowlist: ['*'], config: { botToken: 'a' } },
+      { station: 'telegram-bot', id: 'stn00000002', allowlist: ['*'], enabled: false, config: { botToken: 'b' } },
+    ] }));
+    const [loaded] = await fileSource();
+    expect(loaded?.accounts.map((a) => [a.id, a.enabled])).toEqual([['stn00000001', true], ['stn00000002', false]]);
   });
 
   test('a station in a file runs on this machine', async () => {

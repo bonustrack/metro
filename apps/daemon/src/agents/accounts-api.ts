@@ -74,6 +74,13 @@ export interface AccountApiDeps {
     allowlist: string[],
   ) => Promise<string[]>;
   recentSenders: (station: StationName, accountId: string) => RecentSender[];
+  setAccountEnabled: (
+    subject: string,
+    agentId: string,
+    station: StationName,
+    accountId: string,
+    enabled: boolean,
+  ) => Promise<boolean>;
 }
 
 export type AccountRoute =
@@ -82,7 +89,8 @@ export type AccountRoute =
   | { kind: 'step'; attachId: string }
   | { kind: 'account'; station: StationName; accountId: string }
   | { kind: 'allowlist'; station: StationName; accountId: string }
-  | { kind: 'senders'; station: StationName; accountId: string };
+  | { kind: 'senders'; station: StationName; accountId: string }
+  | { kind: 'enabled'; station: StationName; accountId: string };
 
 export const ATTACHABLE: string[] = [
   ...ATTACHABLE_STATIONS,
@@ -96,6 +104,7 @@ const ROUTE_METHODS: Record<AccountRoute['kind'], string[]> = {
   account: ['DELETE'],
   allowlist: ['PUT'],
   senders: ['GET'],
+  enabled: ['PUT'],
 };
 
 function twoSegmentRoute(head: string, tail: string): AccountRoute | null {
@@ -121,7 +130,7 @@ export function accountRoute(rest: string[]): AccountRoute | null {
 }
 
 function accountSubRoute(head: string, tail: string, sub: string | undefined): AccountRoute | null {
-  if (!isStationName(head) || (sub !== 'allowlist' && sub !== 'senders')) return null;
+  if (!isStationName(head) || (sub !== 'allowlist' && sub !== 'senders' && sub !== 'enabled')) return null;
   const accountId = parseAccountId(tail);
   return accountId === null ? null : { kind: sub, station: head, accountId };
 }
@@ -294,6 +303,27 @@ async function handleAllowlist(
   });
 }
 
+async function handleEnabled(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: AccountApiDeps,
+  session: ApiSession,
+  agentId: string,
+  target: { station: StationName; accountId: string },
+): Promise<void> {
+  const wanted = bodyField(await readJsonBody(req), 'enabled');
+  if (typeof wanted !== 'boolean') throw new ApiError('enabled must be true or false', 400);
+  const enabled = await deps.setAccountEnabled(session.subject, agentId, target.station, target.accountId, wanted);
+  log.info({ agentId, station: target.station, account: target.accountId, enabled }, 'account-api: account enabled flag set');
+  sendJson(req, res, 200, {
+    agentId,
+    station: target.station,
+    accountId: target.accountId,
+    enabled,
+    activated: await activate(deps, target.station),
+  });
+}
+
 async function handleSession(
   req: IncomingMessage,
   res: ServerResponse,
@@ -345,6 +375,7 @@ async function dispatchRoute(
   if (route.kind === 'step')
     return handleStep(req, res, deps, ownerOf(session, agentId), route.attachId);
   if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, session, agentId, route);
+  if (route.kind === 'enabled') return handleEnabled(req, res, deps, session, agentId, route);
   if (route.kind === 'senders') {
     sendJson(req, res, 200, { senders: deps.recentSenders(route.station, route.accountId) });
     return;

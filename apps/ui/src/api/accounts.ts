@@ -7,6 +7,7 @@ export interface AccountRow {
   id: string | null;
   agentId: string | null;
   allowlist: string[] | null;
+  enabled: boolean;
   fields: AccountField[];
 }
 
@@ -43,6 +44,7 @@ function stringifyValue(value: unknown): string {
 
 const AGENT_ID = 'agentId';
 const ALLOWLIST = 'allowlist';
+const ENABLED = 'enabled';
 
 function toRow(account: unknown): AccountRow {
   if (!isRecord(account))
@@ -50,11 +52,12 @@ function toRow(account: unknown): AccountRow {
       id: null,
       agentId: null,
       allowlist: null,
+      enabled: true,
       fields: [{ label: 'value', value: stringifyValue(account) }],
     };
   const fields: AccountField[] = [];
   for (const [key, value] of Object.entries(account)) {
-    if (key === AGENT_ID || key === ALLOWLIST || SECRET_KEY_PATTERN.test(key)) continue;
+    if (key === AGENT_ID || key === ALLOWLIST || key === ENABLED || SECRET_KEY_PATTERN.test(key)) continue;
     fields.push({ label: key, value: stringifyValue(value) });
   }
   const owner = account[AGENT_ID];
@@ -62,6 +65,7 @@ function toRow(account: unknown): AccountRow {
     id: typeof account.id === 'string' ? account.id : null,
     agentId: typeof owner === 'string' ? owner : null,
     allowlist: allowlistOf(account[ALLOWLIST]),
+    enabled: account[ENABLED] !== false,
     fields,
   };
 }

@@ -8,6 +8,7 @@ const mapKey = (station: string, accountId: string): string =>
 let agentMap: AgentMap = {};
 let agentNames: AgentNameMap = {};
 let allowlistMap: AllowlistMap = {};
+let disabledAccounts = new Set<string>();
 
 export function setAgentMap(map: AgentMap, names: AgentNameMap): void {
   agentMap = map;
@@ -17,6 +18,12 @@ export function setAgentMap(map: AgentMap, names: AgentNameMap): void {
 export function setAllowlistMap(map: AllowlistMap): void {
   allowlistMap = map;
 }
+
+export function setDisabledAccounts(ids: Set<string>): void {
+  disabledAccounts = ids;
+}
+
+export const accountEnabled = (station: string, accountId: string): boolean => !disabledAccounts.has(mapKey(station, accountId));
 
 export function accountFromLine(
   line: string,

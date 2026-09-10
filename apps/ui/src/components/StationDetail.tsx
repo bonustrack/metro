@@ -13,8 +13,10 @@ import { DetachAccount } from './DetachAccount.js';
 import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
 import { StationIcon } from './StationIcon.js';
+import { Pill } from './Pill.js';
 import { type DetachHandler } from './AccountList.js';
 import { Allowlist } from './Allowlist.js';
+import { ToggleAccount } from './ToggleAccount.js';
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
@@ -50,6 +52,7 @@ interface StationDetailProps {
   onOpenAgent: (id: string) => void;
   onDetach?: DetachHandler;
   onAllowlistSaved?: () => Promise<unknown>;
+  onToggle?: (station: string, accountId: string, enabled: boolean) => Promise<void>;
 }
 
 function Heading({
@@ -66,7 +69,10 @@ function Heading({
         <StationIcon station={station} size={18} />
         <Text size="sm" role="secondary">{stationLabel(station)}</Text>
       </Row>
-      <PageTitle>{handle}</PageTitle>
+      <Row gap={10} align="center">
+        <PageTitle>{handle}</PageTitle>
+        {row.enabled ? null : <Pill label="Disabled" />}
+      </Row>
       <Row gap={6} align="center" wrap>
         <Text size="sm" role="secondary">{row.id ?? 'no id'}</Text>
         {agent === undefined ? null : (
@@ -105,9 +111,30 @@ function AllowlistSection({
   return <Allowlist agentId={agentId} station={station} accountId={id} allowlist={row.allowlist} onSaved={onSaved} />;
 }
 
+function HeaderActions({
+  station,
+  row,
+  onToggle,
+  onDetach,
+}: {
+  station: string;
+  row: AccountRow;
+  onToggle: StationDetailProps['onToggle'];
+  onDetach: DetachHandler | undefined;
+}): ReactNode {
+  const id = row.id;
+  if (id === null) return null;
+  return (
+    <Row gap={8} align="center">
+      {onToggle === undefined ? null : <ToggleAccount station={station} accountId={id} enabled={row.enabled} onToggle={onToggle} />}
+      {onDetach === undefined ? null : <DetachAccount station={station} accountId={id} onDetach={onDetach} />}
+    </Row>
+  );
+}
+
 export function StationDetail(props: StationDetailProps): ReactNode {
   const { project } = props;
-  const { station, row, agent, verbs, onOpenAgent, onDetach, onAllowlistSaved } = props;
+  const { station, row, agent, verbs, onOpenAgent, onDetach, onAllowlistSaved, onToggle } = props;
   const { url, endpoint, details } = stationFields(row);
   const id = row.id;
 
@@ -126,9 +153,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
               }}
             />
           )}
-          {onDetach !== undefined && id !== null ? (
-            <DetachAccount station={station} accountId={id} onDetach={onDetach} />
-          ) : null}
+          <HeaderActions station={station} row={row} onToggle={onToggle} onDetach={onDetach} />
         </Row>
         <Heading {...props} />
       </Col>

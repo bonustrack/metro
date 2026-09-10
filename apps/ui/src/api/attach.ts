@@ -221,6 +221,22 @@ export async function setAllowlist(
   return body.allowlist.filter((entry): entry is string => typeof entry === 'string');
 }
 
+export async function setAccountEnabled(
+  agentId: string,
+  station: string,
+  accountId: string,
+  enabled: boolean,
+): Promise<boolean> {
+  const body = await call({
+    method: 'PUT',
+    path: `${accountPath(agentId, station, accountId)}/enabled`,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!isRecord(body) || typeof body.enabled !== 'boolean') throw new Error('Metro returned an unexpected response.');
+  return body.enabled;
+}
+
 export async function fetchRecentSenders(
   agentId: string,
   station: string,

@@ -14,6 +14,7 @@ import { ChatIcon } from './ChatIcon.js';
 import { DetachAccount } from './DetachAccount.js';
 import { opensElsewhere } from './link.js';
 import { StationIcon } from './StationIcon.js';
+import { Pill } from './Pill.js';
 import { routeHash } from '../route.js';
 
 export type DetachHandler = (station: string, accountId: string) => Promise<void>;
@@ -46,10 +47,11 @@ function StationRow({
       <StationIcon station={station} size={ICON_SIZE} />
       <Row gap={10} align="center" flex={1} minWidth={0}>
         <span className="row-title">
-          <Text size="lg" weight="semibold" numberOfLines={1}>
+          <Text size="lg" weight="semibold" role={row.enabled ? 'default' : 'secondary'} numberOfLines={1}>
             {stationLabel(station)}
           </Text>
         </span>
+        {row.enabled ? null : <Pill label="Disabled" />}
         <Text
           size="lg"
           role="secondary"
