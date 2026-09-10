@@ -11,6 +11,7 @@ const SERVERS_PATH = /^#?\/?$/;
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const CONNECT_PATH = /^#?\/connect$/;
+const LAUNCH_PATH = /^#?\/launch$/;
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
 const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
@@ -30,6 +31,7 @@ function exactSelection(hash: string): Selection | null {
   if (DOCS_PATH.test(hash)) return { kind: 'docs' };
   if (SETTINGS_PATH.test(hash)) return { kind: 'settings' };
   if (CONNECT_PATH.test(hash)) return { kind: 'connect' };
+  if (LAUNCH_PATH.test(hash)) return { kind: 'launch' };
   return null;
 }
 
@@ -86,6 +88,7 @@ export function routeHash(selection: Selection): string {
   if (selection.kind === 'docs') return '#/docs/setup';
   if (selection.kind === 'settings') return '#/settings';
   if (selection.kind === 'connect') return '#/connect';
+  if (selection.kind === 'launch') return '#/launch';
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return '#/';
   return `#/${selection.project}${suffix(selection)}`;

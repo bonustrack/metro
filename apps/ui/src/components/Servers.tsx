@@ -21,6 +21,7 @@ import { baseFromSegment } from '../auth/daemon.js';
 import { shortAddress } from '../api/address.js';
 import { activeIdentity } from '../auth/identity.js';
 import { useDocumentTitle } from '../title.js';
+import { useBootingState } from '../aws/use-launch.js';
 
 const CARD_WIDTH = 640;
 const DOT = 8;
@@ -36,8 +37,9 @@ function StatusDot({ host }: { host: string }): ReactNode {
 
 function StatusText({ host }: { host: string }): ReactNode {
   const { data } = useServerStatus(host);
+  const booting = useBootingState(host, data?.state === 'offline');
   if (data === undefined) return <Pill label="Checking" />;
-  if (data.state === 'offline') return <Pill label="Offline" />;
+  if (data.state === 'offline') return <Pill label={booting === null ? 'Offline' : `Booting · ${booting}`} />;
   if (data.state === 'stopped') return <Pill label="Stopped" />;
   return <Pill label={data.version === null ? 'Live' : `Live · ${data.version}`} variant="primary" />;
 }
@@ -224,13 +226,21 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
           {HOW}
         </Text>
         <Body onRename={setRenaming} />
-        <Row>
+        <Row gap={12} wrap>
           <Button
             color="primary"
             dark={dark}
             label="Add a server"
             onPress={() => {
               window.location.hash = '#/connect';
+            }}
+          />
+          <Button
+            color="secondary"
+            dark={dark}
+            label="Launch on AWS"
+            onPress={() => {
+              window.location.hash = '#/launch';
             }}
           />
         </Row>

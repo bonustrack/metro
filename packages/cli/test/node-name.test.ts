@@ -58,6 +58,22 @@ describe('the machine name on the tailnet', () => {
     expect(newNodeName()).not.toBe(newNodeName());
   });
 
+  test('a name written before the first start is kept, so a launcher can know the address in advance', () => {
+    const agents = join(dir, 'agents');
+    for (const held of ['metro-andy', 'metro-andy-2', 'metro-h3c8yc']) {
+      rmSync(agents, { recursive: true, force: true });
+      nodeName(agents);
+      writeFileSync(join(agents, '.node'), `${held}\n`);
+      expect(nodeName(agents)).toBe(held);
+    }
+    for (const bad of ['Andy', 'metro-', 'metro-andy-', 'andy', `metro-${'a'.repeat(41)}`]) {
+      writeFileSync(join(agents, '.node'), `${bad}\n`);
+      const replaced = nodeName(agents);
+      expect(replaced).not.toBe(bad);
+      expect(replaced).toMatch(/^metro-[a-z0-9]{6}$/);
+    }
+  });
+
   test('a machine named otherwise is renamed once; a machine already named is left alone', () => {
     const agents = join(dir, 'agents');
     fakeTailscale('tony.tail1234.ts.net.');

@@ -5,6 +5,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './components/ui.js';
 import { Login } from './components/Login.js';
 import { Connect } from './components/Connect.js';
+import { LaunchServer } from './components/LaunchServer.js';
 import { BootLoading } from './components/BootLoading.js';
 import { Dashboard } from './components/Dashboard.js';
 import { Servers } from './components/Servers.js';
@@ -138,6 +139,7 @@ function ServerGate({ selection, onLock }: { selection: Selection; onLock: () =>
 
 function Unlocked({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   if (selection.kind === 'connect') return <Connect />;
+  if (selection.kind === 'launch') return <LaunchServer />;
   if (selection.kind === 'servers' || selection.kind === 'none') return <Servers onLock={onLock} />;
   return <ServerGate selection={selection} onLock={onLock} />;
 }
