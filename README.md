@@ -607,6 +607,6 @@ The server list on metro.box has **Launch on AWS**: it starts an Ubuntu 24.04 ar
 with an 8 GiB gp3 disk in your own AWS account and provisions it on first boot (Node, bun, Claude
 Code, Tailscale, tmux and Metro, then `metro service install` for your wallet). The browser signs
 the EC2 calls itself with an access key it keeps in local storage; nothing goes through metro.box.
-You need an IAM user with `ec2:DescribeImages`, `ec2:DescribeInstances`, `ec2:RunInstances` and
-`ec2:CreateTags`, and a single-use Tailscale auth key. The box joins your tailnet as
+You need an IAM user with `ec2:DescribeRegions`, `ec2:DescribeImages`, `ec2:DescribeInstances`,
+`ec2:RunInstances` and `ec2:CreateTags`, and a single-use Tailscale auth key. The box joins your tailnet as
 `metro-<name>` and appears in the list right away, live once its Funnel address resolves.

@@ -1,4 +1,6 @@
-import { type ReactNode, useState } from 'react';
+import { Fragment, type ReactNode, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Select } from '@stage-labs/kit/react-native/select';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
@@ -9,10 +11,11 @@ import { PageTitle } from './PageTitle.js';
 import { CopyBlock } from './CopyBlock.js';
 import { LinkedText } from './LinkedText.js';
 import { activeIdentity } from '../auth/identity.js';
-import { useServersQuery } from '../api/queries.js';
+import { queryError, useServersQuery } from '../api/queries.js';
 import { IAM_POLICY, launchBox, type Launched } from '../aws/launch.js';
 import { INSTANCE_TYPE, ROOT_GIB } from '../aws/ec2.js';
 import { readAwsSettings, storeAwsSettings, tailnetSuffix } from '../aws/settings.js';
+import { describeRegions, regionOptions } from '../aws/regions.js';
 import { useDocumentTitle } from '../title.js';
 
 const CARD_WIDTH = 480;
@@ -43,7 +46,6 @@ interface Field {
 
 const FIELDS: Field[] = [
   { key: 'name', label: 'Name', placeholder: 'andy' },
-  { key: 'region', label: 'AWS region', placeholder: 'eu-west-1' },
   { key: 'accessKeyId', label: 'AWS access key id', placeholder: 'AKIA…' },
   { key: 'secretAccessKey', label: 'AWS secret access key', placeholder: 'kept in this browser', secret: true },
   { key: 'tailscaleAuthKey', label: 'Tailscale auth key', placeholder: 'tskey-auth-…', secret: true },
@@ -107,12 +109,55 @@ function useLaunch(): {
   return { values, set, busy, error, done, defaultTailnet, launch };
 }
 
-function Fields({ form }: { form: ReturnType<typeof useLaunch> }): ReactNode {
+type Form = ReturnType<typeof useLaunch>;
+
+const REGIONS_STALE_MS = 10 * 60_000;
+
+function regionNote(ready: boolean, count: number | undefined, error: unknown, fetching: boolean): string {
+  if (!ready) return 'The standard regions. Once the key is typed, the list shows the regions enabled in your account.';
+  if (error !== null && error !== undefined) return `${queryError(error, 'Could not list your regions.')} Showing the standard ones.`;
+  if (count === undefined) return fetching ? 'Listing the regions enabled in your account…' : '';
+  return `${String(count)} regions are enabled in your account.`;
+}
+
+function RegionSelect({ form }: { form: Form }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const credentials = { accessKeyId: form.values.accessKeyId.trim(), secretAccessKey: form.values.secretAccessKey.trim() };
+  const ready = credentials.accessKeyId !== '' && credentials.secretAccessKey !== '';
+  const { data, error, isFetching } = useQuery({
+    queryKey: ['aws-regions', credentials.accessKeyId, credentials.secretAccessKey.length],
+    enabled: ready,
+    retry: false,
+    staleTime: REGIONS_STALE_MS,
+    queryFn: () => describeRegions(credentials),
+  });
+  return (
+    <Col gap={4}>
+      <Text size="sm" role="secondary">AWS region</Text>
+      <Select
+        name="launch-region"
+        dark={dark}
+        block
+        options={regionOptions(data ?? null)}
+        value={form.values.region}
+        placeholder="Choose a region"
+        disabled={form.busy}
+        onChange={(value) => {
+          form.set('region', value);
+        }}
+      />
+      <Text size="sm" role="secondary">{regionNote(ready, data?.length, error, isFetching)}</Text>
+    </Col>
+  );
+}
+
+function Fields({ form }: { form: Form }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={10}>
       {FIELDS.map((field) => (
-        <Col key={field.key} gap={4}>
+        <Fragment key={field.key}>
+        <Col gap={4}>
           <Text size="sm" role="secondary">{field.label}</Text>
           <Input
             name={`launch-${field.key}`}
@@ -129,6 +174,8 @@ function Fields({ form }: { form: ReturnType<typeof useLaunch> }): ReactNode {
             style={GROW}
           />
         </Col>
+        {field.key === 'secretAccessKey' ? <RegionSelect form={form} /> : null}
+        </Fragment>
       ))}
     </Col>
   );

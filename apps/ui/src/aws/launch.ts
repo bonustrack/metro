@@ -68,7 +68,7 @@ export const IAM_POLICY = JSON.stringify(
     Statement: [
       {
         Effect: 'Allow',
-        Action: ['ec2:DescribeImages', 'ec2:DescribeInstances', 'ec2:RunInstances', 'ec2:CreateTags'],
+        Action: ['ec2:DescribeRegions', 'ec2:DescribeImages', 'ec2:DescribeInstances', 'ec2:RunInstances', 'ec2:CreateTags'],
         Resource: '*',
       },
     ],
