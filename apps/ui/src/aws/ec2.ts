@@ -96,6 +96,7 @@ export interface InstanceSpec {
   node: string;
   userData: string;
   clientToken: string;
+  zone?: string;
 }
 
 export const toBase64 = (text: string): string => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
@@ -119,6 +120,7 @@ export function runInstanceParams(spec: InstanceSpec): Record<string, string> {
     'TagSpecification.1.Tag.1.Value': spec.name,
     'TagSpecification.1.Tag.2.Key': 'metro',
     'TagSpecification.1.Tag.2.Value': spec.node,
+    ...(spec.zone === undefined ? {} : { 'Placement.AvailabilityZone': spec.zone }),
   };
 }
 
@@ -127,6 +129,19 @@ export async function runInstance(credentials: AwsCredentials, region: string, s
   const instanceId = textAt(child(child(xml, 'instancesSet'), 'item'), 'instanceId');
   if (instanceId === '') throw new AwsError('NoInstance', 'EC2 answered without an instance id.');
   return instanceId;
+}
+
+export async function describeZones(credentials: AwsCredentials, region: string): Promise<string[]> {
+  const xml = await ec2(credentials, region, 'DescribeAvailabilityZones', {
+    'Filter.1.Name': 'state',
+    'Filter.1.Value.1': 'available',
+    'Filter.2.Name': 'zone-type',
+    'Filter.2.Value.1': 'availability-zone',
+  });
+  return children(child(xml, 'availabilityZoneInfo'), 'item')
+    .map((item) => textAt(item, 'zoneName'))
+    .filter((zone) => zone !== '')
+    .sort();
 }
 
 export interface InstanceState {

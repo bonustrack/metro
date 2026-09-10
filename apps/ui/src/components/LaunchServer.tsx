@@ -189,7 +189,7 @@ function LaunchedView({ launched }: { launched: Launched }): ReactNode {
         <PageTitle>{`Launching ${launched.server.name ?? launched.host}`}</PageTitle>
       </Row>
       <Text size="sm" role="secondary">
-        {`Instance ${launched.instanceId} is starting from ${launched.image.name}. It installs everything on first boot and then joins your tailnet as ${launched.node}. The server is already in your list and turns Live once its address resolves, usually within five minutes. Open it then to create the agent.`}
+        {`Instance ${launched.instanceId} is starting from ${launched.image.name}${launched.zone === null ? '' : ` in ${launched.zone}`}. It installs everything on first boot and then joins your tailnet as ${launched.node}. The server is already in your list and turns Live once its address resolves, usually within five minutes. Open it then to create the agent.`}
       </Text>
       <CopyBlock label="address" value={launched.host} />
       <Text size="sm" role="secondary">

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { AwsError, describeInstance, latestUbuntuArm64Image, pickImage, runInstance, runInstanceParams, toBase64 } from '../src/aws/ec2.ts';
+import { AwsError, describeInstance, describeZones, latestUbuntuArm64Image, pickImage, runInstance, runInstanceParams, toBase64 } from '../src/aws/ec2.ts';
 
 const CREDS = { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' };
 const realFetch = globalThis.fetch;
@@ -74,7 +74,16 @@ describe('EC2 from the browser', () => {
     expect(body.get('TagSpecification.1.Tag.2.Value')).toBe('metro-andy');
     expect(Buffer.from(body.get('UserData') ?? '', 'base64').toString('utf8')).toBe(spec.userData);
     expect(runInstanceParams(spec).ImageId).toBe('ami-new');
+    expect(runInstanceParams(spec)).not.toHaveProperty('Placement.AvailabilityZone');
+    expect(runInstanceParams({ ...spec, zone: 'eu-west-1b' })['Placement.AvailabilityZone']).toBe('eu-west-1b');
     expect(toBase64('é')).toBe('w6k=');
+  });
+
+  test('DescribeAvailabilityZones lists the available zones of the region, sorted', async () => {
+    const seen = stub(200, '<DescribeAvailabilityZonesResponse xmlns="x"><availabilityZoneInfo><item><zoneName>eu-west-1c</zoneName><zoneState>available</zoneState></item><item><zoneName>eu-west-1a</zoneName><zoneState>available</zoneState></item></availabilityZoneInfo></DescribeAvailabilityZonesResponse>');
+    expect(await describeZones(CREDS, 'eu-west-1')).toEqual(['eu-west-1a', 'eu-west-1c']);
+    expect(seen[0]?.body.get('Action')).toBe('DescribeAvailabilityZones');
+    expect(seen[0]?.body.get('Filter.2.Value.1')).toBe('availability-zone');
   });
 
   test('an AWS refusal is its own code and message', async () => {
