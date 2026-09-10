@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { claudeDir } from '../claude/files.js';
@@ -76,9 +76,7 @@ const readOrNull = (path: string): string | null => {
 
 function writeIfChanged(path: string, text: string): boolean {
   if (readOrNull(path) === text) return false;
-  const tmp = `${path}.metro-${String(process.pid)}`;
-  writeFileSync(tmp, text, { mode: 0o644 });
-  renameSync(tmp, path);
+  writeFileSync(path, text, { mode: 0o644 });
   return true;
 }
 
