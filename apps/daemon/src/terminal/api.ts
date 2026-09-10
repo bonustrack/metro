@@ -29,6 +29,11 @@ export const tmuxCommand = (session: string, home = homedir()): string[] => [
   '-s',
   'set-clipboard',
   'on',
+  ';',
+  'set-option',
+  '-as',
+  'terminal-features',
+  ',xterm-256color:clipboard',
 ];
 
 export interface TerminalApiDeps {
