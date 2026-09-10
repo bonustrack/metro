@@ -5,6 +5,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { MetroLogo } from './MetroLogo.js';
 import { NAV_GAP, NavRow } from './NavRow.js';
 import { SidebarFooter } from './SidebarFooter.js';
+import { FieldLabel } from './FieldLabel.js';
 import { ServerSwitcher } from './ServerSwitcher.js';
 import { type Selection } from './selection.js';
 
@@ -42,11 +43,16 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
             <NavRow label="Model" icon="chip" selected={selection.kind === 'model'} target={{ kind: 'model', project }} onSelect={onSelect} />
             <NavRow label="Terminal" icon="terminal" selected={selection.kind === 'terminal'} target={{ kind: 'terminal', project }} onSelect={onSelect} />
             <NavRow label="Channels" icon="chat" selected={STATION_PAGES.includes(selection.kind)} target={{ kind: 'stations', project }} onSelect={onSelect} />
-            <NavRow label="Connectors" icon="viewGridAdd" selected={CONNECTOR_PAGES.includes(selection.kind)} target={{ kind: 'connectors', project }} onSelect={onSelect} />
             <NavRow label="Sessions" icon="folder" selected={selection.kind === 'sessions'} target={{ kind: 'sessions', project, claudeProject: null, id: null }} onSelect={onSelect} />
-            <NavRow label="Skills" icon="sparkles" selected={SKILL_PAGES.includes(selection.kind)} target={{ kind: 'skills', project }} onSelect={onSelect} />
-            <NavRow label="Memory" icon="bookOpen" selected={selection.kind === 'memory'} target={{ kind: 'memory', project, claudeProject: null, file: null }} onSelect={onSelect} />
             <NavRow label="Claude" icon="cog" selected={selection.kind === 'claude'} target={{ kind: 'claude', project }} onSelect={onSelect} />
+          </Col>
+          <Col gap={NAV_GAP} padding={{ top: 14 }}>
+            <Row padding={{ bottom: 2 }}>
+              <FieldLabel>Customize</FieldLabel>
+            </Row>
+            <NavRow label="Skills" icon="sparkles" selected={SKILL_PAGES.includes(selection.kind)} target={{ kind: 'skills', project }} onSelect={onSelect} />
+            <NavRow label="Connectors" icon="viewGridAdd" selected={CONNECTOR_PAGES.includes(selection.kind)} target={{ kind: 'connectors', project }} onSelect={onSelect} />
+            <NavRow label="Memory" icon="bookOpen" selected={selection.kind === 'memory'} target={{ kind: 'memory', project, claudeProject: null, file: null }} onSelect={onSelect} />
           </Col>
         </Col>
       </ScrollView>

@@ -19,7 +19,7 @@ import { RenameConnector } from './RenameConnector.js';
 import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
 
-const ROW_PAD_Y = 12;
+const ROW_PAD_Y = 10;
 const ICON_SIZE = 16;
 const CENTER_SELF = { alignSelf: 'center' } as const;
 
