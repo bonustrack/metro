@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { markOnboardingDone } from './onboarding.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgents, pickLocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
@@ -139,5 +140,7 @@ export async function launchClaude(extra: string[]): Promise<number> {
   const env = credentialEnv(routed, decision.key, claudeSignedIn());
   if (env !== routed)
     process.stderr.write("metro claude: Claude Code has no login of its own here, so metro's key stands in as its credential; the Model page must route to Bedrock, OpenRouter or Codex\n");
+  if (markOnboardingDone() === 'marked')
+    process.stderr.write("metro claude: skipped Claude Code's first-run setup, since it already has a credential here\n");
   return runClaude(claudeArgs(extra), env);
 }
