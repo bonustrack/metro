@@ -60,7 +60,7 @@ async function open(
   const status = await availableStatus();
   onSessions(status.sessions);
   const path = await mintTerminalTicket(session);
-  const term = new XTerm({ cursorBlink: true, fontSize: 13, theme: colors, scrollback: 5_000, macOptionClickForcesSelection: true });
+  const term = new XTerm({ cursorBlink: true, fontSize: 13, theme: colors, scrollback: 5_000, macOptionClickForcesSelection: true, allowProposedApi: true });
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.loadAddon(new ClipboardAddon());

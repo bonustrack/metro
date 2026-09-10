@@ -68,6 +68,7 @@ describe('the tmux window follows the browser', () => {
       'tmux', 'new-session', '-A', '-D', '-s', 'metro', '-c', '/root',
       ';', 'set-option', '-g', 'mouse', 'on',
       ';', 'set-option', '-s', 'set-clipboard', 'on',
+      ';', 'set-option', '-as', 'terminal-features', ',xterm-256color:clipboard',
     ]);
   });
 
