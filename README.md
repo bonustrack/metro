@@ -245,18 +245,17 @@ with the agent's own key; there is no sign-in and nothing to pair. `METRO_AGENTS
 
 ### The Claude Code plugin
 
-The same connector list also works as a Claude Code plugin, for sessions that would rather not
-shell out to `metro mcp`. This repository is its marketplace:
+Each connector is its own MCP server in Claude Code, through the metro plugin. **The plugin ships
+inside the npm package and the daemon installs it for you**: when `metro serve` starts and finds
+`claude` on the machine, it registers the bundled plugin as a marketplace and installs or updates
+`metro@metro` at user scope. Its version is the CLI's, so `metro update` and the Update button on
+the Server page carry the plugin along. Nothing to add by hand, and no dependency on this
+repository at run time; it stays a marketplace only for anyone who wants to install from git.
 
-```bash
-metro plugin    # claude plugin marketplace add bonustrack/metro, then claude plugin install metro@metro
-```
-
-Inside Claude Code, `/metro:refresh` reads what the agent on this machine holds from the local
-daemon and rewrites the plugin's server list. Plugin MCP registration is a snapshot, so run
-`/reload-plugins` (or `claude plugin update metro@metro`) afterwards for the servers to connect.
-The generated list carries no credential: each entry names the daemon's relay url and a helper
-that prints the agent key fresh from the agent file on every connect.
+The daemon also writes the plugin's server list whenever a connector is added, renamed or removed.
+A running session picks that up with `/reload-plugins --force`; a plain `/reload-plugins` keeps the
+list it already has. The list carries no credential: each entry names the daemon's loopback relay
+url and a helper that prints the agent key fresh from the agent file on every connect.
 
 ### Running metro on your own machine
 

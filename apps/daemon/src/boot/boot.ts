@@ -22,6 +22,7 @@ import { localAgentKey } from '../stations/materialize.js';
 import { agentsDir, fileSource } from '../agents/files.js';
 import { ConnectorWatch } from '../connectors/watch.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
+import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { applyLocalOwner } from './local-owner.js';
 import { localOwner } from '../agents/file-admin.js';
 import { ensureStationDeps } from '../stations/runtime-deps.js';
@@ -150,6 +151,14 @@ async function main(): Promise<void> {
     'dispatcher ready',
   );
   markDaemonReady();
+  ensureMetroPlugin()
+    .then((outcome) => {
+      log.info({ outcome }, 'plugin: metro plugin for Claude Code');
+      if (outcome !== 'skipped') syncPluginServers();
+    })
+    .catch((err: unknown) => {
+      log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');
+    });
 }
 
 const SHUTDOWN_TIMEOUT_MS = 3_000;

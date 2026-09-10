@@ -9,7 +9,7 @@ import { queryError } from '../api/queries.js';
 
 const SAVE_FAILED = 'Could not save who may reach this agent.';
 const NO_INPUT = { autoComplete: 'off', autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
-const OPEN = 'Messages from anyone else still arrive on this station, and metro drops them before the agent sees them. Remove every sender and anyone can reach it again.';
+const OPEN = 'Only these senders reach the agent, in a group as much as in a private chat: everyone else still writes to the station, and metro drops what they say before the agent sees it. Remove every sender and anyone can reach it again.';
 const CLOSED = 'Every message on this station reaches the agent.';
 const EMPTY = 'No sender is listed yet, so anyone can reach this agent. Add the first one below.';
 
