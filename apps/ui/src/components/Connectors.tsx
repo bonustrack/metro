@@ -24,6 +24,8 @@ import { useDocumentTitle } from '../title.js';
 
 
 const FALLBACK = 'Could not load your connectors.';
+const WHAT =
+  'Each of these is its own MCP server in Claude Code on this machine, reached through the daemon so the credential stays here. Adding, renaming or removing one reaches a Claude Code session started afterwards: a running session keeps the list it started with.';
 
 interface ConnectorsBodyProps {
   project: string;
@@ -93,6 +95,7 @@ export function Connectors({
               <CountBadge count={data.connectors.length} beside="title" />
             )}
           </Row>
+          <Text size="sm" role="secondary">{WHAT}</Text>
         </Col>
         <Button
           color="primary"
