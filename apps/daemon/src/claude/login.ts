@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { markOnboardingDone } from './onboarding.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
@@ -125,7 +126,8 @@ export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now()): LoginV
       session.state = code === 0 ? 'done' : 'failed';
       if (code !== 0) session.error = `the login ended with status ${String(code)}`;
       terminal.close();
-      log.info({ state: session.state }, 'claude-login: the official login finished');
+      const onboarding = code === 0 ? markOnboardingDone() : 'skipped';
+      log.info({ state: session.state, onboarding }, 'claude-login: the official login finished');
     })
     .catch((err: unknown) => {
       session.state = 'failed';

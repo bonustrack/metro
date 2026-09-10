@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -22,8 +25,12 @@ interface View {
 
 let server: Server;
 let base = '';
+let configDir = '';
+const priorConfigDir = process.env.CLAUDE_CONFIG_DIR;
 
 async function start(command: string[]): Promise<string> {
+  configDir = mkdtempSync(join(tmpdir(), 'metro-claude-config-'));
+  process.env.CLAUDE_CONFIG_DIR = configDir;
   server = createServer((req, res) => {
     const deps = {
       authorize: (subject: string) => {
@@ -58,6 +65,10 @@ async function until(check: () => Promise<boolean>, ms = 5_000): Promise<void> {
 }
 
 afterEach(() => {
+  if (priorConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+  else process.env.CLAUDE_CONFIG_DIR = priorConfigDir;
+  if (configDir !== '') rmSync(configDir, { recursive: true, force: true });
+  configDir = '';
   forgetClaudeLogin();
   server.close();
 });
@@ -77,6 +88,8 @@ describe('signing Claude Code in from the page, by driving its own login', () =>
     expect((await call('POST', path, { text: 'the-code' })).status).toBe(200);
     await until(async () => ((await (await call('GET', path)).json()) as View).state !== 'pending');
     expect(((await (await call('GET', path)).json()) as View).state).toBe('done');
+    await until(() => Promise.resolve(existsSync(join(configDir, '.claude.json'))));
+    expect(JSON.parse(readFileSync(join(configDir, '.claude.json'), 'utf8'))).toEqual({ hasCompletedOnboarding: true });
   }, 20_000);
 
   test('a login that ends badly says so, and a wrong code is a failure not a hang', async () => {
@@ -90,6 +103,7 @@ describe('signing Claude Code in from the page, by driving its own login', () =>
     expect(ended.state).toBe('failed');
     expect(ended.error).toContain('status 3');
     expect((await call('POST', path, { text: 'again' })).status).toBe(409);
+    expect(existsSync(join(configDir, '.claude.json'))).toBe(false);
   }, 20_000);
 
   test('only the owner may drive it, a stale id is a 404, and the body must carry text', async () => {
