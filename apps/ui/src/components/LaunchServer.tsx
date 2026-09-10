@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ModelPicker } from './ModelPicker.js';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
@@ -11,7 +11,7 @@ import { PageTitle } from './PageTitle.js';
 import { CopyBlock } from './CopyBlock.js';
 import { LinkedText } from './LinkedText.js';
 import { activeIdentity } from '../auth/identity.js';
-import { queryError, useServersQuery } from '../api/queries.js';
+import { queryError, refreshServers, useServersQuery } from '../api/queries.js';
 import { IAM_POLICY, launchBox, type Launched } from '../aws/launch.js';
 import { INSTANCE_TYPE, ROOT_GIB } from '../aws/ec2.js';
 import { readAwsSettings, storeAwsSettings, tailnetSuffix } from '../aws/settings.js';
@@ -77,6 +77,7 @@ function useLaunch(): {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Launched | null>(null);
+  const client = useQueryClient();
   const { data: servers } = useServersQuery();
   const defaultTailnet = tailnetSuffix((servers ?? []).map((s) => s.host)) ?? '';
   const launch = (): void => {
@@ -92,8 +93,9 @@ function useLaunch(): {
       tailnet: values.tailnet.trim() === '' ? defaultTailnet : values.tailnet,
       owner: activeIdentity()?.address ?? '',
     })
-      .then((launched) => {
+      .then(async (launched) => {
         storeAwsSettings({ ...credentials, region: values.region.trim() });
+        await refreshServers(client);
         setDone(launched);
       })
       .catch((err: unknown) => {
