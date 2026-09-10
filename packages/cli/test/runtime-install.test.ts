@@ -20,6 +20,8 @@ function stageSources(version: string): string {
   mkdirSync(join(sources, 'node_modules', '@metro-labs', 'daemon', 'src'), { recursive: true });
   writeFileSync(join(sources, 'node_modules', '@metro-labs', 'daemon', 'src', 'server.ts'), `export const v = '${version}';\n`);
   writeFileSync(join(sources, 'server.ts'), "import './node_modules/@metro-labs/daemon/src/server.ts';\n");
+  mkdirSync(join(sources, 'marketplace', 'plugin', '.claude-plugin'), { recursive: true });
+  writeFileSync(join(sources, 'marketplace', 'plugin', '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'metro', version }));
   writeFileSync(join(sources, 'runtime.json'), JSON.stringify({ version }));
   writeFileSync(join(sources, 'stations.json'), JSON.stringify(MANIFEST));
   return sources;
@@ -69,6 +71,7 @@ describe('the per-channel runtime store', () => {
     expect(first).toEqual({ dir: store, entry: join(store, 'server.ts'), trains: join(store, 'trains'), manifest: join(sources, 'stations.json') });
     expect(readFileSync(join(store, PACKAGE_ENTRY), 'utf8')).toContain("'1'");
     expect(readFileSync(first.entry, 'utf8')).toContain('@metro-labs/daemon/src/server.ts');
+    expect(readFileSync(join(store, 'marketplace', 'plugin', '.claude-plugin', 'plugin.json'), 'utf8')).toContain("'1'".replace(/'/g, '"'));
     const pkg = JSON.parse(readFileSync(join(store, 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
     expect(Object.keys(pkg.dependencies)).toEqual(['@xmtp/node-sdk', 'pino', 'viem', 'zod']);
     expect(installs()).toBe(1);

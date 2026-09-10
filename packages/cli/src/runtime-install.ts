@@ -6,6 +6,7 @@ import { localStations } from './local.js';
 import { STORE_ENTRY, daemonEntry, findBun, runtimeDir } from './runtime.js';
 
 export const MANIFEST_FILE = 'stations.json';
+export const MARKETPLACE = 'marketplace';
 const METRO_SOURCES = join('node_modules', '@metro-labs');
 const INSTALL_TIMEOUT_MS = 15 * 60_000;
 
@@ -75,6 +76,8 @@ function syncSources(sources: string, store: string): boolean {
   if (stamp !== null && readOrNull(join(store, 'runtime.json')) === stamp) return false;
   rmSync(join(store, METRO_SOURCES), { recursive: true, force: true });
   cpSync(join(sources, METRO_SOURCES), join(store, METRO_SOURCES), { recursive: true });
+  rmSync(join(store, MARKETPLACE), { recursive: true, force: true });
+  if (existsSync(join(sources, MARKETPLACE))) cpSync(join(sources, MARKETPLACE), join(store, MARKETPLACE), { recursive: true });
   if (stamp !== null) writeFileSync(join(store, 'runtime.json'), stamp);
   return true;
 }
