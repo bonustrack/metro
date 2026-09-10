@@ -601,6 +601,12 @@ stay isolated (the XMTP node SDK never enters the core graph). See the per-packa
 
 MIT
 
+## Starting Claude Code on a box
+
+`metro claude` starts Claude Code with the metro channel, routes inference through the daemon's
+Model page, and loads the metro MCP server for the session from the local daemon with the agent's
+own key, so there is nothing to `claude mcp add`. Any argument after it goes to `claude` untouched.
+
 ## Launching a box on AWS
 
 The server list on metro.box has **Launch on AWS**: it starts an Ubuntu 24.04 arm64 `t4g.medium`

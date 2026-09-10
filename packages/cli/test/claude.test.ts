@@ -22,6 +22,17 @@ describe('metro claude hands everything to claude untouched', () => {
       'server:metro',
     ]);
   });
+
+  test('the metro MCP server rides along as an --mcp-config file, before the user arguments', () => {
+    expect(claudeArgs(['-r', 'abc'], '/tmp/metro-claude-x/mcp.json')).toEqual([
+      '--dangerously-load-development-channels',
+      'server:metro',
+      '--mcp-config',
+      '/tmp/metro-claude-x/mcp.json',
+      '-r',
+      'abc',
+    ]);
+  });
 });
 
 describe('inference goes through the daemon gateway', () => {

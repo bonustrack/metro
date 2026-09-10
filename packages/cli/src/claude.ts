@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { markOnboardingDone } from './onboarding.js';
+import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgents, pickLocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
@@ -9,8 +10,9 @@ const CHANNEL_FLAGS = ['--dangerously-load-development-channels', 'server:metro'
 const KEY_HEADER = 'x-metro-key';
 const PROBE_MS = 3_000;
 
-export const claudeArgs = (extra: string[]): string[] => [
+export const claudeArgs = (extra: string[], mcpConfig?: string): string[] => [
   ...CHANNEL_FLAGS,
+  ...(mcpConfig === undefined ? [] : ['--mcp-config', mcpConfig]),
   ...extra,
 ];
 
@@ -128,19 +130,42 @@ export function runClaude(args: string[], env: NodeJS.ProcessEnv): Promise<numbe
   });
 }
 
-export async function launchClaude(extra: string[]): Promise<number> {
-  const decision = await verdict();
-  if ('skip' in decision) {
-    process.stderr.write(`metro claude: ${decision.skip}\n`);
-    return runClaude(claudeArgs(extra), process.env);
-  }
-  const port = localPort();
+async function servedKey(decision: Verdict): Promise<string | null> {
+  if ('key' in decision) return decision.key;
+  const picked = agentKey(localAgentList(), process.env.METRO_AGENT);
+  if ('skip' in picked) return null;
+  return (await daemonServing()) ? picked.key : null;
+}
+
+function mcpConfigFor(key: string | null, port: number): McpConfigFile | null {
+  if (key === null) return null;
+  const file = writeMcpConfig(key, port);
+  process.stderr.write(`metro claude: the metro MCP server is loaded for this session from the daemon at http://127.0.0.1:${String(port)}/mcp, nothing to add by hand\n`);
+  return file;
+}
+
+function gatewayLaunchEnv(key: string, port: number): NodeJS.ProcessEnv {
   process.stderr.write(`metro claude: inference goes through the daemon at http://127.0.0.1:${String(port)}/gateway (the Model page decides where)\n`);
-  const routed = gatewayEnv(process.env, decision.key, port);
-  const env = credentialEnv(routed, decision.key, claudeSignedIn());
+  const routed = gatewayEnv(process.env, key, port);
+  const env = credentialEnv(routed, key, claudeSignedIn());
   if (env !== routed)
     process.stderr.write("metro claude: Claude Code has no login of its own here, so metro's key stands in as its credential; the Model page must route to Bedrock, OpenRouter or Codex\n");
   if (markOnboardingDone() === 'marked')
     process.stderr.write("metro claude: skipped Claude Code's first-run setup, since it already has a credential here\n");
-  return runClaude(claudeArgs(extra), env);
+  return env;
+}
+
+export async function launchClaude(extra: string[]): Promise<number> {
+  const decision = await verdict();
+  const port = localPort();
+  const mcp = mcpConfigFor(await servedKey(decision), port);
+  try {
+    if ('skip' in decision) {
+      process.stderr.write(`metro claude: ${decision.skip}\n`);
+      return await runClaude(claudeArgs(extra, mcp?.path), process.env);
+    }
+    return await runClaude(claudeArgs(extra, mcp?.path), gatewayLaunchEnv(decision.key, port));
+  } finally {
+    mcp?.cleanup();
+  }
 }
