@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { describeRegions, regionLabel, regionOptions, STANDARD_REGIONS } from '../src/aws/regions.ts';
+import { describeRegions, regionLabel, regionRows, STANDARD_REGIONS } from '../src/aws/regions.ts';
+import { matchModels } from '../src/api/model.ts';
 
 const realFetch = globalThis.fetch;
 
@@ -27,20 +28,27 @@ describe('the region list', () => {
     expect(seen[0]?.body.get('Action')).toBe('DescribeRegions');
   });
 
-  test('options carry the human name beside the code, sorted by name, and an unknown code stands on its own', () => {
-    const options = regionOptions(['eu-west-1', 'zz-new-9', 'us-east-1']);
-    expect(options).toEqual([
-      { value: 'eu-west-1', label: 'Europe (Ireland) · eu-west-1' },
-      { value: 'us-east-1', label: 'US East (N. Virginia) · us-east-1' },
-      { value: 'zz-new-9', label: 'zz-new-9' },
+  test('rows carry the human name beside the code, sorted by name, and an unknown code stands on its own', () => {
+    const rows = regionRows(['eu-west-1', 'zz-new-9', 'us-east-1']);
+    expect(rows).toEqual([
+      { id: 'eu-west-1', name: 'Europe (Ireland)' },
+      { id: 'us-east-1', name: 'US East (N. Virginia)' },
+      { id: 'zz-new-9', name: 'zz-new-9' },
     ]);
     expect(regionLabel('ap-northeast-1')).toBe('Asia Pacific (Tokyo) · ap-northeast-1');
   });
 
+  test('the picker finds a region by any word of its name or its code', () => {
+    const rows = regionRows(null);
+    expect(matchModels(rows, 'ireland').map((r) => r.id)).toEqual(['eu-west-1']);
+    expect(matchModels(rows, 'eu-west').map((r) => r.id)).toEqual(['eu-west-1', 'eu-west-2', 'eu-west-3']);
+    expect(matchModels(rows, 'asia tokyo').map((r) => r.id)).toEqual(['ap-northeast-1']);
+  });
+
   test('before a key is typed the standard regions stand in, every one of them named', () => {
-    const options = regionOptions(null);
-    expect(options).toHaveLength(STANDARD_REGIONS.length);
-    for (const option of options) expect(option.label).not.toBe(option.value);
-    expect(options.map((o) => o.value)).toContain('eu-west-1');
+    const rows = regionRows(null);
+    expect(rows).toHaveLength(STANDARD_REGIONS.length);
+    for (const row of rows) expect(row.name).not.toBe(row.id);
+    expect(rows.map((r) => r.id)).toContain('eu-west-1');
   });
 });

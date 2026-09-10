@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Select } from '@stage-labs/kit/react-native/select';
+import { ModelPicker } from './ModelPicker.js';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
@@ -15,7 +15,7 @@ import { queryError, useServersQuery } from '../api/queries.js';
 import { IAM_POLICY, launchBox, type Launched } from '../aws/launch.js';
 import { INSTANCE_TYPE, ROOT_GIB } from '../aws/ec2.js';
 import { readAwsSettings, storeAwsSettings, tailnetSuffix } from '../aws/settings.js';
-import { describeRegions, regionOptions } from '../aws/regions.js';
+import { describeRegions, regionRows } from '../aws/regions.js';
 import { useDocumentTitle } from '../title.js';
 
 const CARD_WIDTH = 480;
@@ -121,7 +121,6 @@ function regionNote(ready: boolean, count: number | undefined, error: unknown, f
 }
 
 function RegionSelect({ form }: { form: Form }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const credentials = { accessKeyId: form.values.accessKeyId.trim(), secretAccessKey: form.values.secretAccessKey.trim() };
   const ready = credentials.accessKeyId !== '' && credentials.secretAccessKey !== '';
   const { data, error, isFetching } = useQuery({
@@ -133,15 +132,14 @@ function RegionSelect({ form }: { form: Form }): ReactNode {
   });
   return (
     <Col gap={4}>
-      <Text size="sm" role="secondary">AWS region</Text>
-      <Select
-        name="launch-region"
-        dark={dark}
-        block
-        options={regionOptions(data ?? null)}
+      <ModelPicker
+        label="AWS region"
         value={form.values.region}
-        placeholder="Choose a region"
-        disabled={form.busy}
+        placeholder="eu-west-1"
+        models={regionRows(data ?? null)}
+        loading={ready && isFetching && data === undefined}
+        error={null}
+        onOpen={() => undefined}
         onChange={(value) => {
           form.set('region', value);
         }}

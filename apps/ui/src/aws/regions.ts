@@ -1,4 +1,4 @@
-import type { SelectOption } from '@stage-labs/kit/react-native/select';
+import type { ModelOption } from '../api/model.js';
 import { ec2, type AwsCredentials } from './ec2.js';
 import { child, children, textAt } from './xml.js';
 
@@ -63,10 +63,10 @@ export function regionLabel(code: string): string {
   return name === undefined ? code : `${name} · ${code}`;
 }
 
-export function regionOptions(enabled: string[] | null): SelectOption[] {
+export function regionRows(enabled: string[] | null): ModelOption[] {
   return [...(enabled ?? STANDARD_REGIONS)]
-    .map((value) => ({ value, label: regionLabel(value) }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .map((id) => ({ id, name: REGION_NAMES[id] ?? id }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function describeRegions(credentials: AwsCredentials): Promise<string[]> {
