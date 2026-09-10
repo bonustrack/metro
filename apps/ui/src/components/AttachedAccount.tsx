@@ -6,6 +6,9 @@ import { stationLabel, type AttachResult } from '../api/attach.js';
 import { CopyBlock } from './CopyBlock.js';
 import { Field } from './Field.js';
 
+export const CALLBACK_NOTE =
+  'Paste this as the callback URL in the Gateway ID settings at gateway.threema.ch. It is where Threema delivers messages for this agent, and the whole URL is the credential, so keep it there and nowhere public.';
+
 function activationNote(result: AttachResult): string {
   if (!result.activated)
     return 'The channel is stored, but Metro could not reload it. It becomes live at the next daemon restart.';
@@ -24,8 +27,9 @@ export function AttachedAccount({
   const dark = useKitScheme() === 'dark';
   const secret = result.secret;
   const endpoint = result.identity.endpoint;
+  const callback = result.identity.callback;
   const fields = Object.entries(result.identity).filter(
-    ([k]) => k !== 'endpoint',
+    ([k]) => k !== 'endpoint' && k !== 'callback',
   );
   return (
     <Col gap={14}>
@@ -49,6 +53,14 @@ export function AttachedAccount({
             <Text size="sm" role="secondary">
               The whole URL is the credential. Paste it into the provider as the
               webhook URL — no secret or signature header to configure.
+            </Text>
+          </Col>
+        )}
+        {callback === undefined ? null : (
+          <Col gap={8}>
+            <CopyBlock label="threema delivers here" value={callback} secret />
+            <Text size="sm" role="secondary">
+              {CALLBACK_NOTE}
             </Text>
           </Col>
         )}

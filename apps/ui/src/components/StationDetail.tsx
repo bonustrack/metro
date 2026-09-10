@@ -10,6 +10,7 @@ import { type AgentSummary } from '../api/client.js';
 import { BackLink } from './BackLink.js';
 import { CopyBlock } from './CopyBlock.js';
 import { DetachAccount } from './DetachAccount.js';
+import { CALLBACK_NOTE } from './AttachedAccount.js';
 import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
 import { StationIcon } from './StationIcon.js';
@@ -135,7 +136,7 @@ function HeaderActions({
 export function StationDetail(props: StationDetailProps): ReactNode {
   const { project } = props;
   const { station, row, agent, verbs, onOpenAgent, onDetach, onAllowlistSaved, onToggle } = props;
-  const { url, endpoint, details } = stationFields(row);
+  const { url, endpoint, callback, details } = stationFields(row);
   const id = row.id;
 
   return (
@@ -170,6 +171,17 @@ export function StationDetail(props: StationDetailProps): ReactNode {
               The whole URL is the credential. Anyone holding it can post events
               to this agent, so paste it straight into the provider and do not
               put it anywhere public.
+            </Text>
+          </Col>
+        </Section>
+      )}
+
+      {callback === undefined ? null : (
+        <Section title="Callback">
+          <Col gap={8}>
+            <CopyBlock label="threema delivers here" value={callback} secret />
+            <Text size="sm" role="secondary">
+              {CALLBACK_NOTE}
             </Text>
           </Col>
         </Section>

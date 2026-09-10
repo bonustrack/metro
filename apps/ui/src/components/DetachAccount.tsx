@@ -8,15 +8,21 @@ interface DetachAccountProps {
   onDetach: (station: string, accountId: string) => Promise<void>;
 }
 
+const RECONNECT_NOTES: Record<string, string> = {
+  webhook:
+    'This cannot be undone. Connecting it again mints a new URL and a new secret, so whoever posts to this one has to be updated.',
+  threema:
+    'This cannot be undone. Connecting it again mints a new callback URL, which has to be pasted into the Gateway ID settings again.',
+};
+
 export function DetachAccount({
   station,
   accountId,
   onDetach,
 }: DetachAccountProps): ReactNode {
   const reconnectNote =
-    station === 'webhook'
-      ? 'This cannot be undone. Connecting it again mints a new URL and a new secret, so whoever posts to this one has to be updated.'
-      : 'This cannot be undone. Connecting it again means going through the whole sign-in once more.';
+    RECONNECT_NOTES[station] ??
+    'This cannot be undone. Connecting it again means going through the whole sign-in once more.';
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

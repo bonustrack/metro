@@ -19,6 +19,7 @@ const STATION_SOURCES = [
   ['packages/telegram', 'telegram'],
   ['packages/discord-bot', 'discord-bot'],
   ['packages/whatsapp', 'whatsapp'],
+  ['packages/threema', 'threema'],
   ['packages/webhook', 'webhook'],
 ];
 

@@ -79,6 +79,11 @@ const STATION_TARGETS: Record<StationName, StationTarget> = {
     fileEnv: 'WHATSAPP_ACCOUNTS_FILE',
     trainImport: '@metro-labs/whatsapp/train',
   },
+  threema: {
+    file: 'threema-accounts.json',
+    fileEnv: 'THREEMA_ACCOUNTS_FILE',
+    trainImport: '@metro-labs/threema/train',
+  },
   webhook: {
     file: 'webhook-accounts.json',
     fileEnv: 'WEBHOOK_ACCOUNTS_FILE',
@@ -86,7 +91,7 @@ const STATION_TARGETS: Record<StationName, StationTarget> = {
   },
 };
 
-function accountFilePath(station: StationName): string {
+export function accountFilePath(station: StationName): string {
   const target = STATION_TARGETS[station];
   return process.env[target.fileEnv] ?? join(METRO_DIR, target.file);
 }

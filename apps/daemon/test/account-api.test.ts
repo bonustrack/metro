@@ -629,6 +629,7 @@ describe('GET /api/agents advertises what can be attached', () => {
     expect(body.attachable).toEqual([
       'discord-bot',
       'telegram-bot',
+      'threema',
       'xmtp',
       'webhook',
       'telegram',

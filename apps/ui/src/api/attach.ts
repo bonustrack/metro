@@ -67,6 +67,35 @@ export const STATION_FORMS: Record<string, StationForm> = {
       },
     ],
   },
+  threema: {
+    label: 'Threema',
+    hint: 'Uses a Threema Gateway ID in end-to-end mode, so the private key stays on this machine and Threema cannot read the messages. Create the ID at gateway.threema.ch, pick end-to-end mode, download its key file, then paste the ID, the API secret and the private key here. Metro then shows a callback URL to paste into the ID settings. Messages cost Gateway credits, and the station carries text only.',
+    links: [{ text: 'gateway.threema.ch', href: 'https://gateway.threema.ch/' }],
+    interactive: false,
+    fields: [
+      {
+        key: 'gatewayId',
+        label: 'Gateway ID',
+        placeholder: '*ABCDEFG',
+        secret: false,
+        kind: 'text',
+      },
+      {
+        key: 'secret',
+        label: 'API secret',
+        placeholder: 'from the Gateway ID settings',
+        secret: true,
+        kind: 'text',
+      },
+      {
+        key: 'privateKey',
+        label: 'Private key',
+        placeholder: 'private:… or 64 hex characters',
+        secret: true,
+        kind: 'text',
+      },
+    ],
+  },
   xmtp: {
     label: 'XMTP',
     hint: 'Metro generates a fresh XMTP identity for this agent, opens an inbox with it, and stores it only if that worked. The private key is shown once and never again.',

@@ -18,6 +18,7 @@ const WHERE_TO_FIND: Record<string, string> = {
   telegram: 'A Telegram user id is a number. Ask the person to write to this account once and pick them from the list below, or have them message @userinfobot, which answers with their id.',
   'discord-bot': 'A Discord user id is a long number. Turn on Settings, Advanced, Developer Mode in Discord, then right-click the person and choose Copy User ID.',
   whatsapp: 'A WhatsApp sender is their number in full international form, no plus and no spaces, followed by @s.whatsapp.net, as in 33612345678@s.whatsapp.net.',
+  threema: 'A Threema sender is their 8-character Threema ID, as in ECHOECHO. It is shown under their name in the app, and the surest way is to have them write once and pick them from the list below.',
   xmtp: 'An XMTP sender is their inbox id, the long hex string, not their wallet address. The surest way is to have them write once and pick them from the list below.',
 };
 

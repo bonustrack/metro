@@ -28,6 +28,7 @@
     "@metro-labs/discord-bot": "workspace:*",
     "@metro-labs/telegram": "workspace:*",
     "@metro-labs/telegram-bot": "workspace:*",
+    "@metro-labs/threema": "workspace:*",
     "@metro-labs/webhook": "workspace:*",
     "@metro-labs/whatsapp": "workspace:*",
     "@metro-labs/xmtp": "workspace:*",

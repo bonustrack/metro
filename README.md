@@ -1,6 +1,6 @@
 # @metro-labs/mcp
 
-> Bridge live chat — XMTP, Telegram, Discord, WhatsApp, inbound webhooks — into an AI
+> Bridge live chat — XMTP, Telegram, Discord, WhatsApp, Threema, inbound webhooks — into an AI
 > coding session as MCP tools.
 
 Metro lets an AI coding agent (Claude Code) hold real conversations on chat platforms
@@ -28,7 +28,7 @@ conversation and encodes its platform, so the server routes the call automatical
 | `list_accounts` | List the configured bot / inbox identities |
 
 Support varies by platform: webhook lines are inbound-only; XMTP has no `edit`/`delete`;
-Telegram and WhatsApp have no `read`. An unsupported verb returns the platform's reason
+Telegram and WhatsApp have no `read`; Threema has `send` and `reply` only. An unsupported verb returns the platform's reason
 rather than failing silently.
 
 ## Channels
@@ -42,6 +42,8 @@ each runs as its own supervised subprocess except webhook, which runs in-core.
 - **telegram** — a real Telegram **user account** over MTProto, not a bot.
 - **discord-bot** — bot gateway + REST.
 - **whatsapp** — a real WhatsApp **user account** over the multi-device Web protocol.
+- **threema** — a Threema **Gateway ID** in end-to-end mode: the private key stays on the box,
+  Threema delivers to a callback URL Metro mints, text only. Messages cost Gateway credits.
 - **webhook** — inbound HTTP receiver (GitHub, Intercom, …). Inbound-only; events arrive
   on `metro://webhook/<account_id>`. Metro mints a `POST` url whose token is the whole
   credential.
@@ -121,6 +123,7 @@ Per-channel `config` (connection secrets + optional `owner`):
 | `telegram` | `{ session, apiId, apiHash }` |
 | `discord-bot` | `{ token }` |
 | `whatsapp` | `{ phone }` (E.164 digits) plus the Baileys auth blob under `credentials` |
+| `threema` | `{ gatewayId, secret, privateKey }` plus the `callbackId` and `callbackToken` Metro mints |
 
 Channel ids are the channel's public handle: they appear in `metro://` lines
 (`metro://telegram-bot/<account>/<chat>`, so replies go back out the same identity) and in the
