@@ -1,0 +1,187 @@
+import { spawnSync } from 'node:child_process';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { errMsg, log } from '@metro-labs/core/log';
+import { isRecord } from '@metro-labs/core/is-record';
+import { readJson, writeJson } from '@metro-labs/core/secure-fs';
+import { agentsDir, listAgentFiles } from '../agents/files.js';
+import { notReady, readModelConfig } from '../gateway/model-config.js';
+import { claudeAccount, claudeInstalled } from './login.js';
+import { trustFolder } from './onboarding.js';
+
+export const SESSION_NAME = 'metro';
+const STATE_FILE = 'claude-session.json';
+const WARNING = 'WARNING: Loading development channels';
+const CONFIRM_POLL_MS = 500;
+const CONFIRM_WAIT_MS = 60_000;
+const WATCH_MS = 15_000;
+const STRIKE_WINDOW_MS = 60_000;
+const MAX_STRIKES = 5;
+const PAUSE_MS = 30 * 60_000;
+
+export interface SessionDeps {
+  tmux?: string;
+  metro?: string[];
+  home?: string;
+  agents?: string;
+  signedIn?: () => boolean;
+  now?: () => number;
+}
+
+export interface SessionStatus {
+  name: string;
+  running: boolean;
+  autostart: boolean;
+  blocked: string | null;
+  lastStartedAt: string | null;
+  lastError: string | null;
+}
+
+interface Memory {
+  lastStartedAt: number | null;
+  lastError: string | null;
+  strikes: number;
+  pausedUntil: number;
+}
+
+const memory: Memory = { lastStartedAt: null, lastError: null, strikes: 0, pausedUntil: 0 };
+
+const statePath = (agents: string): string => join(agents, STATE_FILE);
+
+export function autostartEnabled(agents = agentsDir()): boolean {
+  const raw = readJson<unknown>(statePath(agents), null);
+  return !isRecord(raw) || raw.autostart !== false;
+}
+
+export function setAutostart(enabled: boolean, agents = agentsDir()): void {
+  writeJson(statePath(agents), { autostart: enabled });
+}
+
+function tmuxOk(tmux: string, args: string[]): boolean {
+  const run = spawnSync(tmux, args, { stdio: 'ignore' });
+  return run.error === undefined && run.status === 0;
+}
+
+export const sessionRunning = (tmux = 'tmux'): boolean => tmuxOk(tmux, ['has-session', '-t', SESSION_NAME]);
+
+function metroCommand(deps: SessionDeps): string[] {
+  if (deps.metro !== undefined) return deps.metro;
+  const bin = process.env.METRO_CLI_BIN?.trim() ?? '';
+  return bin === '' ? ['metro', 'claude'] : [process.execPath, bin, 'claude'];
+}
+
+function credentialReady(deps: SessionDeps): string | null {
+  const signedIn = deps.signedIn ?? (() => claudeAccount().signedIn);
+  if (signedIn()) return null;
+  try {
+    const cfg = readModelConfig(deps.agents ?? agentsDir());
+    if (cfg.provider !== 'anthropic' && notReady(cfg) === null) return null;
+  } catch (err) {
+    return `the Model page is not readable (${errMsg(err)})`;
+  }
+  return 'Claude Code is not signed in and the Model page routes nowhere yet';
+}
+
+export function sessionBlocked(deps: SessionDeps = {}): string | null {
+  const agents = deps.agents ?? agentsDir();
+  if (listAgentFiles(agents).length === 0) return 'no agent on this machine yet';
+  if (deps.metro === undefined && !claudeInstalled()) return 'Claude Code is not installed on this machine';
+  if (!tmuxOk(deps.tmux ?? 'tmux', ['-V'])) return 'tmux is not installed on this machine';
+  return credentialReady(deps);
+}
+
+function capturePane(tmux: string): string {
+  const run = spawnSync(tmux, ['capture-pane', '-p', '-t', SESSION_NAME], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  return run.error === undefined && run.status === 0 ? run.stdout : '';
+}
+
+function confirmChannels(tmux: string, until: number): void {
+  const tick = (): void => {
+    const pane = capturePane(tmux);
+    if (pane.includes(WARNING) && pane.includes('server:metro')) {
+      spawnSync(tmux, ['send-keys', '-t', SESSION_NAME, 'Enter'], { stdio: 'ignore' });
+      log.info('claude-session: confirmed the development channels dialog for server:metro');
+      return;
+    }
+    if (Date.now() < until && sessionRunning(tmux)) setTimeout(tick, CONFIRM_POLL_MS).unref();
+  };
+  setTimeout(tick, CONFIRM_POLL_MS).unref();
+}
+
+export function startSession(deps: SessionDeps = {}): SessionStatus {
+  const tmux = deps.tmux ?? 'tmux';
+  const home = deps.home ?? homedir();
+  const now = (deps.now ?? Date.now)();
+  const trusted = trustFolder(home);
+  const [command = 'metro', ...args] = metroCommand(deps);
+  const run = spawnSync(tmux, ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: home });
+  memory.lastStartedAt = now;
+  if (run.error !== undefined || run.status !== 0) {
+    memory.lastError = run.error === undefined ? `tmux new-session exited ${String(run.status)}: ${run.stderr.trim()}` : errMsg(run.error);
+    log.warn({ err: memory.lastError }, 'claude-session: tmux could not start');
+  } else {
+    memory.lastError = null;
+    log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
+    confirmChannels(tmux, now + CONFIRM_WAIT_MS);
+  }
+  return sessionStatus(deps);
+}
+
+export function stopSession(deps: SessionDeps = {}): SessionStatus {
+  spawnSync(deps.tmux ?? 'tmux', ['kill-session', '-t', SESSION_NAME], { stdio: 'ignore' });
+  return sessionStatus(deps);
+}
+
+export function sessionStatus(deps: SessionDeps = {}): SessionStatus {
+  return {
+    name: SESSION_NAME,
+    running: sessionRunning(deps.tmux ?? 'tmux'),
+    autostart: autostartEnabled(deps.agents ?? agentsDir()),
+    blocked: sessionBlocked(deps),
+    lastStartedAt: memory.lastStartedAt === null ? null : new Date(memory.lastStartedAt).toISOString(),
+    lastError: memory.lastError,
+  };
+}
+
+function strike(now: number): boolean {
+  if (memory.lastStartedAt !== null && now - memory.lastStartedAt < STRIKE_WINDOW_MS) memory.strikes += 1;
+  else memory.strikes = 1;
+  if (memory.strikes < MAX_STRIKES) return false;
+  memory.pausedUntil = now + PAUSE_MS;
+  memory.strikes = 0;
+  log.warn({ pauseMinutes: PAUSE_MS / 60_000 }, 'claude-session: Claude Code keeps exiting right after starting; not restarting it for a while');
+  return true;
+}
+
+export function ensureSession(deps: SessionDeps = {}): 'started' | 'running' | 'blocked' | 'off' | 'paused' {
+  const now = (deps.now ?? Date.now)();
+  if (!autostartEnabled(deps.agents ?? agentsDir())) return 'off';
+  if (sessionRunning(deps.tmux ?? 'tmux')) return 'running';
+  if (now < memory.pausedUntil) return 'paused';
+  if (sessionBlocked(deps) !== null) return 'blocked';
+  if (strike(now)) return 'paused';
+  startSession(deps);
+  return 'started';
+}
+
+let watcher: ReturnType<typeof setInterval> | null = null;
+
+export function watchSession(deps: SessionDeps = {}, everyMs = WATCH_MS): void {
+  if (watcher !== null) return;
+  const tick = (): void => {
+    try {
+      const outcome = ensureSession(deps);
+      if (outcome === 'started') log.info('claude-session: started');
+    } catch (err) {
+      log.warn({ err: errMsg(err) }, 'claude-session: check failed');
+    }
+  };
+  watcher = setInterval(tick, everyMs);
+  watcher.unref();
+  setTimeout(tick, 1_000).unref();
+}
+
+export function unwatchSession(): void {
+  if (watcher !== null) clearInterval(watcher);
+  watcher = null;
+}

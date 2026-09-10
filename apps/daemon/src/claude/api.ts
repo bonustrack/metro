@@ -22,6 +22,14 @@ import {
   type LoginDeps,
 } from './login.js';
 import {
+  ensureSession,
+  sessionStatus,
+  setAutostart,
+  startSession,
+  stopSession,
+  type SessionDeps,
+} from './session.js';
+import {
   claudeDir,
   deleteClaudeSession,
   listClaudeProjects,
@@ -41,6 +49,7 @@ export interface ClaudeApiDeps {
   authorize: (subject: string) => void;
   dir?: () => string;
   login?: LoginDeps;
+  session?: SessionDeps;
 }
 
 function projectOf(query: URLSearchParams): string {
@@ -101,6 +110,31 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
 }
 
 const LOGIN = 'login';
+const SESSION = 'session';
+
+function sessionCommand(body: Record<string, unknown>, session: SessionDeps): unknown {
+  if (body.action === 'start') {
+    const status = sessionStatus(session);
+    if (status.running) return status;
+    if (status.blocked !== null) throw new ApiError(`cannot start a Claude session: ${status.blocked}`, 409);
+    return startSession(session);
+  }
+  if (body.action === 'stop') return stopSession(session);
+  if (body.action !== undefined) throw new ApiError('action must be start or stop', 400);
+  if (body.autostart === true) ensureSession(session);
+  return sessionStatus(session);
+}
+
+async function sessionAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise<unknown> {
+  const session = deps.session ?? {};
+  const method = req.method ?? 'GET';
+  if (method === 'GET') return sessionStatus(session);
+  if (method !== 'POST') throw new ApiError('method not allowed', 405);
+  const body = await readJsonBody(req);
+  if (!isRecord(body)) throw new ApiError('a body is required', 400);
+  if (typeof body.autostart === 'boolean') setAutostart(body.autostart, session.agents);
+  return sessionCommand(body, session);
+}
 
 async function loginAnswer(req: IncomingMessage, id: string, deps: ClaudeApiDeps): Promise<unknown> {
   const method = req.method ?? 'GET';
@@ -136,6 +170,16 @@ function answer(method: string, path: string, query: URLSearchParams, dir: strin
   return handler(query, dir, item);
 }
 
+function routed(req: IncomingMessage, path: string, search: string, deps: ClaudeApiDeps): unknown {
+  const dir = (deps.dir ?? claudeDir)();
+  const [head = '', item = ''] = parts(path);
+  if (head === LOGIN) return loginAnswer(req, item, deps);
+  if (head === SESSION && item === '') return sessionAnswer(req, deps);
+  if (req.method === 'PUT') return writeAnswer(req, path, dir);
+  if (req.method === 'POST') return created(req, path, dir);
+  return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
+}
+
 export function handleClaudeRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -155,12 +199,7 @@ export function handleClaudeRequest(
     .then((session) => {
       if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
-      const dir = (deps.dir ?? claudeDir)();
-      const [head = '', item = ''] = parts(path);
-      if (head === LOGIN) return loginAnswer(req, item, deps);
-      if (req.method === 'PUT') return writeAnswer(req, path, dir);
-      if (req.method === 'POST') return created(req, path, dir);
-      return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
+      return routed(req, path, search, deps);
     })
     .then((body) => {
       sendJson(req, res, 200, body);
