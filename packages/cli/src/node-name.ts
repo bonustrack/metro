@@ -6,7 +6,7 @@ import { agentsDir } from './local.js';
 
 const NODE_FILE = '.node';
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
-const NAME_RE = /^metro-[a-z0-9]{6}$/;
+const NAME_RE = /^metro-[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 const RENAME_WAIT_MS = 30_000;
 const RENAME_POLL_MS = 500;
 const renameWaitMs = (): number => Number(process.env.METRO_NODE_RENAME_WAIT_MS) || RENAME_WAIT_MS;
