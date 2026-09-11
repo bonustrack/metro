@@ -22,6 +22,8 @@ import { shortAddress } from '../api/address.js';
 import { activeIdentity } from '../auth/identity.js';
 import { useDocumentTitle } from '../title.js';
 import { useBootingState } from '../aws/use-launch.js';
+import { launches } from '../aws/settings.js';
+import { BootLog } from './BootLog.js';
 
 const CARD_WIDTH = 640;
 const DOT = 8;
@@ -82,11 +84,13 @@ interface RowProps {
   last: boolean;
   onRename: () => void;
   onRemove: () => void;
+  onBootLog: () => void;
 }
 
-function ServerRow({ server, last, onRename, onRemove }: RowProps): ReactNode {
+function ServerRow({ server, last, onRename, onRemove, onBootLog }: RowProps): ReactNode {
   const palette = useKitPalette();
   const href = `#/${server.id}`;
+  const launched = launches()[server.host] !== undefined;
   return (
     <Row
       align="center"
@@ -122,6 +126,7 @@ function ServerRow({ server, last, onRename, onRemove }: RowProps): ReactNode {
         label={`Server menu for ${serverLabel(server)}`}
         items={[
           { label: server.name === null ? 'Name' : 'Rename', onSelect: onRename },
+          ...(launched ? [{ label: 'Boot log', onSelect: onBootLog }] : []),
           { label: 'Remove', danger: true, onSelect: onRemove },
         ]}
       />
@@ -129,7 +134,13 @@ function ServerRow({ server, last, onRename, onRemove }: RowProps): ReactNode {
   );
 }
 
-function ServerList({ servers, onRename }: { servers: Server[]; onRename: (s: Server) => void }): ReactNode {
+interface ListProps {
+  servers: Server[];
+  onRename: (s: Server) => void;
+  onBootLog: (s: Server) => void;
+}
+
+function ServerList({ servers, onRename, onBootLog }: ListProps): ReactNode {
   const palette = useKitPalette();
   const client = useQueryClient();
   const side = { width: 1, color: palette.border };
@@ -148,6 +159,9 @@ function ServerList({ servers, onRename }: { servers: Server[]; onRename: (s: Se
           last={index === servers.length - 1}
           onRename={() => {
             onRename(server);
+          }}
+          onBootLog={() => {
+            onBootLog(server);
           }}
           onRemove={() => {
             removeServer(server.id)
@@ -202,7 +216,7 @@ function RenameServer({ server, onClose }: { server: Server | null; onClose: () 
   );
 }
 
-function Body({ onRename }: { onRename: (s: Server) => void }): ReactNode {
+function Body({ onRename, onBootLog }: { onRename: (s: Server) => void; onBootLog: (s: Server) => void }): ReactNode {
   const { data, error, isPending } = useServersQuery();
   if (isPending) return <Loading />;
   if (error !== null)
@@ -211,12 +225,13 @@ function Body({ onRename }: { onRename: (s: Server) => void }): ReactNode {
         {queryError(error, 'Could not list your servers.')}
       </Text>
     );
-  return <ServerList servers={data} onRename={onRename} />;
+  return <ServerList servers={data} onRename={onRename} onBootLog={onBootLog} />;
 }
 
 export function Servers({ onLock }: { onLock: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [renaming, setRenaming] = useState<Server | null>(null);
+  const [logOf, setLogOf] = useState<Server | null>(null);
   useDocumentTitle('Servers');
   return (
     <Row justify="center" flex={1} padding={24}>
@@ -225,7 +240,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
         <Text size="sm" role="secondary">
           {HOW}
         </Text>
-        <Body onRename={setRenaming} />
+        <Body onRename={setRenaming} onBootLog={setLogOf} />
         <Row gap={12} wrap>
           <Button
             color="primary"
@@ -244,6 +259,12 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
             }}
           />
         </Row>
+        <BootLog
+          server={logOf}
+          onClose={() => {
+            setLogOf(null);
+          }}
+        />
         <RenameServer
           server={renaming}
           onClose={() => {

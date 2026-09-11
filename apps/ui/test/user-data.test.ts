@@ -16,6 +16,7 @@ describe('the first-boot script', () => {
     expect(lines[0]).toBe('#!/bin/bash');
     expect(script).toContain("hostnamectl set-hostname 'andy'");
     expect(script).toContain('deb.nodesource.com/setup_22.x');
+    expect(script).toContain('apt-get -o DPkg::Lock::Timeout=600 install -y nodejs');
     expect(script).toContain('https://bun.sh/install');
     expect(script).toContain('https://claude.ai/install.sh');
     expect(script).toContain('https://tailscale.com/install.sh');

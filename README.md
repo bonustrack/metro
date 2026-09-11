@@ -619,5 +619,8 @@ with an 8 GiB gp3 disk in your own AWS account and provisions it on first boot (
 Code, Tailscale, tmux and Metro, then `metro service install` for your wallet). The browser signs
 the EC2 calls itself with an access key it keeps in local storage; nothing goes through metro.box.
 You need an IAM user with `ec2:DescribeRegions`, `ec2:DescribeAvailabilityZones`, `ec2:DescribeImages`,
-`ec2:DescribeInstances`, `ec2:RunInstances` and `ec2:CreateTags`, and a single-use Tailscale auth key. The box joins your tailnet as
+`ec2:DescribeInstances`, `ec2:RunInstances`, `ec2:CreateTags` and `ec2:GetConsoleOutput`, and a Tailscale
+auth key per launch (a single-use key works once; the page refuses one it already used). A row that stays
+Booting has a **Boot log** entry in its menu that shows the first-boot script's output straight from the
+instance console. The box joins your tailnet as
 `metro-<name>` and appears in the list right away, live once its Funnel address resolves.
