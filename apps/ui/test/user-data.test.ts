@@ -25,6 +25,8 @@ describe('the first-boot script', () => {
     expect(script).toContain("'metro-andy' > /root/.metro/agents/.node");
     expect(lines[lines.length - 2]).toBe("metro service install --owner '0xef8305e140ac520225daf050e2f71d5fbcc543e7'");
     expect(script.split('tskey-').length).toBe(2);
+    const marks = script.split('\n').filter((l) => l.startsWith('echo "metro setup: step')).map((l) => l.slice(24, -1));
+    expect(marks).toEqual(['packages', 'node', 'bun', 'claude', 'tailscale', 'metro', 'service']);
   });
 
   test('bun and claude are put where the metro service PATH finds them', () => {

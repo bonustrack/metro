@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { metroSetupLines } from '../src/aws/boot-log.ts';
+import { metroSetupLines, progressOf } from '../src/aws/boot-log.ts';
 
 const CONSOLE = [
   '[    8.549331] cloud-init[559]: Cloud-init v. 26.1 running init',
@@ -36,5 +36,35 @@ describe('the boot log shown for a launched box', () => {
     expect(log.lines).toHaveLength(80);
     expect(log.lines[0]).toBe('line 120');
     expect(metroSetupLines('').lines).toEqual([]);
+  });
+});
+
+describe('the checklist read off the markers', () => {
+  const states = (text: string): string[] => progressOf(metroSetupLines(text)).steps.map((s) => `${s.key}:${s.state}`);
+
+  test('steps before the last marker are done, the marker itself is active, the rest pending', () => {
+    expect(states('metro setup: start\nmetro setup: step packages\nGet:1 ...\nmetro setup: step node\ncurl ...')).toEqual([
+      'packages:done',
+      'node:active',
+      'bun:pending',
+      'claude:pending',
+      'tailscale:pending',
+      'metro:pending',
+      'service:pending',
+    ]);
+  });
+
+  test("cloud-init's own failure line marks the active step as failed", () => {
+    const text = 'metro setup: start\nmetro setup: step tailscale\nbackend error: invalid key\ncloud-init: Failed to run module scripts_user';
+    const progress = progressOf(metroSetupLines(text));
+    expect(progress.failed).toBe(true);
+    expect(progress.steps.map((s) => s.state)).toEqual(['done', 'done', 'done', 'done', 'failed', 'pending', 'pending']);
+  });
+
+  test('the done marker completes every step', () => {
+    const progress = progressOf(metroSetupLines('metro setup: start\nmetro setup: step service\nmetro setup: done now'));
+    expect(progress.finished).toBe(true);
+    expect(progress.steps.every((s) => s.state === 'done')).toBe(true);
+    expect(states('')).toEqual(['packages:pending', 'node:pending', 'bun:pending', 'claude:pending', 'tailscale:pending', 'metro:pending', 'service:pending']);
   });
 });

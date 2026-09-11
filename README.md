@@ -620,8 +620,8 @@ Code, Tailscale, tmux and Metro, then `metro service install` for your wallet). 
 the EC2 calls itself with an access key it keeps in local storage; nothing goes through metro.box.
 You need an IAM user with `ec2:DescribeRegions`, `ec2:DescribeAvailabilityZones`, `ec2:DescribeImages`,
 `ec2:DescribeInstances`, `ec2:RunInstances`, `ec2:CreateTags` and `ec2:GetConsoleOutput`, and a Tailscale
-auth key per launch (a single-use key works once; the page refuses one it already used). A row that stays
-Booting has a **Boot log** entry in its menu that shows the first-boot script's output straight from the
-instance console. The box joins your tailnet as
+auth key per launch (a single-use key works once; the page refuses one it already used). The launch page then shows the
+install as a checklist with the log under it, read from the instance console, until the box answers; a row that
+stays Booting later has a **Boot log** entry in its menu with the same output. The box joins your tailnet as
 `metro-<6 random characters>`, so two launches never clash, and appears in the list under the name you gave
 it right away, live once its Funnel address resolves.

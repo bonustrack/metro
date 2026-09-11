@@ -9,6 +9,7 @@ import { GROW } from '../theme.js';
 import { MetroLogo } from './MetroLogo.js';
 import { PageTitle } from './PageTitle.js';
 import { CopyBlock } from './CopyBlock.js';
+import { LaunchProgress } from './LaunchProgress.js';
 import { LinkedText } from './LinkedText.js';
 import { activeIdentity } from '../auth/identity.js';
 import { queryError, refreshServers, useServersQuery } from '../api/queries.js';
@@ -190,29 +191,15 @@ function Fields({ form }: { form: Form }): ReactNode {
 }
 
 function LaunchedView({ launched }: { launched: Launched }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Col gap={14}>
       <Row justify="center">
         <PageTitle>{`Launching ${launched.server.name ?? launched.host}`}</PageTitle>
       </Row>
       <Text size="sm" role="secondary">
-        {`Instance ${launched.instanceId} is starting from ${launched.image.name}${launched.zone === null ? '' : ` in ${launched.zone}`}. It installs everything on first boot and then joins your tailnet as ${launched.node}. The server is already in your list and turns Live once its address resolves, usually within five minutes. Open it then to create the agent.`}
+        {`Starting from ${launched.image.name}. It installs everything on first boot, joins your tailnet as ${launched.node}, and is already in your server list. Open it once it is live to create the agent.`}
       </Text>
-      <CopyBlock label="address" value={launched.host} />
-      <Text size="sm" role="secondary">
-        {`To watch the install, ssh root@${launched.node} over Tailscale SSH and read /var/log/metro-setup.log.`}
-      </Text>
-      <Row justify="end">
-        <Button
-          color="primary"
-          dark={dark}
-          label="Back to your servers"
-          onPress={() => {
-            window.location.hash = '#/';
-          }}
-        />
-      </Row>
+      <LaunchProgress launched={launched} />
     </Col>
   );
 }
