@@ -1,10 +1,19 @@
 {
   "name": "metro",
-  "version": "0.5.0",
-  "description": "Metro connectors for Claude Code. Runs beside the metro daemon on this machine: each connector the agent holds is one MCP server relayed through the daemon, the daemon keeps that list current on its own, and /reload-plugins picks up a new one without leaving your session. No vendor credential ever sits in a config file.",
-  "author": { "name": "Bonustrack", "url": "https://metro.box" },
+  "version": "0.6.0",
+  "description": "Metro for Claude Code, installed by the metro daemon on this machine: every connector the agent holds as its own MCP server relayed through the daemon, the orchestrator-only guard on the main thread, the standing rules loaded at each session start, and a refresh skill for when the daemon could not keep the server list current. No vendor credential ever sits in a config file.",
+  "author": {
+    "name": "Bonustrack",
+    "url": "https://metro.box"
+  },
   "repository": "https://github.com/bonustrack/metro",
   "license": "MIT",
-  "keywords": ["metro", "mcp", "connectors", "relay"],
-  "skills": "./skills/"
+  "keywords": [
+    "metro",
+    "mcp",
+    "connectors",
+    "relay"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
 }

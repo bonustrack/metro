@@ -6,6 +6,7 @@ import { Text, Button, Input } from './ui.js';
 import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
+import { ClaudeSetup } from './ClaudeSetup.js';
 import { GROW } from '../theme.js';
 import { saveClaudeSettings, type ClaudeSettingsFile } from '../api/claude.js';
 import { queryError, refreshClaudeSettings, useClaudeSettingsQuery } from '../api/queries.js';
@@ -165,7 +166,7 @@ function Editor({ file, draft, onEdit, onSaved }: EditorProps): ReactNode {
   );
 }
 
-export function ClaudeSettings(): ReactNode {
+export function ClaudeSettings({ project }: { project: string }): ReactNode {
   const settings = useClaudeSettingsQuery();
   const [chosen, setChosen] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
@@ -180,6 +181,7 @@ export function ClaudeSettings(): ReactNode {
           {WHAT}
         </Text>
       </Col>
+      <ClaudeSetup project={project} />
       {settings.error !== null ? (
         <Text size="sm" role="danger">
           {queryError(settings.error, 'Could not read the settings files.')}

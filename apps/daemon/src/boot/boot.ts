@@ -24,6 +24,7 @@ import { ConnectorWatch } from '../connectors/watch.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
+import { tryClaudeSetup } from '../claude/setup.js';
 import { applyLocalOwner } from './local-owner.js';
 import { localOwner } from '../agents/file-admin.js';
 import { ensureStationDeps } from '../stations/runtime-deps.js';
@@ -160,6 +161,7 @@ async function main(): Promise<void> {
     .catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');
     });
+  tryClaudeSetup();
   watchSession();
 }
 

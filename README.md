@@ -612,6 +612,11 @@ or another provider chosen there), the daemon starts that session by itself in a
 `metro`, answers Claude Code's folder-trust and development-channels prompts, and restarts it if it
 exits. The Server tab shows it, with Stop, Start now and an auto-start switch; the Terminal tab opens it.
 
+The session runs the way [docs/SETUP.md](docs/SETUP.md) describes, and metro applies that setup itself:
+the plugin keeps the main thread orchestrator-only and loads the standing rules at every start, the
+daemon writes the worker subagent and the `metro-orchestrator` skill once, and the privacy settings
+are on by default with a switch on the Claude page.
+
 ## Launching a box on AWS
 
 The server list on metro.box has **Launch on AWS**: it starts an Ubuntu 24.04 arm64 `t4g.medium`

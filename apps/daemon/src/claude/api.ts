@@ -21,6 +21,7 @@ import {
   startClaudeLogin,
   type LoginDeps,
 } from './login.js';
+import { claudeSetupStatus, ensureClaudeSetup, setPrivacy, type SetupDeps } from './setup.js';
 import {
   ensureSession,
   sessionStatus,
@@ -50,6 +51,7 @@ export interface ClaudeApiDeps {
   dir?: () => string;
   login?: LoginDeps;
   session?: SessionDeps;
+  setup?: SetupDeps;
 }
 
 function projectOf(query: URLSearchParams): string {
@@ -111,6 +113,19 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
 
 const LOGIN = 'login';
 const SESSION = 'session';
+const SETUP = 'setup';
+
+async function setupAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise<unknown> {
+  const setup = deps.setup ?? {};
+  const method = req.method ?? 'GET';
+  if (method === 'GET') return claudeSetupStatus(setup);
+  if (method !== 'POST') throw new ApiError('method not allowed', 405);
+  const body = await readJsonBody(req);
+  if (!isRecord(body) || typeof body.privacy !== 'boolean') throw new ApiError('privacy must be true or false', 400);
+  setPrivacy(body.privacy, setup.agents);
+  ensureClaudeSetup(setup);
+  return claudeSetupStatus(setup);
+}
 
 function sessionCommand(body: Record<string, unknown>, session: SessionDeps): unknown {
   if (body.action === 'start') {
@@ -170,11 +185,17 @@ function answer(method: string, path: string, query: URLSearchParams, dir: strin
   return handler(query, dir, item);
 }
 
+const SINGLETONS: Record<string, (req: IncomingMessage, deps: ClaudeApiDeps) => Promise<unknown>> = {
+  [SESSION]: sessionAnswer,
+  [SETUP]: setupAnswer,
+};
+
 function routed(req: IncomingMessage, path: string, search: string, deps: ClaudeApiDeps): unknown {
   const dir = (deps.dir ?? claudeDir)();
   const [head = '', item = ''] = parts(path);
   if (head === LOGIN) return loginAnswer(req, item, deps);
-  if (head === SESSION && item === '') return sessionAnswer(req, deps);
+  const single = item === '' ? SINGLETONS[head] : undefined;
+  if (single !== undefined) return single(req, deps);
   if (req.method === 'PUT') return writeAnswer(req, path, dir);
   if (req.method === 'POST') return created(req, path, dir);
   return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);

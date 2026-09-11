@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { controlClaudeSession, type ClaudeSessionStatus } from '../api/claude.js';
+import { controlClaudeSession, type ClaudeSessionStatus } from '../api/claude-box.js';
 import { queryError, refreshClaudeSession, useClaudeSessionQuery, useModeQuery } from '../api/queries.js';
 import { olderThan } from '../api/version.js';
 import { routeHash } from '../route.js';

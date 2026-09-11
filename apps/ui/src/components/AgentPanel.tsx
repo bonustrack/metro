@@ -60,7 +60,7 @@ function claudeRoutes(project: string, selection: Selection, go: Go): ReactNode 
     return <Sessions project={project} claudeProject={selection.claudeProject} id={selection.id} onSelect={go} />;
   if (selection.kind === 'memory')
     return <Memory project={project} claudeProject={selection.claudeProject} file={selection.file} onSelect={go} />;
-  if (selection.kind === 'claude') return <ClaudeSettings />;
+  if (selection.kind === 'claude') return <ClaudeSettings project={project} />;
   if (selection.kind === 'skills')
     return (
       <Skills
