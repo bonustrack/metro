@@ -14,7 +14,7 @@ import {
   type InstanceState,
 } from './ec2.js';
 import { cloudInit } from './user-data.js';
-import { hostOf, nodeNameOf, recordLaunch, slugOf, type Launch } from './settings.js';
+import { hostOf, randomNodeName, recordLaunch, slugOf, type Launch } from './settings.js';
 
 export const METRO_TAG = 'beta';
 export const NO_CAPACITY = 'InsufficientInstanceCapacity';
@@ -45,6 +45,7 @@ export interface LaunchDeps {
   record: (host: string, launch: Launch) => void;
   now: () => Date;
   token: () => string;
+  node: () => string;
 }
 
 const LIVE: LaunchDeps = {
@@ -55,12 +56,12 @@ const LIVE: LaunchDeps = {
   record: recordLaunch,
   now: () => new Date(),
   token: () => crypto.randomUUID(),
+  node: randomNodeName,
 };
 
-export function plannedHost(name: string, tailnet: string): { slug: string; node: string; host: string } {
+export function plannedHost(name: string, tailnet: string, node: string): { slug: string; node: string; host: string } {
   const slug = slugOf(name);
   if (slug === '') throw new Error('Give the server a name with at least one letter or digit.');
-  const node = nodeNameOf(slug);
   const suffix = tailnet.trim().toLowerCase();
   if (!/^(?:[a-z0-9-]+\.)*ts\.net$/.test(suffix)) throw new Error('The tailnet is the part after the machine name, as in tail1234.ts.net.');
   return { slug, node, host: hostOf(node, suffix) };
@@ -104,7 +105,7 @@ export async function launchBox(input: LaunchInput, deps: LaunchDeps = LIVE): Pr
   const name = input.name.trim();
   const region = input.region.trim();
   if (!/^[a-z]{2}(?:-[a-z]+)+-\d$/.test(region)) throw new Error('The region is an AWS region name, as in eu-west-1.');
-  const { slug, node, host } = plannedHost(name, input.tailnet);
+  const { slug, node, host } = plannedHost(name, input.tailnet, deps.node());
   const userData = cloudInit({ hostname: slug, node, owner: input.owner.toLowerCase(), tailscaleAuthKey: input.tailscaleAuthKey.trim(), metroTag: METRO_TAG });
   const image = await deps.latestImage(input.credentials, region);
   const { instanceId, zone } = await place(input, deps, { imageId: image.imageId, name, node, userData });

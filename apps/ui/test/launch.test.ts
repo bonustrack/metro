@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { launchBox, plannedHost, type LaunchDeps } from '../src/aws/launch.ts';
 import { AwsError } from '../src/aws/ec2.ts';
-import { hostOf, nodeNameOf, slugOf, tailnetSuffix } from '../src/aws/settings.ts';
+import { hostOf, randomNodeName, slugOf, tailnetSuffix } from '../src/aws/settings.ts';
 import { routeHash, routeSelection } from '../src/route.ts';
 
 const IMAGE = { imageId: 'ami-new', name: 'ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-arm64-server-20260820', creationDate: '2026-08-20T10:00:00.000Z' };
@@ -34,6 +34,7 @@ function fakeDeps(full: Set<string> = new Set()): { deps: LaunchDeps; calls: str
     },
     now: () => new Date('2026-09-10T12:00:00.000Z'),
     token: () => `tok-${String(++tokens)}`,
+    node: () => 'metro-abc123',
   };
   return { deps, calls, userData };
 }
@@ -51,14 +52,14 @@ describe('launching a box', () => {
   test('resolves the image, runs the instance, then lists the host it will answer on', async () => {
     const { deps, calls, userData } = fakeDeps();
     const launched = await launchBox(INPUT, deps);
-    expect(launched).toMatchObject({ host: 'metro-andy.tail17c4f8.ts.net', node: 'metro-andy', instanceId: 'i-0abc', zone: null, image: IMAGE });
+    expect(launched).toMatchObject({ host: 'metro-abc123.tail17c4f8.ts.net', node: 'metro-abc123', instanceId: 'i-0abc', zone: null, image: IMAGE });
     expect(calls).toEqual([
       'image AKIAEXAMPLE eu-west-1',
-      'run eu-west-1 ami-new Andy metro-andy tok-1',
-      'add metro-andy.tail17c4f8.ts.net Andy',
-      'record metro-andy.tail17c4f8.ts.net i-0abc eu-west-1 2026-09-10T12:00:00.000Z',
+      'run eu-west-1 ami-new Andy metro-abc123 tok-1',
+      'add metro-abc123.tail17c4f8.ts.net Andy',
+      'record metro-abc123.tail17c4f8.ts.net i-0abc eu-west-1 2026-09-10T12:00:00.000Z',
     ]);
-    expect(userData[0]).toContain("--hostname='metro-andy'");
+    expect(userData[0]).toContain("--hostname='metro-abc123'");
     expect(userData[0]).toContain("--owner '0xef8305e140ac520225daf050e2f71d5fbcc543e7'");
     expect(userData[0]).toContain("hostnamectl set-hostname 'andy'");
   });
@@ -69,12 +70,12 @@ describe('launching a box', () => {
     expect(launched.zone).toBe('eu-west-1b');
     expect(calls).toEqual([
       'image AKIAEXAMPLE eu-west-1',
-      'run eu-west-1 ami-new Andy metro-andy tok-1',
+      'run eu-west-1 ami-new Andy metro-abc123 tok-1',
       'zones eu-west-1',
-      'run eu-west-1 ami-new Andy metro-andy tok-2 eu-west-1a',
-      'run eu-west-1 ami-new Andy metro-andy tok-3 eu-west-1b',
-      'add metro-andy.tail17c4f8.ts.net Andy',
-      'record metro-andy.tail17c4f8.ts.net i-0abc eu-west-1 2026-09-10T12:00:00.000Z',
+      'run eu-west-1 ami-new Andy metro-abc123 tok-2 eu-west-1a',
+      'run eu-west-1 ami-new Andy metro-abc123 tok-3 eu-west-1b',
+      'add metro-abc123.tail17c4f8.ts.net Andy',
+      'record metro-abc123.tail17c4f8.ts.net i-0abc eu-west-1 2026-09-10T12:00:00.000Z',
     ]);
   });
 
@@ -114,7 +115,7 @@ describe('names and addresses', () => {
     expect(slugOf('x'.repeat(50))).toHaveLength(30);
     expect(nodeNameOf('andy')).toBe('metro-andy');
     expect(hostOf('metro-andy', '.tail1234.ts.net.')).toBe('metro-andy.tail1234.ts.net');
-    expect(plannedHost('Andy', ' Tail1234.ts.net ')).toEqual({ slug: 'andy', node: 'metro-andy', host: 'metro-andy.tail1234.ts.net' });
+    expect(plannedHost('Andy', ' Tail1234.ts.net ')).toEqual({ slug: 'andy', node: 'metro-abc123', host: 'metro-andy.tail1234.ts.net' });
   });
 
   test('the tailnet is read off an existing Funnel address in the server list', () => {
