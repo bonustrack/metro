@@ -263,3 +263,14 @@ export async function openrouterZdrModels(): Promise<Set<string>> {
   if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
   return new Set(body.models.filter((id): id is string => typeof id === 'string'));
 }
+
+async function providerModels(path: string): Promise<ModelOption[]> {
+  const body = await call({ method: 'GET', base: modelUrl(), path });
+  if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
+  return body.models.flatMap((m: unknown) =>
+    isRecord(m) && typeof m.id === 'string' ? [{ id: m.id, name: typeof m.name === 'string' && m.name !== '' ? m.name : m.id }] : [],
+  );
+}
+
+export const anthropicModels = (): Promise<ModelOption[]> => providerModels('/anthropic/models');
+export const bedrockModels = (): Promise<ModelOption[]> => providerModels('/bedrock/models');
