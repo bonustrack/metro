@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { markOnboardingDone } from './onboarding.js';
+import { markOnboardingDone, seedChannels } from './onboarding.js';
 import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgents, pickLocalAgent } from './local.js';
@@ -148,8 +148,11 @@ function gatewayLaunchEnv(key: string, port: number): NodeJS.ProcessEnv {
   process.stderr.write(`metro claude: inference goes through the daemon at http://127.0.0.1:${String(port)}/gateway (the Model page decides where)\n`);
   const routed = gatewayEnv(process.env, key, port);
   const env = credentialEnv(routed, key, claudeSignedIn());
-  if (env !== routed)
+  if (env !== routed) {
     process.stderr.write("metro claude: Claude Code has no login of its own here, so metro's key stands in as its credential; the Model page must route to Bedrock, OpenRouter or Codex\n");
+    if (seedChannels() === 'marked')
+      process.stderr.write('metro claude: marked Channels as available for Claude Code, which only asks Anthropic about them for a claude.ai login\n');
+  }
   if (markOnboardingDone() === 'marked')
     process.stderr.write("metro claude: skipped Claude Code's first-run setup, since it already has a credential here\n");
   return env;

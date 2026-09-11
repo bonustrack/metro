@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { claudeConfigPath, markOnboardingDone } from '../src/onboarding.ts';
+import { claudeConfigPath, markOnboardingDone, seedChannels } from '../src/onboarding.ts';
 
 let dir = '';
 
@@ -55,5 +55,27 @@ describe("Claude Code's first-run flag", () => {
     expect(claudeConfigPath({ CLAUDE_CONFIG_DIR: '/x/cfg', HOME: '/home/less' })).toBe('/x/cfg/.claude.json');
     expect(claudeConfigPath({ CLAUDE_CONFIG_DIR: '  ', HOME: '/home/less' })).toBe('/home/less/.claude.json');
     expect(claudeConfigPath({ HOME: '/root' })).toBe('/root/.claude.json');
+  });
+});
+
+describe('the Channels flag on a box with no Anthropic account', () => {
+  test('is seeded into the cached features, keeping the ones Claude Code already cached', () => {
+    const path = join(dir, '.claude.json');
+    writeFileSync(path, JSON.stringify({ hasCompletedOnboarding: true, cachedGrowthBookFeatures: { tengu_other: 3 } }));
+    expect(seedChannels(path)).toBe('marked');
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
+      hasCompletedOnboarding: true,
+      cachedGrowthBookFeatures: { tengu_other: 3, tengu_harbor: true },
+    });
+    expect(seedChannels(path)).toBe('already');
+  });
+
+  test('a missing config gets only the flag, and an unreadable one is left alone', () => {
+    const path = join(dir, '.claude.json');
+    expect(seedChannels(path)).toBe('marked');
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ cachedGrowthBookFeatures: { tengu_harbor: true } });
+    writeFileSync(path, '{broken');
+    expect(seedChannels(path)).toBe('unreadable');
+    expect(readFileSync(path, 'utf8')).toBe('{broken');
   });
 });
