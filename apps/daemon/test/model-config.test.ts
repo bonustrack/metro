@@ -29,7 +29,7 @@ const configured: ModelConfig = {
   provider: 'bedrock',
   anthropic: { apiKey: '', model: '' },
   bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
-  openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex' },
+  openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex', zdr: false },
   codex: { model: '', auth: null },
 };
 
@@ -43,7 +43,7 @@ describe('the model route on disk', () => {
       version: 1,
       provider: 'anthropic',
       bedrock: { region: '', apiKey: '', model: '' },
-      openrouter: { apiKey: '', model: '' },
+      openrouter: { apiKey: '', model: '', zdr: false },
       codex: { model: '', auth: null },
     });
   });
@@ -66,7 +66,9 @@ describe('updating the route from the page', () => {
   test('a partial patch keeps what it does not name, an omitted key stays and an empty key clears', () => {
     const next = applyModelUpdate(configured, { provider: 'openrouter', openrouter: { model: 'anthropic/claude-sonnet-4.5' } });
     expect(next.provider).toBe('openrouter');
-    expect(next.openrouter).toEqual({ apiKey: 'or-key', model: 'anthropic/claude-sonnet-4.5' });
+    expect(next.openrouter).toEqual({ apiKey: 'or-key', model: 'anthropic/claude-sonnet-4.5', zdr: false });
+    expect(applyModelUpdate(configured, { openrouter: { zdr: true } }).openrouter.zdr).toBe(true);
+    expect(() => applyModelUpdate(configured, { openrouter: { zdr: 'yes' } })).toThrow(/true or false/);
     expect(next.bedrock).toEqual(configured.bedrock);
     expect(applyModelUpdate(configured, { bedrock: { apiKey: '' } }).bedrock.apiKey).toBe('');
     expect(applyModelUpdate(configured, { bedrock: { region: '  us-east-1  ' } }).bedrock.region).toBe('us-east-1');

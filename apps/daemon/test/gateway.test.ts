@@ -149,7 +149,7 @@ beforeEach(() => {
     anthropic: { apiKey: '', model: '' },
     provider: 'anthropic',
     bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
-    openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex' },
+    openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex', zdr: false },
     codex: { model: 'gpt-5.3-codex', auth: tokens() },
   };
   anthropic.seen.length = 0;
@@ -288,6 +288,20 @@ describe('the OpenRouter route', () => {
     expect((await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-5'))).status).toBe(404);
     cfg.openrouter.model = '';
     expect((await post('/gateway/v1/messages', message('claude-sonnet-5'))).status).toBe(400);
+  });
+
+  test('with zero data retention on, every request carries provider.zdr, merged into any routing the client sent', async () => {
+    cfg.provider = 'openrouter';
+    cfg.openrouter.zdr = true;
+    await post('/gateway/v1/messages', message('claude-sonnet-5'));
+    const plain = JSON.parse(openrouter.seen[0]?.body ?? '{}') as { provider?: Record<string, unknown> };
+    expect(plain.provider).toEqual({ zdr: true });
+    await post('/gateway/v1/messages', { ...message('claude-sonnet-5'), provider: { order: ['anthropic'], zdr: false } });
+    const merged = JSON.parse(openrouter.seen[1]?.body ?? '{}') as { provider?: Record<string, unknown> };
+    expect(merged.provider).toEqual({ order: ['anthropic'], zdr: true });
+    cfg.openrouter.zdr = false;
+    await post('/gateway/v1/messages', message('claude-sonnet-5'));
+    expect(JSON.parse(openrouter.seen[2]?.body ?? '{}')).not.toHaveProperty('provider');
   });
 });
 

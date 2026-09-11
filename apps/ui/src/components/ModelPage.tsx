@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
@@ -7,8 +7,8 @@ import { PageTitle } from './PageTitle.js';
 import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
 import { GROW } from '../theme.js';
-import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelSettings, type ProviderInfo } from '../api/model.js';
-import { queryError, refreshModel, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery } from '../api/queries.js';
+import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelOption, type ModelSettings, type ProviderInfo } from '../api/model.js';
+import { queryError, refreshModel, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery, useOpenRouterZdrQuery } from '../api/queries.js';
 import { ModelPicker } from './ModelPicker.js';
 import { useDocumentTitle } from '../title.js';
 import { whenLabel } from '../api/when.js';
@@ -95,9 +95,52 @@ function AnthropicFields({ draft, settings, set }: { draft: Draft; settings: Mod
   );
 }
 
+const ZDR_NOTE =
+  'Zero data retention sends every request with OpenRouter\'s zdr routing preference, so it can only reach endpoints whose provider keeps no prompts or completions. A model with no such endpoint fails with OpenRouter\'s own error instead of falling back. OpenRouter also offers this account-wide under its privacy settings; the two combine.';
+
+function ZdrSwitch({ on, onChange }: { on: boolean; onChange: (zdr: boolean) => void }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  return (
+    <Col gap={6}>
+      <Row gap={10} align="center" wrap>
+        <Button size="sm" color={on ? 'primary' : 'secondary'} dark={dark} label={on ? 'Zero data retention: on' : 'Zero data retention: off'} onPress={() => { onChange(!on); }} />
+      </Row>
+      <Text size="sm" role="secondary">{ZDR_NOTE}</Text>
+    </Col>
+  );
+}
+
+function zdrNote(model: string, zdr: Set<string> | undefined): string | null {
+  if (zdr === undefined) return null;
+  if (model === '' || zdr.has(model)) return `${String(zdr.size)} models have a zero data retention endpoint on OpenRouter; the list above shows only those.`;
+  return `${model} has no zero data retention endpoint on OpenRouter, so every request would fail. Pick one of the ${String(zdr.size)} models that do.`;
+}
+
+interface Offered {
+  models: ModelOption[] | undefined;
+  error: string | null;
+  note: string | null;
+  danger: boolean;
+}
+
+function offeredModels(draft: Draft, models: UseQueryResult<ModelOption[]>, zdr: UseQueryResult<Set<string>>): Offered {
+  const filtered = draft.openrouterZdr && zdr.data !== undefined ? models.data?.filter((m) => zdr.data.has(m.id)) : models.data;
+  const error =
+    models.error !== null
+      ? queryError(models.error, 'Could not list the OpenRouter models.')
+      : zdr.error !== null
+        ? queryError(zdr.error, 'Could not list the zero data retention endpoints.')
+        : null;
+  const note = draft.openrouterZdr ? zdrNote(draft.openrouterModel, zdr.data) : null;
+  const danger = draft.openrouterZdr && draft.openrouterModel !== '' && zdr.data?.has(draft.openrouterModel) === false;
+  return { models: filtered, error, note, danger };
+}
+
 function OpenRouterFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
   const [wanted, setWanted] = useState(false);
   const models = useOpenRouterModelsQuery(wanted);
+  const zdr = useOpenRouterZdrQuery(draft.openrouterZdr);
+  const offered = offeredModels(draft, models, zdr);
   return (
     <Col gap={12}>
       <KeyField
@@ -117,9 +160,9 @@ function OpenRouterFields({ draft, settings, set }: { draft: Draft; settings: Mo
         label="Model"
         value={draft.openrouterModel}
         placeholder="type to search, e.g. sonnet, gpt-5, gemini"
-        models={models.data}
-        loading={models.isFetching}
-        error={models.error === null ? null : queryError(models.error, 'Could not list the OpenRouter models.')}
+        models={offered.models}
+        loading={models.isFetching || zdr.isFetching}
+        error={offered.error}
         onOpen={() => {
           setWanted(true);
         }}
@@ -127,6 +170,10 @@ function OpenRouterFields({ draft, settings, set }: { draft: Draft; settings: Mo
           set({ openrouterModel: v });
         }}
       />
+      <ZdrSwitch on={draft.openrouterZdr} onChange={(next) => { set({ openrouterZdr: next }); }} />
+      {offered.note === null ? null : (
+        <Text size="sm" role={offered.danger ? 'danger' : 'secondary'}>{offered.note}</Text>
+      )}
     </Col>
   );
 }

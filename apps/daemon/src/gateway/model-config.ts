@@ -21,6 +21,7 @@ export interface BedrockSettings {
 export interface OpenRouterSettings {
   apiKey: string;
   model: string;
+  zdr: boolean;
 }
 
 export interface CodexSettings {
@@ -54,7 +55,7 @@ const empty = (): ModelConfig => ({
   provider: 'anthropic',
   anthropic: { apiKey: '', model: '' },
   bedrock: { region: '', apiKey: '', model: '' },
-  openrouter: { apiKey: '', model: '' },
+  openrouter: { apiKey: '', model: '', zdr: false },
   codex: { model: '', auth: null },
 });
 
@@ -93,7 +94,7 @@ function fromDisk(raw: unknown): ModelConfig {
     provider: isProvider(raw.provider) ? raw.provider : 'anthropic',
     anthropic: { apiKey: text(anthropic.apiKey), model: text(anthropic.model) },
     bedrock: { region: text(bedrock.region), apiKey: text(bedrock.apiKey), model: text(bedrock.model) },
-    openrouter: { apiKey: text(openrouter.apiKey), model: text(openrouter.model) },
+    openrouter: { apiKey: text(openrouter.apiKey), model: text(openrouter.model), zdr: openrouter.zdr === true },
     codex: { model: text(codex.model), auth: tokensFromDisk(codex.auth) },
   };
 }
@@ -104,6 +105,13 @@ export function readModelConfig(dir = agentsDir()): ModelConfig {
 
 export function writeModelConfig(cfg: ModelConfig, dir = agentsDir()): void {
   writeSecure(join(dir, MODEL_FILE), JSON.stringify(cfg, null, 2));
+}
+
+function flag(patch: Record<string, unknown>, key: string, current: boolean, what: string): boolean {
+  if (!(key in patch)) return current;
+  const value = patch[key];
+  if (typeof value !== 'boolean') throw new ModelConfigError(`${what} must be true or false`);
+  return value;
 }
 
 function field(patch: Record<string, unknown>, key: string, current: string, what: string): string {
@@ -137,6 +145,7 @@ export function applyModelUpdate(cfg: ModelConfig, patch: unknown): ModelConfig 
     openrouter: {
       apiKey: field(openrouter, 'apiKey', cfg.openrouter.apiKey, 'OpenRouter API key'),
       model: field(openrouter, 'model', cfg.openrouter.model, 'OpenRouter model'),
+      zdr: flag(openrouter, 'zdr', cfg.openrouter.zdr, 'OpenRouter zero data retention'),
     },
     codex: { model: field(codex, 'model', cfg.codex.model, 'Codex model'), auth: cfg.codex.auth },
   };
@@ -172,7 +181,7 @@ export function publicModelConfig(cfg: ModelConfig): Record<string, unknown> {
     reason: notReady(cfg),
     anthropic: { model: cfg.anthropic.model, hasKey: cfg.anthropic.apiKey !== '' },
     bedrock: { region: cfg.bedrock.region, model: cfg.bedrock.model, hasKey: cfg.bedrock.apiKey !== '' },
-    openrouter: { model: cfg.openrouter.model, hasKey: cfg.openrouter.apiKey !== '' },
+    openrouter: { model: cfg.openrouter.model, hasKey: cfg.openrouter.apiKey !== '', zdr: cfg.openrouter.zdr },
     codex: { model: cfg.codex.model, signedIn: auth !== null, account: auth?.email ?? null, plan: auth?.plan ?? null },
   };
 }

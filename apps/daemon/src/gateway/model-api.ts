@@ -6,7 +6,7 @@ import { log } from '@metro-labs/core/log';
 import { beginLogin, CodexAuthError, finishLogin, readCodexCliAuth } from './codex-auth.js';
 import { beginDeviceLogin, pollDeviceLogin } from './codex-device.js';
 import { codexModels, currentTokens, freshCodexState } from './codex.js';
-import { openrouterModels } from './openrouter.js';
+import { openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { lastServed } from './served.js';
 import type { CodexTokens } from './codex-auth.js';
 import { GatewayError } from './forward.js';
@@ -139,6 +139,10 @@ const OPENROUTER_ROUTES: Record<string, Route> = {
   models: {
     method: 'GET',
     run: async (_req, deps) => ({ models: await openrouterModels(deps.openrouterBase, deps.fetchImpl).catch(asApiError) }),
+  },
+  zdr: {
+    method: 'GET',
+    run: async (_req, deps) => ({ models: await openrouterZdrModels(deps.openrouterBase, deps.fetchImpl).catch(asApiError) }),
   },
 };
 

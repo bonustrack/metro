@@ -13,6 +13,7 @@ import { anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeRespon
 import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, writeModelConfig, type ModelConfig, type Route } from './model-config.js';
 import { codexCount, codexMessages, freshCodexState, type CodexDeps } from './codex.js';
 import { OPENROUTER_BASE } from './openrouter.js';
+import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import type { CodexTokens } from './codex-auth.js';
 
@@ -128,11 +129,17 @@ async function toOpenRouter(
   const upstream = await fetch(`${deps.openrouterBase ?? OPENROUTER_BASE}${MESSAGES}`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ ...body, model: route.model }),
+    body: JSON.stringify(openrouterBody(body, route.model, cfg.openrouter.zdr)),
     signal: watch.signal,
     redirect: 'manual',
   });
   await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true });
+}
+
+export function openrouterBody(body: Record<string, unknown>, model: string, zdr: boolean): Record<string, unknown> {
+  if (!zdr) return { ...body, model };
+  const provider = isRecord(body.provider) ? body.provider : {};
+  return { ...body, model, provider: { ...provider, zdr: true } };
 }
 
 async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {

@@ -42,7 +42,7 @@ export interface ModelSettings {
   lastServed: Served | null;
   anthropic: { model: string; hasKey: boolean };
   bedrock: { region: string; model: string; hasKey: boolean };
-  openrouter: { model: string; hasKey: boolean };
+  openrouter: { model: string; hasKey: boolean; zdr: boolean };
   codex: { model: string; signedIn: boolean; account: string | null; plan: string | null };
 }
 
@@ -50,7 +50,7 @@ export interface ModelPatch {
   provider?: Provider;
   anthropic?: { apiKey?: string; model?: string };
   bedrock?: { region?: string; apiKey?: string; model?: string };
-  openrouter?: { apiKey?: string; model?: string };
+  openrouter?: { apiKey?: string; model?: string; zdr?: boolean };
   codex?: { model?: string };
 }
 
@@ -80,7 +80,7 @@ export function toModelSettings(body: unknown): ModelSettings {
     lastServed: toServed(body.lastServed),
     anthropic: { model: word(anthropic.model), hasKey: anthropic.hasKey === true },
     bedrock: { region: word(bedrock.region), model: word(bedrock.model), hasKey: bedrock.hasKey === true },
-    openrouter: { model: word(openrouter.model), hasKey: openrouter.hasKey === true },
+    openrouter: { model: word(openrouter.model), hasKey: openrouter.hasKey === true, zdr: openrouter.zdr === true },
     codex: { model: word(codex.model), signedIn: codex.signedIn === true, account: maybe(codex.account), plan: maybe(codex.plan) },
   };
 }
@@ -142,6 +142,7 @@ export interface Draft {
   openrouterModel: string;
   openrouterKey: string;
   openrouterForget: boolean;
+  openrouterZdr: boolean;
   codexModel: string;
 }
 
@@ -157,6 +158,7 @@ export const draftOf = (s: ModelSettings): Draft => ({
   openrouterModel: s.openrouter.model,
   openrouterKey: '',
   openrouterForget: false,
+  openrouterZdr: s.openrouter.zdr,
   codexModel: s.codex.model,
 });
 
@@ -167,7 +169,7 @@ export function patchOf(draft: Draft): ModelPatch {
     provider: draft.provider,
     anthropic: { model: draft.anthropicModel, ...keyPatch(draft.anthropicKey, draft.anthropicForget) },
     bedrock: { region: draft.bedrockRegion, model: draft.bedrockModel, ...keyPatch(draft.bedrockKey, draft.bedrockForget) },
-    openrouter: { model: draft.openrouterModel, ...keyPatch(draft.openrouterKey, draft.openrouterForget) },
+    openrouter: { model: draft.openrouterModel, zdr: draft.openrouterZdr, ...keyPatch(draft.openrouterKey, draft.openrouterForget) },
     codex: { model: draft.codexModel },
   };
 }
@@ -254,4 +256,10 @@ export function matchModels(models: ModelOption[], query: string, limit = MATCH_
     return words.every((word) => hay.includes(word));
   };
   return models.filter(hit).slice(0, limit);
+}
+
+export async function openrouterZdrModels(): Promise<Set<string>> {
+  const body = await call({ method: 'GET', base: modelUrl(), path: '/openrouter/zdr' });
+  if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
+  return new Set(body.models.filter((id): id is string => typeof id === 'string'));
 }
