@@ -31,3 +31,18 @@ export function markOnboardingDone(path = claudeConfigPath()): OnboardingMark {
   writeFileSync(path, `${JSON.stringify({ ...config, [FLAG]: true }, null, 2)}\n`, { mode: 0o600 });
   return 'marked';
 }
+
+const FEATURES = 'cachedGrowthBookFeatures';
+const CHANNELS_FLAG = 'tengu_harbor';
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+export function seedChannels(path = claudeConfigPath()): OnboardingMark {
+  const config = readConfig(path);
+  if (config === null) return 'unreadable';
+  const features = isRecord(config[FEATURES]) ? config[FEATURES] : {};
+  if (features[CHANNELS_FLAG] === true) return 'already';
+  const next = { ...config, [FEATURES]: { ...features, [CHANNELS_FLAG]: true } };
+  writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
+  return 'marked';
+}
