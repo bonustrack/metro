@@ -113,9 +113,11 @@ describe('names and addresses', () => {
     expect(slugOf('Client Two!')).toBe('client-two');
     expect(slugOf('--')).toBe('');
     expect(slugOf('x'.repeat(50))).toHaveLength(30);
-    expect(nodeNameOf('andy')).toBe('metro-andy');
-    expect(hostOf('metro-andy', '.tail1234.ts.net.')).toBe('metro-andy.tail1234.ts.net');
-    expect(plannedHost('Andy', ' Tail1234.ts.net ')).toEqual({ slug: 'andy', node: 'metro-abc123', host: 'metro-andy.tail1234.ts.net' });
+    expect(hostOf('metro-abc123', '.tail1234.ts.net.')).toBe('metro-abc123.tail1234.ts.net');
+    expect(plannedHost('Andy', ' Tail1234.ts.net ', 'metro-abc123')).toEqual({ slug: 'andy', node: 'metro-abc123', host: 'metro-abc123.tail1234.ts.net' });
+    const names = new Set(Array.from({ length: 50 }, () => randomNodeName()));
+    expect(names.size).toBe(50);
+    for (const name of names) expect(name).toMatch(/^metro-[a-z0-9]{6}$/);
   });
 
   test('the tailnet is read off an existing Funnel address in the server list', () => {
