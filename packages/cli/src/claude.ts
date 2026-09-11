@@ -7,11 +7,13 @@ import { PROVIDER_FLAGS } from './provider-flags.js';
 import { localPort, localUrl } from './runtime.js';
 
 const CHANNEL_FLAGS = ['--dangerously-load-development-channels', 'server:metro'];
+const PERMISSION_FLAGS = ['--permission-mode', 'auto'];
 const KEY_HEADER = 'x-metro-key';
 const PROBE_MS = 3_000;
 
 export const claudeArgs = (extra: string[], mcpConfig?: string): string[] => [
   ...CHANNEL_FLAGS,
+  ...PERMISSION_FLAGS,
   ...(mcpConfig === undefined ? [] : ['--mcp-config', mcpConfig]),
   ...extra,
 ];

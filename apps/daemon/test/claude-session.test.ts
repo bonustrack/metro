@@ -120,6 +120,19 @@ describe('starting the session', () => {
     expect(config.projects[realpathSync(join(dir, 'home'))]).toEqual({ hasTrustDialogAccepted: true });
   });
 
+  test('a session an older metro started is restarted once after an update, then left alone', () => {
+    agent();
+    expect(ensureSession(deps({ version: '0.1.0-beta.105' }))).toBe('started');
+    expect(ensureSession(deps({ version: '0.1.0-beta.105' }))).toBe('running');
+    expect(ensureSession(deps({ version: '0.1.0-beta.107' }))).toBe('restarted');
+    expect(recorded().filter((c) => c.startsWith('kill-session'))).toHaveLength(1);
+    expect(recorded().filter((c) => c.startsWith('new-session'))).toHaveLength(2);
+    expect(ensureSession(deps({ version: '0.1.0-beta.107' }))).toBe('running');
+    setAutostart(false, join(dir, 'agents'));
+    setAutostart(true, join(dir, 'agents'));
+    expect(ensureSession(deps({ version: '0.1.0-beta.107' }))).toBe('running');
+  });
+
   test('ensure starts once, then reports running, and honours the auto-start switch', () => {
     agent();
     expect(ensureSession(deps())).toBe('started');

@@ -2,10 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import { agentKey, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, servingDaemon } from '../src/claude.ts';
 
 describe('metro claude hands everything to claude untouched', () => {
-  test('the channel flag comes first, then the user arguments verbatim', () => {
+  test('the channel and permission flags come first, then the user arguments verbatim, so a user flag wins', () => {
     expect(claudeArgs(['-r', 'abc'])).toEqual([
       '--dangerously-load-development-channels',
       'server:metro',
+      '--permission-mode',
+      'auto',
       '-r',
       'abc',
     ]);
@@ -13,13 +15,15 @@ describe('metro claude hands everything to claude untouched', () => {
 
   test('unknown, future or odd flags pass through unparsed', () => {
     const odd = ['--dangerously-something-new=yes', '--', '-c', 'a b', '--flag-with=equals'];
-    expect(claudeArgs(odd).slice(2)).toEqual(odd);
+    expect(claudeArgs(odd).slice(4)).toEqual(odd);
   });
 
   test('no arguments means only the channel flag', () => {
     expect(claudeArgs([])).toEqual([
       '--dangerously-load-development-channels',
       'server:metro',
+      '--permission-mode',
+      'auto',
     ]);
   });
 
@@ -27,6 +31,8 @@ describe('metro claude hands everything to claude untouched', () => {
     expect(claudeArgs(['-r', 'abc'], '/tmp/metro-claude-x/mcp.json')).toEqual([
       '--dangerously-load-development-channels',
       'server:metro',
+      '--permission-mode',
+      'auto',
       '--mcp-config',
       '/tmp/metro-claude-x/mcp.json',
       '-r',

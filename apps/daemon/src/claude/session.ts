@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { readJson, writeJson } from '@metro-labs/core/secure-fs';
+import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
 import { notReady, readModelConfig } from '../gateway/model-config.js';
 import { claudeAccount, claudeInstalled } from './login.js';
@@ -26,6 +27,7 @@ export interface SessionDeps {
   agents?: string;
   signedIn?: () => boolean;
   now?: () => number;
+  version?: string;
 }
 
 export interface SessionStatus {
@@ -48,13 +50,24 @@ const memory: Memory = { lastStartedAt: null, lastError: null, strikes: 0, pause
 
 const statePath = (agents: string): string => join(agents, STATE_FILE);
 
-export function autostartEnabled(agents = agentsDir()): boolean {
+function readState(agents: string): Record<string, unknown> {
   const raw = readJson<unknown>(statePath(agents), null);
-  return !isRecord(raw) || raw.autostart !== false;
+  return isRecord(raw) ? raw : {};
 }
 
+const writeState = (agents: string, patch: Record<string, unknown>): void => {
+  writeJson(statePath(agents), { ...readState(agents), ...patch });
+};
+
+export const autostartEnabled = (agents = agentsDir()): boolean => readState(agents).autostart !== false;
+
 export function setAutostart(enabled: boolean, agents = agentsDir()): void {
-  writeJson(statePath(agents), { autostart: enabled });
+  writeState(agents, { autostart: enabled });
+}
+
+export function startedVersion(agents = agentsDir()): string | null {
+  const version = readState(agents).version;
+  return typeof version === 'string' ? version : null;
 }
 
 function tmuxOk(tmux: string, args: string[]): boolean {
@@ -108,6 +121,18 @@ function confirmChannels(tmux: string, until: number): void {
   setTimeout(tick, CONFIRM_POLL_MS).unref();
 }
 
+function recordStart(deps: SessionDeps, tmux: string, now: number, run: { error?: Error; status: number | null; stderr: string }): void {
+  memory.lastStartedAt = now;
+  if (run.error !== undefined || run.status !== 0) {
+    memory.lastError = run.error === undefined ? `tmux new-session exited ${String(run.status)}: ${run.stderr.trim()}` : errMsg(run.error);
+    log.warn({ err: memory.lastError }, 'claude-session: tmux could not start');
+    return;
+  }
+  memory.lastError = null;
+  writeState(deps.agents ?? agentsDir(), { version: deps.version ?? METRO_VERSION });
+  confirmChannels(tmux, now + CONFIRM_WAIT_MS);
+}
+
 export function startSession(deps: SessionDeps = {}): SessionStatus {
   const tmux = deps.tmux ?? 'tmux';
   const home = deps.home ?? homedir();
@@ -115,15 +140,8 @@ export function startSession(deps: SessionDeps = {}): SessionStatus {
   const trusted = trustFolder(home);
   const [command = 'metro', ...args] = metroCommand(deps);
   const run = spawnSync(tmux, ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: home });
-  memory.lastStartedAt = now;
-  if (run.error !== undefined || run.status !== 0) {
-    memory.lastError = run.error === undefined ? `tmux new-session exited ${String(run.status)}: ${run.stderr.trim()}` : errMsg(run.error);
-    log.warn({ err: memory.lastError }, 'claude-session: tmux could not start');
-  } else {
-    memory.lastError = null;
-    log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
-    confirmChannels(tmux, now + CONFIRM_WAIT_MS);
-  }
+  recordStart(deps, tmux, now, run);
+  if (memory.lastError === null) log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
   return sessionStatus(deps);
 }
 
@@ -153,15 +171,46 @@ function strike(now: number): boolean {
   return true;
 }
 
-export function ensureSession(deps: SessionDeps = {}): 'started' | 'running' | 'blocked' | 'off' | 'paused' {
-  const now = (deps.now ?? Date.now)();
-  if (!autostartEnabled(deps.agents ?? agentsDir())) return 'off';
-  if (sessionRunning(deps.tmux ?? 'tmux')) return 'running';
+export type Ensured = 'started' | 'restarted' | 'running' | 'blocked' | 'off' | 'paused';
+
+function holdsBack(deps: SessionDeps, now: number): Ensured | null {
   if (now < memory.pausedUntil) return 'paused';
   if (sessionBlocked(deps) !== null) return 'blocked';
-  if (strike(now)) return 'paused';
+  return strike(now) ? 'paused' : null;
+}
+
+interface Resolved {
+  now: number;
+  agents: string;
+  version: string;
+  tmux: string;
+}
+
+const resolved = (deps: SessionDeps): Resolved => ({
+  now: (deps.now ?? Date.now)(),
+  agents: deps.agents ?? agentsDir(),
+  version: deps.version ?? METRO_VERSION,
+  tmux: deps.tmux ?? 'tmux',
+});
+
+function situation(r: Resolved): 'running' | 'stale' | 'absent' {
+  if (!sessionRunning(r.tmux)) return 'absent';
+  return startedVersion(r.agents) === r.version ? 'running' : 'stale';
+}
+
+export function ensureSession(deps: SessionDeps = {}): Ensured {
+  const r = resolved(deps);
+  if (!autostartEnabled(r.agents)) return 'off';
+  const found = situation(r);
+  if (found === 'running') return 'running';
+  const held = holdsBack(deps, r.now);
+  if (held !== null) return held;
+  if (found === 'stale') {
+    log.info({ was: startedVersion(r.agents), now: r.version }, 'claude-session: restarting the session an older metro started, so the new plugin and flags load');
+    stopSession(deps);
+  }
   startSession(deps);
-  return 'started';
+  return found === 'stale' ? 'restarted' : 'started';
 }
 
 let watcher: ReturnType<typeof setInterval> | null = null;
@@ -171,7 +220,7 @@ export function watchSession(deps: SessionDeps = {}, everyMs = WATCH_MS): void {
   const tick = (): void => {
     try {
       const outcome = ensureSession(deps);
-      if (outcome === 'started') log.info('claude-session: started');
+      if (outcome === 'started' || outcome === 'restarted') log.info({ outcome }, 'claude-session: Claude Code is up');
     } catch (err) {
       log.warn({ err: errMsg(err) }, 'claude-session: check failed');
     }
