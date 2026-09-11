@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
@@ -7,6 +8,7 @@ import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
 import { notReady, readModelConfig } from '../gateway/model-config.js';
+import { claudeDir, listClaudeProjects } from './files.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
 
@@ -28,6 +30,7 @@ export interface SessionDeps {
   signedIn?: () => boolean;
   now?: () => number;
   version?: string;
+  continues?: (home: string) => boolean;
 }
 
 export interface SessionStatus {
@@ -77,10 +80,24 @@ function tmuxOk(tmux: string, args: string[]): boolean {
 
 export const sessionRunning = (tmux = 'tmux'): boolean => tmuxOk(tmux, ['has-session', '-t', SESSION_NAME]);
 
-function metroCommand(deps: SessionDeps): string[] {
-  if (deps.metro !== undefined) return deps.metro;
+function realDir(dir: string): string {
+  try {
+    return realpathSync(dir);
+  } catch {
+    return dir;
+  }
+}
+
+export function hasConversation(home: string, dir = claudeDir()): boolean {
+  const cwd = realDir(home);
+  return listClaudeProjects(dir).some((project) => project.sessions > 0 && project.cwd !== null && realDir(project.cwd) === cwd);
+}
+
+function metroCommand(deps: SessionDeps, home: string): string[] {
   const bin = process.env.METRO_CLI_BIN?.trim() ?? '';
-  return bin === '' ? ['metro', 'claude'] : [process.execPath, bin, 'claude'];
+  const base = deps.metro ?? (bin === '' ? ['metro', 'claude'] : [process.execPath, bin, 'claude']);
+  const continues = (deps.continues ?? hasConversation)(home);
+  return continues ? [...base, '-c'] : base;
 }
 
 function credentialReady(deps: SessionDeps): string | null {
@@ -138,7 +155,7 @@ export function startSession(deps: SessionDeps = {}): SessionStatus {
   const home = deps.home ?? homedir();
   const now = (deps.now ?? Date.now)();
   const trusted = trustFolder(home);
-  const [command = 'metro', ...args] = metroCommand(deps);
+  const [command = 'metro', ...args] = metroCommand(deps, home);
   const run = spawnSync(tmux, ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: home });
   recordStart(deps, tmux, now, run);
   if (memory.lastError === null) log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
