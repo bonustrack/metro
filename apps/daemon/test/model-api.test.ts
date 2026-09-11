@@ -53,6 +53,10 @@ beforeAll(async () => {
       );
       return;
     }
+    if (req.url === '/v1/endpoints/zdr') {
+      res.end(JSON.stringify({ data: [{ model_id: 'openai/gpt-5.2-codex', provider_name: 'OpenAI' }, { model_id: 'anthropic/claude-sonnet-4.5' }, { model_id: 'anthropic/claude-sonnet-4.5' }, { name: 'no id' }] }));
+      return;
+    }
     seenModelUrls.push(req.url ?? '');
     res.end(JSON.stringify({ models: [{ slug: 'gpt-5.3-codex' }] }));
   });
@@ -93,7 +97,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  stored = { version: 1, provider: 'anthropic', anthropic: { apiKey: '', model: '' }, bedrock: { region: '', apiKey: '', model: '' }, openrouter: { apiKey: '', model: '' }, codex: { model: '', auth: null } };
+  stored = { version: 1, provider: 'anthropic', anthropic: { apiKey: '', model: '' }, bedrock: { region: '', apiKey: '', model: '' }, openrouter: { apiKey: '', model: '', zdr: false }, codex: { model: '', auth: null } };
 });
 
 const call = async (method: string, who: Who | null, body?: unknown): Promise<Response> =>
@@ -117,9 +121,10 @@ describe('the model route on the page', () => {
     expect(body).toMatchObject({ provider: 'openrouter', ready: true, openrouter: { model: 'openai/gpt-5.2-codex', hasKey: true } });
     expect(JSON.stringify(body)).not.toContain('or-key');
     expect(stored.openrouter.apiKey).toBe('or-key');
-    const again = await call('PUT', OWNER, { openrouter: { model: 'anthropic/claude-sonnet-4.5' } });
-    expect(((await again.json()) as { openrouter: { hasKey: boolean } }).openrouter.hasKey).toBe(true);
+    const again = await call('PUT', OWNER, { openrouter: { model: 'anthropic/claude-sonnet-4.5', zdr: true } });
+    expect(((await again.json()) as { openrouter: { hasKey: boolean; zdr: boolean } }).openrouter).toMatchObject({ hasKey: true, zdr: true });
     expect(stored.openrouter.model).toBe('anthropic/claude-sonnet-4.5');
+    expect(stored.openrouter.zdr).toBe(true);
   });
 
   test('a bad body is a 400 naming the field, a stranger a 404, no signature a 401, other methods 405', async () => {
@@ -231,5 +236,15 @@ describe('the Codex client version metro announces', () => {
     expect(codexVersion()).toBe('0.153.4');
     delete process.env.METRO_CODEX_VERSION;
     stored.codex.auth = null;
+  });
+});
+
+describe('zero data retention on OpenRouter', () => {
+  test('the daemon lists the models with a zero data retention endpoint, once each, sorted', async () => {
+    const res = await fetch(`${base}/api/model/openrouter/zdr`, {
+      headers: { authorization: await auth('GET', '/api/model/openrouter/zdr', OWNER) },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ models: ['anthropic/claude-sonnet-4.5', 'openai/gpt-5.2-codex'] });
   });
 });

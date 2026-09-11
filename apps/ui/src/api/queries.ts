@@ -41,7 +41,8 @@ import { fetchMode, type ModeInfo } from './mode.js';
 import { fetchUpdate, type UpdateCheck } from './update.js';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
 import { fetchMachine, type Machine } from './machine.js';
-import { codexModels, fetchModel, openrouterModels, type ModelOption, type ModelSettings } from './model.js';
+import { codexModels, fetchModel, openrouterModels,
+  openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -167,6 +168,15 @@ export function useModelQuery(): UseQueryResult<ModelSettings> {
 
 export function refreshModel(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: ['model', daemonBase()] });
+}
+
+export function useOpenRouterZdrQuery(enabled: boolean): UseQueryResult<Set<string>> {
+  return useQuery({
+    queryKey: ['openrouter', 'zdr', daemonBase()],
+    queryFn: () => openrouterZdrModels(),
+    enabled,
+    staleTime: 10 * 60_000,
+  });
 }
 
 export function useOpenRouterModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
