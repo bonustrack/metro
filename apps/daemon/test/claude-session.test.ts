@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { autostartEnabled, ensureSession, sessionBlocked, sessionStatus, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
+import { autostartEnabled, ensureSession, hasConversation, sessionBlocked, sessionStatus, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
@@ -131,6 +131,24 @@ describe('starting the session', () => {
     setAutostart(false, join(dir, 'agents'));
     setAutostart(true, join(dir, 'agents'));
     expect(ensureSession(deps({ version: '0.1.0-beta.107' }))).toBe('running');
+  });
+
+  test('continues the previous conversation when the folder has one, and starts clean when it has none', () => {
+    agent();
+    const home = join(dir, 'home');
+    expect(hasConversation(home, join(dir, 'config'))).toBe(false);
+    startSession(deps({ metro: ['metro', 'claude'] }));
+    expect(recorded().some((c) => c.endsWith(' metro claude'))).toBe(true);
+    expect(recorded().some((c) => c.endsWith(' -c'))).toBe(false);
+    const project = join(dir, 'config', 'projects', '-home');
+    mkdirSync(project, { recursive: true });
+    writeFileSync(join(project, 'abc.jsonl'), `${JSON.stringify({ type: 'user', cwd: realpathSync(home), message: { role: 'user', content: 'hi' } })}\n`);
+    expect(hasConversation(home, join(dir, 'config'))).toBe(true);
+    stopSession(deps());
+    startSession(deps({ metro: ['metro', 'claude'] }));
+    expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(' metro claude -c')).toBe(true);
+    startSession(deps({ metro: ['metro', 'claude'], continues: () => false }));
+    expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(' metro claude')).toBe(true);
   });
 
   test('ensure starts once, then reports running, and honours the auto-start switch', () => {

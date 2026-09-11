@@ -610,7 +610,7 @@ own key, so there is nothing to `claude mcp add`. Any argument after it goes to 
 You rarely need to type it: once a box has an agent and a credential (a sign-in on the Model page,
 or another provider chosen there), the daemon starts that session by itself in a tmux session named
 `metro`, answers Claude Code's folder-trust and development-channels prompts, and restarts it if it
-exits. The Server tab shows it, with Stop, Start now and an auto-start switch; the Terminal tab opens it.
+exits, continuing the previous conversation when there is one. The Server tab shows it, with Stop, Start now and an auto-start switch; the Terminal tab opens it.
 
 The session runs the way [docs/SETUP.md](docs/SETUP.md) describes, and metro applies that setup itself:
 the plugin keeps the main thread orchestrator-only and loads the standing rules at every start, the
