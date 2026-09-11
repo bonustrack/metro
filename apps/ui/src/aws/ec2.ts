@@ -157,3 +157,18 @@ export async function describeInstance(credentials: AwsCredentials, region: stri
   const publicIp = textAt(instance, 'ipAddress');
   return { instanceId, state: textAt(instance, 'instanceState', 'name') || 'unknown', publicIp: publicIp === '' ? null : publicIp };
 }
+
+export interface ConsoleOutput {
+  text: string;
+  at: string | null;
+}
+
+const fromBase64 = (b64: string): string =>
+  new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s+/g, '')), (c) => c.charCodeAt(0)));
+
+export async function consoleOutput(credentials: AwsCredentials, region: string, instanceId: string): Promise<ConsoleOutput> {
+  const xml = await ec2(credentials, region, 'GetConsoleOutput', { InstanceId: instanceId, Latest: 'true' });
+  const raw = textAt(xml, 'output');
+  const at = textAt(xml, 'timestamp');
+  return { text: raw === '' ? '' : fromBase64(raw), at: at === '' ? null : at };
+}

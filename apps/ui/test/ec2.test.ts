@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { AwsError, describeInstance, describeZones, latestUbuntuArm64Image, pickImage, runInstance, runInstanceParams, toBase64 } from '../src/aws/ec2.ts';
+import { AwsError, consoleOutput, describeInstance, describeZones, latestUbuntuArm64Image, pickImage, runInstance, runInstanceParams, toBase64 } from '../src/aws/ec2.ts';
 
 const CREDS = { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' };
 const realFetch = globalThis.fetch;
@@ -100,6 +100,17 @@ describe('EC2 from the browser', () => {
     expect(seen[0]?.body.get('InstanceId.1')).toBe('i-0abc');
     stub(200, '<DescribeInstancesResponse><reservationSet/></DescribeInstancesResponse>');
     await expect(describeInstance(CREDS, 'eu-west-1', 'i-gone')).rejects.toThrow('no longer lists');
+  });
+
+  test('GetConsoleOutput asks for the latest capture and decodes it', async () => {
+    const text = 'metro setup: start\ntailscale up: invalid key é\n';
+    const b64 = Buffer.from(text, 'utf8').toString('base64');
+    const seen = stub(200, `<GetConsoleOutputResponse xmlns="x"><instanceId>i-0abc</instanceId><timestamp>2026-09-11T17:30:00.000Z</timestamp><output>${b64.slice(0, 20)}\n${b64.slice(20)}</output></GetConsoleOutputResponse>`);
+    expect(await consoleOutput(CREDS, 'eu-central-2', 'i-0abc')).toEqual({ text, at: '2026-09-11T17:30:00.000Z' });
+    expect(seen[0]?.body.get('Action')).toBe('GetConsoleOutput');
+    expect(seen[0]?.body.get('Latest')).toBe('true');
+    stub(200, '<GetConsoleOutputResponse><instanceId>i-0abc</instanceId></GetConsoleOutputResponse>');
+    expect(await consoleOutput(CREDS, 'eu-central-2', 'i-0abc')).toEqual({ text: '', at: null });
   });
 
   test('an unreachable endpoint is a clear error', async () => {

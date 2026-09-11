@@ -1,12 +1,14 @@
 import { addServer, type Server } from '../api/servers.js';
 import {
   AwsError,
+  consoleOutput,
   describeInstance,
   describeZones,
   INSTANCE_TYPE,
   latestUbuntuArm64Image,
   runInstance,
   type AwsCredentials,
+  type ConsoleOutput,
   type Image,
   type InstanceSpec,
   type InstanceState,
@@ -124,6 +126,7 @@ export const IAM_POLICY = JSON.stringify(
           'ec2:DescribeInstances',
           'ec2:RunInstances',
           'ec2:CreateTags',
+          'ec2:GetConsoleOutput',
         ],
         Resource: '*',
       },
@@ -135,3 +138,6 @@ export const IAM_POLICY = JSON.stringify(
 
 export const instanceState = (credentials: AwsCredentials, launch: Launch): Promise<InstanceState> =>
   describeInstance(credentials, launch.region, launch.instanceId);
+
+export const bootLog = (credentials: AwsCredentials, launch: Launch): Promise<ConsoleOutput> =>
+  consoleOutput(credentials, launch.region, launch.instanceId);

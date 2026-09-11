@@ -15,6 +15,7 @@ export interface Launch {
 
 const SETTINGS_KEY = 'metro.aws';
 const LAUNCHES_KEY = 'metro.aws.launches';
+const KEYS_KEY = 'metro.aws.keys';
 export const BOOT_WINDOW_MS = 30 * 60_000;
 const SLUG_MAX = 30;
 
@@ -103,3 +104,19 @@ export function tailnetSuffix(hosts: string[]): string | null {
 }
 
 export const hostOf = (node: string, suffix: string): string => `${node}.${suffix.replace(/^\.+|\.+$/g, '')}`;
+
+export interface UsedKey {
+  name: string;
+  at: string;
+}
+
+export function authKeyUsedFor(fingerprint: string): UsedKey | null {
+  const raw = readRecord(KEYS_KEY);
+  const entry = raw?.[fingerprint];
+  if (!isRecord(entry) || str(entry.name) === '') return null;
+  return { name: str(entry.name), at: str(entry.at) };
+}
+
+export function rememberAuthKey(fingerprint: string, used: UsedKey): void {
+  writeJson(KEYS_KEY, { ...(readRecord(KEYS_KEY) ?? {}), [fingerprint]: used });
+}

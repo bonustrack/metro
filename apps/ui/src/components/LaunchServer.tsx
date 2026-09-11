@@ -14,7 +14,8 @@ import { activeIdentity } from '../auth/identity.js';
 import { queryError, refreshServers, useServersQuery } from '../api/queries.js';
 import { IAM_POLICY, launchBox, type Launched } from '../aws/launch.js';
 import { INSTANCE_TYPE, ROOT_GIB } from '../aws/ec2.js';
-import { readAwsSettings, storeAwsSettings, tailnetSuffix } from '../aws/settings.js';
+import { authKeyUsedFor, readAwsSettings, rememberAuthKey, storeAwsSettings, tailnetSuffix } from '../aws/settings.js';
+import { sha256Hex } from '../aws/sigv4.js';
 import { describeRegions, regionRows } from '../aws/regions.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -85,18 +86,25 @@ function useLaunch(): {
     setBusy(true);
     setError(null);
     const credentials = { accessKeyId: values.accessKeyId.trim(), secretAccessKey: values.secretAccessKey.trim() };
-    launchBox({
-      name: values.name,
-      region: values.region,
-      credentials,
-      tailscaleAuthKey: values.tailscaleAuthKey,
-      tailnet: values.tailnet.trim() === '' ? defaultTailnet : values.tailnet,
-      owner: activeIdentity()?.address ?? '',
-    })
-      .then(async (launched) => {
-        storeAwsSettings({ ...credentials, region: values.region.trim() });
-        await refreshServers(client);
-        setDone(launched);
+    const authKey = values.tailscaleAuthKey.trim();
+    sha256Hex(authKey)
+      .then((fingerprint) => {
+        const used = authKeyUsedFor(fingerprint);
+        if (used !== null)
+          throw new Error(`This Tailscale auth key already launched ${used.name}. A single-use key works once: generate a new one, or a reusable key.`);
+        return launchBox({
+          name: values.name,
+          region: values.region,
+          credentials,
+          tailscaleAuthKey: authKey,
+          tailnet: values.tailnet.trim() === '' ? defaultTailnet : values.tailnet,
+          owner: activeIdentity()?.address ?? '',
+        }).then(async (launched) => {
+          rememberAuthKey(fingerprint, { name: launched.server.name ?? launched.host, at: new Date().toISOString() });
+          storeAwsSettings({ ...credentials, region: values.region.trim() });
+          await refreshServers(client);
+          setDone(launched);
+        });
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not launch the server.');
