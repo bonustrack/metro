@@ -35,9 +35,8 @@ import {
   type ClaudeSkill,
   type SkillListing,
   type MemoryListing,
-  fetchClaudeSession,
-  type ClaudeSessionStatus,
 } from './claude.js';
+import { fetchClaudeSession, fetchClaudeSetup, type ClaudeSessionStatus, type ClaudeSetup } from './claude-box.js';
 import { fetchMode, type ModeInfo } from './mode.js';
 import { fetchUpdate, type UpdateCheck } from './update.js';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
@@ -139,6 +138,18 @@ export function useClaudeSessionQuery(): UseQueryResult<ClaudeSessionStatus> {
     staleTime: 3_000,
     refetchInterval: 10_000,
   });
+}
+
+export function useClaudeSetupQuery(): UseQueryResult<ClaudeSetup> {
+  return useQuery({
+    queryKey: ['claude-setup', daemonBase()],
+    queryFn: () => fetchClaudeSetup(),
+    staleTime: 10_000,
+  });
+}
+
+export function refreshClaudeSetup(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ queryKey: ['claude-setup', daemonBase()] });
 }
 
 export function refreshClaudeSession(client: QueryClient): Promise<void> {
