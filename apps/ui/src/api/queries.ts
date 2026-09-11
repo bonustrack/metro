@@ -41,7 +41,9 @@ import { fetchMode, type ModeInfo } from './mode.js';
 import { fetchUpdate, type UpdateCheck } from './update.js';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
 import { fetchMachine, type Machine } from './machine.js';
-import { codexModels, fetchModel, openrouterModels,
+import { codexModels, fetchModel, anthropicModels,
+  bedrockModels,
+  openrouterModels,
   openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
 
 const STALE_MS = 60_000;
@@ -186,6 +188,14 @@ export function useOpenRouterModelsQuery(enabled: boolean): UseQueryResult<Model
     enabled,
     staleTime: 10 * 60_000,
   });
+}
+
+export function useAnthropicModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
+  return useQuery({ queryKey: ['anthropic', 'models', daemonBase()], queryFn: () => anthropicModels(), enabled, staleTime: 10 * 60_000 });
+}
+
+export function useBedrockModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
+  return useQuery({ queryKey: ['bedrock', 'models', daemonBase()], queryFn: () => bedrockModels(), enabled, staleTime: 10 * 60_000 });
 }
 
 export function useCodexModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {

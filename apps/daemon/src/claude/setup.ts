@@ -7,6 +7,7 @@ import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { claudeDir } from './files.js';
 import { stagedMarketplaceDir } from './plugin-install.js';
+import { readModelConfig, type ModelConfig } from '../gateway/model-config.js';
 
 export const PRIVACY_ENV: Record<string, string> = {
   DISABLE_TELEMETRY: '1',
@@ -112,8 +113,8 @@ export function applyPrivacy(dir: string, enabled: boolean): SettingsOutcome {
   const current = readSettings(path);
   if (current === null) return 'unreadable';
   const next = withPrivacy(current, enabled);
+  if (existsSync(path) && JSON.stringify(next) === JSON.stringify(current)) return 'unchanged';
   const text = `${JSON.stringify(next, null, 2)}\n`;
-  if (existsSync(path) && readFileSync(path, 'utf8') === text) return 'unchanged';
   mkdirSync(dir, { recursive: true });
   const tmp = `${path}.metro-${String(process.pid)}.tmp`;
   writeFileSync(tmp, text, { mode: 0o644 });
@@ -140,6 +141,7 @@ export function ensureClaudeSetup(deps: SetupDeps = {}): SetupReport {
     skill: placeSkill(dir, deps.guidance ?? guidancePath(deps.env)),
     settings: applyPrivacy(dir, privacy),
   };
+  syncAvailableModelsQuietly({ ...deps, dir, agents });
   if (report.worker === 'written' || report.skill === 'written' || report.settings === 'written')
     log.info(report, 'claude-setup: applied the Claude Code setup for a metro box');
   if (report.settings === 'unreadable') log.warn({ path: join(dir, 'settings.json') }, 'claude-setup: settings.json is not valid JSON, so the privacy settings were not written');
@@ -166,5 +168,49 @@ export function tryClaudeSetup(deps: SetupDeps = {}): void {
     ensureClaudeSetup(deps);
   } catch (err) {
     log.warn({ err: errMsg(err) }, 'claude-setup: could not apply the Claude Code setup');
+  }
+}
+
+const MODELS_KEY = 'availableModels';
+const ENFORCE_KEY = 'enforceAvailableModels';
+
+export function routeOf(cfg: ModelConfig): string | null {
+  if (cfg.provider === 'anthropic') return null;
+  const model = cfg[cfg.provider].model;
+  return model === '' ? null : `${cfg.provider}:${model}`;
+}
+
+function withAvailableModels(settings: Record<string, unknown>, route: string | null, metroWrote: boolean): Record<string, unknown> {
+  if (route !== null) return { ...settings, [MODELS_KEY]: [route], [ENFORCE_KEY]: true };
+  if (!metroWrote) return settings;
+  return Object.fromEntries(Object.entries(settings).filter(([key]) => key !== MODELS_KEY && key !== ENFORCE_KEY));
+}
+
+export function syncAvailableModels(cfg: ModelConfig, deps: SetupDeps = {}): SettingsOutcome {
+  const dir = deps.dir ?? claudeDir();
+  const agents = deps.agents ?? agentsDir();
+  const route = routeOf(cfg);
+  const state = readJson<unknown>(statePath(agents), null);
+  const metroWrote = isRecord(state) && state.modelsByMetro === true;
+  const path = join(dir, 'settings.json');
+  const current = readSettings(path);
+  if (current === null) return 'unreadable';
+  const next = withAvailableModels(current, route, metroWrote);
+  mkdirSync(agents, { recursive: true });
+  writeJson(statePath(agents), { ...(isRecord(state) ? state : {}), modelsByMetro: route !== null });
+  if (existsSync(path) && JSON.stringify(next) === JSON.stringify(current)) return 'unchanged';
+  const text = `${JSON.stringify(next, null, 2)}\n`;
+  mkdirSync(dir, { recursive: true });
+  const tmp = `${path}.metro-${String(process.pid)}.tmp`;
+  writeFileSync(tmp, text, { mode: 0o644 });
+  renameSync(tmp, path);
+  return 'written';
+}
+
+export function syncAvailableModelsQuietly(deps: SetupDeps = {}, cfg?: ModelConfig): void {
+  try {
+    syncAvailableModels(cfg ?? readModelConfig(deps.agents ?? agentsDir()), deps);
+  } catch (err) {
+    log.warn({ err: errMsg(err) }, 'claude-setup: could not sync the model allowlist');
   }
 }

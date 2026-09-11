@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { markOnboardingDone, seedChannels } from './onboarding.js';
 import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
+import { currentRoute, routeModelEnv } from './route.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgents, pickLocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
@@ -148,7 +149,7 @@ function mcpConfigFor(key: string | null, port: number): McpConfigFile | null {
 
 function gatewayLaunchEnv(key: string, port: number): NodeJS.ProcessEnv {
   process.stderr.write(`metro claude: inference goes through the daemon at http://127.0.0.1:${String(port)}/gateway (the Model page decides where)\n`);
-  const routed = gatewayEnv(process.env, key, port);
+  const routed = routeModelEnv(gatewayEnv(process.env, key, port), currentRoute());
   const env = credentialEnv(routed, key, claudeSignedIn());
   if (env !== routed)
     process.stderr.write("metro claude: Claude Code has no login of its own here, so metro's key stands in as its credential; the Model page must route to Bedrock, OpenRouter or Codex\n");

@@ -6,7 +6,7 @@ import { codexVersion, userAgent } from '../src/gateway/codex.ts';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import { auth, type Who } from './identity-helper.ts';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -40,7 +40,7 @@ beforeAll(async () => {
   issuerBase = `http://127.0.0.1:${String((issuer.address() as AddressInfo).port)}`;
   backend = createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
-    if ((req.url ?? '').includes('/v1/models')) {
+    if ((req.url ?? '').includes('/v1/models') && req.headers['x-api-key'] === undefined) {
       res.end(
         JSON.stringify({
           data: [
@@ -51,6 +51,18 @@ beforeAll(async () => {
           ],
         }),
       );
+      return;
+    }
+    if (req.url?.startsWith('/v1/models') === true) {
+      res.end(JSON.stringify({ data: [{ id: 'claude-sonnet-5', display_name: 'Claude Sonnet 5', type: 'model' }, { id: 'claude-opus-5', display_name: 'Claude Opus 5' }, { type: 'model' }] }));
+      return;
+    }
+    if (req.url?.startsWith('/inference-profiles') === true) {
+      res.end(JSON.stringify({ inferenceProfileSummaries: [
+        { inferenceProfileId: 'eu.anthropic.claude-sonnet-5', inferenceProfileName: 'EU Claude Sonnet 5', status: 'ACTIVE' },
+        { inferenceProfileId: 'eu.amazon.nova-pro', inferenceProfileName: 'Nova', status: 'ACTIVE' },
+        { inferenceProfileId: 'eu.anthropic.claude-old', inferenceProfileName: 'Old', status: 'INACTIVE' },
+      ] }));
       return;
     }
     if (req.url === '/v1/endpoints/zdr') {
@@ -78,6 +90,9 @@ beforeAll(async () => {
         codexHome: home,
         codexBase: backendBase,
         openrouterBase: backendBase,
+        anthropicBase: backendBase,
+        bedrockControlBase: backendBase,
+        setup: { dir: join(home, 'claude'), agents: join(home, 'agents') },
       })
     )
       return;
@@ -246,5 +261,32 @@ describe('zero data retention on OpenRouter', () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ models: ['anthropic/claude-sonnet-4.5', 'openai/gpt-5.2-codex'] });
+  });
+});
+
+describe('picking an Anthropic or Bedrock model without typing its id', () => {
+  test('Anthropic lists the known Claude models without a key, and the account list with one', async () => {
+    const res = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth('GET', '/api/model/anthropic/models', OWNER) } });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { models: { id: string }[] }).models.map((m) => m.id)).toContain('claude-sonnet-5');
+    stored = { ...stored, anthropic: { apiKey: 'sk-ant', model: '' } };
+    const live = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth('GET', '/api/model/anthropic/models', OWNER) } });
+    expect(await live.json()).toEqual({ models: [{ id: 'claude-opus-5', name: 'Claude Opus 5' }, { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' }] });
+  });
+
+  test('Bedrock lists the active Anthropic inference profiles of the region, and says why when it cannot', async () => {
+    const refused = await fetch(`${base}/api/model/bedrock/models`, { headers: { authorization: await auth('GET', '/api/model/bedrock/models', OWNER) } });
+    expect(refused.status).toBe(400);
+    stored = { ...stored, bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' } };
+    const res = await fetch(`${base}/api/model/bedrock/models`, { headers: { authorization: await auth('GET', '/api/model/bedrock/models', OWNER) } });
+    expect(await res.json()).toEqual({ models: [{ id: 'eu.anthropic.claude-sonnet-5', name: 'EU Claude Sonnet 5' }] });
+  });
+
+  test('saving a non-Anthropic route writes the Claude Code model allowlist, and saving Anthropic back removes it', async () => {
+    await call('PUT', OWNER, { provider: 'openrouter', openrouter: { apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' } });
+    const settingsPath = join(home, 'claude', 'settings.json');
+    expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).toMatchObject({ availableModels: ['openrouter:anthropic/claude-sonnet-5'], enforceAvailableModels: true });
+    await call('PUT', OWNER, { provider: 'anthropic' });
+    expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).not.toHaveProperty('availableModels');
   });
 });

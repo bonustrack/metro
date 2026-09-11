@@ -7,6 +7,8 @@ import { beginLogin, CodexAuthError, finishLogin, readCodexCliAuth } from './cod
 import { beginDeviceLogin, pollDeviceLogin } from './codex-device.js';
 import { codexModels, currentTokens, freshCodexState } from './codex.js';
 import { openrouterModels, openrouterZdrModels } from './openrouter.js';
+import { anthropicModels, bedrockModels } from './provider-models.js';
+import { syncAvailableModelsQuietly, type SetupDeps } from '../claude/setup.js';
 import { lastServed } from './served.js';
 import type { CodexTokens } from './codex-auth.js';
 import { GatewayError } from './forward.js';
@@ -23,6 +25,8 @@ import {
 const PATH = '/api/model';
 const CODEX = '/api/model/codex/';
 const OPENROUTER = '/api/model/openrouter/';
+const ANTHROPIC = '/api/model/anthropic/';
+const BEDROCK = '/api/model/bedrock/';
 const BODY_MAX = 16 * 1024;
 const DEVICE_PREFIX = 'device/';
 const DEVICE_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
@@ -36,6 +40,9 @@ export interface ModelApiDeps {
   codexHome?: string;
   codexBase?: string;
   openrouterBase?: string;
+  anthropicBase?: string;
+  bedrockControlBase?: string;
+  setup?: SetupDeps;
 }
 
 interface Store {
@@ -54,11 +61,11 @@ const settingsBody = (cfg: ModelConfig): Record<string, unknown> => ({ ...public
 
 function asApiError(err: unknown): never {
   if (err instanceof ModelConfigError || err instanceof CodexAuthError) throw new ApiError(err.message, 400);
-  if (err instanceof GatewayError) throw new ApiError(err.message, 502);
+  if (err instanceof GatewayError) throw new ApiError(err.message, err.status >= 400 && err.status < 500 ? 400 : 502);
   throw err;
 }
 
-async function update(req: IncomingMessage, store: Store): Promise<unknown> {
+async function update(req: IncomingMessage, store: Store, deps: ModelApiDeps): Promise<unknown> {
   const patch = await readJsonBody(req, BODY_MAX);
   let next: ModelConfig;
   try {
@@ -67,6 +74,7 @@ async function update(req: IncomingMessage, store: Store): Promise<unknown> {
     asApiError(err);
   }
   store.write(next);
+  syncAvailableModelsQuietly(deps.setup ?? {}, next);
   log.info({ provider: next.provider }, 'model-api: route updated');
   return settingsBody(next);
 }
@@ -146,6 +154,20 @@ const OPENROUTER_ROUTES: Record<string, Route> = {
   },
 };
 
+const ANTHROPIC_ROUTES: Record<string, Route> = {
+  models: {
+    method: 'GET',
+    run: async (_req, deps, store) => ({ models: await anthropicModels(store.read().anthropic, deps.anthropicBase, deps.fetchImpl).catch(asApiError) }),
+  },
+};
+
+const BEDROCK_ROUTES: Record<string, Route> = {
+  models: {
+    method: 'GET',
+    run: async (_req, deps, store) => ({ models: await bedrockModels(store.read().bedrock, deps.bedrockControlBase, deps.fetchImpl).catch(asApiError) }),
+  },
+};
+
 const named = (table: Record<string, Route>, name: string, method: string | undefined): Route | number => {
   const route = table[name];
   if (route === undefined) return 404;
@@ -154,7 +176,7 @@ const named = (table: Record<string, Route>, name: string, method: string | unde
 
 function settingsRoute(method: string | undefined): Route | number {
   if (method === 'GET') return { method: 'GET', run: (_req, _deps, store) => Promise.resolve(settingsBody(store.read())) };
-  if (method === 'PUT') return { method: 'POST', run: (req, _deps, store) => update(req, store) };
+  if (method === 'PUT') return { method: 'POST', run: (req, deps, store) => update(req, store, deps) };
   return 405;
 }
 
@@ -165,11 +187,14 @@ function codexRoute(rest: string, method: string | undefined): Route | number {
   return method === 'GET' ? { method: 'GET', run: (_req, deps, store) => pollDevice(id, deps, store) } : 405;
 }
 
-const mine = (path: string): boolean => path === PATH || path.startsWith(CODEX) || path.startsWith(OPENROUTER);
+const mine = (path: string): boolean =>
+  path === PATH || path.startsWith(CODEX) || path.startsWith(OPENROUTER) || path.startsWith(ANTHROPIC) || path.startsWith(BEDROCK);
 
 function routeFor(path: string, method: string | undefined): Route | number {
   if (path === PATH) return settingsRoute(method);
   if (path.startsWith(OPENROUTER)) return named(OPENROUTER_ROUTES, path.slice(OPENROUTER.length), method);
+  if (path.startsWith(ANTHROPIC)) return named(ANTHROPIC_ROUTES, path.slice(ANTHROPIC.length), method);
+  if (path.startsWith(BEDROCK)) return named(BEDROCK_ROUTES, path.slice(BEDROCK.length), method);
   return codexRoute(path.slice(CODEX.length), method);
 }
 

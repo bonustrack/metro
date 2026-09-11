@@ -8,7 +8,7 @@ import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
 import { GROW } from '../theme.js';
 import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelOption, type ModelSettings, type ProviderInfo } from '../api/model.js';
-import { queryError, refreshModel, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery, useOpenRouterZdrQuery } from '../api/queries.js';
+import { queryError, refreshModel, useAnthropicModelsQuery, useBedrockModelsQuery, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery, useOpenRouterZdrQuery } from '../api/queries.js';
 import { ModelPicker } from './ModelPicker.js';
 import { useDocumentTitle } from '../title.js';
 import { whenLabel } from '../api/when.js';
@@ -64,6 +64,8 @@ function KeyLink({ url, label }: { url: string; label: string }): ReactNode {
 }
 
 function AnthropicFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
+  const [wanted, setWanted] = useState(false);
+  const anthropic = useAnthropicModelsQuery(wanted);
   return (
     <Col gap={12}>
       <ClaudeLoginCard />
@@ -80,10 +82,16 @@ function AnthropicFields({ draft, settings, set }: { draft: Draft; settings: Mod
         }}
       />
       <KeyLink url={ANTHROPIC_KEYS_URL} label="Get a key from the Anthropic Console" />
-      <TextField
+      <ModelPicker
         label="Model"
         value={draft.anthropicModel}
-        placeholder="empty: the model Claude Code asks for, e.g. claude-opus-5"
+        placeholder="empty: the model Claude Code asks for, or pick one"
+        models={anthropic.data}
+        loading={anthropic.isFetching}
+        error={anthropic.error === null ? null : queryError(anthropic.error, 'Could not list the Anthropic models.')}
+        onOpen={() => {
+          setWanted(true);
+        }}
         onChange={(v) => {
           set({ anthropicModel: v });
         }}
@@ -213,12 +221,27 @@ function TextField({ label, value, placeholder, onChange }: { label: string; val
 }
 
 function ProviderFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
+  const [bedrockWanted, setBedrockWanted] = useState(false);
+  const bedrock = useBedrockModelsQuery(bedrockWanted);
   if (draft.provider === 'bedrock')
     return (
       <Col gap={12}>
         <KeyField label="Bedrock API key" hasKey={settings.bedrock.hasKey} value={draft.bedrockKey} forget={draft.bedrockForget} onChange={(v) => { set({ bedrockKey: v }); }} onForget={(f) => { set({ bedrockForget: f }); }} />
         <TextField label="Region" value={draft.bedrockRegion} placeholder="eu-central-1" onChange={(v) => { set({ bedrockRegion: v }); }} />
-        <TextField label="Model" value={draft.bedrockModel} placeholder="empty: the model Claude Code asks for, e.g. eu.anthropic.claude-sonnet-4-6" onChange={(v) => { set({ bedrockModel: v }); }} />
+        <ModelPicker
+          label="Model"
+          value={draft.bedrockModel}
+          placeholder="empty: the model Claude Code asks for, or pick one"
+          models={bedrock.data}
+          loading={bedrock.isFetching}
+          error={bedrock.error === null ? null : queryError(bedrock.error, 'Could not list the Bedrock models.')}
+          onOpen={() => {
+            setBedrockWanted(true);
+          }}
+          onChange={(v) => {
+            set({ bedrockModel: v });
+          }}
+        />
       </Col>
     );
   if (draft.provider === 'openrouter') return <OpenRouterFields draft={draft} settings={settings} set={set} />;
