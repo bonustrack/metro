@@ -32,9 +32,11 @@ export interface Launched {
   host: string;
   node: string;
   instanceId: string;
+  region: string;
   zone: string | null;
   image: Image;
   server: Server;
+  launchedAt: string;
 }
 
 export interface LaunchDeps {
@@ -110,8 +112,9 @@ export async function launchBox(input: LaunchInput, deps: LaunchDeps = LIVE): Pr
   const image = await deps.latestImage(input.credentials, region);
   const { instanceId, zone } = await place(input, deps, { imageId: image.imageId, name, node, userData });
   const server = await deps.add(host, name);
-  deps.record(host, { instanceId, region, name, launchedAt: deps.now().toISOString() });
-  return { host, node, instanceId, zone, image, server };
+  const launchedAt = deps.now().toISOString();
+  deps.record(host, { instanceId, region, name, launchedAt });
+  return { host, node, instanceId, region, zone, image, server, launchedAt };
 }
 
 export const IAM_POLICY = JSON.stringify(
