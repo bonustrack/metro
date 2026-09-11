@@ -21,7 +21,7 @@ import { useDocumentTitle } from '../title.js';
 
 const CARD_WIDTH = 480;
 const NO_AUTOFILL = { autoComplete: 'off' } as const;
-const HINT = `Launches an Ubuntu 24.04 arm64 ${INSTANCE_TYPE} with an ${ROOT_GIB} GiB gp3 disk in your AWS account, from this page: the browser signs the EC2 calls itself with the access key below, which stays in this browser and never reaches Metro. On first boot the machine installs Node, bun, Claude Code, Tailscale and Metro, joins your tailnet under the name you give it, and shows up in your server list, live once its Funnel address resolves, usually within five minutes.`;
+const HINT = `Launches an Ubuntu 24.04 arm64 ${INSTANCE_TYPE} with an ${ROOT_GIB} GiB gp3 disk in your AWS account, from this page: the browser signs the EC2 calls itself with the access key below, which stays in this browser and never reaches Metro. On first boot the machine installs Node, bun, Claude Code, Tailscale and Metro, joins your tailnet under a random metro-xxxxxx name that can never clash with another box, and shows up in your server list under the name you give it, live once its Funnel address resolves, usually within five minutes.`;
 const KEYS_HINT =
   'Use a dedicated IAM user holding only the policy below. The Tailscale auth key comes from the admin console under Settings, Keys: make it single-use, since it travels in the instance user data.';
 const LINKS = [

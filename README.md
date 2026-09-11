@@ -623,4 +623,5 @@ You need an IAM user with `ec2:DescribeRegions`, `ec2:DescribeAvailabilityZones`
 auth key per launch (a single-use key works once; the page refuses one it already used). A row that stays
 Booting has a **Boot log** entry in its menu that shows the first-boot script's output straight from the
 instance console. The box joins your tailnet as
-`metro-<name>` and appears in the list right away, live once its Funnel address resolves.
+`metro-<6 random characters>`, so two launches never clash, and appears in the list under the name you gave
+it right away, live once its Funnel address resolves.

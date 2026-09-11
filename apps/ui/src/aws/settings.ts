@@ -91,7 +91,13 @@ export function slugOf(name: string): string {
     .replace(/-+$/, '');
 }
 
-export const nodeNameOf = (slug: string): string => `metro-${slug}`;
+const NODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+const NODE_CHARS = 6;
+
+export function randomNodeName(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(NODE_CHARS));
+  return `metro-${[...bytes].map((b) => NODE_ALPHABET[b % NODE_ALPHABET.length] ?? 'x').join('')}`;
+}
 
 const TAILNET_HOST = /^[a-z0-9-]+\.((?:[a-z0-9-]+\.)*ts\.net)$/i;
 
