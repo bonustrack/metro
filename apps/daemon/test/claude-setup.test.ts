@@ -54,7 +54,7 @@ describe('the Claude Code setup a metro box gets', () => {
     setPrivacy(false, join(dir, 'agents'));
     expect(ensureClaudeSetup(deps())).toMatchObject({ privacy: false, settings: 'written' });
     expect(settings()).toEqual({ env: { MY_VAR: 'x' }, cleanupPeriodDays: 7 });
-    expect(claudeSetupStatus(deps())).toEqual({ privacy: false, guard: 'plugin', worker: true, skill: true, privacyApplied: false, retentionDays: 7 });
+    expect(claudeSetupStatus(deps())).toEqual({ privacy: false, permissionMode: 'auto', guard: 'plugin', worker: true, skill: true, privacyApplied: false, retentionDays: 7 });
   });
 
   test('a missing guidance file is reported, not thrown', () => {
@@ -75,6 +75,7 @@ describe('the setup over the API', () => {
           if (subject !== OWNER) throw new ApiError('no such project', 404);
         },
         setup: deps(),
+        session: { tmux: join(dir, 'no-tmux-here') },
       });
       if (!ok) res.writeHead(404).end();
     });
@@ -123,5 +124,41 @@ describe("Claude Code's model allowlist follows the Model page", () => {
     writeFileSync(join(dir, 'claude', 'settings.json'), JSON.stringify({ availableModels: ['claude-opus-5'] }));
     expect(syncAvailableModels(cfg({ provider: 'anthropic' }), deps())).toBe('unchanged');
     expect(settings()).toEqual({ availableModels: ['claude-opus-5'] });
+  });
+});
+
+describe('the permission mode of the session', () => {
+  let server: Server;
+  let base = '';
+  beforeEach(async () => {
+    server = createServer((req, res) => {
+      const ok = handleClaudeRequest(req, res, { authorize: () => undefined, setup: deps(), session: { tmux: join(dir, 'no-tmux-here') } });
+      if (!ok) res.writeHead(404).end();
+    });
+    await new Promise<void>((done) => {
+      server.listen(0, '127.0.0.1', done);
+    });
+    base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+  });
+  afterEach(() => {
+    server.close();
+  });
+  const call = async (method: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}/api/claude/setup`, {
+      method,
+      headers: { authorization: await auth(method, '/api/claude/setup', OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+
+  test('is auto until flipped, keeps the other setup state, and is refused when not a mode', async () => {
+    const before = (await (await call('GET')).json()) as { permissionMode: string };
+    expect(before.permissionMode).toBe('auto');
+    const flipped = (await (await call('POST', { permissionMode: 'bypass' })).json()) as { permissionMode: string; privacy: boolean };
+    expect(flipped).toMatchObject({ permissionMode: 'bypass', privacy: true });
+    await call('POST', { privacy: false });
+    const both = (await (await call('GET')).json()) as { permissionMode: string; privacy: boolean };
+    expect(both).toMatchObject({ permissionMode: 'bypass', privacy: false });
+    expect((await call('POST', { permissionMode: 'sometimes' })).status).toBe(400);
+    expect((await call('POST', {})).status).toBe(400);
   });
 });

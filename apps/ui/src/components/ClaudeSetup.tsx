@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { setClaudePrivacy, type ClaudeSetup as Setup } from '../api/claude-box.js';
+import { setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } from '../api/claude-box.js';
 import { queryError, refreshClaudeSetup, useClaudeSetupQuery, useModeQuery } from '../api/queries.js';
 import { olderThan } from '../api/version.js';
 import { routeHash } from '../route.js';
@@ -74,6 +74,37 @@ function PrivacySwitch({ setup }: { setup: Setup }): ReactNode {
   );
 }
 
+const MODE_NOTE =
+  'Auto mode lets Claude Code run the tool calls it judges low-risk and prompt for the rest; metro relays those prompts to chat as yes <id> / no <id>. Bypass runs everything without a prompt, and drops the check for risky actions and prompt injection. The orchestrator guard applies either way. Changing it restarts the Claude session, which resumes the same conversation.';
+
+function ModeSwitch({ setup }: { setup: Setup }): ReactNode {
+  const client = useQueryClient();
+  const dark = useKitScheme() === 'dark';
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const flip = (): void => {
+    setBusy(true);
+    setError(null);
+    setClaudePermissionMode(setup.permissionMode === 'auto' ? 'bypass' : 'auto')
+      .then(() => refreshClaudeSetup(client))
+      .catch((err: unknown) => {
+        setError(queryError(err, 'Could not change the permission mode.'));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+  return (
+    <Col gap={8}>
+      <Text size="sm" role="secondary">{MODE_NOTE}</Text>
+      <Row gap={10} align="center" wrap>
+        <Button size="sm" color="secondary" dark={dark} label={setup.permissionMode === 'auto' ? 'Permissions: auto' : 'Permissions: bypass'} disabled={busy} onPress={flip} />
+      </Row>
+      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+    </Col>
+  );
+}
+
 export function ClaudeSetup({ project }: { project: string }): ReactNode {
   const mode = useModeQuery();
   const setup = useClaudeSetupQuery();
@@ -94,6 +125,7 @@ export function ClaudeSetup({ project }: { project: string }): ReactNode {
         <Col gap={12}>
           <Lines setup={setup.data} project={project} />
           <PrivacySwitch setup={setup.data} />
+          <ModeSwitch setup={setup.data} />
         </Col>
       )}
     </Col>

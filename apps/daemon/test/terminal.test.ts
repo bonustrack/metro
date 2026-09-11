@@ -7,10 +7,17 @@ import { mintTerminalTicket, pendingTerminalTickets, takeTerminalTicket } from '
 import { resizeWindowArgs } from '../src/terminal/socket.ts';
 import { tmuxCommand } from '../src/terminal/api.ts';
 import { auth, TEST_STRANGER } from './identity-helper.ts';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 let server: Server;
 let base = '';
+const fakeDir = mkdtempSync(join(tmpdir(), 'metro-fake-tmux-'));
+const fakeTmux = join(fakeDir, 'tmux');
+writeFileSync(fakeTmux, '#!/bin/sh\nif [ "$1" = "save-buffer" ]; then if [ -f ' + fakeDir + '/buffer ]; then cat ' + fakeDir + '/buffer; exit 0; fi; echo "no buffers" >&2; exit 1; fi\nexit 1\n');
+chmodSync(fakeTmux, 0o755);
 const saved = { host: process.env.METRO_HTTP_HOST, port: process.env.METRO_WEBHOOK_PORT };
 
 beforeAll(async () => {
@@ -21,6 +28,7 @@ beforeAll(async () => {
       authorize: (subject) => {
         if (subject !== OWNER) throw new Error('no such project');
       },
+      tmux: fakeTmux,
       command: (session) => ['sh', '-c', session === 'sized' ? 'trap "stty size" WINCH; echo READY; while :; do sleep 0.05; done' : `echo READY ${session}; cat`],
     },
   });
@@ -37,6 +45,7 @@ afterAll(async () => {
       r();
     });
   });
+  rmSync(fakeDir, { recursive: true, force: true });
 });
 
 const signed = async (method: string, path: string, who: string | typeof TEST_STRANGER = OWNER, body?: unknown): Promise<Response> =>
@@ -171,5 +180,18 @@ describe('a resize reaches the program in the pty', () => {
     expect(await again).toContain('30 100');
     expect(await again).not.toContain('36 120');
     ws.close();
+  });
+});
+
+describe('copying what was selected in tmux', () => {
+  test('the owner reads the most recent tmux buffer, a 404 says when there is none, a stranger gets nothing', async () => {
+    const none = await fetch(`${base}/api/terminal/buffer`, { headers: { authorization: await auth('GET', '/api/terminal/buffer', OWNER) } });
+    expect(none.status).toBe(404);
+    writeFileSync(join(fakeDir, 'buffer'), 'hello from tmux\nline two');
+    const res = await fetch(`${base}/api/terminal/buffer`, { headers: { authorization: await auth('GET', '/api/terminal/buffer', OWNER) } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ text: 'hello from tmux\nline two' });
+    const stranger = await fetch(`${base}/api/terminal/buffer`, { headers: { authorization: await auth('GET', '/api/terminal/buffer', TEST_STRANGER) } });
+    expect(stranger.status).not.toBe(200);
   });
 });

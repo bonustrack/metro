@@ -54,3 +54,9 @@ export async function mintTerminalTicket(session: string): Promise<string> {
 export function terminalSocketUrl(path: string, base = daemonBase()): string {
   return `${base.replace(/^http/, 'ws')}${path}`;
 }
+
+export async function fetchTmuxBuffer(): Promise<string> {
+  const body = await call({ method: 'GET', base: `${daemonBase()}/api/terminal/buffer` });
+  if (!isRecord(body) || typeof body.text !== 'string') throw unexpected();
+  return body.text;
+}
