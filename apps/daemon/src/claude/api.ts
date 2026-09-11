@@ -21,9 +21,10 @@ import {
   startClaudeLogin,
   type LoginDeps,
 } from './login.js';
-import { claudeSetupStatus, ensureClaudeSetup, setPrivacy, type SetupDeps } from './setup.js';
+import { claudeSetupStatus, ensureClaudeSetup, isPermissionMode, permissionMode, setPermissionMode, setPrivacy, type PermissionMode, type SetupDeps } from './setup.js';
 import {
   ensureSession,
+  sessionRunning,
   sessionStatus,
   setAutostart,
   startSession,
@@ -115,15 +116,35 @@ const LOGIN = 'login';
 const SESSION = 'session';
 const SETUP = 'setup';
 
+interface SetupChange {
+  privacy?: boolean;
+  permissionMode?: PermissionMode;
+}
+
+function setupChange(body: unknown): SetupChange {
+  if (!isRecord(body)) throw new ApiError('a body is required', 400);
+  if (body.privacy !== undefined && typeof body.privacy !== 'boolean') throw new ApiError('privacy must be true or false', 400);
+  if (body.permissionMode !== undefined && !isPermissionMode(body.permissionMode)) throw new ApiError('permissionMode must be auto or bypass', 400);
+  if (body.privacy === undefined && body.permissionMode === undefined) throw new ApiError('nothing to change', 400);
+  return { ...(typeof body.privacy === 'boolean' ? { privacy: body.privacy } : {}), ...(isPermissionMode(body.permissionMode) ? { permissionMode: body.permissionMode } : {}) };
+}
+
+function applySetupChange(change: SetupChange, deps: ClaudeApiDeps): void {
+  const setup = deps.setup ?? {};
+  if (change.privacy !== undefined) setPrivacy(change.privacy, setup.agents);
+  if (change.permissionMode !== undefined && change.permissionMode !== permissionMode(setup.agents)) {
+    setPermissionMode(change.permissionMode, setup.agents);
+    if (sessionRunning(deps.session?.tmux ?? 'tmux')) stopSession(deps.session ?? {});
+  }
+  ensureClaudeSetup(setup);
+}
+
 async function setupAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise<unknown> {
   const setup = deps.setup ?? {};
   const method = req.method ?? 'GET';
   if (method === 'GET') return claudeSetupStatus(setup);
   if (method !== 'POST') throw new ApiError('method not allowed', 405);
-  const body = await readJsonBody(req);
-  if (!isRecord(body) || typeof body.privacy !== 'boolean') throw new ApiError('privacy must be true or false', 400);
-  setPrivacy(body.privacy, setup.agents);
-  ensureClaudeSetup(setup);
+  applySetupChange(setupChange(await readJsonBody(req)), deps);
   return claudeSetupStatus(setup);
 }
 

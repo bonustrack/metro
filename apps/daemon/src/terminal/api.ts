@@ -8,6 +8,8 @@ import { mintTerminalTicket } from './tickets.js';
 
 const PREFIX = '/api/terminal';
 const TICKETS = `${PREFIX}/tickets`;
+const BUFFER = `${PREFIX}/buffer`;
+const BUFFER_MAX = 1024 * 1024;
 const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 
 export const tmuxCommand = (session: string, home = homedir()): string[] => [
@@ -37,6 +39,7 @@ export const tmuxCommand = (session: string, home = homedir()): string[] => [
 ];
 
 export interface TerminalApiDeps {
+  tmux?: string;
   authorize: (subject: string) => void;
   command?: (session: string) => string[];
 }
@@ -64,9 +67,15 @@ export function sessionOf(raw: unknown): string {
   return raw;
 }
 
+export function tmuxBuffer(tmux = 'tmux'): string {
+  const run = spawnSync(tmux, ['save-buffer', '-'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: BUFFER_MAX });
+  if (run.error !== undefined || run.status !== 0) throw new ApiError('tmux holds nothing copied yet: select text in the terminal first', 404);
+  return run.stdout;
+}
+
 export function handleTerminalRequest(req: IncomingMessage, res: ServerResponse, deps: TerminalApiDeps): boolean {
   const path = (req.url ?? '').split('?')[0] ?? '';
-  if (path !== PREFIX && path !== TICKETS) return false;
+  if (path !== PREFIX && path !== TICKETS && path !== BUFFER) return false;
   if (req.method === 'OPTIONS') {
     res.writeHead(204, cors(req)).end();
     return true;
@@ -82,6 +91,10 @@ export function handleTerminalRequest(req: IncomingMessage, res: ServerResponse,
       deps.authorize(session.subject);
       if (path === PREFIX) {
         sendJson(req, res, 200, { available: tmuxAvailable(deps), sessions: tmuxSessions() });
+        return;
+      }
+      if (path === BUFFER) {
+        sendJson(req, res, 200, { text: tmuxBuffer(deps.tmux) });
         return;
       }
       const wanted = sessionOf(bodyField(await readJsonBody(req), 'session'));

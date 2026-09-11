@@ -55,6 +55,7 @@ export interface SetupReport {
 
 export interface SetupStatus {
   privacy: boolean;
+  permissionMode: PermissionMode;
   guard: 'plugin';
   worker: boolean;
   skill: boolean;
@@ -64,13 +65,34 @@ export interface SetupStatus {
 
 const statePath = (agents: string): string => join(agents, STATE_FILE);
 
-export function privacyEnabled(agents = agentsDir()): boolean {
+export const PERMISSION_MODES = ['auto', 'bypass'] as const;
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
+
+function readState(agents: string): Record<string, unknown> {
   const raw = readJson<unknown>(statePath(agents), null);
-  return !isRecord(raw) || raw.privacy !== false;
+  return isRecord(raw) ? raw : {};
 }
 
+function writeState(agents: string, patch: Record<string, unknown>): void {
+  mkdirSync(agents, { recursive: true });
+  writeJson(statePath(agents), { ...readState(agents), ...patch });
+}
+
+export const privacyEnabled = (agents = agentsDir()): boolean => readState(agents).privacy !== false;
+
 export function setPrivacy(enabled: boolean, agents = agentsDir()): void {
-  writeJson(statePath(agents), { privacy: enabled });
+  writeState(agents, { privacy: enabled });
+}
+
+export const isPermissionMode = (value: unknown): value is PermissionMode => PERMISSION_MODES.some((m) => m === value);
+
+export function permissionMode(agents = agentsDir()): PermissionMode {
+  const mode = readState(agents).permissionMode;
+  return isPermissionMode(mode) ? mode : 'auto';
+}
+
+export function setPermissionMode(mode: PermissionMode, agents = agentsDir()): void {
+  writeState(agents, { permissionMode: mode });
 }
 
 export function guidancePath(env: NodeJS.ProcessEnv = process.env): string {
@@ -155,6 +177,7 @@ export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
   const days = settings?.cleanupPeriodDays;
   return {
     privacy: privacyEnabled(deps.agents ?? agentsDir()),
+    permissionMode: permissionMode(deps.agents ?? agentsDir()),
     guard: 'plugin',
     worker: existsSync(workerPath(dir)),
     skill: existsSync(skillPath(dir)),

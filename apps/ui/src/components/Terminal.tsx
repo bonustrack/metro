@@ -7,7 +7,7 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { Text, Button } from './ui.js';
 import { Dropdown, type MenuItem } from './Dropdown.js';
 import { NameModal } from './NameModal.js';
-import { mintTerminalTicket, pickSession, rememberSession, SESSION_RE, terminalSocketUrl, terminalStatus, type TerminalStatus } from '../api/terminal.js';
+import { fetchTmuxBuffer, mintTerminalTicket, pickSession, rememberSession, SESSION_RE, terminalSocketUrl, terminalStatus, type TerminalStatus } from '../api/terminal.js';
 import { daemonBase } from '../auth/daemon.js';
 import { queryError } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
@@ -17,8 +17,6 @@ type Phase = { kind: 'connecting' } | { kind: 'open' } | { kind: 'none' } | { ki
 const CLOSED = 'The terminal closed.';
 const NO_TMUX = 'tmux is not installed on that machine. Install it and reopen this tab.';
 const NONE = 'No tmux session is running on that machine. Open one with New session.';
-const COPY_HINT = 'Shift-drag to select, then ⌘C or Ctrl+C. tmux owns a plain drag, which is what makes the wheel scroll.';
-const HINT_MS = 8_000;
 
 interface Live {
   term: XTerm;
@@ -66,6 +64,8 @@ async function open(
   term.loadAddon(new ClipboardAddon());
   term.open(box);
   fit.fit();
+  const copier = tmuxCopier(box);
+  term.attachCustomKeyEventHandler((event) => !copier.wants(event) || term.hasSelection() || !copier.copy());
   const socket = new WebSocket(terminalSocketUrl(path));
   socket.binaryType = 'arraybuffer';
   const encoder = new TextEncoder();
@@ -114,17 +114,37 @@ function sessionItems(sessions: string[], current: string | null, pick: (s: stri
   ];
 }
 
-function useTimedHint(on: boolean, show: (v: boolean) => void): void {
-  useEffect(() => {
-    if (!on) return undefined;
-    show(true);
-    const timer = setTimeout(() => {
-      show(false);
-    }, HINT_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [on, show]);
+const COPY_SETTLE_MS = 150;
+
+interface Copier {
+  wants: (event: KeyboardEvent) => boolean;
+  copy: () => boolean;
+}
+
+function tmuxCopier(box: HTMLElement): Copier {
+  let cached = '';
+  const refresh = (): void => {
+    fetchTmuxBuffer()
+      .then((text) => {
+        cached = text;
+      })
+      .catch(() => undefined);
+  };
+  box.addEventListener('mouseup', () => {
+    setTimeout(refresh, COPY_SETTLE_MS);
+  });
+  return {
+    wants: (event) => event.type === 'keydown' && event.key.toLowerCase() === 'c' && (event.metaKey || (event.ctrlKey && event.shiftKey)),
+    copy: () => {
+      const text = cached;
+      if (text === '') {
+        refresh();
+        return false;
+      }
+      navigator.clipboard.writeText(text).catch(() => undefined);
+      return true;
+    },
+  };
 }
 
 function TerminalNote({ phase, dark, onNew }: { phase: Phase; dark: boolean; onNew: () => void }): ReactNode {
@@ -149,10 +169,7 @@ export function TerminalPage(): ReactNode {
   const [sessions, setSessions] = useState<string[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [naming, setNaming] = useState(false);
-  const [hint, setHint] = useState(false);
   useDocumentTitle('Terminal');
-
-  useTimedHint(phase.kind === 'open', setHint);
 
   useEffect(() => {
     if (session !== null) return undefined;
@@ -203,11 +220,6 @@ export function TerminalPage(): ReactNode {
   return (
     <div className="terminal-page">
       <div ref={box} className="terminal-box" />
-      {hint ? (
-        <div className="terminal-hint">
-          <Text size="sm" role="secondary">{COPY_HINT}</Text>
-        </div>
-      ) : null}
       <div className="terminal-float">
         {phase.kind === 'closed' ? <Button size="sm" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
         <Dropdown

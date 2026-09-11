@@ -27,6 +27,11 @@ describe('metro claude hands everything to claude untouched', () => {
     ]);
   });
 
+  test('the permission mode the box chose is passed, bypass as bypassPermissions', () => {
+    expect(claudeArgs([], undefined, 'bypass').slice(2, 4)).toEqual(['--permission-mode', 'bypassPermissions']);
+    expect(claudeArgs([], undefined, 'auto').slice(2, 4)).toEqual(['--permission-mode', 'auto']);
+  });
+
   test('the metro MCP server rides along as an --mcp-config file, before the user arguments', () => {
     expect(claudeArgs(['-r', 'abc'], '/tmp/metro-claude-x/mcp.json')).toEqual([
       '--dangerously-load-development-channels',

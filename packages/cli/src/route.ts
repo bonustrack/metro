@@ -23,3 +23,16 @@ export function routeModelEnv(env: NodeJS.ProcessEnv, route: string | null): Nod
   if (route === null || (env.ANTHROPIC_MODEL ?? '').trim() !== '') return env;
   return { ...env, ANTHROPIC_MODEL: route };
 }
+
+export type PermissionMode = 'auto' | 'bypass';
+
+export function permissionMode(dir = agentsDir()): PermissionMode {
+  const path = join(dir, 'claude-setup.json');
+  if (!existsSync(path)) return 'auto';
+  try {
+    const state = JSON.parse(readFileSync(path, 'utf8')) as { permissionMode?: unknown };
+    return state.permissionMode === 'bypass' ? 'bypass' : 'auto';
+  } catch {
+    return 'auto';
+  }
+}

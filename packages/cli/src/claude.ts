@@ -1,20 +1,21 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { markOnboardingDone, seedChannels } from './onboarding.js';
 import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
-import { currentRoute, routeModelEnv } from './route.js';
+import { currentRoute, permissionMode, routeModelEnv, type PermissionMode } from './route.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgents, pickLocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
 import { localPort, localUrl } from './runtime.js';
 
 const CHANNEL_FLAGS = ['--dangerously-load-development-channels', 'server:metro'];
-const PERMISSION_FLAGS = ['--permission-mode', 'auto'];
+const PERMISSION_MODE_FLAG: Record<PermissionMode, string> = { auto: 'auto', bypass: 'bypassPermissions' };
 const KEY_HEADER = 'x-metro-key';
 const PROBE_MS = 3_000;
 
-export const claudeArgs = (extra: string[], mcpConfig?: string): string[] => [
+export const claudeArgs = (extra: string[], mcpConfig?: string, mode: PermissionMode = 'auto'): string[] => [
   ...CHANNEL_FLAGS,
-  ...PERMISSION_FLAGS,
+  '--permission-mode',
+  PERMISSION_MODE_FLAG[mode],
   ...(mcpConfig === undefined ? [] : ['--mcp-config', mcpConfig]),
   ...extra,
 ];
@@ -164,12 +165,13 @@ export async function launchClaude(extra: string[]): Promise<number> {
   const decision = await verdict();
   const port = localPort();
   const mcp = mcpConfigFor(await servedKey(decision), port);
+  const mode = permissionMode();
   try {
     if ('skip' in decision) {
       process.stderr.write(`metro claude: ${decision.skip}\n`);
-      return await runClaude(claudeArgs(extra, mcp?.path), process.env);
+      return await runClaude(claudeArgs(extra, mcp?.path, mode), process.env);
     }
-    return await runClaude(claudeArgs(extra, mcp?.path), gatewayLaunchEnv(decision.key, port));
+    return await runClaude(claudeArgs(extra, mcp?.path, mode), gatewayLaunchEnv(decision.key, port));
   } finally {
     mcp?.cleanup();
   }

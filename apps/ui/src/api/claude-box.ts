@@ -32,8 +32,11 @@ export async function controlClaudeSession(input: { action?: 'start' | 'stop'; a
   return toClaudeSession(await claudeCall('POST', '/session', input));
 }
 
+export type PermissionMode = 'auto' | 'bypass';
+
 export interface ClaudeSetup {
   privacy: boolean;
+  permissionMode: PermissionMode;
   worker: boolean;
   skill: boolean;
   privacyApplied: boolean;
@@ -44,6 +47,7 @@ export function toClaudeSetup(body: unknown): ClaudeSetup {
   if (!isRecord(body) || typeof body.privacy !== 'boolean') throw new Error('Metro returned an unexpected response.');
   return {
     privacy: body.privacy,
+    permissionMode: body.permissionMode === 'bypass' ? 'bypass' : 'auto',
     worker: body.worker === true,
     skill: body.skill === true,
     privacyApplied: body.privacyApplied === true,
@@ -57,4 +61,8 @@ export async function fetchClaudeSetup(): Promise<ClaudeSetup> {
 
 export async function setClaudePrivacy(privacy: boolean): Promise<ClaudeSetup> {
   return toClaudeSetup(await claudeCall('POST', '/setup', { privacy }));
+}
+
+export async function setClaudePermissionMode(permissionMode: PermissionMode): Promise<ClaudeSetup> {
+  return toClaudeSetup(await claudeCall('POST', '/setup', { permissionMode }));
 }
