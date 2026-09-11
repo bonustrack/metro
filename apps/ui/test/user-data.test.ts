@@ -39,6 +39,8 @@ describe('the first-boot script', () => {
       [{ owner: '0xEF8305E140AC520225DAF050E2F71D5FBCC543E7' }, 'owner wallet'],
       [{ owner: '' }, 'owner wallet'],
       [{ tailscaleAuthKey: "tskey-auth-x'; rm -rf /" }, 'Tailscale auth key'],
+      [{ tailscaleAuthKey: 'tskey-api-kKv6QQKgh311CNTRL-abcdefghijklmnop' }, 'starts with tskey-auth-'],
+      [{ tailscaleAuthKey: '' }, 'is required'],
       [{ node: 'metro-Andy' }, 'tailnet name'],
       [{ node: 'andy' }, 'tailnet name'],
       [{ hostname: "andy'" }, 'host name'],
