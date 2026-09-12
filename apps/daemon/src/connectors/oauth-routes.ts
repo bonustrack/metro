@@ -4,12 +4,14 @@ import { bodyField, readJsonBody, sendJson, type ApiSession } from '@metro-labs/
 import {
   beginOAuth,
   completeOAuth,
+  prepareOAuth,
   takePending,
   type PendingAuth,
 } from './oauth.js';
+import { connectorClient } from './config.js';
 import { parseConnectorUrl } from './verify.js';
 import type { OAuthAuth } from './verify.js';
-import type { Connector } from './model.js';
+import type { Connector, PendingConnectorInput } from './model.js';
 
 const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
@@ -26,7 +28,7 @@ export interface OAuthRouteDeps {
   createPendingConnector: (
     subject: string,
     project: string,
-    input: { name: unknown; url: unknown },
+    input: PendingConnectorInput,
   ) => Promise<Connector>;
   reconnectConnector: (
     subject: string,
@@ -46,15 +48,25 @@ export async function startOAuth(
   payload: (row: Connector) => Record<string, unknown>,
 ): Promise<void> {
   const url = parseConnectorUrl(bodyField(body, 'url'));
+  const returnTo = asText(bodyField(body, 'returnTo'));
+  const clientId = bodyField(body, 'clientId');
+  const clientSecret = bodyField(body, 'clientSecret');
+  const prepared = await prepareOAuth({
+    url,
+    client: connectorClient(clientId, clientSecret),
+    returnTo,
+  });
   const row = await deps.createPendingConnector(session.subject, project, {
     name: bodyField(body, 'name'),
     url: bodyField(body, 'url'),
+    clientId,
+    clientSecret,
   });
-  const authorize = await beginOAuth({
+  const authorize = beginOAuth(prepared, {
     subject: session.subject,
     name: row.name,
     url,
-    returnTo: asText(bodyField(body, 'returnTo')),
+    returnTo,
     connectorId: row.id,
   });
   log.info(
@@ -74,11 +86,13 @@ export async function handleConnect(
   const row = await deps.getConnector(session.subject, id);
   const url = parseConnectorUrl(row.url);
   const body = await readJsonBody(req);
-  const authorize = await beginOAuth({
+  const returnTo = asText(bodyField(body, 'returnTo'));
+  const prepared = await prepareOAuth({ url, client: row.client, returnTo });
+  const authorize = beginOAuth(prepared, {
     subject: session.subject,
     name: row.name,
     url,
-    returnTo: asText(bodyField(body, 'returnTo')),
+    returnTo,
     connectorId: row.id,
   });
   log.info(

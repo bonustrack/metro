@@ -212,7 +212,10 @@ credential ever reaches Claude Code's config, the browser, or metro.box.
 
 Nothing is stored until the probe succeeds — **except for a server that demands OAuth**, which is
 stored unverified so it appears in your list whether or not you finish signing in, and shows a
-**Connect** button until you do. The OAuth flow lands on the daemon's own address, loopback or
+**Connect** button until you do. A server whose sign-in registers no clients on its own,
+Microsoft 365 among them, takes the client ID of an app you register with it yourself (plus a
+secret when the app is a web app), with the daemon's `/api/connectors/callback` address as the
+app's redirect URL; [docs/MICROSOFT-365.md](docs/MICROSOFT-365.md) walks an admin through it. The OAuth flow lands on the daemon's own address, loopback or
 tunnel. A refusal by the remote while you are adding one is a `400` with a plain reason, never
 a `401`, which is reserved for a request the daemon could not attribute to its owner. Re-checking a connector that has
 stopped answering is a `200` carrying `ok: false`; the row stays. A connector name is unique on

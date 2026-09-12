@@ -4,18 +4,53 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { GROW } from '../theme.js';
 import {
+  connectorCallbackUrl,
   createConnector,
   type Connector,
   type NewConnector,
 } from '../api/connectors.js';
+import { useMachineQuery } from '../api/queries.js';
 import { Modal } from './Modal.js';
 
 type FieldKey = keyof NewConnector;
 
-const EMPTY: NewConnector = { name: '', url: '', header: '', value: '' };
+const EMPTY: NewConnector = {
+  name: '',
+  url: '',
+  header: '',
+  value: '',
+  clientId: '',
+  clientSecret: '',
+};
 
 const HINT =
   'Metro verifies the server from its own machine, so a localhost URL will never work. The name becomes the key in the JSON you paste into your MCP client. Leave the header empty if the server signs you in with OAuth — Metro will send you there.';
+
+const APP_HINT =
+  'Only for a server whose sign-in does not register clients on its own, such as Microsoft 365: register an app with it, give the app this redirect URL, and paste the app\'s client ID here. A secret is needed only when the app was registered as a web app.';
+
+interface FieldSpec {
+  key: FieldKey;
+  label: string;
+  placeholder: string;
+  secret?: boolean;
+}
+
+const FIELDS: FieldSpec[] = [
+  { key: 'name', label: 'Name', placeholder: 'linear' },
+  { key: 'url', label: 'URL', placeholder: 'https://mcp.linear.app/mcp' },
+  { key: 'header', label: 'Header (optional)', placeholder: 'Authorization' },
+  { key: 'value', label: 'Value (optional)', placeholder: 'Bearer sk-…', secret: true },
+];
+
+const APP_FIELDS: FieldSpec[] = [
+  {
+    key: 'clientId',
+    label: 'Client ID (optional)',
+    placeholder: '00000000-0000-0000-0000-000000000000',
+  },
+  { key: 'clientSecret', label: 'Client secret (optional)', placeholder: '', secret: true },
+];
 
 function trimmed(values: NewConnector): NewConnector {
   return {
@@ -23,6 +58,8 @@ function trimmed(values: NewConnector): NewConnector {
     url: values.url.trim(),
     header: values.header.trim(),
     value: values.value.trim(),
+    clientId: values.clientId.trim(),
+    clientSecret: values.clientSecret.trim(),
   };
 }
 
@@ -57,6 +94,30 @@ function FormField(props: FormFieldProps): ReactNode {
   );
 }
 
+interface FieldsProps {
+  specs: FieldSpec[];
+  values: NewConnector;
+  busy: boolean;
+  onChange: (key: FieldKey) => (value: string) => void;
+  onSubmit: () => void;
+}
+
+function Fields({ specs, values, busy, onChange, onSubmit }: FieldsProps): ReactNode {
+  return specs.map((spec) => (
+    <FormField
+      key={spec.key}
+      label={spec.label}
+      name={`connector-${spec.key}`}
+      value={values[spec.key]}
+      placeholder={spec.placeholder}
+      secret={spec.secret === true}
+      busy={busy}
+      onChange={onChange(spec.key)}
+      onSubmit={onSubmit}
+    />
+  ));
+}
+
 interface ConnectorFormProps {
   onAdded: (result: Connector) => void;
   onCancel: () => void;
@@ -67,6 +128,7 @@ function ConnectorForm({
   onCancel,
 }: ConnectorFormProps): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const machine = useMachineQuery().data;
   const [values, setValues] = useState<NewConnector>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,43 +164,14 @@ function ConnectorForm({
     <Col gap={14}>
       <Text size="sm" role="secondary">{HINT}</Text>
       <Col gap={10}>
-        <FormField
-          label="Name"
-          name="connector-name"
-          value={values.name}
-          placeholder="linear"
-          busy={busy}
-          onChange={change('name')}
-          onSubmit={submit}
-        />
-        <FormField
-          label="URL"
-          name="connector-url"
-          value={values.url}
-          placeholder="https://mcp.linear.app/mcp"
-          busy={busy}
-          onChange={change('url')}
-          onSubmit={submit}
-        />
-        <FormField
-          label="Header (optional)"
-          name="connector-header"
-          value={values.header}
-          placeholder="Authorization"
-          busy={busy}
-          onChange={change('header')}
-          onSubmit={submit}
-        />
-        <FormField
-          label="Value (optional)"
-          name="connector-value"
-          value={values.value}
-          placeholder="Bearer sk-…"
-          secret
-          busy={busy}
-          onChange={change('value')}
-          onSubmit={submit}
-        />
+        <Fields specs={FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
+      </Col>
+      <Col gap={10}>
+        <Text size="sm" role="secondary">{APP_HINT}</Text>
+        {machine === undefined ? null : (
+          <Text size="sm">{connectorCallbackUrl(machine)}</Text>
+        )}
+        <Fields specs={APP_FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
       </Col>
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
       <Row justify="between" align="center" gap={12} wrap>

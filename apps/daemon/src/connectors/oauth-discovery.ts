@@ -9,6 +9,12 @@ export interface OAuthServer {
   tokenEndpoint: string;
   registrationEndpoint: string | null;
   supportsS256: boolean;
+  scopes: string[];
+}
+
+interface ResourceMetadata {
+  issuer: URL;
+  scopes: string[];
 }
 
 function refused(message: string): ConnectorVerifyError {
@@ -65,18 +71,33 @@ export async function advertisesOAuth(resource: URL): Promise<boolean> {
   return false;
 }
 
-async function authServerFor(resource: URL): Promise<URL> {
+function scopesOf(body: Record<string, unknown> | null): string[] {
+  const raw: unknown = body?.scopes_supported;
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const entry of raw) {
+    const scope = str(entry).trim();
+    if (scope !== '' && !/\s/.test(scope) && !out.includes(scope)) out.push(scope);
+  }
+  return out;
+}
+
+async function resourceMetadata(resource: URL): Promise<ResourceMetadata> {
   for (const candidate of resourceMetadataUrls(resource)) {
     const body = await getJson(candidate);
     const servers: unknown = body?.authorization_servers;
     const first: unknown = Array.isArray(servers) ? servers[0] : undefined;
     if (typeof first === 'string' && first !== '')
-      return parseConnectorUrl(first);
+      return { issuer: parseConnectorUrl(first), scopes: scopesOf(body) };
   }
-  return parseConnectorUrl(resource.origin);
+  return { issuer: parseConnectorUrl(resource.origin), scopes: [] };
 }
 
-function toServer(body: Record<string, unknown>, issuer: URL): OAuthServer {
+function toServer(
+  body: Record<string, unknown>,
+  issuer: URL,
+  scopes: string[],
+): OAuthServer {
   const authorizationEndpoint = str(body.authorization_endpoint);
   const tokenEndpoint = str(body.token_endpoint);
   if (authorizationEndpoint === '' || tokenEndpoint === '')
@@ -91,6 +112,7 @@ function toServer(body: Record<string, unknown>, issuer: URL): OAuthServer {
     tokenEndpoint,
     registrationEndpoint: registration === '' ? null : registration,
     supportsS256: Array.isArray(methods) ? methods.includes('S256') : false,
+    scopes,
   };
 }
 
@@ -106,10 +128,10 @@ export function authServerMetadataUrls(issuer: URL): URL[] {
 }
 
 export async function discoverOAuth(resource: URL): Promise<OAuthServer> {
-  const issuer = await authServerFor(resource);
+  const { issuer, scopes } = await resourceMetadata(resource);
   for (const candidate of authServerMetadataUrls(issuer)) {
     const body = await getJson(candidate);
-    if (body !== null) return toServer(body, issuer);
+    if (body !== null) return toServer(body, issuer, scopes);
   }
   throw refused(
     `${resource.hostname} needs authorization, but publishes no OAuth metadata Metro can use.`,

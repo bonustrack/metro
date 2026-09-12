@@ -32,7 +32,9 @@ export async function registerClient(
 ): Promise<OAuthClient> {
   if (server.registrationEndpoint === null)
     throw refused(
-      'That server requires OAuth but does not accept client registration, so Metro cannot sign in to it.',
+      'That server signs in with OAuth but registers no clients on its own. ' +
+        `Register an app with it yourself, with ${redirectUri} as its redirect URL, ` +
+        "and add the connector again with that app's client ID.",
     );
   let res: Response;
   try {
@@ -80,6 +82,8 @@ export function authorizeUrl(input: AuthorizeInput): string {
   url.searchParams.set('code_challenge', challengeOf(input.verifier));
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('resource', input.resource);
+  if (input.server.scopes.length > 0)
+    url.searchParams.set('scope', input.server.scopes.join(' '));
   return url.toString();
 }
 
@@ -150,10 +154,12 @@ export function refreshTokens(
   client: OAuthClient,
   refreshToken: string,
   resource: string,
+  scope?: string,
 ): Promise<OAuthTokens> {
   return postToken(server, client, {
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
     resource,
+    ...(scope === undefined ? {} : { scope }),
   });
 }

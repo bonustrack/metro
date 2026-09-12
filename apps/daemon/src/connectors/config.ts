@@ -5,11 +5,14 @@ import type {
   VerifiedServer,
 } from './verify.js';
 import { readStoredTools } from './tools.js';
+import type { OAuthClient } from './oauth-client.js';
 import { isRecord } from '@metro-labs/core/is-record';
 
 const CONNECTOR_NAME_MAX = 64;
 const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
 const HEADER_VALUE_RE = /^[\x20-\x7e]{1,4096}$/;
+const CLIENT_ID_RE = /^[\x21-\x7e]{1,256}$/;
+const CLIENT_SECRET_RE = /^[\x21-\x7e]{1,1024}$/;
 const DEFAULT_HEADER = 'Authorization';
 
 export class ConnectorError extends ApiError {}
@@ -21,6 +24,7 @@ export interface ConnectorConfig {
   createdAt: string;
   verified: VerifiedRecord;
   oauth: boolean;
+  client: OAuthClient | null;
 }
 
 function text(value: unknown): string {
@@ -71,6 +75,30 @@ export function connectorAuth(
   return { kind: 'header', name, value };
 }
 
+export function connectorClient(
+  rawId: unknown,
+  rawSecret: unknown,
+): OAuthClient | null {
+  const clientId = text(rawId).trim();
+  const clientSecret = text(rawSecret).trim();
+  if (clientId === '' && clientSecret === '') return null;
+  if (clientId === '')
+    throw new ConnectorError('a client secret needs the client ID it belongs to', 400);
+  if (!CLIENT_ID_RE.test(clientId))
+    throw new ConnectorError('that is not a client ID Metro can send', 400);
+  if (clientSecret !== '' && !CLIENT_SECRET_RE.test(clientSecret))
+    throw new ConnectorError('that client secret is not sendable', 400);
+  return { clientId, ...(clientSecret === '' ? {} : { clientSecret }) };
+}
+
+function readClient(raw: unknown): OAuthClient | null {
+  if (!isRecord(raw)) return null;
+  const clientId = text(raw.clientId);
+  if (clientId === '') return null;
+  const clientSecret = text(raw.clientSecret);
+  return { clientId, ...(clientSecret === '' ? {} : { clientSecret }) };
+}
+
 function readOAuth(raw: Record<string, unknown>): ConnectorAuth {
   const accessToken = text(raw.accessToken);
   const clientId = text(raw.clientId);
@@ -79,6 +107,7 @@ function readOAuth(raw: Record<string, unknown>): ConnectorAuth {
     return { kind: 'none' };
   const refreshToken = text(raw.refreshToken);
   const clientSecret = text(raw.clientSecret);
+  const scope = text(raw.scope);
   return {
     kind: 'oauth',
     accessToken,
@@ -87,6 +116,7 @@ function readOAuth(raw: Record<string, unknown>): ConnectorAuth {
     issuer: text(raw.issuer),
     ...(refreshToken === '' ? {} : { refreshToken }),
     ...(clientSecret === '' ? {} : { clientSecret }),
+    ...(scope === '' ? {} : { scope }),
     ...(typeof raw.expiresAt === 'number' ? { expiresAt: raw.expiresAt } : {}),
   };
 }
@@ -123,6 +153,7 @@ export function readConfig(raw: unknown): ConnectorConfig {
     createdAt: text(record.createdAt),
     verified: readVerified(record.verified),
     oauth: record.oauth === true || auth.kind === 'oauth',
+    client: readClient(record.client),
   };
 }
 
