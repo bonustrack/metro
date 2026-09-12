@@ -11,8 +11,9 @@ import {
   newVerifier,
   refreshTokens,
   registerClient,
+  type OAuthClient,
 } from './oauth-client.js';
-import { discoverOAuth } from './oauth-discovery.js';
+import { discoverOAuth, type OAuthServer } from './oauth-discovery.js';
 import { startPending, takePending, type PendingAuth } from './oauth-pending.js';
 
 export { takePending, type PendingAuth };
@@ -30,6 +31,27 @@ function refused(message: string): ConnectorVerifyError {
 
 const resourceOf = (url: URL): string => url.toString();
 
+export interface PrepareInput {
+  url: URL;
+  client: OAuthClient | null;
+  returnTo: string;
+}
+
+export interface PreparedOAuth {
+  server: OAuthServer;
+  client: OAuthClient;
+  redirectUri: string;
+}
+
+export async function prepareOAuth(input: PrepareInput): Promise<PreparedOAuth> {
+  if (!validateReturnTo(input.returnTo))
+    throw refused('that return address is not one Metro will send you back to');
+  const server = await discoverOAuth(input.url);
+  const redirectUri = callbackUri();
+  const client = input.client ?? (await registerClient(server, redirectUri));
+  return { server, client, redirectUri };
+}
+
 export interface BeginInput {
   connectorId: string;
   subject: string;
@@ -38,12 +60,8 @@ export interface BeginInput {
   returnTo: string;
 }
 
-export async function beginOAuth(input: BeginInput): Promise<string> {
-  if (!validateReturnTo(input.returnTo))
-    throw refused('that return address is not one Metro will send you back to');
-  const server = await discoverOAuth(input.url);
-  const redirectUri = callbackUri();
-  const client = await registerClient(server, redirectUri);
+export function beginOAuth(prepared: PreparedOAuth, input: BeginInput): string {
+  const { server, client, redirectUri } = prepared;
   const verifier = newVerifier();
   const resource = resourceOf(input.url);
   const state = startPending({
@@ -76,6 +94,9 @@ function authOf(pendingAuth: PendingAuth, tokens: OAuthTokens): OAuthAuth {
     ...(pendingAuth.client.clientSecret === undefined
       ? {}
       : { clientSecret: pendingAuth.client.clientSecret }),
+    ...(pendingAuth.server.scopes.length === 0
+      ? {}
+      : { scope: pendingAuth.server.scopes.join(' ') }),
     ...tokens,
   };
 }
@@ -109,6 +130,7 @@ export async function refreshOAuth(
     tokenEndpoint: auth.tokenEndpoint,
     registrationEndpoint: null,
     supportsS256: true,
+    scopes: [],
   };
   const client = {
     clientId: auth.clientId,
@@ -116,7 +138,13 @@ export async function refreshOAuth(
       ? {}
       : { clientSecret: auth.clientSecret }),
   };
-  const tokens = await refreshTokens(server, client, auth.refreshToken, resource);
+  const tokens = await refreshTokens(
+    server,
+    client,
+    auth.refreshToken,
+    resource,
+    auth.scope,
+  );
   return {
     ...auth,
     ...tokens,

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import {
   advertisesOAuth,
   authServerMetadataUrls,
+  discoverOAuth,
   resourceMetadataUrls,
 } from '../src/connectors/oauth-discovery.ts';
 
@@ -108,5 +109,59 @@ describe('a server that only says it is protected is still protected', () => {
     globalThis.fetch = (() =>
       Promise.reject(new Error('offline'))) as unknown as typeof fetch;
     expect(await advertisesOAuth(GMAIL)).toBe(false);
+  });
+});
+
+describe('discovery the way Microsoft 365 publishes it', () => {
+  const MAIL = new URL(
+    'https://agent365.example.com/agents/tenants/t1/servers/mcp_MailTools',
+  );
+  const DEFAULT_SCOPE =
+    'https://agent365.example.com/agents/tenants/t1/servers/mcp_MailTools/.default';
+
+  test('the scopes come from the resource metadata and the authorization server may register nobody', async () => {
+    serve({
+      'https://agent365.example.com/.well-known/oauth-protected-resource/agents/tenants/t1/servers/mcp_MailTools':
+        {
+          resource: MAIL.toString(),
+          authorization_servers: ['https://login.example.com/organizations/v2.0'],
+          scopes_supported: [DEFAULT_SCOPE, 'openid', 'profile', 'offline_access', '', 5, 'two words', 'openid'],
+        },
+      'https://login.example.com/organizations/v2.0/.well-known/openid-configuration': {
+        issuer: 'https://login.example.com/{tenantid}/v2.0',
+        authorization_endpoint: 'https://login.example.com/organizations/oauth2/v2.0/authorize',
+        token_endpoint: 'https://login.example.com/organizations/oauth2/v2.0/token',
+      },
+    });
+    const server = await discoverOAuth(MAIL);
+    expect(server).toEqual({
+      issuer: 'https://login.example.com/{tenantid}/v2.0',
+      authorizationEndpoint: 'https://login.example.com/organizations/oauth2/v2.0/authorize',
+      tokenEndpoint: 'https://login.example.com/organizations/oauth2/v2.0/token',
+      registrationEndpoint: null,
+      supportsS256: false,
+      scopes: [DEFAULT_SCOPE, 'openid', 'profile', 'offline_access'],
+    });
+    expect(asked.slice(0, 1)).toEqual([
+      'https://agent365.example.com/.well-known/oauth-protected-resource/agents/tenants/t1/servers/mcp_MailTools',
+    ]);
+    expect(asked).toContain(
+      'https://login.example.com/.well-known/oauth-authorization-server/organizations/v2.0',
+    );
+  });
+
+  test('a resource metadata without scopes leaves the list empty rather than inventing one', async () => {
+    serve({
+      'https://agent365.example.com/.well-known/oauth-protected-resource/agents/tenants/t1/servers/mcp_MailTools':
+        { authorization_servers: ['https://login.example.com/'] },
+      'https://login.example.com/.well-known/oauth-authorization-server': {
+        authorization_endpoint: 'https://login.example.com/authorize',
+        token_endpoint: 'https://login.example.com/token',
+        registration_endpoint: 'https://login.example.com/register',
+      },
+    });
+    const server = await discoverOAuth(MAIL);
+    expect(server.scopes).toEqual([]);
+    expect(server.registrationEndpoint).toBe('https://login.example.com/register');
   });
 });

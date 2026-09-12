@@ -27,6 +27,7 @@ export interface OAuthAuth extends OAuthTokens {
   tokenEndpoint: string;
   clientId: string;
   clientSecret?: string;
+  scope?: string;
 }
 
 export type ConnectorAuth =

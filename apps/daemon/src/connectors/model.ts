@@ -1,4 +1,5 @@
 import type { ConnectorAuth, VerifiedRecord } from './verify.js';
+import type { OAuthClient } from './oauth-client.js';
 import { readConfig, signInState, type ConnectorSignIn } from './config.js';
 import type { ConnectorTransport } from '@metro-labs/core/station-names';
 
@@ -14,11 +15,17 @@ export interface Connector {
   expiresAt: number | null;
   signIn: ConnectorSignIn;
   verified: VerifiedRecord;
+  client: OAuthClient | null;
 }
 
-export interface ConnectorInput {
+export interface PendingConnectorInput {
   name: unknown;
   url: unknown;
+  clientId: unknown;
+  clientSecret: unknown;
+}
+
+export interface ConnectorInput extends PendingConnectorInput {
   header: unknown;
   value: unknown;
 }
@@ -55,6 +62,7 @@ export function connectorFromRow(row: ConnectorLike): Connector {
     expiresAt: auth.kind === 'oauth' ? (auth.expiresAt ?? null) : null,
     signIn: signInState(config),
     verified: config.verified,
+    client: config.client,
   };
 }
 

@@ -83,6 +83,8 @@ const NEW = {
   url: 'https://mcp.linear.app/mcp',
   header: '',
   value: '',
+  clientId: '',
+  clientSecret: '',
 };
 
 const list = async (body: unknown): Promise<Connector[]> => {
@@ -166,6 +168,20 @@ describe('the create body carries only what was filled in', () => {
       returnTo: '',
     });
   });
+
+  test('a pre-registered app travels as clientId and clientSecret, only when given', async () => {
+    serve(ROW, 201);
+    await createConnector({ ...NEW, clientId: 'app-123' });
+    expect(calls[0]?.body).toEqual({
+      name: 'linear',
+      url: 'https://mcp.linear.app/mcp',
+      clientId: 'app-123',
+      returnTo: '',
+    });
+    serve(ROW, 201);
+    await createConnector({ ...NEW, clientId: 'app-123', clientSecret: 's3cret' });
+    expect(calls[0]?.body).toMatchObject({ clientId: 'app-123', clientSecret: 's3cret' });
+  });
 });
 
 describe('a connector row is coerced field by field', () => {
@@ -178,10 +194,20 @@ describe('a connector row is coerced field by field', () => {
         transport: 'http',
         auth: 'header',
         header: 'Authorization',
+        clientId: null,
         signIn: null,
         verified: VERIFIED,
       },
     ]);
+  });
+
+  test('the client id of a pre-registered app survives the wire, and its secret is never expected', async () => {
+    const [row] = await list({
+      connectors: [{ ...ROW, auth: 'oauth', header: null, clientId: 'app-123', signIn: 'connected' }],
+      json: '{}',
+    });
+    expect([row?.clientId, row?.signIn]).toEqual(['app-123', 'connected']);
+    expect(Object.keys(row ?? {})).not.toContain('clientSecret');
   });
 
   test('a no-auth row reports no header', async () => {
@@ -247,6 +273,7 @@ describe('a connector row is coerced field by field', () => {
       transport: '',
       auth: 'none',
       header: null,
+      clientId: null,
       signIn: null,
       verified: null,
     });

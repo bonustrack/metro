@@ -93,6 +93,7 @@ function connectorPayload(
     transport: row.transport,
     auth: row.auth,
     header: row.header,
+    clientId: row.client?.clientId ?? null,
     signIn: row.signIn,
     verified: detail ? { ...summary, catalog } : summary,
   };
@@ -134,6 +135,8 @@ async function handleCreate(
       url: bodyField(body, 'url'),
       header: bodyField(body, 'header'),
       value: bodyField(body, 'value'),
+      clientId: bodyField(body, 'clientId'),
+      clientSecret: bodyField(body, 'clientSecret'),
     });
     log.info(
       { id: created.id, name: created.name, host: hostOf(created.url) },

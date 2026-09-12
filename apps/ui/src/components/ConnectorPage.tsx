@@ -60,6 +60,9 @@ function ConnectorFacts({
       <Field label="server" value={serverLabel(verified)} />
       <Field label="protocol" value={verified.protocol} />
       <Field label="sign-in" value={AUTH_LABEL[connector.auth] ?? 'None'} />
+      {connector.clientId === null ? null : (
+        <Field label="app" value={connector.clientId} />
+      )}
       <Field label="checked" value={whenLabel(verified.at)} />
     </Row>
   );

@@ -463,6 +463,7 @@ describe('GET /api/connectors returns the wire shape', () => {
       transport: 'http',
       auth: 'header',
       header: 'Authorization',
+      clientId: null,
       signIn: null,
       verified: VERIFIED,
     });

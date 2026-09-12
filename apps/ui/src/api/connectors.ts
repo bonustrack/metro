@@ -38,6 +38,7 @@ export interface Connector {
   transport: string;
   auth: ConnectorAuth;
   header: string | null;
+  clientId: string | null;
   signIn: ConnectorSignIn;
   verified: ConnectorVerified | null;
 }
@@ -51,6 +52,18 @@ export interface NewConnector {
   url: string;
   header: string;
   value: string;
+  clientId: string;
+  clientSecret: string;
+}
+
+const CALLBACK_PATH = '/api/connectors/callback';
+
+export function connectorCallbackUrl(machine: {
+  publicUrl: string | null;
+  port: number;
+}): string {
+  const base = machine.publicUrl ?? `http://127.0.0.1:${String(machine.port)}`;
+  return `${base}${CALLBACK_PATH}`;
 }
 
 export interface VerifyResult {
@@ -138,6 +151,7 @@ function toConnector(value: unknown): Connector {
           ? 'oauth'
           : 'none',
     header: nullable(value.header),
+    clientId: nullable(value.clientId),
     signIn: toSignIn(value.signIn),
     verified: toVerified(value.verified),
   };
@@ -166,6 +180,8 @@ function payload(input: NewConnector): Record<string, string> {
   const out: Record<string, string> = { name: input.name, url: input.url };
   if (input.header !== '') out.header = input.header;
   if (input.value !== '') out.value = input.value;
+  if (input.clientId !== '') out.clientId = input.clientId;
+  if (input.clientSecret !== '') out.clientSecret = input.clientSecret;
   return out;
 }
 

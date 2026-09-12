@@ -14,6 +14,7 @@ import { advertisesOAuth } from './oauth-discovery.js';
 import {
   ConnectorError,
   connectorAuth,
+  connectorClient,
   connectorName,
   readConfig,
   stamp,
@@ -32,6 +33,7 @@ import {
   type ConnectorCheck,
   type ConnectorInput,
   type DeletedConnector,
+  type PendingConnectorInput,
 } from './model.js';
 import { agentsDir } from '../agents/files.js';
 import { assertLocalOwner, LOCAL_PROJECT_ID } from '../agents/file-admin.js';
@@ -155,26 +157,29 @@ export async function localCreateConnector(
   const name = connectorName(input.name);
   const url = parseConnectorUrl(input.url);
   const auth = connectorAuth(input.header, input.value);
+  const client = connectorClient(input.clientId, input.clientSecret);
   const verified = stamp(await verifyRemoteMcp(url, auth));
   return insert(dir, name, url, {
     auth,
     createdAt: new Date().toISOString(),
     verified,
     oauth: await oauthCapable(url, auth),
+    client,
   });
 }
 
 export async function localCreatePendingConnector(
   subject: string,
   project: string,
-  input: { name: unknown; url: unknown },
+  input: PendingConnectorInput,
   dir = agentsDir(),
 ): Promise<Connector> {
   ownedRows(subject, project, dir);
   const name = connectorName(input.name);
   const url = parseConnectorUrl(input.url);
+  const client = connectorClient(input.clientId, input.clientSecret);
   return Promise.resolve(
-    insert(dir, name, url, { auth: { kind: 'none' }, createdAt: new Date().toISOString(), verified: UNVERIFIED, oauth: true }),
+    insert(dir, name, url, { auth: { kind: 'none' }, createdAt: new Date().toISOString(), verified: UNVERIFIED, oauth: true, client }),
   );
 }
 

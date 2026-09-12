@@ -22,6 +22,7 @@ const SERVER = {
   tokenEndpoint: 'https://as.example.com/token',
   registrationEndpoint: 'https://as.example.com/register',
   supportsS256: true,
+  scopes: [],
 };
 
 const CLIENT = { clientId: 'client-abc' };
@@ -100,6 +101,37 @@ describe('the authorize url', () => {
     expect(url.searchParams.get('redirect_uri')).toBe(
       'https://api.metro.box/api/connectors/callback',
     );
+  });
+
+  test('the scopes the resource advertises ride along as ONE scope parameter', () => {
+    const scopes = ['https://mcp.example.com/.default', 'offline_access'];
+    const url = new URL(
+      authorizeUrl({
+        server: { ...SERVER, scopes },
+        client: CLIENT,
+        redirectUri: 'https://api.metro.box/api/connectors/callback',
+        state: 'st-3',
+        verifier: newVerifier(),
+        resource: 'https://mcp.example.com/',
+      }),
+    );
+    expect(url.searchParams.get('scope')).toBe(
+      'https://mcp.example.com/.default offline_access',
+    );
+  });
+
+  test('a resource advertising no scopes gets no scope parameter at all', () => {
+    const url = new URL(
+      authorizeUrl({
+        server: SERVER,
+        client: CLIENT,
+        redirectUri: 'https://api.metro.box/api/connectors/callback',
+        state: 'st-4',
+        verifier: newVerifier(),
+        resource: 'https://mcp.example.com/',
+      }),
+    );
+    expect(url.searchParams.has('scope')).toBe(false);
   });
 
   test('the verifier itself never appears in the url', () => {
