@@ -63,7 +63,24 @@ describe('the server list the plugin registers', () => {
   test('the plugin is found whatever layout Claude Code used to install it', () => {
     const marketplace = installPlugin('marketplaces', 'metro', 'plugin');
     const repo = installPlugin('repos', 'bonustrack', 'metro', 'plugin');
-    expect(installedPluginFiles(dir).sort()).toEqual([marketplace, repo].sort());
+    expect(installedPluginFiles(dir, null).sort()).toEqual([marketplace, repo].sort());
+  });
+
+  test('the bundled marketplace is written too, since a plugin installed from a directory marketplace is loaded from there', () => {
+    const cached = installPlugin('cache', 'metro', 'metro', '0.1.0-beta.114');
+    const store = mkdtempSync(join(tmpdir(), 'metro-plugin-store-'));
+    const staged = join(store, 'marketplace', 'plugin');
+    mkdirSync(join(staged, 'bin'), { recursive: true });
+    writeFileSync(join(staged, 'bin', 'metro-plugin.mjs'), '// metro\n');
+    writeFileSync(join(staged, '.mcp.json'), '{}\n');
+    expect(installedPluginFiles(dir, staged).sort()).toEqual([cached, join(staged, '.mcp.json')].sort());
+    expect(installedPluginFiles(dir, join(store, 'nowhere', 'plugin'))).toEqual([cached]);
+
+    writeConnectors([row('conn0000001', 'Piston Vault')]);
+    expect(syncPluginServers({ dir, base: BASE, agents, staged })).toBe(2);
+    const written = JSON.parse(readFileSync(join(staged, '.mcp.json'), 'utf8')) as Record<string, { url: string }>;
+    expect(written['piston-vault']?.url).toBe(`${BASE}/relay/conn0000001`);
+    rmSync(store, { recursive: true, force: true });
   });
 
   test('only a metro plugin is written, and only when its file would change', () => {
