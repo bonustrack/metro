@@ -122,4 +122,16 @@ describe('the per-channel runtime store', () => {
     expect(again.entry).toBe(join(store, 'server.ts'));
     expect(readFileSync(again.entry, 'utf8')).toContain('@metro-labs/daemon/src/server.ts');
   });
+
+  test('a store synced by a serve from before the plugin shipped gets the marketplace on the next serve, stamp or no stamp', () => {
+    const sources = stageSources('1');
+    const store = join(root, 'store');
+    const agents = agentWith(['webhook']);
+    prepareRuntime({ sources, store, agents, bun, log: () => undefined });
+    rmSync(join(store, 'marketplace'), { recursive: true, force: true });
+    prepareRuntime({ sources, store, agents, bun, log: () => undefined });
+    expect(readFileSync(join(store, 'marketplace', 'plugin', '.claude-plugin', 'plugin.json'), 'utf8')).toContain('"1"');
+    expect(readFileSync(join(store, 'runtime.json'), 'utf8')).toBe(JSON.stringify({ version: '1' }));
+    expect(installs()).toBe(1);
+  });
 });
