@@ -115,9 +115,21 @@ async function ensureInstalled(run: Run, wanted: string | null): Promise<PluginO
   return (await step(run, ['plugin', 'update', PLUGIN, '-y'])) ? 'updated' : 'failed';
 }
 
+function explainMissingMarketplace(env: NodeJS.ProcessEnv = process.env): void {
+  const store = env.METRO_RUNTIME_STORE?.trim() ?? '';
+  if (store === '') return;
+  log.warn(
+    { store },
+    'plugin: the runtime store holds no plugin marketplace, so metro cannot install its Claude Code plugin; a `metro serve` started before beta.97 never copied it, restart the service once',
+  );
+}
+
 export async function ensureMetroPlugin(deps?: Partial<PluginInstallDeps>): Promise<PluginOutcome> {
   const dir = deps?.marketplaceDir === undefined ? stagedMarketplaceDir() : deps.marketplaceDir;
-  if (dir === null) return 'skipped';
+  if (dir === null) {
+    if (deps?.marketplaceDir === undefined) explainMissingMarketplace();
+    return 'skipped';
+  }
   const run = deps?.run === undefined ? await findClaude() : deps.run;
   if (run === null) {
     log.info('plugin: claude is not on this machine, so metro leaves its Claude Code plugin alone');

@@ -69,15 +69,23 @@ function readOrNull(path: string): string | null {
   }
 }
 
+function copyMarketplace(sources: string, store: string): boolean {
+  const staged = join(sources, MARKETPLACE);
+  if (!existsSync(staged)) return false;
+  cpSync(staged, join(store, MARKETPLACE), { recursive: true });
+  return true;
+}
+
 function syncSources(sources: string, store: string): boolean {
   const shim = join(sources, STORE_ENTRY);
   if (existsSync(shim)) copyFileSync(shim, join(store, STORE_ENTRY));
   const stamp = readOrNull(join(sources, 'runtime.json'));
-  if (stamp !== null && readOrNull(join(store, 'runtime.json')) === stamp) return false;
+  if (stamp !== null && readOrNull(join(store, 'runtime.json')) === stamp)
+    return existsSync(join(store, MARKETPLACE)) ? false : copyMarketplace(sources, store);
   rmSync(join(store, METRO_SOURCES), { recursive: true, force: true });
   cpSync(join(sources, METRO_SOURCES), join(store, METRO_SOURCES), { recursive: true });
   rmSync(join(store, MARKETPLACE), { recursive: true, force: true });
-  if (existsSync(join(sources, MARKETPLACE))) cpSync(join(sources, MARKETPLACE), join(store, MARKETPLACE), { recursive: true });
+  copyMarketplace(sources, store);
   if (stamp !== null) writeFileSync(join(store, 'runtime.json'), stamp);
   return true;
 }
