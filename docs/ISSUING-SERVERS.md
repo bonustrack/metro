@@ -18,7 +18,26 @@ feature stays off, and the boot log names which ones: `fly logs` prints
 | `METRO_AWS_SECRET_ACCESS_KEY` | That user's secret. |
 | `METRO_LAUNCH_TAILNET` | The tailnet suffix the boxes join, as in `tail17c4f8.ts.net`. |
 | `METRO_TAILSCALE_AUTH_KEY` | A **reusable** auth key, `tskey-auth-…`. |
-| `METRO_LAUNCH_OWNERS` | Comma-separated wallet addresses allowed to launch. |
+| `METRO_LAUNCH_OWNERS` | Comma-separated metro identities allowed to launch, see below. |
+
+### Which address goes in METRO_LAUNCH_OWNERS
+
+Not your wallet address. metro.box signs every request to this app with a
+separate identity derived from the one signature your wallet makes at sign-in,
+and the wallet signature itself never leaves your browser, which is what keeps
+the vault sealed from the server. So the address this app sees, the one that
+already owns your vault rows and your server list, is that derived identity.
+
+Open the launch page while it is off and it shows you the identity of the
+browser you are signed in with, ready to copy. Failing that, it is the owner of
+rows you already have:
+
+```sql
+select distinct owner from servers;
+```
+
+A launch refused for this reason also logs the identity it saw, so
+`fly logs -a metro | grep launch:` names the address to add.
 
 `METRO_LAUNCH_MAX` is optional and caps how many servers one wallet may have
 Metro issue, 10 by default and 100 at most. Removing a server from your list

@@ -9,7 +9,9 @@ import { GROW } from '../theme.js';
 import { MetroLogo } from './MetroLogo.js';
 import { PageTitle } from './PageTitle.js';
 import { LaunchProgress } from './LaunchProgress.js';
+import { CopyBlock } from './CopyBlock.js';
 import { Loading } from './Loading.js';
+import { activeIdentity } from '../auth/identity.js';
 import { queryError, refreshServers, useLaunchOverviewQuery } from '../api/queries.js';
 import { launchServer, type Launched, type LaunchOverview } from '../api/launch.js';
 import { regionRows } from '../aws/regions.js';
@@ -20,7 +22,24 @@ const NO_AUTOFILL = { autoComplete: 'off' } as const;
 const HINT =
   'Metro issues the machine from its own AWS account and joins it to its tailnet, so no key of yours is involved. On first boot it installs Node, bun, Claude Code, Tailscale and Metro, joins under a random metro-xxxxxx name that can never clash with another box, and shows up in your server list under the name you give it, live once its Funnel address resolves, usually within five minutes.';
 const OFF =
-  'This Metro deployment does not issue servers, or this wallet may not ask it to. Add your own server from the list instead.';
+  'This Metro deployment issues no servers, or it does not issue them to you. Add your own server from the list instead.';
+const OFF_IDENTITY =
+  'If it is yours to configure: metro.box signs its requests with an identity derived from your wallet, never with the wallet itself, so this is the address METRO_LAUNCH_OWNERS has to hold.';
+
+function Off(): ReactNode {
+  const identity = activeIdentity();
+  return (
+    <Col gap={12}>
+      <Text size="sm" role="secondary">{OFF}</Text>
+      {identity === null ? null : (
+        <Col gap={8}>
+          <Text size="sm" role="secondary">{OFF_IDENTITY}</Text>
+          <CopyBlock label="this browser's metro identity" value={identity.vault.address.toLowerCase()} />
+        </Col>
+      )}
+    </Col>
+  );
+}
 
 function remainingNote(overview: LaunchOverview): string {
   if (overview.remaining <= 0) return 'You have reached the number of servers Metro will issue to this wallet.';
@@ -136,7 +155,7 @@ function Body(): ReactNode {
   const { data, error } = useLaunchOverviewQuery();
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, OFF)}</Text>;
   if (data === undefined) return <Loading />;
-  if (!data.enabled) return <Text size="sm" role="secondary">{OFF}</Text>;
+  if (!data.enabled) return <Off />;
   return <LaunchForm overview={data} />;
 }
 

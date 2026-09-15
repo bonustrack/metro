@@ -76,8 +76,10 @@ async function enabledRegions(deps: LaunchApiDeps, config: LaunchConfig): Promis
 function allowed(deps: LaunchApiDeps, subject: string): LaunchConfig {
   const result = deps.config();
   if (!result.ok) throw new ApiError('metro does not issue servers on this deployment', 404);
-  if (!mayLaunch(result.config, subject))
-    throw new ApiError('this wallet may not have metro issue servers', 403);
+  if (!mayLaunch(result.config, subject)) {
+    log.info({ subject }, 'launch: refused, this identity is not in METRO_LAUNCH_OWNERS');
+    throw new ApiError('metro does not issue servers to this identity', 403);
+  }
   return result.config;
 }
 
