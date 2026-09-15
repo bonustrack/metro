@@ -99,11 +99,12 @@ describe('who metro will issue a server to', () => {
     expect(launched).toEqual([]);
   });
 
-  test('a wallet outside the allowlist is told nothing beyond a flat no', async () => {
+  test('an identity outside the allowlist is told nothing beyond a flat no', async () => {
     const overview = await call('GET', '/api/launch', TEST_STRANGER);
     expect(await overview.json()).toEqual({ enabled: false });
     const attempt = await call('POST', '/api/launch', TEST_STRANGER, { name: 'andy' });
     expect(attempt.status).toBe(403);
+    expect(((await attempt.json()) as { error: string }).error).toContain('identity');
     expect(launched).toEqual([]);
   });
 
