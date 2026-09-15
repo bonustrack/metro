@@ -130,14 +130,21 @@ async function applySkills(skills: PackedSkill[], mode: Mode): Promise<{ written
   return { written, skipped };
 }
 
-async function applyMemory(files: PackedMemory[], mode: Mode, fallback: string): Promise<{ written: number; skipped: number }> {
+const targetProject = (file: PackedMemory, projects: Set<string>, fallback: string): string =>
+  projects.has(file.project) || fallback === '' ? file.project : fallback;
+
+async function applyMemory(
+  files: PackedMemory[],
+  mode: Mode,
+  known: string[],
+): Promise<{ written: number; skipped: number }> {
   if (files.length === 0) return { written: 0, skipped: 0 };
-  const projects = new Set((await fetchClaudeProjects()).map((p) => p.id));
+  const projects = new Set(known);
   const seen = new Map<string, Set<string>>();
   let written = 0;
   let skipped = 0;
   for (const file of files) {
-    const project = projects.has(file.project) ? file.project : fallback;
+    const project = targetProject(file, projects, known[0] ?? '');
     if (project === '') {
       skipped += 1;
       continue;
@@ -159,14 +166,12 @@ export async function applyPayload(
   mode: Mode,
   agent: LocalAgent,
 ): Promise<Applied> {
+  if (agent.key === '') throw new Error('This box has no agent key yet. Create the agent here first, then import.');
   const moved = await applyStations(payload, sections, mode, agent);
   const skills = await applySkills(sections.has('skills') ? (payload.skills ?? []) : [], mode);
-  const projects = await fetchClaudeProjects();
-  const memory = await applyMemory(
-    sections.has('memory') ? (payload.memory ?? []) : [],
-    mode,
-    projects[0]?.id ?? '',
-  );
+  const wanted = sections.has('memory') ? (payload.memory ?? []) : [];
+  const known = wanted.length === 0 ? [] : (await fetchClaudeProjects()).map((p) => p.id);
+  const memory = await applyMemory(wanted, mode, known);
   return {
     ...moved,
     skills: skills.written,
