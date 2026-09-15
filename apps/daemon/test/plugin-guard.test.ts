@@ -16,11 +16,12 @@ function guard(payload: unknown): string {
 }
 
 describe('the orchestrator guard the plugin ships', () => {
-  test('the main thread may delegate, talk over any MCP server, schedule, and look at images; nothing else', () => {
+  test('the main thread may delegate, talk over metro, schedule, and look at images; nothing else', () => {
     expect(guard({ tool_name: 'Agent', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'Workflow', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'mcp__metro__send', tool_input: {} })).toBe('allow');
-    expect(guard({ tool_name: 'mcp__plugin_metro_zapier__run', tool_input: {} })).toBe('allow');
+    expect(guard({ tool_name: 'mcp__plugin_metro_zapier__run', tool_input: {} })).toContain('connector');
+    expect(guard({ tool_name: 'mcp__plugin_metro_zapier__run', tool_input: {}, agent_id: 'sub' })).toBe('allow');
     expect(guard({ tool_name: 'ToolSearch', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'ScheduleWakeup', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'Read', tool_input: { file_path: '/x/shot.PNG' } })).toBe('allow');
