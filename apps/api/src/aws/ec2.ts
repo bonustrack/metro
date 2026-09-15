@@ -172,3 +172,12 @@ export async function consoleOutput(credentials: AwsCredentials, region: string,
   const at = textAt(xml, 'timestamp');
   return { text: raw === '' ? '' : fromBase64(raw), at: at === '' ? null : at };
 }
+
+export async function describeRegions(credentials: AwsCredentials): Promise<string[]> {
+  const xml = await ec2(credentials, 'us-east-1', 'DescribeRegions', {});
+  return children(child(xml, 'regionInfo'), 'item')
+    .map((item) => ({ name: textAt(item, 'regionName'), status: textAt(item, 'optInStatus') }))
+    .filter((r) => r.name !== '' && r.status !== 'not-opted-in')
+    .map((r) => r.name)
+    .sort();
+}

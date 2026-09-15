@@ -3,6 +3,8 @@ export interface ServerEntry {
   host: string;
   name: string | null;
   addedAt: string;
+  instanceId: string | null;
+  launchedAt: string | null;
 }
 
 const HOST_RE = /^[a-z0-9][a-z0-9.-]*(?::\d{1,5})?$/;

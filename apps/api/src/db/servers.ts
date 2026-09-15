@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNotNull } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { getDb } from './client.js';
@@ -23,14 +23,32 @@ function idOf(raw: string): string {
   return id;
 }
 
-const entryOf = (row: { id: string; host: string; name: string | null; addedAt: string }): ServerEntry => ({
+interface Row {
+  id: string;
+  host: string;
+  name: string | null;
+  addedAt: string;
+  instanceId: string | null;
+  launchedAt: string | null;
+}
+
+const entryOf = (row: Row): ServerEntry => ({
   id: row.id,
   host: row.host,
   name: row.name,
   addedAt: row.addedAt,
+  instanceId: row.instanceId,
+  launchedAt: row.launchedAt,
 });
 
-const columns = { id: servers.id, host: servers.host, name: servers.name, addedAt: servers.addedAt };
+const columns = {
+  id: servers.id,
+  host: servers.host,
+  name: servers.name,
+  addedAt: servers.addedAt,
+  instanceId: servers.instanceId,
+  launchedAt: servers.launchedAt,
+};
 
 export async function listServersForOwner(subject: string): Promise<ServerEntry[]> {
   const owner = ownerOf(subject);
@@ -51,9 +69,62 @@ export async function addServerForOwner(subject: string, body: unknown): Promise
     await db.update(servers).set({ name }).where(eq(servers.id, row.id));
     return entryOf({ ...row, name });
   }
-  const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString() };
+  const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null };
   await db.insert(servers).values(next);
   return entryOf(next);
+}
+
+export interface LaunchRecord {
+  host: string;
+  name: string;
+  instanceId: string;
+  region: string;
+}
+
+export async function addLaunchedServer(subject: string, launch: LaunchRecord): Promise<ServerEntry> {
+  const owner = ownerOf(subject);
+  const host = parseServerHost(launch.host);
+  if (host === null) throw new ServerListError('host is not a server address', 400);
+  const next = {
+    id: newId(),
+    owner,
+    host,
+    name: parseServerName(launch.name),
+    addedAt: new Date().toISOString(),
+    instanceId: launch.instanceId,
+    launchRegion: launch.region,
+    launchedAt: new Date().toISOString(),
+  };
+  await getDb().insert(servers).values(next);
+  return entryOf(next);
+}
+
+export async function countLaunchedForOwner(subject: string): Promise<number> {
+  const owner = ownerOf(subject);
+  const rows = await getDb()
+    .select({ id: servers.id })
+    .from(servers)
+    .where(and(eq(servers.owner, owner), isNotNull(servers.instanceId)));
+  return rows.length;
+}
+
+export interface ServerLaunch {
+  instanceId: string;
+  region: string;
+}
+
+export async function launchForOwner(subject: string, rawId: string): Promise<ServerLaunch> {
+  const owner = ownerOf(subject);
+  const id = idOf(rawId);
+  const rows = await getDb()
+    .select({ instanceId: servers.instanceId, region: servers.launchRegion })
+    .from(servers)
+    .where(and(eq(servers.id, id), eq(servers.owner, owner)));
+  const row = rows[0];
+  if (row === undefined) throw missing();
+  if (row.instanceId === null || row.region === null)
+    throw new ServerListError('metro did not launch that server, so it has no boot log', 400);
+  return { instanceId: row.instanceId, region: row.region };
 }
 
 export async function renameServerForOwner(subject: string, rawId: string, body: unknown): Promise<ServerEntry> {

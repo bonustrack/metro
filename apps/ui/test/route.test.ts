@@ -71,4 +71,10 @@ describe('the first segment is the daemon', () => {
   test('routeHash of a selection without a project falls back to the root', () => {
     expect(routeHash({ kind: 'none' })).toBe('#/');
   });
+
+  test('#/launch is a page of its own', () => {
+    expect(routeSelection('#/launch')).toEqual({ kind: 'launch' });
+    expect(routeHash({ kind: 'launch' })).toBe('#/launch');
+    expect(routeSelection('#/launch/').kind).not.toBe('launch');
+  });
 });

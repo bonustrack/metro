@@ -22,7 +22,6 @@ import { shortAddress } from '../api/address.js';
 import { activeIdentity } from '../auth/identity.js';
 import { useDocumentTitle } from '../title.js';
 import { useBootingState } from '../aws/use-launch.js';
-import { launches } from '../aws/settings.js';
 import { BootLog } from './BootLog.js';
 
 const CARD_WIDTH = 640;
@@ -37,9 +36,9 @@ function StatusDot({ host }: { host: string }): ReactNode {
   return <Row width={DOT} height={DOT} radius={DOT} background={color} />;
 }
 
-function StatusText({ host }: { host: string }): ReactNode {
-  const { data } = useServerStatus(host);
-  const booting = useBootingState(host, data?.state === 'offline');
+function StatusText({ server }: { server: Server }): ReactNode {
+  const { data } = useServerStatus(server.host);
+  const booting = useBootingState(server, data?.state === 'offline');
   if (data === undefined) return <Pill label="Checking" />;
   if (data.state === 'offline') return <Pill label={booting === null ? 'Offline' : `Booting · ${booting}`} />;
   if (data.state === 'stopped') return <Pill label="Stopped" />;
@@ -90,7 +89,7 @@ interface RowProps {
 function ServerRow({ server, last, onRename, onRemove, onBootLog }: RowProps): ReactNode {
   const palette = useKitPalette();
   const href = `#/${server.id}`;
-  const launched = launches()[server.host] !== undefined;
+  const launched = server.instanceId !== null;
   return (
     <Row
       align="center"
@@ -120,7 +119,7 @@ function ServerRow({ server, last, onRename, onRemove, onBootLog }: RowProps): R
           )}
         </Col>
       </a>
-      <StatusText host={server.host} />
+      <StatusText server={server} />
       <StartButton host={server.host} />
       <KebabMenu
         label={`Server menu for ${serverLabel(server)}`}
