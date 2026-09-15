@@ -34,10 +34,25 @@ fly secrets set -a metro \
   METRO_LAUNCH_OWNERS=0xef8305e140ac520225daf050e2f71d5fbcc543e7
 ```
 
-## The IAM user
+## The IAM user, step by step
 
-Create a user with no console access and this inline policy, nothing else. These
-seven actions are all a launch and its progress view use.
+1. Open [Create user](https://console.aws.amazon.com/iam/home#/users/create).
+   Name it `metro` and leave **Provide user access to the AWS Management
+   Console** unchecked: this identity never signs in anywhere, Fly signs API
+   calls with its access key, and a console password would only be a second way
+   into the account.
+2. On the permissions step choose **Attach policies directly** and attach
+   nothing. Next, then Create user.
+3. Open the user from the [users list](https://console.aws.amazon.com/iam/home#/users),
+   which is where the tabs live: the list page has none. On the **Permissions**
+   tab open the **Add permissions** dropdown and choose **Create inline policy**,
+   switch to the **JSON** tab, paste the policy below, then name it
+   `metro-launch`. Inline rather than managed, so it belongs to this user alone.
+4. On the **Security credentials** tab, Access keys, **Create access key**, pick
+   **Application running outside AWS**. Copy both halves at once: AWS shows the
+   secret only at creation, and a user may hold at most two keys.
+
+These seven actions are all a launch and its progress view use.
 
 ```json
 {
