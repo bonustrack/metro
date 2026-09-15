@@ -22,10 +22,11 @@ const bob = nacl.box.keyPair();
 
 describe('the NaCl box every Threema message travels in', () => {
   test('a sealed text opens on the other side whatever padding was drawn', () => {
+    const body = encodeText('hi 👋');
     for (let i = 0; i < 40; i++) {
-      const { nonce, box } = seal(encodeText('hi 👋'), bob.publicKey, alice);
-      expect(box.length).toBeGreaterThanOrEqual(1 + 6 + 1 + 16);
-      expect(box.length).toBeLessThanOrEqual(1 + 6 + 255 + 16);
+      const { nonce, box } = seal(body, bob.publicKey, alice);
+      expect(box.length).toBeGreaterThanOrEqual(body.length + 1 + 16);
+      expect(box.length).toBeLessThanOrEqual(body.length + 255 + 16);
       const plain = open(box, nonce, alice.publicKey, bob);
       expect(plain).not.toBeNull();
       expect(decode(plain ?? new Uint8Array())).toEqual({ kind: 'text', text: 'hi 👋' });

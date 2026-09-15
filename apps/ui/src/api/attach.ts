@@ -266,6 +266,39 @@ export async function setAccountEnabled(
   return body.enabled;
 }
 
+export interface SenderLookup {
+  query: string;
+  number: string;
+  exists: boolean;
+  jid: string | null;
+  lid: string | null;
+  id: string | null;
+}
+
+const found = (value: unknown): string | null =>
+  typeof value === 'string' && value !== '' ? value : null;
+
+export async function lookupSender(
+  agentId: string,
+  station: string,
+  accountId: string,
+  query: string,
+): Promise<SenderLookup> {
+  const body = await call({
+    method: 'GET',
+    path: `${accountPath(agentId, station, accountId)}/resolve?q=${encodeURIComponent(query)}`,
+  });
+  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
+  return {
+    query: found(body.query) ?? query,
+    number: found(body.number) ?? '',
+    exists: body.exists === true,
+    jid: found(body.jid),
+    lid: found(body.lid),
+    id: found(body.id),
+  };
+}
+
 export async function fetchRecentSenders(
   agentId: string,
   station: string,
