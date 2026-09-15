@@ -216,6 +216,17 @@ export interface ModelOption {
   name: string;
   prompt?: number | null;
   completion?: number | null;
+  created?: number | null;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function releaseLabel(model: ModelOption): string {
+  const { created } = model;
+  if (typeof created !== 'number' || created <= 0) return '';
+  const at = new Date(created * 1000);
+  const month = MONTHS[at.getUTCMonth()];
+  return month === undefined ? '' : `${month} ${String(at.getUTCFullYear())}`;
 }
 
 const PER_MILLION = 1_000_000;
@@ -243,6 +254,7 @@ export async function openrouterModels(): Promise<ModelOption[]> {
             name: typeof m.name === 'string' && m.name !== '' ? m.name : m.id,
             prompt: typeof m.prompt === 'number' ? m.prompt : null,
             completion: typeof m.completion === 'number' ? m.completion : null,
+            created: typeof m.created === 'number' ? m.created : null,
           },
         ]
       : [],

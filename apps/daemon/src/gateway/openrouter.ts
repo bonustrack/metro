@@ -9,6 +9,7 @@ export interface OpenRouterModel {
   name: string;
   prompt: number | null;
   completion: number | null;
+  created: number | null;
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
@@ -18,12 +19,27 @@ function price(raw: unknown): number | null {
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
+function released(raw: unknown): number | null {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : null;
+}
+
 function modelOf(entry: unknown): OpenRouterModel | null {
   if (!isRecord(entry)) return null;
   const id = str(entry.id);
   if (id === '') return null;
   const pricing = isRecord(entry.pricing) ? entry.pricing : {};
-  return { id, name: str(entry.name) || id, prompt: price(pricing.prompt), completion: price(pricing.completion) };
+  return {
+    id,
+    name: str(entry.name) || id,
+    prompt: price(pricing.prompt),
+    completion: price(pricing.completion),
+    created: released(entry.created),
+  };
+}
+
+export function newestFirst(a: OpenRouterModel, b: OpenRouterModel): number {
+  const when = (b.created ?? 0) - (a.created ?? 0);
+  return when !== 0 ? when : a.id.localeCompare(b.id);
 }
 
 export async function openrouterModels(base = OPENROUTER_BASE, fetchImpl: typeof fetch = fetch): Promise<OpenRouterModel[]> {
@@ -35,8 +51,8 @@ export async function openrouterModels(base = OPENROUTER_BASE, fetchImpl: typeof
   return data
     .map(modelOf)
     .filter((model): model is OpenRouterModel => model !== null)
-    .slice(0, MODELS_MAX)
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort(newestFirst)
+    .slice(0, MODELS_MAX);
 }
 
 export async function openrouterZdrModels(base = OPENROUTER_BASE, fetchImpl: typeof fetch = fetch): Promise<string[]> {
