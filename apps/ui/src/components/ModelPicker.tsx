@@ -4,7 +4,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Input } from './ui.js';
 import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../theme.js';
-import { matchModels, priceLabel, type ModelOption } from '../api/model.js';
+import { matchModels, priceLabel, releaseLabel, type ModelOption } from '../api/model.js';
 
 const FIELD_WIDTH = 420;
 
@@ -30,7 +30,9 @@ function Matches({ models, query, onPick }: { models: ModelOption[]; query: stri
   return (
     <div className="model-matches">
       {found.map((model) => {
-        const detail = [model.name === model.id ? '' : model.name, priceLabel(model)].filter((part) => part !== '').join(' · ');
+        const detail = [model.name === model.id ? '' : model.name, releaseLabel(model), priceLabel(model)]
+          .filter((part) => part !== '')
+          .join(' · ');
         return (
           <button
             key={model.id}

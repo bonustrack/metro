@@ -44,8 +44,8 @@ beforeAll(async () => {
       res.end(
         JSON.stringify({
           data: [
-            { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex', pricing: { prompt: '0.00001', completion: '0.00005' } },
-            { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', pricing: { prompt: '0', completion: '-1' } },
+            { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex', created: 1_760_000_000, pricing: { prompt: '0.00001', completion: '0.00005' } },
+            { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', created: 1_700_000_000, pricing: { prompt: '0', completion: '-1' } },
             { name: 'no id' },
             7,
           ],
@@ -214,15 +214,15 @@ describe('the device-code sign-in from the page', () => {
 });
 
 describe('picking an OpenRouter model without typing its id', () => {
-  test('the daemon lists what OpenRouter serves, sorted, dropping rows with no id', async () => {
+  test('the daemon lists what OpenRouter serves newest first, dropping rows with no id', async () => {
     const res = await fetch(`${base}/api/model/openrouter/models`, {
       headers: { authorization: await auth('GET', '/api/model/openrouter/models', OWNER) },
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       models: [
-        { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', prompt: 0, completion: null },
-        { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex', prompt: 0.00001, completion: 0.00005 },
+        { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex', prompt: 0.00001, completion: 0.00005, created: 1_760_000_000 },
+        { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', prompt: 0, completion: null, created: 1_700_000_000 },
       ],
     });
     const stranger = await fetch(`${base}/api/model/openrouter/models`, {
