@@ -6,8 +6,8 @@ import { signedIdentity } from '@metro-labs/http/signed-identity';
 import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { mayLaunch, type ConfigResult, type LaunchConfig } from './launch-config.js';
-import type { AwsCredentials, InstanceState } from './aws/ec2.js';
-import type { BootView, Launched, LaunchInput } from './aws/launch.js';
+import { AwsError, type AwsCredentials, type InstanceState } from './aws/ec2.js';
+import { LaunchError, type BootView, type Launched, type LaunchInput } from './aws/launch.js';
 import type { LaunchRecord, ServerLaunch } from './db/servers.js';
 import type { ServerEntry } from './server-types.js';
 
@@ -24,7 +24,6 @@ export interface LaunchApiDeps {
   state: (credentials: AwsCredentials, region: string, instanceId: string) => Promise<InstanceState>;
   boot: (credentials: AwsCredentials, region: string, instanceId: string) => Promise<BootView>;
   record: (subject: string, launch: LaunchRecord) => Promise<ServerEntry>;
-  count: (subject: string) => Promise<number>;
   lookup: (subject: string, id: string) => Promise<ServerLaunch>;
   now: () => number;
 }
@@ -86,12 +85,7 @@ function allowed(deps: LaunchApiDeps, subject: string): LaunchConfig {
 async function overview(deps: LaunchApiDeps, subject: string): Promise<unknown> {
   const result = deps.config();
   if (!result.ok || !mayLaunch(result.config, subject)) return { enabled: false };
-  const used = await deps.count(subject);
-  return {
-    enabled: true,
-    regions: await enabledRegions(deps, result.config),
-    remaining: Math.max(0, result.config.perOwner - used),
-  };
+  return { enabled: true, regions: await enabledRegions(deps, result.config) };
 }
 
 function nameOf(body: unknown): string {
@@ -115,12 +109,15 @@ function holdDuplicate(deps: LaunchApiDeps, subject: string): void {
   inFlight.set(subject, now);
 }
 
+function refusal(err: unknown): never {
+  if (err instanceof AwsError || err instanceof LaunchError) throw new ApiError(err.message, 400);
+  throw err;
+}
+
 async function issue(deps: LaunchApiDeps, subject: string, body: unknown): Promise<unknown> {
   const config = allowed(deps, subject);
   const name = nameOf(body);
   const region = regionOf(body);
-  if ((await deps.count(subject)) >= config.perOwner)
-    throw new ApiError(`this wallet already holds ${String(config.perOwner)} servers metro issued`, 429);
   holdDuplicate(deps, subject);
   try {
     const launched = await deps.launch({
@@ -142,6 +139,8 @@ async function issue(deps: LaunchApiDeps, subject: string, body: unknown): Promi
       'launch: metro issued a server',
     );
     return { server, host: launched.host, node: launched.node, region: launched.region, zone: launched.zone };
+  } catch (err) {
+    return refusal(err);
   } finally {
     inFlight.delete(subject);
   }

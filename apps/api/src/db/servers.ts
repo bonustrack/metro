@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { getDb } from './client.js';
@@ -97,15 +97,6 @@ export async function addLaunchedServer(subject: string, launch: LaunchRecord): 
   };
   await getDb().insert(servers).values(next);
   return entryOf(next);
-}
-
-export async function countLaunchedForOwner(subject: string): Promise<number> {
-  const owner = ownerOf(subject);
-  const rows = await getDb()
-    .select({ id: servers.id })
-    .from(servers)
-    .where(and(eq(servers.owner, owner), isNotNull(servers.instanceId)));
-  return rows.length;
 }
 
 export interface ServerLaunch {

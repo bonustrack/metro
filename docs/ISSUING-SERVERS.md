@@ -39,10 +39,9 @@ select distinct owner from servers;
 A launch refused for this reason also logs the identity it saw, so
 `fly logs -a metro | grep launch:` names the address to add.
 
-`METRO_LAUNCH_MAX` is optional and caps how many servers one wallet may have
-Metro issue, 10 by default and 100 at most. Removing a server from your list
-frees a slot, so the cap bounds what one wallet can run up, not what it can ever
-launch.
+There is no cap on how many servers an allowlisted identity may have Metro issue.
+What bounds the damage is the allowlist itself and a 409 on two launches at once
+from the same identity.
 
 ```
 fly secrets set -a metro \
@@ -113,6 +112,18 @@ The safer shape, if you want it later, is an API access token or an OAuth client
 and a fresh single-use key minted per launch. That is one module, `authKey` in
 `apps/api/src/launch-config.ts`, and an OAuth client additionally needs a
 `tagOwners` entry, the `funnel` node attribute and an SSH rule for the tag.
+
+## Two AWS account traps
+
+**"The specified instance type is not eligible for Free Tier."** The account is on
+the AWS Free plan, which only permits free-tier-eligible instance types, and the
+`t4g.medium` a metro box runs on is not one. Sign in to the AWS console, choose
+**Upgrade plan**, then **Upgrade account**. Credits you have not spent stay usable.
+
+**A vCPU limit of 1.** New accounts often carry a running On-Demand vCPU quota of
+1, and `t4g.medium` needs 2, so a launch can still be refused right after the plan
+upgrade. Raise it from Service Quotas, "Running On-Demand Standard instances" for
+the region you launch in.
 
 ## What a launch does
 

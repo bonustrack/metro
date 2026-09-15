@@ -12,14 +12,10 @@ const GOOD: NodeJS.ProcessEnv = {
 };
 
 describe('metro issues servers only when it is fully configured', () => {
-  test('a complete environment reads back, with a default cap per wallet', () => {
+  test('a complete environment reads back', () => {
     const result = readLaunchConfig(GOOD);
     if (!result.ok) throw new Error(`expected a config, missing ${result.missing.join(', ')}`);
-    expect(result.config).toMatchObject({
-      tailnet: 'tail17c4f8.ts.net',
-      owners: [OWNER],
-      perOwner: 10,
-    });
+    expect(result.config).toMatchObject({ tailnet: 'tail17c4f8.ts.net', owners: [OWNER] });
     expect(result.config.credentials.accessKeyId).toBe('AKIAEXAMPLE');
   });
 
@@ -40,18 +36,6 @@ describe('metro issues servers only when it is fully configured', () => {
   test('an empty environment is off, not open', () => {
     const result = readLaunchConfig({});
     expect(result.ok).toBe(false);
-  });
-
-  test('the cap is clamped to something sane', () => {
-    const of = (value: string): number => {
-      const result = readLaunchConfig({ ...GOOD, METRO_LAUNCH_MAX: value });
-      if (!result.ok) throw new Error('expected a config');
-      return result.config.perOwner;
-    };
-    expect(of('3')).toBe(3);
-    expect(of('0')).toBe(10);
-    expect(of('nonsense')).toBe(10);
-    expect(of('100000')).toBe(100);
   });
 });
 
