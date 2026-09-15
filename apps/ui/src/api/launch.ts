@@ -27,7 +27,6 @@ export interface InstanceView {
 export interface LaunchOverview {
   enabled: boolean;
   regions: string[];
-  remaining: number;
 }
 
 export interface Launched {
@@ -56,11 +55,7 @@ export async function fetchLaunchOverview(): Promise<LaunchOverview> {
   const body = await call({ method: 'GET', base: launchUrl() });
   if (!isRecord(body)) throw unexpected();
   const regions = Array.isArray(body.regions) ? body.regions.filter((r): r is string => typeof r === 'string') : [];
-  return {
-    enabled: body.enabled === true,
-    regions,
-    remaining: typeof body.remaining === 'number' ? body.remaining : 0,
-  };
+  return { enabled: body.enabled === true, regions };
 }
 
 export async function launchServer(name: string, region: string): Promise<Launched> {

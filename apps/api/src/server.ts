@@ -5,7 +5,6 @@ import { handleModeRequest, type ModeInfo } from '@metro-labs/http/mode-api';
 import {
   addLaunchedServer,
   addServerForOwner,
-  countLaunchedForOwner,
   deleteServerForOwner,
   launchForOwner,
   listServersForOwner,
@@ -32,7 +31,6 @@ const launchApi: LaunchApiDeps = {
   state: instanceStateOf,
   boot: bootView,
   record: addLaunchedServer,
-  count: countLaunchedForOwner,
   lookup: launchForOwner,
   now: () => Date.now(),
 };

@@ -41,11 +41,6 @@ function Off(): ReactNode {
   );
 }
 
-function remainingNote(overview: LaunchOverview): string {
-  if (overview.remaining <= 0) return 'You have reached the number of servers Metro will issue to this wallet.';
-  return `Metro will issue ${String(overview.remaining)} more ${overview.remaining === 1 ? 'server' : 'servers'} to this wallet.`;
-}
-
 function useLaunchForm(): {
   name: string;
   region: string;
@@ -99,7 +94,6 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const form = useLaunchForm();
   if (form.done !== null) return <LaunchedView launched={form.done} />;
-  const full = overview.remaining <= 0;
   return (
     <Col gap={16}>
       <Row justify="center">
@@ -132,7 +126,6 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
           onChange={form.setRegion}
         />
       </Col>
-      <Text size="sm" role="secondary">{remainingNote(overview)}</Text>
       {form.error === null ? null : <Text size="sm" role="danger">{form.error}</Text>}
       <Row justify="between" align="center" gap={12} wrap>
         <Text size="sm" role="secondary">
@@ -142,7 +135,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
           color="primary"
           dark={dark}
           loading={form.busy}
-          disabled={form.busy || full || form.name.trim() === '' || form.region.trim() === ''}
+          disabled={form.busy || form.name.trim() === '' || form.region.trim() === ''}
           label="Launch"
           onPress={form.launch}
         />

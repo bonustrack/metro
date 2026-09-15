@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleLaunchApiRequest, resetLaunchState, type LaunchApiDeps } from '../src/launch.js';
+import { AwsError } from '../src/aws/ec2.js';
 import type { ConfigResult } from '../src/launch-config.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
@@ -15,13 +16,11 @@ const CONFIG: ConfigResult = {
     tailnet: 'tail17c4f8.ts.net',
     authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
     owners: [OWNER],
-    perOwner: 2,
   },
 };
 
 let config: ConfigResult = CONFIG;
 let launched: string[] = [];
-let held = 0;
 let now = 1_000_000;
 
 const deps: LaunchApiDeps = {
@@ -49,7 +48,6 @@ const deps: LaunchApiDeps = {
       instanceId: launch.instanceId,
       launchedAt: '2026-09-15T00:00:00.000Z',
     }),
-  count: () => Promise.resolve(held),
   lookup: (_subject, id) =>
     id === 'srv00000001'
       ? Promise.resolve({ instanceId: 'i-0abc', region: 'eu-west-1' })
@@ -78,7 +76,6 @@ afterAll(() => {
 beforeEach(() => {
   config = CONFIG;
   launched = [];
-  held = 0;
   now += 10 * 60_000;
   resetLaunchState();
 });
@@ -118,10 +115,9 @@ describe('who metro will issue a server to', () => {
 });
 
 describe('the overview a wallet on the list sees', () => {
-  test('it carries the region, the regions on the account and what is left, never a key', async () => {
-    held = 1;
+  test('it carries the regions on the account, never a key', async () => {
     const body = (await (await call('GET', '/api/launch')).json()) as Record<string, unknown>;
-    expect(body).toEqual({ enabled: true, regions: ['eu-west-1', 'us-east-1'], remaining: 1 });
+    expect(body).toEqual({ enabled: true, regions: ['eu-west-1', 'us-east-1'] });
     expect(JSON.stringify(body)).not.toContain('AKIA');
     expect(JSON.stringify(body)).not.toContain('tskey');
   });
@@ -149,11 +145,14 @@ describe('issuing one', () => {
     expect(launched).toEqual([]);
   });
 
-  test('the cap per wallet is a refusal, not a silent extra instance', async () => {
-    held = 2;
+  test('what AWS refuses reaches the page in its own words, not a generic failure', async () => {
+    const was = deps.launch;
+    deps.launch = () =>
+      Promise.reject(new AwsError('Unsupported', 'The specified instance type is not eligible for Free Tier.'));
     const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1' });
-    expect(res.status).toBe(429);
-    expect(launched).toEqual([]);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain('not eligible for Free Tier');
+    deps.launch = was;
   });
 
   test('two launches at once from one wallet only ever start one instance', async () => {

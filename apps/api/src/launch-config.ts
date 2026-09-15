@@ -8,12 +8,9 @@ export interface LaunchConfig {
   tailnet: string;
   authKey: string;
   owners: readonly string[];
-  perOwner: number;
 }
 
 const TAILNET_RE = /^(?:[a-z0-9-]+\.)*ts\.net$/;
-const DEFAULT_PER_OWNER = 10;
-const MAX_PER_OWNER = 100;
 
 const read = (env: NodeJS.ProcessEnv, name: string): string => (env[name] ?? '').trim();
 
@@ -24,12 +21,6 @@ export function launchOwners(raw: string): string[] {
     if (address !== null && !out.includes(address)) out.push(address);
   }
   return out;
-}
-
-function perOwner(raw: string): number {
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1) return DEFAULT_PER_OWNER;
-  return Math.min(value, MAX_PER_OWNER);
 }
 
 export type ConfigResult =
@@ -54,7 +45,7 @@ export function readLaunchConfig(env: NodeJS.ProcessEnv = process.env): ConfigRe
   if (missing.length > 0) return { ok: false, missing };
   return {
     ok: true,
-    config: { credentials, tailnet, authKey, owners, perOwner: perOwner(read(env, 'METRO_LAUNCH_MAX')) },
+    config: { credentials, tailnet, authKey, owners },
   };
 }
 
@@ -64,7 +55,7 @@ export const mayLaunch = (config: LaunchConfig, subject: string): boolean =>
 export function announceLaunchConfig(result: ConfigResult): void {
   if (result.ok) {
     log.info(
-      { tailnet: result.config.tailnet, owners: result.config.owners.length, perOwner: result.config.perOwner },
+      { tailnet: result.config.tailnet, owners: result.config.owners.length },
       'launch: metro can issue servers',
     );
     return;
