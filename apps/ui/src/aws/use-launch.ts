@@ -1,58 +1,58 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryError } from '../api/queries.js';
-import { metroSetupLines, type BootLog } from './boot-log.js';
-import { bootLog, instanceState } from './launch.js';
-import { bootingLaunch, readAwsSettings, type Launch } from './settings.js';
+import { fetchBootView, fetchInstanceView, type BootView } from '../api/launch.js';
+import type { Server } from '../api/servers.js';
 
 const POLL_MS = 20_000;
+const CONSOLE_POLL_MS = 30_000;
+export const BOOT_WINDOW_MS = 30 * 60_000;
 
-export function useBootingState(host: string, enabled: boolean): string | null {
-  const launch = enabled ? bootingLaunch(host) : null;
-  const settings = launch === null ? null : readAwsSettings();
-  const { data } = useQuery({
-    queryKey: ['aws-instance', host, launch?.instanceId ?? ''],
-    enabled: launch !== null && settings !== null,
-    refetchInterval: POLL_MS,
-    retry: false,
-    queryFn: () => (launch === null || settings === null ? Promise.resolve(null) : instanceState(settings, launch)),
-  });
-  if (launch === null) return null;
-  return data === null || data === undefined ? 'starting' : data.state;
+export function stillBooting(server: Server, now = Date.now()): boolean {
+  if (server.instanceId === null || server.launchedAt === null) return false;
+  const at = Date.parse(server.launchedAt);
+  return Number.isFinite(at) && now - at < BOOT_WINDOW_MS;
 }
 
-const CONSOLE_POLL_MS = 30_000;
+export function useBootingState(server: Server, enabled: boolean): string | null {
+  const booting = enabled && stillBooting(server);
+  const { data } = useQuery({
+    queryKey: ['launch-instance', server.id],
+    enabled: booting,
+    refetchInterval: POLL_MS,
+    retry: false,
+    queryFn: () => fetchInstanceView(server.id),
+  });
+  if (!booting) return null;
+  return data?.state ?? 'starting';
+}
 
-const errorOf = (err: unknown): string | null => (err === null || err === undefined ? null : queryError(err, 'Could not read the instance.'));
+const errorOf = (err: unknown): string | null =>
+  err === null || err === undefined ? null : queryError(err, 'Could not read the instance.');
 
 export interface LaunchWatch {
   instance: string | null;
-  log: BootLog | null;
-  capturedAt: string | null;
+  boot: BootView | null;
   error: string | null;
 }
 
-export function useLaunchWatch(launch: Launch, done: boolean): LaunchWatch {
-  const settings = readAwsSettings();
-  const enabled = settings !== null && !done;
+export function useLaunchWatch(serverId: string, done: boolean): LaunchWatch {
   const instance = useQuery({
-    queryKey: ['aws-instance', launch.instanceId],
-    enabled,
+    queryKey: ['launch-instance', serverId],
+    enabled: !done,
     refetchInterval: POLL_MS,
     retry: false,
-    queryFn: () => (settings === null ? Promise.resolve(null) : instanceState(settings, launch)),
+    queryFn: () => fetchInstanceView(serverId),
   });
-  const console = useQuery({
-    queryKey: ['aws-console', launch.instanceId],
-    enabled,
+  const boot = useQuery({
+    queryKey: ['launch-boot', serverId],
+    enabled: !done,
     refetchInterval: CONSOLE_POLL_MS,
     retry: false,
-    queryFn: () => (settings === null ? Promise.resolve(null) : bootLog(settings, launch)),
+    queryFn: () => fetchBootView(serverId),
   });
-  const output = console.data ?? null;
   return {
     instance: instance.data?.state ?? null,
-    log: output === null ? null : metroSetupLines(output.text),
-    capturedAt: output?.at ?? null,
-    error: settings === null ? 'No AWS key is kept in this browser.' : errorOf(console.error ?? instance.error),
+    boot: boot.data ?? null,
+    error: errorOf(boot.error ?? instance.error),
   };
 }

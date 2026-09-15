@@ -100,11 +100,17 @@ export function useUpdateQuery(): UseQueryResult<UpdateCheck> {
   });
 }
 
+import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
+
 export const serversKey = (): string[] => ['servers'];
 const STATUS_POLL_MS = 15_000;
 
 export function useServersQuery(): UseQueryResult<Server[]> {
   return useQuery({ queryKey: serversKey(), queryFn: () => fetchServers(), staleTime: 30_000 });
+}
+
+export function useLaunchOverviewQuery(): UseQueryResult<LaunchOverview> {
+  return useQuery({ queryKey: ['launch-overview'], queryFn: () => fetchLaunchOverview(), staleTime: 60_000, retry: false });
 }
 
 export function useServerStatus(host: string): UseQueryResult<ServerStatus> {

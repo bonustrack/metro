@@ -1,5 +1,5 @@
-import { Fragment, type ReactNode, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { type ReactNode, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ModelPicker } from './ModelPicker.js';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
@@ -8,186 +8,58 @@ import { Text, Button, Input } from './ui.js';
 import { GROW } from '../theme.js';
 import { MetroLogo } from './MetroLogo.js';
 import { PageTitle } from './PageTitle.js';
-import { CopyBlock } from './CopyBlock.js';
 import { LaunchProgress } from './LaunchProgress.js';
-import { LinkedText } from './LinkedText.js';
-import { activeIdentity } from '../auth/identity.js';
-import { queryError, refreshServers, useServersQuery } from '../api/queries.js';
-import { IAM_POLICY, launchBox, type Launched } from '../aws/launch.js';
-import { INSTANCE_TYPE, ROOT_GIB } from '../aws/ec2.js';
-import { authKeyUsedFor, readAwsSettings, rememberAuthKey, storeAwsSettings, tailnetSuffix } from '../aws/settings.js';
-import { sha256Hex } from '../aws/sigv4.js';
-import { describeRegions, regionRows } from '../aws/regions.js';
+import { Loading } from './Loading.js';
+import { queryError, refreshServers, useLaunchOverviewQuery } from '../api/queries.js';
+import { launchServer, type Launched, type LaunchOverview } from '../api/launch.js';
+import { regionRows } from '../aws/regions.js';
 import { useDocumentTitle } from '../title.js';
 
 const CARD_WIDTH = 480;
 const NO_AUTOFILL = { autoComplete: 'off' } as const;
-const HINT = `Launches an Ubuntu 24.04 arm64 ${INSTANCE_TYPE} with an ${ROOT_GIB} GiB gp3 disk in your AWS account, from this page: the browser signs the EC2 calls itself with the access key below, which stays in this browser and never reaches Metro. On first boot the machine installs Node, bun, Claude Code, Tailscale and Metro, joins your tailnet under a random metro-xxxxxx name that can never clash with another box, and shows up in your server list under the name you give it, live once its Funnel address resolves, usually within five minutes.`;
-const KEYS_HINT =
-  'Use a dedicated IAM user holding only the policy below. The Tailscale auth key comes from the admin console under Settings, Keys: make it single-use, since it travels in the instance user data.';
-const LINKS = [
-  { text: 'IAM user', href: 'https://console.aws.amazon.com/iam/home#/users' },
-  { text: 'admin console', href: 'https://login.tailscale.com/admin/settings/keys' },
-];
+const HINT =
+  'Metro issues the machine from its own AWS account and joins it to its tailnet, so no key of yours is involved. On first boot it installs Node, bun, Claude Code, Tailscale and Metro, joins under a random metro-xxxxxx name that can never clash with another box, and shows up in your server list under the name you give it, live once its Funnel address resolves, usually within five minutes.';
+const OFF =
+  'This Metro deployment does not issue servers, or this wallet may not ask it to. Add your own server from the list instead.';
 
-interface Values {
+function remainingNote(overview: LaunchOverview): string {
+  if (overview.remaining <= 0) return 'You have reached the number of servers Metro will issue to this wallet.';
+  return `Metro will issue ${String(overview.remaining)} more ${overview.remaining === 1 ? 'server' : 'servers'} to this wallet.`;
+}
+
+function useLaunchForm(): {
   name: string;
   region: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  tailscaleAuthKey: string;
-  tailnet: string;
-}
-
-interface Field {
-  key: keyof Values;
-  label: string;
-  placeholder: string;
-  secret?: boolean;
-}
-
-const FIELDS: Field[] = [
-  { key: 'name', label: 'Name', placeholder: 'andy' },
-  { key: 'accessKeyId', label: 'AWS access key id', placeholder: 'AKIA…' },
-  { key: 'secretAccessKey', label: 'AWS secret access key', placeholder: 'kept in this browser', secret: true },
-  { key: 'tailscaleAuthKey', label: 'Tailscale auth key', placeholder: 'tskey-auth-…', secret: true },
-  { key: 'tailnet', label: 'Tailnet', placeholder: 'tail1234.ts.net' },
-];
-
-function initialValues(): Values {
-  const stored = readAwsSettings();
-  return {
-    name: '',
-    region: stored?.region ?? '',
-    accessKeyId: stored?.accessKeyId ?? '',
-    secretAccessKey: stored?.secretAccessKey ?? '',
-    tailscaleAuthKey: '',
-    tailnet: '',
-  };
-}
-
-function useLaunch(): {
-  values: Values;
-  set: (key: keyof Values, value: string) => void;
+  setName: (value: string) => void;
+  setRegion: (value: string) => void;
   busy: boolean;
   error: string | null;
   done: Launched | null;
-  defaultTailnet: string;
   launch: () => void;
 } {
-  const [values, setValues] = useState<Values>(initialValues);
+  const [name, setName] = useState('');
+  const [region, setRegion] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Launched | null>(null);
   const client = useQueryClient();
-  const { data: servers } = useServersQuery();
-  const defaultTailnet = tailnetSuffix((servers ?? []).map((s) => s.host)) ?? '';
   const launch = (): void => {
-    if (busy) return;
+    if (busy || name.trim() === '' || region.trim() === '') return;
     setBusy(true);
     setError(null);
-    const credentials = { accessKeyId: values.accessKeyId.trim(), secretAccessKey: values.secretAccessKey.trim() };
-    const authKey = values.tailscaleAuthKey.trim();
-    sha256Hex(authKey)
-      .then((fingerprint) => {
-        const used = authKeyUsedFor(fingerprint);
-        if (used !== null)
-          throw new Error(`This Tailscale auth key already launched ${used.name}. A single-use key works once: generate a new one, or a reusable key.`);
-        return launchBox({
-          name: values.name,
-          region: values.region,
-          credentials,
-          tailscaleAuthKey: authKey,
-          tailnet: values.tailnet.trim() === '' ? defaultTailnet : values.tailnet,
-          owner: activeIdentity()?.address ?? '',
-        }).then(async (launched) => {
-          rememberAuthKey(fingerprint, { name: launched.server.name ?? launched.host, at: new Date().toISOString() });
-          storeAwsSettings({ ...credentials, region: values.region.trim() });
-          await refreshServers(client);
-          setDone(launched);
-        });
+    launchServer(name.trim(), region.trim())
+      .then(async (launched) => {
+        await refreshServers(client);
+        setDone(launched);
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Could not launch the server.');
+        setError(queryError(err, 'Could not launch the server.'));
       })
       .finally(() => {
         setBusy(false);
       });
   };
-  const set = (key: keyof Values, value: string): void => {
-    setValues((prev) => ({ ...prev, [key]: value }));
-  };
-  return { values, set, busy, error, done, defaultTailnet, launch };
-}
-
-type Form = ReturnType<typeof useLaunch>;
-
-const REGIONS_STALE_MS = 10 * 60_000;
-
-function regionNote(ready: boolean, count: number | undefined, error: unknown, fetching: boolean): string {
-  if (!ready) return 'The standard regions. Once the key is typed, the list shows the regions enabled in your account.';
-  if (error !== null && error !== undefined) return `${queryError(error, 'Could not list your regions.')} Showing the standard ones.`;
-  if (count === undefined) return fetching ? 'Listing the regions enabled in your account…' : '';
-  return `${String(count)} regions are enabled in your account.`;
-}
-
-function RegionSelect({ form }: { form: Form }): ReactNode {
-  const credentials = { accessKeyId: form.values.accessKeyId.trim(), secretAccessKey: form.values.secretAccessKey.trim() };
-  const ready = credentials.accessKeyId !== '' && credentials.secretAccessKey !== '';
-  const { data, error, isFetching } = useQuery({
-    queryKey: ['aws-regions', credentials.accessKeyId, credentials.secretAccessKey.length],
-    enabled: ready,
-    retry: false,
-    staleTime: REGIONS_STALE_MS,
-    queryFn: () => describeRegions(credentials),
-  });
-  return (
-    <Col gap={4}>
-      <ModelPicker
-        label="AWS region"
-        value={form.values.region}
-        placeholder="eu-west-1"
-        models={regionRows(data ?? null)}
-        loading={ready && isFetching && data === undefined}
-        error={null}
-        onOpen={() => undefined}
-        onChange={(value) => {
-          form.set('region', value);
-        }}
-      />
-      <Text size="sm" role="secondary">{regionNote(ready, data?.length, error, isFetching)}</Text>
-    </Col>
-  );
-}
-
-function Fields({ form }: { form: Form }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return (
-    <Col gap={10}>
-      {FIELDS.map((field) => (
-        <Fragment key={field.key}>
-        <Col gap={4}>
-          <Text size="sm" role="secondary">{field.label}</Text>
-          <Input
-            name={`launch-${field.key}`}
-            value={form.values[field.key]}
-            placeholder={field.key === 'tailnet' && form.defaultTailnet !== '' ? form.defaultTailnet : field.placeholder}
-            inputType={field.secret === true ? 'password' : 'text'}
-            inputProps={NO_AUTOFILL}
-            disabled={form.busy}
-            dark={dark}
-            onChangeText={(value) => {
-              form.set(field.key, value);
-            }}
-            onSubmit={form.launch}
-            style={GROW}
-          />
-        </Col>
-        {field.key === 'secretAccessKey' ? <RegionSelect form={form} /> : null}
-        </Fragment>
-      ))}
-    </Col>
-  );
+  return { name, region, setName, setRegion, busy, error, done, launch };
 }
 
 function LaunchedView({ launched }: { launched: Launched }): ReactNode {
@@ -197,37 +69,75 @@ function LaunchedView({ launched }: { launched: Launched }): ReactNode {
         <PageTitle>{`Launching ${launched.server.name ?? launched.host}`}</PageTitle>
       </Row>
       <Text size="sm" role="secondary">
-        {`Starting from ${launched.image.name}. It installs everything on first boot, joins your tailnet as ${launched.node}, and is already in your server list. Open it once it is live to create the agent.`}
+        {`It installs everything on first boot, joins the tailnet as ${launched.node}, and is already in your server list. Open it once it is live to create the agent.`}
       </Text>
       <LaunchProgress launched={launched} />
     </Col>
   );
 }
 
-function LaunchForm(): ReactNode {
+function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const form = useLaunch();
+  const form = useLaunchForm();
   if (form.done !== null) return <LaunchedView launched={form.done} />;
+  const full = overview.remaining <= 0;
   return (
     <Col gap={16}>
       <Row justify="center">
-        <PageTitle>Launch a server on AWS</PageTitle>
+        <PageTitle>Have Metro issue a server</PageTitle>
       </Row>
       <Text size="sm" role="secondary">{HINT}</Text>
-      <Fields form={form} />
-      <LinkedText text={KEYS_HINT} links={LINKS} />
-      <CopyBlock label="IAM policy for that user" value={IAM_POLICY} />
-      {form.error === null ? null : (
-        <Text size="sm" role="danger">{form.error}</Text>
-      )}
+      <Col gap={10}>
+        <Col gap={4}>
+          <Text size="sm" role="secondary">Name</Text>
+          <Input
+            name="launch-name"
+            value={form.name}
+            placeholder="andy"
+            inputProps={NO_AUTOFILL}
+            disabled={form.busy}
+            dark={dark}
+            onChangeText={form.setName}
+            onSubmit={form.launch}
+            style={GROW}
+          />
+        </Col>
+        <ModelPicker
+          label="AWS region"
+          value={form.region}
+          placeholder="eu-west-1"
+          models={regionRows(overview.regions.length === 0 ? null : overview.regions)}
+          loading={false}
+          error={null}
+          onOpen={() => undefined}
+          onChange={form.setRegion}
+        />
+      </Col>
+      <Text size="sm" role="secondary">{remainingNote(overview)}</Text>
+      {form.error === null ? null : <Text size="sm" role="danger">{form.error}</Text>}
       <Row justify="between" align="center" gap={12} wrap>
         <Text size="sm" role="secondary">
           <a className="hint-link" href="#/">Back to your servers</a>
         </Text>
-        <Button color="primary" dark={dark} loading={form.busy} disabled={form.busy} label="Launch" onPress={form.launch} />
+        <Button
+          color="primary"
+          dark={dark}
+          loading={form.busy}
+          disabled={form.busy || full || form.name.trim() === '' || form.region.trim() === ''}
+          label="Launch"
+          onPress={form.launch}
+        />
       </Row>
     </Col>
   );
+}
+
+function Body(): ReactNode {
+  const { data, error } = useLaunchOverviewQuery();
+  if (error !== null) return <Text size="sm" role="danger">{queryError(error, OFF)}</Text>;
+  if (data === undefined) return <Loading />;
+  if (!data.enabled) return <Text size="sm" role="secondary">{OFF}</Text>;
+  return <LaunchForm overview={data} />;
 }
 
 export function LaunchServer(): ReactNode {
@@ -240,7 +150,7 @@ export function LaunchServer(): ReactNode {
         <Row justify="center">
           <MetroLogo size={48} color={palette.link} />
         </Row>
-        <LaunchForm />
+        <Body />
       </Col>
     </Row>
   );

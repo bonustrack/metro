@@ -3,8 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { CopyBlock } from './CopyBlock.js';
-import { progressOf, type Progress, type StepState } from '../aws/boot-log.js';
-import type { Launched } from '../aws/launch.js';
+import type { BootView, Launched, StepState } from '../api/launch.js';
 import { useLaunchWatch, type LaunchWatch } from '../aws/use-launch.js';
 import { useServerStatus } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
@@ -24,11 +23,11 @@ function StepRow({ label, state }: { label: string; state: StepState }): ReactNo
   );
 }
 
-function headline(instance: string | null, progress: Progress | null, live: boolean): string {
+function headline(instance: string | null, boot: BootView | null, live: boolean): string {
   if (live) return 'Live. The daemon answers on its address.';
-  if (progress?.failed === true) return 'The first-boot script stopped. The last lines below say where.';
-  if (progress?.finished === true) return 'Installed. Waiting for the Funnel address to resolve, usually a minute or two.';
-  if (progress?.steps.some((s) => s.state !== 'pending') === true) return 'Installing…';
+  if (boot?.failed === true) return 'The first-boot script stopped. The last lines below say where.';
+  if (boot?.finished === true) return 'Installed. Waiting for the Funnel address to resolve, usually a minute or two.';
+  if (boot?.steps.some((s) => s.state !== 'pending') === true) return 'Installing…';
   if (instance === 'running') return 'The instance is running; waiting for the first console capture.';
   return instance === null ? 'Starting the instance…' : `Instance ${instance}.`;
 }
@@ -45,22 +44,22 @@ function LogTail({ lines }: { lines: string[] }): ReactNode {
 }
 
 const instanceLabel = (launched: Launched): string =>
-  `Instance ${launched.instanceId}${launched.zone === null ? '' : ` in ${launched.zone}`}`;
+  `Instance in ${launched.region}${launched.zone === null ? '' : ` ${launched.zone}`}`;
 
-const funnelState = (live: boolean, progress: Progress | null): StepState =>
-  live ? 'done' : progress?.finished === true ? 'active' : 'pending';
+const funnelState = (live: boolean, boot: BootView | null): StepState =>
+  live ? 'done' : boot?.finished === true ? 'active' : 'pending';
 
-const captureNote = (capturedAt: string | null): string =>
-  capturedAt === null ? CAPTURE_NOTE : `${CAPTURE_NOTE} Last capture ${whenLabel(capturedAt)}.`;
+const captureNote = (at: string | null): string =>
+  at === null ? CAPTURE_NOTE : `${CAPTURE_NOTE} Last capture ${whenLabel(at)}.`;
 
-function Steps({ launched, watch, progress, live }: { launched: Launched; watch: LaunchWatch; progress: Progress | null; live: boolean }): ReactNode {
+function Steps({ launched, watch, live }: { launched: Launched; watch: LaunchWatch; live: boolean }): ReactNode {
   return (
     <Col>
       <StepRow label={instanceLabel(launched)} state={watch.instance === 'running' || live ? 'done' : 'active'} />
-      {(progress?.steps ?? []).map((step) => (
+      {(watch.boot?.steps ?? []).map((step) => (
         <StepRow key={step.key} label={step.label} state={step.state} />
       ))}
-      <StepRow label={`Funnel address ${launched.host}`} state={funnelState(live, progress)} />
+      <StepRow label={`Funnel address ${launched.host}`} state={funnelState(live, watch.boot)} />
     </Col>
   );
 }
@@ -94,15 +93,14 @@ function Actions({ launched, live }: { launched: Launched; live: boolean }): Rea
 export function LaunchProgress({ launched }: { launched: Launched }): ReactNode {
   const status = useServerStatus(launched.host);
   const live = status.data?.state === 'live';
-  const watch = useLaunchWatch({ instanceId: launched.instanceId, region: launched.region, name: launched.server.name ?? launched.host, launchedAt: launched.launchedAt }, live);
-  const progress = watch.log === null ? null : progressOf(watch.log);
+  const watch = useLaunchWatch(launched.server.id, live);
   return (
     <Col gap={14}>
-      <Text size="md" weight="semibold">{headline(watch.instance, progress, live)}</Text>
+      <Text size="md" weight="semibold">{headline(watch.instance, watch.boot, live)}</Text>
       {watch.error === null ? null : <Text size="sm" role="danger">{watch.error}</Text>}
-      <Steps launched={launched} watch={watch} progress={progress} live={live} />
-      <Text size="sm" role="secondary">{captureNote(watch.capturedAt)}</Text>
-      <LogTail lines={watch.log?.lines ?? []} />
+      <Steps launched={launched} watch={watch} live={live} />
+      <Text size="sm" role="secondary">{captureNote(watch.boot?.at ?? null)}</Text>
+      <LogTail lines={watch.boot?.lines ?? []} />
       <CopyBlock label="address" value={launched.host} />
       <Actions launched={launched} live={live} />
     </Col>

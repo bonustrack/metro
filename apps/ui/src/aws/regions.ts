@@ -1,6 +1,4 @@
 import type { ModelOption } from '../api/model.js';
-import { ec2, type AwsCredentials } from './ec2.js';
-import { child, children, textAt } from './xml.js';
 
 export const REGION_NAMES: Record<string, string> = {
   'us-east-1': 'US East (N. Virginia)',
@@ -67,13 +65,4 @@ export function regionRows(enabled: string[] | null): ModelOption[] {
   return [...(enabled ?? STANDARD_REGIONS)]
     .map((id) => ({ id, name: REGION_NAMES[id] ?? id }))
     .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-export async function describeRegions(credentials: AwsCredentials): Promise<string[]> {
-  const xml = await ec2(credentials, 'us-east-1', 'DescribeRegions', {});
-  return children(child(xml, 'regionInfo'), 'item')
-    .map((item) => ({ name: textAt(item, 'regionName'), status: textAt(item, 'optInStatus') }))
-    .filter((r) => r.name !== '' && r.status !== 'not-opted-in')
-    .map((r) => r.name)
-    .sort();
 }

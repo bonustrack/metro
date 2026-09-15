@@ -8,6 +8,8 @@ export interface Server {
   host: string;
   name: string | null;
   addedAt: string;
+  instanceId: string | null;
+  launchedAt: string | null;
 }
 
 export type ServerState = 'live' | 'stopped' | 'offline';
@@ -22,13 +24,18 @@ const PROBE_MS = 6_000;
 const listUrl = (): string => `${builtInDaemon()}/api/servers`;
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 
+const filled = (value: unknown): string | null =>
+  typeof value === 'string' && value !== '' ? value : null;
+
 export function toServer(value: unknown): Server {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.host !== 'string') throw unexpected();
   return {
     id: value.id,
     host: value.host,
-    name: typeof value.name === 'string' && value.name !== '' ? value.name : null,
+    name: filled(value.name),
     addedAt: typeof value.addedAt === 'string' ? value.addedAt : '',
+    instanceId: filled(value.instanceId),
+    launchedAt: filled(value.launchedAt),
   };
 }
 
