@@ -8,6 +8,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 
 const OWNER = TEST_OWNER.address.toLowerCase();
+const WALLET = '0x90f79bf6eb2c4f870365e785982e1f101e93b906';
 
 const CONFIG: ConfigResult = {
   ok: true,
@@ -99,7 +100,7 @@ describe('who metro will issue a server to', () => {
   test('an identity outside the allowlist is told nothing beyond a flat no', async () => {
     const overview = await call('GET', '/api/launch', TEST_STRANGER);
     expect(await overview.json()).toEqual({ enabled: false });
-    const attempt = await call('POST', '/api/launch', TEST_STRANGER, { name: 'andy' });
+    const attempt = await call('POST', '/api/launch', TEST_STRANGER, { name: 'andy', owner: WALLET });
     expect(attempt.status).toBe(403);
     expect(((await attempt.json()) as { error: string }).error).toContain('identity');
     expect(launched).toEqual([]);
@@ -108,7 +109,7 @@ describe('who metro will issue a server to', () => {
   test('a deployment with no keys issues nothing, even to the owner', async () => {
     config = { ok: false, missing: ['METRO_AWS_ACCESS_KEY_ID'] };
     expect(await (await call('GET', '/api/launch')).json()).toEqual({ enabled: false });
-    const attempt = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1' });
+    const attempt = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1', owner: WALLET });
     expect(attempt.status).toBe(404);
     expect(launched).toEqual([]);
   });
@@ -124,8 +125,8 @@ describe('the overview a wallet on the list sees', () => {
 });
 
 describe('issuing one', () => {
-  test('the name and region reach the launcher with the deployment key, and the row comes back', async () => {
-    const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'Andy', region: 'us-east-1' });
+  test('the box is owned by the WALLET the page names, never by the identity that signed the request', async () => {
+    const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'Andy', region: 'us-east-1', owner: WALLET });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       host: 'metro-abc123.tail17c4f8.ts.net',
@@ -133,15 +134,19 @@ describe('issuing one', () => {
       region: 'us-east-1',
       server: { id: 'srv00000001', instanceId: 'i-0abc' },
     });
-    expect(launched).toEqual([`Andy us-east-1 ${OWNER} tail17c4f8.ts.net tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop`]);
+    expect(launched).toEqual([`Andy us-east-1 ${WALLET} tail17c4f8.ts.net tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop`]);
+    expect(launched[0]).not.toContain(OWNER);
   });
 
-  test('a missing name or region, and a region that is not one, are refused before AWS is asked', async () => {
+  test('a missing name, region or owner wallet is refused before AWS is asked', async () => {
     const region = 'eu-west-1';
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: '  ', region })).status).toBe(400);
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'a'.repeat(41), region })).status).toBe(400);
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', region: 'europe' })).status).toBe(400);
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok' })).status).toBe(400);
+    const owner = WALLET;
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: '  ', region, owner })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'a'.repeat(41), region, owner })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', region: 'europe', owner })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', owner })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', region })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', region, owner: 'me' })).status).toBe(400);
     expect(launched).toEqual([]);
   });
 
@@ -149,7 +154,7 @@ describe('issuing one', () => {
     const was = deps.launch;
     deps.launch = () =>
       Promise.reject(new AwsError('Unsupported', 'The specified instance type is not eligible for Free Tier.'));
-    const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1' });
+    const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1', owner: WALLET });
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toContain('not eligible for Free Tier');
     deps.launch = was;
@@ -170,8 +175,8 @@ describe('issuing one', () => {
       };
     };
     const [first, second] = await Promise.all([
-      call('POST', '/api/launch', TEST_OWNER, { name: 'one', region: 'eu-west-1' }),
-      call('POST', '/api/launch', TEST_OWNER, { name: 'two', region: 'eu-west-1' }),
+      call('POST', '/api/launch', TEST_OWNER, { name: 'one', region: 'eu-west-1', owner: WALLET }),
+      call('POST', '/api/launch', TEST_OWNER, { name: 'two', region: 'eu-west-1', owner: WALLET }),
     ]);
     expect([first.status, second.status].sort()).toEqual([200, 409]);
     expect(launched).toHaveLength(1);
