@@ -206,15 +206,18 @@ function importTarget(dir: string, agent: LoadedAgent & { key: string }): Import
   return { path: same?.path ?? fresh, previous: same?.file };
 }
 
+export type ImportMode = 'append' | 'overwrite';
+
 export async function localImportAgent(
   subject: string,
   agent: LoadedAgent,
   dir = agentsDir(),
+  mode: ImportMode = 'overwrite',
 ): Promise<{ id: string; name: string; key: string; stations: number }> {
   assertLocalOwner(subject, dir);
   assertImportable(agent);
   const { path, previous } = importTarget(dir, agent);
-  const file = fileFor(agent, localOwner(dir), path, previous);
+  const file = fileFor(agent, localOwner(dir), path, previous, mode);
   ensureSecureDir(join(path, '..'));
   save({ path, file });
   if (previous !== undefined && previous.key !== agent.key) unregisterAgentKey(agent.id);
@@ -227,11 +230,17 @@ export async function localImportAgent(
   });
 }
 
-function mergedStations(agent: LoadedAgent, previous: AgentFile | undefined): AgentFile['stations'] {
-  const fromMetro = agent.accounts.map((a) => ({ ...a, allowlist: a.allowlist ?? ['*'] }));
-  const kept = (previous?.stations ?? []).filter(
-    (s) => !fromMetro.some((m) => m.station === s.station && m.id === s.id),
-  );
+function mergedStations(
+  agent: LoadedAgent,
+  previous: AgentFile | undefined,
+  mode: ImportMode,
+): AgentFile['stations'] {
+  const before = previous?.stations ?? [];
+  const here = (station: string, id: string): boolean => before.some((s) => s.station === station && s.id === id);
+  const fromMetro = agent.accounts
+    .map((a) => ({ ...a, allowlist: a.allowlist ?? ['*'] }))
+    .filter((m) => mode === 'overwrite' || !here(m.station, m.id));
+  const kept = before.filter((s) => !fromMetro.some((m) => m.station === s.station && m.id === s.id));
   return [...fromMetro, ...kept];
 }
 
@@ -239,7 +248,8 @@ function fileFor(
   agent: LoadedAgent,
   owner: string | null,
   path: string,
-  previous?: AgentFile,
+  previous: AgentFile | undefined,
+  mode: ImportMode,
 ): AgentFile {
   try {
     return parseAgentFile(
@@ -249,7 +259,7 @@ function fileFor(
         name: previous?.name ?? agent.name,
         key: agent.key,
         owner,
-        stations: mergedStations(agent, previous),
+        stations: mergedStations(agent, previous, mode),
         connectors: previous?.connectors ?? [],
       }),
       path,

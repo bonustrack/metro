@@ -2,11 +2,14 @@ import {
   closeSync,
   createReadStream,
   existsSync,
+  mkdirSync,
   openSync,
   readdirSync,
   readSync,
+  renameSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +25,8 @@ const TEXT_CAP = 20_000;
 const RESULT_CAP = 8_000;
 const INPUT_CAP = 4_000;
 const FILE_CAP = 1_000_000;
+const MEMORY_MAX = 256 * 1024;
+const MEMORY_MODE = 0o644;
 const NOISE = ['<task-notification>', '<system-reminder>', '<local-command', '<command-name>'];
 
 export function claudeDir(): string {
@@ -320,6 +325,21 @@ export function listMemory(project: string, dir = claudeDir()): MemoryListing {
     .sort((a, b) => a.name.localeCompare(b.name));
   const index = join(path, 'MEMORY.md');
   return { files, index: existsSync(index) ? readCapped(index) : null };
+}
+
+export function writeMemoryFile(project: string, name: string, text: string, dir = claudeDir()): MemoryFile {
+  if (text.trim() === '') throw new ApiError('a memory file cannot be empty', 400);
+  if (Buffer.byteLength(text, 'utf8') > MEMORY_MAX)
+    throw new ApiError(`a memory file is at most ${String(MEMORY_MAX)} bytes`, 400);
+  const folder = memoryDir(project, dir);
+  const file = safeName(name, MEMORY_RE, 'memory file name');
+  mkdirSync(folder, { recursive: true });
+  const path = join(folder, file);
+  const tmp = `${path}.metro-${String(process.pid)}`;
+  writeFileSync(tmp, text, { mode: MEMORY_MODE });
+  renameSync(tmp, path);
+  const stat = statSync(path);
+  return { name: file, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
 }
 
 export function readMemoryFile(project: string, name: string, dir = claudeDir()): string {
