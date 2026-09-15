@@ -35,12 +35,13 @@ primary_region = "iad"
   #   state dir      → /data/.cache/metro  (METRO_STATE_DIR default: lock, IPC)
 
 # Secrets are NOT stored here — set them with `fly secrets set` (see README "Deploying"):
-#   DATABASE_URL      (required — the Postgres holding agents/accounts/keys)
-#   Optional: METRO_PUBLIC_URL (attachment link base; unset → tunnel hostname),
-#   METRO_AGENT (pin one agent by id), METRO_SESSION_SECRET (web UI sign-in).
-#   Every credential is an agents.key row; there is no full-access env bearer.
-#   The channel allowlist is per-account in the DB config.
-# Station secrets (mnemonic/keys/tokens/sessions) now live in the DB rows, NOT on Fly.
+#   DATABASE_URL  (required — the Postgres holding the sealed vaults and the server lists)
+#   To have metro issue servers, five more (docs/ISSUING-SERVERS.md), and with any of
+#   them unset the feature is simply off: METRO_AWS_ACCESS_KEY_ID,
+#   METRO_AWS_SECRET_ACCESS_KEY, METRO_LAUNCH_TAILNET, METRO_TAILSCALE_AUTH_KEY,
+#   METRO_LAUNCH_OWNERS (the wallets allowed to ask), plus optional METRO_LAUNCH_MAX.
+# This app runs no station and holds no station credential: a vault row is ciphertext
+# sealed in the browser, and nothing here can open one.
 
 [http_service]
   internal_port = 8420
