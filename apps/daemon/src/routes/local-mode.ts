@@ -164,10 +164,10 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
       if (bundle.agent.key === '') throw new ApiError(`agent '${agent.name}' has no key to bundle`, 400);
       return bundle;
     },
-    restore: async (subject, bundle) => {
+    restore: async (subject, bundle, mode) => {
       assertLocalOwner(subject);
-      const made = await localImportAgent(subject, loadedAgentOf(bundle));
-      const connectors = localImportConnectors(bundle.connectors);
+      const made = await localImportAgent(subject, loadedAgentOf(bundle), undefined, mode);
+      const connectors = localImportConnectors(bundle.connectors, undefined, mode);
       for (const station of new Set(bundle.agent.stations.map((a) => a.station)))
         await deps.syncStations(station).catch((err: unknown) => {
           log.warn({ station, err: errMsg(err) }, 'restore: station reload failed, the change lands at the next boot');

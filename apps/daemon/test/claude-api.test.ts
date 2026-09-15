@@ -65,6 +65,13 @@ const signedPost = async (path: string): Promise<Response> =>
 
 const get = async (path: string, subject = OWNER): Promise<Response> =>
   fetch(`${base}${path}`, { headers: { authorization: await auth('GET', path, subject) } });
+
+const put = async (path: string, body: unknown, subject = OWNER): Promise<Response> =>
+  fetch(`${base}${path}`, {
+    method: 'PUT',
+    headers: { authorization: await auth('PUT', path, subject), 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 const json = async <T>(path: string): Promise<T> => (await (await get(path)).json()) as T;
 
 describe('Claude Code sessions and memory, read from the disk the daemon runs on', () => {
@@ -113,6 +120,29 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect((await get(`/api/claude/memory/bad%20name.md?project=${PROJECT}`)).status).toBe(400);
     expect((await get(`/api/claude/memory/..%2F..%2Fetc.md?project=${PROJECT}`)).status).toBe(400);
     expect((await get(`/api/claude/memory/gone.md?project=${PROJECT}`)).status).toBe(404);
+  });
+
+  test('memory: a file can be written back, and only where the name and size allow', async () => {
+    const path = `/api/claude/memory/imported.md?project=${PROJECT}`;
+    const made = await put(path, { text: '# Imported\n\nFrom a .metro file.\n' });
+    expect(made.status).toBe(200);
+    expect((await made.json()) as { name: string }).toMatchObject({ name: 'imported.md' });
+    expect((await json<{ content: string }>(path)).content).toContain('From a .metro file');
+
+    const again = await put(path, { text: '# Imported\n\nSecond write wins.\n' });
+    expect(again.status).toBe(200);
+    expect((await json<{ content: string }>(path)).content).toContain('Second write wins');
+    expect((await json<{ files: { name: string }[] }>(`/api/claude/memory?project=${PROJECT}`)).files.map((f) => f.name)).toEqual([
+      'blue.md',
+      'imported.md',
+    ]);
+
+    expect((await put(path, { text: '   ' })).status).toBe(400);
+    expect((await put(path, {})).status).toBe(400);
+    expect((await put(path, { text: 'x'.repeat(256 * 1024 + 1) })).status).toBe(400);
+    expect((await put(`/api/claude/memory/notes.txt?project=${PROJECT}`, { text: 'no' })).status).toBe(400);
+    expect((await put(`/api/claude/memory/..%2F..%2Fescape.md?project=${PROJECT}`, { text: 'no' })).status).toBe(400);
+    expect((await put(path, { text: 'no' }, STRANGER)).status).toBe(404);
   });
 
   test('a bad project or session id never touches the disk beyond the projects dir', async () => {

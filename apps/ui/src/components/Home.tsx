@@ -8,6 +8,8 @@ import { AgentCredentials } from './AgentCredentials.js';
 import { CreateAgent } from './CreateAgent.js';
 import { SyncAgent } from './SyncAgent.js';
 import { RestoreAgent } from './RestoreAgent.js';
+import { ExportAgent } from './ExportAgent.js';
+import { ImportAgent } from './ImportAgent.js';
 import { Loading } from './Loading.js';
 import { NewAgentKey } from './NewAgentKey.js';
 import { createAgent, resetAgentKey, type CreatedAgent } from '../api/client.js';
@@ -126,6 +128,9 @@ interface HomeProps {
 function AgentActions({ agent }: { agent: AgentSummary }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [syncing, setSyncing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const portable = { id: agent.id, name: agent.name, key: agent.key ?? '' };
   return (
     <>
       <Row gap={8} wrap>
@@ -137,7 +142,37 @@ function AgentActions({ agent }: { agent: AgentSummary }): ReactNode {
             setSyncing(true);
           }}
         />
+        <Button
+          color="secondary"
+          dark={dark}
+          label="Export"
+          onPress={() => {
+            setExporting(true);
+          }}
+        />
+        <Button
+          color="secondary"
+          dark={dark}
+          label="Import"
+          onPress={() => {
+            setImporting(true);
+          }}
+        />
       </Row>
+      <ExportAgent
+        open={exporting}
+        agent={portable}
+        onClose={() => {
+          setExporting(false);
+        }}
+      />
+      <ImportAgent
+        open={importing}
+        agent={portable}
+        onClose={() => {
+          setImporting(false);
+        }}
+      />
       <SyncAgent
         open={syncing}
         agent={{ id: agent.id, name: agent.name }}

@@ -39,6 +39,7 @@ import {
   listMemory,
   readMemoryFile,
   readTranscript,
+  writeMemoryFile,
 } from './files.js';
 
 const PREFIX = '/api/claude';
@@ -94,12 +95,16 @@ const parts = (path: string): string[] => path.slice(PREFIX.length + 1).split('/
 const seenIn = (body: Record<string, unknown>): string | null | undefined =>
   'seenAt' in body ? (typeof body.seenAt === 'string' ? body.seenAt : null) : undefined;
 
-async function writeAnswer(req: IncomingMessage, path: string, dir: string): Promise<unknown> {
+const WRITE_HEADS = new Set(['settings', 'skills', 'memory']);
+
+async function writeAnswer(req: IncomingMessage, path: string, search: string, dir: string): Promise<unknown> {
   const [head = '', item = ''] = parts(path);
-  if ((head !== 'settings' && head !== 'skills') || item === '') throw new ApiError('method not allowed', 405);
+  if (!WRITE_HEADS.has(head) || item === '') throw new ApiError('method not allowed', 405);
   const body = await readJsonBody(req, BODY_MAX);
   if (!isRecord(body) || typeof body.text !== 'string') throw new ApiError('text is required', 400);
   if (head === 'skills') return writeClaudeSkill(decodeURIComponent(item), body.text, seenIn(body), dir);
+  if (head === 'memory')
+    return writeMemoryFile(projectOf(new URLSearchParams(search)), decodeURIComponent(item), body.text, dir);
   return writeClaudeSettings(item, body.text, seenIn(body), dir);
 }
 
@@ -217,7 +222,7 @@ function routed(req: IncomingMessage, path: string, search: string, deps: Claude
   if (head === LOGIN) return loginAnswer(req, item, deps);
   const single = item === '' ? SINGLETONS[head] : undefined;
   if (single !== undefined) return single(req, deps);
-  if (req.method === 'PUT') return writeAnswer(req, path, dir);
+  if (req.method === 'PUT') return writeAnswer(req, path, search, dir);
   if (req.method === 'POST') return created(req, path, dir);
   return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
 }

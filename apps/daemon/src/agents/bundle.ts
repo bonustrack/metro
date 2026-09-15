@@ -33,9 +33,17 @@ export interface RestoredAgent {
   connectors: number;
 }
 
+export type ImportMode = 'append' | 'overwrite';
+
 export interface BundleApiDeps {
   bundle: (subject: string, agentId: string) => Promise<AgentBundle>;
-  restore: (subject: string, bundle: AgentBundle) => Promise<RestoredAgent>;
+  restore: (subject: string, bundle: AgentBundle, mode: ImportMode) => Promise<RestoredAgent>;
+}
+
+export function parseMode(raw: unknown): ImportMode {
+  const mode = isRecord(raw) && typeof raw.mode === 'string' ? raw.mode : 'overwrite';
+  if (mode !== 'append' && mode !== 'overwrite') throw bad("mode is 'append' or 'overwrite'");
+  return mode;
 }
 
 const bad = (what: string): ApiError => new ApiError(`bundle: ${what}`, 400);
@@ -73,7 +81,10 @@ export function parseBundle(raw: unknown): AgentBundle {
 }
 
 async function answer(req: IncomingMessage, deps: BundleApiDeps, subject: string, path: string): Promise<unknown> {
-  if (path === RESTORE_PATH) return deps.restore(subject, parseBundle(await readJsonBody(req, BUNDLE_MAX)));
+  if (path === RESTORE_PATH) {
+    const body: unknown = await readJsonBody(req, BUNDLE_MAX);
+    return deps.restore(subject, parseBundle(body), parseMode(body));
+  }
   const id = parseId(path.slice(AGENTS.length + 1).split('/')[0] ?? '');
   if (id === null) throw new ApiError('no such agent', 404);
   return deps.bundle(subject, id);

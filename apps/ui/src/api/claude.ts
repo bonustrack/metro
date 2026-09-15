@@ -163,6 +163,16 @@ export async function fetchMemoryFile(project: string, name: string): Promise<st
   return body.content;
 }
 
+export async function saveMemoryFile(project: string, name: string, content: string): Promise<void> {
+  await call({
+    base: base(),
+    path: `/memory/${encodeURIComponent(name)}?project=${encodeURIComponent(project)}`,
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: content }),
+  });
+}
+
 const SCOPES = ['user', 'project', 'local'] as const;
 
 export type SettingsScope = (typeof SCOPES)[number];

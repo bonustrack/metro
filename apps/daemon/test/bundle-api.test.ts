@@ -108,4 +108,39 @@ describe('an agent bundle on a local daemon', () => {
     expect((await call('POST', '/api/agents/restore', { version: 2 })).status).toBe(400);
     expect((await call('POST', '/api/agents/restore', bundle, session(STRANGER))).status).toBe(404);
   });
+
+  test('append leaves what is already here alone; overwrite replaces the match', async () => {
+    const read = (): { stations: { station: string; id: string; config: { token: string } }[] } =>
+      JSON.parse(readFileSync(join(dir, 'Tony', 'agent.json'), 'utf8')) as {
+        stations: { station: string; id: string; config: { token: string } }[];
+      };
+    const here = read().stations[0];
+    if (here === undefined) throw new Error('expected a station to be here already');
+
+    const incoming = {
+      version: 1,
+      agent: { id: tony.id, name: 'Tony', key: tony.key, stations: [{ ...here, config: { token: 'from-the-file' } }] },
+      connectors: [],
+    };
+
+    expect((await call('POST', '/api/agents/restore', { ...incoming, mode: 'append' })).status).toBe(201);
+    expect(read().stations[0]?.config.token).toBe('bot-token');
+
+    expect((await call('POST', '/api/agents/restore', { ...incoming, mode: 'overwrite' })).status).toBe(201);
+    expect(read().stations[0]?.config.token).toBe('from-the-file');
+
+    const other = {
+      ...incoming,
+      agent: {
+        ...incoming.agent,
+        stations: [{ ...here, id: `${here.id.slice(0, -8)}deadbeef`, config: { token: 'a-second' } }],
+      },
+    };
+    expect((await call('POST', '/api/agents/restore', { ...other, mode: 'append' })).status).toBe(201);
+    const after = read().stations;
+    expect(after).toHaveLength(2);
+    expect(after.map((a) => a.config.token).sort()).toEqual(['a-second', 'from-the-file']);
+
+    expect((await call('POST', '/api/agents/restore', { ...incoming, mode: 'sideways' })).status).toBe(400);
+  });
 });
