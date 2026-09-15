@@ -33,8 +33,7 @@ COPY packages/core ./packages/core
 COPY packages/http ./packages/http
 
 # METRO_HTTP_HOST=0.0.0.0 so the platform proxy can reach the app.
-ENV HOME=/data \
-    METRO_HTTP_HOST=0.0.0.0 \
+ENV METRO_HTTP_HOST=0.0.0.0 \
     METRO_LOG_LEVEL=info
 
 EXPOSE 8420

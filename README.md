@@ -77,16 +77,17 @@ share one kernel, `packages/core`; the two servers share `packages/http`.
 
 ## Deploying
 
-The hosted daemon is a Fly app holding one Postgres database (wallets and the vault) and
-nothing else of yours. Once:
+api.metro.box is a Fly app holding one Postgres database (the sealed vaults and the
+server lists) and nothing else of yours. It keeps nothing on disk, so it mounts no
+volume. Once:
 
 ```sh
 # edit app = "metro" in fly.toml to a unique name first
 fly apps create <your-app-name>
-fly volumes create metro_data --size 3 --region iad
 export DATABASE_URL=postgres://user:pass@host:5432/metro
-bun --filter @metro-labs/mcp db:migrate
+bun --filter @metro-labs/api db:migrate
 fly secrets set DATABASE_URL="$DATABASE_URL"
+# optional, to have metro issue servers: see docs/ISSUING-SERVERS.md
 fly deploy
 fly certs add mcp.example.com   # optional: then add the records Fly prints at your DNS provider
 ```

@@ -1,9 +1,9 @@
-# Fly.io deployment for metro.
+# Fly.io deployment for api.metro.box (apps/api).
 #
-# ONE always-on machine + a single-attach volume. The volume can attach to only one
-# machine, which ENFORCES XMTP's single-writer rule for free; disk-backed deploys
-# replace the machine in place (the old one stops before the new starts), so there is
-# never a moment with two writers on the same inbox.
+# ONE always-on machine and nothing on disk. This app runs no station, no MCP
+# session and no daemon: it serves wallet sign-in, the sealed vault, the server
+# list, the launch API and /health, all backed by Postgres. The volume it used to
+# mount went with the daemon.
 #
 # Change `app` to your own unique name (or run `fly launch` to generate one).
 
@@ -27,26 +27,24 @@ primary_region = "iad"
   release_command = "bun --filter @metro-labs/api db:migrate"
 
 [env]
-  HOME = "/data"
   METRO_HTTP_HOST = "0.0.0.0"
   METRO_LOG_LEVEL = "info"
-  # HOME=/data puts the durable state on the mounted volume:
-  #   XMTP MLS db3s  → /data/.metro/xmtp-production-<id>.db3  (MUST persist)
-  #   state dir      → /data/.cache/metro  (METRO_STATE_DIR default: lock, IPC)
+  # This app keeps nothing on disk: the vaults and the server lists are rows in
+  # Postgres, and no station, MCP session or attachment cache runs here.
 
 # Secrets are NOT stored here — set them with `fly secrets set` (see README "Deploying"):
-#   DATABASE_URL      (required — the Postgres holding agents/accounts/keys)
-#   Optional: METRO_PUBLIC_URL (attachment link base; unset → tunnel hostname),
-#   METRO_AGENT (pin one agent by id), METRO_SESSION_SECRET (web UI sign-in).
-#   Every credential is an agents.key row; there is no full-access env bearer.
-#   The channel allowlist is per-account in the DB config.
-# Station secrets (mnemonic/keys/tokens/sessions) now live in the DB rows, NOT on Fly.
+#   DATABASE_URL  (required — the Postgres holding the sealed vaults and the server lists)
+#   To have metro issue servers, five more (docs/ISSUING-SERVERS.md), and with any of
+#   them unset the feature is simply off: METRO_AWS_ACCESS_KEY_ID,
+#   METRO_AWS_SECRET_ACCESS_KEY, METRO_LAUNCH_TAILNET, METRO_TAILSCALE_AUTH_KEY,
+#   METRO_LAUNCH_OWNERS (the wallets allowed to ask), plus optional METRO_LAUNCH_MAX.
+# A vault row is ciphertext sealed in the browser: nothing here can open one.
 
 [http_service]
   internal_port = 8420
   force_https = true
-  # ALWAYS-ON: metro holds XMTP streams + Telegram long-poll; never let Fly stop the
-  # machine, and never run more than one (single-writer).
+  # ALWAYS-ON: metro.box signs in against this app, so a cold start would sit in
+  # front of every page load.
   auto_stop_machines = false
   auto_start_machines = false
   min_machines_running = 1
@@ -58,12 +56,6 @@ primary_region = "iad"
     timeout = "5s"
     grace_period = "45s"
 
-# The single-attach volume holds the durable XMTP MLS db3s (see [env] above). Losing
-# it burns 1 of the inbox's 10 install slots, so it MUST stay mounted at /data.
-[mounts]
-  source = "metro_data"
-  destination = "/data"
-
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "1gb"   # bump (2gb+) as you add XMTP accounts — each is a live client
+  memory = "1gb"
