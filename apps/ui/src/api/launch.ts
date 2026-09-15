@@ -26,7 +26,6 @@ export interface InstanceView {
 
 export interface LaunchOverview {
   enabled: boolean;
-  region: string;
   regions: string[];
   remaining: number;
 }
@@ -59,7 +58,6 @@ export async function fetchLaunchOverview(): Promise<LaunchOverview> {
   const regions = Array.isArray(body.regions) ? body.regions.filter((r): r is string => typeof r === 'string') : [];
   return {
     enabled: body.enabled === true,
-    region: text(body.region),
     regions,
     remaining: typeof body.remaining === 'number' ? body.remaining : 0,
   };
@@ -70,7 +68,7 @@ export async function launchServer(name: string, region: string): Promise<Launch
     method: 'POST',
     base: launchUrl(),
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(region === '' ? { name } : { name, region }),
+    body: JSON.stringify({ name, region }),
   });
   if (!isRecord(body)) throw unexpected();
   return {

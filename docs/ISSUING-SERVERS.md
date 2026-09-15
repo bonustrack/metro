@@ -8,7 +8,7 @@ one, because every box is billed to the AWS account whose key is configured here
 
 ## What you set on the deployment
 
-Six Fly secrets on the `metro` app. With any of them unset or malformed the
+Five Fly secrets on the `metro` app. With any of them unset or malformed the
 feature stays off, and the boot log names which ones: `fly logs` prints
 `launch: metro issues no servers, these are unset or malformed`.
 
@@ -16,7 +16,6 @@ feature stays off, and the boot log names which ones: `fly logs` prints
 | --- | --- |
 | `METRO_AWS_ACCESS_KEY_ID` | An IAM user holding only the policy below. |
 | `METRO_AWS_SECRET_ACCESS_KEY` | That user's secret. |
-| `METRO_AWS_REGION` | The region a launch uses unless the form picks another, as in `eu-west-1`. |
 | `METRO_LAUNCH_TAILNET` | The tailnet suffix the boxes join, as in `tail17c4f8.ts.net`. |
 | `METRO_TAILSCALE_AUTH_KEY` | A **reusable** auth key, `tskey-auth-…`. |
 | `METRO_LAUNCH_OWNERS` | Comma-separated wallet addresses allowed to launch. |
@@ -30,7 +29,6 @@ launch.
 fly secrets set -a metro \
   METRO_AWS_ACCESS_KEY_ID=AKIA... \
   METRO_AWS_SECRET_ACCESS_KEY=... \
-  METRO_AWS_REGION=eu-west-1 \
   METRO_LAUNCH_TAILNET=tail17c4f8.ts.net \
   METRO_TAILSCALE_AUTH_KEY=tskey-auth-... \
   METRO_LAUNCH_OWNERS=0xef8305e140ac520225daf050e2f71d5fbcc543e7
@@ -84,7 +82,9 @@ and a fresh single-use key minted per launch. That is one module, `authKey` in
 
 ## What a launch does
 
-The browser sends a name and a region. The server picks the newest Ubuntu 24.04
+The browser sends a name and a region, both required: the region is chosen in the
+form from the regions the account has enabled, so the deployment configures none.
+The server picks the newest Ubuntu 24.04
 arm64 image, runs one `t4g.medium` with an 8 GiB gp3 root, and retries every
 availability zone in the region when AWS answers `InsufficientInstanceCapacity`,
 which is what a region running short of that instance type looks like. The

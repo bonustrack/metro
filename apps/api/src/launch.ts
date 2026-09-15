@@ -87,7 +87,6 @@ async function overview(deps: LaunchApiDeps, subject: string): Promise<unknown> 
   const used = await deps.count(subject);
   return {
     enabled: true,
-    region: result.config.region,
     regions: await enabledRegions(deps, result.config),
     remaining: Math.max(0, result.config.perOwner - used),
   };
@@ -100,9 +99,8 @@ function nameOf(body: unknown): string {
   return raw;
 }
 
-function regionOf(body: unknown, config: LaunchConfig): string {
-  const raw = isRecord(body) && typeof body.region === 'string' ? body.region.trim() : '';
-  const region = raw === '' ? config.region : raw;
+function regionOf(body: unknown): string {
+  const region = isRecord(body) && typeof body.region === 'string' ? body.region.trim() : '';
   if (!REGION_RE.test(region)) throw new ApiError('the region is an AWS region name, as in eu-west-1', 400);
   return region;
 }
@@ -118,7 +116,7 @@ function holdDuplicate(deps: LaunchApiDeps, subject: string): void {
 async function issue(deps: LaunchApiDeps, subject: string, body: unknown): Promise<unknown> {
   const config = allowed(deps, subject);
   const name = nameOf(body);
-  const region = regionOf(body, config);
+  const region = regionOf(body);
   if ((await deps.count(subject)) >= config.perOwner)
     throw new ApiError(`this wallet already holds ${String(config.perOwner)} servers metro issued`, 429);
   holdDuplicate(deps, subject);

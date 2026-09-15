@@ -6,7 +6,6 @@ const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const GOOD: NodeJS.ProcessEnv = {
   METRO_AWS_ACCESS_KEY_ID: 'AKIAEXAMPLE',
   METRO_AWS_SECRET_ACCESS_KEY: 'secret',
-  METRO_AWS_REGION: 'eu-west-1',
   METRO_LAUNCH_TAILNET: 'tail17c4f8.ts.net',
   METRO_TAILSCALE_AUTH_KEY: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
   METRO_LAUNCH_OWNERS: OWNER,
@@ -17,7 +16,6 @@ describe('metro issues servers only when it is fully configured', () => {
     const result = readLaunchConfig(GOOD);
     if (!result.ok) throw new Error(`expected a config, missing ${result.missing.join(', ')}`);
     expect(result.config).toMatchObject({
-      region: 'eu-west-1',
       tailnet: 'tail17c4f8.ts.net',
       owners: [OWNER],
       perOwner: 10,
@@ -29,7 +27,6 @@ describe('metro issues servers only when it is fully configured', () => {
     for (const [over, missing] of [
       [{ METRO_AWS_ACCESS_KEY_ID: '' }, 'METRO_AWS_ACCESS_KEY_ID'],
       [{ METRO_AWS_SECRET_ACCESS_KEY: '' }, 'METRO_AWS_SECRET_ACCESS_KEY'],
-      [{ METRO_AWS_REGION: 'europe' }, 'METRO_AWS_REGION'],
       [{ METRO_LAUNCH_TAILNET: 'example.com' }, 'METRO_LAUNCH_TAILNET'],
       [{ METRO_TAILSCALE_AUTH_KEY: 'tskey-api-nope' }, 'METRO_TAILSCALE_AUTH_KEY'],
       [{ METRO_LAUNCH_OWNERS: '' }, 'METRO_LAUNCH_OWNERS'],

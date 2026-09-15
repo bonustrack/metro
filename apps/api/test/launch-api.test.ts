@@ -12,7 +12,6 @@ const CONFIG: ConfigResult = {
   ok: true,
   config: {
     credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
-    region: 'eu-west-1',
     tailnet: 'tail17c4f8.ts.net',
     authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
     owners: [OWNER],
@@ -111,7 +110,7 @@ describe('who metro will issue a server to', () => {
   test('a deployment with no keys issues nothing, even to the owner', async () => {
     config = { ok: false, missing: ['METRO_AWS_ACCESS_KEY_ID'] };
     expect(await (await call('GET', '/api/launch')).json()).toEqual({ enabled: false });
-    const attempt = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy' });
+    const attempt = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1' });
     expect(attempt.status).toBe(404);
     expect(launched).toEqual([]);
   });
@@ -121,7 +120,7 @@ describe('the overview a wallet on the list sees', () => {
   test('it carries the region, the regions on the account and what is left, never a key', async () => {
     held = 1;
     const body = (await (await call('GET', '/api/launch')).json()) as Record<string, unknown>;
-    expect(body).toEqual({ enabled: true, region: 'eu-west-1', regions: ['eu-west-1', 'us-east-1'], remaining: 1 });
+    expect(body).toEqual({ enabled: true, regions: ['eu-west-1', 'us-east-1'], remaining: 1 });
     expect(JSON.stringify(body)).not.toContain('AKIA');
     expect(JSON.stringify(body)).not.toContain('tskey');
   });
@@ -140,21 +139,18 @@ describe('issuing one', () => {
     expect(launched).toEqual([`Andy us-east-1 ${OWNER} tail17c4f8.ts.net tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop`]);
   });
 
-  test('no region falls back to the one the deployment configured', async () => {
-    await call('POST', '/api/launch', TEST_OWNER, { name: 'Andy' });
-    expect(launched[0]).toContain('Andy eu-west-1');
-  });
-
-  test('a missing name, and a region that is not one, are refused before AWS is asked', async () => {
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: '  ' })).status).toBe(400);
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'a'.repeat(41) })).status).toBe(400);
+  test('a missing name or region, and a region that is not one, are refused before AWS is asked', async () => {
+    const region = 'eu-west-1';
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: '  ', region })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'a'.repeat(41), region })).status).toBe(400);
     expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', region: 'europe' })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok' })).status).toBe(400);
     expect(launched).toEqual([]);
   });
 
   test('the cap per wallet is a refusal, not a silent extra instance', async () => {
     held = 2;
-    const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy' });
+    const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1' });
     expect(res.status).toBe(429);
     expect(launched).toEqual([]);
   });
@@ -174,8 +170,8 @@ describe('issuing one', () => {
       };
     };
     const [first, second] = await Promise.all([
-      call('POST', '/api/launch', TEST_OWNER, { name: 'one' }),
-      call('POST', '/api/launch', TEST_OWNER, { name: 'two' }),
+      call('POST', '/api/launch', TEST_OWNER, { name: 'one', region: 'eu-west-1' }),
+      call('POST', '/api/launch', TEST_OWNER, { name: 'two', region: 'eu-west-1' }),
     ]);
     expect([first.status, second.status].sort()).toEqual([200, 409]);
     expect(launched).toHaveLength(1);

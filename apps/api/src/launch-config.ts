@@ -5,14 +5,12 @@ import type { AwsCredentials } from './aws/ec2.js';
 
 export interface LaunchConfig {
   credentials: AwsCredentials;
-  region: string;
   tailnet: string;
   authKey: string;
   owners: readonly string[];
   perOwner: number;
 }
 
-const REGION_RE = /^[a-z]{2}(?:-[a-z]+)+-\d$/;
 const TAILNET_RE = /^(?:[a-z0-9-]+\.)*ts\.net$/;
 const DEFAULT_PER_OWNER = 10;
 const MAX_PER_OWNER = 100;
@@ -43,14 +41,12 @@ export function readLaunchConfig(env: NodeJS.ProcessEnv = process.env): ConfigRe
     accessKeyId: read(env, 'METRO_AWS_ACCESS_KEY_ID'),
     secretAccessKey: read(env, 'METRO_AWS_SECRET_ACCESS_KEY'),
   };
-  const region = read(env, 'METRO_AWS_REGION');
   const tailnet = read(env, 'METRO_LAUNCH_TAILNET').toLowerCase();
   const authKey = read(env, 'METRO_TAILSCALE_AUTH_KEY');
   const owners = launchOwners(read(env, 'METRO_LAUNCH_OWNERS'));
   const missing = [
     ...(credentials.accessKeyId === '' ? ['METRO_AWS_ACCESS_KEY_ID'] : []),
     ...(credentials.secretAccessKey === '' ? ['METRO_AWS_SECRET_ACCESS_KEY'] : []),
-    ...(REGION_RE.test(region) ? [] : ['METRO_AWS_REGION']),
     ...(TAILNET_RE.test(tailnet) ? [] : ['METRO_LAUNCH_TAILNET']),
     ...(AUTH_KEY_RE.test(authKey) ? [] : ['METRO_TAILSCALE_AUTH_KEY']),
     ...(owners.length === 0 ? ['METRO_LAUNCH_OWNERS'] : []),
@@ -58,7 +54,7 @@ export function readLaunchConfig(env: NodeJS.ProcessEnv = process.env): ConfigRe
   if (missing.length > 0) return { ok: false, missing };
   return {
     ok: true,
-    config: { credentials, region, tailnet, authKey, owners, perOwner: perOwner(read(env, 'METRO_LAUNCH_MAX')) },
+    config: { credentials, tailnet, authKey, owners, perOwner: perOwner(read(env, 'METRO_LAUNCH_MAX')) },
   };
 }
 
@@ -68,7 +64,7 @@ export const mayLaunch = (config: LaunchConfig, subject: string): boolean =>
 export function announceLaunchConfig(result: ConfigResult): void {
   if (result.ok) {
     log.info(
-      { region: result.config.region, tailnet: result.config.tailnet, owners: result.config.owners.length, perOwner: result.config.perOwner },
+      { tailnet: result.config.tailnet, owners: result.config.owners.length, perOwner: result.config.perOwner },
       'launch: metro can issue servers',
     );
     return;

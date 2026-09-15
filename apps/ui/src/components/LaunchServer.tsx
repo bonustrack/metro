@@ -27,7 +27,7 @@ function remainingNote(overview: LaunchOverview): string {
   return `Metro will issue ${String(overview.remaining)} more ${overview.remaining === 1 ? 'server' : 'servers'} to this wallet.`;
 }
 
-function useLaunchForm(overview: LaunchOverview): {
+function useLaunchForm(): {
   name: string;
   region: string;
   setName: (value: string) => void;
@@ -38,13 +38,13 @@ function useLaunchForm(overview: LaunchOverview): {
   launch: () => void;
 } {
   const [name, setName] = useState('');
-  const [region, setRegion] = useState(overview.region);
+  const [region, setRegion] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Launched | null>(null);
   const client = useQueryClient();
   const launch = (): void => {
-    if (busy || name.trim() === '') return;
+    if (busy || name.trim() === '' || region.trim() === '') return;
     setBusy(true);
     setError(null);
     launchServer(name.trim(), region.trim())
@@ -78,7 +78,7 @@ function LaunchedView({ launched }: { launched: Launched }): ReactNode {
 
 function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const form = useLaunchForm(overview);
+  const form = useLaunchForm();
   if (form.done !== null) return <LaunchedView launched={form.done} />;
   const full = overview.remaining <= 0;
   return (
@@ -105,7 +105,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
         <ModelPicker
           label="AWS region"
           value={form.region}
-          placeholder={overview.region}
+          placeholder="eu-west-1"
           models={regionRows(overview.regions.length === 0 ? null : overview.regions)}
           loading={false}
           error={null}
@@ -123,7 +123,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
           color="primary"
           dark={dark}
           loading={form.busy}
-          disabled={form.busy || full || form.name.trim() === ''}
+          disabled={form.busy || full || form.name.trim() === '' || form.region.trim() === ''}
           label="Launch"
           onPress={form.launch}
         />
