@@ -42,7 +42,6 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
             <NavRow label="Server" icon="server" selected={selection.kind === 'server'} target={{ kind: 'server', project }} onSelect={onSelect} />
             <NavRow label="Model" icon="chip" selected={selection.kind === 'model'} target={{ kind: 'model', project }} onSelect={onSelect} />
             <NavRow label="Terminal" icon="terminal" selected={selection.kind === 'terminal'} target={{ kind: 'terminal', project }} onSelect={onSelect} />
-            <NavRow label="Channels" icon="chat" selected={STATION_PAGES.includes(selection.kind)} target={{ kind: 'stations', project }} onSelect={onSelect} />
             <NavRow label="Sessions" icon="folder" selected={selection.kind === 'sessions'} target={{ kind: 'sessions', project, claudeProject: null, id: null }} onSelect={onSelect} />
             <NavRow label="Claude" icon="cog" selected={selection.kind === 'claude'} target={{ kind: 'claude', project }} onSelect={onSelect} />
           </Col>
@@ -51,6 +50,7 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
               <FieldLabel>Customize</FieldLabel>
             </Row>
             <NavRow label="Skills" icon="sparkles" selected={SKILL_PAGES.includes(selection.kind)} target={{ kind: 'skills', project }} onSelect={onSelect} />
+            <NavRow label="Channels" icon="chat" selected={STATION_PAGES.includes(selection.kind)} target={{ kind: 'stations', project }} onSelect={onSelect} />
             <NavRow label="Connectors" icon="viewGridAdd" selected={CONNECTOR_PAGES.includes(selection.kind)} target={{ kind: 'connectors', project }} onSelect={onSelect} />
             <NavRow label="Memory" icon="bookOpen" selected={selection.kind === 'memory'} target={{ kind: 'memory', project, claudeProject: null, file: null }} onSelect={onSelect} />
           </Col>
