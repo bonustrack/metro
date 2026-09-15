@@ -127,8 +127,15 @@ the region you launch in.
 
 ## What a launch does
 
-The browser sends a name and a region, both required: the region is chosen in the
-form from the regions the account has enabled, so the deployment configures none.
+The browser sends a name, a region and the wallet the box is to belong to, all
+three required: the region is chosen in the form from the regions the account has
+enabled, so the deployment configures none, and the wallet comes from the browser
+because it is the one thing this app cannot work out for itself. The identity
+that signs the request is derived from the wallet by a one-way function, and the
+wallet's own signature never leaves the browser, so metro.box takes the address
+the page names on trust. Nothing is spent on that trust: naming somebody else's
+wallet only produces a box the asker cannot sign in to.
+
 The server picks the newest Ubuntu 24.04
 arm64 image, runs one `t4g.medium` with an 8 GiB gp3 root, and retries every
 availability zone in the region when AWS answers `InsufficientInstanceCapacity`,
