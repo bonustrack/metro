@@ -12,6 +12,7 @@ import { TrainError } from '@metro-labs/core/train-error';
 import { errMsg } from '@metro-labs/core/log';
 import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
+import type { SenderFound } from './resolve.js';
 import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';
 import { baileysLogger } from './logger.js';
 import { useAccountAuthState } from './auth-state.js';
@@ -49,6 +50,7 @@ export interface WAClient {
   editMessage(jid: string, messageId: string, text: string): Promise<void>;
   deleteMessage(jid: string, messageId: string): Promise<void>;
   reuploadMedia(m: WAMessage): Promise<WAMessage>;
+  lookupSender(number: string): Promise<SenderFound>;
   disconnect(): Promise<void>;
 }
 
@@ -200,6 +202,17 @@ async function connect(st: State): Promise<void> {
   bindDelivery(st, sock);
 }
 
+async function lidFor(st: State, sock: WASocket, jid: string): Promise<string | null> {
+  try {
+    return await sock.signalRepository.lidMapping.getLIDForPN(jid);
+  } catch (e) {
+    process.stderr.write(
+      `whatsapp[${st.account.id}] no lid on file for ${jid}: ${errMsg(e)}\n`,
+    );
+    return null;
+  }
+}
+
 async function ready(st: State): Promise<WASocket> {
   await st.openPromise;
   if (!st.sock) throw new TrainError('whatsapp_call', 'socket not connected');
@@ -314,6 +327,13 @@ export function createClient(account: WhatsAppAccount): WAClient {
     async reuploadMedia(m) {
       const sock = await ready(st);
       return sock.updateMediaMessage(m);
+    },
+    async lookupSender(number) {
+      const sock = await ready(st);
+      const found = (await sock.onWhatsApp(number))?.[0];
+      if (found?.exists !== true) return { exists: false, jid: null, lid: null };
+      const jid = jidNormalizedUser(found.jid);
+      return { exists: true, jid, lid: await lidFor(st, sock, jid) };
     },
     async disconnect() {
       st.closed = true;

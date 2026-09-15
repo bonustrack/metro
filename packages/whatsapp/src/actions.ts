@@ -9,6 +9,7 @@ import {
 } from '@metro-labs/core/stations/station-runtime';
 import { accountFor, accounts, targetOf } from './accounts.js';
 import { normalizeWhatsApp } from './normalize.js';
+import { phoneNumberOf, senderLookup } from './resolve.js';
 import type { WAClient } from './client.js';
 
 type Args = Record<string, unknown>;
@@ -162,6 +163,16 @@ function makeAccounts(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeResolveSender(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const accountId = accountFor({ account: str(args.account) });
+    const query = str(args.query) ?? '';
+    const number = phoneNumberOf(query);
+    const found = await guard(() => clientFor(accountId).lookupSender(number));
+    respond(id, { result: { account: accountId, ...senderLookup(query, number, found) } });
+  };
+}
+
 export function makeHandleCall(
   clientFor: ClientFor,
 ): (msg: CallMsg) => Promise<void> {
@@ -172,6 +183,7 @@ export function makeHandleCall(
       react: makeReact(clientFor),
       edit: makeEdit(clientFor),
       delete: makeDelete(clientFor),
+      resolve_sender: makeResolveSender(clientFor),
     },
     normalize: normalizeWhatsApp,
   });

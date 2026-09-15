@@ -10,11 +10,9 @@ import {
   sendJson,
   type ApiSession,
 } from '@metro-labs/http/api-http';
-import {
-  isStationName,
-  parseAccountId,
-  type AccountRef,
-} from './account-attach.js';
+import { type AccountRef } from './account-attach.js';
+import { type AccountRoute } from './account-routes.js';
+import { stationByName } from '../stations/registry.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import {
   ATTACHABLE_STATIONS,
@@ -30,7 +28,6 @@ import {
   type InteractiveStation,
 } from '../stations/attach-interactive.js';
 import {
-  ATTACH_ID_RE,
   type AttachOwner,
   type AttachView,
 } from '../stations/attach-session.js';
@@ -75,6 +72,11 @@ export interface AccountApiDeps {
     allowlist: string[],
   ) => Promise<string[]>;
   recentSenders: (station: StationName, accountId: string) => RecentSender[];
+  resolveSender: (
+    station: StationName,
+    accountId: string,
+    query: string,
+  ) => Promise<unknown>;
   setAccountEnabled: (
     subject: string,
     agentId: string,
@@ -84,63 +86,28 @@ export interface AccountApiDeps {
   ) => Promise<boolean>;
 }
 
-export type AccountRoute =
-  | { kind: 'start' }
-  | { kind: 'session'; attachId: string }
-  | { kind: 'step'; attachId: string }
-  | { kind: 'account'; station: StationName; accountId: string }
-  | { kind: 'allowlist'; station: StationName; accountId: string }
-  | { kind: 'senders'; station: StationName; accountId: string }
-  | { kind: 'enabled'; station: StationName; accountId: string };
-
 export const ATTACHABLE: string[] = [
   ...ATTACHABLE_STATIONS,
   ...INTERACTIVE_STATIONS,
 ];
 
-const ROUTE_METHODS: Record<AccountRoute['kind'], string[]> = {
-  start: ['POST'],
-  session: ['GET', 'DELETE'],
-  step: ['POST'],
-  account: ['DELETE'],
-  allowlist: ['PUT'],
-  senders: ['GET'],
-  enabled: ['PUT'],
-};
-
-function twoSegmentRoute(head: string, tail: string): AccountRoute | null {
-  if (ATTACH_ID_RE.test(head))
-    return tail === 'step' ? { kind: 'step', attachId: head } : null;
-  if (!isStationName(head)) return null;
-  const accountId = parseAccountId(tail);
-  return accountId === null ? null : { kind: 'account', station: head, accountId };
+function lookupQuery(req: IncomingMessage): string {
+  const params = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
+  return (params.get('q') ?? '').trim();
 }
 
-export function accountRoute(rest: string[]): AccountRoute | null {
-  const [head, tail] = rest;
-  if (head === undefined) return null;
-  if (rest.length === 1)
-    return head === 'start'
-      ? { kind: 'start' }
-      : ATTACH_ID_RE.test(head)
-        ? { kind: 'session', attachId: head }
-        : null;
-  if (rest.length === 3 && tail !== undefined) return accountSubRoute(head, tail, rest[2]);
-  if (rest.length !== 2 || tail === undefined) return null;
-  return twoSegmentRoute(head, tail);
-}
-
-function accountSubRoute(head: string, tail: string, sub: string | undefined): AccountRoute | null {
-  if (!isStationName(head) || (sub !== 'allowlist' && sub !== 'senders' && sub !== 'enabled')) return null;
-  const accountId = parseAccountId(tail);
-  return accountId === null ? null : { kind: sub, station: head, accountId };
-}
-
-export function accountRouteAllows(
-  route: AccountRoute,
-  method: string | undefined,
-): boolean {
-  return ROUTE_METHODS[route.kind].includes(method ?? '');
+async function handleResolve(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: AccountApiDeps,
+  target: { station: StationName; accountId: string },
+): Promise<void> {
+  if (stationByName(target.station)?.resolvesSenders !== true)
+    throw new ApiError(`metro cannot look a sender up on ${target.station}`, 400);
+  const query = lookupQuery(req);
+  if (query === '') throw new ApiError('a number to look up is required', 400);
+  const found = await deps.resolveSender(target.station, target.accountId, query);
+  sendJson(req, res, 200, found);
 }
 
 async function activate(
@@ -374,6 +341,7 @@ async function dispatchRoute(
     return handleStep(req, res, deps, ownerOf(session, agentId), route.attachId);
   if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, session, agentId, route);
   if (route.kind === 'enabled') return handleEnabled(req, res, deps, session, agentId, route);
+  if (route.kind === 'resolve') return handleResolve(req, res, deps, route);
   if (route.kind === 'senders') {
     sendJson(req, res, 200, { senders: deps.recentSenders(route.station, route.accountId) });
     return;

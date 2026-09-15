@@ -11,14 +11,12 @@ import {
   sendJson,
   type ApiSession,
 } from '@metro-labs/http/api-http';
+import { ATTACHABLE, handleAccountRoute, type AccountApiDeps } from './accounts-api.js';
 import {
   accountRoute,
   accountRouteAllows,
-  ATTACHABLE,
-  handleAccountRoute,
-  type AccountApiDeps,
   type AccountRoute,
-} from './accounts-api.js';
+} from './account-routes.js';
 import {
   type AgentSummary,
   type CreatedAgent,

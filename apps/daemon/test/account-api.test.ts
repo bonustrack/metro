@@ -42,6 +42,7 @@ let server: Server;
 let base: string;
 let rows: Row[] = [];
 let synced: string[] = [];
+let lookedUp: string[] = [];
 let prepared: AttachInput[] = [];
 let nextAccount = 0;
 let syncFails = false;
@@ -193,6 +194,10 @@ const deps: AgentApiDeps = {
     return Promise.resolve(allowlist);
   },
   recentSenders: (station, accountId) => [{ id: `${station}-${accountId}-seen`, name: 'Ada', at: '2026-09-10T09:00:00.000Z' }],
+  resolveSender: (station, accountId, query) => {
+    lookedUp.push(`${station} ${accountId} ${query}`);
+    return Promise.resolve({ query, number: '41791234567', exists: true, jid: null, lid: '2098@lid', id: '2098@lid' });
+  },
   setAccountEnabled: (email, agentId, station, accountId, enabled) => {
     ownedOrThrow(email, agentId);
     const row = rows.find((r) => r.agentId === agentId && r.station === station && r.accountId === accountId);
@@ -909,6 +914,25 @@ describe('the allowlist of a station account', () => {
     expect((await put('agent000001', 'telegram-bot', 'acct9999999', { allowlist: ['x'] })).status).toBe(404);
     expect((await put('agent000002', 'telegram-bot', created.accountId, { allowlist: ['x'] }, session('ada@lovelace.dev'))).status).toBe(404);
     expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['x'] }, TEST_STRANGER)).status).toBe(401);
+  });
+
+  test('a phone number is turned into the id the station really sends, and only for the owner', async () => {
+    const ask = async (station: string, query: string, who: Who = session('ada@lovelace.dev')): Promise<Response> => {
+      const path = `/api/agents/agent000001/accounts/${station}/acct0000001/resolve`;
+      return fetch(`${base}${path}?q=${encodeURIComponent(query)}`, {
+        headers: { authorization: await auth('GET', path, who) },
+      });
+    };
+    lookedUp = [];
+    const found = await ask('whatsapp', '+41 79 123 45 67');
+    expect(found.status).toBe(200);
+    expect(await found.json()).toMatchObject({ id: '2098@lid', exists: true });
+    expect(lookedUp).toEqual(['whatsapp acct0000001 +41 79 123 45 67']);
+
+    expect((await ask('whatsapp', '   ')).status).toBe(400);
+    expect((await ask('telegram-bot', '+41791234567')).status).toBe(400);
+    expect(lookedUp).toHaveLength(1);
+    expect((await fetch(`${base}/api/agents/agent000001/accounts/whatsapp/acct0000001/resolve?q=1`)).status).toBe(401);
   });
 
   test('the senders seen on a station are offered to the owner, and only to the owner', async () => {

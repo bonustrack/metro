@@ -2,6 +2,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
 import { AttachSessions } from '../stations/attach-session.js';
 import { recentSenders } from '../agents/senders.js';
+import { forwardTrainCall } from '../stations/train-call.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
 import type { AgentApiDeps } from '../agents/api.js';
 import { ATTACHABLE, type AccountApiDeps } from '../agents/accounts-api.js';
@@ -106,6 +107,7 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     setAllowlist: localSetAllowlist,
     setAccountEnabled: localSetAccountEnabled,
     recentSenders,
+    resolveSender,
     reloadAgents: deps.reloadAgents,
   };
 }
@@ -177,6 +179,27 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
 
 function localModeInfo(): ModeInfo {
   return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID, version: METRO_VERSION };
+}
+
+async function resolveSender(
+  station: StationName,
+  accountId: string,
+  query: string,
+): Promise<unknown> {
+  let response;
+  try {
+    response = await forwardTrainCall(station, 'resolve_sender', {
+      account: accountId,
+      query,
+    });
+  } catch (err) {
+    throw new ApiError(
+      `metro could not reach the ${station} train: ${errMsg(err)}`,
+      503,
+    );
+  }
+  if (response.error !== undefined) throw new ApiError(response.error, 400);
+  return response.result;
 }
 
 export function localSessionApis(deps: LocalModeDeps): SessionApis {

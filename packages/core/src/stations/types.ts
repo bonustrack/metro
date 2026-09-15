@@ -97,6 +97,7 @@ export interface Station {
   hasTrain: boolean;
   messageVerbs: ReadonlySet<Verb>;
   groupOps?: ReadonlySet<GroupOp>;
+  resolvesSenders?: boolean;
   attachmentMode: AttachmentMode;
   sendAttachments?(
     line: string,
