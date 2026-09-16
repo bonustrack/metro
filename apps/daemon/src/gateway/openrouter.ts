@@ -55,6 +55,29 @@ export async function openrouterModels(base = OPENROUTER_BASE, fetchImpl: typeof
     .slice(0, MODELS_MAX);
 }
 
+export interface OpenRouterCredits {
+  total: number;
+  spent: number;
+}
+
+export async function openrouterCredits(
+  apiKey: string,
+  base = OPENROUTER_BASE,
+  fetchImpl: typeof fetch = fetch,
+): Promise<OpenRouterCredits> {
+  const res = await fetchImpl(`${base}/v1/credits`, {
+    headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` },
+    redirect: 'manual',
+  });
+  if (!res.ok) throw new GatewayError(res.status, 'api_error', `OpenRouter would not report the credits (${String(res.status)})`);
+  const body: unknown = await res.json();
+  const data = isRecord(body) && isRecord(body.data) ? body.data : {};
+  const total = Number(data.total_credits);
+  const spent = Number(data.total_usage);
+  if (!Number.isFinite(total) || !Number.isFinite(spent)) throw new GatewayError(502, 'api_error', 'OpenRouter answered with no credit figures');
+  return { total, spent };
+}
+
 export async function openrouterZdrModels(base = OPENROUTER_BASE, fetchImpl: typeof fetch = fetch): Promise<string[]> {
   const res = await fetchImpl(`${base}/v1/endpoints/zdr`, { headers: { accept: 'application/json' }, redirect: 'manual' });
   if (!res.ok) throw new GatewayError(res.status, 'api_error', `OpenRouter would not list its zero data retention endpoints (${String(res.status)})`);

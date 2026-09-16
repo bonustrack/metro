@@ -8,6 +8,7 @@ import { assembleMessage, CodexEventTranslator, parseEvent, SseParser } from './
 import { ToolNames, toResponsesRequest } from './codex-translate.js';
 import { GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
 import type { ModelConfig } from './model-config.js';
+import { noteUsageHeaders } from './usage.js';
 
 export const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
 const CODEX_VERSION = '0.153.4';
@@ -186,6 +187,7 @@ export async function codexMessages(
 ): Promise<void> {
   const call: Call = { body, model, sessionId: sessionIdOf(req), watch, deps, names: new ToolNames() };
   const upstream = await reach(call, cfg, state);
+  noteUsageHeaders('codex', upstream.headers);
   if (!upstream.ok) {
     const text = await upstream.text();
     sendError(res, providerStatus(upstream.status), errorKind(upstream.status), upstreamMessage(text, `Codex answered ${String(upstream.status)}`));

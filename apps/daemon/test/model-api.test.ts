@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { forgetUsage, noteUsageHeaders } from '../src/gateway/usage.ts';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleModelRequest } from '../src/gateway/model-api.ts';
@@ -22,6 +23,7 @@ let backendBase = '';
 let stored: ModelConfig;
 let home = '';
 const seenModelUrls: string[] = [];
+const creditsAuth: string[] = [];
 const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
 const idToken = jwt({ email: 'less@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_1', chatgpt_plan_type: 'plus' } });
 
@@ -63,6 +65,11 @@ beforeAll(async () => {
         { inferenceProfileId: 'eu.amazon.nova-pro', inferenceProfileName: 'Nova', status: 'ACTIVE' },
         { inferenceProfileId: 'eu.anthropic.claude-old', inferenceProfileName: 'Old', status: 'INACTIVE' },
       ] }));
+      return;
+    }
+    if (req.url === '/v1/credits') {
+      creditsAuth.push(String(req.headers.authorization ?? ''));
+      res.end(JSON.stringify({ data: { total_credits: 50, total_usage: 12.4 } }));
       return;
     }
     if (req.url === '/v1/endpoints/zdr') {
@@ -112,6 +119,8 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  forgetUsage();
+  creditsAuth.length = 0;
   stored = { version: 1, provider: 'anthropic', anthropic: { apiKey: '', model: '' }, bedrock: { region: '', apiKey: '', model: '' }, openrouter: { apiKey: '', model: '', zdr: false }, codex: { model: '', auth: null } };
 });
 
@@ -140,6 +149,23 @@ describe('the model route on the page', () => {
     expect(((await again.json()) as { openrouter: { hasKey: boolean; zdr: boolean } }).openrouter).toMatchObject({ hasKey: true, zdr: true });
     expect(stored.openrouter.model).toBe('anthropic/claude-sonnet-4.5');
     expect(stored.openrouter.zdr).toBe(true);
+  });
+
+  test('the settings carry what each provider last said about its quota, and OpenRouter credits are read once per five minutes', async () => {
+    const quiet = (await (await call('GET', OWNER)).json()) as { usage: Record<string, unknown> };
+    expect(quiet.usage).toEqual({});
+    expect(creditsAuth).toEqual([]);
+
+    noteUsageHeaders('codex', new Headers({ 'x-codex-primary-used-percent': '42', 'x-codex-primary-window-minutes': '300' }));
+    stored = { ...stored, provider: 'openrouter', openrouter: { apiKey: 'or-key', model: 'x/y', zdr: false } };
+    const first = (await (await call('GET', OWNER)).json()) as { usage: Record<string, { windows: { label: string; used: number | null; detail: string | null }[] }> };
+    expect(first.usage.codex?.windows).toEqual([{ label: '5-hour window', used: 0.42, resetAt: null, detail: null }]);
+    expect(first.usage.openrouter?.windows).toEqual([{ label: 'Credits', used: 0.248, resetAt: null, detail: '$12.40 of $50.00 used' }]);
+    expect(creditsAuth).toEqual(['Bearer or-key']);
+    expect(JSON.stringify(first)).not.toContain('or-key');
+
+    await call('GET', OWNER);
+    expect(creditsAuth).toHaveLength(1);
   });
 
   test('a bad body is a 400 naming the field, a stranger a 404, no signature a 401, other methods 405', async () => {

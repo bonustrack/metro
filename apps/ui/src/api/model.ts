@@ -1,4 +1,5 @@
 import { call } from './client.js';
+import { toUsage, type Usage } from './usage.js';
 import { isRecord } from './accounts.js';
 import { daemonBase } from '../auth/daemon.js';
 
@@ -40,6 +41,7 @@ export interface ModelSettings {
   ready: boolean;
   reason: string | null;
   lastServed: Served | null;
+  usage: Usage;
   anthropic: { model: string; hasKey: boolean };
   bedrock: { region: string; model: string; hasKey: boolean };
   openrouter: { model: string; hasKey: boolean; zdr: boolean };
@@ -78,6 +80,7 @@ export function toModelSettings(body: unknown): ModelSettings {
     ready: body.ready === true,
     reason: maybe(body.reason),
     lastServed: toServed(body.lastServed),
+    usage: toUsage(body.usage),
     anthropic: { model: word(anthropic.model), hasKey: anthropic.hasKey === true },
     bedrock: { region: word(bedrock.region), model: word(bedrock.model), hasKey: bedrock.hasKey === true },
     openrouter: { model: word(openrouter.model), hasKey: openrouter.hasKey === true, zdr: openrouter.zdr === true },
