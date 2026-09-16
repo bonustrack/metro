@@ -7,6 +7,7 @@ import { Button } from './ui.js';
 export interface MenuItem {
   label: string;
   icon?: HeroIconName;
+  leading?: ReactNode;
   danger?: boolean;
   onSelect: () => void;
 }
@@ -117,6 +118,7 @@ export function Dropdown({
                       item.onSelect();
                     }}
                   >
+                    {item.leading ?? null}
                     {item.icon === undefined ? null : (
                       <Icon
                         name={item.icon}

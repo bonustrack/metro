@@ -17,6 +17,7 @@ import { opensElsewhere } from './link.js';
 import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
 import { awaitLive, startDaemon } from '../api/control.js';
 import { queryError, refreshServers, refreshServerStatus, useServersQuery, useServerStatus } from '../api/queries.js';
+import { StatusDot } from './StatusDot.js';
 import { baseFromSegment } from '../auth/daemon.js';
 import { shortAddress } from '../api/address.js';
 import { activeIdentity } from '../auth/identity.js';
@@ -25,16 +26,7 @@ import { useBootingState } from '../aws/use-launch.js';
 import { BootLog } from './BootLog.js';
 
 const CARD_WIDTH = 640;
-const DOT = 8;
 const HOW = 'Every daemon you open lands here, on every device you sign in from. Open one, or add the address a daemon printed.';
-
-function StatusDot({ host }: { host: string }): ReactNode {
-  const palette = useKitPalette();
-  const { data } = useServerStatus(host);
-  const color =
-    data === undefined ? palette.border : data.state === 'live' ? palette.success : data.state === 'stopped' ? palette.danger : palette.sub;
-  return <Row width={DOT} height={DOT} radius={DOT} background={color} />;
-}
 
 function StatusText({ server }: { server: Server }): ReactNode {
   const { data } = useServerStatus(server.host);

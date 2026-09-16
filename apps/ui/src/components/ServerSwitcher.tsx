@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Dropdown, type MenuItem } from './Dropdown.js';
 import { NameModal } from './NameModal.js';
 import { NavIcon } from './NavRow.js';
+import { StatusDot } from './StatusDot.js';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
@@ -16,6 +17,7 @@ function serverItems(servers: Server[], current: Server | undefined, onRename: (
   return [
     ...others.map((s) => ({
       label: serverLabel(s),
+      leading: <StatusDot host={s.host} />,
       onSelect: () => {
         window.location.hash = `#/${s.id}`;
       },

@@ -10,7 +10,7 @@ import { type Selection } from './selection.js';
 export const NAV_ROW_BOX = {
   align: 'center',
   gap: 10,
-  padding: { x: 12, y: 6 },
+  padding: { x: 12, y: 4 },
   margin: { x: -12 },
 } as const;
 export const NAV_ICON_SIZE = 18;
