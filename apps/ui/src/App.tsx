@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react';
+import { BuildDot } from './components/BuildDot.js';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
@@ -184,6 +185,7 @@ export function App(): ReactNode {
       <QueryClientProvider client={client}>
         {phase === 'loading' ? <BootLoading /> : phase === 'login' ? <Login onSignedIn={unlock} /> : <Unlocked selection={selection} onLock={lock} />}
       </QueryClientProvider>
+      <BuildDot />
     </div>
   );
 }

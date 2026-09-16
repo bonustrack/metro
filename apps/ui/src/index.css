@@ -87,6 +87,28 @@ body {
   min-width: 0;
 }
 
+.build-dot {
+  position: fixed;
+  left: 10px;
+  bottom: 10px;
+  z-index: 30;
+}
+
+.build-dot-toggle {
+  display: block;
+  padding: 6px;
+  margin: -6px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.build-dot-card {
+  display: block;
+  margin-bottom: 8px;
+  text-decoration: none;
+}
+
 .app-backdrop {
   position: fixed;
   inset: 0;
