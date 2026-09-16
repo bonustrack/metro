@@ -5,27 +5,26 @@ import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { Text, Button } from './ui.js';
 import { GROW, SHRINK } from '../theme.js';
-import { MetroLogo } from './MetroLogo.js';
 import { PageTitle } from './PageTitle.js';
 import { Pill } from './Pill.js';
 import { KebabMenu } from './KebabMenu.js';
 import { NameModal } from './NameModal.js';
-import { Dropdown } from './Dropdown.js';
-import { AgentAvatar } from './AgentAvatar.js';
 import { Loading } from './Loading.js';
+import { Frame } from './Frame.js';
+import { PlainSidebar } from './PlainSidebar.js';
 import { opensElsewhere } from './link.js';
 import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
 import { awaitLive, startDaemon } from '../api/control.js';
 import { queryError, refreshServers, refreshServerStatus, useServersQuery, useServerStatus } from '../api/queries.js';
 import { StatusDot } from './StatusDot.js';
 import { baseFromSegment } from '../auth/daemon.js';
-import { shortAddress } from '../api/address.js';
 import { activeIdentity } from '../auth/identity.js';
+import { routeHash } from '../route.js';
 import { useDocumentTitle } from '../title.js';
 import { useBootingState } from '../aws/use-launch.js';
 import { BootLog } from './BootLog.js';
 
-const CARD_WIDTH = 640;
+const LIST_WIDTH = 640;
 const HOW = 'Every daemon you open lands here, on every device you sign in from. Open one, or add the address a daemon printed.';
 
 function StatusText({ server }: { server: Server }): ReactNode {
@@ -165,27 +164,6 @@ function ServerList({ servers, onRename, onBootLog }: ListProps): ReactNode {
   );
 }
 
-function Header({ onLock }: { onLock: () => void }): ReactNode {
-  const palette = useKitPalette();
-  const subject = activeIdentity()?.address ?? '';
-  return (
-    <Row justify="between" align="center" gap={12}>
-      <Row align="center" gap={12}>
-        <MetroLogo size={32} color={palette.link} />
-        <PageTitle>Servers</PageTitle>
-      </Row>
-      <Dropdown className="account-trigger" label="Account menu" items={[{ label: 'Log out', danger: true, onSelect: onLock }]}>
-        <Row align="center" gap={8}>
-          <AgentAvatar seed={subject} size={20} />
-          <Text size="sm" role="secondary">
-            {shortAddress(subject)}
-          </Text>
-        </Row>
-      </Dropdown>
-    </Row>
-  );
-}
-
 function RenameServer({ server, onClose }: { server: Server | null; onClose: () => void }): ReactNode {
   const client = useQueryClient();
   return (
@@ -223,11 +201,24 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [renaming, setRenaming] = useState<Server | null>(null);
   const [logOf, setLogOf] = useState<Server | null>(null);
+  const subject = activeIdentity()?.address ?? '';
   useDocumentTitle('Servers');
   return (
-    <Row justify="center" flex={1} padding={24}>
-      <Col gap={20} width="100%" maxWidth={CARD_WIDTH} padding={{ top: 24 }}>
-        <Header onLock={onLock} />
+    <Frame
+      sidebar={(closeMenu) => (
+        <PlainSidebar
+          selection={{ kind: 'servers' }}
+          subject={subject}
+          onSelect={(next) => {
+            closeMenu();
+            window.location.hash = routeHash(next);
+          }}
+          onLock={onLock}
+        />
+      )}
+    >
+      <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
+        <PageTitle>Servers</PageTitle>
         <Text size="sm" role="secondary">
           {HOW}
         </Text>
@@ -263,6 +254,6 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
           }}
         />
       </Col>
-    </Row>
+    </Frame>
   );
 }

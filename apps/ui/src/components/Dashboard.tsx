@@ -2,12 +2,11 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { applyRoute, currentSelection, routeHash, subscribeRoute } from '../route.js';
 import { AgentPanel } from './AgentPanel.js';
 import { AgentSidebar } from './AgentSidebar.js';
-import { Shell } from './Shell.js';
+import { Frame } from './Frame.js';
 import { selectionProject, type Selection } from './selection.js';
 import { currentServer, storeDaemon, baseFromSegment, storedServerId, storeServerId } from '../auth/daemon.js';
-import { useIsNarrow } from '../media.js';
 
-interface FrameProps {
+interface FramedProps {
   project: string;
   subject: string;
   selection: Selection;
@@ -15,38 +14,25 @@ interface FrameProps {
   onLock: () => void;
 }
 
-function Frame({ project, subject, selection, onSelect, onLock }: FrameProps): ReactNode {
-  const narrow = useIsNarrow();
-  const [menuOpen, setMenuOpen] = useState(false);
-  useEffect(() => {
-    if (!narrow) setMenuOpen(false);
-  }, [narrow]);
+function Framed({ project, subject, selection, onSelect, onLock }: FramedProps): ReactNode {
   return (
-    <Shell
-      narrow={narrow}
-      menuOpen={menuOpen}
+    <Frame
       flush={selection.kind === 'terminal'}
-      onOpenMenu={() => {
-        setMenuOpen(true);
-      }}
-      onCloseMenu={() => {
-        setMenuOpen(false);
-      }}
-      sidebar={
+      sidebar={(closeMenu) => (
         <AgentSidebar
           project={project}
           selection={selection}
           subject={subject}
           onSelect={(next) => {
-            setMenuOpen(false);
+            closeMenu();
             onSelect(next);
           }}
           onLock={onLock}
         />
-      }
+      )}
     >
       <AgentPanel selection={selection} onSelect={onSelect} />
-    </Shell>
+    </Frame>
   );
 }
 
@@ -80,5 +66,5 @@ export function Dashboard({ subject, onLock }: DashboardProps): ReactNode {
   }, [routed]);
 
   if (project === null) return null;
-  return <Frame project={project} subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />;
+  return <Framed project={project} subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />;
 }
