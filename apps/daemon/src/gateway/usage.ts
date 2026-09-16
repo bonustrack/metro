@@ -35,11 +35,14 @@ function fraction(raw: string | null): number | null {
   return Number.isFinite(value) ? clamp(value) : null;
 }
 
+const MS_THRESHOLD = 1e12;
+
 function whenFrom(raw: string | null, now: Date, relative = false): string | null {
   if (raw === null || raw.trim() === '') return null;
   const numeric = Number(raw);
   if (Number.isFinite(numeric)) {
-    const ms = relative ? now.getTime() + numeric * 1000 : numeric * 1000;
+    const absolute = numeric > MS_THRESHOLD ? numeric : numeric * 1000;
+    const ms = relative ? now.getTime() + numeric * 1000 : absolute;
     return new Date(ms).toISOString();
   }
   const parsed = Date.parse(raw);
@@ -52,20 +55,18 @@ const ANTHROPIC_WINDOWS: [string, string][] = [
   ['7d_sonnet', 'Weekly, Sonnet'],
 ];
 
-function anthropicUnified(headers: Headers, now: Date): UsageWindow[] {
-  const out: UsageWindow[] = [];
+function anthropicUnified(headers: Headers, now: Date): { windows: UsageWindow[]; note: string | null } {
+  const windows: UsageWindow[] = [];
+  let note: string | null = null;
   for (const [key, label] of ANTHROPIC_WINDOWS) {
     const used = fraction(headers.get(`anthropic-ratelimit-unified-${key}-utilization`));
     if (used === null) continue;
     const status = headers.get(`anthropic-ratelimit-unified-${key}-status`);
-    out.push({
-      label,
-      used,
-      resetAt: whenFrom(headers.get(`anthropic-ratelimit-unified-${key}-reset`), now),
-      detail: status !== null && status !== 'allowed' ? status.replaceAll('_', ' ') : null,
-    });
+    const blocked = status !== null && status !== 'allowed' ? status.replaceAll('_', ' ') : null;
+    if (blocked !== null && note === null) note = `${label}: ${blocked}`;
+    windows.push({ label, used, resetAt: whenFrom(headers.get(`anthropic-ratelimit-unified-${key}-reset`), now), detail: blocked });
   }
-  return out;
+  return { windows, note };
 }
 
 function anthropicKeyed(headers: Headers, now: Date): UsageWindow[] {
@@ -84,10 +85,9 @@ function anthropicKeyed(headers: Headers, now: Date): UsageWindow[] {
 
 export function anthropicUsage(headers: Headers, now = new Date()): ProviderUsage | null {
   const unified = anthropicUnified(headers, now);
-  const windows = unified.length > 0 ? unified : anthropicKeyed(headers, now);
-  if (windows.length === 0) return null;
-  const exceeded = windows.find((w) => w.detail !== null && w.detail !== '');
-  return { windows, note: exceeded === undefined ? null : `${exceeded.label}: ${exceeded.detail ?? ''}`, at: now.toISOString() };
+  if (unified.windows.length > 0) return { ...unified, at: now.toISOString() };
+  const keyed = anthropicKeyed(headers, now);
+  return keyed.length === 0 ? null : { windows: keyed, note: null, at: now.toISOString() };
 }
 
 const MINUTES_PER_HOUR = 60;
@@ -103,11 +103,12 @@ export function windowLabel(minutes: number | null): string {
 }
 
 function codexWindow(headers: Headers, kind: 'primary' | 'secondary', now: Date): UsageWindow | null {
-  const percent = headers.get(`x-codex-${kind}-used-percent`);
-  if (percent === null) return null;
-  const used = fraction(String(Number(percent) / 100));
-  if (used === null) return null;
-  const minutes = Number(headers.get(`x-codex-${kind}-window-minutes`));
+  const raw = headers.get(`x-codex-${kind}-used-percent`);
+  if (raw === null) return null;
+  const percent = Number(raw);
+  if (!Number.isFinite(percent)) return null;
+  const used = clamp(percent / 100);
+  const minutes = Number(headers.get(`x-codex-${kind}-window-minutes`) ?? 'none');
   const absolute = whenFrom(headers.get(`x-codex-${kind}-reset-at`), now);
   const resetAt = absolute ?? whenFrom(headers.get(`x-codex-${kind}-reset-after-seconds`), now, true);
   return { label: windowLabel(Number.isFinite(minutes) ? minutes : null), used, resetAt, detail: null };

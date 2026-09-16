@@ -63,6 +63,18 @@ describe('what Anthropic says about the login on every answer', () => {
     expect(usage?.windows).toEqual([
       { label: 'Tokens per minute', used: 0.75, resetAt: '2026-09-17T10:01:00.000Z', detail: '100,000 of 400,000 left' },
     ]);
+    expect(usage?.note).toBeNull();
+  });
+
+  test('a reset given in milliseconds is not read as a date fifty thousand years out', () => {
+    const usage = anthropicUsage(
+      new Headers({
+        'anthropic-ratelimit-unified-5h-utilization': '0.1',
+        'anthropic-ratelimit-unified-5h-reset': String(RESET * 1000),
+      }),
+      NOW,
+    );
+    expect(usage?.windows[0]?.resetAt).toBe('2026-09-17T12:30:00.000Z');
   });
 
   test('an answer with no rate-limit headers reports nothing rather than zeros', () => {
@@ -103,6 +115,11 @@ describe('what the Codex backend says on every answer', () => {
     );
     expect(usage?.windows[0]?.resetAt).toBe('2026-09-17T10:15:00.000Z');
     expect(usage?.note).toBe('usage limit reached');
+  });
+
+  test('an answer with no Codex headers reports nothing, not two empty windows', () => {
+    expect(codexUsage(new Headers({ 'content-type': 'application/json' }), NOW)).toBeNull();
+    expect(codexUsage(new Headers({ 'x-codex-primary-used-percent': 'lots' }), NOW)).toBeNull();
   });
 
   test('window labels read like a person would say them', () => {
