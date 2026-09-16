@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { UsageScanner } from './usage.js';
 
 export class GatewayError extends Error {
   constructor(
@@ -129,6 +130,7 @@ export function anthropicHeaders(req: IncomingMessage, apiKey: string): Record<s
 export interface PipeOptions {
   keepalive?: boolean;
   ownCredential?: boolean;
+  scanner?: UsageScanner;
 }
 
 function openResponse(upstream: Response, res: ServerResponse, opts: PipeOptions): boolean {
@@ -140,12 +142,14 @@ function openResponse(upstream: Response, res: ServerResponse, opts: PipeOptions
   return (upstream.headers.get('content-type') ?? '').startsWith('text/event-stream');
 }
 
-async function pump(body: ReadableStream<Uint8Array>, res: ServerResponse, watch: Watch): Promise<void> {
+async function pump(body: ReadableStream<Uint8Array>, res: ServerResponse, watch: Watch, scanner?: UsageScanner): Promise<void> {
   const reader = body.getReader();
+  const decoder = scanner === undefined ? null : new TextDecoder();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) return;
     watch.touch();
+    if (decoder !== null) scanner?.feed(decoder.decode(value, { stream: true }));
     res.write(value);
   }
 }
@@ -159,7 +163,7 @@ export async function pipeResponse(upstream: Response, res: ServerResponse, watc
   }
   const ping = opts.keepalive === true && streaming ? setInterval(() => res.write('event: ping\ndata: {"type":"ping"}\n\n'), PING_MS) : null;
   try {
-    await pump(body, res, watch);
+    await pump(body, res, watch, opts.scanner);
   } catch (err) {
     if (!watch.idle()) throw err;
     if (streaming) res.write(errorFrame('api_error', idleMessage(watch.ms)));
@@ -167,6 +171,7 @@ export async function pipeResponse(upstream: Response, res: ServerResponse, watc
     if (ping !== null) clearInterval(ping);
     watch.stop();
     res.end();
+    opts.scanner?.done();
   }
 }
 

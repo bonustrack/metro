@@ -5,7 +5,9 @@ import {
   forgetUsage,
   noteUsageHeaders,
   openrouterUsage,
+  tallyTokens,
   usageSeen,
+  UsageScanner,
   windowLabel,
 } from '../src/gateway/usage.ts';
 
@@ -142,6 +144,16 @@ describe('what the page is handed', () => {
     expect(seen.anthropic?.at).toBe(NOW.toISOString());
   });
 
+  test('a Codex credit balance shows only when the account holds credits', () => {
+    const withCredits = codexUsage(
+      new Headers({ 'x-codex-primary-used-percent': '1', 'x-codex-credits-has-credits': 'true', 'x-codex-credits-balance': '2500' }),
+      NOW,
+    );
+    expect(withCredits?.windows.at(-1)).toEqual({ label: 'Credits', used: null, resetAt: null, detail: '2,500 left' });
+    const without = codexUsage(new Headers({ 'x-codex-primary-used-percent': '1', 'x-codex-credits-balance': '2500' }), NOW);
+    expect(without?.windows.map((w) => w.label)).toEqual(['Usage window']);
+  });
+
   test('OpenRouter credits are one window with the money spelled out', () => {
     expect(openrouterUsage(50, 12.4, NOW)).toEqual({
       windows: [{ label: 'Credits', used: 0.248, resetAt: null, detail: '$12.40 of $50.00 used' }],
@@ -149,5 +161,44 @@ describe('what the page is handed', () => {
       at: NOW.toISOString(),
     });
     expect(openrouterUsage(0, 0, NOW).windows[0]?.used).toBeNull();
+  });
+});
+
+describe('counting tokens on every answer, whatever the provider', () => {
+  const START = 'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":1200,"output_tokens":1,"cache_read_input_tokens":900,"cache_creation_input_tokens":0}}}\n\n';
+  const DELTA = 'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":340}}\n\n';
+
+  test('a streamed answer counts the input from message_start and the final output from message_delta, once', () => {
+    const scanner = new UsageScanner('anthropic');
+    scanner.feed(START);
+    scanner.feed(DELTA);
+    scanner.done(NOW);
+    expect(usageSeen().anthropic?.tally).toEqual({ requests: 1, input: 1200, output: 340, cached: 900, since: NOW.toISOString() });
+  });
+
+  test('a line split across chunks is still read whole', () => {
+    const scanner = new UsageScanner('openrouter');
+    const whole = START + DELTA;
+    for (let i = 0; i < whole.length; i += 7) scanner.feed(whole.slice(i, i + 7));
+    scanner.done(NOW);
+    expect(usageSeen().openrouter?.tally).toMatchObject({ requests: 1, input: 1200, output: 340 });
+  });
+
+  test('a whole JSON body with no newlines is read at the end', () => {
+    const scanner = new UsageScanner('bedrock');
+    scanner.feed('{"type":"message","usage":{"input_tokens":50,"output_tokens":7}}');
+    scanner.done(NOW);
+    expect(usageSeen().bedrock?.tally).toMatchObject({ requests: 1, input: 50, output: 7, cached: 0 });
+  });
+
+  test('an answer with no usage in it counts nothing, and the totals add up across answers', () => {
+    const empty = new UsageScanner('codex');
+    empty.feed('event: ping\ndata: {"type":"ping"}\n\n');
+    empty.done(NOW);
+    expect(usageSeen().codex).toBeUndefined();
+    tallyTokens('codex', { input: 10, output: 2, cached: 0 }, NOW);
+    tallyTokens('codex', { input: 30, output: 5, cached: 8 }, new Date(NOW.getTime() + 60_000));
+    expect(usageSeen().codex?.tally).toEqual({ requests: 2, input: 40, output: 7, cached: 8, since: NOW.toISOString() });
+    expect(usageSeen().codex?.windows).toEqual([]);
   });
 });

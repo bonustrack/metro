@@ -8,7 +8,7 @@ import { assembleMessage, CodexEventTranslator, parseEvent, SseParser } from './
 import { ToolNames, toResponsesRequest } from './codex-translate.js';
 import { GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
 import type { ModelConfig } from './model-config.js';
-import { noteUsageHeaders } from './usage.js';
+import { noteUsageHeaders, UsageScanner } from './usage.js';
 
 export const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
 const CODEX_VERSION = '0.153.4';
@@ -136,6 +136,11 @@ async function relayStream(upstream: Response, res: ServerResponse, model: strin
     return;
   }
   const ping = setInterval(() => res.write('event: ping\ndata: {"type":"ping"}\n\n'), PING_MS);
+  const scanner = new UsageScanner('codex');
+  const emit = (frames: string): void => {
+    scanner.feed(frames);
+    res.write(frames);
+  };
   try {
     const parser = new SseParser();
     const decoder = new TextDecoder();
@@ -146,10 +151,10 @@ async function relayStream(upstream: Response, res: ServerResponse, model: strin
       watch.touch();
       for (const raw of parser.push(decoder.decode(value, { stream: true }))) {
         const parsed = parseEvent(raw);
-        if (parsed !== null) res.write(translator.push(parsed.event, parsed.data));
+        if (parsed !== null) emit(translator.push(parsed.event, parsed.data));
       }
     }
-    res.write(translator.close());
+    emit(translator.close());
   } catch (err) {
     if (!watch.idle()) throw err;
     res.write(translator.finished ? '' : translator.close(idleMessage(watch.ms)));
@@ -157,6 +162,7 @@ async function relayStream(upstream: Response, res: ServerResponse, model: strin
     clearInterval(ping);
     watch.stop();
     res.end();
+    scanner.done();
   }
 }
 
@@ -169,6 +175,9 @@ async function relayWhole(upstream: Response, res: ServerResponse, model: string
     if (parsed !== null) frames += translator.push(parsed.event, parsed.data);
   }
   frames += translator.close();
+  const scanner = new UsageScanner('codex');
+  scanner.feed(frames);
+  scanner.done();
   const message = assembleMessage(frames);
   const kind = isRecord(message.error) ? String(message.error.type) : '';
   res.writeHead(message.type === 'error' ? (STATUS_OF[kind] ?? 502) : 200, { 'content-type': 'application/json' });

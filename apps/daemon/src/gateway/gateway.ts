@@ -15,7 +15,7 @@ import { codexCount, codexMessages, freshCodexState, type CodexDeps } from './co
 import { OPENROUTER_BASE } from './openrouter.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
-import { forgetUsage, noteUsageHeaders } from './usage.js';
+import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import type { CodexTokens } from './codex-auth.js';
 
 export const GATEWAY_PREFIX = '/gateway';
@@ -105,7 +105,8 @@ async function toAnthropic(
     redirect: 'manual',
   });
   noteUsageHeaders('anthropic', upstream.headers);
-  await pipeResponse(upstream, res, watch, key === '' ? {} : { ownCredential: true });
+  const scanner = new UsageScanner('anthropic');
+  await pipeResponse(upstream, res, watch, key === '' ? { scanner } : { ownCredential: true, scanner });
 }
 
 async function toOpenRouter(
@@ -136,7 +137,7 @@ async function toOpenRouter(
     signal: watch.signal,
     redirect: 'manual',
   });
-  await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true });
+  await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner('openrouter') });
 }
 
 export function openrouterBody(body: Record<string, unknown>, model: string, zdr: boolean): Record<string, unknown> {

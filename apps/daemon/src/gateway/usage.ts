@@ -1,4 +1,4 @@
-export type UsageProvider = 'anthropic' | 'codex' | 'openrouter';
+export type UsageProvider = 'anthropic' | 'codex' | 'openrouter' | 'bedrock';
 
 export interface UsageWindow {
   label: string;
@@ -7,25 +7,107 @@ export interface UsageWindow {
   detail: string | null;
 }
 
+export interface Tally {
+  requests: number;
+  input: number;
+  output: number;
+  cached: number;
+  since: string;
+}
+
 export interface ProviderUsage {
   windows: UsageWindow[];
   note: string | null;
   at: string;
+  tally: Tally | null;
 }
 
-const latest = new Map<UsageProvider, ProviderUsage>();
+type Reported = Omit<ProviderUsage, 'tally'>;
 
-export const noteUsage = (provider: UsageProvider, usage: ProviderUsage): void => {
+const latest = new Map<UsageProvider, Reported>();
+const tallies = new Map<UsageProvider, Tally>();
+
+export const noteUsage = (provider: UsageProvider, usage: Reported): void => {
   latest.set(provider, usage);
 };
 
-export const usageSeen = (): Partial<Record<UsageProvider, ProviderUsage>> => Object.fromEntries(latest);
+export function usageSeen(): Partial<Record<UsageProvider, ProviderUsage>> {
+  const out: Partial<Record<UsageProvider, ProviderUsage>> = {};
+  const providers = new Set<UsageProvider>([...latest.keys(), ...tallies.keys()]);
+  for (const provider of providers) {
+    const reported = latest.get(provider);
+    const tally = tallies.get(provider) ?? null;
+    out[provider] = reported === undefined
+      ? { windows: [], note: null, at: tally?.since ?? new Date().toISOString(), tally }
+      : { ...reported, tally };
+  }
+  return out;
+}
 
-export const usageOf = (provider: UsageProvider): ProviderUsage | undefined => latest.get(provider);
+export const usageOf = (provider: UsageProvider): Reported | undefined => latest.get(provider);
 
 export const forgetUsage = (): void => {
   latest.clear();
+  tallies.clear();
 };
+
+export interface Counted {
+  input: number;
+  output: number;
+  cached: number;
+}
+
+export function tallyTokens(provider: UsageProvider, counted: Counted, now = new Date()): void {
+  const so = tallies.get(provider) ?? { requests: 0, input: 0, output: 0, cached: 0, since: now.toISOString() };
+  tallies.set(provider, {
+    requests: so.requests + 1,
+    input: so.input + counted.input,
+    output: so.output + counted.output,
+    cached: so.cached + counted.cached,
+    since: so.since,
+  });
+}
+
+const TOKEN_FIELD = /"(input_tokens|output_tokens|cache_read_input_tokens|cache_creation_input_tokens)"\s*:\s*(\d+)/g;
+
+export class UsageScanner {
+  private carry = '';
+  private readonly max = { input: 0, output: 0, read: 0, creation: 0 };
+  private touched = false;
+
+  constructor(private readonly provider: UsageProvider) {}
+
+  private scan(text: string): void {
+    for (const hit of text.matchAll(TOKEN_FIELD)) {
+      const value = Number(hit[2]);
+      if (!Number.isFinite(value)) continue;
+      this.touched = true;
+      if (hit[1] === 'input_tokens') this.max.input = Math.max(this.max.input, value);
+      else if (hit[1] === 'output_tokens') this.max.output = Math.max(this.max.output, value);
+      else if (hit[1] === 'cache_read_input_tokens') this.max.read = Math.max(this.max.read, value);
+      else this.max.creation = Math.max(this.max.creation, value);
+    }
+  }
+
+  feed(text: string): void {
+    const joined = this.carry + text;
+    const cut = joined.lastIndexOf('\n');
+    if (cut === -1) {
+      this.carry = joined;
+      return;
+    }
+    this.scan(joined.slice(0, cut));
+    this.carry = joined.slice(cut + 1);
+  }
+
+  done(now = new Date()): void {
+    if (this.carry !== '') this.scan(this.carry);
+    this.carry = '';
+    if (!this.touched) return;
+    tallyTokens(this.provider, { input: this.max.input, output: this.max.output, cached: this.max.read + this.max.creation }, now);
+    this.touched = false;
+  }
+}
 
 const clamp = (value: number): number => Math.min(1, Math.max(0, value));
 
@@ -83,7 +165,7 @@ function anthropicKeyed(headers: Headers, now: Date): UsageWindow[] {
   ];
 }
 
-export function anthropicUsage(headers: Headers, now = new Date()): ProviderUsage | null {
+export function anthropicUsage(headers: Headers, now = new Date()): Reported | null {
   const unified = anthropicUnified(headers, now);
   if (unified.windows.length > 0) return { ...unified, at: now.toISOString() };
   const keyed = anthropicKeyed(headers, now);
@@ -114,8 +196,15 @@ function codexWindow(headers: Headers, kind: 'primary' | 'secondary', now: Date)
   return { label: windowLabel(Number.isFinite(minutes) ? minutes : null), used, resetAt, detail: null };
 }
 
-export function codexUsage(headers: Headers, now = new Date()): ProviderUsage | null {
-  const windows = [codexWindow(headers, 'primary', now), codexWindow(headers, 'secondary', now)].filter(
+function codexCredits(headers: Headers): UsageWindow | null {
+  if (headers.get('x-codex-credits-has-credits') !== 'true') return null;
+  const balance = Number(headers.get('x-codex-credits-balance') ?? 'none');
+  if (!Number.isFinite(balance)) return null;
+  return { label: 'Credits', used: null, resetAt: null, detail: `${balance.toLocaleString('en-US')} left` };
+}
+
+export function codexUsage(headers: Headers, now = new Date()): Reported | null {
+  const windows = [codexWindow(headers, 'primary', now), codexWindow(headers, 'secondary', now), codexCredits(headers)].filter(
     (w): w is UsageWindow => w !== null,
   );
   if (windows.length === 0) return null;
@@ -130,7 +219,7 @@ export function noteUsageHeaders(provider: 'anthropic' | 'codex', headers: Heade
 
 const dollars = (value: number): string => `$${value.toFixed(2)}`;
 
-export function openrouterUsage(total: number, spent: number, now = new Date()): ProviderUsage {
+export function openrouterUsage(total: number, spent: number, now = new Date()): Reported {
   const used = total > 0 ? clamp(spent / total) : null;
   return {
     windows: [{ label: 'Credits', used, resetAt: null, detail: `${dollars(spent)} of ${dollars(total)} used` }],

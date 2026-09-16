@@ -3,6 +3,7 @@ import { log } from '@metro-labs/core/log';
 import { EventStreamDecoder, type EventStreamMessage } from './eventstream.js';
 import { errorFrame, GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
 import type { BedrockSettings } from './model-config.js';
+import { UsageScanner } from './usage.js';
 
 const ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 const EXTRA_INPUT_RE = /^([A-Za-z0-9_]+)(?:\.[^:]*)?: Extra inputs are not permitted/;
@@ -154,11 +155,12 @@ function eventTypeOf(event: string): string {
   }
 }
 
-function writeEvent(res: ServerResponse, message: EventStreamMessage): void {
+function writeEvent(res: ServerResponse, message: EventStreamMessage, scanner: UsageScanner): void {
   if (message.headers[':message-type'] === 'event') {
     const parsed = JSON.parse(message.payload.toString('utf8')) as { bytes?: unknown };
     if (typeof parsed.bytes !== 'string') return;
     const event = Buffer.from(parsed.bytes, 'base64').toString('utf8');
+    scanner.feed(`${event}\n`);
     res.write(`event: ${eventTypeOf(event)}\ndata: ${event}\n\n`);
     return;
   }
@@ -178,6 +180,7 @@ async function relayStream(upstream: Response, res: ServerResponse, watch: Watch
     return;
   }
   const ping = setInterval(() => res.write('event: ping\ndata: {"type":"ping"}\n\n'), PING_MS);
+  const scanner = new UsageScanner('bedrock');
   try {
     const decoder = new EventStreamDecoder();
     const reader = body.getReader();
@@ -185,7 +188,7 @@ async function relayStream(upstream: Response, res: ServerResponse, watch: Watch
       const { done, value } = await reader.read();
       if (done) break;
       watch.touch();
-      for (const message of decoder.push(Buffer.from(value))) writeEvent(res, message);
+      for (const message of decoder.push(Buffer.from(value))) writeEvent(res, message, scanner);
     }
   } catch (err) {
     if (!watch.idle()) throw err;
@@ -194,6 +197,7 @@ async function relayStream(upstream: Response, res: ServerResponse, watch: Watch
     clearInterval(ping);
     watch.stop();
     res.end();
+    scanner.done();
   }
 }
 
@@ -220,6 +224,9 @@ export async function bedrockMessages(
     return;
   }
   const text = await upstream.text();
+  const scanner = new UsageScanner('bedrock');
+  scanner.feed(text);
+  scanner.done();
   res.writeHead(200, { 'content-type': 'application/json' });
   res.end(text);
 }

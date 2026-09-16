@@ -1,6 +1,6 @@
 import { isRecord } from './accounts.js';
 
-export const USAGE_PROVIDERS = ['anthropic', 'codex', 'openrouter'] as const;
+export const USAGE_PROVIDERS = ['anthropic', 'codex', 'openrouter', 'bedrock'] as const;
 export type UsageProvider = (typeof USAGE_PROVIDERS)[number];
 
 export interface UsageWindow {
@@ -10,10 +10,19 @@ export interface UsageWindow {
   detail: string | null;
 }
 
+export interface Tally {
+  requests: number;
+  input: number;
+  output: number;
+  cached: number;
+  since: string;
+}
+
 export interface ProviderUsage {
   windows: UsageWindow[];
   note: string | null;
   at: string;
+  tally: Tally | null;
 }
 
 export type Usage = Partial<Record<UsageProvider, ProviderUsage>>;
@@ -26,10 +35,19 @@ function toWindow(raw: unknown): UsageWindow | null {
   return { label: raw.label, used, resetAt: text(raw.resetAt), detail: text(raw.detail) };
 }
 
+const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0);
+
+function toTally(raw: unknown): Tally | null {
+  if (!isRecord(raw) || typeof raw.since !== 'string') return null;
+  const tally = { requests: count(raw.requests), input: count(raw.input), output: count(raw.output), cached: count(raw.cached), since: raw.since };
+  return tally.requests === 0 ? null : tally;
+}
+
 function toProviderUsage(raw: unknown): ProviderUsage | null {
   if (!isRecord(raw) || typeof raw.at !== 'string' || !Array.isArray(raw.windows)) return null;
   const windows = raw.windows.flatMap((w: unknown) => toWindow(w) ?? []);
-  return windows.length === 0 ? null : { windows, note: text(raw.note), at: raw.at };
+  const tally = toTally(raw.tally);
+  return windows.length === 0 && tally === null ? null : { windows, note: text(raw.note), at: raw.at, tally };
 }
 
 export function toUsage(raw: unknown): Usage {
@@ -42,7 +60,30 @@ export function toUsage(raw: unknown): Usage {
   return out;
 }
 
-export const percentLabel = (used: number): string => `${String(Math.round(used * 100))}% used`;
+export function percentLabel(used: number): string {
+  const percent = used * 100;
+  const shown = percent > 0 && percent < 1 ? percent.toFixed(1) : String(Math.round(percent));
+  return `${shown}% used`;
+}
+
+const THOUSAND = 1000;
+const MILLION = 1_000_000;
+
+export function tokensLabel(count: number): string {
+  if (count >= MILLION) return `${(count / MILLION).toFixed(count >= 10 * MILLION ? 0 : 1)}M`;
+  if (count >= THOUSAND) return `${(count / THOUSAND).toFixed(count >= 10 * THOUSAND ? 0 : 1)}k`;
+  return String(count);
+}
+
+export function tallyLine(tally: Tally): string {
+  const parts = [
+    `${String(tally.requests)} ${tally.requests === 1 ? 'request' : 'requests'}`,
+    `${tokensLabel(tally.input)} in`,
+    `${tokensLabel(tally.output)} out`,
+  ];
+  if (tally.cached > 0) parts.push(`${tokensLabel(tally.cached)} cached`);
+  return parts.join(' · ');
+}
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
