@@ -2,14 +2,15 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { isRecord } from '@metro-labs/core/is-record';
-import { log } from '@metro-labs/core/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import { beginLogin, CodexAuthError, finishLogin, readCodexCliAuth } from './codex-auth.js';
 import { beginDeviceLogin, pollDeviceLogin } from './codex-device.js';
 import { codexModels, currentTokens, freshCodexState } from './codex.js';
-import { openrouterModels, openrouterZdrModels } from './openrouter.js';
+import { openrouterCredits, openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
 import { syncAvailableModelsQuietly, type SetupDeps } from '../claude/setup.js';
 import { lastServed } from './served.js';
+import { noteUsage, openrouterUsage, usageOf, usageSeen } from './usage.js';
 import type { CodexTokens } from './codex-auth.js';
 import { GatewayError } from './forward.js';
 import {
@@ -57,7 +58,31 @@ interface Route {
   run: Handler;
 }
 
-const settingsBody = (cfg: ModelConfig): Record<string, unknown> => ({ ...publicModelConfig(cfg), lastServed: lastServed() });
+const settingsBody = (cfg: ModelConfig): Record<string, unknown> => ({
+  ...publicModelConfig(cfg),
+  lastServed: lastServed(),
+  usage: usageSeen(),
+});
+
+const CREDITS_TTL_MS = 5 * 60_000;
+
+async function refreshCredits(cfg: ModelConfig, deps: ModelApiDeps, now = Date.now()): Promise<void> {
+  const key = cfg.openrouter.apiKey;
+  if (key === '') return;
+  const seen = usageOf('openrouter');
+  if (seen !== undefined && now - Date.parse(seen.at) < CREDITS_TTL_MS) return;
+  try {
+    const credits = await openrouterCredits(key, deps.openrouterBase, deps.fetchImpl);
+    noteUsage('openrouter', openrouterUsage(credits.total, credits.spent, new Date(now)));
+  } catch (err) {
+    log.warn({ err: errMsg(err) }, 'model-api: could not read the OpenRouter credits');
+  }
+}
+
+async function settingsWithUsage(cfg: ModelConfig, deps: ModelApiDeps): Promise<Record<string, unknown>> {
+  await refreshCredits(cfg, deps);
+  return settingsBody(cfg);
+}
 
 function asApiError(err: unknown): never {
   if (err instanceof ModelConfigError || err instanceof CodexAuthError) throw new ApiError(err.message, 400);
@@ -175,7 +200,7 @@ const named = (table: Record<string, Route>, name: string, method: string | unde
 };
 
 function settingsRoute(method: string | undefined): Route | number {
-  if (method === 'GET') return { method: 'GET', run: (_req, _deps, store) => Promise.resolve(settingsBody(store.read())) };
+  if (method === 'GET') return { method: 'GET', run: (_req, deps, store) => settingsWithUsage(store.read(), deps) };
   if (method === 'PUT') return { method: 'POST', run: (req, deps, store) => update(req, store, deps) };
   return 405;
 }

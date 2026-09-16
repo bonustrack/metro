@@ -15,6 +15,7 @@ import { codexCount, codexMessages, freshCodexState, type CodexDeps } from './co
 import { OPENROUTER_BASE } from './openrouter.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
+import { forgetUsage, noteUsageHeaders } from './usage.js';
 import type { CodexTokens } from './codex-auth.js';
 
 export const GATEWAY_PREFIX = '/gateway';
@@ -38,6 +39,7 @@ const codexState = freshCodexState();
 
 export function resetGatewayState(): void {
   forgetServed();
+  forgetUsage();
   learned.fields.clear();
   learned.dropBetas = false;
   Object.assign(codexState, freshCodexState());
@@ -102,6 +104,7 @@ async function toAnthropic(
     signal: watch.signal,
     redirect: 'manual',
   });
+  noteUsageHeaders('anthropic', upstream.headers);
   await pipeResponse(upstream, res, watch, key === '' ? {} : { ownCredential: true });
 }
 

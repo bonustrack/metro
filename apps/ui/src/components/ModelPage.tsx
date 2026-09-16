@@ -5,6 +5,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { PageTitle } from './PageTitle.js';
 import { FieldLabel } from './FieldLabel.js';
+import { ModelUsage } from './ModelUsage.js';
 import { Loading } from './Loading.js';
 import { GROW } from '../theme.js';
 import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelOption, type ModelSettings, type ProviderInfo } from '../api/model.js';
@@ -361,6 +362,7 @@ export function ModelPage(): ReactNode {
             ) : null}
           </Col>
           <LastServed settings={model.data} />
+          <ModelUsage usage={model.data.usage} />
           <Editor settings={model.data} />
         </Col>
       )}

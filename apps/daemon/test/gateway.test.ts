@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../src/gateway/gateway.ts';
 import { lastServed } from '../src/gateway/served.ts';
+import { usageSeen } from '../src/gateway/usage.ts';
 import { encodeFrame } from '../src/gateway/eventstream.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import type { CodexTokens } from '../src/gateway/codex-auth.ts';
@@ -239,6 +240,33 @@ describe('the Anthropic route', () => {
     expect(text).toContain('event: message_start');
     expect(text).toContain('event: message_stop');
     expect((JSON.parse(anthropic.seen[0]?.body ?? '{}') as { model: string }).model).toBe('claude-opus-4-8');
+  });
+
+  test('the quota Anthropic states on the answer is kept for the Model page, never sent upstream and never asked for', async () => {
+    const answer = anthropic.answer;
+    anthropic.answer = (_req, res) => {
+      res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'anthropic-ratelimit-unified-5h-utilization': '0.34',
+        'anthropic-ratelimit-unified-5h-status': 'allowed',
+        'anthropic-ratelimit-unified-7d-utilization': '0.61',
+      });
+      res.end('event: message_stop\ndata: {"type":"message_stop"}\n\n');
+    };
+    try {
+      expect(usageSeen().anthropic).toBeUndefined();
+      const res = await post('/gateway/v1/messages', message('claude-opus-4-8', true));
+      expect(res.status).toBe(200);
+      await res.text();
+      const seen = usageSeen().anthropic;
+      expect(seen?.windows.map((w) => [w.label, w.used])).toEqual([
+        ['5-hour window', 0.34],
+        ['Weekly', 0.61],
+      ]);
+      expect(anthropic.seen.length).toBe(1);
+    } finally {
+      anthropic.answer = answer;
+    }
   });
 });
 
