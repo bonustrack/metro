@@ -170,13 +170,13 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
   const settings = useClaudeSettingsQuery();
   const [chosen, setChosen] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
-  useDocumentTitle('Claude Code settings');
+  useDocumentTitle('Harness');
   const files = settings.data ?? [];
   const file = files.find((f) => f.id === chosen) ?? files[0];
   return (
     <Col gap={20}>
       <Col gap={8}>
-        <PageTitle>Claude Code settings</PageTitle>
+        <PageTitle>Harness</PageTitle>
         <Text size="sm" role="secondary">
           {WHAT}
         </Text>

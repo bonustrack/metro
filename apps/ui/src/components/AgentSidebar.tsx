@@ -39,11 +39,16 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
           <ServerSwitcher project={project} />
           <Col gap={NAV_GAP}>
             <NavRow label="Agent" icon="user" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />
-            <NavRow label="Server" icon="server" selected={selection.kind === 'server'} target={{ kind: 'server', project }} onSelect={onSelect} />
-            <NavRow label="Model" icon="chip" selected={selection.kind === 'model'} target={{ kind: 'model', project }} onSelect={onSelect} />
             <NavRow label="Terminal" icon="terminal" selected={selection.kind === 'terminal'} target={{ kind: 'terminal', project }} onSelect={onSelect} />
             <NavRow label="Sessions" icon="folder" selected={selection.kind === 'sessions'} target={{ kind: 'sessions', project, claudeProject: null, id: null }} onSelect={onSelect} />
-            <NavRow label="Claude" icon="cog" selected={selection.kind === 'claude'} target={{ kind: 'claude', project }} onSelect={onSelect} />
+          </Col>
+          <Col gap={NAV_GAP} padding={{ top: 14 }}>
+            <Row padding={{ bottom: 2 }}>
+              <FieldLabel>Runtime</FieldLabel>
+            </Row>
+            <NavRow label="Server" icon="server" selected={selection.kind === 'server'} target={{ kind: 'server', project }} onSelect={onSelect} />
+            <NavRow label="Model" icon="chip" selected={selection.kind === 'model'} target={{ kind: 'model', project }} onSelect={onSelect} />
+            <NavRow label="Harness" icon="cog" selected={selection.kind === 'claude'} target={{ kind: 'claude', project }} onSelect={onSelect} />
           </Col>
           <Col gap={NAV_GAP} padding={{ top: 14 }}>
             <Row padding={{ bottom: 2 }}>
