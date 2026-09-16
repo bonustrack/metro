@@ -36,7 +36,7 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
               <MetroLogo size={32} color={palette.link} />
             </a>
           </Row>
-          <ServerSwitcher project={project} />
+          <ServerSwitcher project={project} selection={selection} />
           <Col gap={NAV_GAP}>
             <NavRow label="Agent" icon="user" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />
             <NavRow label="Terminal" icon="terminal" selected={selection.kind === 'terminal'} target={{ kind: 'terminal', project }} onSelect={onSelect} />

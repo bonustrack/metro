@@ -11,15 +11,23 @@ import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
 import { refreshServers, useServersQuery } from '../api/queries.js';
+import { routeHash } from '../route.js';
+import { sameViewOn, type Selection } from './selection.js';
 
-function serverItems(servers: Server[], current: Server | undefined, onRename: () => void, onForget: () => void): MenuItem[] {
+function serverItems(
+  servers: Server[],
+  current: Server | undefined,
+  selection: Selection,
+  onRename: () => void,
+  onForget: () => void,
+): MenuItem[] {
   const others = servers.filter((s) => s.id !== current?.id);
   return [
     ...others.map((s) => ({
       label: serverLabel(s),
       leading: <StatusDot host={s.host} />,
       onSelect: () => {
-        window.location.hash = `#/${s.id}`;
+        window.location.hash = routeHash(sameViewOn(selection, s.id));
       },
     })),
     {
@@ -38,7 +46,7 @@ function serverItems(servers: Server[], current: Server | undefined, onRename: (
   ];
 }
 
-export function ServerSwitcher({ project }: { project: string }): ReactNode {
+export function ServerSwitcher({ project, selection }: { project: string; selection: Selection }): ReactNode {
   const palette = useKitPalette();
   const client = useQueryClient();
   const { data } = useServersQuery();
@@ -61,7 +69,7 @@ export function ServerSwitcher({ project }: { project: string }): ReactNode {
         className="account-trigger"
         label="Server menu"
         align="start"
-        items={serverItems(servers, current, () => {
+        items={serverItems(servers, current, selection, () => {
           setRenaming(true);
         }, forget)}
       >

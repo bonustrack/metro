@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { routeHash, routeSelection } from '../src/route.js';
-import { type Selection } from '../src/components/selection.js';
+import { sameViewOn, type Selection } from '../src/components/selection.js';
 
 const HOSTS = ['127.0.0.1:8420', 'localhost:8421', 'jelsoft-chan-rooms.tail1234.ts.net', 'suzy.tail1234.ts.net'];
 
@@ -76,5 +76,21 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/launch')).toEqual({ kind: 'launch' });
     expect(routeHash({ kind: 'launch' })).toBe('#/launch');
     expect(routeSelection('#/launch/').kind).not.toBe('launch');
+  });
+});
+
+describe('switching server keeps the page', () => {
+  test('a page of the box carries over, and anything that names a thing on the old box falls back to its list', () => {
+    const on = (selection: Selection): string => routeHash(sameViewOn(selection, 'suzy00000001'));
+    expect(on({ kind: 'terminal', project: 'lisa000000001' })).toBe('#/suzy00000001/terminal');
+    expect(on({ kind: 'model', project: 'lisa000000001' })).toBe('#/suzy00000001/model');
+    expect(on({ kind: 'claude', project: 'lisa000000001' })).toBe('#/suzy00000001/claude');
+    expect(on({ kind: 'home', project: 'lisa000000001' })).toBe('#/suzy00000001');
+    expect(on({ kind: 'station', project: 'lisa000000001', accountId: 'a1' })).toBe('#/suzy00000001/channels');
+    expect(on({ kind: 'connector', project: 'lisa000000001', id: 'c1' })).toBe('#/suzy00000001/connectors');
+    expect(on({ kind: 'skill', project: 'lisa000000001', id: 'user:x' })).toBe('#/suzy00000001/skills');
+    expect(on({ kind: 'sessions', project: 'lisa000000001', claudeProject: 'p', id: 's' })).toBe('#/suzy00000001/sessions');
+    expect(on({ kind: 'memory', project: 'lisa000000001', claudeProject: 'p', file: 'f.md' })).toBe('#/suzy00000001/memory');
+    expect(on({ kind: 'servers' })).toBe('#/suzy00000001');
   });
 });
