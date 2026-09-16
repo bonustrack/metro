@@ -31,12 +31,14 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
     <Col flex={1} minHeight={0}>
       <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
         <Col gap={10}>
-          <Row padding={{ bottom: 22 }}>
+          <Row padding={{ bottom: 14 }}>
             <a className="nav-link" href="#/" aria-label="All servers">
               <MetroLogo size={32} color={palette.link} />
             </a>
           </Row>
-          <ServerSwitcher project={project} selection={selection} />
+          <Col padding={{ bottom: 6 }}>
+            <ServerSwitcher project={project} selection={selection} />
+          </Col>
           <Col gap={NAV_GAP}>
             <NavRow label="Agent" icon="user" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />
             <NavRow label="Terminal" icon="terminal" selected={selection.kind === 'terminal'} target={{ kind: 'terminal', project }} onSelect={onSelect} />

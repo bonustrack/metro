@@ -5,7 +5,6 @@ import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dropdown, type MenuItem } from './Dropdown.js';
 import { NameModal } from './NameModal.js';
-import { NavIcon } from './NavRow.js';
 import { StatusDot } from './StatusDot.js';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
@@ -21,11 +20,11 @@ function serverItems(
   onRename: () => void,
   onForget: () => void,
 ): MenuItem[] {
-  const others = servers.filter((s) => s.id !== current?.id);
   return [
-    ...others.map((s) => ({
+    ...servers.map((s) => ({
       label: serverLabel(s),
       leading: <StatusDot host={s.host} />,
+      ...(s.id === current?.id ? { icon: 'check' as const } : {}),
       onSelect: () => {
         window.location.hash = routeHash(sameViewOn(selection, s.id));
       },
@@ -80,7 +79,6 @@ export function ServerSwitcher({ project, selection }: { project: string; select
           radius={BLOCK_RADIUS_DEFAULT}
           border={{ top: side, right: side, bottom: side, left: side }}
         >
-          <NavIcon name="globeAlt" color={palette.sub} />
           <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>
             {current === undefined ? project : serverLabel(current)}
           </Text>
