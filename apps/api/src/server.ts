@@ -14,15 +14,12 @@ import { announceLaunchConfig, readLaunchConfig } from './launch-config.js';
 import { bootView, instanceStateOf, launchBox } from './aws/launch.js';
 import { describeRegions } from './aws/ec2.js';
 import { handleLaunchApiRequest, type LaunchApiDeps } from './launch.js';
-import { deleteVaultForOwner, getVaultForOwner, listVaultForOwner, putVaultForOwner } from './db/vault.js';
 import { handleServersApiRequest } from './servers.js';
-import { handleVaultApiRequest } from './vault.js';
 
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, project: null, version: METRO_VERSION });
-const vaultApi = { list: listVaultForOwner, put: putVaultForOwner, get: getVaultForOwner, remove: deleteVaultForOwner };
 const serversApi = { list: listServersForOwner, add: addServerForOwner, rename: renameServerForOwner, remove: deleteServerForOwner };
 const launchApi: LaunchApiDeps = {
   config: () => readLaunchConfig(),
@@ -47,7 +44,6 @@ function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
 export function handleApiRequest(req: IncomingMessage, res: ServerResponse): void {
   if (handleHealth(req, res)) return;
   if (handleModeRequest(req, res, mode)) return;
-  if (handleVaultApiRequest(req, res, vaultApi)) return;
   if (handleServersApiRequest(req, res, serversApi)) return;
   if (handleLaunchApiRequest(req, res, launchApi)) return;
   res.writeHead(404).end();

@@ -1,9 +1,9 @@
 # Fly.io deployment for api.metro.box (apps/api).
 #
 # ONE always-on machine and nothing on disk. This app runs no station, no MCP
-# session and no daemon: it serves wallet sign-in, the sealed vault, the server
-# list, the launch API and /health, all backed by Postgres. The volume it used to
-# mount went with the daemon.
+# session and no daemon: it serves wallet sign-in, the server list, the launch
+# API and /health, all backed by Postgres. The volume it used to mount went with
+# the daemon.
 #
 # Change `app` to your own unique name (or run `fly launch` to generate one).
 
@@ -29,16 +29,15 @@ primary_region = "iad"
 [env]
   METRO_HTTP_HOST = "0.0.0.0"
   METRO_LOG_LEVEL = "info"
-  # This app keeps nothing on disk: the vaults and the server lists are rows in
-  # Postgres, and no station, MCP session or attachment cache runs here.
+  # This app keeps nothing on disk: the server lists are rows in Postgres, and
+  # no station, MCP session or attachment cache runs here.
 
 # Secrets are NOT stored here — set them with `fly secrets set` (see README "Deploying"):
-#   DATABASE_URL  (required — the Postgres holding the sealed vaults and the server lists)
+#   DATABASE_URL  (required — the Postgres holding the server lists)
 #   To have metro issue servers, five more (docs/ISSUING-SERVERS.md), and with any of
 #   them unset the feature is simply off: METRO_AWS_ACCESS_KEY_ID,
 #   METRO_AWS_SECRET_ACCESS_KEY, METRO_LAUNCH_TAILNET, METRO_TAILSCALE_AUTH_KEY,
 #   METRO_LAUNCH_OWNERS (the wallets allowed to ask), plus optional METRO_LAUNCH_MAX.
-# A vault row is ciphertext sealed in the browser: nothing here can open one.
 
 [http_service]
   internal_port = 8420

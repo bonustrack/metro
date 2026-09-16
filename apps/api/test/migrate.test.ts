@@ -43,7 +43,7 @@ describe('the migrations the release command applies', () => {
   });
 
   test('0026 is the newest migration, and no snapshot is kept for a generator nobody runs', () => {
-    expect(journal().at(-1)?.tag).toBe('0026_server_launch');
+    expect(journal().at(-1)?.tag).toBe('0027_drop_vaults');
     expect(readdirSync(join(DIR, 'meta'))).toEqual(['_journal.json']);
   });
 });

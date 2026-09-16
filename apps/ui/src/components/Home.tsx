@@ -6,15 +6,13 @@ import { Text, Button } from './ui.js';
 import { PageTitle } from './PageTitle.js';
 import { AgentCredentials } from './AgentCredentials.js';
 import { CreateAgent } from './CreateAgent.js';
-import { SyncAgent } from './SyncAgent.js';
-import { RestoreAgent } from './RestoreAgent.js';
 import { ExportAgent } from './ExportAgent.js';
 import { ImportAgent } from './ImportAgent.js';
 import { Loading } from './Loading.js';
 import { NewAgentKey } from './NewAgentKey.js';
 import { createAgent, resetAgentKey, type CreatedAgent } from '../api/client.js';
 import { stationCount } from '../api/accounts.js';
-import { queryError, refreshAgents, refreshConnectors, useStationsQuery } from '../api/queries.js';
+import { queryError, refreshAgents, useStationsQuery } from '../api/queries.js';
 import { type AgentSummary } from '../api/client.js';
 import { routeHash } from '../route.js';
 import { opensElsewhere } from './link.js';
@@ -56,17 +54,16 @@ function Summary({
   );
 }
 
-function NoAgent({ onDone }: { onDone: () => void }): ReactNode {
+function NoAgent(): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [creating, setCreating] = useState(false);
-  const [restoring, setRestoring] = useState(false);
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   return (
     <Col gap={16}>
       <PageTitle>This machine</PageTitle>
       <Text size="sm" role="secondary">
-        No agent lives here yet. Create one, or restore one you synced to Metro.
+        No agent lives here yet. Create one, then bring channels, connectors, skills and memory in from a .metro file with Import.
       </Text>
       <Row gap={8} wrap>
         <Button
@@ -77,26 +74,7 @@ function NoAgent({ onDone }: { onDone: () => void }): ReactNode {
             setCreating(true);
           }}
         />
-        <Button
-          color="secondary"
-          dark={dark}
-          label="Restore from Metro"
-          onPress={() => {
-            setRestoring(true);
-          }}
-        />
       </Row>
-      <RestoreAgent
-        open={restoring}
-        onClose={() => {
-          setRestoring(false);
-        }}
-        onRestored={() => {
-          refreshAgents(client);
-          refreshConnectors(client);
-          onDone();
-        }}
-      />
       {created === null ? null : (
         <NewAgentKey
           created={created}
@@ -127,7 +105,6 @@ interface HomeProps {
 
 function AgentActions({ agent }: { agent: AgentSummary }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const [syncing, setSyncing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const portable = { id: agent.id, name: agent.name, key: agent.key ?? '' };
@@ -136,14 +113,6 @@ function AgentActions({ agent }: { agent: AgentSummary }): ReactNode {
       <Row gap={8} wrap>
         <Button
           color="primary"
-          dark={dark}
-          label="Sync with Metro"
-          onPress={() => {
-            setSyncing(true);
-          }}
-        />
-        <Button
-          color="secondary"
           dark={dark}
           label="Export"
           onPress={() => {
@@ -173,14 +142,6 @@ function AgentActions({ agent }: { agent: AgentSummary }): ReactNode {
           setImporting(false);
         }}
       />
-      <SyncAgent
-        open={syncing}
-        agent={{ id: agent.id, name: agent.name }}
-        onClose={() => {
-          setSyncing(false);
-        }}
-        onSynced={() => undefined}
-      />
     </>
   );
 }
@@ -194,11 +155,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
   if (data === undefined) return <Loading />;
   if (agent === undefined)
     return (
-      <NoAgent
-        onDone={() => {
-          onSelect({ kind: 'stations', project });
-        }}
-      />
+      <NoAgent />
     );
   return (
     <Col gap={20}>

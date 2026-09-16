@@ -71,7 +71,7 @@ import '@metro-labs/xmtp/train';
 ```
 
 `api.metro.box` is a separate, much smaller app, `apps/api`: it runs no channel, and serves
-wallet sign-in, the [vault](#sync-with-metro-and-restore) and `/health` from Postgres
+wallet sign-in, the server list and `/health` from Postgres
 (`bun --filter @metro-labs/api start` with `DATABASE_URL` set). The daemon and every station
 share one kernel, `packages/core`; the two servers share `packages/http`.
 
@@ -138,11 +138,10 @@ only**, on `/mcp`, on the Monitor transport, on `/attach` and on the relay. Inbo
 tagged with the owning agent and delivery is scoped to it; an event arriving while its agent is
 disconnected is held and replays on the next connect (bounded by the in-memory ring buffer).
 
-**metro.box keeps two tables** ([`schema.ts`](apps/daemon/src/db/schema.ts)): `users` (one row per
-wallet that ever signed in) and `vault` (one sealed bundle per agent, see
-[Sync with Metro and Restore](#sync-with-metro-and-restore)). No channel, no connector and no
-key is stored there in the clear; migrations `0021` and `0022` added the vault and dropped
-everything else. `DATABASE_URL` is the hosted daemon's only secret.
+**metro.box keeps one table** ([`schema.ts`](apps/api/src/db/schema.ts)): `servers`, the list
+of daemons each identity has opened. No channel, no connector and no key is stored there at all;
+an agent leaves a box only as a `.metro` file (see [Export and Import](#export-and-import)).
+`DATABASE_URL` is the hosted app's only required secret.
 
 **Migrations apply themselves on deploy.** `fly.toml` sets a `release_command`, so Fly runs
 `bun --filter @metro-labs/mcp db:migrate` in a temporary machine with the app's secrets before
@@ -181,9 +180,8 @@ before the MCP auth gate:
 | `POST /gateway/v1/messages`, `GET /gateway/v1/models` | The Anthropic-format gateway Claude Code talks to, authenticated with the agent key in `x-metro-key`. A plain model id follows the Model tab; `/model bedrock:<id>`, `/model openrouter:<id>` or `/model codex:<id>` in a session overrides it for that session. |
 | `POST /api/stop`, `POST /api/restart`, `POST /api/start` | Stop, restart and start the daemon from the Server page. Stop parks it: `metro serve` keeps holding the address (and the Funnel) and answers `/api/mode` with `stopped: true` until Start, so no shell is needed. Install it as a service (`metro service install`) and the machine comes back on its own after a reboot too. |
 
-On metro.box the same program serves sign-in (open to any wallet) and
-`GET /api/vault`, `PUT`/`GET`/`DELETE /api/vault/<agentId>` — see
-[Sync with Metro and Restore](#sync-with-metro-and-restore). Nothing else answers there.
+On metro.box the same program serves sign-in (open to any wallet) and the server list,
+`GET`/`POST /api/servers`, `PUT`/`DELETE /api/servers/<id>`. Nothing else answers there.
 
 Sign-in is one signature. The owner wallet signs a small typed message once (`EncryptionKey`,
 the same one that seals agents on metro.box); the page derives two keys from it in the browser,
@@ -287,18 +285,18 @@ code: the first `metro serve` installs, into `~/.metro/runtime`, the SDKs of the
 agent actually has, and an update that changes no SDK downloads under a megabyte. Metro's servers run no channel and see
 no message; there is no fallback if your machine is down, which is the point.
 
-### Sync with Metro and Restore
+### Export and Import
 
-**Sync with Metro** on the agent page keeps a copy of the agent on metro.box that metro.box
-cannot read: the page fetches the agent, its channels, its connectors and their credentials from
-the daemon, seals them in the browser to a key derived from one EIP-712 signature of the owner
-wallet (secp256k1, Ethereum's curve; a random data key per seal, AES-256-GCM, the data key wrapped
-to the wallet's public key), and stores only the sealed bundle. **Restore from Metro** on a
-fresh daemon lists the wallet's bundles, downloads one, opens it with the same signature, and
-hands the plaintext to that daemon, which writes the files and starts the channels; the same id
-and key carry over, so the `claude mcp add` line does not change. Only the owner wallet can
-open a bundle; the derived key lives in the browser for the duration of one action and is never
-stored or sent.
+**Export** on the agent page writes a `.metro` file to your disk: pick any of channels,
+connectors, skills and memory, and the page fetches them from the daemon, gzips them and seals
+them in the browser to a key derived from one EIP-712 signature of the owner wallet (secp256k1,
+Ethereum's curve; a random data key per file, AES-256-GCM, the data key wrapped to the wallet's
+public key). Nothing goes to metro.box. **Import** on any daemon you own opens the file with the
+same signature and applies the sections you pick, either appending what is missing or
+overwriting what matches; nothing the file does not mention is touched. The agent's own id and
+key stay behind, so the channels join the agent that lives on the target box rather than
+cloning one. Only the owner wallet can open a file; the derived key lives in the browser for
+the duration of one action and is never stored or sent.
 
 One thing to know about XMTP: an inbox allows ten installations and the first start on each
 machine spends one, so metro prints a warning when it does. Restarts on the same machine reuse

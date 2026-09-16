@@ -8,7 +8,7 @@ import {
   saveClaudeSkill,
   saveMemoryFile,
 } from '../api/claude.js';
-import { fetchBundle, restoreBundle } from '../api/vault.js';
+import { fetchBundle, restoreBundle } from '../api/bundle.js';
 import type { PackedChannel, PackedConnector, PackedMemory, PackedSkill, Payload, Section } from './pack.js';
 
 export type Mode = 'append' | 'overwrite';

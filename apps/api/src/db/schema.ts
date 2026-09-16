@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 import { STATIONS, type ConnectorTransport, type StationName } from '@metro-labs/core/station-names';
 
@@ -6,19 +6,6 @@ export { STATIONS, type ConnectorTransport, type StationName };
 
 export type ProjectRole = 'admin' | 'member';
 
-
-export const vaults = pgTable(
-  'vaults',
-  {
-    id: text('id').primaryKey(),
-    owner: text('owner').notNull(),
-    name: text('name').notNull(),
-    stations: jsonb('stations').notNull(),
-    envelope: jsonb('envelope').notNull(),
-    syncedAt: text('synced_at').notNull(),
-  },
-  (t) => [index('vaults_owner_idx').on(t.owner)],
-);
 
 export const servers = pgTable(
   'servers',

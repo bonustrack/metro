@@ -29,6 +29,10 @@ one, opens it in the browser, and hands the plaintext to that machine's daemon, 
 the files and starts the channels. The same id and key carry over, so the `claude mcp add`
 line does not change.
 
+*Retired 2026-09-17 (`0027_drop_vaults`).* The same sealing now produces a `.metro` file on the
+owner's own disk (Export and Import on the agent page), and metro.box stores no agent data at
+all. The bundle routes on the daemon stayed; the vault routes and table went.
+
 ## What goes
 
 - Teams: projects, members and project settings. The vault is per wallet.
@@ -56,7 +60,8 @@ line does not change.
    settings from the page; the connect card only chooses which local daemon.
 3. **Vault and Sync.** The vault routes on metro.box, browser-side sealing, *Sync with Metro*
    and *Restore*. Shipped 2026-09-04 (`0021_vault`, `/api/vault`, `/api/agents/<id>/bundle`,
-   `/api/agents/restore`, `apps/ui/src/vault/`).
+   `/api/agents/restore`, `apps/ui/src/vault/`); the hosted half retired 2026-09-17 in favour of
+   the `.metro` file, the sealing and the daemon routes kept.
 4. **Retire the hosted paths** named above, after the agents have moved. Shipped 2026-09-04
    (`0022_local_only`): metro.box keeps `users` and `vault`; `metro start`, the leases, the
    pairing codes, the hosted relay, the import and the project and member APIs are gone, the
