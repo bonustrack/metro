@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { whyUnreachable } from './reach.js';
 import type { RelayTarget } from './relay-target.js';
 import type { AgentIdentity } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -267,7 +268,7 @@ function dispatch(
         answer(res, err.status, { error: err.message });
       } else {
         log.warn({ err: errMsg(err), connector: connectorId }, 'relay: failed');
-        answer(res, 502, { error: 'metro could not reach the connector' });
+        answer(res, 502, { error: `metro could not reach the connector: ${whyUnreachable(err)}` });
         if (!res.writableEnded) res.end();
       }
       closeIfBodyUnread(req, res);

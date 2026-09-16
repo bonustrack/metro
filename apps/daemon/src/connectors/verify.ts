@@ -1,4 +1,5 @@
 import { errMsg, log } from '@metro-labs/core/log';
+import { whyUnreachable } from './reach.js';
 import {
   ConnectorNotMcp,
   ConnectorUnauthorized,
@@ -97,8 +98,8 @@ async function frame(
       },
       body: JSON.stringify(body),
     });
-  } catch {
-    throw refused(`Metro could not reach ${url.hostname}.`);
+  } catch (err) {
+    throw refused(`Metro could not reach ${url.hostname}: ${whyUnreachable(err)}`);
   }
   if (res.status >= 300 && res.status < 400) {
     await discard(res);

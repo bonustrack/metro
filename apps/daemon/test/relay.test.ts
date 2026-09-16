@@ -29,7 +29,7 @@ let upBase = '';
 let relay: Server;
 let base = '';
 
-type Mode = 'ok' | 'signin' | 'flip' | 'dead' | 'redirect';
+type Mode = 'ok' | 'signin' | 'flip' | 'dead' | 'redirect' | 'down';
 let mode: Mode = 'ok';
 let forceCalls = 0;
 
@@ -40,6 +40,7 @@ const deps: RelayApiDeps = {
     if (mode === 'signin') return Promise.resolve({ kind: 'signin' });
     if (mode === 'redirect')
       return Promise.resolve({ kind: 'ok', url: `${upBase}/redirect`, headers: {} });
+    if (mode === 'down') return Promise.resolve({ kind: 'ok', url: 'http://127.0.0.1:9/mcp', headers: {} });
     const stale = mode === 'flip' || mode === 'dead';
     const vendor = stale && !(mode === 'flip' && force) ? 'v-old' : 'v-live';
     return Promise.resolve({
@@ -260,6 +261,14 @@ describe('upstream auth failures', () => {
 });
 
 describe('hostile or oversized traffic', () => {
+  test('an upstream nobody answers is a 502 that says why, the way a direct connection would', async () => {
+    mode = 'down';
+    const res = await post(INIT);
+    expect(res.status).toBe(502);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/^metro could not reach the connector: .*\(nothing is listening there\)$/);
+  });
+
   test('an upstream redirect is refused, never followed', async () => {
     mode = 'redirect';
     const res = await post(INIT);

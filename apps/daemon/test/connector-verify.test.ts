@@ -491,7 +491,7 @@ describe('the three failures are worded separately', () => {
     const err = await refusal(
       verifyRemoteMcp(new URL(`http://127.0.0.1:${deadPort}/mcp`), NONE),
     );
-    expect(err.message).toBe('Metro could not reach 127.0.0.1.');
+    expect(err.message).toMatch(/^Metro could not reach 127\.0\.0\.1: .*\(nothing is listening there\)$/);
     expect(err.status).toBe(400);
   });
 });

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { whyUnreachable } from './reach.js';
 import {
   ConnectorVerifyError,
   type OAuthTokens,
@@ -51,8 +52,8 @@ export async function registerClient(
         token_endpoint_auth_method: 'none',
       }),
     });
-  } catch {
-    throw refused('Metro could not reach that server to register.');
+  } catch (err) {
+    throw refused(`Metro could not reach that server to register: ${whyUnreachable(err)}`);
   }
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok || !isRecord(body) || typeof body.client_id !== 'string')
@@ -126,8 +127,8 @@ async function postToken(
       },
       body: params.toString(),
     });
-  } catch {
-    throw refused('Metro could not reach that server to finish signing in.');
+  } catch (err) {
+    throw refused(`Metro could not reach that server to finish signing in: ${whyUnreachable(err)}`);
   }
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok || !isRecord(body))
