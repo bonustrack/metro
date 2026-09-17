@@ -60,7 +60,7 @@ function isOwner(subject: string, dir: string): boolean {
   return owner !== null && owner === normalizeAddress(subject);
 }
 
-function storedAgents(dir: string): Stored[] {
+export function storedAgents(dir: string): Stored[] {
   return listAgentFiles(dir).map((path) => ({ path, file: readAgentFile(path) }));
 }
 

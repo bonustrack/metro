@@ -103,11 +103,12 @@ export async function launchBox(input: LaunchInput, deps: LaunchDeps = LIVE): Pr
     hostname: slug,
     node,
     owner: input.owner.toLowerCase(),
+    agent: input.name,
     tailscaleAuthKey: input.authKey,
     metroTag: METRO_TAG,
   });
   const imageId = await deps.latestImage(input.credentials, input.region);
-  const { instanceId, zone } = await place(input, deps, { imageId, name: input.name, node, userData });
+  const { instanceId, zone } = await place(input, deps, { imageId, name: `metro:${slug}`, node, userData });
   return { host: hostOf(node, input.tailnet), node, instanceId, region: input.region, zone, imageId };
 }
 

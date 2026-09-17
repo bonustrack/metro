@@ -52,10 +52,11 @@ describe('metro issuing a box', () => {
       zone: null,
       imageId: 'ami-new',
     });
-    expect(calls).toEqual(['image AKIAEXAMPLE eu-west-1', 'run eu-west-1 ami-new Andy metro-abc123 tok-1']);
+    expect(calls).toEqual(['image AKIAEXAMPLE eu-west-1', 'run eu-west-1 ami-new metro:andy metro-abc123 tok-1']);
     expect(userData[0]).toContain("--hostname='metro-abc123'");
     expect(userData[0]).toContain("--owner '0xef8305e140ac520225daf050e2f71d5fbcc543e7'");
     expect(userData[0]).toContain("hostnamectl set-hostname 'andy'");
+    expect(userData[0]).toContain("'Andy' > /root/.metro/agents/.agent");
   });
 
   test('no capacity in the zone AWS picked is retried in every zone, each with its own token', async () => {
@@ -64,10 +65,10 @@ describe('metro issuing a box', () => {
     expect(launched.zone).toBe('eu-west-1b');
     expect(calls).toEqual([
       'image AKIAEXAMPLE eu-west-1',
-      'run eu-west-1 ami-new Andy metro-abc123 tok-1',
+      'run eu-west-1 ami-new metro:andy metro-abc123 tok-1',
       'zones eu-west-1',
-      'run eu-west-1 ami-new Andy metro-abc123 tok-2 eu-west-1a',
-      'run eu-west-1 ami-new Andy metro-abc123 tok-3 eu-west-1b',
+      'run eu-west-1 ami-new metro:andy metro-abc123 tok-2 eu-west-1a',
+      'run eu-west-1 ami-new metro:andy metro-abc123 tok-3 eu-west-1b',
     ]);
   });
 

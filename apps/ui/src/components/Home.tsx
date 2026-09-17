@@ -1,18 +1,18 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Text, Button } from './ui.js';
 import { PageTitle } from './PageTitle.js';
 import { AgentCredentials } from './AgentCredentials.js';
-import { CreateAgent } from './CreateAgent.js';
 import { ExportAgent } from './ExportAgent.js';
 import { ImportAgent } from './ImportAgent.js';
 import { Loading } from './Loading.js';
-import { NewAgentKey } from './NewAgentKey.js';
-import { createAgent, resetAgentKey, type CreatedAgent } from '../api/client.js';
+import { createAgent, resetAgentKey } from '../api/client.js';
 import { stationCount } from '../api/accounts.js';
-import { queryError, refreshAgents, useStationsQuery } from '../api/queries.js';
+import { queryError, refreshAgents, useServersQuery, useStationsQuery } from '../api/queries.js';
+import { currentServer } from '../auth/daemon.js';
+import { AGENT_NAME_RE } from '../api/agent-name.js';
 import { type AgentSummary } from '../api/client.js';
 import { routeHash } from '../route.js';
 import { opensElsewhere } from './link.js';
@@ -54,46 +54,50 @@ function Summary({
   );
 }
 
-function NoAgent(): ReactNode {
+function agentNameFor(server: { name: string | null; host: string } | undefined, fallback: string): string {
+  const wanted = server?.name ?? server?.host.split('.')[0] ?? fallback;
+  return AGENT_NAME_RE.test(wanted) ? wanted : 'agent';
+}
+
+function NoAgent({ project }: { project: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const [creating, setCreating] = useState(false);
-  const [created, setCreated] = useState<CreatedAgent | null>(null);
+  const servers = useServersQuery();
+  const here = currentServer();
+  const name = servers.data === undefined ? null : agentNameFor(servers.data.find((s) => s.id === here?.id), project);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (name === null) return;
+    setError(null);
+    createAgent(name)
+      .then(() => {
+        refreshAgents(client);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Could not create the agent.');
+      });
+  }, [name, attempt, client]);
   return (
     <Col gap={16}>
       <PageTitle>This machine</PageTitle>
-      <Text size="sm" role="secondary">
-        No agent lives here yet. Create one, then bring channels, connectors, skills and memory in from a .metro file with Import.
-      </Text>
-      <Row gap={8} wrap>
-        <Button
-          color="primary"
-          dark={dark}
-          label="Create agent"
-          onPress={() => {
-            setCreating(true);
-          }}
-        />
-      </Row>
-      {created === null ? null : (
-        <NewAgentKey
-          created={created}
-          onDismiss={() => {
-            setCreated(null);
-          }}
-        />
+      {error === null ? (
+        <Text size="sm" role="secondary">{name === null ? 'Setting up…' : `Setting up ${name}…`}</Text>
+      ) : (
+        <Col gap={12}>
+          <Text size="sm" role="danger">{error}</Text>
+          <Row>
+            <Button
+              color="secondary"
+              dark={dark}
+              label="Try again"
+              onPress={() => {
+                setAttempt((n) => n + 1);
+              }}
+            />
+          </Row>
+        </Col>
       )}
-      <CreateAgent
-        open={creating}
-        first
-        onClose={() => {
-          setCreating(false);
-        }}
-        onCreate={async (name) => {
-          setCreated(await createAgent(name));
-          refreshAgents(client);
-        }}
-      />
     </Col>
   );
 }
@@ -155,7 +159,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
   if (data === undefined) return <Loading />;
   if (agent === undefined)
     return (
-      <NoAgent />
+      <NoAgent project={project} />
     );
   return (
     <Col gap={20}>

@@ -181,3 +181,19 @@ describe('importing an agent from metro.box', () => {
     expect(agentIdForKey(suzy.key)).toBe(suzy.id);
   });
 });
+
+describe('the agent seeded by a launch', () => {
+  test('a .agent file names the first agent, once, and is consumed; a bad name is left for the log', async () => {
+    const { seedAgent } = await import('../src/agents/seed.ts');
+    const { writeFileSync } = await import('node:fs');
+    expect(await seedAgent(dir)).toBe('none');
+    writeFileSync(join(dir, '.agent'), 'Andy\n');
+    expect(await seedAgent(dir)).toBe('created');
+    expect(existsSync(join(dir, '.agent'))).toBe(false);
+    expect(readFileSync(join(dir, 'Andy', 'agent.json'), 'utf8')).toContain('"name": "Andy"');
+    writeFileSync(join(dir, '.agent'), 'Bob\n');
+    expect(await seedAgent(dir)).toBe('present');
+    expect(existsSync(join(dir, 'Bob'))).toBe(false);
+    expect(existsSync(join(dir, '.agent'))).toBe(false);
+  });
+});

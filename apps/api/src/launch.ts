@@ -3,7 +3,7 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { signedIdentity } from '@metro-labs/http/signed-identity';
-import { parseId } from '@metro-labs/core/ids';
+import { AGENT_NAME_RE, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { normalizeAddress } from '@metro-labs/core/address';
 import { mayLaunch, type ConfigResult, type LaunchConfig } from './launch-config.js';
@@ -14,7 +14,6 @@ import type { ServerEntry } from './server-types.js';
 
 const PREFIX = '/api/launch';
 const REGION_RE = /^[a-z]{2}(?:-[a-z]+)+-\d$/;
-const NAME_MAX = 40;
 const IN_FLIGHT_MS = 60_000;
 const REGIONS_TTL_MS = 60 * 60_000;
 
@@ -92,7 +91,8 @@ async function overview(deps: LaunchApiDeps, subject: string): Promise<unknown> 
 function nameOf(body: unknown): string {
   const raw = isRecord(body) && typeof body.name === 'string' ? body.name.trim() : '';
   if (raw === '') throw new ApiError('the server needs a name', 400);
-  if (raw.length > NAME_MAX) throw new ApiError(`a server name is at most ${String(NAME_MAX)} characters`, 400);
+  if (!AGENT_NAME_RE.test(raw))
+    throw new ApiError('a name is 2 to 32 letters, digits, dashes or underscores; it names the server and its agent', 400);
   return raw;
 }
 

@@ -27,6 +27,7 @@ import { unwatchSession, watchSession } from '../claude/session.js';
 import { tryClaudeSetup } from '../claude/setup.js';
 import { applyLocalOwner } from './local-owner.js';
 import { localOwner } from '../agents/file-admin.js';
+import { seedAgent } from '../agents/seed.js';
 import { ensureStationDeps } from '../stations/runtime-deps.js';
 import { localSessionApis } from '../routes/local-mode.js';
 import type { SessionApis } from '../routes/session-apis.js';
@@ -134,6 +135,7 @@ function startConnectors(): void {
 
 async function main(): Promise<void> {
   applyLocalOwner();
+  await seedAgent();
   await materializeFrom(fileSource, { allowEmpty: true });
   supervisor.start();
   const metroMcp = await createMetroMcp();

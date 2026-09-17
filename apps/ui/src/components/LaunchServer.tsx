@@ -16,11 +16,12 @@ import { queryError, refreshServers, useLaunchOverviewQuery } from '../api/queri
 import { launchServer, type Launched, type LaunchOverview } from '../api/launch.js';
 import { regionRows } from '../aws/regions.js';
 import { useDocumentTitle } from '../title.js';
+import { AGENT_NAME_RE, AGENT_NAME_RULE } from '../api/agent-name.js';
 
 const CARD_WIDTH = 480;
 const NO_AUTOFILL = { autoComplete: 'off' } as const;
 const HINT =
-  'Metro issues the machine from its own AWS account and joins it to its tailnet, so no key of yours is involved. It belongs to the wallet you are signed in with, and only that wallet can sign in to it. On first boot it installs Node, bun, Claude Code, Tailscale and Metro, joins under a random metro-xxxxxx name that can never clash with another box, and shows up in your server list under the name you give it, live once its Funnel address resolves, usually within five minutes.';
+  'Metro issues the machine from its own AWS account and joins it to its tailnet, so no key of yours is involved. It belongs to the wallet you are signed in with, and only that wallet can sign in to it. On first boot it installs Node, bun, Claude Code, Tailscale and Metro, joins under a random metro-xxxxxx name that can never clash with another box, creates the agent, and shows up in your server list under the name you give it, live once its Funnel address resolves, usually within five minutes. The name is the server, the agent and the AWS machine (metro:name) at once.';
 const OFF =
   'This Metro deployment issues no servers, or it does not issue them to you. Add your own server from the list instead.';
 const OFF_IDENTITY =
@@ -59,6 +60,10 @@ function useLaunchForm(): {
   const client = useQueryClient();
   const launch = (): void => {
     if (busy || name.trim() === '' || region.trim() === '') return;
+    if (!AGENT_NAME_RE.test(name.trim())) {
+      setError(`A name is ${AGENT_NAME_RULE}.`);
+      return;
+    }
     const wallet = activeIdentity()?.address ?? null;
     if (wallet === null) {
       setError('Sign in again: Metro needs to know which wallet will own the server.');
