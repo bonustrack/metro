@@ -4,7 +4,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { BackLink } from './BackLink.js';
-import { ClaudeProjects, useProjectChoice } from './ClaudeProjects.js';
+import { useHomeProject } from './home-project.js';
 import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
 import { PageTitle } from './PageTitle.js';
@@ -93,35 +93,11 @@ function MemoryTitle({ claudeProject }: { claudeProject: string }): ReactNode {
   );
 }
 
-function MemoryPicker({ project, onSelect }: { project: string; onSelect: (selection: Selection) => void }): ReactNode {
-  return (
-    <Col gap={16}>
-      <PageTitle>Memory</PageTitle>
-      <Text size="sm" role="secondary">
-        What Claude Code remembers about each project on this machine. Pick a project.
-      </Text>
-      <ClaudeProjects
-        onlyWithMemory
-        onOpen={(cp) => {
-          onSelect({ kind: 'memory', project, claudeProject: cp, file: null });
-        }}
-      />
-    </Col>
-  );
-}
+const NONE = 'No Claude Code memory on this box yet. It fills in as Claude works.';
 
-function MemoryList({ project, claudeProject, several, onSelect }: { project: string; claudeProject: string; several: boolean; onSelect: (selection: Selection) => void }): ReactNode {
+function MemoryList({ project, claudeProject, onSelect }: { project: string; claudeProject: string; onSelect: (selection: Selection) => void }): ReactNode {
   return (
     <Col gap={16}>
-      {several ? (
-        <BackLink
-          label="Projects"
-          href={routeHash({ kind: 'memory', project, claudeProject: null, file: null })}
-          onPress={() => {
-            onSelect({ kind: 'memory', project, claudeProject: null, file: null });
-          }}
-        />
-      ) : null}
       <MemoryTitle claudeProject={claudeProject} />
       <MemoryIndex
         claudeProject={claudeProject}
@@ -135,10 +111,16 @@ function MemoryList({ project, claudeProject, several, onSelect }: { project: st
 
 export function Memory({ project, claudeProject, file, onSelect }: MemoryProps): ReactNode {
   useDocumentTitle('Memory');
-  const choice = useProjectChoice(true);
-  const picked = claudeProject ?? choice.sole;
-  if (picked === null) return choice.loading ? <Loading /> : <MemoryPicker project={project} onSelect={onSelect} />;
-  if (file === null) return <MemoryList project={project} claudeProject={picked} several={choice.several} onSelect={onSelect} />;
+  const home = useHomeProject();
+  const picked = claudeProject ?? home.project;
+  if (picked === null)
+    return (
+      <Col gap={16}>
+        <PageTitle>Memory</PageTitle>
+        {home.loading ? <Loading /> : <Text size="sm" role="secondary">{NONE}</Text>}
+      </Col>
+    );
+  if (file === null) return <MemoryList project={project} claudeProject={picked} onSelect={onSelect} />;
   const index: Selection = { kind: 'memory', project, claudeProject: picked, file: null };
   return (
     <Col gap={16}>

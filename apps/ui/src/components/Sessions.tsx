@@ -4,7 +4,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { BackLink } from './BackLink.js';
-import { ClaudeProjects, useProjectChoice } from './ClaudeProjects.js';
+import { useHomeProject } from './home-project.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { SessionMenu } from './SessionMenu.js';
@@ -136,40 +136,22 @@ interface SessionsProps {
   onSelect: (selection: Selection) => void;
 }
 
-function SessionsPicker({ project, onSelect }: { project: string; onSelect: (selection: Selection) => void }): ReactNode {
-  return (
-    <Col gap={16}>
-      <PageTitle>Sessions</PageTitle>
-      <Text size="sm" role="secondary">
-        Claude Code sessions on this machine, read from its own files. Pick a project.
-      </Text>
-      <ClaudeProjects
-        onlyWithMemory={false}
-        onOpen={(cp) => {
-          onSelect({ kind: 'sessions', project, claudeProject: cp, id: null });
-        }}
-      />
-    </Col>
-  );
-}
+const NONE = 'No Claude Code session on this box yet.';
 
 export function Sessions({ project, claudeProject, id, onSelect }: SessionsProps): ReactNode {
   useDocumentTitle('Sessions');
-  const choice = useProjectChoice(false);
-  const picked = claudeProject ?? choice.sole;
-  if (picked === null) return choice.loading ? <Loading /> : <SessionsPicker project={project} onSelect={onSelect} />;
+  const home = useHomeProject();
+  const picked = claudeProject ?? home.project;
+  if (picked === null)
+    return (
+      <Col gap={16}>
+        <PageTitle>Sessions</PageTitle>
+        {home.loading ? <Loading /> : <Text size="sm" role="secondary">{NONE}</Text>}
+      </Col>
+    );
   if (id === null)
     return (
       <Col gap={16}>
-        {choice.several ? (
-          <BackLink
-            label="Projects"
-            href={routeHash({ kind: 'sessions', project, claudeProject: null, id: null })}
-            onPress={() => {
-              onSelect({ kind: 'sessions', project, claudeProject: null, id: null });
-            }}
-          />
-        ) : null}
         <PageTitle>Sessions</PageTitle>
         <SessionList
           project={project}

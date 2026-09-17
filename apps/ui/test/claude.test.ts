@@ -28,3 +28,15 @@ describe('the settings files a daemon lists', () => {
     });
   });
 });
+
+describe('the project a box page shows', () => {
+  test('is the most recently active one, else the first, else none', async () => {
+    const { pickHomeProject } = await import('../src/components/home-project.js');
+    const older = { id: '-root', cwd: '/root', sessions: 3, lastActiveAt: '2026-09-01T00:00:00.000Z', hasMemory: true };
+    const newer = { id: '-root-suzy', cwd: '/root/suzy', sessions: 1, lastActiveAt: '2026-09-17T00:00:00.000Z', hasMemory: false };
+    const never = { id: '-tmp', cwd: '/tmp', sessions: 0, lastActiveAt: null, hasMemory: false };
+    expect(pickHomeProject([older, newer, never])).toBe('-root-suzy');
+    expect(pickHomeProject([never])).toBe('-tmp');
+    expect(pickHomeProject([])).toBeNull();
+  });
+});
