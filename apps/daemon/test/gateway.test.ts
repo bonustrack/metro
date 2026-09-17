@@ -318,6 +318,20 @@ describe('the OpenRouter route', () => {
     expect((await post('/gateway/v1/messages', message('claude-sonnet-5'))).status).toBe(400);
   });
 
+  test('a request that switches thinking off loses that field, since some OpenRouter models cannot run without reasoning', async () => {
+    cfg.provider = 'openrouter';
+    await post('/gateway/v1/messages', { ...message('claude-sonnet-5'), thinking: { type: 'disabled' } });
+    expect(JSON.parse(openrouter.seen[0]?.body ?? '{}')).not.toHaveProperty('thinking');
+    await post('/gateway/v1/messages', { ...message('claude-sonnet-5'), thinking: { type: 'enabled', budget_tokens: 1024 } });
+    expect((JSON.parse(openrouter.seen[1]?.body ?? '{}') as { thinking: unknown }).thinking).toEqual({ type: 'enabled', budget_tokens: 1024 });
+    cfg.openrouter.zdr = true;
+    await post('/gateway/v1/messages', { ...message('claude-sonnet-5'), thinking: { type: 'disabled' } });
+    const sealed = JSON.parse(openrouter.seen[2]?.body ?? '{}') as Record<string, unknown>;
+    expect(sealed).not.toHaveProperty('thinking');
+    expect(sealed.provider).toEqual({ zdr: true });
+    cfg.openrouter.zdr = false;
+  });
+
   test('with zero data retention on, every request carries provider.zdr, merged into any routing the client sent', async () => {
     cfg.provider = 'openrouter';
     cfg.openrouter.zdr = true;

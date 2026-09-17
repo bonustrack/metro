@@ -104,6 +104,7 @@ async function toAnthropic(
     signal: watch.signal,
     redirect: 'manual',
   });
+  noteRefusal('anthropic', route.model, upstream);
   noteUsageHeaders('anthropic', upstream.headers);
   const scanner = new UsageScanner('anthropic');
   await pipeResponse(upstream, res, watch, key === '' ? { scanner } : { ownCredential: true, scanner });
@@ -137,13 +138,22 @@ async function toOpenRouter(
     signal: watch.signal,
     redirect: 'manual',
   });
+  noteRefusal('openrouter', route.model, upstream);
   await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner('openrouter') });
 }
 
+const thinkingOff = (body: Record<string, unknown>): boolean => isRecord(body.thinking) && body.thinking.type === 'disabled';
+
 export function openrouterBody(body: Record<string, unknown>, model: string, zdr: boolean): Record<string, unknown> {
-  if (!zdr) return { ...body, model };
+  const sent: Record<string, unknown> = { ...body, model };
+  if (thinkingOff(body)) delete sent.thinking;
+  if (!zdr) return sent;
   const provider = isRecord(body.provider) ? body.provider : {};
-  return { ...body, model, provider: { ...provider, zdr: true } };
+  return { ...sent, provider: { ...provider, zdr: true } };
+}
+
+function noteRefusal(provider: string, model: string, upstream: Response): void {
+  if (!upstream.ok) log.warn({ provider, model, status: upstream.status }, 'gateway: the provider refused the request');
 }
 
 async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
