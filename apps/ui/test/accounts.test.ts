@@ -120,7 +120,7 @@ describe('stationFields', () => {
     const f = stationFields(
       row({
         handle: '0x0bA043c6',
-        url: 'https://etherscan.io/address/0x0bA043c6',
+        url: 'https://stage.box/#/0x0bA043c6',
         address: '0x0bA043c6',
         inboxId: 'a254b84f',
         env: 'production',

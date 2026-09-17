@@ -335,7 +335,7 @@ async function accountsAction(id: string): Promise<void> {
       accounts: [...accounts.values()].map((a) => ({
         id: a.cfg.id,
         handle: a.address,
-        url: `https://etherscan.io/address/${a.address}`,
+        url: `https://stage.box/#/${a.address}`,
         address: a.address,
         inboxId: a.inboxId,
         env: 'production',
