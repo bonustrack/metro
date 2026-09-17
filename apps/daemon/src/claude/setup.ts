@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { errMsg, log } from '@metro-labs/core/log';
@@ -19,6 +19,8 @@ export const RETENTION_DAYS = 7;
 export const SKILL_NAME = 'metro-orchestrator';
 const STATE_FILE = 'claude-setup.json';
 const GUIDANCE = 'orchestrator.md';
+export const SYSTEM_PROMPT_FILE = 'system-prompt.md';
+export const SYSTEM_PROMPT_MAX = 64 * 1024;
 
 export const WORKER_AGENT = `---
 name: worker
@@ -56,6 +58,7 @@ export interface SetupReport {
 export interface SetupStatus {
   privacy: boolean;
   permissionMode: PermissionMode;
+  systemPrompt: string;
   guard: 'plugin';
   worker: boolean;
   skill: boolean;
@@ -93,6 +96,26 @@ export function permissionMode(agents = agentsDir()): PermissionMode {
 
 export function setPermissionMode(mode: PermissionMode, agents = agentsDir()): void {
   writeState(agents, { permissionMode: mode });
+}
+
+const promptPath = (agents: string): string => join(agents, SYSTEM_PROMPT_FILE);
+
+export function systemPrompt(agents = agentsDir()): string {
+  const path = promptPath(agents);
+  if (!existsSync(path)) return '';
+  return readFileSync(path, 'utf8').trim();
+}
+
+export function setSystemPrompt(text: string, agents = agentsDir()): void {
+  const trimmed = text.trim();
+  if (trimmed === '') {
+    rmSync(promptPath(agents), { force: true });
+    return;
+  }
+  mkdirSync(agents, { recursive: true });
+  const tmp = `${promptPath(agents)}.${String(process.pid)}.tmp`;
+  writeFileSync(tmp, `${trimmed}\n`, { mode: 0o600 });
+  renameSync(tmp, promptPath(agents));
 }
 
 export function guidancePath(env: NodeJS.ProcessEnv = process.env): string {
@@ -178,6 +201,7 @@ export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
   return {
     privacy: privacyEnabled(deps.agents ?? agentsDir()),
     permissionMode: permissionMode(deps.agents ?? agentsDir()),
+    systemPrompt: systemPrompt(deps.agents ?? agentsDir()),
     guard: 'plugin',
     worker: existsSync(workerPath(dir)),
     skill: existsSync(skillPath(dir)),

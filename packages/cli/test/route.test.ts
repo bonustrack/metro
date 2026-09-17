@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { currentRoute, permissionMode, routeModelEnv } from '../src/route.ts';
+import { currentRoute, permissionMode, routeModelEnv, systemPrompt } from '../src/route.ts';
 
 let dir = '';
 
@@ -42,5 +42,15 @@ describe('the permission mode the box chose', () => {
     expect(permissionMode(dir)).toBe('bypass');
     writeFileSync(join(dir, 'claude-setup.json'), JSON.stringify({ permissionMode: 'weird' }));
     expect(permissionMode(dir)).toBe('auto');
+  });
+});
+
+describe('the system prompt the Harness page saved', () => {
+  test('is the trimmed file, and null when the file is missing or blank', () => {
+    expect(systemPrompt(dir)).toBeNull();
+    writeFileSync(join(dir, 'system-prompt.md'), '  You are Lisa.\n\n');
+    expect(systemPrompt(dir)).toBe('You are Lisa.');
+    writeFileSync(join(dir, 'system-prompt.md'), '   \n');
+    expect(systemPrompt(dir)).toBeNull();
   });
 });

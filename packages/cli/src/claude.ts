@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { markOnboardingDone, seedChannels } from './onboarding.js';
 import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
-import { currentRoute, permissionMode, routeModelEnv, type PermissionMode } from './route.js';
+import { currentRoute, permissionMode, routeModelEnv, systemPrompt, type PermissionMode } from './route.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgents, pickLocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
@@ -12,11 +12,12 @@ const PERMISSION_MODE_FLAG: Record<PermissionMode, string> = { auto: 'auto', byp
 const KEY_HEADER = 'x-metro-key';
 const PROBE_MS = 3_000;
 
-export const claudeArgs = (extra: string[], mcpConfig?: string, mode: PermissionMode = 'auto'): string[] => [
+export const claudeArgs = (extra: string[], mcpConfig?: string, mode: PermissionMode = 'auto', prompt: string | null = null): string[] => [
   ...CHANNEL_FLAGS,
   '--permission-mode',
   PERMISSION_MODE_FLAG[mode],
   ...(mcpConfig === undefined ? [] : ['--mcp-config', mcpConfig]),
+  ...(prompt === null ? [] : ['--append-system-prompt', prompt]),
   ...extra,
 ];
 
@@ -175,6 +176,8 @@ export async function launchClaude(extra: string[]): Promise<number> {
   const port = localPort();
   const mcp = mcpConfigFor(await servedKey(decision), port);
   const mode = permissionMode();
+  const prompt = systemPrompt();
+  if (prompt !== null) process.stderr.write('metro claude: the system prompt from the Harness page is appended to this session\n');
   const sandbox = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
     const out = bypassSandboxEnv(env, mode, process.getuid?.());
     if (out !== env)
@@ -184,9 +187,9 @@ export async function launchClaude(extra: string[]): Promise<number> {
   try {
     if ('skip' in decision) {
       process.stderr.write(`metro claude: ${decision.skip}\n`);
-      return await runClaude(claudeArgs(extra, mcp?.path, mode), sandbox(process.env));
+      return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), sandbox(process.env));
     }
-    return await runClaude(claudeArgs(extra, mcp?.path, mode), sandbox(gatewayLaunchEnv(decision.key, port)));
+    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), sandbox(gatewayLaunchEnv(decision.key, port)));
   } finally {
     mcp?.cleanup();
   }

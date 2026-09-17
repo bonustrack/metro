@@ -7,6 +7,7 @@ import { setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } 
 import { queryError, refreshClaudeSetup, useClaudeSetupQuery, useModeQuery } from '../api/queries.js';
 import { olderThan } from '../api/version.js';
 import { routeHash } from '../route.js';
+import { SystemPromptEditor } from './SystemPrompt.js';
 
 const SETUP_SINCE = '0.1.0-beta.105';
 const WHAT =
@@ -126,6 +127,7 @@ export function ClaudeSetup({ project }: { project: string }): ReactNode {
           <Lines setup={setup.data} project={project} />
           <PrivacySwitch setup={setup.data} />
           <ModeSwitch setup={setup.data} />
+          <SystemPromptEditor setup={setup.data} version={mode.data?.version ?? null} />
         </Col>
       )}
     </Col>

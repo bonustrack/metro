@@ -21,7 +21,19 @@ import {
   startClaudeLogin,
   type LoginDeps,
 } from './login.js';
-import { claudeSetupStatus, ensureClaudeSetup, isPermissionMode, permissionMode, setPermissionMode, setPrivacy, type PermissionMode, type SetupDeps } from './setup.js';
+import {
+  claudeSetupStatus,
+  ensureClaudeSetup,
+  isPermissionMode,
+  permissionMode,
+  setPermissionMode,
+  setPrivacy,
+  setSystemPrompt,
+  systemPrompt,
+  SYSTEM_PROMPT_MAX,
+  type PermissionMode,
+  type SetupDeps,
+} from './setup.js';
 import {
   ensureSession,
   sessionRunning,
@@ -138,28 +150,64 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
 const LOGIN = 'login';
 const SESSION = 'session';
 const SETUP = 'setup';
+const SETUP_BODY_MAX = SYSTEM_PROMPT_MAX * 2;
 const VERSION = 'version';
 
 interface SetupChange {
   privacy?: boolean;
   permissionMode?: PermissionMode;
+  systemPrompt?: string;
+}
+
+function promptChange(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'string') throw new ApiError('systemPrompt must be text', 400);
+  if (Buffer.byteLength(raw) > SYSTEM_PROMPT_MAX) throw new ApiError(`systemPrompt must be under ${String(SYSTEM_PROMPT_MAX / 1024)} KiB`, 400);
+  return raw;
+}
+
+function privacyChange(raw: unknown): boolean | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'boolean') throw new ApiError('privacy must be true or false', 400);
+  return raw;
+}
+
+function modeChange(raw: unknown): PermissionMode | undefined {
+  if (raw === undefined) return undefined;
+  if (!isPermissionMode(raw)) throw new ApiError('permissionMode must be auto or bypass', 400);
+  return raw;
 }
 
 function setupChange(body: unknown): SetupChange {
   if (!isRecord(body)) throw new ApiError('a body is required', 400);
-  if (body.privacy !== undefined && typeof body.privacy !== 'boolean') throw new ApiError('privacy must be true or false', 400);
-  if (body.permissionMode !== undefined && !isPermissionMode(body.permissionMode)) throw new ApiError('permissionMode must be auto or bypass', 400);
-  if (body.privacy === undefined && body.permissionMode === undefined) throw new ApiError('nothing to change', 400);
-  return { ...(typeof body.privacy === 'boolean' ? { privacy: body.privacy } : {}), ...(isPermissionMode(body.permissionMode) ? { permissionMode: body.permissionMode } : {}) };
+  const privacy = privacyChange(body.privacy);
+  const permissionMode = modeChange(body.permissionMode);
+  const systemPrompt = promptChange(body.systemPrompt);
+  if (privacy === undefined && permissionMode === undefined && systemPrompt === undefined) throw new ApiError('nothing to change', 400);
+  return {
+    ...(privacy === undefined ? {} : { privacy }),
+    ...(permissionMode === undefined ? {} : { permissionMode }),
+    ...(systemPrompt === undefined ? {} : { systemPrompt }),
+  };
+}
+
+function restartsSession(change: SetupChange, agents: string | undefined): boolean {
+  let restart = false;
+  if (change.permissionMode !== undefined && change.permissionMode !== permissionMode(agents)) {
+    setPermissionMode(change.permissionMode, agents);
+    restart = true;
+  }
+  if (change.systemPrompt !== undefined && change.systemPrompt.trim() !== systemPrompt(agents)) {
+    setSystemPrompt(change.systemPrompt, agents);
+    restart = true;
+  }
+  return restart;
 }
 
 function applySetupChange(change: SetupChange, deps: ClaudeApiDeps): void {
   const setup = deps.setup ?? {};
   if (change.privacy !== undefined) setPrivacy(change.privacy, setup.agents);
-  if (change.permissionMode !== undefined && change.permissionMode !== permissionMode(setup.agents)) {
-    setPermissionMode(change.permissionMode, setup.agents);
-    if (sessionRunning(deps.session?.tmux ?? 'tmux')) stopSession(deps.session ?? {});
-  }
+  if (restartsSession(change, setup.agents) && sessionRunning(deps.session?.tmux ?? 'tmux')) stopSession(deps.session ?? {});
   ensureClaudeSetup(setup);
 }
 
@@ -168,7 +216,7 @@ async function setupAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise<u
   const method = req.method ?? 'GET';
   if (method === 'GET') return claudeSetupStatus(setup);
   if (method !== 'POST') throw new ApiError('method not allowed', 405);
-  applySetupChange(setupChange(await readJsonBody(req)), deps);
+  applySetupChange(setupChange(await readJsonBody(req, SETUP_BODY_MAX)), deps);
   return claudeSetupStatus(setup);
 }
 

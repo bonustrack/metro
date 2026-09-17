@@ -27,6 +27,11 @@ describe('metro claude hands everything to claude untouched', () => {
     ]);
   });
 
+  test('the system prompt from the Harness page is appended before the user arguments, and none means no flag', () => {
+    expect(claudeArgs(['-c'], undefined, 'auto', 'You are Lisa.\nBe brief.').slice(4)).toEqual(['--append-system-prompt', 'You are Lisa.\nBe brief.', '-c']);
+    expect(claudeArgs(['-c'], '/tmp/mcp.json', 'auto', null).slice(4)).toEqual(['--mcp-config', '/tmp/mcp.json', '-c']);
+  });
+
   test('the permission mode the box chose is passed, bypass as bypassPermissions', () => {
     expect(claudeArgs([], undefined, 'bypass').slice(2, 4)).toEqual(['--permission-mode', 'bypassPermissions']);
     expect(claudeArgs([], undefined, 'auto').slice(2, 4)).toEqual(['--permission-mode', 'auto']);

@@ -36,3 +36,14 @@ export function permissionMode(dir = agentsDir()): PermissionMode {
     return 'auto';
   }
 }
+
+export function systemPrompt(dir = agentsDir()): string | null {
+  const path = join(dir, 'system-prompt.md');
+  if (!existsSync(path)) return null;
+  try {
+    const text = readFileSync(path, 'utf8').trim();
+    return text === '' ? null : text;
+  } catch {
+    return null;
+  }
+}

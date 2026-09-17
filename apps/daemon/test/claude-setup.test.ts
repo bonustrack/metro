@@ -54,7 +54,7 @@ describe('the Claude Code setup a metro box gets', () => {
     setPrivacy(false, join(dir, 'agents'));
     expect(ensureClaudeSetup(deps())).toMatchObject({ privacy: false, settings: 'written' });
     expect(settings()).toEqual({ env: { MY_VAR: 'x' }, cleanupPeriodDays: 7 });
-    expect(claudeSetupStatus(deps())).toEqual({ privacy: false, permissionMode: 'auto', guard: 'plugin', worker: true, skill: true, privacyApplied: false, retentionDays: 7 });
+    expect(claudeSetupStatus(deps())).toEqual({ privacy: false, permissionMode: 'auto', systemPrompt: '', guard: 'plugin', worker: true, skill: true, privacyApplied: false, retentionDays: 7 });
   });
 
   test('a missing guidance file is reported, not thrown', () => {
@@ -160,5 +160,18 @@ describe('the permission mode of the session', () => {
     expect(both).toMatchObject({ permissionMode: 'bypass', privacy: false });
     expect((await call('POST', { permissionMode: 'sometimes' })).status).toBe(400);
     expect((await call('POST', {})).status).toBe(400);
+  });
+
+  test('a system prompt is kept as a file the CLI appends, empty removes it, and a non-text or huge one is refused', async () => {
+    const before = (await (await call('GET')).json()) as { systemPrompt: string };
+    expect(before.systemPrompt).toBe('');
+    const set = (await (await call('POST', { systemPrompt: '  You are Lisa, the ops agent.\nBe brief.  ' })).json()) as { systemPrompt: string };
+    expect(set.systemPrompt).toBe('You are Lisa, the ops agent.\nBe brief.');
+    expect(readFileSync(join(dir, 'agents', 'system-prompt.md'), 'utf8')).toBe('You are Lisa, the ops agent.\nBe brief.\n');
+    const cleared = (await (await call('POST', { systemPrompt: '' })).json()) as { systemPrompt: string };
+    expect(cleared.systemPrompt).toBe('');
+    expect(existsSync(join(dir, 'agents', 'system-prompt.md'))).toBe(false);
+    expect((await call('POST', { systemPrompt: 7 })).status).toBe(400);
+    expect((await call('POST', { systemPrompt: 'x'.repeat(64 * 1024 + 1) })).status).toBe(400);
   });
 });
