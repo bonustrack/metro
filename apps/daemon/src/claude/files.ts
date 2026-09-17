@@ -17,8 +17,8 @@ import { createInterface } from 'node:readline';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 
-const PROJECT_RE = /^[A-Za-z0-9._-]{1,200}$/;
-const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
+export const PROJECT_RE = /^[A-Za-z0-9._-]{1,200}$/;
+export const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
 const MEMORY_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.md$/;
 const EDGE_BYTES = 64 * 1024;
 const TEXT_CAP = 20_000;
@@ -39,7 +39,7 @@ export function claudeDir(): string {
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 
-function safeName(value: string, re: RegExp, what: string): string {
+export function safeName(value: string, re: RegExp, what: string): string {
   if (!re.test(value) || value === '.' || value === '..')
     throw new ApiError(`that is not a ${what}`, 400);
   return value;

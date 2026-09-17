@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
@@ -81,6 +81,22 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect(projects[0]).toMatchObject({ cwd: '/home/me/proj', sessions: 1, hasMemory: true });
     expect(typeof projects[0]?.lastActiveAt).toBe('string');
     expect(projects[1]).toMatchObject({ cwd: null, sessions: 0, lastActiveAt: null, hasMemory: false });
+  });
+
+  test('a session file is read as is and written back, so a box can take another box\'s conversation', async () => {
+    const raw = await json<{ id: string; text: string }>(`/api/claude/sessions/${SESSION}?project=${PROJECT}&raw=1`);
+    expect(raw.id).toBe(SESSION);
+    expect(raw.text).toContain('"aiTitle":"Blue sidebar"');
+    expect(raw.text).toContain('this line is not json');
+    const moved = '22222222-2222-4333-8444-555555555555';
+    const written = await put(`/api/claude/sessions/${moved}?project=-root`, { text: raw.text });
+    expect(written.status).toBe(200);
+    expect(readFileSync(join(dir, 'projects', '-root', `${moved}.jsonl`), 'utf8')).toBe(raw.text);
+    const { sessions } = await json<{ sessions: { id: string }[] }>('/api/claude/sessions?project=-root');
+    expect(sessions.map((s) => s.id)).toEqual([moved]);
+    expect((await put(`/api/claude/sessions/${moved}?project=-root`, { text: 'not json lines\n' })).status).toBe(400);
+    expect((await put(`/api/claude/sessions/..%2Fescape?project=-root`, { text: raw.text })).status).toBe(400);
+    expect((await put(`/api/claude/sessions/${moved}?project=-root`, { text: raw.text }, STRANGER)).status).not.toBe(200);
   });
 
   test('sessions: titled by the ai title, dated by the first line, with branch and version', async () => {

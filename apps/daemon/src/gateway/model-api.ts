@@ -16,6 +16,7 @@ import { GatewayError } from './forward.js';
 import {
   applyModelUpdate,
   ModelConfigError,
+  parseModelConfig,
   publicModelConfig,
   readModelConfig,
   setCodexAuth,
@@ -28,6 +29,9 @@ const CODEX = '/api/model/codex/';
 const OPENROUTER = '/api/model/openrouter/';
 const ANTHROPIC = '/api/model/anthropic/';
 const BEDROCK = '/api/model/bedrock/';
+const BUNDLE = '/api/model/bundle';
+const RESTORE = '/api/model/restore';
+const RESTORE_MAX = 64 * 1024;
 const BODY_MAX = 16 * 1024;
 const DEVICE_PREFIX = 'device/';
 const DEVICE_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
@@ -199,6 +203,21 @@ const named = (table: Record<string, Route>, name: string, method: string | unde
   return route.method === method ? route : 405;
 };
 
+async function restore(req: IncomingMessage, store: Store, deps: ModelApiDeps): Promise<unknown> {
+  const body = await readJsonBody(req, RESTORE_MAX);
+  if (!isRecord(body)) throw new ApiError('body must be a JSON object', 400);
+  const next = parseModelConfig(body);
+  store.write(next);
+  syncAvailableModelsQuietly(deps.setup ?? {}, next);
+  log.info({ provider: next.provider }, 'model-api: model setup restored from a file');
+  return settingsBody(next);
+}
+
+function bundleRoute(path: string, method: string | undefined): Route | number {
+  if (path === BUNDLE) return method === 'GET' ? { method: 'GET', run: (_req, _deps, store) => Promise.resolve(store.read()) } : 405;
+  return method === 'POST' ? { method: 'POST', run: (req, deps, store) => restore(req, store, deps) } : 405;
+}
+
 function settingsRoute(method: string | undefined): Route | number {
   if (method === 'GET') return { method: 'GET', run: (_req, deps, store) => settingsWithUsage(store.read(), deps) };
   if (method === 'PUT') return { method: 'POST', run: (req, deps, store) => update(req, store, deps) };
@@ -213,10 +232,11 @@ function codexRoute(rest: string, method: string | undefined): Route | number {
 }
 
 const mine = (path: string): boolean =>
-  path === PATH || path.startsWith(CODEX) || path.startsWith(OPENROUTER) || path.startsWith(ANTHROPIC) || path.startsWith(BEDROCK);
+  path === PATH || path === BUNDLE || path === RESTORE || path.startsWith(CODEX) || path.startsWith(OPENROUTER) || path.startsWith(ANTHROPIC) || path.startsWith(BEDROCK);
 
 function routeFor(path: string, method: string | undefined): Route | number {
   if (path === PATH) return settingsRoute(method);
+  if (path === BUNDLE || path === RESTORE) return bundleRoute(path, method);
   if (path.startsWith(OPENROUTER)) return named(OPENROUTER_ROUTES, path.slice(OPENROUTER.length), method);
   if (path.startsWith(ANTHROPIC)) return named(ANTHROPIC_ROUTES, path.slice(ANTHROPIC.length), method);
   if (path.startsWith(BEDROCK)) return named(BEDROCK_ROUTES, path.slice(BEDROCK.length), method);

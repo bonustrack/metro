@@ -132,6 +132,22 @@ export async function fetchTranscript(
   };
 }
 
+export async function fetchSessionFile(project: string, id: string): Promise<string> {
+  const body = await call({ base: base(), path: `/sessions/${id}?project=${encodeURIComponent(project)}&raw=1`, method: 'GET' });
+  if (!isRecord(body) || typeof body.text !== 'string') throw unexpected();
+  return body.text;
+}
+
+export async function saveSessionFile(project: string, id: string, text: string): Promise<void> {
+  await call({
+    base: base(),
+    path: `/sessions/${id}?project=${encodeURIComponent(project)}`,
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+}
+
 export async function deleteClaudeSession(project: string, id: string): Promise<void> {
   await call({
     base: base(),

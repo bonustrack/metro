@@ -3,10 +3,10 @@ import { fromBase64Url, openBundle, sealBundle, toBase64Url, type Envelope, type
 export const FILE_VERSION = 1;
 export const FILE_KIND = 'agent-export';
 export const FILE_EXTENSION = '.metro';
-export const SECTIONS = ['channels', 'connectors', 'skills', 'memory'] as const;
+export const SECTIONS = ['channels', 'connectors', 'skills', 'memory', 'sessions', 'model'] as const;
 export type Section = (typeof SECTIONS)[number];
 
-const PAYLOAD_MAX = 8 * 1024 * 1024;
+const PAYLOAD_MAX = 512 * 1024 * 1024;
 
 export interface PackedChannel {
   station: string;
@@ -36,6 +36,14 @@ export interface PackedMemory {
   text: string;
 }
 
+export interface PackedSession {
+  project: string;
+  id: string;
+  text: string;
+}
+
+export type PackedModel = Record<string, unknown> & { provider: string };
+
 export interface Payload {
   version: number;
   exportedAt: string;
@@ -44,6 +52,8 @@ export interface Payload {
   connectors?: PackedConnector[];
   skills?: PackedSkill[];
   memory?: PackedMemory[];
+  sessions?: PackedSession[];
+  model?: PackedModel[];
 }
 
 export interface MetroFile {
@@ -57,6 +67,8 @@ export const SECTION_LABELS: Record<Section, string> = {
   connectors: 'Connectors',
   skills: 'Skills',
   memory: 'Memory',
+  sessions: 'Sessions',
+  model: 'Model',
 };
 
 export function countOf(payload: Payload, section: Section): number {
@@ -157,6 +169,17 @@ function memoryOf(raw: unknown): PackedMemory {
   return { project: text(raw.project), name: text(raw.name), text: text(raw.text) };
 }
 
+function sessionOf(raw: unknown): PackedSession {
+  if (!isRecord(raw) || text(raw.id) === '' || text(raw.text) === '')
+    throw new Error('That export file has a session metro cannot read.');
+  return { project: text(raw.project), id: text(raw.id), text: text(raw.text) };
+}
+
+function modelOf(raw: unknown): PackedModel {
+  if (!isRecord(raw) || text(raw.provider) === '') throw new Error('That export file has a model setup metro cannot read.');
+  return { ...raw, provider: text(raw.provider) };
+}
+
 export function parsePayload(raw: unknown): Payload {
   if (!isRecord(raw) || raw.version !== FILE_VERSION) throw new Error('That export file is not a v1 export.');
   const agent = isRecord(raw.agent) ? raw.agent : {};
@@ -168,6 +191,8 @@ export function parsePayload(raw: unknown): Payload {
     connectors: listOf(raw.connectors, connectorOf),
     skills: listOf(raw.skills, skillOf),
     memory: listOf(raw.memory, memoryOf),
+    sessions: listOf(raw.sessions, sessionOf),
+    model: listOf(raw.model, modelOf),
   };
 }
 

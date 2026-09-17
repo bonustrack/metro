@@ -10,7 +10,7 @@ import { gatherPayload } from '../export/transfer.js';
 const HOW =
   'Everything you pick is gzipped and sealed here in the browser, to the key derived from your sign-in signature. The file that lands on your disk is ciphertext: only this wallet can open it, and the channel credentials inside it never travel in the clear.';
 const NOTE =
-  'The agent id and key stay behind. Importing this elsewhere adds the channels, connectors, skills and memory to whatever agent lives there, rather than cloning this one, so two boxes never authenticate as the same agent.';
+  'The agent id and key stay behind. Importing this elsewhere adds the channels, connectors, skills, memory, sessions and model setup to whatever agent lives there, rather than cloning this one, so two boxes never authenticate as the same agent.';
 
 interface ExportAgentProps {
   open: boolean;

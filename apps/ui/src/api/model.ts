@@ -95,6 +95,16 @@ export async function fetchModel(): Promise<ModelSettings> {
   return toModelSettings(await call({ method: 'GET', base: modelUrl() }));
 }
 
+export async function fetchModelBundle(): Promise<Record<string, unknown> & { provider: string }> {
+  const body = await call({ method: 'GET', base: `${modelUrl()}/bundle` });
+  if (!isRecord(body) || !isProvider(body.provider)) throw unexpected();
+  return { ...body, provider: body.provider };
+}
+
+export async function restoreModelBundle(bundle: Record<string, unknown>): Promise<ModelSettings> {
+  return toModelSettings(await call({ method: 'POST', base: `${modelUrl()}/restore`, headers: json, body: JSON.stringify(bundle) }));
+}
+
 export async function saveModel(patch: ModelPatch): Promise<ModelSettings> {
   return toModelSettings(await call({ method: 'PUT', base: modelUrl(), headers: json, body: JSON.stringify(patch) }));
 }

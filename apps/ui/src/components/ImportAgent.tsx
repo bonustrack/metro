@@ -12,7 +12,7 @@ const HOW =
 const APPEND =
   'Append adds what is missing and leaves everything already on this box exactly as it is. Nothing is replaced.';
 const OVERWRITE =
-  'Overwrite replaces anything that matches, by channel, connector id, skill name or memory filename. What is on this box for those is lost. Anything not in the file is left alone.';
+  'Overwrite replaces anything that matches, by channel, connector id, skill name, memory filename or session id, and the model setup (provider, keys, model) as a whole. What is on this box for those is lost. Anything not in the file is left alone.';
 
 interface ImportAgentProps {
   open: boolean;
@@ -26,6 +26,8 @@ function landed(result: Applied): string {
     `${String(result.connectors)} connectors`,
     `${String(result.skills)} skills`,
     `${String(result.memory)} memory files`,
+    `${String(result.sessions)} sessions`,
+    ...(result.model === 0 ? [] : ['the model setup']),
   ];
   return result.skipped === 0 ? parts.join(', ') : `${parts.join(', ')}; ${String(result.skipped)} left alone`;
 }

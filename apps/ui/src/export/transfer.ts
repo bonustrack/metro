@@ -1,15 +1,19 @@
 import {
   createClaudeSkill,
   fetchClaudeProjects,
+  fetchClaudeSessions,
   fetchClaudeSkill,
   fetchClaudeSkills,
   fetchMemory,
   fetchMemoryFile,
+  fetchSessionFile,
   saveClaudeSkill,
   saveMemoryFile,
+  saveSessionFile,
 } from '../api/claude.js';
 import { fetchBundle, restoreBundle } from '../api/bundle.js';
-import type { PackedChannel, PackedConnector, PackedMemory, PackedSkill, Payload, Section } from './pack.js';
+import { fetchModel, fetchModelBundle, restoreModelBundle } from '../api/model.js';
+import type { PackedChannel, PackedConnector, PackedMemory, PackedModel, PackedSession, PackedSkill, Payload, Section } from './pack.js';
 
 export type Mode = 'append' | 'overwrite';
 
@@ -70,15 +74,34 @@ async function gatherMemory(): Promise<PackedMemory[]> {
   return out;
 }
 
+async function gatherSessions(): Promise<PackedSession[]> {
+  const projects = await fetchClaudeProjects();
+  const out: PackedSession[] = [];
+  for (const project of projects) {
+    for (const session of await fetchClaudeSessions(project.id))
+      out.push({ project: project.id, id: session.id, text: await fetchSessionFile(project.id, session.id) });
+  }
+  return out;
+}
+
+const picked = <T>(sections: Set<Section>, section: Section, items: T[] | undefined): T[] => (sections.has(section) ? (items ?? []) : []);
+
+async function gatherClaude(sections: Set<Section>): Promise<Pick<Payload, 'skills' | 'memory' | 'sessions' | 'model'>> {
+  const out: Pick<Payload, 'skills' | 'memory' | 'sessions' | 'model'> = {};
+  if (sections.has('skills')) out.skills = await gatherSkills();
+  if (sections.has('memory')) out.memory = await gatherMemory();
+  if (sections.has('sessions')) out.sessions = await gatherSessions();
+  if (sections.has('model')) out.model = [await fetchModelBundle()];
+  return out;
+}
+
 export async function gatherPayload(agent: LocalAgent, sections: Set<Section>, now: string): Promise<Payload> {
   const wants = (section: Section): boolean => sections.has(section);
   const bundle = wants('channels') || wants('connectors') ? await fetchBundle(agent.id) : null;
   const payload: Payload = { version: 1, exportedAt: now, agent: { id: agent.id, name: agent.name } };
   if (wants('channels')) payload.channels = channelsOf(bundle === null ? [] : bundle.agent.stations);
   if (wants('connectors')) payload.connectors = connectorsOf(bundle === null ? [] : bundle.connectors);
-  if (wants('skills')) payload.skills = await gatherSkills();
-  if (wants('memory')) payload.memory = await gatherMemory();
-  return payload;
+  return { ...payload, ...(await gatherClaude(sections)) };
 }
 
 export interface Applied {
@@ -86,6 +109,8 @@ export interface Applied {
   connectors: number;
   skills: number;
   memory: number;
+  sessions: number;
+  model: number;
   skipped: number;
 }
 
@@ -130,7 +155,7 @@ async function applySkills(skills: PackedSkill[], mode: Mode): Promise<{ written
   return { written, skipped };
 }
 
-const targetProject = (file: PackedMemory, projects: Set<string>, fallback: string): string =>
+const targetProject = (file: { project: string }, projects: Set<string>, fallback: string): string =>
   projects.has(file.project) || fallback === '' ? file.project : fallback;
 
 async function applyMemory(
@@ -160,6 +185,43 @@ async function applyMemory(
   return { written, skipped };
 }
 
+async function applySessions(
+  files: PackedSession[],
+  mode: Mode,
+  known: string[],
+): Promise<{ written: number; skipped: number }> {
+  if (files.length === 0) return { written: 0, skipped: 0 };
+  const projects = new Set(known);
+  const seen = new Map<string, Set<string>>();
+  let written = 0;
+  let skipped = 0;
+  for (const file of files) {
+    const project = targetProject(file, projects, known[0] ?? '');
+    if (!seen.has(project))
+      seen.set(project, new Set(projects.has(project) ? (await fetchClaudeSessions(project)).map((s) => s.id) : []));
+    if (mode === 'append' && seen.get(project)?.has(file.id) === true) {
+      skipped += 1;
+      continue;
+    }
+    await saveSessionFile(project, file.id, file.text);
+    written += 1;
+  }
+  return { written, skipped };
+}
+
+async function modelConfigured(): Promise<boolean> {
+  const current = await fetchModel();
+  return current.provider !== 'anthropic' || current.anthropic.hasKey || current.bedrock.hasKey || current.openrouter.hasKey || current.codex.signedIn;
+}
+
+async function applyModel(items: PackedModel[], mode: Mode): Promise<{ written: number; skipped: number }> {
+  const bundle = items[0];
+  if (bundle === undefined) return { written: 0, skipped: 0 };
+  if (mode === 'append' && (await modelConfigured())) return { written: 0, skipped: 1 };
+  await restoreModelBundle(bundle);
+  return { written: 1, skipped: 0 };
+}
+
 export async function applyPayload(
   payload: Payload,
   sections: Set<Section>,
@@ -168,14 +230,19 @@ export async function applyPayload(
 ): Promise<Applied> {
   if (agent.key === '') throw new Error('This box has no agent key yet. Create the agent here first, then import.');
   const moved = await applyStations(payload, sections, mode, agent);
-  const skills = await applySkills(sections.has('skills') ? (payload.skills ?? []) : [], mode);
-  const wanted = sections.has('memory') ? (payload.memory ?? []) : [];
-  const known = wanted.length === 0 ? [] : (await fetchClaudeProjects()).map((p) => p.id);
+  const skills = await applySkills(picked(sections, 'skills', payload.skills), mode);
+  const wanted = picked(sections, 'memory', payload.memory);
+  const transcripts = picked(sections, 'sessions', payload.sessions);
+  const known = wanted.length === 0 && transcripts.length === 0 ? [] : (await fetchClaudeProjects()).map((p) => p.id);
   const memory = await applyMemory(wanted, mode, known);
+  const sessions = await applySessions(transcripts, mode, known);
+  const model = await applyModel(picked(sections, 'model', payload.model), mode);
   return {
     ...moved,
     skills: skills.written,
     memory: memory.written,
-    skipped: skills.skipped + memory.skipped,
+    sessions: sessions.written,
+    model: model.written,
+    skipped: skills.skipped + memory.skipped + sessions.skipped + model.skipped,
   };
 }

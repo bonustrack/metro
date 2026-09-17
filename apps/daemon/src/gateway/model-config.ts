@@ -82,7 +82,7 @@ function tokensFromDisk(raw: unknown): CodexTokens | null {
   };
 }
 
-function fromDisk(raw: unknown): ModelConfig {
+export function parseModelConfig(raw: unknown): ModelConfig {
   const base = empty();
   if (!isRecord(raw)) return base;
   const anthropic = isRecord(raw.anthropic) ? raw.anthropic : {};
@@ -100,7 +100,7 @@ function fromDisk(raw: unknown): ModelConfig {
 }
 
 export function readModelConfig(dir = agentsDir()): ModelConfig {
-  return fromDisk(readJson<unknown>(join(dir, MODEL_FILE), null, { warn: 'model-config: model.json is unreadable, so every request goes to Anthropic until it is fixed' }));
+  return parseModelConfig(readJson<unknown>(join(dir, MODEL_FILE), null, { warn: 'model-config: model.json is unreadable, so every request goes to Anthropic until it is fixed' }));
 }
 
 export function writeModelConfig(cfg: ModelConfig, dir = agentsDir()): void {

@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
+const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 const OTHER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 
 let server: Server;
@@ -188,6 +189,33 @@ const codex = async (name: string, method: 'GET' | 'POST', body?: unknown): Prom
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+
+describe('the model setup as a whole, for the export file', () => {
+  test('the owner reads it with its keys and writes it back; anything else is refused', async () => {
+    stored = { ...stored, provider: 'openrouter', openrouter: { apiKey: 'or-key', model: 'google/gemini-3.8-flash', zdr: true } };
+    const bundle = await fetch(`${base}/api/model/bundle`, { headers: { authorization: await auth('GET', '/api/model/bundle', OWNER) } });
+    expect(bundle.status).toBe(200);
+    const body = (await bundle.json()) as ModelConfig;
+    expect(body.openrouter).toEqual({ apiKey: 'or-key', model: 'google/gemini-3.8-flash', zdr: true });
+    stored = { ...stored, provider: 'anthropic', openrouter: { apiKey: '', model: '', zdr: false } };
+    const restored = await fetch(`${base}/api/model/restore`, {
+      method: 'POST',
+      headers: { authorization: await auth('POST', '/api/model/restore', OWNER), 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(restored.status).toBe(200);
+    expect(await restored.json()).toMatchObject({ provider: 'openrouter', openrouter: { model: 'google/gemini-3.8-flash', hasKey: true, zdr: true } });
+    expect(stored.openrouter.apiKey).toBe('or-key');
+    const bad = await fetch(`${base}/api/model/restore`, {
+      method: 'POST',
+      headers: { authorization: await auth('POST', '/api/model/restore', OWNER), 'content-type': 'application/json' },
+      body: '[]',
+    });
+    expect(bad.status).toBe(400);
+    const stranger = await fetch(`${base}/api/model/bundle`, { headers: { authorization: await auth('GET', '/api/model/bundle', STRANGER) } });
+    expect(stranger.status).not.toBe(200);
+  });
+});
 
 describe('connecting ChatGPT for Codex from the page', () => {
   test('login hands back the authorize link, the pasted callback finishes it, and the tokens never reach the page', async () => {

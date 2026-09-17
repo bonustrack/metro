@@ -32,6 +32,8 @@ const PAYLOAD: Payload = {
   ],
   skills: [{ place: 'user', name: 'metro-orchestrator', text: '# rules\n' }],
   memory: [{ project: 'proj', name: 'note.md', text: '# note\n' }],
+  sessions: [{ project: 'proj', id: '11111111-2222-4333-8444-555555555555', text: '{"type":"user","message":{"content":"hello, this is private"}}\n' }],
+  model: [{ version: 1, provider: 'openrouter', openrouter: { apiKey: 'sk-or-private-key', model: 'google/gemini-3.8-flash', zdr: true } }],
 };
 
 describe('a .metro export file', () => {
@@ -45,10 +47,12 @@ describe('a .metro export file', () => {
     expect(text).not.toContain('secret-token');
     expect(text).not.toContain('vault.example');
     expect(text).not.toContain('Alice');
+    expect(text).not.toContain('this is private');
+    expect(text).not.toContain('sk-or-private-key');
 
     const opened = await openMetroFile(text, wallet);
     expect(opened).toEqual(PAYLOAD);
-    expect(sectionsIn(opened)).toEqual(['channels', 'connectors', 'skills', 'memory']);
+    expect(sectionsIn(opened)).toEqual(['channels', 'connectors', 'skills', 'memory', 'sessions', 'model']);
   });
 
   test('a file sealed for another wallet is refused by name, not by a decryption error', async () => {
@@ -78,7 +82,7 @@ describe('a .metro export file', () => {
 
   test('a section left out of the export stays absent rather than arriving empty', async () => {
     const wallet = await keysFor();
-    const only = { ...PAYLOAD, connectors: undefined, skills: undefined, memory: undefined };
+    const only = { ...PAYLOAD, connectors: undefined, skills: undefined, memory: undefined, sessions: undefined, model: undefined };
     const opened = await openMetroFile(JSON.stringify(await packFile(only, wallet)), wallet);
     expect(sectionsIn(opened)).toEqual(['channels']);
     expect(opened.connectors).toBeUndefined();
