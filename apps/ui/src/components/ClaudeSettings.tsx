@@ -7,6 +7,7 @@ import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { ClaudeSetup } from './ClaudeSetup.js';
+import { ClaudeVersion } from './ClaudeVersion.js';
 import { GROW } from '../theme.js';
 import { saveClaudeSettings, type ClaudeSettingsFile } from '../api/claude.js';
 import { queryError, refreshClaudeSettings, useClaudeSettingsQuery } from '../api/queries.js';
@@ -180,6 +181,7 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
         <Text size="sm" role="secondary">
           {WHAT}
         </Text>
+        <ClaudeVersion />
       </Col>
       <ClaudeSetup project={project} />
       {settings.error !== null ? (

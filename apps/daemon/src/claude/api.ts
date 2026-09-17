@@ -31,6 +31,7 @@ import {
   stopSession,
   type SessionDeps,
 } from './session.js';
+import { claudeVersion, updateClaude, type VersionDeps } from './version.js';
 import {
   claudeDir,
   deleteClaudeSession,
@@ -54,6 +55,7 @@ export interface ClaudeApiDeps {
   login?: LoginDeps;
   session?: SessionDeps;
   setup?: SetupDeps;
+  version?: VersionDeps;
 }
 
 function projectOf(query: URLSearchParams): string {
@@ -120,6 +122,7 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
 const LOGIN = 'login';
 const SESSION = 'session';
 const SETUP = 'setup';
+const VERSION = 'version';
 
 interface SetupChange {
   privacy?: boolean;
@@ -211,9 +214,18 @@ function answer(method: string, path: string, query: URLSearchParams, dir: strin
   return handler(query, dir, item);
 }
 
+function versionAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise<unknown> {
+  const version: VersionDeps = { ...deps.version, session: deps.version?.session ?? deps.session };
+  const method = req.method ?? 'GET';
+  if (method === 'GET') return claudeVersion(version);
+  if (method !== 'POST') throw new ApiError('method not allowed', 405);
+  return updateClaude(version);
+}
+
 const SINGLETONS: Record<string, (req: IncomingMessage, deps: ClaudeApiDeps) => Promise<unknown>> = {
   [SESSION]: sessionAnswer,
   [SETUP]: setupAnswer,
+  [VERSION]: versionAnswer,
 };
 
 function routed(req: IncomingMessage, path: string, search: string, deps: ClaudeApiDeps): unknown {

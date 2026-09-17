@@ -66,3 +66,23 @@ export async function setClaudePrivacy(privacy: boolean): Promise<ClaudeSetup> {
 export async function setClaudePermissionMode(permissionMode: PermissionMode): Promise<ClaudeSetup> {
   return toClaudeSetup(await claudeCall('POST', '/setup', { permissionMode }));
 }
+
+export interface ClaudeVersion {
+  installed: string | null;
+  latest: string | null;
+  newer: boolean;
+}
+
+export function toClaudeVersion(body: unknown): ClaudeVersion {
+  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
+  return { installed: optionalText(body.installed), latest: optionalText(body.latest), newer: body.newer === true };
+}
+
+export async function fetchClaudeVersion(): Promise<ClaudeVersion> {
+  return toClaudeVersion(await claudeCall('GET', '/version'));
+}
+
+export async function updateClaudeCode(): Promise<ClaudeVersion & { restarted: boolean }> {
+  const body = await claudeCall('POST', '/version');
+  return { ...toClaudeVersion(body), restarted: isRecord(body) && body.restarted === true };
+}

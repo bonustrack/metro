@@ -36,7 +36,7 @@ import {
   type SkillListing,
   type MemoryListing,
 } from './claude.js';
-import { fetchClaudeSession, fetchClaudeSetup, type ClaudeSessionStatus, type ClaudeSetup } from './claude-box.js';
+import { fetchClaudeSession, fetchClaudeSetup, fetchClaudeVersion, type ClaudeSessionStatus, type ClaudeSetup, type ClaudeVersion } from './claude-box.js';
 import { fetchMode, type ModeInfo } from './mode.js';
 import { fetchUpdate, type UpdateCheck } from './update.js';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
@@ -155,6 +155,20 @@ export function useClaudeSetupQuery(): UseQueryResult<ClaudeSetup> {
     queryFn: () => fetchClaudeSetup(),
     staleTime: 10_000,
   });
+}
+
+export function useClaudeVersionQuery(enabled: boolean): UseQueryResult<ClaudeVersion> {
+  return useQuery({
+    queryKey: ['claude-version', daemonBase()],
+    queryFn: () => fetchClaudeVersion(),
+    staleTime: 10 * 60_000,
+    retry: false,
+    enabled,
+  });
+}
+
+export function refreshClaudeVersion(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ queryKey: ['claude-version', daemonBase()] });
 }
 
 export function refreshClaudeSetup(client: QueryClient): Promise<void> {
