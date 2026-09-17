@@ -8,13 +8,15 @@ import { ClaudeProjects } from './ClaudeProjects.js';
 import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
 import { PageTitle } from './PageTitle.js';
-import { applyRoute, routeHash, routeSelection } from '../route.js';
+import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
 import { type MemoryFile } from '../api/claude.js';
 import { queryError, useMemoryFileQuery, useMemoryQuery } from '../api/queries.js';
 import { CountBadge } from './CountBadge.js';
 import { sizeLabel, whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
+
+const ROW_PAD_Y = 4;
 
 function FileRow({ file, onOpen }: { file: MemoryFile; onOpen: () => void }): ReactNode {
   const palette = useKitPalette();
@@ -28,7 +30,7 @@ function FileRow({ file, onOpen }: { file: MemoryFile; onOpen: () => void }): Re
           onOpen();
         }}
       >
-        <Row gap={10} align="center" flex={1} minWidth={0}>
+        <Row gap={10} align="center" flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }}>
           <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
             {file.name}
           </Text>
@@ -41,52 +43,16 @@ function FileRow({ file, onOpen }: { file: MemoryFile; onOpen: () => void }): Re
   );
 }
 
-const MEMORY_LINK = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.md$/;
-
-function MemoryIndex({
-  project,
-  claudeProject,
-  onOpen,
-  onSelect,
-}: {
-  project: string;
-  claudeProject: string;
-  onOpen: (name: string) => void;
-  onSelect: (selection: Selection) => void;
-}): ReactNode {
+function MemoryIndex({ claudeProject, onOpen }: { claudeProject: string; onOpen: (name: string) => void }): ReactNode {
   const { data, error } = useMemoryQuery(claudeProject);
-  const resolveLink = (href: string): string | null =>
-    MEMORY_LINK.test(href) ? routeHash({ kind: 'memory', project, claudeProject, file: href }) : null;
-  const navigate = (hash: string): void => {
-    const next = routeSelection(hash);
-    if (next.kind !== 'none') {
-      onSelect(next);
-      applyRoute(next, false);
-    }
-  };
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the memory.')}</Text>;
   if (data === undefined) return <Loading />;
   return (
     <Col gap={16}>
-      <Col gap={6}>
-        <Text size="lg" weight="semibold">
-          Index
-        </Text>
-        <Text size="sm" role="secondary">
-          MEMORY.md, the one memory text every session loads: a line per file with a short hook. Claude adds a line when it writes a file.
-        </Text>
-        {data.index === null ? (
-          <Text size="sm" role="secondary">No MEMORY.md in this project yet.</Text>
-        ) : (
-          <MarkdownBlock text={data.index} resolveLink={resolveLink} onNavigate={navigate} />
-        )}
-      </Col>
-      {data.files.length === 0 ? null : (
-        <Col gap={6}>
-          <Text size="lg" weight="semibold">
-            Files
-          </Text>
-          <Col>
+      {data.files.length === 0 ? (
+        <Text size="sm" role="secondary">No memory in this project yet.</Text>
+      ) : (
+        <Col>
             {data.files.map((f) => (
               <FileRow
                 key={f.name}
@@ -96,7 +62,6 @@ function MemoryIndex({
                 }}
               />
             ))}
-          </Col>
         </Col>
       )}
       <Text size="sm" role="secondary">Refreshes every few seconds; what Claude writes shows up here.</Text>
@@ -158,12 +123,10 @@ export function Memory({ project, claudeProject, file, onSelect }: MemoryProps):
         />
         <MemoryTitle claudeProject={claudeProject} />
         <MemoryIndex
-          project={project}
           claudeProject={claudeProject}
           onOpen={(name) => {
             onSelect({ kind: 'memory', project, claudeProject, file: name });
           }}
-          onSelect={onSelect}
         />
       </Col>
     );
