@@ -46,6 +46,19 @@ function ProjectRow({ project, onOpen }: { project: ClaudeProject; onOpen: () =>
   );
 }
 
+export interface ProjectChoice {
+  loading: boolean;
+  sole: string | null;
+  several: boolean;
+}
+
+export function useProjectChoice(onlyWithMemory: boolean): ProjectChoice {
+  const { data } = useClaudeProjectsQuery();
+  if (data === undefined) return { loading: true, sole: null, several: false };
+  const rows = onlyWithMemory ? data.filter((p) => p.hasMemory) : data;
+  return { loading: false, sole: rows.length === 1 ? (rows[0]?.id ?? null) : null, several: rows.length > 1 };
+}
+
 export function ClaudeProjects({
   onlyWithMemory,
   onOpen,

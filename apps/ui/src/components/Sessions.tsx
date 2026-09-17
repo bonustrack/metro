@@ -4,7 +4,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { BackLink } from './BackLink.js';
-import { ClaudeProjects } from './ClaudeProjects.js';
+import { ClaudeProjects, useProjectChoice } from './ClaudeProjects.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { SessionMenu } from './SessionMenu.js';
@@ -136,42 +136,49 @@ interface SessionsProps {
   onSelect: (selection: Selection) => void;
 }
 
+function SessionsPicker({ project, onSelect }: { project: string; onSelect: (selection: Selection) => void }): ReactNode {
+  return (
+    <Col gap={16}>
+      <PageTitle>Sessions</PageTitle>
+      <Text size="sm" role="secondary">
+        Claude Code sessions on this machine, read from its own files. Pick a project.
+      </Text>
+      <ClaudeProjects
+        onlyWithMemory={false}
+        onOpen={(cp) => {
+          onSelect({ kind: 'sessions', project, claudeProject: cp, id: null });
+        }}
+      />
+    </Col>
+  );
+}
+
 export function Sessions({ project, claudeProject, id, onSelect }: SessionsProps): ReactNode {
   useDocumentTitle('Sessions');
-  if (claudeProject === null)
-    return (
-      <Col gap={16}>
-        <PageTitle>Sessions</PageTitle>
-        <Text size="sm" role="secondary">
-          Claude Code sessions on this machine, read from its own files. Pick a project.
-        </Text>
-        <ClaudeProjects
-          onlyWithMemory={false}
-          onOpen={(cp) => {
-            onSelect({ kind: 'sessions', project, claudeProject: cp, id: null });
-          }}
-        />
-      </Col>
-    );
+  const choice = useProjectChoice(false);
+  const picked = claudeProject ?? choice.sole;
+  if (picked === null) return choice.loading ? <Loading /> : <SessionsPicker project={project} onSelect={onSelect} />;
   if (id === null)
     return (
       <Col gap={16}>
-        <BackLink
-          label="Projects"
-          href={routeHash({ kind: 'sessions', project, claudeProject: null, id: null })}
-          onPress={() => {
-            onSelect({ kind: 'sessions', project, claudeProject: null, id: null });
-          }}
-        />
+        {choice.several ? (
+          <BackLink
+            label="Projects"
+            href={routeHash({ kind: 'sessions', project, claudeProject: null, id: null })}
+            onPress={() => {
+              onSelect({ kind: 'sessions', project, claudeProject: null, id: null });
+            }}
+          />
+        ) : null}
         <PageTitle>Sessions</PageTitle>
         <SessionList
           project={project}
-          claudeProject={claudeProject}
+          claudeProject={picked}
           onOpen={(sid) => {
-            onSelect({ kind: 'sessions', project, claudeProject, id: sid });
+            onSelect({ kind: 'sessions', project, claudeProject: picked, id: sid });
           }}
         />
       </Col>
     );
-  return <SessionView project={project} claudeProject={claudeProject} id={id} onSelect={onSelect} />;
+  return <SessionView project={project} claudeProject={picked} id={id} onSelect={onSelect} />;
 }
