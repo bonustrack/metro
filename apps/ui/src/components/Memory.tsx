@@ -12,6 +12,7 @@ import { applyRoute, routeHash, routeSelection } from '../route.js';
 import { type Selection } from './selection.js';
 import { type MemoryFile } from '../api/claude.js';
 import { queryError, useMemoryFileQuery, useMemoryQuery } from '../api/queries.js';
+import { CountBadge } from './CountBadge.js';
 import { sizeLabel, whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -109,6 +110,16 @@ interface MemoryProps {
   onSelect: (selection: Selection) => void;
 }
 
+function MemoryTitle({ claudeProject }: { claudeProject: string }): ReactNode {
+  const { data } = useMemoryQuery(claudeProject);
+  return (
+    <Row gap={10} align="center">
+      <PageTitle>Memory</PageTitle>
+      {data === undefined ? null : <CountBadge count={data.files.length} beside="title" />}
+    </Row>
+  );
+}
+
 export function Memory({ project, claudeProject, file, onSelect }: MemoryProps): ReactNode {
   useDocumentTitle('Memory');
   if (claudeProject === null)
@@ -137,7 +148,7 @@ export function Memory({ project, claudeProject, file, onSelect }: MemoryProps):
             onSelect({ kind: 'memory', project, claudeProject: null, file: null });
           }}
         />
-        <PageTitle>Memory</PageTitle>
+        <MemoryTitle claudeProject={claudeProject} />
         <MemoryIndex
           project={project}
           claudeProject={claudeProject}

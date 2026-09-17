@@ -14,6 +14,7 @@ import { routeHash } from '../route.js';
 import { whenLabel } from '../api/when.js';
 import { createClaudeSkill, deleteClaudeSkill, type ClaudeSkill, type SkillListing, type SkillPlace } from '../api/claude.js';
 import { queryError, refreshClaudeSkills, useClaudeSkillsQuery, useModeQuery } from '../api/queries.js';
+import { CountBadge } from './CountBadge.js';
 import { olderThan } from '../api/version.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -178,7 +179,10 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
   return (
     <Col gap={20}>
       <Col gap={8}>
-        <PageTitle>Skills</PageTitle>
+        <Row gap={10} align="center">
+          <PageTitle>Skills</PageTitle>
+          {data === undefined ? null : <CountBadge count={data.skills.length} beside="title" />}
+        </Row>
         <Text size="sm" role="secondary">{WHAT}</Text>
       </Col>
       <Listing old={old} error={error} data={data} project={project} onOpen={onOpen} onDelete={setDropping} onNew={setNaming} />
