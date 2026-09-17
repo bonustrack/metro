@@ -7,10 +7,11 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { Text, Button } from './ui.js';
 import { Dropdown, type MenuItem } from './Dropdown.js';
 import { NameModal } from './NameModal.js';
-import { fetchTmuxBuffer, mintTerminalTicket, pickSession, rememberSession, SESSION_RE, terminalSocketUrl, terminalStatus, type TerminalStatus } from '../api/terminal.js';
+import { mintTerminalTicket, pickSession, rememberSession, SESSION_RE, terminalSocketUrl, terminalStatus, type TerminalStatus } from '../api/terminal.js';
 import { daemonBase } from '../auth/daemon.js';
 import { queryError } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
+import { copyOnRelease, keepSelectionLocal } from './terminal-select.js';
 
 type Phase = { kind: 'connecting' } | { kind: 'open' } | { kind: 'none' } | { kind: 'closed'; reason: string };
 
@@ -64,8 +65,7 @@ async function open(
   term.loadAddon(new ClipboardAddon());
   term.open(box);
   fit.fit();
-  const copier = tmuxCopier(box);
-  term.attachCustomKeyEventHandler((event) => !copier.wants(event) || term.hasSelection() || !copier.copy());
+  const unhook = [keepSelectionLocal(box), copyOnRelease(box, () => term.getSelection())];
   const socket = new WebSocket(terminalSocketUrl(path));
   socket.binaryType = 'arraybuffer';
   const encoder = new TextEncoder();
@@ -90,7 +90,11 @@ async function open(
   term.onResize(() => {
     if (socket.readyState === WebSocket.OPEN) socket.send(resizeMessage(term));
   });
-  const stop = keepFitted(fit, box);
+  const refit = keepFitted(fit, box);
+  const stop = (): void => {
+    refit();
+    for (const off of unhook) off();
+  };
   return { term, socket, stop };
 }
 
@@ -112,39 +116,6 @@ function sessionItems(sessions: string[], current: string | null, pick: (s: stri
     })),
     { label: 'New session', icon: 'plus' as const, onSelect: create },
   ];
-}
-
-const COPY_SETTLE_MS = 150;
-
-interface Copier {
-  wants: (event: KeyboardEvent) => boolean;
-  copy: () => boolean;
-}
-
-function tmuxCopier(box: HTMLElement): Copier {
-  let cached = '';
-  const refresh = (): void => {
-    fetchTmuxBuffer()
-      .then((text) => {
-        cached = text;
-      })
-      .catch(() => undefined);
-  };
-  box.addEventListener('mouseup', () => {
-    setTimeout(refresh, COPY_SETTLE_MS);
-  });
-  return {
-    wants: (event) => event.type === 'keydown' && event.key.toLowerCase() === 'c' && (event.metaKey || (event.ctrlKey && event.shiftKey)),
-    copy: () => {
-      const text = cached;
-      if (text === '') {
-        refresh();
-        return false;
-      }
-      navigator.clipboard.writeText(text).catch(() => undefined);
-      return true;
-    },
-  };
 }
 
 function TerminalNote({ phase, dark, onNew }: { phase: Phase; dark: boolean; onNew: () => void }): ReactNode {
