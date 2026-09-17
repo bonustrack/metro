@@ -104,11 +104,17 @@ const seenIn = (body: Record<string, unknown>): string | null | undefined =>
 
 const WRITE_HEADS = new Set(['settings', 'skills', 'memory', 'sessions']);
 
-function writeItem(head: string, item: string, text: string, seen: string | null | undefined, search: string, dir: string): unknown {
-  if (head === 'skills') return writeClaudeSkill(decodeURIComponent(item), text, seen, dir);
-  if (head === 'sessions') return writeSessionFile(projectOf(new URLSearchParams(search)), item, text, dir);
-  if (head === 'memory') return writeMemoryFile(projectOf(new URLSearchParams(search)), decodeURIComponent(item), text, dir);
-  return writeClaudeSettings(item, text, seen, dir);
+interface Write {
+  text: string;
+  seen: string | null | undefined;
+  modifiedAt: string | undefined;
+}
+
+function writeItem(head: string, item: string, write: Write, search: string, dir: string): unknown {
+  if (head === 'skills') return writeClaudeSkill(decodeURIComponent(item), write.text, write.seen, dir);
+  if (head === 'sessions') return writeSessionFile(projectOf(new URLSearchParams(search)), item, write.text, dir);
+  if (head === 'memory') return writeMemoryFile(projectOf(new URLSearchParams(search)), decodeURIComponent(item), write.text, dir, write.modifiedAt);
+  return writeClaudeSettings(item, write.text, write.seen, dir);
 }
 
 async function writeAnswer(req: IncomingMessage, path: string, search: string, dir: string): Promise<unknown> {
@@ -116,7 +122,8 @@ async function writeAnswer(req: IncomingMessage, path: string, search: string, d
   if (!WRITE_HEADS.has(head) || item === '') throw new ApiError('method not allowed', 405);
   const body = await readJsonBody(req, head === 'sessions' ? SESSION_BODY_MAX : BODY_MAX);
   if (!isRecord(body) || typeof body.text !== 'string') throw new ApiError('text is required', 400);
-  return writeItem(head, item, body.text, seenIn(body), search, dir);
+  const modifiedAt = typeof body.modifiedAt === 'string' ? body.modifiedAt : undefined;
+  return writeItem(head, item, { text: body.text, seen: seenIn(body), modifiedAt }, search, dir);
 }
 
 async function created(req: IncomingMessage, path: string, dir: string): Promise<unknown> {

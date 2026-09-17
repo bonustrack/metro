@@ -69,7 +69,7 @@ async function gatherMemory(): Promise<PackedMemory[]> {
   for (const project of projects) {
     const listing = await fetchMemory(project.id);
     for (const file of listing.files)
-      out.push({ project: project.id, name: file.name, text: await fetchMemoryFile(project.id, file.name) });
+      out.push({ project: project.id, name: file.name, text: await fetchMemoryFile(project.id, file.name), ...(file.modifiedAt === '' ? {} : { modifiedAt: file.modifiedAt }) });
   }
   return out;
 }
@@ -189,7 +189,7 @@ async function applyMemory(
       skipped += 1;
       continue;
     }
-    await saveMemoryFile(project, file.name, file.text);
+    await saveMemoryFile(project, file.name, file.text, file.modifiedAt);
     written += 1;
   }
   return { written, skipped };

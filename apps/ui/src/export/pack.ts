@@ -34,6 +34,7 @@ export interface PackedMemory {
   project: string;
   name: string;
   text: string;
+  modifiedAt?: string;
 }
 
 export interface PackedSession {
@@ -169,7 +170,8 @@ function skillOf(raw: unknown): PackedSkill {
 function memoryOf(raw: unknown): PackedMemory {
   if (!isRecord(raw) || text(raw.name) === '')
     throw new Error('That export file has a memory file metro cannot read.');
-  return { project: text(raw.project), name: text(raw.name), text: text(raw.text) };
+  const modifiedAt = text(raw.modifiedAt);
+  return { project: text(raw.project), name: text(raw.name), text: text(raw.text), ...(modifiedAt === '' ? {} : { modifiedAt }) };
 }
 
 function sessionOf(raw: unknown): PackedSession {

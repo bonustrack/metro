@@ -9,6 +9,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
@@ -322,12 +323,18 @@ export function listMemory(project: string, dir = claudeDir()): MemoryListing {
       const s = statSync(join(path, name));
       return { name, bytes: s.size, modifiedAt: s.mtime.toISOString() };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt) || a.name.localeCompare(b.name));
   const index = join(path, 'MEMORY.md');
   return { files, index: existsSync(index) ? readCapped(index) : null };
 }
 
-export function writeMemoryFile(project: string, name: string, text: string, dir = claudeDir()): MemoryFile {
+const stampOf = (raw: string | undefined): Date | null => {
+  if (raw === undefined) return null;
+  const at = new Date(raw);
+  return Number.isNaN(at.getTime()) ? null : at;
+};
+
+export function writeMemoryFile(project: string, name: string, text: string, dir = claudeDir(), modifiedAt?: string): MemoryFile {
   if (text.trim() === '') throw new ApiError('a memory file cannot be empty', 400);
   if (Buffer.byteLength(text, 'utf8') > MEMORY_MAX)
     throw new ApiError(`a memory file is at most ${String(MEMORY_MAX)} bytes`, 400);
@@ -338,6 +345,8 @@ export function writeMemoryFile(project: string, name: string, text: string, dir
   const tmp = `${path}.metro-${String(process.pid)}`;
   writeFileSync(tmp, text, { mode: MEMORY_MODE });
   renameSync(tmp, path);
+  const stamp = stampOf(modifiedAt);
+  if (stamp !== null) utimesSync(path, stamp, stamp);
   const stat = statSync(path);
   return { name: file, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
 }

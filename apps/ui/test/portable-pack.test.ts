@@ -31,7 +31,7 @@ const PAYLOAD: Payload = {
     { id: 'conn0000001', name: 'Vault', url: 'https://vault.example/mcp', transport: 'http', config: {} },
   ],
   skills: [{ place: 'user', name: 'metro-orchestrator', text: '# rules\n' }],
-  memory: [{ project: 'proj', name: 'note.md', text: '# note\n' }],
+  memory: [{ project: 'proj', name: 'note.md', text: '# note\n', modifiedAt: '2026-09-10T08:00:00.000Z' }],
   sessions: [{ project: 'proj', id: '11111111-2222-4333-8444-555555555555', text: '{"type":"user","message":{"content":"hello, this is private"}}\n' }],
   model: [{ version: 1, provider: 'openrouter', openrouter: { apiKey: 'sk-or-private-key', model: 'google/gemini-3.8-flash', zdr: true } }],
 };

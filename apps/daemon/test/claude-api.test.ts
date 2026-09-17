@@ -160,9 +160,18 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect(again.status).toBe(200);
     expect((await json<{ content: string }>(path)).content).toContain('Second write wins');
     expect((await json<{ files: { name: string }[] }>(`/api/claude/memory?project=${PROJECT}`)).files.map((f) => f.name)).toEqual([
-      'blue.md',
       'imported.md',
+      'blue.md',
     ]);
+
+    const old = await put(`/api/claude/memory/older.md?project=${PROJECT}`, { text: '# Older\n', modifiedAt: '2026-01-02T03:04:05.000Z' });
+    expect((await old.json()) as { modifiedAt: string }).toMatchObject({ modifiedAt: '2026-01-02T03:04:05.000Z' });
+    expect((await json<{ files: { name: string }[] }>(`/api/claude/memory?project=${PROJECT}`)).files.map((f) => f.name)).toEqual([
+      'imported.md',
+      'blue.md',
+      'older.md',
+    ]);
+    expect((await put(`/api/claude/memory/older.md?project=${PROJECT}`, { text: '# Older\n', modifiedAt: 'yesterday-ish' })).status).toBe(200);
 
     expect((await put(path, { text: '   ' })).status).toBe(400);
     expect((await put(path, {})).status).toBe(400);
