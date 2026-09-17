@@ -8,8 +8,6 @@ import { type ClaudeProject } from '../api/claude.js';
 import { queryError, useClaudeProjectsQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 
-const ROW_PAD_Y = 12;
-
 function projectLabel(project: ClaudeProject): string {
   return project.cwd ?? project.id;
 }
