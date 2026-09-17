@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { privateKeyToAccount } from 'viem/accounts';
 import { walletKeys } from '../src/vault/crypto.js';
 import {
+  digest,
   fileName,
   gunzip,
   gzip,
@@ -96,8 +97,14 @@ describe('a .metro export file', () => {
     expect(() => parsePayload({ version: 2 })).toThrow('not a v1 export');
   });
 
-  test('the file is named after the agent', () => {
-    expect(fileName('Anderra Andy')).toBe('anderra-andy.metro');
-    expect(fileName('!!')).toBe('agent.metro');
+  test('the file is named after the server, the moment, and a hash of what it holds', async () => {
+    const at = new Date(2026, 8, 17, 14, 5);
+    const hash = await digest('{"metro":1}');
+    expect(hash).toHaveLength(64);
+    expect(fileName('mci-rosa', at, hash)).toBe(`mci-rosa-2026-09-17-${hash.slice(0, 16)}.metro`);
+    expect(fileName('Anderra Andy', at, hash)).toStartWith('anderra-andy-2026-09-17-');
+    expect(fileName('!!', at, hash)).toStartWith('metro-2026-09-17-');
+    expect(await digest('{"metro":1}')).toBe(hash);
+    expect(await digest('{"metro":2}')).not.toBe(hash);
   });
 });

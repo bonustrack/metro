@@ -4,8 +4,10 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { Modal } from './Modal.js';
 import { activeIdentity } from '../auth/identity.js';
-import { BOX_SECTIONS, BOX_SECTIONS_SINCE, countOf, fileName, packFile, SECTION_LABELS, SECTIONS, type Section } from '../export/pack.js';
-import { useModeQuery } from '../api/queries.js';
+import { BOX_SECTIONS, BOX_SECTIONS_SINCE, countOf, digest, fileName, packFile, SECTION_LABELS, SECTIONS, type Section } from '../export/pack.js';
+import { useModeQuery, useServersQuery } from '../api/queries.js';
+import { currentServer } from '../auth/daemon.js';
+import { serverLabel } from '../api/servers.js';
 import { olderThan } from '../api/version.js';
 import { gatherPayload } from '../export/transfer.js';
 
@@ -31,9 +33,17 @@ function download(text: string, name: string): void {
   URL.revokeObjectURL(url);
 }
 
+function useServerName(): string {
+  const servers = useServersQuery();
+  const here = currentServer();
+  const server = servers.data?.find((s) => s.id === here?.id);
+  return server === undefined ? (here?.host ?? 'metro') : serverLabel(server);
+}
+
 export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const mode = useModeQuery();
+  const serverName = useServerName();
   const oldBox = olderThan(mode.data?.version ?? null, BOX_SECTIONS_SINCE);
   const [picked, setPicked] = useState<Set<Section>>(new Set(SECTIONS));
   const [busy, setBusy] = useState(false);
@@ -66,9 +76,8 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
     const wanted = new Set([...picked].filter((s) => !(oldBox && BOX_SECTIONS.includes(s))));
     gatherPayload(agent, wanted, new Date().toISOString())
       .then(async ({ payload, leftOut }) => {
-        const file = await packFile(payload, identity);
-        const name = fileName(agent.name);
-        download(JSON.stringify(file), name);
+        const text = JSON.stringify(await packFile(payload, identity));
+        download(text, fileName(serverName, new Date(), await digest(text)));
         const counts = SECTIONS.filter((s) => wanted.has(s)).map((s) => `${SECTION_LABELS[s]} ${String(countOf(payload, s))}`);
         setDone([...counts, ...(leftOut.length === 0 ? [] : [`${String(leftOut.length)} session${leftOut.length === 1 ? '' : 's'} left out, larger than 512 MB: ${leftOut.join(', ')}`])].join(' · '));
       })

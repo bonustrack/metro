@@ -107,9 +107,19 @@ export async function gunzip(encoded: string): Promise<string> {
   return new TextDecoder().decode(plain);
 }
 
-export function fileName(agentName: string): string {
-  const slug = agentName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  return `${slug === '' ? 'agent' : slug}${FILE_EXTENSION}`;
+const HASH_CHARS = 16;
+const two = (n: number): string => String(n).padStart(2, '0');
+
+export const fileStamp = (at: Date): string => `${String(at.getFullYear())}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
+
+export async function digest(text: string): Promise<string> {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export function fileName(server: string, at: Date, hash: string): string {
+  const slug = server.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `${slug === '' ? 'metro' : slug}-${fileStamp(at)}-${hash.slice(0, HASH_CHARS)}${FILE_EXTENSION}`;
 }
 
 export async function packFile(
