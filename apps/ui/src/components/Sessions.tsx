@@ -1,23 +1,20 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
-import { SHRINK } from '../theme.js';
 import { BackLink } from './BackLink.js';
 import { useHomeProject } from './home-project.js';
+import { ListRow } from './ListRow.js';
+import { CountBadge } from './CountBadge.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { SessionMenu } from './SessionMenu.js';
 import { Transcript } from './Transcript.js';
-import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
 import { type ClaudeSession } from '../api/claude.js';
 import { queryError, useClaudeSessionsQuery } from '../api/queries.js';
 import { sizeLabel, whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
-
-const ROW_PAD_Y = 12;
 
 function SessionRow({
   claudeProject,
@@ -30,32 +27,17 @@ function SessionRow({
   target: Selection;
   onOpen: () => void;
 }): ReactNode {
-  const palette = useKitPalette();
   const detail = [session.lastAt === null ? null : whenLabel(session.lastAt), session.gitBranch, sizeLabel(session.bytes)]
     .filter((s): s is string => s !== null)
     .join(' · ');
   return (
-    <Row justify="between" align="center" gap={12} border={{ bottom: { width: 1, color: palette.border } }}>
-      <a
-        className="row-link"
-        href={routeHash(target)}
-        onClick={(e) => {
-          if (opensElsewhere(e)) return;
-          e.preventDefault();
-          onOpen();
-        }}
-      >
-        <Col style={SHRINK} flex={1} padding={{ y: ROW_PAD_Y }}>
-          <Text size="md" weight="semibold" numberOfLines={1}>
-            {session.title}
-          </Text>
-          <Text size="sm" role="secondary" numberOfLines={1}>
-            {detail}
-          </Text>
-        </Col>
-      </a>
-      <SessionMenu claudeProject={claudeProject} id={session.id} title={session.title} onDeleted={() => undefined} />
-    </Row>
+    <ListRow
+      title={session.id}
+      detail={detail}
+      href={routeHash(target)}
+      onOpen={onOpen}
+      trailing={<SessionMenu claudeProject={claudeProject} id={session.id} title={session.id} onDeleted={() => undefined} />}
+    />
   );
 }
 
@@ -138,6 +120,16 @@ interface SessionsProps {
 
 const NONE = 'No Claude Code session on this box yet.';
 
+function SessionsTitle({ claudeProject }: { claudeProject: string }): ReactNode {
+  const { data } = useClaudeSessionsQuery(claudeProject);
+  return (
+    <Row gap={10} align="center">
+      <PageTitle>Sessions</PageTitle>
+      {data === undefined ? null : <CountBadge count={data.length} beside="title" />}
+    </Row>
+  );
+}
+
 export function Sessions({ project, claudeProject, id, onSelect }: SessionsProps): ReactNode {
   useDocumentTitle('Sessions');
   const home = useHomeProject();
@@ -152,7 +144,7 @@ export function Sessions({ project, claudeProject, id, onSelect }: SessionsProps
   if (id === null)
     return (
       <Col gap={16}>
-        <PageTitle>Sessions</PageTitle>
+        <SessionsTitle claudeProject={picked} />
         <SessionList
           project={project}
           claudeProject={picked}

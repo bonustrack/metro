@@ -1,10 +1,9 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
-import { SHRINK } from '../theme.js';
 import { BackLink } from './BackLink.js';
 import { useHomeProject } from './home-project.js';
+import { ListRow } from './ListRow.js';
 import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
 import { PageTitle } from './PageTitle.js';
@@ -16,31 +15,8 @@ import { CountBadge } from './CountBadge.js';
 import { sizeLabel, whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
-const ROW_PAD_Y = 4;
-
 function FileRow({ file, onOpen }: { file: MemoryFile; onOpen: () => void }): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <Row align="center" border={{ bottom: { width: 1, color: palette.border } }}>
-      <a
-        className="row-link"
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          onOpen();
-        }}
-      >
-        <Row gap={10} align="center" flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }}>
-          <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
-            {file.name}
-          </Text>
-          <Text size="sm" role="secondary" numberOfLines={1}>
-            {sizeLabel(file.bytes)} · {whenLabel(file.modifiedAt)}
-          </Text>
-        </Row>
-      </a>
-    </Row>
-  );
+  return <ListRow title={file.name} detail={`${sizeLabel(file.bytes)} · ${whenLabel(file.modifiedAt)}`} onOpen={onOpen} />;
 }
 
 function MemoryIndex({ claudeProject, onOpen }: { claudeProject: string; onOpen: (name: string) => void }): ReactNode {
