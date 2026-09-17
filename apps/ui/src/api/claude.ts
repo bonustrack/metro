@@ -1,5 +1,5 @@
 import { daemonBase } from '../auth/daemon.js';
-import { call } from './client.js';
+import { call, callRaw } from './client.js';
 import { isRecord } from './accounts.js';
 
 export interface ClaudeProject {
@@ -133,18 +133,19 @@ export async function fetchTranscript(
 }
 
 export async function fetchSessionFile(project: string, id: string): Promise<string> {
-  const body = await call({ base: base(), path: `/sessions/${id}?project=${encodeURIComponent(project)}&raw=1`, method: 'GET' });
-  if (!isRecord(body) || typeof body.text !== 'string') throw unexpected();
-  return body.text;
+  const res = await callRaw({ base: base(), path: `/sessions/${id}?project=${encodeURIComponent(project)}&raw=1`, method: 'GET' });
+  if (!(res.headers.get('content-type') ?? '').includes('text/plain'))
+    throw new Error('This box is on a metro that cannot hand out session files yet. Update it from the Server page first.');
+  return res.text();
 }
 
 export async function saveSessionFile(project: string, id: string, text: string): Promise<void> {
-  await call({
+  await callRaw({
     base: base(),
     path: `/sessions/${id}?project=${encodeURIComponent(project)}`,
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text }),
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+    body: text,
   });
 }
 

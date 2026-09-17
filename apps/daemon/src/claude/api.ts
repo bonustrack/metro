@@ -32,7 +32,9 @@ import {
   type SessionDeps,
 } from './session.js';
 import { claudeVersion, updateClaude, type VersionDeps } from './version.js';
-import { readSessionFile, SESSION_FILE_MAX, writeSessionFile } from './session-files.js';
+import { readSessionFile, receiveSessionFile, SESSION_FILE_MAX, sessionFilePath, writeSessionFile } from './session-files.js';
+import { createReadStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import {
   claudeDir,
   deleteClaudeSession,
@@ -246,6 +248,27 @@ function routed(req: IncomingMessage, path: string, search: string, deps: Claude
   return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
 }
 
+const TEXT = 'text/plain; charset=utf-8';
+
+async function streamed(req: IncomingMessage, res: ServerResponse, path: string, search: string, dir: string): Promise<boolean> {
+  const [head = '', item = ''] = parts(path);
+  if (head !== 'sessions' || item === '') return false;
+  const query = new URLSearchParams(search);
+  if (req.method === 'GET' && query.get('raw') === '1') {
+    const file = sessionFilePath(projectOf(query), item, dir);
+    res.writeHead(200, { 'content-type': TEXT, 'cache-control': 'no-store', ...cors(req) });
+    await pipeline(createReadStream(file), res).catch(() => {
+      res.destroy();
+    });
+    return true;
+  }
+  if (req.method === 'PUT' && !(req.headers['content-type'] ?? '').includes('json')) {
+    sendJson(req, res, 200, await receiveSessionFile(projectOf(query), item, req, dir));
+    return true;
+  }
+  return false;
+}
+
 export function handleClaudeRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -262,13 +285,11 @@ export function handleClaudeRequest(
     return true;
   }
   apiSession(req)
-    .then((session) => {
+    .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
-      return routed(req, path, search, deps);
-    })
-    .then((body) => {
-      sendJson(req, res, 200, body);
+      if (await streamed(req, res, path, search, (deps.dir ?? claudeDir)())) return;
+      sendJson(req, res, 200, await routed(req, path, search, deps));
     })
     .catch((err: unknown) => {
       if (err instanceof ApiError) apiFailure(req, res, err, 'claude-api');

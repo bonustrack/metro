@@ -96,7 +96,7 @@ function failure(res: Response, body: unknown): Error | null {
   return res.ok ? null : new Error(errorText(body, res.status));
 }
 
-export async function call(init: CallInit): Promise<unknown> {
+async function answered(init: CallInit): Promise<Response> {
   const identity = activeIdentity();
   if (identity === null) throw new AuthError('not signed in');
   const url = `${init.base ?? agentsUrl()}${init.path ?? ''}`;
@@ -106,10 +106,22 @@ export async function call(init: CallInit): Promise<unknown> {
     if (!registered.ok) throw new AuthError(registered.error, true);
     res = await send(url, init, identity);
   }
+  return res;
+}
+
+export async function call(init: CallInit): Promise<unknown> {
+  const res = await answered(init);
   const body: unknown = await res.json().catch(() => null);
   const failed = failure(res, body);
   if (failed !== null) throw failed;
   return body;
+}
+
+export async function callRaw(init: CallInit): Promise<Response> {
+  const res = await answered(init);
+  if (res.ok) return res;
+  const failed = failure(res, await res.json().catch(() => null));
+  throw failed ?? new Error(`Metro returned ${String(res.status)}.`);
 }
 
 const text = (value: unknown): string | null =>

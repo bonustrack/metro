@@ -72,6 +72,12 @@ const put = async (path: string, body: unknown, subject = OWNER): Promise<Respon
     headers: { authorization: await auth('PUT', path, subject), 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
+const putText = async (path: string, body: string, subject = OWNER): Promise<Response> =>
+  fetch(`${base}${path}`, {
+    method: 'PUT',
+    headers: { authorization: await auth('PUT', path, subject), 'content-type': 'text/plain; charset=utf-8' },
+    body,
+  });
 const json = async <T>(path: string): Promise<T> => (await (await get(path)).json()) as T;
 
 describe('Claude Code sessions and memory, read from the disk the daemon runs on', () => {
@@ -83,20 +89,25 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect(projects[1]).toMatchObject({ cwd: null, sessions: 0, lastActiveAt: null, hasMemory: false });
   });
 
-  test('a session file is read as is and written back, so a box can take another box\'s conversation', async () => {
-    const raw = await json<{ id: string; text: string }>(`/api/claude/sessions/${SESSION}?project=${PROJECT}&raw=1`);
-    expect(raw.id).toBe(SESSION);
-    expect(raw.text).toContain('"aiTitle":"Blue sidebar"');
-    expect(raw.text).toContain('this line is not json');
+  test('a session file streams out as plain text and back in, so a box can take another box\'s conversation', async () => {
+    const res = await get(`/api/claude/sessions/${SESSION}?project=${PROJECT}&raw=1`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/plain');
+    const raw = await res.text();
+    expect(raw).toContain('"aiTitle":"Blue sidebar"');
+    expect(raw).toContain('this line is not json');
     const moved = '22222222-2222-4333-8444-555555555555';
-    const written = await put(`/api/claude/sessions/${moved}?project=-root`, { text: raw.text });
+    const written = await putText(`/api/claude/sessions/${moved}?project=-root`, raw);
     expect(written.status).toBe(200);
-    expect(readFileSync(join(dir, 'projects', '-root', `${moved}.jsonl`), 'utf8')).toBe(raw.text);
+    expect(await written.json()).toMatchObject({ id: moved, bytes: Buffer.byteLength(raw) });
+    expect(readFileSync(join(dir, 'projects', '-root', `${moved}.jsonl`), 'utf8')).toBe(raw);
     const { sessions } = await json<{ sessions: { id: string }[] }>('/api/claude/sessions?project=-root');
     expect(sessions.map((s) => s.id)).toEqual([moved]);
-    expect((await put(`/api/claude/sessions/${moved}?project=-root`, { text: 'not json lines\n' })).status).toBe(400);
-    expect((await put(`/api/claude/sessions/..%2Fescape?project=-root`, { text: raw.text })).status).toBe(400);
-    expect((await put(`/api/claude/sessions/${moved}?project=-root`, { text: raw.text }, STRANGER)).status).not.toBe(200);
+    expect((await putText(`/api/claude/sessions/${moved}?project=-root`, 'not json lines\n')).status).toBe(400);
+    expect(readFileSync(join(dir, 'projects', '-root', `${moved}.jsonl`), 'utf8')).toBe(raw);
+    expect((await put(`/api/claude/sessions/${moved}?project=-root`, { text: raw })).status).toBe(200);
+    expect((await putText(`/api/claude/sessions/..%2Fescape?project=-root`, raw)).status).toBe(400);
+    expect((await putText(`/api/claude/sessions/${moved}?project=-root`, raw, STRANGER)).status).not.toBe(200);
   });
 
   test('sessions: titled by the ai title, dated by the first line, with branch and version', async () => {

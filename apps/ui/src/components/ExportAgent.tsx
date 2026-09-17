@@ -4,7 +4,9 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { Modal } from './Modal.js';
 import { activeIdentity } from '../auth/identity.js';
-import { countOf, fileName, packFile, SECTION_LABELS, SECTIONS, type Section } from '../export/pack.js';
+import { BOX_SECTIONS, BOX_SECTIONS_SINCE, countOf, fileName, packFile, SECTION_LABELS, SECTIONS, type Section } from '../export/pack.js';
+import { useModeQuery } from '../api/queries.js';
+import { olderThan } from '../api/version.js';
 import { gatherPayload } from '../export/transfer.js';
 
 const HOW =
@@ -31,6 +33,8 @@ function download(text: string, name: string): void {
 
 export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const mode = useModeQuery();
+  const oldBox = olderThan(mode.data?.version ?? null, BOX_SECTIONS_SINCE);
   const [picked, setPicked] = useState<Set<Section>>(new Set(SECTIONS));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,12 +63,13 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
     }
     setBusy(true);
     setError(null);
-    gatherPayload(agent, picked, new Date().toISOString())
+    const wanted = new Set([...picked].filter((s) => !(oldBox && BOX_SECTIONS.includes(s))));
+    gatherPayload(agent, wanted, new Date().toISOString())
       .then(async ({ payload, leftOut }) => {
         const file = await packFile(payload, identity);
         const name = fileName(agent.name);
         download(JSON.stringify(file), name);
-        const counts = SECTIONS.filter((s) => picked.has(s)).map((s) => `${SECTION_LABELS[s]} ${String(countOf(payload, s))}`);
+        const counts = SECTIONS.filter((s) => wanted.has(s)).map((s) => `${SECTION_LABELS[s]} ${String(countOf(payload, s))}`);
         setDone([...counts, ...(leftOut.length === 0 ? [] : [`${String(leftOut.length)} session${leftOut.length === 1 ? '' : 's'} left out, larger than 512 MB: ${leftOut.join(', ')}`])].join(' · '));
       })
       .catch((err: unknown) => {
@@ -86,7 +91,7 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
               size="sm"
               color={picked.has(section) ? 'primary' : 'secondary'}
               dark={dark}
-              disabled={busy}
+              disabled={busy || (oldBox && BOX_SECTIONS.includes(section))}
               label={SECTION_LABELS[section]}
               onPress={() => {
                 toggle(section);
@@ -94,6 +99,11 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
             />
           ))}
         </Row>
+        {oldBox ? (
+          <Text size="sm" role="secondary">
+            {`Sessions and the model setup need metro ${BOX_SECTIONS_SINCE} on this box. Update it from the Server page first.`}
+          </Text>
+        ) : null}
         <Text size="sm" role="secondary">{NOTE}</Text>
         {done === null ? null : <Text size="md">{`Saved: ${done}`}</Text>}
         {error === null ? null : <Text size="sm" role="danger">{error}</Text>}

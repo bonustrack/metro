@@ -4,7 +4,9 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { Modal } from './Modal.js';
 import { activeIdentity } from '../auth/identity.js';
-import { countOf, openMetroFile, SECTION_LABELS, sectionsIn, type Payload, type Section } from '../export/pack.js';
+import { BOX_SECTIONS, BOX_SECTIONS_SINCE, countOf, openMetroFile, SECTION_LABELS, sectionsIn, type Payload, type Section } from '../export/pack.js';
+import { useModeQuery } from '../api/queries.js';
+import { olderThan } from '../api/version.js';
 import { applyPayload, type Applied, type Mode } from '../export/transfer.js';
 
 const HOW =
@@ -43,6 +45,8 @@ interface OptionsProps {
 
 function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const box = useModeQuery();
+  const oldBox = olderThan(box.data?.version ?? null, BOX_SECTIONS_SINCE);
   const from = payload.agent.name === '' ? 'an agent' : payload.agent.name;
   return (
     <Col gap={12}>
@@ -54,7 +58,7 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
             size="sm"
             color={picked.has(section) ? 'primary' : 'secondary'}
             dark={dark}
-            disabled={busy}
+            disabled={busy || (oldBox && BOX_SECTIONS.includes(section))}
             label={`${SECTION_LABELS[section]} ${String(countOf(payload, section))}`}
             onPress={() => {
               onToggle(section);
@@ -62,6 +66,11 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
           />
         ))}
       </Row>
+      {oldBox && sectionsIn(payload).some((s) => BOX_SECTIONS.includes(s)) ? (
+        <Text size="sm" role="secondary">
+          {`Sessions and the model setup need metro ${BOX_SECTIONS_SINCE} on this box. Update it from the Server page first.`}
+        </Text>
+      ) : null}
       <Row gap={8} wrap>
         <Button
           size="sm"
