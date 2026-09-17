@@ -8,7 +8,7 @@ import { localSessionApis } from '../src/routes/local-mode.ts';
 import { handleSessionApis, type SessionApis } from '../src/routes/session-apis.ts';
 import { agentIdForKey, setKeyMap } from '../src/agents/keys.ts';
 import { localAttachAccount, localCreateAgent, LOCAL_PROJECT_ID, setLocalOwner } from '../src/agents/file-admin.ts';
-import { localImportConnectors } from '../src/connectors/store.ts';
+import { localImportConnectors, readLocalConnectors } from '../src/connectors/store.ts';
 import { parseBundle } from '../src/agents/bundle.ts';
 import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
 
@@ -142,5 +142,18 @@ describe('an agent bundle on a local daemon', () => {
     expect(after.map((a) => a.config.token).sort()).toEqual(['a-second', 'from-the-file']);
 
     expect((await call('POST', '/api/agents/restore', { ...incoming, mode: 'sideways' })).status).toBe(400);
+  });
+
+  test('a connector with the same name but another id: append leaves the one here, overwrite replaces it', async () => {
+    const before = readLocalConnectors(dir).find((c) => c.name === 'linear');
+    if (before === undefined) throw new Error('expected the linear connector to be here');
+    const twin = { id: 'conn0000002', name: 'linear', url: 'https://mcp.linear.app/other', transport: 'http', config: {} };
+    const body = { version: 1, agent: { id: tony.id, name: 'Tony', key: tony.key, stations: [] }, connectors: [twin] };
+    expect((await call('POST', '/api/agents/restore', { ...body, mode: 'append' })).status).toBe(201);
+    expect(readLocalConnectors(dir).filter((c) => c.name === 'linear').map((c) => c.id)).toEqual([before.id]);
+    expect((await call('POST', '/api/agents/restore', { ...body, mode: 'overwrite' })).status).toBe(201);
+    const after = readLocalConnectors(dir).filter((c) => c.name === 'linear');
+    expect(after.map((c) => c.id)).toEqual(['conn0000002']);
+    expect(after[0]?.url).toBe('https://mcp.linear.app/other');
   });
 });

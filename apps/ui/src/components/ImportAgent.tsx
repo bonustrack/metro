@@ -1,4 +1,5 @@
 import { type ReactNode, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
@@ -115,6 +116,7 @@ interface ImportState {
 }
 
 function useImport(agent: { id: string; name: string; key: string }): ImportState {
+  const client = useQueryClient();
   const [payload, setPayload] = useState<Payload | null>(null);
   const [picked, setPicked] = useState<Set<Section>>(new Set());
   const [mode, setMode] = useState<Mode>('append');
@@ -153,7 +155,13 @@ function useImport(agent: { id: string; name: string; key: string }): ImportStat
     if (busy || payload === null || picked.size === 0) return;
     setBusy(true);
     setError(null);
-    applyPayload(payload, picked, mode, agent).then(setDone).catch(fail('Could not import that file.')).finally(settle);
+    applyPayload(payload, picked, mode, agent)
+      .then(async (result) => {
+        setDone(result);
+        await client.invalidateQueries();
+      })
+      .catch(fail('Could not import that file.'))
+      .finally(settle);
   };
 
   return {

@@ -378,7 +378,7 @@ export async function fetchClaudeSkill(id: string): Promise<ClaudeSkill & { text
 }
 
 export async function saveClaudeSkill(id: string, text: string, seenAt: string | null): Promise<ClaudeSkill> {
-  return skillOrThrow(await claudeCall('PUT', skillPath(id), { text, seenAt }));
+  return skillOrThrow(await claudeCall('PUT', skillPath(id), seenAt === null ? { text } : { text, seenAt }));
 }
 
 export async function createClaudeSkill(name: string, scope: string): Promise<ClaudeSkill> {

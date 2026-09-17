@@ -114,11 +114,6 @@ export function localImportConnectors(
     mode === 'overwrite'
       ? rows
       : rows.filter((row) => !current.some((r) => r.id === row.id || r.name === row.name));
-  for (const row of fresh) {
-    const other = current.find((r) => r.id !== row.id && r.name === row.name);
-    if (other !== undefined)
-      throw new ConnectorError(`a connector named '${row.name}' already exists on this daemon; rename it first`, 409);
-  }
   const imported: LocalConnectorRow[] = fresh.map((row) => ({
     id: row.id,
     name: row.name,
@@ -127,7 +122,8 @@ export function localImportConnectors(
     config: readConfig(row.config),
   }));
   const ids = new Set(imported.map((r) => r.id));
-  writeRows(dir, [...current.filter((r) => !ids.has(r.id)), ...imported]);
+  const names = new Set(imported.map((r) => r.name));
+  writeRows(dir, [...current.filter((r) => !ids.has(r.id) && !names.has(r.name)), ...imported]);
   return imported.length;
 }
 
