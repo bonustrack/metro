@@ -38,30 +38,28 @@ const dashboard = async (agents: unknown): Promise<AgentSummary[]> => {
 };
 
 describe('agent credentials on the wire', () => {
-  test('an owned agent carries its key and its command', async () => {
+  test('an owned agent carries its key', async () => {
     const [agent] = await dashboard([
-      { id: 'id000000001', name: 'ada-bot', owned: true, key: 'mk_fake', command: 'claude mcp add x' },
+      { id: 'id000000001', name: 'ada-bot', owned: true, key: 'mk_fake' },
     ]);
     expect(agent).toEqual({
       id: 'id000000001',
       name: 'ada-bot',
       owned: true,
       key: 'mk_fake',
-      command: 'claude mcp add x',
       connectorIds: [],
     });
   });
 
-  test('a not-owned agent carries no key or command', async () => {
+  test('a not-owned agent carries no key', async () => {
     const [agent] = await dashboard([
-      { id: 'id000000005', name: 'legacy', owned: false, key: null, command: null },
+      { id: 'id000000005', name: 'legacy', owned: false, key: null },
     ]);
     expect(agent).toEqual({
       id: 'id000000005',
       name: 'legacy',
       owned: false,
       key: null,
-      command: null,
       connectorIds: [],
     });
   });
@@ -69,7 +67,7 @@ describe('agent credentials on the wire', () => {
   test('a malformed agent entry never throws and never invents a key', async () => {
     const agents = await dashboard([{ id: 7, key: 9 }, null, 7]);
     expect(agents).toEqual([
-      { id: '', name: '', owned: false, key: null, command: null, connectorIds: [] },
+      { id: '', name: '', owned: false, key: null, connectorIds: [] },
     ]);
   });
 });

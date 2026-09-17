@@ -23,7 +23,7 @@ import { agentsDir, fileSource } from '../agents/files.js';
 import { ConnectorWatch } from '../connectors/watch.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
-import { unwatchSession, watchSession } from '../claude/session.js';
+import { sessionRunning, stopSession, unwatchSession, watchSession } from '../claude/session.js';
 import { tryClaudeSetup } from '../claude/setup.js';
 import { applyLocalOwner } from './local-owner.js';
 import { ensureLocalAgent, localOwner } from '../agents/file-admin.js';
@@ -116,6 +116,11 @@ function sessionApis(): SessionApis {
         onShutdown();
       },
       closeAgentSession,
+      restartClaudeSession: () => {
+        if (!sessionRunning()) return false;
+        stopSession();
+        return true;
+      },
       gatherAccounts: gatherAccountsForAgents,
       capabilities: accountStationCapabilities,
       liveness: agentLiveness,

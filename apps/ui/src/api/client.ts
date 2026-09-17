@@ -19,7 +19,6 @@ export interface AgentSummary {
   name: string;
   owned: boolean;
   key: string | null;
-  command: string | null;
   connectorIds: string[];
 }
 
@@ -128,7 +127,6 @@ function toAgents(value: unknown): AgentSummary[] {
     name: typeof a.name === 'string' ? a.name : '',
     owned: a.owned === true,
     key: text(a.key),
-    command: text(a.command),
     connectorIds: toStationList(a.connector_ids),
   }));
 }

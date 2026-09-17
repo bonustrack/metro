@@ -54,6 +54,7 @@ export interface LocalModeDeps {
   restart: () => void;
   stop: () => void;
   closeAgentSession: (id: string) => Promise<boolean>;
+  restartClaudeSession: () => boolean;
   gatherAccounts: AgentApiDeps['gatherAccounts'];
   capabilities: AgentApiDeps['capabilities'];
   liveness: AgentApiDeps['liveness'];
@@ -90,7 +91,8 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     resetKey: async (subject, id) => {
       const reset = await localResetAgentKey(subject, id);
       const closed = await deps.closeAgentSession(id);
-      log.info({ agent: reset.name, id, sessionClosed: closed }, 'local: key rotated');
+      const restarted = deps.restartClaudeSession();
+      log.info({ agent: reset.name, id, sessionClosed: closed, claudeRestarted: restarted }, 'local: key rotated');
       return reset;
     },
     gatherAccounts: deps.gatherAccounts,

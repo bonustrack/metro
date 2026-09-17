@@ -8,6 +8,7 @@ import { PROVIDER_FLAGS } from './provider-flags.js';
 import { localPort, localUrl } from './runtime.js';
 
 const CHANNEL_FLAGS = ['--dangerously-load-development-channels', 'server:metro'];
+const FRESH_PROMPT_FLAGS = ['--system-prompt-snapshot', 'off'];
 const PERMISSION_MODE_FLAG: Record<PermissionMode, string> = { auto: 'auto', bypass: 'bypassPermissions' };
 const KEY_HEADER = 'x-metro-key';
 const PROBE_MS = 3_000;
@@ -16,6 +17,7 @@ export const claudeArgs = (extra: string[], mcpConfig?: string, mode: Permission
   ...CHANNEL_FLAGS,
   '--permission-mode',
   PERMISSION_MODE_FLAG[mode],
+  ...FRESH_PROMPT_FLAGS,
   ...(mcpConfig === undefined ? [] : ['--mcp-config', mcpConfig]),
   ...(prompt === null ? [] : ['--append-system-prompt', prompt]),
   ...extra,

@@ -11,9 +11,8 @@ interface ResetAgentKeyProps {
 const CONFIRM_WORD = 'DELETE';
 
 const CONSEQUENCES = [
-  'The current API key stops working immediately, everywhere.',
-  'Any “claude mcp add” registration using it must be redone with the new command.',
-  'A connected MCP session for this agent is disconnected and has to reconnect.',
+  'The current API key stops working immediately: MCP, the connector relay and the model gateway all refuse it.',
+  'The Claude session on this machine restarts with the new key and resumes the same conversation.',
   'Attachment links are not affected. Each one carries its own token.',
 ];
 

@@ -2,7 +2,7 @@ import { afterEach, beforeAll, afterAll, describe, expect, test } from 'bun:test
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
-import { mcpAddCommand, type AgentApiDeps } from '../src/agents/api.ts';
+import { type AgentApiDeps } from '../src/agents/api.ts';
 import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
 
 const PORT = (): string => process.env.METRO_WEBHOOK_PORT ?? '8420';
@@ -238,7 +238,6 @@ interface WireAgent {
   owned: boolean;
   key: string | null;
   endpoint: string | null;
-  command: string | null;
   connector_ids: string[];
 }
 
@@ -362,7 +361,6 @@ describe('GET /api/agents key exposure', () => {
       connector_ids: [],
       key: 'mk_fake_ada-bot',
       endpoint: `${LOCAL()}/mcp?token=mk_fake_ada-bot`,
-      command: `claude mcp add --transport http metro "${LOCAL()}/mcp?token=mk_fake_ada-bot"`,
     });
   });
 
@@ -394,17 +392,12 @@ describe('GET /api/agents key exposure', () => {
     expect([agent?.connected, agent?.last_seen]).toEqual([false, null]);
   });
 
-  test('an unheld agent is handed the same local command', async () => {
+  test('the endpoint is always the loopback one, never the public base', async () => {
     const [agent] = await listAgents('ada@lovelace.dev');
     expect(agent?.endpoint).toBe(
       `http://127.0.0.1:${PORT()}/mcp?token=mk_fake_ada-bot`,
     );
-    expect(agent?.command).not.toContain(PUBLIC);
-  });
-
-  test('the listed command matches what POST hands back for the same key', async () => {
-    const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.command).toBe(mcpAddCommand('mk_fake_ada-bot'));
+    expect(agent?.endpoint).not.toContain(PUBLIC);
   });
 
   test('another signed-in user never receives the first user key', async () => {
@@ -412,11 +405,11 @@ describe('GET /api/agents key exposure', () => {
     expect(body).not.toContain('mk_fake_ada-bot');
   });
 
-  test('a not-owned agent is listed with no key, endpoint or command', async () => {
+  test('a not-owned agent is listed with no key or endpoint', async () => {
     leakGrantedKeys = true;
     const agent = (await listAgents('nobody@example.com')).at(-1);
     expect(agent?.owned).toBe(false);
-    expect([agent?.key, agent?.endpoint, agent?.command]).toEqual([null, null, null]);
+    expect([agent?.key, agent?.endpoint]).toEqual([null, null]);
   });
 
   test('a key value that reaches the api layer for a not-owned agent is still not served', async () => {
@@ -440,7 +433,6 @@ describe('GET /api/agents key exposure', () => {
       connector_ids: [],
       key: null,
       endpoint: null,
-      command: null,
     });
     delete OWNED['keyless@example.com'];
   });
@@ -451,7 +443,6 @@ interface CreateBody {
   name: string;
   key: string;
   endpoint: string;
-  command: string;
   error?: string;
 }
 
@@ -550,7 +541,6 @@ interface ResetBody {
   name: string;
   key: string;
   endpoint: string;
-  command: string;
   reset: boolean;
   error?: string;
 }
@@ -571,7 +561,6 @@ describe('POST /api/agents/:id/key', () => {
     expect(body.reset).toBe(true);
     expect(body.key).toBe(liveKeys['agent000001']);
     expect(body.endpoint).toBe(`${LOCAL()}/mcp?token=${body.key}`);
-    expect(body.command).toBe(mcpAddCommand(body.key));
   });
 
   test('the new key is never the old one', async () => {
@@ -667,45 +656,6 @@ describe('POST /api/agents/:id/key', () => {
   test('the reset response is marked no-store', async () => {
     const res = await resetKey(session('ada@lovelace.dev'), 'agent000001');
     expect(res.headers.get('cache-control')).toBe('no-store');
-  });
-});
-
-describe('mcpAddCommand', () => {
-  test('the loopback url follows the port this daemon listens on', () => {
-    const before = process.env.METRO_WEBHOOK_PORT;
-    process.env.METRO_WEBHOOK_PORT = '8421';
-    expect(mcpAddCommand('mk_x')).toContain('http://127.0.0.1:8421/mcp?token=mk_x');
-    if (before === undefined) delete process.env.METRO_WEBHOOK_PORT;
-    else process.env.METRO_WEBHOOK_PORT = before;
-  });
-
-  test('matches the browserbase convention: no --scope, full --transport http', () => {
-    expect(mcpAddCommand('mk_x')).toBe(
-      `claude mcp add --transport http metro "http://127.0.0.1:${PORT()}/mcp?token=mk_x"`,
-    );
-  });
-
-  test('the server name is the constant metro, never the agent name', () => {
-    const parts = mcpAddCommand('mk_x').split(' ');
-    expect(parts.slice(0, 5)).toEqual([
-      'claude',
-      'mcp',
-      'add',
-      '--transport',
-      'http',
-    ]);
-    expect(parts[5]).toBe('metro');
-    expect(parts).toHaveLength(7);
-  });
-
-  test('only the token varies from one agent to the next', () => {
-    expect(mcpAddCommand('mk_a')).toBe(
-      mcpAddCommand('mk_b').replace('mk_b', 'mk_a'),
-    );
-  });
-
-  test('no --scope flag is emitted at all', () => {
-    expect(mcpAddCommand('mk_x')).not.toContain('--scope');
   });
 });
 

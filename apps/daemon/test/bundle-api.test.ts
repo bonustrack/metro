@@ -41,6 +41,7 @@ beforeAll(async () => {
     restart: () => undefined,
     stop: () => undefined,
     closeAgentSession: () => Promise.resolve(true),
+    restartClaudeSession: () => false,
     gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }),
     capabilities: () => ({}),
     liveness: () => new Map(),

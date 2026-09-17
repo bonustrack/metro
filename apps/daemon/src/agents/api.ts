@@ -23,7 +23,6 @@ import {
 } from './admin.js';
 
 const PREFIX = '/api/agents';
-const SERVER_NAME = 'metro';
 
 export interface AgentApiDeps extends AccountApiDeps {
   listAgents: (subject: string, project: string) => Promise<AgentSummary[]>;
@@ -73,29 +72,16 @@ export function target(path: string): Target {
 
 const localMcpEndpoint = (): string => `http://127.0.0.1:${String(webhookPort())}/mcp`;
 
-export function mcpAddCommand(key: string): string {
-  const url = `${localMcpEndpoint()}?token=${key}`;
-  return `claude mcp add --transport http ${SERVER_NAME} "${url}"`;
-}
-
 interface KeyPayload {
   key: string | null;
   endpoint: string | null;
-  command: string | null;
 }
 
-function credentials(key: string): KeyPayload {
-  return {
-    key,
-    endpoint: `${localMcpEndpoint()}?token=${key}`,
-    command: mcpAddCommand(key),
-  };
-}
+const credentials = (key: string): KeyPayload => ({ key, endpoint: `${localMcpEndpoint()}?token=${key}` });
 
 function keyPayload(agent: AgentSummary): KeyPayload {
   const value = agent.owned ? agent.key : null;
-  if (value === null) return { key: null, endpoint: null, command: null };
-  return credentials(value);
+  return value === null ? { key: null, endpoint: null } : credentials(value);
 }
 
 function livenessPayload(

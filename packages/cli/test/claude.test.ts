@@ -8,6 +8,8 @@ describe('metro claude hands everything to claude untouched', () => {
       'server:metro',
       '--permission-mode',
       'auto',
+      '--system-prompt-snapshot',
+      'off',
       '-r',
       'abc',
     ]);
@@ -15,7 +17,7 @@ describe('metro claude hands everything to claude untouched', () => {
 
   test('unknown, future or odd flags pass through unparsed', () => {
     const odd = ['--dangerously-something-new=yes', '--', '-c', 'a b', '--flag-with=equals'];
-    expect(claudeArgs(odd).slice(4)).toEqual(odd);
+    expect(claudeArgs(odd).slice(6)).toEqual(odd);
   });
 
   test('no arguments means only the channel flag', () => {
@@ -24,12 +26,14 @@ describe('metro claude hands everything to claude untouched', () => {
       'server:metro',
       '--permission-mode',
       'auto',
+      '--system-prompt-snapshot',
+      'off',
     ]);
   });
 
   test('the system prompt from the Harness page is appended before the user arguments, and none means no flag', () => {
-    expect(claudeArgs(['-c'], undefined, 'auto', 'You are Lisa.\nBe brief.').slice(4)).toEqual(['--append-system-prompt', 'You are Lisa.\nBe brief.', '-c']);
-    expect(claudeArgs(['-c'], '/tmp/mcp.json', 'auto', null).slice(4)).toEqual(['--mcp-config', '/tmp/mcp.json', '-c']);
+    expect(claudeArgs(['-c'], undefined, 'auto', 'You are Lisa.\nBe brief.').slice(6)).toEqual(['--append-system-prompt', 'You are Lisa.\nBe brief.', '-c']);
+    expect(claudeArgs(['-c'], '/tmp/mcp.json', 'auto', null).slice(6)).toEqual(['--mcp-config', '/tmp/mcp.json', '-c']);
   });
 
   test('the permission mode the box chose is passed, bypass as bypassPermissions', () => {
@@ -52,6 +56,8 @@ describe('metro claude hands everything to claude untouched', () => {
       'server:metro',
       '--permission-mode',
       'auto',
+      '--system-prompt-snapshot',
+      'off',
       '--mcp-config',
       '/tmp/metro-claude-x/mcp.json',
       '-r',

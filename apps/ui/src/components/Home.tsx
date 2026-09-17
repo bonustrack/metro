@@ -4,7 +4,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Text, Button } from './ui.js';
 import { PageTitle } from './PageTitle.js';
-import { AgentCredentials } from './AgentCredentials.js';
+import { ResetAgentKey } from './ResetAgentKey.js';
 import { ExportAgent } from './ExportAgent.js';
 import { ImportAgent } from './ImportAgent.js';
 import { Loading } from './Loading.js';
@@ -140,18 +140,20 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
   return (
     <Col gap={20}>
       <Col gap={8}>
-        <PageTitle>{name}</PageTitle>
+        <Row align="center" justify="between" gap={12}>
+          <PageTitle>{name}</PageTitle>
+          <ResetAgentKey
+            agent={agent}
+            onReset={async (id) => {
+              await resetAgentKey(id);
+              refreshAgents(client);
+            }}
+          />
+        </Row>
         <Text size="sm" role="secondary">
           id {agent.id} · runs on this machine, so its messages never pass through Metro&apos;s servers
         </Text>
       </Col>
-      <AgentCredentials
-        agent={agent}
-        onReset={async (id) => {
-          await resetAgentKey(id);
-          refreshAgents(client);
-        }}
-      />
       <Col>
         <Summary label="Channels" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
         <Summary label="Connectors" count={agent.connectorIds.length} target={{ kind: 'connectors', project }} onSelect={onSelect} />

@@ -12,7 +12,7 @@ export const PROMPT_SINCE = '0.1.0-beta.133';
 const EDITOR = { minHeight: 160, lineHeight: 22 } as const;
 const NO_ASSIST = { multiline: true, autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
 const NOTE =
-  'Text here is appended to Claude Code’s own system prompt on every session metro starts here (the --append-system-prompt flag). Saving restarts the Claude session, which resumes the same conversation.';
+  'Text here is appended to Claude Code’s own system prompt on every session metro starts here (the --append-system-prompt flag). Saving restarts the Claude session, which resumes the same conversation with the new prompt.';
 
 export function SystemPromptEditor({ setup, version }: { setup: Setup; version: string | null }): ReactNode {
   const client = useQueryClient();
