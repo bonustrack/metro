@@ -16,6 +16,7 @@ interface ShellProps {
   flush?: boolean;
   onOpenMenu: () => void;
   onCloseMenu: () => void;
+  rail: ReactNode;
   sidebar: ReactNode;
   children: ReactNode;
 }
@@ -26,13 +27,17 @@ export function Shell({
   flush = false,
   onOpenMenu,
   onCloseMenu,
+  rail,
   sidebar,
   children,
 }: ShellProps): ReactNode {
   return (
     <div className="app-shell">
       {!narrow || menuOpen ? (
-        <div className={narrow ? 'app-drawer' : 'app-sidebar'}>{sidebar}</div>
+        <div className={narrow ? 'app-drawer' : 'app-sidebar'}>
+          {rail}
+          <div className="app-sidebar-body">{sidebar}</div>
+        </div>
       ) : null}
       <div className="app-main">
         {narrow ? <TopBar onOpenMenu={onOpenMenu} /> : null}

@@ -1,12 +1,9 @@
 import { type ReactNode } from 'react';
 import { ScrollView } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { MetroLogo } from './MetroLogo.js';
 import { NAV_GAP, NavRow } from './NavRow.js';
 import { SidebarFooter } from './SidebarFooter.js';
 import { FieldLabel } from './FieldLabel.js';
-import { ServerSwitcher } from './ServerSwitcher.js';
 import { type Selection } from './selection.js';
 
 const SCROLL = { flex: 1 } as const;
@@ -25,20 +22,11 @@ interface AgentSidebarProps {
 }
 
 export function AgentSidebar({ project, selection, subject, onSelect, onLock }: AgentSidebarProps): ReactNode {
-  const palette = useKitPalette();
   const home: Selection = { kind: 'home', project };
   return (
     <Col flex={1} minHeight={0}>
       <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
         <Col gap={10}>
-          <Row padding={{ bottom: 14 }}>
-            <a className="nav-link" href="#/" aria-label="All servers">
-              <MetroLogo size={32} color={palette.link} />
-            </a>
-          </Row>
-          <Col padding={{ bottom: 6 }}>
-            <ServerSwitcher project={project} selection={selection} />
-          </Col>
           <Col gap={NAV_GAP}>
             <NavRow label="Agent" icon="user" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />
             <NavRow label="Terminal" icon="terminal" selected={selection.kind === 'terminal'} target={{ kind: 'terminal', project }} onSelect={onSelect} />

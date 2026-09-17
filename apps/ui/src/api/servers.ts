@@ -10,6 +10,7 @@ export interface Server {
   addedAt: string;
   instanceId: string | null;
   launchedAt: string | null;
+  avatar: string | null;
 }
 
 export type ServerState = 'live' | 'stopped' | 'offline';
@@ -36,6 +37,7 @@ export function toServer(value: unknown): Server {
     addedAt: typeof value.addedAt === 'string' ? value.addedAt : '',
     instanceId: filled(value.instanceId),
     launchedAt: filled(value.launchedAt),
+    avatar: typeof value.avatar === 'string' && value.avatar.startsWith('data:image/png;base64,') ? value.avatar : null,
   };
 }
 
@@ -61,6 +63,18 @@ export async function addServer(host: string, name?: string): Promise<Server> {
 export async function renameServer(id: string, name: string): Promise<Server> {
   return toServer(
     await call({ method: 'PUT', base: listUrl(), path: `/${id}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) }),
+  );
+}
+
+export async function setServerAvatar(id: string, avatar: string | null): Promise<Server> {
+  return toServer(
+    await call({
+      method: 'PUT',
+      base: listUrl(),
+      path: `/${id}/avatar`,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ avatar }),
+    }),
   );
 }
 

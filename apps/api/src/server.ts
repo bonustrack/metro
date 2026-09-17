@@ -9,6 +9,7 @@ import {
   launchForOwner,
   listServersForOwner,
   renameServerForOwner,
+  setAvatarForOwner,
 } from './db/servers.js';
 import { announceLaunchConfig, readLaunchConfig } from './launch-config.js';
 import { bootView, instanceStateOf, launchBox } from './aws/launch.js';
@@ -20,7 +21,13 @@ const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, project: null, version: METRO_VERSION });
-const serversApi = { list: listServersForOwner, add: addServerForOwner, rename: renameServerForOwner, remove: deleteServerForOwner };
+const serversApi = {
+  list: listServersForOwner,
+  add: addServerForOwner,
+  rename: renameServerForOwner,
+  remove: deleteServerForOwner,
+  avatar: setAvatarForOwner,
+};
 const launchApi: LaunchApiDeps = {
   config: () => readLaunchConfig(),
   launch: (input) => launchBox(input),

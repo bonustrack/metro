@@ -17,6 +17,7 @@ interface FramedProps {
 function Framed({ project, subject, selection, onSelect, onLock }: FramedProps): ReactNode {
   return (
     <Frame
+      selection={selection}
       flush={selection.kind === 'terminal'}
       sidebar={(closeMenu) => (
         <AgentSidebar

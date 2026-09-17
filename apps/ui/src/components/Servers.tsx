@@ -23,8 +23,11 @@ import { routeHash } from '../route.js';
 import { useDocumentTitle } from '../title.js';
 import { useBootingState } from '../aws/use-launch.js';
 import { BootLog } from './BootLog.js';
+import { AgentAvatar } from './AgentAvatar.js';
+import { useAvatarPicker } from './AvatarPicker.js';
 
 const LIST_WIDTH = 640;
+const ROW_AVATAR = 32;
 const HOW = 'Every daemon you open lands here, on every device you sign in from. Open one, or add the address a daemon printed.';
 
 function StatusText({ server }: { server: Server }): ReactNode {
@@ -79,6 +82,7 @@ interface RowProps {
 
 function ServerRow({ server, last, onRename, onRemove, onBootLog }: RowProps): ReactNode {
   const palette = useKitPalette();
+  const avatar = useAvatarPicker(server);
   const href = `#/${server.id}`;
   const launched = server.instanceId !== null;
   return (
@@ -88,6 +92,7 @@ function ServerRow({ server, last, onRename, onRemove, onBootLog }: RowProps): R
       padding={{ x: 14, y: 12 }}
       border={last ? undefined : { bottom: { width: 1, color: palette.border } }}
     >
+      <AgentAvatar seed={server.host} src={server.avatar} size={ROW_AVATAR} />
       <StatusDot host={server.host} />
       <a
         className="row-link"
@@ -110,12 +115,20 @@ function ServerRow({ server, last, onRename, onRemove, onBootLog }: RowProps): R
           )}
         </Col>
       </a>
+      {avatar.error !== null ? (
+        <Text size="sm" role="danger" numberOfLines={1}>
+          {avatar.error}
+        </Text>
+      ) : null}
       <StatusText server={server} />
       <StartButton host={server.host} />
+      {avatar.input}
       <KebabMenu
         label={`Server menu for ${serverLabel(server)}`}
         items={[
           { label: server.name === null ? 'Name' : 'Rename', onSelect: onRename },
+          { label: avatar.busy ? 'Saving avatar…' : 'Set avatar', onSelect: avatar.pick },
+          ...(server.avatar === null ? [] : [{ label: 'Remove avatar', onSelect: avatar.remove }]),
           ...(launched ? [{ label: 'Boot log', onSelect: onBootLog }] : []),
           { label: 'Remove', danger: true, onSelect: onRemove },
         ]}
@@ -205,6 +218,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
   useDocumentTitle('Servers');
   return (
     <Frame
+      selection={{ kind: 'servers' }}
       sidebar={(closeMenu) => (
         <PlainSidebar
           selection={{ kind: 'servers' }}
@@ -235,7 +249,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
           <Button
             color="secondary"
             dark={dark}
-            label="Launch on AWS"
+            label="New agent"
             onPress={() => {
               window.location.hash = '#/launch';
             }}

@@ -4,6 +4,8 @@ import type { AddressInfo } from 'node:net';
 import { handleServersApiRequest, type ServersApiDeps } from '../src/servers.js';
 import { parseServerHost, parseServerName, type ServerEntry } from '../src/server-types.js';
 import { ApiError } from '@metro-labs/http/api-error';
+import { parseAvatar } from '../src/avatar.js';
+import { pngDataUrl } from './png-fixture.ts';
 import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 
 let rows: (ServerEntry & { owner: string })[] = [];
@@ -22,7 +24,7 @@ const deps: ServersApiDeps = {
       const { owner: _o, ...entry } = held;
       return Promise.resolve(entry);
     }
-    const row = { owner, id: nextId(), host, name: nameIn(body), addedAt: '2026-09-05T20:00:00.000Z' };
+    const row = { owner, id: nextId(), host, name: nameIn(body), addedAt: '2026-09-05T20:00:00.000Z', instanceId: null, launchedAt: null, avatar: null };
     rows = [...rows, row];
     const { owner: _o, ...entry } = row;
     return Promise.resolve(entry);
@@ -39,6 +41,13 @@ const deps: ServersApiDeps = {
     if (held === undefined) return Promise.reject(new ApiError('no such server', 404));
     rows = rows.filter((r) => r !== held);
     return Promise.resolve({ id, host: held.host });
+  },
+  avatar: (owner, id, body) => {
+    const held = rows.find((r) => r.owner === owner && r.id === id);
+    if (held === undefined) return Promise.reject(new ApiError('no such server', 404));
+    held.avatar = parseAvatar((body as { avatar?: unknown }).avatar);
+    const { owner: _o, ...entry } = held;
+    return Promise.resolve(entry);
   },
 };
 
@@ -102,6 +111,23 @@ describe('the server list on metro.box', () => {
     expect((await call('PATCH', '/api/servers', TEST_OWNER, {})).status).toBe(405);
     expect((await call('GET', '/api/servers/srv00000000', TEST_OWNER)).status).toBe(405);
     expect((await fetch(`${base}/api/servers`, { method: 'OPTIONS' })).status).toBe(204);
+  });
+
+  test('an avatar is set and removed on its own route; only a PNG the owner sends is stored', async () => {
+    const added = (await (await call('POST', '/api/servers', TEST_OWNER, { host: 'suzy.tail1234.ts.net' })).json()) as ServerEntry;
+    const png = pngDataUrl(128, 128);
+    const set = await call('PUT', `/api/servers/${added.id}/avatar`, TEST_OWNER, { avatar: png });
+    expect(set.status).toBe(200);
+    expect(((await set.json()) as ServerEntry).avatar).toBe(png);
+    const list = (await (await call('GET', '/api/servers', TEST_OWNER)).json()) as { servers: ServerEntry[] };
+    expect(list.servers[0]?.avatar).toBe(png);
+    expect((await call('PUT', `/api/servers/${added.id}/avatar`, TEST_STRANGER, { avatar: png })).status).toBe(404);
+    const svg = `data:image/svg+xml;base64,${Buffer.from('<svg onload="alert(1)"/>').toString('base64')}`;
+    expect((await call('PUT', `/api/servers/${added.id}/avatar`, TEST_OWNER, { avatar: svg })).status).toBe(400);
+    expect((await call('GET', `/api/servers/${added.id}/avatar`, TEST_OWNER)).status).toBe(405);
+    expect((await call('PUT', `/api/servers/${added.id}/other`, TEST_OWNER, { avatar: png })).status).toBe(404);
+    const cleared = await call('PUT', `/api/servers/${added.id}/avatar`, TEST_OWNER, { avatar: null });
+    expect(((await cleared.json()) as ServerEntry).avatar).toBeNull();
   });
 
   test('hosts are lowercased and validated, names trimmed, stripped and capped', () => {

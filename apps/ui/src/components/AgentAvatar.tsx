@@ -4,11 +4,13 @@ import { AvatarView } from '@stage-labs/kit/react-native/avatar-view';
 
 export function AgentAvatar({
   seed,
+  src = null,
   size,
 }: {
   seed: string;
+  src?: string | null;
   size: number;
 }): ReactNode {
-  const src = useMemo(() => makeBlockie(seed), [seed]);
-  return <AvatarView src={src} size={size} alt="" />;
+  const fallback = useMemo(() => makeBlockie(seed), [seed]);
+  return <AvatarView src={src ?? fallback} size={size} alt="" />;
 }

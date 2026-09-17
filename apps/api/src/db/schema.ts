@@ -18,6 +18,7 @@ export const agents = pgTable(
     instanceId: text('instance_id'),
     launchRegion: text('launch_region'),
     launchedAt: text('launched_at'),
+    avatar: text('avatar'),
   },
   (t) => [uniqueIndex('agents_owner_host_idx').on(t.owner, t.host), index('agents_owner_idx').on(t.owner)],
 );

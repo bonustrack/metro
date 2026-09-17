@@ -6,6 +6,7 @@ import { newId, parseId } from '@metro-labs/core/ids';
 import { agents } from './schema.js';
 import { normalizeAddress } from '@metro-labs/core/address';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
+import { parseAvatar } from '../avatar.js';
 
 export class ServerListError extends ApiError {}
 
@@ -30,6 +31,7 @@ interface Row {
   addedAt: string;
   instanceId: string | null;
   launchedAt: string | null;
+  avatar: string | null;
 }
 
 const entryOf = (row: Row): ServerEntry => ({
@@ -39,6 +41,7 @@ const entryOf = (row: Row): ServerEntry => ({
   addedAt: row.addedAt,
   instanceId: row.instanceId,
   launchedAt: row.launchedAt,
+  avatar: row.avatar,
 });
 
 const columns = {
@@ -48,6 +51,7 @@ const columns = {
   addedAt: agents.addedAt,
   instanceId: agents.instanceId,
   launchedAt: agents.launchedAt,
+  avatar: agents.avatar,
 };
 
 export async function listServersForOwner(subject: string): Promise<ServerEntry[]> {
@@ -69,7 +73,7 @@ export async function addServerForOwner(subject: string, body: unknown): Promise
     await db.update(agents).set({ name }).where(eq(agents.id, row.id));
     return entryOf({ ...row, name });
   }
-  const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null };
+  const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null, avatar: null };
   await db.insert(agents).values(next);
   return entryOf(next);
 }
@@ -94,6 +98,7 @@ export async function addLaunchedServer(subject: string, launch: LaunchRecord): 
     instanceId: launch.instanceId,
     launchRegion: launch.region,
     launchedAt: new Date().toISOString(),
+    avatar: null,
   };
   await getDb().insert(agents).values(next);
   return entryOf(next);
@@ -125,6 +130,20 @@ export async function renameServerForOwner(subject: string, rawId: string, body:
   const rows = await getDb()
     .update(agents)
     .set({ name })
+    .where(and(eq(agents.id, id), eq(agents.owner, owner)))
+    .returning(columns);
+  const row = rows[0];
+  if (row === undefined) throw missing();
+  return entryOf(row);
+}
+
+export async function setAvatarForOwner(subject: string, rawId: string, body: unknown): Promise<ServerEntry> {
+  const owner = ownerOf(subject);
+  const id = idOf(rawId);
+  const avatar = parseAvatar(isRecord(body) ? body.avatar : undefined);
+  const rows = await getDb()
+    .update(agents)
+    .set({ avatar })
     .where(and(eq(agents.id, id), eq(agents.owner, owner)))
     .returning(columns);
   const row = rows[0];

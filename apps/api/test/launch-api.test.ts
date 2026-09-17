@@ -48,6 +48,7 @@ const deps: LaunchApiDeps = {
       addedAt: '2026-09-15T00:00:00.000Z',
       instanceId: launch.instanceId,
       launchedAt: '2026-09-15T00:00:00.000Z',
+      avatar: null,
     }),
   lookup: (_subject, id) =>
     id === 'srv00000001'
