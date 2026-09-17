@@ -49,6 +49,7 @@ function MemoryIndex({ claudeProject, onOpen }: { claudeProject: string; onOpen:
   if (data === undefined) return <Loading />;
   return (
     <Col gap={16}>
+      <Text size="sm" role="secondary">Refreshes every few seconds; what Claude writes shows up here.</Text>
       {data.files.length === 0 ? (
         <Text size="sm" role="secondary">No memory in this project yet.</Text>
       ) : (
@@ -64,7 +65,6 @@ function MemoryIndex({ claudeProject, onOpen }: { claudeProject: string; onOpen:
             ))}
         </Col>
       )}
-      <Text size="sm" role="secondary">Refreshes every few seconds; what Claude writes shows up here.</Text>
     </Col>
   );
 }
