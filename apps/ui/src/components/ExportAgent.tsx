@@ -60,11 +60,12 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
     setBusy(true);
     setError(null);
     gatherPayload(agent, picked, new Date().toISOString())
-      .then(async (payload) => {
+      .then(async ({ payload, leftOut }) => {
         const file = await packFile(payload, identity);
         const name = fileName(agent.name);
         download(JSON.stringify(file), name);
-        setDone(SECTIONS.filter((s) => picked.has(s)).map((s) => `${SECTION_LABELS[s]} ${String(countOf(payload, s))}`).join(' · '));
+        const counts = SECTIONS.filter((s) => picked.has(s)).map((s) => `${SECTION_LABELS[s]} ${String(countOf(payload, s))}`);
+        setDone([...counts, ...(leftOut.length === 0 ? [] : [`${String(leftOut.length)} session${leftOut.length === 1 ? '' : 's'} left out, larger than 64 MB: ${leftOut.join(', ')}`])].join(' · '));
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not export the agent.');

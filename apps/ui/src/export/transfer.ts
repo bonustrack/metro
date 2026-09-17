@@ -74,34 +74,44 @@ async function gatherMemory(): Promise<PackedMemory[]> {
   return out;
 }
 
-async function gatherSessions(): Promise<PackedSession[]> {
+export const SESSION_BYTES_MAX = 64 * 1024 * 1024;
+
+async function gatherSessions(leftOut: string[]): Promise<PackedSession[]> {
   const projects = await fetchClaudeProjects();
   const out: PackedSession[] = [];
   for (const project of projects) {
-    for (const session of await fetchClaudeSessions(project.id))
-      out.push({ project: project.id, id: session.id, text: await fetchSessionFile(project.id, session.id) });
+    for (const session of await fetchClaudeSessions(project.id)) {
+      if (session.bytes > SESSION_BYTES_MAX) leftOut.push(session.title === '' ? session.id : session.title);
+      else out.push({ project: project.id, id: session.id, text: await fetchSessionFile(project.id, session.id) });
+    }
   }
   return out;
 }
 
 const picked = <T>(sections: Set<Section>, section: Section, items: T[] | undefined): T[] => (sections.has(section) ? (items ?? []) : []);
 
-async function gatherClaude(sections: Set<Section>): Promise<Pick<Payload, 'skills' | 'memory' | 'sessions' | 'model'>> {
+async function gatherClaude(sections: Set<Section>, leftOut: string[]): Promise<Pick<Payload, 'skills' | 'memory' | 'sessions' | 'model'>> {
   const out: Pick<Payload, 'skills' | 'memory' | 'sessions' | 'model'> = {};
   if (sections.has('skills')) out.skills = await gatherSkills();
   if (sections.has('memory')) out.memory = await gatherMemory();
-  if (sections.has('sessions')) out.sessions = await gatherSessions();
+  if (sections.has('sessions')) out.sessions = await gatherSessions(leftOut);
   if (sections.has('model')) out.model = [await fetchModelBundle()];
   return out;
 }
 
-export async function gatherPayload(agent: LocalAgent, sections: Set<Section>, now: string): Promise<Payload> {
+export interface Gathered {
+  payload: Payload;
+  leftOut: string[];
+}
+
+export async function gatherPayload(agent: LocalAgent, sections: Set<Section>, now: string): Promise<Gathered> {
   const wants = (section: Section): boolean => sections.has(section);
   const bundle = wants('channels') || wants('connectors') ? await fetchBundle(agent.id) : null;
   const payload: Payload = { version: 1, exportedAt: now, agent: { id: agent.id, name: agent.name } };
   if (wants('channels')) payload.channels = channelsOf(bundle === null ? [] : bundle.agent.stations);
   if (wants('connectors')) payload.connectors = connectorsOf(bundle === null ? [] : bundle.connectors);
-  return { ...payload, ...(await gatherClaude(sections)) };
+  const leftOut: string[] = [];
+  return { payload: { ...payload, ...(await gatherClaude(sections, leftOut)) }, leftOut };
 }
 
 export interface Applied {
