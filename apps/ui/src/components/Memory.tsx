@@ -16,28 +16,28 @@ import { CountBadge } from './CountBadge.js';
 import { sizeLabel, whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
-const ROW_PAD_Y = 10;
-
 function FileRow({ file, onOpen }: { file: MemoryFile; onOpen: () => void }): ReactNode {
   const palette = useKitPalette();
   return (
-    <a
-      className="row-link"
-      href="#"
-      onClick={(e) => {
-        e.preventDefault();
-        onOpen();
-      }}
-    >
-      <Row gap={10} align="center" flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }} border={{ bottom: { width: 1, color: palette.border } }}>
-        <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
-          {file.name}
-        </Text>
-        <Text size="sm" role="secondary" numberOfLines={1}>
-          {sizeLabel(file.bytes)} · {whenLabel(file.modifiedAt)}
-        </Text>
-      </Row>
-    </a>
+    <Row align="center" border={{ bottom: { width: 1, color: palette.border } }}>
+      <a
+        className="row-link"
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          onOpen();
+        }}
+      >
+        <Row gap={10} align="center" flex={1} minWidth={0}>
+          <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
+            {file.name}
+          </Text>
+          <Text size="sm" role="secondary" numberOfLines={1}>
+            {sizeLabel(file.bytes)} · {whenLabel(file.modifiedAt)}
+          </Text>
+        </Row>
+      </a>
+    </Row>
   );
 }
 
@@ -68,11 +68,19 @@ function MemoryIndex({
   if (data === undefined) return <Loading />;
   return (
     <Col gap={16}>
-      {data.index === null ? (
-        <Text size="sm" role="secondary">No MEMORY.md in this project yet.</Text>
-      ) : (
-        <MarkdownBlock text={data.index} resolveLink={resolveLink} onNavigate={navigate} />
-      )}
+      <Col gap={6}>
+        <Text size="lg" weight="semibold">
+          Index
+        </Text>
+        <Text size="sm" role="secondary">
+          MEMORY.md, the one memory text every session loads: a line per file with a short hook. Claude adds a line when it writes a file.
+        </Text>
+        {data.index === null ? (
+          <Text size="sm" role="secondary">No MEMORY.md in this project yet.</Text>
+        ) : (
+          <MarkdownBlock text={data.index} resolveLink={resolveLink} onNavigate={navigate} />
+        )}
+      </Col>
       {data.files.length === 0 ? null : (
         <Col gap={6}>
           <Text size="lg" weight="semibold">

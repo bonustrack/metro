@@ -63,15 +63,23 @@ async function gatherSkills(): Promise<PackedSkill[]> {
   return out;
 }
 
+const INDEX = 'MEMORY.md';
+
 async function gatherMemory(): Promise<PackedMemory[]> {
   const projects = await fetchClaudeProjects();
   const out: PackedMemory[] = [];
   for (const project of projects) {
     const listing = await fetchMemory(project.id);
+    if (listing.index !== null) out.push({ project: project.id, name: INDEX, text: listing.index });
     for (const file of listing.files)
       out.push({ project: project.id, name: file.name, text: await fetchMemoryFile(project.id, file.name), ...(file.modifiedAt === '' ? {} : { modifiedAt: file.modifiedAt }) });
   }
   return out;
+}
+
+async function memoryNames(project: string): Promise<Set<string>> {
+  const listing = await fetchMemory(project);
+  return new Set([...listing.files.map((f) => f.name), ...(listing.index === null ? [] : [INDEX])]);
 }
 
 export const SESSION_BYTES_MAX = 512 * 1024 * 1024;
@@ -184,7 +192,7 @@ async function applyMemory(
       skipped += 1;
       continue;
     }
-    if (!seen.has(project)) seen.set(project, new Set((await fetchMemory(project)).files.map((f) => f.name)));
+    if (!seen.has(project)) seen.set(project, await memoryNames(project));
     if (mode === 'append' && seen.get(project)?.has(file.name) === true) {
       skipped += 1;
       continue;

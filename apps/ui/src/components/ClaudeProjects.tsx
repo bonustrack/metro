@@ -24,32 +24,27 @@ function ProjectRow({ project, onOpen }: { project: ClaudeProject; onOpen: () =>
     .filter((s): s is string => s !== null)
     .join(' · ');
   return (
-    <a
-      className="row-link"
-      href="#"
-      onClick={(e) => {
-        e.preventDefault();
-        onOpen();
-      }}
-    >
-      <Row
-        gap={10}
-        align="center"
-        flex={1}
-        minWidth={0}
-        padding={{ y: ROW_PAD_Y }}
-        border={{ bottom: { width: 1, color: palette.border } }}
+    <Row align="center" border={{ bottom: { width: 1, color: palette.border } }}>
+      <a
+        className="row-link"
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          onOpen();
+        }}
       >
-        <Col style={SHRINK} flex={1}>
-          <Text size="md" weight="semibold" numberOfLines={1}>
-            {projectLabel(project)}
-          </Text>
-          <Text size="sm" role="secondary" numberOfLines={1}>
-            {detail}
-          </Text>
-        </Col>
-      </Row>
-    </a>
+        <Row gap={10} align="center" flex={1} minWidth={0}>
+          <Col style={SHRINK} flex={1}>
+            <Text size="md" weight="semibold" numberOfLines={1}>
+              {projectLabel(project)}
+            </Text>
+            <Text size="sm" role="secondary" numberOfLines={1}>
+              {detail}
+            </Text>
+          </Col>
+        </Row>
+      </a>
+    </Row>
   );
 }
 
