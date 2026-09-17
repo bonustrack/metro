@@ -65,7 +65,7 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
         const name = fileName(agent.name);
         download(JSON.stringify(file), name);
         const counts = SECTIONS.filter((s) => picked.has(s)).map((s) => `${SECTION_LABELS[s]} ${String(countOf(payload, s))}`);
-        setDone([...counts, ...(leftOut.length === 0 ? [] : [`${String(leftOut.length)} session${leftOut.length === 1 ? '' : 's'} left out, larger than 64 MB: ${leftOut.join(', ')}`])].join(' · '));
+        setDone([...counts, ...(leftOut.length === 0 ? [] : [`${String(leftOut.length)} session${leftOut.length === 1 ? '' : 's'} left out, larger than 512 MB: ${leftOut.join(', ')}`])].join(' · '));
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not export the agent.');

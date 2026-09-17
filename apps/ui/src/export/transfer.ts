@@ -74,7 +74,7 @@ async function gatherMemory(): Promise<PackedMemory[]> {
   return out;
 }
 
-export const SESSION_BYTES_MAX = 64 * 1024 * 1024;
+export const SESSION_BYTES_MAX = 512 * 1024 * 1024;
 
 async function gatherSessions(leftOut: string[]): Promise<PackedSession[]> {
   const projects = await fetchClaudeProjects();

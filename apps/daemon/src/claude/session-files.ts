@@ -4,7 +4,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { claudeDir, PROJECT_RE, safeName, SESSION_RE } from './files.js';
 
-export const SESSION_FILE_MAX = 64 * 1024 * 1024;
+export const SESSION_FILE_MAX = 512 * 1024 * 1024;
 const FILE_MODE = 0o644;
 
 export interface SessionFile {

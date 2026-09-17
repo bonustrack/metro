@@ -6,7 +6,7 @@ export const FILE_EXTENSION = '.metro';
 export const SECTIONS = ['channels', 'connectors', 'skills', 'memory', 'sessions', 'model'] as const;
 export type Section = (typeof SECTIONS)[number];
 
-const PAYLOAD_MAX = 512 * 1024 * 1024;
+const PAYLOAD_MAX = 1024 * 1024 * 1024;
 
 export interface PackedChannel {
   station: string;
