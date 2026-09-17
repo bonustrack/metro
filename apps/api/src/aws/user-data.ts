@@ -1,6 +1,4 @@
 export const NODE_RE = /^metro-[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
-import { AGENT_NAME_RE } from '@metro-labs/core/ids';
-
 export const HOSTNAME_RE = /^[a-z0-9](?:[a-z0-9-]{0,62})$/;
 export const OWNER_RE = /^0x[0-9a-f]{40}$/;
 export const AUTH_KEY_RE = /^tskey-auth-[A-Za-z0-9_-]{8,200}$/;
@@ -17,7 +15,6 @@ export interface BoxSpec {
   owner: string;
   tailscaleAuthKey: string;
   metroTag: string;
-  agent: string;
 }
 
 function check(value: string, re: RegExp, what: string): string {
@@ -37,7 +34,6 @@ export function cloudInit(spec: BoxSpec): string {
   const hostname = check(spec.hostname, HOSTNAME_RE, 'The host name');
   const node = check(spec.node, NODE_RE, 'The tailnet name');
   const owner = check(spec.owner, OWNER_RE, 'The owner wallet');
-  const agent = check(spec.agent, AGENT_NAME_RE, 'The agent name');
   const key = checkAuthKey(spec.tailscaleAuthKey);
   const tag = check(spec.metroTag, TAG_RE, 'The metro version');
   return [
@@ -67,7 +63,6 @@ export function cloudInit(spec: BoxSpec): string {
     `npm install -g '@stage-labs/metro@${tag}'`,
     'mkdir -p /root/.metro/agents && chmod 700 /root/.metro/agents',
     `printf '%s\\n' '${node}' > /root/.metro/agents/.node && chmod 600 /root/.metro/agents/.node`,
-    `printf '%s\\n' '${agent}' > /root/.metro/agents/.agent && chmod 600 /root/.metro/agents/.agent`,
     step('service'),
     `metro service install --owner '${owner}'`,
     'echo "metro setup: done $(date -u +%FT%TZ)"',

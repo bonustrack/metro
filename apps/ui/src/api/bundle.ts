@@ -20,13 +20,13 @@ export async function fetchBundle(agentId: string): Promise<AgentBundle> {
   const body = await call({ method: 'GET', path: `/${agentId}/bundle` });
   if (!isRecord(body) || body.version !== 1 || !isRecord(body.agent)) throw unexpected();
   const agent = body.agent;
-  if (typeof agent.id !== 'string' || typeof agent.name !== 'string' || typeof agent.key !== 'string') throw unexpected();
+  if (typeof agent.id !== 'string' || typeof agent.key !== 'string') throw unexpected();
   const stations = Array.isArray(agent.stations)
     ? agent.stations.filter((s): s is { station: string } => isRecord(s) && typeof s.station === 'string')
     : [];
   return {
     version: 1,
-    agent: { ...agent, id: agent.id, name: agent.name, key: agent.key, stations },
+    agent: { ...agent, id: agent.id, name: typeof agent.name === 'string' ? agent.name : '', key: agent.key, stations },
     connectors: Array.isArray(body.connectors) ? body.connectors : [],
   };
 }

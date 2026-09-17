@@ -92,7 +92,7 @@ describe('an agent bundle on a local daemon', () => {
     const bundle = (await (await call('GET', `/api/agents/${tony.id}/bundle`)).json()) as { agent: { stations: { station: string }[] } };
     const restored = parseBundle(bundle);
     expect(restored.agent.stations.map((a) => a.station)).toEqual(['telegram-bot']);
-    rmSync(join(dir, 'Tony'), { recursive: true, force: true });
+    rmSync(join(dir, 'agent.json'), { force: true });
     rmSync(join(dir, 'connectors.json'), { force: true });
     setKeyMap([]);
     expect(agentIdForKey(tony.key)).toBeUndefined();
@@ -100,7 +100,7 @@ describe('an agent bundle on a local daemon', () => {
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ id: tony.id, name: 'Tony', stations: 1, connectors: 1 });
     expect(agentIdForKey(tony.key)).toBe(tony.id);
-    const file = JSON.parse(readFileSync(join(dir, 'Tony', 'agent.json'), 'utf8')) as { id: string; key: string; connectors: string[]; stations: { config: { token: string } }[] };
+    const file = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { id: string; key: string; connectors: string[]; stations: { config: { token: string } }[] };
     expect(file).toMatchObject({ id: tony.id, key: tony.key, connectors: [] });
     expect(file.stations[0]?.config.token).toBe('bot-token');
     expect(existsSync(join(dir, 'connectors.json'))).toBe(true);
@@ -111,7 +111,7 @@ describe('an agent bundle on a local daemon', () => {
 
   test('append leaves what is already here alone; overwrite replaces the match', async () => {
     const read = (): { stations: { station: string; id: string; config: { token: string } }[] } =>
-      JSON.parse(readFileSync(join(dir, 'Tony', 'agent.json'), 'utf8')) as {
+      JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as {
         stations: { station: string; id: string; config: { token: string } }[];
       };
     const here = read().stations[0];

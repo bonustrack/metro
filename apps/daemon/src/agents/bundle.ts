@@ -69,9 +69,9 @@ function agentOf(raw: unknown): AgentBundle['agent'] {
   if (!isRecord(raw)) throw bad('not a v1 agent bundle');
   const { id, name, key, stations } = raw;
   if (typeof id !== 'string' || parseId(id) === null) throw bad('agent id is not an id');
-  if (typeof name !== 'string' || typeof key !== 'string' || key === '') throw bad('agent has no name or key');
+  if (typeof key !== 'string' || key === '') throw bad('agent has no key');
   if (!Array.isArray(stations)) throw bad('agent has no station list');
-  return { id, name, key, stations: stations.map(stationOf) };
+  return { id, name: typeof name === 'string' ? name : '', key, stations: stations.map(stationOf) };
 }
 
 export function parseBundle(raw: unknown): AgentBundle {

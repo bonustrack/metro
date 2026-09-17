@@ -7,8 +7,8 @@ export { STATIONS, type ConnectorTransport, type StationName };
 export type ProjectRole = 'admin' | 'member';
 
 
-export const servers = pgTable(
-  'servers',
+export const agents = pgTable(
+  'agents',
   {
     id: text('id').primaryKey(),
     owner: text('owner').notNull(),
@@ -19,5 +19,5 @@ export const servers = pgTable(
     launchRegion: text('launch_region'),
     launchedAt: text('launched_at'),
   },
-  (t) => [uniqueIndex('servers_owner_host_idx').on(t.owner, t.host), index('servers_owner_idx').on(t.owner)],
+  (t) => [uniqueIndex('agents_owner_host_idx').on(t.owner, t.host), index('agents_owner_idx').on(t.owner)],
 );

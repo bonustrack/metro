@@ -26,11 +26,9 @@ const USAGE = `metro — run your agent on this machine
   metro stop      stop metro on this machine, metro serve included
   metro tail <agent-id>
                   follow this machine's inbound events, one JSON line each
-  metro whoami [agent]
-                  print the agent this machine runs
-  metro mcp [agent]
-                  print the mcpServers block of the agent's connectors, served through the
-                  daemon's own relay (name the agent if several live here)
+  metro whoami    print the agent this machine runs
+  metro mcp       print the mcpServers block of the agent's connectors, served through the
+                  daemon's own relay
   metro plugin    set up the Claude Code plugin (connector servers + /metro:refresh)
   metro claude [args...]
                   open Claude Code with the metro channel; every argument is passed through

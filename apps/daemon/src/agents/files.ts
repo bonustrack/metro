@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, renameSync, rmdirSync } from 'node:fs';
+import { log } from '@metro-labs/core/log';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { AGENT_NAME_RE, ID_RE } from '@metro-labs/core/ids';
@@ -17,12 +18,14 @@ export class AgentFileError extends Error {}
 export interface AgentFile {
   version: 1;
   id: string;
-  name: string;
+  name: string | null;
   key: string | null;
   owner: string | null;
   stations: LoadedAccount[];
   connectors: string[];
 }
+
+export const agentFilePath = (dir = agentsDir()): string => join(dir, AGENT_FILE);
 
 export function agentsDir(): string {
   const explicit = process.env.METRO_AGENTS_DIR?.trim();
@@ -73,6 +76,12 @@ function optionalMatch(
 const connectorsOf = (raw: unknown): string[] =>
   Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && ID_RE.test(id)) : [];
 
+function nameOf(raw: unknown, path: string): string | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'string' || !AGENT_NAME_RE.test(raw)) fail(path, 'name is not a valid agent name');
+  return raw;
+}
+
 export function parseAgentFile(raw: string, path: string): AgentFile {
   let parsed: unknown;
   try {
@@ -85,8 +94,7 @@ export function parseAgentFile(raw: string, path: string): AgentFile {
   const { id, name, stations } = parsed;
   if (typeof id !== 'string' || !ID_RE.test(id))
     fail(path, 'id is not an 11-character id');
-  if (typeof name !== 'string' || !AGENT_NAME_RE.test(name))
-    fail(path, 'name is not a valid agent name');
+  const label = nameOf(name, path);
   const key = optionalMatch(parsed.key, KEY_RE, path, 'key is not an agent key');
   const owner = optionalMatch(
     parsed.owner,
@@ -98,7 +106,7 @@ export function parseAgentFile(raw: string, path: string): AgentFile {
   return {
     version: 1,
     id,
-    name,
+    name: label,
     key,
     owner,
     stations: stations.map((s, i) => stationOf(s, path, i)),
@@ -116,13 +124,34 @@ export function readAgentFile(path: string): AgentFile {
   return parseAgentFile(raw, path);
 }
 
-export function listAgentFiles(dir = agentsDir()): string[] {
+function legacyAgentFiles(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => join(dir, entry.name, AGENT_FILE))
     .filter((path) => existsSync(path))
     .sort();
+}
+
+export function listAgentFiles(dir = agentsDir()): string[] {
+  const fixed = agentFilePath(dir);
+  return existsSync(fixed) ? [fixed] : legacyAgentFiles(dir);
+}
+
+export function migrateAgentLayout(dir = agentsDir()): 'moved' | 'kept' | 'none' {
+  const fixed = agentFilePath(dir);
+  if (existsSync(fixed)) return 'kept';
+  const [first, ...rest] = legacyAgentFiles(dir);
+  if (first === undefined) return 'none';
+  renameSync(first, fixed);
+  try {
+    rmdirSync(join(first, '..'));
+  } catch {
+    log.warn({ folder: join(first, '..') }, 'agent layout: the old agent folder is not empty and was left in place');
+  }
+  for (const extra of rest) log.warn({ path: extra }, 'agent layout: a second agent file is ignored; a box holds one agent');
+  log.info({ from: first, to: fixed }, 'agent layout: moved the agent file to its fixed place');
+  return 'moved';
 }
 
 function assertUnique(agents: AgentFile[], paths: string[]): void {
@@ -146,7 +175,7 @@ export function loadFileAgents(dir = agentsDir()): LoadedAgent[] {
   assertUnique(agents, paths);
   return agents.map((agent) => ({
     id: agent.id,
-    name: agent.name,
+    name: agent.name ?? agent.id,
     key: agent.key,
     accounts: agent.stations,
   }));

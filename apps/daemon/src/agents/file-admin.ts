@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmdirSync, rmSync } from 'node:fs';
+import { readFileSync, rmdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { ensureSecureDir, writeSecure } from '@metro-labs/core/secure-fs';
@@ -14,7 +14,7 @@ import {
 } from './admin.js';
 import type { AccountRef } from './account-attach.js';
 import {
-  AGENT_FILE,
+  agentFilePath,
   AgentFileError,
   agentsDir,
   listAgentFiles,
@@ -94,7 +94,7 @@ export async function localListAgents(
   return Promise.resolve(
     storedAgents(dir)
       .map(({ file }) => ({ id: file.id, name: file.name, owned: true, key: file.key }))
-      .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
+      .sort((a, b) => a.id.localeCompare(b.id)),
   );
 }
 
@@ -109,28 +109,33 @@ function freshId(taken: Set<string>): string {
 export async function localCreateAgent(
   subject: string,
   project: string,
-  rawName: string,
+  rawName?: string,
   dir = agentsDir(),
 ): Promise<CreatedAgent> {
   if (project !== LOCAL_PROJECT_ID || !isOwner(subject, dir))
     throw new AgentAdminError('no such project', 404);
-  const name = normalizeAgentName(rawName);
-  const folder = join(dir, name);
-  if (existsSync(join(folder, AGENT_FILE)))
-    throw new AgentAdminError(
-      `an agent named '${name}' already exists on this machine`,
-      409,
-    );
+  const name = rawName === undefined ? null : normalizeAgentName(rawName);
   const existing = storedAgents(dir);
-  const id = freshId(new Set(existing.map((s) => s.file.id)));
+  if (existing.length > 0) throw new AgentAdminError('this box already has its agent', 409);
+  const id = freshId(new Set());
   const key = newApiKey();
-  ensureSecureDir(folder);
+  ensureSecureDir(dir);
   save({
-    path: join(folder, AGENT_FILE),
+    path: agentFilePath(dir),
     file: { version: 1, id, name, key, owner: localOwner(dir), stations: [], connectors: [] },
   });
   registerKey(key, id);
   return Promise.resolve({ id, name, key });
+}
+
+export type Ensured = 'created' | 'present' | 'no-owner';
+
+export async function ensureLocalAgent(dir = agentsDir()): Promise<Ensured> {
+  if (storedAgents(dir).length > 0) return 'present';
+  const owner = localOwner(dir);
+  if (owner === null) return 'no-owner';
+  await localCreateAgent(owner, LOCAL_PROJECT_ID, undefined, dir);
+  return 'created';
 }
 
 export async function localResetAgentKey(
@@ -155,7 +160,7 @@ export async function localDeleteAgent(
   const attached = stored.file.stations.length;
   if (attached > 0)
     throw new AgentAdminError(
-      `agent '${stored.file.name}' still has ${String(attached)} station account(s) attached — detach them first`,
+      `the agent still has ${String(attached)} station account(s) attached — detach them first`,
       409,
     );
   rmSync(stored.path);
@@ -196,14 +201,10 @@ interface ImportTarget {
 function importTarget(dir: string, agent: LoadedAgent & { key: string }): ImportTarget {
   const existing = storedAgents(dir);
   const same = existing.find((s) => s.file.id === agent.id);
-  const fresh = join(dir, agent.name, AGENT_FILE);
-  if (same === undefined && existsSync(fresh))
-    throw new AgentAdminError(
-      `an agent named '${agent.name}' already exists on this machine`,
-      409,
-    );
+  if (same === undefined && existing.length > 0)
+    throw new AgentAdminError('this box already has its agent; import into it rather than bringing another', 409);
   assertUnclaimed(existing.filter((s) => s !== same), agent);
-  return { path: same?.path ?? fresh, previous: same?.file };
+  return { path: same?.path ?? agentFilePath(dir), previous: same?.file };
 }
 
 export type ImportMode = 'append' | 'overwrite';
@@ -256,7 +257,7 @@ function fileFor(
       JSON.stringify({
         version: 1,
         id: agent.id,
-        name: previous?.name ?? agent.name,
+        name: previous?.name ?? null,
         key: agent.key,
         owner,
         stations: mergedStations(agent, previous, mode),

@@ -56,7 +56,6 @@ describe('metro issuing a box', () => {
     expect(userData[0]).toContain("--hostname='metro-abc123'");
     expect(userData[0]).toContain("--owner '0xef8305e140ac520225daf050e2f71d5fbcc543e7'");
     expect(userData[0]).toContain("hostnamectl set-hostname 'andy'");
-    expect(userData[0]).toContain("'Andy' > /root/.metro/agents/.agent");
   });
 
   test('no capacity in the zone AWS picked is retried in every zone, each with its own token', async () => {

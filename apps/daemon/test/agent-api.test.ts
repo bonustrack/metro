@@ -63,7 +63,6 @@ const SEED: Row[] = [
 let server: Server;
 let base: string;
 let scopes: Set<string>[] = [];
-let created: { email: string; name: string }[] = [];
 let rows: Row[] = [...SEED];
 let deleteCalls: { email: string; id: number }[] = [];
 let resetCalls: { email: string; id: number }[] = [];
@@ -112,12 +111,6 @@ const deps: AgentApiDeps = {
         ? [{ id: 'agent000901', name: 'not-mine', owned: false, key: fakeKey('not-mine') }]
         : []),
     ]),
-  createAgent: (email, _project, name) => {
-    const clean = normalizeAgentName(name);
-    created.push({ email, name: clean });
-    nextId += 1;
-    return Promise.resolve({ id: nextId, name: clean, key: `mk_key_for_${clean}` });
-  },
   deleteAgent: (email, id) => {
     try {
       return Promise.resolve(removeAgent(email, id));
@@ -193,7 +186,6 @@ afterAll(async () => {
 
 afterEach(() => {
   scopes = [];
-  created = [];
   rows = [...SEED];
   deleteCalls = [];
   resetCalls = [];
@@ -462,90 +454,6 @@ interface CreateBody {
   command: string;
   error?: string;
 }
-
-describe('POST /api/agents', () => {
-  test('creates the agent for the session email and returns the key once', async () => {
-    const res = await post(session('ada@lovelace.dev'), { name: 'Fresh-Agent' });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as CreateBody;
-    expect(body.name).toBe('Fresh-Agent');
-    expect(body.key).toBe('mk_key_for_Fresh-Agent');
-    expect(created).toEqual([{ email: 'ada@lovelace.dev', name: 'Fresh-Agent' }]);
-  });
-
-  test('the name is stored with the casing the person typed, never lowercased', async () => {
-    const body = (await (
-      await post(session('ada@lovelace.dev'), { name: '  Lisa  ' })
-    ).json()) as CreateBody;
-    expect(body.name).toBe('Lisa');
-    expect(body.command).toContain(' metro "');
-    expect(body.command).not.toContain('lisa');
-  });
-
-  test('returns the exact endpoint and claude mcp add command to paste', async () => {
-    const body = (await (
-      await post(session('ada@lovelace.dev'), { name: 'pasteme' })
-    ).json()) as CreateBody;
-    expect(body.endpoint).toBe(`${LOCAL()}/mcp?token=mk_key_for_pasteme`);
-    expect(body.command).toBe(
-      `claude mcp add --transport http metro "${LOCAL()}/mcp?token=mk_key_for_pasteme"`,
-    );
-  });
-
-  test('the agent is always created for the session email, never a body-supplied one', async () => {
-    await post(session('bob@builder.dev'), {
-      name: 'sneaky',
-      email: 'ada@lovelace.dev',
-      ownerEmail: 'ada@lovelace.dev',
-      ownerId: 'user0000011',
-      owner_id: 11,
-    });
-    expect(created).toEqual([{ email: 'bob@builder.dev', name: 'sneaky' }]);
-  });
-
-  test('an invalid name is 400 and creates nothing', async () => {
-    const res = await post(session('ada@lovelace.dev'), { name: 'no spaces' });
-    expect(res.status).toBe(400);
-    expect(((await res.json()) as CreateBody).error).toContain('name must be');
-    expect(created).toEqual([]);
-  });
-
-  test('a missing name is 400', async () => {
-    expect((await post(session('ada@lovelace.dev'), {})).status).toBe(400);
-  });
-
-  test('the same name twice is created twice: the name is a label, not a key', async () => {
-    const first = await post(session('ada@lovelace.dev'), { name: 'Lisa' });
-    const second = await post(session('ada@lovelace.dev'), { name: 'Lisa' });
-    expect([first.status, second.status]).toEqual([201, 201]);
-    const a = (await first.json()) as CreateBody;
-    const b = (await second.json()) as CreateBody;
-    expect(a.id).not.toBe(b.id);
-    expect(created).toEqual([
-      { email: 'ada@lovelace.dev', name: 'Lisa' },
-      { email: 'ada@lovelace.dev', name: 'Lisa' },
-    ]);
-  });
-
-  test('a non-JSON body is 400', async () => {
-    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
-      method: 'POST',
-      headers: { authorization: await auth('POST', `${base}/api/agents?project=${PROJECT}`, 'ada@lovelace.dev') },
-      body: 'not json',
-    });
-    expect(res.status).toBe(400);
-  });
-
-  test('creating without a session is 401 and creates nothing', async () => {
-    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'anon' }),
-    });
-    expect(res.status).toBe(401);
-    expect(created).toEqual([]);
-  });
-});
 
 describe('DELETE /api/agents/:id', () => {
   test('an owner deletes their own agent by id', async () => {

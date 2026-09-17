@@ -15,18 +15,23 @@ function agentsDir() {
   return explicit ? explicit : join(homedir(), '.metro', 'agents');
 }
 
-function localAgents() {
-  const dir = agentsDir();
+function agentFiles(dir) {
+  const fixed = join(dir, 'agent.json');
+  if (existsSync(fixed)) return [fixed];
   if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(dir, entry.name, 'agent.json'))
+    .filter((path) => existsSync(path));
+}
+
+function localAgents() {
   const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const path = join(dir, entry.name, 'agent.json');
-    if (!existsSync(path)) continue;
+  for (const path of agentFiles(agentsDir())) {
     try {
       const file = JSON.parse(readFileSync(path, 'utf8'));
-      if (typeof file.id === 'string' && typeof file.name === 'string' && typeof file.key === 'string')
-        out.push({ id: file.id, name: file.name, key: file.key });
+      if (typeof file.id === 'string' && typeof file.key === 'string')
+        out.push({ id: file.id, name: typeof file.name === 'string' ? file.name : 'agent', key: file.key });
     } catch {
       continue;
     }
@@ -45,7 +50,7 @@ function pickAgent() {
   if (agents.length === 1) return agents[0];
   throw new Error(
     agents.length === 0
-      ? 'no agent on this machine yet — start metro serve and create or restore one in the web UI'
+      ? 'no agent on this machine yet — start metro serve, it creates one at boot'
       : `several agents on this machine — set METRO_AGENT to one of: ${agents.map((a) => a.name).join(', ')}`,
   );
 }

@@ -25,7 +25,6 @@ let vendorBase = '';
 let daemon: Server;
 let base = '';
 let tony = { id: '', key: '' };
-let suzy = { id: '', key: '' };
 const seenAuth: string[] = [];
 
 const rpc = (body: string): { method?: string; id?: number } => {
@@ -64,7 +63,6 @@ beforeAll(async () => {
   setKeyMap([]);
   setLocalOwner(OWNER, dir);
   tony = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'Tony', dir);
-  suzy = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'Suzy', dir);
   vendor = createServer((req, res) => {
     let body = '';
     req.on('data', (c: Buffer) => {
@@ -145,11 +143,11 @@ describe('connectors on a local daemon, end to end through the real routes', () 
   });
 
   test('every agent on the daemon holds every connector, and a name is unique on the daemon', async () => {
-    const file = JSON.parse(readFileSync(join(dir, 'Tony', 'agent.json'), 'utf8')) as { connectors: string[] };
+    const file = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { connectors: string[] };
     expect(file.connectors).toEqual([]);
     const agents = (await (await call('GET', `/api/agents?project=${LOCAL_PROJECT_ID}`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
     expect(agents.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
-    expect(agents.agents.find((a) => a.id === suzy.id)?.connector_ids).toEqual([linear]);
+    expect(agents.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
     const twin = await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, { name: 'linear', url: `${vendorBase}/other`, header: null, value: null });
     expect(twin.status).toBe(409);
     const jira = (await (await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, { name: 'jira', url: `${vendorBase}/other`, header: null, value: null })).json()) as { id: string };
@@ -157,8 +155,8 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'jira2' })).status).toBe(200);
     expect((await call('DELETE', `/api/connectors/${jira.id}`)).status).toBe(200);
     const after = (await (await call('GET', `/api/agents?project=${LOCAL_PROJECT_ID}`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
-    expect(after.agents.find((a) => a.id === suzy.id)?.connector_ids).toEqual([linear]);
-    expect((await call('GET', `/api/agents/${suzy.id}/connectors`)).status).toBe(404);
+    expect(after.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
+    expect((await call('GET', `/api/agents/${tony.id}/connectors`)).status).toBe(404);
   });
 
   test('the cli routes answer to the agent key with a relay block pointing at this daemon', async () => {

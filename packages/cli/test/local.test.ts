@@ -4,10 +4,11 @@ import type { AddressInfo } from 'node:net';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { localAgents, localDaemonUp, localMcpServers, pickLocalAgent } from '../src/local.ts';
+import { localAgents, localDaemonUp, localMcpServers, localStations, pickLocalAgent } from '../src/local.ts';
 
 const KEEP = { dir: process.env.METRO_AGENTS_DIR, port: process.env.METRO_WEBHOOK_PORT };
 let dir = '';
+let fixed = '';
 let server: Server;
 let base = '';
 
@@ -21,6 +22,10 @@ beforeAll(async () => {
     writeFileSync(join(dir, name, 'agent.json'), JSON.stringify({ version: 1, id, name, key, owner: null, stations: [] })));
   mkdirSync(join(dir, 'broken'), { recursive: true });
   writeFileSync(join(dir, 'broken', 'agent.json'), '{not json');
+  fixed = mkdtempSync(join(tmpdir(), 'metro-cli-fixed-'));
+  writeFileSync(join(fixed, 'agent.json'), JSON.stringify({ version: 1, id: 'agentOnly001', name: null, key: `mk_${'f'.repeat(43)}`, owner: null, stations: [{ station: 'xmtp', id: 'stn00000001', config: {} }] }));
+  mkdirSync(join(fixed, 'Old'), { recursive: true });
+  writeFileSync(join(fixed, 'Old', 'agent.json'), JSON.stringify({ version: 1, id: 'agentOld0001', name: 'Old', key: `mk_${'o'.repeat(43)}`, owner: null, stations: [] }));
   server = createServer((req, res) => {
     if (req.url === '/api/mode') {
       res.writeHead(200, { 'content-type': 'application/json' }).end('{"mode":"local"}');
@@ -41,6 +46,7 @@ beforeAll(async () => {
 afterAll(() => {
   server.close();
   rmSync(dir, { recursive: true, force: true });
+  rmSync(fixed, { recursive: true, force: true });
   if (KEEP.dir === undefined) delete process.env.METRO_AGENTS_DIR;
   else process.env.METRO_AGENTS_DIR = KEEP.dir;
   if (KEEP.port === undefined) delete process.env.METRO_WEBHOOK_PORT;
@@ -48,8 +54,13 @@ afterAll(() => {
 });
 
 describe('the agents a local daemon owns, as the CLI sees them', () => {
-  test('one per readable agent.json, sorted by name, broken files skipped', () => {
+  test('one per readable agent.json in the old folder layout, sorted by name, broken files skipped', () => {
     expect(localAgents(dir).map((a) => `${a.name}/${a.id}`)).toEqual(['suzy/agentSuzy01', 'tony/agentTony01']);
+  });
+
+  test('the fixed agent.json wins over old folders, needs no name, and carries the stations', () => {
+    expect(localAgents(fixed).map((a) => `${a.name}/${a.id}`)).toEqual(['agent/agentOnly001']);
+    expect(localStations(fixed)).toEqual(['xmtp']);
   });
 
   test('picking: by name or id, the sole one by default, otherwise ask', () => {

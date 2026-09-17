@@ -3,7 +3,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { getDb } from './client.js';
 import { newId, parseId } from '@metro-labs/core/ids';
-import { servers } from './schema.js';
+import { agents } from './schema.js';
 import { normalizeAddress } from '@metro-labs/core/address';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
 
@@ -42,17 +42,17 @@ const entryOf = (row: Row): ServerEntry => ({
 });
 
 const columns = {
-  id: servers.id,
-  host: servers.host,
-  name: servers.name,
-  addedAt: servers.addedAt,
-  instanceId: servers.instanceId,
-  launchedAt: servers.launchedAt,
+  id: agents.id,
+  host: agents.host,
+  name: agents.name,
+  addedAt: agents.addedAt,
+  instanceId: agents.instanceId,
+  launchedAt: agents.launchedAt,
 };
 
 export async function listServersForOwner(subject: string): Promise<ServerEntry[]> {
   const owner = ownerOf(subject);
-  const rows = await getDb().select(columns).from(servers).where(eq(servers.owner, owner)).orderBy(asc(servers.addedAt));
+  const rows = await getDb().select(columns).from(agents).where(eq(agents.owner, owner)).orderBy(asc(agents.addedAt));
   return rows.map(entryOf);
 }
 
@@ -62,15 +62,15 @@ export async function addServerForOwner(subject: string, body: unknown): Promise
   if (host === null) throw new ServerListError('host is not a server address', 400);
   const name = parseServerName(isRecord(body) ? body.name : undefined);
   const db = getDb();
-  const held = await db.select(columns).from(servers).where(and(eq(servers.owner, owner), eq(servers.host, host)));
+  const held = await db.select(columns).from(agents).where(and(eq(agents.owner, owner), eq(agents.host, host)));
   const row = held[0];
   if (row !== undefined) {
     if (name === null) return entryOf(row);
-    await db.update(servers).set({ name }).where(eq(servers.id, row.id));
+    await db.update(agents).set({ name }).where(eq(agents.id, row.id));
     return entryOf({ ...row, name });
   }
   const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null };
-  await db.insert(servers).values(next);
+  await db.insert(agents).values(next);
   return entryOf(next);
 }
 
@@ -95,7 +95,7 @@ export async function addLaunchedServer(subject: string, launch: LaunchRecord): 
     launchRegion: launch.region,
     launchedAt: new Date().toISOString(),
   };
-  await getDb().insert(servers).values(next);
+  await getDb().insert(agents).values(next);
   return entryOf(next);
 }
 
@@ -108,9 +108,9 @@ export async function launchForOwner(subject: string, rawId: string): Promise<Se
   const owner = ownerOf(subject);
   const id = idOf(rawId);
   const rows = await getDb()
-    .select({ instanceId: servers.instanceId, region: servers.launchRegion })
-    .from(servers)
-    .where(and(eq(servers.id, id), eq(servers.owner, owner)));
+    .select({ instanceId: agents.instanceId, region: agents.launchRegion })
+    .from(agents)
+    .where(and(eq(agents.id, id), eq(agents.owner, owner)));
   const row = rows[0];
   if (row === undefined) throw missing();
   if (row.instanceId === null || row.region === null)
@@ -123,9 +123,9 @@ export async function renameServerForOwner(subject: string, rawId: string, body:
   const id = idOf(rawId);
   const name = parseServerName(isRecord(body) ? body.name : undefined);
   const rows = await getDb()
-    .update(servers)
+    .update(agents)
     .set({ name })
-    .where(and(eq(servers.id, id), eq(servers.owner, owner)))
+    .where(and(eq(agents.id, id), eq(agents.owner, owner)))
     .returning(columns);
   const row = rows[0];
   if (row === undefined) throw missing();
@@ -136,9 +136,9 @@ export async function deleteServerForOwner(subject: string, rawId: string): Prom
   const owner = ownerOf(subject);
   const id = idOf(rawId);
   const gone = await getDb()
-    .delete(servers)
-    .where(and(eq(servers.id, id), eq(servers.owner, owner)))
-    .returning({ id: servers.id, host: servers.host });
+    .delete(agents)
+    .where(and(eq(agents.id, id), eq(agents.owner, owner)))
+    .returning({ id: agents.id, host: agents.host });
   const row = gone[0];
   if (row === undefined) throw missing();
   return row;

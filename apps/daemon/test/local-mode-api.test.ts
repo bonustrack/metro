@@ -11,7 +11,7 @@ import { ENCRYPTION_KEY_TYPED_DATA, deriveIdentityKey } from '@metro-labs/http/i
 import { auth, type Who } from './identity-helper.ts';
 import { handleModeRequest } from '@metro-labs/http/mode-api';
 import { handleSessionApis, type SessionApis } from '../src/routes/session-apis.js';
-import { setLocalOwner } from '../src/agents/file-admin.ts';
+import { setLocalOwner, ensureLocalAgent } from '../src/agents/file-admin.ts';
 import { localSessionApis } from '../src/routes/local-mode.js';
 import { agentIdForKey, setKeyMap } from '../src/agents/keys.js';
 
@@ -123,18 +123,19 @@ describe('a local daemon, end to end over http', () => {
   });
 
 
-  test('creating an agent writes its file, registers its key and lists it', async () => {
-    const res = await call('POST', `/api/agents?project=${PROJECT}`, session, { name: 'suzy' });
-    expect(res.status).toBe(201);
-    const made = (await res.json()) as { id: string; key: string; command: string };
+  test('the daemon makes the agent itself; the list shows it with its key and the paste line', async () => {
+    expect(await ensureLocalAgent(dir)).toBe('created');
+    expect(existsSync(join(dir, 'agent.json'))).toBe(true);
+    expect((await call('POST', `/api/agents?project=${PROJECT}`, session, { name: 'suzy' })).status).toBe(405);
+    const list = (await (await call('GET', `/api/agents?project=${PROJECT}`, session)).json()) as {
+      agents: { id: string; key: string; command: string; connector_ids: string[] }[];
+    };
+    const made = list.agents[0];
+    if (made === undefined) throw new Error('expected the agent');
     agentId = made.id;
     key = made.key;
     expect(made.command).toContain(`127.0.0.1:8420/mcp?token=${key}`);
-    expect(existsSync(join(dir, 'suzy', 'agent.json'))).toBe(true);
     expect(agentIdForKey(key)).toBe(agentId);
-    const list = (await (await call('GET', `/api/agents?project=${PROJECT}`, session)).json()) as {
-      agents: { id: string; key: string; connector_ids: string[] }[];
-    };
     expect(list.agents).toMatchObject([{ id: agentId, key, connector_ids: [] }]);
   });
 
@@ -144,7 +145,7 @@ describe('a local daemon, end to end over http', () => {
       token: '123456:abc',
     });
     expect(res.status).toBe(201);
-    const file = JSON.parse(readFileSync(join(dir, 'suzy', 'agent.json'), 'utf8')) as {
+    const file = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as {
       stations: { station: string; id: string; config: { token: string } }[];
     };
     expect(file.stations).toMatchObject([{ station: 'telegram-bot', config: { token: '123456:abc' } }]);
@@ -168,11 +169,12 @@ describe('a local daemon, end to end over http', () => {
     expect(agentIdForKey(reset.key)).toBe(agentId);
     expect(agentIdForKey(key)).toBeUndefined();
     expect((await call('DELETE', `/api/agents/${agentId}`, session)).status).toBe(200);
-    expect(existsSync(join(dir, 'suzy'))).toBe(false);
+    expect(existsSync(join(dir, 'agent.json'))).toBe(false);
   });
 
   test('what a local daemon refuses, and what a stranger sees', async () => {
-    const made = (await (await call('POST', `/api/agents?project=${PROJECT}`, session, { name: 'tony' })).json()) as { id: string };
+    expect(await ensureLocalAgent(dir)).toBe('created');
+    const made = ((await (await call('GET', `/api/agents?project=${PROJECT}`, session)).json()) as { agents: { id: string }[] }).agents[0] ?? { id: '' };
     expect((await call('POST', `/api/agents/${made.id}/code`, session)).status).toBe(404);
     expect((await call('POST', `/api/agents/${made.id}/connectors`, session, { connectorId: 'conn0000001' })).status).toBe(404);
     expect((await call('DELETE', `/api/agents/${made.id}/runtime`, session)).status).toBe(404);

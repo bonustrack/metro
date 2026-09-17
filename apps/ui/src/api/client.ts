@@ -34,12 +34,6 @@ export interface StationsView extends AgentsView {
   capabilities: Record<string, string[]>;
 }
 
-export interface CreatedAgent {
-  name: string;
-  key: string;
-  command: string;
-}
-
 export const LOCAL_PROJECT = 'localdaemon';
 const agentsUrl = (): string => `${daemonBase()}/api/agents`;
 const sessionUrl = (): string => `${daemonBase()}/api/session`;
@@ -186,23 +180,6 @@ export async function fetchStations(): Promise<StationsView> {
     unavailable: toStationList(body.unavailable),
     capabilities: toCapabilities(body.capabilities),
   };
-}
-
-export async function createAgent(name: string): Promise<CreatedAgent> {
-  const body = await call({
-    method: 'POST',
-    path: `?project=${LOCAL_PROJECT}`,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name }),
-  });
-  if (
-    !isRecord(body) ||
-    typeof body.name !== 'string' ||
-    typeof body.key !== 'string' ||
-    typeof body.command !== 'string'
-  )
-    throw new Error('Metro returned an unexpected response.');
-  return { name: body.name, key: body.key, command: body.command };
 }
 
 export async function resetAgentKey(id: string): Promise<void> {

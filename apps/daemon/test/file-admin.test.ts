@@ -38,8 +38,8 @@ const status = async (work: Promise<unknown>): Promise<number> =>
     (err: unknown) => (err instanceof ApiError ? err.status : -1),
   );
 
-const stored = (name: string): { key: string; owner: string; stations: { id: string; config: Record<string, unknown> }[] } =>
-  JSON.parse(readFileSync(join(dir, name, 'agent.json'), 'utf8')) as never;
+const stored = (): { key: string; owner: string; stations: { id: string; config: Record<string, unknown> }[] } =>
+  JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as never;
 
 describe('who owns a local daemon', () => {
   test('the operator sets the owner, lowercased, 0600, and may change it', () => {
@@ -57,40 +57,39 @@ describe('agents kept as files', () => {
   test('creating one writes a 0600 file with a fresh key that authenticates at once', async () => {
     const made = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
     expect(made.key).toMatch(/^mk_[A-Za-z0-9_-]{43}$/);
-    const path = join(dir, 'suzy', 'agent.json');
+    const path = join(dir, 'agent.json');
     expect((statSync(path).mode & 0o777).toString(8)).toBe('600');
-    expect(stored('suzy')).toMatchObject({ key: made.key, owner: OWNER, stations: [] });
+    expect(stored()).toMatchObject({ key: made.key, owner: OWNER, stations: [] });
     expect(agentIdForKey(made.key)).toBe(made.id);
     expect(await localListAgents(OWNER, LOCAL_PROJECT_ID, dir)).toEqual([
       { id: made.id, name: 'suzy', owned: true, key: made.key },
     ]);
   });
 
-  test('another wallet, another project, a bad or duplicate name are refused', async () => {
+  test('another wallet, another project, a bad name, or a second agent are refused', async () => {
     await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
     expect(await status(localCreateAgent(OTHER, LOCAL_PROJECT_ID, 'x1', dir))).toBe(404);
     expect(await status(localCreateAgent(OWNER, 'prj00000001', 'x1', dir))).toBe(404);
     expect(await status(localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'has space', dir))).toBe(400);
-    expect(await status(localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir))).toBe(409);
+    expect(await status(localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'tony', dir))).toBe(409);
     expect(await status(localListAgents(OTHER, LOCAL_PROJECT_ID, dir))).toBe(404);
   });
 
   test('a station lands in the file with a fresh id; the same bot token cannot land twice', async () => {
     const suzy = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
-    const tony = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'tony', dir);
     const ref = await localAttachAccount(OWNER, suzy.id, 'telegram-bot', { token: 'tok' }, dir);
     expect(ref.accountId).toMatch(/^[A-Za-z0-9][A-Za-z0-9_-]{10}$/);
-    expect(stored('suzy').stations).toEqual([
+    expect(stored().stations).toEqual([
       { station: 'telegram-bot', id: ref.accountId, allowlist: ['*'], enabled: true, config: { token: 'tok' } },
     ]);
     expect(await localSetAccountEnabled(OWNER, suzy.id, 'telegram-bot', ref.accountId, false, dir)).toBe(false);
-    expect(stored('suzy').stations[0]).toMatchObject({ id: ref.accountId, enabled: false, config: { token: 'tok' } });
+    expect(stored().stations[0]).toMatchObject({ id: ref.accountId, enabled: false, config: { token: 'tok' } });
     expect(await localSetAccountEnabled(OWNER, suzy.id, 'telegram-bot', ref.accountId, true, dir)).toBe(true);
-    expect(stored('suzy').stations[0]).toMatchObject({ enabled: true });
+    expect(stored().stations[0]).toMatchObject({ enabled: true });
     expect(await status(localSetAccountEnabled(OWNER, suzy.id, 'telegram-bot', 'acct9999999', false, dir))).toBe(404);
     expect(await status(localSetAccountEnabled(OTHER, suzy.id, 'telegram-bot', ref.accountId, false, dir))).toBe(404);
-    expect(await status(localAttachAccount(OWNER, tony.id, 'telegram-bot', { token: 'tok' }, dir))).toBe(409);
-    expect(await status(localAttachAccount(OWNER, tony.id, 'webhook', {}, dir))).toBe(400);
+    expect(await status(localAttachAccount(OWNER, suzy.id, 'telegram-bot', { token: 'tok' }, dir))).toBe(409);
+    expect(await status(localAttachAccount(OWNER, suzy.id, 'webhook', {}, dir))).toBe(400);
     expect(await status(localAttachAccount(OTHER, suzy.id, 'telegram-bot', { token: 'x' }, dir))).toBe(404);
   });
 
@@ -100,14 +99,14 @@ describe('agents kept as files', () => {
     expect(await status(localDeleteAgent(OWNER, suzy.id, dir))).toBe(409);
     expect(await status(localDetachAccount(OWNER, suzy.id, 'xmtp', 'nope0000001', dir))).toBe(404);
     await localDetachAccount(OWNER, suzy.id, 'xmtp', ref.accountId, dir);
-    expect(stored('suzy').stations).toEqual([]);
+    expect(stored().stations).toEqual([]);
     const reset = await localResetAgentKey(OWNER, suzy.id, dir);
     expect(reset.key).not.toBe(suzy.key);
-    expect(stored('suzy').key).toBe(reset.key);
+    expect(stored().key).toBe(reset.key);
     expect(agentIdForKey(reset.key)).toBe(suzy.id);
     expect(agentIdForKey(suzy.key)).toBeUndefined();
     expect(await localDeleteAgent(OWNER, suzy.id, dir)).toEqual({ id: suzy.id, name: 'suzy' });
-    expect(existsSync(join(dir, 'suzy'))).toBe(false);
+    expect(existsSync(join(dir, 'agent.json'))).toBe(false);
     expect(agentIdForKey(reset.key)).toBeUndefined();
     expect(await status(localDeleteAgent(OWNER, suzy.id, dir))).toBe(404);
   });
@@ -129,7 +128,7 @@ describe('importing an agent from metro.box', () => {
   test('keeps id, key and station ids, registers the key, and the owner is this machine', async () => {
     const made = await localImportAgent(OWNER, loaded(), dir);
     expect(made).toEqual({ id: 'agentTony01', name: 'Tony', key: TONY_KEY, stations: 2 });
-    expect(stored('Tony')).toMatchObject({
+    expect(stored()).toMatchObject({
       key: TONY_KEY,
       owner: OWNER,
       stations: [
@@ -157,7 +156,7 @@ describe('importing an agent from metro.box', () => {
       dir,
     );
     expect(again.stations).toBe(3);
-    const file = stored('Tony');
+    const file = stored();
     expect(file.stations.map((s) => s.config)).toEqual([{ token: 't2' }, { privateKey: '0x1' }, { token: 'd' }]);
     expect(agentIdForKey(TONY_KEY)).toBe('agentTony01');
   });
@@ -174,26 +173,36 @@ describe('importing an agent from metro.box', () => {
     expect(await status(localImportAgent(OWNER, loaded({ key: null }), dir))).toBe(400);
     await localImportAgent(OWNER, loaded(), dir);
     expect(await status(localImportAgent(OWNER, loaded({ name: 'tony2' }), dir))).toBe(0);
-    expect(stored('Tony').stations).toHaveLength(2);
+    expect(stored().stations).toHaveLength(2);
     expect(await status(localImportAgent(OWNER, loaded({ name: 'tony3', id: 'agentTony02' }), dir))).toBe(409);
-    const suzy = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
     expect(await status(localImportAgent(OWNER, loaded({ name: 'suzy', id: 'agentTony03', key: `mk_${'c'.repeat(43)}` }), dir))).toBe(409);
-    expect(agentIdForKey(suzy.key)).toBe(suzy.id);
+    expect(agentIdForKey(TONY_KEY)).toBe('agentTony01');
   });
 });
 
-describe('the agent seeded by a launch', () => {
-  test('a .agent file names the first agent, once, and is consumed; a bad name is left for the log', async () => {
-    const { seedAgent } = await import('../src/agents/seed.ts');
-    const { writeFileSync } = await import('node:fs');
-    expect(await seedAgent(dir)).toBe('none');
-    writeFileSync(join(dir, '.agent'), 'Andy\n');
-    expect(await seedAgent(dir)).toBe('created');
-    expect(existsSync(join(dir, '.agent'))).toBe(false);
-    expect(readFileSync(join(dir, 'Andy', 'agent.json'), 'utf8')).toContain('"name": "Andy"');
-    writeFileSync(join(dir, '.agent'), 'Bob\n');
-    expect(await seedAgent(dir)).toBe('present');
-    expect(existsSync(join(dir, 'Bob'))).toBe(false);
-    expect(existsSync(join(dir, '.agent'))).toBe(false);
+describe('one agent per box, at a fixed place', () => {
+  test('the daemon creates the agent itself once the owner is known, and never a second one', async () => {
+    const { ensureLocalAgent } = await import('../src/agents/file-admin.ts');
+    expect(await ensureLocalAgent(dir)).toBe('created');
+    expect(existsSync(join(dir, 'agent.json'))).toBe(true);
+    const file = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { id: string; name: string | null; key: string };
+    expect(file.name).toBeNull();
+    expect(file.key.startsWith('mk_')).toBe(true);
+    expect(await ensureLocalAgent(dir)).toBe('present');
+    expect(await status(localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'second', dir))).toBe(409);
+  });
+
+  test('an agent file from the folder-per-agent days is moved to the fixed place at boot, id and key kept', async () => {
+    const { migrateAgentLayout } = await import('../src/agents/files.ts');
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    expect(migrateAgentLayout(dir)).toBe('none');
+    mkdirSync(join(dir, 'Tony'));
+    const legacy = { version: 1, id: 'agentTony01', name: 'Tony', key: 'mk_' + 'a'.repeat(40), owner: OWNER, stations: [], connectors: [] };
+    writeFileSync(join(dir, 'Tony', 'agent.json'), JSON.stringify(legacy));
+    expect(migrateAgentLayout(dir)).toBe('moved');
+    expect(existsSync(join(dir, 'Tony'))).toBe(false);
+    const moved = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { id: string; key: string; name: string };
+    expect(moved).toMatchObject({ id: 'agentTony01', key: legacy.key, name: 'Tony' });
+    expect(migrateAgentLayout(dir)).toBe('kept');
   });
 });

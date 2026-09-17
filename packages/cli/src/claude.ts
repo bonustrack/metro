@@ -97,7 +97,7 @@ export function agentKey(agents: AgentLike[], wanted: string | undefined): Verdi
     return {
       skip:
         wanted === undefined || wanted === ''
-          ? 'several agents live here; set METRO_AGENT=<name> to route through the daemon, Claude Code talks to Anthropic directly for now'
+          ? 'this box has no agent yet (or several old ones), so Claude Code talks to Anthropic directly for now'
           : `no agent named '${wanted}' lives here, so Claude Code talks to Anthropic directly`,
     };
   }
@@ -116,7 +116,7 @@ async function verdict(): Promise<Verdict> {
   if (pinned !== null) return { skip: `${pinned} is set, so Claude Code keeps talking to it` };
   const conflicts = settingsConflicts(settingsFiles());
   if (conflicts.length > 0) return { skip: `a settings file pins the provider (${conflicts.join(', ')}), so Claude Code keeps it` };
-  const picked = agentKey(localAgentList(), process.env.METRO_AGENT);
+  const picked = agentKey(localAgentList(), undefined);
   if ('skip' in picked) return picked;
   if (await daemonServing()) return picked;
   return { skip: 'the daemon is not serving here (stopped, or not running), so Claude Code talks to Anthropic directly' };
@@ -145,7 +145,7 @@ export function runClaude(args: string[], env: NodeJS.ProcessEnv): Promise<numbe
 
 async function servedKey(decision: Verdict): Promise<string | null> {
   if ('key' in decision) return decision.key;
-  const picked = agentKey(localAgentList(), process.env.METRO_AGENT);
+  const picked = agentKey(localAgentList(), undefined);
   if ('skip' in picked) return null;
   return (await daemonServing()) ? picked.key : null;
 }

@@ -102,7 +102,7 @@ describe('when metro claude leaves Claude Code alone', () => {
     expect(agentKey([], undefined)).toEqual({ skip: expect.stringContaining('no agent lives') as unknown as string });
     expect(agentKey([tony], undefined)).toEqual({ key: 'mk_t' });
     expect(agentKey([tony, lisa], 'lisa')).toEqual({ key: 'mk_l' });
-    expect(JSON.stringify(agentKey([tony, lisa], undefined))).toContain('METRO_AGENT');
+    expect(JSON.stringify(agentKey([tony, lisa], undefined))).toContain('several old ones');
     expect(JSON.stringify(agentKey([tony, lisa], 'suzy'))).toContain("'suzy'");
   });
 });

@@ -17,17 +17,23 @@ export function agentsDir(): string {
   return explicit !== undefined && explicit !== '' ? explicit : join(homedir(), '.metro', 'agents');
 }
 
-export function localAgents(dir = agentsDir()): LocalAgent[] {
+function agentFiles(dir: string): string[] {
+  const fixed = join(dir, 'agent.json');
+  if (existsSync(fixed)) return [fixed];
   if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(dir, entry.name, 'agent.json'))
+    .filter((path) => existsSync(path));
+}
+
+export function localAgents(dir = agentsDir()): LocalAgent[] {
   const out: LocalAgent[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const path = join(dir, entry.name, 'agent.json');
-    if (!existsSync(path)) continue;
+  for (const path of agentFiles(dir)) {
     try {
       const file = JSON.parse(readFileSync(path, 'utf8')) as { id?: unknown; name?: unknown; key?: unknown };
-      if (typeof file.id === 'string' && typeof file.name === 'string' && typeof file.key === 'string')
-        out.push({ id: file.id, name: file.name, key: file.key });
+      if (typeof file.id === 'string' && typeof file.key === 'string')
+        out.push({ id: file.id, name: typeof file.name === 'string' ? file.name : 'agent', key: file.key });
     } catch {
       continue;
     }
@@ -36,12 +42,8 @@ export function localAgents(dir = agentsDir()): LocalAgent[] {
 }
 
 export function localStations(dir = agentsDir()): string[] {
-  if (!existsSync(dir)) return [];
   const out = new Set<string>();
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const path = join(dir, entry.name, 'agent.json');
-    if (!existsSync(path)) continue;
+  for (const path of agentFiles(dir)) {
     try {
       const file = JSON.parse(readFileSync(path, 'utf8')) as { stations?: unknown };
       if (!Array.isArray(file.stations)) continue;

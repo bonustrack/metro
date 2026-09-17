@@ -7,7 +7,6 @@ import {
   apiSession,
   projectParam,
   cors,
-  readJsonBody,
   sendJson,
   type ApiSession,
 } from '@metro-labs/http/api-http';
@@ -19,7 +18,6 @@ import {
 } from './account-routes.js';
 import {
   type AgentSummary,
-  type CreatedAgent,
   type DeletedAgent,
   type ResetAgentKey,
 } from './admin.js';
@@ -29,11 +27,6 @@ const SERVER_NAME = 'metro';
 
 export interface AgentApiDeps extends AccountApiDeps {
   listAgents: (subject: string, project: string) => Promise<AgentSummary[]>;
-  createAgent: (
-    subject: string,
-    project: string,
-    name: string,
-  ) => Promise<CreatedAgent>;
   deleteAgent: (
     subject: string,
     id: string,
@@ -166,31 +159,6 @@ async function handleList(
   sendJson(req, res, 200, { ...base, accounts, unavailable });
 }
 
-async function handleCreate(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: AgentApiDeps,
-  session: ApiSession,
-): Promise<void> {
-  const body = await readJsonBody(req);
-  const name = (body as { name?: unknown }).name;
-  const project = projectParam(req);
-  if (project === null) {
-    sendJson(req, res, 400, { error: 'a project is required' });
-    return;
-  }
-  const created = await deps.createAgent(session.subject, project, name as string);
-  log.info(
-    { agent: created.name, id: created.id, owner: session.subject },
-    'agent-api: created agent',
-  );
-  sendJson(req, res, 201, {
-    id: created.id,
-    name: created.name,
-    ...credentials(created.key),
-  });
-}
-
 async function handleResetKey(
   req: IncomingMessage,
   res: ServerResponse,
@@ -239,15 +207,14 @@ async function routeAgent(
     if (tgt.kind === 'key') await handleResetKey(req, res, deps, session, tgt.id);
     else if (tgt.kind === 'agent')
       await handleDelete(req, res, deps, session, tgt.id);
-    else if (req.method === 'GET') await handleList(req, res, deps, session);
-    else await handleCreate(req, res, deps, session);
+    else await handleList(req, res, deps, session);
   } catch (err) {
     apiFailure(req, res, err);
   }
 }
 
 const ALLOWED: Record<AgentTarget['kind'], string[]> = {
-  collection: ['GET', 'POST'],
+  collection: ['GET'],
   agent: ['DELETE'],
   key: ['POST'],
 };

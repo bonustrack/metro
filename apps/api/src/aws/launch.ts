@@ -103,7 +103,6 @@ export async function launchBox(input: LaunchInput, deps: LaunchDeps = LIVE): Pr
     hostname: slug,
     node,
     owner: input.owner.toLowerCase(),
-    agent: input.name,
     tailscaleAuthKey: input.authKey,
     metroTag: METRO_TAG,
   });

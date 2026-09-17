@@ -6,20 +6,20 @@ export class AgentAdminError extends ApiError {}
 
 export interface AgentSummary {
   id: string;
-  name: string;
+  name: string | null;
   owned: boolean;
   key: string | null;
 }
 
 export interface CreatedAgent {
   id: string;
-  name: string;
+  name: string | null;
   key: string;
 }
 
 export interface OwnedAgent {
   id: string;
-  name: string;
+  name: string | null;
 }
 
 export type DeletedAgent = OwnedAgent;

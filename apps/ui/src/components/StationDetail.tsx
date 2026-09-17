@@ -88,7 +88,7 @@ function Heading({
                 onOpenAgent(agent.id);
               }}
             >
-              <Text size="sm">{agent.name}</Text>
+              <Text size="sm">{agent.name === '' ? 'Agent' : agent.name}</Text>
             </a>
           </>
         )}
@@ -147,7 +147,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
             <Col />
           ) : (
             <BackLink
-              label={agent.name}
+              label={agent.name === '' ? 'Agent' : agent.name}
               href={routeHash({ kind: 'home', project })}
               onPress={() => {
                 onOpenAgent(agent.id);

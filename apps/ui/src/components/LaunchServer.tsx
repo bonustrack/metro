@@ -16,7 +16,6 @@ import { queryError, refreshServers, useLaunchOverviewQuery } from '../api/queri
 import { launchServer, type Launched, type LaunchOverview } from '../api/launch.js';
 import { regionRows } from '../aws/regions.js';
 import { useDocumentTitle } from '../title.js';
-import { AGENT_NAME_RE, AGENT_NAME_RULE } from '../api/agent-name.js';
 
 const CARD_WIDTH = 480;
 const NO_AUTOFILL = { autoComplete: 'off' } as const;
@@ -60,10 +59,7 @@ function useLaunchForm(): {
   const client = useQueryClient();
   const launch = (): void => {
     if (busy || name.trim() === '' || region.trim() === '') return;
-    if (!AGENT_NAME_RE.test(name.trim())) {
-      setError(`A name is ${AGENT_NAME_RULE}.`);
-      return;
-    }
+
     const wallet = activeIdentity()?.address ?? null;
     if (wallet === null) {
       setError('Sign in again: Metro needs to know which wallet will own the server.');

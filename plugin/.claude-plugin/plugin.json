@@ -1,6 +1,6 @@
 {
   "name": "metro",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Metro for Claude Code, installed by the metro daemon on this machine: every connector the agent holds as its own MCP server relayed through the daemon, the orchestrator-only guard on the main thread, the standing rules loaded at each session start, and a refresh skill for when the daemon could not keep the server list current. No vendor credential ever sits in a config file.",
   "author": {
     "name": "Bonustrack",
