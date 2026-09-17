@@ -28,9 +28,6 @@ const SPINNER_SIZE = 20;
 const NO_BROWSER_WALLET =
   'No browser wallet found. WalletConnect and Coinbase Wallet reach the wallet app on your phone; MetaMask or Rabby in this browser would show up here too.';
 
-const ONE_SIGNATURE =
-  'One signature signs you in everywhere: it unlocks your daemons and derives the key that seals your agents on metro.box. It stays in this browser, so you are not asked again.';
-
 export async function signInTo(choice: WalletChoice, dark: boolean): Promise<Identity> {
   const connected = await connectWallet(choice, dark);
   try {
@@ -148,9 +145,6 @@ export function Login({ onSignedIn }: LoginProps): ReactNode {
             </Text>
           </Row>
         )}
-        <Text size="sm" role="secondary">
-          {ONE_SIGNATURE}
-        </Text>
         {wallets.some((w) => w.kind === 'injected') ? null : (
           <Text size="sm" role="secondary">
             {NO_BROWSER_WALLET}

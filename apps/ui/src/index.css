@@ -1,22 +1,6 @@
 @font-face {
-  font-family: 'GT-America-Regular';
-  src: url('/fonts/GT-America-Standard-Regular.woff2') format('woff2');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'GT-America-Medium';
-  src: url('/fonts/GT-America-Standard-Medium.woff2') format('woff2');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
   font-family: 'Calibre-Medium';
-  src: url('/fonts/GT-America-Standard-Regular.woff2') format('woff2');
+  src: url('/fonts/Calibre-Medium.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -24,7 +8,7 @@
 
 @font-face {
   font-family: 'Calibre-Semibold';
-  src: url('/fonts/GT-America-Standard-Medium.woff2') format('woff2');
+  src: url('/fonts/Calibre-Semibold.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -129,7 +113,7 @@ body {
 .markdown {
   color: var(--metro-text);
   font-family: var(--metro-font-sans);
-  font-size: 21px;
+  font-size: calc(21px * var(--metro-type-scale, 1));
   line-height: 1.6;
   overflow-wrap: break-word;
 }
@@ -147,12 +131,12 @@ body {
   margin: 1.6em 0 0.6em;
 }
 
-.markdown h1 { font-size: 34px; }
-.markdown h2 { font-size: 29px; }
-.markdown h3 { font-size: 26px; }
+.markdown h1 { font-size: calc(34px * var(--metro-type-scale, 1)); }
+.markdown h2 { font-size: calc(29px * var(--metro-type-scale, 1)); }
+.markdown h3 { font-size: calc(26px * var(--metro-type-scale, 1)); }
 .markdown h4,
 .markdown h5,
-.markdown h6 { font-size: 23px; }
+.markdown h6 { font-size: calc(23px * var(--metro-type-scale, 1)); }
 .markdown > :first-child { margin-top: 0; }
 
 .markdown p,
@@ -187,7 +171,7 @@ body {
 .markdown pre code {
   background: none;
   padding: 0;
-  font-size: 16px;
+  font-size: calc(16px * var(--metro-type-scale, 1));
   line-height: 1.55;
 }
 
@@ -411,7 +395,7 @@ textarea:focus-visible {
   background: transparent;
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: 15px;
+  font-size: calc(15px * var(--metro-type-scale, 1));
   text-align: left;
   cursor: pointer;
 }
@@ -455,7 +439,7 @@ textarea:focus-visible {
 .transcript .tool-call summary,
 .transcript .tool-call pre {
   font-family: var(--metro-font-sans);
-  font-size: 14px;
+  font-size: calc(14px * var(--metro-type-scale, 1));
   line-height: 1.5;
   color: var(--metro-text);
 }
@@ -467,14 +451,14 @@ textarea:focus-visible {
 }
 .markdown-compact pre,
 .markdown-compact code {
-  font-size: 13px;
+  font-size: calc(13px * var(--metro-type-scale, 1));
 }
-.markdown-compact h1 { font-size: 22px; }
-.markdown-compact h2 { font-size: 18px; }
-.markdown-compact h3 { font-size: 16px; }
+.markdown-compact h1 { font-size: calc(22px * var(--metro-type-scale, 1)); }
+.markdown-compact h2 { font-size: calc(18px * var(--metro-type-scale, 1)); }
+.markdown-compact h3 { font-size: calc(16px * var(--metro-type-scale, 1)); }
 .markdown-compact h4,
 .markdown-compact h5,
-.markdown-compact h6 { font-size: 15px; }
+.markdown-compact h6 { font-size: calc(15px * var(--metro-type-scale, 1)); }
 .tool-call {
   border: 1px solid var(--metro-border);
   border-radius: 8px;
@@ -558,7 +542,7 @@ textarea:focus-visible {
   background: transparent;
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: 14px;
+  font-size: calc(14px * var(--metro-type-scale, 1));
   text-align: left;
   cursor: pointer;
 }
@@ -569,7 +553,7 @@ textarea:focus-visible {
 
 .model-match-name {
   color: var(--metro-sub);
-  font-size: 13px;
+  font-size: calc(13px * var(--metro-type-scale, 1));
 }
 
 .login-output {
@@ -581,14 +565,14 @@ textarea:focus-visible {
   background: var(--metro-surface);
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: 12px;
+  font-size: calc(12px * var(--metro-type-scale, 1));
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .boot-log {
   font-family: var(--metro-font-sans);
-  font-size: 13px;
+  font-size: calc(13px * var(--metro-type-scale, 1));
   line-height: 1.45;
   color: var(--metro-text);
   background: var(--metro-surface);
