@@ -145,13 +145,13 @@ export function ConnectorIcons({ connectors, project, onSelect }: { connectors: 
       </Text>
     );
   return (
-    <Row gap={8} wrap>
+    <Row gap={12} wrap>
       {connectors.map((c) => {
         const target: Selection = { kind: 'connector', project, id: c.id };
         return (
           <a
             key={c.id}
-            className="kebab kebab-lg"
+            className="pill-link"
             href={routeHash(target)}
             title={c.name}
             aria-label={c.name}
