@@ -8,9 +8,11 @@ import { ResetAgentKey } from './ResetAgentKey.js';
 import { ExportAgent } from './ExportAgent.js';
 import { ImportAgent } from './ImportAgent.js';
 import { Loading } from './Loading.js';
+import { MetroVersion } from './MetroVersion.js';
+import { AvatarButton, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
 import { resetAgentKey } from '../api/client.js';
-import { stationCount } from '../api/accounts.js';
-import { queryError, refreshAgents, useModeQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
+import { accountsForAgent, stationCount } from '../api/accounts.js';
+import { queryError, refreshAgents, useConnectorsQuery, useModeQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { currentServer } from '../auth/daemon.js';
 import { serverLabel } from '../api/servers.js';
 import { olderThan } from '../api/version.js';
@@ -43,7 +45,7 @@ function Summary({
         onSelect(target);
       }}
     >
-      <Row gap={10} align="center" padding={{ y: 10 }}>
+      <Row gap={10} align="center" padding={{ y: 4 }}>
         <Text size="md" weight="semibold">
           {label}
         </Text>
@@ -131,6 +133,10 @@ function AgentActions({ agent, name }: { agent: AgentSummary; name: string }): R
 export function Home({ project, onSelect }: HomeProps): ReactNode {
   const client = useQueryClient();
   const { data, error } = useStationsQuery();
+  const connectors = useConnectorsQuery();
+  const servers = useServersQuery();
+  const here = currentServer();
+  const server = servers.data?.find((s) => s.id === here?.id);
   const agent = data?.agents[0];
   const name = useBoxName(agent);
   useDocumentTitle(name);
@@ -138,10 +144,16 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
   if (data === undefined) return <Loading />;
   if (agent === undefined) return <NoAgent />;
   return (
-    <Col gap={20}>
-      <Col gap={8}>
-        <Row align="center" justify="between" gap={12}>
-          <PageTitle>{name}</PageTitle>
+    <Col gap={24}>
+      <Col gap={12}>
+        <Row align="center" gap={16}>
+          <AvatarButton server={server} seed={agent.id} />
+          <Col gap={4} flex={1} minWidth={0}>
+            <PageTitle>{name}</PageTitle>
+            <Text size="sm" role="secondary" numberOfLines={1}>
+              id {agent.id}
+            </Text>
+          </Col>
           <ResetAgentKey
             agent={agent}
             onReset={async (id) => {
@@ -150,13 +162,16 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
             }}
           />
         </Row>
-        <Text size="sm" role="secondary">
-          id {agent.id} · runs on this machine, so its messages never pass through Metro&apos;s servers
-        </Text>
+        <StatusPills host={here?.host ?? null} project={project} onSelect={onSelect} />
+        <MetroVersion />
       </Col>
-      <Col>
+      <Col gap={10}>
         <Summary label="Channels" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
+        <ChannelCards groups={accountsForAgent(data.groups, agent.id)} project={project} onSelect={onSelect} />
+      </Col>
+      <Col gap={10}>
         <Summary label="Connectors" count={agent.connectorIds.length} target={{ kind: 'connectors', project }} onSelect={onSelect} />
+        <ConnectorIcons connectors={connectors.data?.connectors ?? []} project={project} onSelect={onSelect} />
       </Col>
       <AgentActions agent={agent} name={name} />
     </Col>

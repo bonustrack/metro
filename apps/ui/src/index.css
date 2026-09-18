@@ -398,6 +398,27 @@ body {
   text-decoration: none;
 }
 
+.pill-link {
+  display: inline-flex;
+  color: inherit;
+  text-decoration: none;
+}
+
+.avatar-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.avatar-button:disabled {
+  cursor: default;
+}
+
 .row-title {
   display: block;
   min-width: 0;
