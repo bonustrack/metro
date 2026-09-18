@@ -18,8 +18,6 @@ import { CountBadge } from './CountBadge.js';
 import { olderThan } from '../api/version.js';
 import { useDocumentTitle } from '../title.js';
 
-const WHAT =
-  'A skill is a folder of instructions Claude Code loads when the work matches it. These live on this machine: the first group is your whole account, the others belong to a project Claude Code has worked in.';
 const SKILLS_SINCE = '0.1.0-beta.87';
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const NAME_HELP = 'A skill name is lowercase letters, digits and dashes, like write-as-less.';
@@ -183,7 +181,6 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
           <PageTitle>Skills</PageTitle>
           {data === undefined ? null : <CountBadge count={data.skills.length} beside="title" />}
         </Row>
-        <Text size="sm" role="secondary">{WHAT}</Text>
       </Col>
       <Listing old={old} error={error} data={data} project={project} onOpen={onOpen} onDelete={setDropping} onNew={setNaming} />
       <NameModal
