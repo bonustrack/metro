@@ -6,7 +6,7 @@ import { isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-toke
 import { requestOwner } from './servers.js';
 import { AGENT_NAME_RE, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
-import { mayLaunch, type ConfigResult, type LaunchConfig } from './launch-config.js';
+import { type ConfigResult, type LaunchConfig } from './launch-config.js';
 import { AwsError, type AwsCredentials, type InstanceState } from './aws/ec2.js';
 import { LaunchError, type BootView, type Launched, type LaunchInput } from './aws/launch.js';
 import type { LaunchRecord, ServerLaunch } from './db/servers.js';
@@ -73,19 +73,15 @@ async function enabledRegions(deps: LaunchApiDeps, config: LaunchConfig): Promis
   }
 }
 
-function allowed(deps: LaunchApiDeps, subject: string): LaunchConfig {
+function allowed(deps: LaunchApiDeps): LaunchConfig {
   const result = deps.config();
   if (!result.ok) throw new ApiError('metro does not issue servers on this deployment', 404);
-  if (!mayLaunch(result.config, subject)) {
-    log.info({ subject }, 'launch: refused, this identity is not in METRO_LAUNCH_OWNERS');
-    throw new ApiError('metro does not issue servers to this identity', 403);
-  }
   return result.config;
 }
 
-async function overview(deps: LaunchApiDeps, subject: string): Promise<unknown> {
+async function overview(deps: LaunchApiDeps): Promise<unknown> {
   const result = deps.config();
-  if (!result.ok || !mayLaunch(result.config, subject)) return { enabled: false };
+  if (!result.ok) return { enabled: false };
   return { enabled: true, regions: await enabledRegions(deps, result.config) };
 }
 
@@ -125,7 +121,7 @@ function refusal(err: unknown): never {
 }
 
 async function issue(deps: LaunchApiDeps, subject: string, body: unknown): Promise<unknown> {
-  const config = allowed(deps, subject);
+  const config = allowed(deps);
   const name = nameOf(body);
   const region = regionOf(body);
   const owner = ownerOf(body);
@@ -164,8 +160,8 @@ async function answer(
   tgt: Exclude<Target, { kind: 'unknown' } | null>,
 ): Promise<unknown> {
   if (tgt.kind === 'index')
-    return req.method === 'GET' ? overview(deps, subject) : issue(deps, subject, await readJsonBody(req));
-  const config = allowed(deps, subject);
+    return req.method === 'GET' ? overview(deps) : issue(deps, subject, await readJsonBody(req));
+  const config = allowed(deps);
   const launch = await deps.lookup(subject, tgt.id);
   if (tgt.kind === 'boot') return deps.boot(config.credentials, launch.region, launch.instanceId);
   return deps.state(config.credentials, launch.region, launch.instanceId);

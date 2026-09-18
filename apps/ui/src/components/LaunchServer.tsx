@@ -22,8 +22,8 @@ const NO_AUTOFILL = { autoComplete: 'off' } as const;
 const HINT =
   'Metro issues the machine from its own AWS account and joins it to its tailnet, so no key of yours is involved. It belongs to the wallet you are signed in with, and only that wallet can sign in to it. On first boot it installs Node, bun, Claude Code, Tailscale and Metro, joins under a random metro-xxxxxx name that can never clash with another box, creates the agent, and shows up in your server list under the name you give it, live once its Funnel address resolves, usually within five minutes. The name is the server, the agent and the AWS machine (metro:name) at once.';
 const OFF =
-  'This Metro deployment issues no agents, or it does not issue them to you. Add your own agent from the list instead.';
-const OFF_IDENTITY = 'If it is yours to configure: METRO_LAUNCH_OWNERS on the Metro deployment has to name your organization.';
+  'This Metro deployment issues no agents. Add your own agent from the list instead.';
+const OFF_IDENTITY = 'If it is yours to configure: the AWS and Tailscale secrets on the Metro deployment are missing.';
 
 function Off(): ReactNode {
   const organization = activeAccount()?.organization ?? null;

@@ -18,19 +18,10 @@ feature stays off, and the boot log names which ones: `fly logs` prints
 | `METRO_AWS_SECRET_ACCESS_KEY` | That user's secret. |
 | `METRO_LAUNCH_TAILNET` | The tailnet suffix the boxes join, as in `tail17c4f8.ts.net`. |
 | `METRO_TAILSCALE_AUTH_KEY` | A **reusable** auth key, `tskey-auth-…`. |
-| `METRO_LAUNCH_OWNERS` | Comma-separated metro identities allowed to launch, see below. |
 
-### Which address goes in METRO_LAUNCH_OWNERS
+### Who may launch
 
-Not your wallet address. metro.box signs every request to this app with a
-separate identity derived from the one signature your wallet makes at sign-in,
-and the wallet signature itself never leaves your browser, which is what keeps
-the vault sealed from the server. So the address this app sees, the one that
-already owns your vault rows and your server list, is that derived identity.
-
-Open the launch page while it is off and it shows you the identity of the
-browser you are signed in with, ready to copy. Failing that, it is the owner of
-rows you already have:
+Anyone signed in to metro.box with an organization. There is no allowlist since 2026-09-19; the one bound on spend is that one identity cannot run two launches at once.
 
 ```sql
 select distinct owner from servers;
@@ -48,8 +39,7 @@ fly secrets set -a metro \
   METRO_AWS_ACCESS_KEY_ID=AKIA... \
   METRO_AWS_SECRET_ACCESS_KEY=... \
   METRO_LAUNCH_TAILNET=tail17c4f8.ts.net \
-  METRO_TAILSCALE_AUTH_KEY=tskey-auth-... \
-  METRO_LAUNCH_OWNERS=0xef8305e140ac520225daf050e2f71d5fbcc543e7
+  METRO_TAILSCALE_AUTH_KEY=tskey-auth-...
 ```
 
 ## The IAM user, step by step

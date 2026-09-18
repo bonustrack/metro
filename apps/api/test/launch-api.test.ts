@@ -17,7 +17,6 @@ const CONFIG: ConfigResult = {
     credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
     tailnet: 'tail17c4f8.ts.net',
     authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
-    owners: [OWNER],
   },
 };
 
@@ -51,8 +50,8 @@ const deps: LaunchApiDeps = {
       launchedAt: '2026-09-15T00:00:00.000Z',
       avatar: null,
     }),
-  lookup: (_subject, id) =>
-    id === 'srv00000001'
+  lookup: (subject, id) =>
+    subject === TEST_OWNER && id === 'srv00000001'
       ? Promise.resolve({ instanceId: 'i-0abc', region: 'eu-west-1' })
       : Promise.reject(new ApiError('no such server', 404)),
   now: () => now,
@@ -101,13 +100,9 @@ describe('who metro will issue a server to', () => {
     expect(launched).toEqual([]);
   });
 
-  test('an identity outside the allowlist is told nothing beyond a flat no', async () => {
+  test('any signed-in organization may ask; there is no allowlist any more', async () => {
     const overview = await call('GET', '/api/launch', TEST_STRANGER);
-    expect(await overview.json()).toEqual({ enabled: false });
-    const attempt = await call('POST', '/api/launch', TEST_STRANGER, { name: 'andy', owner: WALLET });
-    expect(attempt.status).toBe(403);
-    expect(((await attempt.json()) as { error: string }).error).toContain('identity');
-    expect(launched).toEqual([]);
+    expect(((await overview.json()) as { enabled: boolean }).enabled).toBe(true);
   });
 
   test('a deployment with no keys issues nothing, even to the owner', async () => {
@@ -193,9 +188,9 @@ describe('watching one come up', () => {
     expect(await (await call('GET', '/api/launch/srv00000001/boot')).json()).toMatchObject({ finished: true });
   });
 
-  test('a row that is not this wallet, or not a launch, is a plain refusal', async () => {
+  test('a row that is not this organization, or not a launch, is a plain 404', async () => {
     expect((await call('GET', '/api/launch/srv00000002')).status).toBe(404);
-    expect((await call('GET', '/api/launch/srv00000001', TEST_STRANGER)).status).toBe(403);
+    expect((await call('GET', '/api/launch/srv00000001', TEST_STRANGER)).status).toBe(404);
   });
 
   test('an unknown path under the surface is a 404, and a write to a read route a 405', async () => {
