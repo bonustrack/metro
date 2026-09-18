@@ -16,6 +16,7 @@ import { queryError, refreshServers, useMachineQuery, useServersQuery } from '..
 import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
 import { systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
 import { whenLabel } from '../api/when.js';
+import { ownerLabel } from '../auth/owner-label.js';
 import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not read this server.';
@@ -63,7 +64,7 @@ function MachineFacts({ machine }: { machine: Machine }): ReactNode {
           <InfoRow label="Public" value={machine.publicUrl} href={machine.publicUrl} />
         )}
         <InfoRow label="On the machine" value={`http://127.0.0.1:${String(machine.port)}`} />
-        <InfoRow label="Owner" value={machine.owner ?? 'not set'} />
+        <InfoRow label="Owner" value={ownerLabel(machine.owner)} />
       </Section>
       <Section title="Machine">
         <InfoRow label="Hostname" value={machine.hostname} />

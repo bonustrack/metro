@@ -18,7 +18,7 @@ describe('the signed-in account on the page', () => {
   test('the exchange answer becomes an account, with the organization and role from the token', () => {
     const token = jwt({ sub: 'user_1', org_id: 'org_1', role: 'admin', exp: 9_999_999_999 });
     const account = accountFrom({ accessToken: token, refreshToken: 'rt', organization: 'org_1', user: { id: 'user_1', email: 'admin@stage.box', name: 'Stage Labs', picture: null } });
-    expect(account).toEqual({ accessToken: token, refreshToken: 'rt', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: 'admin@stage.box', name: 'Stage Labs', picture: null } });
+    expect(account).toEqual({ accessToken: token, refreshToken: 'rt', organization: 'org_1', organizationName: null, role: 'admin', user: { id: 'user_1', email: 'admin@stage.box', name: 'Stage Labs', picture: null } });
     const bare = accountFrom({ accessToken: jwt({ sub: 'user_1' }), refreshToken: 'rt', organization: null, user: { id: 'user_1' } });
     expect(bare.organization).toBeNull();
     expect(bare.role).toBeNull();

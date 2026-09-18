@@ -128,9 +128,30 @@ async function api(cfg: WorkosConfig, path: string, body: Record<string, unknown
 
 export const ORGANIZATION_NAME_RE = /^[^\p{Cc}]{2,64}$/u;
 
+const names = new Map<string, string>();
+
+export function rememberOrganizationName(id: string, name: string): void {
+  names.set(id, name);
+}
+
+export async function organizationName(cfg: WorkosConfig, id: string): Promise<string | null> {
+  const held = names.get(id);
+  if (held !== undefined) return held;
+  try {
+    const res = await fetch(`${cfg.base}/organizations/${id}`, { headers: { authorization: `Bearer ${cfg.apiKey}` }, signal: AbortSignal.timeout(FETCH_MS) });
+    const body: unknown = await res.json().catch(() => null);
+    const name = res.ok && isRecord(body) ? str(body.name) : null;
+    if (name !== null) names.set(id, name);
+    return name;
+  } catch {
+    return null;
+  }
+}
+
 export async function createOrganization(cfg: WorkosConfig, name: string): Promise<string> {
   const id = str((await api(cfg, '/organizations', { name })).id);
   if (id === null) throw new WorkosError('WorkOS created the organization without an id', null, 502);
+  rememberOrganizationName(id, name);
   return id;
 }
 

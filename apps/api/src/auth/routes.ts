@@ -14,6 +14,7 @@ import {
   exchangeCode,
   isProvider,
   ORGANIZATION_NAME_RE,
+  organizationName,
   refreshTokens,
   revokeSession,
   WorkosError,
@@ -131,19 +132,24 @@ async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearch
   }
 }
 
-const tokensPayload = (t: Tokens): Record<string, unknown> => ({
-  accessToken: t.accessToken,
-  refreshToken: t.refreshToken,
-  organization: t.organization,
-  user: t.user,
-});
+async function tokensPayload(t: Tokens, cfg: WorkosConfig): Promise<Record<string, unknown>> {
+  return {
+    accessToken: t.accessToken,
+    refreshToken: t.refreshToken,
+    organization: t.organization,
+    organizationName: t.organization === null ? null : await organizationName(cfg, t.organization),
+    user: t.user,
+  };
+}
 
 async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
   const body = await readJsonBody(req);
   const code = isRecord(body) && typeof body.code === 'string' ? body.code : '';
   const tokens = take(handoffs, code, HANDOFF_TTL_MS, (deps.now ?? Date.now)());
   if (tokens === null) throw new ApiError('that sign-in has already been used or has expired', 404);
-  return tokensPayload(tokens);
+  const cfg = deps.config();
+  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  return tokensPayload(tokens, cfg);
 }
 
 async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
@@ -153,7 +159,7 @@ async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown
   const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
   if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
   try {
-    return tokensPayload(await refreshTokens(cfg, refreshToken));
+    return await tokensPayload(await refreshTokens(cfg, refreshToken), cfg);
   } catch (err) {
     if (err instanceof WorkosError) throw new ApiError(err.status === 401 ? 'the session has ended, sign in again' : err.message, err.status);
     throw err;
@@ -182,7 +188,7 @@ async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDe
   const organization = await createOrganization(cfg, name);
   await addMembership(cfg, session.userId, organization, 'admin');
   log.info({ user: session.userId, organization, name }, 'auth: organization created');
-  return tokensPayload(await refreshTokens(cfg, refreshToken, organization));
+  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg);
 }
 
 interface PublicRoute {

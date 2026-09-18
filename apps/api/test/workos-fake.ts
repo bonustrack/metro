@@ -52,6 +52,10 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
       res.writeHead(302, { location: `${url.searchParams.get('redirect_uri') ?? ''}?code=${code}&state=${url.searchParams.get('state') ?? ''}` }).end();
       return;
     }
+    if (req.method === 'GET' && url.pathname.startsWith('/organizations/')) {
+      send(200, { id: url.pathname.slice('/organizations/'.length), name: 'Stage Labs' });
+      return;
+    }
     body(req)
       .then((parsed) => {
         calls.push({ path: url.pathname, body: parsed, auth: typeof req.headers.authorization === 'string' ? req.headers.authorization : null });
@@ -76,6 +80,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
           return send(201, { id, name: parsed.name });
         }
         if (url.pathname === '/user_management/organization_memberships') return send(201, { id: 'om_01', role: { slug: parsed.role_slug } });
+        if (url.pathname.startsWith('/organizations/')) return send(200, { id: url.pathname.slice('/organizations/'.length), name: 'Stage Labs' });
         return send(404, { message: 'no such route' });
       })
       .catch(() => {

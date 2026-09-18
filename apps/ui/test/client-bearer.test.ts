@@ -19,7 +19,7 @@ function serve(answers: { status: number; body: unknown }[]): void {
 }
 
 const account = (accessToken: string): void => {
-  storeAccount({ accessToken, refreshToken: 'rt_1', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
+  storeAccount({ accessToken, refreshToken: 'rt_1', organization: 'org_1', organizationName: null, role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
 };
 
 beforeEach(() => {

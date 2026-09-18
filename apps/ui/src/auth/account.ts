@@ -14,6 +14,7 @@ export interface Account {
   accessToken: string;
   refreshToken: string;
   organization: string | null;
+  organizationName: string | null;
   role: string | null;
   user: AccountUser;
 }
@@ -56,6 +57,7 @@ export function accountFrom(body: unknown): Account {
     accessToken,
     refreshToken,
     organization: text(body.organization) ?? text(claims.org_id),
+    organizationName: text(body.organizationName),
     role: text(claims.role),
     user: { id, email: text(body.user.email), name: text(body.user.name), picture: text(body.user.picture) },
   };

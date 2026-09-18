@@ -115,6 +115,7 @@ describe('signing in to metro.box through WorkOS', () => {
     expect(made.status).toBe(200);
     const withOrg = (await made.json()) as TokenBody;
     expect(withOrg.organization).toBe(workos.organizations[0] ?? '');
+    expect((withOrg as unknown as { organizationName: string }).organizationName).toBe('Stage Labs');
     const membership = workos.calls.find((c) => c.path === '/user_management/organization_memberships');
     expect(membership?.body).toEqual({ user_id: 'user_01ABC', organization_id: workos.organizations[0], role_slug: 'admin' });
     expect(membership?.auth).toBe('Bearer sk_test_fake');
