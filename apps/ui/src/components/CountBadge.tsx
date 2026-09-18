@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Pill } from './Pill.js';
 
-const OPTICAL_NUDGE = 4;
+const OPTICAL_NUDGE = 2;
 
 interface CountBadgeProps {
   count: number;
