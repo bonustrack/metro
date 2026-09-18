@@ -1,26 +1,21 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { useQueryClient } from '@tanstack/react-query';
-import { Text, Button } from './ui.js';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
 import { ClaudeSession } from './ClaudeSession.js';
-import { NameModal } from './NameModal.js';
-import { AgentAvatar } from './AgentAvatar.js';
-import { useAvatarPicker } from './AvatarPicker.js';
-import { queryError, refreshServers, useMachineQuery, useServersQuery } from '../api/queries.js';
-import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
+import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js';
+import { serverLabel, type Server } from '../api/servers.js';
 import { systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
 import { whenLabel } from '../api/when.js';
 import { ownerLabel } from '../auth/owner-label.js';
 import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not read this server.';
-const PAGE_AVATAR = 48;
 
 function InfoRow({ label, value, href }: { label: string; value: string; href?: string }): ReactNode {
   const palette = useKitPalette();
@@ -81,78 +76,12 @@ function MachineFacts({ machine }: { machine: Machine }): ReactNode {
   );
 }
 
-function AvatarBlock({ server }: { server: Server }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const palette = useKitPalette();
-  const avatar = useAvatarPicker(server);
-  return (
-    <Row align="center" gap={16} padding={{ y: 10 }} border={{ bottom: { width: 1, color: palette.border } }}>
-      <AgentAvatar seed={server.host} src={server.avatar} size={PAGE_AVATAR} />
-      <Row gap={8} align="center" wrap>
-        <Button size="sm" color="secondary" dark={dark} label={avatar.busy ? 'Saving…' : 'Set avatar'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
-        {server.avatar === null ? null : (
-          <Button size="sm" color="secondary" dark={dark} label="Remove avatar" disabled={avatar.busy} onPress={avatar.remove} />
-        )}
-        {avatar.error !== null ? (
-          <Text size="sm" role="danger">
-            {avatar.error}
-          </Text>
-        ) : null}
-      </Row>
-      {avatar.input}
-    </Row>
-  );
-}
-
 function ListEntry({ server }: { server: Server }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const client = useQueryClient();
-  const [renaming, setRenaming] = useState(false);
   return (
     <Section title="On metro.box">
-      <AvatarBlock server={server} />
       <InfoRow label="Id" value={server.id} />
       <InfoRow label="Address" value={server.host} />
       <InfoRow label="Added" value={server.addedAt === '' ? 'unknown' : whenLabel(server.addedAt)} />
-      <Row gap={8} padding={{ top: 12 }}>
-        <Button
-          color="secondary"
-          dark={dark}
-          label={server.name === null ? 'Name' : 'Rename'}
-          onPress={() => {
-            setRenaming(true);
-          }}
-        />
-        <Button
-          color="secondary"
-          dark={dark}
-          label="Remove from my agents"
-          onPress={() => {
-            removeServer(server.id)
-              .then(() => refreshServers(client))
-              .then(() => {
-                window.location.hash = '#/';
-              })
-              .catch(() => undefined);
-          }}
-        />
-      </Row>
-      <NameModal
-        title="Name this agent"
-        action="Save"
-        placeholder={server.host}
-        initial={server.name ?? ''}
-        failure="Could not save the name."
-        open={renaming}
-        onClose={() => {
-          setRenaming(false);
-        }}
-        onSubmit={async (name) => {
-          const saved = await renameServer(server.id, name);
-          await refreshServers(client);
-          return saved;
-        }}
-      />
     </Section>
   );
 }

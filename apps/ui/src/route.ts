@@ -15,6 +15,7 @@ const LAUNCH_PATH = /^#?\/launch$/;
 const MEMBERS_PATH = /^#?\/members$/;
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
+const AGENT_SETTINGS_PATH = new RegExp(`^#?/(${HOST})/settings$`);
 const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
 const MODEL_PATH = new RegExp(`^#?/(${HOST})/model$`);
 const CLAUDE_PATH = new RegExp(`^#?/(${HOST})/(?:harness|claude)$`);
@@ -40,6 +41,7 @@ function exactSelection(hash: string): Selection | null {
 const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] = [
   [HOME_PATH, (project) => ({ kind: 'home', project })],
   [SERVER_PATH, (project) => ({ kind: 'server', project })],
+  [AGENT_SETTINGS_PATH, (project) => ({ kind: 'agent-settings', project })],
   [TERMINAL_PATH, (project) => ({ kind: 'terminal', project })],
   [MODEL_PATH, (project) => ({ kind: 'model', project })],
   [CLAUDE_PATH, (project) => ({ kind: 'claude', project })],
@@ -66,6 +68,7 @@ export function routeSelection(hash: string): Selection {
 const SUFFIX: Record<string, (s: Selection) => string> = {
   home: () => '',
   server: () => '/server',
+  'agent-settings': () => '/settings',
   terminal: () => '/terminal',
   model: () => '/model',
   claude: () => '/harness',

@@ -7,6 +7,7 @@ import { Home } from './Home.js';
 import { Memory } from './Memory.js';
 import { Sessions } from './Sessions.js';
 import { ServerPage } from './ServerPage.js';
+import { AgentSettings } from './AgentSettings.js';
 import { TerminalPage } from './Terminal.js';
 import { ModelPage } from './ModelPage.js';
 import { ClaudeSettings } from './ClaudeSettings.js';
@@ -92,6 +93,7 @@ function ScopedPanel({ project, selection, onSelect }: ScopedProps): ReactNode {
   const claude = claudeRoutes(project, selection, go);
   if (claude !== null) return claude;
   if (selection.kind === 'server') return <ServerPage project={project} />;
+  if (selection.kind === 'agent-settings') return <AgentSettings />;
   if (selection.kind === 'terminal') return <TerminalPage />;
   if (selection.kind === 'model') return <ModelPage />;
   if (selection.kind === 'stations')

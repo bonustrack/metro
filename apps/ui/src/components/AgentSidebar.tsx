@@ -29,6 +29,7 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
         <Col gap={10}>
           <Col gap={NAV_GAP}>
             <NavRow label="Agent" icon="user" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />
+            <NavRow label="Settings" icon="cog" selected={selection.kind === 'agent-settings'} target={{ kind: 'agent-settings', project }} onSelect={onSelect} />
           </Col>
           <Col gap={NAV_GAP} padding={{ top: 14 }}>
             <Row padding={{ bottom: 2 }}>

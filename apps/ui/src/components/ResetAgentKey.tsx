@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { type AgentSummary } from '../api/client.js';
 import { ConfirmModal } from './ConfirmModal.js';
-import { KebabMenu } from './KebabMenu.js';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Button } from './ui.js';
 
 interface ResetAgentKeyProps {
   agent: AgentSummary;
@@ -20,6 +21,7 @@ export function ResetAgentKey({ agent, onReset }: ResetAgentKeyProps): ReactNode
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dark = useKitScheme() === 'dark';
 
   const reset = (): void => {
     setBusy(true);
@@ -38,18 +40,14 @@ export function ResetAgentKey({ agent, onReset }: ResetAgentKeyProps): ReactNode
 
   return (
     <>
-      <KebabMenu
-        label="Key actions"
-        items={[
-          {
-            label: 'Reset API key',
-            danger: true,
-            onSelect: () => {
-              setError(null);
-              setOpen(true);
-            },
-          },
-        ]}
+      <Button
+        color="secondary"
+        dark={dark}
+        label="Reset API key"
+        onPress={() => {
+          setError(null);
+          setOpen(true);
+        }}
       />
       <ConfirmModal
         open={open}

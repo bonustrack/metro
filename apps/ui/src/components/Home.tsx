@@ -1,19 +1,13 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { useQueryClient } from '@tanstack/react-query';
-import { Text, Button } from './ui.js';
+import { Text } from './ui.js';
 import { PageTitle } from './PageTitle.js';
-import { ResetAgentKey } from './ResetAgentKey.js';
-import { ExportAgent } from './ExportAgent.js';
-import { ImportAgent } from './ImportAgent.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { AvatarButton, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
 import { AgentModel } from './AgentModel.js';
-import { resetAgentKey } from '../api/client.js';
 import { accountsForAgent, stationCount } from '../api/accounts.js';
-import { queryError, refreshAgents, useConnectorsQuery, useModeQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
+import { queryError, useConnectorsQuery, useModeQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { currentServer } from '../auth/daemon.js';
 import { serverLabel } from '../api/servers.js';
 import { olderThan } from '../api/version.js';
@@ -88,51 +82,7 @@ interface HomeProps {
   onSelect: (selection: Selection) => void;
 }
 
-function AgentActions({ agent, name }: { agent: AgentSummary; name: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const portable = { id: agent.id, name, key: agent.key ?? '' };
-  return (
-    <>
-      <Row gap={8} wrap>
-        <Button
-          color="primary"
-          dark={dark}
-          label="Export"
-          onPress={() => {
-            setExporting(true);
-          }}
-        />
-        <Button
-          color="secondary"
-          dark={dark}
-          label="Import"
-          onPress={() => {
-            setImporting(true);
-          }}
-        />
-      </Row>
-      <ExportAgent
-        open={exporting}
-        agent={portable}
-        onClose={() => {
-          setExporting(false);
-        }}
-      />
-      <ImportAgent
-        open={importing}
-        agent={portable}
-        onClose={() => {
-          setImporting(false);
-        }}
-      />
-    </>
-  );
-}
-
 export function Home({ project, onSelect }: HomeProps): ReactNode {
-  const client = useQueryClient();
   const { data, error } = useStationsQuery();
   const connectors = useConnectorsQuery();
   const servers = useServersQuery();
@@ -155,13 +105,6 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
               id {agent.id}
             </Text>
           </Col>
-          <ResetAgentKey
-            agent={agent}
-            onReset={async (id) => {
-              await resetAgentKey(id);
-              refreshAgents(client);
-            }}
-          />
         </Row>
         <StatusPills host={here?.host ?? null} project={project} onSelect={onSelect} />
         <MetroVersion />
@@ -175,7 +118,6 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
         <Summary label="Connectors" count={agent.connectorIds.length} target={{ kind: 'connectors', project }} onSelect={onSelect} />
         <ConnectorIcons connectors={connectors.data?.connectors ?? []} project={project} onSelect={onSelect} />
       </Col>
-      <AgentActions agent={agent} name={name} />
     </Col>
   );
 }
