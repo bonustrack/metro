@@ -7,6 +7,7 @@ import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { type Selection } from './selection.js';
 import { shortAddress } from '../api/address.js';
+import { activeAccount } from '../auth/account.js';
 
 interface SidebarFooterProps {
   subject: string;
@@ -16,6 +17,8 @@ interface SidebarFooterProps {
 }
 
 export function SidebarFooter({ subject, selection, onSelect, onLock }: SidebarFooterProps): ReactNode {
+  const account = activeAccount();
+  const label = account?.user.name ?? account?.user.email ?? shortAddress(subject);
   return (
     <Col gap={NAV_GAP} padding={{ x: 24, bottom: 24, top: 16 }}>
       <NavRow label="Documentation" icon="bookOpen" selected={selection.kind === 'docs'} target={{ kind: 'docs' }} onSelect={onSelect} />
@@ -34,9 +37,9 @@ export function SidebarFooter({ subject, selection, onSelect, onLock }: SidebarF
         ]}
       >
         <Row {...NAV_ROW_BOX}>
-          <AgentAvatar seed={subject} size={NAV_ICON_SIZE} />
+          <AgentAvatar seed={account?.user.id ?? subject} src={account?.user.picture ?? null} size={NAV_ICON_SIZE} />
           <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>
-            {shortAddress(subject)}
+            {label}
           </Text>
         </Row>
       </Dropdown>

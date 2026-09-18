@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Pressable } from '@stage-labs/kit/react-native/pressable';
 import {
@@ -18,6 +18,8 @@ import { identityFrom, storeIdentity, type Identity } from '../auth/identity.js'
 import { ENCRYPTION_KEY_TYPED_DATA } from '../vault/crypto.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { type WalletChoice } from '../auth/wallet-options.js';
+import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
+import { Button } from './ui.js';
 
 const CARD_WIDTH = 400;
 const ICON_SIZE = 28;
@@ -27,6 +29,45 @@ const ROW_GAP = 10;
 const SPINNER_SIZE = 20;
 const NO_BROWSER_WALLET =
   'No browser wallet found. WalletConnect and Coinbase Wallet reach the wallet app on your phone; MetaMask or Rabby in this browser would show up here too.';
+const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft' };
+
+function loginError(): string | null {
+  const raw = window.location.hash.replace(/^#/, '');
+  const cut = raw.indexOf('?');
+  if (cut === -1) return null;
+  const error = new URLSearchParams(raw.slice(cut + 1)).get('error');
+  return error === null || error === '' ? null : error;
+}
+
+export function ProviderButtons(): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const [providers, setProviders] = useState<Provider[] | null>(null);
+  useEffect(() => {
+    fetchAuthStatus()
+      .then((status) => {
+        setProviders(status.enabled ? status.providers : []);
+      })
+      .catch(() => {
+        setProviders([]);
+      });
+  }, []);
+  if (providers === null || providers.length === 0) return null;
+  return (
+    <Col gap={10}>
+      {providers.map((provider) => (
+        <Button
+          key={provider}
+          color="primary"
+          dark={dark}
+          label={PROVIDER_LABEL[provider]}
+          onPress={() => {
+            window.location.assign(loginUrl(provider));
+          }}
+        />
+      ))}
+    </Col>
+  );
+}
 
 export async function signInTo(choice: WalletChoice, dark: boolean): Promise<Identity> {
   const connected = await connectWallet(choice, dark);
@@ -94,18 +135,13 @@ export function WalletRow({
   );
 }
 
-interface LoginProps {
-  onSignedIn: () => void;
-}
-
-export function Login({ onSignedIn }: LoginProps): ReactNode {
+export function WalletList({ onSignedIn }: { onSignedIn: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
   const wallets = useWallets();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const side = { width: 1, color: palette.border };
-
   const pick = (choice: WalletChoice): void => {
     if (busy !== null) return;
     setBusy(choice.id);
@@ -121,6 +157,44 @@ export function Login({ onSignedIn }: LoginProps): ReactNode {
         setBusy(null);
       });
   };
+  return (
+    <Col gap={12}>
+      {wallets.some((w) => w.kind === 'injected') ? null : (
+        <Text size="sm" role="secondary">
+          {NO_BROWSER_WALLET}
+        </Text>
+      )}
+      <Col radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
+        {wallets.map((choice, index) => (
+          <WalletRow
+            key={choice.id}
+            choice={choice}
+            busy={busy === choice.id}
+            disabled={busy !== null}
+            last={index === wallets.length - 1}
+            onPress={() => {
+              pick(choice);
+            }}
+          />
+        ))}
+      </Col>
+      {error !== null ? (
+        <Text size="sm" role="danger">
+          {error}
+        </Text>
+      ) : null}
+    </Col>
+  );
+}
+
+interface LoginProps {
+  onSignedIn: () => void;
+}
+
+export function Login({ onSignedIn }: LoginProps): ReactNode {
+  const palette = useKitPalette();
+  const side = { width: 1, color: palette.border };
+  const failed = loginError();
 
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
@@ -145,33 +219,16 @@ export function Login({ onSignedIn }: LoginProps): ReactNode {
             </Text>
           </Row>
         )}
-        {wallets.some((w) => w.kind === 'injected') ? null : (
-          <Text size="sm" role="secondary">
-            {NO_BROWSER_WALLET}
+        {failed === null ? null : (
+          <Text size="sm" role="danger">
+            {failed}
           </Text>
         )}
-        <Col
-          radius={BLOCK_RADIUS_DEFAULT}
-          border={{ top: side, right: side, bottom: side, left: side }}
-        >
-          {wallets.map((choice, index) => (
-            <WalletRow
-              key={choice.id}
-              choice={choice}
-              busy={busy === choice.id}
-              disabled={busy !== null}
-              last={index === wallets.length - 1}
-              onPress={() => {
-                pick(choice);
-              }}
-            />
-          ))}
-        </Col>
-        {error !== null ? (
-          <Text size="sm" role="danger">
-            {error}
-          </Text>
-        ) : null}
+        <ProviderButtons />
+        <Text size="sm" role="secondary">
+          Or with a wallet, the way boxes on an older metro still expect:
+        </Text>
+        <WalletList onSignedIn={onSignedIn} />
       </Col>
     </Row>
   );

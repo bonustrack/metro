@@ -12,7 +12,8 @@
     "./identity-key": "./src/identity-key.ts",
     "./identity-registry": "./src/identity-registry.ts",
     "./return-to": "./src/return-to.ts",
-    "./mode-api": "./src/mode-api.ts"
+    "./mode-api": "./src/mode-api.ts",
+    "./workos-token": "./src/workos-token.ts"
   },
   "scripts": {
     "build": "tsc",

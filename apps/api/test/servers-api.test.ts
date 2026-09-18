@@ -6,6 +6,8 @@ import { parseServerHost, parseServerName, type ServerEntry } from '../src/serve
 import { ApiError } from '@metro-labs/http/api-error';
 import { parseAvatar } from '../src/avatar.js';
 import { pngDataUrl } from './png-fixture.ts';
+import { SigningKeys } from '@metro-labs/http/workos-token';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
 import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 
 let rows: (ServerEntry & { owner: string })[] = [];
@@ -49,12 +51,20 @@ const deps: ServersApiDeps = {
     const { owner: _o, ...entry } = held;
     return Promise.resolve(entry);
   },
+  claim: (from, to) => {
+    let moved = 0;
+    for (const r of rows) if (r.owner === from) { r.owner = to; moved += 1; }
+    return Promise.resolve(moved);
+  },
 };
+let issuer: FakeIssuer;
 
 let server: Server;
 let base = '';
 
 beforeAll(async () => {
+  issuer = await fakeIssuer();
+  deps.keys = new SigningKeys(issuer.url);
   server = createServer((req, res) => {
     if (handleServersApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
@@ -65,8 +75,9 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
 });
 
-afterAll(() => {
+afterAll(async () => {
   server.close();
+  await issuer.close();
 });
 
 beforeEach(() => {
@@ -128,6 +139,27 @@ describe('the server list on metro.box', () => {
     expect((await call('PUT', `/api/servers/${added.id}/other`, TEST_OWNER, { avatar: png })).status).toBe(404);
     const cleared = await call('PUT', `/api/servers/${added.id}/avatar`, TEST_OWNER, { avatar: null });
     expect(((await cleared.json()) as ServerEntry).avatar).toBeNull();
+  });
+
+  test('a WorkOS token lists the organization\'s servers, and a claim moves the wallet\'s rows to the organization', async () => {
+    const owner = TEST_OWNER.address.toLowerCase();
+    await call('POST', '/api/servers', TEST_OWNER, { host: 'lisa.tail1234.ts.net', name: 'Lisa' });
+    await call('POST', '/api/servers', TEST_OWNER, { host: 'tony.tail1234.ts.net', name: 'Tony' });
+    const bearer = issuer.mint(sessionClaims({ org_id: 'org_01STAGELABS000', role: 'admin' }));
+    const before = (await (await fetch(`${base}/api/servers`, { headers: { authorization: `Bearer ${bearer}` } })).json()) as { servers: ServerEntry[] };
+    expect(before.servers).toEqual([]);
+    const walletHeader = await auth('POST', '/api/servers/claim', TEST_OWNER);
+    const noWallet = await fetch(`${base}/api/servers/claim`, { method: 'POST', headers: { authorization: `Bearer ${bearer}` } });
+    expect(noWallet.status).toBe(400);
+    const claimed = await fetch(`${base}/api/servers/claim`, { method: 'POST', headers: { authorization: `Bearer ${bearer}`, 'x-metro-wallet': walletHeader } });
+    expect(claimed.status).toBe(200);
+    expect(await claimed.json()).toEqual({ moved: 2 });
+    const after = (await (await fetch(`${base}/api/servers`, { headers: { authorization: `Bearer ${bearer}` } })).json()) as { servers: ServerEntry[] };
+    expect(after.servers.map((s) => s.name)).toEqual(['Lisa', 'Tony']);
+    expect(rows.every((r) => r.owner === 'org_01STAGELABS000')).toBe(true);
+    expect(rows.some((r) => r.owner === owner)).toBe(false);
+    const orgless = issuer.mint(sessionClaims({ org_id: undefined }));
+    expect((await fetch(`${base}/api/servers`, { headers: { authorization: `Bearer ${orgless}` } })).status).toBe(401);
   });
 
   test('hosts are lowercased and validated, names trimmed, stripped and capped', () => {

@@ -1,5 +1,7 @@
 import { builtInDaemon, daemonBase } from '../auth/daemon.js';
 import { activeIdentity, type Identity } from '../auth/identity.js';
+import { activeAccount } from '../auth/account.js';
+import { accessToken, refreshAccount } from './auth.js';
 import { signRequest } from '../vault/crypto.js';
 import { attributeUntagged, groupAccounts, isRecord, type AccountGroup } from './accounts.js';
 
@@ -13,6 +15,12 @@ export class AuthError extends Error {
 }
 
 export class StoppedError extends Error {}
+
+export class WalletNeeded extends AuthError {
+  constructor() {
+    super('This box still checks your wallet. Connect it once to continue.', true);
+  }
+}
 
 export interface AgentSummary {
   id: string;
@@ -89,17 +97,39 @@ function failure(res: Response, body: unknown): Error | null {
   return res.ok ? null : new Error(errorText(body, res.status));
 }
 
-async function answered(init: CallInit): Promise<Response> {
-  const identity = activeIdentity();
-  if (identity === null) throw new AuthError('not signed in');
-  const url = `${init.base ?? agentsUrl()}${init.path ?? ''}`;
-  let res = await send(url, init, identity);
-  if (res.status === 401 && sameOrigin(url, daemonBase()) && !sameOrigin(url, builtInDaemon())) {
-    const registered = await registerIdentity(identity);
-    if (!registered.ok) throw new AuthError(registered.error, true);
-    res = await send(url, init, identity);
+async function sendBearer(url: string, init: CallInit, token: string): Promise<Response> {
+  try {
+    return await fetch(url, { method: init.method, headers: { authorization: `Bearer ${token}`, ...init.headers }, body: init.body });
+  } catch {
+    throw new Error('Failed to reach Metro.');
   }
-  return res;
+}
+
+async function answeredByAccount(url: string, init: CallInit): Promise<Response> {
+  const token = await accessToken();
+  if (token === null) throw new AuthError('not signed in');
+  const res = await sendBearer(url, init, token);
+  if (res.status !== 401) return res;
+  const again = await refreshAccount();
+  if (again === null) throw new AuthError('not signed in');
+  return sendBearer(url, init, again.accessToken);
+}
+
+async function answeredByWallet(url: string, init: CallInit, identity: Identity): Promise<Response> {
+  const res = await send(url, init, identity);
+  if (res.status !== 401 || !sameOrigin(url, daemonBase()) || sameOrigin(url, builtInDaemon())) return res;
+  const registered = await registerIdentity(identity);
+  if (!registered.ok) throw new AuthError(registered.error, true);
+  return send(url, init, identity);
+}
+
+async function answered(init: CallInit): Promise<Response> {
+  const url = `${init.base ?? agentsUrl()}${init.path ?? ''}`;
+  const account = activeAccount();
+  if (account !== null && sameOrigin(url, builtInDaemon())) return answeredByAccount(url, init);
+  const identity = activeIdentity();
+  if (identity === null) throw account === null ? new AuthError('not signed in') : new WalletNeeded();
+  return answeredByWallet(url, init, identity);
 }
 
 export async function call(init: CallInit): Promise<unknown> {

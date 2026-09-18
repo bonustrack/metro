@@ -50,7 +50,7 @@ export function readLaunchConfig(env: NodeJS.ProcessEnv = process.env): ConfigRe
 }
 
 export const mayLaunch = (config: LaunchConfig, subject: string): boolean =>
-  config.owners.includes(normalizeAddress(subject) ?? '');
+  config.owners.includes(subject) || config.owners.includes(normalizeAddress(subject) ?? '');
 
 export function announceLaunchConfig(result: ConfigResult): void {
   if (result.ok) {

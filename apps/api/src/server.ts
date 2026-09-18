@@ -2,9 +2,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { errMsg, log } from '@metro-labs/core/log';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { handleModeRequest, type ModeInfo } from '@metro-labs/http/mode-api';
+import { clientId, jwksUrl, SigningKeys, workosBase } from '@metro-labs/http/workos-token';
+import { handleAuthApiRequest } from './auth/routes.js';
+import { readWorkosConfig } from './auth/workos.js';
 import {
   addLaunchedServer,
   addServerForOwner,
+  claimServers,
   deleteServerForOwner,
   launchForOwner,
   listServersForOwner,
@@ -21,12 +25,16 @@ const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, project: null, version: METRO_VERSION });
+const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
+const authApi = { config: () => readWorkosConfig(), keys };
 const serversApi = {
   list: listServersForOwner,
   add: addServerForOwner,
   rename: renameServerForOwner,
   remove: deleteServerForOwner,
   avatar: setAvatarForOwner,
+  claim: claimServers,
+  keys,
 };
 const launchApi: LaunchApiDeps = {
   config: () => readLaunchConfig(),
@@ -37,6 +45,7 @@ const launchApi: LaunchApiDeps = {
   record: addLaunchedServer,
   lookup: launchForOwner,
   now: () => Date.now(),
+  keys,
 };
 
 function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
@@ -51,6 +60,7 @@ function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
 export function handleApiRequest(req: IncomingMessage, res: ServerResponse): void {
   if (handleHealth(req, res)) return;
   if (handleModeRequest(req, res, mode)) return;
+  if (handleAuthApiRequest(req, res, authApi)) return;
   if (handleServersApiRequest(req, res, serversApi)) return;
   if (handleLaunchApiRequest(req, res, launchApi)) return;
   res.writeHead(404).end();
@@ -67,5 +77,6 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   announceLaunchConfig(readLaunchConfig());
+  log.info({ signIn: readWorkosConfig() === null ? 'off: WORKOS_API_KEY or WORKOS_CLIENT_ID is unset' : 'on', clientId: clientId() }, 'api: sign-in');
   log.info({ host: HOST, port: PORT, version: METRO_VERSION }, 'api ready');
 });

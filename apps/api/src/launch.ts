@@ -2,7 +2,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { signedIdentity } from '@metro-labs/http/signed-identity';
+import type { SigningKeys } from '@metro-labs/http/workos-token';
+import { requestOwner } from './servers.js';
 import { AGENT_NAME_RE, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { normalizeAddress } from '@metro-labs/core/address';
@@ -26,6 +27,7 @@ export interface LaunchApiDeps {
   record: (subject: string, launch: LaunchRecord) => Promise<ServerEntry>;
   lookup: (subject: string, id: string) => Promise<ServerLaunch>;
   now: () => number;
+  keys?: SigningKeys;
 }
 
 type Target =
@@ -177,7 +179,7 @@ async function route(
   tgt: Exclude<Target, { kind: 'unknown' } | null>,
 ): Promise<void> {
   try {
-    const subject = await signedIdentity(req);
+    const subject = await requestOwner(req, deps.keys);
     if (subject === null) {
       sendJson(req, res, 401, { error: 'unauthorized' });
       return;
