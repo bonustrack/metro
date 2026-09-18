@@ -67,7 +67,7 @@ function Gate({ onLock }: { onLock: () => void }): ReactNode {
   }, [subject]);
 
   if (error instanceof AuthError && error.refused)
-    return <Notice text={`${daemonHost(daemonBase())} refused this account: ${error.message}`} onRetry={onLock} retryLabel="Sign in with another account" />;
+    return <Notice text={`${daemonHost(daemonBase())} refused this account: ${error.message}`} onRetry={onLock} retryLabel="Log in with another account" />;
   if (error instanceof StoppedError)
     return (
       <StoppedNotice
@@ -140,7 +140,7 @@ function ListedServer({ id, onLock }: { id: string; onLock: () => void }): React
         retryLabel="Try again"
       />
     );
-  if (server === undefined) return <Notice text="This agent is not in your list." onRetry={onLock} retryLabel="Sign in with another account" />;
+  if (server === undefined) return <Notice text="This agent is not in your list." onRetry={onLock} retryLabel="Log in with another account" />;
   if (ready !== server.id) return <BootLoading />;
   return <Gate onLock={onLock} />;
 }
@@ -192,7 +192,7 @@ export function App(): ReactNode {
     if (phase === 'login') {
       client.clear();
       goToLogin();
-      document.title = pageTitle('Sign in');
+      document.title = pageTitle('Log in');
     } else if (phase === 'unlocked' && atLogin()) leaveLogin();
   }, [phase, client]);
 

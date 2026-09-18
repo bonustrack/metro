@@ -4,7 +4,6 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { Text, Button } from './ui.js';
 import { MetroLogo } from './MetroLogo.js';
 import { BootLoading } from './BootLoading.js';
-import { PageTitle } from './PageTitle.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
@@ -79,7 +78,9 @@ export function Login(): ReactNode {
           <MetroLogo size={48} color={palette.link} />
         </Row>
         <Row justify="center">
-          <PageTitle>Sign in</PageTitle>
+          <Text size="6xl" weight="medium">
+            Log in
+          </Text>
         </Row>
         {routedDaemon() === null ? null : (
           <Row justify="center">
