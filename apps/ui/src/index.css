@@ -150,14 +150,6 @@ body {
   background: var(--metro-bg);
 }
 
-.rail-add {
-  border: 1px dashed var(--metro-border);
-}
-
-.rail-add:hover {
-  border-color: var(--metro-sub);
-}
-
 .rail-item::after,
 .rail-logo::after {
   content: attr(data-label);

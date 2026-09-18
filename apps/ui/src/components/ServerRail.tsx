@@ -1,5 +1,4 @@
 import { type ReactNode } from 'react';
-import { Icon } from '@stage-labs/kit/react-native/icon';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AgentAvatar } from './AgentAvatar.js';
 import { MetroLogo } from './MetroLogo.js';
@@ -13,7 +12,6 @@ import { sameViewOn, type Selection } from './selection.js';
 
 const AVATAR = 32;
 const LOGO = 22;
-const PLUS = 18;
 
 function RailItem({ server, selected, selection }: { server: Server; selected: boolean; selection: Selection }): ReactNode {
   const label = serverLabel(server);
@@ -54,9 +52,6 @@ export function ServerRail({ selection }: { selection: Selection }): ReactNode {
           <RailItem key={server.id} server={server} selected={server.id === here?.id} selection={selection} />
         ))}
       </div>
-      <a className="rail-item rail-add" href="#/connect" aria-label="Add an agent" data-label="Add an agent">
-        <Icon name="plus" size={PLUS} color={palette.sub} />
-      </a>
     </nav>
   );
 }
