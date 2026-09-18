@@ -4,6 +4,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { BootLoading } from './BootLoading.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
+import { GoogleMark } from './GoogleMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 
@@ -12,11 +13,15 @@ const CARD_PAD = 24;
 const CARD_WIDTH = CONTENT_WIDTH + 2 * CARD_PAD;
 const CARD_GAP = 32;
 const BUTTONS_TOP = 8;
+const TITLE_GAP = 14;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft', github: 'Continue with GitHub' };
 const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com', github: 'https://github.com' };
-const PROVIDER_ICON = 22;
-const PROVIDER_SCALE: Record<Provider, number> = { google: 1.4, microsoft: 1, github: 1 };
+const ICON_GAP_EXTRA = 4;
+const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20, github: 22 };
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
+const ABOUT = 'Your agents, on your machines, in every chat you use. Your keys stay yours.';
+const CENTER_TEXT = { textAlign: 'center' } as const;
+const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro Labs`;
 const OFF = 'Log-in is not set up on this Metro yet.';
 const AWAY = 'Log-in is not available right now. Try again in a minute.';
 
@@ -45,6 +50,11 @@ function useProviders(): Offer | null {
   return offer;
 }
 
+function providerMark(provider: Provider): ReactNode {
+  const mark = provider === 'google' ? <GoogleMark size={PROVIDER_ICON.google} /> : <ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON[provider]} radius={0} />;
+  return <Row padding={{ right: ICON_GAP_EXTRA }}>{mark}</Row>;
+}
+
 function ProviderButtons({ offer }: { offer: Offer }): ReactNode {
   const dark = useKitScheme() === 'dark';
   if ('note' in offer)
@@ -65,7 +75,7 @@ function ProviderButtons({ offer }: { offer: Offer }): ReactNode {
           color="primary"
           dark={dark}
           label={PROVIDER_LABEL[provider]}
-          icon={<ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON} radius={0} scale={PROVIDER_SCALE[provider]} />}
+          icon={providerMark(provider)}
           style={FULL_WIDTH}
           onPress={() => {
             window.location.assign(loginUrl(provider));
@@ -84,11 +94,16 @@ export function Login(): ReactNode {
     <div className="login-page">
       <Row justify="center" align="start" padding={{ x: 24, bottom: 24 }}>
         <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
-        <Row justify="center">
-          <Text size="6xl" weight="medium">
-            Log in
+        <Col gap={TITLE_GAP}>
+          <Row justify="center">
+            <Text size="6xl" weight="medium">
+              Log in
+            </Text>
+          </Row>
+          <Text size="xl" style={CENTER_TEXT}>
+            {ABOUT}
           </Text>
-        </Row>
+        </Col>
         {routedDaemon() === null ? null : (
           <Row justify="center">
             <Text size="sm" role="secondary">
@@ -104,6 +119,17 @@ export function Login(): ReactNode {
           <Col padding={{ top: BUTTONS_TOP }}>
             <ProviderButtons offer={offer} />
           </Col>
+          <Row justify="center" gap={16}>
+            <Text size="sm" role="secondary">
+              {COPYRIGHT}
+            </Text>
+            <Text size="sm" role="secondary">
+              Terms
+            </Text>
+            <Text size="sm" role="secondary">
+              Privacy
+            </Text>
+          </Row>
         </Col>
       </Row>
     </div>

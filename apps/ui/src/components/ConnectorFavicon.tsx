@@ -10,7 +10,6 @@ interface ConnectorFaviconProps {
   url: string;
   size: number;
   radius?: number;
-  scale?: number;
 }
 
 export function ConnectorFavicon({
@@ -18,7 +17,6 @@ export function ConnectorFavicon({
   url,
   size,
   radius = Math.round(size / 4),
-  scale = 1,
 }: ConnectorFaviconProps): ReactNode {
   const palette = useKitPalette();
   const [failed, setFailed] = useState(false);
@@ -44,9 +42,8 @@ export function ConnectorFavicon({
       </div>
     );
   const image = {
-    width: Math.round(size * scale),
-    height: Math.round(size * scale),
-    maxWidth: 'none' as const,
+    width: size,
+    height: size,
     objectFit: 'contain' as const,
   };
   return (
