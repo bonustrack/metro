@@ -122,6 +122,9 @@ describe('the server list on metro.box', () => {
     expect((await call('PATCH', '/api/servers', TEST_OWNER, {})).status).toBe(405);
     expect((await call('GET', '/api/servers/srv00000000', TEST_OWNER)).status).toBe(405);
     expect((await fetch(`${base}/api/servers`, { method: 'OPTIONS' })).status).toBe(204);
+    const preflight = await fetch(`${base}/api/servers/claim`, { method: 'OPTIONS', headers: { origin: 'https://metro.box', 'access-control-request-headers': 'authorization,x-metro-wallet' } });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('X-Metro-Wallet');
   });
 
   test('an avatar is set and removed on its own route; only a PNG the owner sends is stored', async () => {

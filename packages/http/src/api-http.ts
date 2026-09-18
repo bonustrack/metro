@@ -29,7 +29,7 @@ export function cors(req: IncomingMessage): Record<string, string> {
   return {
     'access-control-allow-origin': req.headers.origin ?? '*',
     'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'access-control-allow-headers': 'Authorization, Content-Type',
+    'access-control-allow-headers': 'Authorization, Content-Type, X-Metro-Wallet',
     'access-control-allow-private-network': 'true',
     'access-control-max-age': '86400',
     vary: 'Origin',
