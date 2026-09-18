@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
@@ -83,23 +83,18 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
   const side = { width: 1, color: palette.border };
   const href = `#/${server.id}`;
   const launched = server.instanceId !== null;
-  const open = (e: MouseEvent<HTMLAnchorElement>): void => {
-    if (opensElsewhere(e)) return;
-    e.preventDefault();
-    window.location.hash = href;
-  };
   return (
-    <Col gap={12} padding={16} flex={1} minWidth={CARD_MIN} maxWidth={CARD_MAX} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
-      <Row justify="between" align="start" gap={8}>
-        <a className="card-link" href={href} onClick={open}>
+    <div className="agent-card">
+      <Col gap={12} padding={16} minWidth={CARD_MIN} maxWidth={CARD_MAX} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
+        <Row justify="between" align="start" gap={8}>
           <AgentAvatar seed={server.host} src={server.avatar} size={CARD_AVATAR} />
-        </a>
-        <KebabMenu
-          label={`Agent menu for ${serverLabel(server)}`}
-          items={[...(launched ? [{ label: 'Boot log', onSelect: onBootLog }] : []), { label: 'Remove', danger: true, onSelect: onRemove }]}
-        />
-      </Row>
-      <a className="card-link" href={href} onClick={open}>
+          <div className="card-over">
+            <KebabMenu
+              label={`Agent menu for ${serverLabel(server)}`}
+              items={[...(launched ? [{ label: 'Boot log', onSelect: onBootLog }] : []), { label: 'Remove', danger: true, onSelect: onRemove }]}
+            />
+          </div>
+        </Row>
         <Col gap={2}>
           <Row gap={8} align="center">
             <StatusDot host={server.host} />
@@ -111,12 +106,24 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
             {server.host}
           </Text>
         </Col>
-      </a>
-      <Row gap={8} align="center" wrap>
-        <StatusText server={server} />
-        <StartButton host={server.host} />
-      </Row>
-    </Col>
+        <Row gap={8} align="center" wrap>
+          <StatusText server={server} />
+          <div className="card-over">
+            <StartButton host={server.host} />
+          </div>
+        </Row>
+      </Col>
+      <a
+        className="card-cover"
+        href={href}
+        aria-label={`Open ${serverLabel(server)}`}
+        onClick={(e) => {
+          if (opensElsewhere(e)) return;
+          e.preventDefault();
+          window.location.hash = href;
+        }}
+      />
+    </div>
   );
 }
 

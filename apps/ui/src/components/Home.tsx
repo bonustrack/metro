@@ -4,7 +4,7 @@ import { Text } from './ui.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
-import { AvatarButton, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
+import { AgentPicture, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
 import { AgentModel } from './AgentModel.js';
 import { accountsForAgent, stationCount } from '../api/accounts.js';
 import { queryError, useConnectorsQuery, useModeQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
@@ -98,7 +98,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
     <Col gap={24}>
       <Col gap={12}>
         <Row align="center" gap={16}>
-          <AvatarButton server={server} seed={agent.id} />
+          <AgentPicture server={server} seed={agent.id} />
           <Col gap={4} flex={1} minWidth={0}>
             <PageTitle>{name}</PageTitle>
             <Text size="sm" role="secondary" numberOfLines={1}>

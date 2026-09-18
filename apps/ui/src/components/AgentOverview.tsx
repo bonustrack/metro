@@ -5,7 +5,6 @@ import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { Pill } from './Pill.js';
 import { AgentAvatar } from './AgentAvatar.js';
-import { useAvatarPicker } from './AvatarPicker.js';
 import { StationIcon } from './StationIcon.js';
 import { ChatIcon } from './ChatIcon.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
@@ -26,26 +25,9 @@ const CARD_MAX = 320;
 const STATION_ICON = 24;
 const CONNECTOR_ICON = 28;
 
-export function AvatarButton({ server, seed }: { server: Server | undefined; seed: string }): ReactNode {
+export function AgentPicture({ server, seed }: { server: Server | undefined; seed: string }): ReactNode {
   if (server === undefined) return <AgentAvatar seed={seed} size={PAGE_AVATAR} />;
-  return <PickableAvatar server={server} />;
-}
-
-function PickableAvatar({ server }: { server: Server }): ReactNode {
-  const avatar = useAvatarPicker(server);
-  return (
-    <>
-      <button type="button" className="avatar-button" title="Change the avatar" disabled={avatar.busy} onClick={avatar.pick}>
-        <AgentAvatar seed={server.host} src={server.avatar} size={PAGE_AVATAR} />
-      </button>
-      {avatar.input}
-      {avatar.error === null ? null : (
-        <Text size="sm" role="danger">
-          {avatar.error}
-        </Text>
-      )}
-    </>
-  );
+  return <AgentAvatar seed={server.host} src={server.avatar} size={PAGE_AVATAR} />;
 }
 
 function harnessLabel(status: ClaudeSessionStatus | undefined): string {
