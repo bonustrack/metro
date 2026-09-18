@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Text, Button } from './ui.js';
 import { MetroLogo } from './MetroLogo.js';
 import { PageTitle } from './PageTitle.js';
@@ -12,7 +11,7 @@ import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 const CARD_WIDTH = 400;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft' };
 const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com' };
-const PROVIDER_ICON = 18;
+const PROVIDER_ICON = 20;
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
 const OFF = 'Sign-in is not configured on this Metro yet.';
 
@@ -48,6 +47,7 @@ function ProviderButtons(): ReactNode {
       {providers.map((provider) => (
         <Button
           key={provider}
+          size="lg"
           color="primary"
           dark={dark}
           label={PROVIDER_LABEL[provider]}
@@ -64,11 +64,10 @@ function ProviderButtons(): ReactNode {
 
 export function Login(): ReactNode {
   const palette = useKitPalette();
-  const side = { width: 1, color: palette.border };
   const failed = loginError();
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
-      <Col gap={20} width="100%" maxWidth={CARD_WIDTH} padding={24} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
+      <Col gap={20} width="100%" maxWidth={CARD_WIDTH} padding={24}>
         <Row justify="center">
           <MetroLogo size={48} color={palette.link} />
         </Row>
