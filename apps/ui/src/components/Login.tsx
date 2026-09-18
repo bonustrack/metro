@@ -20,6 +20,7 @@ import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { type WalletChoice } from '../auth/wallet-options.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 import { Button } from './ui.js';
+import { ConnectorFavicon } from './ConnectorFavicon.js';
 
 const CARD_WIDTH = 400;
 const ICON_SIZE = 28;
@@ -30,6 +31,9 @@ const SPINNER_SIZE = 20;
 const NO_BROWSER_WALLET =
   'No browser wallet found. WalletConnect and Coinbase Wallet reach the wallet app on your phone; MetaMask or Rabby in this browser would show up here too.';
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft' };
+const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com' };
+const PROVIDER_ICON = 18;
+const FULL_WIDTH = { alignSelf: 'stretch' } as const;
 
 function loginError(): string | null {
   const raw = window.location.hash.replace(/^#/, '');
@@ -60,6 +64,8 @@ export function ProviderButtons(): ReactNode {
           color="primary"
           dark={dark}
           label={PROVIDER_LABEL[provider]}
+          icon={<ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON} />}
+          style={FULL_WIDTH}
           onPress={() => {
             window.location.assign(loginUrl(provider));
           }}
