@@ -25,6 +25,9 @@ describe('a WorkOS access token on a metro server', () => {
     const past = Math.floor(Date.now() / 1000) - 120;
     expect(await verifyToken(issuer.mint(sessionClaims({ exp: past })), keys)).toBeNull();
     expect(await verifyToken(issuer.mint(sessionClaims({ iss: 'https://evil.example/' })), keys)).toBeNull();
+    expect(await verifyToken(issuer.mint(sessionClaims({ iss: 'https://api.workos.com.evil.example' })), keys)).toBeNull();
+    expect(await verifyToken(issuer.mint(sessionClaims({ iss: 'https://api.workos.com/' })), keys)).not.toBeNull();
+    expect(await verifyToken(issuer.mint(sessionClaims({ iss: 'https://api.workos.com/user_management/client_test' })), keys)).not.toBeNull();
     expect(await verifyToken(issuer.mint(sessionClaims(), { alg: 'none' }), keys)).toBeNull();
     const good = issuer.mint(sessionClaims());
     const [h, b, s] = good.split('.');

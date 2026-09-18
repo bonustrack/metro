@@ -2,7 +2,7 @@ import type { IncomingMessage } from 'node:http';
 import { createPublicKey, verify, type JsonWebKey, type KeyObject } from 'node:crypto';
 
 export const WORKOS_API = 'https://api.workos.com';
-export const WORKOS_ISSUER = 'https://api.workos.com/';
+export const WORKOS_ISSUER = 'https://api.workos.com';
 export const DEFAULT_CLIENT_ID = 'client_01M2TJJJ6RM9CT081QB4XZK3G2';
 const SKEW_S = 60;
 const REFETCH_COOLDOWN_MS = 60_000;
@@ -100,11 +100,13 @@ function jsonPart(text: string): Record<string, unknown> | null {
 
 const str = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
+const issuedBy = (iss: unknown, issuer: string): boolean => typeof iss === 'string' && (iss === issuer || iss.startsWith(`${issuer}/`));
+
 function sessionOf(claims: Record<string, unknown>, issuer: string, now: number): Session | null {
   const exp = typeof claims.exp === 'number' ? claims.exp : null;
   const userId = str(claims.sub);
   const sessionId = str(claims.sid);
-  if (claims.iss !== issuer || exp === null || userId === null || sessionId === null) return null;
+  if (!issuedBy(claims.iss, issuer) || exp === null || userId === null || sessionId === null) return null;
   if (exp * 1000 < now - SKEW_S * 1000) return null;
   return { userId, sessionId, organization: str(claims.org_id), role: str(claims.role), expiresAt: exp * 1000 };
 }

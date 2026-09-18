@@ -29,6 +29,30 @@ export class WorkosError extends Error {
 }
 
 export const isProvider = (value: unknown): value is Provider => value === 'google' || value === 'microsoft';
+export const ALL_PROVIDERS: Provider[] = ['google', 'microsoft'];
+const PROBE_MS = 10 * 60_000;
+
+export async function providerEnabled(cfg: WorkosConfig, provider: Provider, redirectUri: string): Promise<boolean> {
+  try {
+    const res = await fetch(authorizationUrl(cfg, provider, redirectUri, 'probe'), { redirect: 'manual', signal: AbortSignal.timeout(FETCH_MS) });
+    return res.status >= 300 && res.status < 400;
+  } catch {
+    return false;
+  }
+}
+
+let probed: { at: number; providers: Provider[] } | null = null;
+
+export async function enabledProviders(cfg: WorkosConfig, redirectUri: string, now = Date.now()): Promise<Provider[]> {
+  if (probed !== null && now - probed.at < PROBE_MS) return probed.providers;
+  const answers = await Promise.all(ALL_PROVIDERS.map((p) => providerEnabled(cfg, p, redirectUri)));
+  probed = { at: now, providers: ALL_PROVIDERS.filter((_, i) => answers[i] === true) };
+  return probed.providers;
+}
+
+export function forgetProviders(): void {
+  probed = null;
+}
 
 export function readWorkosConfig(env: NodeJS.ProcessEnv = process.env): WorkosConfig | null {
   const apiKey = filled(env.WORKOS_API_KEY);

@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { SigningKeys } from '@metro-labs/http/workos-token';
 import { handleAuthApiRequest, type AuthApiDeps } from '../src/auth/routes.ts';
-import { readWorkosConfig } from '../src/auth/workos.ts';
+import { forgetProviders, readWorkosConfig } from '../src/auth/workos.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 
@@ -64,8 +64,17 @@ async function signIn(): Promise<TokenBody> {
 }
 
 describe('signing in to metro.box through WorkOS', () => {
-  test('the status says whether sign-in is configured', async () => {
+  test('the status says whether sign-in is configured and which providers WorkOS answers for; a provider not set up is refused by name', async () => {
+    forgetProviders();
+    expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
+    const microsoft = await fetch(`${base}/api/auth/login?provider=microsoft&return_to=https://metro.box/`, { redirect: 'manual' });
+    expect(microsoft.status).toBe(400);
+    expect(((await microsoft.json()) as { error: string }).error).toContain('microsoft sign-in is not set up');
+    workos.enabled.add('MicrosoftOAuth');
+    forgetProviders();
     expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google', 'microsoft'] });
+    workos.enabled.delete('MicrosoftOAuth');
+    forgetProviders();
     const off = { ...deps, config: () => null };
     const s = createServer((req, res) => {
       handleAuthApiRequest(req, res, off);
@@ -74,7 +83,7 @@ describe('signing in to metro.box through WorkOS', () => {
       s.listen(0, '127.0.0.1', r);
     });
     const port = String((s.address() as AddressInfo).port);
-    expect(await (await fetch(`http://127.0.0.1:${port}/api/auth`)).json()).toEqual({ enabled: false, providers: ['google', 'microsoft'] });
+    expect(await (await fetch(`http://127.0.0.1:${port}/api/auth`)).json()).toEqual({ enabled: false, providers: [] });
     expect((await fetch(`http://127.0.0.1:${port}/api/auth/login?provider=google&return_to=https://metro.box/`, { redirect: 'manual' })).status).toBe(503);
     s.close();
   });
@@ -132,7 +141,7 @@ describe('signing in to metro.box through WorkOS', () => {
   test('a signed-in route refuses no token, a forged token and a token from another issuer', async () => {
     expect((await json('GET', '/api/auth/me')).status).toBe(401);
     expect((await json('GET', '/api/auth/me', undefined, 'a.b.c')).status).toBe(401);
-    const foreign = workos.issuer.mint(sessionClaims({ iss: 'https://other.example/' }));
+    const foreign = workos.issuer.mint(sessionClaims({ iss: 'https://other.example' }));
     expect((await json('GET', '/api/auth/me', undefined, foreign)).status).toBe(401);
     expect((await json('DELETE', '/api/auth/me', undefined, workos.issuer.mint(sessionClaims()))).status).toBe(405);
     expect((await json('GET', '/api/auth/nothing')).status).toBe(404);

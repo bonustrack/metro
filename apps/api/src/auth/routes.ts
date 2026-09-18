@@ -10,6 +10,7 @@ import {
   addMembership,
   authorizationUrl,
   createOrganization,
+  enabledProviders,
   exchangeCode,
   isProvider,
   ORGANIZATION_NAME_RE,
@@ -74,18 +75,26 @@ const withHash = (returnTo: string, hash: string): string => {
   return url.toString();
 };
 
-function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): void {
+const callbackUri = (req: IncomingMessage, deps: AuthApiDeps): string => `${(deps.publicBase ?? defaultPublicBase)(req)}${PREFIX}/callback`;
+
+async function providers(req: IncomingMessage, deps: AuthApiDeps): Promise<string[]> {
+  const cfg = deps.config();
+  return cfg === null ? [] : enabledProviders(cfg, callbackUri(req, deps), (deps.now ?? Date.now)());
+}
+
+async function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
   const provider = query.get('provider');
   const returnTo = query.get('return_to') ?? '';
   if (!isProvider(provider)) throw new ApiError('provider must be google or microsoft', 400);
   if (!validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
+  if (!(await providers(req, deps)).includes(provider)) throw new ApiError(`${provider} sign-in is not set up on WorkOS yet`, 400);
   const now = (deps.now ?? Date.now)();
   prune(states, STATE_TTL_MS, now);
   const state = token();
   states.set(state, { value: returnTo, at: now });
-  redirect(res, authorizationUrl(cfg, provider, `${(deps.publicBase ?? defaultPublicBase)(req)}${PREFIX}/callback`, state));
+  redirect(res, authorizationUrl(cfg, provider, callbackUri(req, deps), state));
 }
 
 function refusal(query: URLSearchParams): string | null {
@@ -187,7 +196,7 @@ interface PrivateRoute {
 }
 
 const PUBLIC: Record<string, PublicRoute> = {
-  '': { method: 'GET', run: (_req, deps) => Promise.resolve({ enabled: deps.config() !== null, providers: ['google', 'microsoft'] }) },
+  '': { method: 'GET', run: async (req, deps) => ({ enabled: deps.config() !== null, providers: await providers(req, deps) }) },
   '/exchange': { method: 'POST', run: exchange },
   '/refresh': { method: 'POST', run: refresh },
 };
@@ -201,7 +210,7 @@ const PRIVATE: Record<string, PrivateRoute> = {
 async function navigation(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, path: string, query: URLSearchParams): Promise<boolean> {
   if (path !== '/login' && path !== '/callback') return false;
   if ((req.method ?? 'GET') !== 'GET') throw new ApiError('method not allowed', 405);
-  if (path === '/login') login(req, res, deps, query);
+  if (path === '/login') await login(req, res, deps, query);
   else await callback(res, deps, query);
   return true;
 }

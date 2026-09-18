@@ -8,6 +8,7 @@ export interface FakeWorkos {
   calls: { path: string; body: Record<string, unknown>; auth: string | null }[];
   codes: Map<string, { organization: string | null }>;
   organizations: string[];
+  enabled: Set<string>;
   close: () => Promise<void>;
 }
 
@@ -27,6 +28,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
   const calls: FakeWorkos['calls'] = [];
   const codes = new Map<string, { organization: string | null }>();
   const organizations: string[] = [];
+  const enabled = new Set<string>(['GoogleOAuth']);
   let refreshCount = 0;
   const tokens = (organization: string | null, sub = 'user_01ABC'): Record<string, unknown> => ({
     user: { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
@@ -40,6 +42,11 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
       res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(payload));
     };
     if (url.pathname === '/user_management/authorize') {
+      if (!enabled.has(url.searchParams.get('provider') ?? '')) return send(404, { message: 'Not Found' });
+      if (url.searchParams.get('state') === 'probe') {
+        res.writeHead(302, { location: 'https://accounts.google.com/o/oauth2/v2/auth?probe=1' }).end();
+        return;
+      }
       const code = `code_${String(codes.size + 1)}`;
       codes.set(code, { organization: organizations[0] ?? null });
       res.writeHead(302, { location: `${url.searchParams.get('redirect_uri') ?? ''}?code=${code}&state=${url.searchParams.get('state') ?? ''}` }).end();
@@ -85,6 +92,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     calls,
     codes,
     organizations,
+    enabled,
     close: async () => {
       await issuer.close();
       await new Promise<void>((r) => {

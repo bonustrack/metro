@@ -27,7 +27,7 @@ export async function fakeIssuer(): Promise<FakeIssuer> {
     server.listen(0, '127.0.0.1', r);
   });
   const url = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/sso/jwks/client_test`;
-  const issuer = 'https://api.workos.com/';
+  const issuer = 'https://api.workos.com';
   const mint: FakeIssuer['mint'] = (claims, opts = {}) => {
     const head = b64url(JSON.stringify({ alg: opts.alg ?? 'RS256', typ: 'JWT', kid: opts.kid ?? kid }));
     const body = b64url(JSON.stringify({ iss: issuer, ...claims }));
