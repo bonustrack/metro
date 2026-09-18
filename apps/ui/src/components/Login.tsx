@@ -8,7 +8,9 @@ import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 
-const CARD_WIDTH = 340;
+const CONTENT_WIDTH = 340;
+const CARD_PAD = 24;
+const CARD_WIDTH = CONTENT_WIDTH + 2 * CARD_PAD;
 const CARD_GAP = 32;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft' };
 const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com' };
@@ -73,7 +75,7 @@ export function Login(): ReactNode {
   if (providers === null) return <BootLoading />;
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
-      <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={24}>
+      <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
         <Row justify="center">
           <MetroLogo size={48} color={palette.link} />
         </Row>
