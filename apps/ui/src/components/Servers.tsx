@@ -25,6 +25,7 @@ import { useBootingState } from '../aws/use-launch.js';
 import { BootLog } from './BootLog.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { useAvatarPicker } from './AvatarPicker.js';
+import { ClaimServers } from './ClaimServers.js';
 
 const LIST_WIDTH = 640;
 const ROW_AVATAR = 32;
@@ -149,9 +150,12 @@ function ServerList({ servers, onRename, onBootLog }: ListProps): ReactNode {
   const side = { width: 1, color: palette.border };
   if (servers.length === 0)
     return (
-      <Text size="sm" role="secondary">
-        No servers yet. Add the address your daemon printed at start-up.
-      </Text>
+      <Col gap={16}>
+        <Text size="sm" role="secondary">
+          No servers yet. Add the address your daemon printed at start-up.
+        </Text>
+        <ClaimServers />
+      </Col>
     );
   return (
     <Col radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
