@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
 import { BackLink } from './BackLink.js';
 import { useHomeProject } from './home-project.js';
@@ -11,7 +11,7 @@ import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
 import { type MemoryFile } from '../api/claude.js';
 import { queryError, useMemoryFileQuery, useMemoryQuery } from '../api/queries.js';
-import { CountBadge } from './CountBadge.js';
+import { ListHeader } from './ListHeader.js';
 import { sizeLabel, whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -60,12 +60,7 @@ interface MemoryProps {
 
 function MemoryTitle({ claudeProject }: { claudeProject: string }): ReactNode {
   const { data } = useMemoryQuery(claudeProject);
-  return (
-    <Row gap={10} align="center">
-      <PageTitle>Memory</PageTitle>
-      {data === undefined ? null : <CountBadge count={data.files.length} beside="title" />}
-    </Row>
-  );
+  return <ListHeader title="Memory" count={data?.files.length} />;
 }
 
 const NONE = 'No Claude Code memory on this box yet. It fills in as Claude works.';

@@ -1,13 +1,11 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Text, Button } from './ui.js';
-import { SHRINK } from '../theme.js';
-import { PageTitle } from './PageTitle.js';
+import { ListHeader } from './ListHeader.js';
 import { AccountList } from './AccountList.js';
 import { ConnectStation } from './ConnectStation.js';
-import { CountBadge } from './CountBadge.js';
 import { Loading } from './Loading.js';
 import { accountsForAgent } from '../api/accounts.js';
 import { detachAccount } from '../api/attach.js';
@@ -34,22 +32,20 @@ export function Stations({ project, onOpen }: StationsProps): ReactNode {
   const mine = accountsForAgent(data.groups, agent.id);
   return (
     <Col gap={16}>
-      <Row justify="between" align="start" gap={12} wrap>
-        <Col gap={8} style={SHRINK}>
-          <Row gap={10} align="center">
-            <PageTitle>Channels</PageTitle>
-            <CountBadge count={mine.reduce((n, g) => n + g.rows.length, 0)} beside="title" />
-          </Row>
-        </Col>
-        <Button
-          color="primary"
-          dark={dark}
-          label="Connect channel"
-          onPress={() => {
-            setConnecting(true);
-          }}
-        />
-      </Row>
+      <ListHeader
+        title="Channels"
+        count={mine.reduce((n, g) => n + g.rows.length, 0)}
+        action={
+          <Button
+            color="primary"
+            dark={dark}
+            label="Connect channel"
+            onPress={() => {
+              setConnecting(true);
+            }}
+          />
+        }
+      />
       <AccountList
         groups={mine}
         project={project}

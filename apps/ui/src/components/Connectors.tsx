@@ -1,9 +1,8 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { SHRINK } from '../theme.js';
-import { PageTitle } from './PageTitle.js';
+import { ListHeader } from './ListHeader.js';
 import {
   connectorsInOrder,
   deleteConnector,
@@ -12,7 +11,6 @@ import {
 } from '../api/connectors.js';
 import { AddConnector } from './AddConnector.js';
 import { ConnectorRow } from './ConnectorRow.js';
-import { CountBadge } from './CountBadge.js';
 import { Loading } from './Loading.js';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -85,24 +83,20 @@ export function Connectors({
 
   return (
     <Col gap={16}>
-      <Row justify="between" align="start" gap={12} wrap>
-        <Col gap={8} style={SHRINK}>
-          <Row gap={10} align="center">
-            <PageTitle>Connectors</PageTitle>
-            {data === undefined ? null : (
-              <CountBadge count={data.connectors.length} beside="title" />
-            )}
-          </Row>
-        </Col>
-        <Button
-          color="primary"
-          dark={dark}
-          label="Add connector"
-          onPress={() => {
-            setAdding(true);
-          }}
-        />
-      </Row>
+      <ListHeader
+        title="Connectors"
+        count={data?.connectors.length}
+        action={
+          <Button
+            color="primary"
+            dark={dark}
+            label="Add connector"
+            onPress={() => {
+              setAdding(true);
+            }}
+          />
+        }
+      />
 
       {returned === null ? null : (
         <Text size="sm" role="danger">{`Sign-in did not finish: ${returned}`}</Text>

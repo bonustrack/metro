@@ -1,26 +1,14 @@
 import { type ReactNode, useState } from 'react';
-import { Row } from '@stage-labs/kit/react-native/box';
-import {
-  useKitPalette,
-  useKitScheme,
-} from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
-import { SHRINK } from '../theme.js';
-import {
-  connectConnector,
-  connectorHost,
-  disconnectConnector,
-  type Connector,
-} from '../api/connectors.js';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Button } from './ui.js';
+import { connectConnector, connectorHost, disconnectConnector, type Connector } from '../api/connectors.js';
 import { queryError } from '../api/queries.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { DeleteConnector } from './DeleteConnector.js';
 import { RenameConnector } from './RenameConnector.js';
-import { opensElsewhere } from './link.js';
+import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { routeHash } from '../route.js';
 
-const ROW_PAD_Y = 10;
-const ICON_SIZE = 16;
 const CENTER_SELF = { alignSelf: 'center' } as const;
 
 interface ConnectorRowProps {
@@ -34,12 +22,7 @@ interface ConnectorRowProps {
 
 type ActionProps = Omit<ConnectorRowProps, 'onOpen'>;
 
-function RowActions({
-  row,
-  onChanged,
-  onDelete,
-  onError,
-}: ActionProps): ReactNode {
+function RowActions({ row, onChanged, onDelete, onError }: ActionProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -78,18 +61,9 @@ function RowActions({
   };
 
   return (
-    <Row align="center" gap={8} padding={{ y: ROW_PAD_Y }}>
+    <>
       {row.signIn === 'disconnected' ? (
-        <Button
-          size="md"
-          color="secondary"
-          style={CENTER_SELF}
-          dark={dark}
-          label="Connect"
-          loading={busy}
-          disabled={busy}
-          onPress={connect}
-        />
+        <Button size="md" color="secondary" style={CENTER_SELF} dark={dark} label="Connect" loading={busy} disabled={busy} onPress={connect} />
       ) : null}
       <DeleteConnector
         connector={row}
@@ -102,9 +76,7 @@ function RowActions({
               setRenaming(true);
             },
           },
-          ...(row.signIn === 'connected'
-            ? [{ label: 'Disconnect', danger: true, onSelect: disconnect }]
-            : []),
+          ...(row.signIn === 'connected' ? [{ label: 'Disconnect', danger: true, onSelect: disconnect }] : []),
         ]}
       />
       <RenameConnector
@@ -116,56 +88,23 @@ function RowActions({
         }}
         onRenamed={onChanged}
       />
-    </Row>
+    </>
   );
 }
 
-export function ConnectorRow({
-  onOpen,
-  ...actions
-}: ConnectorRowProps): ReactNode {
-  const palette = useKitPalette();
+export function ConnectorRow({ onOpen, ...actions }: ConnectorRowProps): ReactNode {
   const { row, project } = actions;
   return (
-    <Row
-      justify="between"
-      align="stretch"
-      gap={12}
-      border={{ bottom: { width: 1, color: palette.border } }}
-    >
-      <a
-        className="row-link"
-        href={routeHash({ kind: 'connector', project, id: row.id })}
-        onClick={(e) => {
-          if (opensElsewhere(e)) return;
-          e.preventDefault();
-          onOpen(row.id);
-        }}
-      >
-        <ConnectorFavicon name={row.name} url={row.url} size={ICON_SIZE} />
-        <Row
-          gap={10}
-          align="center"
-          flex={1}
-          minWidth={0}
-          padding={{ y: ROW_PAD_Y }}
-        >
-          <span className="row-title">
-            <Text
-              size="lg"
-              weight="semibold"
-              role={row.signIn === 'disconnected' ? 'secondary' : 'default'}
-              numberOfLines={1}
-            >
-              {row.name}
-            </Text>
-          </span>
-          <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
-            {connectorHost(row.url)}
-          </Text>
-        </Row>
-      </a>
-      <RowActions {...actions} />
-    </Row>
+    <ListRow
+      title={row.name}
+      detail={connectorHost(row.url)}
+      href={routeHash({ kind: 'connector', project, id: row.id })}
+      icon={<ConnectorFavicon name={row.name} url={row.url} size={LIST_ICON_SIZE} />}
+      muted={row.signIn === 'disconnected'}
+      onOpen={() => {
+        onOpen(row.id);
+      }}
+      trailing={<RowActions {...actions} />}
+    />
   );
 }

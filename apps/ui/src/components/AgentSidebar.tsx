@@ -29,7 +29,6 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
         <Col gap={10}>
           <Col gap={NAV_GAP}>
             <NavRow label="Agent" icon="user" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />
-            <NavRow label="Terminal" icon="terminal" selected={selection.kind === 'terminal'} target={{ kind: 'terminal', project }} onSelect={onSelect} />
           </Col>
           <Col gap={NAV_GAP} padding={{ top: 14 }}>
             <Row padding={{ bottom: 2 }}>
@@ -38,6 +37,7 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
             <NavRow label="Server" icon="server" selected={selection.kind === 'server'} target={{ kind: 'server', project }} onSelect={onSelect} />
             <NavRow label="Model" icon="chip" selected={selection.kind === 'model'} target={{ kind: 'model', project }} onSelect={onSelect} />
             <NavRow label="Harness" icon="cube" selected={selection.kind === 'claude'} target={{ kind: 'claude', project }} onSelect={onSelect} />
+            <NavRow label="Terminal" icon="terminal" selected={selection.kind === 'terminal'} target={{ kind: 'terminal', project }} onSelect={onSelect} />
           </Col>
           <Col gap={NAV_GAP} padding={{ top: 14 }}>
             <Row padding={{ bottom: 2 }}>

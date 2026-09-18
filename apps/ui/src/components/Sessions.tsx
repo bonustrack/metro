@@ -4,7 +4,7 @@ import { Text } from './ui.js';
 import { BackLink } from './BackLink.js';
 import { useHomeProject } from './home-project.js';
 import { ListRow } from './ListRow.js';
-import { CountBadge } from './CountBadge.js';
+import { ListHeader } from './ListHeader.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { SessionMenu } from './SessionMenu.js';
@@ -120,12 +120,7 @@ const NONE = 'No Claude Code session on this box yet.';
 
 function SessionsTitle({ claudeProject }: { claudeProject: string }): ReactNode {
   const { data } = useClaudeSessionsQuery(claudeProject);
-  return (
-    <Row gap={10} align="center">
-      <PageTitle>Sessions</PageTitle>
-      {data === undefined ? null : <CountBadge count={data.length} beside="title" />}
-    </Row>
-  );
+  return <ListHeader title="Sessions" count={data?.length} />;
 }
 
 export function Sessions({ project, claudeProject, id, onSelect }: SessionsProps): ReactNode {

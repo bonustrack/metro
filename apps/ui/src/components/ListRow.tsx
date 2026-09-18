@@ -6,16 +6,20 @@ import { SHRINK } from '../theme.js';
 import { opensElsewhere } from './link.js';
 
 const ROW_PAD_Y = 4;
+export const LIST_ICON_SIZE = 20;
 
 interface ListRowProps {
   title: string;
   detail: string;
   href?: string;
   onOpen: () => void;
+  icon?: ReactNode;
+  extra?: ReactNode;
+  muted?: boolean;
   trailing?: ReactNode;
 }
 
-export function ListRow({ title, detail, href = '#', onOpen, trailing }: ListRowProps): ReactNode {
+export function ListRow({ title, detail, href = '#', onOpen, icon, extra, muted = false, trailing }: ListRowProps): ReactNode {
   const palette = useKitPalette();
   return (
     <Row align="center" gap={12} border={{ bottom: { width: 1, color: palette.border } }}>
@@ -28,16 +32,22 @@ export function ListRow({ title, detail, href = '#', onOpen, trailing }: ListRow
           onOpen();
         }}
       >
+        {icon}
         <Row gap={10} align="center" flex={1} minWidth={0} padding={{ y: ROW_PAD_Y }}>
-          <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
+          <Text size="md" weight="semibold" role={muted ? 'secondary' : 'default'} numberOfLines={1} style={SHRINK}>
             {title}
           </Text>
+          {extra}
           <Text size="sm" role="secondary" numberOfLines={1}>
             {detail}
           </Text>
         </Row>
       </a>
-      {trailing}
+      {trailing === undefined ? null : (
+        <Row gap={8} align="center">
+          {trailing}
+        </Row>
+      )}
     </Row>
   );
 }

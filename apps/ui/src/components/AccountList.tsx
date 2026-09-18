@@ -1,26 +1,19 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
-import { SHRINK } from '../theme.js';
 import { stationLabel } from '../api/attach.js';
-import {
-  flattenAccounts,
-  stationFields,
-  type AccountGroup,
-  type AccountRow,
-} from '../api/accounts.js';
+import { flattenAccounts, stationFields, type AccountGroup, type AccountRow } from '../api/accounts.js';
 import { ChatIcon } from './ChatIcon.js';
 import { DetachAccount } from './DetachAccount.js';
-import { opensElsewhere } from './link.js';
+import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { StationIcon } from './StationIcon.js';
 import { Pill } from './Pill.js';
 import { routeHash } from '../route.js';
 
 export type DetachHandler = (station: string, accountId: string) => Promise<void>;
 
-const ROW_PAD_Y = 10;
-const ICON_SIZE = 20;
+const CHAT_ICON = 18;
 
 interface StationRowProps {
   station: string;
@@ -31,85 +24,46 @@ interface StationRowProps {
   onDetach?: DetachHandler;
 }
 
-function StationRow({
-  station,
-  row,
-  stale,
-  project,
-  onOpen,
-  onDetach,
-}: StationRowProps): ReactNode {
+function Extra({ enabled, stale }: { enabled: boolean; stale: boolean }): ReactNode {
+  return (
+    <>
+      {enabled ? null : <Pill label="Disabled" />}
+      {stale ? (
+        <Text size="sm" role="danger" numberOfLines={1}>
+          not responding
+        </Text>
+      ) : null}
+    </>
+  );
+}
+
+function StationRow({ station, row, stale, project, onOpen, onDetach }: StationRowProps): ReactNode {
   const palette = useKitPalette();
   const id = row.id;
   const { handle, url } = stationFields(row);
-  const body = (
-    <>
-      <StationIcon station={station} size={ICON_SIZE} />
-      <Row gap={10} align="center" flex={1} minWidth={0}>
-        <span className="row-title">
-          <Text size="lg" weight="semibold" role={row.enabled ? 'default' : 'secondary'} numberOfLines={1}>
-            {stationLabel(station)}
-          </Text>
-        </span>
-        {row.enabled ? null : <Pill label="Disabled" />}
-        <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
-          {handle ?? id ?? '-'}
-        </Text>
-        {stale ? (
-          <Text size="sm" role="danger" numberOfLines={1}>
-            not responding
-          </Text>
-        ) : null}
-      </Row>
-    </>
-  );
+  const label = stationLabel(station);
   return (
-    <Row
-      justify="between"
-      align="stretch"
-      gap={12}
-      border={{ bottom: { width: 1, color: palette.border } }}
-    >
-      {id === null ? (
-        <Row
-          gap={12}
-          align="center"
-          flex={1}
-          minWidth={0}
-          padding={{ y: ROW_PAD_Y }}
-        >
-          {body}
-        </Row>
-      ) : (
-        <a
-          className="row-link"
-          href={routeHash({ kind: 'station', project, accountId: id })}
-          onClick={(e) => {
-            if (opensElsewhere(e)) return;
-            e.preventDefault();
-            onOpen(id);
-          }}
-        >
-          {body}
-        </a>
-      )}
-      <Row gap={8} align="center" padding={{ y: ROW_PAD_Y }}>
-        {url === undefined ? null : (
-          <a
-            className="kebab kebab-lg"
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`Open ${stationLabel(station)}`}
-          >
-            <ChatIcon size={18} color={palette.link} />
-          </a>
-        )}
-        {onDetach !== undefined && id !== null ? (
-          <DetachAccount station={station} accountId={id} onDetach={onDetach} />
-        ) : null}
-      </Row>
-    </Row>
+    <ListRow
+      title={label}
+      detail={handle ?? id ?? '-'}
+      href={id === null ? '#' : routeHash({ kind: 'station', project, accountId: id })}
+      icon={<StationIcon station={station} size={LIST_ICON_SIZE} />}
+      extra={<Extra enabled={row.enabled} stale={stale} />}
+      muted={!row.enabled}
+      onOpen={() => {
+        if (id !== null) onOpen(id);
+      }}
+      trailing={
+        <>
+          {url === undefined ? null : (
+            <a className="kebab kebab-lg" href={url} target="_blank" rel="noreferrer" aria-label={`Open ${label}`}>
+              <ChatIcon size={CHAT_ICON} color={palette.link} />
+            </a>
+          )}
+          {onDetach !== undefined && id !== null ? <DetachAccount station={station} accountId={id} onDetach={onDetach} /> : null}
+        </>
+      }
+    />
   );
 }
 
@@ -121,27 +75,18 @@ interface AccountListProps {
   onDetach?: DetachHandler;
 }
 
-export function AccountList({
-  groups,
-  project,
-  empty,
-  onOpen,
-  onDetach,
-}: AccountListProps): ReactNode {
+export function AccountList({ groups, project, empty, onOpen, onDetach }: AccountListProps): ReactNode {
   const flat = flattenAccounts(groups);
-  if (flat.length === 0) return <Text size="sm" role="secondary">{empty}</Text>;
+  if (flat.length === 0)
+    return (
+      <Text size="sm" role="secondary">
+        {empty}
+      </Text>
+    );
   return (
     <Col>
       {flat.map((item) => (
-        <StationRow
-          key={`${item.station}/${item.row.id ?? ''}`}
-          station={item.station}
-          row={item.row}
-          stale={item.stale}
-          project={project}
-          onOpen={onOpen}
-          onDetach={onDetach}
-        />
+        <StationRow key={`${item.station}/${item.row.id ?? ''}`} station={item.station} row={item.row} stale={item.stale} project={project} onOpen={onOpen} onDetach={onDetach} />
       ))}
     </Col>
   );

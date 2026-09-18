@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button, Text } from './ui.js';
 import { Loading } from './Loading.js';
-import { PageTitle } from './PageTitle.js';
+import { ListHeader } from './ListHeader.js';
 import { NameModal } from './NameModal.js';
 import { KebabMenu } from './KebabMenu.js';
 import { ConfirmModal } from './ConfirmModal.js';
@@ -13,7 +13,6 @@ import { routeHash } from '../route.js';
 import { whenLabel } from '../api/when.js';
 import { createClaudeSkill, deleteClaudeSkill, type ClaudeSkill, type SkillListing } from '../api/claude.js';
 import { queryError, refreshClaudeSkills, useClaudeSkillsQuery, useModeQuery } from '../api/queries.js';
-import { CountBadge } from './CountBadge.js';
 import { olderThan } from '../api/version.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -31,6 +30,7 @@ function SkillRow({ skill, project, onOpen, onDelete }: { skill: ClaudeSkill; pr
       trailing={
         <KebabMenu
           label={`Actions for ${skill.name}`}
+          size="lg"
           items={[
             { label: 'Edit', onSelect: onOpen },
             { label: 'Delete', danger: true, onSelect: onDelete },
@@ -109,26 +109,24 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
   };
 
   return (
-    <Col gap={20}>
-      <Col gap={8}>
-        <Row gap={10} align="center">
-          <PageTitle>Skills</PageTitle>
-          {data === undefined ? null : <CountBadge count={data.skills.length} beside="title" />}
-        </Row>
-      </Col>
+    <Col gap={16}>
+      <ListHeader
+        title="Skills"
+        count={data?.skills.length}
+        action={
+          old ? null : (
+            <Button
+              color="primary"
+              dark={dark}
+              label="New skill"
+              onPress={() => {
+                setNaming(true);
+              }}
+            />
+          )
+        }
+      />
       <Listing old={old} error={error} data={data} project={project} onOpen={onOpen} onDelete={setDropping} />
-      {old ? null : (
-        <Row>
-          <Button
-            color="primary"
-            dark={dark}
-            label="New skill"
-            onPress={() => {
-              setNaming(true);
-            }}
-          />
-        </Row>
-      )}
       <NameModal
         title="New skill"
         action="Create"
