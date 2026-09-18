@@ -8,7 +8,7 @@ import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 
-const CARD_WIDTH = 400;
+const CARD_WIDTH = 340;
 const CARD_GAP = 32;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft' };
 const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com' };
