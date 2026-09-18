@@ -84,7 +84,8 @@ describe('switching server keeps the page', () => {
     const on = (selection: Selection): string => routeHash(sameViewOn(selection, 'suzy00000001'));
     expect(on({ kind: 'terminal', project: 'lisa000000001' })).toBe('#/suzy00000001/terminal');
     expect(on({ kind: 'model', project: 'lisa000000001' })).toBe('#/suzy00000001/model');
-    expect(on({ kind: 'claude', project: 'lisa000000001' })).toBe('#/suzy00000001/claude');
+    expect(on({ kind: 'claude', project: 'lisa000000001' })).toBe('#/suzy00000001/harness');
+    expect(routeSelection('#/suzy00000001/claude')).toEqual({ kind: 'claude', project: 'suzy00000001' });
     expect(on({ kind: 'home', project: 'lisa000000001' })).toBe('#/suzy00000001');
     expect(on({ kind: 'station', project: 'lisa000000001', accountId: 'a1' })).toBe('#/suzy00000001/channels');
     expect(on({ kind: 'connector', project: 'lisa000000001', id: 'c1' })).toBe('#/suzy00000001/connectors');

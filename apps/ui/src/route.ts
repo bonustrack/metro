@@ -16,7 +16,7 @@ const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
 const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
 const MODEL_PATH = new RegExp(`^#?/(${HOST})/model$`);
-const CLAUDE_PATH = new RegExp(`^#?/(${HOST})/claude$`);
+const CLAUDE_PATH = new RegExp(`^#?/(${HOST})/(?:harness|claude)$`);
 const SKILLS_PATH = new RegExp(`^#?/(${HOST})/skills$`);
 const SKILL_PATH = new RegExp(`^#?/(${HOST})/skill/(${SKILL})$`);
 const STATIONS_PATH = new RegExp(`^#?/(${HOST})/channels$`);
@@ -66,7 +66,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   server: () => '/server',
   terminal: () => '/terminal',
   model: () => '/model',
-  claude: () => '/claude',
+  claude: () => '/harness',
   skills: () => '/skills',
   skill: (s) => `/skill/${s.kind === 'skill' ? encodeURIComponent(s.id) : ''}`,
   stations: () => '/channels',
