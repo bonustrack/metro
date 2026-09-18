@@ -12,7 +12,7 @@ const CARD_WIDTH = 400;
 const CARD_GAP = 32;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft' };
 const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com' };
-const PROVIDER_ICON = 20;
+const PROVIDER_ICON = 24;
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
 const OFF = 'Sign-in is not configured on this Metro yet.';
 
