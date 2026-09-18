@@ -9,12 +9,14 @@ interface ConnectorFaviconProps {
   name: string;
   url: string;
   size: number;
+  radius?: number;
 }
 
 export function ConnectorFavicon({
   name,
   url,
   size,
+  radius = Math.round(size / 4),
 }: ConnectorFaviconProps): ReactNode {
   const palette = useKitPalette();
   const [failed, setFailed] = useState(false);
@@ -24,7 +26,7 @@ export function ConnectorFavicon({
     width: size,
     height: size,
     minWidth: size,
-    borderRadius: Math.round(size / 4),
+    borderRadius: radius,
     display: 'flex' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,

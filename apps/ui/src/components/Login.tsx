@@ -56,7 +56,7 @@ function ProviderButtons({ providers }: { providers: Provider[] }): ReactNode {
           color="primary"
           dark={dark}
           label={PROVIDER_LABEL[provider]}
-          icon={<ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON} />}
+          icon={<ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON} radius={0} />}
           style={FULL_WIDTH}
           onPress={() => {
             window.location.assign(loginUrl(provider));
