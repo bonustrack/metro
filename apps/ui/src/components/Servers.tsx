@@ -5,7 +5,7 @@ import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { Text, Button } from './ui.js';
 import { SHRINK } from '../theme.js';
-import { PageTitle } from './PageTitle.js';
+import { ListHeader } from './ListHeader.js';
 import { Pill } from './Pill.js';
 import { KebabMenu } from './KebabMenu.js';
 import { Loading } from './Loading.js';
@@ -193,29 +193,37 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
       )}
     >
       <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
-        <PageTitle>Agents</PageTitle>
+        <ListHeader
+          title="Agents"
+          action={
+            <Row gap={8} align="center">
+              <Button
+                color="primary"
+                dark={dark}
+                label="New agent"
+                onPress={() => {
+                  window.location.hash = '#/launch';
+                }}
+              />
+              <KebabMenu
+                label="More ways to add an agent"
+                size="lg"
+                items={[
+                  {
+                    label: 'Import agent',
+                    onSelect: () => {
+                      window.location.hash = '#/connect';
+                    },
+                  },
+                ]}
+              />
+            </Row>
+          }
+        />
         <Text size="sm" role="secondary">
           {HOW}
         </Text>
         <Body onBootLog={setLogOf} />
-        <Row gap={12} wrap>
-          <Button
-            color="primary"
-            dark={dark}
-            label="Add an agent"
-            onPress={() => {
-              window.location.hash = '#/connect';
-            }}
-          />
-          <Button
-            color="secondary"
-            dark={dark}
-            label="New agent"
-            onPress={() => {
-              window.location.hash = '#/launch';
-            }}
-          />
-        </Row>
         <BootLog
           server={logOf}
           onClose={() => {
