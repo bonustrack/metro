@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { ScrollView } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { NAV_GAP, NavRow } from './NavRow.js';
+import { OrganizationSwitcher } from './OrganizationSwitcher.js';
 import { SidebarFooter } from './SidebarFooter.js';
 import { FieldLabel } from './FieldLabel.js';
 import { type Selection } from './selection.js';
@@ -27,6 +28,9 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
     <Col flex={1} minHeight={0}>
       <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
         <Col gap={10}>
+          <Col padding={{ bottom: 4 }}>
+            <OrganizationSwitcher onSelect={onSelect} />
+          </Col>
           <Col gap={NAV_GAP}>
             <NavRow label="Agent" icon="user" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />
             <NavRow label="Settings" icon="cog" selected={selection.kind === 'agent-settings'} target={{ kind: 'agent-settings', project }} onSelect={onSelect} />
