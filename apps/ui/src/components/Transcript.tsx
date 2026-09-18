@@ -5,11 +5,14 @@ import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Text, Button } from './ui.js';
 import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
+import { parseChannelMessage } from './channel-message.js';
+import { atBottom, keepOffset, toBottom } from './chat-scroll.js';
 import { fetchTranscript, type Block, type TranscriptEntry } from '../api/claude.js';
 import { queryError } from '../api/queries.js';
 
-const PAGE = 100;
+const PAGE = 20;
 const LIVE_MS = 4_000;
+const BUBBLE_WIDTH = '85%';
 
 function summaryOf(input: string): string {
   const line = input.split('\n').find((l) => /"(command|description|file_path|pattern|query|url|prompt)"/.test(l));
@@ -17,7 +20,10 @@ function summaryOf(input: string): string {
 }
 
 function BlockView({ block }: { block: Block }): ReactNode {
-  if (block.kind === 'text') return <MarkdownBlock text={block.text} />;
+  if (block.kind === 'text') {
+    const message = parseChannelMessage(block.text);
+    return <MarkdownBlock text={message === null ? block.text : message.text} />;
+  }
   if (block.kind === 'tool_use')
     return (
       <details className="tool-call">
@@ -41,28 +47,32 @@ function BlockView({ block }: { block: Block }): ReactNode {
   );
 }
 
+function senderOf(entry: TranscriptEntry): string {
+  if (entry.role !== 'user') return 'Claude';
+  const first = entry.blocks.find((b) => b.kind === 'text');
+  const message = first?.kind === 'text' ? parseChannelMessage(first.text) : null;
+  if (message === null) return 'You';
+  const who = message.from ?? message.station ?? 'chat';
+  return message.line === null ? who : `${who} · ${message.line}`;
+}
+
 function Entry({ entry }: { entry: TranscriptEntry }): ReactNode {
   const user = entry.role === 'user';
+  const when = entry.at === null ? '' : ` · ${new Date(entry.at).toLocaleTimeString()}`;
   return (
-    <Col gap={6} padding={{ y: 8 }}>
-      <Text size="sm" role="secondary">
-        {user ? 'You' : 'Claude'}
-        {entry.at === null ? '' : ` · ${new Date(entry.at).toLocaleTimeString()}`}
-      </Text>
-      {user ? (
-        <Col surface="raised" radius={BLOCK_RADIUS_DEFAULT} padding={{ x: 12, y: 8 }} gap={6}>
+    <Row justify={user ? 'start' : 'end'} padding={{ y: 4 }}>
+      <Col gap={4} maxWidth={BUBBLE_WIDTH}>
+        <Text size="sm" role="secondary">
+          {senderOf(entry)}
+          {when}
+        </Text>
+        <Col surface={user ? 'raised' : 'surface'} border={user ? undefined : { top: { width: 1 }, right: { width: 1 }, bottom: { width: 1 }, left: { width: 1 } }} radius={BLOCK_RADIUS_DEFAULT} padding={{ x: 12, y: 8 }} gap={6}>
           {entry.blocks.map((b, i) => (
             <BlockView key={`${entry.uuid}-${String(i)}`} block={b} />
           ))}
         </Col>
-      ) : (
-        <Col gap={6}>
-          {entry.blocks.map((b, i) => (
-            <BlockView key={`${entry.uuid}-${String(i)}`} block={b} />
-          ))}
-        </Col>
-      )}
-    </Col>
+      </Col>
+    </Row>
   );
 }
 
@@ -93,6 +103,7 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
         setFrom(start);
         setTotal(page.total);
         seen.current = page.total;
+        toBottom();
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(queryError(err, 'Could not read the session.'));
@@ -108,9 +119,11 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
       fetchTranscript(project, id, seen.current, PAGE)
         .then((page) => {
           if (page.entries.length === 0) return;
+          const follow = atBottom();
           seen.current = page.total;
           setTotal(page.total);
           setEntries((prev) => [...(prev ?? []), ...page.entries]);
+          if (follow) toBottom();
         })
         .catch(() => undefined);
     }, LIVE_MS);
@@ -123,10 +136,12 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
     if (busy || from === 0) return;
     setBusy(true);
     const start = Math.max(0, from - PAGE);
+    const restore = keepOffset();
     fetchTranscript(project, id, start, from - start)
       .then((page) => {
         setEntries((prev) => [...page.entries, ...(prev ?? [])]);
         setFrom(start);
+        restore();
       })
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not read earlier turns.'));
@@ -140,28 +155,30 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
   if (entries === null) return <Loading />;
   return (
     <div className="transcript">
-    <Col gap={4}>
-      {from > 0 ? (
-        <Row>
-          <Button
-            size="sm"
-            color="secondary"
-            dark={dark}
-            loading={busy}
-            label={`Show earlier (${String(from)} more)`}
-            onPress={earlier}
-          />
+      <Col gap={4}>
+        {from > 0 ? (
+          <Row justify="center" padding={{ bottom: 8 }}>
+            <Button
+              size="sm"
+              color="secondary"
+              dark={dark}
+              loading={busy}
+              label={`Show earlier (${String(from)} more)`}
+              onPress={earlier}
+            />
+          </Row>
+        ) : null}
+        {entries.length === 0 ? (
+          <Text size="sm" role="secondary">Nothing in this session yet.</Text>
+        ) : (
+          entries.map((e) => <Entry key={e.uuid} entry={e} />)
+        )}
+        <Row justify="center" padding={{ top: 8 }}>
+          <Text size="sm" role="secondary">
+            {String(total)} turn{total === 1 ? '' : 's'} · updates every few seconds while the session runs
+          </Text>
         </Row>
-      ) : null}
-      {entries.length === 0 ? (
-        <Text size="sm" role="secondary">Nothing in this session yet.</Text>
-      ) : (
-        entries.map((e) => <Entry key={e.uuid} entry={e} />)
-      )}
-      <Text size="sm" role="secondary">
-        {String(total)} turn{total === 1 ? '' : 's'} · updates every few seconds while the session runs
-      </Text>
-    </Col>
+      </Col>
     </div>
   );
 }

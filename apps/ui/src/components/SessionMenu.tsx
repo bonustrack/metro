@@ -41,6 +41,12 @@ export function SessionMenu({ claudeProject, id, title, onDeleted }: SessionMenu
         size="lg"
         items={[
           {
+            label: 'Copy id',
+            onSelect: () => {
+              navigator.clipboard.writeText(id).catch(() => undefined);
+            },
+          },
+          {
             label: 'Delete session',
             danger: true,
             onSelect: () => {

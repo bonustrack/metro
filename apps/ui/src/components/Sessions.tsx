@@ -83,9 +83,7 @@ function SessionView({
   onSelect: (selection: Selection) => void;
 }): ReactNode {
   const list: Selection = { kind: 'sessions', project, claudeProject, id: null };
-  const { data } = useClaudeSessionsQuery(claudeProject);
-  const title = data?.find((s) => s.id === id)?.title ?? id;
-  useDocumentTitle(title);
+  useDocumentTitle(id);
   return (
     <Col gap={16}>
       <Row justify="between" align="center" gap={12}>
@@ -99,13 +97,13 @@ function SessionView({
         <SessionMenu
           claudeProject={claudeProject}
           id={id}
-          title={title}
+          title={id}
           onDeleted={() => {
             onSelect(list);
           }}
         />
       </Row>
-      <PageTitle>{title}</PageTitle>
+      <PageTitle>{id}</PageTitle>
       <Transcript project={claudeProject} id={id} />
     </Col>
   );

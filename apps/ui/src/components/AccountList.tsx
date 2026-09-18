@@ -52,12 +52,7 @@ function StationRow({
           </Text>
         </span>
         {row.enabled ? null : <Pill label="Disabled" />}
-        <Text
-          size="lg"
-          role="secondary"
-          numberOfLines={1}
-          style={SHRINK}
-        >
+        <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
           {handle ?? id ?? '-'}
         </Text>
         {stale ? (
