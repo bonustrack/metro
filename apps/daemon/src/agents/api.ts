@@ -1,7 +1,7 @@
 import { webhookPort } from '../net/tunnel.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseId } from '@metro-labs/core/ids';
-import { errMsg, log } from '@metro-labs/core/log';
+import { log } from '@metro-labs/core/log';
 import {
   apiFailure,
   apiSession, requireAdmin,
@@ -247,8 +247,8 @@ export function handleAgentApiRequest(
     return true;
   }
   dispatch(req, res, deps, tgt).catch((err: unknown) => {
-    log.warn({ err: errMsg(err) }, 'agent-api: unhandled error');
-    if (!res.headersSent) sendJson(req, res, 500, { error: 'agent api failed' });
+    if (res.headersSent) return;
+    apiFailure(req, res, err, 'agent-api');
   });
   return true;
 }

@@ -123,18 +123,13 @@ async function answeredByWallet(url: string, init: CallInit, identity: Identity)
   return send(url, init, identity);
 }
 
-const REFUSED = new Set([401, 403]);
-
 async function answeredByBox(url: string, init: CallInit): Promise<Response> {
   const identity = activeIdentity();
   const token = activeAccount() === null ? null : await accessToken();
   if (token !== null) {
     const res = await sendBearer(url, init, token);
-    if (!REFUSED.has(res.status)) return res;
-    if (identity === null) {
-      if (res.status === 403) return res;
-      throw new WalletNeeded();
-    }
+    if (res.ok || (identity === null && res.status !== 401)) return res;
+    if (identity === null) throw new WalletNeeded();
     return answeredByWallet(url, init, identity);
   }
   if (identity === null) throw new AuthError('not signed in');

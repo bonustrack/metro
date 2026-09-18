@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { errMsg, log } from '@metro-labs/core/log';
+import { log } from '@metro-labs/core/log';
 import {
   apiFailure,
   apiSession,
@@ -302,9 +302,8 @@ export function handleConnectorApiRequest(
     return true;
   }
   dispatch(req, res, deps, tgt).catch((err: unknown) => {
-    log.warn({ err: errMsg(err) }, 'connector-api: unhandled error');
-    if (!res.headersSent)
-      sendJson(req, res, 500, { error: 'connector api failed' });
+    if (res.headersSent) return;
+    apiFailure(req, res, err, 'connector-api');
   });
   return true;
 }

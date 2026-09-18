@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { clearAccount, storeAccount } from '../src/auth/account.ts';
 import { clearIdentity } from '../src/auth/identity.ts';
+import { installTestIdentity } from './identity-fixture.ts';
 import { call, WalletNeeded } from '../src/api/client.ts';
 import { builtInDaemon } from '../src/auth/daemon.ts';
 
@@ -65,5 +66,18 @@ describe('a signed-in account talks to metro.box with a bearer', () => {
     await expect(call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).rejects.toBeInstanceOf(WalletNeeded);
     serve([{ status: 403, body: { error: 'this machine belongs to another organization' } }]);
     await expect(call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).rejects.toThrow('another organization');
+  });
+
+  test('with the wallet connected, any refusal of the bearer by a box is retried with the wallet, a 500 included', async () => {
+    await installTestIdentity();
+    storeAccount({ accessToken: jwt(Math.floor(Date.now() / 1000) + 300), refreshToken: 'rt_1', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
+    serve([
+      { status: 500, body: { error: 'agent api failed' } },
+      { status: 200, body: { agents: [] } },
+    ]);
+    expect(await call({ method: 'GET', base: 'http://127.0.0.1:8420/api/agents' })).toEqual({ agents: [] });
+    expect(seen[0]?.authorization?.startsWith('Bearer ')).toBe(true);
+    expect(seen[1]?.authorization?.startsWith('Metro ')).toBe(true);
+    clearIdentity();
   });
 });
