@@ -9,6 +9,7 @@ import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 
 const CARD_WIDTH = 400;
+const CARD_GAP = 32;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft' };
 const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com' };
 const PROVIDER_ICON = 20;
@@ -67,7 +68,7 @@ export function Login(): ReactNode {
   const failed = loginError();
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
-      <Col gap={20} width="100%" maxWidth={CARD_WIDTH} padding={24}>
+      <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={24}>
         <Row justify="center">
           <MetroLogo size={48} color={palette.link} />
         </Row>
