@@ -1,4 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { log } from '@metro-labs/core/log';
 import { filled, workosBase } from '@metro-labs/http/workos-token';
 
 export const PROVIDERS = { google: 'GoogleOAuth', microsoft: 'MicrosoftOAuth', github: 'GitHubOAuth' } as const;
@@ -31,23 +32,41 @@ export class WorkosError extends Error {
 export const ALL_PROVIDERS: Provider[] = ['google', 'microsoft', 'github'];
 export const isProvider = (value: unknown): value is Provider => typeof value === 'string' && (ALL_PROVIDERS as string[]).includes(value);
 const PROBE_MS = 60_000;
+const PROBE_FETCH_MS = 5_000;
 
-export async function providerEnabled(cfg: WorkosConfig, provider: Provider, redirectUri: string): Promise<boolean> {
+export async function providerEnabled(cfg: WorkosConfig, provider: Provider, redirectUri: string): Promise<boolean | null> {
   try {
-    const res = await fetch(authorizationUrl(cfg, provider, redirectUri, 'probe'), { redirect: 'manual', signal: AbortSignal.timeout(FETCH_MS) });
-    return res.status >= 300 && res.status < 400;
+    const res = await fetch(authorizationUrl(cfg, provider, redirectUri, 'probe'), { redirect: 'manual', signal: AbortSignal.timeout(PROBE_FETCH_MS) });
+    if (res.status >= 300 && res.status < 400) return true;
+    return res.status === 404 ? false : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
 let probed: { at: number; providers: Provider[] } | null = null;
+let probing: Promise<Provider[]> | null = null;
 
-export async function enabledProviders(cfg: WorkosConfig, redirectUri: string, now = Date.now()): Promise<Provider[]> {
-  if (probed !== null && now - probed.at < PROBE_MS) return probed.providers;
+async function probeProviders(cfg: WorkosConfig, redirectUri: string, now: number): Promise<Provider[]> {
+  const before = probed?.providers ?? [];
   const answers = await Promise.all(ALL_PROVIDERS.map((p) => providerEnabled(cfg, p, redirectUri)));
-  probed = { at: now, providers: ALL_PROVIDERS.filter((_, i) => answers[i] === true) };
-  return probed.providers;
+  const providers = ALL_PROVIDERS.filter((p, i) => answers[i] === true || (answers[i] === null && before.includes(p)));
+  if (answers.every((a) => a === null)) {
+    log.warn('auth: WorkOS did not answer the provider probe, keeping the last list');
+    return before;
+  }
+  probed = { at: now, providers };
+  return providers;
+}
+
+export function enabledProviders(cfg: WorkosConfig, redirectUri: string, now = Date.now()): Promise<Provider[]> {
+  if (probed !== null && now - probed.at < PROBE_MS) return Promise.resolve(probed.providers);
+  probing ??= probeProviders(cfg, redirectUri, now).finally(() => {
+    probing = null;
+  });
+  if (probed === null) return probing;
+  probing.catch(() => undefined);
+  return Promise.resolve(probed.providers);
 }
 
 export function forgetProviders(): void {

@@ -113,6 +113,13 @@ async function handoffFor(cfg: WorkosConfig, code: string, now: number): Promise
   return handoff;
 }
 
+const UNVERIFIED = 'That account has no verified email address, so Metro cannot accept it. Log in with Google or GitHub, or use an account whose address is verified.';
+
+function exchangeRefusal(err: unknown): string {
+  if (!(err instanceof WorkosError)) return 'sign-in failed';
+  return err.code === 'email_verification_required' ? UNVERIFIED : err.message;
+}
+
 async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
@@ -128,7 +135,7 @@ async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearch
     redirect(res, withHash(returnTo, `#/auth/${await handoffFor(cfg, query.get('code') ?? '', now)}`));
   } catch (err) {
     log.warn({ err: errMsg(err) }, 'auth: the code exchange failed');
-    redirect(res, withHash(returnTo, `#/login?error=${encodeURIComponent(err instanceof WorkosError ? err.message : 'sign-in failed')}`));
+    redirect(res, withHash(returnTo, `#/login?error=${encodeURIComponent(exchangeRefusal(err))}`));
   }
 }
 

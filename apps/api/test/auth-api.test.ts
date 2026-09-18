@@ -77,6 +77,18 @@ describe('signing in to metro.box through WorkOS', () => {
     workos.enabled.delete('MicrosoftOAuth');
     workos.enabled.delete('GitHubOAuth');
     forgetProviders();
+    expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
+    workos.outage.on = true;
+    try {
+      deps.now = () => Date.now() + 2 * 60_000;
+      expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
+    } finally {
+      workos.outage.on = false;
+      deps.now = undefined;
+    }
+    forgetProviders();
     const off = { ...deps, config: () => null };
     const s = createServer((req, res) => {
       handleAuthApiRequest(req, res, off);

@@ -11,6 +11,7 @@ export interface FakeWorkos {
   enabled: Set<string>;
   members: { id: string; user_id: string; role: string }[];
   invitations: { id: string; email: string; state: string; role_slug: string }[];
+  outage: { on: boolean };
   close: () => Promise<void>;
 }
 
@@ -38,6 +39,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     { id: 'user_02BOB', email: 'bob@stage.box', first_name: 'Bob', last_name: null, profile_picture_url: null },
   ];
   let refreshCount = 0;
+  const outage = { on: false };
   let orgName = 'Stage Labs';
   const tokens = (organization: string | null, sub = 'user_01ABC'): Record<string, unknown> => ({
     user: { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
@@ -50,6 +52,10 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     const send = (status: number, payload: unknown): void => {
       res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(payload));
     };
+    if (outage.on) {
+      send(500, { message: 'WorkOS is having a bad minute' });
+      return;
+    }
     if (url.pathname === '/user_management/authorize') {
       if (!enabled.has(url.searchParams.get('provider') ?? '')) return send(404, { message: 'Not Found' });
       if (url.searchParams.get('state') === 'probe') {
@@ -148,6 +154,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     enabled,
     members,
     invitations,
+    outage,
     close: async () => {
       await issuer.close();
       await new Promise<void>((r) => {

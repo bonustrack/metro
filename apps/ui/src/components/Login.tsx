@@ -17,7 +17,8 @@ const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', 
 const PROVIDER_ICON = 22;
 const PROVIDER_SCALE: Record<Provider, number> = { google: 1.4, microsoft: 1, github: 1 };
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
-const OFF = 'Sign-in is not configured on this Metro yet.';
+const OFF = 'Log-in is not set up on this Metro yet.';
+const AWAY = 'Log-in is not available right now. Try again in a minute.';
 
 function loginError(): string | null {
   const raw = window.location.hash.replace(/^#/, '');
@@ -27,28 +28,34 @@ function loginError(): string | null {
   return error === null || error === '' ? null : error;
 }
 
-function useProviders(): Provider[] | null {
-  const [providers, setProviders] = useState<Provider[] | null>(null);
+type Offer = { providers: Provider[] } | { note: string };
+
+function useProviders(): Offer | null {
+  const [offer, setOffer] = useState<Offer | null>(null);
   useEffect(() => {
     fetchAuthStatus()
       .then((status) => {
-        setProviders(status.enabled ? status.providers : []);
+        if (!status.enabled) setOffer({ note: OFF });
+        else setOffer(status.providers.length === 0 ? { note: AWAY } : { providers: status.providers });
       })
       .catch(() => {
-        setProviders([]);
+        setOffer({ note: AWAY });
       });
   }, []);
-  return providers;
+  return offer;
 }
 
-function ProviderButtons({ providers }: { providers: Provider[] }): ReactNode {
+function ProviderButtons({ offer }: { offer: Offer }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  if (providers.length === 0)
+  if ('note' in offer)
     return (
-      <Text size="sm" role="secondary">
-        {OFF}
-      </Text>
+      <Row justify="center">
+        <Text size="sm" role="secondary">
+          {offer.note}
+        </Text>
+      </Row>
     );
+  const { providers } = offer;
   return (
     <Col gap={10}>
       {providers.map((provider) => (
@@ -70,9 +77,9 @@ function ProviderButtons({ providers }: { providers: Provider[] }): ReactNode {
 }
 
 export function Login(): ReactNode {
-  const providers = useProviders();
+  const offer = useProviders();
   const failed = loginError();
-  if (providers === null) return <BootLoading />;
+  if (offer === null) return <BootLoading />;
   return (
     <div className="login-page">
       <Row justify="center" align="start" padding={{ x: 24, bottom: 24 }}>
@@ -95,7 +102,7 @@ export function Login(): ReactNode {
           </Text>
         )}
           <Col padding={{ top: BUTTONS_TOP }}>
-            <ProviderButtons providers={providers} />
+            <ProviderButtons offer={offer} />
           </Col>
         </Col>
       </Row>
