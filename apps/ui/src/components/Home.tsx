@@ -10,6 +10,7 @@ import { ImportAgent } from './ImportAgent.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { AvatarButton, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
+import { AgentModel } from './AgentModel.js';
 import { resetAgentKey } from '../api/client.js';
 import { accountsForAgent, stationCount } from '../api/accounts.js';
 import { queryError, refreshAgents, useConnectorsQuery, useModeQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
@@ -165,6 +166,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
         <StatusPills host={here?.host ?? null} project={project} onSelect={onSelect} />
         <MetroVersion />
       </Col>
+      <AgentModel project={project} onSelect={onSelect} />
       <Col gap={10}>
         <Summary label="Channels" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
         <ChannelCards groups={accountsForAgent(data.groups, agent.id)} project={project} onSelect={onSelect} />

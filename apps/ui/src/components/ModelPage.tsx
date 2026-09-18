@@ -6,24 +6,19 @@ import { Text, Button, Input } from './ui.js';
 import { PageTitle } from './PageTitle.js';
 import { FieldLabel } from './FieldLabel.js';
 import { ModelUsage } from './ModelUsage.js';
+import { ProviderLogo } from './ProviderLogo.js';
 import { Loading } from './Loading.js';
 import { GROW } from '../theme.js';
-import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelOption, type ModelSettings, type ProviderInfo } from '../api/model.js';
+import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelOption, type ModelSettings } from '../api/model.js';
 import { queryError, refreshModel, useAnthropicModelsQuery, useBedrockModelsQuery, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery, useOpenRouterZdrQuery } from '../api/queries.js';
 import { ModelPicker } from './ModelPicker.js';
 import { useDocumentTitle } from '../title.js';
 import { whenLabel } from '../api/when.js';
 import { CodexConnect } from './CodexConnect.js';
 import { ClaudeLoginCard } from './ClaudeLogin.js';
-import { ConnectorFavicon } from './ConnectorFavicon.js';
 
 const LOGO_SIZE = 16;
 const ROUTE_LOGO_SIZE = 20;
-
-function ProviderLogo({ provider, size }: { provider: ProviderInfo | undefined; size: number }): ReactNode {
-  if (provider === undefined) return null;
-  return <ConnectorFavicon name={provider.label} url={provider.site} size={size} />;
-}
 
 const HOW =
   'Claude Code sessions started with metro claude send every request through this daemon, which forwards it to the provider chosen here. A change applies to the next request, no restart needed. Inside a session, /model bedrock:<id>, /model openrouter:<id> or /model codex:<id> switches that session only.';
