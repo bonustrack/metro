@@ -2,7 +2,8 @@ import { builtInDaemon } from '../auth/daemon.js';
 import { accountFrom, activeAccount, clearAccount, storeAccount, tokenExpiring, type Account } from '../auth/account.js';
 import { isRecord } from './accounts.js';
 
-export type Provider = 'google' | 'microsoft';
+export type Provider = 'google' | 'microsoft' | 'github';
+const PROVIDER_NAMES: string[] = ['google', 'microsoft', 'github'];
 
 export interface AuthStatus {
   enabled: boolean;
@@ -36,7 +37,7 @@ export async function fetchAuthStatus(): Promise<AuthStatus> {
   const res = await fetch(authUrl(''));
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok || !isRecord(body)) throw unexpected();
-  const providers = Array.isArray(body.providers) ? body.providers.filter((p): p is Provider => p === 'google' || p === 'microsoft') : [];
+  const providers = Array.isArray(body.providers) ? body.providers.filter((p): p is Provider => typeof p === 'string' && PROVIDER_NAMES.includes(p)) : [];
   return { enabled: body.enabled === true, providers };
 }
 

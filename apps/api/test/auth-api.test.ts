@@ -71,9 +71,11 @@ describe('signing in to metro.box through WorkOS', () => {
     expect(microsoft.status).toBe(400);
     expect(((await microsoft.json()) as { error: string }).error).toContain('microsoft sign-in is not set up');
     workos.enabled.add('MicrosoftOAuth');
+    workos.enabled.add('GitHubOAuth');
     forgetProviders();
-    expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google', 'microsoft'] });
+    expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google', 'microsoft', 'github'] });
     workos.enabled.delete('MicrosoftOAuth');
+    workos.enabled.delete('GitHubOAuth');
     forgetProviders();
     const off = { ...deps, config: () => null };
     const s = createServer((req, res) => {

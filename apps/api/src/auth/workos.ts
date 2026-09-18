@@ -1,7 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { filled, workosBase } from '@metro-labs/http/workos-token';
 
-export const PROVIDERS = { google: 'GoogleOAuth', microsoft: 'MicrosoftOAuth' } as const;
+export const PROVIDERS = { google: 'GoogleOAuth', microsoft: 'MicrosoftOAuth', github: 'GitHubOAuth' } as const;
 export type Provider = keyof typeof PROVIDERS;
 const FETCH_MS = 15_000;
 
@@ -28,8 +28,8 @@ export class WorkosError extends Error {
   }
 }
 
-export const isProvider = (value: unknown): value is Provider => value === 'google' || value === 'microsoft';
-export const ALL_PROVIDERS: Provider[] = ['google', 'microsoft'];
+export const ALL_PROVIDERS: Provider[] = ['google', 'microsoft', 'github'];
+export const isProvider = (value: unknown): value is Provider => typeof value === 'string' && (ALL_PROVIDERS as string[]).includes(value);
 const PROBE_MS = 60_000;
 
 export async function providerEnabled(cfg: WorkosConfig, provider: Provider, redirectUri: string): Promise<boolean> {
