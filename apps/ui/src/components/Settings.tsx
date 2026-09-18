@@ -5,7 +5,6 @@ import { Text, Button } from './ui.js';
 import { PageTitle } from './PageTitle.js';
 import { THEME_MODES, useThemeMode } from '../theme-mode.js';
 import { useDocumentTitle } from '../title.js';
-import { OrganizationSettings } from './OrganizationSettings.js';
 
 export function Settings(): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -16,7 +15,6 @@ export function Settings(): ReactNode {
       <Col gap={8}>
         <PageTitle>Settings</PageTitle>
       </Col>
-      <OrganizationSettings />
       <Col gap={12}>
           <Col gap={2}>
             <Text weight="semibold">Appearance</Text>

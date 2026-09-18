@@ -63,9 +63,9 @@ function Block({ account }: { account: Account }): ReactNode {
   return (
     <Col gap={12}>
       <Col gap={2}>
-        <Text weight="semibold">Organization</Text>
+        <Text weight="semibold">Name</Text>
         <Text size="sm" role="secondary">
-          {admin ? 'The name every member sees, on this page and in the invitations Metro sends.' : 'Only an admin can rename the organization.'}
+          {admin ? 'What every member sees, on this page and in the invitations Metro sends.' : 'Only an admin can rename the organization.'}
         </Text>
       </Col>
       <Row gap={8} align="center" wrap>

@@ -5,7 +5,7 @@ import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { AgentPicture, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
-import { AgentModel } from './AgentModel.js';
+import { AgentRoute, AgentUsage } from './AgentModel.js';
 import { accountsForAgent, stationCount } from '../api/accounts.js';
 import { queryError, useConnectorsQuery, useModeQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { currentServer } from '../auth/daemon.js';
@@ -96,20 +96,25 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
   if (agent === undefined) return <NoAgent />;
   return (
     <Col gap={24}>
-      <Col gap={12}>
-        <Row align="center" gap={16}>
-          <AgentPicture server={server} seed={agent.id} />
-          <Col gap={4} flex={1} minWidth={0}>
-            <PageTitle>{name}</PageTitle>
-            <Text size="sm" role="secondary" numberOfLines={1}>
-              id {agent.id}
-            </Text>
+      <div className="agent-top">
+        <Col gap={20}>
+          <Col gap={12}>
+            <Row align="center" gap={16}>
+              <AgentPicture server={server} seed={agent.id} />
+              <Col gap={4} flex={1} minWidth={0}>
+                <PageTitle>{name}</PageTitle>
+                <Text size="sm" role="secondary" numberOfLines={1}>
+                  id {agent.id}
+                </Text>
+              </Col>
+            </Row>
+            <StatusPills host={here?.host ?? null} project={project} onSelect={onSelect} />
+            <MetroVersion />
           </Col>
-        </Row>
-        <StatusPills host={here?.host ?? null} project={project} onSelect={onSelect} />
-        <MetroVersion />
-      </Col>
-      <AgentModel project={project} onSelect={onSelect} />
+          <AgentRoute project={project} onSelect={onSelect} />
+        </Col>
+        <AgentUsage />
+      </div>
       <Col gap={10}>
         <Summary label="Channels" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
         <ChannelCards groups={accountsForAgent(data.groups, agent.id)} project={project} onSelect={onSelect} />

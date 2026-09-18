@@ -398,6 +398,29 @@ body {
   text-decoration: none;
 }
 
+.agent-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+.agent-top > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .agent-top {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .agent-top > * {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+}
+
 .agent-card {
   position: relative;
   display: flex;

@@ -6,6 +6,7 @@ export type Selection =
   | { kind: 'connect' }
   | { kind: 'launch' }
   | { kind: 'members' }
+  | { kind: 'organization' }
   | { kind: 'home'; project: string }
   | { kind: 'agent-settings'; project: string }
   | { kind: 'server'; project: string }

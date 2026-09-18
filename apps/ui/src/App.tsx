@@ -23,6 +23,7 @@ import { activeAccount, loadAccount } from './auth/account.js';
 import { exchangeHandoff, logoutAccount, refreshAccount } from './api/auth.js';
 import { handoffCode } from './auth/handoff.js';
 import { OrganizationSetup } from './components/OrganizationSetup.js';
+import { Organization } from './components/Organization.js';
 import { daemonBase, daemonHost, isServerId, setCurrentServer, storedServerId } from './auth/daemon.js';
 
 type Phase = 'loading' | 'login' | 'organization' | 'unlocked';
@@ -159,6 +160,7 @@ function Unlocked({ selection, onLock }: { selection: Selection; onLock: () => v
   if (selection.kind === 'connect') return <Connect />;
   if (selection.kind === 'launch') return <LaunchServer />;
   if (selection.kind === 'members') return <Members onLock={onLock} />;
+  if (selection.kind === 'organization') return <Organization onLock={onLock} />;
   if (selection.kind === 'servers' || selection.kind === 'none') return <Servers onLock={onLock} />;
   return <ServerGate selection={selection} onLock={onLock} />;
 }

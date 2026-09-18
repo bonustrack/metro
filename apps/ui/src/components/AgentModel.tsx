@@ -51,7 +51,7 @@ function currentProvider(settings: ModelSettings): UsageProvider | undefined {
   return usageProvider(settings.lastServed?.provider ?? settings.provider) ?? usageProvider(settings.provider);
 }
 
-export function AgentModel({ project, onSelect }: { project: string; onSelect: (s: Selection) => void }): ReactNode {
+export function AgentRoute({ project, onSelect }: { project: string; onSelect: (s: Selection) => void }): ReactNode {
   const model = useModelQuery();
   const target: Selection = { kind: 'model', project };
   if (model.error !== null)
@@ -62,15 +62,18 @@ export function AgentModel({ project, onSelect }: { project: string; onSelect: (
     );
   if (model.data === undefined) return null;
   return (
-    <Col gap={16}>
-      <Route
-        settings={model.data}
-        href={routeHash(target)}
-        onOpen={() => {
-          onSelect(target);
-        }}
-      />
-      <ModelUsage usage={model.data.usage} only={currentProvider(model.data)} />
-    </Col>
+    <Route
+      settings={model.data}
+      href={routeHash(target)}
+      onOpen={() => {
+        onSelect(target);
+      }}
+    />
   );
+}
+
+export function AgentUsage(): ReactNode {
+  const model = useModelQuery();
+  if (model.data === undefined) return null;
+  return <ModelUsage usage={model.data.usage} only={currentProvider(model.data)} />;
 }

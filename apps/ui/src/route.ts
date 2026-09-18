@@ -13,6 +13,7 @@ const SETTINGS_PATH = /^#?\/settings$/;
 const CONNECT_PATH = /^#?\/connect$/;
 const LAUNCH_PATH = /^#?\/launch$/;
 const MEMBERS_PATH = /^#?\/members$/;
+const ORGANIZATION_PATH = /^#?\/organization$/;
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
 const AGENT_SETTINGS_PATH = new RegExp(`^#?/(${HOST})/settings$`);
@@ -35,6 +36,7 @@ function exactSelection(hash: string): Selection | null {
   if (CONNECT_PATH.test(hash)) return { kind: 'connect' };
   if (LAUNCH_PATH.test(hash)) return { kind: 'launch' };
   if (MEMBERS_PATH.test(hash)) return { kind: 'members' };
+  if (ORGANIZATION_PATH.test(hash)) return { kind: 'organization' };
   return null;
 }
 
@@ -88,13 +90,20 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
       : '',
 };
 
+const PLAIN: Partial<Record<Selection['kind'], string>> = {
+  servers: '#/',
+  none: '#/',
+  docs: '#/docs/setup',
+  settings: '#/settings',
+  connect: '#/connect',
+  launch: '#/launch',
+  members: '#/members',
+  organization: '#/organization',
+};
+
 export function routeHash(selection: Selection): string {
-  if (selection.kind === 'servers' || selection.kind === 'none') return '#/';
-  if (selection.kind === 'docs') return '#/docs/setup';
-  if (selection.kind === 'settings') return '#/settings';
-  if (selection.kind === 'connect') return '#/connect';
-  if (selection.kind === 'launch') return '#/launch';
-  if (selection.kind === 'members') return '#/members';
+  const plain = PLAIN[selection.kind];
+  if (plain !== undefined) return plain;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return '#/';
   return `#/${selection.project}${suffix(selection)}`;

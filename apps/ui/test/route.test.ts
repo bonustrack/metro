@@ -78,6 +78,8 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/launch')).toEqual({ kind: 'launch' });
     expect(routeSelection('#/members')).toEqual({ kind: 'members' });
     expect(routeHash({ kind: 'members' })).toBe('#/members');
+    expect(routeSelection('#/organization')).toEqual({ kind: 'organization' });
+    expect(routeHash({ kind: 'organization' })).toBe('#/organization');
     expect(routeHash({ kind: 'launch' })).toBe('#/launch');
     expect(routeSelection('#/launch/').kind).not.toBe('launch');
   });
