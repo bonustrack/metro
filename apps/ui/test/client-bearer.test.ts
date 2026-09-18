@@ -55,10 +55,15 @@ describe('a signed-in account talks to metro.box with a bearer', () => {
     expect(seen.map((s) => s.url.split('/api/')[1])).toEqual(['servers', 'auth/refresh', 'servers']);
   });
 
-  test('a box is still reached with the wallet, and without one the page asks for it rather than logging out', async () => {
-    storeAccount({ accessToken: jwt(Math.floor(Date.now() / 1000) + 300), refreshToken: 'rt_1', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
-    serve([]);
+  test('a box is tried with the bearer first; a box that refuses it and has no wallet here asks for the wallet rather than logging out', async () => {
+    const fresh = jwt(Math.floor(Date.now() / 1000) + 300);
+    storeAccount({ accessToken: fresh, refreshToken: 'rt_1', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
+    serve([{ status: 200, body: { subject: 'org_1', role: 'admin' } }]);
+    expect(await call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).toEqual({ subject: 'org_1', role: 'admin' });
+    expect(seen[0]?.authorization).toBe(`Bearer ${fresh}`);
+    serve([{ status: 401, body: { error: 'unauthorized' } }]);
     await expect(call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).rejects.toBeInstanceOf(WalletNeeded);
-    expect(seen).toEqual([]);
+    serve([{ status: 403, body: { error: 'this machine belongs to another organization' } }]);
+    await expect(call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).rejects.toThrow('another organization');
   });
 });

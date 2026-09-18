@@ -12,6 +12,7 @@ import { LaunchProgress } from './LaunchProgress.js';
 import { CopyBlock } from './CopyBlock.js';
 import { Loading } from './Loading.js';
 import { activeIdentity } from '../auth/identity.js';
+import { activeAccount } from '../auth/account.js';
 import { queryError, refreshServers, useLaunchOverviewQuery } from '../api/queries.js';
 import { launchServer, type Launched, type LaunchOverview } from '../api/launch.js';
 import { regionRows } from '../aws/regions.js';
@@ -60,9 +61,9 @@ function useLaunchForm(): {
   const launch = (): void => {
     if (busy || name.trim() === '' || region.trim() === '') return;
 
-    const wallet = activeIdentity()?.address ?? null;
+    const wallet = activeAccount()?.organization ?? activeIdentity()?.address ?? null;
     if (wallet === null) {
-      setError('Sign in again: Metro needs to know which wallet will own the server.');
+      setError('Sign in again: Metro needs to know which organization will own the server.');
       return;
     }
     setBusy(true);

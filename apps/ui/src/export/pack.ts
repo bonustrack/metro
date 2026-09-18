@@ -1,4 +1,5 @@
-import { fromBase64Url, openBundle, sealBundle, toBase64Url, type Envelope, type WalletKeys } from '../vault/crypto.js';
+import { fromBase64Url, openBundle, toBase64Url, type Envelope, type WalletKeys } from '../vault/crypto.js';
+import { isPassphraseEnvelope, openWithPassphrase, sealWithPassphrase, type PassphraseEnvelope } from './passphrase.js';
 
 export const FILE_VERSION = 1;
 export const FILE_KIND = 'agent-export';
@@ -60,8 +61,10 @@ export interface Payload {
 export interface MetroFile {
   metro: number;
   kind: string;
-  envelope: Envelope;
+  envelope: Envelope | PassphraseEnvelope;
 }
+
+export type Opener = { passphrase: string } | { wallet: WalletKeys };
 
 export const BOX_SECTIONS: readonly Section[] = ['sessions', 'model'];
 export const BOX_SECTIONS_SINCE = '0.1.0-beta.127';
@@ -122,13 +125,12 @@ export function fileName(server: string, at: Date, hash: string): string {
   return `${slug === '' ? 'metro' : slug}-${fileStamp(at)}-${hash.slice(0, HASH_CHARS)}${FILE_EXTENSION}`;
 }
 
-export async function packFile(
-  payload: Payload,
-  recipient: Pick<WalletKeys, 'address' | 'publicKey'>,
-): Promise<MetroFile> {
+export async function packFile(payload: Payload, passphrase: string): Promise<MetroFile> {
   const compressed = await gzip(JSON.stringify(payload));
-  return { metro: FILE_VERSION, kind: FILE_KIND, envelope: await sealBundle(compressed, payload.agent.id, recipient) };
+  return { metro: FILE_VERSION, kind: FILE_KIND, envelope: await sealWithPassphrase(fromBase64Url(compressed), passphrase, payload.agent.id) };
 }
+
+export const sealedWith = (file: MetroFile): 'passphrase' | 'wallet' => (isPassphraseEnvelope(file.envelope) ? 'passphrase' : 'wallet');
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -144,7 +146,7 @@ export function parseMetroFile(text: string): MetroFile {
   if (!isRecord(raw) || raw.metro !== FILE_VERSION || raw.kind !== FILE_KIND)
     throw new Error('That is not a metro export file.');
   if (!isRecord(raw.envelope)) throw new Error('That export file carries nothing to open.');
-  return { metro: FILE_VERSION, kind: FILE_KIND, envelope: raw.envelope as unknown as Envelope };
+  return { metro: FILE_VERSION, kind: FILE_KIND, envelope: raw.envelope as unknown as MetroFile['envelope'] };
 }
 
 function listOf<T>(raw: unknown, of: (entry: unknown) => T): T[] | undefined {
@@ -211,10 +213,18 @@ export function parsePayload(raw: unknown): Payload {
   };
 }
 
-export async function openMetroFile(text: string, wallet: WalletKeys): Promise<Payload> {
-  const file = parseMetroFile(text);
+async function plainOf(file: MetroFile, opener: Opener): Promise<string> {
+  if (isPassphraseEnvelope(file.envelope)) {
+    if (!('passphrase' in opener)) throw new Error('This file needs its passphrase.');
+    return gunzip(toBase64Url(await openWithPassphrase(file.envelope, opener.passphrase)));
+  }
+  if (!('wallet' in opener)) throw new Error('This file was sealed to a wallet: connect that wallet to open it.');
   const recipient = file.envelope.key.recipient.toLowerCase();
-  if (recipient !== wallet.address.toLowerCase())
+  if (recipient !== opener.wallet.address.toLowerCase())
     throw new Error(`That file was sealed for ${recipient}, not for the wallet you are signed in with.`);
-  return parsePayload(JSON.parse(await gunzip(await openBundle(file.envelope, wallet))));
+  return gunzip(await openBundle(file.envelope, opener.wallet));
+}
+
+export async function openMetroFile(text: string, opener: Opener): Promise<Payload> {
+  return parsePayload(JSON.parse(await plainOf(parseMetroFile(text), opener)));
 }

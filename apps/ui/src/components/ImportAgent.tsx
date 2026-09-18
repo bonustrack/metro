@@ -2,16 +2,17 @@ import { type ReactNode, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Text, Button, Input } from './ui.js';
 import { Modal } from './Modal.js';
 import { activeIdentity } from '../auth/identity.js';
-import { BOX_SECTIONS, BOX_SECTIONS_SINCE, countOf, openMetroFile, SECTION_LABELS, sectionsIn, type Payload, type Section } from '../export/pack.js';
+import { BOX_SECTIONS, BOX_SECTIONS_SINCE, countOf, openMetroFile, parseMetroFile, sealedWith, SECTION_LABELS, sectionsIn, type Opener, type Payload, type Section } from '../export/pack.js';
 import { useModeQuery } from '../api/queries.js';
 import { olderThan } from '../api/version.js';
 import { applyPayload, type Applied, type Mode } from '../export/transfer.js';
 
 const HOW =
-  'Pick a .metro file. It is opened here in the browser with your sign-in key, and a file sealed for another wallet is refused before anything is written.';
+  'Pick a .metro file. It is opened here in the browser with its passphrase. A file from before passphrases was sealed to a wallet, and needs that wallet connected.';
+const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const APPEND =
   'Append adds what is missing and leaves everything already on this box exactly as it is. Nothing is replaced.';
 const OVERWRITE =
@@ -103,6 +104,8 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
 
 interface ImportState {
   payload: Payload | null;
+  pending: string | null;
+  open: (passphrase: string) => void;
   picked: Set<Section>;
   mode: Mode;
   busy: boolean;
@@ -118,6 +121,7 @@ interface ImportState {
 function useImport(agent: { id: string; name: string; key: string }): ImportState {
   const client = useQueryClient();
   const [payload, setPayload] = useState<Payload | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<Section>>(new Set());
   const [mode, setMode] = useState<Mode>('append');
   const [busy, setBusy] = useState(false);
@@ -131,24 +135,34 @@ function useImport(agent: { id: string; name: string; key: string }): ImportStat
     setBusy(false);
   };
 
-  const chosen = (file: File | undefined): void => {
-    const identity = activeIdentity();
-    if (file === undefined) return;
-    if (identity === null) {
-      setError('Sign in again before importing.');
-      return;
-    }
+  const unseal = (text: string, opener: Opener): void => {
     setBusy(true);
     setError(null);
-    file
-      .text()
-      .then((text) => openMetroFile(text, identity))
+    openMetroFile(text, opener)
       .then((opened) => {
         setPayload(opened);
+        setPending(null);
         setPicked(new Set(sectionsIn(opened)));
       })
       .catch(fail('Could not open that file.'))
       .finally(settle);
+  };
+
+  const chosen = (file: File | undefined): void => {
+    if (file === undefined) return;
+    setError(null);
+    file
+      .text()
+      .then((text) => {
+        if (sealedWith(parseMetroFile(text)) === 'passphrase') {
+          setPending(text);
+          return;
+        }
+        const identity = activeIdentity();
+        if (identity === null) throw new Error('This file was sealed to a wallet: connect that wallet, then try again.');
+        unseal(text, { wallet: identity });
+      })
+      .catch(fail('Could not open that file.'));
   };
 
   const run = (): void => {
@@ -166,12 +180,16 @@ function useImport(agent: { id: string; name: string; key: string }): ImportStat
 
   return {
     payload,
+    pending,
     picked,
     mode,
     busy,
     error,
     done,
     setMode,
+    open: (passphrase: string) => {
+      if (pending !== null) unseal(pending, { passphrase });
+    },
     toggle: (section) => {
       const next = new Set(picked);
       if (next.has(section)) next.delete(section);
@@ -182,12 +200,34 @@ function useImport(agent: { id: string; name: string; key: string }): ImportStat
     run,
     reset: () => {
       setPayload(null);
+      setPending(null);
       setPicked(new Set());
       setMode('append');
       setError(null);
       setDone(null);
     },
   };
+}
+
+function Unlock({ busy, onOpen }: { busy: boolean; onOpen: (passphrase: string) => void }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const [passphrase, setPassphrase] = useState('');
+  return (
+    <Col gap={10}>
+      <Input name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase of this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
+      <Row gap={8}>
+        <Button
+          color="primary"
+          dark={dark}
+          disabled={busy || passphrase === ''}
+          label={busy ? 'Opening…' : 'Open'}
+          onPress={() => {
+            onOpen(passphrase);
+          }}
+        />
+      </Row>
+    </Col>
+  );
 }
 
 function Chooser({ busy, onPick }: { busy: boolean; onPick: (file: File | undefined) => void }): ReactNode {
@@ -255,7 +295,8 @@ export function ImportAgent({ open, onClose, agent }: ImportAgentProps): ReactNo
     <Modal title="Import agent" open={open} onClose={close}>
       <Col gap={14}>
         <Text size="sm" role="secondary">{HOW}</Text>
-        {state.payload === null ? <Chooser busy={state.busy} onPick={state.chosen} /> : null}
+        {state.payload === null && state.pending === null ? <Chooser busy={state.busy} onPick={state.chosen} /> : null}
+        {state.payload === null && state.pending !== null ? <Unlock busy={state.busy} onOpen={state.open} /> : null}
         {ready && state.payload !== null ? (
           <Options
             payload={state.payload}

@@ -72,7 +72,7 @@ function hexToBytes(hex: string): Uint8Array {
   return out;
 }
 
-const buffer = (bytes: Uint8Array): ArrayBuffer => bytes.slice().buffer;
+export const buffer = (bytes: Uint8Array): ArrayBuffer => bytes.slice().buffer;
 
 async function hkdf(ikm: Uint8Array, salt: string, info: Uint8Array, bytes = 32): Promise<Uint8Array> {
   const material = await crypto.subtle.importKey('raw', buffer(ikm), 'HKDF', false, ['deriveBits']);
