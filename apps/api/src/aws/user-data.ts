@@ -1,6 +1,6 @@
 export const NODE_RE = /^metro-[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 export const HOSTNAME_RE = /^[a-z0-9](?:[a-z0-9-]{0,62})$/;
-export const OWNER_RE = /^0x[0-9a-f]{40}$/;
+export const OWNER_RE = /^(0x[0-9a-f]{40}|org_[A-Za-z0-9]{10,64})$/;
 export const AUTH_KEY_RE = /^tskey-auth-[A-Za-z0-9_-]{8,200}$/;
 const TAG_RE = /^[a-z0-9][A-Za-z0-9.-]{0,40}$/;
 
@@ -33,7 +33,7 @@ function checkAuthKey(value: string): string {
 export function cloudInit(spec: BoxSpec): string {
   const hostname = check(spec.hostname, HOSTNAME_RE, 'The host name');
   const node = check(spec.node, NODE_RE, 'The tailnet name');
-  const owner = check(spec.owner, OWNER_RE, 'The owner wallet');
+  const owner = check(spec.owner, OWNER_RE, 'The owner');
   const key = checkAuthKey(spec.tailscaleAuthKey);
   const tag = check(spec.metroTag, TAG_RE, 'The metro version');
   return [

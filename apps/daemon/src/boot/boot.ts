@@ -26,6 +26,7 @@ import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { sessionRunning, stopSession, unwatchSession, watchSession } from '../claude/session.js';
 import { tryClaudeSetup } from '../claude/setup.js';
 import { applyLocalOwner } from './local-owner.js';
+import { installBearerSessions } from '../routes/bearer.js';
 import { ensureLocalAgent, localOwner } from '../agents/file-admin.js';
 import { migrateAgentLayout } from '../agents/files.js';
 import { ensureStationDeps } from '../stations/runtime-deps.js';
@@ -140,6 +141,7 @@ function startConnectors(): void {
 
 async function main(): Promise<void> {
   applyLocalOwner();
+installBearerSessions(agentsDir(), localOwner);
   migrateAgentLayout();
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource, { allowEmpty: true });

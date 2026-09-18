@@ -45,7 +45,7 @@ describe('who owns a local daemon', () => {
   test('the operator sets the owner, lowercased, 0600, and may change it', () => {
     expect(localOwner(dir)).toBe(OWNER);
     expect((statSync(join(dir, '.owner')).mode & 0o777).toString(8)).toBe('600');
-    expect(() => setLocalOwner('nope', dir)).toThrow(/not an Ethereum address/);
+    expect(() => setLocalOwner('nope', dir)).toThrow(/nor an Ethereum address/);
     expect(setLocalOwner(OTHER, dir)).toBe(OTHER);
     expect(localOwner(dir)).toBe(OTHER);
     setLocalOwner(OWNER, dir);

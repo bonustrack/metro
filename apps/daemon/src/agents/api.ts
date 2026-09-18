@@ -4,7 +4,7 @@ import { parseId } from '@metro-labs/core/ids';
 import { errMsg, log } from '@metro-labs/core/log';
 import {
   apiFailure,
-  apiSession,
+  apiSession, requireAdmin,
   projectParam,
   cors,
   sendJson,
@@ -190,6 +190,7 @@ async function routeAgent(
   tgt: AgentTarget,
 ): Promise<void> {
   try {
+    if (tgt.kind !== 'collection') requireAdmin(session);
     if (tgt.kind === 'key') await handleResetKey(req, res, deps, session, tgt.id);
     else if (tgt.kind === 'agent')
       await handleDelete(req, res, deps, session, tgt.id);

@@ -49,7 +49,9 @@ describe('metro serve arguments', () => {
       owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7',
     });
     expect(parseServeArgs(['--owner=0xef8305e140ac520225daf050e2f71d5fbcc543e7']).owner).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
-    expect(() => parseServeArgs(['--owner', 'less.eth'])).toThrow(/not an Ethereum address/);
+    expect(parseServeArgs(['--owner', 'org_01M2TNE064H99ECTG4X228Y6B6']).owner).toBe('org_01M2TNE064H99ECTG4X228Y6B6');
+    expect(() => parseServeArgs(['--owner', 'org_x'])).toThrow('neither an organization id');
+    expect(() => parseServeArgs(['--owner', 'less.eth'])).toThrow(/nor an Ethereum address/);
   });
 
   test('a bad port or an unknown flag is refused with the usage', () => {

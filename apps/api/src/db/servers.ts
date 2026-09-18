@@ -7,14 +7,11 @@ import { agents } from './schema.js';
 import { normalizeAddress } from '@metro-labs/core/address';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
 import { parseAvatar } from '../avatar.js';
+import { isOrganizationId } from '@metro-labs/http/workos-token';
 
 export class ServerListError extends ApiError {}
 
 const missing = (): ServerListError => new ServerListError('no such server', 404);
-
-const ORG_RE = /^org_[A-Za-z0-9]{10,64}$/;
-
-export const isOrganizationId = (value: string): boolean => ORG_RE.test(value);
 
 function ownerOf(subject: string): string {
   if (isOrganizationId(subject)) return subject;

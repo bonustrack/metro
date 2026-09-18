@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import type { SigningKeys } from '@metro-labs/http/workos-token';
+import { isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-token';
 import { requestOwner } from './servers.js';
 import { AGENT_NAME_RE, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -99,8 +99,8 @@ function nameOf(body: unknown): string {
 }
 
 function ownerOf(body: unknown): string {
-  const raw = isRecord(body) && typeof body.owner === 'string' ? body.owner : '';
-  const owner = normalizeAddress(raw);
+  const raw = isRecord(body) && typeof body.owner === 'string' ? body.owner.trim() : '';
+  const owner = isOrganizationId(raw) ? raw : normalizeAddress(raw);
   if (owner === null)
     throw new ApiError('the wallet address that will own the server is required', 400);
   return owner;

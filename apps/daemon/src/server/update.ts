@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, apiSession, cors, sendJson } from '@metro-labs/http/api-http';
+import { apiFailure, apiSession, requireAdmin, cors, sendJson } from '@metro-labs/http/api-http';
 import { isRecord } from '@metro-labs/core/is-record';
 import { METRO_VERSION } from '@metro-labs/core/version';
 
@@ -98,6 +98,7 @@ export function handleUpdateRequest(req: IncomingMessage, res: ServerResponse, d
       const session = await apiSession(req);
       if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
+      if (req.method === 'POST') requireAdmin(session);
       const bin = binOrThrow(deps);
       if (req.method === 'GET') return { ...(await check(bin)), running: METRO_VERSION };
       return apply(bin, deps);

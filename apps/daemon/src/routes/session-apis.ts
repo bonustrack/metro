@@ -7,6 +7,7 @@ import {
 } from '../connectors/api.js';
 import type { RelayApiDeps } from '../connectors/relay.js';
 import type { IdentityRouteDeps } from './identity.js';
+import type { OwnerRouteDeps } from './owner.js';
 import { handleLocalCliRequest, type LocalCliDeps } from '../connectors/cli-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from '../claude/api.js';
 import type { ModeInfo } from '@metro-labs/http/mode-api';
@@ -32,6 +33,7 @@ export interface SessionApis {
   connectorApi?: ConnectorApiDeps;
   relayApi?: RelayApiDeps;
   identity?: IdentityRouteDeps;
+  owner?: OwnerRouteDeps;
   mode?: () => ModeInfo;
 }
 

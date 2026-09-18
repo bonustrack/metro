@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, apiSession, cors, sendJson } from '@metro-labs/http/api-http';
+import { apiFailure, apiSession, requireAdmin, cors, sendJson } from '@metro-labs/http/api-http';
 import { errMsg, log } from '@metro-labs/core/log';
 
 const STOP = '/api/stop';
@@ -44,6 +44,7 @@ export function handleControlRequest(req: IncomingMessage, res: ServerResponse, 
       const session = await apiSession(req);
       if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
+      requireAdmin(session);
       if (!(deps.served ?? servedByCli)())
         throw new ApiError(
           'this daemon was not started by metro serve, so nothing on the machine would bring it back: use the shell instead',

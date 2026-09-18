@@ -2,6 +2,8 @@ import type { IncomingMessage } from 'node:http';
 import { createPublicKey, verify, type JsonWebKey, type KeyObject } from 'node:crypto';
 
 export const WORKOS_API = 'https://api.workos.com';
+const ORG_RE = /^org_[A-Za-z0-9]{10,64}$/;
+export const isOrganizationId = (value: string): boolean => ORG_RE.test(value);
 export const WORKOS_ISSUER = 'https://api.workos.com';
 export const DEFAULT_CLIENT_ID = 'client_01M2TJJJ6RM9CT081QB4XZK3G2';
 const SKEW_S = 60;

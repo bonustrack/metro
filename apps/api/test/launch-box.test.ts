@@ -89,7 +89,7 @@ describe('metro issuing a box', () => {
     for (const [over, reason] of [
       [{ name: '***' }, 'name'],
       [{ authKey: 'nope' }, 'Tailscale auth key'],
-      [{ owner: '' }, 'owner wallet'],
+      [{ owner: '' }, 'The owner'],
     ] as const) {
       const { deps, calls } = fakeDeps();
       await expect(launchBox({ ...INPUT, ...over }, deps)).rejects.toThrow(reason);

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { apiFailure, apiSession, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { apiFailure, apiSession, requireAdmin, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { listClaudeSettings, SETTINGS_MAX, writeClaudeSettings } from './settings.js';
@@ -147,6 +147,7 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
   return createClaudeSkill(body.name, scope, typeof body.text === 'string' ? body.text : undefined, dir);
 }
 
+const ADMIN_ONLY = /^\/(login|session|version|setup)(\/|$)/;
 const LOGIN = 'login';
 const SESSION = 'session';
 const SETUP = 'setup';
@@ -343,6 +344,7 @@ export function handleClaudeRequest(
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
+      if (req.method !== 'GET' && ADMIN_ONLY.test(path)) requireAdmin(session);
       if (await streamed(req, res, path, search, (deps.dir ?? claudeDir)())) return;
       sendJson(req, res, 200, await routed(req, path, search, deps));
     })

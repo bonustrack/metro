@@ -38,8 +38,8 @@ describe('the first-boot script', () => {
 
   test('a value the script could not carry safely is refused before anything is built', () => {
     for (const [over, what] of [
-      [{ owner: '0xEF8305E140AC520225DAF050E2F71D5FBCC543E7' }, 'owner wallet'],
-      [{ owner: '' }, 'owner wallet'],
+      [{ owner: '0xEF8305E140AC520225DAF050E2F71D5FBCC543E7' }, 'owner'],
+      [{ owner: '' }, 'owner'],
       [{ tailscaleAuthKey: "tskey-auth-x'; rm -rf /" }, 'Tailscale auth key'],
       [{ tailscaleAuthKey: 'tskey-api-kKv6QQKgh311CNTRL-abcdefghijklmnop' }, 'starts with tskey-auth-'],
       [{ tailscaleAuthKey: '' }, 'is required'],

@@ -20,7 +20,7 @@ export function handleSessionApiRequest(
   apiSession(req)
     .then((session) => {
       if (!session) sendJson(req, res, 401, { error: 'unauthorized' });
-      else sendJson(req, res, 200, { subject: session.subject });
+      else sendJson(req, res, 200, { subject: session.subject, role: session.role });
     })
     .catch((err: unknown) => {
       apiFailure(req, res, err, 'session');

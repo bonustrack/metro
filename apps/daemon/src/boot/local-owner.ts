@@ -9,6 +9,6 @@ export function applyLocalOwner(): string | null {
     return address;
   }
   const stored = localOwner();
-  if (stored === null) log.warn('local daemon: no owner set, so no wallet can sign in; restart with metro serve --owner <address>');
+  if (stored === null) log.warn('local daemon: no owner set, so nobody can sign in; restart with metro serve --owner <organization id or address>');
   return stored;
 }

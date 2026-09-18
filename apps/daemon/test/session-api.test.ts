@@ -35,12 +35,12 @@ describe('GET /api/session is the boot gate', () => {
   test('a registered identity answers with the subject it acts for', async () => {
     const res = await get('ada@lovelace.dev');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ subject: 'ada@lovelace.dev' });
+    expect(await res.json()).toEqual({ subject: 'ada@lovelace.dev', role: 'admin' });
   });
 
   test('the subject is lowercased, so it matches every other API', async () => {
     const res = await get('Ada@Lovelace.DEV');
-    expect(await res.json()).toEqual({ subject: 'ada@lovelace.dev' });
+    expect(await res.json()).toEqual({ subject: 'ada@lovelace.dev', role: 'admin' });
   });
 
   test('no header is a 401', async () => {

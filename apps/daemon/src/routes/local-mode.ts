@@ -43,6 +43,7 @@ import {
   localOwner,
   localResetAgentKey,
   readLocalAgentFile,
+  setLocalOwner,
 } from '../agents/file-admin.js';
 import { listAgentFiles, readAgentFile } from '../agents/files.js';
 import { readModelConfig } from '../gateway/model-config.js';
@@ -218,6 +219,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     gateway: { config: readModelConfig },
     terminalApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     identity: { owner: localOwner },
+    owner: { owner: localOwner, setOwner: setLocalOwner },
     mode: localModeInfo,
   };
 }

@@ -37,9 +37,12 @@ function portOf(raw: string | undefined): number {
 }
 
 
+const ORGANIZATION = /^org_[A-Za-z0-9]{10,64}$/;
+
 function ownerOf(raw: string | undefined): string {
+  if (raw !== undefined && ORGANIZATION.test(raw)) return raw;
   if (raw === undefined || !ADDRESS.test(raw))
-    throw new Error(`'${raw ?? ''}' is not an Ethereum address — ${USAGE}`);
+    throw new Error(`'${raw ?? ''}' is neither an organization id (org_…) nor an Ethereum address — ${USAGE}`);
   return raw.toLowerCase();
 }
 
@@ -78,17 +81,18 @@ export function parseServeArgs(argv: string[]): ServeArgs {
 export function requireOwner(owner: string | null, dir = agentsDir()): void {
   if (owner !== null || existsSync(join(dir, '.owner'))) return;
   throw new Error(
-    'no owner is set for this machine, so no wallet could sign in.\n' +
-      'Pass the wallet that owns it once; it is remembered in ' +
+    'no owner is set for this machine, so nobody could sign in.\n' +
+      'Pass the organization (or wallet) that owns it once; it is remembered in ' +
       join(dir, '.owner') +
-      ':\n  metro serve --owner <address>',
+      ':\n  metro serve --owner <org_… or address>',
   );
 }
 
 export function readOwner(dir = agentsDir()): string | null {
   try {
-    const raw = readFileSync(join(dir, '.owner'), 'utf8').trim().toLowerCase();
-    return ADDRESS.test(raw) ? raw : null;
+    const raw = readFileSync(join(dir, '.owner'), 'utf8').trim();
+    if (ORGANIZATION.test(raw)) return raw;
+    return ADDRESS.test(raw.toLowerCase()) ? raw.toLowerCase() : null;
   } catch {
     return null;
   }

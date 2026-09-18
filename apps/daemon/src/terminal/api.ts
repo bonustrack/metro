@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, apiSession, bodyField, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { apiFailure, apiSession, requireAdmin, bodyField, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { log } from '@metro-labs/core/log';
 import { mintTerminalTicket } from './tickets.js';
 
@@ -80,6 +80,7 @@ export function handleTerminalRequest(req: IncomingMessage, res: ServerResponse,
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
+      requireAdmin(session);
       if (path === PREFIX) {
         sendJson(req, res, 200, { available: tmuxAvailable(deps), sessions: tmuxSessions() });
         return;

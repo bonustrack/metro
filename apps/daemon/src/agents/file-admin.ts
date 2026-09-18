@@ -1,6 +1,7 @@
 import { readFileSync, rmdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
+import { isOrganizationId } from '@metro-labs/http/workos-token';
 import { ensureSecureDir, writeSecure } from '@metro-labs/core/secure-fs';
 import {
   AgentAdminError,
@@ -38,26 +39,31 @@ interface Stored {
 
 const missing = (): AgentAdminError => new AgentAdminError('no such agent', 404);
 
+export function parseOwner(raw: string): string | null {
+  const text = raw.trim();
+  return isOrganizationId(text) ? text : normalizeAddress(text);
+}
+
 export function localOwner(dir = agentsDir()): string | null {
   try {
-    return normalizeAddress(readFileSync(join(dir, OWNER_FILE), 'utf8'));
+    return parseOwner(readFileSync(join(dir, OWNER_FILE), 'utf8'));
   } catch {
     return null;
   }
 }
 
 export function setLocalOwner(raw: string, dir = agentsDir()): string {
-  const address = normalizeAddress(raw);
-  if (address === null) throw new ApiError(`'${raw}' is not an Ethereum address`, 400);
+  const owner = parseOwner(raw);
+  if (owner === null) throw new ApiError(`'${raw}' is neither an organization id nor an Ethereum address`, 400);
   ensureSecureDir(dir);
-  writeSecure(join(dir, OWNER_FILE), `${address}\n`);
-  return address;
+  writeSecure(join(dir, OWNER_FILE), `${owner}\n`);
+  return owner;
 }
 
 
 function isOwner(subject: string, dir: string): boolean {
   const owner = localOwner(dir);
-  return owner !== null && owner === normalizeAddress(subject);
+  return owner !== null && owner === parseOwner(subject);
 }
 
 export function storedAgents(dir: string): Stored[] {

@@ -6,8 +6,23 @@ import { identitySubject } from './identity-registry.js';
 
 const BODY_MAX = 4 * 1024;
 
+export type Role = 'admin' | 'member';
+
 export interface ApiSession {
   subject: string;
+  role: Role;
+}
+
+export type BearerSessions = (req: IncomingMessage) => Promise<ApiSession | null>;
+
+let bearerSessions: BearerSessions | null = null;
+
+export function setBearerSessions(fn: BearerSessions | null): void {
+  bearerSessions = fn;
+}
+
+export function requireAdmin(session: ApiSession): void {
+  if (session.role !== 'admin') throw new ApiError('this needs the admin role in your organization', 403);
 }
 
 export function cors(req: IncomingMessage): Record<string, string> {
@@ -37,8 +52,11 @@ export function sendJson(
 
 export async function apiSession(req: IncomingMessage): Promise<ApiSession | null> {
   const address = await signedIdentity(req);
-  const subject = address === null ? undefined : identitySubject(address);
-  return subject === undefined ? null : { subject };
+  if (address !== null) {
+    const subject = identitySubject(address);
+    return subject === undefined ? null : { subject, role: 'admin' };
+  }
+  return bearerSessions === null ? null : bearerSessions(req);
 }
 
 export interface AgentIdentity {
