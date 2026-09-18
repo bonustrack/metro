@@ -5,6 +5,7 @@ import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Text, Button } from './ui.js';
 import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
+import { StationIcon } from './StationIcon.js';
 import { parseChannelMessage } from './channel-message.js';
 import { atBottom, keepOffset, toBottom } from './chat-scroll.js';
 import { fetchTranscript, type Block, type TranscriptEntry } from '../api/claude.js';
@@ -13,6 +14,7 @@ import { queryError } from '../api/queries.js';
 const PAGE = 20;
 const LIVE_MS = 4_000;
 const BUBBLE_WIDTH = '85%';
+const SENDER_ICON = 16;
 
 function summaryOf(input: string): string {
   const line = input.split('\n').find((l) => /"(command|description|file_path|pattern|query|url|prompt)"/.test(l));
@@ -49,25 +51,34 @@ function BlockView({ block }: { block: Block }): ReactNode {
   );
 }
 
-function senderOf(entry: TranscriptEntry): string {
-  if (entry.role !== 'user') return 'Claude';
+interface Sender {
+  label: string;
+  station: string | null;
+}
+
+function senderOf(entry: TranscriptEntry): Sender {
+  if (entry.role !== 'user') return { label: 'Claude', station: null };
   const first = entry.blocks.find((b) => b.kind === 'text');
   const message = first?.kind === 'text' ? parseChannelMessage(first.text) : null;
-  if (message === null) return 'You';
+  if (message === null) return { label: 'You', station: null };
   const who = message.from ?? message.station ?? 'chat';
-  return message.line === null ? who : `${who} · ${message.line}`;
+  return { label: message.line === null ? who : `${who} · ${message.line}`, station: message.station };
 }
 
 function Entry({ entry }: { entry: TranscriptEntry }): ReactNode {
   const user = entry.role === 'user';
+  const sender = senderOf(entry);
   const when = entry.at === null ? '' : ` · ${new Date(entry.at).toLocaleTimeString()}`;
   return (
     <Row justify={user ? 'start' : 'end'} padding={{ y: 4 }}>
       <Col gap={4} maxWidth={BUBBLE_WIDTH}>
-        <Text size="sm" role="secondary">
-          {senderOf(entry)}
-          {when}
-        </Text>
+        <Row align="center" gap={6}>
+          {sender.station === null ? null : <StationIcon station={sender.station} size={SENDER_ICON} />}
+          <Text size="sm" role="secondary" numberOfLines={1}>
+            {sender.label}
+            {when}
+          </Text>
+        </Row>
         <Col surface={user ? 'raised' : 'surface'} border={user ? undefined : { top: { width: 1 }, right: { width: 1 }, bottom: { width: 1 }, left: { width: 1 } }} radius={BLOCK_RADIUS_DEFAULT} padding={{ x: 12, y: 8 }} gap={6}>
           {entry.blocks.map((b, i) => (
             <BlockView key={`${entry.uuid}-${String(i)}`} block={b} />
