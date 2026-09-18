@@ -4,14 +4,12 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { Modal } from './Modal.js';
-import { activeIdentity } from '../auth/identity.js';
-import { BOX_SECTIONS, BOX_SECTIONS_SINCE, countOf, openMetroFile, parseMetroFile, sealedWith, SECTION_LABELS, sectionsIn, type Opener, type Payload, type Section } from '../export/pack.js';
+import { BOX_SECTIONS, BOX_SECTIONS_SINCE, countOf, openMetroFile, parseMetroFile, sealedWith, SECTION_LABELS, sectionsIn, WALLET_SEALED, type Payload, type Section } from '../export/pack.js';
 import { useModeQuery } from '../api/queries.js';
 import { olderThan } from '../api/version.js';
 import { applyPayload, type Applied, type Mode } from '../export/transfer.js';
 
-const HOW =
-  'Pick a .metro file. It is opened here in the browser with its passphrase. A file from before passphrases was sealed to a wallet, and needs that wallet connected.';
+const HOW = 'Pick a .metro file. It is opened here in the browser with its passphrase; nothing in it reaches Metro before you choose what to import.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const APPEND =
   'Append adds what is missing and leaves everything already on this box exactly as it is. Nothing is replaced.';
@@ -135,10 +133,10 @@ function useImport(agent: { id: string; name: string; key: string }): ImportStat
     setBusy(false);
   };
 
-  const unseal = (text: string, opener: Opener): void => {
+  const unseal = (text: string, passphrase: string): void => {
     setBusy(true);
     setError(null);
-    openMetroFile(text, opener)
+    openMetroFile(text, passphrase)
       .then((opened) => {
         setPayload(opened);
         setPending(null);
@@ -154,13 +152,8 @@ function useImport(agent: { id: string; name: string; key: string }): ImportStat
     file
       .text()
       .then((text) => {
-        if (sealedWith(parseMetroFile(text)) === 'passphrase') {
-          setPending(text);
-          return;
-        }
-        const identity = activeIdentity();
-        if (identity === null) throw new Error('This file was sealed to a wallet: connect that wallet, then try again.');
-        unseal(text, { wallet: identity });
+        if (sealedWith(parseMetroFile(text)) !== 'passphrase') throw new Error(WALLET_SEALED);
+        setPending(text);
       })
       .catch(fail('Could not open that file.'));
   };
@@ -188,7 +181,7 @@ function useImport(agent: { id: string; name: string; key: string }): ImportStat
     done,
     setMode,
     open: (passphrase: string) => {
-      if (pending !== null) unseal(pending, { passphrase });
+      if (pending !== null) unseal(pending, passphrase);
     },
     toggle: (section) => {
       const next = new Set(picked);

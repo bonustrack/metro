@@ -1,6 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import { privateKeyToAccount } from 'viem/accounts';
-import { sealBundle, walletKeys } from '../src/vault/crypto.js';
 import {
   digest,
   fileName,
@@ -14,13 +12,6 @@ import {
   sectionsIn,
   type Payload,
 } from '../src/export/pack.js';
-
-const ACCOUNT = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
-
-async function keysFor(account = ACCOUNT): Promise<Awaited<ReturnType<typeof walletKeys>>> {
-  const signature = await account.signMessage({ message: 'metro export test' });
-  return walletKeys(account.address, signature);
-}
 
 const PAYLOAD: Payload = {
   version: 1,
@@ -55,31 +46,26 @@ describe('a .metro export file', () => {
     expect(text).not.toContain('sk-or-private-key');
     expect(text).not.toContain(PASSPHRASE);
 
-    const opened = await openMetroFile(text, { passphrase: PASSPHRASE });
+    const opened = await openMetroFile(text, PASSPHRASE);
     expect(opened).toEqual(PAYLOAD);
     expect(sectionsIn(opened)).toEqual(['channels', 'connectors', 'skills', 'memory', 'sessions', 'model']);
   });
 
-  test('a wrong passphrase, a wallet offered for a passphrase file, and a tampered ciphertext are all refused', async () => {
+  test('a wrong passphrase and a tampered ciphertext are refused', async () => {
     const text = JSON.stringify(await packFile(PAYLOAD, PASSPHRASE));
-    await expect(openMetroFile(text, { passphrase: 'not it' })).rejects.toThrow('does not open');
-    await expect(openMetroFile(text, { wallet: await keysFor() })).rejects.toThrow('needs its passphrase');
+    await expect(openMetroFile(text, 'not it')).rejects.toThrow('does not open');
     const file = await packFile(PAYLOAD, PASSPHRASE);
-    const broken = { ...file, envelope: { ...file.envelope, ciphertext: `AAAA${file.envelope.ciphertext.slice(4)}` } };
-    await expect(openMetroFile(JSON.stringify(broken), { passphrase: PASSPHRASE })).rejects.toThrow();
+    const broken = { ...file, envelope: { ...file.envelope, ciphertext: `AAAA${String(file.envelope.ciphertext).slice(4)}` } };
+    await expect(openMetroFile(JSON.stringify(broken), PASSPHRASE)).rejects.toThrow();
   });
 
-  test('a file from before passphrases, sealed to a wallet, still opens with that wallet and is refused by name for another', async () => {
-    const mine = await keysFor();
-    const theirs = await keysFor(privateKeyToAccount('0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba'));
-    const legacy = JSON.stringify({ metro: 1, kind: 'agent-export', envelope: await sealBundle(await gzip(JSON.stringify(PAYLOAD)), PAYLOAD.agent.id, mine) });
+  test('a file from before passphrases, sealed to a wallet, is refused with the reason', async () => {
+    const legacy = JSON.stringify({ metro: 1, kind: 'agent-export', envelope: { v: 1, keyVersion: 1, agentId: 'agent000001', nonce: 'AAAA', ciphertext: 'AAAA', key: { recipient: '0xabc' } } });
     expect(sealedWith(parseMetroFile(legacy))).toBe('wallet');
-    expect(await openMetroFile(legacy, { wallet: mine })).toEqual(PAYLOAD);
-    await expect(openMetroFile(legacy, { wallet: theirs })).rejects.toThrow(mine.address.toLowerCase());
-    await expect(openMetroFile(legacy, { passphrase: PASSPHRASE })).rejects.toThrow('sealed to a wallet');
+    await expect(openMetroFile(legacy, PASSPHRASE)).rejects.toThrow('sealed to a wallet');
   });
 
-  test('anything that is not an export file is refused before the wallet is asked', () => {
+  test('anything that is not an export file is refused before the passphrase is asked', () => {
     expect(() => parseMetroFile('not json')).toThrow('not a metro export file');
     expect(() => parseMetroFile(JSON.stringify({ metro: 2, kind: 'agent-export', envelope: {} }))).toThrow(
       'not a metro export file',
@@ -92,7 +78,7 @@ describe('a .metro export file', () => {
 
   test('a section left out of the export stays absent rather than arriving empty', async () => {
     const only = { ...PAYLOAD, connectors: undefined, skills: undefined, memory: undefined, sessions: undefined, model: undefined };
-    const opened = await openMetroFile(JSON.stringify(await packFile(only, PASSPHRASE)), { passphrase: PASSPHRASE });
+    const opened = await openMetroFile(JSON.stringify(await packFile(only, PASSPHRASE)), PASSPHRASE);
     expect(sectionsIn(opened)).toEqual(['channels']);
     expect(opened.connectors).toBeUndefined();
   });

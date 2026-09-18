@@ -4,7 +4,7 @@ import { cloudInit } from '../src/aws/user-data.ts';
 const SPEC = {
   hostname: 'andy',
   node: 'metro-andy',
-  owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7',
+  owner: 'org_01M2TNE064H99ECTG4X228Y6B6',
   tailscaleAuthKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
   metroTag: 'beta',
 };
@@ -23,7 +23,7 @@ describe('the first-boot script', () => {
     expect(script).toContain("tailscale up --auth-key='tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop' --hostname='metro-andy' --ssh");
     expect(script).toContain("npm install -g '@stage-labs/metro@beta'");
     expect(script).toContain("'metro-andy' > /root/.metro/agents/.node");
-    expect(lines[lines.length - 2]).toBe("metro service install --owner '0xef8305e140ac520225daf050e2f71d5fbcc543e7'");
+    expect(lines[lines.length - 2]).toBe("metro service install --owner 'org_01M2TNE064H99ECTG4X228Y6B6'");
     expect(script.split('tskey-').length).toBe(2);
     const marks = script.split('\n').filter((l) => l.startsWith('echo "metro setup: step')).map((l) => l.slice(24, -1));
     expect(marks).toEqual(['packages', 'node', 'bun', 'claude', 'tailscale', 'metro', 'service']);

@@ -1,26 +1,24 @@
-import { createHash } from 'node:crypto';
-import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
-import { identityChallenge } from '@metro-labs/http/signed-identity';
-import { authorizeIdentity } from '@metro-labs/http/identity-registry';
+import { SigningKeys } from '@metro-labs/http/workos-token';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
 
-export const TEST_OWNER = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
-export const TEST_STRANGER = privateKeyToAccount('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a');
+export const TEST_OWNER = 'org_01TESTOWNER000000';
+export const TEST_STRANGER = 'org_01TESTSTRANGER00';
 
-export type Who = string | PrivateKeyAccount;
+export type Who = string;
 
-const accounts = new Map<string, PrivateKeyAccount>();
+let issuer: Promise<FakeIssuer> | null = null;
 
-export function identityFor(subject: string): PrivateKeyAccount {
-  const key = `0x${createHash('sha256').update(`metro-test-identity:${subject}`).digest('hex')}` as `0x${string}`;
-  const account = accounts.get(subject) ?? privateKeyToAccount(key);
-  accounts.set(subject, account);
-  authorizeIdentity(account.address, subject.toLowerCase());
-  return account;
+const ensureIssuer = (): Promise<FakeIssuer> => (issuer ??= fakeIssuer());
+
+export async function testKeys(): Promise<SigningKeys> {
+  return new SigningKeys((await ensureIssuer()).url);
 }
 
-export async function auth(method: string, path: string, who: Who, at = Date.now()): Promise<string> {
-  const account = typeof who === 'string' ? identityFor(who) : who;
-  const bare = new URL(path, 'http://metro.invalid').pathname;
-  const signature = await account.signMessage({ message: identityChallenge(method, bare, at) });
-  return `Metro ${account.address.toLowerCase()} ${String(at)} ${signature}`;
+export async function bearer(claims: Record<string, unknown>): Promise<string> {
+  return `Bearer ${(await ensureIssuer()).mint(sessionClaims(claims))}`;
+}
+
+export async function auth(_method: string, _path: string, who: Who, role: 'admin' | 'member' = 'admin'): Promise<string> {
+  const started = await ensureIssuer();
+  return `Bearer ${started.mint(sessionClaims({ org_id: who, role }))}`;
 }

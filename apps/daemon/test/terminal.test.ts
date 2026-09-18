@@ -1,3 +1,4 @@
+import { ApiError } from '@metro-labs/http/api-error';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
@@ -19,7 +20,7 @@ beforeAll(async () => {
   server = await startWebhookServer(makeEmit(), {
     terminalApi: {
       authorize: (subject) => {
-        if (subject !== OWNER) throw new Error('no such project');
+        if (subject !== OWNER) throw new ApiError('no such project', 404);
       },
       command: (session) => ['sh', '-c', session === 'sized' ? 'trap "stty size" WINCH; echo READY; while :; do sleep 0.05; done' : `echo READY ${session}; cat`],
     },
@@ -98,7 +99,7 @@ describe('the terminal over http and a websocket', () => {
     expect(status.status).toBe(200);
     expect(await status.json()).toEqual({ available: true, sessions: expect.any(Array) });
     expect((await fetch(`${base}/api/terminal`)).status).toBe(401);
-    expect((await signed('GET', '/api/terminal', TEST_STRANGER)).status).toBe(401);
+    expect((await signed('GET', '/api/terminal', TEST_STRANGER)).status).toBe(404);
     expect((await signed('POST', '/api/terminal')).status).toBe(405);
     expect((await signed('GET', '/api/terminal/tickets')).status).toBe(405);
     expect((await signed('POST', '/api/terminal/tickets')).status).toBe(400);

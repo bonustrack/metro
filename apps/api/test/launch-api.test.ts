@@ -5,10 +5,11 @@ import { handleLaunchApiRequest, resetLaunchState, type LaunchApiDeps } from '..
 import { AwsError } from '../src/aws/ec2.js';
 import type { ConfigResult } from '../src/launch-config.js';
 import { ApiError } from '@metro-labs/http/api-error';
-import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
+import { auth, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
+import { SigningKeys } from '@metro-labs/http/workos-token';
 
-const OWNER = TEST_OWNER.address.toLowerCase();
-const WALLET = '0x90f79bf6eb2c4f870365e785982e1f101e93b906';
+const OWNER = TEST_OWNER;
+const WALLET = 'org_01BOXOWNER0000000';
 
 const CONFIG: ConfigResult = {
   ok: true,
@@ -55,12 +56,14 @@ const deps: LaunchApiDeps = {
       ? Promise.resolve({ instanceId: 'i-0abc', region: 'eu-west-1' })
       : Promise.reject(new ApiError('no such server', 404)),
   now: () => now,
+  keys: new SigningKeys('http://127.0.0.1:1/nowhere'),
 };
 
 let server: Server;
 let base = '';
 
 beforeAll(async () => {
+  deps.keys = await testKeys();
   server = createServer((req, res) => {
     if (handleLaunchApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
@@ -126,7 +129,7 @@ describe('the overview a wallet on the list sees', () => {
 });
 
 describe('issuing one', () => {
-  test('the box is owned by the WALLET the page names, never by the identity that signed the request', async () => {
+  test('the box is owned by the organization the page names, never by the one that signed the request', async () => {
     const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'Andy', region: 'us-east-1', owner: WALLET });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({

@@ -1,33 +1,42 @@
-import { createHash } from 'node:crypto';
-import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
-import { identityChallenge } from '@metro-labs/http/signed-identity';
-import { authorizeIdentity } from '@metro-labs/http/identity-registry';
+import { generateKeyPairSync } from 'node:crypto';
+import { setBearerSessions, type ApiSession } from '@metro-labs/http/api-http';
+import { isOrganizationId, SigningKeys, verifyToken } from '@metro-labs/http/workos-token';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
 
-export const TEST_OWNER = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
-export const TEST_STRANGER = privateKeyToAccount('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a');
+export const TEST_OWNER = 'org_01TESTOWNER000000';
+export const TEST_STRANGER = 'org_01TESTSTRANGER00';
 
-export const KEY_VECTOR = {
-  wallet: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
-  signature:
-    '0x436c286f6cddaa9f185c67520ecbd8b8cbc29db5384dd8a16bf9fb36d960ed656609521b2432028b53b2b68bfdcd918284348e0c69428dd6f18779fd06f03b7d1c' as `0x${string}`,
-  identity: '0xfbd1aaf49dac784e5947725571bf20db7752f3d7',
-} as const;
+export type Who = string;
 
-export type Who = string | PrivateKeyAccount;
+let issuer: Promise<{ started: FakeIssuer; keys: SigningKeys }> | null = null;
 
-const accounts = new Map<string, PrivateKeyAccount>();
+const ensureIssuer = (): Promise<{ started: FakeIssuer; keys: SigningKeys }> =>
+  (issuer ??= fakeIssuer().then((started) => ({ started, keys: new SigningKeys(started.url) })));
 
-export function identityFor(subject: string): PrivateKeyAccount {
-  const key = `0x${createHash('sha256').update(`metro-test-identity:${subject}`).digest('hex')}` as `0x${string}`;
-  const account = accounts.get(subject) ?? privateKeyToAccount(key);
-  accounts.set(subject, account);
-  authorizeIdentity(account.address, subject.toLowerCase());
-  return account;
+export function installTestSessions(keys: SigningKeys): void {
+  setBearerSessions(async (req): Promise<ApiSession | null> => {
+    const header = req.headers.authorization ?? '';
+    const [scheme, token] = header.split(/\s+/);
+    if (scheme?.toLowerCase() !== 'bearer' || token === undefined) return null;
+    const session = await verifyToken(token, keys);
+    if (session === null || session.organization === null) return null;
+    const subject = isOrganizationId(session.organization) ? session.organization : session.organization.toLowerCase();
+    return { subject, role: session.role === 'member' ? 'member' : 'admin' };
+  });
 }
 
-export async function auth(method: string, path: string, who: Who, at = Date.now()): Promise<string> {
-  const account = typeof who === 'string' ? identityFor(who) : who;
-  const bare = new URL(path, 'http://metro.invalid').pathname;
-  const signature = await account.signMessage({ message: identityChallenge(method, bare, at) });
-  return `Metro ${account.address.toLowerCase()} ${String(at)} ${signature}`;
+export async function bearer(claims: Record<string, unknown>): Promise<string> {
+  const { started, keys } = await ensureIssuer();
+  installTestSessions(keys);
+  return `Bearer ${started.mint(sessionClaims(claims))}`;
 }
+
+const foreign = generateKeyPairSync('rsa', { modulusLength: 2048 });
+
+export async function forged(who: Who = TEST_OWNER): Promise<string> {
+  const { started, keys } = await ensureIssuer();
+  installTestSessions(keys);
+  return `Bearer ${started.mint(sessionClaims({ org_id: who, role: 'admin' }), { key: foreign.privateKey })}`;
+}
+
+export const auth = (_method: string, _path: string, who: Who, role: 'admin' | 'member' = 'admin'): Promise<string> => bearer({ org_id: who, role });

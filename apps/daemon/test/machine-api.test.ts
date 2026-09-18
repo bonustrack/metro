@@ -63,7 +63,7 @@ describe('what a daemon says about its machine', () => {
 
   test('no signature is 401, a stranger is 404, a wrong method 405, preflight passes', async () => {
     expect((await fetch(`${base}/api/server`)).status).toBe(401);
-    expect((await fetch(`${base}/api/server`, { headers: { authorization: await auth('GET', '/api/server', TEST_STRANGER) } })).status).toBe(401);
+    expect((await fetch(`${base}/api/server`, { headers: { authorization: await auth('GET', '/api/server', TEST_STRANGER) } })).status).toBe(404);
     expect((await fetch(`${base}/api/server`, { headers: { authorization: await auth('GET', '/api/server', 'someone@else.test') } })).status).toBe(404);
     expect((await fetch(`${base}/api/server`, { method: 'POST' })).status).toBe(405);
     expect((await fetch(`${base}/api/server`, { method: 'OPTIONS' })).status).toBe(204);

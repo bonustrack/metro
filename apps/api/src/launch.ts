@@ -6,7 +6,6 @@ import { isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-toke
 import { requestOwner } from './servers.js';
 import { AGENT_NAME_RE, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
-import { normalizeAddress } from '@metro-labs/core/address';
 import { mayLaunch, type ConfigResult, type LaunchConfig } from './launch-config.js';
 import { AwsError, type AwsCredentials, type InstanceState } from './aws/ec2.js';
 import { LaunchError, type BootView, type Launched, type LaunchInput } from './aws/launch.js';
@@ -27,7 +26,7 @@ export interface LaunchApiDeps {
   record: (subject: string, launch: LaunchRecord) => Promise<ServerEntry>;
   lookup: (subject: string, id: string) => Promise<ServerLaunch>;
   now: () => number;
-  keys?: SigningKeys;
+  keys: SigningKeys;
 }
 
 type Target =
@@ -100,7 +99,7 @@ function nameOf(body: unknown): string {
 
 function ownerOf(body: unknown): string {
   const raw = isRecord(body) && typeof body.owner === 'string' ? body.owner.trim() : '';
-  const owner = isOrganizationId(raw) ? raw : normalizeAddress(raw);
+  const owner = isOrganizationId(raw) ? raw : null;
   if (owner === null)
     throw new ApiError('the wallet address that will own the server is required', 400);
   return owner;

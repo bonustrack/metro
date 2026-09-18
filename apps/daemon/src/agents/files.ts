@@ -10,7 +10,6 @@ import { isRecord } from '@metro-labs/core/is-record';
 export const AGENT_FILE = 'agent.json';
 
 const KEY_RE = /^[A-Za-z0-9_-]{16,128}$/;
-const ADDRESS_RE = /^0x[0-9a-f]{40}$/;
 const STATION_NAMES = new Set<string>(STATIONS);
 
 export class AgentFileError extends Error {}
@@ -33,6 +32,8 @@ export function agentsDir(): string {
     ? explicit
     : join(homedir(), '.metro', 'agents');
 }
+
+const OWNER_RE = /^(0x[0-9a-f]{40}|org_[A-Za-z0-9]{10,64})$/;
 
 function fail(path: string, reason: string): never {
   throw new AgentFileError(`${path}: ${reason}`);
@@ -98,9 +99,9 @@ export function parseAgentFile(raw: string, path: string): AgentFile {
   const key = optionalMatch(parsed.key, KEY_RE, path, 'key is not an agent key');
   const owner = optionalMatch(
     parsed.owner,
-    ADDRESS_RE,
+    OWNER_RE,
     path,
-    'owner is not a lowercase Ethereum address',
+    'owner is neither an organization id nor a lowercase Ethereum address',
   );
   if (!Array.isArray(stations)) fail(path, 'stations is not a list');
   return {

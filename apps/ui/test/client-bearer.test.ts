@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { clearAccount, storeAccount } from '../src/auth/account.ts';
-import { clearIdentity } from '../src/auth/identity.ts';
-import { installTestIdentity } from './identity-fixture.ts';
-import { call, WalletNeeded } from '../src/api/client.ts';
+import { AuthError, call } from '../src/api/client.ts';
 import { builtInDaemon } from '../src/auth/daemon.ts';
 
 const b64 = (o: unknown): string => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -20,8 +18,11 @@ function serve(answers: { status: number; body: unknown }[]): void {
   }) as unknown as typeof fetch;
 }
 
+const account = (accessToken: string): void => {
+  storeAccount({ accessToken, refreshToken: 'rt_1', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
+};
+
 beforeEach(() => {
-  clearIdentity();
   clearAccount();
 });
 afterEach(() => {
@@ -29,10 +30,9 @@ afterEach(() => {
   clearAccount();
 });
 
-describe('a signed-in account talks to metro.box with a bearer', () => {
+describe('every request carries the account token', () => {
   test('a fresh token is sent as is; an expiring one is refreshed first', async () => {
-    const soon = Math.floor(Date.now() / 1000) + 5;
-    storeAccount({ accessToken: jwt(soon), refreshToken: 'rt_1', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
+    account(jwt(Math.floor(Date.now() / 1000) + 5));
     const later = jwt(Math.floor(Date.now() / 1000) + 300);
     serve([
       { status: 200, body: { accessToken: later, refreshToken: 'rt_2', organization: 'org_1', user: { id: 'user_1' } } },
@@ -44,40 +44,24 @@ describe('a signed-in account talks to metro.box with a bearer', () => {
     expect(seen[1]?.authorization).toBe(`Bearer ${later}`);
   });
 
-  test('a 401 from metro.box is retried once after a refresh', async () => {
+  test('a 401 is retried once after a refresh, on metro.box and on a box alike', async () => {
     const fresh = jwt(Math.floor(Date.now() / 1000) + 300);
-    storeAccount({ accessToken: fresh, refreshToken: 'rt_1', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
+    account(fresh);
     serve([
       { status: 401, body: { error: 'unauthorized' } },
       { status: 200, body: { accessToken: fresh, refreshToken: 'rt_2', organization: 'org_1', user: { id: 'user_1' } } },
-      { status: 200, body: { servers: [] } },
+      { status: 200, body: { subject: 'org_1', role: 'admin' } },
     ]);
-    expect(await call({ method: 'GET', base: `${builtInDaemon()}/api/servers` })).toEqual({ servers: [] });
-    expect(seen.map((s) => s.url.split('/api/')[1])).toEqual(['servers', 'auth/refresh', 'servers']);
+    expect(await call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).toEqual({ subject: 'org_1', role: 'admin' });
+    expect(seen.map((s) => s.url.split('/api/')[1])).toEqual(['session', 'auth/refresh', 'session']);
   });
 
-  test('a box is tried with the bearer first; a box that refuses it and has no wallet here asks for the wallet rather than logging out', async () => {
-    const fresh = jwt(Math.floor(Date.now() / 1000) + 300);
-    storeAccount({ accessToken: fresh, refreshToken: 'rt_1', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
-    serve([{ status: 200, body: { subject: 'org_1', role: 'admin' } }]);
-    expect(await call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).toEqual({ subject: 'org_1', role: 'admin' });
-    expect(seen[0]?.authorization).toBe(`Bearer ${fresh}`);
-    serve([{ status: 401, body: { error: 'unauthorized' } }]);
-    await expect(call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).rejects.toBeInstanceOf(WalletNeeded);
+  test('with no account the call is refused before any request; a 403 from a box is an error with its message', async () => {
+    serve([]);
+    await expect(call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).rejects.toBeInstanceOf(AuthError);
+    expect(seen).toEqual([]);
+    account(jwt(Math.floor(Date.now() / 1000) + 300));
     serve([{ status: 403, body: { error: 'this machine belongs to another organization' } }]);
     await expect(call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).rejects.toThrow('another organization');
-  });
-
-  test('with the wallet connected, any refusal of the bearer by a box is retried with the wallet, a 500 included', async () => {
-    await installTestIdentity();
-    storeAccount({ accessToken: jwt(Math.floor(Date.now() / 1000) + 300), refreshToken: 'rt_1', organization: 'org_1', role: 'admin', user: { id: 'user_1', email: null, name: null, picture: null } });
-    serve([
-      { status: 500, body: { error: 'agent api failed' } },
-      { status: 200, body: { agents: [] } },
-    ]);
-    expect(await call({ method: 'GET', base: 'http://127.0.0.1:8420/api/agents' })).toEqual({ agents: [] });
-    expect(seen[0]?.authorization?.startsWith('Bearer ')).toBe(true);
-    expect(seen[1]?.authorization?.startsWith('Metro ')).toBe(true);
-    clearIdentity();
   });
 });

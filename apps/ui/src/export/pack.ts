@@ -1,4 +1,4 @@
-import { fromBase64Url, openBundle, toBase64Url, type Envelope, type WalletKeys } from '../vault/crypto.js';
+import { fromBase64Url, toBase64Url } from './bytes.js';
 import { isPassphraseEnvelope, openWithPassphrase, sealWithPassphrase, type PassphraseEnvelope } from './passphrase.js';
 
 export const FILE_VERSION = 1;
@@ -61,10 +61,8 @@ export interface Payload {
 export interface MetroFile {
   metro: number;
   kind: string;
-  envelope: Envelope | PassphraseEnvelope;
+  envelope: PassphraseEnvelope | Record<string, unknown>;
 }
-
-export type Opener = { passphrase: string } | { wallet: WalletKeys };
 
 export const BOX_SECTIONS: readonly Section[] = ['sessions', 'model'];
 export const BOX_SECTIONS_SINCE = '0.1.0-beta.127';
@@ -146,7 +144,7 @@ export function parseMetroFile(text: string): MetroFile {
   if (!isRecord(raw) || raw.metro !== FILE_VERSION || raw.kind !== FILE_KIND)
     throw new Error('That is not a metro export file.');
   if (!isRecord(raw.envelope)) throw new Error('That export file carries nothing to open.');
-  return { metro: FILE_VERSION, kind: FILE_KIND, envelope: raw.envelope as unknown as MetroFile['envelope'] };
+  return { metro: FILE_VERSION, kind: FILE_KIND, envelope: raw.envelope };
 }
 
 function listOf<T>(raw: unknown, of: (entry: unknown) => T): T[] | undefined {
@@ -213,18 +211,11 @@ export function parsePayload(raw: unknown): Payload {
   };
 }
 
-async function plainOf(file: MetroFile, opener: Opener): Promise<string> {
-  if (isPassphraseEnvelope(file.envelope)) {
-    if (!('passphrase' in opener)) throw new Error('This file needs its passphrase.');
-    return gunzip(toBase64Url(await openWithPassphrase(file.envelope, opener.passphrase)));
-  }
-  if (!('wallet' in opener)) throw new Error('This file was sealed to a wallet: connect that wallet to open it.');
-  const recipient = file.envelope.key.recipient.toLowerCase();
-  if (recipient !== opener.wallet.address.toLowerCase())
-    throw new Error(`That file was sealed for ${recipient}, not for the wallet you are signed in with.`);
-  return gunzip(await openBundle(file.envelope, opener.wallet));
-}
+export const WALLET_SEALED =
+  'This file was sealed to a wallet, from before passphrases. Wallets no longer sign in, so it cannot be opened; export the agent again with a passphrase.';
 
-export async function openMetroFile(text: string, opener: Opener): Promise<Payload> {
-  return parsePayload(JSON.parse(await plainOf(parseMetroFile(text), opener)));
+export async function openMetroFile(text: string, passphrase: string): Promise<Payload> {
+  const file = parseMetroFile(text);
+  if (!isPassphraseEnvelope(file.envelope)) throw new Error(WALLET_SEALED);
+  return parsePayload(JSON.parse(await gunzip(toBase64Url(await openWithPassphrase(file.envelope, passphrase)))));
 }

@@ -5,22 +5,15 @@ import type { AddressInfo } from 'node:net';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
-import { handleIdentityRequest } from '../src/routes/identity.js';
-import { ENCRYPTION_KEY_TYPED_DATA, deriveIdentityKey } from '@metro-labs/http/identity-key';
-import { auth, type Who } from './identity-helper.ts';
+import { auth, TEST_OWNER, TEST_STRANGER, type Who } from './identity-helper.ts';
 import { handleModeRequest } from '@metro-labs/http/mode-api';
 import { handleSessionApis, type SessionApis } from '../src/routes/session-apis.js';
 import { setLocalOwner, ensureLocalAgent } from '../src/agents/file-admin.ts';
 import { localSessionApis } from '../src/routes/local-mode.js';
 import { agentIdForKey, setKeyMap } from '../src/agents/keys.js';
 
-const OWNER = privateKeyToAccount(
-  '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
-);
-const STRANGER = privateKeyToAccount(
-  '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a',
-);
+const OWNER = TEST_OWNER;
+const STRANGER = TEST_STRANGER;
 const PROJECT = 'localdaemon';
 const saved = {
   dir: process.env.METRO_AGENTS_DIR,
@@ -52,7 +45,6 @@ beforeAll(async () => {
       Promise.resolve({ config: { token: String(input.token) }, identity: { handle: '@bot' } }),
   });
   server = createServer((req, res) => {
-    if (apis.identity && handleIdentityRequest(req, res, apis.identity)) return;
     if (apis.mode && handleModeRequest(req, res, apis.mode)) return;
     if (handleSessionApis(req, res, apis)) return;
     res.writeHead(404).end();
@@ -87,16 +79,7 @@ const call = async (method: string, path: string, token?: Who, body?: unknown): 
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
-async function signIn(account: PrivateKeyAccount): Promise<Response> {
-  const signature = await account.signTypedData(ENCRYPTION_KEY_TYPED_DATA);
-  return call('POST', '/auth/identity', undefined, { signature });
-}
-
-async function identityOf(account: PrivateKeyAccount): Promise<PrivateKeyAccount> {
-  return privateKeyToAccount(deriveIdentityKey(await account.signTypedData(ENCRYPTION_KEY_TYPED_DATA)));
-}
-
-let session: PrivateKeyAccount = STRANGER;
+let session: Who = STRANGER;
 let agentId = '';
 let key = '';
 
@@ -107,22 +90,14 @@ describe('a local daemon, end to end over http', () => {
     expect((await call('POST', '/api/mode')).status).toBe(405);
   });
 
-  test('nobody can sign in until the operator sets the owner; then only that wallet can, with one typed-data signature', async () => {
-    expect((await signIn(OWNER)).status).toBe(403);
-    setLocalOwner(OWNER.address, dir);
-    const res = await signIn(OWNER);
-    expect(res.status).toBe(200);
-    session = await identityOf(OWNER);
-    expect(await res.json()).toEqual({ address: session.address.toLowerCase(), owner: OWNER.address.toLowerCase() });
-    expect(((await (await call('GET', '/api/mode')).json()) as { owner: string }).owner).toBe(
-      OWNER.address.toLowerCase(),
-    );
-    expect((await signIn(STRANGER)).status).toBe(403);
-    expect((await call('POST', '/auth/identity', undefined, { signature: '0x12' })).status).toBe(400);
-    expect((await call('GET', '/auth/identity')).status).toBe(405);
-    expect((await call('GET', `/api/agents?project=${PROJECT}`, await identityOf(STRANGER))).status).toBe(401);
+  test('nobody gets in until the operator sets the owner organization; then its members do and another organization does not', async () => {
+    expect((await call('GET', `/api/agents?project=${PROJECT}`, OWNER)).status).toBe(404);
+    setLocalOwner(OWNER, dir);
+    session = OWNER;
+    expect(((await (await call('GET', '/api/mode')).json()) as { owner: string }).owner).toBe(OWNER);
+    expect((await call('GET', `/api/agents?project=${PROJECT}`, STRANGER)).status).toBe(404);
+    expect((await call('GET', `/api/agents?project=${PROJECT}`)).status).toBe(401);
   });
-
 
   test('the daemon makes the agent itself; the list shows it with its key', async () => {
     expect(await ensureLocalAgent(dir)).toBe('created');
@@ -179,8 +154,7 @@ describe('a local daemon, end to end over http', () => {
     expect((await call('POST', `/api/agents/${made.id}/code`, session)).status).toBe(404);
     expect((await call('POST', `/api/agents/${made.id}/connectors`, session, { connectorId: 'conn0000001' })).status).toBe(404);
     expect((await call('DELETE', `/api/agents/${made.id}/runtime`, session)).status).toBe(404);
-    const stranger = await identityOf(STRANGER);
-    expect((await call('GET', `/api/agents?project=${PROJECT}`, stranger)).status).toBe(401);
-    expect((await call('GET', `/api/agents/${made.id}/connectors`, stranger)).status).toBe(404);
+    expect((await call('GET', `/api/agents?project=${PROJECT}`, STRANGER)).status).toBe(404);
+    expect((await call('GET', `/api/agents/${made.id}/connectors`, STRANGER)).status).toBe(404);
   });
 });

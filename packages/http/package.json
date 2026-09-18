@@ -8,9 +8,6 @@
     "./cors": "./src/cors.ts",
     "./api-http": "./src/api-http.ts",
     "./api-error": "./src/api-error.ts",
-    "./signed-identity": "./src/signed-identity.ts",
-    "./identity-key": "./src/identity-key.ts",
-    "./identity-registry": "./src/identity-registry.ts",
     "./return-to": "./src/return-to.ts",
     "./mode-api": "./src/mode-api.ts",
     "./workos-token": "./src/workos-token.ts"
@@ -20,9 +17,7 @@
     "test": "tsc --noEmit && bun test test/"
   },
   "dependencies": {
-    "@metro-labs/core": "workspace:*",
-    "@noble/curves": "^1.9.7",
-    "viem": "2.52.2"
+    "@metro-labs/core": "workspace:*"
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.2",

@@ -1,5 +1,5 @@
 import { beforeAll } from 'bun:test';
-import { installTestIdentity } from './identity-fixture.js';
+import { installTestAccount } from './account-fixture.js';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { AuthError } from '../src/api/client.js';
 import {
@@ -13,8 +13,8 @@ import {
   type Connector,
 } from '../src/api/connectors.js';
 
-beforeAll(async () => {
-  await installTestIdentity();
+beforeAll(() => {
+  installTestAccount();
 });
 
 const PROJECT = 'localdaemon';
@@ -109,7 +109,7 @@ describe('the connectors surface is its own endpoint', () => {
         url: `${CONNECTORS}?project=${PROJECT}`,
         method: 'POST',
         body: { name: 'linear', url: 'https://mcp.linear.app/mcp', returnTo: '' },
-        authorization: expect.stringMatching(/^Metro 0x[0-9a-fA-F]{40} \d+ 0x[0-9a-f]{130}$/),
+        authorization: expect.stringMatching(/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/),
         contentType: 'application/json',
       },
     ]);
@@ -127,7 +127,7 @@ describe('the connectors surface is its own endpoint', () => {
     await deleteConnector(12);
     expect(calls[0]?.url).toBe(`${CONNECTORS}/12`);
     expect(calls[0]?.method).toBe('DELETE');
-    expect(calls[0]?.authorization).toMatch(/^Metro 0x[0-9a-fA-F]{40} \d+ 0x[0-9a-f]{130}$/);
+    expect(calls[0]?.authorization).toMatch(/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   });
 });
 

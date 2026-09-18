@@ -18,14 +18,13 @@ import { awaitLive, startDaemon } from '../api/control.js';
 import { queryError, refreshServers, refreshServerStatus, useServersQuery, useServerStatus } from '../api/queries.js';
 import { StatusDot } from './StatusDot.js';
 import { baseFromSegment } from '../auth/daemon.js';
-import { activeIdentity } from '../auth/identity.js';
+import { activeAccount } from '../auth/account.js';
 import { routeHash } from '../route.js';
 import { useDocumentTitle } from '../title.js';
 import { useBootingState } from '../aws/use-launch.js';
 import { BootLog } from './BootLog.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { useAvatarPicker } from './AvatarPicker.js';
-import { ClaimServers } from './ClaimServers.js';
 
 const LIST_WIDTH = 640;
 const ROW_AVATAR = 32;
@@ -150,12 +149,9 @@ function ServerList({ servers, onRename, onBootLog }: ListProps): ReactNode {
   const side = { width: 1, color: palette.border };
   if (servers.length === 0)
     return (
-      <Col gap={16}>
-        <Text size="sm" role="secondary">
-          No agents yet. Add the address your daemon printed at start-up.
-        </Text>
-        <ClaimServers />
-      </Col>
+      <Text size="sm" role="secondary">
+        No agents yet. Add the address your daemon printed at start-up.
+      </Text>
     );
   return (
     <Col radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
@@ -218,7 +214,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [renaming, setRenaming] = useState<Server | null>(null);
   const [logOf, setLogOf] = useState<Server | null>(null);
-  const subject = activeIdentity()?.address ?? '';
+  const subject = activeAccount()?.user.id ?? '';
   useDocumentTitle('Agents');
   return (
     <Frame

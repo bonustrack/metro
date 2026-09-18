@@ -34,7 +34,7 @@ function fakeDeps(full: Set<string> = new Set()): { deps: LaunchDeps; calls: str
 const INPUT = {
   name: 'Andy',
   region: 'eu-west-1',
-  owner: '0xEF8305E140AC520225DAF050E2F71D5FBCC543E7',
+  owner: 'org_01M2TNE064H99ECTG4X228Y6B6',
   tailnet: 'tail17c4f8.ts.net',
   authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
   credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 's' },
@@ -54,7 +54,7 @@ describe('metro issuing a box', () => {
     });
     expect(calls).toEqual(['image AKIAEXAMPLE eu-west-1', 'run eu-west-1 ami-new metro:andy metro-abc123 tok-1']);
     expect(userData[0]).toContain("--hostname='metro-abc123'");
-    expect(userData[0]).toContain("--owner '0xef8305e140ac520225daf050e2f71d5fbcc543e7'");
+    expect(userData[0]).toContain("--owner 'org_01M2TNE064H99ECTG4X228Y6B6'");
     expect(userData[0]).toContain("hostnamectl set-hostname 'andy'");
   });
 

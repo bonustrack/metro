@@ -18,13 +18,10 @@ import { addServer } from './api/servers.js';
 import { atLogin, goToLogin, leaveLogin } from './auth/login-route.js';
 import { currentSelection, subscribeRoute } from './route.js';
 import { pageTitle } from './title.js';
-import { activeIdentity, clearIdentity, loadIdentity } from './auth/identity.js';
 import { activeAccount, loadAccount } from './auth/account.js';
 import { exchangeHandoff, logoutAccount } from './api/auth.js';
 import { handoffCode } from './auth/handoff.js';
 import { OrganizationSetup } from './components/OrganizationSetup.js';
-import { WalletList } from './components/Login.js';
-import { WalletNeeded } from './api/client.js';
 import { daemonBase, daemonHost, isServerId, setCurrentServer, storedServerId } from './auth/daemon.js';
 
 type Phase = 'loading' | 'login' | 'organization' | 'unlocked';
@@ -35,10 +32,9 @@ async function boot(): Promise<Phase> {
     window.history.replaceState(null, '', `${window.location.pathname}#/`);
     await exchangeHandoff(handoff);
   } else loadAccount();
-  await loadIdentity().catch(() => null);
   const account = activeAccount();
-  if (account !== null) return account.organization === null ? 'organization' : 'unlocked';
-  return activeIdentity() === null ? 'login' : 'unlocked';
+  if (account === null) return 'login';
+  return account.organization === null ? 'organization' : 'unlocked';
 }
 const NOTICE_WIDTH = 480;
 const CENTER_SELF = { alignSelf: 'center' } as const;
@@ -67,21 +63,8 @@ function Gate({ onLock }: { onLock: () => void }): ReactNode {
     if (subject === undefined) document.title = pageTitle(null);
   }, [subject]);
 
-  if (error instanceof WalletNeeded)
-    return (
-      <Row justify="center" align="center" flex={1} padding={24}>
-        <Col gap={16} width="100%" maxWidth={NOTICE_WIDTH}>
-          <Text role="secondary">{error.message}</Text>
-          <WalletList
-            onSignedIn={() => {
-              refetch().catch(() => undefined);
-            }}
-          />
-        </Col>
-      </Row>
-    );
   if (error instanceof AuthError && error.refused)
-    return <Notice text={`${daemonHost(daemonBase())} refused this wallet: ${error.message}`} onRetry={onLock} retryLabel="Sign in with another wallet" />;
+    return <Notice text={`${daemonHost(daemonBase())} refused this account: ${error.message}`} onRetry={onLock} retryLabel="Sign in with another account" />;
   if (error instanceof StoppedError)
     return (
       <StoppedNotice
@@ -154,7 +137,7 @@ function ListedServer({ id, onLock }: { id: string; onLock: () => void }): React
         retryLabel="Try again"
       />
     );
-  if (server === undefined) return <Notice text="This agent is not in your list." onRetry={onLock} retryLabel="Sign in with another wallet" />;
+  if (server === undefined) return <Notice text="This agent is not in your list." onRetry={onLock} retryLabel="Sign in with another account" />;
   if (ready !== server.id) return <BootLoading />;
   return <Gate onLock={onLock} />;
 }
@@ -190,7 +173,6 @@ export function App(): ReactNode {
   }, []);
 
   const lock = (): void => {
-    clearIdentity();
     logoutAccount().catch(() => undefined);
     setPhase('login');
   };
@@ -216,7 +198,7 @@ export function App(): ReactNode {
         {phase === 'loading' ? (
           <BootLoading />
         ) : phase === 'login' ? (
-          <Login onSignedIn={unlock} />
+          <Login />
         ) : phase === 'organization' ? (
           <OrganizationSetup onDone={unlock} onLock={lock} />
         ) : (

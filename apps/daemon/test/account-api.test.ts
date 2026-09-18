@@ -1,4 +1,4 @@
-import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
+import { TEST_STRANGER, auth, bearer, forged, type Who } from './identity-helper.ts';
 import { afterEach, beforeAll, afterAll, describe, expect, test } from 'bun:test';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
@@ -286,10 +286,11 @@ describe('POST /api/agents/:id/accounts/start authorisation', () => {
     expect(prepared).toEqual([]);
   });
 
-  test('a session signed with another secret attaches nothing', async () => {
-    const res = await start(TEST_STRANGER, 'agent000001', {
-      station: 'telegram-bot',
-      token: FAKE_TOKEN,
+  test('a token nobody issued attaches nothing', async () => {
+    const res = await fetch(`${base}/api/agents/agent000001/accounts/start`, {
+      method: 'POST',
+      headers: { authorization: await forged(), 'content-type': 'application/json' },
+      body: JSON.stringify({ station: 'telegram-bot', token: FAKE_TOKEN }),
     });
     expect(res.status).toBe(401);
     expect(rows).toEqual([]);
@@ -913,7 +914,7 @@ describe('the allowlist of a station account', () => {
     expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['a'.repeat(201)] })).status).toBe(400);
     expect((await put('agent000001', 'telegram-bot', 'acct9999999', { allowlist: ['x'] })).status).toBe(404);
     expect((await put('agent000002', 'telegram-bot', created.accountId, { allowlist: ['x'] }, session('ada@lovelace.dev'))).status).toBe(404);
-    expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['x'] }, TEST_STRANGER)).status).toBe(401);
+    expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['x'] }, TEST_STRANGER)).status).toBe(404);
   });
 
   test('a phone number is turned into the id the station really sends, and only for the owner', async () => {
@@ -973,6 +974,6 @@ describe('switching a station account off and on', () => {
     expect((await put('agent000001', 'telegram-bot', created.accountId, { enabled: 'no' })).status).toBe(400);
     expect((await put('agent000001', 'telegram-bot', 'acct9999999', { enabled: false })).status).toBe(404);
     expect((await put('agent000002', 'telegram-bot', created.accountId, { enabled: false })).status).toBe(404);
-    expect((await put('agent000001', 'telegram-bot', created.accountId, { enabled: false }, TEST_STRANGER)).status).toBe(401);
+    expect((await put('agent000001', 'telegram-bot', created.accountId, { enabled: false }, TEST_STRANGER)).status).toBe(404);
   });
 });

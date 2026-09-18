@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { launchOwners, mayLaunch, readLaunchConfig } from '../src/launch-config.ts';
 
-const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
+const OWNER = 'org_01M2TNE064H99ECTG4X228Y6B6';
 
 const GOOD: NodeJS.ProcessEnv = {
   METRO_AWS_ACCESS_KEY_ID: 'AKIAEXAMPLE',
@@ -40,18 +40,19 @@ describe('metro issues servers only when it is fully configured', () => {
 });
 
 describe('who may ask metro for a server', () => {
-  test('the list takes several wallets, in any case, and ignores what is not an address', () => {
-    expect(launchOwners(`${OWNER.toUpperCase()}, 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 ,nonsense,`)).toEqual([
+  test('the list takes several organizations and ignores what is not an organization id, a wallet included', () => {
+    expect(launchOwners(`${OWNER}, org_01OTHERORG000000 ,nonsense,0x70997970c51812dc3a010c7d01b50e0d17dc79c8,`)).toEqual([
       OWNER,
-      '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
+      'org_01OTHERORG000000',
     ]);
     expect(launchOwners('')).toEqual([]);
   });
 
-  test('a wallet outside the list may not, whatever case it signs in with', () => {
+  test('an organization outside the list may not', () => {
     const result = readLaunchConfig(GOOD);
     if (!result.ok) throw new Error('expected a config');
-    expect(mayLaunch(result.config, OWNER.toUpperCase())).toBe(true);
+    expect(mayLaunch(result.config, OWNER)).toBe(true);
+    expect(mayLaunch(result.config, 'org_01OTHERORG000000')).toBe(false);
     expect(mayLaunch(result.config, '0x70997970c51812dc3a010c7d01b50e0d17dc79c8')).toBe(false);
     expect(mayLaunch(result.config, 'not an address')).toBe(false);
   });

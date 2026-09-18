@@ -1,8 +1,5 @@
-import { builtInDaemon, daemonBase } from '../auth/daemon.js';
-import { activeIdentity, type Identity } from '../auth/identity.js';
-import { activeAccount } from '../auth/account.js';
+import { daemonBase } from '../auth/daemon.js';
 import { accessToken, refreshAccount } from './auth.js';
-import { signRequest } from '../vault/crypto.js';
 import { attributeUntagged, groupAccounts, isRecord, type AccountGroup } from './accounts.js';
 
 export class AuthError extends Error {
@@ -15,12 +12,6 @@ export class AuthError extends Error {
 }
 
 export class StoppedError extends Error {}
-
-export class WalletNeeded extends AuthError {
-  constructor() {
-    super('This box still checks your wallet. Connect it once to continue.', true);
-  }
-}
 
 export interface AgentSummary {
   id: string;
@@ -58,45 +49,6 @@ export interface CallInit {
   body?: string;
 }
 
-export type Registration = { ok: true; owner: string } | { ok: false; error: string };
-
-export async function registerIdentity(identity: Identity, base = daemonBase()): Promise<Registration> {
-  let res: Response;
-  try {
-    res = await fetch(`${base}/auth/identity`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ signature: identity.signature }),
-    });
-  } catch {
-    return { ok: false, error: 'Failed to reach Metro.' };
-  }
-  const body: unknown = await res.json().catch(() => null);
-  if (!res.ok) return { ok: false, error: errorText(body, res.status) };
-  return { ok: true, owner: isRecord(body) && typeof body.owner === 'string' ? body.owner : '' };
-}
-
-async function send(url: string, init: CallInit, identity: Identity): Promise<Response> {
-  const { pathname } = new URL(url);
-  try {
-    return await fetch(url, {
-      method: init.method,
-      headers: { authorization: await signRequest(identity, init.method, pathname), ...init.headers },
-      body: init.body,
-    });
-  } catch {
-    throw new Error('Failed to reach Metro.');
-  }
-}
-
-const sameOrigin = (a: string, b: string): boolean => new URL(a).origin === new URL(b).origin;
-
-function failure(res: Response, body: unknown): Error | null {
-  if (res.status === 401) return new AuthError('not authorized', true);
-  if (res.status === 503 && isRecord(body) && body.stopped === true) return new StoppedError(errorText(body, res.status));
-  return res.ok ? null : new Error(errorText(body, res.status));
-}
-
 async function sendBearer(url: string, init: CallInit, token: string): Promise<Response> {
   try {
     return await fetch(url, { method: init.method, headers: { authorization: `Bearer ${token}`, ...init.headers }, body: init.body });
@@ -105,7 +57,14 @@ async function sendBearer(url: string, init: CallInit, token: string): Promise<R
   }
 }
 
-async function answeredByAccount(url: string, init: CallInit): Promise<Response> {
+function failure(res: Response, body: unknown): Error | null {
+  if (res.status === 401) return new AuthError('not authorized', true);
+  if (res.status === 503 && isRecord(body) && body.stopped === true) return new StoppedError(errorText(body, res.status));
+  return res.ok ? null : new Error(errorText(body, res.status));
+}
+
+async function answered(init: CallInit): Promise<Response> {
+  const url = `${init.base ?? agentsUrl()}${init.path ?? ''}`;
   const token = await accessToken();
   if (token === null) throw new AuthError('not signed in');
   const res = await sendBearer(url, init, token);
@@ -113,33 +72,6 @@ async function answeredByAccount(url: string, init: CallInit): Promise<Response>
   const again = await refreshAccount();
   if (again === null) throw new AuthError('not signed in');
   return sendBearer(url, init, again.accessToken);
-}
-
-async function answeredByWallet(url: string, init: CallInit, identity: Identity): Promise<Response> {
-  const res = await send(url, init, identity);
-  if (res.status !== 401 || !sameOrigin(url, daemonBase()) || sameOrigin(url, builtInDaemon())) return res;
-  const registered = await registerIdentity(identity);
-  if (!registered.ok) throw new AuthError(registered.error, true);
-  return send(url, init, identity);
-}
-
-async function answeredByBox(url: string, init: CallInit): Promise<Response> {
-  const identity = activeIdentity();
-  const token = activeAccount() === null ? null : await accessToken();
-  if (token !== null) {
-    const res = await sendBearer(url, init, token);
-    if (res.ok || (identity === null && res.status !== 401)) return res;
-    if (identity === null) throw new WalletNeeded();
-    return answeredByWallet(url, init, identity);
-  }
-  if (identity === null) throw new AuthError('not signed in');
-  return answeredByWallet(url, init, identity);
-}
-
-async function answered(init: CallInit): Promise<Response> {
-  const url = `${init.base ?? agentsUrl()}${init.path ?? ''}`;
-  if (activeAccount() !== null && sameOrigin(url, builtInDaemon())) return answeredByAccount(url, init);
-  return answeredByBox(url, init);
 }
 
 export async function call(init: CallInit): Promise<unknown> {

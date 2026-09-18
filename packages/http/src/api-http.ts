@@ -1,8 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from './api-error.js';
 import { errMsg, log } from '@metro-labs/core/log';
-import { signedIdentity } from './signed-identity.js';
-import { identitySubject } from './identity-registry.js';
 
 const BODY_MAX = 4 * 1024;
 
@@ -29,7 +27,7 @@ export function cors(req: IncomingMessage): Record<string, string> {
   return {
     'access-control-allow-origin': req.headers.origin ?? '*',
     'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'access-control-allow-headers': 'Authorization, Content-Type, X-Metro-Wallet',
+    'access-control-allow-headers': 'Authorization, Content-Type',
     'access-control-allow-private-network': 'true',
     'access-control-max-age': '86400',
     vary: 'Origin',
@@ -50,13 +48,8 @@ export function sendJson(
   res.end(JSON.stringify(body));
 }
 
-export async function apiSession(req: IncomingMessage): Promise<ApiSession | null> {
-  const address = await signedIdentity(req);
-  if (address !== null) {
-    const subject = identitySubject(address);
-    return subject === undefined ? null : { subject, role: 'admin' };
-  }
-  return bearerSessions === null ? null : bearerSessions(req);
+export function apiSession(req: IncomingMessage): Promise<ApiSession | null> {
+  return bearerSessions === null ? Promise.resolve(null) : bearerSessions(req);
 }
 
 export interface AgentIdentity {

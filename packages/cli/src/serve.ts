@@ -82,9 +82,9 @@ export function requireOwner(owner: string | null, dir = agentsDir()): void {
   if (owner !== null || existsSync(join(dir, '.owner'))) return;
   throw new Error(
     'no owner is set for this machine, so nobody could sign in.\n' +
-      'Pass the organization (or wallet) that owns it once; it is remembered in ' +
+      'Pass the organization that owns it once; it is remembered in ' +
       join(dir, '.owner') +
-      ':\n  metro serve --owner <org_… or address>',
+      ':\n  metro serve --owner <org_…>',
   );
 }
 

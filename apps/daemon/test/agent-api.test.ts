@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { type AgentApiDeps } from '../src/agents/api.ts';
-import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
+import { TEST_STRANGER, auth, bearer, forged, type Who } from './identity-helper.ts';
 
 const PORT = (): string => process.env.METRO_WEBHOOK_PORT ?? '8420';
 import {
@@ -200,14 +200,13 @@ describe('/api/agents authentication', () => {
     expect((await get()).status).toBe(401);
   });
 
-  test('a session signed with another secret is 401', async () => {
-    expect((await get(TEST_STRANGER)).status).toBe(401);
+  test('a token nobody issued is 401', async () => {
+    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, { headers: { authorization: await forged('ada@lovelace.dev') } });
+    expect(res.status).toBe(401);
   });
 
-  test('a signature older than five minutes is 401', async () => {
-    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
-      headers: { authorization: await auth('GET', '/api/agents', 'ada@lovelace.dev', Date.now() - 6 * 60_000) },
-    });
+  test('a token with no organization is 401', async () => {
+    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, { headers: { authorization: await bearer({ org_id: undefined }) } });
     expect(res.status).toBe(401);
   });
 
@@ -482,8 +481,8 @@ describe('DELETE /api/agents/:id', () => {
     expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
   });
 
-  test('a session signed with another secret deletes nothing', async () => {
-    const res = await del(TEST_STRANGER, 'agent000001');
+  test('a token nobody issued deletes nothing', async () => {
+    const res = await fetch(`${base}/api/agents/agent000001`, { method: 'DELETE', headers: { authorization: await forged() } });
     expect(res.status).toBe(401);
     expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
   });
@@ -600,8 +599,8 @@ describe('POST /api/agents/:id/key', () => {
     expect(liveKeys).toEqual({});
   });
 
-  test('a session signed with another secret rotates nothing', async () => {
-    const res = await resetKey(TEST_STRANGER, 'agent000001');
+  test('a token nobody issued rotates nothing', async () => {
+    const res = await fetch(`${base}/api/agents/agent000001/key`, { method: 'POST', headers: { authorization: await forged() } });
     expect(res.status).toBe(401);
     expect(resetCalls).toEqual([]);
   });

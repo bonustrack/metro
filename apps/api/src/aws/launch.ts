@@ -102,7 +102,7 @@ export async function launchBox(input: LaunchInput, deps: LaunchDeps = LIVE): Pr
   const userData = cloudInit({
     hostname: slug,
     node,
-    owner: input.owner.toLowerCase(),
+    owner: input.owner,
     tailscaleAuthKey: input.authKey,
     metroTag: METRO_TAG,
   });

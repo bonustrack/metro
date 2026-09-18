@@ -1,4 +1,4 @@
-import { buffer, fromBase64Url, toBase64Url } from '../vault/crypto.js';
+import { buffer, fromBase64Url, toBase64Url } from './bytes.js';
 
 export const PASSPHRASE_MIN = 8;
 const ITERATIONS = 600_000;

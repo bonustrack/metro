@@ -5,7 +5,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Text, Button } from './ui.js';
 import { PageTitle } from './PageTitle.js';
 import { ResetAgentKey } from './ResetAgentKey.js';
-import { ClaimBox } from './ClaimBox.js';
 import { ExportAgent } from './ExportAgent.js';
 import { ImportAgent } from './ImportAgent.js';
 import { Loading } from './Loading.js';
@@ -155,7 +154,6 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
           id {agent.id} · runs on this machine, so its messages never pass through Metro&apos;s servers
         </Text>
       </Col>
-      <ClaimBox />
       <Col>
         <Summary label="Channels" count={stationCount(data.groups, agent.id)} target={{ kind: 'stations', project }} onSelect={onSelect} />
         <Summary label="Connectors" count={agent.connectorIds.length} target={{ kind: 'connectors', project }} onSelect={onSelect} />

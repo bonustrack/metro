@@ -1,4 +1,4 @@
-import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
+import { TEST_STRANGER, auth, bearer, forged, type Who } from './identity-helper.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { allowLocalConnectors } from '../src/connectors/url.ts';
 import type { AddressInfo } from 'node:net';
@@ -282,16 +282,14 @@ describe('/api/connectors is the Google session surface', () => {
     expect(calls).toEqual([]);
   });
 
-  test('a session signed with another secret is 401', async () => {
-    const res = await call('GET', '/api/connectors', TEST_STRANGER);
+  test('a token nobody issued is 401', async () => {
+    const res = await fetch(`${base}${withProject('/api/connectors')}`, { headers: { authorization: await forged(ADA) } });
     expect(res.status).toBe(401);
     expect(calls).toEqual([]);
   });
 
-  test('a signature older than five minutes is 401', async () => {
-    const res = await fetch(`${base}${withProject('/api/connectors')}`, {
-      headers: { authorization: await auth('GET', '/api/connectors', ADA, Date.now() - 6 * 60_000) },
-    });
+  test('a token with no organization is 401', async () => {
+    const res = await fetch(`${base}${withProject('/api/connectors')}`, { headers: { authorization: await bearer({ org_id: undefined }) } });
     expect(res.status).toBe(401);
   });
 

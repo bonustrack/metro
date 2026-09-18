@@ -1,10 +1,10 @@
 import { beforeAll } from 'bun:test';
-import { installTestIdentity } from './identity-fixture.js';
+import { installTestAccount } from './account-fixture.js';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { fetchSession, fetchStations, resetAgentKey, StoppedError, type AgentSummary } from '../src/api/client.js';
 
-beforeAll(async () => {
-  await installTestIdentity();
+beforeAll(() => {
+  installTestAccount();
 });
 
 const realFetch = globalThis.fetch;

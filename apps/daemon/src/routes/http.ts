@@ -32,8 +32,6 @@ import {
 } from '../net/tunnel.js';
 import { attachmentEventUrl, handleAttachRequest } from '../files/attach-serve.js';
 import { webhookEntry } from '@metro-labs/webhook';
-import { handleIdentityRequest } from './identity.js';
-import { handleOwnerRequest } from './owner.js';
 import { attachTerminalSockets } from '../terminal/socket.js';
 import { tmuxCommand } from '../terminal/api.js';
 import { handleModeRequest } from '@metro-labs/http/mode-api';
@@ -327,8 +325,6 @@ function handleSignInRoutes(
   res: ServerResponse,
   apis: SessionApis,
 ): boolean {
-  if (apis.identity !== undefined && handleIdentityRequest(req, res, apis.identity)) return true;
-  if (apis.owner !== undefined && handleOwnerRequest(req, res, apis.owner)) return true;
   return apis.mode !== undefined && handleModeRequest(req, res, apis.mode);
 }
 

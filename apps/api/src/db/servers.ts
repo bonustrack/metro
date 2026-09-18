@@ -4,7 +4,6 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { getDb } from './client.js';
 import { newId, parseId } from '@metro-labs/core/ids';
 import { agents } from './schema.js';
-import { normalizeAddress } from '@metro-labs/core/address';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
 import { parseAvatar } from '../avatar.js';
 import { isOrganizationId } from '@metro-labs/http/workos-token';
@@ -14,10 +13,8 @@ export class ServerListError extends ApiError {}
 const missing = (): ServerListError => new ServerListError('no such server', 404);
 
 function ownerOf(subject: string): string {
-  if (isOrganizationId(subject)) return subject;
-  const address = normalizeAddress(subject);
-  if (address === null) throw new ServerListError('the server list needs a signed identity', 403);
-  return address;
+  if (!isOrganizationId(subject)) throw new ServerListError('the agent list belongs to an organization; sign in first', 403);
+  return subject;
 }
 
 function idOf(raw: string): string {
@@ -163,12 +160,4 @@ export async function deleteServerForOwner(subject: string, rawId: string): Prom
   const row = gone[0];
   if (row === undefined) throw missing();
   return row;
-}
-
-export async function claimServers(from: string, to: string): Promise<number> {
-  const previous = ownerOf(from);
-  const next = ownerOf(to);
-  if (!isOrganizationId(next)) throw new ServerListError('servers can only be claimed by an organization', 400);
-  const moved = await getDb().update(agents).set({ owner: next }).where(eq(agents.owner, previous)).returning({ id: agents.id });
-  return moved.length;
 }

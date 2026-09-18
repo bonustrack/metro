@@ -1,5 +1,5 @@
+import { isOrganizationId } from '@metro-labs/http/workos-token';
 import { log } from '@metro-labs/core/log';
-import { normalizeAddress } from '@metro-labs/core/address';
 import { AUTH_KEY_RE } from './aws/user-data.js';
 import type { AwsCredentials } from './aws/ec2.js';
 
@@ -17,8 +17,8 @@ const read = (env: NodeJS.ProcessEnv, name: string): string => (env[name] ?? '')
 export function launchOwners(raw: string): string[] {
   const out: string[] = [];
   for (const piece of raw.split(',')) {
-    const address = normalizeAddress(piece.trim());
-    if (address !== null && !out.includes(address)) out.push(address);
+    const owner = piece.trim();
+    if (isOrganizationId(owner) && !out.includes(owner)) out.push(owner);
   }
   return out;
 }
@@ -49,8 +49,7 @@ export function readLaunchConfig(env: NodeJS.ProcessEnv = process.env): ConfigRe
   };
 }
 
-export const mayLaunch = (config: LaunchConfig, subject: string): boolean =>
-  config.owners.includes(subject) || config.owners.includes(normalizeAddress(subject) ?? '');
+export const mayLaunch = (config: LaunchConfig, subject: string): boolean => config.owners.includes(subject);
 
 export function announceLaunchConfig(result: ConfigResult): void {
   if (result.ok) {

@@ -1,6 +1,4 @@
 import { call } from './client.js';
-import { signRequest } from '../vault/crypto.js';
-import { type Identity } from '../auth/identity.js';
 import { isRecord } from './accounts.js';
 import { fetchMode } from './mode.js';
 import { baseFromSegment, builtInDaemon } from '../auth/daemon.js';
@@ -78,17 +76,6 @@ export async function setServerAvatar(id: string, avatar: string | null): Promis
       body: JSON.stringify({ avatar }),
     }),
   );
-}
-
-export async function claimServers(identity: Identity): Promise<number> {
-  const body = await call({
-    method: 'POST',
-    base: listUrl(),
-    path: '/claim',
-    headers: { 'x-metro-wallet': await signRequest(identity, 'POST', '/api/servers/claim') },
-  });
-  if (!isRecord(body) || typeof body.moved !== 'number') throw unexpected();
-  return body.moved;
 }
 
 export async function removeServer(id: string): Promise<void> {

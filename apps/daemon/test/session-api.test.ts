@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
+import { auth, bearer, forged } from './identity-helper.ts';
 
 let server: Server;
 let base = '';
@@ -47,12 +47,12 @@ describe('GET /api/session is the boot gate', () => {
     expect((await get()).status).toBe(401);
   });
 
-  test('an identity nobody registered is a 401, however well it signs', async () => {
-    expect((await get(TEST_STRANGER)).status).toBe(401);
+  test('a token nobody issued is a 401, however well it is shaped', async () => {
+    expect((await fetch(`${base}/api/session`, { headers: { authorization: await forged() } })).status).toBe(401);
   });
 
-  test('a signature older than five minutes is a 401', async () => {
-    expect((await get('ada@lovelace.dev', Date.now() - 6 * 60_000)).status).toBe(401);
+  test('a token with no organization is a 401', async () => {
+    expect((await fetch(`${base}/api/session`, { headers: { authorization: await bearer({ org_id: undefined, role: undefined }) } })).status).toBe(401);
   });
 
   test('an agent key never opens this surface, and neither does a query token', async () => {

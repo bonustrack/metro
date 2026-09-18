@@ -26,7 +26,6 @@
     "eslint": "^10.3.0",
     "knip": "^6.15.0",
     "madge": "^8.0.0",
-    "typescript": "^5",
-    "viem": "2.52.2"
+    "typescript": "^5"
   }
 }

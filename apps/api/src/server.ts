@@ -8,7 +8,6 @@ import { readWorkosConfig } from './auth/workos.js';
 import {
   addLaunchedServer,
   addServerForOwner,
-  claimServers,
   deleteServerForOwner,
   launchForOwner,
   listServersForOwner,
@@ -33,7 +32,6 @@ const serversApi = {
   rename: renameServerForOwner,
   remove: deleteServerForOwner,
   avatar: setAvatarForOwner,
-  claim: claimServers,
   keys,
 };
 const launchApi: LaunchApiDeps = {

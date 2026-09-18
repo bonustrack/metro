@@ -1,6 +1,6 @@
 export const NODE_RE = /^metro-[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 export const HOSTNAME_RE = /^[a-z0-9](?:[a-z0-9-]{0,62})$/;
-export const OWNER_RE = /^(0x[0-9a-f]{40}|org_[A-Za-z0-9]{10,64})$/;
+export const OWNER_RE = /^org_[A-Za-z0-9]{10,64}$/;
 export const AUTH_KEY_RE = /^tskey-auth-[A-Za-z0-9_-]{8,200}$/;
 const TAG_RE = /^[a-z0-9][A-Za-z0-9.-]{0,40}$/;
 

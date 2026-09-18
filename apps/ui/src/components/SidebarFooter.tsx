@@ -6,7 +6,6 @@ import { NAV_GAP, NAV_ICON_SIZE, NAV_ROW_BOX, NavRow } from './NavRow.js';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { type Selection } from './selection.js';
-import { shortAddress } from '../api/address.js';
 import { activeAccount } from '../auth/account.js';
 
 interface SidebarFooterProps {
@@ -18,7 +17,7 @@ interface SidebarFooterProps {
 
 export function SidebarFooter({ subject, selection, onSelect, onLock }: SidebarFooterProps): ReactNode {
   const account = activeAccount();
-  const label = account?.user.name ?? account?.user.email ?? shortAddress(subject);
+  const label = account?.user.name ?? account?.user.email ?? subject;
   return (
     <Col gap={NAV_GAP} padding={{ x: 24, bottom: 24, top: 16 }}>
       <NavRow label="Documentation" icon="bookOpen" selected={selection.kind === 'docs'} target={{ kind: 'docs' }} onSelect={onSelect} />
