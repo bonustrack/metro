@@ -30,7 +30,7 @@ export class WorkosError extends Error {
 
 export const isProvider = (value: unknown): value is Provider => value === 'google' || value === 'microsoft';
 export const ALL_PROVIDERS: Provider[] = ['google', 'microsoft'];
-const PROBE_MS = 10 * 60_000;
+const PROBE_MS = 60_000;
 
 export async function providerEnabled(cfg: WorkosConfig, provider: Provider, redirectUri: string): Promise<boolean> {
   try {
