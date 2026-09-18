@@ -89,6 +89,15 @@ describe('the members of an organization on metro.box', () => {
     expect(workos.members.map((m) => m.id)).toEqual(['om_admin']);
   });
 
+  test('an admin renames the organization; a member may not, and a bad name is refused', async () => {
+    expect((await call('PUT', '/api/organization', token({ sub: 'user_02BOB', role: 'member' }), { name: 'Nope' })).status).toBe(403);
+    expect((await call('PUT', '/api/organization', token(), { name: 'x' })).status).toBe(400);
+    const renamed = await call('PUT', '/api/organization', token(), { name: '  Stage Labs SA ' });
+    expect(renamed.status).toBe(200);
+    expect(await renamed.json()).toEqual({ id: ORG, name: 'Stage Labs SA' });
+    expect(((await (await call('GET', '/api/organization')).json()) as Overview).name).toBe('Stage Labs SA');
+  });
+
   test('no token is 401, a token without an organization is 409, a wrong method 405, and preflight passes', async () => {
     expect((await fetch(`${base}/api/organization`)).status).toBe(401);
     expect((await call('GET', '/api/organization', token({ org_id: undefined, role: undefined }))).status).toBe(409);

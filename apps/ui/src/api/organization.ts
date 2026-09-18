@@ -55,6 +55,10 @@ export const fetchOrganization = async (): Promise<Organization> => toOrganizati
 
 const json = (body: unknown): { headers: Record<string, string>; body: string } => ({ headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
+export async function renameOrganization(name: string): Promise<void> {
+  await call({ method: 'PUT', base: base(), ...json({ name }) });
+}
+
 export async function inviteMember(email: string, role: Role): Promise<void> {
   await call({ method: 'POST', base: base(), path: '/invitations', ...json({ email, role }) });
 }

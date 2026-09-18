@@ -231,6 +231,13 @@ export async function createOrganization(cfg: WorkosConfig, name: string): Promi
   return id;
 }
 
+export async function renameOrganization(cfg: WorkosConfig, id: string, name: string): Promise<string> {
+  const answer = await request(cfg, 'PUT', `/organizations/${id}`, { name });
+  const saved = str(answer.name) ?? name;
+  rememberOrganizationName(id, saved);
+  return saved;
+}
+
 export async function addMembership(cfg: WorkosConfig, userId: string, organization: string, role: 'admin' | 'member'): Promise<void> {
   await api(cfg, '/user_management/organization_memberships', { user_id: userId, organization_id: organization, role_slug: role });
 }

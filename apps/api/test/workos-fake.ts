@@ -38,6 +38,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     { id: 'user_02BOB', email: 'bob@stage.box', first_name: 'Bob', last_name: null, profile_picture_url: null },
   ];
   let refreshCount = 0;
+  let orgName = 'Stage Labs';
   const tokens = (organization: string | null, sub = 'user_01ABC'): Record<string, unknown> => ({
     user: { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
     organization_id: organization,
@@ -61,7 +62,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
       return;
     }
     if (req.method === 'GET' && url.pathname.startsWith('/organizations/')) {
-      send(200, { id: url.pathname.slice('/organizations/'.length), name: 'Stage Labs' });
+      send(200, { id: url.pathname.slice('/organizations/'.length), name: orgName });
       return;
     }
     if (req.method === 'GET' && url.pathname === '/user_management/users') {
@@ -101,6 +102,10 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
           return send(400, { code: 'invalid_grant', message: 'unknown grant' });
         }
         if (url.pathname === '/user_management/sessions/revoke') return send(200, {});
+        if (url.pathname.startsWith('/organizations/') && req.method === 'PUT') {
+          orgName = String(parsed.name);
+          return send(200, { id: url.pathname.split('/').pop(), name: orgName });
+        }
         if (url.pathname === '/organizations') {
           const id = `org_01FAKE${String(organizations.length + 1).padStart(6, '0')}`;
           organizations.push(id);

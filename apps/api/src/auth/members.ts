@@ -8,8 +8,10 @@ import {
   isRole,
   listInvitations,
   listMembers,
+  ORGANIZATION_NAME_RE,
   organizationName,
   removeMembership,
+  renameOrganization,
   revokeInvitation,
   sendInvitation,
   setMembershipRole,
@@ -49,7 +51,7 @@ function target(path: string): Target {
 }
 
 const METHODS: Record<Exclude<NonNullable<Target>, { kind: 'unknown' }>['kind'], string[]> = {
-  organization: ['GET'],
+  organization: ['GET', 'PUT'],
   invitations: ['POST'],
   invitation: ['POST'],
   member: ['PUT', 'DELETE'],
@@ -64,6 +66,16 @@ function ready(deps: MembersApiDeps): WorkosConfig {
 const admin = (session: Session): void => {
   if (session.role !== 'admin') throw new ApiError('this needs the admin role in your organization', 403);
 };
+
+async function rename(req: IncomingMessage, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
+  admin(session);
+  const body = await readJsonBody(req);
+  const name = isRecord(body) && typeof body.name === 'string' ? body.name.trim() : '';
+  if (!ORGANIZATION_NAME_RE.test(name)) throw new ApiError('the organization name must be 2 to 64 characters', 400);
+  const saved = await renameOrganization(cfg, organization, name);
+  log.info({ organization, name: saved, by: session.userId }, 'members: organization renamed');
+  return { id: organization, name: saved };
+}
 
 async function overview(cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
   const [name, members, invitations] = await Promise.all([organizationName(cfg, organization), listMembers(cfg, organization), listInvitations(cfg, organization)]);
@@ -120,7 +132,7 @@ async function answer(req: IncomingMessage, deps: MembersApiDeps, tgt: Exclude<N
   if (session === null) throw new ApiError('unauthorized', 401);
   if (session.organization === null) throw new ApiError('you have no organization yet', 409);
   const cfg = ready(deps);
-  if (tgt.kind === 'organization') return overview(cfg, session, session.organization);
+  if (tgt.kind === 'organization') return req.method === 'PUT' ? rename(req, cfg, session, session.organization) : overview(cfg, session, session.organization);
   if (tgt.kind === 'invitations') return invite(req, cfg, session, session.organization);
   if (tgt.kind === 'invitation') {
     admin(session);
