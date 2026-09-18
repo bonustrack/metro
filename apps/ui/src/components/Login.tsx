@@ -13,7 +13,8 @@ const CARD_WIDTH = CONTENT_WIDTH + 2 * CARD_PAD;
 const CARD_GAP = 32;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft', github: 'Continue with GitHub' };
 const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com', github: 'https://github.com' };
-const PROVIDER_ICON = 24;
+const PROVIDER_ICON = 22;
+const PROVIDER_SCALE: Record<Provider, number> = { google: 1.4, microsoft: 1, github: 1 };
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
 const OFF = 'Sign-in is not configured on this Metro yet.';
 
@@ -56,7 +57,7 @@ function ProviderButtons({ providers }: { providers: Provider[] }): ReactNode {
           color="primary"
           dark={dark}
           label={PROVIDER_LABEL[provider]}
-          icon={<ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON} radius={0} />}
+          icon={<ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON} radius={0} scale={PROVIDER_SCALE[provider]} />}
           style={FULL_WIDTH}
           onPress={() => {
             window.location.assign(loginUrl(provider));
