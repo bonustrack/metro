@@ -17,6 +17,7 @@ import {
   organizationName,
   refreshTokens,
   revokeSession,
+  userOrganizations,
   WorkosError,
   type Tokens,
   type WorkosConfig,
@@ -181,12 +182,24 @@ async function logout(session: Session, deps: AuthApiDeps): Promise<unknown> {
   return { ok: true };
 }
 
+async function switchOrg(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
+  const cfg = deps.config();
+  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const body = await readJsonBody(req);
+  const organization = isRecord(body) && typeof body.organization === 'string' ? body.organization : '';
+  const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
+  if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
+  const mine = await userOrganizations(cfg, session.userId);
+  if (!mine.some((o) => o.id === organization)) throw new ApiError('you are not a member of that organization', 404);
+  log.info({ user: session.userId, organization }, 'auth: switched organization');
+  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg);
+}
+
 const mePayload = (s: Session): Record<string, unknown> => ({ userId: s.userId, organization: s.organization, role: s.role, expiresAt: s.expiresAt });
 
 async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-  if (session.organization !== null) throw new ApiError('you already belong to an organization', 409);
   const body = await readJsonBody(req);
   const name = isRecord(body) && typeof body.name === 'string' ? body.name.trim() : '';
   const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
@@ -218,6 +231,15 @@ const PRIVATE: Record<string, PrivateRoute> = {
   '/me': { method: 'GET', run: (_req, _deps, session) => Promise.resolve(mePayload(session)) },
   '/logout': { method: 'POST', run: (_req, deps, session) => logout(session, deps) },
   '/organization': { method: 'POST', run: (req, deps, session) => createOrg(req, session, deps) },
+  '/organizations': {
+    method: 'GET',
+    run: async (_req, deps, session) => {
+      const cfg = deps.config();
+      if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+      return { organizations: await userOrganizations(cfg, session.userId) };
+    },
+  },
+  '/switch': { method: 'POST', run: (req, deps, session) => switchOrg(req, session, deps) },
 };
 
 async function navigation(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, path: string, query: URLSearchParams): Promise<boolean> {

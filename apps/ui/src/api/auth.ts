@@ -88,6 +88,33 @@ export async function createOrganization(name: string): Promise<Account> {
   return next;
 }
 
+export interface OrganizationRow {
+  id: string;
+  name: string | null;
+  role: string | null;
+}
+
+export async function fetchOrganizations(): Promise<OrganizationRow[]> {
+  const bearer = await accessToken();
+  if (bearer === null) throw new Error('Log in first.');
+  const res = await fetch(authUrl('/organizations'), { headers: { authorization: `Bearer ${bearer}` } });
+  const body: unknown = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(errorText(body, res.status));
+  if (!isRecord(body) || !Array.isArray(body.organizations)) throw unexpected();
+  return body.organizations.flatMap((o: unknown) =>
+    isRecord(o) && typeof o.id === 'string' ? [{ id: o.id, name: typeof o.name === 'string' ? o.name : null, role: typeof o.role === 'string' ? o.role : null }] : [],
+  );
+}
+
+export async function switchOrganization(organization: string): Promise<Account> {
+  const current = activeAccount();
+  if (current === null) throw new Error('Log in first.');
+  const bearer = (await accessToken()) ?? current.accessToken;
+  const next = accountFrom(await post('/switch', { organization, refreshToken: activeAccount()?.refreshToken ?? current.refreshToken }, bearer));
+  storeAccount(next);
+  return next;
+}
+
 export async function logoutAccount(): Promise<void> {
   const current = activeAccount();
   clearAccount();

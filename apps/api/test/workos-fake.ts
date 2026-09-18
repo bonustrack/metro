@@ -76,6 +76,11 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
       return;
     }
     if (req.method === 'GET' && url.pathname === '/user_management/organization_memberships') {
+      const user = url.searchParams.get('user_id');
+      if (user !== null) {
+        send(200, { data: organizations.map((id, i) => ({ id: `om_${String(i)}`, user_id: user, organization_id: id, role: { slug: 'admin' }, status: 'active' })) });
+        return;
+      }
       send(200, { data: members.map((m) => ({ id: m.id, user_id: m.user_id, organization_id: url.searchParams.get('organization_id'), role: { slug: m.role }, status: 'active' })) });
       return;
     }

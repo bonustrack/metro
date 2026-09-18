@@ -123,7 +123,7 @@ describe('signing in to metro.box through WorkOS', () => {
     expect(cancelled.headers.get('location')).toBe('https://metro.box/#/login?error=User%20said%20no');
   });
 
-  test('creating the organization makes the user its admin and returns tokens that carry it; a second one is refused', async () => {
+  test('creating the organization makes the user its admin and returns tokens that carry it; a second one can be created and switched to', async () => {
     const tokens = await signIn();
     const made = await json('POST', '/api/auth/organization', { name: ' Stage Labs ', refreshToken: tokens.refreshToken }, tokens.accessToken);
     expect(made.status).toBe(200);
@@ -136,7 +136,17 @@ describe('signing in to metro.box through WorkOS', () => {
     expect(workos.calls.find((c) => c.path === '/organizations')?.body).toEqual({ name: 'Stage Labs' });
     const me = (await (await json('GET', '/api/auth/me', undefined, withOrg.accessToken)).json()) as { organization: string; role: string };
     expect(me).toMatchObject({ organization: workos.organizations[0], role: 'admin' });
-    expect((await json('POST', '/api/auth/organization', { name: 'Twice', refreshToken: withOrg.refreshToken }, withOrg.accessToken)).status).toBe(409);
+    const second = await json('POST', '/api/auth/organization', { name: 'Twice', refreshToken: withOrg.refreshToken }, withOrg.accessToken);
+    expect(second.status).toBe(200);
+    const inSecond = (await second.json()) as TokenBody;
+    expect(inSecond.organization).toBe(workos.organizations[1] ?? '');
+    const listed = await json('GET', '/api/auth/organizations', undefined, inSecond.accessToken);
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toEqual({ organizations: [{ id: workos.organizations[0], name: 'Stage Labs', role: 'admin' }, { id: workos.organizations[1], name: 'Twice', role: 'admin' }] });
+    const back = await json('POST', '/api/auth/switch', { organization: workos.organizations[0], refreshToken: inSecond.refreshToken }, inSecond.accessToken);
+    expect(back.status).toBe(200);
+    expect(((await back.json()) as TokenBody).organization).toBe(workos.organizations[0] ?? '');
+    expect((await json('POST', '/api/auth/switch', { organization: 'org_01NOTMINE', refreshToken: inSecond.refreshToken }, inSecond.accessToken)).status).toBe(404);
     expect((await json('POST', '/api/auth/organization', { name: 'x', refreshToken: tokens.refreshToken }, tokens.accessToken)).status).toBe(400);
   });
 

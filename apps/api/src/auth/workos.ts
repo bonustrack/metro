@@ -243,6 +243,24 @@ export async function organizationName(cfg: WorkosConfig, id: string): Promise<s
   }
 }
 
+export interface UserOrganization {
+  id: string;
+  name: string | null;
+  role: string | null;
+}
+
+export async function userOrganizations(cfg: WorkosConfig, userId: string): Promise<UserOrganization[]> {
+  const answer = await request(cfg, 'GET', `/user_management/organization_memberships?user_id=${encodeURIComponent(userId)}&statuses=active&${LIST}`);
+  const out: UserOrganization[] = [];
+  for (const m of rows(answer)) {
+    const id = str(m.organization_id);
+    if (id === null) continue;
+    const role = isRecord(m.role) ? str(m.role.slug) : null;
+    out.push({ id, name: await organizationName(cfg, id), role });
+  }
+  return out;
+}
+
 export async function createOrganization(cfg: WorkosConfig, name: string): Promise<string> {
   const id = str((await api(cfg, '/organizations', { name })).id);
   if (id === null) throw new WorkosError('WorkOS created the organization without an id', null, 502);
