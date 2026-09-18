@@ -4,6 +4,7 @@ import { METRO_VERSION } from '@metro-labs/core/version';
 import { handleModeRequest, type ModeInfo } from '@metro-labs/http/mode-api';
 import { clientId, jwksUrl, SigningKeys, workosBase } from '@metro-labs/http/workos-token';
 import { handleAuthApiRequest } from './auth/routes.js';
+import { handleMembersApiRequest } from './auth/members.js';
 import { readWorkosConfig } from './auth/workos.js';
 import {
   addLaunchedServer,
@@ -59,6 +60,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse): voi
   if (handleHealth(req, res)) return;
   if (handleModeRequest(req, res, mode)) return;
   if (handleAuthApiRequest(req, res, authApi)) return;
+  if (handleMembersApiRequest(req, res, authApi)) return;
   if (handleServersApiRequest(req, res, serversApi)) return;
   if (handleLaunchApiRequest(req, res, launchApi)) return;
   res.writeHead(404).end();

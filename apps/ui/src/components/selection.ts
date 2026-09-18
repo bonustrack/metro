@@ -5,6 +5,7 @@ export type Selection =
   | { kind: 'settings' }
   | { kind: 'connect' }
   | { kind: 'launch' }
+  | { kind: 'members' }
   | { kind: 'home'; project: string }
   | { kind: 'server'; project: string }
   | { kind: 'terminal'; project: string }

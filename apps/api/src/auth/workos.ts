@@ -111,20 +111,96 @@ export const exchangeCode = (cfg: WorkosConfig, code: string): Promise<Tokens> =
 export const refreshTokens = (cfg: WorkosConfig, refreshToken: string, organization?: string): Promise<Tokens> =>
   authenticate(cfg, { grant_type: 'refresh_token', refresh_token: refreshToken, ...(organization === undefined ? {} : { organization_id: organization }) });
 
-async function api(cfg: WorkosConfig, path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function request(cfg: WorkosConfig, method: string, path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
   const res = await fetch(`${cfg.base}${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${cfg.apiKey}` },
-    body: JSON.stringify(body),
+    method,
+    headers: { authorization: `Bearer ${cfg.apiKey}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     signal: AbortSignal.timeout(FETCH_MS),
   });
   const answer: unknown = await res.json().catch(() => null);
   if (!res.ok) {
     const message = isRecord(answer) ? str(answer.message) : null;
-    throw new WorkosError(message ?? `WorkOS answered ${String(res.status)} on ${path}`, isRecord(answer) ? str(answer.code) : null, 502);
+    throw new WorkosError(message ?? `WorkOS answered ${String(res.status)} on ${path}`, isRecord(answer) ? str(answer.code) : null, res.status === 422 || res.status === 400 ? 400 : 502);
   }
   return isRecord(answer) ? answer : {};
 }
+
+const api = (cfg: WorkosConfig, path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> => request(cfg, 'POST', path, body);
+
+const rows = (answer: Record<string, unknown>): Record<string, unknown>[] => (Array.isArray(answer.data) ? answer.data.filter(isRecord) : []);
+
+export interface Member {
+  membershipId: string;
+  userId: string;
+  email: string | null;
+  name: string | null;
+  picture: string | null;
+  role: string;
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: string | null;
+  expiresAt: string | null;
+}
+
+export type Role = 'admin' | 'member';
+export const isRole = (value: unknown): value is Role => value === 'admin' || value === 'member';
+
+const LIST = 'limit=100';
+
+export async function listMembers(cfg: WorkosConfig, organization: string): Promise<Member[]> {
+  const [users, memberships] = await Promise.all([
+    request(cfg, 'GET', `/user_management/users?organization_id=${organization}&${LIST}`),
+    request(cfg, 'GET', `/user_management/organization_memberships?organization_id=${organization}&statuses=active&${LIST}`),
+  ]);
+  const people = new Map(rows(users).map((u) => [str(u.id) ?? '', u]));
+  return rows(memberships).flatMap((m) => {
+    const member = memberOf(m, people);
+    return member === null ? [] : [member];
+  });
+}
+
+function memberOf(m: Record<string, unknown>, people: Map<string, Record<string, unknown>>): Member | null {
+  const membershipId = str(m.id);
+  const userId = str(m.user_id);
+  if (membershipId === null || userId === null) return null;
+  const person = people.get(userId) ?? {};
+  const name = [str(person.first_name), str(person.last_name)].filter((p) => p !== null).join(' ');
+  return {
+    membershipId,
+    userId,
+    email: str(person.email),
+    name: name === '' ? null : name,
+    picture: str(person.profile_picture_url),
+    role: (isRecord(m.role) ? str(m.role.slug) : null) ?? 'member',
+  };
+}
+
+export async function listInvitations(cfg: WorkosConfig, organization: string): Promise<Invitation[]> {
+  const answer = await request(cfg, 'GET', `/user_management/invitations?organization_id=${organization}&${LIST}`);
+  return rows(answer)
+    .filter((i) => i.state === 'pending')
+    .flatMap((i) => {
+      const id = str(i.id);
+      const email = str(i.email);
+      return id === null || email === null ? [] : [{ id, email, role: str(i.role_slug), expiresAt: str(i.expires_at) }];
+    });
+}
+
+export async function sendInvitation(cfg: WorkosConfig, organization: string, email: string, role: Role, inviter: string): Promise<Invitation> {
+  const made = await api(cfg, '/user_management/invitations', { email, organization_id: organization, role_slug: role, inviter_user_id: inviter });
+  return { id: str(made.id) ?? '', email, role, expiresAt: str(made.expires_at) };
+}
+
+export const revokeInvitation = (cfg: WorkosConfig, id: string): Promise<unknown> => api(cfg, `/user_management/invitations/${id}/revoke`, {});
+
+export const setMembershipRole = (cfg: WorkosConfig, id: string, role: Role): Promise<unknown> =>
+  request(cfg, 'PUT', `/user_management/organization_memberships/${id}`, { role_slug: role });
+
+export const removeMembership = (cfg: WorkosConfig, id: string): Promise<unknown> => request(cfg, 'DELETE', `/user_management/organization_memberships/${id}`);
 
 export const ORGANIZATION_NAME_RE = /^[^\p{Cc}]{2,64}$/u;
 

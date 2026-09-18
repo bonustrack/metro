@@ -9,6 +9,8 @@ export interface FakeWorkos {
   codes: Map<string, { organization: string | null }>;
   organizations: string[];
   enabled: Set<string>;
+  members: { id: string; user_id: string; role: string }[];
+  invitations: { id: string; email: string; state: string; role_slug: string }[];
   close: () => Promise<void>;
 }
 
@@ -29,6 +31,12 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
   const codes = new Map<string, { organization: string | null }>();
   const organizations: string[] = [];
   const enabled = new Set<string>(['GoogleOAuth']);
+  const members: FakeWorkos['members'] = [{ id: 'om_admin', user_id: 'user_01ABC', role: 'admin' }, { id: 'om_bob', user_id: 'user_02BOB', role: 'member' }];
+  const invitations: FakeWorkos['invitations'] = [];
+  const USERS = [
+    { id: 'user_01ABC', email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
+    { id: 'user_02BOB', email: 'bob@stage.box', first_name: 'Bob', last_name: null, profile_picture_url: null },
+  ];
   let refreshCount = 0;
   const tokens = (organization: string | null, sub = 'user_01ABC'): Record<string, unknown> => ({
     user: { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
@@ -56,6 +64,25 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
       send(200, { id: url.pathname.slice('/organizations/'.length), name: 'Stage Labs' });
       return;
     }
+    if (req.method === 'GET' && url.pathname === '/user_management/users') {
+      send(200, { data: USERS.filter((u) => members.some((m) => m.user_id === u.id)) });
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/user_management/organization_memberships') {
+      send(200, { data: members.map((m) => ({ id: m.id, user_id: m.user_id, organization_id: url.searchParams.get('organization_id'), role: { slug: m.role }, status: 'active' })) });
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/user_management/invitations') {
+      send(200, { data: invitations.map((i) => ({ ...i, expires_at: '2026-09-26T00:00:00.000Z' })) });
+      return;
+    }
+    if (req.method === 'DELETE' && url.pathname.startsWith('/user_management/organization_memberships/')) {
+      const id = url.pathname.split('/').pop() ?? '';
+      const at = members.findIndex((m) => m.id === id);
+      if (at !== -1) members.splice(at, 1);
+      send(at === -1 ? 404 : 200, {});
+      return;
+    }
     body(req)
       .then((parsed) => {
         calls.push({ path: url.pathname, body: parsed, auth: typeof req.headers.authorization === 'string' ? req.headers.authorization : null });
@@ -79,7 +106,23 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
           organizations.push(id);
           return send(201, { id, name: parsed.name });
         }
-        if (url.pathname === '/user_management/organization_memberships') return send(201, { id: 'om_01', role: { slug: parsed.role_slug } });
+        if (url.pathname === '/user_management/organization_memberships' && req.method === 'POST') return send(201, { id: 'om_01', role: { slug: parsed.role_slug } });
+        if (url.pathname.startsWith('/user_management/organization_memberships/') && req.method === 'PUT') {
+          const found = members.find((m) => m.id === url.pathname.split('/').pop());
+          if (found === undefined) return send(404, { message: 'no such membership' });
+          found.role = String(parsed.role_slug);
+          return send(200, { id: found.id, role: { slug: found.role } });
+        }
+        if (url.pathname === '/user_management/invitations') {
+          const made = { id: `invitation_${String(invitations.length + 1)}`, email: String(parsed.email), state: 'pending', role_slug: String(parsed.role_slug) };
+          invitations.push(made);
+          return send(201, { ...made, expires_at: '2026-09-26T00:00:00.000Z' });
+        }
+        if (url.pathname.endsWith('/revoke') && url.pathname.startsWith('/user_management/invitations/')) {
+          const found = invitations.find((i) => i.id === url.pathname.split('/').at(-2));
+          if (found !== undefined) found.state = 'revoked';
+          return send(found === undefined ? 404 : 200, {});
+        }
         if (url.pathname.startsWith('/organizations/')) return send(200, { id: url.pathname.slice('/organizations/'.length), name: 'Stage Labs' });
         return send(404, { message: 'no such route' });
       })
@@ -98,6 +141,8 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     codes,
     organizations,
     enabled,
+    members,
+    invitations,
     close: async () => {
       await issuer.close();
       await new Promise<void>((r) => {

@@ -10,6 +10,7 @@ import { LaunchServer } from './components/LaunchServer.js';
 import { BootLoading } from './components/BootLoading.js';
 import { Dashboard } from './components/Dashboard.js';
 import { Servers } from './components/Servers.js';
+import { Members } from './components/Members.js';
 import { selectionProject, type Selection } from './components/selection.js';
 import { makeQueryClient, refreshServers, useServersQuery, useSessionQuery } from './api/queries.js';
 import { AuthError, StoppedError } from './api/client.js';
@@ -157,6 +158,7 @@ function ServerGate({ selection, onLock }: { selection: Selection; onLock: () =>
 function Unlocked({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   if (selection.kind === 'connect') return <Connect />;
   if (selection.kind === 'launch') return <LaunchServer />;
+  if (selection.kind === 'members') return <Members onLock={onLock} />;
   if (selection.kind === 'servers' || selection.kind === 'none') return <Servers onLock={onLock} />;
   return <ServerGate selection={selection} onLock={onLock} />;
 }
