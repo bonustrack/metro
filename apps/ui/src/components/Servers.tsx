@@ -192,7 +192,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
         />
       )}
     >
-      <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
+      <Col gap={20} width="100%">
         <ListHeader
           title="Agents"
           action={
@@ -220,10 +220,12 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
             </Row>
           }
         />
-        <Text size="sm" role="secondary">
-          {HOW}
-        </Text>
-        <Body onBootLog={setLogOf} />
+        <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
+          <Text size="sm" role="secondary">
+            {HOW}
+          </Text>
+          <Body onBootLog={setLogOf} />
+        </Col>
         <BootLog
           server={logOf}
           onClose={() => {
