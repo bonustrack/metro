@@ -29,7 +29,7 @@ import { ClaimServers } from './ClaimServers.js';
 
 const LIST_WIDTH = 640;
 const ROW_AVATAR = 32;
-const HOW = 'Every daemon you open lands here, on every device you sign in from. Open one, or add the address a daemon printed.';
+const HOW = 'Every agent you open lands here, on every device you sign in from. Open one, or add the address its daemon printed.';
 
 function StatusText({ server }: { server: Server }): ReactNode {
   const { data } = useServerStatus(server.host);
@@ -125,7 +125,7 @@ function ServerRow({ server, last, onRename, onRemove, onBootLog }: RowProps): R
       <StartButton host={server.host} />
       {avatar.input}
       <KebabMenu
-        label={`Server menu for ${serverLabel(server)}`}
+        label={`Agent menu for ${serverLabel(server)}`}
         items={[
           { label: server.name === null ? 'Name' : 'Rename', onSelect: onRename },
           { label: avatar.busy ? 'Saving avatar…' : 'Set avatar', onSelect: avatar.pick },
@@ -152,7 +152,7 @@ function ServerList({ servers, onRename, onBootLog }: ListProps): ReactNode {
     return (
       <Col gap={16}>
         <Text size="sm" role="secondary">
-          No servers yet. Add the address your daemon printed at start-up.
+          No agents yet. Add the address your daemon printed at start-up.
         </Text>
         <ClaimServers />
       </Col>
@@ -185,7 +185,7 @@ function RenameServer({ server, onClose }: { server: Server | null; onClose: () 
   const client = useQueryClient();
   return (
     <NameModal
-      title={server?.name === null ? 'Name this server' : 'Rename this server'}
+      title={server?.name === null ? 'Name this agent' : 'Rename this agent'}
       action="Save"
       placeholder={server?.host ?? ''}
       initial={server?.name ?? ''}
@@ -208,7 +208,7 @@ function Body({ onRename, onBootLog }: { onRename: (s: Server) => void; onBootLo
   if (error !== null)
     return (
       <Text size="sm" role="danger">
-        {queryError(error, 'Could not list your servers.')}
+        {queryError(error, 'Could not list your agents.')}
       </Text>
     );
   return <ServerList servers={data} onRename={onRename} onBootLog={onBootLog} />;
@@ -219,7 +219,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
   const [renaming, setRenaming] = useState<Server | null>(null);
   const [logOf, setLogOf] = useState<Server | null>(null);
   const subject = activeIdentity()?.address ?? '';
-  useDocumentTitle('Servers');
+  useDocumentTitle('Agents');
   return (
     <Frame
       selection={{ kind: 'servers' }}
@@ -236,7 +236,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
       )}
     >
       <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
-        <PageTitle>Servers</PageTitle>
+        <PageTitle>Agents</PageTitle>
         <Text size="sm" role="secondary">
           {HOW}
         </Text>
@@ -245,7 +245,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
           <Button
             color="primary"
             dark={dark}
-            label="Add a server"
+            label="Add an agent"
             onPress={() => {
               window.location.hash = '#/connect';
             }}

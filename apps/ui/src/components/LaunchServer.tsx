@@ -23,7 +23,7 @@ const NO_AUTOFILL = { autoComplete: 'off' } as const;
 const HINT =
   'Metro issues the machine from its own AWS account and joins it to its tailnet, so no key of yours is involved. It belongs to the wallet you are signed in with, and only that wallet can sign in to it. On first boot it installs Node, bun, Claude Code, Tailscale and Metro, joins under a random metro-xxxxxx name that can never clash with another box, creates the agent, and shows up in your server list under the name you give it, live once its Funnel address resolves, usually within five minutes. The name is the server, the agent and the AWS machine (metro:name) at once.';
 const OFF =
-  'This Metro deployment issues no servers, or it does not issue them to you. Add your own server from the list instead.';
+  'This Metro deployment issues no agents, or it does not issue them to you. Add your own agent from the list instead.';
 const OFF_IDENTITY =
   'If it is yours to configure: metro.box signs its requests with an identity derived from your wallet, never with the wallet itself, so this is the address METRO_LAUNCH_OWNERS has to hold.';
 
@@ -63,7 +63,7 @@ function useLaunchForm(): {
 
     const wallet = activeAccount()?.organization ?? activeIdentity()?.address ?? null;
     if (wallet === null) {
-      setError('Sign in again: Metro needs to know which organization will own the server.');
+      setError('Sign in again: Metro needs to know which organization will own the agent.');
       return;
     }
     setBusy(true);
@@ -74,7 +74,7 @@ function useLaunchForm(): {
         setDone(launched);
       })
       .catch((err: unknown) => {
-        setError(queryError(err, 'Could not launch the server.'));
+        setError(queryError(err, 'Could not launch the agent.'));
       })
       .finally(() => {
         setBusy(false);
@@ -90,7 +90,7 @@ function LaunchedView({ launched }: { launched: Launched }): ReactNode {
         <PageTitle>{`Launching ${launched.server.name ?? launched.host}`}</PageTitle>
       </Row>
       <Text size="sm" role="secondary">
-        {`It installs everything on first boot, joins the tailnet as ${launched.node}, and is already in your server list. Open it once it is live to create the agent.`}
+        {`It installs everything on first boot, joins the tailnet as ${launched.node}, and is already in your agent list. Open it once it is live to create the agent.`}
       </Text>
       <LaunchProgress launched={launched} />
     </Col>
@@ -104,7 +104,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
   return (
     <Col gap={16}>
       <Row justify="center">
-        <PageTitle>Have Metro issue a server</PageTitle>
+        <PageTitle>Have Metro issue an agent</PageTitle>
       </Row>
       <Text size="sm" role="secondary">{HINT}</Text>
       <Col gap={10}>
@@ -136,7 +136,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
       {form.error === null ? null : <Text size="sm" role="danger">{form.error}</Text>}
       <Row justify="between" align="center" gap={12} wrap>
         <Text size="sm" role="secondary">
-          <a className="hint-link" href="#/">Back to your servers</a>
+          <a className="hint-link" href="#/">Back to your agents</a>
         </Text>
         <Button
           color="primary"
@@ -162,7 +162,7 @@ function Body(): ReactNode {
 export function LaunchServer(): ReactNode {
   const palette = useKitPalette();
   const side = { width: 1, color: palette.border };
-  useDocumentTitle('Launch a server');
+  useDocumentTitle('Launch an agent');
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={20} width="100%" maxWidth={CARD_WIDTH} padding={24} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>

@@ -120,7 +120,7 @@ function HostRedirect({ host }: { host: string }): ReactNode {
   if (failed !== null)
     return (
       <Notice
-        text={`${host} could not be added to your servers: ${failed}`}
+        text={`${host} could not be added to your agents: ${failed}`}
         onRetry={() => {
           window.location.reload();
         }}
@@ -147,14 +147,14 @@ function ListedServer({ id, onLock }: { id: string; onLock: () => void }): React
   if (error !== null)
     return (
       <Notice
-        text="Could not read your servers from metro.box."
+        text="Could not read your agents from metro.box."
         onRetry={() => {
           window.location.reload();
         }}
         retryLabel="Try again"
       />
     );
-  if (server === undefined) return <Notice text="This server is not in your list." onRetry={onLock} retryLabel="Sign in with another wallet" />;
+  if (server === undefined) return <Notice text="This agent is not in your list." onRetry={onLock} retryLabel="Sign in with another wallet" />;
   if (ready !== server.id) return <BootLoading />;
   return <Gate onLock={onLock} />;
 }

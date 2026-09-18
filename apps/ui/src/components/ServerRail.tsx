@@ -45,8 +45,8 @@ export function ServerRail({ selection }: { selection: Selection }): ReactNode {
   const { data } = useServersQuery();
   const here = currentServer();
   return (
-    <nav className="server-rail" aria-label="Servers">
-      <a className="rail-logo" href="#/" aria-label="All servers" data-label="All servers">
+    <nav className="server-rail" aria-label="Agents">
+      <a className="rail-logo" href="#/" aria-label="All agents" data-label="All agents">
         <MetroLogo size={LOGO} color={palette.link} />
       </a>
       <div className="rail-list">
@@ -54,7 +54,7 @@ export function ServerRail({ selection }: { selection: Selection }): ReactNode {
           <RailItem key={server.id} server={server} selected={server.id === here?.id} selection={selection} />
         ))}
       </div>
-      <a className="rail-item rail-add" href="#/connect" aria-label="Add a server" data-label="Add a server">
+      <a className="rail-item rail-add" href="#/connect" aria-label="Add an agent" data-label="Add an agent">
         <Icon name="plus" size={PLUS} color={palette.sub} />
       </a>
     </nav>

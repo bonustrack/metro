@@ -71,7 +71,7 @@ function Actions({ launched, live }: { launched: Launched; live: boolean }): Rea
       <Button
         color="secondary"
         dark={dark}
-        label="Back to your servers"
+        label="Back to your agents"
         onPress={() => {
           window.location.hash = '#/';
         }}

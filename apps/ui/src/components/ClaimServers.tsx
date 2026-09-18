@@ -11,7 +11,7 @@ import { claimServers } from '../api/servers.js';
 import { queryError, refreshServers } from '../api/queries.js';
 
 const WHY =
-  'Servers added before Google sign-in are listed under your wallet. Move them to your organization once, and they show up here for every member.';
+  'Agents added before Google sign-in are listed under your wallet. Move them to your organization once, and they show up here for every member.';
 
 export function ClaimServers(): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -34,7 +34,7 @@ export function ClaimServers(): ReactNode {
         await refreshServers(client);
       })
       .catch((err: unknown) => {
-        setError(queryError(err, 'Could not move the servers.'));
+        setError(queryError(err, 'Could not move the agents.'));
       })
       .finally(() => {
         setBusy(false);
@@ -42,11 +42,11 @@ export function ClaimServers(): ReactNode {
   };
   return (
     <Col gap={10} padding={16} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
-      <Text size="md" weight="semibold">Bring my servers over</Text>
+      <Text size="md" weight="semibold">Bring my agents over</Text>
       <Text size="sm" role="secondary">{WHY}</Text>
       {wallet ? (
         <Row gap={10} align="center" wrap>
-          <Button color="primary" dark={dark} label={busy ? 'Moving…' : 'Move my servers to my organization'} loading={busy} disabled={busy} onPress={claim} />
+          <Button color="primary" dark={dark} label={busy ? 'Moving…' : 'Move my agents to my organization'} loading={busy} disabled={busy} onPress={claim} />
           {moved === null ? null : <Text size="sm" role="secondary">{`${String(moved)} moved.`}</Text>}
         </Row>
       ) : (

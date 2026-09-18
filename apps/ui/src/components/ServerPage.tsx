@@ -125,7 +125,7 @@ function ListEntry({ server }: { server: Server }): ReactNode {
         <Button
           color="secondary"
           dark={dark}
-          label="Remove from my servers"
+          label="Remove from my agents"
           onPress={() => {
             removeServer(server.id)
               .then(() => refreshServers(client))
@@ -137,7 +137,7 @@ function ListEntry({ server }: { server: Server }): ReactNode {
         />
       </Row>
       <NameModal
-        title="Name this server"
+        title="Name this agent"
         action="Save"
         placeholder={server.host}
         initial={server.name ?? ''}

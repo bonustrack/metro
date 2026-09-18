@@ -13,7 +13,7 @@ type Phase = 'idle' | 'restarting' | 'restarted' | 'stopping';
 const CONTROLS_SINCE = '0.1.0-beta.67';
 const STOP_LINES = [
   'Channels and connectors go offline until metro starts again.',
-  'metro serve keeps holding the address, so Start works from this page and from the server list.',
+  'metro serve keeps holding the address, so Start works from this page and from the agent list.',
 ];
 const PHASE_TEXT: Partial<Record<Phase, string>> = {
   restarting: 'The daemon is coming back…',
