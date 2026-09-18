@@ -1,18 +1,17 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button, Text } from './ui.js';
-import { SHRINK } from '../theme.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { NameModal } from './NameModal.js';
 import { KebabMenu } from './KebabMenu.js';
 import { ConfirmModal } from './ConfirmModal.js';
-import { opensElsewhere } from './link.js';
+import { ListRow } from './ListRow.js';
 import { routeHash } from '../route.js';
 import { whenLabel } from '../api/when.js';
-import { createClaudeSkill, deleteClaudeSkill, type ClaudeSkill, type SkillListing, type SkillPlace } from '../api/claude.js';
+import { createClaudeSkill, deleteClaudeSkill, type ClaudeSkill, type SkillListing } from '../api/claude.js';
 import { queryError, refreshClaudeSkills, useClaudeSkillsQuery, useModeQuery } from '../api/queries.js';
 import { CountBadge } from './CountBadge.js';
 import { olderThan } from '../api/version.js';
@@ -22,31 +21,14 @@ const SKILLS_SINCE = '0.1.0-beta.87';
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const NAME_HELP = 'A skill name is lowercase letters, digits and dashes, like write-as-less.';
 
-const placeLabel = (place: SkillPlace): string =>
-  place.scope === 'user' ? 'This machine' : (place.where.split('/').pop() ?? place.where);
-
 function SkillRow({ skill, project, onOpen, onDelete }: { skill: ClaudeSkill; project: string; onOpen: () => void; onDelete: () => void }): ReactNode {
-  const palette = useKitPalette();
   return (
-    <Row justify="between" align="center" gap={12} padding={{ y: 12 }} border={{ bottom: { width: 1, color: palette.border } }}>
-      <Col gap={2} style={SHRINK}>
-        <a
-          className="hint-link"
-          href={routeHash({ kind: 'skill', project, id: skill.id })}
-          onClick={(e) => {
-            if (opensElsewhere(e)) return;
-            e.preventDefault();
-            onOpen();
-          }}
-        >
-          <Text size="md" numberOfLines={1}>{skill.title}</Text>
-        </a>
-        <Text size="sm" role="secondary" numberOfLines={1}>
-          {skill.description === '' ? skill.path : skill.description}
-        </Text>
-      </Col>
-      <Row gap={10} align="center">
-        <Text size="sm" role="secondary">{skill.updatedAt === null ? '' : whenLabel(skill.updatedAt)}</Text>
+    <ListRow
+      title={skill.title}
+      detail={skill.updatedAt === null ? '' : whenLabel(skill.updatedAt)}
+      href={routeHash({ kind: 'skill', project, id: skill.id })}
+      onOpen={onOpen}
+      trailing={
         <KebabMenu
           label={`Actions for ${skill.name}`}
           items={[
@@ -54,59 +36,8 @@ function SkillRow({ skill, project, onOpen, onDelete }: { skill: ClaudeSkill; pr
             { label: 'Delete', danger: true, onSelect: onDelete },
           ]}
         />
-      </Row>
-    </Row>
-  );
-}
-
-interface PlaceSectionProps {
-  place: SkillPlace;
-  skills: ClaudeSkill[];
-  project: string;
-  onOpen: (id: string) => void;
-  onDelete: (skill: ClaudeSkill) => void;
-  onNew: (place: SkillPlace) => void;
-}
-
-function PlaceSection({ place, skills, project, onOpen, onDelete, onNew }: PlaceSectionProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return (
-    <Col gap={8}>
-      <Row justify="between" align="center" gap={12}>
-        <Col gap={2} style={SHRINK}>
-          <Text size="lg" weight="semibold">{placeLabel(place)}</Text>
-          {place.scope === 'user' ? null : <Text size="sm" role="secondary" numberOfLines={1}>{place.where}</Text>}
-        </Col>
-        <Button
-          size="sm"
-          color="secondary"
-          dark={dark}
-          label="New skill"
-          onPress={() => {
-            onNew(place);
-          }}
-        />
-      </Row>
-      {skills.length === 0 ? (
-        <Text size="sm" role="secondary">No skill here yet.</Text>
-      ) : (
-        <Col>
-          {skills.map((skill) => (
-            <SkillRow
-              key={skill.id}
-              skill={skill}
-              project={project}
-              onOpen={() => {
-                onOpen(skill.id);
-              }}
-              onDelete={() => {
-                onDelete(skill);
-              }}
-            />
-          ))}
-        </Col>
-      )}
-    </Col>
+      }
+    />
   );
 }
 
@@ -117,10 +48,9 @@ interface ListingProps {
   project: string;
   onOpen: (id: string) => void;
   onDelete: (skill: ClaudeSkill) => void;
-  onNew: (place: SkillPlace) => void;
 }
 
-function Listing({ old, error, data, project, onOpen, onDelete, onNew }: ListingProps): ReactNode {
+function Listing({ old, error, data, project, onOpen, onDelete }: ListingProps): ReactNode {
   if (old)
     return (
       <Text size="sm" role="secondary">
@@ -129,17 +59,20 @@ function Listing({ old, error, data, project, onOpen, onDelete, onNew }: Listing
     );
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
   if (data === undefined) return <Loading />;
+  if (data.skills.length === 0) return <Text size="sm" role="secondary">No skill on this machine yet.</Text>;
   return (
-    <Col gap={24}>
-      {data.places.map((place) => (
-        <PlaceSection
-          key={place.id}
-          place={place}
+    <Col>
+      {data.skills.map((skill) => (
+        <SkillRow
+          key={skill.id}
+          skill={skill}
           project={project}
-          skills={data.skills.filter((skill) => skill.id.startsWith(`${place.id}:`))}
-          onOpen={onOpen}
-          onDelete={onDelete}
-          onNew={onNew}
+          onOpen={() => {
+            onOpen(skill.id);
+          }}
+          onDelete={() => {
+            onDelete(skill);
+          }}
         />
       ))}
     </Col>
@@ -151,7 +84,8 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
   const mode = useModeQuery();
   const old = olderThan(mode.data?.version ?? null, SKILLS_SINCE);
   const { data, error } = useClaudeSkillsQuery(!old);
-  const [naming, setNaming] = useState<SkillPlace | null>(null);
+  const dark = useKitScheme() === 'dark';
+  const [naming, setNaming] = useState(false);
   const [dropping, setDropping] = useState<ClaudeSkill | null>(null);
   const [busy, setBusy] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
@@ -182,19 +116,31 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
           {data === undefined ? null : <CountBadge count={data.skills.length} beside="title" />}
         </Row>
       </Col>
-      <Listing old={old} error={error} data={data} project={project} onOpen={onOpen} onDelete={setDropping} onNew={setNaming} />
+      <Listing old={old} error={error} data={data} project={project} onOpen={onOpen} onDelete={setDropping} />
+      {old ? null : (
+        <Row>
+          <Button
+            color="primary"
+            dark={dark}
+            label="New skill"
+            onPress={() => {
+              setNaming(true);
+            }}
+          />
+        </Row>
+      )}
       <NameModal
-        title={naming === null ? 'New skill' : `New skill in ${placeLabel(naming)}`}
+        title="New skill"
         action="Create"
         placeholder="write-as-less"
         failure={NAME_HELP}
-        open={naming !== null}
+        open={naming}
         onClose={() => {
-          setNaming(null);
+          setNaming(false);
         }}
         onSubmit={async (name) => {
           if (!NAME_RE.test(name)) throw new Error(NAME_HELP);
-          const made = await createClaudeSkill(name, naming?.id ?? 'user');
+          const made = await createClaudeSkill(name, data?.places[0]?.id ?? 'user');
           await refreshClaudeSkills(client);
           onOpen(made.id);
           return made.id;
