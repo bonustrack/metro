@@ -1,8 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { MetroLogo } from './MetroLogo.js';
 import { BootLoading } from './BootLoading.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
@@ -69,16 +68,12 @@ function ProviderButtons({ providers }: { providers: Provider[] }): ReactNode {
 }
 
 export function Login(): ReactNode {
-  const palette = useKitPalette();
   const providers = useProviders();
   const failed = loginError();
   if (providers === null) return <BootLoading />;
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
-        <Row justify="center">
-          <MetroLogo size={48} color={palette.link} />
-        </Row>
         <Row justify="center">
           <Text size="6xl" weight="medium">
             Log in

@@ -1,10 +1,11 @@
 import { type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { MetroLogo } from './MetroLogo.js';
+import { LOGO_ASPECT, MetroLogo } from './MetroLogo.js';
 import { useLoadingVisible } from '../loading-delay.js';
 
-const LOGO_SIZE = 64;
+const LOGO_WIDTH = 64;
+const LOGO_SIZE = Math.round(LOGO_WIDTH / LOGO_ASPECT);
 
 export function BootLoading(): ReactNode {
   const palette = useKitPalette();

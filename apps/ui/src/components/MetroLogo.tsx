@@ -12,6 +12,8 @@ const METRO_LOGO_BARS = [
   'M0 240H70L70 160H1.31439e-05L0 240Z',
 ];
 
+export const LOGO_ASPECT = VIEW_WIDTH / VIEW_HEIGHT;
+
 export interface MetroLogoProps {
   size?: number;
   color: string;
