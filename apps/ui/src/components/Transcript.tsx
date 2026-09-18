@@ -22,7 +22,9 @@ function summaryOf(input: string): string {
 function BlockView({ block }: { block: Block }): ReactNode {
   if (block.kind === 'text') {
     const message = parseChannelMessage(block.text);
-    return <MarkdownBlock text={message === null ? block.text : message.text} />;
+    const text = message === null ? block.text : message.text;
+    if (text.trim() === '') return <Text size="sm" role="secondary">(no text)</Text>;
+    return <MarkdownBlock text={text} />;
   }
   if (block.kind === 'tool_use')
     return (

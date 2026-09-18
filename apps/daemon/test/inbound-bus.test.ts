@@ -68,6 +68,29 @@ describe('inbound event bus → InboundRelay', () => {
     expect(meta.ts).toBe('2026-06-21T00:00:00.000Z');
   });
 
+  test('a message with no text and no attachment reaches nobody: a join, a poll or a sticker the station could not read is not a turn', async () => {
+    const { relay, notifs } = makeRelay();
+    const stop = subscribeEvents((e) => {
+      void relay.handleEvent(e as unknown as Record<string, unknown>);
+    });
+    publishEvent({
+      id: 'msg_bus_empty',
+      ts: '2026-06-21T00:00:00.000Z',
+      station: 'discord-bot',
+      line: 'metro://discord-bot/g/1/c/2' as never,
+      lineName: 'general',
+      from: 'metro://discord-bot/u/alice' as never,
+      fromName: 'alice_handle',
+      to: 'metro://discord-bot/g/1/c/2' as never,
+      text: '   ',
+      messageId: 'disc-empty',
+      event: { type: 'msg' },
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    stop();
+    expect(notifs.filter((n) => n.method === 'notifications/claude/channel')).toHaveLength(0);
+  });
+
   test('every meta value is a string — a non-string drops the whole notification', async () => {
     const { relay, notifs } = makeRelay();
     const stop = subscribeEvents((e) => {

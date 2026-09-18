@@ -357,6 +357,10 @@ export class InboundRelay {
       await this.handleReact(ev, base);
       return;
     }
+    if (base.evType === 'msg' && base.text.trim() === '') {
+      this.deps.log('drop: empty message', base.station, base.line, str(ev.messageId));
+      return;
+    }
 
     await this.emitMessage(ev, base);
   }
