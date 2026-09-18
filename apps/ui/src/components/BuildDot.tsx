@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Box, Col } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
@@ -36,9 +36,25 @@ function Card({ build }: { build: BuildInfo }): ReactNode {
 export function BuildDot(): ReactNode {
   const palette = useKitPalette();
   const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
   const build = currentBuild();
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent): void => {
+      if (box.current !== null && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const key = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', key);
+    };
+  }, [open]);
   return (
-    <div className="build-dot">
+    <div className="build-dot" ref={box}>
       {open ? <Card build={build} /> : null}
       <button
         type="button"
