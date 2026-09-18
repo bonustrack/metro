@@ -11,6 +11,7 @@ const CONTENT_WIDTH = 340;
 const CARD_PAD = 24;
 const CARD_WIDTH = CONTENT_WIDTH + 2 * CARD_PAD;
 const CARD_GAP = 32;
+const BUTTONS_TOP = 8;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft', github: 'Continue with GitHub' };
 const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com', github: 'https://github.com' };
 const PROVIDER_ICON = 22;
@@ -93,7 +94,9 @@ export function Login(): ReactNode {
             {failed}
           </Text>
         )}
-          <ProviderButtons providers={providers} />
+          <Col padding={{ top: BUTTONS_TOP }}>
+            <ProviderButtons providers={providers} />
+          </Col>
         </Col>
       </Row>
     </div>
