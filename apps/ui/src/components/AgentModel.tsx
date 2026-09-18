@@ -5,6 +5,7 @@ import { FieldLabel } from './FieldLabel.js';
 import { ModelUsage } from './ModelUsage.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { PROVIDERS, routeLabel, servedLabel, type ModelSettings } from '../api/model.js';
+import { USAGE_PROVIDERS, type UsageProvider } from '../api/usage.js';
 import { queryError, useModelQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { routeHash } from '../route.js';
@@ -44,6 +45,12 @@ function Route({ settings, href, onOpen }: { settings: ModelSettings; href: stri
   );
 }
 
+const usageProvider = (name: string): UsageProvider | undefined => USAGE_PROVIDERS.find((p) => p === name);
+
+function currentProvider(settings: ModelSettings): UsageProvider | undefined {
+  return usageProvider(settings.lastServed?.provider ?? settings.provider) ?? usageProvider(settings.provider);
+}
+
 export function AgentModel({ project, onSelect }: { project: string; onSelect: (s: Selection) => void }): ReactNode {
   const model = useModelQuery();
   const target: Selection = { kind: 'model', project };
@@ -63,7 +70,7 @@ export function AgentModel({ project, onSelect }: { project: string; onSelect: (
           onSelect(target);
         }}
       />
-      <ModelUsage usage={model.data.usage} />
+      <ModelUsage usage={model.data.usage} only={currentProvider(model.data)} />
     </Col>
   );
 }

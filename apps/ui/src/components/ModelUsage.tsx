@@ -4,7 +4,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { FieldLabel } from './FieldLabel.js';
 import { PROVIDERS } from '../api/model.js';
-import { tallyLine, USAGE_PROVIDERS, windowLine, type ProviderUsage, type Usage, type UsageWindow } from '../api/usage.js';
+import { tallyLine, USAGE_PROVIDERS, windowLine, type ProviderUsage, type Usage, type UsageProvider, type UsageWindow } from '../api/usage.js';
 import { whenLabel } from '../api/when.js';
 
 const BAR_HEIGHT = 4;
@@ -71,8 +71,8 @@ function ProviderBlock({ name, usage }: { name: string; usage: ProviderUsage }):
   );
 }
 
-export function ModelUsage({ usage }: { usage: Usage }): ReactNode {
-  const present = USAGE_PROVIDERS.filter((p) => usage[p] !== undefined);
+export function ModelUsage({ usage, only }: { usage: Usage; only?: UsageProvider }): ReactNode {
+  const present = USAGE_PROVIDERS.filter((p) => usage[p] !== undefined && (only === undefined || p === only));
   return (
     <Col gap={12}>
       <FieldLabel>Usage</FieldLabel>
