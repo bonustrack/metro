@@ -19,7 +19,7 @@ import { atLogin, goToLogin, leaveLogin } from './auth/login-route.js';
 import { currentSelection, subscribeRoute } from './route.js';
 import { pageTitle } from './title.js';
 import { activeAccount, loadAccount } from './auth/account.js';
-import { exchangeHandoff, logoutAccount } from './api/auth.js';
+import { exchangeHandoff, logoutAccount, refreshAccount } from './api/auth.js';
 import { handoffCode } from './auth/handoff.js';
 import { OrganizationSetup } from './components/OrganizationSetup.js';
 import { daemonBase, daemonHost, isServerId, setCurrentServer, storedServerId } from './auth/daemon.js';
@@ -32,6 +32,8 @@ async function boot(): Promise<Phase> {
     window.history.replaceState(null, '', `${window.location.pathname}#/`);
     await exchangeHandoff(handoff);
   } else loadAccount();
+  const stored = activeAccount();
+  if (stored !== null && stored.organization !== null && stored.organizationName === null) await refreshAccount();
   const account = activeAccount();
   if (account === null) return 'login';
   return account.organization === null ? 'organization' : 'unlocked';
