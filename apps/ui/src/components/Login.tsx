@@ -3,6 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { MetroLogo } from './MetroLogo.js';
+import { BootLoading } from './BootLoading.js';
 import { PageTitle } from './PageTitle.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
@@ -24,8 +25,7 @@ function loginError(): string | null {
   return error === null || error === '' ? null : error;
 }
 
-function ProviderButtons(): ReactNode {
-  const dark = useKitScheme() === 'dark';
+function useProviders(): Provider[] | null {
   const [providers, setProviders] = useState<Provider[] | null>(null);
   useEffect(() => {
     fetchAuthStatus()
@@ -36,7 +36,11 @@ function ProviderButtons(): ReactNode {
         setProviders([]);
       });
   }, []);
-  if (providers === null) return null;
+  return providers;
+}
+
+function ProviderButtons({ providers }: { providers: Provider[] }): ReactNode {
+  const dark = useKitScheme() === 'dark';
   if (providers.length === 0)
     return (
       <Text size="sm" role="secondary">
@@ -65,7 +69,9 @@ function ProviderButtons(): ReactNode {
 
 export function Login(): ReactNode {
   const palette = useKitPalette();
+  const providers = useProviders();
   const failed = loginError();
+  if (providers === null) return <BootLoading />;
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={24}>
@@ -87,7 +93,7 @@ export function Login(): ReactNode {
             {failed}
           </Text>
         )}
-        <ProviderButtons />
+        <ProviderButtons providers={providers} />
       </Col>
     </Row>
   );
