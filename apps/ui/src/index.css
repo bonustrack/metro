@@ -414,6 +414,10 @@ body {
   border-radius: 8px;
 }
 
+.login-page {
+  padding-top: 15vh;
+}
+
 .card-cover {
   position: absolute;
   inset: 0;

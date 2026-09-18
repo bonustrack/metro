@@ -72,8 +72,9 @@ export function Login(): ReactNode {
   const failed = loginError();
   if (providers === null) return <BootLoading />;
   return (
-    <Row justify="center" align="center" flex={1} padding={24}>
-      <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
+    <div className="login-page">
+      <Row justify="center" align="start" padding={{ x: 24, bottom: 24 }}>
+        <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
         <Row justify="center">
           <Text size="6xl" weight="medium">
             Log in
@@ -91,8 +92,9 @@ export function Login(): ReactNode {
             {failed}
           </Text>
         )}
-        <ProviderButtons providers={providers} />
-      </Col>
-    </Row>
+          <ProviderButtons providers={providers} />
+        </Col>
+      </Row>
+    </div>
   );
 }
