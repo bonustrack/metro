@@ -24,7 +24,7 @@ const deps: ServersApiDeps = {
       const { owner: _o, ...entry } = held;
       return Promise.resolve(entry);
     }
-    const row = { owner, id: nextId(), host, name: nameIn(body), addedAt: '2026-09-05T20:00:00.000Z', instanceId: null, launchedAt: null, avatar: null };
+    const row = { owner, id: nextId(), host, name: nameIn(body), addedAt: '2026-09-05T20:00:00.000Z', instanceId: null, launchedAt: null, avatar: null, slug: null };
     rows = [...rows, row];
     const { owner: _o, ...entry } = row;
     return Promise.resolve(entry);
@@ -32,7 +32,9 @@ const deps: ServersApiDeps = {
   rename: (owner, id, body) => {
     const held = rows.find((r) => r.owner === owner && r.id === id);
     if (held === undefined) return Promise.reject(new ApiError('no such server', 404));
-    held.name = nameIn(body);
+    if ('name' in (body as object)) held.name = nameIn(body);
+    const slug = (body as { slug?: unknown }).slug;
+    if (typeof slug === 'string') held.slug = slug;
     const { owner: _o, ...entry } = held;
     return Promise.resolve(entry);
   },

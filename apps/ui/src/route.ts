@@ -1,6 +1,7 @@
 import { type Selection } from './components/selection.js';
 import { RESERVED_SEGMENTS } from './auth/daemon.js';
 import { noteRoutedOrganization, organizationSegment, splitOrganization } from './auth/org-route.js';
+import { agentSegment } from './auth/agent-route.js';
 
 const HOST = '[A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?';
 const ID = '[A-Za-z0-9_-]{11}';
@@ -126,7 +127,7 @@ export function routeHash(selection: Selection): string {
   if (page !== undefined) return page === '' ? home(prefix) : `${prefix}${page}`;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return home(prefix);
-  return `${prefix}${selection.project}${suffix(selection)}`;
+  return `${prefix}${agentSegment(selection.project)}${suffix(selection)}`;
 }
 
 export function currentSelection(): Selection {

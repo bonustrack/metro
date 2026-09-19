@@ -5,6 +5,7 @@ import { routedOrganization, splitOrganization } from '../src/auth/org-route.js'
 import { routedDaemon, routedSegment } from '../src/auth/daemon.js';
 import { installTestAccount, TEST_ORGANIZATION } from './account-fixture.js';
 import { storeAccount } from '../src/auth/account.js';
+import { forgetAgents, rememberAgents } from '../src/auth/agent-route.js';
 
 const HOSTS = ['127.0.0.1:8420', 'localhost:8421', 'jelsoft-chan-rooms.tail1234.ts.net', 'suzy.tail1234.ts.net'];
 
@@ -148,6 +149,17 @@ describe('the organization rides in front of every route but settings and docs',
     expect(routeHash({ kind: 'members' })).toBe('#/stage-labs/members');
     routeSelection('#/other-org/members');
     expect(routeHash({ kind: 'members' })).toBe('#/other-org/members');
+    routeSelection('#/settings');
+  });
+
+  test('an agent with a known slug is addressed by it, and an unknown id or a slug passes through as given', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    rememberAgents([{ id: 'aB3-_xYz9Qw', slug: 'tony' }, { id: 'zz9-_xYz9Qw', slug: null }]);
+    expect(routeHash({ kind: 'server', project: 'aB3-_xYz9Qw' })).toBe('#/stage-labs/tony/server');
+    expect(routeHash({ kind: 'home', project: 'zz9-_xYz9Qw' })).toBe('#/stage-labs/zz9-_xYz9Qw');
+    expect(routeSelection('#/stage-labs/tony/channels')).toEqual({ kind: 'stations', project: 'tony' });
+    forgetAgents();
+    expect(routeHash({ kind: 'server', project: 'aB3-_xYz9Qw' })).toBe('#/stage-labs/aB3-_xYz9Qw/server');
     routeSelection('#/settings');
   });
 });

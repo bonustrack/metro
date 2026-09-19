@@ -13,11 +13,11 @@ import { ImportAgent } from './ImportAgent.js';
 import { ResetAgentKey } from './ResetAgentKey.js';
 import { resetAgentKey, type AgentSummary } from '../api/client.js';
 import { queryError, refreshAgents, refreshServers, useServersQuery, useStationsQuery } from '../api/queries.js';
-import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
+import { removeServer, renameServer, serverLabel, setServerSlug, type Server } from '../api/servers.js';
+import { routeHash } from '../route.js';
 import { currentServer } from '../auth/daemon.js';
 import { MoveSection } from './MoveAgent.js';
 import { useDocumentTitle } from '../title.js';
-import { routeHash } from '../route.js';
 
 const PAGE_AVATAR = 56;
 const NAME_MAX = 40;
@@ -84,6 +84,47 @@ function NameSection({ server }: { server: Server }): ReactNode {
     <Section title="Name" note="What the agent is called in your list and in the rail.">
       <Row gap={8} align="center" wrap>
         <Input name="agent-name" value={name} placeholder={server.host} dark={dark} disabled={busy} onChangeText={setName} />
+        <Button color="primary" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !ready} onPress={save} />
+      </Row>
+      {error === null ? null : (
+        <Text size="sm" role="danger">
+          {error}
+        </Text>
+      )}
+    </Section>
+  );
+}
+
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
+
+function SlugSection({ server }: { server: Server }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const client = useQueryClient();
+  const [slug, setSlug] = useState(server.slug ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const trimmed = slug.trim().toLowerCase();
+  const ready = SLUG_RE.test(trimmed) && trimmed !== (server.slug ?? '');
+  const save = (): void => {
+    if (!ready || busy) return;
+    setBusy(true);
+    setError(null);
+    setServerSlug(server.id, trimmed)
+      .then(() => refreshServers(client))
+      .then(() => {
+        window.history.replaceState(null, '', `${window.location.pathname}${routeHash({ kind: 'agent-settings', project: server.id })}`);
+      })
+      .catch((err: unknown) => {
+        setError(queryError(err, 'Could not change the slug.'));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+  return (
+    <Section title="Slug" note="The agent's part of every address. Lowercase letters, digits and dashes, unique within the organization.">
+      <Row gap={8} align="center" wrap>
+        <Input name="agent-slug" value={slug} placeholder={server.slug ?? ''} dark={dark} disabled={busy} onChangeText={setSlug} />
         <Button color="primary" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !ready} onPress={save} />
       </Row>
       {error === null ? null : (
@@ -218,6 +259,7 @@ export function AgentSettings(): ReactNode {
       <PageTitle>Settings</PageTitle>
       <AvatarSection server={server} />
       <NameSection key={server.name ?? ''} server={server} />
+      <SlugSection key={server.slug ?? ''} server={server} />
       <TransferSection agent={agent} name={name} />
       <KeySection agent={agent} />
       <MoveSection server={server} />

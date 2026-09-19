@@ -42,8 +42,8 @@ describe('the migrations the release command applies', () => {
       expect(tags.has(file.replace(/\.sql$/, ''))).toBe(true);
   });
 
-  test('0030 is the newest migration, and no snapshot is kept for a generator nobody runs', () => {
-    expect(journal().at(-1)?.tag).toBe('0030_organizations');
+  test('0031 is the newest migration, and no snapshot is kept for a generator nobody runs', () => {
+    expect(journal().at(-1)?.tag).toBe('0031_agent_slug');
     expect(readdirSync(join(DIR, 'meta'))).toEqual(['_journal.json']);
   });
 });

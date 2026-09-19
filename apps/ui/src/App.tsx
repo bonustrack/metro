@@ -25,7 +25,7 @@ import { isCurrentOrganization, resolveOrganization, routedOrganization } from '
 import { handoffCode } from './auth/handoff.js';
 import { OrganizationSetup } from './components/OrganizationSetup.js';
 import { Organization } from './components/Organization.js';
-import { daemonBase, daemonHost, isServerId, setCurrentServer, storedServerId } from './auth/daemon.js';
+import { daemonBase, daemonHost, setCurrentServer, storedServerId } from './auth/daemon.js';
 
 type Phase = 'loading' | 'login' | 'organization' | 'unlocked';
 
@@ -99,7 +99,7 @@ function HostRedirect({ host }: { host: string }): ReactNode {
     addServer(host.toLowerCase())
       .then(async (server) => {
         await refreshServers(client);
-        window.location.replace(`${window.location.pathname}${window.location.hash.replace(host, server.id)}`);
+        window.location.replace(`${window.location.pathname}${window.location.hash.replace(host, server.slug ?? server.id)}`);
       })
       .catch((err: unknown) => {
         setFailed(err instanceof Error ? err.message : 'Could not keep this server.');
@@ -120,7 +120,7 @@ function HostRedirect({ host }: { host: string }): ReactNode {
 
 function ListedServer({ id, onLock }: { id: string; onLock: () => void }): ReactNode {
   const { data, error, isPending } = useServersQuery();
-  const server = data?.find((s) => s.id === id);
+  const server = data?.find((s) => s.id === id || s.slug === id);
   const [ready, setReady] = useState<string | null>(null);
 
   useEffect(() => {
@@ -147,13 +147,15 @@ function ListedServer({ id, onLock }: { id: string; onLock: () => void }): React
   return <Gate onLock={onLock} />;
 }
 
+const looksLikeHost = (segment: string): boolean => /[.:]/.test(segment);
+
 function ServerGate({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   const project = selectionProject(selection) ?? storedServerId();
   useEffect(() => {
     if (project === null) window.location.hash = routeHash({ kind: 'servers' });
   }, [project]);
   if (project === null) return null;
-  if (!isServerId(project)) return <HostRedirect host={project} />;
+  if (looksLikeHost(project)) return <HostRedirect host={project} />;
   return <ListedServer id={project} onLock={onLock} />;
 }
 

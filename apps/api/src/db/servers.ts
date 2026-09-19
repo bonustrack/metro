@@ -7,6 +7,7 @@ import { newId, parseId } from '@metro-labs/core/ids';
 import { agents } from './schema.js';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
 import { parseAvatar } from '../avatar.js';
+import { parseSlug, slugify, withSuffix } from '../slug.js';
 import { isOrganizationId, type Session } from '@metro-labs/http/workos-token';
 import { userOrganizations, type WorkosConfig } from '../auth/workos.js';
 
@@ -33,6 +34,7 @@ interface Row {
   instanceId: string | null;
   launchedAt: string | null;
   avatar: string | null;
+  slug: string | null;
 }
 
 const entryOf = (row: Row): ServerEntry => ({
@@ -43,6 +45,7 @@ const entryOf = (row: Row): ServerEntry => ({
   instanceId: row.instanceId,
   launchedAt: row.launchedAt,
   avatar: row.avatar,
+  slug: row.slug,
 });
 
 const columns = {
@@ -53,12 +56,36 @@ const columns = {
   instanceId: agents.instanceId,
   launchedAt: agents.launchedAt,
   avatar: agents.avatar,
+  slug: agents.slug,
 };
+
+const SLUG_TRIES = 50;
+const slugTaken = (): ServerListError => new ServerListError('another agent in this organization already has that slug', 409);
+
+async function freeSlug(owner: string, base: string): Promise<string> {
+  const rows = await getDb().select({ slug: agents.slug }).from(agents).where(eq(agents.owner, owner));
+  const taken = new Set(rows.map((r) => r.slug));
+  const first = slugify(base);
+  for (let n = 1; n <= SLUG_TRIES; n += 1) {
+    const candidate = n === 1 ? first : withSuffix(first, n);
+    if (!taken.has(candidate)) return candidate;
+  }
+  throw slugTaken();
+}
+
+async function withSlug(owner: string, row: Row): Promise<Row> {
+  if (row.slug !== null) return row;
+  const slug = await freeSlug(owner, row.name ?? row.host);
+  await getDb().update(agents).set({ slug }).where(and(eq(agents.id, row.id), eq(agents.owner, owner)));
+  return { ...row, slug };
+}
 
 export async function listServersForOwner(subject: string): Promise<ServerEntry[]> {
   const owner = ownerOf(subject);
   const rows = await getDb().select(columns).from(agents).where(eq(agents.owner, owner)).orderBy(asc(agents.addedAt));
-  return rows.map(entryOf);
+  const filled: Row[] = [];
+  for (const row of rows) filled.push(await withSlug(owner, row));
+  return filled.map(entryOf);
 }
 
 export async function addServerForOwner(subject: string, body: unknown): Promise<ServerEntry> {
@@ -74,7 +101,7 @@ export async function addServerForOwner(subject: string, body: unknown): Promise
     await db.update(agents).set({ name }).where(eq(agents.id, row.id));
     return entryOf({ ...row, name });
   }
-  const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null, avatar: null };
+  const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null, avatar: null, slug: await freeSlug(owner, name ?? host) };
   await db.insert(agents).values(next);
   return entryOf(next);
 }
@@ -100,6 +127,7 @@ export async function addLaunchedServer(subject: string, launch: LaunchRecord): 
     launchRegion: launch.region,
     launchedAt: new Date().toISOString(),
     avatar: null,
+    slug: await freeSlug(owner, launch.name),
   };
   await getDb().insert(agents).values(next);
   return entryOf(next);
@@ -124,18 +152,30 @@ export async function launchForOwner(subject: string, rawId: string): Promise<Se
   return { instanceId: row.instanceId, region: row.region };
 }
 
+function renameChanges(body: unknown): { name?: string | null; slug?: string } {
+  const hasName = isRecord(body) && 'name' in body;
+  const slug = isRecord(body) && typeof body.slug === 'string' ? parseSlug(body.slug) : undefined;
+  if (!hasName && slug === undefined) throw new ServerListError('send a name or a slug', 400);
+  return { ...(hasName ? { name: parseServerName(body.name) } : {}), ...(slug === undefined ? {} : { slug }) };
+}
+
 export async function renameServerForOwner(subject: string, rawId: string, body: unknown): Promise<ServerEntry> {
   const owner = ownerOf(subject);
   const id = idOf(rawId);
-  const name = parseServerName(isRecord(body) ? body.name : undefined);
-  const rows = await getDb()
-    .update(agents)
-    .set({ name })
-    .where(and(eq(agents.id, id), eq(agents.owner, owner)))
-    .returning(columns);
-  const row = rows[0];
-  if (row === undefined) throw missing();
-  return entryOf(row);
+  const changes = renameChanges(body);
+  try {
+    const rows = await getDb()
+      .update(agents)
+      .set(changes)
+      .where(and(eq(agents.id, id), eq(agents.owner, owner)))
+      .returning(columns);
+    const row = rows[0];
+    if (row === undefined) throw missing();
+    return entryOf(await withSlug(owner, row));
+  } catch (err) {
+    if (isUniqueViolation(err)) throw slugTaken();
+    throw err;
+  }
 }
 
 export async function setAvatarForOwner(subject: string, rawId: string, body: unknown): Promise<ServerEntry> {
@@ -175,7 +215,7 @@ async function changeOwner(id: string, from: string, to: string): Promise<Server
     if (row === undefined) throw missing();
     return entryOf(row);
   } catch (err) {
-    if (isUniqueViolation(err)) throw new ServerListError('that organization already lists an agent at this address', 409);
+    if (isUniqueViolation(err)) throw new ServerListError('that organization already lists an agent with this address or slug', 409);
     throw err;
   }
 }

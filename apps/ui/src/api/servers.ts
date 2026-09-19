@@ -2,6 +2,7 @@ import { call } from './client.js';
 import { isRecord } from './accounts.js';
 import { fetchMode } from './mode.js';
 import { baseFromSegment, builtInDaemon, daemonBase } from '../auth/daemon.js';
+import { rememberAgents } from '../auth/agent-route.js';
 
 export interface Server {
   id: string;
@@ -11,6 +12,7 @@ export interface Server {
   instanceId: string | null;
   launchedAt: string | null;
   avatar: string | null;
+  slug: string | null;
 }
 
 export type ServerState = 'live' | 'stopped' | 'offline';
@@ -38,6 +40,7 @@ export function toServer(value: unknown): Server {
     instanceId: filled(value.instanceId),
     launchedAt: filled(value.launchedAt),
     avatar: typeof value.avatar === 'string' && value.avatar.startsWith('data:image/png;base64,') ? value.avatar : null,
+    slug: filled(value.slug),
   };
 }
 
@@ -46,11 +49,13 @@ export const serverLabel = (server: Server): string => server.name ?? server.hos
 export async function fetchServers(): Promise<Server[]> {
   const body = await call({ method: 'GET', base: listUrl() });
   if (!isRecord(body) || !Array.isArray(body.servers)) throw unexpected();
-  return body.servers.map(toServer);
+  const servers = body.servers.map(toServer);
+  rememberAgents(servers);
+  return servers;
 }
 
 export async function addServer(host: string, name?: string): Promise<Server> {
-  return toServer(
+  const server = toServer(
     await call({
       method: 'POST',
       base: listUrl(),
@@ -58,6 +63,16 @@ export async function addServer(host: string, name?: string): Promise<Server> {
       body: JSON.stringify(name === undefined ? { host } : { host, name }),
     }),
   );
+  rememberAgents([server]);
+  return server;
+}
+
+export async function setServerSlug(id: string, slug: string): Promise<Server> {
+  const server = toServer(
+    await call({ method: 'PUT', base: listUrl(), path: `/${id}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug }) }),
+  );
+  rememberAgents([server]);
+  return server;
 }
 
 export async function renameServer(id: string, name: string): Promise<Server> {
