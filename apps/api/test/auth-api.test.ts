@@ -107,8 +107,8 @@ describe('signing in to metro.box through WorkOS', () => {
     forgetProviders();
     expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
     const microsoft = await fetch(`${base}/api/auth/login?provider=microsoft&return_to=https://metro.box/`, { redirect: 'manual' });
-    expect(microsoft.status).toBe(400);
-    expect(((await microsoft.json()) as { error: string }).error).toContain('microsoft sign-in is not set up');
+    expect(microsoft.status).toBe(302);
+    expect(microsoft.headers.get('location')).toBe(`https://metro.box/#/login?error=${encodeURIComponent('microsoft sign-in is not set up on WorkOS yet')}`);
     workos.enabled.add('MicrosoftOAuth');
     workos.enabled.add('GitHubOAuth');
     forgetProviders();

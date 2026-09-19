@@ -3,12 +3,7 @@ import { accountFrom, activeAccount, clearAccount, storeAccount, tokenExpiring, 
 import { isRecord } from './accounts.js';
 
 export type Provider = 'google' | 'microsoft' | 'github';
-const PROVIDER_NAMES: string[] = ['google', 'microsoft', 'github'];
-
-export interface AuthStatus {
-  enabled: boolean;
-  providers: Provider[];
-}
+export const PROVIDERS: Provider[] = ['google', 'microsoft', 'github'];
 
 const authUrl = (path: string): string => `${builtInDaemon()}/api/auth${path}`;
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
@@ -31,14 +26,6 @@ async function post(path: string, body: unknown, bearer?: string): Promise<unkno
   const answer: unknown = await res.json().catch(() => null);
   if (!res.ok) throw new Error(errorText(answer, res.status));
   return answer;
-}
-
-export async function fetchAuthStatus(): Promise<AuthStatus> {
-  const res = await fetch(authUrl(''));
-  const body: unknown = await res.json().catch(() => null);
-  if (!res.ok || !isRecord(body)) throw unexpected();
-  const providers = Array.isArray(body.providers) ? body.providers.filter((p): p is Provider => typeof p === 'string' && PROVIDER_NAMES.includes(p)) : [];
-  return { enabled: body.enabled === true, providers };
 }
 
 export const returnTo = (): string => `${window.location.origin}${window.location.pathname}`;

@@ -1,14 +1,13 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { BootLoading } from './BootLoading.js';
 import { LOGO_ASPECT, MetroLogo } from './MetroLogo.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { atSignup } from '../auth/login-route.js';
-import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
+import { loginUrl, PROVIDERS, type Provider } from '../api/auth.js';
 
 const CONTENT_WIDTH = 340;
 const CARD_PAD = 24;
@@ -28,8 +27,6 @@ const LOGO_SIZE = Math.round(LOGO_WIDTH / LOGO_ASPECT);
 const SIGNUP_HASH = '#/signup';
 const LOGIN_HASH = '#/login';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
-const OFF = 'Log-in is not set up on this Metro yet.';
-const AWAY = 'Log-in is not available right now. Try again in a minute.';
 
 function loginError(): string | null {
   const raw = window.location.hash.replace(/^#/, '');
@@ -37,23 +34,6 @@ function loginError(): string | null {
   if (cut === -1) return null;
   const error = new URLSearchParams(raw.slice(cut + 1)).get('error');
   return error === null || error === '' ? null : error;
-}
-
-type Offer = { providers: Provider[] } | { note: string };
-
-function useProviders(): Offer | null {
-  const [offer, setOffer] = useState<Offer | null>(null);
-  useEffect(() => {
-    fetchAuthStatus()
-      .then((status) => {
-        if (!status.enabled) setOffer({ note: OFF });
-        else setOffer(status.providers.length === 0 ? { note: AWAY } : { providers: status.providers });
-      })
-      .catch(() => {
-        setOffer({ note: AWAY });
-      });
-  }, []);
-  return offer;
 }
 
 function providerMark(provider: Provider, onButton: string): ReactNode {
@@ -68,21 +48,12 @@ function providerMark(provider: Provider, onButton: string): ReactNode {
   return <Row padding={{ right: ICON_GAP_EXTRA }}>{mark}</Row>;
 }
 
-function ProviderButtons({ offer }: { offer: Offer }): ReactNode {
+function ProviderButtons(): ReactNode {
   const dark = useKitScheme() === 'dark';
   const onButton = useKitPalette().bg;
-  if ('note' in offer)
-    return (
-      <Row justify="center">
-        <Text size="sm" role="secondary">
-          {offer.note}
-        </Text>
-      </Row>
-    );
-  const { providers } = offer;
   return (
     <Col gap={10}>
-      {providers.map((provider) => (
+      {PROVIDERS.map((provider) => (
         <Button
           key={provider}
           size="lg"
@@ -156,9 +127,7 @@ function DaemonHint(): ReactNode {
 }
 
 export function Login(): ReactNode {
-  const offer = useProviders();
   const failed = loginError();
-  if (offer === null) return <BootLoading />;
   return (
     <Frame title={atSignup() ? 'Sign up' : 'Log in'}>
       <DaemonHint />
@@ -168,7 +137,7 @@ export function Login(): ReactNode {
         </Text>
       )}
       <Col padding={{ top: BUTTONS_TOP }}>
-        <ProviderButtons offer={offer} />
+        <ProviderButtons />
       </Col>
     </Frame>
   );

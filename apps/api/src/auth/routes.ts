@@ -97,7 +97,10 @@ async function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDep
   const returnTo = query.get('return_to') ?? '';
   if (!isProvider(provider)) throw new ApiError('provider must be google or microsoft', 400);
   if (!validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
-  if (!(await providers(req, deps)).includes(provider)) throw new ApiError(`${provider} sign-in is not set up on WorkOS yet`, 400);
+  if (!(await providers(req, deps)).includes(provider)) {
+    redirect(res, withHash(returnTo, `#/login?error=${encodeURIComponent(`${provider} sign-in is not set up on WorkOS yet`)}`));
+    return;
+  }
   const now = (deps.now ?? Date.now)();
   prune(states, STATE_TTL_MS, now);
   const state = token();
