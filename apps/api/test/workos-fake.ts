@@ -12,6 +12,7 @@ export interface FakeWorkos {
   members: { id: string; user_id: string; role: string }[];
   invitations: { id: string; email: string; state: string; role_slug: string }[];
   outage: { on: boolean };
+  selection: { on: boolean };
   close: () => Promise<void>;
 }
 
@@ -40,6 +41,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
   ];
   let refreshCount = 0;
   const outage = { on: false };
+  const selection = { on: false };
   let orgName = 'Stage Labs';
   const tokens = (organization: string | null, sub = 'user_01ABC'): Record<string, unknown> => ({
     user: { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
@@ -104,7 +106,18 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
             const known = codes.get(String(parsed.code));
             if (known === undefined) return send(400, { code: 'invalid_grant', message: 'unknown code' });
             codes.delete(String(parsed.code));
+            if (selection.on)
+              return send(422, {
+                code: 'organization_selection_required',
+                message: 'The user must choose an organization to finish their authentication.',
+                pending_authentication_token: 'pat_select',
+                organizations: organizations.map((id) => ({ id, name: 'Org' })),
+              });
             return send(200, tokens(known.organization));
+          }
+          if (parsed.grant_type === 'urn:workos:oauth:grant-type:organization-selection') {
+            if (parsed.pending_authentication_token !== 'pat_select') return send(400, { code: 'invalid_grant', message: 'bad pending token' });
+            return send(200, tokens(String(parsed.organization_id)));
           }
           if (parsed.grant_type === 'refresh_token') {
             if (String(parsed.refresh_token) === 'rt_dead') return send(400, { code: 'invalid_grant', message: 'refresh token revoked' });
@@ -160,6 +173,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     members,
     invitations,
     outage,
+    selection,
     close: async () => {
       await issuer.close();
       await new Promise<void>((r) => {

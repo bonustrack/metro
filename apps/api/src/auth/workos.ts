@@ -109,7 +109,24 @@ function tokensOf(body: unknown): Tokens {
   };
 }
 
-async function authenticate(cfg: WorkosConfig, grant: Record<string, string>): Promise<Tokens> {
+const SELECTION_GRANT = 'urn:workos:oauth:grant-type:organization-selection';
+
+function pendingSelection(body: Record<string, unknown>): { pending: string; organization: string } | null {
+  if (str(body.code) !== 'organization_selection_required') return null;
+  const pending = str(body.pending_authentication_token);
+  const listed: unknown[] = Array.isArray(body.organizations) ? (body.organizations as unknown[]) : [];
+  const first = listed[0] ?? null;
+  const organization = isRecord(first) ? str(first.id) : null;
+  return pending === null || organization === null ? null : { pending, organization };
+}
+
+function refusedAuthentication(body: Record<string, unknown>, status: number): WorkosError {
+  const code = str(body.code) ?? str(body.error);
+  const message = str(body.message) ?? str(body.error_description);
+  return new WorkosError(message ?? `WorkOS answered ${String(status)}`, code, status === 400 || status === 401 ? 401 : 502);
+}
+
+async function authenticate(cfg: WorkosConfig, grant: Record<string, string>, selecting = false): Promise<Tokens> {
   const res = await fetch(`${cfg.base}/user_management/authenticate`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -118,9 +135,11 @@ async function authenticate(cfg: WorkosConfig, grant: Record<string, string>): P
   });
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok) {
-    const code = isRecord(body) ? str(body.code) ?? str(body.error) : null;
-    const message = isRecord(body) ? str(body.message) ?? str(body.error_description) : null;
-    throw new WorkosError(message ?? `WorkOS answered ${String(res.status)}`, code, res.status === 400 || res.status === 401 ? 401 : 502);
+    const answer = isRecord(body) ? body : {};
+    const selection = selecting ? null : pendingSelection(answer);
+    if (selection === null) throw refusedAuthentication(answer, res.status);
+    log.info({ organization: selection.organization }, 'auth: WorkOS asked for an organization, taking the first one listed');
+    return authenticate(cfg, { grant_type: SELECTION_GRANT, pending_authentication_token: selection.pending, organization_id: selection.organization }, true);
   }
   return tokensOf(body);
 }

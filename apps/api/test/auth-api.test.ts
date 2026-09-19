@@ -45,7 +45,7 @@ interface TokenBody {
   user: { id: string; email: string; name: string; picture: string };
 }
 
-async function signIn(): Promise<TokenBody> {
+async function handoffFromGoogle(): Promise<string> {
   const start = await fetch(`${base}/api/auth/login?provider=google&return_to=${encodeURIComponent('https://metro.box/')}`, { redirect: 'manual' });
   expect(start.status).toBe(302);
   const toGoogle = new URL(start.headers.get('location') ?? '');
@@ -58,12 +58,32 @@ async function signIn(): Promise<TokenBody> {
   expect(landed.origin).toBe('https://metro.box');
   const handoff = /^#\/auth\/(.+)$/.exec(landed.hash)?.[1];
   if (handoff === undefined) throw new Error(`no handoff in ${landed.hash}`);
+  return handoff;
+}
+
+async function signIn(): Promise<TokenBody> {
+  const handoff = await handoffFromGoogle();
   const exchanged = await json('POST', '/api/auth/exchange', { code: handoff });
   expect(exchanged.status).toBe(200);
   return (await exchanged.json()) as TokenBody;
 }
 
 describe('signing in to metro.box through WorkOS', () => {
+  test('a user in several organizations is signed in to the first one WorkOS lists instead of being asked to choose', async () => {
+    const before = workos.organizations.length;
+    workos.organizations.push('org_01FIRST0000000', 'org_01SECOND000000');
+    workos.selection.on = true;
+    try {
+      const handoff = await handoffFromGoogle();
+      const exchanged = await json('POST', '/api/auth/exchange', { code: handoff });
+      expect(exchanged.status).toBe(200);
+      expect(((await exchanged.json()) as TokenBody).organization).toBe(workos.organizations[0] ?? '');
+    } finally {
+      workos.selection.on = false;
+      workos.organizations.splice(before);
+    }
+  });
+
   test('the status says whether sign-in is configured and which providers WorkOS answers for; a provider not set up is refused by name', async () => {
     forgetProviders();
     expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
