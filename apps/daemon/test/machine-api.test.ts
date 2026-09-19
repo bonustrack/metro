@@ -58,7 +58,11 @@ describe('what a daemon says about its machine', () => {
     expect(typeof body.uptimeSeconds).toBe('number');
     expect(typeof body.agentsDir).toBe('string');
     expect(typeof body.claudeDir).toBe('string');
-    expect(machineInfo().uptimeSeconds).toBeGreaterThanOrEqual(0);
+    expect((await machineInfo()).uptimeSeconds).toBeGreaterThanOrEqual(0);
+    const disk = body.disk as { path: string; totalBytes: number; freeBytes: number };
+    expect(disk.totalBytes).toBeGreaterThan(0);
+    expect(disk.freeBytes).toBeLessThanOrEqual(disk.totalBytes);
+    expect(typeof disk.path).toBe('string');
   });
 
   test('no signature is 401, a stranger is 404, a wrong method 405, preflight passes', async () => {

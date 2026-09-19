@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { hostname } from 'node:os';
+import { hostname, homedir } from 'node:os';
+import { statfs } from 'node:fs/promises';
+import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, cors, sendJson } from '@metro-labs/http/api-http';
 import { publicBaseUrl } from '../files/attach-serve.js';
@@ -18,9 +20,26 @@ export interface MachineApiDeps {
 
 const bootedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
 
-export function machineInfo(startedAt = bootedAt): Record<string, unknown> {
+export interface Disk {
+  path: string;
+  totalBytes: number;
+  freeBytes: number;
+}
+
+export async function diskInfo(path = homedir()): Promise<Disk | null> {
+  try {
+    const s = await statfs(path);
+    return { path, totalBytes: s.bsize * s.blocks, freeBytes: s.bsize * s.bavail };
+  } catch (err) {
+    log.warn({ err: errMsg(err), path }, 'machine: could not read the disk');
+    return null;
+  }
+}
+
+export async function machineInfo(startedAt = bootedAt): Promise<Record<string, unknown>> {
   const store = process.env.METRO_RUNTIME_STORE?.trim() ?? '';
   return {
+    disk: await diskInfo(),
     version: METRO_VERSION,
     owner: localOwner(),
     hostname: hostname(),
@@ -49,10 +68,10 @@ export function handleMachineRequest(req: IncomingMessage, res: ServerResponse, 
     return true;
   }
   apiSession(req)
-    .then((session) => {
+    .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
       deps.authorize(session.subject);
-      sendJson(req, res, 200, machineInfo(deps.startedAt));
+      sendJson(req, res, 200, await machineInfo(deps.startedAt));
     })
     .catch((err: unknown) => {
       apiFailure(req, res, err, 'machine-api');

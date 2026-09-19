@@ -16,10 +16,16 @@ export interface Machine {
   agentsDir: string;
   claudeDir: string;
   runtimeStore: string | null;
+  disk: { path: string; totalBytes: number; freeBytes: number } | null;
 }
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 const word = (value: unknown): string => text(value) ?? '';
+
+function diskOf(value: unknown): Machine['disk'] {
+  if (!isRecord(value) || typeof value.totalBytes !== 'number' || typeof value.freeBytes !== 'number') return null;
+  return { path: word(value.path), totalBytes: value.totalBytes, freeBytes: value.freeBytes };
+}
 
 export function toMachine(body: unknown): Machine {
   if (!isRecord(body) || typeof body.hostname !== 'string') throw new Error('Metro returned an unexpected response.');
@@ -37,6 +43,7 @@ export function toMachine(body: unknown): Machine {
     agentsDir: word(body.agentsDir),
     claudeDir: word(body.claudeDir),
     runtimeStore: text(body.runtimeStore),
+    disk: diskOf(body.disk),
   };
 }
 
@@ -48,6 +55,17 @@ const PLATFORMS: Record<string, string> = { linux: 'Linux', darwin: 'macOS', win
 
 export const systemLabel = (machine: Machine): string =>
   `${PLATFORMS[machine.platform] ?? machine.platform} ${machine.arch}`.trim();
+
+const GB = 1024 * 1024 * 1024;
+const gb = (bytes: number): string => `${(bytes / GB).toFixed(1)} GB`;
+
+export const DISK_WARN = 0.9;
+
+export function diskLabel(disk: NonNullable<Machine['disk']>): { text: string; full: boolean } {
+  const used = disk.totalBytes - disk.freeBytes;
+  const share = disk.totalBytes === 0 ? 0 : used / disk.totalBytes;
+  return { text: `${gb(used)} of ${gb(disk.totalBytes)} used (${String(Math.round(share * 100))}%), ${gb(disk.freeBytes)} free`, full: share >= DISK_WARN };
+}
 
 export function uptimeLabel(seconds: number): string {
   const days = Math.floor(seconds / 86_400);

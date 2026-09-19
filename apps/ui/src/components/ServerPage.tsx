@@ -10,21 +10,21 @@ import { DaemonControls } from './DaemonControls.js';
 import { ClaudeSession } from './ClaudeSession.js';
 import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js';
 import { serverLabel, type Server } from '../api/servers.js';
-import { systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
+import { diskLabel, systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
 import { whenLabel } from '../api/when.js';
 import { ownerLabel } from '../auth/owner-label.js';
 import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not read this server.';
 
-function InfoRow({ label, value, href }: { label: string; value: string; href?: string }): ReactNode {
+function InfoRow({ label, value, href, danger = false }: { label: string; value: string; href?: string; danger?: boolean }): ReactNode {
   const palette = useKitPalette();
   return (
     <Row justify="between" align="center" gap={16} padding={{ y: 10 }} border={{ bottom: { width: 1, color: palette.border } }}>
       <Text size="sm" role="secondary">
         {label}
       </Text>
-      <Text size="sm" numberOfLines={1} style={SHRINK}>
+      <Text size="sm" numberOfLines={1} style={SHRINK} role={danger ? 'danger' : undefined}>
         {href === undefined ? (
           value
         ) : (
@@ -66,6 +66,7 @@ function MachineFacts({ machine }: { machine: Machine }): ReactNode {
         <InfoRow label="System" value={systemLabel(machine)} />
         <InfoRow label="Bun" value={machine.bun ?? 'unknown'} />
         <InfoRow label="Up for" value={`${uptimeLabel(machine.uptimeSeconds)}${started}`} />
+        {machine.disk === null ? null : <InfoRow label="Disk" value={diskLabel(machine.disk).text} danger={diskLabel(machine.disk).full} />}
       </Section>
       <Section title="Paths">
         <InfoRow label="Agents" value={machine.agentsDir} />
