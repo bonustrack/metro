@@ -29,7 +29,7 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
       <ScrollView style={SCROLL} contentContainerStyle={SCROLL_CONTENT}>
         <Col gap={10}>
           <Col padding={{ bottom: 4 }}>
-            <OrganizationSwitcher onSelect={onSelect} />
+            <OrganizationSwitcher />
           </Col>
           <Col gap={NAV_GAP}>
             <NavRow label="Agent" icon="user" selected={HOME_PAGES.includes(selection.kind)} target={home} onSelect={onSelect} />

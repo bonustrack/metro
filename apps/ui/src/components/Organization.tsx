@@ -1,13 +1,6 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from './ui.js';
-import { ListHeader } from './ListHeader.js';
-import { NameModal } from './NameModal.js';
-import { useQueryClient } from '@tanstack/react-query';
-import { OrganizationList } from './OrganizationList.js';
-import { createOrganization } from '../api/auth.js';
-import { enterOrganization } from '../auth/org-route.js';
+import { PageTitle } from './PageTitle.js';
 import { Frame } from './Frame.js';
 import { PlainSidebar } from './PlainSidebar.js';
 import { OrganizationSettings } from './OrganizationSettings.js';
@@ -19,9 +12,6 @@ const PAGE_WIDTH = 640;
 
 export function Organization({ onLock }: { onLock: () => void }): ReactNode {
   const subject = activeAccount()?.user.id ?? '';
-  const dark = useKitScheme() === 'dark';
-  const client = useQueryClient();
-  const [creating, setCreating] = useState(false);
   useDocumentTitle('Organization');
   return (
     <Frame
@@ -38,39 +28,9 @@ export function Organization({ onLock }: { onLock: () => void }): ReactNode {
         />
       )}
     >
-      <Col gap={20} width="100%">
-        <ListHeader
-          title="Organization"
-          action={
-            <Button
-              color="primary"
-              dark={dark}
-              label="New organization"
-              onPress={() => {
-                setCreating(true);
-              }}
-            />
-          }
-        />
-        <Col gap={24} width="100%" maxWidth={PAGE_WIDTH}>
-          <OrganizationSettings />
-          <OrganizationList />
-        </Col>
-        <NameModal
-          title="New organization"
-          action="Create"
-          placeholder="Acme"
-          failure="Could not create the organization."
-          open={creating}
-          onClose={() => {
-            setCreating(false);
-          }}
-          onSubmit={async (name) => {
-            const made = await createOrganization(name);
-            if (made.organization !== null) await enterOrganization(client, made.organization);
-            return name;
-          }}
-        />
+      <Col gap={20} width="100%" maxWidth={PAGE_WIDTH}>
+        <PageTitle>Organization</PageTitle>
+        <OrganizationSettings />
       </Col>
     </Frame>
   );

@@ -17,7 +17,7 @@ export function PlainSidebar({ selection, subject, onSelect, onLock }: PlainSide
     <Col flex={1} minHeight={0}>
       <Col gap={NAV_GAP} padding={{ x: 24, top: 24 }}>
         <Col padding={{ bottom: 10 }}>
-          <OrganizationSwitcher onSelect={onSelect} />
+          <OrganizationSwitcher />
         </Col>
         <NavRow label="Agents" icon="server" selected={selection.kind === 'servers'} target={{ kind: 'servers' }} onSelect={onSelect} />
         <NavRow label="Members" icon="users" selected={selection.kind === 'members'} target={{ kind: 'members' }} onSelect={onSelect} />
