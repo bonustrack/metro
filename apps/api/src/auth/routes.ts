@@ -5,6 +5,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { validateReturnTo } from '@metro-labs/http/return-to';
+import type { SlugStore } from '../slug.js';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import {
   addMembership,
@@ -31,6 +32,7 @@ const PENDING_MAX = 200;
 export interface AuthApiDeps {
   config: () => WorkosConfig | null;
   keys: SigningKeys;
+  slugs: SlugStore;
   publicBase?: (req: IncomingMessage) => string;
   now?: () => number;
 }
@@ -140,12 +142,14 @@ async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearch
   }
 }
 
-async function tokensPayload(t: Tokens, cfg: WorkosConfig): Promise<Record<string, unknown>> {
+async function tokensPayload(t: Tokens, cfg: WorkosConfig, slugs: SlugStore): Promise<Record<string, unknown>> {
+  const name = t.organization === null ? null : await organizationName(cfg, t.organization);
   return {
     accessToken: t.accessToken,
     refreshToken: t.refreshToken,
     organization: t.organization,
-    organizationName: t.organization === null ? null : await organizationName(cfg, t.organization),
+    organizationName: name,
+    organizationSlug: t.organization === null ? null : await slugs.ensure(t.organization, name),
     user: t.user,
   };
 }
@@ -157,7 +161,7 @@ async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknow
   if (tokens === null) throw new ApiError('that sign-in has already been used or has expired', 404);
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-  return tokensPayload(tokens, cfg);
+  return tokensPayload(tokens, cfg, deps.slugs);
 }
 
 async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
@@ -167,7 +171,7 @@ async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown
   const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
   if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
   try {
-    return await tokensPayload(await refreshTokens(cfg, refreshToken), cfg);
+    return await tokensPayload(await refreshTokens(cfg, refreshToken), cfg, deps.slugs);
   } catch (err) {
     if (err instanceof WorkosError) throw new ApiError(err.status === 401 ? 'the session has ended, sign in again' : err.message, err.status);
     throw err;
@@ -192,7 +196,7 @@ async function switchOrg(req: IncomingMessage, session: Session, deps: AuthApiDe
   const mine = await userOrganizations(cfg, session.userId);
   if (!mine.some((o) => o.id === organization)) throw new ApiError('you are not a member of that organization', 404);
   log.info({ user: session.userId, organization }, 'auth: switched organization');
-  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg);
+  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps.slugs);
 }
 
 const mePayload = (s: Session): Record<string, unknown> => ({ userId: s.userId, organization: s.organization, role: s.role, expiresAt: s.expiresAt });
@@ -208,7 +212,7 @@ async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDe
   const organization = await createOrganization(cfg, name);
   await addMembership(cfg, session.userId, organization, 'admin');
   log.info({ user: session.userId, organization, name }, 'auth: organization created');
-  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg);
+  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps.slugs);
 }
 
 interface PublicRoute {
@@ -236,7 +240,8 @@ const PRIVATE: Record<string, PrivateRoute> = {
     run: async (_req, deps, session) => {
       const cfg = deps.config();
       if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-      return { organizations: await userOrganizations(cfg, session.userId) };
+      const mine = await userOrganizations(cfg, session.userId);
+      return { organizations: await Promise.all(mine.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name) }))) };
     },
   },
   '/switch': { method: 'POST', run: (req, deps, session) => switchOrg(req, session, deps) },

@@ -21,7 +21,7 @@ import { currentSelection, routeHash, subscribeRoute } from './route.js';
 import { pageTitle } from './title.js';
 import { activeAccount, loadAccount } from './auth/account.js';
 import { exchangeHandoff, logoutAccount, refreshAccount, switchOrganization } from './api/auth.js';
-import { routedOrganization } from './auth/org-route.js';
+import { isCurrentOrganization, resolveOrganization, routedOrganization } from './auth/org-route.js';
 import { handoffCode } from './auth/handoff.js';
 import { OrganizationSetup } from './components/OrganizationSetup.js';
 import { Organization } from './components/Organization.js';
@@ -160,14 +160,17 @@ function ServerGate({ selection, onLock }: { selection: Selection; onLock: () =>
 function OrganizationGate({ selection, onLock, children }: { selection: Selection; onLock: () => void; children: ReactNode }): ReactNode {
   const client = useQueryClient();
   const wanted = routedOrganization();
-  const held = activeAccount()?.organization ?? null;
   const [refused, setRefused] = useState<string | null>(null);
   const [, bump] = useState(0);
-  const mismatch = wanted !== null && held !== null && wanted !== held;
+  const mismatch = wanted !== null && activeAccount() !== null && !isCurrentOrganization(wanted);
   useEffect(() => {
     if (!mismatch) return;
     setRefused(null);
-    switchOrganization(wanted)
+    resolveOrganization(wanted)
+      .then((id) => {
+        if (id === null) throw new Error('you are not a member of that organization');
+        return switchOrganization(id);
+      })
       .then(() => {
         client.clear();
         bump((n) => n + 1);

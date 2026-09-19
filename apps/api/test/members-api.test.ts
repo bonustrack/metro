@@ -5,6 +5,7 @@ import { SigningKeys } from '@metro-labs/http/workos-token';
 import { handleMembersApiRequest } from '../src/auth/members.ts';
 import { readWorkosConfig } from '../src/auth/workos.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
+import { memorySlugs } from './slug-fake.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 
 const ORG = 'org_01STAGELABS000';
@@ -15,7 +16,7 @@ let base = '';
 beforeAll(async () => {
   workos = await fakeWorkos();
   const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
-  const deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url) };
+  const deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), slugs: memorySlugs() };
   server = createServer((req, res) => {
     if (handleMembersApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
@@ -94,8 +95,20 @@ describe('the members of an organization on metro.box', () => {
     expect((await call('PUT', '/api/organization', token(), { name: 'x' })).status).toBe(400);
     const renamed = await call('PUT', '/api/organization', token(), { name: '  Stage Labs SA ' });
     expect(renamed.status).toBe(200);
-    expect(await renamed.json()).toEqual({ id: ORG, name: 'Stage Labs SA' });
+    expect(await renamed.json()).toEqual({ id: ORG, name: 'Stage Labs SA', slug: 'stage-labs' });
     expect(((await (await call('GET', '/api/organization')).json()) as Overview).name).toBe('Stage Labs SA');
+  });
+
+  test('an admin sets the slug; a taken one is 409, a bad one 400, and the overview carries it', async () => {
+    expect(((await (await call('GET', '/api/organization')).json()) as { slug: string }).slug).toBe('stage-labs');
+    expect((await call('PUT', '/api/organization', token(), { slug: 'Bad Slug' })).status).toBe(400);
+    expect((await call('PUT', '/api/organization', token(), { slug: 'members' })).status).toBe(400);
+    const set = await call('PUT', '/api/organization', token(), { slug: 'Stage' });
+    expect(set.status).toBe(200);
+    expect(((await set.json()) as { slug: string }).slug).toBe('stage');
+    expect(((await (await call('GET', '/api/organization')).json()) as { slug: string }).slug).toBe('stage');
+    expect((await call('PUT', '/api/organization', token({ sub: 'user_02BOB', role: 'member' }), { slug: 'other' })).status).toBe(403);
+    expect((await call('PUT', '/api/organization', token(), {})).status).toBe(400);
   });
 
   test('no token is 401, a token without an organization is 409, a wrong method 405, and preflight passes', async () => {

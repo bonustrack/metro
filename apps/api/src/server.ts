@@ -19,13 +19,14 @@ import { bootView, instanceStateOf, launchBox } from './aws/launch.js';
 import { describeRegions } from './aws/ec2.js';
 import { handleLaunchApiRequest, type LaunchApiDeps } from './launch.js';
 import { handleServersApiRequest, type ServersApiDeps } from './servers.js';
+import { dbSlugs } from './db/organizations.js';
 
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, project: null, version: METRO_VERSION });
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
-const authApi = { config: () => readWorkosConfig(), keys };
+const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs };
 const serversApi: ServersApiDeps = {
   list: listServersForOwner,
   add: addServerForOwner,

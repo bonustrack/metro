@@ -92,6 +92,7 @@ export interface OrganizationRow {
   id: string;
   name: string | null;
   role: string | null;
+  slug: string | null;
 }
 
 export async function fetchOrganizations(): Promise<OrganizationRow[]> {
@@ -102,7 +103,7 @@ export async function fetchOrganizations(): Promise<OrganizationRow[]> {
   if (!res.ok) throw new Error(errorText(body, res.status));
   if (!isRecord(body) || !Array.isArray(body.organizations)) throw unexpected();
   return body.organizations.flatMap((o: unknown) =>
-    isRecord(o) && typeof o.id === 'string' ? [{ id: o.id, name: typeof o.name === 'string' ? o.name : null, role: typeof o.role === 'string' ? o.role : null }] : [],
+    isRecord(o) && typeof o.id === 'string' ? [{ id: o.id, name: typeof o.name === 'string' ? o.name : null, role: typeof o.role === 'string' ? o.role : null, slug: typeof o.slug === 'string' ? o.slug : null }] : [],
   );
 }
 

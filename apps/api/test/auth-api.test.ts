@@ -5,6 +5,7 @@ import { SigningKeys } from '@metro-labs/http/workos-token';
 import { handleAuthApiRequest, type AuthApiDeps } from '../src/auth/routes.ts';
 import { forgetProviders, readWorkosConfig } from '../src/auth/workos.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
+import { memorySlugs } from './slug-fake.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 
 let workos: FakeWorkos;
@@ -15,7 +16,7 @@ let deps: AuthApiDeps;
 beforeAll(async () => {
   workos = await fakeWorkos();
   const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
-  deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), publicBase: () => base };
+  deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), publicBase: () => base, slugs: memorySlugs() };
   server = createServer((req, res) => {
     if (handleAuthApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
@@ -81,6 +82,7 @@ describe('signing in to metro.box through WorkOS', () => {
     } finally {
       workos.selection.on = false;
       workos.organizations.splice(before);
+      deps.slugs = memorySlugs();
     }
   });
 
@@ -162,7 +164,8 @@ describe('signing in to metro.box through WorkOS', () => {
     expect(inSecond.organization).toBe(workos.organizations[1] ?? '');
     const listed = await json('GET', '/api/auth/organizations', undefined, inSecond.accessToken);
     expect(listed.status).toBe(200);
-    expect(await listed.json()).toEqual({ organizations: [{ id: workos.organizations[0], name: 'Stage Labs', role: 'admin' }, { id: workos.organizations[1], name: 'Twice', role: 'admin' }] });
+    expect(await listed.json()).toEqual({ organizations: [{ id: workos.organizations[0], name: 'Stage Labs', role: 'admin', slug: 'stage-labs' }, { id: workos.organizations[1], name: 'Twice', role: 'admin', slug: 'twice' }] });
+    expect((inSecond as unknown as { organizationSlug: string }).organizationSlug).toBe('twice');
     const back = await json('POST', '/api/auth/switch', { organization: workos.organizations[0], refreshToken: inSecond.refreshToken }, inSecond.accessToken);
     expect(back.status).toBe(200);
     expect(((await back.json()) as TokenBody).organization).toBe(workos.organizations[0] ?? '');

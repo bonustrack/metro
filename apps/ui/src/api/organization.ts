@@ -23,6 +23,7 @@ export interface Invitation {
 export interface Organization {
   id: string;
   name: string | null;
+  slug: string | null;
   self: string;
   role: Role;
   members: Member[];
@@ -48,7 +49,7 @@ export function toOrganization(body: unknown): Organization {
   if (!isRecord(body) || typeof body.id !== 'string' || typeof body.self !== 'string') throw unexpected();
   const members = Array.isArray(body.members) ? body.members.map(toMember).filter((m): m is Member => m !== null) : [];
   const invitations = Array.isArray(body.invitations) ? body.invitations.map(toInvitation).filter((i): i is Invitation => i !== null) : [];
-  return { id: body.id, name: text(body.name), self: body.self, role: roleOf(body.role), members, invitations };
+  return { id: body.id, name: text(body.name), slug: text(body.slug), self: body.self, role: roleOf(body.role), members, invitations };
 }
 
 export const fetchOrganization = async (): Promise<Organization> => toOrganization(await call({ method: 'GET', base: base() }));
@@ -57,6 +58,10 @@ const json = (body: unknown): { headers: Record<string, string>; body: string } 
 
 export async function renameOrganization(name: string): Promise<void> {
   await call({ method: 'PUT', base: base(), ...json({ name }) });
+}
+
+export async function setOrganizationSlug(slug: string): Promise<void> {
+  await call({ method: 'PUT', base: base(), ...json({ slug }) });
 }
 
 export async function inviteMember(email: string, role: Role): Promise<void> {

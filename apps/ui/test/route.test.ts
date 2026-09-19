@@ -4,6 +4,7 @@ import { sameViewOn, type Selection } from '../src/components/selection.js';
 import { routedOrganization, splitOrganization } from '../src/auth/org-route.js';
 import { routedDaemon, routedSegment } from '../src/auth/daemon.js';
 import { installTestAccount, TEST_ORGANIZATION } from './account-fixture.js';
+import { storeAccount } from '../src/auth/account.js';
 
 const HOSTS = ['127.0.0.1:8420', 'localhost:8421', 'jelsoft-chan-rooms.tail1234.ts.net', 'suzy.tail1234.ts.net'];
 
@@ -133,5 +134,20 @@ describe('the organization rides in front of every route but settings and docs',
     installTestAccount();
     expect(routeHash({ kind: 'servers' })).toBe(`#/${TEST_ORGANIZATION}`);
     expect(routeHash({ kind: 'connectors', project: 'aB3-_xYz9Qw' })).toBe(`#/${TEST_ORGANIZATION}/aB3-_xYz9Qw/connectors`);
+  });
+
+  test('a slug is an organization segment too, and the account slug wins over the id in every hash', () => {
+    expect(splitOrganization('#/stage-labs/members')).toEqual({ organization: 'stage-labs', rest: '#/members' });
+    expect(splitOrganization('#/members')).toEqual({ organization: null, rest: '#/members' });
+    expect(splitOrganization('#/settings')).toEqual({ organization: null, rest: '#/settings' });
+    expect(splitOrganization('#/aB3-_xYz9Qw/server')).toEqual({ organization: null, rest: '#/aB3-_xYz9Qw/server' });
+    expect(routeSelection('#/stage-labs/aB3-_xYz9Qw/server')).toEqual({ kind: 'server', project: 'aB3-_xYz9Qw' });
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    expect(routeHash({ kind: 'members' })).toBe('#/stage-labs/members');
+    routeSelection(`#/${TEST_ORGANIZATION}/members`);
+    expect(routeHash({ kind: 'members' })).toBe('#/stage-labs/members');
+    routeSelection('#/other-org/members');
+    expect(routeHash({ kind: 'members' })).toBe('#/other-org/members');
+    routeSelection('#/settings');
   });
 });

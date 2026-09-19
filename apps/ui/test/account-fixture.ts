@@ -13,6 +13,8 @@ export function installTestAccount(claims: Record<string, unknown> = {}): Accoun
     accessToken: testToken(claims),
     refreshToken: 'rt_test',
     organization: typeof claims.org_id === 'string' ? claims.org_id : TEST_ORGANIZATION,
+    organizationName: null,
+    organizationSlug: null,
     role: typeof claims.role === 'string' ? claims.role : 'admin',
     user: { id: 'user_1', email: 'admin@stage.box', name: 'Stage Labs', picture: null },
   };

@@ -1,6 +1,6 @@
 import { type Selection } from './components/selection.js';
 import { RESERVED_SEGMENTS } from './auth/daemon.js';
-import { currentOrganization, noteRoutedOrganization, routedOrganization, splitOrganization } from './auth/org-route.js';
+import { noteRoutedOrganization, organizationSegment, splitOrganization } from './auth/org-route.js';
 
 const HOST = '[A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?';
 const ID = '[A-Za-z0-9_-]{11}';
@@ -73,7 +73,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
 };
 
 function organizationPrefix(): string {
-  const organization = routedOrganization() ?? currentOrganization();
+  const organization = organizationSegment();
   return organization === null ? '#/' : `#/${organization}/`;
 }
 

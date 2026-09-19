@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { SlugStore } from '../slug.js';
 import { log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -26,6 +27,7 @@ const ID_RE = /^[A-Za-z0-9_]{6,80}$/;
 export interface MembersApiDeps {
   config: () => WorkosConfig | null;
   keys: SigningKeys;
+  slugs: SlugStore;
 }
 
 type Target = { kind: 'organization' } | { kind: 'invitations' } | { kind: 'invitation'; id: string } | { kind: 'member'; id: string } | { kind: 'unknown' } | null;
@@ -67,19 +69,27 @@ const admin = (session: Session): void => {
   if (session.role !== 'admin') throw new ApiError('this needs the admin role in your organization', 403);
 };
 
-async function rename(req: IncomingMessage, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
-  admin(session);
-  const body = await readJsonBody(req);
-  const name = isRecord(body) && typeof body.name === 'string' ? body.name.trim() : '';
-  if (!ORGANIZATION_NAME_RE.test(name)) throw new ApiError('the organization name must be 2 to 64 characters', 400);
-  const saved = await renameOrganization(cfg, organization, name);
-  log.info({ organization, name: saved, by: session.userId }, 'members: organization renamed');
-  return { id: organization, name: saved };
+function changes(body: unknown): { name: string | null; slug: string | null } {
+  const name = isRecord(body) && typeof body.name === 'string' ? body.name.trim() : null;
+  const slug = isRecord(body) && typeof body.slug === 'string' ? body.slug : null;
+  if (name === null && slug === null) throw new ApiError('send a name or a slug', 400);
+  if (name !== null && !ORGANIZATION_NAME_RE.test(name)) throw new ApiError('the organization name must be 2 to 64 characters', 400);
+  return { name, slug };
 }
 
-async function overview(cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
+async function rename(req: IncomingMessage, deps: MembersApiDeps, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
+  admin(session);
+  const { name, slug } = changes(await readJsonBody(req));
+  const savedName = name === null ? await organizationName(cfg, organization) : await renameOrganization(cfg, organization, name);
+  const savedSlug = slug === null ? await deps.slugs.ensure(organization, savedName) : await deps.slugs.set(organization, slug);
+  log.info({ organization, name: savedName, slug: savedSlug, by: session.userId }, 'members: organization changed');
+  return { id: organization, name: savedName, slug: savedSlug };
+}
+
+async function overview(deps: MembersApiDeps, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
   const [name, members, invitations] = await Promise.all([organizationName(cfg, organization), listMembers(cfg, organization), listInvitations(cfg, organization)]);
-  return { id: organization, name, self: session.userId, role: session.role, members, invitations };
+  const slug = await deps.slugs.ensure(organization, name);
+  return { id: organization, name, slug, self: session.userId, role: session.role, members, invitations };
 }
 
 async function invite(req: IncomingMessage, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
@@ -132,7 +142,7 @@ async function answer(req: IncomingMessage, deps: MembersApiDeps, tgt: Exclude<N
   if (session === null) throw new ApiError('unauthorized', 401);
   if (session.organization === null) throw new ApiError('you have no organization yet', 409);
   const cfg = ready(deps);
-  if (tgt.kind === 'organization') return req.method === 'PUT' ? rename(req, cfg, session, session.organization) : overview(cfg, session, session.organization);
+  if (tgt.kind === 'organization') return req.method === 'PUT' ? rename(req, deps, cfg, session, session.organization) : overview(deps, cfg, session, session.organization);
   if (tgt.kind === 'invitations') return invite(req, cfg, session, session.organization);
   if (tgt.kind === 'invitation') {
     admin(session);

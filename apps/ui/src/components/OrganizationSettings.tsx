@@ -5,7 +5,9 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { activeAccount, type Account } from '../auth/account.js';
 import { refreshAccount } from '../api/auth.js';
-import { renameOrganization } from '../api/organization.js';
+import { renameOrganization, setOrganizationSlug } from '../api/organization.js';
+import { noteRoutedOrganization } from '../auth/org-route.js';
+import { routeHash } from '../route.js';
 import { queryError } from '../api/queries.js';
 
 const NAME_MIN = 2;
@@ -50,10 +52,62 @@ function useRename(account: Account): Rename {
   return { name, setName, busy, error, saved, ready, save };
 }
 
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
+
+function useSlug(account: Account): Rename {
+  const [name, setName] = useState(account.organizationSlug ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const trimmed = name.trim().toLowerCase();
+  const ready = SLUG_RE.test(trimmed) && trimmed !== (account.organizationSlug ?? '');
+  const save = (): void => {
+    if (!ready || busy) return;
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    setOrganizationSlug(trimmed)
+      .then(() => refreshAccount())
+      .then(() => {
+        setSaved(true);
+        noteRoutedOrganization(null);
+        window.history.replaceState(null, '', `${window.location.pathname}${routeHash({ kind: 'organization' })}`);
+      })
+      .catch((err: unknown) => {
+        setError(queryError(err, 'Could not change the slug.'));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+  return { name, setName, busy, error, saved, ready, save };
+}
+
 function Note({ rename }: { rename: Rename }): ReactNode {
   if (rename.error !== null) return <Text size="sm" role="danger">{rename.error}</Text>;
   if (rename.saved) return <Text size="sm" role="secondary">Saved.</Text>;
   return null;
+}
+
+function SlugBlock({ account }: { account: Account }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const slug = useSlug(account);
+  const admin = account.role === 'admin';
+  return (
+    <Col gap={12}>
+      <Col gap={2}>
+        <Text weight="semibold">Slug</Text>
+        <Text size="sm" role="secondary">
+          {admin ? `The organization's part of every address: metro.box/#/${account.organizationSlug ?? '…'}. Lowercase letters, digits and dashes.` : 'Only an admin can change the slug.'}
+        </Text>
+      </Col>
+      <Row gap={8} align="center" wrap>
+        <Input name="slug" value={slug.name} dark={dark} disabled={slug.busy || !admin} onChangeText={slug.setName} />
+        {admin ? <Button color="primary" dark={dark} label={slug.busy ? 'Saving…' : 'Save'} loading={slug.busy} disabled={slug.busy || !slug.ready} onPress={slug.save} /> : null}
+      </Row>
+      <Note rename={slug} />
+    </Col>
+  );
 }
 
 function Block({ account }: { account: Account }): ReactNode {
@@ -81,5 +135,10 @@ export function OrganizationSettings(): ReactNode {
   const account = activeAccount();
   const organization = account?.organization ?? null;
   if (account === null || organization === null) return null;
-  return <Block account={account} />;
+  return (
+    <Col gap={24}>
+      <Block account={account} />
+      <SlugBlock account={account} />
+    </Col>
+  );
 }
