@@ -4,7 +4,7 @@ import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './components/ui.js';
-import { Login } from './components/Login.js';
+import { Landing, Login } from './components/Login.js';
 import { Connect } from './components/Connect.js';
 import { LaunchServer } from './components/LaunchServer.js';
 import { BootLoading } from './components/BootLoading.js';
@@ -16,7 +16,7 @@ import { makeQueryClient, refreshServers, useServersQuery, useSessionQuery } fro
 import { AuthError, StoppedError } from './api/client.js';
 import { StoppedNotice } from './components/StoppedNotice.js';
 import { addServer } from './api/servers.js';
-import { atLogin, atSignup, goToLogin, leaveLogin } from './auth/login-route.js';
+import { atLanding, atLogin, atSignup, goToLanding, goToLogin, leaveLogin } from './auth/login-route.js';
 import { currentSelection, routeHash, subscribeRoute } from './route.js';
 import { pageTitle } from './title.js';
 import { activeAccount, loadAccount } from './auth/account.js';
@@ -226,6 +226,12 @@ export function App(): ReactNode {
     setPhase('login');
   };
 
+  const signOut = (): void => {
+    logoutAccount().catch(() => undefined);
+    goToLanding();
+    setPhase('login');
+  };
+
   const unlock = (): void => {
     leaveLogin();
     setPhase('unlocked');
@@ -237,9 +243,9 @@ export function App(): ReactNode {
     if (phase === 'login') {
       client.clear();
       goToLogin();
-      document.title = pageTitle(atSignup() ? 'Sign up' : 'Log in');
+      document.title = pageTitle(atLanding() ? null : atSignup() ? 'Sign up' : 'Log in');
     } else if (phase === 'unlocked' && atLogin()) leaveLogin();
-  }, [phase, client]);
+  }, [phase, client, selection]);
 
   return (
     <div className="app-root">
@@ -247,11 +253,11 @@ export function App(): ReactNode {
         {phase === 'loading' ? (
           <BootLoading />
         ) : phase === 'login' ? (
-          <Login />
+          atLanding() ? <Landing /> : <Login />
         ) : phase === 'organization' ? (
           <OrganizationSetup onDone={unlock} onLock={lock} />
         ) : (
-          <Unlocked selection={selection} onLock={lock} />
+          <Unlocked selection={selection} onLock={signOut} />
         )}
       </QueryClientProvider>
       <BuildDot />
