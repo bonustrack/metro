@@ -143,7 +143,7 @@ export function Login(): ReactNode {
     <Frame title={waitlist ? WAITLIST_TITLE : 'Log in'}>
       <DaemonHint />
       {failed === null ? null : (
-        <Text size="sm" role="danger">
+        <Text size="xl" role="danger" style={CENTER_TEXT}>
           {failed}
         </Text>
       )}
