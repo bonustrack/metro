@@ -3,9 +3,9 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { BootLoading } from './BootLoading.js';
-import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
+import { MicrosoftMark } from './MicrosoftMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 
@@ -16,7 +16,6 @@ const CARD_GAP = 32;
 const BUTTONS_TOP = 8;
 const TITLE_GAP = 14;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft', github: 'Continue with GitHub' };
-const PROVIDER_SITE: Record<Provider, string> = { google: 'https://google.com', microsoft: 'https://microsoft.com', github: 'https://github.com' };
 const ICON_GAP_EXTRA = 4;
 const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20, github: 22 };
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
@@ -58,7 +57,7 @@ function providerMark(provider: Provider, onButton: string): ReactNode {
     ) : provider === 'github' ? (
       <GitHubMark size={PROVIDER_ICON.github} color={onButton} />
     ) : (
-      <ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON[provider]} radius={0} />
+      <MicrosoftMark size={PROVIDER_ICON.microsoft} />
     );
   return <Row padding={{ right: ICON_GAP_EXTRA }}>{mark}</Row>;
 }
