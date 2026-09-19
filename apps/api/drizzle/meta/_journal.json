@@ -232,6 +232,13 @@
       "when": 1788557725040,
       "tag": "0032_users",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788557725041,
+      "tag": "0033_user_logins",
+      "breakpoints": true
     }
   ]
 }

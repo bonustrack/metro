@@ -82,6 +82,35 @@ export interface OrganizationRow {
   slug: string | null;
 }
 
+export const OPERATOR_EMAIL = 'admin@stage.box';
+
+export const isOperator = (account: Account | null): boolean => account?.user.email?.toLowerCase() === OPERATOR_EMAIL;
+
+export interface UserRow {
+  id: string;
+  email: string | null;
+  name: string | null;
+  picture: string | null;
+  createdAt: string | null;
+  lastLoginAt: string | null;
+}
+
+const optional = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+
+export async function fetchUsers(): Promise<UserRow[]> {
+  const bearer = await accessToken();
+  if (bearer === null) throw new Error('Log in first.');
+  const res = await fetch(authUrl('/users'), { headers: { authorization: `Bearer ${bearer}` } });
+  const body: unknown = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(errorText(body, res.status));
+  if (!isRecord(body) || !Array.isArray(body.users)) throw unexpected();
+  return body.users.flatMap((u: unknown) =>
+    isRecord(u) && typeof u.id === 'string'
+      ? [{ id: u.id, email: optional(u.email), name: optional(u.name), picture: optional(u.picture), createdAt: optional(u.createdAt), lastLoginAt: optional(u.lastLoginAt) }]
+      : [],
+  );
+}
+
 export async function fetchOrganizations(): Promise<OrganizationRow[]> {
   const bearer = await accessToken();
   if (bearer === null) throw new Error('Log in first.');

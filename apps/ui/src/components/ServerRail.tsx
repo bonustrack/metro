@@ -8,6 +8,7 @@ import { opensElsewhere } from './link.js';
 import { serverLabel, type Server } from '../api/servers.js';
 import { useServersQuery } from '../api/queries.js';
 import { activeAccount } from '../auth/account.js';
+import { isOperator } from '../api/auth.js';
 import { currentServer } from '../auth/daemon.js';
 import { routeHash } from '../route.js';
 import { sameViewOn, type Selection } from './selection.js';
@@ -67,6 +68,16 @@ function RailAccount({ onLock }: { onLock: () => void }): ReactNode {
             window.location.hash = routeHash({ kind: 'settings' });
           },
         },
+        ...(isOperator(account)
+          ? [
+              {
+                label: 'Admin',
+                onSelect: () => {
+                  window.location.hash = routeHash({ kind: 'admin' });
+                },
+              },
+            ]
+          : []),
         { label: 'Log out', danger: true, onSelect: onLock },
       ]}
     >

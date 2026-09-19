@@ -87,6 +87,25 @@ describe('signing in to metro.box through WorkOS', () => {
     expect(back.user).toMatchObject({ name: 'Stage Labs', picture: 'https://pic.example/a.png' });
   });
 
+  test('every sign-in is recorded in users with the sign-up and last log-in dates, and only the operator may list them', async () => {
+    const tokens = await signIn();
+    const me = deps.users.find('user_01ABC');
+    expect(await me).toMatchObject({ email: 'admin@stage.box', name: 'Stage Labs', picture: 'https://pic.example/a.png', createdAt: '2026-09-01T10:00:00.000Z' });
+    const first = (await deps.users.find('user_01ABC'))?.lastLoginAt ?? '';
+    expect(Date.parse(first)).toBeGreaterThan(0);
+    await deps.users.noteLogin({ id: 'user_02BOB', email: 'bob@stage.box', name: 'Bob', picture: null, createdAt: null }, '2026-09-03T00:00:00.000Z');
+    const bob = workos.issuer.mint(sessionClaims({ sub: 'user_02BOB' }));
+    expect((await json('GET', '/api/auth/users', undefined, bob)).status).toBe(403);
+    expect((await json('GET', '/api/auth/users')).status).toBe(401);
+    const listed = await json('GET', '/api/auth/users', undefined, tokens.accessToken);
+    expect(listed.status).toBe(200);
+    const body = (await listed.json()) as { users: { id: string; email: string; createdAt: string; lastLoginAt: string }[] };
+    expect(body.users.map((u) => u.id)).toEqual(['user_01ABC', 'user_02BOB']);
+    expect(body.users[1]).toMatchObject({ email: 'bob@stage.box', createdAt: '2026-09-03T00:00:00.000Z', lastLoginAt: '2026-09-03T00:00:00.000Z' });
+    await signIn();
+    expect((await deps.users.find('user_01ABC'))?.createdAt).toBe('2026-09-01T10:00:00.000Z');
+  });
+
   test('a user in several organizations is signed in to the first one WorkOS lists instead of being asked to choose', async () => {
     const before = workos.organizations.length;
     workos.organizations.push('org_01FIRST0000000', 'org_01SECOND000000');
@@ -143,7 +162,7 @@ describe('signing in to metro.box through WorkOS', () => {
 
   test('login goes to the provider, the callback hands off a one-time code, and the exchange returns tokens once', async () => {
     const tokens = await signIn();
-    expect(tokens.user).toEqual({ id: 'user_01ABC', email: 'admin@stage.box', name: 'Stage Labs', picture: 'https://pic.example/a.png' });
+    expect(tokens.user).toEqual({ id: 'user_01ABC', email: 'admin@stage.box', name: 'Stage Labs', picture: 'https://pic.example/a.png', createdAt: '2026-09-01T10:00:00.000Z' });
     expect(tokens.organization).toBeNull();
     expect(tokens.accessToken.split('.')).toHaveLength(3);
     const me = await json('GET', '/api/auth/me', undefined, tokens.accessToken);

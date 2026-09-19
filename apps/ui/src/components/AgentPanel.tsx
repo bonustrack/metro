@@ -14,6 +14,7 @@ import { ClaudeSettings } from './ClaudeSettings.js';
 import { Skills } from './Skills.js';
 import { SkillPage } from './SkillPage.js';
 import { Settings } from './Settings.js';
+import { Admin } from './Admin.js';
 import { StationPage } from './StationPage.js';
 import { Stations } from './Stations.js';
 import { type Selection } from './selection.js';
@@ -122,6 +123,7 @@ export function AgentPanel(props: AgentPanelProps): ReactNode {
   const { selection } = props;
   if (selection.kind === 'docs') return <Docs />;
   if (selection.kind === 'settings') return <Settings />;
+  if (selection.kind === 'admin') return <Admin />;
   if (!('project' in selection)) return null;
   return <ScopedPanel {...props} project={selection.project} />;
 }

@@ -12,6 +12,7 @@ const SKILL = '[A-Za-z0-9._:%-]+';
 const SERVERS_PATH = /^#?\/?$/;
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
+const ADMIN_PATH = /^#?\/admin$/;
 const CONNECT_PATH = /^#?\/connect$/;
 const LAUNCH_PATH = /^#?\/launch$/;
 const MEMBERS_PATH = /^#?\/members$/;
@@ -35,6 +36,7 @@ function exactSelection(hash: string): Selection | null {
   if (SERVERS_PATH.test(hash)) return { kind: 'servers' };
   if (DOCS_PATH.test(hash)) return { kind: 'docs' };
   if (SETTINGS_PATH.test(hash)) return { kind: 'settings' };
+  if (ADMIN_PATH.test(hash)) return { kind: 'admin' };
   if (CONNECT_PATH.test(hash)) return { kind: 'connect' };
   if (LAUNCH_PATH.test(hash)) return { kind: 'launch' };
   if (MEMBERS_PATH.test(hash)) return { kind: 'members' };
@@ -62,6 +64,7 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
 const GLOBAL: Partial<Record<Selection['kind'], string>> = {
   docs: '#/docs/setup',
   settings: '#/settings',
+  admin: '#/admin',
 };
 
 const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {

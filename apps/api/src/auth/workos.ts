@@ -16,7 +16,7 @@ export interface Tokens {
   accessToken: string;
   refreshToken: string;
   organization: string | null;
-  user: { id: string; email: string | null; name: string | null; picture: string | null };
+  user: { id: string; email: string | null; name: string | null; picture: string | null; createdAt: string | null };
 }
 
 export class WorkosError extends Error {
@@ -105,7 +105,7 @@ function tokensOf(body: unknown): Tokens {
     accessToken,
     refreshToken,
     organization: str(body.organization_id),
-    user: { id, email: str(body.user.email), name: name === '' ? null : name, picture: str(body.user.profile_picture_url) },
+    user: { id, email: str(body.user.email), name: name === '' ? null : name, picture: str(body.user.profile_picture_url), createdAt: str(body.user.created_at) },
   };
 }
 

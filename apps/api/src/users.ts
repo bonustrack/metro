@@ -1,9 +1,25 @@
 import { ApiError } from '@metro-labs/http/api-error';
 
+export interface UserLogin {
+  id: string;
+  email: string | null;
+  name: string | null;
+  picture: string | null;
+  createdAt: string | null;
+}
+
+export interface UserRecord extends UserLogin {
+  avatar: string | null;
+  lastLoginAt: string | null;
+}
+
 export interface UserStore {
   avatar: (user: string) => Promise<string | null>;
   avatars: (users: string[]) => Promise<Map<string, string>>;
   setAvatar: (user: string, avatar: string | null) => Promise<void>;
+  noteLogin: (user: UserLogin, at: string) => Promise<void>;
+  find: (user: string) => Promise<UserRecord | null>;
+  list: () => Promise<UserRecord[]>;
 }
 
 const NAME_MAX = 80;

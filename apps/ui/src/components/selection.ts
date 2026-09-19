@@ -3,6 +3,7 @@ export type Selection =
   | { kind: 'servers' }
   | { kind: 'docs' }
   | { kind: 'settings' }
+  | { kind: 'admin' }
   | { kind: 'connect' }
   | { kind: 'launch' }
   | { kind: 'members' }

@@ -28,6 +28,11 @@ export const users = pgTable('users', {
   id: text('id').primaryKey(),
   avatar: text('avatar'),
   updatedAt: text('updated_at').notNull(),
+  email: text('email'),
+  name: text('name'),
+  picture: text('picture'),
+  createdAt: text('created_at'),
+  lastLoginAt: text('last_login_at'),
 });
 
 export const organizations = pgTable(

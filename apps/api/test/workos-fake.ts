@@ -36,8 +36,8 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
   const members: FakeWorkos['members'] = [{ id: 'om_admin', user_id: 'user_01ABC', role: 'admin' }, { id: 'om_bob', user_id: 'user_02BOB', role: 'member' }];
   const invitations: FakeWorkos['invitations'] = [];
   const USERS = [
-    { id: 'user_01ABC', email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs' as string | null, profile_picture_url: 'https://pic.example/a.png' as string | null },
-    { id: 'user_02BOB', email: 'bob@stage.box', first_name: 'Bob', last_name: null as string | null, profile_picture_url: null as string | null },
+    { id: 'user_01ABC', email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs' as string | null, profile_picture_url: 'https://pic.example/a.png' as string | null, created_at: '2026-09-01T10:00:00.000Z' },
+    { id: 'user_02BOB', email: 'bob@stage.box', first_name: 'Bob', last_name: null as string | null, profile_picture_url: null as string | null, created_at: '2026-09-02T10:00:00.000Z' },
   ];
   let refreshCount = 0;
   const outage = { on: false };

@@ -8,6 +8,7 @@ import { validateReturnTo } from '@metro-labs/http/return-to';
 import type { SlugStore } from '../slug.js';
 import { parseAccountName, type UserStore } from '../users.js';
 import { AVATAR_BODY_MAX, parseAvatar } from '../avatar.js';
+import { listUsers } from './operator.js';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import {
   addMembership,
@@ -181,10 +182,12 @@ async function updateAccount(req: IncomingMessage, session: Session, deps: AuthA
 async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
   const body = await readJsonBody(req);
   const code = isRecord(body) && typeof body.code === 'string' ? body.code : '';
-  const tokens = take(handoffs, code, HANDOFF_TTL_MS, (deps.now ?? Date.now)());
+  const now = (deps.now ?? Date.now)();
+  const tokens = take(handoffs, code, HANDOFF_TTL_MS, now);
   if (tokens === null) throw new ApiError('that sign-in has already been used or has expired', 404);
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  await deps.users.noteLogin(tokens.user, new Date(now).toISOString());
   return tokensPayload(tokens, cfg, deps);
 }
 
@@ -270,6 +273,7 @@ const PRIVATE: Record<string, PrivateRoute> = {
   },
   '/switch': { method: 'POST', run: (req, deps, session) => switchOrg(req, session, deps) },
   '/account': { method: 'PUT', run: (req, deps, session) => updateAccount(req, session, deps) },
+  '/users': { method: 'GET', run: (_req, deps, session) => listUsers(deps.users, session) },
 };
 
 async function navigation(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, path: string, query: URLSearchParams): Promise<boolean> {
