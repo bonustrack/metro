@@ -21,7 +21,6 @@ function RailItem({ server, selected, selection }: { server: Server; selected: b
       className={selected ? 'rail-item rail-item-selected' : 'rail-item'}
       href={href}
       aria-label={label}
-      data-label={label}
       onClick={(e) => {
         if (opensElsewhere(e)) return;
         e.preventDefault();
@@ -34,7 +33,20 @@ function RailItem({ server, selected, selection }: { server: Server; selected: b
       <span className="rail-status">
         <StatusDot host={server.host} />
       </span>
+      <RailTip label={label} />
     </a>
+  );
+}
+
+const TIP_TEXT = { fontSize: 17, lineHeight: '20px' } as const;
+
+function RailTip({ label }: { label: string }): ReactNode {
+  return (
+    <span className="rail-tip" aria-hidden="true">
+      <span className="rail-tip-label" style={TIP_TEXT}>
+        {label}
+      </span>
+    </span>
   );
 }
 
@@ -44,8 +56,9 @@ export function ServerRail({ selection }: { selection: Selection }): ReactNode {
   const here = currentServer();
   return (
     <nav className="server-rail" aria-label="Agents">
-      <a className="rail-logo" href={routeHash({ kind: 'servers' })} aria-label="All agents" data-label="All agents">
+      <a className="rail-logo" href={routeHash({ kind: 'servers' })} aria-label="All agents">
         <MetroLogo size={LOGO} color={palette.link} />
+        <RailTip label="All agents" />
       </a>
       <div className="rail-list">
         {(data ?? []).map((server) => (
