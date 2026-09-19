@@ -156,7 +156,6 @@ function Body(): ReactNode {
 
 export function Members({ onLock }: { onLock: () => void }): ReactNode {
   const subject = activeAccount()?.user.id ?? '';
-  const name = activeAccount()?.organizationName ?? 'Members';
   useDocumentTitle('Members');
   return (
     <Frame
@@ -174,7 +173,7 @@ export function Members({ onLock }: { onLock: () => void }): ReactNode {
       )}
     >
       <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
-        <PageTitle>{name}</PageTitle>
+        <PageTitle>Members</PageTitle>
         <Text size="sm" role="secondary">{HOW}</Text>
         <Body />
       </Col>
