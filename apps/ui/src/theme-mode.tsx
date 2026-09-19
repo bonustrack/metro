@@ -87,13 +87,6 @@ function applyCanvas(scheme: Scheme, palette: KitPalette): void {
   for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
 }
 
-function applyFavicon(scheme: Scheme): void {
-  document.querySelectorAll('link[rel="icon"]').forEach((link) => {
-    const wantsDark = !(link.getAttribute('href') ?? '').includes('favicon-dark');
-    link.setAttribute('media', wantsDark === (scheme === 'dark') ? 'all' : 'not all');
-  });
-}
-
 interface ThemeModeValue {
   mode: ThemeMode;
   scheme: Scheme;
@@ -129,7 +122,6 @@ export function ThemeModeProvider({ children }: { children: ReactNode }): ReactN
 
   useEffect(() => {
     applyCanvas(scheme, palette);
-    applyFavicon(scheme);
   }, [scheme, palette]);
 
   const value = useMemo<ThemeModeValue>(
