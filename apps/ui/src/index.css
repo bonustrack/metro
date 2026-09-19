@@ -562,6 +562,23 @@ textarea:focus-visible {
   background: var(--metro-surface);
 }
 
+.org-trigger {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.org-trigger:active {
+  opacity: 0.6;
+}
+
 .kebab-backdrop {
   position: fixed;
   inset: 0;

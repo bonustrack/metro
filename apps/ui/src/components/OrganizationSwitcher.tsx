@@ -51,7 +51,7 @@ export function OrganizationSwitcher(): ReactNode {
   ];
   return (
     <>
-      <Dropdown className="account-trigger" label="Switch organization" align="start" items={items}>
+      <Dropdown className="org-trigger" label="Switch organization" align="start" items={items}>
         <Row {...NAV_ROW_BOX}>
           <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
             {account?.organizationName ?? 'Organization'}
