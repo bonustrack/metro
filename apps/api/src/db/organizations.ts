@@ -1,13 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
-import { isRecord } from '@metro-labs/core/is-record';
 import { getDb } from './client.js';
+import { isUniqueViolation } from './errors.js';
 import { organizations } from './schema.js';
 import { parseSlug, slugify, withSuffix, type SlugStore } from '../slug.js';
 
 const TRIES = 20;
-
-const isUnique = (err: unknown): boolean => isRecord(err) && err.code === '23505';
 
 async function current(organization: string): Promise<string | null> {
   const rows = await getDb().select({ slug: organizations.slug }).from(organizations).where(eq(organizations.id, organization)).limit(1);
@@ -20,7 +18,7 @@ async function insert(organization: string, slug: string): Promise<boolean> {
     await getDb().insert(organizations).values({ id: organization, slug, createdAt: now, updatedAt: now });
     return true;
   } catch (err) {
-    if (isUnique(err)) return false;
+    if (isUniqueViolation(err)) return false;
     throw err;
   }
 }
@@ -47,7 +45,7 @@ async function set(organization: string, raw: string): Promise<string> {
     if (row === undefined) throw new ApiError('no such organization', 404);
     return row.slug;
   } catch (err) {
-    if (isUnique(err)) throw new ApiError('that slug is taken', 409);
+    if (isUniqueViolation(err)) throw new ApiError('that slug is taken', 409);
     throw err;
   }
 }

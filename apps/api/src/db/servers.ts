@@ -2,6 +2,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { getDb } from './client.js';
+import { isUniqueViolation } from './errors.js';
 import { newId, parseId } from '@metro-labs/core/ids';
 import { agents } from './schema.js';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
@@ -151,8 +152,6 @@ export async function setAvatarForOwner(subject: string, rawId: string, body: un
   return entryOf(row);
 }
 
-const isUnique = (err: unknown): boolean => isRecord(err) && err.code === '23505';
-
 function moveTarget(session: Session, body: unknown): { from: string; to: string } {
   const from = ownerOf(session.organization ?? '');
   if (session.role !== 'admin') throw new ServerListError('this needs the admin role in your organization', 403);
@@ -176,7 +175,7 @@ async function changeOwner(id: string, from: string, to: string): Promise<Server
     if (row === undefined) throw missing();
     return entryOf(row);
   } catch (err) {
-    if (isUnique(err)) throw new ServerListError('that organization already lists an agent at this address', 409);
+    if (isUniqueViolation(err)) throw new ServerListError('that organization already lists an agent at this address', 409);
     throw err;
   }
 }
