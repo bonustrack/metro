@@ -1,10 +1,11 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { BootLoading } from './BootLoading.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { GoogleMark } from './GoogleMark.js';
+import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 
@@ -50,13 +51,21 @@ function useProviders(): Offer | null {
   return offer;
 }
 
-function providerMark(provider: Provider): ReactNode {
-  const mark = provider === 'google' ? <GoogleMark size={PROVIDER_ICON.google} /> : <ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON[provider]} radius={0} />;
+function providerMark(provider: Provider, onButton: string): ReactNode {
+  const mark =
+    provider === 'google' ? (
+      <GoogleMark size={PROVIDER_ICON.google} />
+    ) : provider === 'github' ? (
+      <GitHubMark size={PROVIDER_ICON.github} color={onButton} />
+    ) : (
+      <ConnectorFavicon name={provider} url={PROVIDER_SITE[provider]} size={PROVIDER_ICON[provider]} radius={0} />
+    );
   return <Row padding={{ right: ICON_GAP_EXTRA }}>{mark}</Row>;
 }
 
 function ProviderButtons({ offer }: { offer: Offer }): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const onButton = useKitPalette().bg;
   if ('note' in offer)
     return (
       <Row justify="center">
@@ -75,7 +84,7 @@ function ProviderButtons({ offer }: { offer: Offer }): ReactNode {
           color="primary"
           dark={dark}
           label={PROVIDER_LABEL[provider]}
-          icon={providerMark(provider)}
+          icon={providerMark(provider, onButton)}
           style={FULL_WIDTH}
           onPress={() => {
             window.location.assign(loginUrl(provider));
