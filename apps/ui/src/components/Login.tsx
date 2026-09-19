@@ -5,7 +5,6 @@ import { Text, Button } from './ui.js';
 import { BootLoading } from './BootLoading.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
-import { MicrosoftMark } from './MicrosoftMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 
@@ -57,7 +56,7 @@ function providerMark(provider: Provider, onButton: string): ReactNode {
     ) : provider === 'github' ? (
       <GitHubMark size={PROVIDER_ICON.github} color={onButton} />
     ) : (
-      <MicrosoftMark size={PROVIDER_ICON.microsoft} />
+      <img src="/microsoft.png" alt="" width={PROVIDER_ICON.microsoft} height={PROVIDER_ICON.microsoft} />
     );
   return <Row padding={{ right: ICON_GAP_EXTRA }}>{mark}</Row>;
 }
