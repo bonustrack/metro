@@ -122,6 +122,9 @@ describe('the organization rides in front of every route but settings and docs',
     expect(routedSegment('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/server')).toBe('aB3-_xYz9Qw');
     expect(routedDaemon('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX')).toBeNull();
     expect(routedDaemon('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/x.tail1234.ts.net')).toBe('https://x.tail1234.ts.net');
+    expect(routedDaemon('#/stage-labs/tony/server')).toBeNull();
+    expect(routedDaemon('#/stage-labs/tony')).toBeNull();
+    expect(routedDaemon('#/stage-labs/127.0.0.1:8420')).toBe('http://127.0.0.1:8420');
   });
 
   test('routeHash prefixes the routed organization, else the account one, and never the global pages', () => {

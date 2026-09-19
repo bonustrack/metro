@@ -25,7 +25,7 @@ import { isCurrentOrganization, resolveOrganization, routedOrganization } from '
 import { handoffCode } from './auth/handoff.js';
 import { OrganizationSetup } from './components/OrganizationSetup.js';
 import { Organization } from './components/Organization.js';
-import { daemonBase, daemonHost, setCurrentServer, storedServerId } from './auth/daemon.js';
+import { daemonBase, daemonHost, looksLikeHost, setCurrentServer, storedServerId } from './auth/daemon.js';
 
 type Phase = 'loading' | 'login' | 'organization' | 'unlocked';
 
@@ -146,8 +146,6 @@ function ListedServer({ id, onLock }: { id: string; onLock: () => void }): React
   if (ready !== server.id) return <BootLoading />;
   return <Gate onLock={onLock} />;
 }
-
-const looksLikeHost = (segment: string): boolean => /[.:]/.test(segment);
 
 function ServerGate({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   const project = selectionProject(selection) ?? storedServerId();

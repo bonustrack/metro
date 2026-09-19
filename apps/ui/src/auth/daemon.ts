@@ -72,11 +72,12 @@ export function routedSegment(hash?: string): string | null {
   return segment === undefined || RESERVED_SEGMENTS.has(segment) ? null : segment;
 }
 
-export const isServerId = (segment: string): boolean => ID_RE.test(segment);
+
+export const looksLikeHost = (segment: string): boolean => /[.:]/.test(segment);
 
 export function routedDaemon(hash?: string): string | null {
   const segment = routedSegment(hash);
-  return segment === null || isServerId(segment) ? null : baseFromSegment(segment);
+  return segment === null || !looksLikeHost(segment) ? null : baseFromSegment(segment);
 }
 
 let current: { id: string; host: string } | null = null;
