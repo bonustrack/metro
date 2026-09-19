@@ -16,6 +16,7 @@ const CARD_WIDTH = CONTENT_WIDTH + 2 * CARD_PAD;
 const CARD_GAP = 32;
 const BUTTONS_TOP = 8;
 const TITLE_GAP = 14;
+const LOGO_GAP = 24;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft', github: 'Continue with GitHub' };
 const ICON_GAP_EXTRA = 4;
 const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20, github: 22 };
@@ -120,7 +121,7 @@ function Frame({ title, children }: { title: ReactNode; children: ReactNode }): 
     <div className="login-page">
       <Row justify="center" align="start" padding={{ x: 24, bottom: 24 }}>
         <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
-          <Col gap={TITLE_GAP}>
+          <Col gap={typeof title === 'string' ? TITLE_GAP : LOGO_GAP}>
             <Row justify="center">
               {typeof title === 'string' ? (
                 <Text size="6xl" weight="medium">
