@@ -247,7 +247,7 @@ describe('accounts', () => {
           {
             id: 't0',
             handle: '*METRO01',
-            url: null,
+            url: 'https://web.threema.com/#!/messenger/conversation/contact/*METRO01',
             owner: null,
             gatewayId: '*METRO01',
             callbackId: '1493556940637339623',

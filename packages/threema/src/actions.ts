@@ -47,11 +47,15 @@ function noteSent(messageId: string): void {
 
 const sentByUs = (messageId: string): boolean => sentIds.has(messageId);
 
+const WEB_CHAT = 'https://web.threema.com/#!/messenger/conversation/contact/';
+
+export const chatUrl = (gatewayId: string): string => `${WEB_CHAT}${encodeURIComponent(gatewayId)}`;
+
 function listAccounts(id: string): void {
   const list = [...accounts.values()].map((a) => ({
     id: a.cfg.id,
     handle: a.cfg.gatewayId,
-    url: null,
+    url: chatUrl(a.cfg.gatewayId),
     owner: a.cfg.owner ?? null,
     gatewayId: a.cfg.gatewayId,
     ...(a.cfg.callbackId && a.cfg.callbackToken
