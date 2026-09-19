@@ -190,7 +190,7 @@ function OrganizationGate({ selection, onLock, children }: { selection: Selectio
   return children;
 }
 
-const GLOBAL_KINDS = new Set<Selection['kind']>(['docs', 'settings', 'admin', 'admin-organizations', 'admin-agents']);
+const GLOBAL_KINDS = new Set<Selection['kind']>(['docs', 'settings', 'admin', 'admin-users', 'admin-organizations', 'admin-agents']);
 
 function Unlocked({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   return (

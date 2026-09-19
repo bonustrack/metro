@@ -6,7 +6,6 @@ import { Text, Button } from './ui.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { ListHeader } from './ListHeader.js';
 import { Pill } from './Pill.js';
-import { SignupChart } from './SignupChart.js';
 import { fetchUsers, setUserStatus, type UserRow, type UserStatus } from '../api/admin.js';
 import { whenLabel } from '../api/when.js';
 import { queryError } from '../api/queries.js';
@@ -69,7 +68,6 @@ export function AdminUsers(): ReactNode {
   return (
     <Col gap={16} width="100%" maxWidth={LIST_WIDTH}>
       <ListHeader title="Users" count={data?.length} />
-      {data === undefined ? null : <SignupChart users={data} />}
       {failure !== null ? (
         <Text size="sm" role="danger">
           {queryError(failure, FAILED)}

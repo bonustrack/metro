@@ -4,6 +4,7 @@ export type Selection =
   | { kind: 'docs' }
   | { kind: 'settings' }
   | { kind: 'admin' }
+  | { kind: 'admin-users' }
   | { kind: 'admin-organizations' }
   | { kind: 'admin-agents' }
   | { kind: 'connect' }

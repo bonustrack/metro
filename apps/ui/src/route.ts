@@ -13,6 +13,7 @@ const SERVERS_PATH = /^#?\/?$/;
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const ADMIN_PATH = /^#?\/admin$/;
+const ADMIN_USERS_PATH = /^#?\/admin\/users$/;
 const ADMIN_ORGANIZATIONS_PATH = /^#?\/admin\/organizations$/;
 const ADMIN_AGENTS_PATH = /^#?\/admin\/agents$/;
 const CONNECT_PATH = /^#?\/connect$/;
@@ -39,6 +40,7 @@ const EXACT: [RegExp, Selection][] = [
   [DOCS_PATH, { kind: 'docs' }],
   [SETTINGS_PATH, { kind: 'settings' }],
   [ADMIN_PATH, { kind: 'admin' }],
+  [ADMIN_USERS_PATH, { kind: 'admin-users' }],
   [ADMIN_ORGANIZATIONS_PATH, { kind: 'admin-organizations' }],
   [ADMIN_AGENTS_PATH, { kind: 'admin-agents' }],
   [CONNECT_PATH, { kind: 'connect' }],
@@ -72,6 +74,7 @@ const GLOBAL: Partial<Record<Selection['kind'], string>> = {
   docs: '#/docs/setup',
   settings: '#/settings',
   admin: '#/admin',
+  'admin-users': '#/admin/users',
   'admin-organizations': '#/admin/organizations',
   'admin-agents': '#/admin/agents',
 };

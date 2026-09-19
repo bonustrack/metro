@@ -4,13 +4,16 @@ import { Frame } from './Frame.js';
 import { FieldLabel } from './FieldLabel.js';
 import { NAV_GAP, NavRow } from './NavRow.js';
 import { AdminUsers } from './AdminUsers.js';
+import { AdminOverview } from './AdminOverview.js';
 import { AdminOrganizations, AdminAgents } from './AdminLists.js';
 import { type Selection } from './selection.js';
 import { routeHash } from '../route.js';
 
-export type AdminSelection = { kind: 'admin' } | { kind: 'admin-organizations' } | { kind: 'admin-agents' };
+export type AdminSelection = { kind: 'admin' } | { kind: 'admin-users' } | { kind: 'admin-organizations' } | { kind: 'admin-agents' };
 
-export const isAdminSelection = (s: Selection): s is AdminSelection => s.kind === 'admin' || s.kind === 'admin-organizations' || s.kind === 'admin-agents';
+const ADMIN_KINDS = new Set<Selection['kind']>(['admin', 'admin-users', 'admin-organizations', 'admin-agents']);
+
+export const isAdminSelection = (s: Selection): s is AdminSelection => ADMIN_KINDS.has(s.kind);
 
 function AdminSidebar({ selection, onSelect }: { selection: AdminSelection; onSelect: (next: Selection) => void }): ReactNode {
   return (
@@ -19,7 +22,8 @@ function AdminSidebar({ selection, onSelect }: { selection: AdminSelection; onSe
         <Row padding={{ bottom: 2 }}>
           <FieldLabel>Admin</FieldLabel>
         </Row>
-        <NavRow label="Users" icon="users" selected={selection.kind === 'admin'} target={{ kind: 'admin' }} onSelect={onSelect} />
+        <NavRow label="Overview" icon="chartBar" selected={selection.kind === 'admin'} target={{ kind: 'admin' }} onSelect={onSelect} />
+        <NavRow label="Users" icon="users" selected={selection.kind === 'admin-users'} target={{ kind: 'admin-users' }} onSelect={onSelect} />
         <NavRow label="Organizations" icon="officeBuilding" selected={selection.kind === 'admin-organizations'} target={{ kind: 'admin-organizations' }} onSelect={onSelect} />
         <NavRow label="Agents" icon="server" selected={selection.kind === 'admin-agents'} target={{ kind: 'admin-agents' }} onSelect={onSelect} />
       </Col>
@@ -30,7 +34,8 @@ function AdminSidebar({ selection, onSelect }: { selection: AdminSelection; onSe
 function AdminPage({ selection }: { selection: AdminSelection }): ReactNode {
   if (selection.kind === 'admin-organizations') return <AdminOrganizations />;
   if (selection.kind === 'admin-agents') return <AdminAgents />;
-  return <AdminUsers />;
+  if (selection.kind === 'admin-users') return <AdminUsers />;
+  return <AdminOverview />;
 }
 
 export function AdminArea({ selection, onLock }: { selection: AdminSelection; onLock: () => void }): ReactNode {
