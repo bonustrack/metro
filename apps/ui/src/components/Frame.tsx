@@ -9,10 +9,11 @@ interface FrameProps {
   selection: Selection;
   flush?: boolean;
   sidebar: (closeMenu: () => void) => ReactNode;
+  onLock: () => void;
   children: ReactNode;
 }
 
-export function Frame({ selection, flush = false, sidebar, children }: FrameProps): ReactNode {
+export function Frame({ selection, flush = false, sidebar, onLock, children }: FrameProps): ReactNode {
   const narrow = useIsNarrow();
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -31,7 +32,7 @@ export function Frame({ selection, flush = false, sidebar, children }: FrameProp
         setMenuOpen(true);
       }}
       onCloseMenu={closeMenu}
-      rail={<ServerRail selection={selection} />}
+      rail={<ServerRail selection={selection} onLock={onLock} />}
       sidebar={sidebar(closeMenu)}
     >
       {children}

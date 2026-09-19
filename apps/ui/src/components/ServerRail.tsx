@@ -1,11 +1,13 @@
 import { type ReactNode } from 'react';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AgentAvatar } from './AgentAvatar.js';
+import { Dropdown } from './Dropdown.js';
 import { MetroLogo } from './MetroLogo.js';
 import { StatusDot } from './StatusDot.js';
 import { opensElsewhere } from './link.js';
 import { serverLabel, type Server } from '../api/servers.js';
 import { useServersQuery } from '../api/queries.js';
+import { activeAccount } from '../auth/account.js';
 import { currentServer } from '../auth/daemon.js';
 import { routeHash } from '../route.js';
 import { sameViewOn, type Selection } from './selection.js';
@@ -50,7 +52,33 @@ function RailTip({ label }: { label: string }): ReactNode {
   );
 }
 
-export function ServerRail({ selection }: { selection: Selection }): ReactNode {
+function RailAccount({ onLock }: { onLock: () => void }): ReactNode {
+  const account = activeAccount();
+  const label = account?.user.name ?? account?.user.email ?? 'Account';
+  return (
+    <Dropdown
+      className="rail-account"
+      label="Account menu"
+      align="start"
+      items={[
+        {
+          label: 'Settings',
+          onSelect: () => {
+            window.location.hash = routeHash({ kind: 'settings' });
+          },
+        },
+        { label: 'Log out', danger: true, onSelect: onLock },
+      ]}
+    >
+      <span className="rail-avatar">
+        <AgentAvatar seed={account?.user.id ?? 'account'} src={account?.user.picture ?? null} size={AVATAR} />
+      </span>
+      <RailTip label={label} />
+    </Dropdown>
+  );
+}
+
+export function ServerRail({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   const palette = useKitPalette();
   const { data } = useServersQuery();
   const here = currentServer();
@@ -65,6 +93,7 @@ export function ServerRail({ selection }: { selection: Selection }): ReactNode {
           <RailItem key={server.id} server={server} selected={server.id === here?.id} selection={selection} />
         ))}
       </div>
+      <RailAccount onLock={onLock} />
     </nav>
   );
 }

@@ -3,7 +3,6 @@ import { ScrollView } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { NAV_GAP, NavRow } from './NavRow.js';
 import { OrganizationSwitcher } from './OrganizationSwitcher.js';
-import { SidebarFooter } from './SidebarFooter.js';
 import { FieldLabel } from './FieldLabel.js';
 import { type Selection } from './selection.js';
 
@@ -17,12 +16,10 @@ const SKILL_PAGES: Selection['kind'][] = ['skills', 'skill'];
 interface AgentSidebarProps {
   project: string;
   selection: Selection;
-  subject: string;
   onSelect: (selection: Selection) => void;
-  onLock: () => void;
 }
 
-export function AgentSidebar({ project, selection, subject, onSelect, onLock }: AgentSidebarProps): ReactNode {
+export function AgentSidebar({ project, selection, onSelect }: AgentSidebarProps): ReactNode {
   const home: Selection = { kind: 'home', project };
   return (
     <Col flex={1} minHeight={0}>
@@ -56,7 +53,6 @@ export function AgentSidebar({ project, selection, subject, onSelect, onLock }: 
           </Col>
         </Col>
       </ScrollView>
-      <SidebarFooter subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />
     </Col>
   );
 }

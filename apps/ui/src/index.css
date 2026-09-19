@@ -180,8 +180,34 @@ body {
 }
 
 .rail-item:hover .rail-tip,
-.rail-logo:hover .rail-tip {
+.rail-logo:hover .rail-tip,
+.rail-account:hover .rail-tip {
   display: flex;
+}
+
+.rail-account {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: auto 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rail-account:hover .rail-avatar {
+  border-radius: 10px;
+}
+
+.rail-account:active {
+  opacity: 0.6;
 }
 
 .hidden-input {
@@ -534,23 +560,6 @@ textarea:focus-visible {
 
 .kebab:hover {
   background: var(--metro-surface);
-}
-
-.account-trigger {
-  display: block;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.account-trigger:active {
-  opacity: 0.6;
 }
 
 .kebab-backdrop {

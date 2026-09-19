@@ -13,7 +13,6 @@ import { PlainSidebar } from './PlainSidebar.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { fetchOrganization, inviteMember, removeMember, revokeInvitation, setMemberRole, type Invitation, type Member, type Organization, type Role } from '../api/organization.js';
 import { queryError } from '../api/queries.js';
-import { activeAccount } from '../auth/account.js';
 import { routeHash } from '../route.js';
 import { useDocumentTitle } from '../title.js';
 import { GROW, SHRINK } from '../theme.js';
@@ -155,7 +154,6 @@ function Body(): ReactNode {
 }
 
 export function Members({ onLock }: { onLock: () => void }): ReactNode {
-  const subject = activeAccount()?.user.id ?? '';
   useDocumentTitle('Members');
   return (
     <Frame
@@ -163,14 +161,13 @@ export function Members({ onLock }: { onLock: () => void }): ReactNode {
       sidebar={(closeMenu) => (
         <PlainSidebar
           selection={{ kind: 'members' }}
-          subject={subject}
           onSelect={(next) => {
             closeMenu();
             window.location.hash = routeHash(next);
           }}
-          onLock={onLock}
         />
       )}
+      onLock={onLock}
     >
       <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
         <PageTitle>Members</PageTitle>

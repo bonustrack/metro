@@ -17,7 +17,6 @@ import { awaitLive, startDaemon } from '../api/control.js';
 import { queryError, refreshServers, refreshServerStatus, useServersQuery, useServerStatus } from '../api/queries.js';
 import { StatusDot } from './StatusDot.js';
 import { baseFromSegment } from '../auth/daemon.js';
-import { activeAccount } from '../auth/account.js';
 import { routeHash } from '../route.js';
 import { useDocumentTitle } from '../title.js';
 import { useBootingState } from '../aws/use-launch.js';
@@ -175,7 +174,6 @@ function Body({ onBootLog }: { onBootLog: (s: Server) => void }): ReactNode {
 export function Servers({ onLock }: { onLock: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [logOf, setLogOf] = useState<Server | null>(null);
-  const subject = activeAccount()?.user.id ?? '';
   useDocumentTitle('Agents');
   return (
     <Frame
@@ -183,14 +181,13 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
       sidebar={(closeMenu) => (
         <PlainSidebar
           selection={{ kind: 'servers' }}
-          subject={subject}
           onSelect={(next) => {
             closeMenu();
             window.location.hash = routeHash(next);
           }}
-          onLock={onLock}
         />
       )}
+      onLock={onLock}
     >
       <Col gap={20} width="100%">
         <ListHeader

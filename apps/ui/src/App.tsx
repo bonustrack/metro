@@ -89,7 +89,7 @@ function Gate({ onLock }: { onLock: () => void }): ReactNode {
       />
     );
   if (subject === undefined) return <BootLoading />;
-  return <Dashboard subject={subject} onLock={onLock} />;
+  return <Dashboard onLock={onLock} />;
 }
 
 function HostRedirect({ host }: { host: string }): ReactNode {

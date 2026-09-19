@@ -4,14 +4,12 @@ import { PageTitle } from './PageTitle.js';
 import { Frame } from './Frame.js';
 import { PlainSidebar } from './PlainSidebar.js';
 import { OrganizationSettings } from './OrganizationSettings.js';
-import { activeAccount } from '../auth/account.js';
 import { routeHash } from '../route.js';
 import { useDocumentTitle } from '../title.js';
 
 const PAGE_WIDTH = 640;
 
 export function Organization({ onLock }: { onLock: () => void }): ReactNode {
-  const subject = activeAccount()?.user.id ?? '';
   useDocumentTitle('Organization');
   return (
     <Frame
@@ -19,14 +17,13 @@ export function Organization({ onLock }: { onLock: () => void }): ReactNode {
       sidebar={(closeMenu) => (
         <PlainSidebar
           selection={{ kind: 'organization' }}
-          subject={subject}
           onSelect={(next) => {
             closeMenu();
             window.location.hash = routeHash(next);
           }}
-          onLock={onLock}
         />
       )}
+      onLock={onLock}
     >
       <Col gap={20} width="100%" maxWidth={PAGE_WIDTH}>
         <PageTitle>Organization</PageTitle>

@@ -8,13 +8,12 @@ import { currentServer, storeDaemon, baseFromSegment, storedServerId, storeServe
 
 interface FramedProps {
   project: string;
-  subject: string;
   selection: Selection;
   onSelect: (next: Selection) => void;
   onLock: () => void;
 }
 
-function Framed({ project, subject, selection, onSelect, onLock }: FramedProps): ReactNode {
+function Framed({ project, selection, onSelect, onLock }: FramedProps): ReactNode {
   return (
     <Frame
       selection={selection}
@@ -23,14 +22,13 @@ function Framed({ project, subject, selection, onSelect, onLock }: FramedProps):
         <AgentSidebar
           project={project}
           selection={selection}
-          subject={subject}
           onSelect={(next) => {
             closeMenu();
             onSelect(next);
           }}
-          onLock={onLock}
         />
       )}
+      onLock={onLock}
     >
       <AgentPanel selection={selection} onSelect={onSelect} />
     </Frame>
@@ -38,11 +36,10 @@ function Framed({ project, subject, selection, onSelect, onLock }: FramedProps):
 }
 
 interface DashboardProps {
-  subject: string;
   onLock: () => void;
 }
 
-export function Dashboard({ subject, onLock }: DashboardProps): ReactNode {
+export function Dashboard({ onLock }: DashboardProps): ReactNode {
   const [selection, setSelection] = useState<Selection>(currentSelection);
   const hash = routeHash(selection);
 
@@ -67,5 +64,5 @@ export function Dashboard({ subject, onLock }: DashboardProps): ReactNode {
   }, [routed]);
 
   if (project === null) return null;
-  return <Framed project={project} subject={subject} selection={selection} onSelect={onSelect} onLock={onLock} />;
+  return <Framed project={project} selection={selection} onSelect={onSelect} onLock={onLock} />;
 }
