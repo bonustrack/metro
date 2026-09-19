@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { AgentAvatar } from './AgentAvatar.js';
 import { Dropdown } from './Dropdown.js';
-import { NAV_GAP, NAV_ICON_SIZE, NAV_ROW_BOX, NavRow } from './NavRow.js';
+import { NAV_GAP, NAV_ICON_SIZE, NAV_ROW_BOX } from './NavRow.js';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { type Selection } from './selection.js';
@@ -15,12 +15,11 @@ interface SidebarFooterProps {
   onLock: () => void;
 }
 
-export function SidebarFooter({ subject, selection, onSelect, onLock }: SidebarFooterProps): ReactNode {
+export function SidebarFooter({ subject, onSelect, onLock }: SidebarFooterProps): ReactNode {
   const account = activeAccount();
   const label = account?.user.name ?? account?.user.email ?? subject;
   return (
     <Col gap={NAV_GAP} padding={{ x: 24, bottom: 24, top: 16 }}>
-      <NavRow label="Documentation" icon="bookOpen" selected={selection.kind === 'docs'} target={{ kind: 'docs' }} onSelect={onSelect} />
       <Dropdown
         className="account-trigger"
         label="Account menu"

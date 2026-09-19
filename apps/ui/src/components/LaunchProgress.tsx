@@ -83,7 +83,7 @@ function Actions({ launched, live }: { launched: Launched; live: boolean }): Rea
           dark={dark}
           label="Open it"
           onPress={() => {
-            window.location.hash = `#/${launched.server.id}`;
+            window.location.hash = routeHash({ kind: 'home', project: launched.server.id });
           }}
         />
       ) : null}

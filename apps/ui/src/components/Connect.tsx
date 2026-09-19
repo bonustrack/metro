@@ -20,7 +20,7 @@ const HINT =
 
 async function switchTo(base: string): Promise<void> {
   const server = await addServer(segmentOf(base));
-  window.location.hash = `#/${server.id}`;
+  window.location.hash = routeHash({ kind: 'home', project: server.id });
 }
 
 export function Connect(): ReactNode {
