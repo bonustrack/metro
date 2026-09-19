@@ -5,6 +5,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './components/ui.js';
 import { Landing, Login } from './components/Login.js';
+import { AdminArea, isAdminSelection } from './components/AdminArea.js';
 import { Connect } from './components/Connect.js';
 import { LaunchServer } from './components/LaunchServer.js';
 import { BootLoading } from './components/BootLoading.js';
@@ -16,7 +17,7 @@ import { makeQueryClient, refreshServers, useServersQuery, useSessionQuery } fro
 import { AuthError, StoppedError } from './api/client.js';
 import { StoppedNotice } from './components/StoppedNotice.js';
 import { addServer } from './api/servers.js';
-import { atLanding, atLogin, atSignup, goToLanding, goToLogin, leaveLogin } from './auth/login-route.js';
+import { atLanding, atLogin, atWaitlist, goToLanding, goToLogin, leaveLogin } from './auth/login-route.js';
 import { currentSelection, routeHash, subscribeRoute } from './route.js';
 import { pageTitle } from './title.js';
 import { activeAccount, loadAccount } from './auth/account.js';
@@ -189,7 +190,7 @@ function OrganizationGate({ selection, onLock, children }: { selection: Selectio
   return children;
 }
 
-const GLOBAL_KINDS = new Set<Selection['kind']>(['docs', 'settings', 'admin']);
+const GLOBAL_KINDS = new Set<Selection['kind']>(['docs', 'settings', 'admin', 'admin-organizations', 'admin-agents']);
 
 function Unlocked({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   return (
@@ -200,6 +201,7 @@ function Unlocked({ selection, onLock }: { selection: Selection; onLock: () => v
 }
 
 function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
+  if (isAdminSelection(selection)) return <AdminArea selection={selection} onLock={onLock} />;
   if (selection.kind === 'connect') return <Connect />;
   if (selection.kind === 'launch') return <LaunchServer />;
   if (selection.kind === 'members') return <Members onLock={onLock} />;
@@ -243,7 +245,7 @@ export function App(): ReactNode {
     if (phase === 'login') {
       client.clear();
       goToLogin();
-      document.title = pageTitle(atLanding() ? null : atSignup() ? 'Sign up' : 'Log in');
+      document.title = pageTitle(atLanding() ? null : atWaitlist() ? 'Waitlist' : 'Log in');
     } else if (phase === 'unlocked' && atLogin()) leaveLogin();
   }, [phase, client, selection]);
 

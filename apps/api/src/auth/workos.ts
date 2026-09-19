@@ -280,6 +280,23 @@ export async function userOrganizations(cfg: WorkosConfig, userId: string): Prom
   return out;
 }
 
+export interface OrganizationSummary {
+  id: string;
+  name: string | null;
+  createdAt: string | null;
+}
+
+export async function listOrganizations(cfg: WorkosConfig): Promise<OrganizationSummary[]> {
+  const answer = await request(cfg, 'GET', `/organizations?${LIST}`);
+  return rows(answer).flatMap((o) => {
+    const id = str(o.id);
+    if (id === null) return [];
+    const name = str(o.name);
+    if (name !== null) names.set(id, name);
+    return [{ id, name, createdAt: str(o.created_at) }];
+  });
+}
+
 export async function createOrganization(cfg: WorkosConfig, name: string): Promise<string> {
   const id = str((await api(cfg, '/organizations', { name })).id);
   if (id === null) throw new WorkosError('WorkOS created the organization without an id', null, 502);

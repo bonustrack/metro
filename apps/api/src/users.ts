@@ -8,9 +8,13 @@ export interface UserLogin {
   createdAt: string | null;
 }
 
+export type UserStatus = 'approved' | 'waitlist' | 'rejected';
+export const isUserStatus = (v: unknown): v is UserStatus => v === 'approved' || v === 'waitlist' || v === 'rejected';
+
 export interface UserRecord extends UserLogin {
   avatar: string | null;
   lastLoginAt: string | null;
+  status: UserStatus | null;
 }
 
 export interface UserStore {
@@ -20,6 +24,7 @@ export interface UserStore {
   noteLogin: (user: UserLogin, at: string) => Promise<void>;
   find: (user: string) => Promise<UserRecord | null>;
   list: () => Promise<UserRecord[]>;
+  setStatus: (user: string, status: UserStatus) => Promise<void>;
 }
 
 const NAME_MAX = 80;

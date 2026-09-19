@@ -8,7 +8,7 @@ import { validateReturnTo } from '@metro-labs/http/return-to';
 import type { SlugStore } from '../slug.js';
 import { parseAccountName, type UserStore } from '../users.js';
 import { AVATAR_BODY_MAX, parseAvatar } from '../avatar.js';
-import { listUsers } from './operator.js';
+import { admit, stillIn, type Intent } from './operator.js';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import {
   addMembership,
@@ -47,7 +47,12 @@ interface Pending<T> {
   at: number;
 }
 
-const states = new Map<string, Pending<string>>();
+interface Started {
+  returnTo: string;
+  intent: Intent;
+}
+
+const states = new Map<string, Pending<Started>>();
 const handoffs = new Map<string, Pending<Tokens>>();
 
 const token = (): string => randomBytes(32).toString('base64url');
@@ -105,7 +110,7 @@ async function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDep
   const now = (deps.now ?? Date.now)();
   prune(states, STATE_TTL_MS, now);
   const state = token();
-  states.set(state, { value: returnTo, at: now });
+  states.set(state, { value: { returnTo, intent: query.get('intent') === 'waitlist' ? 'waitlist' : 'login' }, at: now });
   redirect(res, authorizationUrl(cfg, provider, callbackUri(req, deps), state));
 }
 
@@ -115,13 +120,21 @@ function refusal(query: URLSearchParams): string | null {
   return query.get('code') === null ? 'the sign-in was cancelled' : null;
 }
 
-async function handoffFor(cfg: WorkosConfig, code: string, now: number): Promise<string> {
-  const tokens = await exchangeCode(cfg, code);
+function handoffFor(tokens: Tokens, now: number): string {
   prune(handoffs, HANDOFF_TTL_MS, now);
   const handoff = token();
   handoffs.set(handoff, { value: tokens, at: now });
   log.info({ user: tokens.user.id, organization: tokens.organization }, 'auth: signed in');
   return handoff;
+}
+
+async function landing(cfg: WorkosConfig, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
+  const tokens = await exchangeCode(cfg, code);
+  const verdict = await admit(deps.users, tokens, started.intent, new Date(now).toISOString());
+  if (verdict.kind === 'in') return `#/auth/${handoffFor(tokens, now)}`;
+  log.info({ user: tokens.user.id, intent: started.intent, verdict: verdict.kind }, 'auth: not let in');
+  if (verdict.kind === 'waiting') return '#/waitlist?joined=1';
+  return `#/login?error=${encodeURIComponent(verdict.reason)}`;
 }
 
 const UNVERIFIED = 'That account has no verified email address, so Metro cannot accept it. Log in with Google or GitHub, or use an account whose address is verified.';
@@ -135,15 +148,16 @@ async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearch
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
   const now = (deps.now ?? Date.now)();
-  const returnTo = take(states, query.get('state') ?? '', STATE_TTL_MS, now);
-  if (returnTo === null) throw new ApiError('this sign-in link is stale, start again', 400);
+  const started = take(states, query.get('state') ?? '', STATE_TTL_MS, now);
+  if (started === null) throw new ApiError('this sign-in link is stale, start again', 400);
+  const returnTo = started.returnTo;
   const refused = refusal(query);
   if (refused !== null) {
     redirect(res, withHash(returnTo, `#/login?error=${encodeURIComponent(refused)}`));
     return;
   }
   try {
-    redirect(res, withHash(returnTo, `#/auth/${await handoffFor(cfg, query.get('code') ?? '', now)}`));
+    redirect(res, withHash(returnTo, await landing(cfg, deps, started, query.get('code') ?? '', now)));
   } catch (err) {
     log.warn({ err: errMsg(err) }, 'auth: the code exchange failed');
     redirect(res, withHash(returnTo, `#/login?error=${encodeURIComponent(exchangeRefusal(err))}`));
@@ -182,12 +196,10 @@ async function updateAccount(req: IncomingMessage, session: Session, deps: AuthA
 async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
   const body = await readJsonBody(req);
   const code = isRecord(body) && typeof body.code === 'string' ? body.code : '';
-  const now = (deps.now ?? Date.now)();
-  const tokens = take(handoffs, code, HANDOFF_TTL_MS, now);
+  const tokens = take(handoffs, code, HANDOFF_TTL_MS, (deps.now ?? Date.now)());
   if (tokens === null) throw new ApiError('that sign-in has already been used or has expired', 404);
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-  await deps.users.noteLogin(tokens.user, new Date(now).toISOString());
   return tokensPayload(tokens, cfg, deps);
 }
 
@@ -198,7 +210,9 @@ async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown
   const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
   if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
   try {
-    return await tokensPayload(await refreshTokens(cfg, refreshToken), cfg, deps);
+    const fresh = await refreshTokens(cfg, refreshToken);
+    if (!(await stillIn(deps.users, fresh))) throw new ApiError('this account is not on Metro any more', 401);
+    return await tokensPayload(fresh, cfg, deps);
   } catch (err) {
     if (err instanceof WorkosError) throw new ApiError(err.status === 401 ? 'the session has ended, sign in again' : err.message, err.status);
     throw err;
@@ -273,7 +287,6 @@ const PRIVATE: Record<string, PrivateRoute> = {
   },
   '/switch': { method: 'POST', run: (req, deps, session) => switchOrg(req, session, deps) },
   '/account': { method: 'PUT', run: (req, deps, session) => updateAccount(req, session, deps) },
-  '/users': { method: 'GET', run: (_req, deps, session) => listUsers(deps.users, session) },
 };
 
 async function navigation(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, path: string, query: URLSearchParams): Promise<boolean> {

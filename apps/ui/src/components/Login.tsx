@@ -6,8 +6,8 @@ import { LOGO_ASPECT, MetroLogo } from './MetroLogo.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
-import { atSignup } from '../auth/login-route.js';
-import { loginUrl, PROVIDERS, type Provider } from '../api/auth.js';
+import { atWaitlist, joinedWaitlist } from '../auth/login-route.js';
+import { loginUrl, PROVIDERS, type Intent, type Provider } from '../api/auth.js';
 
 const CONTENT_WIDTH = 340;
 const CARD_PAD = 24;
@@ -24,7 +24,9 @@ const ABOUT = 'Your agents, on your machines, in every chat you use. Your keys s
 const CENTER_TEXT = { textAlign: 'center' } as const;
 const LOGO_WIDTH = 64;
 const LOGO_SIZE = Math.round(LOGO_WIDTH / LOGO_ASPECT);
-const SIGNUP_HASH = '#/signup';
+const WAITLIST_HASH = '#/waitlist';
+const WAITLIST_TITLE = 'Join the waitlist';
+const JOINED = 'You are on the waitlist. We will let you in soon, and you can then log in with the same account.';
 const LOGIN_HASH = '#/login';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
 
@@ -48,7 +50,7 @@ function providerMark(provider: Provider, onButton: string): ReactNode {
   return <Row padding={{ right: ICON_GAP_EXTRA }}>{mark}</Row>;
 }
 
-function ProviderButtons(): ReactNode {
+function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const onButton = useKitPalette().bg;
   return (
@@ -63,7 +65,7 @@ function ProviderButtons(): ReactNode {
           icon={providerMark(provider, onButton)}
           style={FULL_WIDTH}
           onPress={() => {
-            window.location.assign(loginUrl(provider));
+            window.location.assign(loginUrl(provider, intent));
           }}
         />
       ))}
@@ -128,8 +130,17 @@ function DaemonHint(): ReactNode {
 
 export function Login(): ReactNode {
   const failed = loginError();
+  const waitlist = atWaitlist();
+  if (joinedWaitlist())
+    return (
+      <Frame title={WAITLIST_TITLE}>
+        <Text size="md" style={CENTER_TEXT}>
+          {JOINED}
+        </Text>
+      </Frame>
+    );
   return (
-    <Frame title={atSignup() ? 'Sign up' : 'Log in'}>
+    <Frame title={waitlist ? WAITLIST_TITLE : 'Log in'}>
       <DaemonHint />
       {failed === null ? null : (
         <Text size="sm" role="danger">
@@ -137,7 +148,7 @@ export function Login(): ReactNode {
         </Text>
       )}
       <Col padding={{ top: BUTTONS_TOP }}>
-        <ProviderButtons />
+        <ProviderButtons intent={waitlist ? 'waitlist' : 'login'} />
       </Col>
     </Frame>
   );
@@ -153,10 +164,10 @@ export function Landing(): ReactNode {
           size="lg"
           color="primary"
           dark={dark}
-          label="Sign up"
+          label="Join waitlist"
           style={FULL_WIDTH}
           onPress={() => {
-            window.location.hash = SIGNUP_HASH;
+            window.location.hash = WAITLIST_HASH;
           }}
         />
         <Button

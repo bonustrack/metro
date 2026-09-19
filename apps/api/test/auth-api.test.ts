@@ -48,8 +48,8 @@ interface TokenBody {
   user: { id: string; email: string; name: string; picture: string };
 }
 
-async function handoffFromGoogle(): Promise<string> {
-  const start = await fetch(`${base}/api/auth/login?provider=google&return_to=${encodeURIComponent('https://metro.box/')}`, { redirect: 'manual' });
+async function landAfterGoogle(intent: 'login' | 'waitlist' | null = null): Promise<string> {
+  const start = await fetch(`${base}/api/auth/login?provider=google&return_to=${encodeURIComponent('https://metro.box/')}${intent === null ? '' : `&intent=${intent}`}`, { redirect: 'manual' });
   expect(start.status).toBe(302);
   const toGoogle = new URL(start.headers.get('location') ?? '');
   expect(toGoogle.searchParams.get('provider')).toBe('GoogleOAuth');
@@ -59,8 +59,13 @@ async function handoffFromGoogle(): Promise<string> {
   expect(back.status).toBe(302);
   const landed = new URL(back.headers.get('location') ?? '');
   expect(landed.origin).toBe('https://metro.box');
-  const handoff = /^#\/auth\/(.+)$/.exec(landed.hash)?.[1];
-  if (handoff === undefined) throw new Error(`no handoff in ${landed.hash}`);
+  return landed.hash;
+}
+
+async function handoffFromGoogle(): Promise<string> {
+  const hash = await landAfterGoogle();
+  const handoff = /^#\/auth\/(.+)$/.exec(hash)?.[1];
+  if (handoff === undefined) throw new Error(`no handoff in ${hash}`);
   return handoff;
 }
 
@@ -87,21 +92,36 @@ describe('signing in to metro.box through WorkOS', () => {
     expect(back.user).toMatchObject({ name: 'Stage Labs', picture: 'https://pic.example/a.png' });
   });
 
-  test('every sign-in is recorded in users with the sign-up and last log-in dates, and only the operator may list them', async () => {
-    const tokens = await signIn();
-    const me = deps.users.find('user_01ABC');
-    expect(await me).toMatchObject({ email: 'admin@stage.box', name: 'Stage Labs', picture: 'https://pic.example/a.png', createdAt: '2026-09-01T10:00:00.000Z' });
-    const first = (await deps.users.find('user_01ABC'))?.lastLoginAt ?? '';
-    expect(Date.parse(first)).toBeGreaterThan(0);
-    await deps.users.noteLogin({ id: 'user_02BOB', email: 'bob@stage.box', name: 'Bob', picture: null, createdAt: null }, '2026-09-03T00:00:00.000Z');
-    const bob = workos.issuer.mint(sessionClaims({ sub: 'user_02BOB' }));
-    expect((await json('GET', '/api/auth/users', undefined, bob)).status).toBe(403);
-    expect((await json('GET', '/api/auth/users')).status).toBe(401);
-    const listed = await json('GET', '/api/auth/users', undefined, tokens.accessToken);
-    expect(listed.status).toBe(200);
-    const body = (await listed.json()) as { users: { id: string; email: string; createdAt: string; lastLoginAt: string }[] };
-    expect(body.users.map((u) => u.id)).toEqual(['user_01ABC', 'user_02BOB']);
-    expect(body.users[1]).toMatchObject({ email: 'bob@stage.box', createdAt: '2026-09-03T00:00:00.000Z', lastLoginAt: '2026-09-03T00:00:00.000Z' });
+  test('a stranger who logs in is turned away, one who joins the waitlist is recorded as waiting, and an invited or approved one is let in', async () => {
+    const before = workos.organizations.splice(0);
+    workos.actor.sub = 'user_02BOB';
+    try {
+      const turned = await landAfterGoogle('login');
+      expect(turned).toBe(`#/login?error=${encodeURIComponent('No Metro account for this email yet. Join the waitlist first.')}`);
+      expect(await deps.users.find('user_02BOB')).toMatchObject({ email: 'bob@stage.box', createdAt: '2026-09-02T10:00:00.000Z', status: null });
+      expect(await landAfterGoogle('waitlist')).toBe('#/waitlist?joined=1');
+      expect((await deps.users.find('user_02BOB'))?.status).toBe('waitlist');
+      expect(await landAfterGoogle('login')).toBe(`#/login?error=${encodeURIComponent('You are on the waitlist already. We will let you in soon.')}`);
+      await deps.users.setStatus('user_02BOB', 'rejected');
+      expect(await landAfterGoogle('waitlist')).toBe(`#/login?error=${encodeURIComponent('Metro is not open to this account.')}`);
+      await deps.users.setStatus('user_02BOB', 'approved');
+      const tokens = await signIn();
+      expect(tokens.user.id).toBe('user_02BOB');
+      await deps.users.setStatus('user_02BOB', 'rejected');
+      expect((await json('POST', '/api/auth/refresh', { refreshToken: tokens.refreshToken })).status).toBe(401);
+      workos.organizations.push('org_01INVITED00000');
+      await deps.users.setStatus('user_02BOB', 'waitlist');
+      expect(await landAfterGoogle('login')).toMatch(/^#\/auth\//);
+      expect((await deps.users.find('user_02BOB'))?.status).toBe('approved');
+    } finally {
+      workos.organizations.splice(0, workos.organizations.length, ...before);
+      workos.actor.sub = 'user_01ABC';
+    }
+  });
+
+  test('the operator is recorded with the sign-up date WorkOS holds, and the date is kept on the next sign-in', async () => {
+    await signIn();
+    expect(await deps.users.find('user_01ABC')).toMatchObject({ email: 'admin@stage.box', name: 'Stage Labs', createdAt: '2026-09-01T10:00:00.000Z', status: 'approved' });
     await signIn();
     expect((await deps.users.find('user_01ABC'))?.createdAt).toBe('2026-09-01T10:00:00.000Z');
   });

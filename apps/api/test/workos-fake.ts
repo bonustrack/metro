@@ -30,7 +30,7 @@ async function body(req: import('node:http').IncomingMessage): Promise<Record<st
 export async function fakeWorkos(): Promise<FakeWorkos> {
   const issuer = await fakeIssuer();
   const calls: FakeWorkos['calls'] = [];
-  const codes = new Map<string, { organization: string | null }>();
+  const codes = new Map<string, { organization: string | null; sub: string }>();
   const organizations: string[] = [];
   const enabled = new Set<string>(['GoogleOAuth']);
   const members: FakeWorkos['members'] = [{ id: 'om_admin', user_id: 'user_01ABC', role: 'admin' }, { id: 'om_bob', user_id: 'user_02BOB', role: 'member' }];
@@ -40,15 +40,21 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     { id: 'user_02BOB', email: 'bob@stage.box', first_name: 'Bob', last_name: null as string | null, profile_picture_url: null as string | null, created_at: '2026-09-02T10:00:00.000Z' },
   ];
   let refreshCount = 0;
+  const holders = new Map<string, string>();
   const outage = { on: false };
   const selection = { on: false };
+  const actor = { sub: 'user_01ABC' };
   let orgName = 'Stage Labs';
-  const tokens = (organization: string | null, sub = 'user_01ABC'): Record<string, unknown> => ({
-    user: USERS.find((u) => u.id === sub) ?? { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
-    organization_id: organization,
-    access_token: issuer.mint(sessionClaims({ sub, org_id: organization ?? undefined, role: organization === null ? undefined : 'admin' })),
-    refresh_token: `rt_${String(++refreshCount)}`,
-  });
+  const tokens = (organization: string | null, sub = 'user_01ABC'): Record<string, unknown> => {
+    const refresh = `rt_${String(++refreshCount)}`;
+    holders.set(refresh, sub);
+    return {
+      user: USERS.find((u) => u.id === sub) ?? { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
+      organization_id: organization,
+      access_token: issuer.mint(sessionClaims({ sub, org_id: organization ?? undefined, role: organization === null ? undefined : 'admin' })),
+      refresh_token: refresh,
+    };
+  };
   const server: Server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
     const send = (status: number, payload: unknown): void => {
@@ -65,8 +71,12 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
         return;
       }
       const code = `code_${String(codes.size + 1)}`;
-      codes.set(code, { organization: organizations[0] ?? null });
+      codes.set(code, { organization: organizations[0] ?? null, sub: actor.sub });
       res.writeHead(302, { location: `${url.searchParams.get('redirect_uri') ?? ''}?code=${code}&state=${url.searchParams.get('state') ?? ''}` }).end();
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/organizations') {
+      send(200, { data: organizations.map((id, i) => ({ id, name: i === 0 ? orgName : `Org ${String(i + 1)}`, created_at: '2026-09-10T00:00:00.000Z' })) });
       return;
     }
     if (req.method === 'GET' && url.pathname.startsWith('/organizations/')) {
@@ -113,7 +123,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
                 pending_authentication_token: 'pat_select',
                 organizations: organizations.map((id) => ({ id, name: 'Org' })),
               });
-            return send(200, tokens(known.organization));
+            return send(200, tokens(known.organization, known.sub));
           }
           if (parsed.grant_type === 'urn:workos:oauth:grant-type:organization-selection') {
             if (parsed.pending_authentication_token !== 'pat_select') return send(400, { code: 'invalid_grant', message: 'bad pending token' });
@@ -121,7 +131,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
           }
           if (parsed.grant_type === 'refresh_token') {
             if (String(parsed.refresh_token) === 'rt_dead') return send(400, { code: 'invalid_grant', message: 'refresh token revoked' });
-            return send(200, tokens(typeof parsed.organization_id === 'string' ? parsed.organization_id : organizations[0] ?? null));
+            return send(200, tokens(typeof parsed.organization_id === 'string' ? parsed.organization_id : organizations[0] ?? null, holders.get(String(parsed.refresh_token))));
           }
           return send(400, { code: 'invalid_grant', message: 'unknown grant' });
         }
@@ -181,6 +191,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     invitations,
     outage,
     selection,
+    actor,
     close: async () => {
       await issuer.close();
       await new Promise<void>((r) => {

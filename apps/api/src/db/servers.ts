@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { getDb } from './client.js';
@@ -78,6 +78,24 @@ async function withSlug(owner: string, row: Row): Promise<Row> {
   const slug = await freeSlug(owner, row.name ?? row.host);
   await getDb().update(agents).set({ slug }).where(and(eq(agents.id, row.id), eq(agents.owner, owner)));
   return { ...row, slug };
+}
+
+export interface AgentSummary {
+  id: string;
+  owner: string;
+  host: string;
+  name: string | null;
+  slug: string | null;
+  addedAt: string;
+  avatar: string | null;
+}
+
+export async function listAllServers(): Promise<AgentSummary[]> {
+  const rows = await getDb()
+    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, slug: agents.slug, addedAt: agents.addedAt, avatar: agents.avatar })
+    .from(agents)
+    .orderBy(desc(agents.addedAt));
+  return rows.map((r) => ({ ...r, avatar: r.avatar?.startsWith('data:image/png;base64,') === true ? r.avatar : null }));
 }
 
 export async function listServersForOwner(subject: string): Promise<ServerEntry[]> {

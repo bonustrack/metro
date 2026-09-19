@@ -3,7 +3,7 @@ import { routedDaemon, storeDaemon } from './daemon.js';
 const LOGIN_HASH = '#/login';
 
 const LOGIN_ROUTE = '/login';
-const SIGNUP_ROUTE = '/signup';
+const WAITLIST_ROUTE = '/waitlist';
 const LANDING_HASH = '#/';
 const STORE_KEY = 'metro.redirect';
 
@@ -19,10 +19,12 @@ function hashParts(): { route: string; query: URLSearchParams } {
 
 export function atLogin(): boolean {
   const { route } = hashParts();
-  return route === LOGIN_ROUTE || route === SIGNUP_ROUTE;
+  return route === LOGIN_ROUTE || route === WAITLIST_ROUTE;
 }
 
-export const atSignup = (): boolean => hashParts().route === SIGNUP_ROUTE;
+export const atWaitlist = (): boolean => hashParts().route === WAITLIST_ROUTE;
+
+export const joinedWaitlist = (): boolean => atWaitlist() && hashParts().query.get('joined') === '1';
 
 export function atLanding(): boolean {
   const { route } = hashParts();
@@ -32,7 +34,7 @@ export function atLanding(): boolean {
 function safeRedirect(raw: string | null): string | null {
   if (raw === null || raw === '' || raw === '/') return null;
   if (!raw.startsWith('/') || raw.startsWith('//')) return null;
-  if (raw === LOGIN_ROUTE || raw === SIGNUP_ROUTE) return null;
+  if (raw === LOGIN_ROUTE || raw === WAITLIST_ROUTE) return null;
   return raw;
 }
 

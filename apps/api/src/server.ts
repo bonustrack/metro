@@ -5,12 +5,14 @@ import { handleModeRequest, type ModeInfo } from '@metro-labs/http/mode-api';
 import { clientId, jwksUrl, SigningKeys, workosBase } from '@metro-labs/http/workos-token';
 import { handleAuthApiRequest } from './auth/routes.js';
 import { handleMembersApiRequest } from './auth/members.js';
+import { handleAdminApiRequest, type AdminApiDeps } from './admin.js';
 import { readWorkosConfig } from './auth/workos.js';
 import {
   addLaunchedServer,
   addServerForOwner,
   deleteServerForOwner,
   launchForOwner,
+  listAllServers,
   listServersForOwner,
   renameServerForOwner,
   setAvatarForOwner, moveServerForOwner } from './db/servers.js';
@@ -28,6 +30,7 @@ const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, project: null, version: METRO_VERSION });
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
 const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers };
+const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers };
 const serversApi: ServersApiDeps = {
   list: listServersForOwner,
   add: addServerForOwner,
@@ -63,6 +66,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse): voi
   if (handleModeRequest(req, res, mode)) return;
   if (handleAuthApiRequest(req, res, authApi)) return;
   if (handleMembersApiRequest(req, res, authApi)) return;
+  if (handleAdminApiRequest(req, res, adminApi)) return;
   if (handleServersApiRequest(req, res, serversApi)) return;
   if (handleLaunchApiRequest(req, res, launchApi)) return;
   res.writeHead(404).end();

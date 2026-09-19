@@ -40,6 +40,8 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/settings')).toEqual({ kind: 'settings' });
     expect(routeSelection('#/admin')).toEqual({ kind: 'admin' });
     expect(routeHash({ kind: 'admin' })).toBe('#/admin');
+    expect(routeSelection('#/admin/organizations')).toEqual({ kind: 'admin-organizations' });
+    expect(routeHash({ kind: 'admin-agents' })).toBe('#/admin/agents');
     expect(routeSelection('#/connect')).toEqual({ kind: 'connect' });
     expect(routeSelection('#/connect/http%3A%2F%2F127.0.0.1%3A8420')).toEqual({ kind: 'none' });
     expect(routeSelection('#/login')).toEqual({ kind: 'none' });

@@ -13,6 +13,8 @@ const SERVERS_PATH = /^#?\/?$/;
 const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const ADMIN_PATH = /^#?\/admin$/;
+const ADMIN_ORGANIZATIONS_PATH = /^#?\/admin\/organizations$/;
+const ADMIN_AGENTS_PATH = /^#?\/admin\/agents$/;
 const CONNECT_PATH = /^#?\/connect$/;
 const LAUNCH_PATH = /^#?\/launch$/;
 const MEMBERS_PATH = /^#?\/members$/;
@@ -32,16 +34,21 @@ const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
 const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/(${CLAUDE}\\.md))?)?$`);
 
+const EXACT: [RegExp, Selection][] = [
+  [SERVERS_PATH, { kind: 'servers' }],
+  [DOCS_PATH, { kind: 'docs' }],
+  [SETTINGS_PATH, { kind: 'settings' }],
+  [ADMIN_PATH, { kind: 'admin' }],
+  [ADMIN_ORGANIZATIONS_PATH, { kind: 'admin-organizations' }],
+  [ADMIN_AGENTS_PATH, { kind: 'admin-agents' }],
+  [CONNECT_PATH, { kind: 'connect' }],
+  [LAUNCH_PATH, { kind: 'launch' }],
+  [MEMBERS_PATH, { kind: 'members' }],
+  [ORGANIZATION_PATH, { kind: 'organization' }],
+];
+
 function exactSelection(hash: string): Selection | null {
-  if (SERVERS_PATH.test(hash)) return { kind: 'servers' };
-  if (DOCS_PATH.test(hash)) return { kind: 'docs' };
-  if (SETTINGS_PATH.test(hash)) return { kind: 'settings' };
-  if (ADMIN_PATH.test(hash)) return { kind: 'admin' };
-  if (CONNECT_PATH.test(hash)) return { kind: 'connect' };
-  if (LAUNCH_PATH.test(hash)) return { kind: 'launch' };
-  if (MEMBERS_PATH.test(hash)) return { kind: 'members' };
-  if (ORGANIZATION_PATH.test(hash)) return { kind: 'organization' };
-  return null;
+  return EXACT.find(([re]) => re.test(hash))?.[1] ?? null;
 }
 
 const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] = [
@@ -65,6 +72,8 @@ const GLOBAL: Partial<Record<Selection['kind'], string>> = {
   docs: '#/docs/setup',
   settings: '#/settings',
   admin: '#/admin',
+  'admin-organizations': '#/admin/organizations',
+  'admin-agents': '#/admin/agents',
 };
 
 const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {

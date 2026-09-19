@@ -1,7 +1,7 @@
 import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from './client.js';
 import { users } from './schema.js';
-import type { UserLogin, UserRecord, UserStore } from '../users.js';
+import { isUserStatus, type UserLogin, type UserRecord, type UserStatus, type UserStore } from '../users.js';
 
 const RECORD = {
   id: users.id,
@@ -11,7 +11,10 @@ const RECORD = {
   avatar: users.avatar,
   createdAt: users.createdAt,
   lastLoginAt: users.lastLoginAt,
+  status: users.status,
 };
+
+const record = (row: Omit<UserRecord, 'status'> & { status: string | null }): UserRecord => ({ ...row, status: isUserStatus(row.status) ? row.status : null });
 
 async function avatar(user: string): Promise<string | null> {
   const rows = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, user)).limit(1);
@@ -42,11 +45,20 @@ async function noteLogin(user: UserLogin, at: string): Promise<void> {
 
 async function find(user: string): Promise<UserRecord | null> {
   const rows = await getDb().select(RECORD).from(users).where(eq(users.id, user)).limit(1);
-  return rows[0] ?? null;
+  const row = rows[0];
+  return row === undefined ? null : record(row);
 }
 
 async function list(): Promise<UserRecord[]> {
-  return getDb().select(RECORD).from(users).orderBy(desc(users.lastLoginAt), users.id);
+  return (await getDb().select(RECORD).from(users).orderBy(desc(users.lastLoginAt), users.id)).map(record);
 }
 
-export const dbUsers: UserStore = { avatar, avatars, setAvatar, noteLogin, find, list };
+async function setStatus(user: string, status: UserStatus): Promise<void> {
+  const updatedAt = new Date().toISOString();
+  await getDb()
+    .insert(users)
+    .values({ id: user, status, updatedAt })
+    .onConflictDoUpdate({ target: users.id, set: { status, updatedAt } });
+}
+
+export const dbUsers: UserStore = { avatar, avatars, setAvatar, noteLogin, find, list, setStatus };

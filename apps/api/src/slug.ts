@@ -4,7 +4,7 @@ export const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
 export const SLUG_MAX = 32;
 const SLUG_MIN = 3;
 
-export const RESERVED_SLUGS = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new']);
+export const RESERVED_SLUGS = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'waitlist', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new']);
 
 export function slugify(name: string): string {
   const base = name

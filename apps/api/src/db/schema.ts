@@ -33,6 +33,7 @@ export const users = pgTable('users', {
   picture: text('picture'),
   createdAt: text('created_at'),
   lastLoginAt: text('last_login_at'),
+  status: text('status'),
 });
 
 export const organizations = pgTable(

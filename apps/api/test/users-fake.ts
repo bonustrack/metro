@@ -2,7 +2,7 @@ import type { UserRecord, UserStore } from '../src/users.ts';
 
 export function memoryUsers(): UserStore & { records: Map<string, UserRecord> } {
   const records = new Map<string, UserRecord>();
-  const blank = (id: string): UserRecord => ({ id, email: null, name: null, picture: null, avatar: null, createdAt: null, lastLoginAt: null });
+  const blank = (id: string): UserRecord => ({ id, email: null, name: null, picture: null, avatar: null, createdAt: null, lastLoginAt: null, status: null });
   return {
     records,
     avatar: (user) => Promise.resolve(records.get(user)?.avatar ?? null),
@@ -14,6 +14,10 @@ export function memoryUsers(): UserStore & { records: Map<string, UserRecord> } 
     noteLogin: (user, at) => {
       const had = records.get(user.id) ?? blank(user.id);
       records.set(user.id, { ...had, email: user.email, name: user.name, picture: user.picture, createdAt: had.createdAt ?? user.createdAt ?? at, lastLoginAt: at });
+      return Promise.resolve();
+    },
+    setStatus: (user, status) => {
+      records.set(user, { ...(records.get(user) ?? blank(user)), status });
       return Promise.resolve();
     },
     find: (user) => Promise.resolve(records.get(user) ?? null),
