@@ -6,7 +6,8 @@ import { newId, parseId } from '@metro-labs/core/ids';
 import { agents } from './schema.js';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
 import { parseAvatar } from '../avatar.js';
-import { isOrganizationId } from '@metro-labs/http/workos-token';
+import { isOrganizationId, type Session } from '@metro-labs/http/workos-token';
+import { userOrganizations, type WorkosConfig } from '../auth/workos.js';
 
 export class ServerListError extends ApiError {}
 
@@ -148,6 +149,43 @@ export async function setAvatarForOwner(subject: string, rawId: string, body: un
   const row = rows[0];
   if (row === undefined) throw missing();
   return entryOf(row);
+}
+
+const isUnique = (err: unknown): boolean => isRecord(err) && err.code === '23505';
+
+function moveTarget(session: Session, body: unknown): { from: string; to: string } {
+  const from = ownerOf(session.organization ?? '');
+  if (session.role !== 'admin') throw new ServerListError('this needs the admin role in your organization', 403);
+  const to = isRecord(body) && typeof body.organization === 'string' ? body.organization.trim() : '';
+  if (!isOrganizationId(to)) throw new ServerListError('organization must be an organization id', 400);
+  if (to === from) throw new ServerListError('the agent is already in that organization', 409);
+  return { from, to };
+}
+
+async function assertAdminOf(cfg: WorkosConfig | null, session: Session, to: string): Promise<void> {
+  if (cfg === null) throw new ServerListError('sign-in is not configured on this server', 503);
+  const target = (await userOrganizations(cfg, session.userId)).find((o) => o.id === to);
+  if (target === undefined) throw new ServerListError('you are not a member of that organization', 404);
+  if (target.role !== 'admin') throw new ServerListError('you need the admin role in that organization too', 403);
+}
+
+async function changeOwner(id: string, from: string, to: string): Promise<ServerEntry> {
+  try {
+    const rows = await getDb().update(agents).set({ owner: to }).where(and(eq(agents.id, id), eq(agents.owner, from))).returning(columns);
+    const row = rows[0];
+    if (row === undefined) throw missing();
+    return entryOf(row);
+  } catch (err) {
+    if (isUnique(err)) throw new ServerListError('that organization already lists an agent at this address', 409);
+    throw err;
+  }
+}
+
+export async function moveServerForOwner(session: Session, rawId: string, body: unknown, cfg: WorkosConfig | null): Promise<ServerEntry> {
+  const id = idOf(rawId);
+  const { from, to } = moveTarget(session, body);
+  await assertAdminOf(cfg, session, to);
+  return changeOwner(id, from, to);
 }
 
 export async function deleteServerForOwner(subject: string, rawId: string): Promise<{ id: string; host: string }> {

@@ -1,10 +1,11 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Box, Col } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { currentBuild, type BuildInfo } from '../build.js';
 
 const DOT = 8;
+const FRESH = { dark: '#ffffff', light: '#000000' } as const;
 const CARD_RADIUS = 8;
 
 function Card({ build }: { build: BuildInfo }): ReactNode {
@@ -35,6 +36,7 @@ function Card({ build }: { build: BuildInfo }): ReactNode {
 
 export function BuildDot(): ReactNode {
   const palette = useKitPalette();
+  const fresh = useKitScheme() === 'dark' ? FRESH.dark : FRESH.light;
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const build = currentBuild();
@@ -64,7 +66,7 @@ export function BuildDot(): ReactNode {
           setOpen((v) => !v);
         }}
       >
-        <Box width={DOT} height={DOT} radius={DOT} background={build.fresh ? palette.text : palette.sub} />
+        <Box width={DOT} height={DOT} radius={DOT} background={build.fresh ? fresh : palette.sub} />
       </button>
     </div>
   );

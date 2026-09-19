@@ -42,6 +42,13 @@ const deps: ServersApiDeps = {
     rows = rows.filter((r) => r !== held);
     return Promise.resolve({ id, host: held.host });
   },
+  move: (session, id, body) => {
+    const held = rows.find((r) => r.owner === session.organization && r.id === id);
+    if (held === undefined) return Promise.reject(new ApiError('no such server', 404));
+    held.owner = String((body as { organization?: unknown }).organization);
+    const { owner: _o, ...entry } = held;
+    return Promise.resolve(entry);
+  },
   avatar: (owner, id, body) => {
     const held = rows.find((r) => r.owner === owner && r.id === id);
     if (held === undefined) return Promise.reject(new ApiError('no such server', 404));

@@ -1,7 +1,7 @@
 import { call } from './client.js';
 import { isRecord } from './accounts.js';
 import { fetchMode } from './mode.js';
-import { baseFromSegment, builtInDaemon } from '../auth/daemon.js';
+import { baseFromSegment, builtInDaemon, daemonBase } from '../auth/daemon.js';
 
 export interface Server {
   id: string;
@@ -76,6 +76,14 @@ export async function setServerAvatar(id: string, avatar: string | null): Promis
       body: JSON.stringify({ avatar }),
     }),
   );
+}
+
+export async function moveServer(id: string, organization: string): Promise<Server> {
+  return toServer(await call({ method: 'POST', base: `${builtInDaemon()}/api/servers/${id}/move`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ organization }) }));
+}
+
+export async function moveBoxOwner(organization: string): Promise<void> {
+  await call({ method: 'POST', base: `${daemonBase()}/api/owner`, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner: organization }) });
 }
 
 export async function removeServer(id: string): Promise<void> {

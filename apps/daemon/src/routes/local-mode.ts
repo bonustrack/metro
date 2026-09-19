@@ -31,6 +31,7 @@ import {
 } from '../connectors/store.js';
 import {
   assertLocalOwner,
+  setLocalOwner,
   LOCAL_PROJECT_ID,
   localAttachAccount,
   localDeleteAgent,
@@ -213,6 +214,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     claudeApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     updateApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart },
     controlApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart, stop: deps.stop },
+    ownerApi: { authorize: (subject) => { assertLocalOwner(subject); }, setOwner: (owner) => setLocalOwner(owner) },
     machineApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     modelApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     gateway: { config: readModelConfig },

@@ -15,6 +15,7 @@ import { resetAgentKey, type AgentSummary } from '../api/client.js';
 import { queryError, refreshAgents, refreshServers, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { removeServer, renameServer, serverLabel, type Server } from '../api/servers.js';
 import { currentServer } from '../auth/daemon.js';
+import { MoveSection } from './MoveAgent.js';
 import { useDocumentTitle } from '../title.js';
 
 const PAGE_AVATAR = 56;
@@ -218,6 +219,7 @@ export function AgentSettings(): ReactNode {
       <NameSection key={server.name ?? ''} server={server} />
       <TransferSection agent={agent} name={name} />
       <KeySection agent={agent} />
+      <MoveSection server={server} />
       <RemoveSection server={server} />
     </Col>
   );

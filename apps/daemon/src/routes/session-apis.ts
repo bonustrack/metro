@@ -12,6 +12,7 @@ import type { ModeInfo } from '@metro-labs/http/mode-api';
 import { handleBundleRequest, type BundleApiDeps } from '../agents/bundle.js';
 import { handleUpdateRequest, type UpdateApiDeps } from '../server/update.js';
 import { handleControlRequest, type ControlApiDeps } from '../server/control.js';
+import { handleOwnerRequest, type OwnerApiDeps } from '../server/owner.js';
 import { handleMachineRequest, type MachineApiDeps } from '../server/machine.js';
 import { handleModelRequest, type ModelApiDeps } from '../gateway/model-api.js';
 import type { GatewayDeps } from '../gateway/gateway.js';
@@ -22,6 +23,7 @@ export interface SessionApis {
   bundleApi?: BundleApiDeps;
   updateApi?: UpdateApiDeps;
   controlApi?: ControlApiDeps;
+  ownerApi?: OwnerApiDeps;
   machineApi?: MachineApiDeps;
   modelApi?: ModelApiDeps;
   gateway?: GatewayDeps;
@@ -48,6 +50,7 @@ export function handleSessionApis(
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
     ...when(apis.controlApi, (d) => handleControlRequest(req, res, d)),
+    ...when(apis.ownerApi, (d) => handleOwnerRequest(req, res, d)),
     ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),
     ...when(apis.modelApi, (d) => handleModelRequest(req, res, d)),
     ...when(apis.terminalApi, (d) => handleTerminalRequest(req, res, d)),
