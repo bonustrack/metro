@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { routeHash, routeSelection } from '../src/route.js';
 import { sameViewOn, type Selection } from '../src/components/selection.js';
 import { routedOrganization, splitOrganization } from '../src/auth/org-route.js';
+import { routedDaemon, routedSegment } from '../src/auth/daemon.js';
 import { installTestAccount, TEST_ORGANIZATION } from './account-fixture.js';
 
 const HOSTS = ['127.0.0.1:8420', 'localhost:8421', 'jelsoft-chan-rooms.tail1234.ts.net', 'suzy.tail1234.ts.net'];
@@ -115,6 +116,10 @@ describe('the organization rides in front of every route but settings and docs',
     expect(routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/channels')).toEqual({ kind: 'stations', project: 'aB3-_xYz9Qw' });
     expect(routeSelection('#/settings')).toEqual({ kind: 'settings' });
     expect(routedOrganization()).toBeNull();
+    expect(routedDaemon('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/server')).toBeNull();
+    expect(routedSegment('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/server')).toBe('aB3-_xYz9Qw');
+    expect(routedDaemon('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX')).toBeNull();
+    expect(routedDaemon('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/x.tail1234.ts.net')).toBe('https://x.tail1234.ts.net');
   });
 
   test('routeHash prefixes the routed organization, else the account one, and never the global pages', () => {

@@ -1,3 +1,4 @@
+import { splitOrganization } from './org-segment.js';
 const DAEMON_KEY = 'metro.daemon';
 const SERVER_KEY = 'metro.server';
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
@@ -66,7 +67,7 @@ export function baseFromSegment(segment: string): string {
 }
 
 export function routedSegment(hash?: string): string | null {
-  const current = hash ?? (typeof window === 'undefined' ? '' : window.location.hash);
+  const current = splitOrganization(hash ?? (typeof window === 'undefined' ? '' : window.location.hash)).rest;
   const segment = FIRST_SEGMENT.exec(current)?.[1];
   return segment === undefined || RESERVED_SEGMENTS.has(segment) ? null : segment;
 }
