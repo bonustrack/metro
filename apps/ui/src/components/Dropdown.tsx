@@ -18,12 +18,24 @@ export interface TriggerButton {
   size?: 'sm' | 'md';
 }
 
-const ITEM_ICON_SIZE = 16;
+const ITEM_ICON_SIZE = 20;
+const MENU_WIDTH = 260;
+const MENU_GAP = 8;
+const EDGE = 8;
+const ROW_TEXT = { fontSize: 17, lineHeight: '24px' } as const;
+const SEPARATOR_ALPHA = '33';
 
-const MENU_WIDTH = 200;
-const ITEM_HEIGHT = 36;
-const MENU_PADDING = 12;
-const GAP = 6;
+const withAlpha = (color: string): string => (/^#[0-9a-fA-F]{6}$/.test(color) ? `${color}${SEPARATOR_ALPHA}` : color);
+
+interface Placement {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+  maxHeight: number;
+}
+
+const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
 
 interface DropdownProps {
   items: MenuItem[];
@@ -34,14 +46,19 @@ interface DropdownProps {
   children?: ReactNode;
 }
 
-function placement(box: DOMRect, count: number, align: 'start' | 'end'): { top: number; left: number } {
-  const height = count * ITEM_HEIGHT + MENU_PADDING;
-  const below = box.bottom + GAP;
-  const top = below + height > window.innerHeight ? box.top - height - GAP : below;
-  const raw = align === 'start' ? box.left : box.right - MENU_WIDTH;
+function placement(box: DOMRect, align: 'start' | 'end'): Placement {
+  const x = align === 'start' ? box.left : box.right;
+  const y = box.bottom + MENU_GAP;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const roomAbove = box.top - MENU_GAP - EDGE;
+  const roomBelow = height - y - EDGE;
+  const opensUp = roomAbove > roomBelow;
+  const opensLeft = x > width / 2;
   return {
-    top: Math.max(GAP, top),
-    left: Math.max(8, Math.min(raw, window.innerWidth - MENU_WIDTH - 8)),
+    ...(opensUp ? { bottom: clamp(height - (box.top - MENU_GAP), EDGE, height) } : { top: clamp(y, EDGE, height) }),
+    ...(opensLeft ? { right: clamp(width - x, EDGE, width) } : { left: clamp(x, EDGE, width) }),
+    maxHeight: clamp(opensUp ? roomAbove : roomBelow, 0, Math.max(0, height - EDGE * 2)),
   };
 }
 
@@ -59,16 +76,16 @@ export function Dropdown({
   const setTrigger = (el: HTMLElement | null): void => {
     trigger.current = el;
   };
-  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const [at, setAt] = useState<Placement | null>(null);
 
   const open = (): void => {
     const box = trigger.current?.getBoundingClientRect();
     if (box === undefined) return;
-    setAt(placement(box, items.length, align));
+    setAt(placement(box, align));
   };
 
-  const menuStyle =
-    at === null ? undefined : { top: at.top, left: at.left, width: MENU_WIDTH };
+  const menuStyle = at === null ? undefined : { ...at, width: MENU_WIDTH };
+  const separator = { background: withAlpha(palette.text) };
 
   return (
     <>
@@ -108,26 +125,29 @@ export function Dropdown({
                 style={menuStyle}
               >
                 {items.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    role="menuitem"
-                    className={item.danger === true ? 'kebab-item kebab-danger' : 'kebab-item'}
-                    onClick={() => {
-                      setAt(null);
-                      item.onSelect();
-                    }}
-                  >
-                    {item.leading ?? null}
-                    {item.icon === undefined ? null : (
-                      <Icon
-                        name={item.icon}
-                        size={ITEM_ICON_SIZE}
-                        color={item.danger === true ? palette.danger : palette.link}
-                      />
-                    )}
-                    {item.label}
-                  </button>
+                  <div key={item.label} className="kebab-row">
+                    {item.danger === true ? <div className="kebab-separator" style={separator} /> : null}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={item.danger === true ? 'kebab-item kebab-danger' : 'kebab-item'}
+                      style={ROW_TEXT}
+                      onClick={() => {
+                        setAt(null);
+                        item.onSelect();
+                      }}
+                    >
+                      {item.leading ?? null}
+                      {item.icon === undefined ? null : (
+                        <Icon
+                          name={item.icon}
+                          size={ITEM_ICON_SIZE}
+                          color={item.danger === true ? palette.danger : palette.link}
+                        />
+                      )}
+                      <span className="kebab-label">{item.label}</span>
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>,
