@@ -3,6 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { BootLoading } from './BootLoading.js';
+import { LOGO_ASPECT, MetroLogo } from './MetroLogo.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
@@ -21,7 +22,8 @@ const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20, git
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
 const ABOUT = 'Your agents, on your machines, in every chat you use. Your keys stay yours.';
 const CENTER_TEXT = { textAlign: 'center' } as const;
-const LANDING_TITLE = 'Metro';
+const LOGO_WIDTH = 64;
+const LOGO_SIZE = Math.round(LOGO_WIDTH / LOGO_ASPECT);
 const SIGNUP_HASH = '#/signup';
 const LOGIN_HASH = '#/login';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
@@ -113,16 +115,20 @@ function Footer(): ReactNode {
   );
 }
 
-function Frame({ title, children }: { title: string; children: ReactNode }): ReactNode {
+function Frame({ title, children }: { title: ReactNode; children: ReactNode }): ReactNode {
   return (
     <div className="login-page">
       <Row justify="center" align="start" padding={{ x: 24, bottom: 24 }}>
         <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
           <Col gap={TITLE_GAP}>
             <Row justify="center">
-              <Text size="6xl" weight="medium">
-                {title}
-              </Text>
+              {typeof title === 'string' ? (
+                <Text size="6xl" weight="medium">
+                  {title}
+                </Text>
+              ) : (
+                title
+              )}
             </Row>
             <Text size="xl" style={CENTER_TEXT}>
               {ABOUT}
@@ -169,8 +175,9 @@ export function Login(): ReactNode {
 
 export function Landing(): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const palette = useKitPalette();
   return (
-    <Frame title={LANDING_TITLE}>
+    <Frame title={<MetroLogo size={LOGO_SIZE} color={palette.link} />}>
       <Col gap={10} padding={{ top: BUTTONS_TOP }}>
         <Button
           size="lg"
