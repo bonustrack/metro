@@ -20,13 +20,14 @@ import { describeRegions } from './aws/ec2.js';
 import { handleLaunchApiRequest, type LaunchApiDeps } from './launch.js';
 import { handleServersApiRequest, type ServersApiDeps } from './servers.js';
 import { dbSlugs } from './db/organizations.js';
+import { dbUsers } from './db/users.js';
 
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, project: null, version: METRO_VERSION });
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
-const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs };
+const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers };
 const serversApi: ServersApiDeps = {
   list: listServersForOwner,
   add: addServerForOwner,

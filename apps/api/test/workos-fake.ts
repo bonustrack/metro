@@ -36,15 +36,15 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
   const members: FakeWorkos['members'] = [{ id: 'om_admin', user_id: 'user_01ABC', role: 'admin' }, { id: 'om_bob', user_id: 'user_02BOB', role: 'member' }];
   const invitations: FakeWorkos['invitations'] = [];
   const USERS = [
-    { id: 'user_01ABC', email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
-    { id: 'user_02BOB', email: 'bob@stage.box', first_name: 'Bob', last_name: null, profile_picture_url: null },
+    { id: 'user_01ABC', email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs' as string | null, profile_picture_url: 'https://pic.example/a.png' as string | null },
+    { id: 'user_02BOB', email: 'bob@stage.box', first_name: 'Bob', last_name: null as string | null, profile_picture_url: null as string | null },
   ];
   let refreshCount = 0;
   const outage = { on: false };
   const selection = { on: false };
   let orgName = 'Stage Labs';
   const tokens = (organization: string | null, sub = 'user_01ABC'): Record<string, unknown> => ({
-    user: { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
+    user: USERS.find((u) => u.id === sub) ?? { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
     organization_id: organization,
     access_token: issuer.mint(sessionClaims({ sub, org_id: organization ?? undefined, role: organization === null ? undefined : 'admin' })),
     refresh_token: `rt_${String(++refreshCount)}`,
@@ -126,6 +126,13 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
           return send(400, { code: 'invalid_grant', message: 'unknown grant' });
         }
         if (url.pathname === '/user_management/sessions/revoke') return send(200, {});
+        if (url.pathname.startsWith('/user_management/users/') && req.method === 'PUT') {
+          const who = USERS.find((u) => u.id === url.pathname.split('/').pop());
+          if (who === undefined) return send(404, { message: 'no such user' });
+          if (typeof parsed.first_name === 'string') who.first_name = parsed.first_name;
+          if (typeof parsed.last_name === 'string') who.last_name = parsed.last_name === '' ? null : parsed.last_name;
+          return send(200, who);
+        }
         if (url.pathname.startsWith('/organizations/') && req.method === 'PUT') {
           orgName = String(parsed.name);
           return send(200, { id: url.pathname.split('/').pop(), name: orgName });

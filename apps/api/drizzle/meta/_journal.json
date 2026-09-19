@@ -225,6 +225,13 @@
       "when": 1788557725039,
       "tag": "0031_agent_slug",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788557725040,
+      "tag": "0032_users",
+      "breakpoints": true
     }
   ]
 }

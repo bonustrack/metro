@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { SlugStore } from '../slug.js';
+import type { UserStore } from '../users.js';
 import { log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -28,6 +29,7 @@ export interface MembersApiDeps {
   config: () => WorkosConfig | null;
   keys: SigningKeys;
   slugs: SlugStore;
+  users: UserStore;
 }
 
 type Target = { kind: 'organization' } | { kind: 'invitations' } | { kind: 'invitation'; id: string } | { kind: 'member'; id: string } | { kind: 'unknown' } | null;
@@ -89,7 +91,9 @@ async function rename(req: IncomingMessage, deps: MembersApiDeps, cfg: WorkosCon
 async function overview(deps: MembersApiDeps, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
   const [name, members, invitations] = await Promise.all([organizationName(cfg, organization), listMembers(cfg, organization), listInvitations(cfg, organization)]);
   const slug = await deps.slugs.ensure(organization, name);
-  return { id: organization, name, slug, self: session.userId, role: session.role, members, invitations };
+  const pictures = await deps.users.avatars(members.map((m) => m.userId));
+  const shown = members.map((m) => ({ ...m, picture: pictures.get(m.userId) ?? m.picture }));
+  return { id: organization, name, slug, self: session.userId, role: session.role, members: shown, invitations };
 }
 
 async function invite(req: IncomingMessage, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {

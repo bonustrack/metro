@@ -116,6 +116,21 @@ export async function switchOrganization(organization: string): Promise<Account>
   return next;
 }
 
+export async function updateAccount(changes: { name?: string; avatar?: string | null }): Promise<Account | null> {
+  const current = activeAccount();
+  if (current === null) throw new Error('Log in first.');
+  const bearer = (await accessToken()) ?? current.accessToken;
+  let res: Response;
+  try {
+    res = await fetch(authUrl('/account'), { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${bearer}` }, body: JSON.stringify(changes) });
+  } catch {
+    throw new Error('Failed to reach Metro.');
+  }
+  const answer: unknown = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(errorText(answer, res.status));
+  return refreshAccount();
+}
+
 export async function logoutAccount(): Promise<void> {
   const current = activeAccount();
   clearAccount();

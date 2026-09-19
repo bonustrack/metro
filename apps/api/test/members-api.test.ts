@@ -6,6 +6,7 @@ import { handleMembersApiRequest } from '../src/auth/members.ts';
 import { readWorkosConfig } from '../src/auth/workos.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
+import { memoryUsers } from './users-fake.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 
 const ORG = 'org_01STAGELABS000';
@@ -16,7 +17,7 @@ let base = '';
 beforeAll(async () => {
   workos = await fakeWorkos();
   const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
-  const deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), slugs: memorySlugs() };
+  const deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), slugs: memorySlugs(), users: memoryUsers() };
   server = createServer((req, res) => {
     if (handleMembersApiRequest(req, res, deps)) return;
     res.writeHead(404).end();

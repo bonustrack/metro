@@ -12,8 +12,7 @@ export interface AvatarPicker {
   error: string | null;
 }
 
-export function useAvatarPicker(server: Server): AvatarPicker {
-  const client = useQueryClient();
+export function useImagePicker(store: (avatar: string | null) => Promise<unknown>): AvatarPicker {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,8 +20,7 @@ export function useAvatarPicker(server: Server): AvatarPicker {
     setBusy(true);
     setError(null);
     avatar
-      .then((next) => setServerAvatar(server.id, next))
-      .then(() => refreshServers(client))
+      .then((next) => store(next))
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not save the avatar.'));
       })
@@ -54,4 +52,12 @@ export function useAvatarPicker(server: Server): AvatarPicker {
     busy,
     error,
   };
+}
+
+export function useAvatarPicker(server: Server): AvatarPicker {
+  const client = useQueryClient();
+  return useImagePicker(async (next) => {
+    await setServerAvatar(server.id, next);
+    await refreshServers(client);
+  });
 }

@@ -6,6 +6,8 @@ import { handleAuthApiRequest, type AuthApiDeps } from '../src/auth/routes.ts';
 import { forgetProviders, readWorkosConfig } from '../src/auth/workos.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
+import { memoryUsers } from './users-fake.ts';
+import { pngDataUrl } from './png-fixture.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 
 let workos: FakeWorkos;
@@ -16,7 +18,7 @@ let deps: AuthApiDeps;
 beforeAll(async () => {
   workos = await fakeWorkos();
   const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
-  deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), publicBase: () => base, slugs: memorySlugs() };
+  deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), publicBase: () => base, slugs: memorySlugs(), users: memoryUsers() };
   server = createServer((req, res) => {
     if (handleAuthApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
@@ -70,6 +72,21 @@ async function signIn(): Promise<TokenBody> {
 }
 
 describe('signing in to metro.box through WorkOS', () => {
+  test('the account name goes to WorkOS and the picture to metro.box, and both come back on the next tokens', async () => {
+    const tokens = await signIn();
+    expect((await json('PUT', '/api/auth/account', { name: '  Fabien   Less ' }, tokens.accessToken)).status).toBe(200);
+    expect((await json('PUT', '/api/auth/account', { avatar: pngDataUrl(64, 64) }, tokens.accessToken)).status).toBe(200);
+    expect((await json('PUT', '/api/auth/account', { avatar: 'data:image/svg+xml;base64,PHN2Zz4=' }, tokens.accessToken)).status).toBe(400);
+    expect((await json('PUT', '/api/auth/account', {}, tokens.accessToken)).status).toBe(400);
+    expect((await json('PUT', '/api/auth/account', { name: 'x' })).status).toBe(401);
+    const refreshed = (await (await json('POST', '/api/auth/refresh', { refreshToken: tokens.refreshToken })).json()) as TokenBody;
+    expect(refreshed.user.name).toBe('Fabien Less');
+    expect(refreshed.user.picture.startsWith('data:image/png;base64,')).toBe(true);
+    expect((await json('PUT', '/api/auth/account', { avatar: null, name: 'Stage Labs' }, tokens.accessToken)).status).toBe(200);
+    const back = (await (await json('POST', '/api/auth/refresh', { refreshToken: refreshed.refreshToken })).json()) as TokenBody;
+    expect(back.user).toMatchObject({ name: 'Stage Labs', picture: 'https://pic.example/a.png' });
+  });
+
   test('a user in several organizations is signed in to the first one WorkOS lists instead of being asked to choose', async () => {
     const before = workos.organizations.length;
     workos.organizations.push('org_01FIRST0000000', 'org_01SECOND000000');

@@ -6,6 +6,8 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { validateReturnTo } from '@metro-labs/http/return-to';
 import type { SlugStore } from '../slug.js';
+import { parseAccountName, type UserStore } from '../users.js';
+import { AVATAR_BODY_MAX, parseAvatar } from '../avatar.js';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import {
   addMembership,
@@ -18,6 +20,7 @@ import {
   organizationName,
   refreshTokens,
   revokeSession,
+  updateUserName,
   userOrganizations,
   WorkosError,
   type Tokens,
@@ -33,6 +36,7 @@ export interface AuthApiDeps {
   config: () => WorkosConfig | null;
   keys: SigningKeys;
   slugs: SlugStore;
+  users: UserStore;
   publicBase?: (req: IncomingMessage) => string;
   now?: () => number;
 }
@@ -142,16 +146,33 @@ async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearch
   }
 }
 
-async function tokensPayload(t: Tokens, cfg: WorkosConfig, slugs: SlugStore): Promise<Record<string, unknown>> {
+async function tokensPayload(t: Tokens, cfg: WorkosConfig, deps: AuthApiDeps): Promise<Record<string, unknown>> {
   const name = t.organization === null ? null : await organizationName(cfg, t.organization);
+  const picture = (await deps.users.avatar(t.user.id)) ?? t.user.picture;
   return {
     accessToken: t.accessToken,
     refreshToken: t.refreshToken,
     organization: t.organization,
     organizationName: name,
-    organizationSlug: t.organization === null ? null : await slugs.ensure(t.organization, name),
-    user: t.user,
+    organizationSlug: t.organization === null ? null : await deps.slugs.ensure(t.organization, name),
+    user: { ...t.user, picture },
   };
+}
+
+async function updateAccount(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
+  const cfg = deps.config();
+  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const body = await readJsonBody(req, AVATAR_BODY_MAX);
+  const hasName = isRecord(body) && 'name' in body;
+  const hasAvatar = isRecord(body) && 'avatar' in body;
+  if (!hasName && !hasAvatar) throw new ApiError('send a name or an avatar', 400);
+  if (hasName) {
+    const parsed = parseAccountName(body.name);
+    await updateUserName(cfg, session.userId, parsed.first, parsed.last);
+  }
+  if (hasAvatar) await deps.users.setAvatar(session.userId, parseAvatar(body.avatar));
+  log.info({ user: session.userId, name: hasName, avatar: hasAvatar }, 'auth: account changed');
+  return { ok: true };
 }
 
 async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
@@ -161,7 +182,7 @@ async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknow
   if (tokens === null) throw new ApiError('that sign-in has already been used or has expired', 404);
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-  return tokensPayload(tokens, cfg, deps.slugs);
+  return tokensPayload(tokens, cfg, deps);
 }
 
 async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
@@ -171,7 +192,7 @@ async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown
   const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
   if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
   try {
-    return await tokensPayload(await refreshTokens(cfg, refreshToken), cfg, deps.slugs);
+    return await tokensPayload(await refreshTokens(cfg, refreshToken), cfg, deps);
   } catch (err) {
     if (err instanceof WorkosError) throw new ApiError(err.status === 401 ? 'the session has ended, sign in again' : err.message, err.status);
     throw err;
@@ -196,7 +217,7 @@ async function switchOrg(req: IncomingMessage, session: Session, deps: AuthApiDe
   const mine = await userOrganizations(cfg, session.userId);
   if (!mine.some((o) => o.id === organization)) throw new ApiError('you are not a member of that organization', 404);
   log.info({ user: session.userId, organization }, 'auth: switched organization');
-  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps.slugs);
+  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps);
 }
 
 const mePayload = (s: Session): Record<string, unknown> => ({ userId: s.userId, organization: s.organization, role: s.role, expiresAt: s.expiresAt });
@@ -212,7 +233,7 @@ async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDe
   const organization = await createOrganization(cfg, name);
   await addMembership(cfg, session.userId, organization, 'admin');
   log.info({ user: session.userId, organization, name }, 'auth: organization created');
-  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps.slugs);
+  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps);
 }
 
 interface PublicRoute {
@@ -245,6 +266,7 @@ const PRIVATE: Record<string, PrivateRoute> = {
     },
   },
   '/switch': { method: 'POST', run: (req, deps, session) => switchOrg(req, session, deps) },
+  '/account': { method: 'PUT', run: (req, deps, session) => updateAccount(req, session, deps) },
 };
 
 async function navigation(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, path: string, query: URLSearchParams): Promise<boolean> {

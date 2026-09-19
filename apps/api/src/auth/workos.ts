@@ -287,6 +287,10 @@ export async function createOrganization(cfg: WorkosConfig, name: string): Promi
   return id;
 }
 
+export async function updateUserName(cfg: WorkosConfig, userId: string, first: string, last: string | null): Promise<void> {
+  await request(cfg, 'PUT', `/user_management/users/${encodeURIComponent(userId)}`, { first_name: first, last_name: last ?? '' });
+}
+
 export async function renameOrganization(cfg: WorkosConfig, id: string, name: string): Promise<string> {
   const answer = await request(cfg, 'PUT', `/organizations/${id}`, { name });
   const saved = str(answer.name) ?? name;

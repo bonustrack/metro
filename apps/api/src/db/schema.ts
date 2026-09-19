@@ -24,6 +24,12 @@ export const agents = pgTable(
   (t) => [uniqueIndex('agents_owner_host_idx').on(t.owner, t.host), uniqueIndex('agents_owner_slug_idx').on(t.owner, t.slug), index('agents_owner_idx').on(t.owner)],
 );
 
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  avatar: text('avatar'),
+  updatedAt: text('updated_at').notNull(),
+});
+
 export const organizations = pgTable(
   'organizations',
   {
