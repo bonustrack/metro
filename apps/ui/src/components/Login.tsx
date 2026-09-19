@@ -21,7 +21,7 @@ const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20, git
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
 const ABOUT = 'Your agents, on your machines, in every chat you use. Your keys stay yours.';
 const CENTER_TEXT = { textAlign: 'center' } as const;
-const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro Labs`;
+const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
 const OFF = 'Log-in is not set up on this Metro yet.';
 const AWAY = 'Log-in is not available right now. Try again in a minute.';
 
