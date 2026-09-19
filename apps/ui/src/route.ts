@@ -1,5 +1,6 @@
 import { type Selection } from './components/selection.js';
 import { RESERVED_SEGMENTS } from './auth/daemon.js';
+import { currentOrganization, noteRoutedOrganization, routedOrganization, splitOrganization } from './auth/org-route.js';
 
 const HOST = '[A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?';
 const ID = '[A-Za-z0-9_-]{11}';
@@ -57,7 +58,34 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [MEMORY_PATH, (project, cp, file) => ({ kind: 'memory', project, claudeProject: cp === '' ? null : cp, file: file === '' ? null : file })],
 ];
 
-export function routeSelection(hash: string): Selection {
+const GLOBAL: Partial<Record<Selection['kind'], string>> = {
+  docs: '#/docs/setup',
+  settings: '#/settings',
+};
+
+const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
+  servers: '',
+  none: '',
+  connect: 'connect',
+  launch: 'launch',
+  members: 'members',
+  organization: 'organization',
+};
+
+function organizationPrefix(): string {
+  const organization = routedOrganization() ?? currentOrganization();
+  return organization === null ? '#/' : `#/${organization}/`;
+}
+
+const home = (prefix: string): string => (prefix === '#/' ? '#/' : prefix.slice(0, -1));
+
+export function routeSelection(fullHash: string): Selection {
+  const { organization, rest } = splitOrganization(fullHash);
+  noteRoutedOrganization(organization);
+  return plainSelection(rest);
+}
+
+function plainSelection(hash: string): Selection {
   const exact = exactSelection(hash);
   if (exact !== null) return exact;
   for (const [pattern, make] of SCOPED) {
@@ -90,23 +118,15 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
       : '',
 };
 
-const PLAIN: Partial<Record<Selection['kind'], string>> = {
-  servers: '#/',
-  none: '#/',
-  docs: '#/docs/setup',
-  settings: '#/settings',
-  connect: '#/connect',
-  launch: '#/launch',
-  members: '#/members',
-  organization: '#/organization',
-};
-
 export function routeHash(selection: Selection): string {
-  const plain = PLAIN[selection.kind];
-  if (plain !== undefined) return plain;
+  const global = GLOBAL[selection.kind];
+  if (global !== undefined) return global;
+  const prefix = organizationPrefix();
+  const page = ORGANIZATION_PAGES[selection.kind];
+  if (page !== undefined) return page === '' ? home(prefix) : `${prefix}${page}`;
   const suffix = SUFFIX[selection.kind];
-  if (suffix === undefined || !('project' in selection)) return '#/';
-  return `#/${selection.project}${suffix(selection)}`;
+  if (suffix === undefined || !('project' in selection)) return home(prefix);
+  return `${prefix}${selection.project}${suffix(selection)}`;
 }
 
 export function currentSelection(): Selection {

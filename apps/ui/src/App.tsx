@@ -17,10 +17,11 @@ import { AuthError, StoppedError } from './api/client.js';
 import { StoppedNotice } from './components/StoppedNotice.js';
 import { addServer } from './api/servers.js';
 import { atLogin, goToLogin, leaveLogin } from './auth/login-route.js';
-import { currentSelection, subscribeRoute } from './route.js';
+import { currentSelection, routeHash, subscribeRoute } from './route.js';
 import { pageTitle } from './title.js';
 import { activeAccount, loadAccount } from './auth/account.js';
-import { exchangeHandoff, logoutAccount, refreshAccount } from './api/auth.js';
+import { exchangeHandoff, logoutAccount, refreshAccount, switchOrganization } from './api/auth.js';
+import { routedOrganization } from './auth/org-route.js';
 import { handoffCode } from './auth/handoff.js';
 import { OrganizationSetup } from './components/OrganizationSetup.js';
 import { Organization } from './components/Organization.js';
@@ -51,7 +52,7 @@ function Notice({ text, onRetry, retryLabel }: { text: string; onRetry: () => vo
         <Text role="secondary">{text}</Text>
         <Button color="secondary" dark={dark} label={retryLabel} onPress={onRetry} style={CENTER_SELF} />
         <Text size="sm" role="secondary">
-          <a className="hint-link" href="#/">
+          <a className="hint-link" href={routeHash({ kind: 'servers' })}>
             All servers
           </a>
         </Text>
@@ -149,14 +150,53 @@ function ListedServer({ id, onLock }: { id: string; onLock: () => void }): React
 function ServerGate({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   const project = selectionProject(selection) ?? storedServerId();
   useEffect(() => {
-    if (project === null) window.location.hash = '#/';
+    if (project === null) window.location.hash = routeHash({ kind: 'servers' });
   }, [project]);
   if (project === null) return null;
   if (!isServerId(project)) return <HostRedirect host={project} />;
   return <ListedServer id={project} onLock={onLock} />;
 }
 
+function OrganizationGate({ selection, onLock, children }: { selection: Selection; onLock: () => void; children: ReactNode }): ReactNode {
+  const client = useQueryClient();
+  const wanted = routedOrganization();
+  const held = activeAccount()?.organization ?? null;
+  const [refused, setRefused] = useState<string | null>(null);
+  const [, bump] = useState(0);
+  const mismatch = wanted !== null && held !== null && wanted !== held;
+  useEffect(() => {
+    if (!mismatch) return;
+    setRefused(null);
+    switchOrganization(wanted)
+      .then(() => {
+        client.clear();
+        bump((n) => n + 1);
+      })
+      .catch((err: unknown) => {
+        setRefused(err instanceof Error ? err.message : 'Could not open that organization.');
+      });
+  }, [mismatch, wanted, client]);
+  useEffect(() => {
+    if (GLOBAL_KINDS.has(selection.kind) || mismatch) return;
+    const wanted_hash = routeHash(selection);
+    if (window.location.hash !== wanted_hash) window.history.replaceState(null, '', `${window.location.pathname}${wanted_hash}`);
+  }, [selection, mismatch]);
+  if (refused !== null) return <Notice text={`${wanted ?? ''}: ${refused}`} onRetry={onLock} retryLabel="Log in with another account" />;
+  if (mismatch) return <BootLoading />;
+  return children;
+}
+
+const GLOBAL_KINDS = new Set<Selection['kind']>(['docs', 'settings']);
+
 function Unlocked({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
+  return (
+    <OrganizationGate selection={selection} onLock={onLock}>
+      <UnlockedPage selection={selection} onLock={onLock} />
+    </OrganizationGate>
+  );
+}
+
+function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   if (selection.kind === 'connect') return <Connect />;
   if (selection.kind === 'launch') return <LaunchServer />;
   if (selection.kind === 'members') return <Members onLock={onLock} />;

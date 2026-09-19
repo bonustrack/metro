@@ -12,6 +12,7 @@ import { PageTitle } from './PageTitle.js';
 import { connectRefusal, fetchMode } from '../api/mode.js';
 import { parseDaemonUrl, segmentOf } from '../auth/daemon.js';
 import { addServer } from '../api/servers.js';
+import { routeHash } from '../route.js';
 
 const CARD_WIDTH = 400;
 const HINT =
@@ -99,7 +100,7 @@ export function Connect(): ReactNode {
           />
         </Row>
         <Text size="sm" role="secondary">
-          <a className="hint-link" href="#/">
+          <a className="hint-link" href={routeHash({ kind: 'servers' })}>
             Back to your servers
           </a>
         </Text>

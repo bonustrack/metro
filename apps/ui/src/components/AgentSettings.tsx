@@ -17,6 +17,7 @@ import { removeServer, renameServer, serverLabel, type Server } from '../api/ser
 import { currentServer } from '../auth/daemon.js';
 import { MoveSection } from './MoveAgent.js';
 import { useDocumentTitle } from '../title.js';
+import { routeHash } from '../route.js';
 
 const PAGE_AVATAR = 56;
 const NAME_MAX = 40;
@@ -166,7 +167,7 @@ function RemoveSection({ server }: { server: Server }): ReactNode {
     removeServer(server.id)
       .then(() => refreshServers(client))
       .then(() => {
-        window.location.hash = '#/';
+        window.location.hash = routeHash({ kind: 'servers' });
       })
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not remove the agent.'));

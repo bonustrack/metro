@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { routeHash, routeSelection } from '../src/route.js';
 import { sameViewOn, type Selection } from '../src/components/selection.js';
+import { routedOrganization, splitOrganization } from '../src/auth/org-route.js';
+import { installTestAccount, TEST_ORGANIZATION } from './account-fixture.js';
 
 const HOSTS = ['127.0.0.1:8420', 'localhost:8421', 'jelsoft-chan-rooms.tail1234.ts.net', 'suzy.tail1234.ts.net'];
 
@@ -99,5 +101,32 @@ describe('switching server keeps the page', () => {
     expect(on({ kind: 'sessions', project: 'lisa000000001', claudeProject: 'p', id: 's' })).toBe('#/suzy00000001/sessions');
     expect(on({ kind: 'memory', project: 'lisa000000001', claudeProject: 'p', file: 'f.md' })).toBe('#/suzy00000001/memory');
     expect(on({ kind: 'servers' })).toBe('#/suzy00000001');
+  });
+});
+
+describe('the organization rides in front of every route but settings and docs', () => {
+  test('an organization id is split off the hash and remembered; a host or an agent id is not', () => {
+    expect(splitOrganization('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/members')).toEqual({ organization: 'org_01ABCDEFGHIJKLMNOPQRSTUVWX', rest: '#/members' });
+    expect(splitOrganization('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX')).toEqual({ organization: 'org_01ABCDEFGHIJKLMNOPQRSTUVWX', rest: '#/' });
+    expect(splitOrganization('#/aB3-_xYz9Qw/server')).toEqual({ organization: null, rest: '#/aB3-_xYz9Qw/server' });
+    expect(splitOrganization('#/x.tail1234.ts.net')).toEqual({ organization: null, rest: '#/x.tail1234.ts.net' });
+    expect(routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/members')).toEqual({ kind: 'members' });
+    expect(routedOrganization()).toBe('org_01ABCDEFGHIJKLMNOPQRSTUVWX');
+    expect(routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/channels')).toEqual({ kind: 'stations', project: 'aB3-_xYz9Qw' });
+    expect(routeSelection('#/settings')).toEqual({ kind: 'settings' });
+    expect(routedOrganization()).toBeNull();
+  });
+
+  test('routeHash prefixes the routed organization, else the account one, and never the global pages', () => {
+    routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX');
+    expect(routeHash({ kind: 'servers' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX');
+    expect(routeHash({ kind: 'members' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/members');
+    expect(routeHash({ kind: 'launch' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/launch');
+    expect(routeHash({ kind: 'server', project: 'aB3-_xYz9Qw' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/server');
+    expect(routeHash({ kind: 'settings' })).toBe('#/settings');
+    routeSelection('#/settings');
+    installTestAccount();
+    expect(routeHash({ kind: 'servers' })).toBe(`#/${TEST_ORGANIZATION}`);
+    expect(routeHash({ kind: 'connectors', project: 'aB3-_xYz9Qw' })).toBe(`#/${TEST_ORGANIZATION}/aB3-_xYz9Qw/connectors`);
   });
 });

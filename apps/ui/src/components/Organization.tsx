@@ -4,8 +4,10 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from './ui.js';
 import { ListHeader } from './ListHeader.js';
 import { NameModal } from './NameModal.js';
-import { OrganizationList, restartOn } from './OrganizationList.js';
+import { useQueryClient } from '@tanstack/react-query';
+import { OrganizationList } from './OrganizationList.js';
 import { createOrganization } from '../api/auth.js';
+import { enterOrganization } from '../auth/org-route.js';
 import { Frame } from './Frame.js';
 import { PlainSidebar } from './PlainSidebar.js';
 import { OrganizationSettings } from './OrganizationSettings.js';
@@ -18,6 +20,7 @@ const PAGE_WIDTH = 640;
 export function Organization({ onLock }: { onLock: () => void }): ReactNode {
   const subject = activeAccount()?.user.id ?? '';
   const dark = useKitScheme() === 'dark';
+  const client = useQueryClient();
   const [creating, setCreating] = useState(false);
   useDocumentTitle('Organization');
   return (
@@ -63,8 +66,8 @@ export function Organization({ onLock }: { onLock: () => void }): ReactNode {
             setCreating(false);
           }}
           onSubmit={async (name) => {
-            await createOrganization(name);
-            restartOn('#/');
+            const made = await createOrganization(name);
+            if (made.organization !== null) await enterOrganization(client, made.organization);
             return name;
           }}
         />

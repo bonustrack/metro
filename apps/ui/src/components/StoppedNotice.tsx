@@ -6,6 +6,7 @@ import { Text, Button } from './ui.js';
 import { awaitLive, startDaemon } from '../api/control.js';
 import { queryError } from '../api/queries.js';
 import { daemonBase, daemonHost } from '../auth/daemon.js';
+import { routeHash } from '../route.js';
 
 const NOTICE_WIDTH = 480;
 const CENTER_SELF = { alignSelf: 'center' } as const;
@@ -53,7 +54,7 @@ export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNo
           </Text>
         ) : null}
         <Text size="sm" role="secondary">
-          <a className="hint-link" href="#/">
+          <a className="hint-link" href={routeHash({ kind: 'servers' })}>
             All servers
           </a>
         </Text>

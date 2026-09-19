@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Icon } from '@stage-labs/kit/react-native/icon';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
@@ -7,8 +7,8 @@ import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { Dropdown, type MenuItem } from './Dropdown.js';
 import { NAV_ICON_SIZE, NAV_ROW_BOX } from './NavRow.js';
-import { restartOn } from './OrganizationList.js';
-import { fetchOrganizations, switchOrganization, type OrganizationRow } from '../api/auth.js';
+import { fetchOrganizations, type OrganizationRow } from '../api/auth.js';
+import { enterOrganization } from '../auth/org-route.js';
 import { activeAccount } from '../auth/account.js';
 import { type Selection } from './selection.js';
 
@@ -24,6 +24,7 @@ function organizationItems(rows: OrganizationRow[], current: string | null, onPi
 
 export function OrganizationSwitcher({ onSelect }: { onSelect: (s: Selection) => void }): ReactNode {
   const palette = useKitPalette();
+  const client = useQueryClient();
   const account = activeAccount();
   const [busy, setBusy] = useState(false);
   const { data } = useQuery({ queryKey: ['organizations'], queryFn: fetchOrganizations, staleTime: 30_000 });
@@ -31,11 +32,9 @@ export function OrganizationSwitcher({ onSelect }: { onSelect: (s: Selection) =>
   const pick = (id: string): void => {
     if (busy) return;
     setBusy(true);
-    switchOrganization(id)
-      .then(() => {
-        restartOn('#/');
-      })
-      .catch(() => {
+    enterOrganization(client, id)
+      .catch(() => undefined)
+      .finally(() => {
         setBusy(false);
       });
   };

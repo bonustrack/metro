@@ -16,6 +16,7 @@ import { queryError, refreshServers, useLaunchOverviewQuery } from '../api/queri
 import { launchServer, type Launched, type LaunchOverview } from '../api/launch.js';
 import { regionRows } from '../aws/regions.js';
 import { useDocumentTitle } from '../title.js';
+import { routeHash } from '../route.js';
 
 const CARD_WIDTH = 480;
 const NO_AUTOFILL = { autoComplete: 'off' } as const;
@@ -134,7 +135,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
       {form.error === null ? null : <Text size="sm" role="danger">{form.error}</Text>}
       <Row justify="between" align="center" gap={12} wrap>
         <Text size="sm" role="secondary">
-          <a className="hint-link" href="#/">Back to your agents</a>
+          <a className="hint-link" href={routeHash({ kind: 'servers' })}>Back to your agents</a>
         </Text>
         <Button
           color="primary"

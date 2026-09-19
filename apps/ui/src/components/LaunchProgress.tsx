@@ -1,3 +1,4 @@
+import { routeHash } from '../route.js';
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
@@ -73,7 +74,7 @@ function Actions({ launched, live }: { launched: Launched; live: boolean }): Rea
         dark={dark}
         label="Back to your agents"
         onPress={() => {
-          window.location.hash = '#/';
+          window.location.hash = routeHash({ kind: 'servers' });
         }}
       />
       {live ? (

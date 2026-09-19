@@ -81,7 +81,7 @@ interface CardProps {
 function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
   const palette = useKitPalette();
   const side = { width: 1, color: palette.border };
-  const href = `#/${server.id}`;
+  const href = routeHash({ kind: 'home', project: server.id });
   const launched = server.instanceId !== null;
   return (
     <div className="agent-card">
@@ -202,7 +202,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
                 dark={dark}
                 label="New agent"
                 onPress={() => {
-                  window.location.hash = '#/launch';
+                  window.location.hash = routeHash({ kind: 'launch' });
                 }}
               />
               <KebabMenu
@@ -212,7 +212,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
                   {
                     label: 'Import agent',
                     onSelect: () => {
-                      window.location.hash = '#/connect';
+                      window.location.hash = routeHash({ kind: 'connect' });
                     },
                   },
                 ]}

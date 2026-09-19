@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { ConfirmModal } from './ConfirmModal.js';
-import { restartOn } from './OrganizationList.js';
+import { enterOrganization } from '../auth/org-route.js';
 import { fetchOrganizations, type OrganizationRow } from '../api/auth.js';
 import { moveBoxOwner, moveServer, serverLabel, type Server } from '../api/servers.js';
 import { queryError, useModeQuery } from '../api/queries.js';
@@ -29,6 +29,7 @@ function Section({ title, note, children }: { title: string; note: string; child
 }
 
 function useMove(server: Server): { busy: boolean; error: string | null; run: (to: OrganizationRow) => void } {
+  const client = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const run = (to: OrganizationRow): void => {
@@ -36,9 +37,7 @@ function useMove(server: Server): { busy: boolean; error: string | null; run: (t
     setError(null);
     moveBoxOwner(to.id)
       .then(() => moveServer(server.id, to.id))
-      .then(() => {
-        restartOn('#/');
-      })
+      .then(() => enterOrganization(client, to.id))
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not move the agent.'));
         setBusy(false);

@@ -44,7 +44,7 @@ export function ServerRail({ selection }: { selection: Selection }): ReactNode {
   const here = currentServer();
   return (
     <nav className="server-rail" aria-label="Agents">
-      <a className="rail-logo" href="#/" aria-label="All agents" data-label="All agents">
+      <a className="rail-logo" href={routeHash({ kind: 'servers' })} aria-label="All agents" data-label="All agents">
         <MetroLogo size={LOGO} color={palette.link} />
       </a>
       <div className="rail-list">

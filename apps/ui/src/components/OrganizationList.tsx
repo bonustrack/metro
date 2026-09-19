@@ -1,20 +1,16 @@
 import { type ReactNode, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { Pill } from './Pill.js';
 import { Loading } from './Loading.js';
-import { fetchOrganizations, switchOrganization, type OrganizationRow } from '../api/auth.js';
+import { fetchOrganizations, type OrganizationRow } from '../api/auth.js';
+import { enterOrganization } from '../auth/org-route.js';
 import { queryError } from '../api/queries.js';
 import { activeAccount } from '../auth/account.js';
 
 const ROW_PAD_Y = 10;
-
-export function restartOn(hash: string): void {
-  window.location.hash = hash;
-  window.location.reload();
-}
 
 function OrganizationRowView({ row, current, onSwitch, busy }: { row: OrganizationRow; current: boolean; onSwitch: () => void; busy: boolean }): ReactNode {
   const palette = useKitPalette();
@@ -38,15 +34,16 @@ function OrganizationRowView({ row, current, onSwitch, busy }: { row: Organizati
 
 export function OrganizationList(): ReactNode {
   const { data, error } = useQuery({ queryKey: ['organizations'], queryFn: fetchOrganizations, staleTime: 30_000 });
+  const client = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const current = activeAccount()?.organization ?? null;
   const go = (id: string): void => {
     setBusy(true);
     setFailed(null);
-    switchOrganization(id)
+    enterOrganization(client, id)
       .then(() => {
-        restartOn('#/');
+        setBusy(false);
       })
       .catch((err: unknown) => {
         setFailed(queryError(err, 'Could not switch organization.'));
