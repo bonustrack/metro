@@ -6,6 +6,7 @@ import { BootLoading } from './BootLoading.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
+import { atSignup } from '../auth/login-route.js';
 import { fetchAuthStatus, loginUrl, type Provider } from '../api/auth.js';
 
 const CONTENT_WIDTH = 340;
@@ -104,7 +105,7 @@ export function Login(): ReactNode {
         <Col gap={TITLE_GAP}>
           <Row justify="center">
             <Text size="6xl" weight="medium">
-              Log in
+              {atSignup() ? 'Sign up' : 'Log in'}
             </Text>
           </Row>
           <Text size="xl" style={CENTER_TEXT}>

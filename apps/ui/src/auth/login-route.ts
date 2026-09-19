@@ -3,6 +3,7 @@ import { routedDaemon, storeDaemon } from './daemon.js';
 const LOGIN_HASH = '#/login';
 
 const LOGIN_ROUTE = '/login';
+const SIGNUP_ROUTE = '/signup';
 const STORE_KEY = 'metro.redirect';
 
 function hashParts(): { route: string; query: URLSearchParams } {
@@ -16,13 +17,16 @@ function hashParts(): { route: string; query: URLSearchParams } {
 }
 
 export function atLogin(): boolean {
-  return hashParts().route === LOGIN_ROUTE;
+  const { route } = hashParts();
+  return route === LOGIN_ROUTE || route === SIGNUP_ROUTE;
 }
+
+export const atSignup = (): boolean => hashParts().route === SIGNUP_ROUTE;
 
 function safeRedirect(raw: string | null): string | null {
   if (raw === null || raw === '' || raw === '/') return null;
   if (!raw.startsWith('/') || raw.startsWith('//')) return null;
-  if (raw === LOGIN_ROUTE) return null;
+  if (raw === LOGIN_ROUTE || raw === SIGNUP_ROUTE) return null;
   return raw;
 }
 

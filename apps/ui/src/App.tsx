@@ -16,7 +16,7 @@ import { makeQueryClient, refreshServers, useServersQuery, useSessionQuery } fro
 import { AuthError, StoppedError } from './api/client.js';
 import { StoppedNotice } from './components/StoppedNotice.js';
 import { addServer } from './api/servers.js';
-import { atLogin, goToLogin, leaveLogin } from './auth/login-route.js';
+import { atLogin, atSignup, goToLogin, leaveLogin } from './auth/login-route.js';
 import { currentSelection, routeHash, subscribeRoute } from './route.js';
 import { pageTitle } from './title.js';
 import { activeAccount, loadAccount } from './auth/account.js';
@@ -237,7 +237,7 @@ export function App(): ReactNode {
     if (phase === 'login') {
       client.clear();
       goToLogin();
-      document.title = pageTitle('Log in');
+      document.title = pageTitle(atSignup() ? 'Sign up' : 'Log in');
     } else if (phase === 'unlocked' && atLogin()) leaveLogin();
   }, [phase, client]);
 

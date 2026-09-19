@@ -1,6 +1,6 @@
 const ORG_RE = /^org_[A-Za-z0-9]{10,64}$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
-const NOT_A_SLUG = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new']);
+const NOT_A_SLUG = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new']);
 
 export const isOrganizationId = (segment: string): boolean => ORG_RE.test(segment);
 
