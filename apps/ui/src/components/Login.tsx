@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
@@ -6,7 +6,7 @@ import { LOGO_ASPECT, MetroLogo } from './MetroLogo.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
-import { atWaitlist, joinedWaitlist } from '../auth/login-route.js';
+import { atWaitlist, clearOutcome, readOutcome } from '../auth/login-route.js';
 import { loginUrl, PROVIDERS, type Intent, type Provider } from '../api/auth.js';
 
 const CONTENT_WIDTH = 340;
@@ -30,12 +30,21 @@ const JOINED = 'You are on the waitlist. We will let you in soon, and you can th
 const LOGIN_HASH = '#/login';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
 
-function loginError(): string | null {
-  const raw = window.location.hash.replace(/^#/, '');
-  const cut = raw.indexOf('?');
-  if (cut === -1) return null;
-  const error = new URLSearchParams(raw.slice(cut + 1)).get('error');
-  return error === null || error === '' ? null : error;
+const REFUSALS: Record<string, string> = {
+  'no-account': 'No Metro account for this email yet. Join the waitlist first.',
+  waiting: 'You are on the waitlist already. We will let you in soon.',
+  'not-open': 'Metro is not open to this account.',
+  unverified: 'That account has no verified email address, so Metro cannot accept it. Log in with Google or GitHub, or use an account whose address is verified.',
+  cancelled: 'The sign-in was cancelled.',
+  failed: 'The sign-in failed. Try again.',
+};
+
+const PROVIDER_NAME: Record<string, string> = { google: 'Google', microsoft: 'Microsoft', github: 'GitHub' };
+
+function refusalText(refused: string | null, provider: string | null): string | null {
+  if (refused === null) return null;
+  if (refused === 'not-set-up') return `${PROVIDER_NAME[provider ?? ''] ?? 'That'} sign-in is not set up on Metro yet.`;
+  return REFUSALS[refused] ?? REFUSALS.failed ?? null;
 }
 
 function providerMark(provider: Provider, onButton: string): ReactNode {
@@ -129,9 +138,11 @@ function DaemonHint(): ReactNode {
 }
 
 export function Login(): ReactNode {
-  const failed = loginError();
+  const [outcome] = useState(readOutcome);
+  useEffect(clearOutcome, []);
+  const failed = refusalText(outcome.refused, outcome.provider);
   const waitlist = atWaitlist();
-  if (joinedWaitlist())
+  if (waitlist && outcome.joined)
     return (
       <Frame title={WAITLIST_TITLE}>
         <Text size="md" style={CENTER_TEXT}>

@@ -8,7 +8,7 @@ import { validateReturnTo } from '@metro-labs/http/return-to';
 import type { SlugStore } from '../slug.js';
 import { parseAccountName, type UserStore } from '../users.js';
 import { AVATAR_BODY_MAX, parseAvatar } from '../avatar.js';
-import { admit, stillIn, type Intent } from './operator.js';
+import { admit, stillIn, type Intent, type Refusal } from './operator.js';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import {
   addMembership,
@@ -104,7 +104,7 @@ async function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDep
   if (!isProvider(provider)) throw new ApiError('provider must be google or microsoft', 400);
   if (!validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
   if (!(await providers(req, deps)).includes(provider)) {
-    redirect(res, withHash(returnTo, `#/login?error=${encodeURIComponent(`${provider} sign-in is not set up on WorkOS yet`)}`));
+    redirect(res, withHash(returnTo, `${refusedHash('not-set-up')}&provider=${provider}`));
     return;
   }
   const now = (deps.now ?? Date.now)();
@@ -114,10 +114,13 @@ async function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDep
   redirect(res, authorizationUrl(cfg, provider, callbackUri(req, deps), state));
 }
 
-function refusal(query: URLSearchParams): string | null {
-  const refused = query.get('error_description') ?? query.get('error');
-  if (refused !== null) return refused;
-  return query.get('code') === null ? 'the sign-in was cancelled' : null;
+const refusedHash = (reason: Refusal): string => `#/login?refused=${reason}`;
+
+function refusal(query: URLSearchParams): Refusal | null {
+  const error = query.get('error');
+  if (error === null && query.get('code') !== null) return null;
+  log.info({ error, description: query.get('error_description') }, 'auth: the provider did not sign the user in');
+  return error === 'access_denied' || error === null ? 'cancelled' : 'failed';
 }
 
 function handoffFor(tokens: Tokens, now: number): string {
@@ -134,14 +137,11 @@ async function landing(cfg: WorkosConfig, deps: AuthApiDeps, started: Started, c
   if (verdict.kind === 'in') return `#/auth/${handoffFor(tokens, now)}`;
   log.info({ user: tokens.user.id, intent: started.intent, verdict: verdict.kind }, 'auth: not let in');
   if (verdict.kind === 'waiting') return '#/waitlist?joined=1';
-  return `#/login?error=${encodeURIComponent(verdict.reason)}`;
+  return refusedHash(verdict.reason);
 }
 
-const UNVERIFIED = 'That account has no verified email address, so Metro cannot accept it. Log in with Google or GitHub, or use an account whose address is verified.';
-
-function exchangeRefusal(err: unknown): string {
-  if (!(err instanceof WorkosError)) return 'sign-in failed';
-  return err.code === 'email_verification_required' ? UNVERIFIED : err.message;
+function exchangeRefusal(err: unknown): Refusal {
+  return err instanceof WorkosError && err.code === 'email_verification_required' ? 'unverified' : 'failed';
 }
 
 async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
@@ -153,14 +153,14 @@ async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearch
   const returnTo = started.returnTo;
   const refused = refusal(query);
   if (refused !== null) {
-    redirect(res, withHash(returnTo, `#/login?error=${encodeURIComponent(refused)}`));
+    redirect(res, withHash(returnTo, refusedHash(refused)));
     return;
   }
   try {
     redirect(res, withHash(returnTo, await landing(cfg, deps, started, query.get('code') ?? '', now)));
   } catch (err) {
     log.warn({ err: errMsg(err) }, 'auth: the code exchange failed');
-    redirect(res, withHash(returnTo, `#/login?error=${encodeURIComponent(exchangeRefusal(err))}`));
+    redirect(res, withHash(returnTo, refusedHash(exchangeRefusal(err))));
   }
 }
 

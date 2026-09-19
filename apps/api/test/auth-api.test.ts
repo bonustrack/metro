@@ -97,13 +97,13 @@ describe('signing in to metro.box through WorkOS', () => {
     workos.actor.sub = 'user_02BOB';
     try {
       const turned = await landAfterGoogle('login');
-      expect(turned).toBe(`#/login?error=${encodeURIComponent('No Metro account for this email yet. Join the waitlist first.')}`);
+      expect(turned).toBe('#/login?refused=no-account');
       expect(await deps.users.find('user_02BOB')).toMatchObject({ email: 'bob@stage.box', createdAt: '2026-09-02T10:00:00.000Z', status: null });
       expect(await landAfterGoogle('waitlist')).toBe('#/waitlist?joined=1');
       expect((await deps.users.find('user_02BOB'))?.status).toBe('waitlist');
-      expect(await landAfterGoogle('login')).toBe(`#/login?error=${encodeURIComponent('You are on the waitlist already. We will let you in soon.')}`);
+      expect(await landAfterGoogle('login')).toBe('#/login?refused=waiting');
       await deps.users.setStatus('user_02BOB', 'rejected');
-      expect(await landAfterGoogle('waitlist')).toBe(`#/login?error=${encodeURIComponent('Metro is not open to this account.')}`);
+      expect(await landAfterGoogle('waitlist')).toBe('#/login?refused=not-open');
       await deps.users.setStatus('user_02BOB', 'approved');
       const tokens = await signIn();
       expect(tokens.user.id).toBe('user_02BOB');
@@ -147,7 +147,7 @@ describe('signing in to metro.box through WorkOS', () => {
     expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
     const microsoft = await fetch(`${base}/api/auth/login?provider=microsoft&return_to=https://metro.box/`, { redirect: 'manual' });
     expect(microsoft.status).toBe(302);
-    expect(microsoft.headers.get('location')).toBe(`https://metro.box/#/login?error=${encodeURIComponent('microsoft sign-in is not set up on WorkOS yet')}`);
+    expect(microsoft.headers.get('location')).toBe('https://metro.box/#/login?refused=not-set-up&provider=microsoft');
     workos.enabled.add('MicrosoftOAuth');
     workos.enabled.add('GitHubOAuth');
     forgetProviders();
@@ -198,7 +198,7 @@ describe('signing in to metro.box through WorkOS', () => {
     const state = new URL(start.headers.get('location') ?? '').searchParams.get('state') ?? '';
     const cancelled = await fetch(`${base}/api/auth/callback?error=access_denied&error_description=User+said+no&state=${state}`, { redirect: 'manual' });
     expect(cancelled.status).toBe(302);
-    expect(cancelled.headers.get('location')).toBe('https://metro.box/#/login?error=User%20said%20no');
+    expect(cancelled.headers.get('location')).toBe('https://metro.box/#/login?refused=cancelled');
   });
 
   test('creating the organization makes the user its admin and returns tokens that carry it; a second one can be created and switched to', async () => {

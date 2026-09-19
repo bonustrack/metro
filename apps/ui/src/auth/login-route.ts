@@ -24,7 +24,26 @@ export function atLogin(): boolean {
 
 export const atWaitlist = (): boolean => hashParts().route === WAITLIST_ROUTE;
 
-export const joinedWaitlist = (): boolean => atWaitlist() && hashParts().query.get('joined') === '1';
+export interface Outcome {
+  refused: string | null;
+  provider: string | null;
+  joined: boolean;
+}
+
+const OUTCOME_KEYS = ['refused', 'provider', 'joined'];
+
+export function readOutcome(): Outcome {
+  const { query } = hashParts();
+  return { refused: query.get('refused'), provider: query.get('provider'), joined: query.get('joined') === '1' };
+}
+
+export function clearOutcome(): void {
+  const { route, query } = hashParts();
+  if (!OUTCOME_KEYS.some((key) => query.has(key))) return;
+  for (const key of OUTCOME_KEYS) query.delete(key);
+  const rest = query.toString();
+  replaceHash(`#${route}${rest === '' ? '' : `?${rest}`}`);
+}
 
 export function atLanding(): boolean {
   const { route } = hashParts();
