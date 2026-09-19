@@ -19,7 +19,6 @@ export interface TriggerButton {
 }
 
 const ITEM_ICON_SIZE = 20;
-const MENU_WIDTH = 260;
 const MENU_GAP = 8;
 const EDGE = 8;
 const ROW_TEXT = { fontSize: 17, lineHeight: '24px' } as const;
@@ -84,7 +83,7 @@ export function Dropdown({
     setAt(placement(box, align));
   };
 
-  const menuStyle = at === null ? undefined : { ...at, width: MENU_WIDTH };
+  const menuStyle = at ?? undefined;
   const separator = { background: withAlpha(palette.text) };
 
   return (
