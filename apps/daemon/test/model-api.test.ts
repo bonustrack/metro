@@ -369,7 +369,10 @@ describe('connecting Google for Gemini from the page', () => {
     expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 9, platform: expect.any(Number) as unknown, pluginType: 2 }, mode: 1 });
     expect(await (await gemini('models', 'GET')).json()).toEqual({ models: ['gemini-3.8-flash-tiered', 'gemini-3.1-pro-high'] });
     expect(modelsAsked.at(-1)).toEqual({ project: 'managed-proj-7' });
-    const settings = (await (await fetch(`${base}/api/model`, { headers: { authorization: await auth('GET', '/api/model', OWNER) } })).json()) as { usage: { gemini?: { windows: { label: string; used: number; resetAt: string; detail: string | null }[] } } };
+    const quiet = (await (await fetch(`${base}/api/model`, { headers: { authorization: await auth('GET', '/api/model', OWNER) } })).json()) as { usage: Record<string, unknown> };
+    expect(quiet.usage.gemini).toBeUndefined();
+    stored = { ...stored, gemini: { ...stored.gemini, model: 'gemini-3.8-flash-tiered' } };
+    const settings =(await (await fetch(`${base}/api/model`, { headers: { authorization: await auth('GET', '/api/model', OWNER) } })).json()) as { usage: { gemini?: { windows: { label: string; used: number; resetAt: string; detail: string | null }[] } } };
     expect(settings.usage.gemini?.windows).toEqual([{ label: 'gemini-3.8-flash-tiered', used: 0.25, resetAt: '2026-09-21T10:00:00Z', detail: null }]);
     const out = await gemini('logout', 'POST');
     expect(((await out.json()) as { gemini: { signedIn: boolean } }).gemini.signedIn).toBe(false);

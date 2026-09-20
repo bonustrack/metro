@@ -110,12 +110,21 @@ async function geminiModels(deps: ModelApiDeps, store: Store): Promise<Awaited<R
   return listGeminiModels(tokens, geminiDeps(deps, store));
 }
 
+function geminiModelsInUse(cfg: ModelConfig): Set<string> {
+  const served = lastServed();
+  return new Set([cfg.gemini.model, served?.provider === 'gemini' ? served.model : ''].filter((m) => m !== ''));
+}
+
 async function refreshGeminiQuota(deps: ModelApiDeps, store: Store, now = Date.now()): Promise<void> {
-  if (store.read().gemini.auth === null) return;
+  const cfg = store.read();
+  if (cfg.gemini.auth === null) return;
+  const inUse = geminiModelsInUse(cfg);
   const seen = usageOf('gemini');
-  if (seen !== undefined && now - Date.parse(seen.at) < CREDITS_TTL_MS) return;
+  const covers = seen !== undefined && [...inUse].every((id) => seen.windows.some((w) => w.label === id));
+  if (seen !== undefined && covers && now - Date.parse(seen.at) < CREDITS_TTL_MS) return;
   try {
-    const usage = geminiUsage(await geminiModels(deps, store), new Date(now));
+    const rows = (await geminiModels(deps, store)).filter((m) => inUse.has(m.id));
+    const usage = geminiUsage(rows, new Date(now));
     if (usage !== null) noteUsage('gemini', usage);
   } catch (err) {
     log.warn({ err: errMsg(err) }, 'model-api: could not read the Gemini quota');
