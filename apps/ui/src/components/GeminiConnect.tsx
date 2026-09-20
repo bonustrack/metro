@@ -9,7 +9,8 @@ import { beginGeminiLogin, finishGeminiLogin, geminiLogout, type ModelSettings }
 import { queryError, refreshModel } from '../api/queries.js';
 
 const FIELD_WIDTH = 420;
-const PASTE_HINT = 'Sign in with the Google account that holds your plan. At the end Google shows a code on its page: copy it and paste it here.';
+const PASTE_HINT = 'At the end Google shows a code on its page: copy it and paste it here.';
+const WHICH_ACCOUNT = 'Use a personal Google account (gmail.com) that holds your Google AI Pro or Ultra plan. A Google Workspace account is refused by Google: that tier is for individuals only.';
 
 function useAction(): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>, fallback: string) => void } {
   const client = useQueryClient();
@@ -135,7 +136,7 @@ export function GeminiConnect({ gemini }: { gemini: ModelSettings['gemini'] }): 
       ) : (
         <Col gap={10}>
           <Text size="sm" role="secondary">
-            Not connected.
+            Not connected. {WHICH_ACCOUNT}
           </Text>
           <SignInFlow label="Connect Google" color="primary" />
         </Col>
