@@ -9,6 +9,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 export interface RelayApiDeps {
   target: (connectorId: string, force: boolean) => Promise<RelayTarget>;
   identify: (req: IncomingMessage) => AgentIdentity | null;
+  signedOut: (connectorId: string) => void;
 }
 
 const ID_PATH_RE = /^\/relay\/([A-Za-z0-9][A-Za-z0-9_-]{10})$/;
@@ -242,6 +243,7 @@ async function relayExchange(
   }
   if (out.kind === 'signin') {
     noteHealth(connectorId, false, 'the sign-in has expired, connect it again');
+    deps.signedOut(connectorId);
     signinAnswer(res, connectorId);
     return;
   }

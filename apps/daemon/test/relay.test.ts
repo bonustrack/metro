@@ -34,7 +34,12 @@ type Mode = 'ok' | 'signin' | 'flip' | 'dead' | 'redirect' | 'down';
 let mode: Mode = 'ok';
 let forceCalls = 0;
 
+let signedOut: string[] = [];
+
 const deps: RelayApiDeps = {
+  signedOut: (id) => {
+    signedOut.push(id);
+  },
   target: (connectorId, force): Promise<RelayTarget> => {
     if (connectorId !== CONN) return Promise.resolve({ kind: 'missing' });
     if (force) forceCalls += 1;
@@ -146,6 +151,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  signedOut = [];
   seen.length = 0;
   mode = 'ok';
   forceCalls = 0;
@@ -249,6 +255,7 @@ describe('upstream auth failures', () => {
     const res = await post(INIT);
     expect(res.status).toBe(424);
     expect(healthOf(CONN)).toMatchObject({ ok: false, reason: 'the sign-in has expired, connect it again' });
+    expect(signedOut).toEqual([CONN]);
     const body = (await res.json()) as { error: string; reconnect: string };
     expect(body.error).toContain('signing in');
     expect(body.reconnect).toContain(CONN);

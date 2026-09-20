@@ -27,6 +27,7 @@ import {
   localRelayTarget,
   localRenameConnector,
   localVerifyConnector,
+  localMarkSignedOut,
   localConnectorTools,
 } from '../connectors/store.js';
 import {
@@ -141,6 +142,9 @@ const relayApi: RelayApiDeps = {
   identify: (req) => {
     const who = authenticate(req);
     return who?.kind === 'agent' ? { subject: 'agent-key', agentId: who.agentId } : null;
+  },
+  signedOut: (id) => {
+    localMarkSignedOut(id);
   },
 };
 

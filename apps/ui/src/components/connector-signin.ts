@@ -45,4 +45,4 @@ export function useSignIn(connector: Connector, onChanged: () => void, onError: 
 }
 
 export const healthNote = (connector: Connector): string | null =>
-  connector.health !== null && !connector.health.ok ? (connector.health.reason ?? 'the last call failed') : null;
+  connector.signIn !== 'disconnected' && connector.health !== null && !connector.health.ok ? (connector.health.reason ?? 'the last call failed') : null;

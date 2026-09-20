@@ -201,10 +201,19 @@ export async function localReconnectConnector(
   return replace(dir, { ...row, config: { ...row.config, auth, verified, oauth: true } });
 }
 
+const signedOut = (row: LocalConnectorRow): LocalConnectorRow => ({ ...row, config: { ...row.config, auth: { kind: 'none' }, oauth: true } });
+
 export async function localDisconnectConnector(subject: string, id: string, dir = agentsDir()): Promise<Connector> {
   const row = rowOrThrow(subject, id, dir);
   if (row.config.auth.kind !== 'oauth') throw new ConnectorError('that connector is not signed in', 400);
-  return Promise.resolve(replace(dir, { ...row, config: { ...row.config, auth: { kind: 'none' }, oauth: true } }));
+  return Promise.resolve(replace(dir, signedOut(row)));
+}
+
+export function localMarkSignedOut(id: string, dir = agentsDir()): void {
+  const row = readLocalConnectors(dir).find((r) => r.id === id);
+  if (row?.config.auth.kind !== 'oauth') return;
+  log.info({ id, name: row.name }, 'local relay: the vendor refused the token after a refresh; the connector is signed out');
+  replace(dir, signedOut(row));
 }
 
 async function freshAuth(auth: ConnectorAuth, resource: string): Promise<ConnectorAuth> {
