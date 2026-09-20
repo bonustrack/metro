@@ -73,6 +73,32 @@ beforeAll(async () => {
       res.end(JSON.stringify({ data: { total_credits: 50, total_usage: 12.4 } }));
       return;
     }
+    if (req.url === '/token') {
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        const form = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+        googleForms.push(form);
+        if (form.get('code') === 'bad-code') {
+          res.end(JSON.stringify({ error: 'invalid_grant', error_description: 'Bad Request' }));
+          return;
+        }
+        res.end(JSON.stringify({ access_token: 'g-at', refresh_token: 'g-rt', expires_in: 3599 }));
+      });
+      return;
+    }
+    if (req.url === '/oauth2/v2/userinfo') {
+      res.end(JSON.stringify({ email: 'less@gmail.com' }));
+      return;
+    }
+    if (req.url === '/v1internal:loadCodeAssist') {
+      res.end(JSON.stringify({ currentTier: { id: 'standard-tier', name: 'Google AI Pro' }, cloudaicompanionProject: '' }));
+      return;
+    }
+    if (req.url === '/v1internal:onboardUser') {
+      res.end(JSON.stringify({ done: true, response: { cloudaicompanionProject: { id: 'managed-proj-7' } } }));
+      return;
+    }
     if (req.url === '/v1/endpoints/zdr') {
       res.end(JSON.stringify({ data: [{ model_id: 'openai/gpt-5.2-codex', provider_name: 'OpenAI' }, { model_id: 'anthropic/claude-sonnet-4.5' }, { model_id: 'anthropic/claude-sonnet-4.5' }, { name: 'no id' }] }));
       return;
@@ -100,6 +126,10 @@ beforeAll(async () => {
         openrouterBase: backendBase,
         anthropicBase: backendBase,
         bedrockControlBase: backendBase,
+        geminiAuthBase: backendBase,
+        geminiTokenBase: backendBase,
+        geminiUserBase: backendBase,
+        geminiBase: backendBase,
         setup: { dir: join(home, 'claude'), agents: join(home, 'agents') },
       })
     )
@@ -122,7 +152,8 @@ afterAll(() => {
 beforeEach(() => {
   forgetUsage();
   creditsAuth.length = 0;
-  stored = { version: 1, provider: 'anthropic', anthropic: { apiKey: '', model: '' }, bedrock: { region: '', apiKey: '', model: '' }, openrouter: { apiKey: '', model: '', zdr: false }, codex: { model: '', auth: null } };
+  googleForms.length = 0;
+  stored = { version: 1, provider: 'anthropic', anthropic: { apiKey: '', model: '' }, bedrock: { region: '', apiKey: '', model: '' }, openrouter: { apiKey: '', model: '', zdr: false }, codex: { model: '', auth: null }, gemini: { model: '', auth: null } };
 });
 
 const call = async (method: string, who: Who | null, body?: unknown): Promise<Response> =>
@@ -179,6 +210,18 @@ describe('the model route on the page', () => {
     expect(stored.provider).toBe('anthropic');
   });
 });
+
+const googleForms: URLSearchParams[] = [];
+
+const gemini = async (name: string, method: 'GET' | 'POST', body?: unknown): Promise<Response> =>
+  fetch(`${base}/api/model/gemini/${name}`, {
+    method,
+    headers: {
+      authorization: await auth(method, `/api/model/gemini/${name}`, OWNER),
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 
 const codex = async (name: string, method: 'GET' | 'POST', body?: unknown): Promise<Response> =>
   fetch(`${base}/api/model/codex/${name}`, {
@@ -248,6 +291,39 @@ describe('connecting ChatGPT for Codex from the page', () => {
     expect(stored.codex.auth?.accessToken).toBe('cli-at');
     expect((await codex('dance', 'POST')).status).toBe(404);
     expect((await codex('login', 'GET')).status).toBe(405);
+  });
+});
+
+describe('connecting Google for Gemini from the page', () => {
+  test('login hands back the Google link with PKCE, the pasted code finishes it after onboarding, and the tokens never reach the page', async () => {
+    const started = (await (await gemini('login', 'POST')).json()) as { url: string; state: string };
+    const url = new URL(started.url);
+    expect(url.origin).toBe(backendBase);
+    expect(url.pathname).toBe('/o/oauth2/v2/auth');
+    expect(url.searchParams.get('client_id')).toBe('681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com');
+    expect(url.searchParams.get('redirect_uri')).toBe('https://codeassist.google.com/authcode');
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(url.searchParams.get('access_type')).toBe('offline');
+    expect(url.searchParams.get('state')).toBe(started.state);
+    expect((await gemini('code', 'POST', { code: 'x', state: 'nope' })).status).toBe(400);
+    const rejected = await gemini('code', 'POST', { code: 'bad-code', state: started.state });
+    expect(rejected.status).toBe(400);
+    expect(((await rejected.json()) as { error: string }).error).toContain('Bad Request');
+    const again = (await (await gemini('login', 'POST')).json()) as { state: string };
+    const done = await gemini('code', 'POST', { code: '4/0AbCdEf', state: again.state });
+    expect(done.status).toBe(200);
+    const shown = (await done.json()) as { gemini: Record<string, unknown> };
+    expect(shown.gemini).toEqual({ model: '', signedIn: true, account: 'less@gmail.com', plan: 'Google AI Pro' });
+    expect(JSON.stringify(shown)).not.toContain('g-at');
+    expect(googleForms.at(-1)?.get('grant_type')).toBe('authorization_code');
+    expect(googleForms.at(-1)?.get('code_verifier')).toMatch(/^[A-Za-z0-9_-]{40,}$/);
+    expect(stored.gemini.auth).toMatchObject({ accessToken: 'g-at', refreshToken: 'g-rt', project: 'managed-proj-7', tier: 'Google AI Pro', email: 'less@gmail.com' });
+    expect(await (await gemini('models', 'GET')).json()).toMatchObject({ models: expect.arrayContaining(['gemini-2.5-pro']) as unknown });
+    const out = await gemini('logout', 'POST');
+    expect(((await out.json()) as { gemini: { signedIn: boolean } }).gemini.signedIn).toBe(false);
+    expect(stored.gemini.auth).toBeNull();
+    expect((await gemini('dance', 'POST')).status).toBe(404);
+    expect((await gemini('login', 'GET')).status).toBe(405);
   });
 });
 

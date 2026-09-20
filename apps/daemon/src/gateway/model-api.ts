@@ -6,6 +6,9 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { beginLogin, CodexAuthError, finishLogin, readCodexCliAuth } from './codex-auth.js';
 import { beginDeviceLogin, pollDeviceLogin } from './codex-device.js';
 import { codexModels, currentTokens, freshCodexState } from './codex.js';
+import { beginLogin as beginGeminiLogin, exchangeCode as exchangeGeminiCode, GeminiAuthError, userEmail } from './gemini-auth.js';
+import { onboard } from './gemini-setup.js';
+import { KNOWN_GEMINI_MODELS } from './gemini.js';
 import { openrouterCredits, openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
 import { syncAvailableModelsQuietly, type SetupDeps } from '../claude/setup.js';
@@ -20,12 +23,14 @@ import {
   publicModelConfig,
   readModelConfig,
   setCodexAuth,
+  setGeminiAuth,
   writeModelConfig,
   type ModelConfig,
 } from './model-config.js';
 
 const PATH = '/api/model';
 const CODEX = '/api/model/codex/';
+const GEMINI = '/api/model/gemini/';
 const OPENROUTER = '/api/model/openrouter/';
 const ANTHROPIC = '/api/model/anthropic/';
 const BEDROCK = '/api/model/bedrock/';
@@ -44,6 +49,10 @@ export interface ModelApiDeps {
   fetchImpl?: typeof fetch;
   codexHome?: string;
   codexBase?: string;
+  geminiAuthBase?: string;
+  geminiTokenBase?: string;
+  geminiUserBase?: string;
+  geminiBase?: string;
   openrouterBase?: string;
   anthropicBase?: string;
   bedrockControlBase?: string;
@@ -89,7 +98,7 @@ async function settingsWithUsage(cfg: ModelConfig, deps: ModelApiDeps): Promise<
 }
 
 function asApiError(err: unknown): never {
-  if (err instanceof ModelConfigError || err instanceof CodexAuthError) throw new ApiError(err.message, 400);
+  if (err instanceof ModelConfigError || err instanceof CodexAuthError || err instanceof GeminiAuthError) throw new ApiError(err.message, 400);
   if (err instanceof GatewayError) throw new ApiError(err.message, err.status >= 400 && err.status < 500 ? 400 : 502);
   throw err;
 }
@@ -172,6 +181,37 @@ const CODEX_ROUTES: Record<string, Route> = {
   },
 };
 
+async function connectGemini(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
+  const body = await readJsonBody(req, BODY_MAX);
+  const code = isRecord(body) && typeof body.code === 'string' ? body.code : '';
+  const state = isRecord(body) && typeof body.state === 'string' ? body.state : '';
+  const tokens = await exchangeGeminiCode(code, state, deps.geminiTokenBase, deps.fetchImpl).catch(asApiError);
+  const email = await userEmail(tokens, deps.geminiUserBase, deps.fetchImpl);
+  const onboarded = await onboard(tokens, deps.geminiBase, deps.fetchImpl).catch(asApiError);
+  const cfg = setGeminiAuth(store.read(), { ...tokens, email, project: onboarded.project, tier: onboarded.tier });
+  store.write(cfg);
+  log.info({ tier: onboarded.tier }, 'model-api: Gemini connected');
+  return settingsBody(cfg);
+}
+
+const GEMINI_ROUTES: Record<string, Route> = {
+  login: {
+    method: 'POST',
+    run: (_req, deps) => Promise.resolve(beginGeminiLogin(deps.geminiAuthBase)),
+  },
+  code: { method: 'POST', run: connectGemini },
+  logout: {
+    method: 'POST',
+    run: (_req, _deps, store) => {
+      const cfg = setGeminiAuth(store.read(), null);
+      store.write(cfg);
+      log.info('model-api: Gemini disconnected');
+      return Promise.resolve(settingsBody(cfg));
+    },
+  },
+  models: { method: 'GET', run: () => Promise.resolve({ models: KNOWN_GEMINI_MODELS }) },
+};
+
 const OPENROUTER_ROUTES: Record<string, Route> = {
   models: {
     method: 'GET',
@@ -232,7 +272,7 @@ function codexRoute(rest: string, method: string | undefined): Route | number {
 }
 
 const mine = (path: string): boolean =>
-  path === PATH || path === BUNDLE || path === RESTORE || path.startsWith(CODEX) || path.startsWith(OPENROUTER) || path.startsWith(ANTHROPIC) || path.startsWith(BEDROCK);
+  path === PATH || path === BUNDLE || path === RESTORE || path.startsWith(CODEX) || path.startsWith(GEMINI) || path.startsWith(OPENROUTER) || path.startsWith(ANTHROPIC) || path.startsWith(BEDROCK);
 
 function routeFor(path: string, method: string | undefined): Route | number {
   if (path === PATH) return settingsRoute(method);
@@ -240,6 +280,7 @@ function routeFor(path: string, method: string | undefined): Route | number {
   if (path.startsWith(OPENROUTER)) return named(OPENROUTER_ROUTES, path.slice(OPENROUTER.length), method);
   if (path.startsWith(ANTHROPIC)) return named(ANTHROPIC_ROUTES, path.slice(ANTHROPIC.length), method);
   if (path.startsWith(BEDROCK)) return named(BEDROCK_ROUTES, path.slice(BEDROCK.length), method);
+  if (path.startsWith(GEMINI)) return named(GEMINI_ROUTES, path.slice(GEMINI.length), method);
   return codexRoute(path.slice(CODEX.length), method);
 }
 

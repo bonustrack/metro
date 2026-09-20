@@ -10,8 +10,12 @@ import {
   type Adaptations,
 } from './bedrock.js';
 import { anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
-import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, writeModelConfig, type ModelConfig, type Route } from './model-config.js';
-import { codexCount, codexMessages, freshCodexState, type CodexDeps } from './codex.js';
+import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, setGeminiAuth, writeModelConfig, type ModelConfig, type Route } from './model-config.js';
+import { codexCount, codexMessages, freshCodexState } from './codex.js';
+import { freshGeminiState, geminiCount, geminiMessages } from './gemini.js';
+import type { GeminiDeps } from './gemini.js';
+import type { CodexDeps } from './codex.js';
+import type { GeminiTokens } from './gemini-auth.js';
 import { OPENROUTER_BASE } from './openrouter.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
@@ -32,10 +36,12 @@ export interface GatewayDeps {
   bedrockBase?: string;
   openrouterBase?: string;
   codex?: Partial<CodexDeps>;
+  gemini?: Partial<GeminiDeps>;
 }
 
 const learned: Adaptations = freshAdaptations();
 const codexState = freshCodexState();
+const geminiState = freshGeminiState();
 
 export function resetGatewayState(): void {
   forgetServed();
@@ -43,10 +49,15 @@ export function resetGatewayState(): void {
   learned.fields.clear();
   learned.dropBetas = false;
   Object.assign(codexState, freshCodexState());
+  Object.assign(geminiState, freshGeminiState());
 }
 
 const saveCodexTokens = (tokens: CodexTokens): void => {
   writeModelConfig(setCodexAuth(readModelConfig(), tokens));
+};
+
+const saveGeminiTokens = (tokens: GeminiTokens): void => {
+  writeModelConfig(setGeminiAuth(readModelConfig(), tokens));
 };
 
 const keyOf = (req: IncomingMessage): string => {
@@ -64,6 +75,8 @@ function modelsBody(cfg: ModelConfig): Record<string, unknown> {
     data.push({ id: `openrouter:${cfg.openrouter.model}`, display_name: `OpenRouter · ${cfg.openrouter.model}`, description: 'Through metro, billed to OpenRouter' });
   if (cfg.codex.model !== '')
     data.push({ id: `codex:${cfg.codex.model}`, display_name: `Codex · ${cfg.codex.model}`, description: 'Through metro, on your ChatGPT subscription' });
+  if (cfg.gemini.model !== '')
+    data.push({ id: `gemini:${cfg.gemini.model}`, display_name: `Gemini · ${cfg.gemini.model}`, description: 'Through metro, on your Google account' });
   return { data, has_more: false, first_id: data[0]?.id ?? null, last_id: data.at(-1)?.id ?? null };
 }
 
@@ -94,7 +107,7 @@ async function toAnthropic(
     throw new GatewayError(
       403,
       'permission_error',
-      'Claude Code on this machine has no Anthropic login of its own; choose Bedrock, OpenRouter or Codex on the Model page, or sign in on the Claude tab',
+      'Claude Code on this machine has no Anthropic login of its own; choose Bedrock, OpenRouter, Codex or Gemini on the Model page, or sign in on the Claude tab',
     );
   const watch = watchUpstream(res);
   const upstream = await fetch(url, {
@@ -156,6 +169,16 @@ function noteRefusal(provider: string, model: string, upstream: Response): void 
   if (!upstream.ok) log.warn({ provider, model, status: upstream.status }, 'gateway: the provider refused the request');
 }
 
+async function toSubscription(req: IncomingMessage, res: ServerResponse, path: string, body: Record<string, unknown>, route: Route, cfg: ModelConfig, deps: GatewayDeps): Promise<void> {
+  if (route.provider === 'gemini') {
+    if (path === COUNT) geminiCount(res, body);
+    else await geminiMessages(req, res, body, route.model, cfg, { save: saveGeminiTokens, ...deps.gemini }, geminiState, watchUpstream(res));
+    return;
+  }
+  if (path === COUNT) codexCount(res, body);
+  else await codexMessages(req, res, body, route.model, cfg, { save: saveCodexTokens, ...deps.codex }, codexState, watchUpstream(res));
+}
+
 async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
   const cfg = deps.config();
   const raw = await readBody(req);
@@ -175,13 +198,8 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
     await toOpenRouter(req, res, body, route, cfg, deps);
     return;
   }
-  if (route.provider === 'codex') {
-    if (path === COUNT) {
-      codexCount(res, body);
-      return;
-    }
-    const codexDeps: CodexDeps = { save: saveCodexTokens, ...deps.codex };
-    await codexMessages(req, res, body, route.model, cfg, codexDeps, codexState, watchUpstream(res));
+  if (route.provider === 'codex' || route.provider === 'gemini') {
+    await toSubscription(req, res, path, body, route, cfg, deps);
     return;
   }
   await toAnthropic(req, res, raw, body, route, deps);

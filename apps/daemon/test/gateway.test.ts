@@ -7,6 +7,7 @@ import { usageSeen } from '../src/gateway/usage.ts';
 import { encodeFrame } from '../src/gateway/eventstream.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import type { CodexTokens } from '../src/gateway/codex-auth.ts';
+import type { GeminiTokens } from '../src/gateway/gemini-auth.ts';
 
 interface Seen {
   url: string;
@@ -56,6 +57,10 @@ let bedrock: Fake;
 let openrouter: Fake;
 let codexBackend: Fake;
 let tokenIssuer: Fake;
+let geminiBackend: Fake;
+let googleTokens: Fake;
+const savedGemini: GeminiTokens[] = [];
+const geminiTokens = (): GeminiTokens => ({ accessToken: 'ga-1', refreshToken: 'gr-1', expiresAt: Date.now() + 3_600_000, email: 'less@gmail.com', project: 'proj-1', tier: 'Google AI Pro', savedAt: new Date().toISOString() });
 const saved: CodexTokens[] = [];
 const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
 const tokens = (): CodexTokens => ({ accessToken: 'at-1', refreshToken: 'rt-1', idToken: '', accountId: 'acct_1', email: 'less@example.com', plan: 'pro', savedAt: new Date().toISOString() });
@@ -125,6 +130,26 @@ beforeAll(async () => {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ access_token: 'at-2', refresh_token: 'rt-2', id_token: jwt({ email: 'less@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_1', chatgpt_plan_type: 'pro' } }) }));
   });
+  geminiBackend = await fake((req, res) => {
+    if (req.headers.authorization === 'Bearer stale') {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end('{"error":{"message":"invalid token"}}');
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    const chunk = (parts: unknown[], finish?: string, usage?: unknown): string =>
+      `data: ${JSON.stringify({ response: { candidates: [{ content: { role: 'model', parts }, ...(finish === undefined ? {} : { finishReason: finish }) }], ...(usage === undefined ? {} : { usageMetadata: usage }) } })}\n\n`;
+    res.write(chunk([{ text: 'pondering', thought: true, thoughtSignature: 'SIG1' }]));
+    res.write(chunk([{ text: 'Hel' }]));
+    res.write(chunk([{ text: 'lo' }]));
+    res.write(chunk([{ functionCall: { name: 'Bash', args: { command: 'ls' } }, thoughtSignature: 'SIG2' }], 'STOP', { promptTokenCount: 120, candidatesTokenCount: 5, thoughtsTokenCount: 4, cachedContentTokenCount: 100 }));
+    res.end();
+  });
+  googleTokens = await fake((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ access_token: 'ga-2', expires_in: 3599, token_type: 'Bearer' }));
+  });
+  deps.gemini = { base: geminiBackend.base, tokenBase: googleTokens.base, save: (t) => { savedGemini.push(t); } };
   deps.codex = { base: codexBackend.base, issuer: tokenIssuer.base, save: (t) => { saved.push(t); } };
   deps.anthropicBase = anthropic.base;
   deps.bedrockBase = bedrock.base;
@@ -140,7 +165,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  for (const s of [anthropic.server, bedrock.server, openrouter.server, codexBackend.server, tokenIssuer.server, gateway]) s.close();
+  for (const s of [anthropic.server, bedrock.server, openrouter.server, codexBackend.server, tokenIssuer.server, geminiBackend.server, googleTokens.server, gateway]) s.close();
 });
 
 beforeEach(() => {
@@ -152,7 +177,11 @@ beforeEach(() => {
     bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
     openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex', zdr: false },
     codex: { model: 'gpt-5.3-codex', auth: tokens() },
+    gemini: { model: 'gemini-3-pro-preview', auth: geminiTokens() },
   };
+  geminiBackend.seen.length = 0;
+  googleTokens.seen.length = 0;
+  savedGemini.length = 0;
   anthropic.seen.length = 0;
   codexBackend.seen.length = 0;
   tokenIssuer.seen.length = 0;
@@ -352,7 +381,7 @@ describe('what the picker can discover', () => {
     cfg.bedrock.model = 'eu.anthropic.claude-sonnet-4-6';
     const res = await fetch(`${base}/gateway/v1/models?limit=1000`, { headers: { 'x-metro-key': 'mk_ok' } });
     const body = (await res.json()) as { data: { id: string; display_name: string }[] };
-    expect(body.data.map((m) => m.id)).toEqual(['bedrock:eu.anthropic.claude-sonnet-4-6', 'openrouter:openai/gpt-5.2-codex', 'codex:gpt-5.3-codex']);
+    expect(body.data.map((m) => m.id)).toEqual(['bedrock:eu.anthropic.claude-sonnet-4-6', 'openrouter:openai/gpt-5.2-codex', 'codex:gpt-5.3-codex', 'gemini:gemini-3-pro-preview']);
     expect(body.data[0]?.display_name).toContain('Bedrock');
   });
 });
@@ -410,6 +439,63 @@ describe('the Codex route', () => {
     expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Model page');
     const models = await fetch(`${base}/gateway/v1/models`, { headers: { 'x-metro-key': 'mk_ok' } });
     expect(((await models.json()) as { data: { id: string }[] }).data.map((m) => m.id)).toContain('codex:gpt-5.3-codex');
+  });
+});
+
+describe('the Gemini route', () => {
+  test('speaks the Gemini CLI protocol to Code Assist, with the system prompt as the instruction, and translates the stream', async () => {
+    cfg.provider = 'gemini';
+    const res = await post('/gateway/v1/messages', { ...message('claude-sonnet-5', true), thinking: { type: 'enabled', budget_tokens: 1024 }, tools: [{ name: 'Bash', description: 'run', input_schema: { type: 'object', properties: { command: { type: 'string' } }, additionalProperties: false, $schema: 'x' } }] }, { 'x-claude-code-session-id': 'sess-9' });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('text/event-stream');
+    const text = await res.text();
+    expect(text).toContain('"type":"message_start"');
+    expect(text).toContain('"thinking_delta","thinking":"pondering"');
+    expect(text).toContain('"signature_delta","signature":"metro-gemini:');
+    expect(text).toContain('"text_delta","text":"Hel"');
+    expect(text).toContain('"text_delta","text":"lo"');
+    expect(text).toContain('"name":"Bash","input":{}');
+    expect(text).toContain('"input_json_delta","partial_json":"{\\"command\\":\\"ls\\"}"');
+    expect(text).toContain('"stop_reason":"tool_use"');
+    expect(text).toContain('"input_tokens":20,"output_tokens":9,"cache_read_input_tokens":100');
+    expect(text).toContain('event: message_stop');
+    expect(geminiBackend.seen.length).toBe(1);
+    expect(geminiBackend.seen[0]?.url).toBe('/v1internal:streamGenerateContent?alt=sse');
+    const sent = JSON.parse(geminiBackend.seen[0]?.body ?? '{}') as { model: string; project: string; user_prompt_id: string; request: Record<string, unknown> };
+    expect(sent).toMatchObject({ model: 'gemini-3-pro-preview', project: 'proj-1', user_prompt_id: 'sess-9' });
+    expect(sent.request.systemInstruction).toEqual({ role: 'user', parts: [{ text: 'attribution' }] });
+    expect(sent.request.contents).toEqual([{ role: 'user', parts: [{ text: 'hi' }] }]);
+    expect(sent.request.tools).toEqual([{ functionDeclarations: [{ name: 'Bash', description: 'run', parameters: { type: 'object', properties: { command: { type: 'string' } } } }] }]);
+    expect(sent.request.generationConfig).toEqual({ maxOutputTokens: 8, thinkingConfig: { includeThoughts: true } });
+    const headers = geminiBackend.seen[0]?.headers ?? {};
+    expect(headers.authorization).toBe('Bearer ga-1');
+    expect(String(headers['user-agent'])).toMatch(/^GeminiCLI\//);
+  });
+
+  test('a 401 refreshes the Google tokens once, saves them, and retries', async () => {
+    cfg.provider = 'gemini';
+    cfg.gemini.auth = { ...geminiTokens(), accessToken: 'stale' };
+    const res = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('event: message_stop');
+    expect(googleTokens.seen.length).toBe(1);
+    expect(googleTokens.seen[0]?.url).toBe('/token');
+    expect(new URLSearchParams(googleTokens.seen[0]?.body ?? '').get('grant_type')).toBe('refresh_token');
+    expect(savedGemini[0]).toMatchObject({ accessToken: 'ga-2', refreshToken: 'gr-1', project: 'proj-1', email: 'less@gmail.com' });
+    expect(geminiBackend.seen.at(-1)?.headers.authorization).toBe('Bearer ga-2');
+    expect((JSON.parse(geminiBackend.seen.at(-1)?.body ?? '{}') as { model: string }).model).toBe('gemini-2.5-flash');
+  });
+
+  test('token counting is an estimate, a disconnected account is a 400, and the picker sees the route', async () => {
+    cfg.provider = 'gemini';
+    const count = await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-5'));
+    expect(((await count.json()) as { input_tokens: number }).input_tokens).toBeGreaterThan(10);
+    cfg.gemini.auth = null;
+    const refused = await post('/gateway/v1/messages', message('claude-sonnet-5'));
+    expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Model page');
+    const models = await fetch(`${base}/gateway/v1/models`, { headers: { 'x-metro-key': 'mk_ok' } });
+    expect(((await models.json()) as { data: { id: string }[] }).data.map((m) => m.id)).toContain('gemini:gemini-3-pro-preview');
   });
 });
 

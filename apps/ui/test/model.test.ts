@@ -26,8 +26,9 @@ describe('what the Model page reads from the daemon', () => {
     expect(routeLabel(bare)).toBe('Anthropic · the model Claude Code asks for · your Claude Code login');
     expect(routeLabel({ ...bare, anthropic: { model: 'claude-opus-5', hasKey: true } })).toBe('Anthropic · claude-opus-5 · the key on this page');
     expect(() => toModelSettings({ provider: 'mars' })).toThrow(/unexpected/);
-    expect(PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'bedrock', 'openrouter', 'codex']);
+    expect(PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'bedrock', 'openrouter', 'codex', 'gemini']);
     expect(bare.codex).toEqual({ model: '', signedIn: false, account: null, plan: null });
+    expect(bare.gemini).toEqual({ model: '', signedIn: false, account: null, plan: null });
   });
 
   test('a route that is not ready says why', () => {
@@ -42,7 +43,7 @@ describe('what Save sends', () => {
     const settings = toModelSettings({ provider: 'bedrock', ready: true, bedrock: { region: 'eu-central-1', model: '', hasKey: true }, openrouter: { model: 'x/y', hasKey: true }, codex: { model: 'gpt-5.4' } });
     const draft = draftOf(settings);
     expect(draft.bedrockKey).toBe('');
-    expect(patchOf(draft)).toEqual({ provider: 'bedrock', anthropic: { model: '' }, bedrock: { region: 'eu-central-1', model: '' }, openrouter: { model: 'x/y', zdr: false }, codex: { model: 'gpt-5.4' } });
+    expect(patchOf(draft)).toEqual({ provider: 'bedrock', anthropic: { model: '' }, bedrock: { region: 'eu-central-1', model: '' }, openrouter: { model: 'x/y', zdr: false }, codex: { model: 'gpt-5.4' }, gemini: { model: '' } });
     expect(patchOf({ ...draft, anthropicKey: 'sk-ant-x', anthropicModel: 'claude-opus-5' }).anthropic).toEqual({ model: 'claude-opus-5', apiKey: 'sk-ant-x' });
     expect(patchOf({ ...draft, anthropicForget: true }).anthropic).toEqual({ model: '', apiKey: '' });
     expect(patchOf({ ...draft, bedrockKey: 'new-key' }).bedrock).toEqual({ region: 'eu-central-1', model: '', apiKey: 'new-key' });
@@ -106,6 +107,7 @@ describe('the logo beside each provider', () => {
       'amazon.com',
       'openrouter.ai',
       'openai.com',
+      'google.com',
     ]);
   });
 });

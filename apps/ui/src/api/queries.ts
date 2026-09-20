@@ -41,10 +41,7 @@ import { fetchMode, type ModeInfo } from './mode.js';
 import { fetchUpdate, type UpdateCheck } from './update.js';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
 import { fetchMachine, type Machine } from './machine.js';
-import { codexModels, fetchModel, anthropicModels,
-  bedrockModels,
-  openrouterModels,
-  openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
+import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -216,6 +213,15 @@ export function useAnthropicModelsQuery(enabled: boolean): UseQueryResult<ModelO
 
 export function useBedrockModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
   return useQuery({ queryKey: ['bedrock', 'models', daemonBase()], queryFn: () => bedrockModels(), enabled, staleTime: 10 * 60_000 });
+}
+
+export function useGeminiModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
+  return useQuery({
+    queryKey: ['gemini', 'models', daemonBase()],
+    queryFn: async () => (await geminiModels()).map((id) => ({ id, name: id })),
+    enabled,
+    staleTime: 10 * 60_000,
+  });
 }
 
 export function useCodexModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {

@@ -10,18 +10,19 @@ import { ProviderLogo } from './ProviderLogo.js';
 import { Loading } from './Loading.js';
 import { GROW } from '../theme.js';
 import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelOption, type ModelSettings } from '../api/model.js';
-import { queryError, refreshModel, useAnthropicModelsQuery, useBedrockModelsQuery, useCodexModelsQuery, useModelQuery, useOpenRouterModelsQuery, useOpenRouterZdrQuery } from '../api/queries.js';
+import { queryError, refreshModel, useAnthropicModelsQuery, useBedrockModelsQuery, useCodexModelsQuery, useGeminiModelsQuery, useModelQuery, useOpenRouterModelsQuery, useOpenRouterZdrQuery } from '../api/queries.js';
 import { ModelPicker } from './ModelPicker.js';
 import { useDocumentTitle } from '../title.js';
 import { whenLabel } from '../api/when.js';
 import { CodexConnect } from './CodexConnect.js';
+import { GeminiConnect } from './GeminiConnect.js';
 import { ClaudeLoginCard } from './ClaudeLogin.js';
 
 const LOGO_SIZE = 16;
 const ROUTE_LOGO_SIZE = 20;
 
 const HOW =
-  'Claude Code sessions started with metro claude send every request through this daemon, which forwards it to the provider chosen here. A change applies to the next request, no restart needed. Inside a session, /model bedrock:<id>, /model openrouter:<id> or /model codex:<id> switches that session only.';
+  'Claude Code sessions started with metro claude send every request through this daemon, which forwards it to the provider chosen here. A change applies to the next request, no restart needed. Inside a session, /model bedrock:<id>, /model openrouter:<id>, /model codex:<id> or /model gemini:<id> switches that session only.';
 const FIELD_WIDTH = 420;
 
 interface KeyFieldProps {
@@ -206,6 +207,30 @@ function CodexFields({ draft, settings, set }: { draft: Draft; settings: ModelSe
   );
 }
 
+function GeminiFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
+  const [wanted, setWanted] = useState(false);
+  const models = useGeminiModelsQuery(wanted);
+  return (
+    <Col gap={12}>
+      <GeminiConnect gemini={settings.gemini} />
+      <ModelPicker
+        label="Model"
+        value={draft.geminiModel}
+        placeholder="type to search, e.g. gemini-3, flash, pro"
+        models={models.data}
+        loading={models.isFetching}
+        error={models.error === null ? null : queryError(models.error, 'Could not list the models.')}
+        onOpen={() => {
+          setWanted(true);
+        }}
+        onChange={(v) => {
+          set({ geminiModel: v });
+        }}
+      />
+    </Col>
+  );
+}
+
 function TextField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (v: string) => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
@@ -242,6 +267,7 @@ function ProviderFields({ draft, settings, set }: { draft: Draft; settings: Mode
     );
   if (draft.provider === 'openrouter') return <OpenRouterFields draft={draft} settings={settings} set={set} />;
   if (draft.provider === 'codex') return <CodexFields draft={draft} settings={settings} set={set} />;
+  if (draft.provider === 'gemini') return <GeminiFields draft={draft} settings={settings} set={set} />;
   return <AnthropicFields draft={draft} settings={settings} set={set} />;
 }
 

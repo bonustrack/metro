@@ -31,6 +31,7 @@ const configured: ModelConfig = {
   bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
   openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex', zdr: false },
   codex: { model: '', auth: null },
+  gemini: { model: '', auth: null },
 };
 
 describe('the model route on disk', () => {
@@ -45,6 +46,7 @@ describe('the model route on disk', () => {
       bedrock: { region: '', apiKey: '', model: '' },
       openrouter: { apiKey: '', model: '', zdr: false },
       codex: { model: '', auth: null },
+      gemini: { model: '', auth: null },
     });
   });
 
@@ -130,6 +132,27 @@ describe('the Codex route', () => {
     expect(resolveRoute('claude-sonnet-5', signedIn)).toEqual({ provider: 'codex', model: 'gpt-5.3-codex' });
     expect(resolveRoute('gpt-5.4', signedIn)).toEqual({ provider: 'codex', model: 'gpt-5.4' });
     expect(resolveRoute('codex:gpt-5.2-codex', configured)).toEqual({ provider: 'codex', model: 'gpt-5.2-codex' });
+  });
+});
+
+describe('the Gemini route', () => {
+  const auth = { accessToken: 'gat', refreshToken: 'grt', expiresAt: 1_800_000_000_000, email: 'l@gmail.com', project: 'proj', tier: 'Google AI Pro', savedAt: '2026-09-20T00:00:00.000Z' };
+  const signedIn = { ...configured, provider: 'gemini' as const, gemini: { model: 'gemini-3-pro-preview', auth } };
+
+  test('needs a sign-in and a model, keeps its tokens through a page update and a round trip, and shows only the account', () => {
+    expect(notReady({ ...signedIn, gemini: { ...signedIn.gemini, auth: null } })).toMatch(/sign in with Google/);
+    expect(notReady({ ...signedIn, gemini: { ...signedIn.gemini, model: '' } })).toMatch(/model id/);
+    expect(notReady(signedIn)).toBeNull();
+    expect(applyModelUpdate(signedIn, { gemini: { model: 'gemini-2.5-flash' } }).gemini).toEqual({ auth, model: 'gemini-2.5-flash' });
+    const shown = publicModelConfig(signedIn);
+    expect(shown).toMatchObject({ provider: 'gemini', ready: true, gemini: { model: 'gemini-3-pro-preview', signedIn: true, account: 'l@gmail.com', plan: 'Google AI Pro' } });
+    expect(JSON.stringify(shown)).not.toContain('gat');
+    const dir = scratch();
+    writeModelConfig(signedIn, dir);
+    expect(readModelConfig(dir)).toEqual(signedIn);
+    expect(resolveRoute('claude-sonnet-5', signedIn)).toEqual({ provider: 'gemini', model: 'gemini-3-pro-preview' });
+    expect(resolveRoute('gemini-2.5-flash', signedIn)).toEqual({ provider: 'gemini', model: 'gemini-2.5-flash' });
+    expect(resolveRoute('gemini:gemini-2.5-pro', configured)).toEqual({ provider: 'gemini', model: 'gemini-2.5-pro' });
   });
 });
 

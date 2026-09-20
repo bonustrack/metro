@@ -3,7 +3,7 @@ import { toUsage, type Usage } from './usage.js';
 import { isRecord } from './accounts.js';
 import { daemonBase } from '../auth/daemon.js';
 
-export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex';
+export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex' | 'gemini';
 
 export interface ProviderInfo {
   id: Provider;
@@ -28,6 +28,12 @@ export const PROVIDERS: ProviderInfo[] = [
     site: 'https://openai.com',
     blurb: 'GPT and Codex models on your ChatGPT subscription, signed in with your ChatGPT account. Unofficial: metro speaks the Codex CLI protocol, and OpenAI can change it at any time.',
   },
+  {
+    id: 'gemini',
+    label: 'Gemini (Google)',
+    site: 'https://gemini.google.com',
+    blurb: 'Gemini models on your Google account, with the limits of your Google AI Pro or Ultra plan. Unofficial: metro speaks the Gemini CLI protocol, and Google can change it at any time.',
+  },
 ];
 
 export interface Served {
@@ -46,6 +52,7 @@ export interface ModelSettings {
   bedrock: { region: string; model: string; hasKey: boolean };
   openrouter: { model: string; hasKey: boolean; zdr: boolean };
   codex: { model: string; signedIn: boolean; account: string | null; plan: string | null };
+  gemini: { model: string; signedIn: boolean; account: string | null; plan: string | null };
 }
 
 export interface ModelPatch {
@@ -54,6 +61,7 @@ export interface ModelPatch {
   bedrock?: { region?: string; apiKey?: string; model?: string };
   openrouter?: { apiKey?: string; model?: string; zdr?: boolean };
   codex?: { model?: string };
+  gemini?: { model?: string };
 }
 
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
@@ -75,6 +83,7 @@ export function toModelSettings(body: unknown): ModelSettings {
   const bedrock = isRecord(body.bedrock) ? body.bedrock : {};
   const openrouter = isRecord(body.openrouter) ? body.openrouter : {};
   const codex = isRecord(body.codex) ? body.codex : {};
+  const gemini = isRecord(body.gemini) ? body.gemini : {};
   return {
     provider: body.provider,
     ready: body.ready === true,
@@ -85,6 +94,7 @@ export function toModelSettings(body: unknown): ModelSettings {
     bedrock: { region: word(bedrock.region), model: word(bedrock.model), hasKey: bedrock.hasKey === true },
     openrouter: { model: word(openrouter.model), hasKey: openrouter.hasKey === true, zdr: openrouter.zdr === true },
     codex: { model: word(codex.model), signedIn: codex.signedIn === true, account: maybe(codex.account), plan: maybe(codex.plan) },
+    gemini: { model: word(gemini.model), signedIn: gemini.signedIn === true, account: maybe(gemini.account), plan: maybe(gemini.plan) },
   };
 }
 
@@ -127,6 +137,26 @@ export async function codexImport(): Promise<ModelSettings> {
   return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: '/codex/import' }));
 }
 
+export async function beginGeminiLogin(): Promise<{ url: string; state: string }> {
+  const body = await call({ method: 'POST', base: modelUrl(), path: '/gemini/login' });
+  if (!isRecord(body) || typeof body.url !== 'string' || typeof body.state !== 'string') throw unexpected();
+  return { url: body.url, state: body.state };
+}
+
+export async function finishGeminiLogin(code: string, state: string): Promise<ModelSettings> {
+  return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: '/gemini/code', headers: json, body: JSON.stringify({ code, state }) }));
+}
+
+export async function geminiLogout(): Promise<ModelSettings> {
+  return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: '/gemini/logout' }));
+}
+
+export async function geminiModels(): Promise<string[]> {
+  const body = await call({ method: 'GET', base: modelUrl(), path: '/gemini/models' });
+  if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
+  return body.models.filter((m): m is string => typeof m === 'string');
+}
+
 export async function codexModels(): Promise<string[]> {
   const body = await call({ method: 'GET', base: modelUrl(), path: '/codex/models' });
   if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
@@ -135,10 +165,17 @@ export async function codexModels(): Promise<string[]> {
 
 export const servedLabel = (served: Served): string => (served.provider === 'anthropic' ? served.model : `${served.provider}:${served.model}`);
 
+const orChosen = (model: string): string => (model === '' ? 'no model chosen' : model);
+
+const LABELS: Record<Exclude<Provider, 'anthropic'>, (s: ModelSettings) => string> = {
+  bedrock: (s) => `Amazon Bedrock · ${s.bedrock.model === '' ? 'the model Claude Code asks for' : s.bedrock.model}`,
+  openrouter: (s) => `OpenRouter · ${orChosen(s.openrouter.model)}`,
+  codex: (s) => `Codex · ${orChosen(s.codex.model)}`,
+  gemini: (s) => `Gemini · ${orChosen(s.gemini.model)}`,
+};
+
 export function routeLabel(settings: ModelSettings): string {
-  if (settings.provider === 'bedrock') return `Amazon Bedrock · ${settings.bedrock.model === '' ? 'the model Claude Code asks for' : settings.bedrock.model}`;
-  if (settings.provider === 'openrouter') return `OpenRouter · ${settings.openrouter.model === '' ? 'no model chosen' : settings.openrouter.model}`;
-  if (settings.provider === 'codex') return `Codex · ${settings.codex.model === '' ? 'no model chosen' : settings.codex.model}`;
+  if (settings.provider !== 'anthropic') return LABELS[settings.provider](settings);
   const how = settings.anthropic.hasKey ? 'the key on this page' : 'your Claude Code login';
   return `Anthropic · ${settings.anthropic.model === '' ? 'the model Claude Code asks for' : settings.anthropic.model} · ${how}`;
 }
@@ -157,6 +194,7 @@ export interface Draft {
   openrouterForget: boolean;
   openrouterZdr: boolean;
   codexModel: string;
+  geminiModel: string;
 }
 
 export const draftOf = (s: ModelSettings): Draft => ({
@@ -173,6 +211,7 @@ export const draftOf = (s: ModelSettings): Draft => ({
   openrouterForget: false,
   openrouterZdr: s.openrouter.zdr,
   codexModel: s.codex.model,
+  geminiModel: s.gemini.model,
 });
 
 const keyPatch = (typed: string, forget: boolean): { apiKey?: string } => (forget ? { apiKey: '' } : typed === '' ? {} : { apiKey: typed });
@@ -184,6 +223,7 @@ export function patchOf(draft: Draft): ModelPatch {
     bedrock: { region: draft.bedrockRegion, model: draft.bedrockModel, ...keyPatch(draft.bedrockKey, draft.bedrockForget) },
     openrouter: { model: draft.openrouterModel, zdr: draft.openrouterZdr, ...keyPatch(draft.openrouterKey, draft.openrouterForget) },
     codex: { model: draft.codexModel },
+    gemini: { model: draft.geminiModel },
   };
 }
 

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentsDir } from './local.js';
 
-const PROVIDERS = ['bedrock', 'openrouter', 'codex'] as const;
+const PROVIDERS = ['bedrock', 'openrouter', 'codex', 'gemini'] as const;
 
 export function currentRoute(dir = agentsDir()): string | null {
   const path = join(dir, 'model.json');

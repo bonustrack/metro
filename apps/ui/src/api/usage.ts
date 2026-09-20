@@ -1,6 +1,6 @@
 import { isRecord } from './accounts.js';
 
-export const USAGE_PROVIDERS = ['anthropic', 'codex', 'openrouter', 'bedrock'] as const;
+export const USAGE_PROVIDERS = ['anthropic', 'codex', 'gemini', 'openrouter', 'bedrock'] as const;
 export type UsageProvider = (typeof USAGE_PROVIDERS)[number];
 
 export interface UsageWindow {

@@ -3,8 +3,9 @@ import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { CodexTokens } from './codex-auth.js';
+import { tokensFromDisk as geminiTokensFromDisk, type GeminiTokens } from './gemini-auth.js';
 
-export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex'] as const;
+export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'gemini'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
 export interface AnthropicSettings {
@@ -29,6 +30,11 @@ export interface CodexSettings {
   auth: CodexTokens | null;
 }
 
+export interface GeminiSettings {
+  model: string;
+  auth: GeminiTokens | null;
+}
+
 export interface ModelConfig {
   version: 1;
   provider: Provider;
@@ -36,6 +42,7 @@ export interface ModelConfig {
   bedrock: BedrockSettings;
   openrouter: OpenRouterSettings;
   codex: CodexSettings;
+  gemini: GeminiSettings;
 }
 
 export interface Route {
@@ -47,7 +54,7 @@ export class ModelConfigError extends Error {}
 
 export const MODEL_FILE = 'model.json';
 const MAX_FIELD = 512;
-const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex):(.+)$/;
+const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex|gemini):(.+)$/;
 const SMALL_RE = /haiku/i;
 
 const empty = (): ModelConfig => ({
@@ -57,6 +64,7 @@ const empty = (): ModelConfig => ({
   bedrock: { region: '', apiKey: '', model: '' },
   openrouter: { apiKey: '', model: '', zdr: false },
   codex: { model: '', auth: null },
+  gemini: { model: '', auth: null },
 });
 
 const isProvider = (value: unknown): value is Provider =>
@@ -89,6 +97,7 @@ export function parseModelConfig(raw: unknown): ModelConfig {
   const bedrock = isRecord(raw.bedrock) ? raw.bedrock : {};
   const openrouter = isRecord(raw.openrouter) ? raw.openrouter : {};
   const codex = isRecord(raw.codex) ? raw.codex : {};
+  const gemini = isRecord(raw.gemini) ? raw.gemini : {};
   return {
     version: 1,
     provider: isProvider(raw.provider) ? raw.provider : 'anthropic',
@@ -96,6 +105,7 @@ export function parseModelConfig(raw: unknown): ModelConfig {
     bedrock: { region: text(bedrock.region), apiKey: text(bedrock.apiKey), model: text(bedrock.model) },
     openrouter: { apiKey: text(openrouter.apiKey), model: text(openrouter.model), zdr: openrouter.zdr === true },
     codex: { model: text(codex.model), auth: tokensFromDisk(codex.auth) },
+    gemini: { model: text(gemini.model), auth: geminiTokensFromDisk(gemini.auth) },
   };
 }
 
@@ -130,6 +140,7 @@ export function applyModelUpdate(cfg: ModelConfig, patch: unknown): ModelConfig 
   const bedrock = isRecord(patch.bedrock) ? patch.bedrock : {};
   const openrouter = isRecord(patch.openrouter) ? patch.openrouter : {};
   const codex = isRecord(patch.codex) ? patch.codex : {};
+  const gemini = isRecord(patch.gemini) ? patch.gemini : {};
   return {
     version: 1,
     provider,
@@ -148,10 +159,13 @@ export function applyModelUpdate(cfg: ModelConfig, patch: unknown): ModelConfig 
       zdr: flag(openrouter, 'zdr', cfg.openrouter.zdr, 'OpenRouter zero data retention'),
     },
     codex: { model: field(codex, 'model', cfg.codex.model, 'Codex model'), auth: cfg.codex.auth },
+    gemini: { model: field(gemini, 'model', cfg.gemini.model, 'Gemini model'), auth: cfg.gemini.auth },
   };
 }
 
 export const setCodexAuth = (cfg: ModelConfig, auth: CodexTokens | null): ModelConfig => ({ ...cfg, codex: { ...cfg.codex, auth } });
+
+export const setGeminiAuth = (cfg: ModelConfig, auth: GeminiTokens | null): ModelConfig => ({ ...cfg, gemini: { ...cfg.gemini, auth } });
 
 const CHECKS: Record<Provider, [(cfg: ModelConfig) => boolean, string][]> = {
   anthropic: [],
@@ -167,6 +181,10 @@ const CHECKS: Record<Provider, [(cfg: ModelConfig) => boolean, string][]> = {
     [(cfg) => cfg.codex.auth === null, 'Codex is not connected: sign in with ChatGPT on the Model page.'],
     [(cfg) => cfg.codex.model === '', 'Codex needs a model id: choose one on the Model page.'],
   ],
+  gemini: [
+    [(cfg) => cfg.gemini.auth === null, 'Gemini is not connected: sign in with Google on the Model page.'],
+    [(cfg) => cfg.gemini.model === '', 'Gemini needs a model id: choose one on the Model page.'],
+  ],
 };
 
 export function notReady(cfg: ModelConfig, provider: Provider = cfg.provider): string | null {
@@ -175,6 +193,7 @@ export function notReady(cfg: ModelConfig, provider: Provider = cfg.provider): s
 
 export function publicModelConfig(cfg: ModelConfig): Record<string, unknown> {
   const auth = cfg.codex.auth;
+  const gemini = cfg.gemini.auth;
   return {
     provider: cfg.provider,
     ready: notReady(cfg) === null,
@@ -183,16 +202,22 @@ export function publicModelConfig(cfg: ModelConfig): Record<string, unknown> {
     bedrock: { region: cfg.bedrock.region, model: cfg.bedrock.model, hasKey: cfg.bedrock.apiKey !== '' },
     openrouter: { model: cfg.openrouter.model, hasKey: cfg.openrouter.apiKey !== '', zdr: cfg.openrouter.zdr },
     codex: { model: cfg.codex.model, signedIn: auth !== null, account: auth?.email ?? null, plan: auth?.plan ?? null },
+    gemini: { model: cfg.gemini.model, signedIn: gemini !== null, account: gemini?.email ?? null, plan: gemini?.tier ?? null },
   };
 }
 
 export const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
 
+const DEFAULTS: Record<Provider, (requested: string, cfg: ModelConfig) => string> = {
+  openrouter: (requested, cfg) => (requested.includes('/') ? requested : cfg.openrouter.model),
+  bedrock: (requested, cfg) => (cfg.bedrock.model === '' ? requested : cfg.bedrock.model),
+  codex: (requested, cfg) => (requested.startsWith('gpt-') ? requested : cfg.codex.model),
+  gemini: (requested, cfg) => (requested.startsWith('gemini-') ? requested : cfg.gemini.model),
+  anthropic: (requested, cfg) => (cfg.anthropic.model === '' || isSmallModel(requested) ? requested : cfg.anthropic.model),
+};
+
 function defaultModelFor(provider: Provider, requested: string, cfg: ModelConfig): string {
-  if (provider === 'openrouter') return requested.includes('/') ? requested : cfg.openrouter.model;
-  if (provider === 'bedrock') return cfg.bedrock.model === '' ? requested : cfg.bedrock.model;
-  if (provider === 'codex') return requested.startsWith('gpt-') ? requested : cfg.codex.model;
-  return cfg.anthropic.model === '' || isSmallModel(requested) ? requested : cfg.anthropic.model;
+  return DEFAULTS[provider](requested, cfg);
 }
 
 export function resolveRoute(requested: string, cfg: ModelConfig): Route {

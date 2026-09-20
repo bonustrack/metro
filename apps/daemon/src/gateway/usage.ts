@@ -1,4 +1,4 @@
-export type UsageProvider = 'anthropic' | 'codex' | 'openrouter' | 'bedrock';
+export type UsageProvider = 'anthropic' | 'codex' | 'openrouter' | 'bedrock' | 'gemini';
 
 export interface UsageWindow {
   label: string;
