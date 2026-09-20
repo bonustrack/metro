@@ -92,6 +92,10 @@ beforeAll(async () => {
       return;
     }
     if (req.url === '/v1internal:loadCodeAssist') {
+      if (ineligible.on) {
+        res.end(JSON.stringify({ ineligibleTiers: [{ tierId: 'free-tier', reasonCode: 'DASHER_USER', reasonMessage: 'Your account is not eligible for Gemini Code Assist for individuals at this time' }] }));
+        return;
+      }
       res.end(JSON.stringify({ currentTier: { id: 'standard-tier', name: 'Google AI Pro' }, cloudaicompanionProject: '' }));
       return;
     }
@@ -212,6 +216,7 @@ describe('the model route on the page', () => {
 });
 
 const googleForms: URLSearchParams[] = [];
+const ineligible = { on: false };
 
 const gemini = async (name: string, method: 'GET' | 'POST', body?: unknown): Promise<Response> =>
   fetch(`${base}/api/model/gemini/${name}`, {
@@ -324,6 +329,21 @@ describe('connecting Google for Gemini from the page', () => {
     expect(stored.gemini.auth).toBeNull();
     expect((await gemini('dance', 'POST')).status).toBe(404);
     expect((await gemini('login', 'GET')).status).toBe(405);
+  });
+
+  test('an account Google will not onboard is refused with Google\'s sentence and the reason code explained', async () => {
+    ineligible.on = true;
+    try {
+      const started = (await (await gemini('login', 'POST')).json()) as { state: string };
+      const refused = await gemini('code', 'POST', { code: '4/ok', state: started.state });
+      expect(refused.status).toBe(400);
+      const text = ((await refused.json()) as { error: string }).error;
+      expect(text).toContain('not eligible for Gemini Code Assist for individuals');
+      expect(text).toContain('[DASHER_USER: this is a Google Workspace account');
+      expect(stored.gemini.auth).toBeNull();
+    } finally {
+      ineligible.on = false;
+    }
   });
 });
 
