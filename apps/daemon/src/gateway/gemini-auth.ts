@@ -1,12 +1,18 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
 
-export const GEMINI_CLIENT_ID = '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com';
-export const GEMINI_CLIENT_SECRET = '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';
+export const GEMINI_CLIENT_ID = '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
+export const GEMINI_CLIENT_SECRET = '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';
 export const GEMINI_AUTH_BASE = 'https://accounts.google.com';
 export const GEMINI_TOKEN_BASE = 'https://oauth2.googleapis.com';
-export const GEMINI_REDIRECT = 'https://codeassist.google.com/authcode';
-const SCOPE = 'https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
+export const GEMINI_REDIRECT = 'http://localhost:51121/oauth-callback';
+const SCOPE = [
+  'https://www.googleapis.com/auth/cloud-platform',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+  'https://www.googleapis.com/auth/cclog',
+  'https://www.googleapis.com/auth/experimentsandconfigs',
+].join(' ');
 const PENDING_TTL_MS = 10 * 60_000;
 const EXPIRY_MARGIN_MS = 5 * 60_000;
 const DEFAULT_TTL_MS = 55 * 60_000;
@@ -107,15 +113,31 @@ async function tokenCall(form: Record<string, string>, base: string, fetchImpl: 
   return body;
 }
 
-export async function exchangeCode(code: string, state: string, base = GEMINI_TOKEN_BASE, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<GeminiTokens> {
+export function codeIn(pasted: string, state: string): string {
+  const trimmed = pasted.trim();
+  if (trimmed === '') throw new GeminiAuthError('paste the address the browser landed on, or the code in it');
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed;
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new GeminiAuthError('that is not a full address');
+  }
+  const code = url.searchParams.get('code') ?? '';
+  const carried = url.searchParams.get('state');
+  if (code === '') throw new GeminiAuthError(`that address carries no code${url.searchParams.get('error') === null ? '' : ` (Google said ${url.searchParams.get('error') ?? ''})`}`);
+  if (carried !== null && carried !== state) throw new GeminiAuthError('that address belongs to another sign-in; start again and paste the new one');
+  return code;
+}
+
+export async function exchangeCode(pasted: string, state: string, base = GEMINI_TOKEN_BASE, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<GeminiTokens> {
   sweep(now);
   const entry = pending.get(state);
   if (entry === undefined) throw new GeminiAuthError('that sign-in has expired; start it again');
   pending.delete(state);
-  const trimmed = code.trim();
-  if (trimmed === '') throw new GeminiAuthError('paste the code Google showed');
+  const code = codeIn(pasted, state);
   const body = await tokenCall(
-    { client_id: GEMINI_CLIENT_ID, client_secret: GEMINI_CLIENT_SECRET, grant_type: 'authorization_code', code: trimmed, code_verifier: entry.verifier, redirect_uri: GEMINI_REDIRECT },
+    { client_id: GEMINI_CLIENT_ID, client_secret: GEMINI_CLIENT_SECRET, grant_type: 'authorization_code', code, code_verifier: entry.verifier, redirect_uri: GEMINI_REDIRECT },
     base,
     fetchImpl,
   );

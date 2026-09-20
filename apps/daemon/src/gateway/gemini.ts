@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg } from '@metro-labs/core/log';
 import { refreshTokens, tokensStale, type GeminiTokens } from './gemini-auth.js';
-import { CODE_ASSIST_BASE, userAgent } from './gemini-setup.js';
+import { API, clientHeaders, generateBases, machineSessionId, type Bases } from './gemini-client.js';
 import { GeminiStreamTranslator } from './gemini-stream.js';
 import { toGeminiRequest } from './gemini-translate.js';
 import { ToolNames } from './codex-translate.js';
@@ -14,10 +14,8 @@ import { UsageScanner } from './usage.js';
 const PING_MS = 25_000;
 const STATUS_OF: Record<string, number> = { rate_limit_error: 429, invalid_request_error: 400, permission_error: 403, overloaded_error: 529 };
 
-export const KNOWN_GEMINI_MODELS = ['gemini-3.1-pro-preview', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash'];
-
 export interface GeminiDeps {
-  base?: string;
+  base?: Bases;
   tokenBase?: string;
   fetchImpl?: typeof fetch;
   save: (tokens: GeminiTokens) => void;
@@ -80,16 +78,41 @@ interface Call {
   names: ToolNames;
 }
 
-function send(call: Call, tokens: GeminiTokens, stream: boolean): Promise<Response> {
+const headersFor = (token: string, stream: boolean): Record<string, string> => ({
+  authorization: `Bearer ${token}`,
+  'content-type': 'application/json',
+  ...clientHeaders(),
+  'x-machine-session-id': machineSessionId(),
+  ...(stream ? { accept: 'text/event-stream' } : {}),
+});
+
+async function sendTo(base: string, call: Call, tokens: GeminiTokens, stream: boolean): Promise<Response> {
   const request = toGeminiRequest(call.body, call.model, tokens.project, call.promptId, call.names);
   const method = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
-  return (call.deps.fetchImpl ?? fetch)(`${call.deps.base ?? CODE_ASSIST_BASE}/v1internal:${method}`, {
+  return (call.deps.fetchImpl ?? fetch)(`${base}/${API}:${method}`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${tokens.accessToken}`, 'content-type': 'application/json', 'user-agent': userAgent(call.model) },
+    headers: headersFor(tokens.accessToken, stream),
     body: JSON.stringify(request),
     signal: call.watch.signal,
     redirect: 'manual',
   });
+}
+
+async function send(call: Call, tokens: GeminiTokens, stream: boolean): Promise<Response> {
+  const bases = generateBases(call.deps.base);
+  let last: Response | null = null;
+  for (const base of bases) {
+    if (last !== null) await last.body?.cancel();
+    try {
+      last = await sendTo(base, call, tokens, stream);
+    } catch (err) {
+      if (base === bases.at(-1) || call.watch.signal.aborted) throw err;
+      continue;
+    }
+    if (last.status < 500) return last;
+  }
+  if (last === null) throw new GatewayError(502, 'api_error', 'no Code Assist endpoint to call');
+  return last;
 }
 
 async function reach(call: Call, cfg: ModelConfig, state: GeminiState, stream: boolean): Promise<Response> {
@@ -101,6 +124,47 @@ async function reach(call: Call, cfg: ModelConfig, state: GeminiState, stream: b
     upstream = await send(call, tokens, stream);
   }
   return upstream;
+}
+
+export interface GeminiModel {
+  id: string;
+  name: string;
+  remaining: number | null;
+  resetAt: string | null;
+}
+
+const modelOf = (id: string, raw: unknown): GeminiModel => {
+  const entry = isRecord(raw) ? raw : {};
+  const quota = isRecord(entry.quotaInfo) ? entry.quotaInfo : null;
+  const fraction = quota !== null && typeof quota.remainingFraction === 'number' ? quota.remainingFraction : null;
+  const resetAt = quota !== null && typeof quota.resetTime === 'string' ? quota.resetTime : null;
+  return { id, name: typeof entry.displayName === 'string' ? entry.displayName : id, remaining: fraction ?? (resetAt === null ? null : 0), resetAt };
+};
+
+export async function listGeminiModels(tokens: GeminiTokens, deps: GeminiDeps): Promise<GeminiModel[]> {
+  let last = 'no Code Assist endpoint to call';
+  for (const base of generateBases(deps.base)) {
+    try {
+      const res = await (deps.fetchImpl ?? fetch)(`${base}/${API}:fetchAvailableModels`, {
+        method: 'POST',
+        headers: headersFor(tokens.accessToken, false),
+        body: JSON.stringify({ project: tokens.project }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      const body: unknown = await res.json().catch(() => null);
+      if (!res.ok) {
+        last = upstreamMessage(JSON.stringify(body), `Google answered ${String(res.status)}`);
+        continue;
+      }
+      const models = isRecord(body) && isRecord(body.models) ? body.models : {};
+      return Object.entries(models)
+        .filter(([id]) => id.startsWith('gemini'))
+        .map(([id, raw]) => modelOf(id, raw));
+    } catch (err) {
+      last = errMsg(err);
+    }
+  }
+  throw new GatewayError(502, 'api_error', `could not list the Gemini models: ${last}`);
 }
 
 const parseData = (raw: string): Record<string, unknown> | null => {

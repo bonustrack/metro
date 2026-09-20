@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { GeminiStreamTranslator } from '../src/gateway/gemini-stream.ts';
-import { cleanSchema, contentsOf, encodeSignature, rememberSignature, toGeminiRequest, toolDeclarations } from '../src/gateway/gemini-translate.ts';
+import { cleanSchema, contentsOf, encodeSignature, rememberSignature, SKIP_SIGNATURE, toGeminiRequest, toolDeclarations } from '../src/gateway/gemini-translate.ts';
 import { ToolNames } from '../src/gateway/codex-translate.ts';
 
 const frames = (text: string): Record<string, unknown>[] =>
@@ -43,7 +43,17 @@ describe('a Messages request becomes a Code Assist request', () => {
     const none = toGeminiRequest({ messages: [], tool_choice: { type: 'none' } }, 'gemini-2.5-pro', 'p', 'id');
     expect(none.request.toolConfig).toEqual({ functionCallingConfig: { mode: 'NONE' } });
     expect(none.request.tools).toBeUndefined();
-    expect(none.request.systemInstruction).toBeUndefined();
+    expect((none.request.systemInstruction as { parts: unknown[] }).parts).toHaveLength(2);
+    expect(none.request.sessionId).toBe('id');
+    expect(none.requestId).toMatch(/^agent-/);
+  });
+
+  test('a call whose signature metro never saw carries the skip sentinel, and max_tokens is capped where Gemini refuses more', () => {
+    const contents = contentsOf([{ role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_unknown', name: 'Read', input: {} }] }]);
+    const model = contents[0] as { parts: { thoughtSignature: string }[] };
+    expect(model.parts[0]?.thoughtSignature).toBe(SKIP_SIGNATURE);
+    const capped = toGeminiRequest({ messages: [], max_tokens: 32000 }, 'gemini-2.5-pro', 'p', 'id');
+    expect(capped.request.generationConfig).toEqual({ maxOutputTokens: 16384 });
   });
 });
 

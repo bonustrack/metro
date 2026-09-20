@@ -219,6 +219,19 @@ export function noteUsageHeaders(provider: 'anthropic' | 'codex', headers: Heade
 
 const dollars = (value: number): string => `$${value.toFixed(2)}`;
 
+export interface QuotaRow {
+  id: string;
+  remaining: number | null;
+  resetAt: string | null;
+}
+
+export function geminiUsage(rows: QuotaRow[], now = new Date()): Reported | null {
+  const windows: UsageWindow[] = rows
+    .filter((row) => row.remaining !== null)
+    .map((row) => ({ label: row.id, used: clamp(1 - (row.remaining ?? 0)), resetAt: row.resetAt, detail: null }));
+  return windows.length === 0 ? null : { windows, note: null, at: now.toISOString() };
+}
+
 export function openrouterUsage(total: number, spent: number, now = new Date()): Reported {
   const used = total > 0 ? clamp(spent / total) : null;
   return {

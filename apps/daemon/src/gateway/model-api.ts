@@ -8,12 +8,12 @@ import { beginDeviceLogin, pollDeviceLogin } from './codex-device.js';
 import { codexModels, currentTokens, freshCodexState } from './codex.js';
 import { beginLogin as beginGeminiLogin, exchangeCode as exchangeGeminiCode, GeminiAuthError, userEmail } from './gemini-auth.js';
 import { onboard, parseGeminiProject } from './gemini-setup.js';
-import { KNOWN_GEMINI_MODELS } from './gemini.js';
+import { currentGeminiTokens, freshGeminiState, listGeminiModels, type GeminiDeps } from './gemini.js';
 import { openrouterCredits, openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
 import { syncAvailableModelsQuietly, type SetupDeps } from '../claude/setup.js';
 import { lastServed } from './served.js';
-import { noteUsage, openrouterUsage, usageOf, usageSeen } from './usage.js';
+import { geminiUsage, noteUsage, openrouterUsage, usageOf, usageSeen } from './usage.js';
 import type { CodexTokens } from './codex-auth.js';
 import { GatewayError } from './forward.js';
 import {
@@ -92,8 +92,39 @@ async function refreshCredits(cfg: ModelConfig, deps: ModelApiDeps, now = Date.n
   }
 }
 
-async function settingsWithUsage(cfg: ModelConfig, deps: ModelApiDeps): Promise<Record<string, unknown>> {
+const geminiApiState = freshGeminiState();
+
+const geminiDeps = (deps: ModelApiDeps, store: Store): GeminiDeps => ({
+  base: deps.geminiBase,
+  tokenBase: deps.geminiTokenBase,
+  fetchImpl: deps.fetchImpl,
+  save: (t) => {
+    store.write(setGeminiAuth(store.read(), t));
+  },
+});
+
+async function geminiModels(deps: ModelApiDeps, store: Store): Promise<Awaited<ReturnType<typeof listGeminiModels>>> {
+  const cfg = store.read();
+  if (cfg.gemini.auth === null) throw new ApiError('Gemini is not connected: sign in with Google first', 400);
+  const tokens = await currentGeminiTokens(cfg, geminiDeps(deps, store), geminiApiState);
+  return listGeminiModels(tokens, geminiDeps(deps, store));
+}
+
+async function refreshGeminiQuota(deps: ModelApiDeps, store: Store, now = Date.now()): Promise<void> {
+  if (store.read().gemini.auth === null) return;
+  const seen = usageOf('gemini');
+  if (seen !== undefined && now - Date.parse(seen.at) < CREDITS_TTL_MS) return;
+  try {
+    const usage = geminiUsage(await geminiModels(deps, store), new Date(now));
+    if (usage !== null) noteUsage('gemini', usage);
+  } catch (err) {
+    log.warn({ err: errMsg(err) }, 'model-api: could not read the Gemini quota');
+  }
+}
+
+async function settingsWithUsage(cfg: ModelConfig, deps: ModelApiDeps, store: Store): Promise<Record<string, unknown>> {
   await refreshCredits(cfg, deps);
+  await refreshGeminiQuota(deps, store);
   return settingsBody(cfg);
 }
 
@@ -218,7 +249,10 @@ const GEMINI_ROUTES: Record<string, Route> = {
       return Promise.resolve(settingsBody(cfg));
     },
   },
-  models: { method: 'GET', run: () => Promise.resolve({ models: KNOWN_GEMINI_MODELS }) },
+  models: {
+    method: 'GET',
+    run: async (_req, deps, store) => ({ models: (await geminiModels(deps, store).catch(asApiError)).map((m) => m.id) }),
+  },
 };
 
 const OPENROUTER_ROUTES: Record<string, Route> = {
@@ -268,7 +302,7 @@ function bundleRoute(path: string, method: string | undefined): Route | number {
 }
 
 function settingsRoute(method: string | undefined): Route | number {
-  if (method === 'GET') return { method: 'GET', run: (_req, deps, store) => settingsWithUsage(store.read(), deps) };
+  if (method === 'GET') return { method: 'GET', run: (_req, deps, store) => settingsWithUsage(store.read(), deps, store) };
   if (method === 'PUT') return { method: 'POST', run: (req, deps, store) => update(req, store, deps) };
   return 405;
 }

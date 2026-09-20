@@ -9,10 +9,10 @@ import { beginGeminiLogin, finishGeminiLogin, geminiLogout, type ModelSettings }
 import { queryError, refreshModel } from '../api/queries.js';
 
 const FIELD_WIDTH = 420;
-const PASTE_HINT = 'At the end Google shows a code on its page: copy it and paste it here.';
-const WHICH_ACCOUNT =
-  'Since 2026-06-18 Google refuses personal accounts here (Google AI Pro and Ultra included). What works is a Google account with a Gemini Code Assist Standard or Enterprise licence, assigned in the Google Cloud project named below.';
-const PROJECT_HINT = 'The id of the Google Cloud project that carries the licence, from https://console.cloud.google.com/. Leave it empty only when Google already assigned one to the account.';
+const PASTE_HINT =
+  'At the end Google sends the browser to an address starting with http://localhost:51121/ which will not load. Copy that whole address from the address bar and paste it here.';
+const WHICH_ACCOUNT = 'Use the Google account that holds your Google AI Pro or Ultra plan (a free account works with lower limits). Metro presents itself as Google Antigravity, which Google does not support.';
+const PROJECT_HINT = 'Optional: the id of a Google Cloud project with a Gemini Code Assist licence. Leave it empty for a personal account.';
 
 function useAction(): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>, fallback: string) => void } {
   const client = useQueryClient();
@@ -42,7 +42,7 @@ function PasteCode({ state, project }: { state: string; project: string }): Reac
       <Text size="sm" role="secondary">
         {PASTE_HINT}
       </Text>
-      <Input name="gemini-code" value={code} placeholder="the code Google showed" dark={dark} onChangeText={setCode} style={GROW} />
+      <Input name="gemini-code" value={code} placeholder="http://localhost:51121/oauth-callback?code=…" dark={dark} onChangeText={setCode} style={GROW} />
       <Row gap={8}>
         <Button
           size="sm"
@@ -88,7 +88,7 @@ function SignInFlow({ label, color }: { label: string; color: 'primary' | 'secon
   return (
     <Col gap={10}>
       <Col gap={6} maxWidth={FIELD_WIDTH}>
-        <FieldLabel>Google Cloud project</FieldLabel>
+        <FieldLabel>Google Cloud project (optional)</FieldLabel>
         <Input name="gemini-project" value={project} placeholder="my-project-123456" dark={dark} onChangeText={setProject} style={GROW} />
         <Text size="sm" role="secondary">
           {PROJECT_HINT}

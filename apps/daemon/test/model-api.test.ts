@@ -117,6 +117,23 @@ beforeAll(async () => {
       });
       return;
     }
+    if (req.url === '/v1internal:fetchAvailableModels') {
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        modelsAsked.push(JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>);
+        res.end(
+          JSON.stringify({
+            models: {
+              'gemini-3.8-flash-tiered': { displayName: 'Gemini 3.8 Flash', quotaInfo: { remainingFraction: 0.75, resetTime: '2026-09-21T10:00:00Z' } },
+              'gemini-3.1-pro-high': { displayName: 'Gemini 3.1 Pro' },
+              'claude-sonnet-4-6': { displayName: 'Claude Sonnet', quotaInfo: { remainingFraction: 1 } },
+            },
+          }),
+        );
+      });
+      return;
+    }
     if (req.url === '/v1/endpoints/zdr') {
       res.end(JSON.stringify({ data: [{ model_id: 'openai/gpt-5.2-codex', provider_name: 'OpenAI' }, { model_id: 'anthropic/claude-sonnet-4.5' }, { model_id: 'anthropic/claude-sonnet-4.5' }, { name: 'no id' }] }));
       return;
@@ -233,6 +250,7 @@ const googleForms: URLSearchParams[] = [];
 const ineligible = { on: false };
 const managed = { on: false };
 const loadAsked: Record<string, unknown>[] = [];
+const modelsAsked: Record<string, unknown>[] = [];
 const onboardTiers: string[] = [];
 
 const gemini = async (name: string, method: 'GET' | 'POST', body?: unknown): Promise<Response> =>
@@ -322,8 +340,9 @@ describe('connecting Google for Gemini from the page', () => {
     const url = new URL(started.url);
     expect(url.origin).toBe(backendBase);
     expect(url.pathname).toBe('/o/oauth2/v2/auth');
-    expect(url.searchParams.get('client_id')).toBe('681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com');
-    expect(url.searchParams.get('redirect_uri')).toBe('https://codeassist.google.com/authcode');
+    expect(url.searchParams.get('client_id')).toBe('1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com');
+    expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:51121/oauth-callback');
+    expect(url.searchParams.get('scope')).toContain('https://www.googleapis.com/auth/cclog');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(url.searchParams.get('access_type')).toBe('offline');
     expect(url.searchParams.get('state')).toBe(started.state);
@@ -331,17 +350,27 @@ describe('connecting Google for Gemini from the page', () => {
     const rejected = await gemini('code', 'POST', { code: 'bad-code', state: started.state });
     expect(rejected.status).toBe(400);
     expect(((await rejected.json()) as { error: string }).error).toContain('Bad Request');
+    const other = (await (await gemini('login', 'POST')).json()) as { state: string };
+    const foreign = await gemini('code', 'POST', { code: `http://localhost:51121/oauth-callback?code=4%2Fzz&state=someone-else`, state: other.state });
+    expect(foreign.status).toBe(400);
+    expect(((await foreign.json()) as { error: string }).error).toContain('another sign-in');
     const again = (await (await gemini('login', 'POST')).json()) as { state: string };
-    const done = await gemini('code', 'POST', { code: '4/0AbCdEf', state: again.state });
+    const done = await gemini('code', 'POST', { code: `http://localhost:51121/oauth-callback?state=${again.state}&code=4%2F0AbCdEf&scope=email`, state: again.state });
     expect(done.status).toBe(200);
     const shown = (await done.json()) as { gemini: Record<string, unknown> };
     expect(shown.gemini).toEqual({ model: '', signedIn: true, account: 'less@gmail.com', plan: 'Google AI Pro' });
     expect(JSON.stringify(shown)).not.toContain('g-at');
     expect(googleForms.at(-1)?.get('grant_type')).toBe('authorization_code');
+    expect(googleForms.at(-1)?.get('code')).toBe('4/0AbCdEf');
+    expect(googleForms.at(-1)?.get('redirect_uri')).toBe('http://localhost:51121/oauth-callback');
     expect(googleForms.at(-1)?.get('code_verifier')).toMatch(/^[A-Za-z0-9_-]{40,}$/);
     expect(stored.gemini.auth).toMatchObject({ accessToken: 'g-at', refreshToken: 'g-rt', project: 'managed-proj-7', tier: 'Google AI Pro', email: 'less@gmail.com' });
     expect(onboardTiers).toEqual(['free-tier']);
-    expect(await (await gemini('models', 'GET')).json()).toMatchObject({ models: expect.arrayContaining(['gemini-2.5-pro']) as unknown });
+    expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 9, platform: expect.any(Number) as unknown, pluginType: 2 }, mode: 1 });
+    expect(await (await gemini('models', 'GET')).json()).toEqual({ models: ['gemini-3.8-flash-tiered', 'gemini-3.1-pro-high'] });
+    expect(modelsAsked.at(-1)).toEqual({ project: 'managed-proj-7' });
+    const settings = (await (await fetch(`${base}/api/model`, { headers: { authorization: await auth('GET', '/api/model', OWNER) } })).json()) as { usage: { gemini?: { windows: { label: string; used: number; resetAt: string; detail: string | null }[] } } };
+    expect(settings.usage.gemini?.windows).toEqual([{ label: 'gemini-3.8-flash-tiered', used: 0.25, resetAt: '2026-09-21T10:00:00Z', detail: null }]);
     const out = await gemini('logout', 'POST');
     expect(((await out.json()) as { gemini: { signedIn: boolean } }).gemini.signedIn).toBe(false);
     expect(stored.gemini.auth).toBeNull();
@@ -373,7 +402,7 @@ describe('connecting Google for Gemini from the page', () => {
       expect(refused.status).toBe(400);
       expect(((await refused.json()) as { error: string }).error).toContain('named no project');
       expect(stored.gemini.auth).toBeNull();
-      expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 'IDE_UNSPECIFIED', platform: 'PLATFORM_UNSPECIFIED', pluginType: 'GEMINI' } });
+      expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 9, platform: expect.any(Number) as unknown, pluginType: 2 }, mode: 1 });
       const bad = (await (await gemini('login', 'POST')).json()) as { state: string };
       const shape = await gemini('code', 'POST', { code: '4/ok', state: bad.state, project: 'Not A Project' });
       expect(shape.status).toBe(400);
@@ -383,7 +412,7 @@ describe('connecting Google for Gemini from the page', () => {
       expect(done.status).toBe(200);
       expect(((await done.json()) as { gemini: Record<string, unknown> }).gemini).toMatchObject({ signedIn: true, plan: 'Standard' });
       expect(stored.gemini.auth).toMatchObject({ project: 'stage-metro-1', tier: 'Standard' });
-      expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 'IDE_UNSPECIFIED', platform: 'PLATFORM_UNSPECIFIED', pluginType: 'GEMINI', duetProject: 'stage-metro-1' }, cloudaicompanionProject: 'stage-metro-1' });
+      expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 9, platform: expect.any(Number) as unknown, pluginType: 2, duetProject: 'stage-metro-1' }, mode: 1, cloudaicompanionProject: 'stage-metro-1' });
     } finally {
       managed.on = false;
     }

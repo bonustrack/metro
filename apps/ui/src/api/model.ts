@@ -32,7 +32,7 @@ export const PROVIDERS: ProviderInfo[] = [
     id: 'gemini',
     label: 'Gemini (Google)',
     site: 'https://gemini.google.com',
-    blurb: 'Gemini models on a Google account with a Gemini Code Assist licence. Unofficial: metro speaks the Gemini CLI protocol, and Google can change it at any time.',
+    blurb: 'Gemini models on your Google account, with the limits of your Google AI Pro or Ultra plan. Unofficial: metro presents itself as Google Antigravity, and Google can refuse it at any time.',
   },
 ];
 

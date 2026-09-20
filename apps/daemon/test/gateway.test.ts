@@ -60,6 +60,7 @@ let tokenIssuer: Fake;
 let geminiBackend: Fake;
 let googleTokens: Fake;
 const savedGemini: GeminiTokens[] = [];
+const geminiFailures: number[] = [];
 const geminiTokens = (): GeminiTokens => ({ accessToken: 'ga-1', refreshToken: 'gr-1', expiresAt: Date.now() + 3_600_000, email: 'less@gmail.com', project: 'proj-1', tier: 'Google AI Pro', savedAt: new Date().toISOString() });
 const saved: CodexTokens[] = [];
 const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
@@ -136,6 +137,12 @@ beforeAll(async () => {
       res.end('{"error":{"message":"invalid token"}}');
       return;
     }
+    const failure = geminiFailures.shift();
+    if (failure !== undefined) {
+      res.writeHead(failure, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: `Code Assist answered ${String(failure)}` } }));
+      return;
+    }
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     const chunk = (parts: unknown[], finish?: string, usage?: unknown): string =>
       `data: ${JSON.stringify({ response: { candidates: [{ content: { role: 'model', parts }, ...(finish === undefined ? {} : { finishReason: finish }) }], ...(usage === undefined ? {} : { usageMetadata: usage }) } })}\n\n`;
@@ -149,7 +156,7 @@ beforeAll(async () => {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ access_token: 'ga-2', expires_in: 3599, token_type: 'Bearer' }));
   });
-  deps.gemini = { base: geminiBackend.base, tokenBase: googleTokens.base, save: (t) => { savedGemini.push(t); } };
+  deps.gemini = { base: [geminiBackend.base, geminiBackend.base], tokenBase: googleTokens.base, save: (t) => { savedGemini.push(t); } };
   deps.codex = { base: codexBackend.base, issuer: tokenIssuer.base, save: (t) => { saved.push(t); } };
   deps.anthropicBase = anthropic.base;
   deps.bedrockBase = bedrock.base;
@@ -180,6 +187,7 @@ beforeEach(() => {
     gemini: { model: 'gemini-3-pro-preview', auth: geminiTokens() },
   };
   geminiBackend.seen.length = 0;
+  geminiFailures.length = 0;
   googleTokens.seen.length = 0;
   savedGemini.length = 0;
   anthropic.seen.length = 0;
@@ -443,7 +451,7 @@ describe('the Codex route', () => {
 });
 
 describe('the Gemini route', () => {
-  test('speaks the Gemini CLI protocol to Code Assist, with the system prompt as the instruction, and translates the stream', async () => {
+  test('presents as Antigravity to Code Assist, with the system prompt behind the identity lines, and translates the stream', async () => {
     cfg.provider = 'gemini';
     const res = await post('/gateway/v1/messages', { ...message('claude-sonnet-5', true), thinking: { type: 'enabled', budget_tokens: 1024 }, tools: [{ name: 'Bash', description: 'run', input_schema: { type: 'object', properties: { command: { type: 'string' } }, additionalProperties: false, $schema: 'x' } }] }, { 'x-claude-code-session-id': 'sess-9' });
     expect(res.status).toBe(200);
@@ -461,15 +469,40 @@ describe('the Gemini route', () => {
     expect(text).toContain('event: message_stop');
     expect(geminiBackend.seen.length).toBe(1);
     expect(geminiBackend.seen[0]?.url).toBe('/v1internal:streamGenerateContent?alt=sse');
-    const sent = JSON.parse(geminiBackend.seen[0]?.body ?? '{}') as { model: string; project: string; user_prompt_id: string; request: Record<string, unknown> };
-    expect(sent).toMatchObject({ model: 'gemini-3-pro-preview', project: 'proj-1', user_prompt_id: 'sess-9' });
-    expect(sent.request.systemInstruction).toEqual({ role: 'user', parts: [{ text: 'attribution' }] });
+    const sent = JSON.parse(geminiBackend.seen[0]?.body ?? '{}') as { model: string; project: string; userAgent: string; requestType: string; requestId: string; request: Record<string, unknown> };
+    expect(sent).toMatchObject({ model: 'gemini-3-pro-preview', project: 'proj-1', userAgent: 'antigravity', requestType: 'agent' });
+    expect(sent.requestId).toMatch(/^agent-[0-9a-f-]{36}$/);
+    expect(sent.request.sessionId).toBe('sess-9');
+    const instruction = sent.request.systemInstruction as { role: string; parts: { text: string }[] };
+    expect(instruction.role).toBe('user');
+    expect(instruction.parts.length).toBe(3);
+    expect(instruction.parts[0]?.text).toMatch(/^You are Antigravity/);
+    expect(instruction.parts[1]?.text).toMatch(/^Please ignore the following \[ignore\]/);
+    expect(instruction.parts[2]).toEqual({ text: 'attribution' });
     expect(sent.request.contents).toEqual([{ role: 'user', parts: [{ text: 'hi' }] }]);
     expect(sent.request.tools).toEqual([{ functionDeclarations: [{ name: 'Bash', description: 'run', parameters: { type: 'object', properties: { command: { type: 'string' } } } }] }]);
     expect(sent.request.generationConfig).toEqual({ maxOutputTokens: 8, thinkingConfig: { includeThoughts: true } });
     const headers = geminiBackend.seen[0]?.headers ?? {};
     expect(headers.authorization).toBe('Bearer ga-1');
-    expect(String(headers['user-agent'])).toMatch(/^GeminiCLI\//);
+    expect(String(headers['user-agent'])).toMatch(/^antigravity\/\d+\.\d+\.\d+ (darwin|linux|win32)\//);
+    expect(headers['x-client-name']).toBe('antigravity');
+    expect(String(headers['x-client-version'])).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(headers['x-goog-api-client']).toBe('gl-node/18.18.2 fire/0.8.6 grpc/1.10.x');
+    expect(String(headers['x-machine-session-id'])).toMatch(/^[0-9a-f-]{36}$/);
+    expect(headers.accept).toBe('text/event-stream');
+  });
+
+  test('a Code Assist endpoint that fails with a 5xx is followed by the next one; a 4xx is relayed as is', async () => {
+    cfg.provider = 'gemini';
+    geminiFailures.push(503);
+    const res = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('event: message_stop');
+    expect(geminiBackend.seen.length).toBe(2);
+    geminiFailures.push(429);
+    const limited = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
+    expect(limited.status).toBe(429);
+    expect(geminiBackend.seen.length).toBe(3);
   });
 
   test('a 401 refreshes the Google tokens once, saves them, and retries', async () => {
