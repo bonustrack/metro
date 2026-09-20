@@ -20,8 +20,8 @@ import {
 } from '../routes/http.js';
 import { localAgentKey } from '../stations/materialize.js';
 import { agentsDir, fileSource } from '../agents/files.js';
-import { ConnectorWatch } from '../connectors/watch.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
+import { readLocalConnectors } from '../connectors/store.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { sessionRunning, stopSession, unwatchSession, watchSession } from '../claude/session.js';
 import { tryClaudeSetup } from '../claude/setup.js';
@@ -129,15 +129,6 @@ function sessionApis(): SessionApis {
     });
 }
 
-let connectors: ConnectorWatch | null = null;
-
-function startConnectors(): void {
-  const watch = new ConnectorWatch(agentsDir(), () => {
-    syncPluginServers();
-  });
-  connectors = watch;
-  watch.start();
-}
 
 async function main(): Promise<void> {
   applyLocalOwner();
@@ -154,7 +145,7 @@ installBearerSessions(agentsDir(), localOwner);
     metroCall,
   );
   metroMcp.startInbound();
-  startConnectors();
+  syncPluginServers(readLocalConnectors());
   startUploadReaper();
   announceLocalEndpoint();
   tunnel?.start();
@@ -166,7 +157,7 @@ installBearerSessions(agentsDir(), localOwner);
   ensureMetroPlugin()
     .then((outcome) => {
       log.info({ outcome }, 'plugin: metro plugin for Claude Code');
-      if (outcome !== 'skipped') syncPluginServers();
+      if (outcome !== 'skipped') syncPluginServers(readLocalConnectors());
     })
     .catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');
@@ -185,7 +176,6 @@ async function shutdown(): Promise<void> {
   shuttingDown = true;
   log.info('dispatcher shutting down');
   unwatchSession();
-  connectors?.stop();
   tunnel?.stop();
   if (webhookServer) {
     const server = webhookServer;

@@ -12,12 +12,11 @@ import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from '../agents/b
 import { METRO_VERSION } from '@metro-labs/core/version';
 import type { ConnectorApiDeps } from '../connectors/api.js';
 import { allowLocalConnectors } from '../connectors/url.js';
-import { keyIdentity, type LocalCliDeps } from '../connectors/cli-api.js';
+import { authenticate } from '../mcp/request-identity.js';
 import type { RelayApiDeps } from '../connectors/relay.js';
 import {
   readLocalConnectors,
   localImportConnectors,
-  localConnectorNamesByIds,
   localCreateConnector,
   localCreatePendingConnector,
   localDeleteConnector,
@@ -45,7 +44,6 @@ import {
   localResetAgentKey,
   readLocalAgentFile,
 } from '../agents/file-admin.js';
-import { listAgentFiles, readAgentFile } from '../agents/files.js';
 import { readModelConfig } from '../gateway/model-config.js';
 import type { StationName } from '@metro-labs/core/station-names';
 
@@ -123,7 +121,7 @@ function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>
 const connectorApi: ConnectorApiDeps = {
   listConnectors: async (subject, project) => {
     const rows = await localListConnectors(subject, project);
-    syncPluginServers();
+    syncPluginServers(readLocalConnectors());
     return rows;
   },
   createConnector: localCreateConnector,
@@ -138,19 +136,12 @@ const connectorApi: ConnectorApiDeps = {
 
 const relayApi: RelayApiDeps = {
   target: (connectorId, force) => localRelayTarget(connectorId, force),
-  identify: keyIdentity,
+  identify: (req) => {
+    const who = authenticate(req);
+    return who?.kind === 'agent' ? { subject: 'agent-key', agentId: who.agentId } : null;
+  },
 };
 
-function agentNameOf(agentId: string): string | null {
-  return listAgentFiles()
-    .map((path) => readAgentFile(path))
-    .find((file) => file.id === agentId)?.name ?? null;
-}
-
-const localCli: LocalCliDeps = {
-  agentName: agentNameOf,
-  connectorEntries: () => localConnectorNamesByIds(allConnectorIds()),
-};
 
 function bundleApi(deps: LocalModeDeps): BundleApiDeps {
   return {
@@ -210,7 +201,6 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     bundleApi: bundleApi(deps),
     connectorApi,
     relayApi,
-    localCli,
     claudeApi: { authorize: (subject) => { assertLocalOwner(subject); } },
     updateApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart },
     controlApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart, stop: deps.stop },

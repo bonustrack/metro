@@ -169,7 +169,6 @@ before the MCP auth gate:
 | `POST /api/agents/<id>/accounts/start`, `DELETE …/accounts/<station>/<account_id>` | Attach a channel account after checking the credential against the provider; detach one. |
 | `GET /api/agents/<id>/bundle`, `POST /api/agents/restore` | The whole agent as one plaintext bundle, for the page to seal; and the reverse, for a bundle the page opened. |
 | `GET`/`POST /api/connectors`, `POST /<id>/verify`, `/connect`, `/disconnect`, `/rename`, `DELETE /<id>` | The daemon's [connectors](#connectors). Carries **no credential**. |
-| `GET /api/cli/mcp` | Agent key only: the `mcpServers` block pointing at this daemon's relay. |
 | `POST`/`GET`/`DELETE /relay/<connector-id>` | Agent key only: MCP passthrough to the connector, the vendor credential injected here. |
 | `POST`/`GET /api/claude/login`, `GET`/`POST`/`DELETE /api/claude/login/<id>` | Sign Claude Code in on this machine from the Model tab. metro runs Claude Code's own `claude auth login --claudeai` and shows what it prints; the credential is stored by Claude Code, and metro neither holds it nor talks to Anthropic's login servers. |
 | `GET /api/claude/projects`, `/sessions`, `/memory`, `/settings`, `DELETE /api/claude/sessions/<id>`, `PUT /api/claude/settings/<id>` | Claude Code's own session transcripts, memory files and settings on this machine. The **Claude** tab shows each `settings.json` the machine holds and saves it back: valid JSON objects only, the file's mode kept, and a save refused if the file changed on disk since the page read it. |
@@ -231,22 +230,15 @@ npm i -g @stage-labs/metro@beta   # `latest` is an older line; the tag matters
 
 metro serve --owner 0x…            # run the daemon; the page at metro.box manages it through the link it prints
 metro stop      # stop it (under metro service it restarts on its own; systemctl stop metro keeps it stopped)
-metro mcp       # print {"mcpServers": {...}}: the agent's connectors, through the daemon's relay
 metro whoami    # which agent this machine runs
 metro tail <agent-id>   # follow this machine's inbound events as JSON lines
 metro update    # update to the newest published version
 metro service install   # run metro serve as a service (systemd or launchd): boot, crash, and Stop/Start from the page
 ```
 
-Start a session with every connector, writing nothing to disk:
-
-```bash
-claude --mcp-config <(metro mcp)
-```
-
-`metro mcp` and `metro whoami` read `~/.metro/agents` and talk to the daemon on this machine
-with the agent's own key; there is no sign-in and nothing to pair. `METRO_AGENTS_DIR` and
-`METRO_WEBHOOK_PORT` are the only knobs they read.
+`metro whoami` reads `~/.metro/agents` and talks to the daemon on this machine with the
+agent's own key; there is no sign-in and nothing to pair. `METRO_AGENTS_DIR` and
+`METRO_WEBHOOK_PORT` are the only knobs it reads.
 
 ### The Claude Code plugin
 
@@ -305,7 +297,7 @@ it; only pairing new machines costs.
 ### One agent, its connectors
 
 The page is about one agent, the one the daemon in the address runs, and every connector on
-that daemon is held by it: `metro mcp` exports them all, and deleting a connector removes it
+that daemon is held by it: the plugin lists them all, and deleting a connector removes it
 from the agent. Two connectors may not share a name, because the name is the key in the
 exported `mcpServers` block and a collision there would silently drop one of them; adding or
 renaming one is refused `409` when it would collide.

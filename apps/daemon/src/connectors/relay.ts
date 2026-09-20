@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { whyUnreachable } from './reach.js';
+import { noteHealth } from './health.js';
 import type { RelayTarget } from './relay-target.js';
 import type { AgentIdentity } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -240,14 +241,18 @@ async function relayExchange(
     return;
   }
   if (out.kind === 'signin') {
+    noteHealth(connectorId, false, 'the sign-in has expired, connect it again');
     signinAnswer(res, connectorId);
     return;
   }
   if (out.upstream.status >= 300 && out.upstream.status < 400) {
     await out.upstream.body?.cancel();
+    noteHealth(connectorId, false, 'the connector redirected; metro does not follow');
     answer(res, 502, { error: 'the connector redirected; metro does not follow' });
     return;
   }
+  const { status } = out.upstream;
+  noteHealth(connectorId, status < 400, status < 400 ? null : `the connector answered ${String(status)}`);
   await pipe(res, out.upstream);
 }
 
@@ -268,6 +273,7 @@ function dispatch(
         answer(res, err.status, { error: err.message });
       } else {
         log.warn({ err: errMsg(err), connector: connectorId }, 'relay: failed');
+        noteHealth(connectorId, false, `metro could not reach the connector: ${whyUnreachable(err)}`);
         answer(res, 502, { error: `metro could not reach the connector: ${whyUnreachable(err)}` });
         if (!res.writableEnded) res.end();
       }

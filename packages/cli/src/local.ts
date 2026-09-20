@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { localUrl } from './runtime.js';
 
 const PROBE_MS = 3_000;
-const READ_MS = 20_000;
 
 interface LocalAgent {
   id: string;
@@ -81,15 +80,4 @@ export async function localDaemonUp(base = localUrl()): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-export async function localMcpServers(agent: LocalAgent, base = localUrl()): Promise<string> {
-  const res = await fetch(`${base}/api/cli/mcp`, {
-    headers: { authorization: `Bearer ${agent.key}` },
-    signal: AbortSignal.timeout(READ_MS),
-  });
-  if (!res.ok) throw new Error(`the local daemon answered ${String(res.status)} for the connectors`);
-  const body = (await res.json()) as { json?: unknown };
-  if (typeof body.json !== 'string') throw new Error('the local daemon returned an unexpected response');
-  return body.json;
 }

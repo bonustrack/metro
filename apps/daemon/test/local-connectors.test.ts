@@ -132,9 +132,9 @@ describe('connectors on a local daemon, end to end through the real routes', () 
       value: 'Bearer vendor-secret',
     });
     expect(res.status).toBe(201);
-    const made = (await res.json()) as { id: string; name: string; verified: { server: string; tools: number } };
+    const made = (await res.json()) as { id: string; name: string; verified: { server: string } };
     linear = made.id;
-    expect(made.verified).toMatchObject({ server: 'fakevendor', tools: 1 });
+    expect(made.verified).toMatchObject({ server: 'fakevendor' });
     expect(seenAuth).toContain('Bearer vendor-secret');
     const stored = JSON.parse(readFileSync(join(dir, 'connectors.json'), 'utf8')) as { connectors: { id: string; config: { auth: { value?: string } } }[] };
     expect(stored.connectors[0]?.id).toBe(linear);
@@ -158,25 +158,6 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     const after = (await (await call('GET', `/api/agents?project=${LOCAL_PROJECT_ID}`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
     expect(after.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
     expect((await call('GET', `/api/agents/${tony.id}/connectors`)).status).toBe(404);
-  });
-
-  test('the cli routes answer to the agent key with a relay block pointing at this daemon', async () => {
-    const res = await fetch(`${base}/api/cli/mcp`, { headers: { authorization: `Bearer ${tony.key}` } });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { json: string; agent: string };
-    expect(body.agent).toBe('Tony');
-    const block = JSON.parse(body.json) as { mcpServers: Record<string, { url: string; headers: { Authorization: string } }> };
-    const entry = block.mcpServers['metro.box linear'];
-    expect(entry?.url).toBe(`http://127.0.0.1:${process.env.METRO_WEBHOOK_PORT ?? ''}/relay/${linear}`);
-    expect(entry?.headers.Authorization).toBe(`Bearer ${tony.key}`);
-    process.env.METRO_PUBLIC_URL = 'https://metro-6vfdky.tail17c4f8.ts.net';
-    const tunnelled = (await (await fetch(`${base}/api/cli/mcp`, { headers: { authorization: `Bearer ${tony.key}` } })).json()) as { json: string };
-    const overTunnel = (JSON.parse(tunnelled.json) as { mcpServers: Record<string, { url: string }> }).mcpServers['metro.box linear'];
-    expect(overTunnel?.url).toBe(`http://127.0.0.1:${process.env.METRO_WEBHOOK_PORT ?? ''}/relay/${linear}`);
-    delete process.env.METRO_PUBLIC_URL;
-    expect((await fetch(`${base}/api/cli/mcp`, { headers: { authorization: 'Bearer mk_wrong' } })).status).toBe(401);
-    expect((await fetch(`${base}/api/cli/session?token=${tony.key}`)).status).toBe(404);
-    expect((await fetch(`${base}/api/cli/connectors`, { headers: { authorization: `Bearer ${tony.key}` } })).status).toBe(404);
   });
 
   test('the relay proxies to the vendor with the stored credential, only for an agent holding the connector', async () => {

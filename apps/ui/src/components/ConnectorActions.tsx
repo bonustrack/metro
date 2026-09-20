@@ -2,12 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from './ui.js';
-import {
-  connectConnector,
-  disconnectConnector,
-  type Connector,
-} from '../api/connectors.js';
-import { queryError } from '../api/queries.js';
+import { type Connector } from '../api/connectors.js';
+import { useSignIn } from './connector-signin.js';
 import { DeleteConnector } from './DeleteConnector.js';
 import { RenameConnector } from './RenameConnector.js';
 
@@ -23,40 +19,9 @@ interface ConnectorActionsProps {
 export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
   const { connector, refreshing, onRefresh, onError } = props;
   const dark = useKitScheme() === 'dark';
-  const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const signIn = connector.signIn;
-
-  const connect = (): void => {
-    setBusy(true);
-    const tab = window.open('', '_blank');
-    connectConnector(connector.id).then(
-      (authorizeUrl) => {
-        setBusy(false);
-        if (tab === null) window.location.assign(authorizeUrl);
-        else tab.location.assign(authorizeUrl);
-      },
-      (err: unknown) => {
-        tab?.close();
-        onError(queryError(err, 'Could not start the sign-in.'));
-        setBusy(false);
-      },
-    );
-  };
-
-  const disconnect = (): void => {
-    setBusy(true);
-    disconnectConnector(connector.id).then(
-      () => {
-        setBusy(false);
-        props.onChanged();
-      },
-      (err: unknown) => {
-        onError(queryError(err, 'Could not sign the connector out.'));
-        setBusy(false);
-      },
-    );
-  };
+  const { busy, connect, disconnect } = useSignIn(connector, props.onChanged, onError);
 
   return (
     <Row gap={8} align="center">
@@ -82,7 +47,7 @@ export function ConnectorActions(props: ConnectorActionsProps): ReactNode {
             },
           },
           {
-            label: refreshing ? 'Refreshing…' : 'Refresh tools list',
+            label: refreshing ? 'Checking…' : 'Check',
             onSelect: onRefresh,
           },
           ...(signIn === 'connected'

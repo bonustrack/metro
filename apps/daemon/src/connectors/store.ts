@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { syncPluginServers } from './plugin-sync.js';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { errMsg, log } from '@metro-labs/core/log';
 import {
@@ -76,6 +77,7 @@ export function readLocalConnectors(dir = agentsDir()): LocalConnectorRow[] {
 
 function writeRows(dir: string, rows: LocalConnectorRow[]): void {
   writeSecure(filePath(dir), `${JSON.stringify({ version: 1, connectors: rows }, null, 2)}\n`);
+  if (dir === agentsDir()) syncPluginServers(rows);
 }
 
 const missing = (): ConnectorError => new ConnectorError('no such connector', 404);
@@ -235,13 +237,6 @@ export async function localDeleteConnector(subject: string, id: string, dir = ag
   const row = rowOrThrow(subject, id, dir);
   writeRows(dir, readLocalConnectors(dir).filter((r) => r.id !== id));
   return Promise.resolve({ id: row.id, name: row.name });
-}
-
-const byIds = (ids: string[], dir: string): LocalConnectorRow[] =>
-  readLocalConnectors(dir).filter((r) => ids.includes(r.id));
-
-export async function localConnectorNamesByIds(ids: string[], dir = agentsDir()): Promise<{ id: string; name: string }[]> {
-  return Promise.resolve(byIds(ids, dir).map((r) => ({ id: r.id, name: r.name })));
 }
 
 const inflight = new Map<string, Promise<OAuthAuth>>();

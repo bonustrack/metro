@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-import { mcpServers, whoisAuthorized } from './api.js';
+import { whoisAuthorized } from './api.js';
 import { stopAll } from './control.js';
 import { tailEvents } from './tail.js';
 import { launchClaude } from './claude.js';
-import { installPlugin } from './plugin.js';
 import { update } from './update.js';
 import { serve } from './serve.js';
 import { service, serviceStopHint } from './service.js';
@@ -27,19 +26,12 @@ const USAGE = `metro — run your agent on this machine
   metro tail <agent-id>
                   follow this machine's inbound events, one JSON line each
   metro whoami    print the agent this machine runs
-  metro mcp       print the mcpServers block of the agent's connectors, served through the
-                  daemon's own relay
-  metro plugin    set up the Claude Code plugin (connector servers + /metro:refresh)
   metro claude [args...]
                   open Claude Code with the metro channel; every argument is passed through
                   the same, with inference on Amazon Bedrock through a local proxy so the
                   channel still works (needs AWS_BEARER_TOKEN_BEDROCK and AWS_REGION)
   metro update    update to the newest published version (--check only reports)
   metro version   print this CLI's version
-
-Start Claude Code with every connector, writing nothing to disk:
-
-  claude --mcp-config <(metro mcp)
 
   METRO_WEBHOOK_PORT the daemon's port (default 8420)
   METRO_AGENTS_DIR   where the agents live (default ~/.metro/agents)
@@ -75,11 +67,6 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   service: () => service(process.argv.slice(3)),
   stop: stopDaemon,
   tail: () => tailEvents(process.argv.slice(3)),
-  mcp: async () => {
-    process.stdout.write(`${await mcpServers(process.argv[3])}\n`);
-    return 0;
-  },
-  plugin: installPlugin,
   claude: () => launchClaude(process.argv.slice(3)),
   update: () => update(process.argv.slice(3)),
   version: async () => {

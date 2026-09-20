@@ -4,7 +4,6 @@ import type {
   VerifiedRecord,
   VerifiedServer,
 } from './verify.js';
-import { readStoredTools } from './tools.js';
 import type { OAuthClient } from './oauth-client.js';
 import { isRecord } from '@metro-labs/core/is-record';
 
@@ -133,16 +132,7 @@ function readAuth(raw: unknown): ConnectorAuth {
 
 function readVerified(raw: unknown): VerifiedRecord {
   const record = isRecord(raw) ? raw : {};
-  const catalog = readStoredTools(record.catalog);
-  return {
-    at: text(record.at),
-    server: text(record.server),
-    version: text(record.version),
-    protocol: text(record.protocol),
-    icon: text(record.icon),
-    tools: typeof record.tools === 'number' ? record.tools : 0,
-    catalog,
-  };
+  return { at: text(record.at), server: text(record.server) };
 }
 
 export function readConfig(raw: unknown): ConnectorConfig {
@@ -163,13 +153,5 @@ export function signInState(config: ConnectorConfig): ConnectorSignIn {
 }
 
 export function stamp(server: VerifiedServer): VerifiedRecord {
-  return {
-    at: new Date().toISOString(),
-    server: server.server,
-    version: server.version,
-    protocol: server.protocol,
-    icon: server.icon,
-    tools: server.tools,
-    catalog: server.catalog,
-  };
+  return { at: new Date().toISOString(), server: server.server };
 }

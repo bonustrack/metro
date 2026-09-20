@@ -3,12 +3,16 @@ import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { claudeDir } from '../claude/files.js';
 import { loopbackBase } from '../files/attach-serve.js';
-import { readLocalConnectors, type LocalConnectorRow } from './store.js';
 
 const MARKER = join('bin', 'metro-plugin.mjs');
 const FILE = '.mcp.json';
 const HELPER = 'node "${CLAUDE_PLUGIN_ROOT}/bin/metro-plugin.mjs" headers';
 const SLUG_MAX = 40;
+
+export interface PluginRow {
+  id: string;
+  name: string;
+}
 
 export interface PluginServer {
   type: 'http';
@@ -26,7 +30,7 @@ export function serverKey(name: string): string {
   return slug === '' ? 'connector' : slug;
 }
 
-export function pluginServers(rows: LocalConnectorRow[], base: string): Record<string, PluginServer> {
+export function pluginServers(rows: PluginRow[], base: string): Record<string, PluginServer> {
   const taken = new Map<string, number>();
   const out: Record<string, PluginServer> = {};
   for (const row of rows) {
@@ -88,7 +92,6 @@ function writeIfChanged(path: string, text: string): boolean {
 export interface PluginSyncOptions {
   dir?: string;
   base?: string;
-  agents?: string;
   staged?: string | null;
 }
 
@@ -97,13 +100,10 @@ function filesFor(opts: PluginSyncOptions): string[] {
   return installedPluginFiles(opts.dir ?? claudeDir(), staged);
 }
 
-const rowsFor = (agents?: string): LocalConnectorRow[] =>
-  agents === undefined ? readLocalConnectors() : readLocalConnectors(agents);
-
-export function syncPluginServers(opts: PluginSyncOptions = {}): number {
+export function syncPluginServers(rows: PluginRow[], opts: PluginSyncOptions = {}): number {
   const files = filesFor(opts);
   if (files.length === 0) return 0;
-  const servers = pluginServers(rowsFor(opts.agents), opts.base ?? loopbackBase());
+  const servers = pluginServers(rows, opts.base ?? loopbackBase());
   const text = `${JSON.stringify(servers, null, 2)}\n`;
   let written = 0;
   for (const file of files) {

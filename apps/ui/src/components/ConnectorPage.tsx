@@ -3,12 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { PageTitle } from './PageTitle.js';
-import {
-  connectorHost,
-  serverLabel,
-  verifyConnector,
-  type Connector,
-} from '../api/connectors.js';
+import { connectorHost, verifyConnector, type Connector } from '../api/connectors.js';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   queryError,
@@ -21,7 +16,6 @@ import { ConnectorActions } from './ConnectorActions.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { Field } from './Field.js';
 import { Loading } from './Loading.js';
-import { ToolList } from './ToolList.js';
 import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not load this connector.';
@@ -31,9 +25,6 @@ const AUTH_LABEL: Record<string, string> = {
   header: 'Header',
   none: 'None',
 };
-
-const HINT =
-  'Grouping comes from the annotations the server publishes. A tool counts as read-only only when it says so, so anything unannotated is grouped with write/delete. These are hints, not guarantees — MCP says to treat them as untrusted unless you trust the server.';
 
 interface ConnectorPageProps {
   project: string;
@@ -47,24 +38,31 @@ function whenLabel(at: string): string {
   return Number.isNaN(ms) ? '-' : new Date(ms).toLocaleString();
 }
 
-function ConnectorFacts({
-  connector,
-}: {
-  connector: Connector;
-}): ReactNode {
+function ConnectorFacts({ connector }: { connector: Connector }): ReactNode {
   const verified = connector.verified;
-  if (verified === null) return null;
   return (
     <Row gap={20} wrap>
-      <Field label="tools" value={String(verified.tools)} />
-      <Field label="server" value={serverLabel(verified)} />
-      <Field label="protocol" value={verified.protocol} />
+      {verified === null || verified.server === '' ? null : <Field label="server" value={verified.server} />}
       <Field label="sign-in" value={AUTH_LABEL[connector.auth] ?? 'None'} />
-      {connector.clientId === null ? null : (
-        <Field label="app" value={connector.clientId} />
-      )}
-      <Field label="checked" value={whenLabel(verified.at)} />
+      {connector.clientId === null ? null : <Field label="app" value={connector.clientId} />}
+      {verified === null || verified.at === '' ? null : <Field label="checked" value={whenLabel(verified.at)} />}
     </Row>
+  );
+}
+
+function HealthLine({ connector }: { connector: Connector }): ReactNode {
+  const health = connector.health;
+  if (health === null)
+    return (
+      <Text size="sm" role="secondary">
+        No call has gone through this connector since Metro started.
+      </Text>
+    );
+  const when = whenLabel(health.at);
+  return (
+    <Text size="sm" role={health.ok ? 'secondary' : 'danger'}>
+      {health.ok ? `Answering. Last call ${when}.` : `${health.reason ?? 'The last call failed'} (${when}).`}
+    </Text>
   );
 }
 
@@ -129,7 +127,6 @@ export function ConnectorPage({
   if (error !== null)
     return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
-  const tools = data.verified?.catalog ?? [];
 
   return (
     <Col gap={20}>
@@ -153,15 +150,8 @@ export function ConnectorPage({
       </Col>
 
       <ConnectorFacts connector={data} />
+      <HealthLine connector={data} />
       {status !== null ? <Text size="sm" role="secondary">{status}</Text> : null}
-
-      <Col gap={10}>
-        <Col gap={2}>
-          <Text size="lg" weight="semibold">Tools</Text>
-          <Text size="sm" role="secondary">{HINT}</Text>
-        </Col>
-        <ToolList tools={tools} recorded={data.verified?.tools ?? 0} />
-      </Col>
     </Col>
   );
 }

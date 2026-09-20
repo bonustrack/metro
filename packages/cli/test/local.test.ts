@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { localAgents, localDaemonUp, localMcpServers, localStations, pickLocalAgent } from '../src/local.ts';
+import { localAgents, localDaemonUp, localStations, pickLocalAgent } from '../src/local.ts';
 
 const KEEP = { dir: process.env.METRO_AGENTS_DIR, port: process.env.METRO_WEBHOOK_PORT };
 let dir = '';
@@ -29,10 +29,6 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     if (req.url === '/api/mode') {
       res.writeHead(200, { 'content-type': 'application/json' }).end('{"mode":"local"}');
-      return;
-    }
-    if (req.url === '/api/cli/mcp' && req.headers.authorization === `Bearer ${'a1b2c3d4'.repeat(8)}`) {
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ json: '{"mcpServers":{}}', agent: 'tony' }));
       return;
     }
     res.writeHead(401).end();
@@ -73,11 +69,8 @@ describe('the agents a local daemon owns, as the CLI sees them', () => {
     expect(() => pickLocalAgent([])).toThrow(/no agent on this machine yet/);
   });
 
-  test('the local daemon is detected, and answers the connectors block for the agent key', async () => {
+  test('the local daemon is detected', async () => {
     expect(await localDaemonUp(base)).toBe(true);
     expect(await localDaemonUp('http://127.0.0.1:9')).toBe(false);
-    const tony = pickLocalAgent(localAgents(dir), 'tony');
-    expect(await localMcpServers(tony, base)).toBe('{"mcpServers":{}}');
-    await expect(localMcpServers({ ...tony, key: 'wrong' }, base)).rejects.toThrow(/401/);
   });
 });

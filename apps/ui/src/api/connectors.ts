@@ -6,29 +6,15 @@ export type ConnectorAuth = 'header' | 'oauth' | 'none';
 
 export type ConnectorSignIn = 'connected' | 'disconnected' | null;
 
-export const TOOL_KINDS = ['read', 'write'] as const;
-
-export type ToolKind = (typeof TOOL_KINDS)[number];
-
-export interface ConnectorTool {
-  name: string;
-  title: string;
-  description: string;
-  kind: ToolKind;
-  annotated: boolean;
-  destructive: boolean;
-  idempotent: boolean;
-  openWorld: boolean;
-}
-
 export interface ConnectorVerified {
   at: string;
   server: string;
-  version: string;
-  protocol: string;
-  icon: string;
-  tools: number;
-  catalog: ConnectorTool[];
+}
+
+export interface ConnectorHealth {
+  ok: boolean;
+  reason: string | null;
+  at: string;
 }
 
 export interface Connector {
@@ -41,6 +27,7 @@ export interface Connector {
   clientId: string | null;
   signIn: ConnectorSignIn;
   verified: ConnectorVerified | null;
+  health: ConnectorHealth | null;
 }
 
 export interface ConnectorsView {
@@ -89,45 +76,14 @@ const str = (value: unknown): string => (typeof value === 'string' ? value : '')
 const nullable = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;
 
-function toKind(value: unknown): ToolKind {
-  return TOOL_KINDS.find((k) => k === value) ?? 'write';
-}
-
-function toTool(value: unknown): ConnectorTool | null {
-  if (!isRecord(value) || typeof value.name !== 'string') return null;
-  return {
-    name: value.name,
-    title: str(value.title),
-    description: str(value.description),
-    kind: toKind(value.kind),
-    annotated: value.annotated === true,
-    destructive: value.destructive !== false,
-    idempotent: value.idempotent === true,
-    openWorld: value.openWorld !== false,
-  };
-}
-
-function toCatalog(value: unknown): ConnectorTool[] {
-  if (!Array.isArray(value)) return [];
-  const out: ConnectorTool[] = [];
-  for (const entry of value) {
-    const tool = toTool(entry);
-    if (tool !== null) out.push(tool);
-  }
-  return out;
-}
-
 function toVerified(value: unknown): ConnectorVerified | null {
   if (!isRecord(value)) return null;
-  return {
-    at: str(value.at),
-    server: str(value.server),
-    version: str(value.version),
-    protocol: str(value.protocol),
-    icon: str(value.icon),
-    tools: typeof value.tools === 'number' ? value.tools : 0,
-    catalog: toCatalog(value.catalog),
-  };
+  return { at: str(value.at), server: str(value.server) };
+}
+
+function toHealth(value: unknown): ConnectorHealth | null {
+  if (!isRecord(value) || typeof value.ok !== 'boolean') return null;
+  return { ok: value.ok, reason: nullable(value.reason), at: str(value.at) };
 }
 
 function toSignIn(value: unknown): ConnectorSignIn {
@@ -154,6 +110,7 @@ function toConnector(value: unknown): Connector {
     clientId: nullable(value.clientId),
     signIn: toSignIn(value.signIn),
     verified: toVerified(value.verified),
+    health: toHealth(value.health),
   };
 }
 
@@ -169,11 +126,6 @@ export function connectorHost(url: string): string {
   } catch {
     return url;
   }
-}
-
-export function serverLabel(verified: ConnectorVerified): string {
-  const parts = [verified.server, verified.version].filter((p) => p !== '');
-  return parts.length === 0 ? '-' : parts.join(' ');
 }
 
 function payload(input: NewConnector): Record<string, string> {

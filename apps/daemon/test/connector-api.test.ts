@@ -50,9 +50,6 @@ interface WireConnector {
   verified: {
     at: string;
     server: string;
-    version: string;
-    protocol: string;
-    tools: number;
   };
 }
 
@@ -93,9 +90,6 @@ let priorHost: string | undefined;
 const VERIFIED = {
   at: '2026-08-21T09:14:04.880Z',
   server: 'linear',
-  version: '1.4.0',
-  protocol: '2025-06-18',
-  tools: 12,
 };
 
 const toConnector = (row: Row) => ({
@@ -464,6 +458,7 @@ describe('GET /api/connectors returns the wire shape', () => {
       clientId: null,
       signIn: null,
       verified: VERIFIED,
+      health: null,
     });
   });
 

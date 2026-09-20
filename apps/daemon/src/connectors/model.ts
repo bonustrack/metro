@@ -66,12 +66,4 @@ export function connectorFromRow(row: ConnectorLike): Connector {
   };
 }
 
-export const UNVERIFIED = {
-  at: '',
-  server: '',
-  version: '',
-  protocol: '',
-  icon: '',
-  tools: 0,
-  catalog: [],
-};
+export const UNVERIFIED = { at: '', server: '' };

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
+import { healthOf } from './health.js';
 import {
   apiFailure,
   apiSession,
@@ -81,11 +82,7 @@ function target(path: string): Target {
   return id === null ? { kind: 'unknown' } : subTarget(id, segments.slice(1));
 }
 
-function connectorPayload(
-  row: Connector,
-  detail = false,
-): Record<string, unknown> {
-  const { catalog, ...summary } = row.verified;
+function connectorPayload(row: Connector): Record<string, unknown> {
   return {
     id: row.id,
     name: row.name,
@@ -95,7 +92,8 @@ function connectorPayload(
     header: row.header,
     clientId: row.client?.clientId ?? null,
     signIn: row.signIn,
-    verified: detail ? { ...summary, catalog } : summary,
+    verified: row.verified,
+    health: healthOf(row.id),
   };
 }
 
@@ -208,7 +206,7 @@ async function handleConnector(
     return;
   }
   const row = await deps.getConnector(session.subject, id);
-  sendJson(req, res, 200, connectorPayload(row, true));
+  sendJson(req, res, 200, connectorPayload(row));
 }
 
 async function handleRename(

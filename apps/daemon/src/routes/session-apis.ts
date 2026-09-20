@@ -6,7 +6,6 @@ import {
   type ConnectorApiDeps,
 } from '../connectors/api.js';
 import type { RelayApiDeps } from '../connectors/relay.js';
-import { handleLocalCliRequest, type LocalCliDeps } from '../connectors/cli-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from '../claude/api.js';
 import type { ModeInfo } from '@metro-labs/http/mode-api';
 import { handleBundleRequest, type BundleApiDeps } from '../agents/bundle.js';
@@ -28,7 +27,6 @@ export interface SessionApis {
   modelApi?: ModelApiDeps;
   gateway?: GatewayDeps;
   terminalApi?: TerminalApiDeps;
-  localCli?: LocalCliDeps;
   claudeApi?: ClaudeApiDeps;
   connectorApi?: ConnectorApiDeps;
   relayApi?: RelayApiDeps;
@@ -45,7 +43,6 @@ export function handleSessionApis(
 ): boolean {
   const routes: (() => boolean)[] = [
     () => handleSessionApiRequest(req, res),
-    ...when(apis.localCli, (d) => handleLocalCliRequest(req, res, d)),
     ...when(apis.connectorApi, (d) => handleConnectorApiRequest(req, res, d)),
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),

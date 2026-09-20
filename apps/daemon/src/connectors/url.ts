@@ -4,8 +4,6 @@ export class ConnectorVerifyError extends ApiError {}
 
 export class ConnectorUnauthorized extends ConnectorVerifyError {}
 
-export class ConnectorNotMcp extends ConnectorVerifyError {}
-
 export const POLICY_MESSAGE =
   'Metro connects from its own server, so it cannot reach a URL on your machine. localhost and private addresses are not usable as connectors.';
 
@@ -58,13 +56,4 @@ export function connectorUrlText(url: URL): string {
   const text = url.toString();
   if (url.pathname !== '/' || url.search !== '') return text;
   return text.endsWith('/') ? text.slice(0, -1) : text;
-}
-
-export function safeIconSrc(raw: unknown): string {
-  if (typeof raw !== 'string' || raw === '') return '';
-  try {
-    return new URL(raw).protocol === 'https:' ? raw.slice(0, 500) : '';
-  } catch {
-    return '';
-  }
 }

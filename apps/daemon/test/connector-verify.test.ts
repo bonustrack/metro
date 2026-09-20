@@ -45,14 +45,6 @@ const initResult = {
   serverInfo: { name: 'linear', version: '1.4.0' },
 };
 
-const toolsResult = {
-  tools: [
-    { name: 'create_issue' },
-    { name: 'list_issues' },
-    { name: 'search' },
-  ],
-};
-
 const asJson = (res: ServerResponse, payload: unknown, id: number): void => {
   res.writeHead(200, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ jsonrpc: '2.0', id, result: payload }));
@@ -71,21 +63,12 @@ function speakMcp(
   frame: (r: ServerResponse, payload: unknown, id: number) => void,
   session: string | null,
 ): void {
-  const method = rpcMethod(body);
-  if (method === 'initialize') {
-    if (session !== null) res.setHeader('mcp-session-id', session);
-    frame(res, initResult, 1);
+  if (rpcMethod(body) !== 'initialize') {
+    res.writeHead(405).end();
     return;
   }
-  if (method === 'notifications/initialized') {
-    res.writeHead(202).end();
-    return;
-  }
-  if (method === 'tools/list') {
-    frame(res, toolsResult, 2);
-    return;
-  }
-  res.writeHead(405).end();
+  if (session !== null) res.setHeader('mcp-session-id', session);
+  frame(res, initResult, 1);
 }
 
 const sseServer =
@@ -231,19 +214,9 @@ describe('parseConnectorUrl is the security boundary', () => {
   });
 });
 
-describe('verifyRemoteMcp over a server that speaks SSE', () => {
-  test('the happy path reports the server, version, protocol and tool count', async () => {
-    const seenTools = await probe();
-    expect(seenTools).toMatchObject({
-      server: 'linear',
-      version: '1.4.0',
-      protocol: '2025-06-18',
-      icon: '',
-      tools: 3,
-    });
-    expect(
-      (seenTools as { catalog: { name: string }[] }).catalog.map((t) => t.name),
-    ).toEqual(['create_issue', 'list_issues', 'search']);
+describe('verifyRemoteMcp is one initialize, over SSE or plain JSON', () => {
+  test('the happy path reports the server name from the SSE answer', async () => {
+    expect(await probe()).toEqual({ server: 'linear' });
   });
 
   test('initialize offers both media types and asks for the latest protocol', async () => {
@@ -256,142 +229,49 @@ describe('verifyRemoteMcp over a server that speaks SSE', () => {
       jsonrpc: '2.0',
       id: 1,
       method: 'initialize',
-      params: {
-        protocolVersion: '2025-11-25',
-        clientInfo: { name: 'metro', version: '0.1.0' },
-      },
+      params: { protocolVersion: '2025-11-25', clientInfo: { name: 'metro', version: '0.1.0' } },
     });
   });
 
-  test('the three frames plus the DELETE are sent, in order', async () => {
+  test('exactly one frame is sent, and no session is opened or ended', async () => {
     await probe();
-    expect(seen.map((s) => `${s.method} ${rpcMethod(s.body)}`.trim())).toEqual([
-      'POST initialize',
-      'POST notifications/initialized',
-      'POST tools/list',
-      'DELETE',
-    ]);
+    expect(seen.map((s) => `${s.method} ${rpcMethod(s.body)}`)).toEqual(['POST initialize']);
   });
 
-  test('later frames echo the version the SERVER chose, not the one we asked for', async () => {
-    await probe();
-    expect(seen[0]?.headers['mcp-session-id']).toBeUndefined();
-    for (const frame of seen.slice(1)) {
-      expect(frame.headers['mcp-session-id']).toBe('sess-abc');
-      expect(frame.headers['mcp-protocol-version']).toBe('2025-06-18');
-    }
-  });
-
-  test('a stateless server that sends no mcp-session-id still verifies', async () => {
+  test('a stateless server that sends no mcp-session-id verifies the same', async () => {
     reply = sseServer(null);
-    expect(await probe()).toMatchObject({ server: 'linear', tools: 3 });
-    for (const frame of seen)
-      expect(frame.headers['mcp-session-id']).toBeUndefined();
+    expect(await probe()).toEqual({ server: 'linear' });
   });
 
-  test('a keepalive comment before the response does not hide it', async () => {
-    reply = (_req, res, body) => {
-      if (rpcMethod(body) !== 'initialize') {
-        speakMcp(res, body, asSse, null);
-        return;
-      }
+  test('a keepalive comment, a retry directive, an id line and CRLF endings are all skipped', async () => {
+    const answer = JSON.stringify({ jsonrpc: '2.0', id: 1, result: initResult });
+    reply = (_req, res) => {
       res.writeHead(200, { 'content-type': 'text/event-stream' });
-      res.end(
-        `: keep-alive\n\nevent: message\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: 1, result: initResult })}\n\n`,
-      );
+      res.end(`: keep-alive\r\n\r\nretry: 3000\r\n\r\nid: 7\r\nevent: message\r\ndata: ${answer}\r\n\r\n`);
     };
-    expect(await probe()).toMatchObject({ server: 'linear', tools: 3 });
+    expect(await probe()).toEqual({ server: 'linear' });
   });
 
-  test('a retry directive and an id line before the data are skipped', async () => {
-    reply = (_req, res, body) => {
-      if (rpcMethod(body) !== 'initialize') {
-        speakMcp(res, body, asSse, null);
-        return;
-      }
-      res.writeHead(200, { 'content-type': 'text/event-stream' });
-      res.end(
-        `retry: 3000\n\nid: 7\nevent: message\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: 1, result: initResult })}\n\n`,
-      );
-    };
-    expect(await probe()).toMatchObject({ protocol: '2025-06-18' });
-  });
-
-  test('CRLF line endings are handled', async () => {
-    reply = (_req, res, body) => {
-      if (rpcMethod(body) !== 'initialize') {
-        speakMcp(res, body, asSse, null);
-        return;
-      }
-      res.writeHead(200, { 'content-type': 'text/event-stream' });
-      res.end(
-        `event: message\r\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: 1, result: initResult })}\r\n\r\n`,
-      );
-    };
-    expect(await probe()).toMatchObject({ server: 'linear' });
-  });
-
-  test('the auth header rides on every frame, DELETE included', async () => {
+  test('the auth header rides on the frame', async () => {
     await probe('/mcp', BEARER);
-    expect(seen).toHaveLength(4);
-    for (const frame of seen)
-      expect(frame.headers.authorization).toBe('Bearer lin_oauth_7f');
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.headers.authorization).toBe('Bearer lin_oauth_7f');
   });
-});
 
-describe('verifyRemoteMcp over a server that answers plain JSON', () => {
-  test('the happy path is identical', async () => {
+  test('a plain JSON answer is read the same way, and a title beats a name', async () => {
+    reply = (_req, res) => {
+      asJson(res, { ...initResult, serverInfo: { name: 'linear', title: 'Linear' } }, 1);
+    };
+    expect(await probe()).toEqual({ server: 'Linear' });
     reply = jsonServer();
-    const seenTools = await probe();
-    expect(seenTools).toMatchObject({
-      server: 'linear',
-      version: '1.4.0',
-      protocol: '2025-06-18',
-      icon: '',
-      tools: 3,
-    });
-    expect(
-      (seenTools as { catalog: { name: string }[] }).catalog.map((t) => t.name),
-    ).toEqual(['create_issue', 'list_issues', 'search']);
+    expect(await probe()).toEqual({ server: 'linear' });
   });
 
-  test('a stateless JSON server verifies too', async () => {
-    reply = jsonServer(null);
-    expect(await probe()).toMatchObject({ protocol: '2025-06-18', tools: 3 });
-  });
-
-  test('no tools is a real answer, not a failure', async () => {
-    reply = (_req, res, body) => {
-      if (rpcMethod(body) === 'tools/list') {
-        asJson(res, { tools: [] }, 2);
-        return;
-      }
-      speakMcp(res, body, asJson, null);
+  test('a server with no serverInfo is named after its host', async () => {
+    reply = (_req, res) => {
+      asJson(res, { protocolVersion: '2025-06-18' }, 1);
     };
-    expect(await probe()).toMatchObject({ tools: 0 });
-  });
-
-  test('a tools/list that fails leaves the connector verified with zero tools', async () => {
-    reply = (_req, res, body) => {
-      if (rpcMethod(body) === 'tools/list') {
-        res.writeHead(500).end('nope');
-        return;
-      }
-      speakMcp(res, body, asJson, null);
-    };
-    expect(await probe()).toMatchObject({ server: 'linear', tools: 0 });
-  });
-
-  test('a DELETE refused with 405 is success — the probe still resolves', async () => {
-    reply = (req, res, body) => {
-      if (req.method === 'DELETE') {
-        res.writeHead(405).end();
-        return;
-      }
-      speakMcp(res, body, asJson, 'sess-405');
-    };
-    expect(await probe()).toMatchObject({ tools: 3 });
-    expect(seen.at(-1)?.method).toBe('DELETE');
+    expect(await probe()).toEqual({ server: '127.0.0.1' });
   });
 });
 
@@ -465,13 +345,11 @@ describe('the three failures are worded separately', () => {
     );
   });
 
-  test('a 500 is answered-but-not-MCP, not a credential problem', async () => {
+  test('a 500 names the status, not a credential problem', async () => {
     reply = (_req, res) => {
       res.writeHead(500).end('boom');
     };
-    expect((await refusal(probe())).message).toBe(
-      '127.0.0.1 answered, but it does not speak MCP.',
-    );
+    expect((await refusal(probe())).message).toBe('127.0.0.1 answered 500 instead of an MCP initialize.');
   });
 
   for (const status of [404, 405])

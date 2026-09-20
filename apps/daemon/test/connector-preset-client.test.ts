@@ -259,7 +259,7 @@ describe('a connector whose authorization server registers no clients', () => {
     const shown = await call('GET', `/api/connectors/${outlook}`);
     const row = (await shown.json()) as Record<string, unknown>;
     expect(row).toMatchObject({ signIn: 'connected', auth: 'oauth', clientId: CLIENT_ID });
-    expect((row.verified as { tools: number; server: string })).toMatchObject({ tools: 1, server: 'mailtools' });
+    expect(row.verified as { server: string }).toMatchObject({ server: 'mailtools' });
     const [file] = stored().connectors;
     expect(file?.config.auth).toMatchObject({ kind: 'oauth', accessToken: 'at-1', scope: `${vendorBase}/mcp/.default offline_access` });
   });

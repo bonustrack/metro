@@ -8,7 +8,6 @@ import {
   createConnector,
   deleteConnector,
   fetchConnectors,
-  serverLabel,
   verifyConnector,
   type Connector,
 } from '../src/api/connectors.js';
@@ -59,11 +58,6 @@ function serve(body: unknown, status = 200): void {
 const VERIFIED = {
   at: '2026-08-21T09:14:04.880Z',
   server: 'linear',
-  version: '1.4.0',
-  protocol: '2025-06-18',
-  icon: '',
-  tools: 12,
-  catalog: [],
 };
 
 const ROW = {
@@ -197,6 +191,7 @@ describe('a connector row is coerced field by field', () => {
         clientId: null,
         signIn: null,
         verified: VERIFIED,
+        health: null,
       },
     ]);
   });
@@ -237,28 +232,18 @@ describe('a connector row is coerced field by field', () => {
     expect(row?.auth).toBe('oauth');
   });
 
-  test('the tool catalog is coerced entry by entry, junk dropped', async () => {
-    const [row] = await list({
+  test('the health record rides along, and a malformed one reads as none', async () => {
+    const [failing, fine, none] = await list({
       connectors: [
-        {
-          ...ROW,
-          verified: {
-            ...VERIFIED,
-            catalog: [
-              { name: 'a', kind: 'read' },
-              { name: 'b', kind: 'not-a-kind' },
-              { description: 'nameless' },
-              null,
-            ],
-          },
-        },
+        { ...ROW, health: { ok: false, reason: 'the connector answered 502', at: '2026-09-20T10:00:00.000Z' } },
+        { ...ROW, id: 'id000000013', health: { ok: true, reason: null, at: '2026-09-20T10:00:00.000Z' } },
+        { ...ROW, id: 'id000000014', health: 'bad' },
       ],
       json: '{}',
     });
-    expect(row?.verified?.catalog.map((t) => [t.name, t.kind])).toEqual([
-      ['a', 'read'],
-      ['b', 'write'],
-    ]);
+    expect(failing?.health).toEqual({ ok: false, reason: 'the connector answered 502', at: '2026-09-20T10:00:00.000Z' });
+    expect(fine?.health).toEqual({ ok: true, reason: null, at: '2026-09-20T10:00:00.000Z' });
+    expect(none?.health).toBeNull();
   });
 
   test('missing and mistyped fields fall back instead of reaching the page', async () => {
@@ -276,23 +261,16 @@ describe('a connector row is coerced field by field', () => {
       clientId: null,
       signIn: null,
       verified: null,
+      health: null,
     });
   });
 
-  test('a verified block with a mistyped tool count reads as zero, not NaN', async () => {
+  test('a verified block with a mistyped server reads as blank, not as a number', async () => {
     const [row] = await list({
-      connectors: [{ ...ROW, verified: { ...VERIFIED, tools: '12', server: 9 } }],
+      connectors: [{ ...ROW, verified: { ...VERIFIED, server: 9 } }],
       json: '{}',
     });
-    expect(row?.verified).toEqual({
-      at: '2026-08-21T09:14:04.880Z',
-      server: '',
-      version: '1.4.0',
-      protocol: '2025-06-18',
-      icon: '',
-      tools: 0,
-      catalog: [],
-    });
+    expect(row?.verified).toEqual({ at: '2026-08-21T09:14:04.880Z', server: '' });
   });
 
   test('a row with no name is refused rather than rendered as blank', async () => {
@@ -316,7 +294,7 @@ describe('a connector row is coerced field by field', () => {
     if (result.kind !== 'added') throw new Error('expected an added connector');
     expect(result.connector.id).toBe('id000000012');
     expect(result.connector.name).toBe('linear');
-    expect(result.connector.verified?.tools).toBe(12);
+    expect(result.connector.verified?.server).toBe('linear');
   });
 
   test('an oauth answer carries the STORED row as well as the sign-in to follow', async () => {
@@ -418,13 +396,6 @@ describe('the row labels are derived, never asserted', () => {
   test('a url that will not parse is shown as it came', () => {
     expect(connectorHost('not a url')).toBe('not a url');
     expect(connectorHost('')).toBe('');
-  });
-
-  test('the server label pairs name and version, and drops what is missing', () => {
-    expect(serverLabel(VERIFIED)).toBe('linear 1.4.0');
-    expect(serverLabel({ ...VERIFIED, version: '' })).toBe('linear');
-    expect(serverLabel({ ...VERIFIED, server: '' })).toBe('1.4.0');
-    expect(serverLabel({ ...VERIFIED, server: '', version: '' })).toBe('-');
   });
 });
 

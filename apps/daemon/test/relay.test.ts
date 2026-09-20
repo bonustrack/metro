@@ -7,6 +7,7 @@ import {
 } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleRelayRequest, type RelayApiDeps } from '../src/connectors/relay.ts';
+import { forgetHealth, healthOf } from '../src/connectors/health.ts';
 import type { RelayTarget } from '../src/connectors/relay-target.ts';
 
 const EMAIL = 'less@bonustrack.co';
@@ -232,20 +233,22 @@ describe('what the upstream sees', () => {
 });
 
 describe('upstream auth failures', () => {
-  test('a 401 forces one refresh and the retry succeeds invisibly', async () => {
+  test('a 401 forces one refresh and the retry succeeds invisibly, and the health reads ok', async () => {
     mode = 'flip';
     const res = await post(INIT);
     expect(res.status).toBe(200);
+    expect(healthOf(CONN)).toMatchObject({ ok: true, reason: null });
     expect(forceCalls).toBe(1);
     expect(seen).toHaveLength(2);
     expect(seen[0]?.headers['x-vendor']).toBe('v-old');
     expect(seen[1]?.headers['x-vendor']).toBe('v-live');
   });
 
-  test('a 401 that survives the refresh is 424 with the fix named', async () => {
+  test('a 401 that survives the refresh is 424 with the fix named, and the health says so', async () => {
     mode = 'dead';
     const res = await post(INIT);
     expect(res.status).toBe(424);
+    expect(healthOf(CONN)).toMatchObject({ ok: false, reason: 'the sign-in has expired, connect it again' });
     const body = (await res.json()) as { error: string; reconnect: string };
     expect(body.error).toContain('signing in');
     expect(body.reconnect).toContain(CONN);
@@ -267,6 +270,9 @@ describe('hostile or oversized traffic', () => {
     expect(res.status).toBe(502);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/^metro could not reach the connector: .*\(nothing is listening there\)$/);
+    expect(healthOf(CONN)).toMatchObject({ ok: false, reason: body.error });
+    forgetHealth(CONN);
+    expect(healthOf(CONN)).toBeNull();
   });
 
   test('an upstream redirect is refused, never followed', async () => {
