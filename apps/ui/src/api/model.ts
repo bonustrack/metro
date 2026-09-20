@@ -32,7 +32,7 @@ export const PROVIDERS: ProviderInfo[] = [
     id: 'gemini',
     label: 'Gemini (Google)',
     site: 'https://gemini.google.com',
-    blurb: 'Gemini models on your Google account, with the limits of your Google AI Pro or Ultra plan. Unofficial: metro speaks the Gemini CLI protocol, and Google can change it at any time.',
+    blurb: 'Gemini models on a Google account with a Gemini Code Assist licence. Unofficial: metro speaks the Gemini CLI protocol, and Google can change it at any time.',
   },
 ];
 
@@ -143,8 +143,8 @@ export async function beginGeminiLogin(): Promise<{ url: string; state: string }
   return { url: body.url, state: body.state };
 }
 
-export async function finishGeminiLogin(code: string, state: string): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: '/gemini/code', headers: json, body: JSON.stringify({ code, state }) }));
+export async function finishGeminiLogin(code: string, state: string, project: string): Promise<ModelSettings> {
+  return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: '/gemini/code', headers: json, body: JSON.stringify({ code, state, project }) }));
 }
 
 export async function geminiLogout(): Promise<ModelSettings> {

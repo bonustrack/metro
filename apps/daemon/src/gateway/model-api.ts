@@ -7,7 +7,7 @@ import { beginLogin, CodexAuthError, finishLogin, readCodexCliAuth } from './cod
 import { beginDeviceLogin, pollDeviceLogin } from './codex-device.js';
 import { codexModels, currentTokens, freshCodexState } from './codex.js';
 import { beginLogin as beginGeminiLogin, exchangeCode as exchangeGeminiCode, GeminiAuthError, userEmail } from './gemini-auth.js';
-import { onboard } from './gemini-setup.js';
+import { onboard, parseGeminiProject } from './gemini-setup.js';
 import { KNOWN_GEMINI_MODELS } from './gemini.js';
 import { openrouterCredits, openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
@@ -181,13 +181,22 @@ const CODEX_ROUTES: Record<string, Route> = {
   },
 };
 
+function projectOf(body: unknown): string | null {
+  try {
+    return parseGeminiProject(isRecord(body) ? body.project : null);
+  } catch (err) {
+    return asApiError(err);
+  }
+}
+
 async function connectGemini(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
   const body = await readJsonBody(req, BODY_MAX);
   const code = isRecord(body) && typeof body.code === 'string' ? body.code : '';
   const state = isRecord(body) && typeof body.state === 'string' ? body.state : '';
+  const project = projectOf(body);
   const tokens = await exchangeGeminiCode(code, state, deps.geminiTokenBase, deps.fetchImpl).catch(asApiError);
   const email = await userEmail(tokens, deps.geminiUserBase, deps.fetchImpl);
-  const onboarded = await onboard(tokens, deps.geminiBase, deps.fetchImpl).catch(asApiError);
+  const onboarded = await onboard(tokens, project, deps.geminiBase, deps.fetchImpl).catch(asApiError);
   const cfg = setGeminiAuth(store.read(), { ...tokens, email, project: onboarded.project, tier: onboarded.tier });
   store.write(cfg);
   log.info({ tier: onboarded.tier }, 'model-api: Gemini connected');

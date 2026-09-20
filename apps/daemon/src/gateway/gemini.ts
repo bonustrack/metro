@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg } from '@metro-labs/core/log';
 import { refreshTokens, tokensStale, type GeminiTokens } from './gemini-auth.js';
-import { CODE_ASSIST_BASE } from './gemini-setup.js';
+import { CODE_ASSIST_BASE, userAgent } from './gemini-setup.js';
 import { GeminiStreamTranslator } from './gemini-stream.js';
 import { toGeminiRequest } from './gemini-translate.js';
 import { ToolNames } from './codex-translate.js';
@@ -12,7 +12,6 @@ import type { ModelConfig } from './model-config.js';
 import { UsageScanner } from './usage.js';
 
 const PING_MS = 25_000;
-const CLI_VERSION = '0.62.0';
 const STATUS_OF: Record<string, number> = { rate_limit_error: 429, invalid_request_error: 400, permission_error: 403, overloaded_error: 529 };
 
 export const KNOWN_GEMINI_MODELS = ['gemini-3.1-pro-preview', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash'];
@@ -30,8 +29,6 @@ export interface GeminiState {
 }
 
 export const freshGeminiState = (): GeminiState => ({ refreshing: null, latest: null });
-
-export const userAgent = (model: string): string => `GeminiCLI/${CLI_VERSION}/${model} (${process.platform}; ${process.arch}; metro)`;
 
 const newerThan = (a: GeminiTokens, b: GeminiTokens): boolean => Date.parse(a.savedAt) > Date.parse(b.savedAt);
 

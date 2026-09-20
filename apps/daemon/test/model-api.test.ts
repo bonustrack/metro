@@ -92,15 +92,20 @@ beforeAll(async () => {
       return;
     }
     if (req.url === '/v1internal:loadCodeAssist') {
-      if (ineligible.on) {
-        res.end(JSON.stringify({ ineligibleTiers: [{ tierId: 'free-tier', reasonCode: 'DASHER_USER', reasonMessage: 'Your account is not eligible for Gemini Code Assist for individuals at this time' }] }));
-        return;
-      }
-      if (managed.on) {
-        res.end(JSON.stringify({ currentTier: { id: 'standard-tier', name: 'Standard' }, cloudaicompanionProject: '' }));
-        return;
-      }
-      res.end(JSON.stringify({ allowedTiers: [{ id: 'legacy-tier' }, { id: 'free-tier', isDefault: true, name: 'Google AI Pro' }], cloudaicompanionProject: '' }));
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        loadAsked.push(JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>);
+        if (ineligible.on) {
+          res.end(JSON.stringify({ ineligibleTiers: [{ tierId: 'free-tier', reasonCode: 'DASHER_USER', reasonMessage: 'Your account is not eligible for Gemini Code Assist for individuals at this time' }] }));
+          return;
+        }
+        if (managed.on) {
+          res.end(JSON.stringify({ currentTier: { id: 'standard-tier', name: 'Standard' }, cloudaicompanionProject: '' }));
+          return;
+        }
+        res.end(JSON.stringify({ allowedTiers: [{ id: 'legacy-tier' }, { id: 'free-tier', isDefault: true, name: 'Google AI Pro' }], cloudaicompanionProject: '' }));
+      });
       return;
     }
     if (req.url === '/v1internal:onboardUser') {
@@ -227,6 +232,7 @@ describe('the model route on the page', () => {
 const googleForms: URLSearchParams[] = [];
 const ineligible = { on: false };
 const managed = { on: false };
+const loadAsked: Record<string, unknown>[] = [];
 const onboardTiers: string[] = [];
 
 const gemini = async (name: string, method: 'GET' | 'POST', body?: unknown): Promise<Response> =>
@@ -358,14 +364,26 @@ describe('connecting Google for Gemini from the page', () => {
     }
   });
 
-  test('an account with a tier but no project is a managed one, refused by name rather than onboarded blind', async () => {
+  test('a licensed account needs the project that carries the licence, and connects with it', async () => {
     managed.on = true;
+    loadAsked.length = 0;
     try {
       const started = (await (await gemini('login', 'POST')).json()) as { state: string };
       const refused = await gemini('code', 'POST', { code: '4/ok', state: started.state });
       expect(refused.status).toBe(400);
-      expect(((await refused.json()) as { error: string }).error).toContain('managed (Workspace)');
+      expect(((await refused.json()) as { error: string }).error).toContain('named no project');
       expect(stored.gemini.auth).toBeNull();
+      expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 'IDE_UNSPECIFIED', platform: 'PLATFORM_UNSPECIFIED', pluginType: 'GEMINI' } });
+      const bad = (await (await gemini('login', 'POST')).json()) as { state: string };
+      const shape = await gemini('code', 'POST', { code: '4/ok', state: bad.state, project: 'Not A Project' });
+      expect(shape.status).toBe(400);
+      expect(((await shape.json()) as { error: string }).error).toContain('not a Google Cloud project id');
+      const again = (await (await gemini('login', 'POST')).json()) as { state: string };
+      const done = await gemini('code', 'POST', { code: '4/ok', state: again.state, project: 'stage-metro-1' });
+      expect(done.status).toBe(200);
+      expect(((await done.json()) as { gemini: Record<string, unknown> }).gemini).toMatchObject({ signedIn: true, plan: 'Standard' });
+      expect(stored.gemini.auth).toMatchObject({ project: 'stage-metro-1', tier: 'Standard' });
+      expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 'IDE_UNSPECIFIED', platform: 'PLATFORM_UNSPECIFIED', pluginType: 'GEMINI', duetProject: 'stage-metro-1' }, cloudaicompanionProject: 'stage-metro-1' });
     } finally {
       managed.on = false;
     }

@@ -10,7 +10,9 @@ import { queryError, refreshModel } from '../api/queries.js';
 
 const FIELD_WIDTH = 420;
 const PASTE_HINT = 'At the end Google shows a code on its page: copy it and paste it here.';
-const WHICH_ACCOUNT = 'Use a personal Google account (gmail.com) that holds your Google AI Pro or Ultra plan. A Google Workspace account is refused by Google: that tier is for individuals only.';
+const WHICH_ACCOUNT =
+  'Since 2026-06-18 Google refuses personal accounts here (Google AI Pro and Ultra included). What works is a Google account with a Gemini Code Assist Standard or Enterprise licence, assigned in the Google Cloud project named below.';
+const PROJECT_HINT = 'The id of the Google Cloud project that carries the licence, from https://console.cloud.google.com/. Leave it empty only when Google already assigned one to the account.';
 
 function useAction(): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>, fallback: string) => void } {
   const client = useQueryClient();
@@ -31,7 +33,7 @@ function useAction(): { busy: boolean; error: string | null; run: (job: () => Pr
   return { busy, error, run };
 }
 
-function PasteCode({ state }: { state: string }): ReactNode {
+function PasteCode({ state, project }: { state: string; project: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { busy, error, run } = useAction();
   const [code, setCode] = useState('');
@@ -49,7 +51,7 @@ function PasteCode({ state }: { state: string }): ReactNode {
           loading={busy}
           disabled={busy || code.trim() === ''}
           onPress={() => {
-            run(() => finishGeminiLogin(code, state), 'Could not finish the sign-in.');
+            run(() => finishGeminiLogin(code, state, project), 'Could not finish the sign-in.');
           }}
         />
       </Row>
@@ -60,6 +62,7 @@ function PasteCode({ state }: { state: string }): ReactNode {
 
 function SignInFlow({ label, color }: { label: string; color: 'primary' | 'secondary' }): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const [project, setProject] = useState('');
   const [starting, setStarting] = useState(false);
   const [started, setStarted] = useState<{ url: string; state: string } | null>(null);
   const [link, setLink] = useState<string | null>(null);
@@ -84,6 +87,13 @@ function SignInFlow({ label, color }: { label: string; color: 'primary' | 'secon
   };
   return (
     <Col gap={10}>
+      <Col gap={6} maxWidth={FIELD_WIDTH}>
+        <FieldLabel>Google Cloud project</FieldLabel>
+        <Input name="gemini-project" value={project} placeholder="my-project-123456" dark={dark} onChangeText={setProject} style={GROW} />
+        <Text size="sm" role="secondary">
+          {PROJECT_HINT}
+        </Text>
+      </Col>
       <Row gap={8} wrap align="center">
         <Button size="sm" color={color} dark={dark} label={label} loading={starting} disabled={starting} onPress={connect} />
         {link !== null ? (
@@ -94,7 +104,7 @@ function SignInFlow({ label, color }: { label: string; color: 'primary' | 'secon
           </Text>
         ) : null}
       </Row>
-      {started === null ? null : <PasteCode state={started.state} />}
+      {started === null ? null : <PasteCode state={started.state} project={project.trim()} />}
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
     </Col>
   );
