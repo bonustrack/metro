@@ -23,8 +23,6 @@ interface Skill {
   name: string;
   title: string;
   description: string;
-  scope: string;
-  where: string;
   updatedAt: string;
   editable: boolean;
 }
@@ -42,8 +40,7 @@ const call = async (method: string, path: string, body?: unknown, who = OWNER): 
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
-const list = async (): Promise<{ skills: Skill[]; places: { id: string; where: string }[] }> =>
-  (await (await call('GET', '/api/claude/skills')).json()) as { skills: Skill[]; places: { id: string; where: string }[] };
+const list = async (): Promise<{ skills: Skill[] }> => (await (await call('GET', '/api/claude/skills')).json()) as { skills: Skill[] };
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-claude-skills-'));
@@ -82,20 +79,18 @@ beforeEach(() => {
 });
 
 describe('the skills on this machine', () => {
-  test('lists the ones on disk with their frontmatter, and names the places a new one can go', async () => {
+  test('lists the ones in the user folder with their frontmatter, and never a project folder', async () => {
     mkdirSync(join(dir, 'skills', 'write-as-less'), { recursive: true });
     writeFileSync(join(dir, 'skills', 'write-as-less', 'SKILL.md'), skill('write-as-less', 'writes the way Less writes'));
     mkdirSync(join(workspace, '.claude', 'skills', 'ship-it'), { recursive: true });
     writeFileSync(join(workspace, '.claude', 'skills', 'ship-it', 'SKILL.md'), skill('ship-it', 'runs the gate and opens a PR'));
     mkdirSync(join(dir, 'skills', 'not-a-skill'), { recursive: true });
 
-    const { skills, places } = await list();
-    expect(skills.map((s) => s.id).sort()).toEqual([`${projectId}:ship-it`, 'user:write-as-less']);
-    const mine = skills.find((s) => s.id === 'user:write-as-less');
-    expect(mine).toMatchObject({ name: 'write-as-less', title: 'write-as-less', description: 'writes the way Less writes', scope: 'user', where: 'This machine', editable: true });
+    const { skills } = await list();
+    expect(skills.map((s) => s.id)).toEqual(['user:write-as-less']);
+    const mine = skills[0];
+    expect(mine).toMatchObject({ name: 'write-as-less', title: 'write-as-less', description: 'writes the way Less writes', editable: true });
     expect(typeof mine?.updatedAt).toBe('string');
-    expect(skills.find((s) => s.id === `${projectId}:ship-it`)?.where).toBe(workspace);
-    expect(places.map((p) => p.id)).toEqual(['user', projectId]);
   });
 
   test('one is read whole, written back, and refuses a write over a change it has not seen', async () => {
@@ -115,20 +110,15 @@ describe('the skills on this machine', () => {
     expect((await call('GET', '/api/claude/skills/user:missing')).status).toBe(404);
   });
 
-  test('a new one is created from a template, in the place asked for, and a duplicate is refused', async () => {
+  test('a new one is created from a template in the user folder, and a duplicate is refused', async () => {
     const made = await call('POST', '/api/claude/skills', { name: 'ship-it' });
     expect(made.status).toBe(200);
     expect((await made.json() as Skill).id).toBe('user:ship-it');
     expect(readFileSync(join(dir, 'skills', 'ship-it', 'SKILL.md'), 'utf8')).toContain('name: ship-it');
 
-    const inProject = await call('POST', '/api/claude/skills', { name: 'ship-it', scope: projectId, text: skill('ship-it', 'here') });
-    expect((await inProject.json() as Skill).where).toBe(workspace);
-    expect(existsSync(join(workspace, '.claude', 'skills', 'ship-it', 'SKILL.md'))).toBe(true);
-
     expect((await call('POST', '/api/claude/skills', { name: 'ship-it' })).status).toBe(409);
     expect((await call('POST', '/api/claude/skills', { name: 'Ship It' })).status).toBe(400);
     expect((await call('POST', '/api/claude/skills', { name: '../escape' })).status).toBe(400);
-    expect((await call('POST', '/api/claude/skills', { name: 'ok', scope: 'nowhere' })).status).toBe(404);
   });
 
   test('deleting one takes its folder, and only the folder it was listed in', async () => {

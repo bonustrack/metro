@@ -313,22 +313,13 @@ export interface ClaudeSkill {
   name: string;
   title: string;
   description: string;
-  scope: 'user' | 'project';
-  where: string;
   path: string;
   editable: boolean;
   updatedAt: string | null;
 }
 
-export interface SkillPlace {
-  id: string;
-  scope: 'user' | 'project';
-  where: string;
-}
-
 export interface SkillListing {
   skills: ClaudeSkill[];
-  places: SkillPlace[];
 }
 
 const skillText = (value: unknown): string => (typeof value === 'string' ? value : '');
@@ -341,8 +332,6 @@ function toSkill(raw: unknown): ClaudeSkill | null {
     name: raw.name,
     title: title === '' ? raw.name : title,
     description: skillText(raw.description),
-    scope: raw.scope === 'project' ? 'project' : 'user',
-    where: skillText(raw.where),
     path: skillText(raw.path),
     editable: raw.editable !== false,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : null,
@@ -359,16 +348,8 @@ const skillPath = (id: string): string => `/skills/${encodeURIComponent(id)}`;
 
 export async function fetchClaudeSkills(): Promise<SkillListing> {
   const body = await claudeCall('GET', '/skills');
-  if (!isRecord(body)) return { skills: [], places: [] };
-  const skills = Array.isArray(body.skills) ? body.skills.flatMap((raw) => toSkill(raw) ?? []) : [];
-  const places = Array.isArray(body.places)
-    ? body.places.flatMap((raw) =>
-        isRecord(raw) && typeof raw.id === 'string'
-          ? [{ id: raw.id, scope: raw.scope === 'project' ? ('project' as const) : ('user' as const), where: typeof raw.where === 'string' ? raw.where : '' }]
-          : [],
-      )
-    : [];
-  return { skills, places };
+  if (!isRecord(body)) return { skills: [] };
+  return { skills: Array.isArray(body.skills) ? body.skills.flatMap((raw) => toSkill(raw) ?? []) : [] };
 }
 
 export async function fetchClaudeSkill(id: string): Promise<ClaudeSkill & { text: string }> {
@@ -381,8 +362,8 @@ export async function saveClaudeSkill(id: string, text: string, seenAt: string |
   return skillOrThrow(await claudeCall('PUT', skillPath(id), seenAt === null ? { text } : { text, seenAt }));
 }
 
-export async function createClaudeSkill(name: string, scope: string): Promise<ClaudeSkill> {
-  return skillOrThrow(await claudeCall('POST', '/skills', { name, scope }));
+export async function createClaudeSkill(name: string): Promise<ClaudeSkill> {
+  return skillOrThrow(await claudeCall('POST', '/skills', { name }));
 }
 
 export async function deleteClaudeSkill(id: string): Promise<void> {

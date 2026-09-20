@@ -138,7 +138,7 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
         }}
         onSubmit={async (name) => {
           if (!NAME_RE.test(name)) throw new Error(NAME_HELP);
-          const made = await createClaudeSkill(name, data?.places[0]?.id ?? 'user');
+          const made = await createClaudeSkill(name);
           await refreshClaudeSkills(client);
           onOpen(made.id);
           return made.id;

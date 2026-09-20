@@ -9,7 +9,6 @@ import {
   deleteClaudeSkill,
   listClaudeSkills,
   readClaudeSkill,
-  skillHomes,
   writeClaudeSkill,
 } from './skills.js';
 import {
@@ -93,10 +92,7 @@ const COLLECTIONS: Record<string, Handler> = {
   sessions: (query, dir) => ({ sessions: listClaudeSessions(projectOf(query), dir) }),
   memory: (query, dir) => listMemory(projectOf(query), dir),
   settings: (_query, dir) => ({ files: listClaudeSettings(dir) }),
-  skills: (_query, dir) => ({
-    skills: listClaudeSkills(dir),
-    places: skillHomes(dir).map((home) => ({ id: home.prefix, scope: home.scope, where: home.where })),
-  }),
+  skills: (_query, dir) => ({ skills: listClaudeSkills(dir) }),
 };
 
 const ITEMS: Record<string, Handler> = {
@@ -143,8 +139,7 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
   if (rest.length !== 1 || rest[0] !== 'skills') throw new ApiError('method not allowed', 405);
   const body = await readJsonBody(req, BODY_MAX);
   if (!isRecord(body) || typeof body.name !== 'string') throw new ApiError('name is required', 400);
-  const scope = typeof body.scope === 'string' ? body.scope : undefined;
-  return createClaudeSkill(body.name, scope, typeof body.text === 'string' ? body.text : undefined, dir);
+  return createClaudeSkill(body.name, typeof body.text === 'string' ? body.text : undefined, dir);
 }
 
 const ADMIN_ONLY = /^\/(login|session|version|setup)(\/|$)/;

@@ -7,7 +7,6 @@ import { GROW } from '../theme.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { BackLink } from './BackLink.js';
-import { FieldLabel } from './FieldLabel.js';
 import { routeHash } from '../route.js';
 import { whenLabel } from '../api/when.js';
 import { saveClaudeSkill, type ClaudeSkill } from '../api/claude.js';
@@ -26,7 +25,6 @@ function Head({ skill }: { skill: ClaudeSkill }): ReactNode {
         <Text size="sm" role="secondary">{skill.description}</Text>
       </Col>
       <Col gap={2}>
-        <FieldLabel>{skill.scope === 'user' ? 'This machine' : skill.where}</FieldLabel>
         <Text size="sm" role="secondary">{skill.path}</Text>
         <Text size="sm" role="secondary">{skill.updatedAt === null ? '' : `Last changed ${whenLabel(skill.updatedAt)}.`}</Text>
       </Col>

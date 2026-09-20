@@ -58,7 +58,7 @@ async function gatherSkills(): Promise<PackedSkill[]> {
   for (const skill of listing.skills) {
     if (!skill.editable) continue;
     const full = await fetchClaudeSkill(skill.id);
-    if (full.text !== '') out.push({ place: skill.where, name: skill.name, text: full.text });
+    if (full.text !== '') out.push({ place: 'This machine', name: skill.name, text: full.text });
   }
   return out;
 }
@@ -166,7 +166,7 @@ async function applySkills(skills: PackedSkill[], mode: Mode): Promise<{ written
       written += 1;
       continue;
     }
-    const made = await createClaudeSkill(skill.name, 'user');
+    const made = await createClaudeSkill(skill.name);
     await saveClaudeSkill(made.id, skill.text, null);
     written += 1;
   }

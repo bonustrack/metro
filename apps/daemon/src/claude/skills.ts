@@ -1,24 +1,19 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
-import { claudeDir, listClaudeProjects } from './files.js';
+import { claudeDir } from './files.js';
 
 export const SKILL_MAX = 256 * 1024;
 export const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const USER_SCOPE = 'user';
 const FILE = 'SKILL.md';
 const DEFAULT_MODE = 0o644;
 const SUMMARY_MAX = 300;
-
-export type SkillScope = 'user' | 'project';
 
 export interface ClaudeSkill {
   id: string;
   name: string;
   title: string;
   description: string;
-  scope: SkillScope;
-  where: string;
   path: string;
   editable: boolean;
   updatedAt: string | null;
@@ -33,55 +28,32 @@ const frontmatterField = (text: string, field: string): string => {
   return '';
 };
 
-function entryOf(id: string, name: string, scope: SkillScope, where: string, path: string): ClaudeSkill {
+function entryOf(name: string, path: string): ClaudeSkill {
   const stat = statSync(path);
   const editable = stat.size <= SKILL_MAX;
   const text = editable ? readFileSync(path, 'utf8') : '';
   return {
-    id,
+    id: `user:${name}`,
     name,
     title: frontmatterField(text, 'name') || name,
     description: frontmatterField(text, 'description'),
-    scope,
-    where,
     path,
     editable,
     updatedAt: stat.mtime.toISOString(),
   };
 }
 
-function skillsIn(root: string, prefix: string, scope: SkillScope, where: string): ClaudeSkill[] {
+export const userSkillsRoot = (dir: string): string => join(dir, 'skills');
+
+export function listClaudeSkills(dir = claudeDir()): ClaudeSkill[] {
+  const root = userSkillsRoot(dir);
   if (!existsSync(root)) return [];
   const out: ClaudeSkill[] = [];
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     if (!entry.isDirectory() || !SKILL_NAME_RE.test(entry.name)) continue;
     const path = join(root, entry.name, FILE);
-    if (existsSync(path)) out.push(entryOf(`${prefix}:${entry.name}`, entry.name, scope, where, path));
+    if (existsSync(path)) out.push(entryOf(entry.name, path));
   }
-  return out;
-}
-
-export const userSkillsRoot = (dir: string): string => join(dir, 'skills');
-
-export interface SkillHome {
-  prefix: string;
-  scope: SkillScope;
-  where: string;
-  root: string;
-}
-
-export function skillHomes(dir = claudeDir()): SkillHome[] {
-  const homes: SkillHome[] = [{ prefix: USER_SCOPE, scope: USER_SCOPE, where: 'This machine', root: userSkillsRoot(dir) }];
-  for (const project of listClaudeProjects(dir)) {
-    const cwd = project.cwd;
-    if (cwd === null || !existsSync(cwd)) continue;
-    homes.push({ prefix: project.id, scope: 'project', where: cwd, root: join(cwd, '.claude', 'skills') });
-  }
-  return homes;
-}
-
-export function listClaudeSkills(dir = claudeDir()): ClaudeSkill[] {
-  const out = skillHomes(dir).flatMap((home) => skillsIn(home.root, home.prefix, home.scope, home.where));
   return out.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '') || a.name.localeCompare(b.name));
 }
 
@@ -120,29 +92,21 @@ export function writeClaudeSkill(
   if (seenAt !== undefined && seenAt !== skill.updatedAt)
     throw new ApiError('that skill changed on disk since you opened it; reload it before saving', 409);
   writeAtomic(skill.path, text);
-  return entryOf(skill.id, skill.name, skill.scope, skill.where, skill.path);
+  return entryOf(skill.name, skill.path);
 }
 
 export const skillTemplate = (name: string): string =>
   ['---', `name: ${name}`, 'description: what this skill does, and when Claude should reach for it', '---', '', `# ${name}`, '', 'Write the instructions here.', ''].join('\n');
 
-export function createClaudeSkill(
-  name: string,
-  scope: string | undefined,
-  text: string | undefined,
-  dir = claudeDir(),
-): ClaudeSkill {
+export function createClaudeSkill(name: string, text: string | undefined, dir = claudeDir()): ClaudeSkill {
   if (typeof name !== 'string' || !SKILL_NAME_RE.test(name))
     throw new ApiError('a skill name is lowercase letters, digits and dashes, up to 64 characters', 400);
-  const prefix = scope === undefined || scope === '' ? USER_SCOPE : scope;
-  const home = skillHomes(dir).find((h) => h.prefix === prefix);
-  if (home === undefined) throw new ApiError('no such place to keep a skill', 404);
-  const path = join(home.root, name, FILE);
+  const path = join(userSkillsRoot(dir), name, FILE);
   if (existsSync(path)) throw new ApiError('a skill by that name already lives there', 409);
   const body = text === undefined || text.trim() === '' ? skillTemplate(name) : text;
   assertText(body);
   writeAtomic(path, body);
-  return entryOf(`${home.prefix}:${name}`, name, home.scope, home.where, path);
+  return entryOf(name, path);
 }
 
 export function deleteClaudeSkill(id: string, dir = claudeDir()): string {
