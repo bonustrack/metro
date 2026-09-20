@@ -11,7 +11,6 @@ import {
   localImportAgent,
   localListAgents,
   localOwner,
-  localResetAgentKey,
   setLocalOwner,
   localSetAccountEnabled,
 } from '../src/agents/file-admin.ts';
@@ -93,21 +92,17 @@ describe('agents kept as files', () => {
     expect(await status(localAttachAccount(OTHER, suzy.id, 'telegram-bot', { token: 'x' }, dir))).toBe(404);
   });
 
-  test('detach, key reset and delete, in the order a person would do them', async () => {
+  test('detach and delete, in the order a person would do them', async () => {
     const suzy = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
     const ref = await localAttachAccount(OWNER, suzy.id, 'xmtp', { privateKey: '0x1' }, dir);
     expect(await status(localDeleteAgent(OWNER, suzy.id, dir))).toBe(409);
     expect(await status(localDetachAccount(OWNER, suzy.id, 'xmtp', 'nope0000001', dir))).toBe(404);
     await localDetachAccount(OWNER, suzy.id, 'xmtp', ref.accountId, dir);
     expect(stored().stations).toEqual([]);
-    const reset = await localResetAgentKey(OWNER, suzy.id, dir);
-    expect(reset.key).not.toBe(suzy.key);
-    expect(stored().key).toBe(reset.key);
-    expect(agentIdForKey(reset.key)).toBe(suzy.id);
-    expect(agentIdForKey(suzy.key)).toBeUndefined();
+    expect(agentIdForKey(suzy.key)).toBe(suzy.id);
     expect(await localDeleteAgent(OWNER, suzy.id, dir)).toEqual({ id: suzy.id, name: 'suzy' });
     expect(existsSync(join(dir, 'agent.json'))).toBe(false);
-    expect(agentIdForKey(reset.key)).toBeUndefined();
+    expect(agentIdForKey(suzy.key)).toBeUndefined();
     expect(await status(localDeleteAgent(OWNER, suzy.id, dir))).toBe(404);
   });
 });

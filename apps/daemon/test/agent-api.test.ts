@@ -92,15 +92,6 @@ function removeAgent(email: string, id: number): DeletedAgent {
   return { id: row.id, name: row.name };
 }
 
-function resetKeyOf(email: string, id: number): ResetAgentKey {
-  resetCalls.push({ email, id });
-  const row = ownedRowOrThrow(email, id);
-  resetSerial += 1;
-  const key = `mk_rotated_${row.id}_${resetSerial}`;
-  liveKeys[row.id] = key;
-  return { id: row.id, name: row.name, key };
-}
-
 const PROJECT = 'prj00000001';
 
 const deps: AgentApiDeps = {
@@ -114,13 +105,6 @@ const deps: AgentApiDeps = {
   deleteAgent: (email, id) => {
     try {
       return Promise.resolve(removeAgent(email, id));
-    } catch (e) {
-      return Promise.reject(e as Error);
-    }
-  },
-  resetKey: (email, id) => {
-    try {
-      return Promise.resolve(resetKeyOf(email, id));
     } catch (e) {
       return Promise.reject(e as Error);
     }
@@ -544,119 +528,7 @@ interface ResetBody {
   error?: string;
 }
 
-const resetKey = async (token: Who | undefined, path: string): Promise<Response> =>
-  fetch(`${base}/api/agents/${path}/key`, {
-    method: 'POST',
-    headers: token ? { authorization: await auth('POST', `/api/agents/${path}/key`, token) } : {},
-  });
 
-describe('POST /api/agents/:id/key', () => {
-  test('an owner resets their own agent key and gets the new one back', async () => {
-    const res = await resetKey(session('ada@lovelace.dev'), 'agent000001');
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as ResetBody;
-    expect(body.id).toBe('agent000001');
-    expect(body.name).toBe('ada-bot');
-    expect(body.reset).toBe(true);
-    expect(body.key).toBe(liveKeys['agent000001']);
-    expect(body.endpoint).toBe(`${LOCAL()}/mcp?token=${body.key}`);
-  });
-
-  test('the new key is never the old one', async () => {
-    const first = (await (
-      await resetKey(session('ada@lovelace.dev'), 'agent000001')
-    ).json()) as ResetBody;
-    const second = (await (
-      await resetKey(session('ada@lovelace.dev'), 'agent000001')
-    ).json()) as ResetBody;
-    expect(second.key).not.toBe(first.key);
-    expect(second.key).not.toBe('mk_fake_ada-bot');
-  });
-
-  test('a non-owner cannot reset another agent key', async () => {
-    const res = await resetKey(session('ada@lovelace.dev'), 'agent000002');
-    expect(res.status).toBe(404);
-    expect(liveKeys).toEqual({});
-    expect(resetCalls).toEqual([
-      { email: 'ada@lovelace.dev', id: 'agent000002' },
-    ]);
-  });
-
-  test('the refusal for someone else agent leaks no key material', async () => {
-    const body = await (await resetKey(session('bob@builder.dev'), 'agent000001')).text();
-    expect(body).not.toContain('mk_');
-    expect(body).toBe(JSON.stringify({ error: 'no such agent' }));
-  });
-
-  test('an operator row the session cannot see is a plain 404', async () => {
-    expect((await resetKey(session('ada@lovelace.dev'), 'agent000005')).status).toBe(404);
-    expect(liveKeys).toEqual({});
-  });
-
-  test('resetting without a session is 401 and rotates nothing', async () => {
-    expect((await resetKey(undefined, 'agent000001')).status).toBe(401);
-    expect(resetCalls).toEqual([]);
-    expect(liveKeys).toEqual({});
-  });
-
-  test('a token nobody issued rotates nothing', async () => {
-    const res = await fetch(`${base}/api/agents/agent000001/key`, { method: 'POST', headers: { authorization: await forged() } });
-    expect(res.status).toBe(401);
-    expect(resetCalls).toEqual([]);
-  });
-
-  test('an agent key is not a session and cannot reach the reset route', async () => {
-    const res = await fetch(`${base}/api/agents/agent000001/key`, { method: 'POST', headers: { authorization: 'Bearer mk_fake_ada-bot' } });
-    expect(res.status).toBe(401);
-    expect(resetCalls).toEqual([]);
-  });
-
-  test('the owner is always the session email, never anything from the request', async () => {
-    await resetKey(session('ADA@Lovelace.dev'), 'agent000001');
-    expect(resetCalls).toEqual([
-      { email: 'ada@lovelace.dev', id: 'agent000001' },
-    ]);
-  });
-
-  test('GET and DELETE on the key sub-resource are 405', async () => {
-    for (const method of ['GET', 'DELETE']) {
-      const headers = { authorization: await auth(method, '/api/agents/agent000001/key', 'ada@lovelace.dev') };
-      const res = await fetch(`${base}/api/agents/agent000001/key`, { method, headers });
-      expect(res.status).toBe(405);
-    }
-    expect(resetCalls).toEqual([]);
-  });
-
-  test('a malformed id never reaches the database', async () => {
-    for (const bad of ['abc', '0', '-1', '1.5', 'ada-bot'])
-      expect((await resetKey(session('ada@lovelace.dev'), bad)).status).toBe(404);
-    expect(resetCalls).toEqual([]);
-  });
-
-  test('a deeper path under key is a 404, not a reset', async () => {
-    const res = await fetch(`${base}/api/agents/agent000001/key/rotate`, {
-      method: 'POST',
-      headers: { authorization: await auth('POST', `${base}/api/agents/agent000001/key/rotate`, 'ada@lovelace.dev') },
-    });
-    expect(res.status).toBe(404);
-    expect(resetCalls).toEqual([]);
-  });
-
-  test('an unknown id is 404', async () => {
-    expect((await resetKey(session('ada@lovelace.dev'), 'agent009999')).status).toBe(404);
-  });
-
-  test('OPTIONS preflight on the key sub-resource advertises POST', async () => {
-    const res = await fetch(`${base}/api/agents/agent000001/key`, { method: 'OPTIONS' });
-    expect(res.status).toBe(204);
-    expect(res.headers.get('access-control-allow-methods')).toContain('POST');
-  });
-
-  test('the reset response is marked no-store', async () => {
-    const res = await resetKey(session('ada@lovelace.dev'), 'agent000001');
-    expect(res.headers.get('cache-control')).toBe('no-store');
-  });
-});
 
 describe('GET /api/agents carries what each agent holds', () => {
   test('connector ids ride on the agent, empty when it holds nothing', async () => {

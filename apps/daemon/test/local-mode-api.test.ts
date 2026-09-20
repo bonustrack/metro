@@ -36,8 +36,6 @@ beforeAll(async () => {
     },
     restart: () => undefined,
     stop: () => undefined,
-    closeAgentSession: () => Promise.resolve(true),
-    restartClaudeSession: () => false,
     gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }),
     capabilities: () => ({}),
     liveness: () => new Map(),
@@ -139,13 +137,12 @@ describe('a local daemon, end to end over http', () => {
     expect(gone.status).toBe(200);
   });
 
-  test('a key reset rotates the file and the map; delete removes the file', async () => {
-    const reset = (await (await call('POST', `/api/agents/${agentId}/key`, session)).json()) as { key: string };
-    expect(reset.key).not.toBe(key);
-    expect(agentIdForKey(reset.key)).toBe(agentId);
-    expect(agentIdForKey(key)).toBeUndefined();
+  test('the key route is gone, and delete removes the file and the key', async () => {
+    expect((await call('POST', `/api/agents/${agentId}/key`, session)).status).toBe(404);
+    expect(agentIdForKey(key)).toBe(agentId);
     expect((await call('DELETE', `/api/agents/${agentId}`, session)).status).toBe(200);
     expect(existsSync(join(dir, 'agent.json'))).toBe(false);
+    expect(agentIdForKey(key)).toBeUndefined();
   });
 
   test('what a local daemon refuses, and what a stranger sees', async () => {

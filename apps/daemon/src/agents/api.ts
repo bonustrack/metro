@@ -19,7 +19,6 @@ import {
 import {
   type AgentSummary,
   type DeletedAgent,
-  type ResetAgentKey,
 } from './admin.js';
 
 const PREFIX = '/api/agents';
@@ -30,10 +29,6 @@ export interface AgentApiDeps extends AccountApiDeps {
     subject: string,
     id: string,
   ) => Promise<DeletedAgent>;
-  resetKey: (
-    subject: string,
-    id: string,
-  ) => Promise<ResetAgentKey>;
   gatherAccounts: (allowed: Set<string>) => Promise<{
     accounts: Record<string, unknown[]>;
     unavailable: string[];
@@ -47,14 +42,12 @@ export interface AgentApiDeps extends AccountApiDeps {
 type Routable =
   | { kind: 'collection' }
   | { kind: 'agent'; id: string }
-  | { kind: 'key'; id: string }
   | { kind: 'accounts'; id: string; route: AccountRoute };
 
 type Target = Routable | { kind: 'unknown' } | null;
 
 function subTarget(id: string, rest: string[]): Target {
   if (rest.length === 0) return { kind: 'agent', id };
-  if (rest.length === 1 && rest[0] === 'key') return { kind: 'key', id };
   if (rest[0] !== 'accounts') return { kind: 'unknown' };
   const route = accountRoute(rest.slice(1));
   return route === null ? { kind: 'unknown' } : { kind: 'accounts', id, route };
@@ -145,26 +138,6 @@ async function handleList(
   sendJson(req, res, 200, { ...base, accounts, unavailable });
 }
 
-async function handleResetKey(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: AgentApiDeps,
-  session: ApiSession,
-  id: string,
-): Promise<void> {
-  const reset = await deps.resetKey(session.subject, id);
-  log.info(
-    { agent: reset.name, id: reset.id, owner: session.subject },
-    'agent-api: reset agent key',
-  );
-  sendJson(req, res, 200, {
-    id: reset.id,
-    name: reset.name,
-    reset: true,
-    ...credentials(reset.key),
-  });
-}
-
 async function handleDelete(
   req: IncomingMessage,
   res: ServerResponse,
@@ -190,11 +163,10 @@ async function routeAgent(
   tgt: AgentTarget,
 ): Promise<void> {
   try {
-    if (tgt.kind !== 'collection') requireAdmin(session);
-    if (tgt.kind === 'key') await handleResetKey(req, res, deps, session, tgt.id);
-    else if (tgt.kind === 'agent')
+    if (tgt.kind === 'agent') {
+      requireAdmin(session);
       await handleDelete(req, res, deps, session, tgt.id);
-    else await handleList(req, res, deps, session);
+    } else await handleList(req, res, deps, session);
   } catch (err) {
     apiFailure(req, res, err);
   }
@@ -203,7 +175,6 @@ async function routeAgent(
 const ALLOWED: Record<AgentTarget['kind'], string[]> = {
   collection: ['GET'],
   agent: ['DELETE'],
-  key: ['POST'],
 };
 
 function methodAllowed(tgt: Routable, method: string | undefined): boolean {

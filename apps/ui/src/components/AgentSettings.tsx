@@ -10,9 +10,8 @@ import { useAvatarPicker } from './AvatarPicker.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { ExportAgent } from './ExportAgent.js';
 import { ImportAgent } from './ImportAgent.js';
-import { ResetAgentKey } from './ResetAgentKey.js';
-import { resetAgentKey, type AgentSummary } from '../api/client.js';
-import { queryError, refreshAgents, refreshServers, useServersQuery, useStationsQuery } from '../api/queries.js';
+import { type AgentSummary } from '../api/client.js';
+import { queryError, refreshServers, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { removeServer, renameServer, serverLabel, setServerSlug, type Server } from '../api/servers.js';
 import { routeHash } from '../route.js';
 import { currentServer } from '../auth/daemon.js';
@@ -179,23 +178,6 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
   );
 }
 
-function KeySection({ agent }: { agent: AgentSummary }): ReactNode {
-  const client = useQueryClient();
-  return (
-    <Section title="API key" note="The key Claude Code on this machine presents to the daemon. A reset restarts the Claude session with the new key.">
-      <Row>
-        <ResetAgentKey
-          agent={agent}
-          onReset={async (id) => {
-            await resetAgentKey(id);
-            refreshAgents(client);
-          }}
-        />
-      </Row>
-    </Section>
-  );
-}
-
 function RemoveSection({ server }: { server: Server }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
@@ -261,7 +243,6 @@ export function AgentSettings(): ReactNode {
       <NameSection key={server.name ?? ''} server={server} />
       <SlugSection key={server.slug ?? ''} server={server} />
       <TransferSection agent={agent} name={name} />
-      <KeySection agent={agent} />
       <MoveSection server={server} />
       <RemoveSection server={server} />
     </Col>

@@ -43,7 +43,6 @@ import {
   localListAgents,
   localOwnedAgentOrThrow,
   localOwner,
-  localResetAgentKey,
   readLocalAgentFile,
 } from '../agents/file-admin.js';
 import { readModelConfig } from '../gateway/model-config.js';
@@ -54,8 +53,6 @@ export interface LocalModeDeps {
   reloadAgents: () => Promise<void>;
   restart: () => void;
   stop: () => void;
-  closeAgentSession: (id: string) => Promise<boolean>;
-  restartClaudeSession: () => boolean;
   gatherAccounts: AgentApiDeps['gatherAccounts'];
   capabilities: AgentApiDeps['capabilities'];
   liveness: AgentApiDeps['liveness'];
@@ -89,13 +86,6 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     attachSessions: attachSessions(deps),
     listAgents: localListAgents,
     deleteAgent: localDeleteAgent,
-    resetKey: async (subject, id) => {
-      const reset = await localResetAgentKey(subject, id);
-      const closed = await deps.closeAgentSession(id);
-      const restarted = deps.restartClaudeSession();
-      log.info({ agent: reset.name, id, sessionClosed: closed, claudeRestarted: restarted }, 'local: key rotated');
-      return reset;
-    },
     gatherAccounts: deps.gatherAccounts,
     capabilities: deps.capabilities,
     attachable: ATTACHABLE.filter((s) => s !== 'webhook'),

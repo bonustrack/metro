@@ -3,7 +3,6 @@ import {
   agentIdForKey,
   hasAnyKey,
   registerKey,
-  rotateAgentKey,
   setKeyMap,
   unregisterAgentKey,
 } from '../src/agents/keys.ts';
@@ -103,57 +102,8 @@ describe('key map', () => {
       'agentIdForKey',
       'hasAnyKey',
       'registerKey',
-      'rotateAgentKey',
       'setKeyMap',
       'unregisterAgentKey',
     ]);
-  });
-});
-
-describe('rotateAgentKey', () => {
-  test('the old key stops resolving and the new one starts, in one step', () => {
-    setKeyMap([{ key: 'mk_ada_old', agentId: 'agent000007' }]);
-    rotateAgentKey('agent000007', 'mk_ada_new');
-    expect(agentIdForKey('mk_ada_old')).toBeUndefined();
-    expect(agentIdForKey('mk_ada_new')).toBe('agent000007');
-  });
-
-  test('rotation never leaves two live keys for the same agent', () => {
-    setKeyMap([{ key: 'mk_gen1', agentId: 'agent000007' }]);
-    rotateAgentKey('agent000007', 'mk_gen2');
-    rotateAgentKey('agent000007', 'mk_gen3');
-    expect([
-      agentIdForKey('mk_gen1'),
-      agentIdForKey('mk_gen2'),
-      agentIdForKey('mk_gen3'),
-    ]).toEqual([undefined, undefined, 'agent000007']);
-  });
-
-  test('rotating one agent leaves every other agent key untouched', () => {
-    setKeyMap([
-      { key: 'mk_ada', agentId: 'agent000007' },
-      { key: 'mk_bob', agentId: 'agent000008' },
-    ]);
-    rotateAgentKey('agent000007', 'mk_ada_new');
-    expect(agentIdForKey('mk_bob')).toBe('agent000008');
-    expect(agentIdForKey('mk_ada_new')).toBe('agent000007');
-  });
-
-  test('rotating to null revokes without granting anything', () => {
-    setKeyMap([
-      { key: 'mk_ada', agentId: 'agent000007' },
-      { key: 'mk_bob', agentId: 'agent000008' },
-    ]);
-    rotateAgentKey('agent000007', null);
-    expect(agentIdForKey('mk_ada')).toBeUndefined();
-    expect(agentIdForKey('mk_bob')).toBe('agent000008');
-    expect(hasAnyKey()).toBe(true);
-  });
-
-  test('rotating an agent that had no key just adds the new one', () => {
-    setKeyMap([{ key: 'mk_bob', agentId: 'agent000008' }]);
-    rotateAgentKey('agent000007', 'mk_ada');
-    expect(agentIdForKey('mk_ada')).toBe('agent000007');
-    expect(agentIdForKey('mk_bob')).toBe('agent000008');
   });
 });

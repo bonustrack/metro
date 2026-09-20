@@ -30,11 +30,6 @@ export function unregisterAgentKey(agentId: string): void {
     if (id === agentId) agentIdByKeyHash.delete(hash);
 }
 
-export function rotateAgentKey(agentId: string, key: string | null): void {
-  unregisterAgentKey(agentId);
-  if (key !== null) registerKey(key, agentId);
-}
-
 export function agentIdForKey(token: string): string | undefined {
   if (token === '') return undefined;
   return agentIdByKeyHash.get(digest(token));

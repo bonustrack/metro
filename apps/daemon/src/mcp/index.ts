@@ -138,11 +138,6 @@ export function agentLiveness(): Map<string, AgentLiveness> {
   return activeRegistry?.liveness() ?? new Map<string, AgentLiveness>();
 }
 
-export async function closeAgentSession(agentId: string): Promise<boolean> {
-  const scopeKey = sessionScopeKey({ kind: 'agent', agentId });
-  return (await activeRegistry?.closeScope(scopeKey)) ?? false;
-}
-
 export async function createMetroMcp(): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;

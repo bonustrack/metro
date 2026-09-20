@@ -152,8 +152,3 @@ export async function fetchStations(): Promise<StationsView> {
   };
 }
 
-export async function resetAgentKey(id: string): Promise<void> {
-  const body = await call({ method: 'POST', path: `/${id}/key` });
-  if (!isRecord(body) || typeof body.key !== 'string')
-    throw new Error('Metro returned an unexpected response.');
-}

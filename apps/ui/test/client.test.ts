@@ -1,7 +1,7 @@
 import { beforeAll } from 'bun:test';
 import { installTestAccount } from './account-fixture.js';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { fetchSession, fetchStations, resetAgentKey, StoppedError, type AgentSummary } from '../src/api/client.js';
+import { fetchSession, fetchStations, StoppedError, type AgentSummary } from '../src/api/client.js';
 
 beforeAll(() => {
   installTestAccount();
@@ -69,34 +69,6 @@ describe('agent credentials on the wire', () => {
     expect(agents).toEqual([
       { id: '', name: '', owned: false, key: null, connectorIds: [] },
     ]);
-  });
-});
-
-describe('resetAgentKey', () => {
-  const ROTATED = {
-    id: 'id000000007',
-    name: 'tony',
-    reset: true,
-    key: 'mk_rotated',
-    command: 'claude mcp add --transport http metro "x"',
-  };
-
-  test('POSTs to the agent key sub-resource', async () => {
-    serve(ROTATED);
-    await resetAgentKey(7);
-    expect(calls).toEqual([
-      { url: 'https://api.metro.box/api/agents/7/key', method: 'POST' },
-    ]);
-  });
-
-  test('a refusal is surfaced with the daemon own message', async () => {
-    serve({ error: 'no such agent' }, 404);
-    await expect(resetAgentKey(8)).rejects.toThrow('no such agent');
-  });
-
-  test('a response without a key is rejected rather than shown as empty', async () => {
-    serve({ id: 'id000000007', name: 'tony', reset: true });
-    await expect(resetAgentKey(7)).rejects.toThrow('unexpected');
   });
 });
 

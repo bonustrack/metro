@@ -24,10 +24,6 @@ export interface OwnedAgent {
 
 export type DeletedAgent = OwnedAgent;
 
-export interface ResetAgentKey extends OwnedAgent {
-  key: string;
-}
-
 export function normalizeAgentName(raw: unknown): string {
   const name = typeof raw === 'string' ? raw.trim() : '';
   if (!AGENT_NAME_RE.test(name))

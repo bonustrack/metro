@@ -4,14 +4,13 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { isOrganizationId } from '@metro-labs/http/workos-token';
 import { ensureSecureDir, writeSecure } from '@metro-labs/core/secure-fs';
 import {
-  AgentAdminError,
   newApiKey,
+  AgentAdminError,
   normalizeAgentName,
   type AgentSummary,
   type CreatedAgent,
   type DeletedAgent,
   type OwnedAgent,
-  type ResetAgentKey,
 } from './admin.js';
 import type { AccountRef } from './account-attach.js';
 import {
@@ -24,7 +23,7 @@ import {
   type AgentFile,
 } from './files.js';
 import { newId } from '@metro-labs/core/ids';
-import { registerKey, rotateAgentKey, unregisterAgentKey } from './keys.js';
+import { registerKey, unregisterAgentKey } from './keys.js';
 import { MOVABLE_STATIONS, type LoadedAgent } from '../stations/materialize.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import { normalizeAddress } from '@metro-labs/core/address';
@@ -142,19 +141,6 @@ export async function ensureLocalAgent(dir = agentsDir()): Promise<Ensured> {
   if (owner === null) return 'no-owner';
   await localCreateAgent(owner, LOCAL_PROJECT_ID, undefined, dir);
   return 'created';
-}
-
-export async function localResetAgentKey(
-  subject: string,
-  id: string,
-  dir = agentsDir(),
-): Promise<ResetAgentKey> {
-  const stored = ownedOrThrow(subject, id, dir);
-  const key = newApiKey();
-  stored.file.key = key;
-  save(stored);
-  rotateAgentKey(id, key);
-  return Promise.resolve({ id, name: stored.file.name, key });
 }
 
 export async function localDeleteAgent(
