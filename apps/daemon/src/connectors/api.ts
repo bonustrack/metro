@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { healthOf } from './health.js';
+import type { RemoteTool } from './tools.js';
 import {
   apiFailure,
   apiSession,
@@ -40,6 +41,7 @@ export interface ConnectorApiDeps extends OAuthRouteDeps {
     input: ConnectorInput,
   ) => Promise<Connector>;
   verifyConnector: (subject: string, id: string) => Promise<ConnectorCheck>;
+  connectorTools: (subject: string, id: string) => Promise<RemoteTool[]>;
   disconnectConnector: (subject: string, id: string) => Promise<Connector>;
   renameConnector: (
     subject: string,
@@ -54,6 +56,7 @@ type Routable =
   | { kind: 'callback' }
   | { kind: 'connector'; id: string }
   | { kind: 'verify'; id: string }
+  | { kind: 'tools'; id: string }
   | { kind: 'connect'; id: string }
   | { kind: 'disconnect'; id: string }
   | { kind: 'rename'; id: string };
@@ -65,6 +68,7 @@ function subTarget(id: string, rest: string[]): Target {
   if (rest.length > 1) return { kind: 'unknown' };
   const head = rest[0];
   if (head === 'verify') return { kind: 'verify', id };
+  if (head === 'tools') return { kind: 'tools', id };
   if (head === 'connect') return { kind: 'connect', id };
   if (head === 'disconnect') return { kind: 'disconnect', id };
   if (head === 'rename') return { kind: 'rename', id };
@@ -237,6 +241,7 @@ async function route(
     if (tgt.kind === 'callback') return;
     if (tgt.kind === 'verify')
       await handleVerify(req, res, deps, session, tgt.id);
+    else if (tgt.kind === 'tools') sendJson(req, res, 200, { tools: await deps.connectorTools(session.subject, tgt.id) });
     else if (tgt.kind === 'connect')
       await handleConnect(req, res, deps, session, tgt.id);
     else if (tgt.kind === 'disconnect')
@@ -257,6 +262,7 @@ const ALLOWED: Record<Routable['kind'], string[]> = {
   callback: ['GET'],
   connector: ['GET', 'DELETE'],
   verify: ['POST'],
+  tools: ['GET'],
   connect: ['POST'],
   disconnect: ['POST'],
   rename: ['POST'],

@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { syncPluginServers } from './plugin-sync.js';
+import { listRemoteTools, type RemoteTool } from './tools.js';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { errMsg, log } from '@metro-labs/core/log';
 import {
@@ -224,6 +225,14 @@ export async function localVerifyConnector(subject: string, id: string, dir = ag
     if (!(err instanceof ConnectorVerifyError)) throw err;
     return { id: row.id, name: row.name, ok: false, reason: err.message };
   }
+}
+
+export async function localConnectorTools(subject: string, id: string, dir = agentsDir()): Promise<RemoteTool[]> {
+  const row = rowOrThrow(subject, id, dir);
+  const url = parseConnectorUrl(row.url);
+  const auth = await freshAuth(row.config.auth, url.toString());
+  if (auth !== row.config.auth) replace(dir, { ...row, config: { ...row.config, auth } });
+  return listRemoteTools(url, auth);
 }
 
 export async function localRenameConnector(subject: string, id: string, raw: string, dir = agentsDir()): Promise<Connector> {

@@ -17,6 +17,7 @@ import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { Field } from './Field.js';
 import { Loading } from './Loading.js';
 import { useDocumentTitle } from '../title.js';
+import { ToolList } from './ToolList.js';
 
 const FALLBACK = 'Could not load this connector.';
 
@@ -152,6 +153,7 @@ export function ConnectorPage({
       <ConnectorFacts connector={data} />
       <HealthLine connector={data} />
       {status !== null ? <Text size="sm" role="secondary">{status}</Text> : null}
+      <ToolList id={data.id} />
     </Col>
   );
 }

@@ -159,6 +159,10 @@ const deps: ConnectorApiDeps = {
     rows.push(row);
     return toConnector(row);
   },
+  connectorTools: async (email, id) => {
+    ownedOrThrow(email, id);
+    return [{ name: 'create_issue', description: 'Files an issue', readOnly: false }];
+  },
   verifyConnector: async (email, id) => {
     calls.push(`verify ${email} ${id}`);
     const row = ownedOrThrow(email, id);
@@ -335,7 +339,7 @@ describe('the routing gates run before authentication', () => {
       '/api/connectors/abc',
       '/api/connectors/nope',
       '/api/connectors/-1',
-      '/api/connectors/agent000001/tools',
+      '/api/connectors/agent000001/catalog',
       '/api/connectors/agent000001/verify/again',
       '/api/connectors/agent99999999999',
     ]) {
@@ -460,6 +464,14 @@ describe('GET /api/connectors returns the wire shape', () => {
       verified: VERIFIED,
       health: null,
     });
+  });
+
+  test('the tools of a connector are listed live for its owner, and 404 for anyone else', async () => {
+    const mine = await call('GET', '/api/connectors/agent000001/tools', session(ADA));
+    expect(mine.status).toBe(200);
+    expect(await mine.json()).toEqual({ tools: [{ name: 'create_issue', description: 'Files an issue', readOnly: false }] });
+    expect((await call('GET', '/api/connectors/agent000001/tools', session(BOB))).status).toBe(404);
+    expect((await call('POST', '/api/connectors/agent000001/tools', session(ADA))).status).toBe(405);
   });
 
   test('a connector with no auth reports null', async () => {

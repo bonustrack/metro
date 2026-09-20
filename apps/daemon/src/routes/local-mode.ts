@@ -27,6 +27,7 @@ import {
   localRelayTarget,
   localRenameConnector,
   localVerifyConnector,
+  localConnectorTools,
 } from '../connectors/store.js';
 import {
   assertLocalOwner,
@@ -126,6 +127,7 @@ const connectorApi: ConnectorApiDeps = {
   },
   createConnector: localCreateConnector,
   verifyConnector: localVerifyConnector,
+  connectorTools: localConnectorTools,
   disconnectConnector: localDisconnectConnector,
   renameConnector: localRenameConnector,
   deleteConnector: localDeleteConnector,

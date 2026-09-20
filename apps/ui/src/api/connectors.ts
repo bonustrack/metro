@@ -192,6 +192,20 @@ export async function fetchConnector(
   return toConnector(body);
 }
 
+export interface ConnectorTool {
+  name: string;
+  description: string;
+  readOnly: boolean;
+}
+
+export async function fetchConnectorTools(id: string): Promise<ConnectorTool[]> {
+  const body = await call({ method: 'GET', base: connectorsUrl(), path: `/${id}/tools` });
+  if (!isRecord(body) || !Array.isArray(body.tools)) throw new Error('Metro returned an unexpected response.');
+  return body.tools.flatMap((t: unknown) =>
+    isRecord(t) && typeof t.name === 'string' ? [{ name: t.name, description: str(t.description), readOnly: t.readOnly === true }] : [],
+  );
+}
+
 export async function verifyConnector(
   id: string,
 ): Promise<VerifyResult> {
