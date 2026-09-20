@@ -96,11 +96,20 @@ beforeAll(async () => {
         res.end(JSON.stringify({ ineligibleTiers: [{ tierId: 'free-tier', reasonCode: 'DASHER_USER', reasonMessage: 'Your account is not eligible for Gemini Code Assist for individuals at this time' }] }));
         return;
       }
-      res.end(JSON.stringify({ currentTier: { id: 'standard-tier', name: 'Google AI Pro' }, cloudaicompanionProject: '' }));
+      if (managed.on) {
+        res.end(JSON.stringify({ currentTier: { id: 'standard-tier', name: 'Standard' }, cloudaicompanionProject: '' }));
+        return;
+      }
+      res.end(JSON.stringify({ allowedTiers: [{ id: 'legacy-tier' }, { id: 'free-tier', isDefault: true, name: 'Google AI Pro' }], cloudaicompanionProject: '' }));
       return;
     }
     if (req.url === '/v1internal:onboardUser') {
-      res.end(JSON.stringify({ done: true, response: { cloudaicompanionProject: { id: 'managed-proj-7' } } }));
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        onboardTiers.push(String((JSON.parse(Buffer.concat(chunks).toString('utf8')) as { tierId: string }).tierId));
+        res.end(JSON.stringify({ done: true, response: { cloudaicompanionProject: { id: 'managed-proj-7' } } }));
+      });
       return;
     }
     if (req.url === '/v1/endpoints/zdr') {
@@ -217,6 +226,8 @@ describe('the model route on the page', () => {
 
 const googleForms: URLSearchParams[] = [];
 const ineligible = { on: false };
+const managed = { on: false };
+const onboardTiers: string[] = [];
 
 const gemini = async (name: string, method: 'GET' | 'POST', body?: unknown): Promise<Response> =>
   fetch(`${base}/api/model/gemini/${name}`, {
@@ -323,6 +334,7 @@ describe('connecting Google for Gemini from the page', () => {
     expect(googleForms.at(-1)?.get('grant_type')).toBe('authorization_code');
     expect(googleForms.at(-1)?.get('code_verifier')).toMatch(/^[A-Za-z0-9_-]{40,}$/);
     expect(stored.gemini.auth).toMatchObject({ accessToken: 'g-at', refreshToken: 'g-rt', project: 'managed-proj-7', tier: 'Google AI Pro', email: 'less@gmail.com' });
+    expect(onboardTiers).toEqual(['free-tier']);
     expect(await (await gemini('models', 'GET')).json()).toMatchObject({ models: expect.arrayContaining(['gemini-2.5-pro']) as unknown });
     const out = await gemini('logout', 'POST');
     expect(((await out.json()) as { gemini: { signedIn: boolean } }).gemini.signedIn).toBe(false);
@@ -343,6 +355,19 @@ describe('connecting Google for Gemini from the page', () => {
       expect(stored.gemini.auth).toBeNull();
     } finally {
       ineligible.on = false;
+    }
+  });
+
+  test('an account with a tier but no project is a managed one, refused by name rather than onboarded blind', async () => {
+    managed.on = true;
+    try {
+      const started = (await (await gemini('login', 'POST')).json()) as { state: string };
+      const refused = await gemini('code', 'POST', { code: '4/ok', state: started.state });
+      expect(refused.status).toBe(400);
+      expect(((await refused.json()) as { error: string }).error).toContain('managed (Workspace)');
+      expect(stored.gemini.auth).toBeNull();
+    } finally {
+      managed.on = false;
     }
   });
 });

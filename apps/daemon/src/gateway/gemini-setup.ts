@@ -1,4 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { log } from '@metro-labs/core/log';
 import { GeminiAuthError, type GeminiTokens } from './gemini-auth.js';
 
 export const CODE_ASSIST_BASE = 'https://cloudcode-pa.googleapis.com';
@@ -73,16 +74,35 @@ function refuseIneligible(load: Record<string, unknown>): void {
   throw new GeminiAuthError(said.join('; '));
 }
 
+const MANAGED =
+  'Google treats this account as a managed (Workspace) one: it has a Code Assist tier but no project of its own, and the individual tier is for personal Google accounts (gmail.com). Sign in with the personal account that holds your Google AI plan';
+
+function tierToOnboard(load: Record<string, unknown>): { id: string; name: string | null } {
+  const allowed = Array.isArray(load.allowedTiers) ? load.allowedTiers.filter(isRecord) : [];
+  const chosen = allowed.find((t) => t.isDefault === true);
+  return { id: text(chosen?.id) ?? FREE_TIER, name: text(chosen?.name) };
+}
+
+const summary = (load: Record<string, unknown>): Record<string, unknown> => ({
+  current: isRecord(load.currentTier) ? text(load.currentTier.id) : null,
+  paid: isRecord(load.paidTier) ? text(load.paidTier.id) : null,
+  allowed: Array.isArray(load.allowedTiers) ? load.allowedTiers.filter(isRecord).map((t) => `${text(t.id) ?? '?'}${t.isDefault === true ? '*' : ''}`) : [],
+  ineligible: Array.isArray(load.ineligibleTiers) ? load.ineligibleTiers.filter(isRecord).map((t) => `${text(t.tierId) ?? '?'}:${text(t.reasonCode) ?? '?'}`) : [],
+  project: text(load.cloudaicompanionProject),
+});
+
 export async function onboard(tokens: GeminiTokens, base = CODE_ASSIST_BASE, fetchImpl: typeof fetch = fetch): Promise<Onboarded> {
   const load = await call(base, 'loadCodeAssist', tokens.accessToken, { metadata: METADATA }, fetchImpl);
+  log.info(summary(load), 'gemini: Code Assist answered loadCodeAssist');
   refuseIneligible(load);
   const tier = tierOf(load);
   const known = text(load.cloudaicompanionProject);
   if (known !== null) return { project: known, tier: tier.name ?? tier.id };
-  const tierId = tier.id ?? FREE_TIER;
-  const op = await waitOperation(base, tokens.accessToken, await call(base, 'onboardUser', tokens.accessToken, { tierId, metadata: METADATA }, fetchImpl), fetchImpl);
+  if (isRecord(load.currentTier)) throw new GeminiAuthError(MANAGED);
+  const wanted = tierToOnboard(load);
+  const op = await waitOperation(base, tokens.accessToken, await call(base, 'onboardUser', tokens.accessToken, { tierId: wanted.id, metadata: METADATA }, fetchImpl), fetchImpl);
   const response = isRecord(op.response) ? op.response : {};
   const project = isRecord(response.cloudaicompanionProject) ? text(response.cloudaicompanionProject.id) : null;
   if (project === null) throw new GeminiAuthError('Google did not assign a Code Assist project to this account; sign in to https://geminicli.com once with the Gemini CLI, then try again');
-  return { project, tier: tier.name ?? tierId };
+  return { project, tier: wanted.name ?? wanted.id };
 }
