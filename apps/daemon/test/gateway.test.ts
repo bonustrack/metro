@@ -140,7 +140,8 @@ beforeAll(async () => {
     const failure = geminiFailures.shift();
     if (failure !== undefined) {
       res.writeHead(failure, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ error: { message: `Code Assist answered ${String(failure)}` } }));
+      const details = failure === 429 ? [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'QUOTA_EXHAUSTED', metadata: { model: 'gemini-2.5-flash' } }, { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '37s' }] : [];
+      res.end(JSON.stringify({ error: { message: `Code Assist answered ${String(failure)}`, details } }));
       return;
     }
     res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -492,7 +493,7 @@ describe('the Gemini route', () => {
     expect(headers.accept).toBe('text/event-stream');
   });
 
-  test('a Code Assist endpoint that fails with a 5xx is followed by the next one; a 4xx is relayed as is', async () => {
+  test('a Code Assist endpoint that fails with a 5xx or a 429 is followed by the next one; another 4xx is relayed as is', async () => {
     cfg.provider = 'gemini';
     geminiFailures.push(503);
     const res = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
@@ -500,9 +501,19 @@ describe('the Gemini route', () => {
     expect(await res.text()).toContain('event: message_stop');
     expect(geminiBackend.seen.length).toBe(2);
     geminiFailures.push(429);
+    const relieved = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
+    expect(relieved.status).toBe(200);
+    expect(geminiBackend.seen.length).toBe(4);
+    geminiFailures.push(429, 429);
     const limited = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
     expect(limited.status).toBe(429);
-    expect(geminiBackend.seen.length).toBe(3);
+    expect(geminiBackend.seen.length).toBe(6);
+    const body = (await limited.json()) as { error: { message: string } };
+    expect(body.error.message).toBe('Code Assist answered 429 (QUOTA_EXHAUSTED; model=gemini-2.5-flash; retry after 37s)');
+    geminiFailures.push(400);
+    const refused = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
+    expect(refused.status).toBe(400);
+    expect(geminiBackend.seen.length).toBe(7);
   });
 
   test('a 401 refreshes the Google tokens once, saves them, and retries', async () => {

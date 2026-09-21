@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isRecord } from '@metro-labs/core/is-record';
-import { errMsg } from '@metro-labs/core/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import { refreshTokens, tokensStale, type GeminiTokens } from './gemini-auth.js';
 import { API, clientHeaders, generateBases, machineSessionId, type Bases } from './gemini-client.js';
 import { GeminiStreamTranslator } from './gemini-stream.js';
@@ -109,10 +109,35 @@ async function send(call: Call, tokens: GeminiTokens, stream: boolean): Promise<
       if (base === bases.at(-1) || call.watch.signal.aborted) throw err;
       continue;
     }
-    if (last.status < 500) return last;
+    if (last.status < 500 && last.status !== 429) return last;
   }
   if (last === null) throw new GatewayError(502, 'api_error', 'no Code Assist endpoint to call');
   return last;
+}
+
+const REFUSAL_LOG_MAX = 2000;
+
+const detailText = (detail: Record<string, unknown>): string[] => {
+  const out: string[] = [];
+  if (typeof detail.reason === 'string') out.push(detail.reason);
+  if (isRecord(detail.metadata)) out.push(...Object.entries(detail.metadata).map(([k, v]) => `${k}=${String(v)}`));
+  if (typeof detail.retryDelay === 'string') out.push(`retry after ${detail.retryDelay}`);
+  if (Array.isArray(detail.violations))
+    out.push(...detail.violations.filter(isRecord).map((v) => [v.subject, v.description].filter((x) => typeof x === 'string').join(': ')));
+  return out.filter((x) => x !== '');
+};
+
+export function refusalMessage(text: string, status: number): string {
+  const message = upstreamMessage(text, `Gemini answered ${String(status)}`);
+  let details: unknown = null;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    details = isRecord(parsed) && isRecord(parsed.error) ? parsed.error.details : null;
+  } catch {
+    return message;
+  }
+  const notes = Array.isArray(details) ? details.filter(isRecord).flatMap(detailText) : [];
+  return notes.length === 0 ? message : `${message} (${notes.join('; ')})`;
 }
 
 async function reach(call: Call, cfg: ModelConfig, state: GeminiState, stream: boolean): Promise<Response> {
@@ -244,7 +269,8 @@ export async function geminiMessages(
   const upstream = await reach(call, cfg, state, stream);
   if (!upstream.ok) {
     const text = await upstream.text();
-    sendError(res, providerStatus(upstream.status), errorKind(upstream.status), upstreamMessage(text, `Gemini answered ${String(upstream.status)}`));
+    log.warn({ provider: 'gemini', model, status: upstream.status, body: text.slice(0, REFUSAL_LOG_MAX) }, 'gateway: the provider refused the request');
+    sendError(res, providerStatus(upstream.status), errorKind(upstream.status), refusalMessage(text, upstream.status));
     return;
   }
   if (stream) await relayStream(upstream, res, call);
