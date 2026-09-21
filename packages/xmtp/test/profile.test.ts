@@ -3,21 +3,22 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { decodeFunctionData, namehash, parseAbi, type Hex } from 'viem';
-import { BASENAME_L2_RESOLVER, encodeTextRecords, pinAvatar, writeProfile } from '../src/profile.ts';
+import { BASENAME_L2_RESOLVER, BASENAME_REVERSE_REGISTRAR, encodeTextRecords, ensurePrimaryName, pinAvatar, reverseNodeOf, writeProfile } from '../src/profile.ts';
 import type { SmartAccount } from '../src/smart.ts';
 
 const RESOLVER = parseAbi(['function setText(bytes32 node, string key, string value)', 'function multicall(bytes[] data) returns (bytes[])']);
+const REVERSE = parseAbi(['function setName(string name) returns (bytes32)']);
 
 interface Sent {
   to: Hex;
   data: Hex;
 }
 
-function fakeSmart(sent: Sent[], resolver: Hex = '0x0000000000000000000000000000000000000000'): SmartAccount {
+function fakeSmart(sent: Sent[], resolver: Hex = '0x0000000000000000000000000000000000000000', primary = ''): SmartAccount {
   return {
     address: '0x1111111111111111111111111111111111111111',
     publicClient: {
-      readContract: () => Promise.resolve(resolver),
+      readContract: ({ functionName }: { functionName: string }) => Promise.resolve(functionName === 'name' ? primary : resolver),
       waitForTransactionReceipt: () => Promise.resolve({ status: 'success' }),
       getCode: () => Promise.resolve('0x60'),
     } as unknown as SmartAccount['publicClient'],
@@ -81,5 +82,18 @@ describe('the XMTP profile on Base', () => {
     const refusing = ((_input: RequestInfo | URL) => Promise.resolve(new Response(JSON.stringify({ error: { message: 'too big' } }), { status: 200 }))) as unknown as typeof fetch;
     await expect(pinAvatar({ path: picture, mime: 'image/png', name: 'x' }, refusing)).rejects.toThrow('too big');
     await expect(pinAvatar({ path: picture, mime: 'text/plain', name: 'x' }, refusing)).rejects.toThrow('must be an image');
+  });
+
+  test('the primary name is set on the Base reverse registrar once, and left alone when it already matches', async () => {
+    expect(reverseNodeOf('0x1111111111111111111111111111111111111111')).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(reverseNodeOf('0x1111111111111111111111111111111111111111')).toBe(reverseNodeOf('0x1111111111111111111111111111111111111111'.toUpperCase().replace('0X', '0x')));
+    const sent: Sent[] = [];
+    expect(await ensurePrimaryName(fakeSmart(sent), 'lisa-mci.stage.base.eth')).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.to).toBe(BASENAME_REVERSE_REGISTRAR);
+    expect(decodeFunctionData({ abi: REVERSE, data: sent[0]?.data ?? '0x' }).args).toEqual(['lisa-mci.stage.base.eth']);
+    const held: Sent[] = [];
+    expect(await ensurePrimaryName(fakeSmart(held, '0x0000000000000000000000000000000000000000', 'lisa-mci.stage.base.eth'), 'lisa-mci.stage.base.eth')).toBe(true);
+    expect(held).toEqual([]);
   });
 });
