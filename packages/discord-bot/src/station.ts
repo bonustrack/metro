@@ -1,4 +1,5 @@
 import type { GroupOp, Station, Verb } from '@metro-labs/core/stations/types';
+import { PROFILE_FIELDS, type ProfileField } from '@metro-labs/core/stations/profile';
 
 export const discordBotStation: Station = {
   name: 'discord-bot',
@@ -15,5 +16,6 @@ export const discordBotStation: Station = {
   ]),
   groupOps: new Set<GroupOp>(['create_group', 'add_members', 'remove_members']),
   attachmentMode: 'canonical',
+  profileFields: new Set<ProfileField>(PROFILE_FIELDS),
   tools: [],
 };

@@ -1,4 +1,5 @@
 import type { Station, Verb } from '@metro-labs/core/stations/types';
+import { PROFILE_FIELDS, type ProfileField } from '@metro-labs/core/stations/profile';
 
 export const whatsappStation: Station = {
   name: 'whatsapp',
@@ -13,6 +14,7 @@ export const whatsappStation: Station = {
     'delete',
   ]),
   attachmentMode: 'canonical',
+  profileFields: new Set<ProfileField>(PROFILE_FIELDS),
   resolvesSenders: true,
   tools: [],
 };

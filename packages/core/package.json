@@ -23,7 +23,8 @@
     "./stations/station-runtime": "./src/stations/station-runtime.ts",
     "./stations/account-store": "./src/stations/account-store.ts",
     "./stations/attachments": "./src/stations/attachments.ts",
-    "./stations/messaging-normalize": "./src/stations/messaging-normalize.ts"
+    "./stations/messaging-normalize": "./src/stations/messaging-normalize.ts",
+    "./stations/profile": "./src/stations/profile.ts"
   },
   "scripts": {
     "build": "tsc",

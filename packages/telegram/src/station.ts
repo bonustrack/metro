@@ -1,4 +1,5 @@
 import type { GroupOp, Station, Verb } from '@metro-labs/core/stations/types';
+import { PROFILE_FIELDS, type ProfileField } from '@metro-labs/core/stations/profile';
 
 export const telegramStation: Station = {
   name: 'telegram',
@@ -20,5 +21,6 @@ export const telegramStation: Station = {
     'invite_link',
   ]),
   attachmentMode: 'canonical',
+  profileFields: new Set<ProfileField>(PROFILE_FIELDS),
   tools: [],
 };

@@ -1,3 +1,5 @@
+import type { ProfileField } from './profile.js';
+
 export type Verb =
   | 'send'
   | 'reply'
@@ -98,6 +100,7 @@ export interface Station {
   messageVerbs: ReadonlySet<Verb>;
   groupOps?: ReadonlySet<GroupOp>;
   resolvesSenders?: boolean;
+  profileFields?: ReadonlySet<ProfileField>;
   attachmentMode: AttachmentMode;
   sendAttachments?(
     line: string,

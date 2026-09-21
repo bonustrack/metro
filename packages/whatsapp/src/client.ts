@@ -13,6 +13,7 @@ import { errMsg } from '@metro-labs/core/log';
 import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 import type { SenderFound } from './resolve.js';
+import type { ProfileChange } from '@metro-labs/core/stations/profile';
 import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';
 import { baileysLogger } from './logger.js';
 import { useAccountAuthState } from './auth-state.js';
@@ -51,6 +52,7 @@ export interface WAClient {
   deleteMessage(jid: string, messageId: string): Promise<void>;
   reuploadMedia(m: WAMessage): Promise<WAMessage>;
   lookupSender(number: string): Promise<SenderFound>;
+  setProfile(change: ProfileChange): Promise<void>;
   disconnect(): Promise<void>;
 }
 
@@ -334,6 +336,16 @@ export function createClient(account: WhatsAppAccount): WAClient {
       if (found?.exists !== true) return { exists: false, jid: null, lid: null };
       const jid = jidNormalizedUser(found.jid);
       return { exists: true, jid, lid: await lidFor(st, sock, jid) };
+    },
+    async setProfile(change) {
+      const sock = await ready(st);
+      if (change.name !== undefined) await sock.updateProfileName(change.name);
+      if (change.bio !== undefined) await sock.updateProfileStatus(change.bio);
+      if (change.avatar !== undefined) {
+        const me = sock.user?.id;
+        if (me === undefined) throw new TrainError('whatsapp_call', 'own jid unknown');
+        await sock.updateProfilePicture(me, { url: change.avatar.path });
+      }
     },
     async disconnect() {
       st.closed = true;

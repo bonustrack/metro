@@ -27,6 +27,7 @@ function fakeClient(calls: Captured[]): WAClient {
     sendReaction: record('sendReaction'),
     editMessage: record('editMessage'),
     deleteMessage: record('deleteMessage'),
+    setProfile: record('setProfile'),
     disconnect: () => Promise.resolve(),
   } as unknown as WAClient;
 }
@@ -337,5 +338,19 @@ describe('the handle is the number actually paired, not the one configured', () 
       cap.responses[0] as { result: { accounts: { handle: string }[] } }
     ).result.accounts;
     expect(account?.handle).toBe('+999888777');
+  });
+
+  test('set_profile forwards name, about and the picture file, and refuses a non-image', async () => {
+    const calls: Captured[] = [];
+    accounts.set('w0', { id: 'w0', phone: '111' });
+    const handle = makeHandleCall(() => fakeClient(calls));
+    const cap = captureResponses();
+    await handle({ op: 'call', id: 'p', action: 'set_profile', args: { account: 'w0', name: 'Lisa', bio: 'invoices', avatar: { path: '/tmp/l.png', mime: 'image/png', name: 'l.png' } } });
+    await handle({ op: 'call', id: 'q', action: 'set_profile', args: { account: 'w0', avatar: { path: '/tmp/l.pdf', mime: 'application/pdf', name: 'l.pdf' } } });
+    cap.restore();
+    expect(calls[0]).toEqual({ method: 'setProfile', args: [{ name: 'Lisa', bio: 'invoices', avatar: { path: '/tmp/l.png', mime: 'image/png', name: 'l.png' } }] });
+    expect(cap.responses[0]).toMatchObject({ id: 'p', result: { account: 'w0', applied: ['name', 'bio', 'avatar'] } });
+    expect(calls).toHaveLength(1);
+    expect(cap.responses[1]).toMatchObject({ id: 'q', error: expect.stringContaining('must be an image') as unknown });
   });
 });

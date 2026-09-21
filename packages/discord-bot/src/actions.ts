@@ -27,6 +27,7 @@ import {
 } from '@metro-labs/core/stations/station-runtime';
 import { joinVoice, leaveVoice, voiceDebug, voiceTranscribe } from './voice.js';
 import { speak } from './voice-speak.js';
+import { setProfile } from './profile.js';
 import { discordMembers } from './members.js';
 import {
   groupAddHandler,
@@ -375,6 +376,7 @@ const HANDLERS: Record<string, StationHandler> = {
   channel,
   listMembers,
   set_presence: presence,
+  set_profile: setProfile,
   joinVoice,
   leaveVoice,
   speak,

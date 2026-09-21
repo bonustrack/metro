@@ -10,6 +10,7 @@ import {
 import { accountFor, accounts, targetOf } from './accounts.js';
 import { normalizeWhatsApp } from './normalize.js';
 import { phoneNumberOf, senderLookup } from './resolve.js';
+import { assertImage, fieldsOf, parseProfileChange, type ProfileApplied } from '@metro-labs/core/stations/profile';
 import type { WAClient } from './client.js';
 
 type Args = Record<string, unknown>;
@@ -173,6 +174,17 @@ function makeResolveSender(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeSetProfile(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const accountId = accountFor({ account: str(args.account) });
+    const change = parseProfileChange(args);
+    if (change.avatar !== undefined) assertImage(change.avatar);
+    await guard(() => clientFor(accountId).setProfile(change));
+    const result: ProfileApplied = { account: accountId, applied: fieldsOf(change) };
+    respond(id, { result });
+  };
+}
+
 export function makeHandleCall(
   clientFor: ClientFor,
 ): (msg: CallMsg) => Promise<void> {
@@ -184,6 +196,7 @@ export function makeHandleCall(
       edit: makeEdit(clientFor),
       delete: makeDelete(clientFor),
       resolve_sender: makeResolveSender(clientFor),
+      set_profile: makeSetProfile(clientFor),
     },
     normalize: normalizeWhatsApp,
   });

@@ -14,6 +14,7 @@ import {
   type CanonicalAttachment,
 } from './media-actions.js';
 import { clampLimit, shapeHistory } from './history.js';
+import { makeSetProfile } from './profile.js';
 import { fetchMembers, isRestricted, restrictedMemberList } from './members.js';
 import {
   groupAddMembers,
@@ -248,6 +249,7 @@ export function makeHandleCall(
       groupAddMembers: makeGroupAdd(clientFor),
       groupRemoveMembers: makeGroupRemove(clientFor),
       groupInviteLink: makeGroupInvite(clientFor),
+      set_profile: makeSetProfile(clientFor),
     },
     normalize: normalizeTelegramUser,
   });

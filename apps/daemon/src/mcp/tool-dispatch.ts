@@ -21,6 +21,7 @@ import {
   dispatchRemoveMembers,
 } from './group-tools.js';
 import { dispatchCreateUpload } from './upload-tool.js';
+import { dispatchSetProfile, profileCapabilities, SET_PROFILE_TOOL } from './profile-tool.js';
 import { callTargetDenied, lineTargetDenied } from '../agents/scope.js';
 import { SOURCE_KEYS } from '../stations/attach-resolve.js';
 import { decodedLengthOf } from '../stations/attach-inline.js';
@@ -49,6 +50,7 @@ const CORE_DISPATCH: Record<
   remove_members: dispatchRemoveMembers,
   export_invite: dispatchInviteLink,
   create_upload: dispatchCreateUpload,
+  set_profile: dispatchSetProfile,
 };
 
 const toolList = (): { tools: unknown[] } => ({
@@ -62,6 +64,7 @@ const toolList = (): { tools: unknown[] } => ({
       })),
     ),
     LIST_ACCOUNTS_TOOL,
+    SET_PROFILE_TOOL,
   ],
 });
 
@@ -82,6 +85,7 @@ async function handleListAccounts(
     return okJson({
       accounts: await gatherAccounts(allowedAgents(identity)),
       capabilities: accountStationCapabilities(),
+      profiles: profileCapabilities(),
     });
   } catch (e) {
     return errResult(`metro list_accounts failed: ${String(e)}`);
@@ -92,7 +96,7 @@ function stationForTool(
   name: string,
   args: Record<string, unknown>,
 ): string | undefined {
-  if (name === 'create_group') return str(args.station) || undefined;
+  if (name === 'create_group' || name === 'set_profile') return str(args.station) || undefined;
   return STATION_TOOLS.get(name)?.station.name;
 }
 
