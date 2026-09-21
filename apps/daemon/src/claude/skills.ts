@@ -45,14 +45,16 @@ function entryOf(name: string, path: string): ClaudeSkill {
 
 export const userSkillsRoot = (dir: string): string => join(dir, 'skills');
 
+const isFolder = (path: string): boolean => statSync(path, { throwIfNoEntry: false })?.isDirectory() === true;
+
 export function listClaudeSkills(dir = claudeDir()): ClaudeSkill[] {
   const root = userSkillsRoot(dir);
   if (!existsSync(root)) return [];
   const out: ClaudeSkill[] = [];
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory() || !SKILL_NAME_RE.test(entry.name)) continue;
-    const path = join(root, entry.name, FILE);
-    if (existsSync(path)) out.push(entryOf(entry.name, path));
+  for (const name of readdirSync(root)) {
+    if (!SKILL_NAME_RE.test(name) || !isFolder(join(root, name))) continue;
+    const path = join(root, name, FILE);
+    if (existsSync(path)) out.push(entryOf(name, path));
   }
   return out.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '') || a.name.localeCompare(b.name));
 }

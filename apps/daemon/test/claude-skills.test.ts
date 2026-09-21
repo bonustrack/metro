@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
@@ -85,10 +85,14 @@ describe('the skills on this machine', () => {
     mkdirSync(join(workspace, '.claude', 'skills', 'ship-it'), { recursive: true });
     writeFileSync(join(workspace, '.claude', 'skills', 'ship-it', 'SKILL.md'), skill('ship-it', 'runs the gate and opens a PR'));
     mkdirSync(join(dir, 'skills', 'not-a-skill'), { recursive: true });
+    mkdirSync(join(workspace, 'elsewhere'), { recursive: true });
+    writeFileSync(join(workspace, 'elsewhere', 'SKILL.md'), skill('linked', 'lives behind a symlink'));
+    symlinkSync(join(workspace, 'elsewhere'), join(dir, 'skills', 'linked'));
+    symlinkSync(join(workspace, 'gone'), join(dir, 'skills', 'dangling'));
 
     const { skills } = await list();
-    expect(skills.map((s) => s.id)).toEqual(['user:write-as-less']);
-    const mine = skills[0];
+    expect(skills.map((s) => s.id).sort()).toEqual(['user:linked', 'user:write-as-less']);
+    const mine = skills.find((s) => s.name === 'write-as-less');
     expect(mine).toMatchObject({ name: 'write-as-less', title: 'write-as-less', description: 'writes the way Less writes', editable: true });
     expect(typeof mine?.updatedAt).toBe('string');
   });
