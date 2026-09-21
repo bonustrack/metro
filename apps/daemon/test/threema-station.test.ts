@@ -100,12 +100,12 @@ afterEach(() => {
 });
 
 describe('threema is an account station with a train', () => {
-  test('the registry says so, and it carries send, reply and the two reaction verbs, with no attachments', () => {
+  test('the registry says so, and it carries send, reply and the two reaction verbs, with files as attachments', () => {
     const station = stationByName('threema');
     expect(station?.hasAccounts).toBe(true);
     expect(station?.hasTrain).toBe(true);
     expect([...(station?.messageVerbs ?? [])].sort()).toEqual(['react', 'reply', 'send', 'unreact']);
-    expect(station?.attachmentMode).toBe('none');
+    expect(station?.attachmentMode).toBe('canonical');
   });
 
   test('only an account with a callback id and token is addressable from outside', () => {

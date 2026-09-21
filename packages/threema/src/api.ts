@@ -17,8 +17,8 @@ async function call(
 ): Promise<Response> {
   try {
     return await fetch(`${GATEWAY_API}${path}`, {
-      ...init,
       signal: AbortSignal.timeout(TIMEOUT_MS),
+      ...init,
     });
   } catch (err) {
     throw new TrainError(
@@ -129,4 +129,24 @@ export async function sendE2E(
       'send_e2e: the Threema Gateway answered without a message id',
     );
   return messageId;
+}
+
+const BLOB_ID_RE = /^[0-9a-f]{32}$/;
+const BLOB_TIMEOUT_MS = 120_000;
+
+export async function uploadBlob(c: GatewayCreds, data: Uint8Array): Promise<string> {
+  const form = new FormData();
+  form.append('blob', new Blob([Buffer.from(data)]), 'blob');
+  const res = await call(`/upload_blob?${authQuery(c)}`, { method: 'POST', body: form, signal: AbortSignal.timeout(BLOB_TIMEOUT_MS) }, 'upload_blob');
+  if (!res.ok) throw refusal(res.status, 'blob');
+  const blobId = (await res.text()).trim().toLowerCase();
+  if (!BLOB_ID_RE.test(blobId)) throw new TrainError('threema_gateway_error', 'upload_blob: the Threema Gateway answered without a blob id');
+  return blobId;
+}
+
+export async function downloadBlob(c: GatewayCreds, blobId: string): Promise<Uint8Array> {
+  if (!BLOB_ID_RE.test(blobId)) throw new TrainError('threema_bad_blob', `'${blobId}' is not a blob id`, { retryable: false });
+  const res = await call(`/blobs/${blobId}?${authQuery(c)}`, { signal: AbortSignal.timeout(BLOB_TIMEOUT_MS) }, 'blob download');
+  if (!res.ok) throw refusal(res.status, `blob ${blobId}`);
+  return new Uint8Array(await res.arrayBuffer());
 }

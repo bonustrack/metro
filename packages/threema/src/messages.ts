@@ -1,7 +1,9 @@
 import { bytesToHex, hexToBytes } from './crypto.js';
 
 export const MSG_TEXT = 0x01;
+export const MSG_FILE = 0x17;
 export const MSG_GROUP_TEXT = 0x41;
+export const MSG_GROUP_FILE = 0x46;
 export const MSG_GROUP_SETUP = 0x4a;
 export const MSG_GROUP_RENAME = 0x4b;
 export const MSG_GROUP_LEAVE = 0x4c;
@@ -26,8 +28,19 @@ export interface GroupRef {
   groupId: string;
 }
 
+export interface FileData {
+  blobId: string;
+  key: string;
+  mime: string;
+  name: string;
+  size: number | null;
+  caption: string | null;
+  media: boolean;
+}
+
 export type Decoded =
   | { kind: 'text'; text: string }
+  | { kind: 'file'; group: GroupRef | null; file: FileData }
   | { kind: 'group-text'; group: GroupRef; text: string }
   | { kind: 'group-setup'; groupId: string; members: string[] }
   | { kind: 'group-rename'; groupId: string; name: string }
@@ -73,6 +86,61 @@ const typed = (type: number, ...parts: Uint8Array[]): Uint8Array => concat(new U
 export const encodeText = (text: string): Uint8Array => typed(MSG_TEXT, Buffer.from(text, 'utf8'));
 
 export const encodeGroupText = (group: GroupRef, text: string): Uint8Array => typed(MSG_GROUP_TEXT, groupHeader(group), Buffer.from(text, 'utf8'));
+
+const fileJson = (f: FileData): Uint8Array =>
+  Buffer.from(
+    JSON.stringify({
+      b: f.blobId,
+      k: f.key,
+      m: f.mime,
+      n: f.name,
+      ...(f.size === null ? {} : { s: f.size }),
+      i: f.media ? 1 : 0,
+      j: f.media ? 1 : 0,
+      ...(f.caption === null ? {} : { d: f.caption }),
+    }),
+    'utf8',
+  );
+
+export const encodeFile = (f: FileData): Uint8Array => typed(MSG_FILE, fileJson(f));
+
+export const encodeGroupFile = (group: GroupRef, f: FileData): Uint8Array => typed(MSG_GROUP_FILE, groupHeader(group), fileJson(f));
+
+const HEX_RE = /^[0-9a-f]+$/i;
+
+const str = (v: unknown, fallback: string): string => (typeof v === 'string' && v !== '' ? v : fallback);
+const num = (v: unknown): number | null => (typeof v === 'number' ? v : null);
+const hexOf = (v: unknown, length: number): string | null => {
+  const text = typeof v === 'string' ? v.toLowerCase() : '';
+  return text.length === length && HEX_RE.test(text) ? text : null;
+};
+
+function parseJson(raw: Uint8Array): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(utf8(raw));
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function decodeFileJson(raw: Uint8Array): FileData | null {
+  const o = parseJson(raw);
+  if (o === null) return null;
+  const blobId = hexOf(o.b, 32);
+  const key = hexOf(o.k, 64);
+  if (blobId === null || key === null) return null;
+  const rendering = num(o.j) ?? num(o.i) ?? 0;
+  return {
+    blobId,
+    key,
+    mime: str(o.m, 'application/octet-stream'),
+    name: str(o.n, 'file'),
+    size: num(o.s),
+    caption: typeof o.d === 'string' && o.d !== '' ? o.d : null,
+    media: rendering === 1,
+  };
+}
 
 export const encodeGroupSyncRequest = (groupId: string): Uint8Array => typed(MSG_GROUP_REQUEST_SYNC, hexToBytes(groupId, 'group id'));
 
@@ -154,13 +222,18 @@ function decodeGroup(type: number, body: Uint8Array): Decoded {
   if (group === null) return { kind: 'other', type };
   const rest = body.subarray(ID_BYTES * 2);
   if (type === MSG_GROUP_TEXT) return { kind: 'group-text', group, text: utf8(rest) };
+  if (type === MSG_GROUP_FILE) {
+    const file = decodeFileJson(rest);
+    return file === null ? { kind: 'other', type } : { kind: 'file', group, file };
+  }
   if (type === MSG_GROUP_LEAVE) return { kind: 'group-leave', group };
   if (type === MSG_GROUP_DELIVERY_RECEIPT) return { kind: 'receipt', group, status: rest[0] ?? 0, messageIds: ids(rest, 1) };
   const reaction = decodeReactionProto(rest);
   return reaction === null ? { kind: 'other', type } : { kind: 'reaction', group, ...reaction };
 }
 
-const GROUP_TYPES = new Set([MSG_GROUP_TEXT, MSG_GROUP_LEAVE, MSG_GROUP_DELIVERY_RECEIPT, MSG_GROUP_REACTION]);
+const GROUP_TYPES = new Set([MSG_GROUP_TEXT, MSG_GROUP_FILE, MSG_GROUP_LEAVE, MSG_GROUP_DELIVERY_RECEIPT, MSG_GROUP_REACTION]);
+const DIRECT_TYPES = new Set([MSG_TEXT, MSG_FILE, MSG_TYPING, MSG_DELIVERY_RECEIPT, MSG_REACTION]);
 
 function decodeControl(type: number, body: Uint8Array): Decoded {
   if (body.length < ID_BYTES) return { kind: 'other', type };
@@ -171,6 +244,10 @@ function decodeControl(type: number, body: Uint8Array): Decoded {
 
 function decodeDirect(type: number, body: Uint8Array): Decoded {
   if (type === MSG_TEXT) return { kind: 'text', text: utf8(body) };
+  if (type === MSG_FILE) {
+    const file = decodeFileJson(body);
+    return file === null ? { kind: 'other', type } : { kind: 'file', group: null, file };
+  }
   if (type === MSG_TYPING) return { kind: 'typing' };
   if (type === MSG_DELIVERY_RECEIPT) return { kind: 'receipt', group: null, status: body[0] ?? 0, messageIds: ids(body, 1) };
   const reaction = decodeReactionProto(body);
@@ -180,7 +257,7 @@ function decodeDirect(type: number, body: Uint8Array): Decoded {
 export function decode(plain: Uint8Array): Decoded {
   const type = plain[0] ?? -1;
   const body = plain.subarray(1);
-  if (type === MSG_TEXT || type === MSG_TYPING || type === MSG_DELIVERY_RECEIPT || type === MSG_REACTION) return decodeDirect(type, body);
+  if (DIRECT_TYPES.has(type)) return decodeDirect(type, body);
   if (type === MSG_GROUP_SETUP || type === MSG_GROUP_RENAME) return decodeControl(type, body);
   if (GROUP_TYPES.has(type)) return decodeGroup(type, body);
   return { kind: 'other', type };

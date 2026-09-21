@@ -3,6 +3,7 @@ import { respond } from '@metro-labs/core/stations/station-runtime';
 import { publicKeyFor, targetOf, type Account, type Target } from './accounts.js';
 import { sendE2E } from './api.js';
 import { bytesToHex, quoted, seal } from './crypto.js';
+import { encodeFileFor, fileLabel, packFile, type OutgoingFile } from './files.js';
 import { emitOutbound, emitOutboundReaction } from './format.js';
 import { MESSAGE_ID_RE } from './ids.js';
 import {
@@ -67,13 +68,32 @@ interface SendArgs {
   text?: unknown;
   replyTo?: unknown;
   account?: string;
+  attachments?: unknown;
 }
 
-function requireText(a: SendArgs): string {
+const filesOf = (raw: unknown): OutgoingFile[] =>
+  (Array.isArray(raw) ? raw : [])
+    .map((a) => (a ?? {}) as Record<string, unknown>)
+    .filter((a) => typeof a.path === 'string' && a.path !== '')
+    .map((a) => ({ path: String(a.path), mime: typeof a.mime === 'string' && a.mime !== '' ? a.mime : 'application/octet-stream', name: typeof a.name === 'string' && a.name !== '' ? a.name : 'file' }));
+
+function textOf(a: SendArgs, files: OutgoingFile[]): string {
   const text = typeof a.text === 'string' ? a.text : '';
-  if (text === '')
-    throw new TrainError('threema_text_required', 'threema carries text only; give some text to send', { retryable: false });
+  if (text === '' && files.length === 0)
+    throw new TrainError('threema_text_required', 'give some text or a file to send', { retryable: false });
   return text;
+}
+
+async function sendFiles(acct: Account, target: Target, files: OutgoingFile[], caption: string | null): Promise<{ ids: string[]; labels: string[] }> {
+  const ids: string[] = [];
+  const labels: string[] = [];
+  for (const [i, file] of files.entries()) {
+    const packed = await packFile(acct, file, i === 0 ? caption : null);
+    const sent = await fanOut(acct, target, encodeFileFor(null, packed), (g) => encodeFileFor(g, packed));
+    ids.push(...sent);
+    labels.push(fileLabel(file));
+  }
+  return { ids, labels };
 }
 
 function messageIdOf(raw: unknown, field: string): string {
@@ -83,18 +103,40 @@ function messageIdOf(raw: unknown, field: string): string {
   return id;
 }
 
-export async function send(id: string, args: Args): Promise<void> {
-  const a = args as unknown as SendArgs;
-  const text = requireText(a);
-  const replyTo = a.replyTo === undefined || a.replyTo === null || a.replyTo === '' ? undefined : messageIdOf(a.replyTo, 'replyTo');
-  const { acct, target } = targetOf(a.line, a.account);
+const replyTargetOf = (raw: unknown): string | undefined => (raw === undefined || raw === null || raw === '' ? undefined : messageIdOf(raw, 'replyTo'));
+
+function bodyOf(text: string, replyTo: string | undefined): string {
   const body = replyTo === undefined ? text : quoted(replyTo, text);
   if (Buffer.byteLength(body, 'utf8') > MAX_TEXT_BYTES)
     throw new TrainError('threema_message_too_long', `Threema carries at most ${MAX_TEXT_BYTES} bytes of text per message; split it up`, { retryable: false });
-  const ids = await fanOut(acct, target, encodeText(body), (g) => encodeGroupText(g, body));
-  const messageId = ids[0] ?? '';
-  emitOutbound(acct.cfg.id, a.line, messageId, text, replyTo);
-  respond(id, { result: { messageId, account: acct.cfg.id, ...(ids.length > 1 ? { messageIds: ids } : {}) } });
+  return body;
+}
+
+interface Sent {
+  ids: string[];
+  labels: string[];
+}
+
+const resultOf = (acct: Account, sent: Sent): Record<string, unknown> => ({
+  messageId: sent.ids[0] ?? '',
+  account: acct.cfg.id,
+  ...(sent.ids.length > 1 ? { messageIds: sent.ids } : {}),
+  ...(sent.labels.length > 0 ? { attachments: sent.labels } : {}),
+});
+
+export async function send(id: string, args: Args): Promise<void> {
+  const a = args as unknown as SendArgs;
+  const files = filesOf(a.attachments);
+  const text = textOf(a, files);
+  const replyTo = replyTargetOf(a.replyTo);
+  const { acct, target } = targetOf(a.line, a.account);
+  const body = bodyOf(text, replyTo);
+  const sent: Sent =
+    files.length === 0
+      ? { ids: await fanOut(acct, target, encodeText(body), (g) => encodeGroupText(g, body)), labels: [] }
+      : await sendFiles(acct, target, files, body === '' ? null : body);
+  emitOutbound(acct.cfg.id, a.line, sent.ids[0] ?? '', text === '' ? `[${sent.labels.join(', ')}]` : text, replyTo);
+  respond(id, { result: resultOf(acct, sent) });
 }
 
 interface ReactArgs {

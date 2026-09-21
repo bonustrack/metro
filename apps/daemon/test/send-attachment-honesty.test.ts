@@ -45,6 +45,11 @@ const STATION_CASES: StationCase[] = [
     line: 'metro://xmtp/x0/0xabc',
     attachmentActions: ['sendImage', 'sendAttachment'],
   },
+  {
+    name: 'threema',
+    line: 'metro://threema/t0/ECHOECHO',
+    attachmentActions: [],
+  },
 ];
 
 interface Call {

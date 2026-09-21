@@ -8,6 +8,7 @@ import {
   type InboundMeta,
   type Room,
 } from './format.js';
+import { deliverFile } from './files.js';
 import type { Decoded, GroupRef } from './messages.js';
 import { requestSync, sentByUs } from './outbound.js';
 
@@ -54,10 +55,8 @@ function control(acct: Account, m: InboundMeta, d: Decoded): string | null {
   return null;
 }
 
-export function deliver(acct: Account, m: InboundMeta, d: Decoded): string {
+function chat(acct: Account, m: InboundMeta, d: Decoded): string | null {
   const owner = acct.cfg.owner;
-  const handled = control(acct, m, d);
-  if (handled !== null) return handled;
   if (d.kind === 'text') {
     emitInbound(acct.cfg.id, owner, textEnvelope(acct.cfg.id, m, d.text, sentByUs));
     return 'text';
@@ -67,11 +66,22 @@ export function deliver(acct: Account, m: InboundMeta, d: Decoded): string {
     emitInbound(acct.cfg.id, owner, textEnvelope(acct.cfg.id, m, d.text, sentByUs, roomOf(acct, d.group)));
     return 'group-text';
   }
+  if (d.kind === 'file') {
+    if (d.group !== null) askForRoster(acct, d.group);
+    deliverFile(acct, m, d.file, roomOf(acct, d.group), sentByUs);
+    return 'file';
+  }
   if (d.kind === 'reaction') {
     if (d.group !== null) askForRoster(acct, d.group);
     emitInbound(acct.cfg.id, owner, reactionEnvelope(acct.cfg.id, m, d.emoji, d.messageId, d.removed, roomOf(acct, d.group)));
     return 'reaction';
   }
+  return null;
+}
+
+export function deliver(acct: Account, m: InboundMeta, d: Decoded): string {
+  const handled = control(acct, m, d) ?? chat(acct, m, d);
+  if (handled !== null) return handled;
   if (d.kind === 'receipt') return reactions(acct, m, d);
   if (d.kind === 'typing') return 'typing';
   const type = d.kind === 'other' ? `0x${d.type.toString(16)}` : d.kind;

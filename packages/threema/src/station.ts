@@ -5,6 +5,6 @@ export const threemaStation: Station = {
   hasAccounts: true,
   hasTrain: true,
   messageVerbs: new Set<Verb>(['send', 'reply', 'react', 'unreact']),
-  attachmentMode: 'none',
+  attachmentMode: 'canonical',
   tools: [],
 };

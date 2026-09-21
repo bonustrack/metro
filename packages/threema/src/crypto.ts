@@ -90,3 +90,11 @@ export function unquote(text: string): { replyTo?: string; text: string } {
   const body = m?.[2];
   return replyTo === undefined || body === undefined ? { text } : { replyTo, text: body };
 }
+
+const FILE_NONCE = new Uint8Array([...new Array<number>(23).fill(0), 1]);
+
+export const newBlobKey = (): Uint8Array => nacl.randomBytes(nacl.secretbox.keyLength);
+
+export const sealBlob = (data: Uint8Array, key: Uint8Array): Uint8Array => nacl.secretbox(data, FILE_NONCE, key);
+
+export const openBlob = (data: Uint8Array, key: Uint8Array): Uint8Array | null => nacl.secretbox.open(data, FILE_NONCE, key);
