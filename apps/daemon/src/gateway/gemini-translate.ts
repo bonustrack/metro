@@ -8,7 +8,24 @@ type Item = Record<string, unknown>;
 export const SIGNATURE_PREFIX = 'metro-gemini:';
 export const SKIP_SIGNATURE = 'skip_thought_signature_validator';
 const IMAGE_NOTE = '[an image was attached here; this model cannot see it]';
-const SCHEMA_DROP = new Set(['$schema', '$id', 'additionalProperties', 'examples', 'default', 'title']);
+const SCHEMA_KEEP = new Set([
+  'type',
+  'description',
+  'nullable',
+  'enum',
+  'required',
+  'minItems',
+  'maxItems',
+  'minProperties',
+  'maxProperties',
+  'minLength',
+  'maxLength',
+  'pattern',
+  'minimum',
+  'maximum',
+  'propertyOrdering',
+]);
+const SCHEMA_LISTS = new Set(['anyOf', 'oneOf']);
 const SIGNATURES_MAX = 2000;
 const MAX_OUTPUT_TOKENS = 16384;
 
@@ -121,18 +138,29 @@ export function contentsOf(messages: unknown, names = new ToolNames()): Item[] {
   return out;
 }
 
-export function cleanSchema(schema: unknown): unknown {
-  if (Array.isArray(schema)) return schema.map(cleanSchema);
-  if (!isRecord(schema)) return schema;
-  const out: Item = {};
-  for (const [key, value] of Object.entries(schema)) {
-    if (SCHEMA_DROP.has(key)) continue;
-    if (key === 'const') {
-      out.enum = [value];
-      continue;
-    }
-    out[key] = cleanSchema(value);
+function schemaType(value: unknown, out: Item): void {
+  if (!Array.isArray(value)) {
+    out.type = value;
+    return;
   }
+  const kinds = value.filter((k) => k !== 'null');
+  if (kinds.length !== value.length) out.nullable = true;
+  if (kinds.length > 0) out.type = kinds[0];
+}
+
+function schemaField(key: string, value: unknown, out: Item): void {
+  if (key === 'type') schemaType(value, out);
+  else if (key === 'const') out.enum = [value];
+  else if (key === 'items') out.items = cleanSchema(value);
+  else if (key === 'properties' && isRecord(value)) out.properties = Object.fromEntries(Object.entries(value).map(([name, v]) => [name, cleanSchema(v)]));
+  else if (SCHEMA_LISTS.has(key) && Array.isArray(value)) out.anyOf = value.map(cleanSchema);
+  else if (SCHEMA_KEEP.has(key)) out[key] = value;
+}
+
+export function cleanSchema(schema: unknown): Item {
+  if (!isRecord(schema)) return {};
+  const out: Item = {};
+  for (const [key, value] of Object.entries(schema)) schemaField(key, value, out);
   return out;
 }
 

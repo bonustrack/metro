@@ -36,6 +36,18 @@ describe('a Messages request becomes a Code Assist request', () => {
 
   test('tool schemas lose the keywords Gemini refuses, a const becomes an enum, and tool_choice maps to the calling config', () => {
     expect(cleanSchema({ $schema: 'x', type: 'object', additionalProperties: false, properties: { kind: { const: 'a', title: 't' } } })).toEqual({ type: 'object', properties: { kind: { enum: ['a'] } } });
+    expect(
+      cleanSchema({
+        type: 'object',
+        propertyNames: { pattern: '^x' },
+        properties: { title: { type: ['string', 'null'], exclusiveMinimum: 0, description: 'd' }, n: { type: 'number', minimum: 1 }, list: { type: 'array', items: { oneOf: [{ type: 'string' }, { type: 'integer' }], uniqueItems: true } } },
+        required: ['title'],
+      }),
+    ).toEqual({
+      type: 'object',
+      properties: { title: { type: 'string', nullable: true, description: 'd' }, n: { type: 'number', minimum: 1 }, list: { type: 'array', items: { anyOf: [{ type: 'string' }, { type: 'integer' }] } } },
+      required: ['title'],
+    });
     const names = new ToolNames();
     expect(toolDeclarations([{ name: 'Read', input_schema: { type: 'object' } }, { type: 'web_search_20250305', name: 'web_search' }], names)).toEqual([{ name: 'Read', description: '', parameters: { type: 'object' } }]);
     const forced = toGeminiRequest({ messages: [], tools: [{ name: 'Read', input_schema: {} }], tool_choice: { type: 'tool', name: 'Read' } }, 'gemini-2.5-pro', 'p', 'id');
