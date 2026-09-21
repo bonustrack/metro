@@ -9,6 +9,8 @@ import { Line } from '@metro-labs/core/lines';
 import { fetchPublicKey } from './api.js';
 import { hexToBytes, keyPairFrom, type KeyPair } from './crypto.js';
 import { isGatewayId, normalizeThreemaId, parsePrivateKey } from './ids.js';
+import { GroupStore, parseGroupKey } from './groups.js';
+import type { GroupRef } from './messages.js';
 
 const ACCOUNTS_FILE =
   process.env.THREEMA_ACCOUNTS_FILE ??
@@ -55,14 +57,17 @@ export interface Account {
   cfg: AccountConfig;
   keys: KeyPair;
   publicKeys: Map<string, Uint8Array>;
+  groups: GroupStore;
 }
+
+export type Target = { kind: 'user'; id: string } | { kind: 'group'; group: GroupRef };
 
 export const accounts = new Map<string, Account>();
 
 export function bootAccount(cfg: AccountConfig): Account {
   const key = parsePrivateKey(cfg.privateKey);
   if (key === null) throw new Error(`account '${cfg.id}' has no usable private key`);
-  return { cfg, keys: keyPairFrom(key), publicKeys: new Map() };
+  return { cfg, keys: keyPairFrom(key), publicKeys: new Map(), groups: new GroupStore(cfg.id, cfg.gatewayId) };
 }
 
 export function accountFor(id: string): Account {
@@ -77,7 +82,7 @@ export function accountFor(id: string): Account {
 export function targetOf(
   line: string,
   account?: string,
-): { acct: Account; to: string } {
+): { acct: Account; target: Target } {
   const parsed = Line.parseThreema(line);
   if (parsed === null) throw new Error(`not a threema line: ${line}`);
   const id = resolveAccountId(
@@ -85,7 +90,9 @@ export function targetOf(
     { account, line },
     (l) => Line.parseThreema(l)?.accountId,
   );
-  return { acct: accountFor(id), to: normalizeThreemaId(parsed.resource) };
+  const group = parseGroupKey(parsed.resource);
+  const target: Target = group === null ? { kind: 'user', id: normalizeThreemaId(parsed.resource) } : { kind: 'group', group };
+  return { acct: accountFor(id), target };
 }
 
 export async function publicKeyFor(

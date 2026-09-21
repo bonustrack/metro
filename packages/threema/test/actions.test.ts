@@ -1,18 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import nacl from 'tweetnacl';
 import { handleCall, MAX_TEXT_BYTES } from '../src/actions.ts';
 import { accounts, bootAccount } from '../src/accounts.ts';
-import {
-  bytesToHex,
-  callbackMac,
-  decode,
-  encodeText,
-  MSG_DELIVERY_RECEIPT,
-  open,
-  RECEIPT_ACK,
-  RECEIPT_DECLINE,
-  seal,
-} from '../src/crypto.ts';
+import { bytesToHex, callbackMac, open, seal } from '../src/crypto.ts';
+import { decode, encodeText, MSG_DELIVERY_RECEIPT, RECEIPT_ACK, RECEIPT_DECLINE } from '../src/messages.ts';
 
 const gateway = nacl.box.keyPair();
 const alice = nacl.box.keyPair();
@@ -48,6 +42,7 @@ const call = (action: string, args: Record<string, unknown>): Promise<void> =>
   handleCall({ op: 'call', id: 'c1', action, args });
 
 beforeEach(() => {
+  process.env.THREEMA_GROUPS_DIR = mkdtempSync(join(tmpdir(), 'threema-groups-'));
   sends = [];
   accounts.set(
     't0',
@@ -127,7 +122,7 @@ describe('send', () => {
   test('no text, a bad reply target, or a text too long is refused before anything is sent', async () => {
     for (const [args, code] of [
       [{ line: LINE }, 'threema_text_required'],
-      [{ line: LINE, text: 'x', replyTo: '12' }, 'threema_bad_reply_target'],
+      [{ line: LINE, text: 'x', replyTo: '12' }, 'threema_bad_message_id'],
       [{ line: LINE, text: 'y'.repeat(MAX_TEXT_BYTES + 1) }, 'threema_message_too_long'],
     ] as const) {
       cap.written.responses.length = 0;
@@ -247,6 +242,7 @@ describe('accounts', () => {
           {
             id: 't0',
             handle: '*METRO01',
+            groups: [],
             url: 'https://web.threema.com/#!/messenger/conversation/contact/*METRO01',
             owner: null,
             gatewayId: '*METRO01',

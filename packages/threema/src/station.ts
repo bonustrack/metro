@@ -4,7 +4,7 @@ export const threemaStation: Station = {
   name: 'threema',
   hasAccounts: true,
   hasTrain: true,
-  messageVerbs: new Set<Verb>(['send', 'reply']),
+  messageVerbs: new Set<Verb>(['send', 'reply', 'react', 'unreact']),
   attachmentMode: 'none',
   tools: [],
 };

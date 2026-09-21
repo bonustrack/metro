@@ -6,46 +6,18 @@ import {
 } from '@metro-labs/core/stations/station-runtime';
 import type { Normalized } from '@metro-labs/core/stations/messaging-normalize';
 import { accountFor, accounts, publicKeyFor, targetOf, type Account } from './accounts.js';
-import { sendE2E } from './api.js';
-import {
-  bytesToHex,
-  decode,
-  encodeText,
-  hexToBytes,
-  macMatches,
-  open,
-  quoted,
-  seal,
-  type Decoded,
-} from './crypto.js';
-import {
-  emitInbound,
-  emitOutbound,
-  receiptEnvelope,
-  textEnvelope,
-  type InboundMeta,
-} from './format.js';
-import { isThreemaId, MESSAGE_ID_RE, normalizeThreemaId } from './ids.js';
+import { hexToBytes, macMatches, open } from './crypto.js';
+import { groupLineOf, type InboundMeta } from './format.js';
+import { groupKey } from './groups.js';
+import { deliver } from './inbound.js';
+import { isThreemaId, normalizeThreemaId } from './ids.js';
+import { decode } from './messages.js';
+import { react, send } from './outbound.js';
 
 export type { CallMsg };
-
-export const MAX_TEXT_BYTES = 3500;
-const SENT_MAX = 2000;
+export { MAX_TEXT_BYTES } from './outbound.js';
 
 type Args = Record<string, unknown>;
-
-const sentIds = new Set<string>();
-
-function noteSent(messageId: string): void {
-  sentIds.add(messageId);
-  while (sentIds.size > SENT_MAX) {
-    const oldest = sentIds.values().next();
-    if (oldest.done) break;
-    sentIds.delete(oldest.value);
-  }
-}
-
-const sentByUs = (messageId: string): boolean => sentIds.has(messageId);
 
 const WEB_CHAT = 'https://web.threema.com/#!/messenger/conversation/contact/';
 
@@ -58,6 +30,7 @@ function listAccounts(id: string): void {
     url: chatUrl(a.cfg.gatewayId),
     owner: a.cfg.owner ?? null,
     gatewayId: a.cfg.gatewayId,
+    groups: a.groups.list().map((g) => ({ line: groupLineOf(a.cfg.id, g), name: g.name, members: g.members.length })),
     ...(a.cfg.callbackId && a.cfg.callbackToken
       ? { callbackId: a.cfg.callbackId, callbackToken: a.cfg.callbackToken }
       : {}),
@@ -65,53 +38,20 @@ function listAccounts(id: string): void {
   respond(id, { result: { accounts: list } });
 }
 
-interface SendArgs {
-  line: string;
-  text?: unknown;
-  replyTo?: unknown;
-  account?: string;
-}
-
-function requireText(a: SendArgs): string {
-  const text = typeof a.text === 'string' ? a.text : '';
-  if (text === '')
-    throw new TrainError(
-      'threema_text_required',
-      'threema carries text only; give some text to send',
-      { retryable: false },
-    );
-  return text;
-}
-
-function replyTargetOf(a: SendArgs): string | undefined {
-  if (a.replyTo === undefined || a.replyTo === null || a.replyTo === '') return undefined;
-  const target = typeof a.replyTo === 'string' ? a.replyTo.toLowerCase() : '';
-  if (!MESSAGE_ID_RE.test(target))
-    throw new TrainError(
-      'threema_bad_reply_target',
-      'replyTo must be a Threema message id, 16 hex characters',
-      { retryable: false },
-    );
-  return target;
-}
-
-async function send(id: string, args: Args): Promise<void> {
-  const a = args as unknown as SendArgs;
-  const text = requireText(a);
-  const replyTo = replyTargetOf(a);
-  const { acct, to } = targetOf(a.line, a.account);
-  const plain = encodeText(replyTo === undefined ? text : quoted(replyTo, text));
-  if (plain.length - 1 > MAX_TEXT_BYTES)
-    throw new TrainError(
-      'threema_message_too_long',
-      `Threema carries at most ${MAX_TEXT_BYTES} bytes of text per message; split it up`,
-      { retryable: false },
-    );
-  const { nonce, box } = seal(plain, await publicKeyFor(acct, to), acct.keys);
-  const messageId = await sendE2E(acct.cfg, to, bytesToHex(nonce), bytesToHex(box));
-  noteSent(messageId);
-  emitOutbound(acct.cfg.id, a.line, messageId, text, replyTo);
-  respond(id, { result: { messageId, account: acct.cfg.id } });
+function listMembers(id: string, args: Args): void {
+  const line = typeof args.line === 'string' ? args.line : '';
+  const { acct, target } = targetOf(line, typeof args.account === 'string' ? args.account : undefined);
+  if (target.kind !== 'group') {
+    respond(id, { result: { members: [], capability: { supported: false, complete: false, reason: 'a Threema 1:1 chat has no roster' } } });
+    return;
+  }
+  const roster = acct.groups.get(target.group);
+  if (roster === undefined) {
+    respond(id, { result: { members: [], capability: { supported: true, complete: false, reason: `no member list yet for ${groupKey(target.group)}` } } });
+    return;
+  }
+  const members = roster.members.map((m) => ({ id: m, name: m, is_admin: m === roster.creator, is_bot: m === acct.cfg.gatewayId }));
+  respond(id, { result: { members, capability: { supported: true, complete: true, total: members.length } } });
 }
 
 interface CallbackArgs {
@@ -148,50 +88,21 @@ function parseCallback(args: Args): CallbackArgs {
   return nickname === '' ? fields : { ...fields, nickname };
 }
 
-function deliver(acct: Account, m: InboundMeta, decoded: Decoded): string {
-  const owner = acct.cfg.owner;
-  if (decoded.kind === 'text') {
-    emitInbound(acct.cfg.id, owner, textEnvelope(acct.cfg.id, m, decoded.text, sentByUs));
-    return 'text';
-  }
-  if (decoded.kind === 'receipt') {
-    let reactions = 0;
-    for (const target of decoded.messageIds) {
-      const env = receiptEnvelope(acct.cfg.id, m, decoded.status, target);
-      if (env === null) continue;
-      emitInbound(acct.cfg.id, owner, env);
-      reactions += 1;
-    }
-    return reactions > 0 ? 'reaction' : `receipt:${decoded.status}`;
-  }
-  if (decoded.kind === 'typing') return 'typing';
-  const type = `0x${decoded.type.toString(16)}`;
-  process.stderr.write(
-    `threema[${acct.cfg.id}]: ignored a message of type ${type} from ${m.from}\n`,
-  );
-  return `ignored:${type}`;
+function checkedSender(acct: Account, cb: CallbackArgs): string {
+  if (!macMatches(acct.cfg.secret, cb, cb.mac))
+    throw new TrainError('threema_bad_mac', 'the callback MAC does not match this account API secret', { retryable: false });
+  const from = normalizeThreemaId(cb.from);
+  if (!isThreemaId(from))
+    throw new TrainError('threema_bad_callback', `'${cb.from}' is not a Threema ID`, { retryable: false });
+  if (normalizeThreemaId(cb.to) !== acct.cfg.gatewayId)
+    throw new TrainError('threema_wrong_recipient', `callback addressed to ${cb.to}, not to ${acct.cfg.gatewayId}`, { retryable: false });
+  return from;
 }
 
 async function callback(id: string, args: Args): Promise<void> {
   const cb = parseCallback(args);
   const acct = accountFor(cb.account);
-  if (!macMatches(acct.cfg.secret, cb, cb.mac))
-    throw new TrainError(
-      'threema_bad_mac',
-      'the callback MAC does not match this account API secret',
-      { retryable: false },
-    );
-  const from = normalizeThreemaId(cb.from);
-  if (!isThreemaId(from))
-    throw new TrainError('threema_bad_callback', `'${cb.from}' is not a Threema ID`, {
-      retryable: false,
-    });
-  if (normalizeThreemaId(cb.to) !== acct.cfg.gatewayId)
-    throw new TrainError(
-      'threema_wrong_recipient',
-      `callback addressed to ${cb.to}, not to ${acct.cfg.gatewayId}`,
-      { retryable: false },
-    );
+  const from = checkedSender(acct, cb);
   const plain = open(
     hexToBytes(cb.box, 'box'),
     hexToBytes(cb.nonce, 'nonce'),
@@ -214,10 +125,11 @@ export function normalizeThreema(action: string, env: Args): Normalized {
       action: 'send',
       args: { line: env.line, text: env.text, replyTo: env.replyTo, account: env.account },
     };
+  if (action === 'unreact') return { action: 'react', args: { ...env, action: 'removed' } };
   return { action, args: env };
 }
 
 export const handleCall = makeStation({
-  handlers: { accounts: listAccounts, send, callback },
+  handlers: { accounts: listAccounts, send, react, callback, listMembers },
   normalize: normalizeThreema,
 });

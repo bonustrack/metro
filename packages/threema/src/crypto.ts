@@ -1,14 +1,6 @@
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 import nacl from 'tweetnacl';
 
-export const MSG_TEXT = 0x01;
-export const MSG_DELIVERY_RECEIPT = 0x80;
-export const MSG_TYPING = 0x90;
-
-export const RECEIPT_ACK = 0x03;
-export const RECEIPT_DECLINE = 0x04;
-
-const MESSAGE_ID_BYTES = 8;
 const HEX_RE = /^(?:[0-9a-fA-F]{2})*$/;
 
 export interface KeyPair {
@@ -61,38 +53,6 @@ export function open(
 ): Uint8Array | null {
   const padded = nacl.box.open(box, nonce, theirPublicKey, mine.secretKey);
   return padded === null ? null : unpad(padded);
-}
-
-export function encodeText(text: string): Uint8Array {
-  const utf8 = Buffer.from(text, 'utf8');
-  const out = new Uint8Array(1 + utf8.length);
-  out[0] = MSG_TEXT;
-  out.set(utf8, 1);
-  return out;
-}
-
-export type Decoded =
-  | { kind: 'text'; text: string }
-  | { kind: 'receipt'; status: number; messageIds: string[] }
-  | { kind: 'typing' }
-  | { kind: 'other'; type: number };
-
-function receiptIds(body: Uint8Array): string[] {
-  const ids: string[] = [];
-  for (let at = 1; at + MESSAGE_ID_BYTES <= body.length; at += MESSAGE_ID_BYTES)
-    ids.push(bytesToHex(body.subarray(at, at + MESSAGE_ID_BYTES)));
-  return ids;
-}
-
-export function decode(plain: Uint8Array): Decoded {
-  const type = plain[0];
-  const body = plain.subarray(1);
-  if (type === MSG_TEXT)
-    return { kind: 'text', text: Buffer.from(body).toString('utf8') };
-  if (type === MSG_DELIVERY_RECEIPT)
-    return { kind: 'receipt', status: body[0] ?? 0, messageIds: receiptIds(body) };
-  if (type === MSG_TYPING) return { kind: 'typing' };
-  return { kind: 'other', type: type ?? -1 };
 }
 
 export interface CallbackFields {

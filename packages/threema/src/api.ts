@@ -102,6 +102,7 @@ export async function sendE2E(
   to: string,
   nonceHex: string,
   boxHex: string,
+  group = false,
 ): Promise<string> {
   const body = new URLSearchParams({
     from: c.gatewayId,
@@ -109,6 +110,7 @@ export async function sendE2E(
     nonce: nonceHex,
     box: boxHex,
     secret: c.secret,
+    ...(group ? { group: '1' } : {}),
   });
   const res = await call(
     '/send_e2e',

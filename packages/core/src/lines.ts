@@ -25,8 +25,8 @@ function parseAccountScoped(
 }
 
 const isSnowflake = (s: string): boolean => /^\d+$/.test(s);
-const isThreemaId = (s: string): boolean =>
-  /^(?:[A-Z0-9]{8}|\*[A-Z0-9]{7})$/i.test(s);
+const isThreemaResource = (s: string): boolean =>
+  /^(?:[A-Z0-9]{8}|\*[A-Z0-9]{7})(?:-[0-9a-f]{16})?$/i.test(s);
 const isSignedInt = (s: string): boolean => /^-?\d+$/.test(s);
 
 function splitTelegramAccount(path: string[]): { accountId: string; rest: string[] } {
@@ -83,5 +83,5 @@ export const Line = {
   parseTelegram: (line: Line | string) => parseTelegramLine(line),
 
   parseThreema: (line: Line | string) =>
-    parseAccountScoped(line, 'threema', isThreemaId),
+    parseAccountScoped(line, 'threema', isThreemaResource),
 };

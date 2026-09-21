@@ -1,21 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
 import nacl from 'tweetnacl';
-import {
-  bytesToHex,
-  callbackMac,
-  decode,
-  encodeText,
-  keyPairFrom,
-  macMatches,
-  MSG_DELIVERY_RECEIPT,
-  MSG_TYPING,
-  open,
-  quoted,
-  RECEIPT_ACK,
-  seal,
-  unquote,
-} from '../src/crypto.ts';
+import { bytesToHex, callbackMac, keyPairFrom, macMatches, open, quoted, seal, unquote } from '../src/crypto.ts';
+import { decode, encodeText, MSG_DELIVERY_RECEIPT, MSG_TYPING, RECEIPT_ACK } from '../src/messages.ts';
 
 const alice = nacl.box.keyPair();
 const bob = nacl.box.keyPair();
@@ -65,6 +52,7 @@ describe('the NaCl box every Threema message travels in', () => {
     ]);
     expect(decode(receipt)).toEqual({
       kind: 'receipt',
+      group: null,
       status: RECEIPT_ACK,
       messageIds: ['0123456789abcdef', 'fedcba9876543210'],
     });
