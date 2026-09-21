@@ -22,7 +22,7 @@ const refuse = async (
   create: CreateXmtpClient,
   key = KEY,
 ): Promise<XmtpVerifyError> => {
-  const err = await verifyXmtpKey(key, tmpDb(), create).then(
+  const err = await verifyXmtpKey(key, tmpDb(), false, create).then(
     () => null,
     (e: unknown) => e,
   );
@@ -33,18 +33,19 @@ const refuse = async (
 describe('verifying a generated xmtp key', () => {
   test('reports the inbox XMTP opened for it', async () => {
     const db = tmpDb();
-    const out = await verifyXmtpKey(KEY, db, registered);
+    const out = await verifyXmtpKey(KEY, db, false, registered);
     expect(out).toEqual({
       inboxId: INBOX,
       address: '0x4a76C41C3B3c50F2E75aCFb77C36e35D603d628f',
       installationId: INSTALL,
       dbPath: db,
+      smart: false,
     });
   });
 
   test('the database path it was handed is where the client was opened', async () => {
     let seen = '';
-    await verifyXmtpKey(KEY, '~/.metro/probe.db3', (_signer, dbPath) => {
+    await verifyXmtpKey(KEY, '~/.metro/probe.db3', false, (_signer, dbPath) => {
       seen = dbPath;
       return registered(_signer, dbPath);
     });

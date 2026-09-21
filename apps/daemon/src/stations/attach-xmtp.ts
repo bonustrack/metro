@@ -89,7 +89,7 @@ export async function verifyXmtpKeyOutOfProcess(
   dbPath: string,
 ): Promise<XmtpIdentity> {
   const raw = await runVerifier(
-    JSON.stringify({ privateKey, dbPath }),
+    JSON.stringify({ privateKey, dbPath, smart: true }),
   ).catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'attach-xmtp: could not run the inbox check');
     throw new XmtpAttachError(UNREACHABLE);

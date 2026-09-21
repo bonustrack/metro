@@ -98,7 +98,8 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     setAllowlist: localSetAllowlist,
     setAccountEnabled: localSetAccountEnabled,
     recentSenders,
-    resolveSender,
+    resolveSender: (station, accountId, query) => accountCall(station, 'resolve_sender', { account: accountId, query }),
+    accountCall,
     reloadAgents: deps.reloadAgents,
   };
 }
@@ -169,17 +170,14 @@ function localModeInfo(): ModeInfo {
   return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID, version: METRO_VERSION };
 }
 
-async function resolveSender(
+async function accountCall(
   station: StationName,
-  accountId: string,
-  query: string,
+  action: string,
+  args: Record<string, unknown>,
 ): Promise<unknown> {
   let response;
   try {
-    response = await forwardTrainCall(station, 'resolve_sender', {
-      account: accountId,
-      query,
-    });
+    response = await forwardTrainCall(station, action, args);
   } catch (err) {
     throw new ApiError(
       `metro could not reach the ${station} train: ${errMsg(err)}`,

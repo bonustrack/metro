@@ -158,7 +158,7 @@ async function prepareXmtp(verify: VerifyXmtpKey): Promise<PreparedAccount> {
     ),
   );
   return {
-    config: { privateKey, dbPath },
+    config: { privateKey, dbPath, smart: true },
     identity: { inboxId: identity.inboxId, address: identity.address },
     secret: {
       label: 'xmtp private key',

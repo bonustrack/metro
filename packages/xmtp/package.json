@@ -21,6 +21,8 @@
     "@xmtp/content-type-wallet-send-calls": "^2.0.0",
     "@xmtp/node-bindings": "1.9.1",
     "@xmtp/node-sdk": "^6.0.0",
+    "@zerodev/ecdsa-validator": "5.4.9",
+    "@zerodev/sdk": "5.5.10",
     "viem": "^2.52.2"
   },
   "devDependencies": {

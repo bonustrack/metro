@@ -198,6 +198,11 @@ const deps: AgentApiDeps = {
     lookedUp.push(`${station} ${accountId} ${query}`);
     return Promise.resolve({ query, number: '41791234567', exists: true, jid: null, lid: '2098@lid', id: '2098@lid' });
   },
+  accountCall: (station, action, args) => {
+    lookedUp.push(`${station} ${action} ${JSON.stringify(args)}`);
+    if (action === 'name') return Promise.resolve({ account: args.account, name: null, canClaim: true });
+    return Promise.resolve({ account: args.account, name: `${String(args.label)}.stage.base.eth` });
+  },
   setAccountEnabled: (email, agentId, station, accountId, enabled) => {
     ownedOrThrow(email, agentId);
     const row = rows.find((r) => r.agentId === agentId && r.station === station && r.accountId === accountId);
@@ -934,6 +939,32 @@ describe('the allowlist of a station account', () => {
     expect((await ask('telegram-bot', '+41791234567')).status).toBe(400);
     expect(lookedUp).toHaveLength(1);
     expect((await fetch(`${base}/api/agents/agent000001/accounts/whatsapp/acct0000001/resolve?q=1`)).status).toBe(401);
+  });
+
+  test('an XMTP account reads and claims its stage name through the train, and only for the owner', async () => {
+    const path = '/api/agents/agent000001/accounts/xmtp/acct0000001/name';
+    lookedUp = [];
+    const read = await fetch(`${base}${path}`, { headers: { authorization: await auth('GET', path, session('ada@lovelace.dev')) } });
+    expect(read.status).toBe(200);
+    expect(await read.json()).toEqual({ account: 'acct0000001', name: null, canClaim: true });
+    const claimed = await fetch(`${base}${path}`, {
+      method: 'POST',
+      headers: { authorization: await auth('POST', path, session('ada@lovelace.dev')), 'content-type': 'application/json' },
+      body: JSON.stringify({ label: 'lisa-mci' }),
+    });
+    expect(claimed.status).toBe(200);
+    expect(await claimed.json()).toEqual({ account: 'acct0000001', name: 'lisa-mci.stage.base.eth' });
+    expect(lookedUp).toEqual(['xmtp name {"account":"acct0000001"}', 'xmtp claim_name {"account":"acct0000001","label":"lisa-mci"}']);
+    const blank = await fetch(`${base}${path}`, {
+      method: 'POST',
+      headers: { authorization: await auth('POST', path, session('ada@lovelace.dev')), 'content-type': 'application/json' },
+      body: JSON.stringify({ label: '  ' }),
+    });
+    expect(blank.status).toBe(400);
+    const other = '/api/agents/agent000001/accounts/telegram-bot/acct0000001/name';
+    expect((await fetch(`${base}${other}`, { headers: { authorization: await auth('GET', other, session('ada@lovelace.dev')) } })).status).toBe(400);
+    expect((await fetch(`${base}${path}`)).status).toBe(401);
+    expect(lookedUp).toHaveLength(2);
   });
 
   test('the senders seen on a station are offered to the owner, and only to the owner', async () => {

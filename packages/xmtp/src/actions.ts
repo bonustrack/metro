@@ -21,6 +21,7 @@ import {
 import { convHandlers } from './actions-conv.js';
 import { normalizeXmtp } from '@metro-labs/core/stations/messaging-normalize';
 import { TrainError } from '@metro-labs/core/train-error';
+import { claimNameAction, nameAction, setProfile } from './profile.js';
 import { makeStation, type CallMsg } from '@metro-labs/core/stations/station-runtime';
 
 type Args = Record<string, unknown>;
@@ -338,6 +339,7 @@ async function accountsAction(id: string): Promise<void> {
         url: `https://stage.box/#/${a.address}`,
         address: a.address,
         inboxId: a.inboxId,
+        smart: a.smart !== null,
         env: 'production',
         owner: a.cfg.owner ?? null,
         keySource: 'privateKey',
@@ -353,6 +355,9 @@ function unsupportedVerb(id: string, verb: string): Promise<void> {
 
 const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   accounts: (id) => accountsAction(id),
+  set_profile: setProfile,
+  claim_name: claimNameAction,
+  name: nameAction,
   send,
   ask,
   sendPoll: ask,

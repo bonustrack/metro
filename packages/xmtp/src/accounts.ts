@@ -7,7 +7,8 @@ import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { CODECS } from './codecs.js';
-import { expandHome, signerFor, XMTP_ENV } from './identity.js';
+import { expandHome, identityFor, XMTP_ENV } from './identity.js';
+import type { SmartAccount } from './smart.js';
 import {
   makeAccountStore,
   resolveAccountId,
@@ -23,6 +24,7 @@ export interface AccountConfig {
   privateKey?: string;
   owner?: string;
   dbPath?: string;
+  smart?: boolean;
 }
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
@@ -50,18 +52,19 @@ export interface Account {
   client: Client<unknown>;
   inboxId: string;
   address: string;
+  smart: SmartAccount | null;
 }
 export const accounts = new Map<string, Account>();
 
 export async function bootAccount(cfg: AccountConfig): Promise<void> {
-  const { signer, address } = signerFor(resolvePrivateKey(cfg));
+  const { signer, address, smart } = await identityFor(resolvePrivateKey(cfg), cfg.smart === true);
   const dbPath = expandHome(
     cfg.dbPath ?? join(homedir(), '.metro', `xmtp-${XMTP_ENV}-${cfg.id}.db3`),
   );
   const fresh = !existsSync(dbPath);
   const options: ClientOptions = { env: XMTP_ENV, codecs: CODECS(), dbPath };
   const client: Client<unknown> = await Client.create(signer, options);
-  accounts.set(cfg.id, { cfg, client, inboxId: client.inboxId, address });
+  accounts.set(cfg.id, { cfg, client, inboxId: client.inboxId, address, smart });
   if (fresh)
     process.stderr.write(
       `xmtp[${cfg.id}] registered a NEW installation for this machine — ` +

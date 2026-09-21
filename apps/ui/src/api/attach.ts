@@ -323,3 +323,27 @@ export async function detachAccount(
     path: `/${agentId}/accounts/${encodeURIComponent(station)}/${encodeURIComponent(accountId)}`,
   });
 }
+
+export interface AccountName {
+  name: string | null;
+  canClaim: boolean;
+}
+
+const nameOf = (body: unknown): AccountName => ({
+  name: isRecord(body) && typeof body.name === 'string' && body.name !== '' ? body.name : null,
+  canClaim: isRecord(body) && body.canClaim === true,
+});
+
+export async function accountName(agentId: string, station: string, accountId: string): Promise<AccountName> {
+  return nameOf(await call({ method: 'GET', path: `${accountPath(agentId, station, accountId)}/name` }));
+}
+
+export async function claimAccountName(agentId: string, station: string, accountId: string, label: string): Promise<AccountName> {
+  const body = await call({
+    method: 'POST',
+    path: `${accountPath(agentId, station, accountId)}/name`,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ label }),
+  });
+  return { ...nameOf(body), canClaim: false };
+}

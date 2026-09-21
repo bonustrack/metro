@@ -77,6 +77,11 @@ export interface AccountApiDeps {
     accountId: string,
     query: string,
   ) => Promise<unknown>;
+  accountCall: (
+    station: StationName,
+    action: string,
+    args: Record<string, unknown>,
+  ) => Promise<unknown>;
   setAccountEnabled: (
     subject: string,
     agentId: string,
@@ -108,6 +113,23 @@ async function handleResolve(
   if (query === '') throw new ApiError('a number to look up is required', 400);
   const found = await deps.resolveSender(target.station, target.accountId, query);
   sendJson(req, res, 200, found);
+}
+
+async function handleName(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: AccountApiDeps,
+  target: { station: StationName; accountId: string },
+): Promise<void> {
+  if (stationByName(target.station)?.claimsName !== true)
+    throw new ApiError(`${target.station} accounts have no name to claim`, 400);
+  if (req.method === 'GET') {
+    sendJson(req, res, 200, await deps.accountCall(target.station, 'name', { account: target.accountId }));
+    return;
+  }
+  const label = bodyField(await readJsonBody(req), 'label');
+  if (typeof label !== 'string' || label.trim() === '') throw new ApiError('a label is required', 400);
+  sendJson(req, res, 200, await deps.accountCall(target.station, 'claim_name', { account: target.accountId, label }));
 }
 
 async function activate(
@@ -342,6 +364,7 @@ async function dispatchRoute(
   if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, session, agentId, route);
   if (route.kind === 'enabled') return handleEnabled(req, res, deps, session, agentId, route);
   if (route.kind === 'resolve') return handleResolve(req, res, deps, route);
+  if (route.kind === 'name') return handleName(req, res, deps, route);
   if (route.kind === 'senders') {
     sendJson(req, res, 200, { senders: deps.recentSenders(route.station, route.accountId) });
     return;

@@ -10,7 +10,8 @@ export type AccountRoute =
   | { kind: 'allowlist'; station: StationName; accountId: string }
   | { kind: 'senders'; station: StationName; accountId: string }
   | { kind: 'resolve'; station: StationName; accountId: string }
-  | { kind: 'enabled'; station: StationName; accountId: string };
+  | { kind: 'enabled'; station: StationName; accountId: string }
+  | { kind: 'name'; station: StationName; accountId: string };
 
 const ROUTE_METHODS: Record<AccountRoute['kind'], string[]> = {
   start: ['POST'],
@@ -21,9 +22,10 @@ const ROUTE_METHODS: Record<AccountRoute['kind'], string[]> = {
   senders: ['GET'],
   resolve: ['GET'],
   enabled: ['PUT'],
+  name: ['GET', 'POST'],
 };
 
-const SUB_ROUTES = ['allowlist', 'senders', 'resolve', 'enabled'] as const;
+const SUB_ROUTES = ['allowlist', 'senders', 'resolve', 'enabled', 'name'] as const;
 
 type SubRoute = (typeof SUB_ROUTES)[number];
 

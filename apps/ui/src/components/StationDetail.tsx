@@ -18,6 +18,7 @@ import { Pill } from './Pill.js';
 import { type DetachHandler } from './AccountList.js';
 import { Allowlist } from './Allowlist.js';
 import { ToggleAccount } from './ToggleAccount.js';
+import { StationName } from './StationName.js';
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
@@ -112,6 +113,15 @@ function AllowlistSection({
   return <Allowlist agentId={agentId} station={station} accountId={id} allowlist={row.allowlist} onSaved={onSaved} />;
 }
 
+function NameSection({ station, row }: { station: string; row: AccountRow }): ReactNode {
+  if (station !== 'xmtp' || row.id === null || row.agentId === null) return null;
+  return (
+    <Section title="Name">
+      <StationName agentId={row.agentId} station={station} accountId={row.id} />
+    </Section>
+  );
+}
+
 function HeaderActions({
   station,
   row,
@@ -186,6 +196,8 @@ export function StationDetail(props: StationDetailProps): ReactNode {
           </Col>
         </Section>
       )}
+
+      <NameSection station={station} row={row} />
 
       {url === undefined ? null : (
         <Section title="Link">

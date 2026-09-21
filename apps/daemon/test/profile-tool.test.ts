@@ -35,17 +35,17 @@ describe('the set_profile tool', () => {
     expect(SET_PROFILE_TOOL.name).toBe('set_profile');
     expect(Object.keys(SET_PROFILE_TOOL.inputSchema.properties)).toEqual(['station', 'account', 'name', 'bio', 'avatar']);
     const profiles = profileCapabilities();
-    for (const station of ['discord-bot', 'telegram-bot', 'telegram', 'whatsapp'])
+    for (const station of ['discord-bot', 'telegram-bot', 'telegram', 'whatsapp', 'xmtp'])
       expect(profiles[station]).toEqual(['name', 'bio', 'avatar']);
-    expect(profiles.xmtp).toBeUndefined();
     expect(profiles.threema).toBeUndefined();
+    expect(profiles.webhook).toBeUndefined();
   });
 
   test('refuses a missing or unknown station, a station without a profile, and an empty change', async () => {
     expect(text(await dispatchSetProfile({ name: 'Lisa' }))).toContain('requires `station`');
     expect(text(await dispatchSetProfile({ station: 'pigeon', name: 'Lisa' }))).toContain('no station named pigeon');
-    expect(text(await dispatchSetProfile({ station: 'xmtp', name: 'Lisa' }))).toContain('no profile metro can set');
     expect(text(await dispatchSetProfile({ station: 'threema', bio: 'hi' }))).toContain('no profile metro can set');
+    expect(text(await dispatchSetProfile({ station: 'webhook', name: 'Lisa' }))).toContain('no profile metro can set');
     expect(text(await dispatchSetProfile({ station: 'whatsapp' }))).toContain('at least one of name, bio, avatar');
     expect(seen).toEqual([]);
   });

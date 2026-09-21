@@ -19,12 +19,14 @@ export const SET_PROFILE_TOOL = {
     '`profiles`); a field the station cannot set is refused by name, never dropped. Discord changes ' +
     'the bot username and app description (Discord allows two username changes an hour); Telegram ' +
     'bots set their name, description and photo; a Telegram user account sets its first name, bio ' +
-    '(70 chars) and photo; WhatsApp sets the profile name, about and picture. Visible to everyone ' +
+    '(70 chars) and photo; WhatsApp sets the profile name, about and picture; XMTP writes the ' +
+    'name, description and avatar records of the account\'s <label>.stage.base.eth name on Base, ' +
+    'so it needs a name first (claimed on the channel page, never by you). Visible to everyone ' +
     'who talks to the account, so do it when asked, not on your own. Returns {account, applied}.',
   inputSchema: {
     type: 'object',
     properties: {
-      station: { type: 'string', description: 'discord-bot | telegram-bot | telegram | whatsapp' },
+      station: { type: 'string', description: 'discord-bot | telegram-bot | telegram | whatsapp | xmtp' },
       account: { type: 'string', description: 'The account id on that station, from list_accounts.' },
       name: { type: 'string', description: 'The display name.' },
       bio: { type: 'string', description: 'The bio or about line.' },
@@ -46,7 +48,7 @@ export const profileCapabilities = (): Record<string, ProfileField[]> => {
 
 const asked = (a: Record<string, unknown>): ProfileField[] => PROFILE_FIELDS.filter((f) => a[f] !== undefined);
 
-type Target = { station: Station; fields: ProfileField[] } | { refused: string };
+type Target = { station: Station } | { refused: string };
 
 function targetOf(a: Record<string, unknown>): Target {
   const name = str(a.station);
@@ -59,7 +61,7 @@ function targetOf(a: Record<string, unknown>): Target {
   if (wanted.length === 0) return { refused: 'set_profile needs at least one of name, bio, avatar' };
   const refused = wanted.filter((f) => !fields.has(f));
   if (refused.length > 0) return { refused: `${name} cannot set ${refused.join(', ')}; it takes ${[...fields].join(', ')}` };
-  return { station, fields: wanted };
+  return { station };
 }
 
 function trainArgs(a: Record<string, unknown>, picture: ResolvedAttachment | undefined): Record<string, unknown> {

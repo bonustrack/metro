@@ -101,6 +101,7 @@ export interface Station {
   groupOps?: ReadonlySet<GroupOp>;
   resolvesSenders?: boolean;
   profileFields?: ReadonlySet<ProfileField>;
+  claimsName?: boolean;
   attachmentMode: AttachmentMode;
   sendAttachments?(
     line: string,

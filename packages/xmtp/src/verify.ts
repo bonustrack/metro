@@ -1,7 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Client, type ClientOptions, type Signer } from '@xmtp/node-sdk';
-import { expandHome, signerFor, XMTP_ENV } from './identity.js';
+import { expandHome, identityFor, signerFor, XMTP_ENV } from './identity.js';
+import { ensureDeployed } from './smart.js';
 
 export class XmtpVerifyError extends Error {}
 
@@ -10,6 +11,7 @@ export interface XmtpVerified {
   address: string;
   installationId: string;
   dbPath: string;
+  smart: boolean;
 }
 
 interface RegisteredClient {
@@ -34,15 +36,25 @@ const reason = (err: unknown): string =>
 export async function verifyXmtpKey(
   privateKey: string,
   dbPath: string,
+  smart = false,
   create: CreateXmtpClient = openInbox,
 ): Promise<XmtpVerified> {
-  let signer: Signer;
-  let address: string;
+  let identity: Awaited<ReturnType<typeof identityFor>>;
   try {
-    ({ signer, address } = signerFor(privateKey));
+    signerFor(privateKey);
   } catch {
     throw new XmtpVerifyError('that is not a usable XMTP private key');
   }
+  try {
+    identity = await identityFor(privateKey, smart);
+  } catch (err) {
+    throw new XmtpVerifyError(`could not build the smart account on Base: ${reason(err)}`);
+  }
+  const { signer, address } = identity;
+  if (identity.smart !== null)
+    await ensureDeployed(identity.smart).catch((err: unknown) => {
+      throw new XmtpVerifyError(`could not deploy the smart account on Base (is the ZeroDev sponsorship still on?): ${reason(err)}`);
+    });
   const resolved = expandHome(dbPath);
   mkdirSync(dirname(resolved), { recursive: true });
   const client = await create(signer, resolved).catch((err: unknown) => {
@@ -59,6 +71,7 @@ export async function verifyXmtpKey(
     address,
     installationId: client.installationId,
     dbPath: resolved,
+    smart,
   };
 }
 
@@ -68,10 +81,11 @@ async function runCli(): Promise<void> {
     const input = JSON.parse(readFileSync(0, 'utf8')) as {
       privateKey?: unknown;
       dbPath?: unknown;
+      smart?: unknown;
     };
     if (typeof input.privateKey !== 'string' || typeof input.dbPath !== 'string')
       throw new XmtpVerifyError('xmtp verify needs a privateKey and a dbPath');
-    out = { ok: true, ...(await verifyXmtpKey(input.privateKey, input.dbPath)) };
+    out = { ok: true, ...(await verifyXmtpKey(input.privateKey, input.dbPath, input.smart === true)) };
   } catch (err) {
     out = { ok: false, error: reason(err) };
   }
