@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Hex, type PublicClient } from 'viem';
+import { createPublicClient, http, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import {
@@ -18,9 +18,13 @@ const ENTRY_POINT = getEntryPoint('0.7');
 export const zerodevRpc = (): string =>
   `https://rpc.zerodev.app/api/v3/${process.env.METRO_ZERODEV_PROJECT ?? STAGE_ZERODEV_PROJECT}/chain/${String(SMART_CHAIN_ID)}`;
 
+const makePublicClient = (rpc: string) => createPublicClient({ chain: base, transport: http(rpc) });
+
+export type BaseClient = ReturnType<typeof makePublicClient>;
+
 export interface SmartAccount {
   address: Hex;
-  publicClient: PublicClient;
+  publicClient: BaseClient;
   client: () => KernelAccountClient;
   signMessage: (message: string) => Promise<Hex>;
   deployed: () => Promise<boolean>;
@@ -28,7 +32,7 @@ export interface SmartAccount {
 
 export async function smartAccountFor(privateKey: string, rpc = zerodevRpc()): Promise<SmartAccount> {
   const owner = privateKeyToAccount(privateKey as Hex);
-  const publicClient = createPublicClient({ transport: http(rpc) });
+  const publicClient = makePublicClient(rpc);
   const validator = await signerToEcdsaValidator(publicClient, { signer: owner, entryPoint: ENTRY_POINT, kernelVersion: KERNEL_V3_1 });
   const account = await createKernelAccount(publicClient, { plugins: { sudo: validator }, entryPoint: ENTRY_POINT, kernelVersion: KERNEL_V3_1, index: 0n });
   const paymaster = createZeroDevPaymasterClient({ chain: base, transport: http(rpc) });
