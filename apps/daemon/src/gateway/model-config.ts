@@ -130,8 +130,14 @@ export function parseModelConfig(raw: unknown): ModelConfig {
   return { version: 2, route: connections.some((c) => c.id === route) ? route : (connections[0]?.id ?? ''), connections };
 }
 
+const needsIds = (raw: unknown): boolean =>
+  isRecord(raw) && (!Array.isArray(raw.connections) || raw.connections.some((c: unknown) => isRecord(c) && text(c.id) === ''));
+
 export function readModelConfig(dir = agentsDir()): ModelConfig {
-  return parseModelConfig(readJson<unknown>(join(dir, MODEL_FILE), null, { warn: 'model-config: model.json is unreadable, so every request goes to Anthropic until it is fixed' }));
+  const raw = readJson<unknown>(join(dir, MODEL_FILE), null, { warn: 'model-config: model.json is unreadable, so every request goes to Anthropic until it is fixed' });
+  const cfg = parseModelConfig(raw);
+  if (needsIds(raw)) writeModelConfig(cfg, dir);
+  return cfg;
 }
 
 export function writeModelConfig(cfg: ModelConfig, dir = agentsDir()): void {

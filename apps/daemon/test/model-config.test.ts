@@ -84,6 +84,17 @@ describe('the connections on disk', () => {
     expect(cfg.route).toBe(conn(cfg, 'openrouter').id);
     expect(parseModelConfig({ version: 1, provider: 'anthropic' })).toEqual({ version: 2, route: '', connections: [] });
   });
+
+  test('an old file is written back once converted, so the connection ids stay the same from one read to the next', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'metro-model-'));
+    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 1, provider: 'codex', anthropic: { apiKey: '', model: 'claude-opus-5' }, codex: { model: 'gpt-5.4', auth: CODEX_TOKENS } }));
+    const first = readModelConfig(dir);
+    const second = readModelConfig(dir);
+    expect(second.connections.map((c) => c.id)).toEqual(first.connections.map((c) => c.id));
+    expect(second.route).toBe(first.route);
+    expect(JSON.parse(readFileSync(join(dir, 'model.json'), 'utf8'))).toMatchObject({ version: 2, route: first.route });
+    rmSync(dir, { recursive: true, force: true });
+  });
 });
 
 describe('several connections of the same provider', () => {
