@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { namehash } from 'viem';
-import { profileOf, profileView, senderFields } from '../src/sender.ts';
+import { profileOf, profileView, senderFields, type Reader } from '../src/sender.ts';
 import { reverseNodeOf } from '../src/profile.ts';
-import type { BaseClient } from '../src/smart.ts';
 
 const ALICE = '0xA94c000000000000000000000000000000001767';
 const NODE = namehash('alice-stage.stage.base.eth');
@@ -13,7 +12,7 @@ interface Read {
   args: readonly unknown[];
 }
 
-function fakeChain(primary: string, records: Record<string, string>, forward = ALICE): BaseClient {
+function fakeChain(primary: string, records: Record<string, string>, forward = ALICE): Reader {
   const readContract = ({ functionName, args }: Read): Promise<unknown> => {
     if (functionName === 'resolver') return Promise.resolve(ZERO);
     if (functionName === 'name') return Promise.resolve(args[0] === reverseNodeOf(ALICE) ? primary : '');
@@ -21,7 +20,7 @@ function fakeChain(primary: string, records: Record<string, string>, forward = A
     if (functionName === 'text') return Promise.resolve(args[0] === NODE ? (records[String(args[1])] ?? '') : '');
     return Promise.reject(new Error(`unexpected read ${functionName}`));
   };
-  return { readContract } as unknown as BaseClient;
+  return { readContract } as unknown as Reader;
 }
 
 const noProxy: typeof fetch = () => Promise.reject(new Error('the proxy must not be asked'));
@@ -44,6 +43,14 @@ describe('an XMTP sender profile', () => {
     expect(senderFields(bare)).toEqual({ from_name: ALICE });
     expect(senderFields(null)).toEqual({});
     expect(profileView('8f3e', null)).toEqual({ id: '8f3e' });
+  });
+
+  test('a read the RPC refuses fails the lookup rather than answering a half profile', async () => {
+    const chain = fakeChain('alice-stage.stage.base.eth', { name: 'Alice' });
+    const flaky = {
+      readContract: (read: Read) => (read.functionName === 'text' && read.args[1] === 'name' ? Promise.reject(new Error('over rate limit')) : chain.readContract(read as never)),
+    } as unknown as Reader;
+    await expect(profileOf(ALICE, flaky, noProxy)).rejects.toThrow('over rate limit');
   });
 
   test('a name whose forward record points elsewhere is not believed', async () => {
