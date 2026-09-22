@@ -10,6 +10,7 @@ export const xmtpStation: Station = {
   groupOps: new Set<GroupOp>(['create_group', 'add_members', 'remove_members']),
   attachmentMode: 'native',
   profileFields: new Set<ProfileField>(PROFILE_FIELDS),
+  readsProfiles: true,
   claimsName: true,
   sendAttachments: xmtpSendAttachments,
   tools: XMTP_TOOLS,

@@ -102,6 +102,7 @@ export interface Station {
   resolvesSenders?: boolean;
   profileFields?: ReadonlySet<ProfileField>;
   claimsName?: boolean;
+  readsProfiles?: boolean;
   attachmentMode: AttachmentMode;
   sendAttachments?(
     line: string,

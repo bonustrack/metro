@@ -77,7 +77,6 @@ function addressing(accountId: string, m: Message): { mentions_self: boolean; re
 const senderOf = (m: Message): Record<string, string | undefined> => ({
   from_name: m.author.username,
   from_display_name: m.member?.displayName ?? m.author.globalName ?? undefined,
-  from_avatar: (m.member ?? m.author).displayAvatarURL({ size: 256 }),
 });
 
 export function messageEnvelope(
@@ -149,7 +148,6 @@ export function reactionEnvelope(
     from: `metro://discord-bot/${accountId}/user/${u.id}`,
     from_name: u.username,
     from_display_name: u.globalName ?? undefined,
-    from_avatar: u.displayAvatarURL({ size: 256 }),
     message_id: r.message.id,
     emoji: r.emoji.name ?? r.emoji.id ?? '?',
     is_private: r.message.guildId == null,

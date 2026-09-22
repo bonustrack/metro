@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { namehash } from 'viem';
-import { profileOf, senderFields } from '../src/sender.ts';
+import { profileOf, profileView, senderFields } from '../src/sender.ts';
 import { reverseNodeOf } from '../src/profile.ts';
 import type { BaseClient } from '../src/smart.ts';
 
@@ -32,7 +32,8 @@ describe('an XMTP sender profile', () => {
     const chain = fakeChain('alice-stage.stage.base.eth', { name: ' Alice ', description: 'Onboarding on Stage', avatar: 'ipfs://bafy1' });
     const profile = await profileOf(ALICE, chain, noProxy);
     expect(profile).toEqual({ address: ALICE, name: 'alice-stage.stage.base.eth', displayName: 'Alice', about: 'Onboarding on Stage', avatar: 'ipfs://bafy1' });
-    expect(senderFields(profile)).toEqual({ from_name: 'alice-stage.stage.base.eth', from_display_name: 'Alice', from_avatar: 'ipfs://bafy1', from_about: 'Onboarding on Stage' });
+    expect(senderFields(profile)).toEqual({ from_name: 'alice-stage.stage.base.eth', from_display_name: 'Alice' });
+    expect(profileView('8f3e', profile)).toEqual({ id: '8f3e', address: ALICE, name: 'alice-stage.stage.base.eth', display_name: 'Alice', about: 'Onboarding on Stage', avatar: 'ipfs://bafy1' });
   });
 
   test('falls back to the name stage issued when there is no reverse record, and to the bare address when there is no name', async () => {
@@ -41,7 +42,8 @@ describe('an XMTP sender profile', () => {
     const bare = await profileOf(ALICE, chain, proxyNaming(null));
     expect(bare).toEqual({ address: ALICE, name: null, displayName: null, about: null, avatar: null });
     expect(senderFields(bare)).toEqual({ from_name: ALICE });
-    expect(senderFields(null)).toBeNull();
+    expect(senderFields(null)).toEqual({});
+    expect(profileView('8f3e', null)).toEqual({ id: '8f3e' });
   });
 
   test('a name whose forward record points elsewhere is not believed', async () => {

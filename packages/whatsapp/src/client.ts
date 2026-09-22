@@ -14,7 +14,7 @@ import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 import type { SenderFound } from './resolve.js';
 import type { ProfileChange } from '@metro-labs/core/stations/profile';
-import { nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
+import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';
 import { baileysLogger } from './logger.js';
 import { useAccountAuthState } from './auth-state.js';
@@ -280,6 +280,16 @@ export function createClient(account: WhatsAppAccount): WAClient {
     acks: makeAckWatch(),
   };
   resetGate(st);
+  const senders = makeProfileCache<SenderProfile>(
+    async (jid) => {
+      const sock = await ready(st);
+      const [statuses, avatar] = await Promise.all([sock.fetchStatus(jid).catch(() => undefined), sock.profilePictureUrl(jid, 'image').catch(() => undefined)]);
+      const about = nonEmpty((statuses?.[0]?.status as { status?: unknown } | undefined)?.status);
+      const picture = nonEmpty(avatar);
+      return { id: jid, ...(about === undefined ? {} : { about }), ...(picture === undefined ? {} : { avatar: picture }) };
+    },
+    { onError: (jid, err) => process.stderr.write(`whatsapp[${st.account.id}] could not read the profile of ${jid}: ${errMsg(err)}\n`) },
+  );
   return {
     account,
     self() {
@@ -349,14 +359,7 @@ export function createClient(account: WhatsAppAccount): WAClient {
         await sock.updateProfilePicture(me, { url: change.avatar.path });
       }
     },
-    async senderProfile(jid) {
-      const sock = await ready(st);
-      const [statuses, avatar] = await Promise.all([sock.fetchStatus(jid).catch(() => undefined), sock.profilePictureUrl(jid, 'image').catch(() => undefined)]);
-      const about = nonEmpty((statuses?.[0]?.status as { status?: unknown } | undefined)?.status);
-      const picture = nonEmpty(avatar);
-      if (about === undefined && picture === undefined) return null;
-      return { ...(about === undefined ? {} : { from_about: about }), ...(picture === undefined ? {} : { from_avatar: picture }) };
-    },
+    senderProfile: (jid) => senders.get(jid),
     async disconnect() {
       st.closed = true;
       try {

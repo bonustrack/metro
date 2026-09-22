@@ -15,6 +15,7 @@ export const whatsappStation: Station = {
   ]),
   attachmentMode: 'canonical',
   profileFields: new Set<ProfileField>(PROFILE_FIELDS),
+  readsProfiles: true,
   resolvesSenders: true,
   tools: [],
 };

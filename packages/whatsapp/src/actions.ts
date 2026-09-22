@@ -185,6 +185,16 @@ function makeSetProfile(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeProfile(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const accountId = accountFor({ account: str(args.account) });
+    const user = str(args.user) ?? '';
+    if (user === '') throw new TrainError('whatsapp_user_required', 'profile needs the jid of the person', { retryable: false });
+    const profile = await guard(() => clientFor(accountId).senderProfile(user));
+    respond(id, { result: profile ?? { id: user } });
+  };
+}
+
 export function makeHandleCall(
   clientFor: ClientFor,
 ): (msg: CallMsg) => Promise<void> {
@@ -197,6 +207,7 @@ export function makeHandleCall(
       delete: makeDelete(clientFor),
       resolve_sender: makeResolveSender(clientFor),
       set_profile: makeSetProfile(clientFor),
+      profile: makeProfile(clientFor),
     },
     normalize: normalizeWhatsApp,
   });

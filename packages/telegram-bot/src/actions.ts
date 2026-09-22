@@ -23,7 +23,7 @@ import {
   sendLocation,
   sendMedia,
 } from './media-actions.js';
-import { setProfile } from './profile.js';
+import { readProfile, setProfile } from './profile.js';
 
 
 
@@ -273,6 +273,7 @@ const HANDLERS: Record<string, StationHandler> = {
   delete: remove,
   listMembers,
   set_profile: setProfile,
+  profile: readProfile,
   send_photo: (id, args) =>
     media(id, 'sendPhoto', 'photo', ((args.caption as string) ?? '') + ' [image]', args),
   send_document: (id, args) =>

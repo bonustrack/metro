@@ -17,5 +17,5 @@ export const MCP_INSTRUCTIONS =
   'carries addressed="direct" (a private chat), "mention" (you were named) or "reply" (it ' +
   'answers one of your own messages); one without `addressed` merely happened in a room you ' +
   'watch, so treat it as context and do not answer unless the person plainly wants you. The ' +
-  'sender rides in the same meta: `from_name` (their handle or name), `from_display_name`, and, ' +
-  'when the station knows them, `from_avatar` (a picture url) and `from_about` (their bio).';
+  'meta names the sender (`from_name`, `from_display_name`) when the station knows them; ' +
+  '`get_profile` with the `from` tells you more about a person (name, bio, avatar, address).';

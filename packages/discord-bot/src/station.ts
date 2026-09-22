@@ -17,5 +17,6 @@ export const discordBotStation: Station = {
   groupOps: new Set<GroupOp>(['create_group', 'add_members', 'remove_members']),
   attachmentMode: 'canonical',
   profileFields: new Set<ProfileField>(PROFILE_FIELDS),
+  readsProfiles: true,
   tools: [],
 };

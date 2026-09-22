@@ -17,8 +17,7 @@ const noMentions = { has: () => false, repliedUser: null };
 
 const fakeMessage = (author: Record<string, unknown>, mentions: Record<string, unknown> = noMentions): Message =>
   ({
-    author: { bot: false, id: '999', displayAvatarURL: () => 'https://cdn.discordapp.com/avatars/999/a.png', ...author },
-    member: null,
+    author: { bot: false, id: '999', ...author },
     mentions,
     attachments: emptyCollection,
     stickers: emptyCollection,
@@ -41,7 +40,6 @@ describe('discord-bot messageEnvelope sender identity', () => {
     expect(env).not.toBeNull();
     expect(env?.from).toBe('metro://discord-bot/d0/user/999');
     expect(env?.from_name).toBe('bonustrack_');
-    expect(env?.from_avatar).toBe('https://cdn.discordapp.com/avatars/999/a.png');
     expect(env?.from_display_name).toBe('less');
   });
 
@@ -62,7 +60,6 @@ describe('discord-bot reactionEnvelope sender identity', () => {
       id: '999',
       username: 'bonustrack_',
       globalName: 'less',
-      displayAvatarURL: () => 'https://cdn.discordapp.com/avatars/999/a.png',
     } as unknown as User;
     const r = {
       message: { channelId: 'chan1', id: 'm1', guildId: 'guild1' },
@@ -71,7 +68,6 @@ describe('discord-bot reactionEnvelope sender identity', () => {
     const env = reactionEnvelope('d0', r, u);
     expect(env).not.toBeNull();
     expect(env?.from_name).toBe('bonustrack_');
-    expect(env?.from_avatar).toBe('https://cdn.discordapp.com/avatars/999/a.png');
     expect(env?.from_display_name).toBe('less');
   });
 });

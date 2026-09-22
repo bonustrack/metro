@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { Line } from '@metro-labs/core/lines';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   ListToolsRequestSchema,
@@ -22,6 +23,7 @@ import {
 } from './group-tools.js';
 import { dispatchCreateUpload } from './upload-tool.js';
 import { dispatchSetProfile, profileCapabilities, SET_PROFILE_TOOL } from './profile-tool.js';
+import { dispatchGetProfile, GET_PROFILE_TOOL, profileScopeLine } from './profile-lookup.js';
 import { callTargetDenied, lineTargetDenied } from '../agents/scope.js';
 import { SOURCE_KEYS } from '../stations/attach-resolve.js';
 import { decodedLengthOf } from '../stations/attach-inline.js';
@@ -51,6 +53,7 @@ const CORE_DISPATCH: Record<
   export_invite: dispatchInviteLink,
   create_upload: dispatchCreateUpload,
   set_profile: dispatchSetProfile,
+  get_profile: dispatchGetProfile,
 };
 
 const toolList = (): { tools: unknown[] } => ({
@@ -65,6 +68,7 @@ const toolList = (): { tools: unknown[] } => ({
     ),
     LIST_ACCOUNTS_TOOL,
     SET_PROFILE_TOOL,
+    GET_PROFILE_TOOL,
   ],
 });
 
@@ -106,6 +110,10 @@ export function scopeDenied(
   args: Record<string, unknown>,
 ): boolean {
   const allowed = allowedAgents(identity);
+  if (name === 'get_profile') {
+    const line = profileScopeLine(args);
+    return line === undefined || callTargetDenied(allowed, Line.station(line) ?? '', { line });
+  }
   const station = stationForTool(name, args);
   if (station !== undefined) return callTargetDenied(allowed, station, args);
   return lineTargetDenied(allowed, args);

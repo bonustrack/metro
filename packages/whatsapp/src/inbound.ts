@@ -1,6 +1,5 @@
 import type { WAMessage } from 'baileys';
 import { errMsg } from '@metro-labs/core/log';
-import { makeProfileCache } from '@metro-labs/core/stations/sender-profile';
 import { emit } from './wire.js';
 import {
   attachmentFailedEnvelope,
@@ -40,31 +39,19 @@ async function saveMedia(
 }
 
 export async function startInbound(client: WAClient): Promise<void> {
-  const senders = makeProfileCache((jid) => client.senderProfile(jid), {
-    onError: (jid, err) => process.stderr.write(`whatsapp[${client.account.id}] could not read the profile of ${jid}: ${errMsg(err)}\n`),
-  });
   await client.start({
     onMessage: (m, raw) => {
-      senders
-        .within(m.senderJid)
-        .then((profile) => {
-          const env = { ...envelope(m), ...profile };
-          emit(env);
-          deliverMedia(client, m, raw, env);
-        })
-        .catch((err: unknown) => {
-          process.stderr.write(`whatsapp[${m.accountId}] inbound not emitted: ${errMsg(err)}\n`);
-        });
+      const env = envelope(m);
+      emit(env);
+      if (!m.media) return;
+      saveMedia(client, m, raw, String(env.id)).catch((err: unknown) => {
+        process.stderr.write(
+          `whatsapp[${m.accountId}] media event not emitted: ${errMsg(err)}\n`,
+        );
+      });
     },
     onReaction: (r) => {
       emit(reactionEnvelope(r));
     },
-  });
-}
-
-function deliverMedia(client: WAClient, m: InboundMessage, raw: WAMessage, env: Record<string, unknown>): void {
-  if (!m.media) return;
-  saveMedia(client, m, raw, String(env.id)).catch((err: unknown) => {
-    process.stderr.write(`whatsapp[${m.accountId}] media event not emitted: ${errMsg(err)}\n`);
   });
 }

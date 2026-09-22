@@ -49,7 +49,7 @@ const collection = <T,>(items: T[]): { map: <R>(f: (v: T) => R) => R[]; values: 
 
 const fakeMessage = (attachments: Att[], flags: number): Message =>
   ({
-    author: { bot: false, id: '238307675501232128', username: 'bonustrack_', globalName: 'less', displayAvatarURL: () => 'https://cdn.discordapp.com/avatars/2/a.png' },
+    author: { bot: false, id: '238307675501232128', username: 'bonustrack_', globalName: 'less' },
     attachments: collection(attachments),
     stickers: collection([]),
     content: 'Great caption here',

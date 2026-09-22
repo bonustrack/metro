@@ -15,5 +15,6 @@ export const telegramBotStation: Station = {
   ]),
   attachmentMode: 'canonical',
   profileFields: new Set<ProfileField>(PROFILE_FIELDS),
+  readsProfiles: true,
   tools: [],
 };

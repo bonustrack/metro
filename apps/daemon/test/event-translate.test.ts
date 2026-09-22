@@ -137,16 +137,12 @@ describe('trainEventToMetroEvent — passthrough fields', () => {
       from: 'metro://telegram-bot/user/bob',
       from_name: '@bob',
       from_display_name: 'Bob',
-      from_avatar: 'https://x/b.png',
-      from_about: 'bob bio',
       message_id: 'mid-7',
       reply_to: 'mid-3',
       payload,
     }, 'tg');
     expect(e!.lineName).toBe('My Group');
     expect(e!.fromName).toBe('@bob');
-    expect(e!.fromAvatar).toBe('https://x/b.png');
-    expect(e!.fromAbout).toBe('bob bio');
     expect(e!.fromDisplayName).toBe('Bob');
     expect(e!.messageId).toBe('mid-7');
     expect(e!.replyTo).toBe('mid-3');

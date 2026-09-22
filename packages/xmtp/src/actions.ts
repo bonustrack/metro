@@ -22,6 +22,7 @@ import { convHandlers } from './actions-conv.js';
 import { normalizeXmtp } from '@metro-labs/core/stations/messaging-normalize';
 import { TrainError } from '@metro-labs/core/train-error';
 import { claimNameAction, nameAction, setProfile } from './profile.js';
+import { profileAction } from './sender.js';
 import { makeStation, type CallMsg } from '@metro-labs/core/stations/station-runtime';
 
 type Args = Record<string, unknown>;
@@ -358,6 +359,7 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   set_profile: setProfile,
   claim_name: claimNameAction,
   name: nameAction,
+  profile: profileAction,
   send,
   ask,
   sendPoll: ask,

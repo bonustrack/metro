@@ -8,6 +8,7 @@ import {
   type ProfileApplied,
   type ProfileChange,
 } from '@metro-labs/core/stations/profile';
+import type { SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { accountFor, accounts } from './accounts.js';
 import { respond } from './wire.js';
 
@@ -44,5 +45,24 @@ export async function setProfile(
   const change = parseProfileChange(args);
   await applyProfile(acct.client, change);
   const result: ProfileApplied = { account: accountId, applied: fieldsOf(change) };
+  respond(id, { result });
+}
+
+export async function readProfile(id: string, args: Record<string, unknown>): Promise<void> {
+  const accountId = accountFor({ account: args.account as string | undefined });
+  const acct = accounts.get(accountId);
+  if (!acct) {
+    respond(id, { error: `unknown account '${accountId}'` });
+    return;
+  }
+  const user = typeof args.user === 'string' ? args.user.trim() : '';
+  if (!/^\d+$/.test(user)) throw new TrainError('discord_user_required', 'profile needs the Discord id of the person', { retryable: false });
+  const found = await acct.client.users.fetch(user);
+  const result: SenderProfile = {
+    id: user,
+    name: found.username,
+    ...(found.globalName === null ? {} : { display_name: found.globalName }),
+    avatar: found.displayAvatarURL({ size: 256 }),
+  };
   respond(id, { result });
 }

@@ -1,7 +1,9 @@
 import { namehash, type Hex } from 'viem';
 import { normalize } from 'viem/ens';
-import { makeProfileCache, type SenderProfile as SenderFields } from '@metro-labs/core/stations/sender-profile';
-import { accounts, type Account } from './accounts.js';
+import { makeProfileCache, type SenderProfile as Profile } from '@metro-labs/core/stations/sender-profile';
+import { respond } from './wire.js';
+import { TrainError } from '@metro-labs/core/train-error';
+import { accountForCall, accounts, type Account } from './accounts.js';
 import { resolveAddresses } from './conv-helpers.js';
 import { nameOf } from './names.js';
 import { BASENAME_L2_RESOLVER, BASENAME_REGISTRY, NAME_ABI, REGISTRY_ABI, reverseNodeOf } from './profile.js';
@@ -16,7 +18,6 @@ export interface SenderProfile {
 }
 
 const BASE_RPC = 'https://mainnet.base.org';
-const LOOKUP_MS = 4000;
 const ZERO = '0x0000000000000000000000000000000000000000';
 const AVATAR_RE = /^(https?:\/\/|ipfs:\/\/|data:image\/)/i;
 
@@ -70,26 +71,38 @@ export async function profileOf(address: string, client: BaseClient = readerFor(
   return (await recordsOf(client, name, address).catch(() => null)) ?? bare;
 }
 
+const key = (acct: Account, inboxId: string): string => `${acct.cfg.id}:${inboxId}`;
+
 const senders = makeProfileCache<SenderProfile>(
-  async (key) => {
-    const [accountId, inboxId] = key.split(':', 2) as [string, string];
+  async (k) => {
+    const [accountId, inboxId] = k.split(':', 2) as [string, string];
     const acct = accounts.get(accountId);
     if (acct === undefined) return null;
     const address = (await resolveAddresses(acct, [inboxId]))[inboxId];
     return address === undefined ? null : profileOf(address);
   },
-  { timeoutMs: LOOKUP_MS, onError: (key, err) => process.stderr.write(`xmtp: could not resolve the sender ${key}: ${err instanceof Error ? err.message : String(err)}\n`) },
+  { onError: (k, err) => process.stderr.write(`xmtp: could not resolve the sender ${k}: ${err instanceof Error ? err.message : String(err)}\n`) },
 );
 
-export const senderFields = (p: SenderProfile | null): SenderFields | null =>
-  p === null
-    ? null
-    : {
-        from_name: p.name ?? p.address,
-        ...(p.displayName === null ? {} : { from_display_name: p.displayName }),
-        ...(p.avatar === null ? {} : { from_avatar: p.avatar }),
-        ...(p.about === null ? {} : { from_about: p.about }),
-      };
+export const senderFields = (p: SenderProfile | null): Record<string, string> =>
+  p === null ? {} : { from_name: p.name ?? p.address, ...(p.displayName === null ? {} : { from_display_name: p.displayName }) };
 
-export const senderFieldsWithin = (acct: Account, inboxId: string): Promise<SenderFields | null> =>
-  senders.within(`${acct.cfg.id}:${inboxId}`).then(senderFields);
+export const senderFieldsNow = (acct: Account, inboxId: string): Record<string, string> => senderFields(senders.peek(key(acct, inboxId)));
+
+export const senderProfile = (acct: Account, inboxId: string): Promise<SenderProfile | null> => senders.get(key(acct, inboxId));
+
+export const profileView = (inboxId: string, p: SenderProfile | null): Profile => ({
+  id: inboxId,
+  ...(p === null ? {} : { address: p.address }),
+  ...(p?.name == null ? {} : { name: p.name }),
+  ...(p?.displayName == null ? {} : { display_name: p.displayName }),
+  ...(p?.about == null ? {} : { about: p.about }),
+  ...(p?.avatar == null ? {} : { avatar: p.avatar }),
+});
+
+export async function profileAction(id: string, args: Record<string, unknown>): Promise<void> {
+  const user = typeof args.user === 'string' ? args.user.trim() : '';
+  if (user === '') throw new TrainError('xmtp_user_required', 'profile needs the inbox id of the person', { retryable: false });
+  const acct = accountForCall({ account: typeof args.account === 'string' ? args.account : undefined });
+  respond(id, { result: profileView(user, await senderProfile(acct, user)) });
+}
