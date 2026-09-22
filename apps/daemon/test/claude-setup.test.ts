@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -7,7 +8,7 @@ import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import { configOf, makeConnection } from './model-fixture.ts';
-import { claudeSetupStatus, ensureClaudeSetup, PRIVACY_ENV, RETENTION_DAYS, routeOf, setPrivacy, syncAvailableModels, type SetupDeps } from '../src/claude/setup.js';
+import { claudeSetupStatus, ensureClaudeSetup, placeFile, PRIVACY_ENV, RETENTION_DAYS, routeOf, setPrivacy, syncAvailableModels, type SetupDeps } from '../src/claude/setup.js';
 import { readModelConfig } from '../src/gateway/model-config.js';
 import { auth } from './identity-helper.ts';
 
@@ -38,6 +39,19 @@ describe('the Claude Code setup a metro box gets', () => {
     writeFileSync(join(dir, 'claude', 'skills', 'metro-orchestrator', 'SKILL.md'), 'edited by hand');
     expect(ensureClaudeSetup(deps())).toEqual({ privacy: true, guard: 'plugin', worker: 'present', skill: 'present', settings: 'unchanged' });
     expect(readFileSync(join(dir, 'claude', 'skills', 'metro-orchestrator', 'SKILL.md'), 'utf8')).toBe('edited by hand');
+  });
+
+  test('a copy metro itself wrote is refreshed when the rules move on, and a copy someone edited never is', () => {
+    const path = join(dir, 'claude', 'rules.md');
+    const older = 'the rules metro shipped last time\n';
+    const prior = new Set([createHash('sha256').update(older).digest('hex')]);
+    expect(placeFile(path, older, prior)).toBe('written');
+    expect(placeFile(path, older, prior)).toBe('present');
+    expect(placeFile(path, 'the rules metro ships now\n', prior)).toBe('updated');
+    expect(readFileSync(path, 'utf8')).toBe('the rules metro ships now\n');
+    writeFileSync(path, 'what the person wrote instead\n');
+    expect(placeFile(path, 'the rules metro ships now\n', prior)).toBe('present');
+    expect(readFileSync(path, 'utf8')).toBe('what the person wrote instead\n');
   });
 
   test('merges into settings the user already has, keeps their retention, and never touches a broken file', () => {

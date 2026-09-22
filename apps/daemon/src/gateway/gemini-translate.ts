@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ToolNames } from './codex-translate.js';
 import { CLIENT_NAME, requestId, SYSTEM_PREFIX } from './gemini-client.js';
+import { cappedEffort, effortToApply } from './effort.js';
 
 type Item = Record<string, unknown>;
 
@@ -190,6 +191,8 @@ function generationConfig(body: Item): Item {
   if (typeof body.temperature === 'number') out.temperature = body.temperature;
   if (typeof body.top_p === 'number') out.topP = body.top_p;
   if (isRecord(body.thinking) && body.thinking.type === 'enabled') out.thinkingConfig = { includeThoughts: true };
+  const effort = effortToApply(body);
+  if (effort !== null) out.thinkingLevel = cappedEffort(effort);
   return out;
 }
 

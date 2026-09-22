@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +31,9 @@ effort: xhigh
 
 You are a worker agent. The main thread that dispatched you is an orchestrator with no file, shell or network access; it can only delegate and relay messages. That means you are where the actual work happens, and the quality of your output is the quality of the result.
 
-Work to completion. Do not hand back a partial answer with a suggestion that someone else finish it; there is no one else. If part of the task is genuinely blocked, complete every other part in full and say plainly what you left undone and why.
+Work to completion. Do not hand back a partial answer with a suggestion that someone else finish it; there is no one else. If part of the task is genuinely blocked, complete every other part in full and say plainly what you left undone and why. Before you finish, read your own last paragraph: if it is a plan, a question or a promise about work you have not done, do that work now.
+
+Keep the change to what the task asks for. A pre-existing bug, a performance problem or behaviour the task does not mention is a follow-up to report at the end, not something to fix now, unless the requested behaviour cannot work without it. Where the task is ambiguous, build the reading its wording and the surrounding code support best, and state that assumption. Commit tests only where the task asks for them or the repository already keeps tests for that kind of change, sized like the neighbouring test files; scratch checks you used to verify yourself need not be kept. This is about extras only: every behaviour the task does ask for, implement completely.
 
 Never call AskUserQuestion or ExitPlanMode. They are blocked by policy, because nobody is watching the terminal around the clock and a blocking prompt stalls indefinitely. When you hit an ambiguity: do everything that does not depend on it, then choose the most reasonable interpretation, state the assumption explicitly in your report, and continue.
 
@@ -44,7 +47,7 @@ export interface SetupDeps {
   env?: NodeJS.ProcessEnv;
 }
 
-export type Placed = 'written' | 'present' | 'missing';
+export type Placed = 'written' | 'present' | 'updated' | 'missing';
 export type SettingsOutcome = 'written' | 'unchanged' | 'unreadable';
 
 export interface SetupReport {
@@ -127,11 +130,21 @@ export function guidancePath(env: NodeJS.ProcessEnv = process.env): string {
   return fileURLToPath(new URL(`../../../../plugin/${GUIDANCE}`, import.meta.url));
 }
 
-function ensureFile(path: string, text: string): Placed {
-  if (existsSync(path)) return 'present';
-  mkdirSync(dirname(path), { recursive: true });
+const PRIOR_WORKER: ReadonlySet<string> = new Set(['08a0cd8710df285d6512245246bb8b658b7cfc7f3e89490514ee5376779eb2ef']);
+const PRIOR_SKILL: ReadonlySet<string> = new Set(['0b3d122ed95beff09d579cf912cd4238e1db524c41fce4b314de57d6ff5908ad']);
+
+const digest = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+export function placeFile(path: string, text: string, prior: ReadonlySet<string> = new Set()): Placed {
+  if (!existsSync(path)) {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, text, { mode: 0o644 });
+    return 'written';
+  }
+  const current = readFileSync(path, 'utf8');
+  if (current === text || !prior.has(digest(current))) return 'present';
   writeFileSync(path, text, { mode: 0o644 });
-  return 'written';
+  return 'updated';
 }
 
 function readSettings(path: string): Record<string, unknown> | null {
@@ -172,8 +185,10 @@ const workerPath = (dir: string): string => join(dir, 'agents', 'worker.md');
 
 function placeSkill(dir: string, guidance: string): Placed {
   if (!existsSync(guidance)) return 'missing';
-  return ensureFile(skillPath(dir), readFileSync(guidance, 'utf8'));
+  return placeFile(skillPath(dir), readFileSync(guidance, 'utf8'), PRIOR_SKILL);
 }
+
+const written = (placed: Placed): boolean => placed === 'written' || placed === 'updated';
 
 export function ensureClaudeSetup(deps: SetupDeps = {}): SetupReport {
   const dir = deps.dir ?? claudeDir();
@@ -182,12 +197,12 @@ export function ensureClaudeSetup(deps: SetupDeps = {}): SetupReport {
   const report: SetupReport = {
     privacy,
     guard: 'plugin',
-    worker: ensureFile(workerPath(dir), WORKER_AGENT),
+    worker: placeFile(workerPath(dir), WORKER_AGENT, PRIOR_WORKER),
     skill: placeSkill(dir, deps.guidance ?? guidancePath(deps.env)),
     settings: applyPrivacy(dir, privacy),
   };
   syncAvailableModelsQuietly({ ...deps, dir, agents });
-  if (report.worker === 'written' || report.skill === 'written' || report.settings === 'written')
+  if (written(report.worker) || written(report.skill) || report.settings === 'written')
     log.info(report, 'claude-setup: applied the Claude Code setup for a metro box');
   if (report.settings === 'unreadable') log.warn({ path: join(dir, 'settings.json') }, 'claude-setup: settings.json is not valid JSON, so the privacy settings were not written');
   return report;

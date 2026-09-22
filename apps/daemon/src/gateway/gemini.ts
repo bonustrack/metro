@@ -10,6 +10,7 @@ import { assembleMessage, SseParser } from './codex-stream.js';
 import { GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
 import type { Connection } from './model-config.js';
 import { UsageScanner } from './usage.js';
+import { effortToApply, withoutEffort } from './effort.js';
 
 const PING_MS = 25_000;
 const STATUS_OF: Record<string, number> = { rate_limit_error: 429, invalid_request_error: 400, permission_error: 403, overloaded_error: 529 };
@@ -255,6 +256,13 @@ async function relayWhole(upstream: Response, res: ServerResponse, call: Call): 
   res.end(JSON.stringify(message));
 }
 
+const NAMES_THINKING = /thinking|thought/i;
+
+function refuse(res: ServerResponse, model: string, status: number, text: string): void {
+  log.warn({ provider: 'gemini', model, status, body: text.slice(0, REFUSAL_LOG_MAX) }, 'gateway: the provider refused the request');
+  sendError(res, providerStatus(status), errorKind(status), refusalMessage(text, status));
+}
+
 export async function geminiMessages(
   req: IncomingMessage,
   res: ServerResponse,
@@ -266,12 +274,20 @@ export async function geminiMessages(
   watch: Watch,
 ): Promise<void> {
   const stream = body.stream === true;
-  const call: Call = { body, model, promptId: promptIdOf(req), watch, deps, names: new ToolNames(), conn };
-  const upstream = await reach(call, conn, state, stream);
-  if (!upstream.ok) {
+  let call: Call = { body, model, promptId: promptIdOf(req), watch, deps, names: new ToolNames(), conn };
+  let upstream = await reach(call, conn, state, stream);
+  if (upstream.status === 400 && effortToApply(body) !== null) {
     const text = await upstream.text();
-    log.warn({ provider: 'gemini', model, status: upstream.status, body: text.slice(0, REFUSAL_LOG_MAX) }, 'gateway: the provider refused the request');
-    sendError(res, providerStatus(upstream.status), errorKind(upstream.status), refusalMessage(text, upstream.status));
+    if (!NAMES_THINKING.test(text)) {
+      refuse(res, model, 400, text);
+      return;
+    }
+    log.warn({ provider: 'gemini', model }, 'gateway: Gemini refused the thinking level, so metro asked again without it');
+    call = { ...call, body: withoutEffort(body) };
+    upstream = await reach(call, conn, state, stream);
+  }
+  if (!upstream.ok) {
+    refuse(res, model, upstream.status, await upstream.text());
     return;
   }
   if (stream) await relayStream(upstream, res, call);

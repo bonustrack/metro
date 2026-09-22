@@ -9,7 +9,8 @@ import {
   freshAdaptations,
   type Adaptations,
 } from './bedrock.js';
-import { anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
+import { addBeta, anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
+import { BINDING_BETA, cappedEffort, effortToApply, plannedEffort, withBlockBinding, withEffort } from './effort.js';
 import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, setGeminiAuth, writeModelConfig, type Connection, type ModelConfig, type Route } from './model-config.js';
 import { codexCount, codexMessages, freshCodexState } from './codex.js';
 import { freshGeminiState, geminiCount, geminiMessages } from './gemini.js';
@@ -89,17 +90,41 @@ const standsInFor = (req: IncomingMessage): boolean => {
   return typeof metroKey === 'string' && metroKey !== '' && req.headers.authorization === `Bearer ${metroKey}`;
 };
 
+interface Payloads {
+  metro: Buffer;
+  asSent: Buffer | null;
+  bound: boolean;
+}
+
+function anthropicPayloads(raw: Buffer, sent: Record<string, unknown>, shaped: Record<string, unknown>, model: string): Payloads {
+  const rewrite = typeof sent.model === 'string' && sent.model !== model;
+  const asSent = rewrite ? Buffer.from(JSON.stringify({ ...sent, model })) : raw;
+  const bound = withBlockBinding(shaped);
+  if (bound === sent) return { metro: asSent, asSent: null, bound: false };
+  return { metro: Buffer.from(JSON.stringify(rewrite ? { ...bound, model } : bound)), asSent, bound: bound !== shaped };
+}
+
+type Send = (payload: Buffer, headers: Record<string, string>) => Promise<Response>;
+
+async function asAnthropicWants(send: Send, base: Record<string, string>, payloads: Payloads, connection: string, model: string): Promise<Response> {
+  const { metro, asSent, bound } = payloads;
+  const upstream = await send(metro, bound ? addBeta(base, BINDING_BETA) : base);
+  if (upstream.status !== 400 || asSent === null) return upstream;
+  await upstream.body?.cancel();
+  log.warn({ connection, model }, 'gateway: Anthropic refused the request metro shaped, so it was sent again as Claude Code wrote it');
+  return send(asSent, base);
+}
+
 async function toAnthropic(
   req: IncomingMessage,
   res: ServerResponse,
   raw: Buffer,
-  body: Record<string, unknown>,
+  sent: Record<string, unknown>,
+  shaped: Record<string, unknown>,
   route: Route,
   deps: GatewayDeps,
 ): Promise<void> {
   const conn = route.connection;
-  const explicit = typeof body.model === 'string' && body.model !== route.model;
-  const payload = explicit ? Buffer.from(JSON.stringify({ ...body, model: route.model })) : raw;
   const url = `${deps.anthropicBase ?? ANTHROPIC_BASE}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
   const key = conn.apiKey;
   if (key === '' && standsInFor(req))
@@ -109,13 +134,10 @@ async function toAnthropic(
       'Claude Code on this machine has no Anthropic login of its own; choose Bedrock, OpenRouter, Codex or Gemini on the Model page, or sign in on the Claude tab',
     );
   const watch = watchUpstream(res);
-  const upstream = await fetch(url, {
-    method: 'POST',
-    headers: key === '' ? forwardedHeaders(req) : anthropicHeaders(req, key),
-    body: new Uint8Array(payload),
-    signal: watch.signal,
-    redirect: 'manual',
-  });
+  const base = key === '' ? forwardedHeaders(req) : anthropicHeaders(req, key);
+  const send = (payload: Buffer, headers: Record<string, string>): Promise<Response> =>
+    fetch(url, { method: 'POST', headers, body: new Uint8Array(payload), signal: watch.signal, redirect: 'manual' });
+  const upstream = await asAnthropicWants(send, base, anthropicPayloads(raw, sent, shaped, route.model), conn.label, route.model);
   noteRefusal(conn.label, route.model, upstream);
   noteUsageHeaders('anthropic', conn.id, upstream.headers);
   const scanner = new UsageScanner(conn.id);
@@ -160,6 +182,8 @@ const thinkingOff = (body: Record<string, unknown>): boolean => isRecord(body.th
 export function openrouterBody(body: Record<string, unknown>, model: string, zdr: boolean): Record<string, unknown> {
   const sent: Record<string, unknown> = { ...body, model };
   if (thinkingOff(body)) delete sent.thinking;
+  const effort = effortToApply(body);
+  if (effort !== null) sent.reasoning = { ...(isRecord(body.reasoning) ? body.reasoning : {}), effort: cappedEffort(effort) };
   if (!zdr) return sent;
   const provider = isRecord(body.provider) ? body.provider : {};
   return { ...sent, provider: { ...provider, zdr: true } };
@@ -180,10 +204,16 @@ async function toSubscription(req: IncomingMessage, res: ServerResponse, path: s
   else await codexMessages(req, res, body, route.model, conn, { save: saveCodexTokens, ...deps.codex }, codexState, watchUpstream(res));
 }
 
+function shapedFor(req: IncomingMessage, sent: Record<string, unknown>): Record<string, unknown> {
+  const effort = plannedEffort(req, sent);
+  return effort === null ? sent : withEffort(sent, effort);
+}
+
 async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
   const cfg = deps.config();
   const raw = await readBody(req);
-  const body = parseJson(raw);
+  const sent = parseJson(raw);
+  const body = shapedFor(req, sent);
   const route = resolveRoute(requestedModel(body), cfg) ?? passthrough(body);
   const conn = route.connection;
   log.info({ route: routeLabel(route), connection: conn.label, path }, 'gateway: routing');
@@ -204,7 +234,7 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
     await toSubscription(req, res, path, body, route, deps);
     return;
   }
-  await toAnthropic(req, res, raw, body, route, deps);
+  await toAnthropic(req, res, raw, sent, body, route, deps);
 }
 
 function failed(res: ServerResponse, err: unknown): void {

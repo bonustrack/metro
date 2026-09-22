@@ -62,6 +62,7 @@ let geminiBackend: Fake;
 let googleTokens: Fake;
 const savedGemini: GeminiTokens[] = [];
 const geminiFailures: number[] = [];
+const geminiRefusals: string[] = [];
 const geminiTokens = (): GeminiTokens => ({ accessToken: 'ga-1', refreshToken: 'gr-1', expiresAt: Date.now() + 3_600_000, email: 'less@gmail.com', project: 'proj-1', tier: 'Google AI Pro', savedAt: new Date().toISOString() });
 const saved: CodexTokens[] = [];
 const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
@@ -142,7 +143,7 @@ beforeAll(async () => {
     if (failure !== undefined) {
       res.writeHead(failure, { 'content-type': 'application/json' });
       const details = failure === 429 ? [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'QUOTA_EXHAUSTED', metadata: { model: 'gemini-2.5-flash' } }, { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '37s' }] : [];
-      res.end(JSON.stringify({ error: { message: `Code Assist answered ${String(failure)}`, details } }));
+      res.end(JSON.stringify({ error: { message: geminiRefusals.shift() ?? `Code Assist answered ${String(failure)}`, details } }));
       return;
     }
     res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -188,6 +189,7 @@ beforeEach(() => {
   ]);
   geminiBackend.seen.length = 0;
   geminiFailures.length = 0;
+  geminiRefusals.length = 0;
   googleTokens.seen.length = 0;
   savedGemini.length = 0;
   anthropic.seen.length = 0;
@@ -279,6 +281,45 @@ describe('the Anthropic route', () => {
     expect((JSON.parse(anthropic.seen[0]?.body ?? '{}') as { model: string }).model).toBe('claude-opus-4-8');
   });
 
+  test('the main thread is asked to think less, a subagent to think more, and a chore is left alone', async () => {
+    const turn = { ...message('claude-sonnet-5'), output_config: { effort: 'high' }, thinking: { type: 'adaptive' } };
+    await post('/gateway/v1/messages', turn);
+    const main = JSON.parse(anthropic.seen[0]?.body ?? '{}') as Record<string, unknown>;
+    expect(main.output_config).toEqual({ effort: 'low' });
+    expect(main.thinking).toEqual({ type: 'adaptive', block_binding: { prefix_mismatch_behavior: 'drop_block' } });
+    expect(String(anthropic.seen[0]?.headers['anthropic-beta'] ?? '')).toContain('thinking-binding-controls');
+    await post('/gateway/v1/messages', turn, { 'x-claude-code-agent-id': 'a0248f42' });
+    expect((JSON.parse(anthropic.seen[1]?.body ?? '{}') as Record<string, unknown>).output_config).toEqual({ effort: 'max' });
+    const chore = { ...turn, output_config: { effort: 'high', format: { type: 'json_schema' } }, thinking: { type: 'disabled' } };
+    await post('/gateway/v1/messages', chore);
+    expect((JSON.parse(anthropic.seen[2]?.body ?? '{}') as Record<string, unknown>).output_config).toEqual({ effort: 'high', format: { type: 'json_schema' } });
+  });
+
+  test('a request Anthropic refuses because metro shaped it is sent again exactly as Claude Code wrote it', async () => {
+    const answer = anthropic.answer;
+    let refused = 0;
+    anthropic.answer = (_req, res) => {
+      refused += 1;
+      if (refused === 1) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end('{"type":"error","error":{"type":"invalid_request_error","message":"effort: max is not supported"}}');
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end('event: message_stop\ndata: {"type":"message_stop"}\n\n');
+    };
+    try {
+      const turn = { ...message('claude-sonnet-5'), output_config: { effort: 'high' }, thinking: { type: 'adaptive' } };
+      const res = await post('/gateway/v1/messages', turn, { 'x-claude-code-agent-id': 'a1' });
+      expect(res.status).toBe(200);
+      await res.text();
+      expect(anthropic.seen.length).toBe(2);
+      expect(JSON.parse(anthropic.seen[1]?.body ?? '{}')).toEqual(turn);
+    } finally {
+      anthropic.answer = answer;
+    }
+  });
+
   test('the quota Anthropic states on the answer is kept for the Model page, never sent upstream and never asked for', async () => {
     const answer = anthropic.answer;
     anthropic.answer = (_req, res) => {
@@ -367,6 +408,19 @@ describe('the OpenRouter route', () => {
     expect(sealed).not.toHaveProperty('thinking');
     expect(sealed.provider).toEqual({ zdr: true });
     conn(cfg, 'openrouter').zdr = false;
+  });
+
+  test('the effort rides as OpenRouter\'s own reasoning field, capped at high because not every model goes further', async () => {
+    use(cfg, 'openrouter');
+    const turn = { ...message('claude-sonnet-5'), output_config: { effort: 'high' }, thinking: { type: 'adaptive' } };
+    await post('/gateway/v1/messages', turn, { 'x-claude-code-agent-id': 'a1' });
+    const sub = JSON.parse(openrouter.seen[0]?.body ?? '{}') as Record<string, unknown>;
+    expect(sub.output_config).toEqual({ effort: 'max' });
+    expect(sub.reasoning).toEqual({ effort: 'high' });
+    await post('/gateway/v1/messages', turn);
+    expect((JSON.parse(openrouter.seen[1]?.body ?? '{}') as Record<string, unknown>).reasoning).toEqual({ effort: 'low' });
+    await post('/gateway/v1/messages', message('claude-sonnet-5'));
+    expect(JSON.parse(openrouter.seen[2]?.body ?? '{}')).not.toHaveProperty('reasoning');
   });
 
   test('with zero data retention on, every request carries provider.zdr, merged into any routing the client sent', async () => {
@@ -513,6 +567,21 @@ describe('the Gemini route', () => {
     const refused = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
     expect(refused.status).toBe(400);
     expect(geminiBackend.seen.length).toBe(7);
+  });
+
+  test('the effort becomes a thinking level, and a Gemini that refuses it is asked again without it', async () => {
+    use(cfg, 'gemini');
+    const turn = { ...message('gemini-2.5-flash', true), output_config: { effort: 'high' }, thinking: { type: 'adaptive' } };
+    await (await post('/gateway/v1/messages', turn)).text();
+    const first = JSON.parse(geminiBackend.seen[0]?.body ?? '{}') as { request: { generationConfig: Record<string, unknown> } };
+    expect(first.request.generationConfig.thinkingLevel).toBe('low');
+    geminiFailures.push(400);
+    geminiRefusals.push('Unknown name "thinkingLevel" at generation_config');
+    const res = await post('/gateway/v1/messages', turn);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('event: message_stop');
+    const again = JSON.parse(geminiBackend.seen[2]?.body ?? '{}') as { request: { generationConfig: Record<string, unknown> } };
+    expect(again.request.generationConfig).not.toHaveProperty('thinkingLevel');
   });
 
   test('a 401 refreshes the Google tokens once, saves them, and retries', async () => {

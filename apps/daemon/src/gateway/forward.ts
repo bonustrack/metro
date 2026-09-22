@@ -127,6 +127,15 @@ export function anthropicHeaders(req: IncomingMessage, apiKey: string): Record<s
   return headers;
 }
 
+export function addBeta(headers: Record<string, string>, beta: string): Record<string, string> {
+  const listed = (headers['anthropic-beta'] ?? '')
+    .split(',')
+    .map((one) => one.trim())
+    .filter((one) => one !== '');
+  if (listed.includes(beta)) return headers;
+  return { ...headers, 'anthropic-beta': [...listed, beta].join(',') };
+}
+
 export interface PipeOptions {
   keepalive?: boolean;
   ownCredential?: boolean;
