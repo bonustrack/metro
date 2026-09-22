@@ -84,11 +84,11 @@ export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNo
   const [login, setLogin] = useState<ClaudeLogin | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const refresh = (): void => {
+  const refresh = (then?: () => void): void => {
     fetchClaudeAccount()
       .then((next) => {
         setAccount(next);
-        onChange();
+        then?.();
       })
       .catch(() => undefined);
   };
@@ -96,7 +96,7 @@ export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNo
   useLoginPolling(login, (next) => {
     setLogin(next.state === 'pending' ? next : null);
     if (next.state === 'failed') setError(next.error ?? 'The sign-in did not finish.');
-    if (next.state === 'done') refresh();
+    if (next.state === 'done') refresh(onChange);
   }, setError);
   const begin = (): void => {
     setBusy(true);

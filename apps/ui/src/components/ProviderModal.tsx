@@ -115,12 +115,17 @@ function KeyForm({ editing, onDone }: { editing: Editing; onDone: () => void }):
 }
 
 function Body({ editing, onDone }: { editing: Editing; onDone: () => void }): ReactNode {
+  const client = useQueryClient();
   if (editing.provider === 'codex') return <CodexConnect codex={editing.connection} />;
   if (editing.provider === 'gemini') return <GeminiConnect gemini={editing.connection} />;
   if (editing.provider === 'anthropic' && editing.connection === null)
     return (
       <Col gap={20}>
-        <ClaudeLoginCard onChange={onDone} />
+        <ClaudeLoginCard
+          onChange={() => {
+            refreshModel(client).catch(() => undefined);
+          }}
+        />
         <KeyForm editing={editing} onDone={onDone} />
       </Col>
     );
