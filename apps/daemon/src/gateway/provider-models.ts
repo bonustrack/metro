@@ -13,9 +13,10 @@ export interface ProviderModel {
 
 export const KNOWN_CLAUDE: ProviderModel[] = [
   { id: 'claude-fable-5-1', name: 'Claude Fable 5.1' },
+  { id: 'claude-opus-5-5', name: 'Claude Opus 5.5' },
   { id: 'claude-opus-5', name: 'Claude Opus 5' },
   { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
+  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' },
 ];
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');

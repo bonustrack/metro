@@ -537,7 +537,9 @@ describe('picking an Anthropic or Bedrock model without typing its id', () => {
     await add({ provider: 'anthropic' });
     const res = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth('GET', '/api/model/anthropic/models', OWNER) } });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { models: { id: string }[] }).models.map((m) => m.id)).toContain('claude-sonnet-5');
+    const known = ((await res.json()) as { models: { id: string }[] }).models.map((m) => m.id);
+    expect(known).toContain('claude-sonnet-5');
+    expect(known).toContain('claude-opus-5-5');
     stored.connections[0] = { ...stored.connections[0]!, apiKey: 'sk-ant' };
     const live = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth('GET', '/api/model/anthropic/models', OWNER) } });
     expect(await live.json()).toEqual({ models: [{ id: 'claude-opus-5', name: 'Claude Opus 5' }, { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' }] });
