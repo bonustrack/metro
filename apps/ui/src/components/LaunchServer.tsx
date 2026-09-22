@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ModelPicker } from './ModelPicker.js';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
@@ -14,7 +13,7 @@ import { Loading } from './Loading.js';
 import { activeAccount } from '../auth/account.js';
 import { queryError, refreshServers, useLaunchOverviewQuery } from '../api/queries.js';
 import { launchServer, type Launched, type LaunchOverview } from '../api/launch.js';
-import { regionRows } from '../aws/regions.js';
+import { launchRegions, regionName } from '../aws/regions.js';
 import { useDocumentTitle } from '../title.js';
 import { routeHash } from '../route.js';
 
@@ -24,6 +23,30 @@ const HINT =
   'Metro issues the machine from its own AWS account and sets it up for you. It belongs to your organization, and is usually live within five minutes.';
 const OFF = 'This Metro deployment issues no agents. Add your own from the list instead.';
 const OFF_IDENTITY = 'To configure it: the AWS and Tailscale secrets are missing on this deployment.';
+
+function RegionChoice({ regions, value, disabled, onPick }: { regions: string[]; value: string; disabled: boolean; onPick: (code: string) => void }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  return (
+    <Col gap={6}>
+      <Text size="sm" role="secondary">Region</Text>
+      <Row gap={8} wrap>
+        {regions.map((code) => (
+          <Button
+            key={code}
+            size="sm"
+            dark={dark}
+            color={value === code ? 'primary' : 'secondary'}
+            label={regionName(code)}
+            disabled={disabled}
+            onPress={() => {
+              onPick(code);
+            }}
+          />
+        ))}
+      </Row>
+    </Col>
+  );
+}
 
 function Off(): ReactNode {
   const organization = activeAccount()?.organization ?? null;
@@ -120,16 +143,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
             style={GROW}
           />
         </Col>
-        <ModelPicker
-          label="AWS region"
-          value={form.region}
-          placeholder="eu-west-1"
-          models={regionRows(overview.regions.length === 0 ? null : overview.regions)}
-          loading={false}
-          error={null}
-          onOpen={() => undefined}
-          onChange={form.setRegion}
-        />
+        <RegionChoice regions={launchRegions(overview.regions)} value={form.region} disabled={form.busy} onPick={form.setRegion} />
       </Col>
       {form.error === null ? null : <Text size="sm" role="danger">{form.error}</Text>}
       <Row justify="between" align="center" gap={12} wrap>

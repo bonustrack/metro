@@ -1,5 +1,3 @@
-import type { ModelOption } from '../api/model.js';
-
 export const REGION_NAMES: Record<string, string> = {
   'us-east-1': 'US East (N. Virginia)',
   'us-east-2': 'US East (Ohio)',
@@ -36,33 +34,14 @@ export const REGION_NAMES: Record<string, string> = {
   'mx-central-1': 'Mexico (Central)',
 };
 
-export const STANDARD_REGIONS = [
-  'us-east-1',
-  'us-east-2',
-  'us-west-1',
-  'us-west-2',
-  'ca-central-1',
-  'eu-west-1',
-  'eu-west-2',
-  'eu-west-3',
-  'eu-central-1',
-  'eu-north-1',
-  'ap-south-1',
-  'ap-southeast-1',
-  'ap-southeast-2',
-  'ap-northeast-1',
-  'ap-northeast-2',
-  'ap-northeast-3',
-  'sa-east-1',
-];
+export const LAUNCH_REGIONS = ['eu-central-2', 'us-east-1'];
+
+export const launchRegions = (enabled: string[]): string[] =>
+  enabled.length === 0 ? LAUNCH_REGIONS : LAUNCH_REGIONS.filter((code) => enabled.includes(code));
+
+export const regionName = (code: string): string => REGION_NAMES[code] ?? code;
 
 export function regionLabel(code: string): string {
   const name = REGION_NAMES[code];
   return name === undefined ? code : `${name} · ${code}`;
-}
-
-export function regionRows(enabled: string[] | null): ModelOption[] {
-  return [...(enabled ?? STANDARD_REGIONS)]
-    .map((id) => ({ id, name: REGION_NAMES[id] ?? id }))
-    .sort((a, b) => a.name.localeCompare(b.name));
 }
