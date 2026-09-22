@@ -1,13 +1,13 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
-import { ListHeader } from './ListHeader.js';
+import { CountBadge } from './CountBadge.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { AgentPicture, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
 import { AgentRoute } from './AgentModel.js';
-import { accountsForAgent, stationCount } from '../api/accounts.js';
+import { accountsForAgent, stationCount, type AccountGroup } from '../api/accounts.js';
 import { queryError, useConnectorsQuery, useModeQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { currentServer } from '../auth/daemon.js';
 import { serverLabel } from '../api/servers.js';
@@ -19,7 +19,12 @@ import { useDocumentTitle } from '../title.js';
 const FALLBACK = 'Could not read this machine.';
 
 function SectionHead({ label, count }: { label: string; count: number }): ReactNode {
-  return <ListHeader title={label} count={count} />;
+  return (
+    <Row gap={8} align="center">
+      <Text size="md" weight="semibold">{label}</Text>
+      <CountBadge count={count} />
+    </Row>
+  );
 }
 
 const AGENT_SINCE = '0.1.0-beta.132';
@@ -47,6 +52,34 @@ function useBoxName(agent: AgentSummary | undefined): string {
   return agent === undefined || agent.name === '' ? 'This box' : agent.name;
 }
 
+interface SectionsProps {
+  agent: AgentSummary;
+  groups: AccountGroup[];
+  project: string;
+  onSelect: (selection: Selection) => void;
+}
+
+function Sections({ agent, groups, project, onSelect }: SectionsProps): ReactNode {
+  const connectors = useConnectorsQuery();
+  const channels = stationCount(groups, agent.id);
+  return (
+    <>
+      {channels === 0 ? null : (
+        <Col gap={8}>
+          <SectionHead label="Channels" count={channels} />
+          <ChannelCards groups={accountsForAgent(groups, agent.id)} project={project} onSelect={onSelect} />
+        </Col>
+      )}
+      {agent.connectorIds.length === 0 ? null : (
+        <Col gap={12}>
+          <SectionHead label="Connectors" count={agent.connectorIds.length} />
+          <ConnectorIcons connectors={connectors.data?.connectors ?? []} project={project} onSelect={onSelect} />
+        </Col>
+      )}
+    </>
+  );
+}
+
 interface HomeProps {
   project: string;
   onSelect: (selection: Selection) => void;
@@ -54,7 +87,6 @@ interface HomeProps {
 
 export function Home({ project, onSelect }: HomeProps): ReactNode {
   const { data, error } = useStationsQuery();
-  const connectors = useConnectorsQuery();
   const servers = useServersQuery();
   const here = currentServer();
   const server = servers.data?.find((s) => s.id === here?.id);
@@ -77,14 +109,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
         <MetroVersion />
       </Col>
       <AgentRoute project={project} onSelect={onSelect} />
-      <Col gap={8}>
-        <SectionHead label="Channels" count={stationCount(data.groups, agent.id)} />
-        <ChannelCards groups={accountsForAgent(data.groups, agent.id)} project={project} onSelect={onSelect} />
-      </Col>
-      <Col gap={12}>
-        <SectionHead label="Connectors" count={agent.connectorIds.length} />
-        <ConnectorIcons connectors={connectors.data?.connectors ?? []} project={project} onSelect={onSelect} />
-      </Col>
+      <Sections agent={agent} groups={data.groups} project={project} onSelect={onSelect} />
     </Col>
   );
 }

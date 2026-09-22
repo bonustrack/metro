@@ -1,5 +1,7 @@
 import { matchModels, PROVIDERS, type ConnectionRow, type ModelOption, type ModelSettings, type Provider } from './model.js';
 
+export const CONNECTIONS_SINCE = '0.1.0-beta.165';
+
 export const providerLabel = (p: Provider): string => PROVIDERS.find((x) => x.id === p)?.label ?? p;
 
 export const DEFAULT_MODEL = 'The model Claude Code asks for';

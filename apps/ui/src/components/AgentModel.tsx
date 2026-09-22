@@ -6,9 +6,10 @@ import { Text } from './ui.js';
 import { UsageBars } from './ModelUsage.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { PROVIDERS, type ModelSettings } from '../api/model.js';
-import { DEFAULT_MODEL, modelLabel, routedConnection } from '../api/providers.js';
+import { CONNECTIONS_SINCE, DEFAULT_MODEL, modelLabel, routedConnection } from '../api/providers.js';
 import { tallyLine } from '../api/usage.js';
-import { queryError, useModelQuery } from '../api/queries.js';
+import { queryError, useModelQuery, useModeQuery } from '../api/queries.js';
+import { olderThan } from '../api/version.js';
 import { whenLabel } from '../api/when.js';
 import { routeHash } from '../route.js';
 import { opensElsewhere } from './link.js';
@@ -66,8 +67,10 @@ function Card({ settings, href, onOpen }: { settings: ModelSettings; href: strin
 }
 
 export function AgentRoute({ project, onSelect }: { project: string; onSelect: (s: Selection) => void }): ReactNode {
+  const mode = useModeQuery();
   const model = useModelQuery();
   const target: Selection = { kind: 'model', project };
+  if (olderThan(mode.data?.version ?? null, CONNECTIONS_SINCE)) return null;
   if (model.error !== null)
     return (
       <Text size="sm" role="danger">
