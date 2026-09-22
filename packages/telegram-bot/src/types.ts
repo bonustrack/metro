@@ -5,6 +5,14 @@ export interface TgEntity {
   user?: { id: number };
 }
 
+export interface TgUser {
+  id: number;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  is_bot?: boolean;
+}
+
 export interface TgMsg {
   entities?: TgEntity[];
   caption_entities?: TgEntity[];
@@ -12,12 +20,7 @@ export interface TgMsg {
   message_id: number;
   date: number;
   chat: { id: number; type: string; title?: string; first_name?: string };
-  from?: {
-    id: number;
-    username?: string;
-    first_name?: string;
-    is_bot?: boolean;
-  };
+  from?: TgUser;
   text?: string;
   caption?: string;
   message_thread_id?: number;
@@ -36,12 +39,7 @@ export interface TgMsg {
 export interface TgReaction {
   chat: { id: number; type: string };
   message_id: number;
-  user?: {
-    id: number;
-    username?: string;
-    first_name?: string;
-    is_bot?: boolean;
-  };
+  user?: TgUser;
   date: number;
   old_reaction: { type: string; emoji?: string }[];
   new_reaction: { type: string; emoji?: string }[];

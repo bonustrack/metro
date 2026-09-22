@@ -39,7 +39,7 @@ export async function createGroupWithMembers(
   return created;
 }
 
-async function resolveAddresses(
+export async function resolveAddresses(
   acct: Account,
   inboxIds: string[],
 ): Promise<Record<string, string>> {

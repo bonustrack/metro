@@ -18,7 +18,7 @@ const ENTRY_POINT = getEntryPoint('0.7');
 export const zerodevRpc = (): string =>
   `https://rpc.zerodev.app/api/v3/${process.env.METRO_ZERODEV_PROJECT ?? STAGE_ZERODEV_PROJECT}/chain/${String(SMART_CHAIN_ID)}`;
 
-const makePublicClient = (rpc: string) => createPublicClient({ chain: base, transport: http(rpc) });
+export const makePublicClient = (rpc: string) => createPublicClient({ chain: base, transport: http(rpc) });
 
 export type BaseClient = ReturnType<typeof makePublicClient>;
 

@@ -24,7 +24,8 @@
     "./stations/account-store": "./src/stations/account-store.ts",
     "./stations/attachments": "./src/stations/attachments.ts",
     "./stations/messaging-normalize": "./src/stations/messaging-normalize.ts",
-    "./stations/profile": "./src/stations/profile.ts"
+    "./stations/profile": "./src/stations/profile.ts",
+    "./stations/sender-profile": "./src/stations/sender-profile.ts"
   },
   "scripts": {
     "build": "tsc",

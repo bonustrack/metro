@@ -14,6 +14,7 @@ import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 import type { SenderFound } from './resolve.js';
 import type { ProfileChange } from '@metro-labs/core/stations/profile';
+import { nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';
 import { baileysLogger } from './logger.js';
 import { useAccountAuthState } from './auth-state.js';
@@ -53,6 +54,7 @@ export interface WAClient {
   reuploadMedia(m: WAMessage): Promise<WAMessage>;
   lookupSender(number: string): Promise<SenderFound>;
   setProfile(change: ProfileChange): Promise<void>;
+  senderProfile(jid: string): Promise<SenderProfile | null>;
   disconnect(): Promise<void>;
 }
 
@@ -346,6 +348,14 @@ export function createClient(account: WhatsAppAccount): WAClient {
         if (me === undefined) throw new TrainError('whatsapp_call', 'own jid unknown');
         await sock.updateProfilePicture(me, { url: change.avatar.path });
       }
+    },
+    async senderProfile(jid) {
+      const sock = await ready(st);
+      const [statuses, avatar] = await Promise.all([sock.fetchStatus(jid).catch(() => undefined), sock.profilePictureUrl(jid, 'image').catch(() => undefined)]);
+      const about = nonEmpty((statuses?.[0]?.status as { status?: unknown } | undefined)?.status);
+      const picture = nonEmpty(avatar);
+      if (about === undefined && picture === undefined) return null;
+      return { ...(about === undefined ? {} : { from_about: about }), ...(picture === undefined ? {} : { from_avatar: picture }) };
     },
     async disconnect() {
       st.closed = true;

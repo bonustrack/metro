@@ -11,7 +11,7 @@ import { buildWebhookNote } from './webhook-note.js';
 import { replyMeta } from './addressed.js';
 import {
   capSet,
-  displayNameMeta,
+  profileMeta,
   senderMeta,
   tsMeta,
   takeMediaCtx,
@@ -148,7 +148,7 @@ export class InboundRelay {
         message_id: e.messageId,
         line_name: e.lineName,
         from_name: e.fromName,
-        ...displayNameMeta(e.fromDisplayName),
+        ...profileMeta(e),
       },
     });
   }
@@ -206,6 +206,8 @@ export class InboundRelay {
       lineName: str(ev.lineName),
       fromName: str(ev.fromName),
       fromDisplayName: str(ev.fromDisplayName),
+      fromAvatar: str(ev.fromAvatar),
+      fromAbout: str(ev.fromAbout),
       attachments: atts.map((a) => ({ kind: a.kind, name: a.name })),
       saved: new Set<number>(),
       timer: setTimeout(() => {
@@ -246,7 +248,7 @@ export class InboundRelay {
         message_id: str(ev.messageId),
         line_name: str(ev.lineName),
         from_name: str(ev.fromName),
-        ...displayNameMeta(ev.fromDisplayName),
+        ...profileMeta(ev),
         reaction: emoji,
         target_id: target,
       },
@@ -330,7 +332,7 @@ export class InboundRelay {
         message_id: str(ev.messageId),
         line_name: str(ev.lineName),
         from_name: str(ev.fromName),
-        ...displayNameMeta(ev.fromDisplayName),
+        ...profileMeta(ev),
         ...replyMeta(ev, this.sentIds),
       },
     });

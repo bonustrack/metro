@@ -2,7 +2,7 @@ import { errMsg } from '@metro-labs/core/log';
 import { accounts, lineOf } from './accounts.js';
 import { mintId, SELF_URI } from './wire.js';
 import { mediaRefOf, saveTelegramMedia } from './attachments.js';
-import type { TgMsg, TgReaction, TgReactionCount } from './types.js';
+import type { TgMsg, TgReaction, TgReactionCount, TgUser } from './types.js';
 
 export type { TgMsg, TgReaction, TgReactionCount };
 
@@ -72,6 +72,11 @@ function addressing(accountId: string, m: TgMsg): Record<string, unknown> {
   };
 }
 
+export const fullName = (u: TgUser | undefined): string | undefined => {
+  const name = [u?.first_name, u?.last_name].filter((part) => typeof part === 'string' && part !== '').join(' ');
+  return name === '' ? undefined : name;
+};
+
 export function envelope(accountId: string, m: TgMsg): Record<string, unknown> {
   const { line } = lineForMsg(accountId, m);
   return {
@@ -83,7 +88,7 @@ export function envelope(accountId: string, m: TgMsg): Record<string, unknown> {
     line_name: m.chat.title ?? m.chat.first_name ?? undefined,
     from: `metro://telegram-bot/${accountId}/user/${m.from?.id ?? 'unknown'}`,
     from_name: m.from?.username ? `@${m.from.username}` : m.from?.first_name,
-    from_display_name: m.from?.first_name,
+    from_display_name: fullName(m.from),
     message_id: String(m.message_id),
     text: projectText(m),
     payload: m,
@@ -113,7 +118,7 @@ export function reactionEnvelope(
     line: lineOf(accountId, r.chat.id),
     from: `metro://telegram-bot/${accountId}/user/${r.user?.id ?? 'unknown'}`,
     from_name: r.user?.username ? `@${r.user.username}` : r.user?.first_name,
-    from_display_name: r.user?.first_name,
+    from_display_name: fullName(r.user),
     message_id: String(r.message_id),
     emoji: added[0],
     event: { type: 'react', emoji: added[0], targetId: String(r.message_id) },

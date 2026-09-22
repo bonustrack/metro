@@ -1,4 +1,5 @@
 import { errMsg } from '@metro-labs/core/log';
+import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { accounts, loadAccounts, tg, type Account } from './accounts.js';
 import { emit } from './wire.js';
 import {
@@ -23,12 +24,29 @@ interface Update {
   message_reaction_count?: TgReactionCount;
 }
 
+const senders = makeProfileCache<SenderProfile>(
+  async (key) => {
+    const [id, userId] = key.split(':', 2) as [string, string];
+    const chat = await tg<{ bio?: unknown }>(id, 'getChat', { chat_id: Number(userId) }, 5000);
+    const about = nonEmpty(chat.bio);
+    return about === undefined ? null : { from_about: about };
+  },
+  { onError: (key, err) => process.stderr.write(`telegram-bot: could not read the profile of ${key}: ${errMsg(err)}\n`) },
+);
+
+function handleMessage(id: string, m: TgMsg): void {
+  const lookup = m.from === undefined || m.chat.type !== 'private' ? Promise.resolve(null) : senders.within(`${id}:${String(m.from.id)}`);
+  lookup
+    .then((profile) => {
+      const env: Record<string, unknown> = { ...envelope(id, m), ...profile };
+      emitInbound(emit, id, env);
+      saveMediaAndEmit(emit, id, m, env.id as string);
+    })
+    .catch((err: unknown) => process.stderr.write(`telegram-bot[${id}] inbound not emitted: ${errMsg(err)}\n`));
+}
+
 function handleUpdate(id: string, u: Update): void {
-  if (u.message && !u.message.from?.is_bot) {
-    const env = envelope(id, u.message);
-    emitInbound(emit, id, env);
-    saveMediaAndEmit(emit, id, u.message, env.id as string);
-  }
+  if (u.message && !u.message.from?.is_bot) handleMessage(id, u.message);
   if (u.message_reaction) {
     const env = reactionEnvelope(id, u.message_reaction);
     if (env) emitInbound(emit, id, env);

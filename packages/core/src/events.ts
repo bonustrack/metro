@@ -20,6 +20,8 @@ export interface MetroEvent {
   from: Line;
   fromName?: string;
   fromDisplayName?: string;
+  fromAvatar?: string;
+  fromAbout?: string;
   to: Line;
   text?: string;
   messageId?: string;

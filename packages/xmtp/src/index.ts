@@ -8,6 +8,7 @@ import {
 } from './accounts.js';
 import { emitInbound, envelope } from './emit.js';
 import { groupNameFor } from './conv-helpers.js';
+import { senderFieldsWithin } from './sender.js';
 import { handleControlDm, pushInbound } from './push.js';
 import { readCalls } from '@metro-labs/core/trains/protocol';
 import { handleCall } from './actions.js';
@@ -65,6 +66,7 @@ async function handleStreamMessage(
   );
   if (!conv) return;
   const env = envelope(id, msg, conv);
+  Object.assign(env, await senderFieldsWithin(acct, msg.senderInboxId));
   const name = await groupNameFor(msg.conversationId, conv);
   if (name) {
     env.line_name = name;

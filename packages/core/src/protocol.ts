@@ -33,6 +33,8 @@ export type TrainEvent = {
   from?: string;
   from_name?: string;
   from_display_name?: string;
+  from_avatar?: string;
+  from_about?: string;
   to?: string;
   message_id?: string;
   reply_to?: string;

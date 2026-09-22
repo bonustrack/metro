@@ -45,6 +45,8 @@ describe('inbound event bus → InboundRelay', () => {
       from: 'metro://discord-bot/u/alice' as never,
       fromName: 'alice_handle',
       fromDisplayName: 'Alice',
+      fromAvatar: 'https://cdn.discordapp.com/avatars/1/a.png',
+      fromAbout: 'likes trains',
       to: 'metro://discord-bot/g/1/c/2' as never,
       text: 'hello from the bus',
       messageId: 'disc-1',
@@ -63,6 +65,8 @@ describe('inbound event bus → InboundRelay', () => {
     expect(meta.from).toBe('metro://discord-bot/u/alice');
     expect(meta.from_name).toBe('alice_handle');
     expect(meta.from_display_name).toBe('Alice');
+    expect(meta.from_avatar).toBe('https://cdn.discordapp.com/avatars/1/a.png');
+    expect(meta.from_about).toBe('likes trains');
     expect(meta.station).toBe('discord-bot');
     expect(meta.message_id).toBe('disc-1');
     expect(meta.ts).toBe('2026-06-21T00:00:00.000Z');

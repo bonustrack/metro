@@ -23,7 +23,7 @@ const STAMP_CLEAR_URL = 'https://stamp.fyi/clear/';
 const ZERO = '0x0000000000000000000000000000000000000000';
 const TEXT_KEYS = { name: 'name', bio: 'description', avatar: 'avatar' } as const;
 
-const REGISTRY_ABI = [
+export const REGISTRY_ABI = [
   { name: 'resolver', type: 'function', stateMutability: 'view', inputs: [{ name: 'node', type: 'bytes32' }], outputs: [{ name: '', type: 'address' }] },
 ] as const;
 
@@ -42,7 +42,7 @@ const REVERSE_ABI = [
   { name: 'setName', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'name', type: 'string' }], outputs: [{ name: '', type: 'bytes32' }] },
 ] as const;
 
-const NAME_ABI = [
+export const NAME_ABI = [
   { name: 'name', type: 'function', stateMutability: 'view', inputs: [{ name: 'node', type: 'bytes32' }], outputs: [{ name: '', type: 'string' }] },
 ] as const;
 

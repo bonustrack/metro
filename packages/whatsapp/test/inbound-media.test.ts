@@ -47,6 +47,9 @@ async function run(message: unknown, id = 'MID'): Promise<Ev[]> {
     reuploadMedia(m: WAMessage) {
       return Promise.resolve(m);
     },
+    senderProfile() {
+      return Promise.resolve({ from_about: 'Busy', from_avatar: 'https://pps.whatsapp.net/a.jpg' });
+    },
   } as unknown as WAClient;
   try {
     await startInbound(client);
@@ -59,7 +62,7 @@ async function run(message: unknown, id = 'MID'): Promise<Ev[]> {
     const m = toInbound('w0', raw);
     if (!m) throw new Error('toInbound dropped the message');
     handlers?.onMessage(m, raw);
-    for (let i = 0; i < 40 && lines.length < 2; i += 1) {
+    for (let i = 0; i < 40 && lines.length < (m.media ? 2 : 1); i += 1) {
       await new Promise((r) => setTimeout(r, 25));
     }
   } finally {
@@ -87,6 +90,8 @@ describe('inbound media envelope', () => {
     expect(env?.text).toBe('just text');
     expect(env?.has_media).toBeUndefined();
     expect(payloadOf(env as Ev).attachments).toBeUndefined();
+    expect(env?.from_about).toBe('Busy');
+    expect(env?.from_avatar).toBe('https://pps.whatsapp.net/a.jpg');
   });
 
   test('media rides on payload.attachments with the caption intact', async () => {

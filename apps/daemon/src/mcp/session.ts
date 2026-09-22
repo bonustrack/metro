@@ -8,7 +8,7 @@ import {
   senderMatchesAllowlist,
 } from '../agents/map.js';
 import { accountStationNames } from '../stations/registry.js';
-import { MCP_INSTRUCTIONS } from './tool-schemas.js';
+import { MCP_INSTRUCTIONS } from './instructions.js';
 import { ChannelOwner } from './channel-owner.js';
 import { BoundedEventStore } from './event-store.js';
 import { registerPermissionRelay } from './permission-relay.js';

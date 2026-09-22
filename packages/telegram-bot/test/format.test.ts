@@ -1,7 +1,7 @@
 /**
  * Sender identity on inbound telegram-bot envelopes. The relay surfaces the id-based
  * `from` (source of truth) alongside the handle (`from_name` = @username, else
- * first_name) and the display name (`from_display_name` = first_name). Here we
+ * first_name) and the display name (`from_display_name` = first and last name). Here we
  * lock that the telegram-bot station carries both on messages and reactions.
  */
 
@@ -19,11 +19,12 @@ const baseMsg = (over: Partial<TgMsg['from']> = {}): TgMsg => ({
 });
 
 describe('telegram-bot envelope sender identity', () => {
-  test('handle prefers @username, display name is first_name', () => {
+  test('handle prefers @username, display name is the first and last name', () => {
     const env = envelope('t0', baseMsg());
     expect(env.from).toBe('metro://telegram-bot/t0/user/555');
     expect(env.from_name).toBe('@alice');
     expect(env.from_display_name).toBe('Alice');
+    expect(envelope('t0', baseMsg({ last_name: 'Liddell' })).from_display_name).toBe('Alice Liddell');
   });
 
   test('handle falls back to first_name when no username', () => {

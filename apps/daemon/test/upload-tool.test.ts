@@ -12,7 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { callToolHandler } from '../src/mcp/tool-dispatch.ts';
 import { runWithIdentity } from '../src/mcp/request-identity.ts';
-import { COMMON_TOOLS, MCP_INSTRUCTIONS } from '../src/mcp/tool-schemas.ts';
+import { COMMON_TOOLS } from '../src/mcp/tool-schemas.ts';
+import { MCP_INSTRUCTIONS } from '../src/mcp/instructions.ts';
 import {
   MAX_UPLOAD_BYTES,
   uploadSlot,

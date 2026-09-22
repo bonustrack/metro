@@ -166,6 +166,8 @@ export function trainEventToMetroEvent(
     from: (env.from ?? `metro://${station}`) as MetroEvent['from'],
     fromName: env.from_name,
     fromDisplayName: env.from_display_name,
+    fromAvatar: env.from_avatar,
+    fromAbout: env.from_about,
     to: (env.to ?? (isPrivate ? userSelf() : line)) as MetroEvent['to'],
     text,
     messageId: env.message_id,

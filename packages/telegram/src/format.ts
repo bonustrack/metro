@@ -13,8 +13,9 @@ export function senderName(peer: Peer): string | undefined {
 }
 
 export function displayName(peer: Peer): string | undefined {
-  if (isUser(peer)) return peer.firstName;
-  return peer.title;
+  if (!isUser(peer)) return peer.title;
+  const name = [peer.firstName, peer.lastName].filter((part) => typeof part === 'string' && part !== '').join(' ');
+  return name === '' ? undefined : name;
 }
 
 function chatName(peer: Peer): string | undefined {
