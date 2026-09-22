@@ -5,12 +5,11 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../theme.js';
-import { beginCodexDevice, beginCodexLogin, codexImport, codexLogout, finishCodexLogin, pollCodexDevice, type DeviceLogin, type ModelSettings } from '../api/model.js';
+import { beginCodexDevice, beginCodexLogin, codexImport, finishCodexLogin, pollCodexDevice, type ConnectionRow, type DeviceLogin } from '../api/model.js';
 import { queryError, refreshModel } from '../api/queries.js';
 
 const FIELD_WIDTH = 420;
-const PASTE_HINT =
-  'When the ChatGPT sign-in finishes, the browser lands on a localhost:1455 address that cannot load: copy that whole address from the address bar and paste it here.';
+const PASTE_HINT = 'The sign-in ends on a localhost:1455 address that will not load. Paste that whole address here.';
 
 function useAction(): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>, fallback: string) => void } {
   const client = useQueryClient();
@@ -31,14 +30,14 @@ function useAction(): { busy: boolean; error: string | null; run: (job: () => Pr
   return { busy, error, run };
 }
 
-function useDevicePolling(login: DeviceLogin | null, settle: (error: string | null) => void): void {
+function useDevicePolling(login: DeviceLogin | null, id: string, settle: (error: string | null) => void): void {
   const client = useQueryClient();
   useEffect(() => {
     if (login === null) return undefined;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const tick = (): void => {
-      pollCodexDevice(login.id)
+      pollCodexDevice(login.id, id)
         .then(async (result) => {
           if (stopped) return;
           if (result.status === 'pending') {
@@ -60,7 +59,7 @@ function useDevicePolling(login: DeviceLogin | null, settle: (error: string | nu
   }, [login, client, settle]);
 }
 
-function DeviceFlow({ label }: { label: string }): ReactNode {
+function DeviceFlow({ label, id }: { label: string; id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [starting, setStarting] = useState(false);
   const [login, setLogin] = useState<DeviceLogin | null>(null);
@@ -70,7 +69,7 @@ function DeviceFlow({ label }: { label: string }): ReactNode {
     setLogin(null);
     setError(message);
   };
-  useDevicePolling(login, settle);
+  useDevicePolling(login, id, settle);
   const connect = (): void => {
     const tab = window.open('', '_blank');
     setStarting(true);
@@ -116,7 +115,7 @@ function DeviceFlow({ label }: { label: string }): ReactNode {
   );
 }
 
-function PasteBack(): ReactNode {
+function PasteBack({ id }: { id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { busy, error, run } = useAction();
   const [pasted, setPasted] = useState('');
@@ -127,14 +126,14 @@ function PasteBack(): ReactNode {
       </Text>
       <Input name="codex-callback" value={pasted} placeholder="http://localhost:1455/auth/callback?code=…&state=…" dark={dark} onChangeText={setPasted} style={GROW} />
       <Row gap={8}>
-        <Button size="sm" dark={dark} label={busy ? 'Finishing…' : 'Finish sign-in'} loading={busy} disabled={busy || pasted.trim() === ''} onPress={() => { run(() => finishCodexLogin(pasted), 'Could not finish the sign-in.'); }} />
+        <Button size="sm" dark={dark} label={busy ? 'Finishing…' : 'Finish sign-in'} loading={busy} disabled={busy || pasted.trim() === ''} onPress={() => { run(() => finishCodexLogin(pasted, id), 'Could not finish the sign-in.'); }} />
       </Row>
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
     </Col>
   );
 }
 
-function RedirectFlow({ label }: { label: string }): ReactNode {
+function RedirectFlow({ label, id }: { label: string; id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [starting, setStarting] = useState(false);
   const [started, setStarted] = useState(false);
@@ -170,31 +169,25 @@ function RedirectFlow({ label }: { label: string }): ReactNode {
           </Text>
         ) : null}
       </Row>
-      {started ? <PasteBack /> : null}
+      {started ? <PasteBack id={id} /> : null}
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
     </Col>
   );
 }
 
-function SignedIn({ codex }: { codex: ModelSettings['codex'] }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const { busy, error, run } = useAction();
+function SignedIn({ codex }: { codex: ConnectionRow }): ReactNode {
   return (
     <Col gap={10}>
       <Text size="sm">
         Signed in{codex.account === null ? '' : ` as ${codex.account}`}
         {codex.plan === null ? '' : ` (${codex.plan})`}
       </Text>
-      <Row gap={8} wrap align="center">
-        <Button size="sm" color="secondary" dark={dark} label="Sign out" disabled={busy} onPress={() => { run(codexLogout, 'Could not sign out.'); }} />
-      </Row>
-      <DeviceFlow label="Connect again" />
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+      <DeviceFlow label="Connect again" id={codex.id} />
     </Col>
   );
 }
 
-function NotConnected(): ReactNode {
+function NotConnected({ id }: { id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { busy, error, run } = useAction();
   return (
@@ -202,24 +195,24 @@ function NotConnected(): ReactNode {
       <Text size="sm" role="secondary">
         Not connected.
       </Text>
-      <DeviceFlow label="Connect ChatGPT" />
+      <DeviceFlow label="Connect ChatGPT" id={id} />
       <Text size="sm" role="secondary">
         Other ways in:
       </Text>
-      <RedirectFlow label="Sign in through a browser redirect" />
+      <RedirectFlow label="Sign in through a browser redirect" id={id} />
       <Row gap={8} wrap>
-        <Button size="sm" color="secondary" dark={dark} label="Use the Codex CLI login on this machine" disabled={busy} onPress={() => { run(codexImport, 'Could not read the Codex CLI login.'); }} />
+        <Button size="sm" color="secondary" dark={dark} label="Use the Codex CLI login on this machine" disabled={busy} onPress={() => { run(() => codexImport(id), 'Could not read the Codex CLI login.'); }} />
       </Row>
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
     </Col>
   );
 }
 
-export function CodexConnect({ codex }: { codex: ModelSettings['codex'] }): ReactNode {
+export function CodexConnect({ codex }: { codex: ConnectionRow | null }): ReactNode {
   return (
     <Col gap={4}>
       <FieldLabel>ChatGPT account</FieldLabel>
-      {codex.signedIn ? <SignedIn codex={codex} /> : <NotConnected />}
+      {codex?.signedIn === true ? <SignedIn codex={codex} /> : <NotConnected id={codex?.id ?? ''} />}
     </Col>
   );
 }

@@ -135,13 +135,13 @@ describe('what the Codex backend says on every answer', () => {
 
 describe('what the page is handed', () => {
   test('the latest per provider is kept, an answer without headers does not erase it', () => {
-    noteUsageHeaders('anthropic', new Headers({ 'anthropic-ratelimit-unified-5h-utilization': '0.2' }), NOW);
-    noteUsageHeaders('anthropic', new Headers({}), new Date(NOW.getTime() + 1000));
-    noteUsageHeaders('codex', new Headers({ 'x-codex-primary-used-percent': '10', 'x-codex-primary-window-minutes': '300' }), NOW);
+    noteUsageHeaders('anthropic', 'cn-1', new Headers({ 'anthropic-ratelimit-unified-5h-utilization': '0.2' }), NOW);
+    noteUsageHeaders('anthropic', 'cn-1', new Headers({}), new Date(NOW.getTime() + 1000));
+    noteUsageHeaders('codex', 'cn-2', new Headers({ 'x-codex-primary-used-percent': '10', 'x-codex-primary-window-minutes': '300' }), NOW);
     const seen = usageSeen();
-    expect(Object.keys(seen).sort()).toEqual(['anthropic', 'codex']);
-    expect(seen.anthropic?.windows[0]?.used).toBe(0.2);
-    expect(seen.anthropic?.at).toBe(NOW.toISOString());
+    expect(Object.keys(seen).sort()).toEqual(['cn-1', 'cn-2']);
+    expect(seen['cn-1']?.windows[0]?.used).toBe(0.2);
+    expect(seen['cn-1']?.at).toBe(NOW.toISOString());
   });
 
   test('a Codex credit balance shows only when the account holds credits', () => {
@@ -173,7 +173,7 @@ describe('counting tokens on every answer, whatever the provider', () => {
     scanner.feed(START);
     scanner.feed(DELTA);
     scanner.done(NOW);
-    expect(usageSeen().anthropic?.tally).toEqual({ requests: 1, input: 1200, output: 340, cached: 900, since: NOW.toISOString() });
+    expect(usageSeen()['anthropic']?.tally).toEqual({ requests: 1, input: 1200, output: 340, cached: 900, since: NOW.toISOString() });
   });
 
   test('a line split across chunks is still read whole', () => {
@@ -181,24 +181,24 @@ describe('counting tokens on every answer, whatever the provider', () => {
     const whole = START + DELTA;
     for (let i = 0; i < whole.length; i += 7) scanner.feed(whole.slice(i, i + 7));
     scanner.done(NOW);
-    expect(usageSeen().openrouter?.tally).toMatchObject({ requests: 1, input: 1200, output: 340 });
+    expect(usageSeen()['openrouter']?.tally).toMatchObject({ requests: 1, input: 1200, output: 340 });
   });
 
   test('a whole JSON body with no newlines is read at the end', () => {
     const scanner = new UsageScanner('bedrock');
     scanner.feed('{"type":"message","usage":{"input_tokens":50,"output_tokens":7}}');
     scanner.done(NOW);
-    expect(usageSeen().bedrock?.tally).toMatchObject({ requests: 1, input: 50, output: 7, cached: 0 });
+    expect(usageSeen()['bedrock']?.tally).toMatchObject({ requests: 1, input: 50, output: 7, cached: 0 });
   });
 
   test('an answer with no usage in it counts nothing, and the totals add up across answers', () => {
     const empty = new UsageScanner('codex');
     empty.feed('event: ping\ndata: {"type":"ping"}\n\n');
     empty.done(NOW);
-    expect(usageSeen().codex).toBeUndefined();
+    expect(usageSeen()['codex']).toBeUndefined();
     tallyTokens('codex', { input: 10, output: 2, cached: 0 }, NOW);
     tallyTokens('codex', { input: 30, output: 5, cached: 8 }, new Date(NOW.getTime() + 60_000));
-    expect(usageSeen().codex?.tally).toEqual({ requests: 2, input: 40, output: 7, cached: 8, since: NOW.toISOString() });
-    expect(usageSeen().codex?.windows).toEqual([]);
+    expect(usageSeen()['codex']?.tally).toEqual({ requests: 2, input: 40, output: 7, cached: 8, since: NOW.toISOString() });
+    expect(usageSeen()['codex']?.windows).toEqual([]);
   });
 });

@@ -3,16 +3,21 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  applyModelUpdate,
+  addConnection,
   ModelConfigError,
   notReady,
+  parseModelConfig,
   publicModelConfig,
   readModelConfig,
+  removeConnection,
   resolveRoute,
   routeLabel,
+  setRoute,
+  updateConnection,
   writeModelConfig,
   type ModelConfig,
 } from '../src/gateway/model-config.ts';
+import { conn, configOf, connectionId, makeConnection, use } from './model-fixture.ts';
 
 const dirs: string[] = [];
 function scratch(): string {
@@ -24,154 +29,144 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-const configured: ModelConfig = {
-  version: 1,
-  provider: 'bedrock',
-  anthropic: { apiKey: '', model: '' },
-  bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
-  openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex', zdr: false },
-  codex: { model: '', auth: null },
-  gemini: { model: '', auth: null },
-};
+const CODEX_TOKENS = { accessToken: 'at', refreshToken: 'rt', idToken: '', accountId: 'acct', email: 'l@x', plan: 'pro', savedAt: '2026-09-07T00:00:00.000Z' };
+const GEMINI_TOKENS = { accessToken: 'gat', refreshToken: 'grt', expiresAt: 1_800_000_000_000, email: 'l@gmail.com', project: 'proj', tier: 'Google AI Pro', savedAt: '2026-09-20T00:00:00.000Z' };
 
-describe('the model route on disk', () => {
-  test('a missing file means Anthropic passthrough; a bad file never throws', () => {
+const configured = (): ModelConfig =>
+  configOf('bedrock', [
+    makeConnection('bedrock', { region: 'eu-central-1', apiKey: 'aws-key' }),
+    makeConnection('openrouter', { apiKey: 'or-key', model: 'openai/gpt-5.2-codex' }),
+    makeConnection('codex', { model: 'gpt-5.3-codex', codex: CODEX_TOKENS }),
+    makeConnection('gemini', { model: 'gemini-3-pro-preview', gemini: GEMINI_TOKENS }),
+  ]);
+
+describe('the connections on disk', () => {
+  test('a missing file means no connection at all; a bad file never throws', () => {
     const dir = scratch();
-    expect(readModelConfig(dir).provider).toBe('anthropic');
-    writeFileSync(join(dir, 'model.json'), '{"provider":"mars","bedrock":7}');
-    expect(readModelConfig(dir)).toEqual({
-      anthropic: { apiKey: '', model: '' },
-      version: 1,
-      provider: 'anthropic',
-      bedrock: { region: '', apiKey: '', model: '' },
-      openrouter: { apiKey: '', model: '', zdr: false },
-      codex: { model: '', auth: null },
-      gemini: { model: '', auth: null },
-    });
+    expect(readModelConfig(dir)).toEqual({ version: 2, route: '', connections: [] });
+    writeFileSync(join(dir, 'model.json'), '{"connections":[{"provider":"mars"},7]}');
+    expect(readModelConfig(dir)).toEqual({ version: 2, route: '', connections: [] });
   });
 
   test('written 0600, read back whole, and the public view carries no key', () => {
     const dir = scratch();
-    writeModelConfig(configured, dir);
+    const cfg = configured();
+    writeModelConfig(cfg, dir);
     expect(statSync(join(dir, 'model.json')).mode & 0o777).toBe(0o600);
-    expect(readModelConfig(dir)).toEqual(configured);
-    const shown = publicModelConfig(configured);
+    expect(readModelConfig(dir)).toEqual(cfg);
+    const shown = publicModelConfig(cfg);
     expect(JSON.stringify(shown)).not.toContain('aws-key');
     expect(JSON.stringify(shown)).not.toContain('or-key');
-    expect(shown).toMatchObject({ provider: 'bedrock', ready: true, reason: null, bedrock: { region: 'eu-central-1', hasKey: true }, openrouter: { hasKey: true } });
-    expect(existsSync(join(dir, 'model.json'))).toBe(true);
+    expect(JSON.stringify(shown)).not.toContain('"at"');
+    expect(shown).toMatchObject({ route: connectionId('bedrock'), ready: true, reason: null });
+    const rows = shown.connections as Record<string, unknown>[];
+    expect(rows[0]).toMatchObject({ provider: 'bedrock', region: 'eu-central-1', hasKey: true });
+    expect(rows[2]).toMatchObject({ provider: 'codex', signedIn: true, account: 'l@x', plan: 'pro' });
     expect(readFileSync(join(dir, 'model.json'), 'utf8')).toContain('aws-key');
   });
-});
 
-describe('updating the route from the page', () => {
-  test('a partial patch keeps what it does not name, an omitted key stays and an empty key clears', () => {
-    const next = applyModelUpdate(configured, { provider: 'openrouter', openrouter: { model: 'anthropic/claude-sonnet-4.5' } });
-    expect(next.provider).toBe('openrouter');
-    expect(next.openrouter).toEqual({ apiKey: 'or-key', model: 'anthropic/claude-sonnet-4.5', zdr: false });
-    expect(applyModelUpdate(configured, { openrouter: { zdr: true } }).openrouter.zdr).toBe(true);
-    expect(() => applyModelUpdate(configured, { openrouter: { zdr: 'yes' } })).toThrow(/true or false/);
-    expect(next.bedrock).toEqual(configured.bedrock);
-    expect(applyModelUpdate(configured, { bedrock: { apiKey: '' } }).bedrock.apiKey).toBe('');
-    expect(applyModelUpdate(configured, { bedrock: { region: '  us-east-1  ' } }).bedrock.region).toBe('us-east-1');
-  });
-
-  test('a bad provider, a non-string field or an oversized field is refused by name', () => {
-    expect(() => applyModelUpdate(configured, { provider: 'mars' })).toThrow(ModelConfigError);
-    expect(() => applyModelUpdate(configured, { bedrock: { region: 5 } })).toThrow(/Bedrock region/);
-    expect(() => applyModelUpdate(configured, { anthropic: { apiKey: 5 } })).toThrow(/Anthropic API key/);
-    expect(() => applyModelUpdate(configured, { openrouter: { apiKey: 'x'.repeat(600) } })).toThrow(/too long/);
-    expect(() => applyModelUpdate(configured, 'nope')).toThrow(/JSON object/);
-  });
-
-  test('readiness names the missing piece', () => {
-    expect(notReady({ ...configured, provider: 'anthropic' })).toBeNull();
-    expect(notReady({ ...configured, bedrock: { ...configured.bedrock, apiKey: '' } })).toMatch(/API key/);
-    expect(notReady({ ...configured, bedrock: { ...configured.bedrock, region: '' } })).toMatch(/region/);
-    expect(notReady({ ...configured, provider: 'openrouter', openrouter: { apiKey: 'k', model: '' } })).toMatch(/model id/);
+  test('a file written before connections existed becomes one connection per configured provider, keeping the route', () => {
+    const old = {
+      version: 1,
+      provider: 'openrouter',
+      anthropic: { apiKey: '', model: '' },
+      bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
+      openrouter: { apiKey: 'or-key', model: 'x/y', zdr: true },
+      codex: { model: 'gpt-5.4', auth: CODEX_TOKENS },
+      gemini: { model: '', auth: null },
+    };
+    const cfg = parseModelConfig(old);
+    expect(cfg.version).toBe(2);
+    expect(cfg.connections.map((c) => c.provider)).toEqual(['bedrock', 'openrouter', 'codex']);
+    expect(cfg.connections.map((c) => c.label)).toEqual(['Amazon Bedrock', 'OpenRouter', 'Codex (ChatGPT)']);
+    expect(conn(cfg, 'openrouter')).toMatchObject({ apiKey: 'or-key', model: 'x/y', zdr: true });
+    expect(conn(cfg, 'codex').codex).toEqual(CODEX_TOKENS);
+    expect(cfg.route).toBe(conn(cfg, 'openrouter').id);
+    expect(parseModelConfig({ version: 1, provider: 'anthropic' })).toEqual({ version: 2, route: '', connections: [] });
   });
 });
 
-describe('resolving a request to a route', () => {
-  test('a plain Claude id goes to the chosen provider, an explicit prefix wins for that request', () => {
-    expect(resolveRoute('claude-sonnet-4-6', configured)).toEqual({ provider: 'bedrock', model: 'claude-sonnet-4-6' });
-    expect(resolveRoute('openrouter:google/gemini-2.5-pro', configured)).toEqual({ provider: 'openrouter', model: 'google/gemini-2.5-pro' });
-    expect(resolveRoute('anthropic:claude-opus-4-8', configured)).toEqual({ provider: 'anthropic', model: 'claude-opus-4-8' });
-    expect(resolveRoute('mars:x', configured)).toEqual({ provider: 'bedrock', model: 'mars:x' });
+describe('several connections of the same provider', () => {
+  test('each one is added with its own label, and the first one becomes the route', () => {
+    const one = addConnection({ version: 2, route: '', connections: [] }, { provider: 'openrouter', apiKey: 'k1', model: 'a/b' });
+    expect(one.connections[0]?.label).toBe('OpenRouter');
+    expect(one.route).toBe(one.connections[0]?.id);
+    const two = addConnection(one, { provider: 'openrouter', apiKey: 'k2' });
+    expect(two.connections.map((c) => c.label)).toEqual(['OpenRouter', 'OpenRouter 2']);
+    expect(two.route).toBe(one.route);
+    expect(two.connections[0]?.id).not.toBe(two.connections[1]?.id);
+    const named = addConnection(two, { provider: 'openrouter', label: 'Work', apiKey: 'k3' });
+    expect(named.connections[2]?.label).toBe('Work');
+    expect(() => addConnection(two, { provider: 'mars' })).toThrow(ModelConfigError);
   });
 
-  test('a pinned Bedrock model replaces what Claude Code asked for; OpenRouter uses its own id unless one was given', () => {
-    const pinned = { ...configured, bedrock: { ...configured.bedrock, model: 'eu.anthropic.claude-sonnet-4-6' } };
-    expect(resolveRoute('claude-opus-5', pinned).model).toBe('eu.anthropic.claude-sonnet-4-6');
-    const or = { ...configured, provider: 'openrouter' as const };
-    expect(resolveRoute('claude-sonnet-5', or)).toEqual({ provider: 'openrouter', model: 'openai/gpt-5.2-codex' });
-    expect(resolveRoute('anthropic/claude-sonnet-4.5', or).model).toBe('anthropic/claude-sonnet-4.5');
-    expect(routeLabel({ provider: 'anthropic', model: 'claude-sonnet-5' })).toBe('claude-sonnet-5');
-    expect(routeLabel({ provider: 'openrouter', model: 'x/y' })).toBe('openrouter:x/y');
-  });
-});
-
-describe('the Codex route', () => {
-  const signedIn = { ...configured, provider: 'codex' as const, codex: { model: 'gpt-5.3-codex', auth: { accessToken: 'at', refreshToken: 'rt', idToken: '', accountId: 'acct', email: 'l@x', plan: 'pro', savedAt: '2026-09-07T00:00:00.000Z' } } };
-
-  test('needs a sign-in and a model, keeps its tokens through a page update, and shows only the account', () => {
-    expect(notReady({ ...signedIn, codex: { ...signedIn.codex, auth: null } })).toMatch(/sign in/);
-    expect(notReady({ ...signedIn, codex: { ...signedIn.codex, model: '' } })).toMatch(/model id/);
-    expect(notReady(signedIn)).toBeNull();
-    const updated = applyModelUpdate(signedIn, { codex: { model: 'gpt-5.4' } });
-    expect(updated.codex).toEqual({ ...signedIn.codex, model: 'gpt-5.4' });
-    const shown = publicModelConfig(signedIn);
-    expect(shown).toMatchObject({ provider: 'codex', ready: true, codex: { model: 'gpt-5.3-codex', signedIn: true, account: 'l@x', plan: 'pro' } });
-    expect(JSON.stringify(shown)).not.toContain('"at"');
-    const dir = scratch();
-    writeModelConfig(signedIn, dir);
-    expect(readModelConfig(dir)).toEqual(signedIn);
-  });
-
-  test('a Claude id maps to the page model, a gpt id passes, a prefix wins', () => {
-    expect(resolveRoute('claude-sonnet-5', signedIn)).toEqual({ provider: 'codex', model: 'gpt-5.3-codex' });
-    expect(resolveRoute('gpt-5.4', signedIn)).toEqual({ provider: 'codex', model: 'gpt-5.4' });
-    expect(resolveRoute('codex:gpt-5.2-codex', configured)).toEqual({ provider: 'codex', model: 'gpt-5.2-codex' });
+  test('a patch names one connection, an unknown id is refused, and removing the routed one moves the route', () => {
+    const cfg = configured();
+    const id = conn(cfg, 'openrouter').id;
+    const next = updateConnection(cfg, id, { model: 'anthropic/claude-sonnet-4.5', zdr: true });
+    expect(next.connections.find((c) => c.id === id)).toMatchObject({ apiKey: 'or-key', model: 'anthropic/claude-sonnet-4.5', zdr: true });
+    expect(next.connections.find((c) => c.provider === 'bedrock')).toEqual(conn(cfg, 'bedrock'));
+    expect(updateConnection(cfg, id, { apiKey: '' }).connections.find((c) => c.id === id)?.apiKey).toBe('');
+    expect(() => updateConnection(cfg, 'cn-nope', { model: 'x' })).toThrow(/no such connection/);
+    expect(() => updateConnection(cfg, id, { zdr: 'yes' })).toThrow(/true or false/);
+    expect(() => updateConnection(cfg, id, { apiKey: 'x'.repeat(600) })).toThrow(/too long/);
+    const dropped = removeConnection(cfg, cfg.route);
+    expect(dropped.connections.map((c) => c.provider)).toEqual(['openrouter', 'codex', 'gemini']);
+    expect(dropped.route).toBe(id);
+    expect(() => setRoute(cfg, 'cn-nope')).toThrow(/no such connection/);
+    expect(setRoute(cfg, id).route).toBe(id);
   });
 });
 
-describe('the Gemini route', () => {
-  const auth = { accessToken: 'gat', refreshToken: 'grt', expiresAt: 1_800_000_000_000, email: 'l@gmail.com', project: 'proj', tier: 'Google AI Pro', savedAt: '2026-09-20T00:00:00.000Z' };
-  const signedIn = { ...configured, provider: 'gemini' as const, gemini: { model: 'gemini-3-pro-preview', auth } };
-
-  test('needs a sign-in and a model, keeps its tokens through a page update and a round trip, and shows only the account', () => {
-    expect(notReady({ ...signedIn, gemini: { ...signedIn.gemini, auth: null } })).toMatch(/sign in with Google/);
-    expect(notReady({ ...signedIn, gemini: { ...signedIn.gemini, model: '' } })).toMatch(/model id/);
-    expect(notReady(signedIn)).toBeNull();
-    expect(applyModelUpdate(signedIn, { gemini: { model: 'gemini-2.5-flash' } }).gemini).toEqual({ auth, model: 'gemini-2.5-flash' });
-    const shown = publicModelConfig(signedIn);
-    expect(shown).toMatchObject({ provider: 'gemini', ready: true, gemini: { model: 'gemini-3-pro-preview', signedIn: true, account: 'l@gmail.com', plan: 'Google AI Pro' } });
-    expect(JSON.stringify(shown)).not.toContain('gat');
-    const dir = scratch();
-    writeModelConfig(signedIn, dir);
-    expect(readModelConfig(dir)).toEqual(signedIn);
-    expect(resolveRoute('claude-sonnet-5', signedIn)).toEqual({ provider: 'gemini', model: 'gemini-3-pro-preview' });
-    expect(resolveRoute('gemini-2.5-flash', signedIn)).toEqual({ provider: 'gemini', model: 'gemini-2.5-flash' });
-    expect(resolveRoute('gemini:gemini-2.5-pro', configured)).toEqual({ provider: 'gemini', model: 'gemini-2.5-pro' });
-  });
-});
-
-describe('the Anthropic route, once metro holds the credential', () => {
-  const withKey: ModelConfig = { ...configured, provider: 'anthropic', anthropic: { apiKey: 'sk-ant-x', model: 'claude-opus-5' } };
-
-  test('a pinned model replaces the one asked for, but a small model is never upgraded', () => {
-    expect(resolveRoute('claude-sonnet-4-6', withKey)).toEqual({ provider: 'anthropic', model: 'claude-opus-5' });
-    expect(resolveRoute('claude-haiku-4-5-20251001', withKey)).toEqual({ provider: 'anthropic', model: 'claude-haiku-4-5-20251001' });
-    expect(resolveRoute('claude-sonnet-4-6', { ...withKey, anthropic: { apiKey: '', model: '' } })).toEqual({ provider: 'anthropic', model: 'claude-sonnet-4-6' });
-    expect(resolveRoute('bedrock:x', withKey)).toEqual({ provider: 'bedrock', model: 'x' });
+describe('readiness and resolving a request', () => {
+  test('readiness names the missing piece of the routed connection', () => {
+    const cfg = configured();
+    expect(notReady(configOf('anthropic', [makeConnection('anthropic')]))).toBeNull();
+    expect(notReady(cfg)).toBeNull();
+    expect(notReady(updateConnection(cfg, cfg.route, { apiKey: '' }))).toMatch(/API key/);
+    expect(notReady(updateConnection(cfg, cfg.route, { region: '' }))).toMatch(/region/);
+    const or = setRoute(cfg, conn(cfg, 'openrouter').id);
+    expect(notReady(updateConnection(or, or.route, { model: '' }))).toMatch(/model id/);
+    expect(notReady({ version: 2, route: '', connections: [] })).toBeNull();
+    expect(notReady({ ...cfg, route: '' })).toMatch(/Claude Code login/);
   });
 
-  test('the key is stored and never shown, and the page sees only that one is held', () => {
-    const shown = publicModelConfig(withKey);
-    expect(JSON.stringify(shown)).not.toContain('sk-ant-x');
-    expect(shown.anthropic).toEqual({ model: 'claude-opus-5', hasKey: true });
-    expect(publicModelConfig(configured).anthropic).toEqual({ model: '', hasKey: false });
-    expect(applyModelUpdate(configured, { anthropic: { apiKey: 'sk-ant-y' } }).anthropic.apiKey).toBe('sk-ant-y');
-    expect(applyModelUpdate(withKey, { anthropic: { model: 'claude-sonnet-5' } }).anthropic).toEqual({ apiKey: 'sk-ant-x', model: 'claude-sonnet-5' });
+  test('a plain id goes to the routed connection, a prefix picks that provider for the request', () => {
+    const cfg = configured();
+    expect(resolveRoute('claude-sonnet-4-6', cfg)).toMatchObject({ model: 'claude-sonnet-4-6' });
+    expect(resolveRoute('claude-sonnet-4-6', cfg)?.connection.provider).toBe('bedrock');
+    expect(resolveRoute('openrouter:google/gemini-2.5-pro', cfg)?.connection.provider).toBe('openrouter');
+    expect(resolveRoute('openrouter:google/gemini-2.5-pro', cfg)?.model).toBe('google/gemini-2.5-pro');
+    expect(resolveRoute('mars:x', cfg)?.model).toBe('mars:x');
+    expect(resolveRoute('anthropic:claude-opus-4-8', cfg)).toBeNull();
+    expect(resolveRoute('x', { version: 2, route: '', connections: [] })).toBeNull();
+  });
+
+  test('a prefix takes the connection already in use for that provider, else its first one', () => {
+    const cfg = configOf('openrouter', [
+      makeConnection('openrouter', { apiKey: 'k1', model: 'a/b' }),
+      { ...makeConnection('openrouter', { apiKey: 'k2', model: 'c/d' }), id: 'cn-or-2', label: 'Work' },
+    ]);
+    expect(resolveRoute('openrouter:x/y', cfg)?.connection.id).toBe(connectionId('openrouter'));
+    const second = setRoute(cfg, 'cn-or-2');
+    expect(resolveRoute('openrouter:x/y', second)?.connection.id).toBe('cn-or-2');
+    expect(resolveRoute('claude-sonnet-5', second)?.model).toBe('c/d');
+  });
+
+  test('a pinned model replaces what Claude Code asked for, and a matching id passes', () => {
+    const cfg = configured();
+    const pinned = updateConnection(cfg, cfg.route, { model: 'eu.anthropic.claude-sonnet-4-6' });
+    expect(resolveRoute('claude-opus-5', pinned)?.model).toBe('eu.anthropic.claude-sonnet-4-6');
+    use(cfg, 'codex');
+    expect(resolveRoute('claude-sonnet-5', cfg)?.model).toBe('gpt-5.3-codex');
+    expect(resolveRoute('gpt-5.4', cfg)?.model).toBe('gpt-5.4');
+    use(cfg, 'gemini');
+    expect(resolveRoute('claude-sonnet-5', cfg)?.model).toBe('gemini-3-pro-preview');
+    expect(resolveRoute('gemini-3-flash', cfg)?.model).toBe('gemini-3-flash');
+    const anthropic = configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk', model: 'claude-opus-5' })]);
+    expect(resolveRoute('claude-haiku-4-5-20251001', anthropic)?.model).toBe('claude-haiku-4-5-20251001');
+    expect(resolveRoute('claude-sonnet-5', anthropic)?.model).toBe('claude-opus-5');
+    expect(routeLabel({ connection: makeConnection('anthropic'), model: 'claude-sonnet-5' })).toBe('claude-sonnet-5');
+    expect(routeLabel({ connection: makeConnection('openrouter'), model: 'x/y' })).toBe('openrouter:x/y');
   });
 });

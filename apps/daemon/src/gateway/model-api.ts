@@ -2,33 +2,26 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { isRecord } from '@metro-labs/core/is-record';
-import { errMsg, log } from '@metro-labs/core/log';
-import { beginLogin, CodexAuthError, finishLogin, readCodexCliAuth } from './codex-auth.js';
-import { beginDeviceLogin, pollDeviceLogin } from './codex-device.js';
-import { codexModels, currentTokens, freshCodexState } from './codex.js';
-import { beginLogin as beginGeminiLogin, exchangeCode as exchangeGeminiCode, GeminiAuthError, userEmail } from './gemini-auth.js';
-import { onboard, parseGeminiProject } from './gemini-setup.js';
-import { currentGeminiTokens, freshGeminiState, listGeminiModels, type GeminiDeps } from './gemini.js';
-import { openrouterCredits, openrouterModels, openrouterZdrModels } from './openrouter.js';
+import { log } from '@metro-labs/core/log';
+import { openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
-import { syncAvailableModelsQuietly, type SetupDeps } from '../claude/setup.js';
-import { lastServed } from './served.js';
-import { geminiUsage, noteUsage, openrouterUsage, usageOf, usageSeen } from './usage.js';
-import type { CodexTokens } from './codex-auth.js';
-import { GatewayError } from './forward.js';
+import { syncAvailableModelsQuietly } from '../claude/setup.js';
+import { forgetOne } from './usage.js';
 import {
-  applyModelUpdate,
-  ModelConfigError,
+  addConnection,
   parseModelConfig,
-  publicModelConfig,
   readModelConfig,
-  setCodexAuth,
-  setGeminiAuth,
+  removeConnection,
+  setRoute,
+  updateConnection,
   writeModelConfig,
   type ModelConfig,
 } from './model-config.js';
+import { asApiError, BODY_MAX, connectionFor, settingsBody, type ModelApiDeps, type Route, type Store } from './model-store.js';
+import { CODEX_ROUTES, codexDeviceRoute, GEMINI_ROUTES, refreshUsage } from './model-signin.js';
 
 const PATH = '/api/model';
+const CONNECTIONS = '/api/model/connections';
 const CODEX = '/api/model/codex/';
 const GEMINI = '/api/model/gemini/';
 const OPENROUTER = '/api/model/openrouter/';
@@ -37,255 +30,75 @@ const BEDROCK = '/api/model/bedrock/';
 const BUNDLE = '/api/model/bundle';
 const RESTORE = '/api/model/restore';
 const RESTORE_MAX = 64 * 1024;
-const BODY_MAX = 16 * 1024;
 const DEVICE_PREFIX = 'device/';
 const DEVICE_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
-export interface ModelApiDeps {
-  authorize: (subject: string) => void;
-  read?: () => ModelConfig;
-  write?: (cfg: ModelConfig) => void;
-  issuer?: string;
-  fetchImpl?: typeof fetch;
-  codexHome?: string;
-  codexBase?: string;
-  geminiAuthBase?: string;
-  geminiTokenBase?: string;
-  geminiUserBase?: string;
-  geminiBase?: string;
-  openrouterBase?: string;
-  anthropicBase?: string;
-  bedrockControlBase?: string;
-  setup?: SetupDeps;
-}
+export type { ModelApiDeps } from './model-store.js';
 
-interface Store {
-  read: () => ModelConfig;
-  write: (cfg: ModelConfig) => void;
-}
-
-type Handler = (req: IncomingMessage, deps: ModelApiDeps, store: Store) => Promise<unknown>;
-
-interface Route {
-  method: 'GET' | 'POST';
-  run: Handler;
-}
-
-const settingsBody = (cfg: ModelConfig): Record<string, unknown> => ({
-  ...publicModelConfig(cfg),
-  lastServed: lastServed(),
-  usage: usageSeen(),
-});
-
-const CREDITS_TTL_MS = 5 * 60_000;
-
-async function refreshCredits(cfg: ModelConfig, deps: ModelApiDeps, now = Date.now()): Promise<void> {
-  const key = cfg.openrouter.apiKey;
-  if (key === '') return;
-  const seen = usageOf('openrouter');
-  if (seen !== undefined && now - Date.parse(seen.at) < CREDITS_TTL_MS) return;
-  try {
-    const credits = await openrouterCredits(key, deps.openrouterBase, deps.fetchImpl);
-    noteUsage('openrouter', openrouterUsage(credits.total, credits.spent, new Date(now)));
-  } catch (err) {
-    log.warn({ err: errMsg(err) }, 'model-api: could not read the OpenRouter credits');
-  }
-}
-
-const geminiApiState = freshGeminiState();
-
-const geminiDeps = (deps: ModelApiDeps, store: Store): GeminiDeps => ({
-  base: deps.geminiBase,
-  tokenBase: deps.geminiTokenBase,
-  fetchImpl: deps.fetchImpl,
-  save: (t) => {
-    store.write(setGeminiAuth(store.read(), t));
-  },
-});
-
-async function geminiModels(deps: ModelApiDeps, store: Store): Promise<Awaited<ReturnType<typeof listGeminiModels>>> {
-  const cfg = store.read();
-  if (cfg.gemini.auth === null) throw new ApiError('Gemini is not connected: sign in with Google first', 400);
-  const tokens = await currentGeminiTokens(cfg, geminiDeps(deps, store), geminiApiState);
-  return listGeminiModels(tokens, geminiDeps(deps, store));
-}
-
-function geminiModelsInUse(cfg: ModelConfig): Set<string> {
-  const served = lastServed();
-  return new Set([cfg.gemini.model, served?.provider === 'gemini' ? served.model : ''].filter((m) => m !== ''));
-}
-
-async function refreshGeminiQuota(deps: ModelApiDeps, store: Store, now = Date.now()): Promise<void> {
-  const cfg = store.read();
-  if (cfg.gemini.auth === null) return;
-  const inUse = geminiModelsInUse(cfg);
-  const seen = usageOf('gemini');
-  const covers = seen !== undefined && [...inUse].every((id) => seen.windows.some((w) => w.label === id));
-  if (seen !== undefined && covers && now - Date.parse(seen.at) < CREDITS_TTL_MS) return;
-  try {
-    const rows = (await geminiModels(deps, store)).filter((m) => inUse.has(m.id));
-    const usage = geminiUsage(rows, new Date(now));
-    if (usage !== null) noteUsage('gemini', usage);
-  } catch (err) {
-    log.warn({ err: errMsg(err) }, 'model-api: could not read the Gemini quota');
-  }
-}
-
-async function settingsWithUsage(cfg: ModelConfig, deps: ModelApiDeps, store: Store): Promise<Record<string, unknown>> {
-  await refreshCredits(cfg, deps);
-  await refreshGeminiQuota(deps, store);
-  return settingsBody(cfg);
-}
-
-function asApiError(err: unknown): never {
-  if (err instanceof ModelConfigError || err instanceof CodexAuthError || err instanceof GeminiAuthError) throw new ApiError(err.message, 400);
-  if (err instanceof GatewayError) throw new ApiError(err.message, err.status >= 400 && err.status < 500 ? 400 : 502);
-  throw err;
-}
-
-async function update(req: IncomingMessage, store: Store, deps: ModelApiDeps): Promise<unknown> {
-  const patch = await readJsonBody(req, BODY_MAX);
-  let next: ModelConfig;
-  try {
-    next = applyModelUpdate(store.read(), patch);
-  } catch (err) {
-    asApiError(err);
-  }
+function kept(store: Store, next: ModelConfig, deps: ModelApiDeps, note: string, fields: Record<string, unknown>): unknown {
   store.write(next);
   syncAvailableModelsQuietly(deps.setup ?? {}, next);
-  log.info({ provider: next.provider }, 'model-api: route updated');
+  log.info(fields, note);
   return settingsBody(next);
 }
 
-function saveCodex(store: Store, cfg: ModelConfig, note: string): unknown {
-  store.write(cfg);
-  log.info({ signedIn: cfg.codex.auth !== null, plan: cfg.codex.auth?.plan ?? null }, note);
-  return settingsBody(cfg);
-}
-
-const modelApiState = freshCodexState();
-
-async function pollDevice(id: string, deps: ModelApiDeps, store: Store): Promise<unknown> {
-  const result = await pollDeviceLogin(id, deps.fetchImpl).catch(asApiError);
-  if (result.status !== 'done') return result;
-  return { status: 'done', settings: saveCodex(store, setCodexAuth(store.read(), result.tokens), 'model-api: Codex connected by device code') };
-}
-
-const CODEX_ROUTES: Record<string, Route> = {
-  device: {
-    method: 'POST',
-    run: async (_req, deps) => {
-      const login = await beginDeviceLogin(deps.issuer, deps.fetchImpl).catch(asApiError);
-      return { id: login.id, user_code: login.userCode, verify_url: login.verifyUrl, interval: login.interval };
-    },
-  },
-  login: {
-    method: 'POST',
-    run: (_req, deps) => Promise.resolve({ url: beginLogin(deps.issuer).url }),
-  },
-  callback: {
-    method: 'POST',
-    run: async (req, deps, store) => {
-      const body = await readJsonBody(req, BODY_MAX);
-      const raw = isRecord(body) && typeof body.url === 'string' ? body.url : '';
-      const tokens = await finishLogin(raw, deps.issuer, deps.fetchImpl).catch(asApiError);
-      return saveCodex(store, setCodexAuth(store.read(), tokens), 'model-api: Codex connected');
-    },
-  },
-  logout: {
-    method: 'POST',
-    run: (_req, _deps, store) => Promise.resolve(saveCodex(store, setCodexAuth(store.read(), null), 'model-api: Codex disconnected')),
-  },
-  import: {
-    method: 'POST',
-    run: (_req, deps, store) => {
-      let tokens;
-      try {
-        tokens = readCodexCliAuth(deps.codexHome);
-      } catch (err) {
-        asApiError(err);
-      }
-      return Promise.resolve(saveCodex(store, setCodexAuth(store.read(), tokens), 'model-api: Codex CLI login imported'));
-    },
-  },
-  models: {
-    method: 'GET',
-    run: async (_req, deps, store) => {
-      const cfg = store.read();
-      if (cfg.codex.auth === null) throw new ApiError('Codex is not connected: sign in with ChatGPT first', 400);
-      const codexDeps = { issuer: deps.issuer, fetchImpl: deps.fetchImpl, base: deps.codexBase, save: (t: CodexTokens) => { store.write(setCodexAuth(store.read(), t)); } };
-      const auth = await currentTokens(cfg, codexDeps, modelApiState).catch(asApiError);
-      const models = await codexModels(auth, codexDeps).catch(asApiError);
-      return { models };
-    },
-  },
-};
-
-function projectOf(body: unknown): string | null {
+async function withBody(req: IncomingMessage, run: (body: Record<string, unknown>) => ModelConfig): Promise<ModelConfig> {
+  const body = await readJsonBody(req, BODY_MAX);
+  if (!isRecord(body)) throw new ApiError('body must be a JSON object', 400);
   try {
-    return parseGeminiProject(isRecord(body) ? body.project : null);
+    return run(body);
   } catch (err) {
     return asApiError(err);
   }
 }
 
-async function connectGemini(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
-  const body = await readJsonBody(req, BODY_MAX);
-  const code = isRecord(body) && typeof body.code === 'string' ? body.code : '';
-  const state = isRecord(body) && typeof body.state === 'string' ? body.state : '';
-  const project = projectOf(body);
-  const tokens = await exchangeGeminiCode(code, state, deps.geminiTokenBase, deps.fetchImpl).catch(asApiError);
-  const email = await userEmail(tokens, deps.geminiUserBase, deps.fetchImpl);
-  const onboarded = await onboard(tokens, project, deps.geminiBase, deps.fetchImpl).catch(asApiError);
-  const cfg = setGeminiAuth(store.read(), { ...tokens, email, project: onboarded.project, tier: onboarded.tier });
-  store.write(cfg);
-  log.info({ tier: onboarded.tier }, 'model-api: Gemini connected');
-  return settingsBody(cfg);
+async function chooseRoute(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
+  const next = await withBody(req, (body) => setRoute(store.read(), typeof body.route === 'string' ? body.route : ''));
+  return kept(store, next, deps, 'model-api: route changed', { route: next.route });
 }
 
-const GEMINI_ROUTES: Record<string, Route> = {
-  login: {
-    method: 'POST',
-    run: (_req, deps) => Promise.resolve(beginGeminiLogin(deps.geminiAuthBase)),
-  },
-  code: { method: 'POST', run: connectGemini },
-  logout: {
-    method: 'POST',
-    run: (_req, _deps, store) => {
-      const cfg = setGeminiAuth(store.read(), null);
-      store.write(cfg);
-      log.info('model-api: Gemini disconnected');
-      return Promise.resolve(settingsBody(cfg));
-    },
-  },
-  models: {
-    method: 'GET',
-    run: async (_req, deps, store) => ({ models: (await geminiModels(deps, store).catch(asApiError)).map((m) => m.id) }),
-  },
-};
+async function create(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
+  const next = await withBody(req, (body) => addConnection(store.read(), body));
+  return kept(store, next, deps, 'model-api: connection added', { connection: next.connections.at(-1)?.id ?? '' });
+}
+
+async function change(req: IncomingMessage, deps: ModelApiDeps, store: Store, id: string): Promise<unknown> {
+  const next = await withBody(req, (body) => updateConnection(store.read(), id, body));
+  return kept(store, next, deps, 'model-api: connection changed', { connection: id });
+}
+
+function drop(deps: ModelApiDeps, store: Store, id: string): unknown {
+  let next: ModelConfig;
+  try {
+    next = removeConnection(store.read(), id);
+  } catch (err) {
+    asApiError(err);
+  }
+  forgetOne(id);
+  return kept(store, next, deps, 'model-api: connection removed', { connection: id });
+}
+
+async function settingsWithUsage(deps: ModelApiDeps, store: Store): Promise<Record<string, unknown>> {
+  await refreshUsage(deps, store);
+  return settingsBody(store.read());
+}
 
 const OPENROUTER_ROUTES: Record<string, Route> = {
-  models: {
-    method: 'GET',
-    run: async (_req, deps) => ({ models: await openrouterModels(deps.openrouterBase, deps.fetchImpl).catch(asApiError) }),
-  },
-  zdr: {
-    method: 'GET',
-    run: async (_req, deps) => ({ models: await openrouterZdrModels(deps.openrouterBase, deps.fetchImpl).catch(asApiError) }),
-  },
+  models: { method: 'GET', run: async (_req, deps) => ({ models: await openrouterModels(deps.openrouterBase, deps.fetchImpl).catch(asApiError) }) },
+  zdr: { method: 'GET', run: async (_req, deps) => ({ models: await openrouterZdrModels(deps.openrouterBase, deps.fetchImpl).catch(asApiError) }) },
 };
 
 const ANTHROPIC_ROUTES: Record<string, Route> = {
   models: {
     method: 'GET',
-    run: async (_req, deps, store) => ({ models: await anthropicModels(store.read().anthropic, deps.anthropicBase, deps.fetchImpl).catch(asApiError) }),
+    run: async (req, deps, store) => ({ models: await anthropicModels(connectionFor(store.read(), req, 'anthropic'), deps.anthropicBase, deps.fetchImpl).catch(asApiError) }),
   },
 };
 
 const BEDROCK_ROUTES: Record<string, Route> = {
   models: {
     method: 'GET',
-    run: async (_req, deps, store) => ({ models: await bedrockModels(store.read().bedrock, deps.bedrockControlBase, deps.fetchImpl).catch(asApiError) }),
+    run: async (req, deps, store) => ({ models: await bedrockModels(connectionFor(store.read(), req, 'bedrock'), deps.bedrockControlBase, deps.fetchImpl).catch(asApiError) }),
   },
 };
 
@@ -298,11 +111,7 @@ const named = (table: Record<string, Route>, name: string, method: string | unde
 async function restore(req: IncomingMessage, store: Store, deps: ModelApiDeps): Promise<unknown> {
   const body = await readJsonBody(req, RESTORE_MAX);
   if (!isRecord(body)) throw new ApiError('body must be a JSON object', 400);
-  const next = parseModelConfig(body);
-  store.write(next);
-  syncAvailableModelsQuietly(deps.setup ?? {}, next);
-  log.info({ provider: next.provider }, 'model-api: model setup restored from a file');
-  return settingsBody(next);
+  return kept(store, parseModelConfig(body), deps, 'model-api: model setup restored from a file', {});
 }
 
 function bundleRoute(path: string, method: string | undefined): Route | number {
@@ -311,8 +120,17 @@ function bundleRoute(path: string, method: string | undefined): Route | number {
 }
 
 function settingsRoute(method: string | undefined): Route | number {
-  if (method === 'GET') return { method: 'GET', run: (_req, deps, store) => settingsWithUsage(store.read(), deps, store) };
-  if (method === 'PUT') return { method: 'POST', run: (req, deps, store) => update(req, store, deps) };
+  if (method === 'GET') return { method: 'GET', run: (_req, deps, store) => settingsWithUsage(deps, store) };
+  if (method === 'PUT') return { method: 'POST', run: chooseRoute };
+  return 405;
+}
+
+function connectionsRoute(path: string, method: string | undefined): Route | number {
+  if (path === CONNECTIONS) return method === 'POST' ? { method: 'POST', run: create } : 405;
+  const id = path.slice(CONNECTIONS.length + 1);
+  if (id === '' || id.includes('/')) return 404;
+  if (method === 'PUT') return { method: 'POST', run: (req, deps, store) => change(req, deps, store, id) };
+  if (method === 'DELETE') return { method: 'GET', run: (_req, deps, store) => Promise.resolve(drop(deps, store, id)) };
   return 405;
 }
 
@@ -320,15 +138,25 @@ function codexRoute(rest: string, method: string | undefined): Route | number {
   if (rest in CODEX_ROUTES) return named(CODEX_ROUTES, rest, method);
   const id = rest.startsWith(DEVICE_PREFIX) ? rest.slice(DEVICE_PREFIX.length) : '';
   if (!DEVICE_ID_RE.test(id)) return 404;
-  return method === 'GET' ? { method: 'GET', run: (_req, deps, store) => pollDevice(id, deps, store) } : 405;
+  return codexDeviceRoute(id, method);
 }
 
 const mine = (path: string): boolean =>
-  path === PATH || path === BUNDLE || path === RESTORE || path.startsWith(CODEX) || path.startsWith(GEMINI) || path.startsWith(OPENROUTER) || path.startsWith(ANTHROPIC) || path.startsWith(BEDROCK);
+  path === PATH ||
+  path === BUNDLE ||
+  path === RESTORE ||
+  path === CONNECTIONS ||
+  path.startsWith(`${CONNECTIONS}/`) ||
+  path.startsWith(CODEX) ||
+  path.startsWith(GEMINI) ||
+  path.startsWith(OPENROUTER) ||
+  path.startsWith(ANTHROPIC) ||
+  path.startsWith(BEDROCK);
 
 function routeFor(path: string, method: string | undefined): Route | number {
   if (path === PATH) return settingsRoute(method);
   if (path === BUNDLE || path === RESTORE) return bundleRoute(path, method);
+  if (path === CONNECTIONS || path.startsWith(`${CONNECTIONS}/`)) return connectionsRoute(path, method);
   if (path.startsWith(OPENROUTER)) return named(OPENROUTER_ROUTES, path.slice(OPENROUTER.length), method);
   if (path.startsWith(ANTHROPIC)) return named(ANTHROPIC_ROUTES, path.slice(ANTHROPIC.length), method);
   if (path.startsWith(BEDROCK)) return named(BEDROCK_ROUTES, path.slice(BEDROCK.length), method);

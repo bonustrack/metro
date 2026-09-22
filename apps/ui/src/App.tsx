@@ -79,16 +79,10 @@ function Gate({ onLock }: { onLock: () => void }): ReactNode {
         }}
       />
     );
-  if (error !== null)
-    return (
-      <Notice
-        text={`Could not reach Metro at ${daemonHost(daemonBase())}.`}
-        onRetry={() => {
-          refetch().catch(() => undefined);
-        }}
-        retryLabel="Try again"
-      />
-    );
+  const retry = (): void => {
+    refetch().catch(() => undefined);
+  };
+  if (error !== null) return <Dashboard onLock={onLock} offline={{ retry }} />;
   if (subject === undefined) return <BootLoading />;
   return <Dashboard onLock={onLock} />;
 }

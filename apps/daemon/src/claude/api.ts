@@ -49,6 +49,7 @@ import { pipeline } from 'node:stream/promises';
 import {
   claudeDir,
   deleteClaudeSession,
+  deleteMemoryFile,
   listClaudeProjects,
   listClaudeSessions,
   listMemory,
@@ -259,6 +260,7 @@ function removed(rest: string[], query: URLSearchParams, dir: string): unknown {
   const [head = '', item = ''] = rest;
   if (rest.length !== 2) throw new ApiError('method not allowed', 405);
   if (head === 'skills') return { deleted: deleteClaudeSkill(decodeURIComponent(item), dir) };
+  if (head === 'memory') return { deleted: deleteMemoryFile(projectOf(query), decodeURIComponent(item), dir) };
   if (head !== 'sessions') throw new ApiError('method not allowed', 405);
   deleteClaudeSession(projectOf(query), item, dir);
   return { deleted: item };

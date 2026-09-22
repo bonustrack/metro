@@ -229,7 +229,7 @@ async function applySessions(
 
 async function modelConfigured(): Promise<boolean> {
   const current = await fetchModel();
-  return current.provider !== 'anthropic' || current.anthropic.hasKey || current.bedrock.hasKey || current.openrouter.hasKey || current.codex.signedIn;
+  return current.connections.length > 0;
 }
 
 async function applyModel(items: PackedModel[], mode: Mode): Promise<{ written: number; skipped: number }> {

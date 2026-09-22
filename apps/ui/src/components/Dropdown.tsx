@@ -123,9 +123,9 @@ export function Dropdown({
                 role="menu"
                 style={menuStyle}
               >
-                {items.map((item) => (
+                {items.map((item, at) => (
                   <div key={item.label} className="kebab-row">
-                    {item.danger === true ? <div className="kebab-separator" style={separator} /> : null}
+                    {item.danger === true && at > 0 ? <div className="kebab-separator" style={separator} /> : null}
                     <button
                       type="button"
                       role="menuitem"

@@ -4,6 +4,7 @@ import { Text } from './ui.js';
 import { BackLink } from './BackLink.js';
 import { useHomeProject } from './home-project.js';
 import { ListRow } from './ListRow.js';
+import { MemoryMenu } from './MemoryMenu.js';
 import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
 import { PageTitle } from './PageTitle.js';
@@ -15,8 +16,15 @@ import { ListHeader } from './ListHeader.js';
 import { sizeLabel, whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
-function FileRow({ file, onOpen }: { file: MemoryFile; onOpen: () => void }): ReactNode {
-  return <ListRow title={file.name} detail={`${sizeLabel(file.bytes)} · ${whenLabel(file.modifiedAt)}`} onOpen={onOpen} />;
+function FileRow({ claudeProject, file, onOpen }: { claudeProject: string; file: MemoryFile; onOpen: () => void }): ReactNode {
+  return (
+    <ListRow
+      title={file.name}
+      detail={`${sizeLabel(file.bytes)} · ${whenLabel(file.modifiedAt)}`}
+      onOpen={onOpen}
+      trailing={<MemoryMenu claudeProject={claudeProject} name={file.name} />}
+    />
+  );
 }
 
 function MemoryIndex({ claudeProject, onOpen }: { claudeProject: string; onOpen: (name: string) => void }): ReactNode {
@@ -32,6 +40,7 @@ function MemoryIndex({ claudeProject, onOpen }: { claudeProject: string; onOpen:
             {data.files.map((f) => (
               <FileRow
                 key={f.name}
+                claudeProject={claudeProject}
                 file={f}
                 onOpen={() => {
                   onOpen(f.name);

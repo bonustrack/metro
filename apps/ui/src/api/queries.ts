@@ -189,6 +189,7 @@ export function refreshModel(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: ['model', daemonBase()] });
 }
 
+
 export function useOpenRouterZdrQuery(enabled: boolean): UseQueryResult<Set<string>> {
   return useQuery({
     queryKey: ['openrouter', 'zdr', daemonBase()],
@@ -198,37 +199,19 @@ export function useOpenRouterZdrQuery(enabled: boolean): UseQueryResult<Set<stri
   });
 }
 
-export function useOpenRouterModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
+export function useConnectionModelsQuery(connection: { id: string; provider: string } | undefined): UseQueryResult<ModelOption[]> {
+  const id = connection?.id ?? '';
+  const provider = connection?.provider ?? '';
   return useQuery({
-    queryKey: ['openrouter', 'models', daemonBase()],
-    queryFn: () => openrouterModels(),
-    enabled,
-    staleTime: 10 * 60_000,
-  });
-}
-
-export function useAnthropicModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
-  return useQuery({ queryKey: ['anthropic', 'models', daemonBase()], queryFn: () => anthropicModels(), enabled, staleTime: 10 * 60_000 });
-}
-
-export function useBedrockModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
-  return useQuery({ queryKey: ['bedrock', 'models', daemonBase()], queryFn: () => bedrockModels(), enabled, staleTime: 10 * 60_000 });
-}
-
-export function useGeminiModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
-  return useQuery({
-    queryKey: ['gemini', 'models', daemonBase()],
-    queryFn: async () => (await geminiModels()).map((id) => ({ id, name: id })),
-    enabled,
-    staleTime: 10 * 60_000,
-  });
-}
-
-export function useCodexModelsQuery(enabled: boolean): UseQueryResult<ModelOption[]> {
-  return useQuery({
-    queryKey: ['codex', 'models', daemonBase()],
-    queryFn: async () => (await codexModels()).map((id) => ({ id, name: id })),
-    enabled,
+    queryKey: ['connection', 'models', provider, id, daemonBase()],
+    queryFn: async () => {
+      if (provider === 'anthropic') return anthropicModels(id);
+      if (provider === 'bedrock') return bedrockModels(id);
+      if (provider === 'openrouter') return openrouterModels();
+      const ids = provider === 'gemini' ? await geminiModels(id) : await codexModels(id);
+      return ids.map((each) => ({ id: each, name: each }));
+    },
+    enabled: id !== '',
     staleTime: 10 * 60_000,
   });
 }
@@ -319,6 +302,10 @@ export function useClaudeSkillQuery(id: string): UseQueryResult<ClaudeSkill & { 
 export async function refreshClaudeSkills(client: QueryClient, id?: string): Promise<void> {
   await client.invalidateQueries({ queryKey: skillsKey() });
   if (id !== undefined) await client.invalidateQueries({ queryKey: skillKey(id) });
+}
+
+export function refreshMemory(client: QueryClient, project: string): Promise<void> {
+  return client.invalidateQueries({ queryKey: memoryKey(project) });
 }
 
 export function useMemoryQuery(project: string): UseQueryResult<MemoryListing> {

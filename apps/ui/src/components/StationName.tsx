@@ -11,8 +11,8 @@ import { olderThan } from '../api/version.js';
 export const NAMES_SINCE = '0.1.0-beta.154';
 const FIELD_WIDTH = 420;
 const SUFFIX = '.stage.base.eth';
-const NO_NAME = 'This account has no name yet, so it has no profile on Stage. Claim one: 6 to 32 lowercase letters, digits and single hyphens. A name cannot be changed once claimed.';
-const OLD_ACCOUNT = 'This account was attached before names existed and cannot hold one. Attach XMTP again to get an account that can.';
+const NO_NAME = 'No name yet, so no profile on Stage. 6 to 32 lowercase letters, digits and single hyphens, and it cannot be changed once claimed.';
+const OLD_ACCOUNT = 'This account was attached before names existed. Attach XMTP again to get one that can hold a name.';
 
 const nameKey = (station: string, accountId: string): string[] => ['account-name', station, accountId];
 

@@ -1,4 +1,5 @@
 export interface Served {
+  connection: string;
   provider: string;
   model: string;
   at: string;

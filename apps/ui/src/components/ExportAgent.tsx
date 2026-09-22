@@ -11,11 +11,9 @@ import { serverLabel } from '../api/servers.js';
 import { olderThan } from '../api/version.js';
 import { gatherPayload } from '../export/transfer.js';
 
-const HOW =
-  'Everything you pick is gzipped and sealed here in the browser with a passphrase you choose. The file that lands on your disk is ciphertext: only that passphrase opens it, Metro never sees it, and the channel credentials inside never travel in the clear.';
+const HOW = 'Sealed in the browser with a passphrase you choose. Only that passphrase opens the file.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'new-password' } as const;
-const NOTE =
-  'The agent id and key stay behind. Importing this elsewhere adds the channels, connectors, skills, memory, sessions and model setup to whatever agent lives there, rather than cloning this one, so two boxes never authenticate as the same agent.';
+const NOTE = 'The agent id and key stay behind, so an import adds to the agent there rather than cloning this one.';
 
 interface ExportAgentProps {
   open: boolean;

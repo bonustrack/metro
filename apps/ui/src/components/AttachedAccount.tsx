@@ -7,7 +7,7 @@ import { CopyBlock } from './CopyBlock.js';
 import { Field } from './Field.js';
 
 export const CALLBACK_NOTE =
-  'Paste this as the callback URL in the Gateway ID settings at gateway.threema.ch. It is where Threema delivers messages for this agent, and the whole URL is the credential, so keep it there and nowhere public.';
+  'Paste this as the callback URL at gateway.threema.ch. The whole URL is the credential, so keep it out of public places.';
 
 function activationNote(result: AttachResult): string {
   if (!result.activated)

@@ -7,7 +7,7 @@ import { refreshTokens, tokensStale, type CodexTokens } from './codex-auth.js';
 import { assembleMessage, CodexEventTranslator, parseEvent, SseParser } from './codex-stream.js';
 import { ToolNames, toResponsesRequest } from './codex-translate.js';
 import { GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
-import type { ModelConfig } from './model-config.js';
+import type { Connection } from './model-config.js';
 import { noteUsageHeaders, UsageScanner } from './usage.js';
 
 export const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
@@ -20,7 +20,7 @@ export interface CodexDeps {
   base?: string;
   issuer?: string;
   fetchImpl?: typeof fetch;
-  save: (tokens: CodexTokens) => void;
+  save: (id: string, tokens: CodexTokens) => void;
 }
 
 export interface CodexState {
@@ -57,13 +57,13 @@ function headersFor(tokens: CodexTokens, sessionId: string): Record<string, stri
 
 const newerThan = (a: CodexTokens, b: CodexTokens): boolean => Date.parse(a.savedAt) > Date.parse(b.savedAt);
 
-function refreshed(tokens: CodexTokens, deps: CodexDeps, state: CodexState): Promise<CodexTokens> {
+function refreshed(id: string, tokens: CodexTokens, deps: CodexDeps, state: CodexState): Promise<CodexTokens> {
   const latest = state.latest;
   if (latest !== null && newerThan(latest, tokens) && !tokensStale(latest)) return Promise.resolve(latest);
   if (state.refreshing !== null) return state.refreshing;
   const run = refreshTokens(tokens, deps.issuer, deps.fetchImpl)
     .then((fresh) => {
-      deps.save(fresh);
+      deps.save(id, fresh);
       state.latest = fresh;
       return fresh;
     })
@@ -77,10 +77,10 @@ function refreshed(tokens: CodexTokens, deps: CodexDeps, state: CodexState): Pro
   return run;
 }
 
-export function currentTokens(cfg: ModelConfig, deps: CodexDeps, state: CodexState): Promise<CodexTokens> {
-  const tokens = cfg.codex.auth;
+export function currentTokens(conn: Connection, deps: CodexDeps, state: CodexState): Promise<CodexTokens> {
+  const tokens = conn.codex;
   if (tokens === null) throw new GatewayError(400, 'invalid_request_error', 'Codex is not connected: sign in on the Model page.');
-  return tokensStale(tokens) ? refreshed(tokens, deps, state) : Promise.resolve(tokens);
+  return tokensStale(tokens) ? refreshed(conn.id, tokens, deps, state) : Promise.resolve(tokens);
 }
 
 function errorKind(status: number): string {
@@ -116,18 +116,18 @@ function send(call: Call, tokens: CodexTokens): Promise<Response> {
   });
 }
 
-async function reach(call: Call, cfg: ModelConfig, state: CodexState): Promise<Response> {
-  let tokens = await currentTokens(cfg, call.deps, state);
+async function reach(call: Call, conn: Connection, state: CodexState): Promise<Response> {
+  let tokens = await currentTokens(conn, call.deps, state);
   let upstream = await send(call, tokens);
   if (upstream.status === 401) {
     await upstream.body?.cancel();
-    tokens = await refreshed(tokens, call.deps, state);
+    tokens = await refreshed(conn.id, tokens, call.deps, state);
     upstream = await send(call, tokens);
   }
   return upstream;
 }
 
-async function relayStream(upstream: Response, res: ServerResponse, model: string, names: ToolNames, watch: Watch): Promise<void> {
+async function relayStream(upstream: Response, res: ServerResponse, model: string, names: ToolNames, watch: Watch, key: string): Promise<void> {
   res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
   const translator = new CodexEventTranslator(model, (name) => names.restore(name));
   const body = upstream.body;
@@ -136,7 +136,7 @@ async function relayStream(upstream: Response, res: ServerResponse, model: strin
     return;
   }
   const ping = setInterval(() => res.write('event: ping\ndata: {"type":"ping"}\n\n'), PING_MS);
-  const scanner = new UsageScanner('codex');
+  const scanner = new UsageScanner(key);
   const emit = (frames: string): void => {
     scanner.feed(frames);
     res.write(frames);
@@ -166,7 +166,7 @@ async function relayStream(upstream: Response, res: ServerResponse, model: strin
   }
 }
 
-async function relayWhole(upstream: Response, res: ServerResponse, model: string, names: ToolNames): Promise<void> {
+async function relayWhole(upstream: Response, res: ServerResponse, model: string, names: ToolNames, key: string): Promise<void> {
   const translator = new CodexEventTranslator(model, (name) => names.restore(name));
   let frames = '';
   const parser = new SseParser();
@@ -175,7 +175,7 @@ async function relayWhole(upstream: Response, res: ServerResponse, model: string
     if (parsed !== null) frames += translator.push(parsed.event, parsed.data);
   }
   frames += translator.close();
-  const scanner = new UsageScanner('codex');
+  const scanner = new UsageScanner(key);
   scanner.feed(frames);
   scanner.done();
   const message = assembleMessage(frames);
@@ -189,21 +189,21 @@ export async function codexMessages(
   res: ServerResponse,
   body: Record<string, unknown>,
   model: string,
-  cfg: ModelConfig,
+  conn: Connection,
   deps: CodexDeps,
   state: CodexState,
   watch: Watch,
 ): Promise<void> {
   const call: Call = { body, model, sessionId: sessionIdOf(req), watch, deps, names: new ToolNames() };
-  const upstream = await reach(call, cfg, state);
-  noteUsageHeaders('codex', upstream.headers);
+  const upstream = await reach(call, conn, state);
+  noteUsageHeaders('codex', conn.id, upstream.headers);
   if (!upstream.ok) {
     const text = await upstream.text();
     sendError(res, providerStatus(upstream.status), errorKind(upstream.status), upstreamMessage(text, `Codex answered ${String(upstream.status)}`));
     return;
   }
-  if (body.stream === true) await relayStream(upstream, res, model, call.names, watch);
-  else await relayWhole(upstream, res, model, call.names);
+  if (body.stream === true) await relayStream(upstream, res, model, call.names, watch, conn.id);
+  else await relayWhole(upstream, res, model, call.names, conn.id);
 }
 
 export function codexCount(res: ServerResponse, body: Record<string, unknown>): void {

@@ -9,8 +9,7 @@ import { queryError } from '../api/queries.js';
 
 const FIELD_WIDTH = 420;
 const POLL_MS = 1_500;
-const WHAT =
-  'This runs Claude Code’s own sign-in on the machine, and shows you what it prints. The login belongs to Claude Code and is stored where it puts it; metro never holds it and never talks to Anthropic’s login servers.';
+const WHAT = 'Runs Claude Code’s own sign-in on the machine. Metro never holds the login.';
 
 function useLoginPolling(login: ClaudeLogin | null, onUpdate: (next: ClaudeLogin) => void, onError: (message: string) => void): void {
   useEffect(() => {
@@ -79,7 +78,7 @@ function Waiting({ login, onCode }: { login: ClaudeLogin; onCode: (code: string)
   );
 }
 
-export function ClaudeLoginCard(): ReactNode {
+export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [account, setAccount] = useState<ClaudeAccount | null>(null);
   const [login, setLogin] = useState<ClaudeLogin | null>(null);
@@ -87,7 +86,10 @@ export function ClaudeLoginCard(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const refresh = (): void => {
     fetchClaudeAccount()
-      .then(setAccount)
+      .then((next) => {
+        setAccount(next);
+        onChange();
+      })
       .catch(() => undefined);
   };
   useEffect(refresh, []);

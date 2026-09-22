@@ -8,7 +8,7 @@ import { toGeminiRequest } from './gemini-translate.js';
 import { ToolNames } from './codex-translate.js';
 import { assembleMessage, SseParser } from './codex-stream.js';
 import { GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
-import type { ModelConfig } from './model-config.js';
+import type { Connection } from './model-config.js';
 import { UsageScanner } from './usage.js';
 
 const PING_MS = 25_000;
@@ -18,7 +18,7 @@ export interface GeminiDeps {
   base?: Bases;
   tokenBase?: string;
   fetchImpl?: typeof fetch;
-  save: (tokens: GeminiTokens) => void;
+  save: (id: string, tokens: GeminiTokens) => void;
 }
 
 export interface GeminiState {
@@ -30,13 +30,13 @@ export const freshGeminiState = (): GeminiState => ({ refreshing: null, latest: 
 
 const newerThan = (a: GeminiTokens, b: GeminiTokens): boolean => Date.parse(a.savedAt) > Date.parse(b.savedAt);
 
-function refreshed(tokens: GeminiTokens, deps: GeminiDeps, state: GeminiState): Promise<GeminiTokens> {
+function refreshed(id: string, tokens: GeminiTokens, deps: GeminiDeps, state: GeminiState): Promise<GeminiTokens> {
   const latest = state.latest;
   if (latest !== null && newerThan(latest, tokens) && !tokensStale(latest)) return Promise.resolve(latest);
   if (state.refreshing !== null) return state.refreshing;
   const run = refreshTokens(tokens, deps.tokenBase, deps.fetchImpl)
     .then((fresh) => {
-      deps.save(fresh);
+      deps.save(id, fresh);
       state.latest = fresh;
       return fresh;
     })
@@ -50,10 +50,10 @@ function refreshed(tokens: GeminiTokens, deps: GeminiDeps, state: GeminiState): 
   return run;
 }
 
-export function currentGeminiTokens(cfg: ModelConfig, deps: GeminiDeps, state: GeminiState): Promise<GeminiTokens> {
-  const tokens = cfg.gemini.auth;
+export function currentGeminiTokens(conn: Connection, deps: GeminiDeps, state: GeminiState): Promise<GeminiTokens> {
+  const tokens = conn.gemini;
   if (tokens === null) throw new GatewayError(400, 'invalid_request_error', 'Gemini is not connected: sign in with Google on the Model page.');
-  return tokensStale(tokens) ? refreshed(tokens, deps, state) : Promise.resolve(tokens);
+  return tokensStale(tokens) ? refreshed(conn.id, tokens, deps, state) : Promise.resolve(tokens);
 }
 
 function errorKind(status: number): string {
@@ -76,6 +76,7 @@ interface Call {
   watch: Watch;
   deps: GeminiDeps;
   names: ToolNames;
+  conn: Connection;
 }
 
 const headersFor = (token: string, stream: boolean): Record<string, string> => ({
@@ -140,12 +141,12 @@ export function refusalMessage(text: string, status: number): string {
   return notes.length === 0 ? message : `${message} (${notes.join('; ')})`;
 }
 
-async function reach(call: Call, cfg: ModelConfig, state: GeminiState, stream: boolean): Promise<Response> {
-  let tokens = await currentGeminiTokens(cfg, call.deps, state);
+async function reach(call: Call, conn: Connection, state: GeminiState, stream: boolean): Promise<Response> {
+  let tokens = await currentGeminiTokens(conn, call.deps, state);
   let upstream = await send(call, tokens, stream);
   if (upstream.status === 401) {
     await upstream.body?.cancel();
-    tokens = await refreshed(tokens, call.deps, state);
+    tokens = await refreshed(conn.id, tokens, call.deps, state);
     upstream = await send(call, tokens, stream);
   }
   return upstream;
@@ -210,7 +211,7 @@ async function relayStream(upstream: Response, res: ServerResponse, call: Call):
     return;
   }
   const ping = setInterval(() => res.write('event: ping\ndata: {"type":"ping"}\n\n'), PING_MS);
-  const scanner = new UsageScanner('gemini');
+  const scanner = new UsageScanner(call.conn.id);
   const emit = (frames: string): void => {
     if (frames === '') return;
     scanner.feed(frames);
@@ -245,7 +246,7 @@ async function relayWhole(upstream: Response, res: ServerResponse, call: Call): 
   const translator = new GeminiStreamTranslator(call.model, (name) => call.names.restore(name));
   const data = parseData(await upstream.text());
   const frames = (data === null ? '' : translator.push(data)) + translator.close();
-  const scanner = new UsageScanner('gemini');
+  const scanner = new UsageScanner(call.conn.id);
   scanner.feed(frames);
   scanner.done();
   const message = assembleMessage(frames);
@@ -259,14 +260,14 @@ export async function geminiMessages(
   res: ServerResponse,
   body: Record<string, unknown>,
   model: string,
-  cfg: ModelConfig,
+  conn: Connection,
   deps: GeminiDeps,
   state: GeminiState,
   watch: Watch,
 ): Promise<void> {
   const stream = body.stream === true;
-  const call: Call = { body, model, promptId: promptIdOf(req), watch, deps, names: new ToolNames() };
-  const upstream = await reach(call, cfg, state, stream);
+  const call: Call = { body, model, promptId: promptIdOf(req), watch, deps, names: new ToolNames(), conn };
+  const upstream = await reach(call, conn, state, stream);
   if (!upstream.ok) {
     const text = await upstream.text();
     log.warn({ provider: 'gemini', model, status: upstream.status, body: text.slice(0, REFUSAL_LOG_MAX) }, 'gateway: the provider refused the request');

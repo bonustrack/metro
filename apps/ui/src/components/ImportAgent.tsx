@@ -9,12 +9,10 @@ import { useModeQuery } from '../api/queries.js';
 import { olderThan } from '../api/version.js';
 import { applyPayload, type Applied, type Mode } from '../export/transfer.js';
 
-const HOW = 'Pick a .metro file. It is opened here in the browser with its passphrase; nothing in it reaches Metro before you choose what to import.';
+const HOW = 'Opened in the browser with its passphrase. Nothing reaches Metro before you choose.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
-const APPEND =
-  'Append adds what is missing and leaves everything already on this box exactly as it is. Nothing is replaced.';
-const OVERWRITE =
-  'Overwrite replaces anything that matches, by channel, connector id, skill name, memory filename or session id, and the model setup (provider, keys, model) as a whole. What is on this box for those is lost. Anything not in the file is left alone.';
+const APPEND = 'Adds what is missing. Nothing already here is replaced.';
+const OVERWRITE = 'Replaces anything that matches, and the model setup as a whole. What is not in the file is left alone.';
 
 interface ImportAgentProps {
   open: boolean;

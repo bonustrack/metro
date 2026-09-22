@@ -15,8 +15,7 @@ import { addServer } from '../api/servers.js';
 import { routeHash } from '../route.js';
 
 const CARD_WIDTH = 400;
-const HINT =
-  'A Metro daemon running on your own machine serves these same pages, and your messages never leave it. Paste the address it printed at start-up, usually http://127.0.0.1:8420. From another computer, forward its port first: ssh -L 8420:127.0.0.1:8420 <host>.';
+const HINT = 'Paste the address the daemon printed at start-up, usually http://127.0.0.1:8420.';
 
 async function switchTo(base: string): Promise<void> {
   const server = await addServer(segmentOf(base));

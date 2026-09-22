@@ -7,7 +7,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
-import { notReady, readModelConfig } from '../gateway/model-config.js';
+import { notReady, readModelConfig, routedConnection } from '../gateway/model-config.js';
 import { claudeDir, listClaudeProjects } from './files.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
@@ -105,7 +105,8 @@ function credentialReady(deps: SessionDeps): string | null {
   if (signedIn()) return null;
   try {
     const cfg = readModelConfig(deps.agents ?? agentsDir());
-    if (cfg.provider !== 'anthropic' && notReady(cfg) === null) return null;
+    const conn = routedConnection(cfg);
+    if (conn !== null && conn.provider !== 'anthropic' && notReady(cfg) === null) return null;
   } catch (err) {
     return `the Model page is not readable (${errMsg(err)})`;
   }

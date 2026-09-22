@@ -1,6 +1,8 @@
 import { type ReactNode, useState } from 'react';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Text } from './ui.js';
+import { Icon } from '@stage-labs/kit/react-native/icon';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Button } from './ui.js';
+import { Tip } from './Tip.js';
 import { connectorHost, type Connector } from '../api/connectors.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { DeleteConnector } from './DeleteConnector.js';
@@ -58,6 +60,17 @@ function RowActions({ row, onChanged, onDelete, onError }: ActionProps): ReactNo
   );
 }
 
+const WARNING_SIZE = 16;
+
+function HealthWarning({ note }: { note: string }): ReactNode {
+  const palette = useKitPalette();
+  return (
+    <Tip label={note}>
+      <Icon name="exclamationCircle" size={WARNING_SIZE} color={palette.danger} />
+    </Tip>
+  );
+}
+
 export function ConnectorRow({ onOpen, ...actions }: ConnectorRowProps): ReactNode {
   const { row, project } = actions;
   const note = healthNote(row);
@@ -68,13 +81,7 @@ export function ConnectorRow({ onOpen, ...actions }: ConnectorRowProps): ReactNo
       href={routeHash({ kind: 'connector', project, id: row.id })}
       icon={<ConnectorFavicon name={row.name} url={row.url} size={LIST_ICON_SIZE} />}
       muted={row.signIn === 'disconnected'}
-      extra={
-        note === null ? undefined : (
-          <Text size="sm" role="danger" numberOfLines={1}>
-            {note}
-          </Text>
-        )
-      }
+      extra={note === null ? undefined : <HealthWarning note={note} />}
       onOpen={() => {
         onOpen(row.id);
       }}

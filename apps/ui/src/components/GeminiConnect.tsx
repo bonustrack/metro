@@ -5,14 +5,13 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../theme.js';
-import { beginGeminiLogin, finishGeminiLogin, geminiLogout, type ModelSettings } from '../api/model.js';
+import { beginGeminiLogin, finishGeminiLogin, type ConnectionRow } from '../api/model.js';
 import { queryError, refreshModel } from '../api/queries.js';
 
 const FIELD_WIDTH = 420;
-const PASTE_HINT =
-  'At the end Google sends the browser to an address starting with http://localhost:51121/ which will not load. Copy that whole address from the address bar and paste it here.';
-const WHICH_ACCOUNT = 'Use the Google account that holds your Google AI Pro or Ultra plan (a free account works with lower limits). Metro presents itself as Google Antigravity, which Google does not support.';
-const PROJECT_HINT = 'Optional: the id of a Google Cloud project with a Gemini Code Assist licence. Leave it empty for a personal account.';
+const PASTE_HINT = 'Google ends on a localhost:51121 address that will not load. Paste that whole address here.';
+const WHICH_ACCOUNT = 'Use the account with your Google AI plan. Metro presents itself as Google Antigravity, which Google does not support.';
+const PROJECT_HINT = 'Optional: a Google Cloud project with a Gemini Code Assist licence. Empty for a personal account.';
 
 function useAction(): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>, fallback: string) => void } {
   const client = useQueryClient();
@@ -33,7 +32,7 @@ function useAction(): { busy: boolean; error: string | null; run: (job: () => Pr
   return { busy, error, run };
 }
 
-function PasteCode({ state, project }: { state: string; project: string }): ReactNode {
+function PasteCode({ state, project, id }: { state: string; project: string; id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { busy, error, run } = useAction();
   const [code, setCode] = useState('');
@@ -51,7 +50,7 @@ function PasteCode({ state, project }: { state: string; project: string }): Reac
           loading={busy}
           disabled={busy || code.trim() === ''}
           onPress={() => {
-            run(() => finishGeminiLogin(code, state, project), 'Could not finish the sign-in.');
+            run(() => finishGeminiLogin(code, state, project, id), 'Could not finish the sign-in.');
           }}
         />
       </Row>
@@ -60,7 +59,7 @@ function PasteCode({ state, project }: { state: string; project: string }): Reac
   );
 }
 
-function SignInFlow({ label, color }: { label: string; color: 'primary' | 'secondary' }): ReactNode {
+function SignInFlow({ label, color, id }: { label: string; color: 'primary' | 'secondary'; id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [project, setProject] = useState('');
   const [starting, setStarting] = useState(false);
@@ -104,51 +103,36 @@ function SignInFlow({ label, color }: { label: string; color: 'primary' | 'secon
           </Text>
         ) : null}
       </Row>
-      {started === null ? null : <PasteCode state={started.state} project={project.trim()} />}
+      {started === null ? null : <PasteCode state={started.state} project={project.trim()} id={id} />}
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
     </Col>
   );
 }
 
-function SignedIn({ gemini }: { gemini: ModelSettings['gemini'] }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const { busy, error, run } = useAction();
+function SignedIn({ gemini }: { gemini: ConnectionRow }): ReactNode {
   return (
     <Col gap={10}>
       <Text size="sm">
         Signed in{gemini.account === null ? '' : ` as ${gemini.account}`}
         {gemini.plan === null ? '' : ` (${gemini.plan})`}
       </Text>
-      <Row gap={8} wrap align="center">
-        <Button
-          size="sm"
-          color="secondary"
-          dark={dark}
-          label="Sign out"
-          disabled={busy}
-          onPress={() => {
-            run(geminiLogout, 'Could not sign out.');
-          }}
-        />
-      </Row>
-      <SignInFlow label="Connect again" color="secondary" />
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+      <SignInFlow label="Connect again" color="secondary" id={gemini.id} />
     </Col>
   );
 }
 
-export function GeminiConnect({ gemini }: { gemini: ModelSettings['gemini'] }): ReactNode {
+export function GeminiConnect({ gemini }: { gemini: ConnectionRow | null }): ReactNode {
   return (
     <Col gap={4}>
       <FieldLabel>Google account</FieldLabel>
-      {gemini.signedIn ? (
+      {gemini?.signedIn === true ? (
         <SignedIn gemini={gemini} />
       ) : (
         <Col gap={10}>
           <Text size="sm" role="secondary">
             Not connected. {WHICH_ACCOUNT}
           </Text>
-          <SignInFlow label="Connect Google" color="primary" />
+          <SignInFlow label="Connect Google" color="primary" id={gemini?.id ?? ''} />
         </Col>
       )}
     </Col>

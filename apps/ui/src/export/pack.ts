@@ -44,7 +44,7 @@ export interface PackedSession {
   text: string;
 }
 
-export type PackedModel = Record<string, unknown> & { provider: string };
+export type PackedModel = Record<string, unknown>;
 
 export interface Payload {
   version: number;

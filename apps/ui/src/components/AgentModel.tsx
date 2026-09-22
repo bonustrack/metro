@@ -1,26 +1,32 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
-import { FieldLabel } from './FieldLabel.js';
-import { ModelUsage } from './ModelUsage.js';
+import { UsageBars } from './ModelUsage.js';
 import { ProviderLogo } from './ProviderLogo.js';
-import { PROVIDERS, routeLabel, servedLabel, type ModelSettings } from '../api/model.js';
-import { USAGE_PROVIDERS, type UsageProvider } from '../api/usage.js';
+import { PROVIDERS, type ModelSettings } from '../api/model.js';
+import { DEFAULT_MODEL, modelLabel, routedConnection } from '../api/providers.js';
+import { tallyLine } from '../api/usage.js';
 import { queryError, useModelQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { routeHash } from '../route.js';
 import { opensElsewhere } from './link.js';
 import { type Selection } from './selection.js';
+import { SHRINK } from '../theme.js';
 
-const LOGO_SIZE = 20;
+const LOGO_SIZE = 28;
 
-function Route({ settings, href, onOpen }: { settings: ModelSettings; href: string; onOpen: () => void }): ReactNode {
+function Card({ settings, href, onOpen }: { settings: ModelSettings; href: string; onOpen: () => void }): ReactNode {
+  const palette = useKitPalette();
+  const side = { width: 1, color: palette.border };
+  const conn = routedConnection(settings);
   const served = settings.lastServed;
+  const usage = conn === undefined ? undefined : settings.usage[conn.id];
   return (
-    <Col gap={2}>
-      <FieldLabel>Model</FieldLabel>
+    <Col gap={16} padding={16} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
       <a
-        className="pill-link"
+        className="block-link"
         href={href}
         onClick={(e) => {
           if (opensElsewhere(e)) return;
@@ -28,9 +34,16 @@ function Route({ settings, href, onOpen }: { settings: ModelSettings; href: stri
           onOpen();
         }}
       >
-        <Row gap={8} align="center">
-          <ProviderLogo provider={PROVIDERS.find((p) => p.id === settings.provider)} size={LOGO_SIZE} />
-          <Text size="sm">{routeLabel(settings)}</Text>
+        <Row gap={12} align="center">
+          <ProviderLogo provider={PROVIDERS.find((p) => p.id === conn?.provider)} size={LOGO_SIZE} />
+          <Col gap={2} style={SHRINK}>
+            <Text size="md" weight="semibold" numberOfLines={1}>
+              {conn === undefined ? DEFAULT_MODEL : modelLabel(conn)}
+            </Text>
+            <Text size="sm" role="secondary" numberOfLines={1}>
+              {`${conn?.label ?? 'Your Claude Code login'}${served === null ? '' : ` · last request ${whenLabel(served.at)}`}`}
+            </Text>
+          </Col>
         </Row>
       </a>
       {settings.reason === null ? null : (
@@ -38,17 +51,18 @@ function Route({ settings, href, onOpen }: { settings: ModelSettings; href: stri
           {settings.reason}
         </Text>
       )}
-      <Text size="sm" role="secondary">
-        {served === null ? 'No request served yet.' : `Last request: ${servedLabel(served)}, ${whenLabel(served.at)}`}
-      </Text>
+      {usage === undefined ? null : (
+        <Col gap={10}>
+          <UsageBars windows={usage.windows} />
+          {usage.tally === null ? null : (
+            <Text size="sm" role="secondary">
+              {tallyLine(usage.tally)}
+            </Text>
+          )}
+        </Col>
+      )}
     </Col>
   );
-}
-
-const usageProvider = (name: string): UsageProvider | undefined => USAGE_PROVIDERS.find((p) => p === name);
-
-function currentProvider(settings: ModelSettings): UsageProvider | undefined {
-  return usageProvider(settings.lastServed?.provider ?? settings.provider) ?? usageProvider(settings.provider);
 }
 
 export function AgentRoute({ project, onSelect }: { project: string; onSelect: (s: Selection) => void }): ReactNode {
@@ -62,7 +76,7 @@ export function AgentRoute({ project, onSelect }: { project: string; onSelect: (
     );
   if (model.data === undefined) return null;
   return (
-    <Route
+    <Card
       settings={model.data}
       href={routeHash(target)}
       onOpen={() => {
@@ -70,10 +84,4 @@ export function AgentRoute({ project, onSelect }: { project: string; onSelect: (
       }}
     />
   );
-}
-
-export function AgentUsage(): ReactNode {
-  const model = useModelQuery();
-  if (model.data === undefined) return null;
-  return <ModelUsage usage={model.data.usage} only={currentProvider(model.data)} />;
 }

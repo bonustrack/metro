@@ -69,7 +69,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
   threema: {
     label: 'Threema',
-    hint: 'Uses a Threema Gateway ID in end-to-end mode, so the private key stays on this machine and Threema cannot read the messages. Create the ID at gateway.threema.ch, pick end-to-end mode, download its key file, then paste the ID, the API secret and the private key here. Metro then shows a callback URL to paste into the ID settings. Messages cost Gateway credits, and the station carries text only.',
+    hint: 'A Gateway ID in end-to-end mode: the private key stays on this machine. Create the ID at gateway.threema.ch, download its key file, and paste the three values here. Messages cost Gateway credits.',
     links: [{ text: 'gateway.threema.ch', href: 'https://gateway.threema.ch/' }],
     interactive: false,
     fields: [
@@ -98,13 +98,13 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
   xmtp: {
     label: 'XMTP',
-    hint: 'Metro generates a fresh XMTP identity for this agent, opens an inbox with it, and stores it only if that worked. The private key is shown once and never again.',
+    hint: 'Metro generates a fresh XMTP identity for this agent. The private key is shown once and never again.',
     interactive: false,
     fields: [],
   },
   'telegram': {
     label: 'Telegram',
-    hint: 'Signs in as a real Telegram user. Create an application at my.telegram.org to get the api id and hash, then Telegram sends a login code to the number below. This is a full-account credential and carries Telegram ban risk, so use a number you are willing to dedicate to the agent.',
+    hint: 'Signs in as a real Telegram user. Get an api id and hash at my.telegram.org, then Telegram sends a login code. A full-account credential with ban risk, so use a dedicated number.',
     links: [{ text: 'my.telegram.org', href: 'https://my.telegram.org/apps' }],
     interactive: true,
     fields: [
@@ -133,13 +133,13 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
   webhook: {
     label: 'Webhook',
-    hint: 'Metro mints a URL to POST events to. The whole URL is the credential, so paste it into the provider and there is no secret or signature header to configure. Treat it like a password: anyone holding it can post events to this agent. Webhook lines are inbound only, so the agent receives events and cannot reply on them.',
+    hint: 'Metro mints a URL to POST events to. The whole URL is the credential, so treat it like a password. Inbound only: the agent receives events and cannot reply.',
     interactive: false,
     fields: [],
   },
   whatsapp: {
     label: 'WhatsApp',
-    hint: 'Links Metro as a companion device on a real WhatsApp account. Give a phone number to pair with an 8-character code, or leave it blank to scan a QR code instead. Carries WhatsApp ban risk, so use a dedicated number.',
+    hint: 'Links Metro as a companion device on a real WhatsApp account. Pair with a code, or leave the number blank to scan a QR. Ban risk, so use a dedicated number.',
     interactive: true,
     fields: [
       {

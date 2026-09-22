@@ -456,6 +456,7 @@ body {
 
 .agent-card > div {
   flex: 1;
+  z-index: auto;
 }
 
 .agent-card:hover {
@@ -810,4 +811,102 @@ textarea:focus-visible {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+
+.model-rows {
+  max-height: min(420px, 50vh);
+}
+
+.model-rows-busy {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.model-match-current {
+  background: var(--metro-border);
+}
+
+.provider-choice {
+  padding: 12px 14px;
+  border: 1px solid var(--metro-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--metro-heading);
+  font-family: var(--metro-font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.provider-choice:hover {
+  background: var(--metro-surface);
+}
+
+.tip-host {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 60;
+}
+
+.tip::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid var(--metro-border);
+}
+
+.tip-label {
+  max-width: 320px;
+  padding: 8px 14px;
+  border-radius: 4px;
+  background: var(--metro-border);
+  color: var(--metro-heading);
+  font-family: var(--metro-font-sans);
+  text-align: center;
+}
+
+.tip-host:hover .tip {
+  display: flex;
+}
+
+
+.nav-link-off {
+  display: block;
+  opacity: 0.4;
+  cursor: default;
+}
+
+.block-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.connector-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 8px;
+  border: 1px solid var(--metro-border);
+  border-radius: 999px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.connector-chip:hover {
+  background: var(--metro-surface);
 }

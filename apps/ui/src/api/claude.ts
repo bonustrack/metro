@@ -180,6 +180,14 @@ export async function fetchMemoryFile(project: string, name: string): Promise<st
   return body.content;
 }
 
+export async function deleteMemoryFile(project: string, name: string): Promise<void> {
+  await call({
+    base: base(),
+    path: `/memory/${encodeURIComponent(name)}?project=${encodeURIComponent(project)}`,
+    method: 'DELETE',
+  });
+}
+
 export async function saveMemoryFile(project: string, name: string, content: string, modifiedAt?: string): Promise<void> {
   await call({
     base: base(),

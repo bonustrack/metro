@@ -3,6 +3,7 @@ import { applyRoute, currentSelection, routeHash, subscribeRoute } from '../rout
 import { AgentPanel } from './AgentPanel.js';
 import { AgentSidebar } from './AgentSidebar.js';
 import { Frame } from './Frame.js';
+import { OfflinePanel, worksOffline } from './Offline.js';
 import { selectionProject, type Selection } from './selection.js';
 import { currentServer, storeDaemon, baseFromSegment, storedServerId, storeServerId } from '../auth/daemon.js';
 
@@ -11,9 +12,10 @@ interface FramedProps {
   selection: Selection;
   onSelect: (next: Selection) => void;
   onLock: () => void;
+  offline: Offline | null;
 }
 
-function Framed({ project, selection, onSelect, onLock }: FramedProps): ReactNode {
+function Framed({ project, selection, onSelect, onLock, offline }: FramedProps): ReactNode {
   return (
     <Frame
       selection={selection}
@@ -26,20 +28,26 @@ function Framed({ project, selection, onSelect, onLock }: FramedProps): ReactNod
             closeMenu();
             onSelect(next);
           }}
+          offline={offline !== null}
         />
       )}
       onLock={onLock}
     >
-      <AgentPanel selection={selection} onSelect={onSelect} />
+      {offline !== null && !worksOffline(selection.kind) ? <OfflinePanel onRetry={offline.retry} /> : <AgentPanel selection={selection} onSelect={onSelect} />}
     </Frame>
   );
 }
 
-interface DashboardProps {
-  onLock: () => void;
+export interface Offline {
+  retry: () => void;
 }
 
-export function Dashboard({ onLock }: DashboardProps): ReactNode {
+interface DashboardProps {
+  onLock: () => void;
+  offline?: Offline | null;
+}
+
+export function Dashboard({ onLock, offline = null }: DashboardProps): ReactNode {
   const [selection, setSelection] = useState<Selection>(currentSelection);
   const hash = routeHash(selection);
 
@@ -64,5 +72,5 @@ export function Dashboard({ onLock }: DashboardProps): ReactNode {
   }, [routed]);
 
   if (project === null) return null;
-  return <Framed project={project} selection={selection} onSelect={onSelect} onLock={onLock} />;
+  return <Framed project={project} selection={selection} onSelect={onSelect} onLock={onLock} offline={offline} />;
 }

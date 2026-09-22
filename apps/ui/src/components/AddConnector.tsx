@@ -23,11 +23,9 @@ const EMPTY: NewConnector = {
   clientSecret: '',
 };
 
-const HINT =
-  'Metro verifies the server from its own machine, so a localhost URL will never work. The name becomes the key in the JSON you paste into your MCP client. Leave the header empty if the server signs you in with OAuth — Metro will send you there.';
+const HINT = 'Metro reaches the server from its own machine, so a localhost url never works. Leave the header empty for an OAuth server.';
 
-const APP_HINT =
-  'Only for a server whose sign-in does not register clients on its own, such as Microsoft 365: register an app with it, give the app this redirect URL, and paste the app\'s client ID here. A secret is needed only when the app was registered as a web app.';
+const APP_HINT = 'Only for a server that cannot register clients itself, such as Microsoft 365: register an app with this redirect url and paste its client id.';
 
 interface FieldSpec {
   key: FieldKey;

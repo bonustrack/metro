@@ -1,352 +1,85 @@
 import { type ReactNode, useState } from 'react';
-import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Text, Button } from './ui.js';
 import { PageTitle } from './PageTitle.js';
-import { FieldLabel } from './FieldLabel.js';
-import { ModelUsage } from './ModelUsage.js';
-import { ProviderLogo } from './ProviderLogo.js';
+import { ListHeader } from './ListHeader.js';
 import { Loading } from './Loading.js';
-import { GROW } from '../theme.js';
-import { afterSave, ANTHROPIC_KEYS_URL, draftOf, OPENROUTER_KEYS_URL, patchOf, PROVIDERS, routeLabel, saveModel, servedLabel, type Draft, type ModelOption, type ModelSettings } from '../api/model.js';
-import { queryError, refreshModel, useAnthropicModelsQuery, useBedrockModelsQuery, useCodexModelsQuery, useGeminiModelsQuery, useModelQuery, useOpenRouterModelsQuery, useOpenRouterZdrQuery } from '../api/queries.js';
-import { ModelPicker } from './ModelPicker.js';
+import { RouteCard } from './RouteCard.js';
+import { ProviderCard } from './ProviderCard.js';
+import { ProviderModal, type Editing } from './ProviderModal.js';
+import { ConnectProviderModal } from './ConnectProviderModal.js';
+import { ModelPickerModal } from './ModelPickerModal.js';
+import type { MenuItem } from './Dropdown.js';
+import { chooseConnection, dropConnection, saveConnection, type ConnectionRow, type ModelSettings } from '../api/model.js';
+import { usesKey } from '../api/providers.js';
+import { queryError, refreshModel, useModelQuery } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
-import { whenLabel } from '../api/when.js';
-import { CodexConnect } from './CodexConnect.js';
-import { GeminiConnect } from './GeminiConnect.js';
-import { ClaudeLoginCard } from './ClaudeLogin.js';
 
-const LOGO_SIZE = 16;
-const ROUTE_LOGO_SIZE = 20;
+const HOW = 'Where the requests of a metro claude session go. A change applies to the next one.';
+const NONE_YET = 'Nothing is connected yet, so a request carries the Claude Code login of the session that sent it.';
 
-const HOW =
-  'Claude Code sessions started with metro claude send every request through this daemon, which forwards it to the provider chosen here. A change applies to the next request, no restart needed. Inside a session, /model bedrock:<id>, /model openrouter:<id>, /model codex:<id> or /model gemini:<id> switches that session only.';
-const FIELD_WIDTH = 420;
+type Run = (job: () => Promise<unknown>, fallback: string) => void;
 
-interface KeyFieldProps {
-  label: string;
-  hasKey: boolean;
-  value: string;
-  forget: boolean;
-  onChange: (value: string) => void;
-  onForget: (forget: boolean) => void;
+function menuFor(c: ConnectionRow, edit: (e: Editing) => void, run: Run): MenuItem[] {
+  const open = { label: usesKey(c.provider) ? 'Key and settings' : 'Sign in again', onSelect: () => { edit({ provider: c.provider, connection: c }); } };
+  const zdr: MenuItem[] =
+    c.provider === 'openrouter'
+      ? [{ label: c.zdr ? 'Zero data retention: turn off' : 'Zero data retention: turn on', onSelect: () => { run(() => saveConnection(c.id, { zdr: !c.zdr }), 'Could not change the setting.'); } }]
+      : [];
+  return [open, ...zdr, { label: 'Disconnect', danger: true, onSelect: () => { run(() => dropConnection(c.id), 'Could not disconnect.'); } }];
 }
 
-function KeyField({ label, hasKey, value, forget, onChange, onForget }: KeyFieldProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return (
-    <Col gap={4} maxWidth={FIELD_WIDTH}>
-      <FieldLabel>{label}</FieldLabel>
-      <Input name={label} inputType="password" value={value} placeholder={hasKey ? 'stored on the daemon, paste to replace' : 'paste the key'} dark={dark} onChangeText={onChange} disabled={forget} style={GROW} inputProps={{ autoComplete: 'off' }} />
-      {hasKey && value === '' ? (
-        <Row gap={8} align="center" wrap>
-          <Button size="sm" color="secondary" dark={dark} label={forget ? 'Keep the stored key' : 'Forget the stored key'} onPress={() => { onForget(!forget); }} />
-          {forget ? <Text size="sm" role="secondary">Removed when you save.</Text> : null}
-        </Row>
-      ) : null}
-    </Col>
-  );
-}
-
-function KeyLink({ url, label }: { url: string; label: string }): ReactNode {
-  return (
-    <Text size="sm" role="secondary">
-      <a className="hint-link" href={url} target="_blank" rel="noreferrer">
-        {label}
-      </a>
-    </Text>
-  );
-}
-
-function AnthropicFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
-  const [wanted, setWanted] = useState(false);
-  const anthropic = useAnthropicModelsQuery(wanted);
-  return (
-    <Col gap={12}>
-      <ClaudeLoginCard />
-      <KeyField
-        label="Anthropic API key"
-        hasKey={settings.anthropic.hasKey}
-        value={draft.anthropicKey}
-        forget={draft.anthropicForget}
-        onChange={(v) => {
-          set({ anthropicKey: v });
-        }}
-        onForget={(f) => {
-          set({ anthropicForget: f });
-        }}
-      />
-      <KeyLink url={ANTHROPIC_KEYS_URL} label="Get a key from the Anthropic Console" />
-      <ModelPicker
-        label="Model"
-        value={draft.anthropicModel}
-        placeholder="empty: the model Claude Code asks for, or pick one"
-        models={anthropic.data}
-        loading={anthropic.isFetching}
-        error={anthropic.error === null ? null : queryError(anthropic.error, 'Could not list the Anthropic models.')}
-        onOpen={() => {
-          setWanted(true);
-        }}
-        onChange={(v) => {
-          set({ anthropicModel: v });
-        }}
-      />
-      <Text size="sm" role="secondary">
-        A pinned model does not touch the small ones. A request for Haiku stays Haiku, so background work and subagents pinned to it keep costing what they should.
-      </Text>
-    </Col>
-  );
-}
-
-const ZDR_NOTE =
-  'Zero data retention sends every request with OpenRouter\'s zdr routing preference, so it can only reach endpoints whose provider keeps no prompts or completions. A model with no such endpoint fails with OpenRouter\'s own error instead of falling back. OpenRouter also offers this account-wide under its privacy settings; the two combine.';
-
-function ZdrSwitch({ on, onChange }: { on: boolean; onChange: (zdr: boolean) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return (
-    <Col gap={6}>
-      <Row gap={10} align="center" wrap>
-        <Button size="sm" color={on ? 'primary' : 'secondary'} dark={dark} label={on ? 'Zero data retention: on' : 'Zero data retention: off'} onPress={() => { onChange(!on); }} />
-      </Row>
-      <Text size="sm" role="secondary">{ZDR_NOTE}</Text>
-    </Col>
-  );
-}
-
-function zdrNote(model: string, zdr: Set<string> | undefined): string | null {
-  if (zdr === undefined) return null;
-  if (model === '' || zdr.has(model)) return `${String(zdr.size)} models have a zero data retention endpoint on OpenRouter; the list above shows only those.`;
-  return `${model} has no zero data retention endpoint on OpenRouter, so every request would fail. Pick one of the ${String(zdr.size)} models that do.`;
-}
-
-interface Offered {
-  models: ModelOption[] | undefined;
-  error: string | null;
-  note: string | null;
-  danger: boolean;
-}
-
-function offeredModels(draft: Draft, models: UseQueryResult<ModelOption[]>, zdr: UseQueryResult<Set<string>>): Offered {
-  const filtered = draft.openrouterZdr && zdr.data !== undefined ? models.data?.filter((m) => zdr.data.has(m.id)) : models.data;
-  const error =
-    models.error !== null
-      ? queryError(models.error, 'Could not list the OpenRouter models.')
-      : zdr.error !== null
-        ? queryError(zdr.error, 'Could not list the zero data retention endpoints.')
-        : null;
-  const note = draft.openrouterZdr ? zdrNote(draft.openrouterModel, zdr.data) : null;
-  const danger = draft.openrouterZdr && draft.openrouterModel !== '' && zdr.data?.has(draft.openrouterModel) === false;
-  return { models: filtered, error, note, danger };
-}
-
-function OpenRouterFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
-  const [wanted, setWanted] = useState(false);
-  const models = useOpenRouterModelsQuery(wanted);
-  const zdr = useOpenRouterZdrQuery(draft.openrouterZdr);
-  const offered = offeredModels(draft, models, zdr);
-  return (
-    <Col gap={12}>
-      <KeyField
-        label="OpenRouter API key"
-        hasKey={settings.openrouter.hasKey}
-        value={draft.openrouterKey}
-        forget={draft.openrouterForget}
-        onChange={(v) => {
-          set({ openrouterKey: v });
-        }}
-        onForget={(f) => {
-          set({ openrouterForget: f });
-        }}
-      />
-      <KeyLink url={OPENROUTER_KEYS_URL} label="Get a key from OpenRouter" />
-      <ModelPicker
-        label="Model"
-        value={draft.openrouterModel}
-        placeholder="type to search, e.g. sonnet, gpt-5, gemini"
-        models={offered.models}
-        loading={models.isFetching || zdr.isFetching}
-        error={offered.error}
-        onOpen={() => {
-          setWanted(true);
-        }}
-        onChange={(v) => {
-          set({ openrouterModel: v });
-        }}
-      />
-      <ZdrSwitch on={draft.openrouterZdr} onChange={(next) => { set({ openrouterZdr: next }); }} />
-      {offered.note === null ? null : (
-        <Text size="sm" role={offered.danger ? 'danger' : 'secondary'}>{offered.note}</Text>
-      )}
-    </Col>
-  );
-}
-
-function CodexFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
-  const [wanted, setWanted] = useState(false);
-  const models = useCodexModelsQuery(wanted && settings.codex.signedIn);
-  return (
-    <Col gap={12}>
-      <CodexConnect codex={settings.codex} />
-      <ModelPicker
-        label="Model"
-        value={draft.codexModel}
-        placeholder="type to search, e.g. astra, codex, gpt-5"
-        models={models.data}
-        loading={models.isFetching}
-        error={models.error === null ? null : queryError(models.error, 'Could not list the models this account can use.')}
-        onOpen={() => {
-          setWanted(true);
-        }}
-        onChange={(v) => {
-          set({ codexModel: v });
-        }}
-      />
-    </Col>
-  );
-}
-
-function GeminiFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
-  const [wanted, setWanted] = useState(false);
-  const models = useGeminiModelsQuery(wanted);
-  return (
-    <Col gap={12}>
-      <GeminiConnect gemini={settings.gemini} />
-      <ModelPicker
-        label="Model"
-        value={draft.geminiModel}
-        placeholder="type to search, e.g. gemini-3, flash, pro"
-        models={models.data}
-        loading={models.isFetching}
-        error={models.error === null ? null : queryError(models.error, 'Could not list the models.')}
-        onOpen={() => {
-          setWanted(true);
-        }}
-        onChange={(v) => {
-          set({ geminiModel: v });
-        }}
-      />
-    </Col>
-  );
-}
-
-function TextField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (v: string) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return (
-    <Col gap={4} maxWidth={FIELD_WIDTH}>
-      <FieldLabel>{label}</FieldLabel>
-      <Input name={label} value={value} placeholder={placeholder} dark={dark} onChangeText={onChange} style={GROW} />
-    </Col>
-  );
-}
-
-function ProviderFields({ draft, settings, set }: { draft: Draft; settings: ModelSettings; set: (next: Partial<Draft>) => void }): ReactNode {
-  const [bedrockWanted, setBedrockWanted] = useState(false);
-  const bedrock = useBedrockModelsQuery(bedrockWanted);
-  if (draft.provider === 'bedrock')
-    return (
-      <Col gap={12}>
-        <KeyField label="Bedrock API key" hasKey={settings.bedrock.hasKey} value={draft.bedrockKey} forget={draft.bedrockForget} onChange={(v) => { set({ bedrockKey: v }); }} onForget={(f) => { set({ bedrockForget: f }); }} />
-        <TextField label="Region" value={draft.bedrockRegion} placeholder="eu-central-1" onChange={(v) => { set({ bedrockRegion: v }); }} />
-        <ModelPicker
-          label="Model"
-          value={draft.bedrockModel}
-          placeholder="empty: the model Claude Code asks for, or pick one"
-          models={bedrock.data}
-          loading={bedrock.isFetching}
-          error={bedrock.error === null ? null : queryError(bedrock.error, 'Could not list the Bedrock models.')}
-          onOpen={() => {
-            setBedrockWanted(true);
-          }}
-          onChange={(v) => {
-            set({ bedrockModel: v });
-          }}
-        />
-      </Col>
-    );
-  if (draft.provider === 'openrouter') return <OpenRouterFields draft={draft} settings={settings} set={set} />;
-  if (draft.provider === 'codex') return <CodexFields draft={draft} settings={settings} set={set} />;
-  if (draft.provider === 'gemini') return <GeminiFields draft={draft} settings={settings} set={set} />;
-  return <AnthropicFields draft={draft} settings={settings} set={set} />;
-}
-
-const NOTHING_YET =
-  'Nothing has reached the gateway yet. Only a Claude Code session started with metro claude on this machine comes through here, and one started before the daemon had the gateway keeps talking to Anthropic until it is restarted.';
-
-function LastServed({ settings }: { settings: ModelSettings }): ReactNode {
-  const served = settings.lastServed;
-  return (
-    <Col gap={2}>
-      <FieldLabel>Last request</FieldLabel>
-      {served === null ? (
-        <Text size="sm" role="secondary">
-          {NOTHING_YET}
-        </Text>
-      ) : (
-        <Text size="sm">
-          {servedLabel(served)}, {whenLabel(served.at)}
-        </Text>
-      )}
-    </Col>
-  );
-}
-
-function Editor({ settings }: { settings: ModelSettings }): ReactNode {
+function Body({ settings }: { settings: ModelSettings }): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
-  const [draft, setDraft] = useState<Draft>(() => draftOf(settings));
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [editing, setEditing] = useState<Editing | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const set = (next: Partial<Draft>): void => {
-    setDraft((d) => ({ ...d, ...next }));
-    setNote(null);
-  };
-  const save = (): void => {
-    setBusy(true);
+  const run: Run = (job, fallback) => {
     setError(null);
-    saveModel(patchOf(draft))
-      .then(async () => {
-        setDraft(afterSave);
-        await refreshModel(client);
-        setNote('Saved. The next request from a running session takes this route.');
-      })
+    job()
+      .then(() => refreshModel(client))
       .catch((err: unknown) => {
-        setError(queryError(err, 'Could not save the model settings.'));
-      })
-      .finally(() => {
-        setBusy(false);
+        setError(queryError(err, fallback));
       });
   };
-  const unsaved = draft.provider !== settings.provider;
   return (
-    <Col gap={20}>
-      <Row gap={8} wrap>
-        {PROVIDERS.map((p) => (
-          <Button
-            key={p.id}
-            size="sm"
-            dark={dark}
-            color={p.id === draft.provider ? 'primary' : 'secondary'}
-            label={p.label}
-            icon={<ProviderLogo provider={p} size={LOGO_SIZE} />}
-            onPress={() => {
-              set({ provider: p.id });
-            }}
-          />
-        ))}
-      </Row>
-      <Text size="sm" role="secondary">
-        {PROVIDERS.find((p) => p.id === draft.provider)?.blurb ?? ''}
-      </Text>
-      <ProviderFields draft={draft} settings={settings} set={set} />
-      <Row gap={12} align="center" wrap>
-        <Button dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy} onPress={save} />
-        {unsaved ? <Text size="sm" role="secondary">Not in use until you save.</Text> : null}
-        {note !== null ? <Text size="sm" role="secondary">{note}</Text> : null}
-        {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
-      </Row>
+    <Col gap={28}>
+      <RouteCard settings={settings} onChange={() => { setPicking(true); }} />
+      <Col gap={16}>
+        <ListHeader title="Connections" count={settings.connections.length} action={<Button size="sm" dark={dark} label="Connect" onPress={() => { setConnecting(true); }} />} />
+        {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+        {settings.connections.length === 0 ? (
+          <Text size="sm" role="secondary">{NONE_YET}</Text>
+        ) : (
+          <Row gap={12} wrap>
+            {settings.connections.map((c) => (
+              <ProviderCard
+                key={c.id}
+                connection={c}
+                settings={settings}
+                items={menuFor(c, setEditing, run)}
+                onUse={() => {
+                  run(() => chooseConnection(c.id), 'Could not switch the connection.');
+                }}
+              />
+            ))}
+          </Row>
+        )}
+      </Col>
+      <ModelPickerModal open={picking} settings={settings} onClose={() => { setPicking(false); }} />
+      <ConnectProviderModal
+        open={connecting}
+        onPick={(provider) => {
+          setConnecting(false);
+          setEditing({ provider, connection: null });
+        }}
+        onClose={() => { setConnecting(false); }}
+      />
+      <ProviderModal editing={editing} onClose={() => { setEditing(null); }} />
     </Col>
   );
 }
@@ -369,23 +102,7 @@ export function ModelPage(): ReactNode {
       ) : model.data === undefined ? (
         <Loading />
       ) : (
-        <Col gap={20}>
-          <Col gap={2}>
-            <FieldLabel>In use</FieldLabel>
-            <Row gap={8} align="center">
-              <ProviderLogo provider={PROVIDERS.find((p) => p.id === model.data.provider)} size={ROUTE_LOGO_SIZE} />
-              <Text size="sm">{routeLabel(model.data)}</Text>
-            </Row>
-            {model.data.reason !== null ? (
-              <Text size="sm" role="danger">
-                {model.data.reason}
-              </Text>
-            ) : null}
-          </Col>
-          <LastServed settings={model.data} />
-          <ModelUsage usage={model.data.usage} />
-          <Editor settings={model.data} />
-        </Col>
+        <Body settings={model.data} />
       )}
     </Col>
   );

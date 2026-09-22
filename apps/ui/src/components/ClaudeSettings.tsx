@@ -14,8 +14,7 @@ import { queryError, refreshClaudeSettings, useClaudeSettingsQuery } from '../ap
 import { whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
-const WHAT =
-  'Claude Code reads these files when a session starts on this machine. The first is the one for your whole account; the others belong to a project Claude Code has worked in. A change here reaches the next session, not one already running.';
+const WHAT = 'Read when a session starts. A change reaches the next one.';
 const EDITOR = { minHeight: 420, lineHeight: 22 } as const;
 const EMPTY = '{\n  \n}\n';
 const INDENT = 2;
@@ -178,9 +177,6 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
     <Col gap={20}>
       <Col gap={8}>
         <PageTitle>Harness</PageTitle>
-        <Text size="sm" role="secondary">
-          {WHAT}
-        </Text>
         <ClaudeVersion />
       </Col>
       <ClaudeSetup project={project} />
@@ -196,6 +192,10 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
         </Text>
       ) : (
         <Col gap={16}>
+          <Col gap={2}>
+            <Text size="md" weight="semibold">Settings</Text>
+            <Text size="sm" role="secondary">{WHAT}</Text>
+          </Col>
           <FilePicker
             files={files}
             chosen={file.id}

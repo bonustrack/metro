@@ -188,8 +188,23 @@ beforeEach(() => {
   forgetUsage();
   creditsAuth.length = 0;
   googleForms.length = 0;
-  stored = { version: 1, provider: 'anthropic', anthropic: { apiKey: '', model: '' }, bedrock: { region: '', apiKey: '', model: '' }, openrouter: { apiKey: '', model: '', zdr: false }, codex: { model: '', auth: null }, gemini: { model: '', auth: null } };
+  stored = { version: 2, route: '', connections: [] };
 });
+
+const conns = async (method: string, path = '', body?: unknown): Promise<Response> =>
+  fetch(`${base}/api/model/connections${path}`, {
+    method,
+    headers: {
+      authorization: await auth(method, `/api/model/connections${path}`, OWNER),
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+const add = async (body: unknown): Promise<string> => {
+  const made = (await (await conns('POST', '', body)).json()) as { connections: { id: string }[] };
+  return made.connections.at(-1)?.id ?? '';
+};
 
 const call = async (method: string, who: Who | null, body?: unknown): Promise<Response> =>
   fetch(`${base}/api/model`, {
@@ -201,48 +216,76 @@ const call = async (method: string, who: Who | null, body?: unknown): Promise<Re
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-describe('the model route on the page', () => {
-  test('the owner reads it without any key, and saves a route with its keys', async () => {
+describe('the connections on the page', () => {
+  test('the owner starts with none, adds one per credential, and several of one provider live side by side', async () => {
     const before = await call('GET', OWNER);
     expect(before.status).toBe(200);
-    expect(await before.json()).toMatchObject({ provider: 'anthropic', ready: true, bedrock: { hasKey: false } });
-    const saved = await call('PUT', OWNER, { provider: 'openrouter', openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex' } });
-    expect(saved.status).toBe(200);
-    const body = await saved.json();
-    expect(body).toMatchObject({ provider: 'openrouter', ready: true, openrouter: { model: 'openai/gpt-5.2-codex', hasKey: true } });
+    expect(await before.json()).toMatchObject({ route: '', ready: true, connections: [] });
+
+    const first = await conns('POST', '', { provider: 'openrouter', apiKey: 'or-key', model: 'openai/gpt-5.2-codex' });
+    expect(first.status).toBe(200);
+    const body = (await first.json()) as { route: string; connections: { id: string; label: string; hasKey: boolean; model: string }[] };
+    expect(body.connections).toHaveLength(1);
+    expect(body.connections[0]).toMatchObject({ label: 'OpenRouter', hasKey: true, model: 'openai/gpt-5.2-codex' });
+    expect(body.route).toBe(body.connections[0]?.id ?? '');
     expect(JSON.stringify(body)).not.toContain('or-key');
-    expect(stored.openrouter.apiKey).toBe('or-key');
-    const again = await call('PUT', OWNER, { openrouter: { model: 'anthropic/claude-sonnet-4.5', zdr: true } });
-    expect(((await again.json()) as { openrouter: { hasKey: boolean; zdr: boolean } }).openrouter).toMatchObject({ hasKey: true, zdr: true });
-    expect(stored.openrouter.model).toBe('anthropic/claude-sonnet-4.5');
-    expect(stored.openrouter.zdr).toBe(true);
+    expect(stored.connections[0]?.apiKey).toBe('or-key');
+
+    const second = await add({ provider: 'openrouter', apiKey: 'other-key', model: 'anthropic/claude-sonnet-4.5' });
+    expect(stored.connections.map((c) => c.label)).toEqual(['OpenRouter', 'OpenRouter 2']);
+    expect(stored.route).toBe(stored.connections[0]?.id);
+
+    const routed = await call('PUT', OWNER, { route: second });
+    expect(((await routed.json()) as { route: string }).route).toBe(second);
+    expect(stored.route).toBe(second);
   });
 
-  test('the settings carry what each provider last said about its quota, and OpenRouter credits are read once per five minutes', async () => {
+  test('a connection is renamed, edited and removed on its own; removing the routed one moves the route', async () => {
+    const one = await add({ provider: 'openrouter', apiKey: 'k1', model: 'a/b' });
+    const two = await add({ provider: 'openrouter', apiKey: 'k2', model: 'c/d' });
+    const renamed = await conns('PUT', `/${two}`, { label: 'Work', zdr: true });
+    expect(renamed.status).toBe(200);
+    expect(stored.connections[1]).toMatchObject({ label: 'Work', zdr: true, apiKey: 'k2', model: 'c/d' });
+    expect(stored.connections[0]).toMatchObject({ label: 'OpenRouter', zdr: false, apiKey: 'k1' });
+
+    expect((await conns('PUT', '/cn-nope', { label: 'x' })).status).toBe(400);
+    expect((await conns('PUT', `/${two}`, { zdr: 'yes' })).status).toBe(400);
+    expect((await conns('POST', '', { provider: 'mars' })).status).toBe(400);
+
+    const gone = await conns('DELETE', `/${one}`);
+    expect(gone.status).toBe(200);
+    expect(stored.connections.map((c) => c.id)).toEqual([two]);
+    expect(stored.route).toBe(two);
+    expect((await conns('DELETE', `/${one}`)).status).toBe(400);
+  });
+
+  test('the settings carry what each connection last said about its quota, and OpenRouter credits are read once per five minutes', async () => {
     const quiet = (await (await call('GET', OWNER)).json()) as { usage: Record<string, unknown> };
     expect(quiet.usage).toEqual({});
     expect(creditsAuth).toEqual([]);
 
-    noteUsageHeaders('codex', new Headers({ 'x-codex-primary-used-percent': '42', 'x-codex-primary-window-minutes': '300' }));
-    stored = { ...stored, provider: 'openrouter', openrouter: { apiKey: 'or-key', model: 'x/y', zdr: false } };
+    const id = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'x/y' });
+    noteUsageHeaders('codex', 'cn-codex', new Headers({ 'x-codex-primary-used-percent': '42', 'x-codex-primary-window-minutes': '300' }));
     const first = (await (await call('GET', OWNER)).json()) as { usage: Record<string, { windows: { label: string; used: number | null; detail: string | null }[] }> };
-    expect(first.usage.codex?.windows).toEqual([{ label: '5-hour window', used: 0.42, resetAt: null, detail: null }]);
-    expect(first.usage.openrouter?.windows).toEqual([{ label: 'Credits', used: 0.248, resetAt: null, detail: '$12.40 of $50.00 used' }]);
+    expect(first.usage['cn-codex']?.windows).toEqual([{ label: '5-hour window', used: 0.42, resetAt: null, detail: null }]);
+    expect(first.usage[id]?.windows).toEqual([{ label: 'Credits', used: 0.248, resetAt: null, detail: '$12.40 of $50.00 used' }]);
     expect(creditsAuth).toEqual(['Bearer or-key']);
     expect(JSON.stringify(first)).not.toContain('or-key');
 
     await call('GET', OWNER);
     expect(creditsAuth).toHaveLength(1);
+    await conns('DELETE', `/${id}`);
+    expect(((await (await call('GET', OWNER)).json()) as { usage: Record<string, unknown> }).usage[id]).toBeUndefined();
   });
 
   test('a bad body is a 400 naming the field, a stranger a 404, no signature a 401, other methods 405', async () => {
-    const bad = await call('PUT', OWNER, { provider: 'mars' });
+    const bad = await call('PUT', OWNER, { route: 'cn-nope' });
     expect(bad.status).toBe(400);
-    expect(((await bad.json()) as { error: string }).error).toContain('provider');
+    expect(((await bad.json()) as { error: string }).error).toContain('connection');
     expect((await call('GET', OTHER)).status).toBe(404);
     expect((await call('GET', null)).status).toBe(401);
     expect((await call('DELETE', OWNER)).status).toBe(405);
-    expect(stored.provider).toBe('anthropic');
+    expect(stored.route).toBe('');
   });
 });
 
@@ -275,20 +318,20 @@ const codex = async (name: string, method: 'GET' | 'POST', body?: unknown): Prom
 
 describe('the model setup as a whole, for the export file', () => {
   test('the owner reads it with its keys and writes it back; anything else is refused', async () => {
-    stored = { ...stored, provider: 'openrouter', openrouter: { apiKey: 'or-key', model: 'google/gemini-3.8-flash', zdr: true } };
+    await add({ provider: 'openrouter', apiKey: 'or-key', model: 'google/gemini-3.8-flash', zdr: true });
     const bundle = await fetch(`${base}/api/model/bundle`, { headers: { authorization: await auth('GET', '/api/model/bundle', OWNER) } });
     expect(bundle.status).toBe(200);
     const body = (await bundle.json()) as ModelConfig;
-    expect(body.openrouter).toEqual({ apiKey: 'or-key', model: 'google/gemini-3.8-flash', zdr: true });
-    stored = { ...stored, provider: 'anthropic', openrouter: { apiKey: '', model: '', zdr: false } };
+    expect(body.connections[0]).toMatchObject({ provider: 'openrouter', apiKey: 'or-key', model: 'google/gemini-3.8-flash', zdr: true });
+    stored = { version: 2, route: '', connections: [] };
     const restored = await fetch(`${base}/api/model/restore`, {
       method: 'POST',
       headers: { authorization: await auth('POST', '/api/model/restore', OWNER), 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
     expect(restored.status).toBe(200);
-    expect(await restored.json()).toMatchObject({ provider: 'openrouter', openrouter: { model: 'google/gemini-3.8-flash', hasKey: true, zdr: true } });
-    expect(stored.openrouter.apiKey).toBe('or-key');
+    expect(((await restored.json()) as { connections: Record<string, unknown>[] }).connections[0]).toMatchObject({ provider: 'openrouter', model: 'google/gemini-3.8-flash', hasKey: true, zdr: true });
+    expect(stored.connections[0]?.apiKey).toBe('or-key');
     const bad = await fetch(`${base}/api/model/restore`, {
       method: 'POST',
       headers: { authorization: await auth('POST', '/api/model/restore', OWNER), 'content-type': 'application/json' },
@@ -310,15 +353,15 @@ describe('connecting ChatGPT for Codex from the page', () => {
     expect(stale.status).toBe(400);
     const done = await codex('callback', 'POST', { url: `http://localhost:1455/auth/callback?code=the-code&state=${state}` });
     expect(done.status).toBe(200);
-    const shown = (await done.json()) as { codex: { signedIn: boolean; account: string | null; plan: string | null } };
-    expect(shown.codex).toEqual({ model: '', signedIn: true, account: 'less@example.com', plan: 'plus' } as never);
+    const shown = (await done.json()) as { connections: Record<string, unknown>[] };
+    expect(shown.connections[0]).toMatchObject({ provider: 'codex', label: 'Codex (ChatGPT)', signedIn: true, account: 'less@example.com', plan: 'plus' });
     expect(JSON.stringify(shown)).not.toContain('at-1');
-    expect(stored.codex.auth?.accessToken).toBe('at-1');
+    expect(stored.connections[0]?.codex?.accessToken).toBe('at-1');
     const models = await codex('models', 'GET');
     expect(await models.json()).toEqual({ models: ['gpt-5.3-codex'] });
-    const out = await codex('logout', 'POST');
-    expect(((await out.json()) as { codex: { signedIn: boolean } }).codex.signedIn).toBe(false);
-    expect(stored.codex.auth).toBeNull();
+    const id = String(shown.connections[0]?.id);
+    expect((await conns('DELETE', `/${id}`)).status).toBe(200);
+    expect(stored.connections).toEqual([]);
     expect((await codex('models', 'GET')).status).toBe(400);
   });
 
@@ -328,7 +371,7 @@ describe('connecting ChatGPT for Codex from the page', () => {
     writeFileSync(join(home, '.codex', 'auth.json'), JSON.stringify({ auth_mode: 'chatgpt', tokens: { id_token: idToken, access_token: 'cli-at', refresh_token: 'cli-rt', account_id: 'acct_1' } }));
     const imported = await codex('import', 'POST');
     expect(imported.status).toBe(200);
-    expect(stored.codex.auth?.accessToken).toBe('cli-at');
+    expect(stored.connections[0]?.codex?.accessToken).toBe('cli-at');
     expect((await codex('dance', 'POST')).status).toBe(404);
     expect((await codex('login', 'GET')).status).toBe(405);
   });
@@ -357,26 +400,26 @@ describe('connecting Google for Gemini from the page', () => {
     const again = (await (await gemini('login', 'POST')).json()) as { state: string };
     const done = await gemini('code', 'POST', { code: `http://localhost:51121/oauth-callback?state=${again.state}&code=4%2F0AbCdEf&scope=email`, state: again.state });
     expect(done.status).toBe(200);
-    const shown = (await done.json()) as { gemini: Record<string, unknown> };
-    expect(shown.gemini).toEqual({ model: '', signedIn: true, account: 'less@gmail.com', plan: 'Google AI Pro' });
+    const shown = (await done.json()) as { connections: Record<string, unknown>[] };
+    expect(shown.connections[0]).toMatchObject({ provider: 'gemini', signedIn: true, account: 'less@gmail.com', plan: 'Google AI Pro' });
     expect(JSON.stringify(shown)).not.toContain('g-at');
     expect(googleForms.at(-1)?.get('grant_type')).toBe('authorization_code');
     expect(googleForms.at(-1)?.get('code')).toBe('4/0AbCdEf');
     expect(googleForms.at(-1)?.get('redirect_uri')).toBe('http://localhost:51121/oauth-callback');
     expect(googleForms.at(-1)?.get('code_verifier')).toMatch(/^[A-Za-z0-9_-]{40,}$/);
-    expect(stored.gemini.auth).toMatchObject({ accessToken: 'g-at', refreshToken: 'g-rt', project: 'managed-proj-7', tier: 'Google AI Pro', email: 'less@gmail.com' });
+    expect(stored.connections[0]?.gemini).toMatchObject({ accessToken: 'g-at', refreshToken: 'g-rt', project: 'managed-proj-7', tier: 'Google AI Pro', email: 'less@gmail.com' });
     expect(onboardTiers).toEqual(['free-tier']);
     expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 9, platform: expect.any(Number) as unknown, pluginType: 2 }, mode: 1 });
     expect(await (await gemini('models', 'GET')).json()).toEqual({ models: ['gemini-3.8-flash-tiered', 'gemini-3.1-pro-high'] });
     expect(modelsAsked.at(-1)).toEqual({ project: 'managed-proj-7' });
+    const geminiId = String(shown.connections[0]?.id);
     const quiet = (await (await fetch(`${base}/api/model`, { headers: { authorization: await auth('GET', '/api/model', OWNER) } })).json()) as { usage: Record<string, unknown> };
-    expect(quiet.usage.gemini).toBeUndefined();
-    stored = { ...stored, gemini: { ...stored.gemini, model: 'gemini-3.8-flash-tiered' } };
-    const settings =(await (await fetch(`${base}/api/model`, { headers: { authorization: await auth('GET', '/api/model', OWNER) } })).json()) as { usage: { gemini?: { windows: { label: string; used: number; resetAt: string; detail: string | null }[] } } };
-    expect(settings.usage.gemini?.windows).toEqual([{ label: 'gemini-3.8-flash-tiered', used: 0.25, resetAt: '2026-09-21T10:00:00Z', detail: null }]);
-    const out = await gemini('logout', 'POST');
-    expect(((await out.json()) as { gemini: { signedIn: boolean } }).gemini.signedIn).toBe(false);
-    expect(stored.gemini.auth).toBeNull();
+    expect(quiet.usage[geminiId]).toBeUndefined();
+    await conns('PUT', `/${geminiId}`, { model: 'gemini-3.8-flash-tiered' });
+    const settings = (await (await fetch(`${base}/api/model`, { headers: { authorization: await auth('GET', '/api/model', OWNER) } })).json()) as { usage: Record<string, { windows: { label: string; used: number; resetAt: string; detail: string | null }[] }> };
+    expect(settings.usage[geminiId]?.windows).toEqual([{ label: 'gemini-3.8-flash-tiered', used: 0.25, resetAt: '2026-09-21T10:00:00Z', detail: null }]);
+    expect((await conns('DELETE', `/${geminiId}`)).status).toBe(200);
+    expect(stored.connections).toEqual([]);
     expect((await gemini('dance', 'POST')).status).toBe(404);
     expect((await gemini('login', 'GET')).status).toBe(405);
   });
@@ -390,7 +433,7 @@ describe('connecting Google for Gemini from the page', () => {
       const text = ((await refused.json()) as { error: string }).error;
       expect(text).toContain('not eligible for Gemini Code Assist for individuals');
       expect(text).toContain('[DASHER_USER: this is a Google Workspace account');
-      expect(stored.gemini.auth).toBeNull();
+      expect(stored.connections).toEqual([]);
     } finally {
       ineligible.on = false;
     }
@@ -404,7 +447,7 @@ describe('connecting Google for Gemini from the page', () => {
       const refused = await gemini('code', 'POST', { code: '4/ok', state: started.state });
       expect(refused.status).toBe(400);
       expect(((await refused.json()) as { error: string }).error).toContain('named no project');
-      expect(stored.gemini.auth).toBeNull();
+      expect(stored.connections).toEqual([]);
       expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 9, platform: expect.any(Number) as unknown, pluginType: 2 }, mode: 1 });
       const bad = (await (await gemini('login', 'POST')).json()) as { state: string };
       const shape = await gemini('code', 'POST', { code: '4/ok', state: bad.state, project: 'Not A Project' });
@@ -413,8 +456,8 @@ describe('connecting Google for Gemini from the page', () => {
       const again = (await (await gemini('login', 'POST')).json()) as { state: string };
       const done = await gemini('code', 'POST', { code: '4/ok', state: again.state, project: 'stage-metro-1' });
       expect(done.status).toBe(200);
-      expect(((await done.json()) as { gemini: Record<string, unknown> }).gemini).toMatchObject({ signedIn: true, plan: 'Standard' });
-      expect(stored.gemini.auth).toMatchObject({ project: 'stage-metro-1', tier: 'Standard' });
+      expect(((await done.json()) as { connections: Record<string, unknown>[] }).connections[0]).toMatchObject({ signedIn: true, plan: 'Standard' });
+      expect(stored.connections[0]?.gemini).toMatchObject({ project: 'stage-metro-1', tier: 'Standard' });
       expect(loadAsked.at(-1)).toEqual({ metadata: { ideType: 9, platform: expect.any(Number) as unknown, pluginType: 2, duetProject: 'stage-metro-1' }, mode: 1, cloudaicompanionProject: 'stage-metro-1' });
     } finally {
       managed.on = false;
@@ -430,8 +473,8 @@ describe('the device-code sign-in from the page', () => {
     expect(login).toMatchObject({ user_code: 'ABCD-EFGH', verify_url: `${issuerBase}/codex/device`, interval: 1 });
     const done = await codex(`device/${login.id}`, 'GET');
     expect(done.status).toBe(200);
-    expect(await done.json()).toMatchObject({ status: 'done', settings: { codex: { signedIn: true, account: 'less@example.com', plan: 'plus' } } });
-    expect(stored.codex.auth?.accessToken).toBe('at-1');
+    expect((await done.json() as { settings: { connections: Record<string, unknown>[] } }).settings.connections[0]).toMatchObject({ provider: 'codex', signedIn: true, account: 'less@example.com', plan: 'plus' });
+    expect(stored.connections[0]?.codex?.accessToken).toBe('at-1');
     expect((await codex(`device/${login.id}`, 'GET')).status).toBe(400);
     expect((await codex('device/short', 'GET')).status).toBe(404);
     expect((await codex(`device/${login.id}`, 'POST')).status).toBe(405);
@@ -464,7 +507,7 @@ describe('picking an OpenRouter model without typing its id', () => {
 describe('the Codex client version metro announces', () => {
   test('is a current one, so the backend offers the models a current client may use, and it can be overridden', async () => {
     seenModelUrls.length = 0;
-    stored.codex.auth = { accessToken: 'at-1', refreshToken: 'rt-1', idToken, accountId: 'acct_1', email: null, plan: 'pro', savedAt: new Date().toISOString() };
+    stored = { version: 2, route: 'cn-codex', connections: [{ id: 'cn-codex', provider: 'codex', label: 'Codex', model: '', apiKey: '', region: '', zdr: false, gemini: null, codex: { accessToken: 'at-1', refreshToken: 'rt-1', idToken, accountId: 'acct_1', email: null, plan: 'pro', savedAt: new Date().toISOString() } }] };
     await codex('models', 'GET');
     expect(seenModelUrls.at(-1)).toContain('client_version=0.153.4');
     expect(codexVersion()).toBe('0.153.4');
@@ -475,7 +518,7 @@ describe('the Codex client version metro announces', () => {
     process.env.METRO_CODEX_VERSION = 'not a version';
     expect(codexVersion()).toBe('0.153.4');
     delete process.env.METRO_CODEX_VERSION;
-    stored.codex.auth = null;
+    stored = { version: 2, route: '', connections: [] };
   });
 });
 
@@ -491,10 +534,11 @@ describe('zero data retention on OpenRouter', () => {
 
 describe('picking an Anthropic or Bedrock model without typing its id', () => {
   test('Anthropic lists the known Claude models without a key, and the account list with one', async () => {
+    await add({ provider: 'anthropic' });
     const res = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth('GET', '/api/model/anthropic/models', OWNER) } });
     expect(res.status).toBe(200);
     expect(((await res.json()) as { models: { id: string }[] }).models.map((m) => m.id)).toContain('claude-sonnet-5');
-    stored = { ...stored, anthropic: { apiKey: 'sk-ant', model: '' } };
+    stored.connections[0] = { ...stored.connections[0]!, apiKey: 'sk-ant' };
     const live = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth('GET', '/api/model/anthropic/models', OWNER) } });
     expect(await live.json()).toEqual({ models: [{ id: 'claude-opus-5', name: 'Claude Opus 5' }, { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' }] });
   });
@@ -502,16 +546,17 @@ describe('picking an Anthropic or Bedrock model without typing its id', () => {
   test('Bedrock lists the active Anthropic inference profiles of the region, and says why when it cannot', async () => {
     const refused = await fetch(`${base}/api/model/bedrock/models`, { headers: { authorization: await auth('GET', '/api/model/bedrock/models', OWNER) } });
     expect(refused.status).toBe(400);
-    stored = { ...stored, bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' } };
+    await add({ provider: 'bedrock', region: 'eu-central-1', apiKey: 'aws-key' });
     const res = await fetch(`${base}/api/model/bedrock/models`, { headers: { authorization: await auth('GET', '/api/model/bedrock/models', OWNER) } });
     expect(await res.json()).toEqual({ models: [{ id: 'eu.anthropic.claude-sonnet-5', name: 'EU Claude Sonnet 5' }] });
   });
 
   test('saving a non-Anthropic route writes the Claude Code model allowlist, and saving Anthropic back removes it', async () => {
-    await call('PUT', OWNER, { provider: 'openrouter', openrouter: { apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' } });
+    await add({ provider: 'openrouter', apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' });
     const settingsPath = join(home, 'claude', 'settings.json');
     expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).toMatchObject({ availableModels: ['openrouter:anthropic/claude-sonnet-5'], enforceAvailableModels: true });
-    await call('PUT', OWNER, { provider: 'anthropic' });
+    const anthropic = await add({ provider: 'anthropic' });
+    await call('PUT', OWNER, { route: anthropic });
     expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).not.toHaveProperty('availableModels');
   });
 });

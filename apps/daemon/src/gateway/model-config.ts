@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { newId } from '@metro-labs/core/ids';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -8,45 +9,26 @@ import { tokensFromDisk as geminiTokensFromDisk, type GeminiTokens } from './gem
 export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'gemini'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
-export interface AnthropicSettings {
-  apiKey: string;
+export interface Connection {
+  id: string;
+  provider: Provider;
+  label: string;
   model: string;
-}
-
-export interface BedrockSettings {
+  apiKey: string;
   region: string;
-  apiKey: string;
-  model: string;
-}
-
-export interface OpenRouterSettings {
-  apiKey: string;
-  model: string;
   zdr: boolean;
-}
-
-export interface CodexSettings {
-  model: string;
-  auth: CodexTokens | null;
-}
-
-export interface GeminiSettings {
-  model: string;
-  auth: GeminiTokens | null;
+  codex: CodexTokens | null;
+  gemini: GeminiTokens | null;
 }
 
 export interface ModelConfig {
-  version: 1;
-  provider: Provider;
-  anthropic: AnthropicSettings;
-  bedrock: BedrockSettings;
-  openrouter: OpenRouterSettings;
-  codex: CodexSettings;
-  gemini: GeminiSettings;
+  version: 2;
+  route: string;
+  connections: Connection[];
 }
 
 export interface Route {
-  provider: Provider;
+  connection: Connection;
   model: string;
 }
 
@@ -54,26 +36,39 @@ export class ModelConfigError extends Error {}
 
 export const MODEL_FILE = 'model.json';
 const MAX_FIELD = 512;
+const MAX_LABEL = 60;
+const MAX_CONNECTIONS = 20;
 const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex|gemini):(.+)$/;
 const SMALL_RE = /haiku/i;
 
-const empty = (): ModelConfig => ({
-  version: 1,
-  provider: 'anthropic',
-  anthropic: { apiKey: '', model: '' },
-  bedrock: { region: '', apiKey: '', model: '' },
-  openrouter: { apiKey: '', model: '', zdr: false },
-  codex: { model: '', auth: null },
-  gemini: { model: '', auth: null },
-});
+export const LABELS: Record<Provider, string> = {
+  anthropic: 'Anthropic',
+  bedrock: 'Amazon Bedrock',
+  openrouter: 'OpenRouter',
+  codex: 'Codex (ChatGPT)',
+  gemini: 'Gemini (Google)',
+};
 
-const isProvider = (value: unknown): value is Provider =>
-  typeof value === 'string' && (PROVIDERS as readonly string[]).includes(value);
+const isProvider = (value: unknown): value is Provider => typeof value === 'string' && (PROVIDERS as readonly string[]).includes(value);
 
 const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 const maybe = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
-function tokensFromDisk(raw: unknown): CodexTokens | null {
+export const empty = (): ModelConfig => ({ version: 2, route: '', connections: [] });
+
+export const newConnection = (provider: Provider, label: string): Connection => ({
+  id: newId(),
+  provider,
+  label,
+  model: '',
+  apiKey: '',
+  region: '',
+  zdr: false,
+  codex: null,
+  gemini: null,
+});
+
+function codexFromDisk(raw: unknown): CodexTokens | null {
   if (!isRecord(raw)) return null;
   const accessToken = text(raw.accessToken);
   const refreshToken = text(raw.refreshToken);
@@ -90,23 +85,49 @@ function tokensFromDisk(raw: unknown): CodexTokens | null {
   };
 }
 
-export function parseModelConfig(raw: unknown): ModelConfig {
-  const base = empty();
-  if (!isRecord(raw)) return base;
-  const anthropic = isRecord(raw.anthropic) ? raw.anthropic : {};
-  const bedrock = isRecord(raw.bedrock) ? raw.bedrock : {};
-  const openrouter = isRecord(raw.openrouter) ? raw.openrouter : {};
-  const codex = isRecord(raw.codex) ? raw.codex : {};
-  const gemini = isRecord(raw.gemini) ? raw.gemini : {};
+function connectionFromDisk(raw: unknown): Connection | null {
+  if (!isRecord(raw) || !isProvider(raw.provider)) return null;
+  const id = text(raw.id);
+  const provider = raw.provider;
   return {
-    version: 1,
-    provider: isProvider(raw.provider) ? raw.provider : 'anthropic',
-    anthropic: { apiKey: text(anthropic.apiKey), model: text(anthropic.model) },
-    bedrock: { region: text(bedrock.region), apiKey: text(bedrock.apiKey), model: text(bedrock.model) },
-    openrouter: { apiKey: text(openrouter.apiKey), model: text(openrouter.model), zdr: openrouter.zdr === true },
-    codex: { model: text(codex.model), auth: tokensFromDisk(codex.auth) },
-    gemini: { model: text(gemini.model), auth: geminiTokensFromDisk(gemini.auth) },
+    id: id === '' ? newId() : id,
+    provider,
+    label: text(raw.label) === '' ? LABELS[provider] : text(raw.label).slice(0, MAX_LABEL),
+    model: text(raw.model),
+    apiKey: text(raw.apiKey),
+    region: text(raw.region),
+    zdr: raw.zdr === true,
+    codex: codexFromDisk(raw.codex),
+    gemini: geminiTokensFromDisk(raw.gemini),
   };
+}
+
+function fromVersionOne(raw: Record<string, unknown>): ModelConfig {
+  const block = (name: Provider): Record<string, unknown> => (isRecord(raw[name]) ? raw[name] : {});
+  const made: Connection[] = [];
+  const keep = (provider: Provider, fill: (c: Connection) => Connection, has: boolean): void => {
+    if (has) made.push(fill(newConnection(provider, LABELS[provider])));
+  };
+  const anthropic = block('anthropic');
+  const bedrock = block('bedrock');
+  const openrouter = block('openrouter');
+  const codex = block('codex');
+  const gemini = block('gemini');
+  keep('anthropic', (c) => ({ ...c, apiKey: text(anthropic.apiKey), model: text(anthropic.model) }), text(anthropic.apiKey) !== '' || text(anthropic.model) !== '');
+  keep('bedrock', (c) => ({ ...c, apiKey: text(bedrock.apiKey), region: text(bedrock.region), model: text(bedrock.model) }), text(bedrock.apiKey) !== '');
+  keep('openrouter', (c) => ({ ...c, apiKey: text(openrouter.apiKey), model: text(openrouter.model), zdr: openrouter.zdr === true }), text(openrouter.apiKey) !== '');
+  keep('codex', (c) => ({ ...c, model: text(codex.model), codex: codexFromDisk(codex.auth) }), codexFromDisk(codex.auth) !== null);
+  keep('gemini', (c) => ({ ...c, model: text(gemini.model), gemini: geminiTokensFromDisk(gemini.auth) }), geminiTokensFromDisk(gemini.auth) !== null);
+  const wanted = isProvider(raw.provider) ? raw.provider : 'anthropic';
+  return { version: 2, route: made.find((c) => c.provider === wanted)?.id ?? '', connections: made };
+}
+
+export function parseModelConfig(raw: unknown): ModelConfig {
+  if (!isRecord(raw)) return empty();
+  if (!Array.isArray(raw.connections)) return fromVersionOne(raw);
+  const connections = raw.connections.flatMap((c: unknown) => connectionFromDisk(c) ?? []).slice(0, MAX_CONNECTIONS);
+  const route = text(raw.route);
+  return { version: 2, route: connections.some((c) => c.id === route) ? route : (connections[0]?.id ?? ''), connections };
 }
 
 export function readModelConfig(dir = agentsDir()): ModelConfig {
@@ -117,6 +138,111 @@ export function writeModelConfig(cfg: ModelConfig, dir = agentsDir()): void {
   writeSecure(join(dir, MODEL_FILE), JSON.stringify(cfg, null, 2));
 }
 
+export const connectionOf = (cfg: ModelConfig, id: string): Connection | null => cfg.connections.find((c) => c.id === id) ?? null;
+
+export const routedConnection = (cfg: ModelConfig): Connection | null => connectionOf(cfg, cfg.route);
+
+export function requireConnection(cfg: ModelConfig, id: string): Connection {
+  const found = connectionOf(cfg, id);
+  if (found === null) throw new ModelConfigError('no such connection');
+  return found;
+}
+
+const PASSTHROUGH = 'Nothing is connected: the request carries the Claude Code login of the session that sent it.';
+
+const CHECKS: Record<Provider, [(c: Connection) => boolean, string][]> = {
+  anthropic: [],
+  bedrock: [
+    [(c) => c.apiKey === '', 'Bedrock needs an API key: add it on the Model page.'],
+    [(c) => c.region === '', 'Bedrock needs a region: add it on the Model page.'],
+  ],
+  openrouter: [
+    [(c) => c.apiKey === '', 'OpenRouter needs an API key: add it on the Model page.'],
+    [(c) => c.model === '', 'OpenRouter needs a model id: choose one on the Model page.'],
+  ],
+  codex: [
+    [(c) => c.codex === null, 'Codex is not connected: sign in with ChatGPT on the Model page.'],
+    [(c) => c.model === '', 'Codex needs a model id: choose one on the Model page.'],
+  ],
+  gemini: [
+    [(c) => c.gemini === null, 'Gemini is not connected: sign in with Google on the Model page.'],
+    [(c) => c.model === '', 'Gemini needs a model id: choose one on the Model page.'],
+  ],
+};
+
+export function notReady(cfg: ModelConfig, conn = routedConnection(cfg)): string | null {
+  if (conn === null) return cfg.connections.length === 0 ? null : PASSTHROUGH;
+  return CHECKS[conn.provider].find(([missing]) => missing(conn))?.[1] ?? null;
+}
+
+export const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
+
+const DEFAULTS: Record<Provider, (requested: string, c: Connection) => string> = {
+  openrouter: (requested, c) => (requested.includes('/') ? requested : c.model),
+  bedrock: (requested, c) => (c.model === '' ? requested : c.model),
+  codex: (requested, c) => (requested.startsWith('gpt-') ? requested : c.model),
+  gemini: (requested, c) => (requested.startsWith('gemini-') ? requested : c.model),
+  anthropic: (requested, c) => (c.model === '' || isSmallModel(requested) ? requested : c.model),
+};
+
+function forProvider(cfg: ModelConfig, provider: Provider): Connection | null {
+  const routed = routedConnection(cfg);
+  if (routed?.provider === provider) return routed;
+  return cfg.connections.find((c) => c.provider === provider) ?? null;
+}
+
+export function resolveRoute(requested: string, cfg: ModelConfig): Route | null {
+  const explicit = PREFIX_RE.exec(requested);
+  if (explicit !== null && isProvider(explicit[1])) {
+    const conn = forProvider(cfg, explicit[1]);
+    return conn === null ? null : { connection: conn, model: (explicit[2] ?? '').trim() };
+  }
+  const routed = routedConnection(cfg);
+  return routed === null ? null : { connection: routed, model: DEFAULTS[routed.provider](requested, routed) };
+}
+
+export const routeLabel = (route: Route): string =>
+  route.connection.provider === 'anthropic' ? route.model : `${route.connection.provider}:${route.model}`;
+
+export function publicConnection(c: Connection): Record<string, unknown> {
+  return {
+    id: c.id,
+    provider: c.provider,
+    label: c.label,
+    model: c.model,
+    hasKey: c.apiKey !== '',
+    region: c.region,
+    zdr: c.zdr,
+    signedIn: c.codex !== null || c.gemini !== null,
+    account: c.codex?.email ?? c.gemini?.email ?? null,
+    plan: c.codex?.plan ?? c.gemini?.tier ?? null,
+  };
+}
+
+export function publicModelConfig(cfg: ModelConfig): Record<string, unknown> {
+  const reason = notReady(cfg);
+  return { route: cfg.route, ready: reason === null, reason, connections: cfg.connections.map(publicConnection) };
+}
+
+const withConnection = (cfg: ModelConfig, id: string, change: (c: Connection) => Connection): ModelConfig => ({
+  ...cfg,
+  connections: cfg.connections.map((c) => (c.id === id ? change(c) : c)),
+});
+
+export const setCodexAuth = (cfg: ModelConfig, id: string, auth: CodexTokens | null): ModelConfig =>
+  withConnection(cfg, id, (c) => ({ ...c, codex: auth }));
+
+export const setGeminiAuth = (cfg: ModelConfig, id: string, auth: GeminiTokens | null): ModelConfig =>
+  withConnection(cfg, id, (c) => ({ ...c, gemini: auth }));
+
+function field(patch: Record<string, unknown>, key: string, current: string, what: string, max = MAX_FIELD): string {
+  if (!(key in patch)) return current;
+  const value = patch[key];
+  if (typeof value !== 'string') throw new ModelConfigError(`${what} must be a string`);
+  if (value.length > max) throw new ModelConfigError(`${what} is too long`);
+  return value.trim();
+}
+
 function flag(patch: Record<string, unknown>, key: string, current: boolean, what: string): boolean {
   if (!(key in patch)) return current;
   const value = patch[key];
@@ -124,109 +250,44 @@ function flag(patch: Record<string, unknown>, key: string, current: boolean, wha
   return value;
 }
 
-function field(patch: Record<string, unknown>, key: string, current: string, what: string): string {
-  if (!(key in patch)) return current;
-  const value = patch[key];
-  if (typeof value !== 'string') throw new ModelConfigError(`${what} must be a string`);
-  if (value.length > MAX_FIELD) throw new ModelConfigError(`${what} is too long`);
-  return value.trim();
+export function labelFor(cfg: ModelConfig, provider: Provider, given: string): string {
+  if (given !== '') return given.slice(0, MAX_LABEL);
+  const taken = cfg.connections.filter((c) => c.provider === provider).length;
+  return taken === 0 ? LABELS[provider] : `${LABELS[provider]} ${String(taken + 1)}`;
 }
 
-export function applyModelUpdate(cfg: ModelConfig, patch: unknown): ModelConfig {
+export function addConnection(cfg: ModelConfig, patch: unknown): ModelConfig {
+  if (!isRecord(patch) || !isProvider(patch.provider)) throw new ModelConfigError(`provider must be one of ${PROVIDERS.join(', ')}`);
+  if (cfg.connections.length >= MAX_CONNECTIONS) throw new ModelConfigError(`a box keeps at most ${String(MAX_CONNECTIONS)} connections`);
+  const made = newConnection(patch.provider, labelFor(cfg, patch.provider, field(patch, 'label', '', 'label', MAX_LABEL)));
+  const filled = applyToConnection(made, patch);
+  return { ...cfg, route: cfg.route === '' ? filled.id : cfg.route, connections: [...cfg.connections, filled] };
+}
+
+export function applyToConnection(c: Connection, patch: Record<string, unknown>): Connection {
+  return {
+    ...c,
+    label: field(patch, 'label', c.label, 'label', MAX_LABEL),
+    model: field(patch, 'model', c.model, 'model'),
+    apiKey: field(patch, 'apiKey', c.apiKey, 'API key'),
+    region: field(patch, 'region', c.region, 'region'),
+    zdr: flag(patch, 'zdr', c.zdr, 'zero data retention'),
+  };
+}
+
+export function updateConnection(cfg: ModelConfig, id: string, patch: unknown): ModelConfig {
   if (!isRecord(patch)) throw new ModelConfigError('body must be a JSON object');
-  const provider = 'provider' in patch ? patch.provider : cfg.provider;
-  if (!isProvider(provider)) throw new ModelConfigError(`provider must be one of ${PROVIDERS.join(', ')}`);
-  const anthropic = isRecord(patch.anthropic) ? patch.anthropic : {};
-  const bedrock = isRecord(patch.bedrock) ? patch.bedrock : {};
-  const openrouter = isRecord(patch.openrouter) ? patch.openrouter : {};
-  const codex = isRecord(patch.codex) ? patch.codex : {};
-  const gemini = isRecord(patch.gemini) ? patch.gemini : {};
-  return {
-    version: 1,
-    provider,
-    anthropic: {
-      apiKey: field(anthropic, 'apiKey', cfg.anthropic.apiKey, 'Anthropic API key'),
-      model: field(anthropic, 'model', cfg.anthropic.model, 'Anthropic model'),
-    },
-    bedrock: {
-      region: field(bedrock, 'region', cfg.bedrock.region, 'Bedrock region'),
-      apiKey: field(bedrock, 'apiKey', cfg.bedrock.apiKey, 'Bedrock API key'),
-      model: field(bedrock, 'model', cfg.bedrock.model, 'Bedrock model'),
-    },
-    openrouter: {
-      apiKey: field(openrouter, 'apiKey', cfg.openrouter.apiKey, 'OpenRouter API key'),
-      model: field(openrouter, 'model', cfg.openrouter.model, 'OpenRouter model'),
-      zdr: flag(openrouter, 'zdr', cfg.openrouter.zdr, 'OpenRouter zero data retention'),
-    },
-    codex: { model: field(codex, 'model', cfg.codex.model, 'Codex model'), auth: cfg.codex.auth },
-    gemini: { model: field(gemini, 'model', cfg.gemini.model, 'Gemini model'), auth: cfg.gemini.auth },
-  };
+  requireConnection(cfg, id);
+  return withConnection(cfg, id, (c) => applyToConnection(c, patch));
 }
 
-export const setCodexAuth = (cfg: ModelConfig, auth: CodexTokens | null): ModelConfig => ({ ...cfg, codex: { ...cfg.codex, auth } });
-
-export const setGeminiAuth = (cfg: ModelConfig, auth: GeminiTokens | null): ModelConfig => ({ ...cfg, gemini: { ...cfg.gemini, auth } });
-
-const CHECKS: Record<Provider, [(cfg: ModelConfig) => boolean, string][]> = {
-  anthropic: [],
-  bedrock: [
-    [(cfg) => cfg.bedrock.apiKey === '', 'Bedrock needs an API key: add it on the Model page.'],
-    [(cfg) => cfg.bedrock.region === '', 'Bedrock needs a region: add it on the Model page.'],
-  ],
-  openrouter: [
-    [(cfg) => cfg.openrouter.apiKey === '', 'OpenRouter needs an API key: add it on the Model page.'],
-    [(cfg) => cfg.openrouter.model === '', 'OpenRouter needs a model id: choose one on the Model page.'],
-  ],
-  codex: [
-    [(cfg) => cfg.codex.auth === null, 'Codex is not connected: sign in with ChatGPT on the Model page.'],
-    [(cfg) => cfg.codex.model === '', 'Codex needs a model id: choose one on the Model page.'],
-  ],
-  gemini: [
-    [(cfg) => cfg.gemini.auth === null, 'Gemini is not connected: sign in with Google on the Model page.'],
-    [(cfg) => cfg.gemini.model === '', 'Gemini needs a model id: choose one on the Model page.'],
-  ],
-};
-
-export function notReady(cfg: ModelConfig, provider: Provider = cfg.provider): string | null {
-  return CHECKS[provider].find(([missing]) => missing(cfg))?.[1] ?? null;
+export function removeConnection(cfg: ModelConfig, id: string): ModelConfig {
+  requireConnection(cfg, id);
+  const connections = cfg.connections.filter((c) => c.id !== id);
+  return { ...cfg, route: cfg.route === id ? (connections[0]?.id ?? '') : cfg.route, connections };
 }
 
-export function publicModelConfig(cfg: ModelConfig): Record<string, unknown> {
-  const auth = cfg.codex.auth;
-  const gemini = cfg.gemini.auth;
-  return {
-    provider: cfg.provider,
-    ready: notReady(cfg) === null,
-    reason: notReady(cfg),
-    anthropic: { model: cfg.anthropic.model, hasKey: cfg.anthropic.apiKey !== '' },
-    bedrock: { region: cfg.bedrock.region, model: cfg.bedrock.model, hasKey: cfg.bedrock.apiKey !== '' },
-    openrouter: { model: cfg.openrouter.model, hasKey: cfg.openrouter.apiKey !== '', zdr: cfg.openrouter.zdr },
-    codex: { model: cfg.codex.model, signedIn: auth !== null, account: auth?.email ?? null, plan: auth?.plan ?? null },
-    gemini: { model: cfg.gemini.model, signedIn: gemini !== null, account: gemini?.email ?? null, plan: gemini?.tier ?? null },
-  };
-}
-
-export const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
-
-const DEFAULTS: Record<Provider, (requested: string, cfg: ModelConfig) => string> = {
-  openrouter: (requested, cfg) => (requested.includes('/') ? requested : cfg.openrouter.model),
-  bedrock: (requested, cfg) => (cfg.bedrock.model === '' ? requested : cfg.bedrock.model),
-  codex: (requested, cfg) => (requested.startsWith('gpt-') ? requested : cfg.codex.model),
-  gemini: (requested, cfg) => (requested.startsWith('gemini-') ? requested : cfg.gemini.model),
-  anthropic: (requested, cfg) => (cfg.anthropic.model === '' || isSmallModel(requested) ? requested : cfg.anthropic.model),
-};
-
-function defaultModelFor(provider: Provider, requested: string, cfg: ModelConfig): string {
-  return DEFAULTS[provider](requested, cfg);
-}
-
-export function resolveRoute(requested: string, cfg: ModelConfig): Route {
-  const explicit = PREFIX_RE.exec(requested);
-  if (explicit !== null && isProvider(explicit[1]))
-    return { provider: explicit[1], model: (explicit[2] ?? '').trim() };
-  return { provider: cfg.provider, model: defaultModelFor(cfg.provider, requested, cfg) };
-}
-
-export function routeLabel(route: Route): string {
-  return route.provider === 'anthropic' ? route.model : `${route.provider}:${route.model}`;
+export function setRoute(cfg: ModelConfig, id: string): ModelConfig {
+  requireConnection(cfg, id);
+  return { ...cfg, route: id };
 }

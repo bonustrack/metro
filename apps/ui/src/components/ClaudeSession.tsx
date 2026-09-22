@@ -9,8 +9,7 @@ import { routeHash } from '../route.js';
 import { useQueryClient } from '@tanstack/react-query';
 
 const SESSION_SINCE = '0.1.0-beta.103';
-const WHAT =
-  'The daemon keeps a Claude Code session running in tmux with the metro channel loaded, started by itself once this machine has an agent and a credential: a sign-in on the Model page, or another provider chosen there. Open it in the Terminal tab.';
+const WHAT = 'The daemon keeps a Claude Code session running in tmux, and starts it once a model is connected.';
 
 function statusLine(status: ClaudeSessionStatus): string {
   if (status.running) return `Running in tmux session "${status.name}".`;

@@ -1,7 +1,5 @@
 import { isRecord } from './accounts.js';
 
-export const USAGE_PROVIDERS = ['anthropic', 'codex', 'gemini', 'openrouter', 'bedrock'] as const;
-export type UsageProvider = (typeof USAGE_PROVIDERS)[number];
 
 export interface UsageWindow {
   label: string;
@@ -25,7 +23,7 @@ export interface ProviderUsage {
   tally: Tally | null;
 }
 
-export type Usage = Partial<Record<UsageProvider, ProviderUsage>>;
+export type Usage = Record<string, ProviderUsage>;
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
@@ -53,9 +51,9 @@ function toProviderUsage(raw: unknown): ProviderUsage | null {
 export function toUsage(raw: unknown): Usage {
   if (!isRecord(raw)) return {};
   const out: Usage = {};
-  for (const provider of USAGE_PROVIDERS) {
-    const usage = toProviderUsage(raw[provider]);
-    if (usage !== null) out[provider] = usage;
+  for (const [key, value] of Object.entries(raw)) {
+    const usage = toProviderUsage(value);
+    if (usage !== null) out[key] = usage;
   }
   return out;
 }

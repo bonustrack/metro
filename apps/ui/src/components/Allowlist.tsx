@@ -9,17 +9,17 @@ import { queryError } from '../api/queries.js';
 
 const SAVE_FAILED = 'Could not save who may reach this agent.';
 const NO_INPUT = { autoComplete: 'off', autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
-const OPEN = 'Only these senders reach the agent, in a group as much as in a private chat: everyone else still writes to the station, and metro drops what they say before the agent sees it. Remove every sender and anyone can reach it again.';
+const OPEN = 'Only these senders reach the agent, in groups too. Remove them all and anyone can again.';
 const CLOSED = 'Every message on this station reaches the agent.';
-const EMPTY = 'No sender is listed yet, so anyone can reach this agent. Add the first one below.';
+const EMPTY = 'Nobody listed, so anyone can reach this agent.';
 
 const WHERE_TO_FIND: Record<string, string> = {
-  'telegram-bot': 'A Telegram user id is a number. Ask the person to write to the bot once and pick them from the list below, or have them message @userinfobot, which answers with their id.',
-  telegram: 'A Telegram user id is a number. Ask the person to write to this account once and pick them from the list below, or have them message @userinfobot, which answers with their id.',
-  'discord-bot': 'A Discord user id is a long number. Turn on Settings, Advanced, Developer Mode in Discord, then right-click the person and choose Copy User ID.',
-  whatsapp: 'A WhatsApp sender id is either their number followed by @s.whatsapp.net or, on an account WhatsApp has moved to its newer addressing, a string ending in @lid that their number is nowhere in. Look the number up below rather than typing an id, and metro asks WhatsApp which of the two this person is.',
-  threema: 'A Threema sender is their 8-character Threema ID, as in ECHOECHO. It is shown under their name in the app, and the surest way is to have them write once and pick them from the list below.',
-  xmtp: 'An XMTP sender is their inbox id, the long hex string, not their wallet address. The surest way is to have them write once and pick them from the list below.',
+  'telegram-bot': 'A number. Have them write to the bot once and pick them below, or ask them to message @userinfobot.',
+  telegram: 'A number. Have them write once and pick them below, or ask them to message @userinfobot.',
+  'discord-bot': 'A long number. Turn Developer Mode on in Discord, then right-click the person and choose Copy User ID.',
+  whatsapp: 'Their number followed by @s.whatsapp.net, or an id ending in @lid. Look the number up below and metro asks WhatsApp which one they are.',
+  threema: 'Their 8-character Threema ID, as in ECHOECHO. The surest way is to have them write once and pick them below.',
+  xmtp: 'Their inbox id, the long hex string, not their wallet address. Have them write once and pick them below.',
 };
 
 const LINE_HINT = 'The last part of a metro:// line is what goes here, and the whole line works too.';

@@ -1,6 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { GatewayError } from './forward.js';
-import type { AnthropicSettings, BedrockSettings } from './model-config.js';
+import type { Connection } from './model-config.js';
 
 export const ANTHROPIC_API = 'https://api.anthropic.com';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -20,7 +20,7 @@ export const KNOWN_CLAUDE: ProviderModel[] = [
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
-export async function anthropicModels(settings: AnthropicSettings, base = ANTHROPIC_API, fetchImpl: typeof fetch = fetch): Promise<ProviderModel[]> {
+export async function anthropicModels(settings: Connection, base = ANTHROPIC_API, fetchImpl: typeof fetch = fetch): Promise<ProviderModel[]> {
   if (settings.apiKey === '') return KNOWN_CLAUDE;
   const res = await fetchImpl(`${base}/v1/models?limit=${String(LIST_MAX)}`, {
     headers: { 'x-api-key': settings.apiKey, 'anthropic-version': ANTHROPIC_VERSION, accept: 'application/json' },
@@ -37,7 +37,7 @@ export async function anthropicModels(settings: AnthropicSettings, base = ANTHRO
 
 export const bedrockControlBase = (region: string): string => `https://bedrock.${region}.amazonaws.com`;
 
-export async function bedrockModels(settings: BedrockSettings, base?: string, fetchImpl: typeof fetch = fetch): Promise<ProviderModel[]> {
+export async function bedrockModels(settings: Connection, base?: string, fetchImpl: typeof fetch = fetch): Promise<ProviderModel[]> {
   if (settings.region === '') throw new GatewayError(400, 'invalid_request_error', 'Bedrock needs a region before its models can be listed');
   if (settings.apiKey === '') throw new GatewayError(400, 'invalid_request_error', 'Bedrock needs an API key before its models can be listed');
   const res = await fetchImpl(`${base ?? bedrockControlBase(settings.region)}/inference-profiles?maxResults=${String(LIST_MAX)}`, {

@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
-import { SHRINK } from '../theme.js';
+import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { Pill } from './Pill.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { StationIcon } from './StationIcon.js';
@@ -19,11 +19,8 @@ import { opensElsewhere } from './link.js';
 import { type Selection } from './selection.js';
 
 const PAGE_AVATAR = 56;
-const CARD_RADIUS = 8;
-const CARD_MIN = 200;
-const CARD_MAX = 320;
-const STATION_ICON = 24;
-const CONNECTOR_ICON = 28;
+const CONNECTOR_ICON = 18;
+const CHAT_ICON = 18;
 
 export function AgentPicture({ server, seed }: { server: Server | undefined; seed: string }): ReactNode {
   if (server === undefined) return <AgentAvatar seed={seed} size={PAGE_AVATAR} />;
@@ -64,49 +61,8 @@ export function StatusPills({ host, project, onSelect }: { host: string | null; 
   );
 }
 
-function ChannelCard({ station, handle, url, href, onOpen }: { station: string; handle: string; url: string | undefined; href: string; onOpen: () => void }): ReactNode {
-  const palette = useKitPalette();
-  const side = { width: 1, color: palette.border };
-  return (
-    <Row
-      align="center"
-      gap={8}
-      flex={1}
-      minWidth={CARD_MIN}
-      maxWidth={CARD_MAX}
-      padding={{ x: 12 }}
-      radius={CARD_RADIUS}
-      border={{ top: side, right: side, bottom: side, left: side }}
-    >
-      <a
-        className="row-link"
-        href={href}
-        onClick={(e) => {
-          if (opensElsewhere(e)) return;
-          e.preventDefault();
-          onOpen();
-        }}
-      >
-        <StationIcon station={station} size={STATION_ICON} />
-        <Col gap={2} flex={1} minWidth={0}>
-          <Text size="md" weight="semibold" numberOfLines={1}>
-            {stationLabel(station)}
-          </Text>
-          <Text size="xs" role="secondary" numberOfLines={1} style={SHRINK}>
-            {handle}
-          </Text>
-        </Col>
-      </a>
-      {url === undefined ? null : (
-        <a className="kebab" href={url} target="_blank" rel="noreferrer" aria-label={`Message on ${stationLabel(station)}`} title={`Message on ${stationLabel(station)}`}>
-          <ChatIcon size={18} color={palette.link} />
-        </a>
-      )}
-    </Row>
-  );
-}
-
 export function ChannelCards({ groups, project, onSelect }: { groups: AccountGroup[]; project: string; onSelect: (s: Selection) => void }): ReactNode {
+  const palette = useKitPalette();
   const accounts = flattenAccounts(groups).filter((a) => a.row.id !== null);
   if (accounts.length === 0)
     return (
@@ -115,25 +71,32 @@ export function ChannelCards({ groups, project, onSelect }: { groups: AccountGro
       </Text>
     );
   return (
-    <Row gap={12} wrap>
+    <Col>
       {accounts.map((a) => {
         const id = a.row.id ?? '';
         const { handle, url } = stationFields(a.row);
         const target: Selection = { kind: 'station', project, accountId: id };
         return (
-          <ChannelCard
+          <ListRow
             key={`${a.station}/${id}`}
-            station={a.station}
-            handle={handle ?? id}
-            url={url}
+            title={stationLabel(a.station)}
+            detail={handle ?? id}
             href={routeHash(target)}
+            icon={<StationIcon station={a.station} size={LIST_ICON_SIZE} />}
             onOpen={() => {
               onSelect(target);
             }}
+            trailing={
+              url === undefined ? undefined : (
+                <a className="kebab kebab-lg" href={url} target="_blank" rel="noreferrer" aria-label={`Message on ${stationLabel(a.station)}`}>
+                  <ChatIcon size={CHAT_ICON} color={palette.link} />
+                </a>
+              )
+            }
           />
         );
       })}
-    </Row>
+    </Col>
   );
 }
 
@@ -145,16 +108,14 @@ export function ConnectorIcons({ connectors, project, onSelect }: { connectors: 
       </Text>
     );
   return (
-    <Row gap={12} wrap>
+    <Row gap={8} wrap>
       {connectors.map((c) => {
         const target: Selection = { kind: 'connector', project, id: c.id };
         return (
           <a
             key={c.id}
-            className="pill-link"
+            className="connector-chip"
             href={routeHash(target)}
-            title={c.name}
-            aria-label={c.name}
             onClick={(e) => {
               if (opensElsewhere(e)) return;
               e.preventDefault();
@@ -162,6 +123,9 @@ export function ConnectorIcons({ connectors, project, onSelect }: { connectors: 
             }}
           >
             <ConnectorFavicon name={c.name} url={c.url} size={CONNECTOR_ICON} />
+            <Text size="sm" numberOfLines={1}>
+              {c.name}
+            </Text>
           </a>
         );
       })}

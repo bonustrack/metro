@@ -31,6 +31,7 @@ interface NavRowProps {
   selected: boolean;
   target: Selection;
   onSelect: (selection: Selection) => void;
+  disabled?: boolean;
 }
 
 export function NavRow({
@@ -39,8 +40,23 @@ export function NavRow({
   selected,
   target,
   onSelect,
+  disabled = false,
 }: NavRowProps): ReactNode {
   const palette = useKitPalette();
+  const body = (
+    <Row {...NAV_ROW_BOX}>
+      {icon === undefined ? null : <NavIcon name={icon} color={selected ? palette.link : palette.sub} />}
+      <Text size="md" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
+        {label}
+      </Text>
+    </Row>
+  );
+  if (disabled)
+    return (
+      <span className="nav-link nav-link-off" aria-disabled="true" title={`${label} is unavailable while this agent is offline`}>
+        {body}
+      </span>
+    );
   return (
     <a
       className="nav-link"
@@ -51,14 +67,7 @@ export function NavRow({
         onSelect(target);
       }}
     >
-      <Row {...NAV_ROW_BOX}>
-        {icon === undefined ? null : (
-          <NavIcon name={icon} color={selected ? palette.link : palette.sub} />
-        )}
-        <Text size="md" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
-          {label}
-        </Text>
-      </Row>
+      {body}
     </a>
   );
 }

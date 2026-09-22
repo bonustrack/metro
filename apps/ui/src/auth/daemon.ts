@@ -6,7 +6,7 @@ const HOSTED_DAEMON = 'https://api.metro.box';
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
 const PLAIN_HTTP =
-  'Plain http only reaches this computer (127.0.0.1 or localhost); anywhere else the session would cross the network unencrypted. For another machine, forward its port with ssh -L, or put it behind https.';
+  'Plain http only reaches this computer. For another machine, forward its port with ssh -L, or put it behind https.';
 
 export type DaemonParse = { base: string } | { error: string };
 

@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { EventStreamDecoder, type EventStreamMessage } from './eventstream.js';
 import { errorFrame, GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
-import type { BedrockSettings } from './model-config.js';
+import type { Connection } from './model-config.js';
 import { UsageScanner } from './usage.js';
 
 const ANTHROPIC_VERSION = 'bedrock-2023-05-31';
@@ -18,7 +18,7 @@ export interface Adaptations {
 export const freshAdaptations = (): Adaptations => ({ fields: new Set(), dropBetas: false });
 
 export interface BedrockUpstream {
-  settings: BedrockSettings;
+  settings: Connection;
   base: string;
   learned: Adaptations;
   watch: Watch;
@@ -253,7 +253,7 @@ export async function bedrockCount(
   res.end(JSON.stringify({ input_tokens: counted ?? estimateTokens(rewritten.body) }));
 }
 
-export function assertBedrockReady(settings: BedrockSettings): void {
+export function assertBedrockReady(settings: Connection): void {
   if (settings.apiKey === '' || settings.region === '')
     throw new GatewayError(400, 'invalid_request_error', 'Bedrock needs an API key and a region: add them on the Model page.');
 }

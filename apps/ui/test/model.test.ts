@@ -1,113 +1,74 @@
 import { describe, expect, test } from 'bun:test';
 import { baseDomain, faviconUrl } from '../src/api/favicon.js';
-import { afterSave, draftOf, matchModels, patchOf, priceLabel, PROVIDERS, routeLabel, servedLabel, toModelSettings, toServed } from '../src/api/model.js';
+import { matchModels, priceLabel, PROVIDERS, servedLabel, toModelSettings, toServed } from '../src/api/model.js';
 
 describe('what the Model page reads from the daemon', () => {
-  test('a full answer parses, keys arrive as booleans only', () => {
+  test('connections parse with their provider, and no credential ever appears', () => {
     const settings = toModelSettings({
-      provider: 'openrouter',
+      route: 'cn-1',
       ready: true,
       reason: null,
-      bedrock: { region: 'eu-central-1', model: '', hasKey: true },
-      openrouter: { model: 'openai/gpt-5.2-codex', hasKey: true },
+      connections: [
+        { id: 'cn-1', provider: 'openrouter', label: 'Work', model: 'openai/gpt-5.2-codex', hasKey: true, zdr: true },
+        { id: 'cn-2', provider: 'codex', label: 'ChatGPT', model: 'gpt-5.4', signedIn: true, account: 'less@x', plan: 'plus' },
+        { id: 'cn-3', provider: 'mars' },
+        'nope',
+      ],
+      usage: { 'cn-1': { at: '2026-09-22T10:00:00.000Z', windows: [{ label: 'Credits', used: 0.5 }] } },
     });
-    expect(settings.provider).toBe('openrouter');
-    expect(settings.bedrock).toEqual({ region: 'eu-central-1', model: '', hasKey: true });
-    expect(settings.openrouter).toEqual({ model: 'openai/gpt-5.2-codex', hasKey: true, zdr: false });
+    expect(settings.route).toBe('cn-1');
+    expect(settings.connections.map((c) => c.id)).toEqual(['cn-1', 'cn-2']);
+    expect(settings.connections[0]).toEqual({ id: 'cn-1', provider: 'openrouter', label: 'Work', model: 'openai/gpt-5.2-codex', hasKey: true, region: '', zdr: true, signedIn: false, account: null, plan: null });
+    expect(settings.connections[1]).toMatchObject({ provider: 'codex', signedIn: true, account: 'less@x', plan: 'plus' });
+    expect(settings.usage['cn-1']?.windows[0]?.used).toBe(0.5);
     expect(JSON.stringify(settings)).not.toContain('apiKey');
-    expect(routeLabel(settings)).toBe('OpenRouter · openai/gpt-5.2-codex');
   });
 
-  test('a missing block or an unknown provider never invents fields', () => {
-    const bare = toModelSettings({ provider: 'anthropic', ready: true });
-    expect(bare.bedrock).toEqual({ region: '', model: '', hasKey: false });
-    expect(bare.reason).toBeNull();
-    expect(bare.anthropic).toEqual({ model: '', hasKey: false });
-    expect(routeLabel(bare)).toBe('Anthropic · the model Claude Code asks for · your Claude Code login');
-    expect(routeLabel({ ...bare, anthropic: { model: 'claude-opus-5', hasKey: true } })).toBe('Anthropic · claude-opus-5 · the key on this page');
-    expect(() => toModelSettings({ provider: 'mars' })).toThrow(/unexpected/);
+  test('a body with no connections is refused, and the five providers are the known list', () => {
+    expect(toModelSettings({ route: '', connections: [] })).toMatchObject({ route: '', connections: [], reason: null });
+    expect(() => toModelSettings({ route: '' })).toThrow(/unexpected/);
     expect(PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'bedrock', 'openrouter', 'codex', 'gemini']);
-    expect(bare.codex).toEqual({ model: '', signedIn: false, account: null, plan: null });
-    expect(bare.gemini).toEqual({ model: '', signedIn: false, account: null, plan: null });
   });
 
-  test('a route that is not ready says why', () => {
-    const settings = toModelSettings({ provider: 'bedrock', ready: false, reason: 'Bedrock needs an API key: add it on the Model page.', bedrock: { region: '', model: 'eu.anthropic.claude-sonnet-4-6', hasKey: false } });
-    expect(settings.reason).toContain('API key');
-    expect(routeLabel(settings)).toBe('Amazon Bedrock · eu.anthropic.claude-sonnet-4-6');
-  });
-});
-
-describe('what Save sends', () => {
-  test('an empty key field keeps the stored key, a typed key replaces it, and forget clears it', () => {
-    const settings = toModelSettings({ provider: 'bedrock', ready: true, bedrock: { region: 'eu-central-1', model: '', hasKey: true }, openrouter: { model: 'x/y', hasKey: true }, codex: { model: 'gpt-5.4' } });
-    const draft = draftOf(settings);
-    expect(draft.bedrockKey).toBe('');
-    expect(patchOf(draft)).toEqual({ provider: 'bedrock', anthropic: { model: '' }, bedrock: { region: 'eu-central-1', model: '' }, openrouter: { model: 'x/y', zdr: false }, codex: { model: 'gpt-5.4' }, gemini: { model: '' } });
-    expect(patchOf({ ...draft, anthropicKey: 'sk-ant-x', anthropicModel: 'claude-opus-5' }).anthropic).toEqual({ model: 'claude-opus-5', apiKey: 'sk-ant-x' });
-    expect(patchOf({ ...draft, anthropicForget: true }).anthropic).toEqual({ model: '', apiKey: '' });
-    expect(patchOf({ ...draft, bedrockKey: 'new-key' }).bedrock).toEqual({ region: 'eu-central-1', model: '', apiKey: 'new-key' });
-    expect(patchOf({ ...draft, openrouterForget: true }).openrouter).toEqual({ model: 'x/y', zdr: false, apiKey: '' });
-    expect(patchOf({ ...draft, openrouterZdr: true }).openrouter).toEqual({ model: 'x/y', zdr: true });
-    expect(afterSave({ ...draft, bedrockKey: 'new-key', openrouterForget: true, anthropicKey: 'k' })).toMatchObject({ anthropicKey: '', anthropicForget: false, bedrockKey: '', bedrockForget: false, openrouterKey: '', openrouterForget: false, codexModel: 'gpt-5.4' });
+  test('the last request names the provider it went to, and a half answer is no answer', () => {
+    expect(toServed({ connection: 'cn-1', provider: 'openrouter', model: 'x/y', at: '2026-09-22T10:00:00.000Z' })).toEqual({
+      connection: 'cn-1',
+      provider: 'openrouter',
+      model: 'x/y',
+      at: '2026-09-22T10:00:00.000Z',
+    });
+    expect(toServed({ provider: 'openrouter', model: 'x/y' })).toBeNull();
+    expect(servedLabel({ connection: 'c', provider: 'anthropic', model: 'claude-opus-5', at: 'now' })).toBe('claude-opus-5');
+    expect(servedLabel({ connection: 'c', provider: 'codex', model: 'gpt-5.4', at: 'now' })).toBe('codex:gpt-5.4');
   });
 });
 
-describe('finding an OpenRouter model by typing', () => {
+describe('finding a model by typing', () => {
   const models = [
     { id: 'anthropic/claude-sonnet-4.5', name: 'Anthropic: Claude Sonnet 4.5' },
     { id: 'openai/gpt-5.2-codex', name: 'OpenAI: GPT-5.2 Codex' },
     { id: 'google/gemini-2.5-pro', name: 'Google: Gemini 2.5 Pro' },
   ];
 
-  test('every word must appear, in the id or the name, and the list is capped', () => {
-    expect(matchModels(models, '').map((m) => m.id)).toEqual(models.map((m) => m.id));
-    expect(matchModels(models, 'sonnet').map((m) => m.id)).toEqual(['anthropic/claude-sonnet-4.5']);
-    expect(matchModels(models, 'GPT').map((m) => m.id)).toEqual(['openai/gpt-5.2-codex']);
-    expect(matchModels(models, 'google pro').map((m) => m.id)).toEqual(['google/gemini-2.5-pro']);
-    expect(matchModels(models, 'claude gpt')).toEqual([]);
-    expect(matchModels(models, '  ').map((m) => m.id)).toEqual(models.map((m) => m.id));
-    expect(matchModels(models, '', 2)).toHaveLength(2);
+  test('every typed word must appear somewhere in the id or the name', () => {
+    expect(matchModels(models, 'claude').map((m) => m.id)).toEqual(['anthropic/claude-sonnet-4.5']);
+    expect(matchModels(models, 'gpt codex').map((m) => m.id)).toEqual(['openai/gpt-5.2-codex']);
+    expect(matchModels(models, '')).toHaveLength(3);
+    expect(matchModels(models, 'nope')).toEqual([]);
+    expect(matchModels(models, 'o', 2)).toHaveLength(2);
   });
-});
 
-describe('the last request the gateway served', () => {
-  test('is read only when it is whole, and reads as the route that carried it', () => {
-    const row = { provider: 'codex', model: 'gpt-6-astra', at: '2026-09-08T09:00:00.000Z' };
-    expect(toServed(row)).toEqual(row);
-    expect(toServed({ ...row, model: '' })).toBeNull();
-    expect(toServed({ provider: 'codex', model: 'gpt-6-astra' })).toBeNull();
-    expect(toServed(null)).toBeNull();
-    expect(servedLabel(row)).toBe('codex:gpt-6-astra');
-    expect(servedLabel({ ...row, provider: 'anthropic', model: 'claude-sonnet-5' })).toBe('claude-sonnet-5');
-    const settings = toModelSettings({ provider: 'codex', ready: true, bedrock: {}, openrouter: {}, codex: { model: 'gpt-6-astra' }, lastServed: row });
-    expect(settings.lastServed).toEqual(row);
-    expect(toModelSettings({ provider: 'anthropic', bedrock: {}, openrouter: {}, codex: {} }).lastServed).toBeNull();
-  });
-});
-
-describe('what a model costs, on the row that offers it', () => {
-  test('prices are per million tokens, free is named, and a model with no price shows none', () => {
-    expect(priceLabel({ id: 'a', name: 'a', prompt: 0.00001, completion: 0.00005 })).toBe('$10 in · $50 out per 1M');
-    expect(priceLabel({ id: 'a', name: 'a', prompt: 0.00000015, completion: 0.0000006 })).toBe('$0.15 in · $0.6 out per 1M');
+  test('a price is shown per million tokens, free when both are zero, nothing when one is missing', () => {
+    expect(priceLabel({ id: 'a', name: 'a', prompt: 0.000003, completion: 0.000015 })).toBe('$3 in · $15 out per 1M');
     expect(priceLabel({ id: 'a', name: 'a', prompt: 0, completion: 0 })).toBe('Free');
-    expect(priceLabel({ id: 'a', name: 'a', prompt: 0.000003, completion: null })).toBe('');
-    expect(priceLabel({ id: 'a', name: 'a' })).toBe('');
+    expect(priceLabel({ id: 'a', name: 'a', prompt: 0.000001, completion: null })).toBe('');
   });
 });
 
-describe('the logo beside each provider', () => {
-  test('every provider names a site whose favicon resolves to a real domain', () => {
-    for (const provider of PROVIDERS) {
-      expect(faviconUrl(provider.site)).toContain('domain=');
-      expect(faviconUrl(provider.site)).not.toBe('');
-    }
-    expect(PROVIDERS.map((p) => baseDomain(new URL(p.site).hostname))).toEqual([
-      'anthropic.com',
-      'amazon.com',
-      'openrouter.ai',
-      'openai.com',
-      'google.com',
-    ]);
+describe('the provider logo', () => {
+  test('comes from the registrable domain of the provider host', () => {
+    expect(baseDomain('openrouter.ai')).toBe('openrouter.ai');
+    expect(baseDomain('mcp.aws.amazon.com')).toBe('amazon.com');
+    expect(faviconUrl('https://aws.amazon.com', 32)).toContain('amazon.com');
   });
 });

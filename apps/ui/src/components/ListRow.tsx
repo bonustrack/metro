@@ -5,7 +5,7 @@ import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { opensElsewhere } from './link.js';
 
-const ROW_PAD_Y = 4;
+const ROW_PAD_Y = 9;
 export const LIST_ICON_SIZE = 20;
 
 interface ListRowProps {

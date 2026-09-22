@@ -181,6 +181,24 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect((await put(path, { text: 'no' }, STRANGER)).status).toBe(404);
   });
 
+  test('a memory file can be deleted, once, and only by name', async () => {
+    const drop = async (name: string, subject = OWNER): Promise<Response> =>
+      fetch(`${base}/api/claude/memory/${name}?project=${PROJECT}`, {
+        method: 'DELETE',
+        headers: { authorization: await auth('DELETE', `/api/claude/memory/${name}`, subject) },
+      });
+    await put(`/api/claude/memory/spare.md?project=${PROJECT}`, { text: '# Spare\n' });
+    expect((await drop('spare.md', STRANGER)).status).toBe(404);
+    const res = await drop('spare.md');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deleted: 'spare.md' });
+    expect(existsSync(join(dir, 'projects', PROJECT, 'memory', 'spare.md'))).toBe(false);
+    expect((await drop('spare.md')).status).toBe(404);
+    expect((await drop('notes.txt')).status).toBe(400);
+    expect((await drop('..%2F..%2Fetc.md')).status).toBe(400);
+    expect(existsSync(join(dir, 'projects', PROJECT, 'memory', 'blue.md'))).toBe(true);
+  });
+
   test('a bad project or session id never touches the disk beyond the projects dir', async () => {
     expect((await get('/api/claude/sessions?project=../../etc')).status).toBe(400);
     expect((await get('/api/claude/sessions?project=nope')).status).toBe(404);

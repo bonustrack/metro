@@ -351,6 +351,14 @@ export function writeMemoryFile(project: string, name: string, text: string, dir
   return { name: file, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
 }
 
+export function deleteMemoryFile(project: string, name: string, dir = claudeDir()): string {
+  const file = safeName(name, MEMORY_RE, 'memory file name');
+  const path = join(memoryDir(project, dir), file);
+  if (!existsSync(path)) throw new ApiError('no such memory file', 404);
+  rmSync(path);
+  return file;
+}
+
 export function readMemoryFile(project: string, name: string, dir = claudeDir()): string {
   const path = join(memoryDir(project, dir), safeName(name, MEMORY_RE, 'memory file name'));
   if (!existsSync(path)) throw new ApiError('no such memory file', 404);

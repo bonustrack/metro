@@ -11,8 +11,7 @@ import { GROW } from '../theme.js';
 export const PROMPT_SINCE = '0.1.0-beta.133';
 const EDITOR = { minHeight: 160, lineHeight: 22 } as const;
 const NO_ASSIST = { multiline: true, autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
-const NOTE =
-  'Text here is appended to Claude Code’s own system prompt on every session metro starts here (the --append-system-prompt flag). Saving restarts the Claude session, which resumes the same conversation with the new prompt.';
+const NOTE = 'Appended to Claude Code’s own system prompt. Saving restarts the session.';
 
 export function SystemPromptEditor({ setup, version }: { setup: Setup; version: string | null }): ReactNode {
   const client = useQueryClient();
@@ -27,7 +26,7 @@ export function SystemPromptEditor({ setup, version }: { setup: Setup; version: 
     return (
       <Col gap={4}>
         <Text size="md" weight="semibold">System prompt</Text>
-        <Text size="sm" role="secondary">A system prompt needs metro {PROMPT_SINCE} or newer on the machine. Update first.</Text>
+        <Text size="sm" role="secondary">Needs metro {PROMPT_SINCE}. Update first.</Text>
       </Col>
     );
   const changed = draft.trim() !== setup.systemPrompt;

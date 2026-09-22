@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { handleClaudeRequest } from '../src/claude/api.js';
+import { configOf, makeConnection } from './model-fixture.ts';
 import { claudeSetupStatus, ensureClaudeSetup, PRIVACY_ENV, RETENTION_DAYS, routeOf, setPrivacy, syncAvailableModels, type SetupDeps } from '../src/claude/setup.js';
 import { readModelConfig } from '../src/gateway/model-config.js';
 import { auth } from './identity-helper.ts';
@@ -107,22 +108,23 @@ describe('the setup over the API', () => {
 });
 
 describe("Claude Code's model allowlist follows the Model page", () => {
-  const cfg = (over: Record<string, unknown>): ReturnType<typeof readModelConfig> => ({ ...readModelConfig(join(dir, 'nowhere')), ...over }) as ReturnType<typeof readModelConfig>;
+  const cfg = (provider: 'anthropic' | 'openrouter', over: Record<string, unknown> = {}): ReturnType<typeof readModelConfig> =>
+    configOf(provider, [makeConnection(provider, over)]) as ReturnType<typeof readModelConfig>;
 
   test('a non-Anthropic route becomes the only model Claude Code offers, and Anthropic clears it again', () => {
-    const openrouter = cfg({ provider: 'openrouter', openrouter: { apiKey: 'k', model: 'anthropic/claude-sonnet-5', zdr: true } });
+    const openrouter = cfg('openrouter', { apiKey: 'k', model: 'anthropic/claude-sonnet-5', zdr: true });
     expect(routeOf(openrouter)).toBe('openrouter:anthropic/claude-sonnet-5');
     writeFileSync(join(dir, 'claude', 'settings.json'), JSON.stringify({ env: { MY_VAR: 'x' } }));
     expect(syncAvailableModels(openrouter, deps())).toBe('written');
     expect(settings()).toEqual({ env: { MY_VAR: 'x' }, availableModels: ['openrouter:anthropic/claude-sonnet-5'], enforceAvailableModels: true });
     expect(syncAvailableModels(openrouter, deps())).toBe('unchanged');
-    expect(syncAvailableModels(cfg({ provider: 'anthropic' }), deps())).toBe('written');
+    expect(syncAvailableModels(cfg('anthropic'), deps())).toBe('written');
     expect(settings()).toEqual({ env: { MY_VAR: 'x' } });
   });
 
   test('an allowlist the user wrote themselves is left alone when the route is Anthropic', () => {
     writeFileSync(join(dir, 'claude', 'settings.json'), JSON.stringify({ availableModels: ['claude-opus-5'] }));
-    expect(syncAvailableModels(cfg({ provider: 'anthropic' }), deps())).toBe('unchanged');
+    expect(syncAvailableModels(cfg('anthropic'), deps())).toBe('unchanged');
     expect(settings()).toEqual({ availableModels: ['claude-opus-5'] });
   });
 });

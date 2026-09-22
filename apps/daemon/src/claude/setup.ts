@@ -7,7 +7,7 @@ import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { claudeDir } from './files.js';
 import { stagedMarketplaceDir } from './plugin-install.js';
-import { readModelConfig, type ModelConfig } from '../gateway/model-config.js';
+import { readModelConfig, routedConnection, type ModelConfig } from '../gateway/model-config.js';
 
 export const PRIVACY_ENV: Record<string, string> = {
   DISABLE_TELEMETRY: '1',
@@ -222,9 +222,9 @@ const MODELS_KEY = 'availableModels';
 const ENFORCE_KEY = 'enforceAvailableModels';
 
 export function routeOf(cfg: ModelConfig): string | null {
-  if (cfg.provider === 'anthropic') return null;
-  const model = cfg[cfg.provider].model;
-  return model === '' ? null : `${cfg.provider}:${model}`;
+  const conn = routedConnection(cfg);
+  if (conn === null || conn.provider === 'anthropic' || conn.model === '') return null;
+  return `${conn.provider}:${conn.model}`;
 }
 
 function withAvailableModels(settings: Record<string, unknown>, route: string | null, metroWrote: boolean): Record<string, unknown> {

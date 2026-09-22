@@ -1,4 +1,4 @@
-export type UsageProvider = 'anthropic' | 'codex' | 'openrouter' | 'bedrock' | 'gemini';
+type Key = string;
 
 export interface UsageWindow {
   label: string;
@@ -24,27 +24,29 @@ export interface ProviderUsage {
 
 type Reported = Omit<ProviderUsage, 'tally'>;
 
-const latest = new Map<UsageProvider, Reported>();
-const tallies = new Map<UsageProvider, Tally>();
+const latest = new Map<Key, Reported>();
+const tallies = new Map<Key, Tally>();
 
-export const noteUsage = (provider: UsageProvider, usage: Reported): void => {
-  latest.set(provider, usage);
+export const noteUsage = (key: Key, usage: Reported): void => {
+  latest.set(key, usage);
 };
 
-export function usageSeen(): Partial<Record<UsageProvider, ProviderUsage>> {
-  const out: Partial<Record<UsageProvider, ProviderUsage>> = {};
-  const providers = new Set<UsageProvider>([...latest.keys(), ...tallies.keys()]);
-  for (const provider of providers) {
-    const reported = latest.get(provider);
-    const tally = tallies.get(provider) ?? null;
-    out[provider] = reported === undefined
-      ? { windows: [], note: null, at: tally?.since ?? new Date().toISOString(), tally }
-      : { ...reported, tally };
+export function usageSeen(): Record<Key, ProviderUsage> {
+  const out: Record<Key, ProviderUsage> = {};
+  for (const key of new Set<Key>([...latest.keys(), ...tallies.keys()])) {
+    const reported = latest.get(key);
+    const tally = tallies.get(key) ?? null;
+    out[key] = reported === undefined ? { windows: [], note: null, at: tally?.since ?? new Date().toISOString(), tally } : { ...reported, tally };
   }
   return out;
 }
 
-export const usageOf = (provider: UsageProvider): Reported | undefined => latest.get(provider);
+export const usageOf = (key: Key): Reported | undefined => latest.get(key);
+
+export const forgetOne = (key: Key): void => {
+  latest.delete(key);
+  tallies.delete(key);
+};
 
 export const forgetUsage = (): void => {
   latest.clear();
@@ -57,9 +59,9 @@ export interface Counted {
   cached: number;
 }
 
-export function tallyTokens(provider: UsageProvider, counted: Counted, now = new Date()): void {
-  const so = tallies.get(provider) ?? { requests: 0, input: 0, output: 0, cached: 0, since: now.toISOString() };
-  tallies.set(provider, {
+export function tallyTokens(key: Key, counted: Counted, now = new Date()): void {
+  const so = tallies.get(key) ?? { requests: 0, input: 0, output: 0, cached: 0, since: now.toISOString() };
+  tallies.set(key, {
     requests: so.requests + 1,
     input: so.input + counted.input,
     output: so.output + counted.output,
@@ -75,7 +77,7 @@ export class UsageScanner {
   private readonly max = { input: 0, output: 0, read: 0, creation: 0 };
   private touched = false;
 
-  constructor(private readonly provider: UsageProvider) {}
+  constructor(private readonly key: Key) {}
 
   private scan(text: string): void {
     for (const hit of text.matchAll(TOKEN_FIELD)) {
@@ -104,7 +106,7 @@ export class UsageScanner {
     if (this.carry !== '') this.scan(this.carry);
     this.carry = '';
     if (!this.touched) return;
-    tallyTokens(this.provider, { input: this.max.input, output: this.max.output, cached: this.max.read + this.max.creation }, now);
+    tallyTokens(this.key, { input: this.max.input, output: this.max.output, cached: this.max.read + this.max.creation }, now);
     this.touched = false;
   }
 }
@@ -212,9 +214,9 @@ export function codexUsage(headers: Headers, now = new Date()): Reported | null 
   return { windows, note: reached === null || reached === '' ? null : reached.replaceAll('_', ' '), at: now.toISOString() };
 }
 
-export function noteUsageHeaders(provider: 'anthropic' | 'codex', headers: Headers, now = new Date()): void {
-  const usage = provider === 'anthropic' ? anthropicUsage(headers, now) : codexUsage(headers, now);
-  if (usage !== null) noteUsage(provider, usage);
+export function noteUsageHeaders(kind: 'anthropic' | 'codex', key: Key, headers: Headers, now = new Date()): void {
+  const usage = kind === 'anthropic' ? anthropicUsage(headers, now) : codexUsage(headers, now);
+  if (usage !== null) noteUsage(key, usage);
 }
 
 const dollars = (value: number): string => `$${value.toFixed(2)}`;

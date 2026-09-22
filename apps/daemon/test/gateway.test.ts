@@ -6,6 +6,7 @@ import { lastServed } from '../src/gateway/served.ts';
 import { usageSeen } from '../src/gateway/usage.ts';
 import { encodeFrame } from '../src/gateway/eventstream.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
+import { conn, configOf, connectionId, makeConnection, use } from './model-fixture.ts';
 import type { CodexTokens } from '../src/gateway/codex-auth.ts';
 import type { GeminiTokens } from '../src/gateway/gemini-auth.ts';
 
@@ -157,8 +158,8 @@ beforeAll(async () => {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ access_token: 'ga-2', expires_in: 3599, token_type: 'Bearer' }));
   });
-  deps.gemini = { base: [geminiBackend.base, geminiBackend.base], tokenBase: googleTokens.base, save: (t) => { savedGemini.push(t); } };
-  deps.codex = { base: codexBackend.base, issuer: tokenIssuer.base, save: (t) => { saved.push(t); } };
+  deps.gemini = { base: [geminiBackend.base, geminiBackend.base], tokenBase: googleTokens.base, save: (_id, t) => { savedGemini.push(t); } };
+  deps.codex = { base: codexBackend.base, issuer: tokenIssuer.base, save: (_id, t) => { saved.push(t); } };
   deps.anthropicBase = anthropic.base;
   deps.bedrockBase = bedrock.base;
   deps.openrouterBase = openrouter.base;
@@ -178,15 +179,13 @@ afterAll(() => {
 
 beforeEach(() => {
   resetGatewayState();
-  cfg = {
-    version: 1,
-    anthropic: { apiKey: '', model: '' },
-    provider: 'anthropic',
-    bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
-    openrouter: { apiKey: 'or-key', model: 'openai/gpt-5.2-codex', zdr: false },
-    codex: { model: 'gpt-5.3-codex', auth: tokens() },
-    gemini: { model: 'gemini-3-pro-preview', auth: geminiTokens() },
-  };
+  cfg = configOf('anthropic', [
+    makeConnection('anthropic'),
+    makeConnection('bedrock', { region: 'eu-central-1', apiKey: 'aws-key' }),
+    makeConnection('openrouter', { apiKey: 'or-key', model: 'openai/gpt-5.2-codex' }),
+    makeConnection('codex', { model: 'gpt-5.3-codex', codex: tokens() }),
+    makeConnection('gemini', { model: 'gemini-3-pro-preview', gemini: geminiTokens() }),
+  ]);
   geminiBackend.seen.length = 0;
   geminiFailures.length = 0;
   googleTokens.seen.length = 0;
@@ -254,7 +253,7 @@ describe('the Anthropic route', () => {
   });
 
   test('a key on the page replaces Claude Code\'s own login, takes the oauth beta off, and pins the model', async () => {
-    cfg.anthropic = { apiKey: 'sk-ant-page', model: 'claude-opus-5' };
+    Object.assign(conn(cfg, 'anthropic'), { apiKey: 'sk-ant-page', model: 'claude-opus-5' });
     const res = await post('/gateway/v1/messages', message('claude-sonnet-5'), {
       authorization: 'Bearer sk-ant-oat-login',
       'anthropic-beta': 'oauth-2025-04-20,context-management-2025-06-27',
@@ -292,11 +291,11 @@ describe('the Anthropic route', () => {
       res.end('event: message_stop\ndata: {"type":"message_stop"}\n\n');
     };
     try {
-      expect(usageSeen().anthropic).toBeUndefined();
+      expect(usageSeen()[connectionId('anthropic')]).toBeUndefined();
       const res = await post('/gateway/v1/messages', message('claude-opus-4-8', true));
       expect(res.status).toBe(200);
       await res.text();
-      const seen = usageSeen().anthropic;
+      const seen = usageSeen()[connectionId('anthropic')];
       expect(seen?.windows.map((w) => [w.label, w.used])).toEqual([
         ['5-hour window', 0.34],
         ['Weekly', 0.61],
@@ -310,7 +309,7 @@ describe('the Anthropic route', () => {
 
 describe('the Bedrock route', () => {
   test('rewrites the request the way Bedrock wants it and turns the event stream into SSE', async () => {
-    cfg.provider = 'bedrock';
+    use(cfg, 'bedrock');
     const res = await post('/gateway/v1/messages', message('claude-sonnet-4-6', true), { 'anthropic-beta': 'interleaved-thinking-2025-05-14' });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/event-stream');
@@ -328,10 +327,10 @@ describe('the Bedrock route', () => {
   });
 
   test('counts tokens through Bedrock, and refuses by name when the page holds no key', async () => {
-    cfg.provider = 'bedrock';
+    use(cfg, 'bedrock');
     const count = await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-4-6'));
     expect(await count.json()).toEqual({ input_tokens: 42 });
-    cfg.bedrock.apiKey = '';
+    conn(cfg, 'bedrock').apiKey = '';
     const refused = await post('/gateway/v1/messages', message('claude-sonnet-4-6'));
     expect(refused.status).toBe(400);
     expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Model page');
@@ -341,7 +340,7 @@ describe('the Bedrock route', () => {
 
 describe('the OpenRouter route', () => {
   test('sends the page model with the OpenRouter key, keeps an explicit id, and leaves token counting to Claude Code', async () => {
-    cfg.provider = 'openrouter';
+    use(cfg, 'openrouter');
     const res = await post('/gateway/v1/messages', message('claude-sonnet-5', true), { authorization: 'Bearer sk-ant-oat-login' });
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('event: message_stop');
@@ -352,34 +351,34 @@ describe('the OpenRouter route', () => {
     await post('/gateway/v1/messages', message('openrouter:google/gemini-2.5-pro'));
     expect((JSON.parse(openrouter.seen[1]?.body ?? '{}') as { model: string }).model).toBe('google/gemini-2.5-pro');
     expect((await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-5'))).status).toBe(404);
-    cfg.openrouter.model = '';
+    conn(cfg, 'openrouter').model = '';
     expect((await post('/gateway/v1/messages', message('claude-sonnet-5'))).status).toBe(400);
   });
 
   test('a request that switches thinking off loses that field, since some OpenRouter models cannot run without reasoning', async () => {
-    cfg.provider = 'openrouter';
+    use(cfg, 'openrouter');
     await post('/gateway/v1/messages', { ...message('claude-sonnet-5'), thinking: { type: 'disabled' } });
     expect(JSON.parse(openrouter.seen[0]?.body ?? '{}')).not.toHaveProperty('thinking');
     await post('/gateway/v1/messages', { ...message('claude-sonnet-5'), thinking: { type: 'enabled', budget_tokens: 1024 } });
     expect((JSON.parse(openrouter.seen[1]?.body ?? '{}') as { thinking: unknown }).thinking).toEqual({ type: 'enabled', budget_tokens: 1024 });
-    cfg.openrouter.zdr = true;
+    conn(cfg, 'openrouter').zdr = true;
     await post('/gateway/v1/messages', { ...message('claude-sonnet-5'), thinking: { type: 'disabled' } });
     const sealed = JSON.parse(openrouter.seen[2]?.body ?? '{}') as Record<string, unknown>;
     expect(sealed).not.toHaveProperty('thinking');
     expect(sealed.provider).toEqual({ zdr: true });
-    cfg.openrouter.zdr = false;
+    conn(cfg, 'openrouter').zdr = false;
   });
 
   test('with zero data retention on, every request carries provider.zdr, merged into any routing the client sent', async () => {
-    cfg.provider = 'openrouter';
-    cfg.openrouter.zdr = true;
+    use(cfg, 'openrouter');
+    conn(cfg, 'openrouter').zdr = true;
     await post('/gateway/v1/messages', message('claude-sonnet-5'));
     const plain = JSON.parse(openrouter.seen[0]?.body ?? '{}') as { provider?: Record<string, unknown> };
     expect(plain.provider).toEqual({ zdr: true });
     await post('/gateway/v1/messages', { ...message('claude-sonnet-5'), provider: { order: ['anthropic'], zdr: false } });
     const merged = JSON.parse(openrouter.seen[1]?.body ?? '{}') as { provider?: Record<string, unknown> };
     expect(merged.provider).toEqual({ order: ['anthropic'], zdr: true });
-    cfg.openrouter.zdr = false;
+    conn(cfg, 'openrouter').zdr = false;
     await post('/gateway/v1/messages', message('claude-sonnet-5'));
     expect(JSON.parse(openrouter.seen[2]?.body ?? '{}')).not.toHaveProperty('provider');
   });
@@ -387,17 +386,17 @@ describe('the OpenRouter route', () => {
 
 describe('what the picker can discover', () => {
   test('lists the configured routes under ids the picker keeps', async () => {
-    cfg.bedrock.model = 'eu.anthropic.claude-sonnet-4-6';
+    conn(cfg, 'bedrock').model = 'eu.anthropic.claude-sonnet-4-6';
     const res = await fetch(`${base}/gateway/v1/models?limit=1000`, { headers: { 'x-metro-key': 'mk_ok' } });
     const body = (await res.json()) as { data: { id: string; display_name: string }[] };
     expect(body.data.map((m) => m.id)).toEqual(['bedrock:eu.anthropic.claude-sonnet-4-6', 'openrouter:openai/gpt-5.2-codex', 'codex:gpt-5.3-codex', 'gemini:gemini-3-pro-preview']);
-    expect(body.data[0]?.display_name).toContain('Bedrock');
+    expect(body.data[0]?.display_name).toContain('bedrock');
   });
 });
 
 describe('the Codex route', () => {
   test('speaks the Codex CLI protocol with Claude Code\'s system prompt as its instructions, and translates the stream', async () => {
-    cfg.provider = 'codex';
+    use(cfg, 'codex');
     const res = await post('/gateway/v1/messages', { ...message('claude-sonnet-5', true), tools: [{ name: 'Bash', description: 'run', input_schema: { type: 'object' } }] }, { 'x-claude-code-session-id': 'sess-1' });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/event-stream');
@@ -426,8 +425,8 @@ describe('the Codex route', () => {
   });
 
   test('a 401 refreshes the ChatGPT tokens once, saves them, and retries', async () => {
-    cfg.provider = 'codex';
-    cfg.codex.auth = { ...tokens(), accessToken: 'expired' };
+    use(cfg, 'codex');
+    conn(cfg, 'codex').codex = { ...tokens(), accessToken: 'expired' };
     const res = await post('/gateway/v1/messages', message('gpt-5.4', true));
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('event: message_stop');
@@ -439,10 +438,10 @@ describe('the Codex route', () => {
   });
 
   test('token counting is an estimate, a disconnected account is a 400, and the picker sees the route', async () => {
-    cfg.provider = 'codex';
+    use(cfg, 'codex');
     const count = await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-5'));
     expect(((await count.json()) as { input_tokens: number }).input_tokens).toBeGreaterThan(10);
-    cfg.codex.auth = null;
+    conn(cfg, 'codex').codex = null;
     const refused = await post('/gateway/v1/messages', message('claude-sonnet-5'));
     expect(refused.status).toBe(400);
     expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Model page');
@@ -453,7 +452,7 @@ describe('the Codex route', () => {
 
 describe('the Gemini route', () => {
   test('presents as Antigravity to Code Assist, with the system prompt behind the identity lines, and translates the stream', async () => {
-    cfg.provider = 'gemini';
+    use(cfg, 'gemini');
     const res = await post('/gateway/v1/messages', { ...message('claude-sonnet-5', true), thinking: { type: 'enabled', budget_tokens: 1024 }, tools: [{ name: 'Bash', description: 'run', input_schema: { type: 'object', properties: { command: { type: 'string' } }, additionalProperties: false, $schema: 'x' } }] }, { 'x-claude-code-session-id': 'sess-9' });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/event-stream');
@@ -494,7 +493,7 @@ describe('the Gemini route', () => {
   });
 
   test('a Code Assist endpoint that fails with a 5xx or a 429 is followed by the next one; another 4xx is relayed as is', async () => {
-    cfg.provider = 'gemini';
+    use(cfg, 'gemini');
     geminiFailures.push(503);
     const res = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
     expect(res.status).toBe(200);
@@ -517,8 +516,8 @@ describe('the Gemini route', () => {
   });
 
   test('a 401 refreshes the Google tokens once, saves them, and retries', async () => {
-    cfg.provider = 'gemini';
-    cfg.gemini.auth = { ...geminiTokens(), accessToken: 'stale' };
+    use(cfg, 'gemini');
+    conn(cfg, 'gemini').gemini = { ...geminiTokens(), accessToken: 'stale' };
     const res = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('event: message_stop');
@@ -531,10 +530,10 @@ describe('the Gemini route', () => {
   });
 
   test('token counting is an estimate, a disconnected account is a 400, and the picker sees the route', async () => {
-    cfg.provider = 'gemini';
+    use(cfg, 'gemini');
     const count = await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-5'));
     expect(((await count.json()) as { input_tokens: number }).input_tokens).toBeGreaterThan(10);
-    cfg.gemini.auth = null;
+    conn(cfg, 'gemini').gemini = null;
     const refused = await post('/gateway/v1/messages', message('claude-sonnet-5'));
     expect(refused.status).toBe(400);
     expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Model page');
@@ -545,8 +544,8 @@ describe('the Gemini route', () => {
 
 describe('what keeps a session alive through a bad hour', () => {
   test('two requests hitting an expired ChatGPT token share ONE refresh', async () => {
-    cfg.provider = 'codex';
-    cfg.codex.auth = { ...tokens(), accessToken: 'expired', savedAt: new Date(Date.now() - 5_000).toISOString() };
+    use(cfg, 'codex');
+    conn(cfg, 'codex').codex = { ...tokens(), accessToken: 'expired', savedAt: new Date(Date.now() - 5_000).toISOString() };
     const before = tokenIssuer.seen.length;
     const [a, b] = await Promise.all([post('/gateway/v1/messages', message('gpt-5.4', true)), post('/gateway/v1/messages', message('gpt-5.4', true))]);
     expect(a.status).toBe(200);
@@ -588,8 +587,8 @@ describe('what keeps a session alive through a bad hour', () => {
     } finally {
       openrouter.answer = answer;
     }
-    cfg.provider = 'codex';
-    cfg.codex.auth = null;
+    use(cfg, 'codex');
+    conn(cfg, 'codex').codex = null;
     expect((await post('/gateway/v1/messages', message('gpt-5.4'))).status).toBe(400);
   });
 });
