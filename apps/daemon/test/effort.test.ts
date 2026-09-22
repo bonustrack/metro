@@ -8,6 +8,7 @@ import {
   withBlockBinding,
   withEffort,
   withoutEffort,
+  withThinkingFor,
 } from '../src/gateway/effort.ts';
 
 const asRequest = (headers: Record<string, string> = {}): IncomingMessage => ({ headers }) as unknown as IncomingMessage;
@@ -73,5 +74,16 @@ describe('thinking blocks that no longer match their conversation', () => {
     expect(withBlockBinding(own)).toBe(own);
     const none = turn({ thinking: undefined });
     expect(withBlockBinding(none)).toBe(none);
+  });
+});
+
+describe('models that cannot run with thinking off', () => {
+  test('a disabled thinking is dropped for Opus 5.5 and the Fable line, and kept everywhere else', () => {
+    const off = turn({ thinking: { type: 'disabled' } });
+    expect(withThinkingFor(off, 'claude-opus-5-5')).not.toHaveProperty('thinking');
+    expect(withThinkingFor(off, 'claude-fable-5-1')).not.toHaveProperty('thinking');
+    expect(withThinkingFor(off, 'claude-opus-5')).toBe(off);
+    const adaptive = turn();
+    expect(withThinkingFor(adaptive, 'claude-opus-5-5')).toBe(adaptive);
   });
 });

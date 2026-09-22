@@ -63,6 +63,13 @@ export function effortToApply(body: Body): string | null {
 
 export const cappedEffort = (effort: string): string => (ABOVE_HIGH.has(effort) ? 'high' : effort);
 
+const THINKING_ALWAYS_ON = /claude-(fable|mythos)-5|claude-opus-5-5/;
+
+export function withThinkingFor(body: Body, model: string): Body {
+  if (!THINKING_ALWAYS_ON.test(model) || record(body.thinking).type !== 'disabled') return body;
+  return Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'thinking'));
+}
+
 export function withBlockBinding(body: Body): Body {
   const thinking = body.thinking;
   if (!isRecord(thinking) || thinking.block_binding !== undefined) return body;

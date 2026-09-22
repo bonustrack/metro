@@ -270,6 +270,19 @@ describe('the Anthropic route', () => {
     expect((JSON.parse(anthropic.seen[1]?.body ?? '{}') as { model: string }).model).toBe('claude-haiku-4-5-20251001');
   });
 
+  test('a chore with thinking switched off keeps running when the pinned model cannot switch thinking off', async () => {
+    conn(cfg, 'anthropic').model = 'claude-opus-5-5';
+    const chore = { ...message('claude-opus-5'), thinking: { type: 'disabled' }, output_config: { effort: 'high', format: { type: 'json_schema' } } };
+    await post('/gateway/v1/messages', chore);
+    const sent = JSON.parse(anthropic.seen[0]?.body ?? '{}') as Record<string, unknown>;
+    expect(sent.model).toBe('claude-opus-5-5');
+    expect(sent).not.toHaveProperty('thinking');
+    conn(cfg, 'anthropic').model = 'claude-opus-5';
+    await post('/gateway/v1/messages', chore);
+    const kept = JSON.parse(anthropic.seen[1]?.body ?? '{}') as Record<string, unknown>;
+    expect(kept.thinking).toEqual({ type: 'disabled', block_binding: { prefix_mismatch_behavior: 'drop_block' } });
+  });
+
   test('a stream comes back as the same SSE, with the upstream headers, and an explicit prefix strips to the bare id', async () => {
     const res = await post('/gateway/v1/messages', message('anthropic:claude-opus-4-8', true));
     expect(res.status).toBe(200);

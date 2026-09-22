@@ -10,7 +10,7 @@ import {
   type Adaptations,
 } from './bedrock.js';
 import { addBeta, anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
-import { BINDING_BETA, cappedEffort, effortToApply, plannedEffort, withBlockBinding, withEffort } from './effort.js';
+import { BINDING_BETA, cappedEffort, effortToApply, plannedEffort, withBlockBinding, withEffort, withThinkingFor } from './effort.js';
 import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, setGeminiAuth, writeModelConfig, type Connection, type ModelConfig, type Route } from './model-config.js';
 import { codexCount, codexMessages, freshCodexState } from './codex.js';
 import { freshGeminiState, geminiCount, geminiMessages } from './gemini.js';
@@ -99,7 +99,7 @@ interface Payloads {
 function anthropicPayloads(raw: Buffer, sent: Record<string, unknown>, shaped: Record<string, unknown>, model: string): Payloads {
   const rewrite = typeof sent.model === 'string' && sent.model !== model;
   const asSent = rewrite ? Buffer.from(JSON.stringify({ ...sent, model })) : raw;
-  const bound = withBlockBinding(shaped);
+  const bound = withBlockBinding(withThinkingFor(shaped, model));
   if (bound === sent) return { metro: asSent, asSent: null, bound: false };
   return { metro: Buffer.from(JSON.stringify(rewrite ? { ...bound, model } : bound)), asSent, bound: bound !== shaped };
 }
