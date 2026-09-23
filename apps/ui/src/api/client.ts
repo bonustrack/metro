@@ -1,6 +1,6 @@
 import { daemonBase } from '../auth/daemon.js';
 import { accessToken, refreshAccount } from './auth.js';
-import { attributeUntagged, groupAccounts, isRecord, type AccountGroup } from './accounts.js';
+import { groupAccounts, isRecord, type AccountGroup } from './accounts.js';
 
 export class AuthError extends Error {
   constructor(
@@ -16,22 +16,17 @@ export class StoppedError extends Error {}
 export interface AgentSummary {
   id: string;
   name: string;
-  owned: boolean;
   connectorIds: string[];
 }
 
-export interface AgentsView {
-  agents: AgentSummary[];
-}
-
-export interface StationsView extends AgentsView {
+export interface StationsView {
+  agent: AgentSummary | undefined;
   groups: AccountGroup[];
   attachable: string[];
   unavailable: string[];
   capabilities: Record<string, string[]>;
 }
 
-export const LOCAL_PROJECT = 'localdaemon';
 const agentsUrl = (): string => `${daemonBase()}/api/agents`;
 const sessionUrl = (): string => `${daemonBase()}/api/session`;
 
@@ -88,23 +83,14 @@ export async function callRaw(init: CallInit): Promise<Response> {
   throw failed ?? new Error(`Metro returned ${String(res.status)}.`);
 }
 
-function toAgents(value: unknown): AgentSummary[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isRecord).map((a) => ({
-    id: typeof a.id === 'string' ? a.id : '',
-    name: typeof a.name === 'string' ? a.name : '',
-    owned: a.owned === true,
-    connectorIds: toStationList(a.connector_ids),
-  }));
-}
-
-function attributedGroups(
-  agents: AgentSummary[],
-  accounts: unknown,
-): AccountGroup[] {
-  const groups = groupAccounts(accounts);
-  const sole = agents.length === 1 ? agents[0] : undefined;
-  return sole === undefined ? groups : attributeUntagged(groups, sole.id);
+function toAgent(value: unknown): AgentSummary | undefined {
+  const first: unknown = Array.isArray(value) ? value[0] : undefined;
+  if (!isRecord(first)) return undefined;
+  return {
+    id: typeof first.id === 'string' ? first.id : '',
+    name: typeof first.name === 'string' ? first.name : '',
+    connectorIds: toStationList(first.connector_ids),
+  };
 }
 
 function toStationList(value: unknown): string[] {
@@ -121,8 +107,6 @@ function toCapabilities(value: unknown): Record<string, string[]> {
   return out;
 }
 
-const toAgentsView = (body: Record<string, unknown>): AgentsView => ({ agents: toAgents(body.agents) });
-
 export async function fetchSession(): Promise<string> {
   const body = await call({ base: sessionUrl(), method: 'GET' });
   if (!isRecord(body) || typeof body.subject !== 'string')
@@ -133,14 +117,12 @@ export async function fetchSession(): Promise<string> {
 export async function fetchStations(): Promise<StationsView> {
   const body = await call({
     method: 'GET',
-    path: `?accounts=1&project=${LOCAL_PROJECT}`,
+    path: '?accounts=1',
   });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
-  const view = toAgentsView(body);
-  const groups = attributedGroups(view.agents, body.accounts);
   return {
-    ...view,
-    groups,
+    agent: toAgent(body.agents),
+    groups: groupAccounts(body.accounts),
     attachable: toStationList(body.attachable),
     unavailable: toStationList(body.unavailable),
     capabilities: toCapabilities(body.capabilities),

@@ -38,7 +38,6 @@ import {
   type PendingConnectorInput,
 } from './model.js';
 import { agentsDir } from '../agents/files.js';
-import { assertLocalOwner, LOCAL_PROJECT_ID } from '../agents/file-admin.js';
 import { newId } from '@metro-labs/core/ids';
 import type { LoadedConnector } from '../stations/materialize.js';
 
@@ -83,14 +82,7 @@ function writeRows(dir: string, rows: LocalConnectorRow[]): void {
 
 const missing = (): ConnectorError => new ConnectorError('no such connector', 404);
 
-function ownedRows(subject: string, project: string, dir: string): LocalConnectorRow[] {
-  assertLocalOwner(subject, dir);
-  if (project !== LOCAL_PROJECT_ID) throw new ConnectorError('no such project', 404);
-  return readLocalConnectors(dir);
-}
-
-function rowOrThrow(subject: string, id: string, dir: string): LocalConnectorRow {
-  assertLocalOwner(subject, dir);
+function rowOrThrow(id: string, dir: string): LocalConnectorRow {
   const row = readLocalConnectors(dir).find((r) => r.id === id);
   if (row === undefined) throw missing();
   return row;
@@ -130,16 +122,12 @@ export function localImportConnectors(
   return imported.length;
 }
 
-export async function localListConnectors(
-  subject: string,
-  project: string,
-  dir = agentsDir(),
-): Promise<Connector[]> {
-  return Promise.resolve(ownedRows(subject, project, dir).map(connectorFromRow));
+export async function localListConnectors(dir = agentsDir()): Promise<Connector[]> {
+  return Promise.resolve(readLocalConnectors(dir).map(connectorFromRow));
 }
 
-export async function localGetConnector(subject: string, id: string, dir = agentsDir()): Promise<Connector> {
-  return Promise.resolve(connectorFromRow(rowOrThrow(subject, id, dir)));
+export async function localGetConnector(id: string, dir = agentsDir()): Promise<Connector> {
+  return Promise.resolve(connectorFromRow(rowOrThrow(id, dir)));
 }
 
 function assertNameFree(name: string, exceptId: string | null, dir: string): void {
@@ -154,13 +142,7 @@ function insert(dir: string, name: string, url: URL, config: ConnectorConfig): C
   return connectorFromRow(row);
 }
 
-export async function localCreateConnector(
-  subject: string,
-  project: string,
-  input: ConnectorInput,
-  dir = agentsDir(),
-): Promise<Connector> {
-  ownedRows(subject, project, dir);
+export async function localCreateConnector(input: ConnectorInput, dir = agentsDir()): Promise<Connector> {
   const name = connectorName(input.name);
   const url = parseConnectorUrl(input.url);
   const auth = connectorAuth(input.header, input.value);
@@ -175,13 +157,7 @@ export async function localCreateConnector(
   });
 }
 
-export async function localCreatePendingConnector(
-  subject: string,
-  project: string,
-  input: PendingConnectorInput,
-  dir = agentsDir(),
-): Promise<Connector> {
-  ownedRows(subject, project, dir);
+export async function localCreatePendingConnector(input: PendingConnectorInput, dir = agentsDir()): Promise<Connector> {
   const name = connectorName(input.name);
   const url = parseConnectorUrl(input.url);
   const client = connectorClient(input.clientId, input.clientSecret);
@@ -191,20 +167,19 @@ export async function localCreatePendingConnector(
 }
 
 export async function localReconnectConnector(
-  subject: string,
   id: string,
   auth: OAuthAuth,
   dir = agentsDir(),
 ): Promise<Connector> {
-  const row = rowOrThrow(subject, id, dir);
+  const row = rowOrThrow(id, dir);
   const verified = stamp(await verifyRemoteMcp(parseConnectorUrl(row.url), auth));
   return replace(dir, { ...row, config: { ...row.config, auth, verified, oauth: true } });
 }
 
 const signedOut = (row: LocalConnectorRow): LocalConnectorRow => ({ ...row, config: { ...row.config, auth: { kind: 'none' }, oauth: true } });
 
-export async function localDisconnectConnector(subject: string, id: string, dir = agentsDir()): Promise<Connector> {
-  const row = rowOrThrow(subject, id, dir);
+export async function localDisconnectConnector(id: string, dir = agentsDir()): Promise<Connector> {
+  const row = rowOrThrow(id, dir);
   if (row.config.auth.kind !== 'oauth') throw new ConnectorError('that connector is not signed in', 400);
   return Promise.resolve(replace(dir, signedOut(row)));
 }
@@ -227,8 +202,8 @@ function updateRow(dir: string, id: string, config: Partial<LocalConnectorRow['c
   if (now !== undefined) replace(dir, { ...now, config: { ...now.config, ...config } });
 }
 
-export async function localVerifyConnector(subject: string, id: string, dir = agentsDir()): Promise<ConnectorCheck> {
-  const row = rowOrThrow(subject, id, dir);
+export async function localVerifyConnector(id: string, dir = agentsDir()): Promise<ConnectorCheck> {
+  const row = rowOrThrow(id, dir);
   try {
     const url = parseConnectorUrl(row.url);
     const auth = await freshAuth(row, dir);
@@ -242,21 +217,21 @@ export async function localVerifyConnector(subject: string, id: string, dir = ag
   }
 }
 
-export async function localConnectorTools(subject: string, id: string, dir = agentsDir()): Promise<RemoteTool[]> {
-  const row = rowOrThrow(subject, id, dir);
+export async function localConnectorTools(id: string, dir = agentsDir()): Promise<RemoteTool[]> {
+  const row = rowOrThrow(id, dir);
   const url = parseConnectorUrl(row.url);
   return listRemoteTools(url, await freshAuth(row, dir));
 }
 
-export async function localRenameConnector(subject: string, id: string, raw: string, dir = agentsDir()): Promise<Connector> {
+export async function localRenameConnector(id: string, raw: string, dir = agentsDir()): Promise<Connector> {
   const name = connectorName(raw);
-  const row = rowOrThrow(subject, id, dir);
+  const row = rowOrThrow(id, dir);
   assertNameFree(name, id, dir);
   return Promise.resolve(replace(dir, { ...row, name }));
 }
 
-export async function localDeleteConnector(subject: string, id: string, dir = agentsDir()): Promise<DeletedConnector> {
-  const row = rowOrThrow(subject, id, dir);
+export async function localDeleteConnector(id: string, dir = agentsDir()): Promise<DeletedConnector> {
+  const row = rowOrThrow(id, dir);
   writeRows(dir, readLocalConnectors(dir).filter((r) => r.id !== id));
   return Promise.resolve({ id: row.id, name: row.name });
 }

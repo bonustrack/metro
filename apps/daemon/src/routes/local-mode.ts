@@ -31,17 +31,13 @@ import {
   localConnectorTools,
 } from '../connectors/store.js';
 import {
-  assertLocalOwner,
   setLocalOwner,
-  LOCAL_PROJECT_ID,
   localAttachAccount,
-  localDeleteAgent,
   localDetachAccount,
   localSetAllowlist,
   localSetAccountEnabled,
   localImportAgent,
   localListAgents,
-  localOwnedAgentOrThrow,
   localOwner,
   readLocalAgentFile,
 } from '../agents/file-admin.js';
@@ -55,17 +51,17 @@ export interface LocalModeDeps {
   stop: () => void;
   gatherAccounts: AgentApiDeps['gatherAccounts'];
   capabilities: AgentApiDeps['capabilities'];
-  liveness: AgentApiDeps['liveness'];
   prepareAccount: AccountApiDeps['prepareAccount'];
 }
 
 function attachSessions(deps: LocalModeDeps): AttachSessions {
   return new AttachSessions({
-    authorize: async (owner) => {
-      await localOwnedAgentOrThrow(owner.subject, owner.agentId);
+    authorize: (owner) => {
+      readLocalAgentFile(owner.agentId);
+      return Promise.resolve();
     },
     complete: async (owner, station, config) => {
-      const ref = await localAttachAccount(owner.subject, owner.agentId, station, config);
+      const ref = await localAttachAccount(owner.agentId, station, config);
       const activated = await deps.syncStations(station).then(
         () => true,
         (err: unknown) => {
@@ -85,11 +81,9 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
   return {
     attachSessions: attachSessions(deps),
     listAgents: localListAgents,
-    deleteAgent: localDeleteAgent,
     gatherAccounts: deps.gatherAccounts,
     capabilities: deps.capabilities,
     attachable: ATTACHABLE.filter((s) => s !== 'webhook'),
-    liveness: deps.liveness,
     connectorIds: connectorIdsOfLocalAgents,
     prepareAccount: deps.prepareAccount,
     attachAccount: localAttachAccount,
@@ -112,8 +106,8 @@ function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>
 }
 
 const connectorApi: ConnectorApiDeps = {
-  listConnectors: async (subject, project) => {
-    const rows = await localListConnectors(subject, project);
+  listConnectors: async () => {
+    const rows = await localListConnectors();
     syncPluginServers(readLocalConnectors());
     return rows;
   },
@@ -142,19 +136,17 @@ const relayApi: RelayApiDeps = {
 
 function bundleApi(deps: LocalModeDeps): BundleApiDeps {
   return {
-    bundle: async (subject, agentId) => {
-      await localOwnedAgentOrThrow(subject, agentId);
+    bundle: (agentId) => {
       const file = readLocalAgentFile(agentId);
       const bundle: AgentBundle = {
         version: 1,
         agent: { id: file.id, name: file.name ?? '', stations: file.stations },
         connectors: readLocalConnectors().map((c) => ({ id: c.id, name: c.name, url: c.url, transport: c.transport, config: { ...c.config } })),
       };
-      return bundle;
+      return Promise.resolve(bundle);
     },
-    restore: async (subject, bundle, mode) => {
-      assertLocalOwner(subject);
-      const made = await localImportAgent(subject, loadedAgentOf(bundle), undefined, mode);
+    restore: async (bundle, mode) => {
+      const made = await localImportAgent(loadedAgentOf(bundle), undefined, mode);
       const connectors = localImportConnectors(bundle.connectors, undefined, mode);
       for (const station of new Set(bundle.agent.stations.map((a) => a.station)))
         await deps.syncStations(station).catch((err: unknown) => {
@@ -166,7 +158,7 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
 }
 
 function localModeInfo(): ModeInfo {
-  return { mode: 'local', owner: localOwner(), project: LOCAL_PROJECT_ID, version: METRO_VERSION };
+  return { mode: 'local', owner: localOwner(), project: 'localdaemon', version: METRO_VERSION };
 }
 
 async function accountCall(
@@ -194,14 +186,14 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     bundleApi: bundleApi(deps),
     connectorApi,
     relayApi,
-    claudeApi: { authorize: (subject) => { assertLocalOwner(subject); } },
-    updateApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart },
-    controlApi: { authorize: (subject) => { assertLocalOwner(subject); }, restart: deps.restart, stop: deps.stop },
-    ownerApi: { authorize: (subject) => { assertLocalOwner(subject); }, setOwner: (owner) => setLocalOwner(owner) },
-    machineApi: { authorize: (subject) => { assertLocalOwner(subject); } },
-    modelApi: { authorize: (subject) => { assertLocalOwner(subject); } },
+    claudeApi: {},
+    updateApi: { restart: deps.restart },
+    controlApi: { restart: deps.restart, stop: deps.stop },
+    ownerApi: { setOwner: (owner) => setLocalOwner(owner) },
+    machineApi: {},
+    modelApi: {},
     gateway: { config: readModelConfig },
-    terminalApi: { authorize: (subject) => { assertLocalOwner(subject); } },
+    terminalApi: {},
     mode: localModeInfo,
   };
 }

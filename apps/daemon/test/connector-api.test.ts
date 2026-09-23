@@ -1,4 +1,4 @@
-import { TEST_STRANGER, auth, bearer, forged, type Who } from './identity-helper.ts';
+import { auth, bearer, forged, type Who } from './identity-helper.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { allowLocalConnectors } from '../src/connectors/url.ts';
 import type { AddressInfo } from 'node:net';
@@ -13,7 +13,6 @@ import type { ConnectorApiDeps } from '../src/connectors/api.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 
 const ADA = 'ada@lovelace.dev';
-const BOB = 'bob@builder.dev';
 const CLASHES_IN_AGENT = 'already-on-suzy';
 
 const AGENT_KEY = 'mk_connector_surface_probe';
@@ -29,7 +28,6 @@ interface ConnectorInput {
 
 interface Row {
   id: string;
-  email: string;
   name: string;
   url: string;
   header: string | null;
@@ -56,7 +54,6 @@ interface WireConnector {
 const SEED: Row[] = [
   {
     id: 'agent000001',
-    email: ADA,
     name: 'linear',
     url: 'https://mcp.linear.app/mcp',
     header: 'Authorization',
@@ -64,19 +61,10 @@ const SEED: Row[] = [
   },
   {
     id: 'agent000002',
-    email: ADA,
     name: 'docs',
     url: 'https://docs.example.com/mcp',
     header: null,
     secret: null,
-  },
-  {
-    id: 'agent000003',
-    email: BOB,
-    name: 'notion',
-    url: 'https://mcp.notion.com/mcp',
-    header: 'X-Api-Key',
-    secret: 'ntn_bob_secret',
   },
 ];
 
@@ -106,13 +94,13 @@ const toConnector = (row: Row) => ({
 
 const missing = (): ApiError => new ApiError('no such connector', 404);
 
-function ownedOrThrow(email: string, id: number): Row {
-  const row = rows.find((r) => r.id === id && r.email === email);
+function rowOrThrow(id: string): Row {
+  const row = rows.find((r) => r.id === id);
   if (row === undefined) throw missing();
   return row;
 }
 
-function makeRow(email: string, input: ConnectorInput): Row {
+function makeRow(input: ConnectorInput): Row {
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   if (!NAME_RE.test(name))
     throw new ApiError(
@@ -133,8 +121,7 @@ function makeRow(email: string, input: ConnectorInput): Row {
     throw new ConnectorVerifyError(`Metro could not reach ${url.hostname}.`, 400);
   nextId += 1;
   return {
-    id: nextId,
-    email,
+    id: String(nextId),
     name,
     url: url.toString(),
     header: value === null ? null : (header ?? 'Authorization'),
@@ -142,30 +129,24 @@ function makeRow(email: string, input: ConnectorInput): Row {
   };
 }
 
-const PROJECT = 'prj00000001';
-
 const deps: ConnectorApiDeps = {
-  listConnectors: async (email, _project) => {
-    calls.push(`list ${email}`);
-    return rows.filter((r) => r.email === email).map(toConnector);
+  listConnectors: async () => {
+    calls.push('list');
+    return rows.map(toConnector);
   },
-  freshConnectorsByIds: async (ids) =>
-    Promise.resolve(
-      rows.filter((r) => ids.includes(String(r.id))).map(toConnector),
-    ),
-  createConnector: async (email, _project, input) => {
-    calls.push(`create ${email}`);
-    const row = makeRow(email, input);
+  createConnector: async (input) => {
+    calls.push('create');
+    const row = makeRow(input);
     rows.push(row);
     return toConnector(row);
   },
-  connectorTools: async (email, id) => {
-    ownedOrThrow(email, id);
+  connectorTools: async (id) => {
+    rowOrThrow(id);
     return [{ name: 'create_issue', description: 'Files an issue', readOnly: false }];
   },
-  verifyConnector: async (email, id) => {
-    calls.push(`verify ${email} ${id}`);
-    const row = ownedOrThrow(email, id);
+  verifyConnector: async (id) => {
+    calls.push(`verify ${id}`);
+    const row = rowOrThrow(id);
     if (row.url.includes('rejects.example.com'))
       return {
         id: row.id,
@@ -175,20 +156,20 @@ const deps: ConnectorApiDeps = {
       };
     return { id: row.id, name: row.name, ok: true, verified: VERIFIED };
   },
-  getConnector: async (email, id) => {
-    calls.push(`get ${email} ${id}`);
-    return toConnector(ownedOrThrow(email, id));
+  getConnector: async (id) => {
+    calls.push(`get ${id}`);
+    return toConnector(rowOrThrow(id));
   },
-  disconnectConnector: async (email, id) => {
-    calls.push(`disconnect ${email} ${id}`);
-    const row = ownedOrThrow(email, id);
+  disconnectConnector: async (id) => {
+    calls.push(`disconnect ${id}`);
+    const row = rowOrThrow(id);
     const next: Row = { ...row, header: null, secret: null, signIn: null };
     rows = rows.map((r) => (r.id === id ? next : r));
     return toConnector(next);
   },
-  renameConnector: async (email, id, name) => {
-    calls.push(`rename ${email} ${id} ${name}`);
-    const row = ownedOrThrow(email, id);
+  renameConnector: async (id, name) => {
+    calls.push(`rename ${id} ${name}`);
+    const row = rowOrThrow(id);
     if (name === CLASHES_IN_AGENT)
       throw new ApiError(
         `the agent 'suzy' already has a connector named '${name}'`,
@@ -198,9 +179,9 @@ const deps: ConnectorApiDeps = {
     rows = rows.map((r) => (r.id === id ? next : r));
     return toConnector(next);
   },
-  deleteConnector: async (email, id) => {
-    calls.push(`delete ${email} ${id}`);
-    const row = ownedOrThrow(email, id);
+  deleteConnector: async (id) => {
+    calls.push(`delete ${id}`);
+    const row = rowOrThrow(id);
     rows = rows.filter((r) => r.id !== id);
     return { id: row.id, name: row.name };
   },
@@ -208,18 +189,13 @@ const deps: ConnectorApiDeps = {
 
 const session = (email: string): string => email;
 
-const withProject = (path: string): string =>
-  path.includes('?')
-    ? `${path}&project=${PROJECT}`
-    : `${path}?project=${PROJECT}`;
-
 const call = async (
   method: string,
   path: string,
   token?: Who,
   body?: unknown,
 ): Promise<Response> =>
-  fetch(`${base}${withProject(path)}`, {
+  fetch(`${base}${path}`, {
     method,
     headers: {
       ...(token === undefined ? {} : { authorization: await auth(method, path, token) }),
@@ -229,7 +205,7 @@ const call = async (
   });
 
 const keyed = (method: string, path: string, key: string, body?: unknown): Promise<Response> =>
-  fetch(`${base}${withProject(path)}`, {
+  fetch(`${base}${path}`, {
     method,
     headers: { authorization: `Bearer ${key}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -281,18 +257,18 @@ describe('/api/connectors is the Google session surface', () => {
   });
 
   test('a token nobody issued is 401', async () => {
-    const res = await fetch(`${base}${withProject('/api/connectors')}`, { headers: { authorization: await forged(ADA) } });
+    const res = await fetch(`${base}/api/connectors`, { headers: { authorization: await forged(ADA) } });
     expect(res.status).toBe(401);
     expect(calls).toEqual([]);
   });
 
   test('a token with no organization is 401', async () => {
-    const res = await fetch(`${base}${withProject('/api/connectors')}`, { headers: { authorization: await bearer({ org_id: undefined }) } });
+    const res = await fetch(`${base}/api/connectors`, { headers: { authorization: await bearer({ org_id: undefined }) } });
     expect(res.status).toBe(401);
   });
 
   test('a ?token= query param never authenticates a browser', async () => {
-    const res = await fetch(`${base}/api/connectors?project=${PROJECT}&token=${AGENT_KEY}`);
+    const res = await fetch(`${base}/api/connectors?token=${AGENT_KEY}`);
     expect(res.status).toBe(401);
     expect(calls).toEqual([]);
   });
@@ -398,28 +374,13 @@ describe('a connector can be signed out without being deleted', () => {
       name: 'linear',
       signIn: null,
     });
-    expect(calls).toEqual([`disconnect ${ADA} agent000001`]);
+    expect(calls).toEqual(['disconnect agent000001']);
     expect(rows.some((r) => r.id === 'agent000001')).toBe(true);
   });
 
   test('the row it answers with reports no auth left', async () => {
     const res = await call('POST', '/api/connectors/agent000001/disconnect', session(ADA));
     expect(await res.json()).toMatchObject({ header: null, signIn: null });
-  });
-
-  test('disconnecting a connector you do not own is the same 404 as one that is not there', async () => {
-    const theirs = await call(
-      'POST',
-      '/api/connectors/agent000003/disconnect',
-      session(ADA),
-    );
-    const nothing = await call(
-      'POST',
-      '/api/connectors/agent000999/disconnect',
-      session(ADA),
-    );
-    expect([theirs.status, nothing.status]).toEqual([404, 404]);
-    expect(await theirs.json()).toEqual({ error: 'no such connector' });
   });
 
   test('disconnect is session-gated, never open to an agent key', async () => {
@@ -466,11 +427,10 @@ describe('GET /api/connectors returns the wire shape', () => {
     });
   });
 
-  test('the tools of a connector are listed live for its owner, and 404 for anyone else', async () => {
+  test('the tools of a connector are listed live', async () => {
     const mine = await call('GET', '/api/connectors/agent000001/tools', session(ADA));
     expect(mine.status).toBe(200);
     expect(await mine.json()).toEqual({ tools: [{ name: 'create_issue', description: 'Files an issue', readOnly: false }] });
-    expect((await call('GET', '/api/connectors/agent000001/tools', session(BOB))).status).toBe(404);
     expect((await call('POST', '/api/connectors/agent000001/tools', session(ADA))).status).toBe(405);
   });
 
@@ -480,29 +440,12 @@ describe('GET /api/connectors returns the wire shape', () => {
     expect(docs?.header).toBeNull();
   });
 
-  test("another user's connectors are simply not there", async () => {
-    const bobs = await listFor(BOB);
-    expect(bobs.map((c) => c.name)).toEqual(['notion']);
-    expect(JSON.stringify(bobs)).not.toContain('lin_oauth_7f');
-  });
-
-  test('a signed-in user with nothing gets an empty list, not a 404', async () => {
-    const res = await call('GET', '/api/connectors', session('nobody@nowhere.dev'));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ connectors: [] });
-  });
-
   test('a browser session gets no credential anywhere in the response', async () => {
     const res = await call('GET', '/api/connectors', session(ADA));
     const body = await res.text();
     expect(body).not.toContain('lin_oauth_7f');
     expect(body).not.toContain('mcpServers');
     expect(JSON.parse(body) as { json?: string }).not.toHaveProperty('json');
-  });
-
-  test('the email is lowercased before it reaches the store', async () => {
-    await call('GET', '/api/connectors', session('ADA@Lovelace.DEV'));
-    expect(calls).toEqual([`list ${ADA}`]);
   });
 });
 
@@ -534,12 +477,8 @@ describe('a connector can be renamed', () => {
     });
   });
 
-  test('renaming a connector you do not own is the same 404 as one that is not there', async () => {
-    for (const id of ['agent000003', 'agent999999'])
-      expect(
-        (await call('POST', `/api/connectors/${id}/rename`, session(ADA), { name: 'x' }))
-          .status,
-      ).toBe(404);
+  test('renaming a connector that is not there is 404', async () => {
+    expect((await call('POST', '/api/connectors/agent999999/rename', session(ADA), { name: 'x' })).status).toBe(404);
   });
 
   test('a missing or non-string name is a 400 before the store is touched', async () => {
@@ -590,14 +529,6 @@ describe('POST /api/connectors', () => {
     });
     expect(res.status).toBe(201);
     expect((await listFor(ADA)).filter((c) => c.name === 'linear')).toHaveLength(2);
-  });
-
-  test('the same name under another owner is fine', async () => {
-    const res = await call('POST', '/api/connectors', session(BOB), {
-      name: 'linear',
-      url: 'https://mcp.linear.app/mcp',
-    });
-    expect(res.status).toBe(201);
   });
 
   test('a name is a label now — spaces and punctuation are accepted', async () => {
@@ -692,28 +623,6 @@ describe('POST /api/connectors', () => {
   });
 });
 
-describe('another owner is a 404, never a 403', () => {
-  test("DELETE of somebody else's connector is 404", async () => {
-    const res = await call('DELETE', '/api/connectors/agent000003', session(ADA));
-    expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'no such connector' });
-    expect((await listFor(BOB)).map((c) => c.id)).toEqual(['agent000003']);
-  });
-
-  test("verify of somebody else's connector is 404", async () => {
-    const res = await call('POST', '/api/connectors/agent000003/verify', session(ADA));
-    expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'no such connector' });
-  });
-
-  test('an id that exists and one that never did answer identically', async () => {
-    const mine = await call('DELETE', '/api/connectors/agent000003', session(ADA));
-    const never = await call('DELETE', '/api/connectors/agent008888', session(ADA));
-    expect([mine.status, never.status]).toEqual([404, 404]);
-    expect(await mine.json()).toEqual(await never.json());
-  });
-});
-
 describe('verify and delete', () => {
   test('a re-verify that succeeds is 200 with ok true', async () => {
     const res = await call('POST', '/api/connectors/agent000001/verify', session(ADA));
@@ -731,8 +640,7 @@ describe('verify and delete', () => {
       ...SEED,
       {
         id: 'agent000004',
-        email: ADA,
-        name: 'picky',
+            name: 'picky',
         url: 'https://rejects.example.com/mcp',
         header: 'Authorization',
         secret: 'Bearer wrong',

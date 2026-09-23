@@ -23,7 +23,6 @@ export const loadedAgentOf = (bundle: AgentBundle): LoadedAgent => ({
   name: bundle.agent.name,
   key: null,
   accounts: bundle.agent.stations,
-  connectors: [],
 });
 
 export interface RestoredAgent {
@@ -36,8 +35,8 @@ export interface RestoredAgent {
 export type ImportMode = 'append' | 'overwrite';
 
 export interface BundleApiDeps {
-  bundle: (subject: string, agentId: string) => Promise<AgentBundle>;
-  restore: (subject: string, bundle: AgentBundle, mode: ImportMode) => Promise<RestoredAgent>;
+  bundle: (agentId: string) => Promise<AgentBundle>;
+  restore: (bundle: AgentBundle, mode: ImportMode) => Promise<RestoredAgent>;
 }
 
 export function parseMode(raw: unknown): ImportMode {
@@ -79,14 +78,14 @@ export function parseBundle(raw: unknown): AgentBundle {
   return { version: 1, agent: agentOf(raw.agent), connectors: connectors.map(connectorOf) };
 }
 
-async function answer(req: IncomingMessage, deps: BundleApiDeps, subject: string, path: string): Promise<unknown> {
+async function answer(req: IncomingMessage, deps: BundleApiDeps, path: string): Promise<unknown> {
   if (path === RESTORE_PATH) {
     const body: unknown = await readJsonBody(req, BUNDLE_MAX);
-    return deps.restore(subject, parseBundle(body), parseMode(body));
+    return deps.restore(parseBundle(body), parseMode(body));
   }
   const id = parseId(path.slice(AGENTS.length + 1).split('/')[0] ?? '');
   if (id === null) throw new ApiError('no such agent', 404);
-  return deps.bundle(subject, id);
+  return deps.bundle(id);
 }
 
 export function handleBundleRequest(req: IncomingMessage, res: ServerResponse, deps: BundleApiDeps): boolean {
@@ -106,7 +105,7 @@ export function handleBundleRequest(req: IncomingMessage, res: ServerResponse, d
     .then((session) => {
       if (!session) throw new ApiError('unauthorized', 401);
       requireAdmin(session);
-      return answer(req, deps, session.subject, path);
+      return answer(req, deps, path);
     })
     .then((body) => {
       sendJson(req, res, isRestore ? 201 : 200, body);

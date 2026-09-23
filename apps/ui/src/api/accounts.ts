@@ -5,7 +5,6 @@ export interface AccountField {
 
 export interface AccountRow {
   id: string | null;
-  agentId: string | null;
   allowlist: string[] | null;
   enabled: boolean;
   fields: AccountField[];
@@ -50,7 +49,6 @@ function toRow(account: unknown): AccountRow {
   if (!isRecord(account))
     return {
       id: null,
-      agentId: null,
       allowlist: null,
       enabled: true,
       fields: [{ label: 'value', value: stringifyValue(account) }],
@@ -60,10 +58,8 @@ function toRow(account: unknown): AccountRow {
     if (key === AGENT_ID || key === ALLOWLIST || key === ENABLED || SECRET_KEY_PATTERN.test(key)) continue;
     fields.push({ label: key, value: stringifyValue(value) });
   }
-  const owner = account[AGENT_ID];
   return {
     id: typeof account.id === 'string' ? account.id : null,
-    agentId: typeof owner === 'string' ? owner : null,
     allowlist: allowlistOf(account[ALLOWLIST]),
     enabled: account[ENABLED] !== false,
     fields,
@@ -80,40 +76,10 @@ export function groupAccounts(accounts: unknown): AccountGroup[] {
   return groups.sort((a, b) => a.station.localeCompare(b.station));
 }
 
-export function attributeUntagged(
-  groups: AccountGroup[],
-  agentId: string,
-): AccountGroup[] {
-  return groups.map((g) => ({
-    station: g.station,
-    rows: g.rows.map((r) => (r.agentId === null ? { ...r, agentId } : r)),
-  }));
-}
-
-export function accountsForAgent(
-  groups: AccountGroup[],
-  agentId: string,
-): AccountGroup[] {
-  const out: AccountGroup[] = [];
-  for (const g of groups) {
-    const rows = g.rows.filter((r) => r.agentId === agentId);
-    if (rows.length > 0)
-      out.push({ station: g.station, rows, ...(g.stale === true ? { stale: true } : {}) });
-  }
-  return out;
-}
-
 export interface FlatAccount {
   station: string;
   row: AccountRow;
   stale: boolean;
-}
-
-export function stationCount(groups: AccountGroup[], agentId: string): number {
-  let total = 0;
-  for (const group of groups)
-    for (const row of group.rows) if (row.agentId === agentId) total += 1;
-  return total;
 }
 
 export function flattenAccounts(groups: AccountGroup[]): FlatAccount[] {

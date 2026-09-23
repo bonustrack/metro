@@ -5,7 +5,6 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ApiError } from '@metro-labs/http/api-error';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import { configOf, makeConnection } from './model-fixture.ts';
 import { claudeSetupStatus, ensureClaudeSetup, placeFile, PRIVACY_ENV, RETENTION_DAYS, routeOf, setPrivacy, syncAvailableModels, type SetupDeps } from '../src/claude/setup.js';
@@ -86,9 +85,6 @@ describe('the setup over the API', () => {
   beforeEach(async () => {
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
-        authorize: (subject: string) => {
-          if (subject !== OWNER) throw new ApiError('no such project', 404);
-        },
         setup: deps(),
         session: { tmux: join(dir, 'no-tmux-here') },
       });
@@ -148,7 +144,7 @@ describe('the permission mode of the session', () => {
   let base = '';
   beforeEach(async () => {
     server = createServer((req, res) => {
-      const ok = handleClaudeRequest(req, res, { authorize: () => undefined, setup: deps(), session: { tmux: join(dir, 'no-tmux-here') } });
+      const ok = handleClaudeRequest(req, res, { setup: deps(), session: { tmux: join(dir, 'no-tmux-here') } });
       if (!ok) res.writeHead(404).end();
     });
     await new Promise<void>((done) => {

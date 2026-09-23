@@ -3,159 +3,52 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { type AgentApiDeps } from '../src/agents/api.ts';
-import { TEST_STRANGER, auth, bearer, forged, type Who } from './identity-helper.ts';
+import { AgentAdminError } from '../src/agents/admin.ts';
+import { auth, bearer, forged, type Who } from './identity-helper.ts';
 
-const PORT = (): string => process.env.METRO_WEBHOOK_PORT ?? '8420';
-import {
-  AgentAdminError,
-  normalizeAgentName,
-  type AgentSummary,
-  type DeletedAgent,
-  type ResetAgentKey,
-} from '../src/agents/admin.ts';
-
-const PUBLIC = 'https://api.metro.box';
-
-const fakeKey = (agent: string): string => `mk_fake_${agent}`;
-
-const OWNED: Record<string, AgentSummary[]> = {
-  'ada@lovelace.dev': [
-    { id: 'agent000001', name: 'ada-bot', owned: true, key: fakeKey('ada-bot') },
-  ],
-  'bob@builder.dev': [
-    { id: 'agent000002', name: 'bob-bot', owned: true, key: fakeKey('bob-bot') },
-  ],
-  'ada@same.dev': [{ id: 'agent000007', name: 'tony', owned: true, key: fakeKey('ada-tony') }],
-  'bob@same.dev': [{ id: 'agent000008', name: 'tony', owned: true, key: fakeKey('bob-tony') }],
-};
-
-let leakGrantedKeys = false;
-let liveAgents = new Map<string, { connected: boolean; lastSeenAt: number }>();
-let heldConnectors = new Map<string, string[]>();
-
-const ACCOUNTS_BY_AGENT_ID: Record<number, [string, unknown]> = {
-  ["agent000001"]: ['telegram-bot', { id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }],
-  ["agent000002"]: ['discord-bot', { id: 'bob-dc', owner: 'bob', agentId: 'agent000002' }],
-  ["agent000007"]: ['telegram-bot', { id: 'ada-tony-tg', owner: 'ada', agentId: 'agent000007' }],
-  ["agent000008"]: ['telegram-bot', { id: 'bob-tony-tg', owner: 'bob', agentId: 'agent000008' }],
-};
-
-interface Row {
-  id: string;
-  name: string;
-  ownerId: string | null;
-}
-
-const USER_IDS: Record<string, string> = {
-  'ada@lovelace.dev': 'user0000011',
-  'bob@builder.dev': 'user0000022',
-};
-
-const userIdFor = (email: string): string | null => USER_IDS[email] ?? null;
-
-const SEED: Row[] = [
-  { id: 'agent000001', name: 'ada-bot', ownerId: 'user0000011' },
-  { id: 'agent000002', name: 'bob-bot', ownerId: 'user0000022' },
-  { id: 'agent000005', name: 'legacy', ownerId: null },
-];
+const OWNER = 'ada@lovelace.dev';
+const AGENT = { id: 'agent000001', name: 'ada-bot' };
+const ACCOUNT = { id: 'ada-tg', agentId: 'agent000001' };
 
 let server: Server;
 let base: string;
 let scopes: Set<string>[] = [];
-let rows: Row[] = [...SEED];
-let deleteCalls: { email: string; id: number }[] = [];
-let resetCalls: { email: string; id: number }[] = [];
-let liveKeys: Record<string, string> = {};
-let nextId = 10;
-let resetSerial = 0;
-
-function ownedRowOrThrow(email: string, id: number): Row {
-  const ownerId = userIdFor(email);
-  const row = rows.find((r) => r.id === id);
-  const missing = new AgentAdminError('no such agent', 404);
-  if (!row) throw missing;
-  if (ownerId === null || row.ownerId === null || row.ownerId !== ownerId)
-    throw missing;
-  return row;
-}
-
-function removeAgent(email: string, id: number): DeletedAgent {
-  deleteCalls.push({ email, id });
-  const row = ownedRowOrThrow(email, id);
-  if (row.name === 'busy-bot')
-    throw new AgentAdminError(
-      "agent 'busy-bot' still has 2 station account(s) attached, an operator must remove them first",
-      409,
-    );
-  rows = rows.filter((r) => r.id !== id);
-  return { id: row.id, name: row.name };
-}
-
-const PROJECT = 'prj00000001';
+let heldConnectors = new Map<string, string[]>();
 
 const deps: AgentApiDeps = {
-  listAgents: (email, _project) =>
-    Promise.resolve([
-      ...(OWNED[email] ?? []),
-      ...(leakGrantedKeys
-        ? [{ id: 'agent000901', name: 'not-mine', owned: false, key: fakeKey('not-mine') }]
-        : []),
-    ]),
-  deleteAgent: (email, id) => {
-    try {
-      return Promise.resolve(removeAgent(email, id));
-    } catch (e) {
-      return Promise.reject(e as Error);
-    }
-  },
+  listAgents: () => Promise.resolve([AGENT]),
   gatherAccounts: (allowed) => {
     scopes.push(allowed);
-    const out: Record<string, unknown[]> = { 'telegram-bot': [], 'discord-bot': [] };
-    for (const id of allowed) {
-      const hit = ACCOUNTS_BY_AGENT_ID[id];
-      if (hit) (out[hit[0]] as unknown[]).push(hit[1]);
-    }
-    return Promise.resolve({ accounts: out, unavailable: [] });
+    return Promise.resolve({ accounts: { 'telegram-bot': allowed.has(AGENT.id) ? [ACCOUNT] : [], 'discord-bot': [] }, unavailable: [] });
   },
   capabilities: () => ({ 'telegram-bot': ['send'], 'discord-bot': ['send', 'read'] }),
-  liveness: () => liveAgents,
   connectorIds: () => Promise.resolve(heldConnectors),
-  prepareAccount: () =>
-    Promise.reject(new AgentAdminError('attaching is not exercised here', 400)),
-  attachAccount: () =>
-    Promise.reject(new AgentAdminError('attaching is not exercised here', 400)),
-  detachAccount: () =>
-    Promise.reject(new AgentAdminError('detaching is not exercised here', 400)),
+  attachSessions: {
+    start: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
+    view: () => {
+      throw new AgentAdminError('not exercised here', 400);
+    },
+    submit: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
+    cancel: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
+  },
+  prepareAccount: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
+  attachAccount: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
+  detachAccount: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
+  setAllowlist: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
+  setAccountEnabled: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
+  recentSenders: () => [],
+  resolveSender: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
+  accountCall: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
   syncStations: () => Promise.resolve(),
+  reloadAgents: () => Promise.resolve(),
 };
 
-const session = (email: string): string => email;
-
-const get = async (token?: Who): Promise<Response> =>
-  fetch(`${base}/api/agents?project=${PROJECT}`, {
-    headers: token ? { authorization: await auth('GET', '/api/agents', token) } : {},
-  });
-
-const getFull = async (token?: Who): Promise<Response> =>
-  fetch(`${base}/api/agents?accounts=1&project=${PROJECT}`, {
-    headers: token ? { authorization: await auth('GET', '/api/agents', token) } : {},
-  });
-
-const post = async (token: Who, body: unknown): Promise<Response> =>
-  fetch(`${base}/api/agents?project=${PROJECT}`, {
-    method: 'POST',
-    headers: { authorization: await auth('POST', '/api/agents', token), 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-const del = async (token: Who | undefined, path: string): Promise<Response> =>
-  fetch(`${base}/api/agents/${path}`, {
-    method: 'DELETE',
-    headers: token ? { authorization: await auth('DELETE', `/api/agents/${path}`, token) } : {},
+const get = async (query = '', token?: Who): Promise<Response> =>
+  fetch(`${base}/api/agents${query}`, {
+    headers: token === undefined ? {} : { authorization: await auth('GET', '/api/agents', token) },
   });
 
 beforeAll(async () => {
-  process.env.METRO_PUBLIC_URL = PUBLIC;
   process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
   process.env.METRO_HTTP_HOST = '127.0.0.1';
   server = await startWebhookServer(makeEmit(), { agentApi: deps });
@@ -164,17 +57,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((r) => server.close(() => r()));
-  delete process.env.METRO_PUBLIC_URL;
 });
 
 afterEach(() => {
   scopes = [];
-  rows = [...SEED];
-  deleteCalls = [];
-  resetCalls = [];
-  liveKeys = {};
-  leakGrantedKeys = false;
-  liveAgents = new Map();
   heldConnectors = new Map();
 });
 
@@ -184,324 +70,53 @@ describe('/api/agents authentication', () => {
   });
 
   test('a token nobody issued is 401', async () => {
-    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, { headers: { authorization: await forged('ada@lovelace.dev') } });
-    expect(res.status).toBe(401);
+    expect((await fetch(`${base}/api/agents`, { headers: { authorization: await forged(OWNER) } })).status).toBe(401);
   });
 
   test('a token with no organization is 401', async () => {
-    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, { headers: { authorization: await bearer({ org_id: undefined }) } });
-    expect(res.status).toBe(401);
+    expect((await fetch(`${base}/api/agents`, { headers: { authorization: await bearer({ org_id: undefined }) } })).status).toBe(401);
   });
 
   test('a ?token= query param never carries a browser identity', async () => {
-    const res = await fetch(`${base}/api/agents?project=${PROJECT}&token=${encodeURIComponent(await auth('GET', '/api/agents', 'ada@lovelace.dev'))}`);
-    expect(res.status).toBe(401);
+    const token = encodeURIComponent(await auth('GET', '/api/agents', OWNER));
+    expect((await fetch(`${base}/api/agents?token=${token}`)).status).toBe(401);
   });
 
-  test('OPTIONS preflight is 204 with CORS', async () => {
-    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, { method: 'OPTIONS' });
-    expect(res.status).toBe(204);
-    expect(res.headers.get('access-control-allow-methods')).toContain('POST');
-  });
-
-  test('DELETE on the collection is 405 — deletion is per-agent-id only', async () => {
-    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
-      method: 'DELETE',
-      headers: { authorization: await auth('DELETE', `${base}/api/agents?project=${PROJECT}`, 'ada@lovelace.dev') },
-    });
-    expect(res.status).toBe(405);
-    expect(deleteCalls).toEqual([]);
+  test('OPTIONS preflight is 204, other methods 405, and an agent path alone is 404', async () => {
+    expect((await fetch(`${base}/api/agents`, { method: 'OPTIONS' })).status).toBe(204);
+    const headers = { authorization: await auth('POST', '/api/agents', OWNER) };
+    expect((await fetch(`${base}/api/agents`, { method: 'POST', headers })).status).toBe(405);
+    expect((await fetch(`${base}/api/agents`, { method: 'DELETE', headers })).status).toBe(405);
+    expect((await fetch(`${base}/api/agents/agent000001`, { method: 'DELETE', headers })).status).toBe(404);
   });
 });
 
-interface WireAgent {
-  id: string;
-  name: string;
-  owned: boolean;
-  key: string | null;
-  endpoint: string | null;
-  connector_ids: string[];
-}
-
-interface ListBody {
-  agents: WireAgent[];
-  accounts: Record<string, unknown[]>;
-}
-
-const listAgents = async (email: string): Promise<WireAgent[]> =>
-  ((await (await get(session(email))).json()) as ListBody).agents;
-
-describe('GET /api/agents ownership', () => {
-  test('returns only the caller own agents and their accounts', async () => {
-    const res = await getFull(session('ada@lovelace.dev'));
-    const body = (await res.json()) as ListBody;
-    expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
-    expect(body.accounts['telegram-bot']).toEqual([{ id: 'ada-tg', owner: 'ada', agentId: 'agent000001' }]);
-    expect(body.accounts['discord-bot']).toEqual([]);
-  });
-
-  test('another signed-in user never sees the first user agent', async () => {
-    const body = (await (await getFull(session('bob@builder.dev'))).json()) as ListBody;
-    expect(body.agents.map((a) => a.name)).toEqual(['bob-bot']);
-    expect(body.accounts['telegram-bot']).toEqual([]);
-    expect(body.accounts['discord-bot']).toEqual([{ id: 'bob-dc', owner: 'bob', agentId: 'agent000002' }]);
-  });
-
-  test('the accounts scope set is exactly the visible agent IDS, never names', async () => {
-    await getFull(session('ada@lovelace.dev'));
-    expect(scopes.at(-1)).toEqual(new Set(['agent000001']));
-  });
-
-  test('every returned account names the agent id it belongs to', async () => {
-    const body = (await (await getFull(session('ada@lovelace.dev'))).json()) as ListBody;
-    const rowsOut = Object.values(body.accounts).flat();
-    expect(rowsOut.length).toBeGreaterThan(0);
-    expect(rowsOut.map((a) => (a as { agentId?: unknown }).agentId)).toEqual(['agent000001']);
-  });
-
-  test('two owners whose agents share a name each see only their own accounts', async () => {
-    const ada = (await (await getFull(session('ada@same.dev'))).json()) as ListBody;
-    const adaScope = scopes.at(-1);
-    const bob = (await (await getFull(session('bob@same.dev'))).json()) as ListBody;
-    const bobScope = scopes.at(-1);
-
-    expect(ada.agents.map((a) => a.name)).toEqual(['tony']);
-    expect(bob.agents.map((a) => a.name)).toEqual(['tony']);
-    expect(adaScope).toEqual(new Set(['agent000007']));
-    expect(bobScope).toEqual(new Set(['agent000008']));
-    expect(ada.accounts['telegram-bot']).toEqual([
-      { id: 'ada-tony-tg', owner: 'ada', agentId: 'agent000007' },
-    ]);
-    expect(bob.accounts['telegram-bot']).toEqual([
-      { id: 'bob-tony-tg', owner: 'bob', agentId: 'agent000008' },
-    ]);
-  });
-
-  test('a brand-new signed-in user sees no agents and no accounts', async () => {
-    const body = (await (await getFull(session('nobody@example.com'))).json()) as ListBody;
-    expect(body.agents).toEqual([]);
-    expect(scopes.at(-1)).toEqual(new Set());
-    expect(body.accounts['telegram-bot']).toEqual([]);
-  });
-
-  test('the session email is compared case-insensitively', async () => {
-    const body = (await (await getFull(session('ADA@Lovelace.dev'))).json()) as ListBody;
-    expect(body.agents.map((a) => a.name)).toEqual(['ada-bot']);
-  });
-
-  test('responses are marked no-store', async () => {
-    const res = await getFull(session('ada@lovelace.dev'));
-    expect(res.headers.get('cache-control')).toBe('no-store');
-  });
-});
-
-describe('GET /api/agents is light unless accounts are asked for', () => {
-  test('the default payload carries agents but no accounts, and never gathers them', async () => {
-    const before = scopes.length;
-    const res = await get(session('ada@lovelace.dev'));
-    const body = (await res.json()) as Record<string, unknown>;
+describe('GET /api/agents', () => {
+  test('lists the one agent with its connectors, never its key', async () => {
+    heldConnectors = new Map([['agent000001', ['conn0000001', 'conn0000002']]]);
+    const res = await get('', OWNER);
     expect(res.status).toBe(200);
-    expect(body.agents).toBeDefined();
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.agents).toEqual([{ id: 'agent000001', name: 'ada-bot', connector_ids: ['conn0000001', 'conn0000002'] }]);
     expect(body.capabilities).toBeDefined();
     expect(body.attachable).toBeDefined();
     expect(body.accounts).toBeUndefined();
-    expect(body.unavailable).toBeUndefined();
-    expect(scopes.length).toBe(before);
+    expect(scopes).toEqual([]);
   });
 
-  test('?accounts=1 adds them and does gather', async () => {
-    const before = scopes.length;
-    const res = await getFull(session('ada@lovelace.dev'));
-    const body = (await res.json()) as Record<string, unknown>;
-    expect(body.accounts).toBeDefined();
+  test('?accounts=1 gathers the accounts of that agent id, and only "1" opts in', async () => {
+    const body = (await (await get('?accounts=1', OWNER)).json()) as { accounts: Record<string, unknown[]>; unavailable: string[] };
+    expect(body.accounts['telegram-bot']).toEqual([ACCOUNT]);
     expect(body.unavailable).toEqual([]);
-    expect(scopes.length).toBe(before + 1);
+    expect(scopes).toEqual([new Set(['agent000001'])]);
+    for (const q of ['?accounts=0', '?accounts=true', '?accounts'])
+      expect(((await (await get(q, OWNER)).json()) as Record<string, unknown>).accounts).toBeUndefined();
+    expect(scopes).toHaveLength(1);
   });
 
-  test('any other value of accounts stays light — only "1" opts in', async () => {
-    const before = scopes.length;
-    for (const q of ['accounts=0', 'accounts=true', 'accounts=', 'accounts']) {
-      const res = await fetch(`${base}/api/agents?${q}`, {
-        headers: { authorization: await auth('GET', `${base}/api/agents?${q}`, 'ada@lovelace.dev') },
-      });
-      const body = (await res.json()) as Record<string, unknown>;
-      expect(body.accounts).toBeUndefined();
-    }
-    expect(scopes.length).toBe(before);
-  });
-});
-
-describe('GET /api/agents never carries the agent key', () => {
-  test('an owned agent is listed without its key or an endpoint naming it', async () => {
-    const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent).toEqual({
-      id: 'agent000001',
-      name: 'ada-bot',
-      owned: true,
-      connected: false,
-      last_seen: null,
-      connector_ids: [],
-    });
-    expect(await (await get(session('ada@lovelace.dev'))).text()).not.toContain('mk_fake_ada-bot');
-  });
-
-  test('a live session surfaces as connected with a last_seen stamp', async () => {
-    liveAgents = new Map([
-      ['agent000001', { connected: true, lastSeenAt: Date.UTC(2026, 5, 21) }],
-    ]);
-    const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.connected).toBe(true);
-    expect(agent?.last_seen).toBe('2026-06-21T00:00:00.000Z');
-  });
-
-  test('an agent with a session but no stream reads as not connected', async () => {
-    liveAgents = new Map([
-      ['agent000001', { connected: false, lastSeenAt: Date.UTC(2026, 5, 21) }],
-    ]);
-    const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.connected).toBe(false);
-    expect(agent?.last_seen).toBe('2026-06-21T00:00:00.000Z');
-  });
-
-  test('liveness for an agent you do not own is never served', async () => {
-    leakGrantedKeys = true;
-    liveAgents = new Map([
-      ['agent000003', { connected: true, lastSeenAt: Date.UTC(2026, 5, 21) }],
-    ]);
-    const agent = (await listAgents('nobody@example.com')).at(-1);
-    expect(agent?.owned).toBe(false);
-    expect([agent?.connected, agent?.last_seen]).toEqual([false, null]);
-  });
-
-  test('another signed-in user never receives the first user key', async () => {
-    const body = await (await get(session('bob@builder.dev'))).text();
-    expect(body).not.toContain('mk_fake_ada-bot');
-  });
-
-  test('a key value that reaches the api layer for a not-owned agent is still not served', async () => {
-    leakGrantedKeys = true;
-    const body = await (await get(session('ada@lovelace.dev'))).text();
-    expect(body).toContain('not-mine');
-    expect(body).not.toContain('mk_fake_not-mine');
-  });
-
-});
-
-interface CreateBody {
-  id: string;
-  name: string;
-  key: string;
-  endpoint: string;
-  error?: string;
-}
-
-describe('DELETE /api/agents/:id', () => {
-  test('an owner deletes their own agent by id', async () => {
-    const res = await del(session('ada@lovelace.dev'), 'agent000001');
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ id: 'agent000001', name: 'ada-bot', deleted: true });
-    expect(rows.map((r) => r.id)).toEqual(['agent000002', 'agent000005']);
-  });
-
-  test('deleting someone else agent id is refused and leaves it intact', async () => {
-    const res = await del(session('ada@lovelace.dev'), 'agent000002');
-    expect(res.status).toBe(404);
-    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
-    expect(deleteCalls).toEqual([
-      { email: 'ada@lovelace.dev', id: 'agent000002' },
-    ]);
-  });
-
-  test('an operator row the session cannot see is a plain 404', async () => {
-    const res = await del(session('ada@lovelace.dev'), 'agent000005');
-    expect(res.status).toBe(404);
-    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
-  });
-
-  test('the owner is always the session email, never anything from the request', async () => {
-    await del(session('ADA@Lovelace.dev'), 'agent000001');
-    expect(deleteCalls).toEqual([
-      { email: 'ada@lovelace.dev', id: 'agent000001' },
-    ]);
-  });
-
-  test('deleting without a session is 401 and deletes nothing', async () => {
-    expect((await del(undefined, 'agent000001')).status).toBe(401);
-    expect(deleteCalls).toEqual([]);
-    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
-  });
-
-  test('a token nobody issued deletes nothing', async () => {
-    const res = await fetch(`${base}/api/agents/agent000001`, { method: 'DELETE', headers: { authorization: await forged() } });
-    expect(res.status).toBe(401);
-    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
-  });
-
-  test('a non-numeric or malformed id never reaches the database', async () => {
-    for (const bad of ['abc', '0', '-1', '1.5', '1%20OR%201', 'ada-bot']) {
-      expect((await del(session('ada@lovelace.dev'), bad)).status).toBe(404);
-    }
-    expect(deleteCalls).toEqual([]);
-  });
-
-  test('an unknown id is 404', async () => {
-    expect((await del(session('ada@lovelace.dev'), 'agent009999')).status).toBe(404);
-  });
-
-  test('GET and POST on a single agent are 405', async () => {
-    const headers = async (method: string): Promise<Record<string, string>> => ({
-      authorization: await auth(method, '/api/agents/agent000001', 'ada@lovelace.dev'),
-    });
-    expect((await fetch(`${base}/api/agents/agent000001`, { headers: await headers('GET') })).status).toBe(405);
-    expect(
-      (await fetch(`${base}/api/agents/agent000001`, { method: 'POST', headers: await headers('POST') })).status,
-    ).toBe(405);
-    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005']);
-  });
-
-  test('OPTIONS preflight on a single agent advertises DELETE', async () => {
-    const res = await fetch(`${base}/api/agents/agent000001`, { method: 'OPTIONS' });
-    expect(res.status).toBe(204);
-    expect(res.headers.get('access-control-allow-methods')).toContain('DELETE');
-  });
-
-  test('a second agent of the same owner survives the delete', async () => {
-    rows = [
-      ...SEED,
-      { id: 'agent000006', name: 'ada-second', ownerId: 'user0000011' },
-    ];
-    expect((await del(session('ada@lovelace.dev'), 'agent000001')).status).toBe(200);
-    expect(rows.map((r) => r.id)).toEqual(['agent000002', 'agent000005', 'agent000006']);
-  });
-
-  test('a 409 from the admin layer is forwarded with its message intact', async () => {
-    rows = [...SEED, { id: 'agent000006', name: 'busy-bot', ownerId: 'user0000011' }];
-    const res = await del(session('ada@lovelace.dev'), 'agent000006');
-    expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: string }).error).toContain(
-      'station account(s) attached',
-    );
-    expect(rows.map((r) => r.id)).toEqual(['agent000001', 'agent000002', 'agent000005', 'agent000006']);
-  });
-});
-
-interface ResetBody {
-  id: string;
-  name: string;
-  key: string;
-  endpoint: string;
-  reset: boolean;
-  error?: string;
-}
-
-
-
-describe('GET /api/agents carries what each agent holds', () => {
-  test('connector ids ride on the agent, empty when it holds nothing', async () => {
-    heldConnectors = new Map([['agent000001', ['conn0000001', 'conn0000002']]]);
-    const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.connector_ids).toEqual(['conn0000001', 'conn0000002']);
-    const [other] = await listAgents('bob@builder.dev');
-    expect(other?.connector_ids).toEqual([]);
+  test('an old page that still sends ?project= is answered the same', async () => {
+    const body = (await (await get('?accounts=1&project=localdaemon', OWNER)).json()) as { agents: unknown[] };
+    expect(body.agents).toHaveLength(1);
   });
 });

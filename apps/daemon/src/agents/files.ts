@@ -19,9 +19,7 @@ export interface AgentFile {
   id: string;
   name: string | null;
   key: string | null;
-  owner: string | null;
   stations: LoadedAccount[];
-  connectors: string[];
 }
 
 export const agentFilePath = (dir = agentsDir()): string => join(dir, AGENT_FILE);
@@ -32,8 +30,6 @@ export function agentsDir(): string {
     ? explicit
     : join(homedir(), '.metro', 'agents');
 }
-
-const OWNER_RE = /^(0x[0-9a-f]{40}|org_[A-Za-z0-9]{10,64})$/;
 
 function fail(path: string, reason: string): never {
   throw new AgentFileError(`${path}: ${reason}`);
@@ -74,9 +70,6 @@ function optionalMatch(
   return value;
 }
 
-const connectorsOf = (raw: unknown): string[] =>
-  Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && ID_RE.test(id)) : [];
-
 function nameOf(raw: unknown, path: string): string | null {
   if (raw === undefined || raw === null) return null;
   if (typeof raw !== 'string' || !AGENT_NAME_RE.test(raw)) fail(path, 'name is not a valid agent name');
@@ -97,21 +90,13 @@ export function parseAgentFile(raw: string, path: string): AgentFile {
     fail(path, 'id is not an 11-character id');
   const label = nameOf(name, path);
   const key = optionalMatch(parsed.key, KEY_RE, path, 'key is not an agent key');
-  const owner = optionalMatch(
-    parsed.owner,
-    OWNER_RE,
-    path,
-    'owner is neither an organization id nor a lowercase Ethereum address',
-  );
   if (!Array.isArray(stations)) fail(path, 'stations is not a list');
   return {
     version: 1,
     id,
     name: label,
     key,
-    owner,
     stations: stations.map((s, i) => stationOf(s, path, i)),
-    connectors: connectorsOf(parsed.connectors),
   };
 }
 
@@ -155,26 +140,8 @@ export function migrateAgentLayout(dir = agentsDir()): 'moved' | 'kept' | 'none'
   return 'moved';
 }
 
-function assertUnique(agents: AgentFile[], paths: string[]): void {
-  const ids = new Map<string, string>();
-  const keys = new Map<string, string>();
-  agents.forEach((agent, i) => {
-    const path = paths[i] ?? '';
-    const sameId = ids.get(agent.id);
-    if (sameId !== undefined) fail(path, `id ${agent.id} is already used by ${sameId}`);
-    ids.set(agent.id, path);
-    if (agent.key === null) return;
-    const sameKey = keys.get(agent.key);
-    if (sameKey !== undefined) fail(path, `its key is already used by ${sameKey}`);
-    keys.set(agent.key, path);
-  });
-}
-
 export function loadFileAgents(dir = agentsDir()): LoadedAgent[] {
-  const paths = listAgentFiles(dir);
-  const agents = paths.map(readAgentFile);
-  assertUnique(agents, paths);
-  return agents.map((agent) => ({
+  return listAgentFiles(dir).map(readAgentFile).map((agent) => ({
     id: agent.id,
     name: agent.name ?? agent.id,
     key: agent.key,

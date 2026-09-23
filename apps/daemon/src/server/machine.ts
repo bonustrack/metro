@@ -14,7 +14,6 @@ import { localOwner } from '../agents/file-admin.js';
 const PATH = '/api/server';
 
 export interface MachineApiDeps {
-  authorize: (subject: string) => void;
   startedAt?: string;
 }
 
@@ -70,7 +69,6 @@ export function handleMachineRequest(req: IncomingMessage, res: ServerResponse, 
   apiSession(req)
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
-      deps.authorize(session.subject);
       sendJson(req, res, 200, await machineInfo(deps.startedAt));
     })
     .catch((err: unknown) => {

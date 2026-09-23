@@ -37,7 +37,6 @@ export const tmuxCommand = (session: string, home = homedir()): string[] => [
 ];
 
 export interface TerminalApiDeps {
-  authorize: (subject: string) => void;
   command?: (session: string) => string[];
 }
 
@@ -79,7 +78,6 @@ export function handleTerminalRequest(req: IncomingMessage, res: ServerResponse,
   apiSession(req)
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
-      deps.authorize(session.subject);
       requireAdmin(session);
       if (path === PREFIX) {
         sendJson(req, res, 200, { available: tmuxAvailable(deps), sessions: tmuxSessions() });

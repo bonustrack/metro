@@ -180,7 +180,6 @@ export function handleModelRequest(req: IncomingMessage, res: ServerResponse, de
   apiSession(req)
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
-      deps.authorize(session.subject);
       sendJson(req, res, 200, await route.run(req, deps, store));
     })
     .catch((err: unknown) => {

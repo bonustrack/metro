@@ -1,5 +1,5 @@
 import { daemonBase } from '../auth/daemon.js';
-import { call, LOCAL_PROJECT } from './client.js';
+import { call } from './client.js';
 import { isRecord } from './accounts.js';
 
 export type ConnectorAuth = 'header' | 'oauth' | 'none';
@@ -141,7 +141,6 @@ export async function fetchConnectors(): Promise<ConnectorsView> {
   const body = await call({
     method: 'GET',
     base: connectorsUrl(),
-    path: `?project=${LOCAL_PROJECT}`,
   });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   const rows = Array.isArray(body.connectors) ? body.connectors : [];
@@ -156,7 +155,6 @@ export async function createConnector(input: NewConnector): Promise<AddResult> {
   const body = await call({
     method: 'POST',
     base: connectorsUrl(),
-    path: `?project=${LOCAL_PROJECT}`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ ...payload(input), returnTo: returnTo() }),
   });

@@ -5,11 +5,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { ApiError } from '@metro-labs/http/api-error';
 import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 const PROJECT = '-home-me-proj';
 const SESSION = '11111111-2222-4333-8444-555555555555';
 const line = (o: unknown): string => `${JSON.stringify(o)}\n`;
@@ -41,9 +39,6 @@ beforeAll(async () => {
   writeFileSync(join(project, 'memory', 'notes.txt'), 'not markdown');
   server = createServer((req, res) => {
     const deps = {
-      authorize: (subject: string) => {
-        if (subject !== OWNER) throw new ApiError('no such project', 404);
-      },
       dir: () => dir,
     };
     if (handleClaudeRequest(req, res, deps)) return;
@@ -107,7 +102,6 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect(readFileSync(join(dir, 'projects', '-root', `${moved}.jsonl`), 'utf8')).toBe(raw);
     expect((await put(`/api/claude/sessions/${moved}?project=-root`, { text: raw })).status).toBe(200);
     expect((await putText(`/api/claude/sessions/..%2Fescape?project=-root`, raw)).status).toBe(400);
-    expect((await putText(`/api/claude/sessions/${moved}?project=-root`, raw, STRANGER)).status).not.toBe(200);
   });
 
   test('sessions: titled by the ai title, dated by the first line, with branch and version', async () => {
@@ -178,7 +172,6 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect((await put(path, { text: 'x'.repeat(256 * 1024 + 1) })).status).toBe(400);
     expect((await put(`/api/claude/memory/notes.txt?project=${PROJECT}`, { text: 'no' })).status).toBe(400);
     expect((await put(`/api/claude/memory/..%2F..%2Fescape.md?project=${PROJECT}`, { text: 'no' })).status).toBe(400);
-    expect((await put(path, { text: 'no' }, STRANGER)).status).toBe(404);
   });
 
   test('a memory file can be deleted, once, and only by name', async () => {
@@ -188,7 +181,6 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
         headers: { authorization: await auth('DELETE', `/api/claude/memory/${name}`, subject) },
       });
     await put(`/api/claude/memory/spare.md?project=${PROJECT}`, { text: '# Spare\n' });
-    expect((await drop('spare.md', STRANGER)).status).toBe(404);
     const res = await drop('spare.md');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ deleted: 'spare.md' });
@@ -217,7 +209,6 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
         method: 'DELETE',
         headers: { authorization: await auth('DELETE', `/api/claude/sessions/${SESSION}`, subject) },
       });
-    expect((await del(STRANGER)).status).toBe(404);
     const res = await del();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ deleted: SESSION });
@@ -227,8 +218,7 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect((await fetch(`${base}/api/claude/projects`, { method: 'DELETE', headers: { authorization: await auth('DELETE', '/api/claude/projects', OWNER) } })).status).toBe(405);
   });
 
-  test('a stranger gets 404s, no session gets 401, and only GET is served', async () => {
-    expect((await get('/api/claude/projects', STRANGER)).status).toBe(404);
+  test('no session gets 401, and only GET is served', async () => {
     expect((await fetch(`${base}/api/claude/projects`)).status).toBe(401);
     expect((await fetch(`${base}/api/claude/projects`, { method: 'POST' })).status).toBe(401);
     expect((await signedPost('/api/claude/projects')).status).toBe(405);

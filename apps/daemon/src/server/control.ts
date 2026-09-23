@@ -8,7 +8,6 @@ const RESTART = '/api/restart';
 const EXIT_DELAY_MS = 500;
 
 export interface ControlApiDeps {
-  authorize: (subject: string) => void;
   restart: () => void;
   stop: () => void;
   served?: () => boolean;
@@ -43,7 +42,6 @@ export function handleControlRequest(req: IncomingMessage, res: ServerResponse, 
     .then(async () => {
       const session = await apiSession(req);
       if (!session) throw new ApiError('unauthorized', 401);
-      deps.authorize(session.subject);
       requireAdmin(session);
       if (!(deps.served ?? servedByCli)())
         throw new ApiError(

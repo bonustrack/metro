@@ -26,7 +26,6 @@ export interface UpdateResult {
 }
 
 export interface UpdateApiDeps {
-  authorize: (subject: string) => void;
   restart: () => void;
   cliBin?: () => string;
 }
@@ -97,7 +96,6 @@ export function handleUpdateRequest(req: IncomingMessage, res: ServerResponse, d
     .then(async (): Promise<unknown> => {
       const session = await apiSession(req);
       if (!session) throw new ApiError('unauthorized', 401);
-      deps.authorize(session.subject);
       if (req.method === 'POST') requireAdmin(session);
       const bin = binOrThrow(deps);
       if (req.method === 'GET') return { ...(await check(bin)), running: METRO_VERSION };

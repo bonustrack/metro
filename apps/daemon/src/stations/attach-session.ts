@@ -29,7 +29,6 @@ const MAX_PER_AGENT = 2;
 const MAX_TOTAL = 40;
 
 export interface AttachOwner {
-  subject: string;
   agentId: string;
 }
 
@@ -109,11 +108,7 @@ export class AttachSessions {
 
   private own(owner: AttachOwner, attachId: string): Session {
     const session = this.sessions.get(attachId);
-    if (
-      session?.owner.subject !== owner.subject ||
-      session.owner.agentId !== owner.agentId
-    )
-      throw missing();
+    if (session?.owner.agentId !== owner.agentId) throw missing();
     return session;
   }
 

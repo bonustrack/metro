@@ -4,7 +4,6 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleModelRequest } from '../src/gateway/model-api.ts';
 import { codexVersion, userAgent } from '../src/gateway/codex.ts';
-import { ApiError } from '@metro-labs/http/api-error';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import { auth, type Who } from './identity-helper.ts';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -12,8 +11,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
-const OTHER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 
 let server: Server;
 let issuer: Server;
@@ -148,9 +145,6 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     if (
       handleModelRequest(req, res, {
-        authorize: (subject) => {
-          if (subject !== OWNER) throw new ApiError('no such project', 404);
-        },
         read: () => stored,
         write: (cfg) => {
           stored = cfg;
@@ -278,11 +272,10 @@ describe('the connections on the page', () => {
     expect(((await (await call('GET', OWNER)).json()) as { usage: Record<string, unknown> }).usage[id]).toBeUndefined();
   });
 
-  test('a bad body is a 400 naming the field, a stranger a 404, no signature a 401, other methods 405', async () => {
+  test('a bad body is a 400 naming the field, no signature a 401, other methods 405', async () => {
     const bad = await call('PUT', OWNER, { route: 'cn-nope' });
     expect(bad.status).toBe(400);
     expect(((await bad.json()) as { error: string }).error).toContain('connection');
-    expect((await call('GET', OTHER)).status).toBe(404);
     expect((await call('GET', null)).status).toBe(401);
     expect((await call('DELETE', OWNER)).status).toBe(405);
     expect(stored.route).toBe('');
@@ -338,8 +331,6 @@ describe('the model setup as a whole, for the export file', () => {
       body: '[]',
     });
     expect(bad.status).toBe(400);
-    const stranger = await fetch(`${base}/api/model/bundle`, { headers: { authorization: await auth('GET', '/api/model/bundle', STRANGER) } });
-    expect(stranger.status).not.toBe(200);
   });
 });
 
@@ -493,10 +484,6 @@ describe('picking an OpenRouter model without typing its id', () => {
         { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', prompt: 0, completion: null, created: 1_700_000_000 },
       ],
     });
-    const stranger = await fetch(`${base}/api/model/openrouter/models`, {
-      headers: { authorization: await auth('GET', '/api/model/openrouter/models', OTHER) },
-    });
-    expect(stranger.status).toBe(404);
     const wrong = await fetch(`${base}/api/model/openrouter/nope`, {
       headers: { authorization: await auth('GET', '/api/model/openrouter/nope', OWNER) },
     });

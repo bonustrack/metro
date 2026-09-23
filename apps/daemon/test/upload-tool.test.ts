@@ -120,16 +120,6 @@ describe('create_upload mints a slot over MCP alone', () => {
     expect(res.isError).toBe(true);
     expect(readdirSync(dir)).toHaveLength(0);
   });
-
-  test('a multi-agent sign-in is refused and told how to name the agent', async () => {
-    const res = await runWithIdentity(
-      { kind: 'session', subject: 'x@y.z', agentIds: ['agent000001', 'agent000002'] },
-      () => callToolHandler({ params: { name: 'create_upload', arguments: {} } }),
-    );
-    expect(res.isError).toBe(true);
-    expect(res.content[0]?.text).toContain('?agent=<id>');
-    expect(readdirSync(dir)).toHaveLength(0);
-  });
 });
 
 describe('a local daemon advertises its own loopback base, never hosted metro', () => {

@@ -232,7 +232,7 @@ export function AgentSettings(): ReactNode {
   const stations = useStationsQuery();
   const here = currentServer();
   const server = servers.data?.find((s) => s.id === here?.id);
-  const agent = stations.data?.agents[0];
+  const agent = stations.data?.agent;
   useDocumentTitle('Settings');
   if (server === undefined) return <Loading />;
   const name = serverLabel(server);

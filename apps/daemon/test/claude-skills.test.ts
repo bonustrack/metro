@@ -5,11 +5,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { ApiError } from '@metro-labs/http/api-error';
 import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 const SESSION = '11111111-2222-4333-8444-555555555555';
 
 let dir = '';
@@ -53,9 +51,6 @@ beforeAll(async () => {
   );
   server = createServer((req, res) => {
     const deps = {
-      authorize: (subject: string) => {
-        if (subject !== OWNER) throw new ApiError('no such project', 404);
-      },
       dir: () => dir,
     };
     if (handleClaudeRequest(req, res, deps)) return;
@@ -136,13 +131,7 @@ describe('the skills on this machine', () => {
     expect((await list()).skills).toEqual([]);
   });
 
-  test('a stranger reads, writes and deletes nothing', async () => {
-    mkdirSync(join(dir, 'skills', 'private-thing'), { recursive: true });
-    writeFileSync(join(dir, 'skills', 'private-thing', 'SKILL.md'), skill('private-thing', 'mine'));
-    expect((await call('GET', '/api/claude/skills', undefined, STRANGER)).status).toBe(404);
-    expect((await call('PUT', '/api/claude/skills/user:private-thing', { text: skill('x', 'y') }, STRANGER)).status).toBe(404);
-    expect((await call('DELETE', '/api/claude/skills/user:private-thing', undefined, STRANGER)).status).toBe(404);
+  test('no session reads nothing', async () => {
     expect((await fetch(`${base}/api/claude/skills`)).status).toBe(401);
-    expect(existsSync(join(dir, 'skills', 'private-thing', 'SKILL.md'))).toBe(true);
   });
 });

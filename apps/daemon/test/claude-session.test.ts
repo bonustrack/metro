@@ -4,9 +4,8 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ApiError } from '@metro-labs/http/api-error';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { autostartEnabled, ensureSession, hasConversation, sessionBlocked, sessionStatus, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
+import { autostartEnabled, ensureSession, hasConversation, sessionBlocked, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
@@ -171,9 +170,6 @@ describe('the session over the API', () => {
   beforeEach(async () => {
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
-        authorize: (subject: string) => {
-          if (subject !== OWNER) throw new ApiError('no such project', 404);
-        },
         session: deps(),
       });
       if (!ok) res.writeHead(404).end();
@@ -205,6 +201,5 @@ describe('the session over the API', () => {
     const stopped = (await (await call('POST', { action: 'stop', autostart: false })).json()) as { running: boolean; autostart: boolean };
     expect(stopped).toMatchObject({ running: false, autostart: false });
     expect((await call('POST', { action: 'sideways' })).status).toBe(400);
-    expect((await call('GET', undefined, '0x70997970c51812dc3a010c7d01b50e0d17dc79c8')).status).toBe(404);
   });
 });

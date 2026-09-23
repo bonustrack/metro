@@ -4,7 +4,7 @@ import { dropAccount, stationsKey } from '../src/api/queries.js';
 import { QueryClient } from '@tanstack/react-query';
 import type { StationsView } from '../src/api/client.js';
 
-const row = (id: string) => ({ id, agentId: 'agent000001', fields: [] });
+const row = (id: string) => ({ id, fields: [] });
 
 const PREV: AccountGroup[] = [
   { station: 'xmtp', rows: [row('x0'), row('x1'), row('tony')] },
@@ -36,7 +36,7 @@ describe('a station that could not be reached keeps its last known cards', () =>
 
 describe('a detached account cannot be resurrected by carry-forward', () => {
   const view = (groups: AccountGroup[]): StationsView => ({
-    agents: [],
+    agent: undefined,
     groups,
     attachable: [],
     unavailable: ['xmtp'],
@@ -72,7 +72,7 @@ describe('a detached account cannot be resurrected by carry-forward', () => {
 
 describe('a carried-forward station is marked, not passed off as healthy', () => {
   test('the stale flag survives the flatten the list renders from', async () => {
-    const { flattenAccounts, accountsForAgent } = await import(
+    const { flattenAccounts } = await import(
       '../src/api/accounts'
     );
     const fresh: AccountGroup[] = [{ station: 'telegram-bot', rows: [row('t0')] }];
@@ -86,7 +86,6 @@ describe('a carried-forward station is marked, not passed off as healthy', () =>
     expect(flat.filter((f) => !f.stale).map((f) => f.station)).toEqual([
       'telegram-bot',
     ]);
-    const mine = accountsForAgent(out, 'agent000001');
-    expect(mine.find((g) => g.station === 'xmtp')?.stale).toBe(true);
+    expect(out.find((g) => g.station === 'xmtp')?.stale).toBe(true);
   });
 });

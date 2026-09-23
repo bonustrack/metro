@@ -7,12 +7,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { localSessionApis } from '../src/routes/local-mode.ts';
-import { setLocalOwner, localCreateAgent, LOCAL_PROJECT_ID } from '../src/agents/file-admin.ts';
+import { setLocalOwner, localCreateAgent } from '../src/agents/file-admin.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import { auth, TEST_STRANGER, type Who } from './identity-helper.ts';
+import { auth, type Who } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 const saved = {
   dir: process.env.METRO_AGENTS_DIR,
   port: process.env.METRO_WEBHOOK_PORT,
@@ -62,7 +61,7 @@ beforeAll(async () => {
   delete process.env.METRO_PUBLIC_URL;
   setKeyMap([]);
   setLocalOwner(OWNER, dir);
-  tony = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'Tony', dir);
+  tony = await localCreateAgent('Tony', dir);
   vendor = createServer((req, res) => {
     let body = '';
     req.on('data', (c: Buffer) => {
@@ -82,7 +81,6 @@ beforeAll(async () => {
     stop: () => undefined,
     gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }),
     capabilities: () => ({}),
-    liveness: () => new Map(),
     prepareAccount: () => Promise.reject(new Error('not used')),
   });
   daemon = await startWebhookServer(makeEmit(), apis, async (_req, res) => {
@@ -123,7 +121,7 @@ let linear = '';
 
 describe('connectors on a local daemon, end to end through the real routes', () => {
   test('a connector on a loopback http url is accepted here, verified against the vendor, and stored in the files', async () => {
-    const res = await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, {
+    const res = await call('POST', `/api/connectors`, {
       name: 'linear',
       url: `${vendorBase}/mcp`,
       header: 'Authorization',
@@ -137,23 +135,22 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     const stored = JSON.parse(readFileSync(join(dir, 'connectors.json'), 'utf8')) as { connectors: { id: string; config: { auth: { value?: string } } }[] };
     expect(stored.connectors[0]?.id).toBe(linear);
     expect(stored.connectors[0]?.config.auth.value).toBe('Bearer vendor-secret');
-    const list = (await (await call('GET', `/api/connectors?project=${LOCAL_PROJECT_ID}`)).json()) as { connectors: { id: string }[] };
+    const list = (await (await call('GET', `/api/connectors`)).json()) as { connectors: { id: string }[] };
     expect(list.connectors.map((c) => c.id)).toEqual([linear]);
   });
 
   test('every agent on the daemon holds every connector, and a name is unique on the daemon', async () => {
-    const file = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { connectors: string[] };
-    expect(file.connectors).toEqual([]);
-    const agents = (await (await call('GET', `/api/agents?project=${LOCAL_PROJECT_ID}`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
+    expect(JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8'))).not.toHaveProperty('connectors');
+    const agents = (await (await call('GET', `/api/agents`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
     expect(agents.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
     expect(agents.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
-    const twin = await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, { name: 'linear', url: `${vendorBase}/other`, header: null, value: null });
+    const twin = await call('POST', `/api/connectors`, { name: 'linear', url: `${vendorBase}/other`, header: null, value: null });
     expect(twin.status).toBe(409);
-    const jira = (await (await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, { name: 'jira', url: `${vendorBase}/other`, header: null, value: null })).json()) as { id: string };
+    const jira = (await (await call('POST', `/api/connectors`, { name: 'jira', url: `${vendorBase}/other`, header: null, value: null })).json()) as { id: string };
     expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'linear' })).status).toBe(409);
     expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'jira2' })).status).toBe(200);
     expect((await call('DELETE', `/api/connectors/${jira.id}`)).status).toBe(200);
-    const after = (await (await call('GET', `/api/agents?project=${LOCAL_PROJECT_ID}`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
+    const after = (await (await call('GET', `/api/agents`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
     expect(after.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
     expect((await call('GET', `/api/agents/${tony.id}/connectors`)).status).toBe(404);
   });
@@ -172,8 +169,7 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     expect((await fetch(`${base}/relay/${linear}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(init) })).status).toBe(401);
   });
 
-  test('a stranger sees nothing, and the vendor secret never comes back to a browser', async () => {
-    expect((await call('GET', `/api/connectors?project=${LOCAL_PROJECT_ID}`, undefined, session(STRANGER))).status).toBe(404);
+  test('the vendor secret never comes back to a browser', async () => {
     const detail = await (await call('GET', `/api/connectors/${linear}`)).text();
     expect(detail).not.toContain('vendor-secret');
   });

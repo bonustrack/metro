@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { localSessionApis } from '../src/routes/local-mode.ts';
-import { setLocalOwner, LOCAL_PROJECT_ID } from '../src/agents/file-admin.ts';
+import { setLocalOwner } from '../src/agents/file-admin.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 import { localRelayTarget } from '../src/connectors/store.ts';
 import { auth } from './identity-helper.ts';
@@ -139,7 +139,6 @@ beforeAll(async () => {
     stop: () => undefined,
     gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }),
     capabilities: () => ({}),
-    liveness: () => new Map(),
     prepareAccount: () => Promise.reject(new Error('not used')),
   });
   daemon = await startWebhookServer(makeEmit(), apis, async (_req, res) => {
@@ -187,7 +186,7 @@ let authorize = new URL('https://unset.example');
 
 describe('a connector whose authorization server registers no clients', () => {
   test('without a client id the create is refused, names the callback url, and stores no half row', async () => {
-    const res = await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, {
+    const res = await call('POST', `/api/connectors`, {
       name: 'outlook',
       url: `${vendorBase}/mcp`,
       returnTo: RETURN_TO,
@@ -196,20 +195,20 @@ describe('a connector whose authorization server registers no clients', () => {
     const { error } = (await res.json()) as { error: string };
     expect(error).toContain('client ID');
     expect(error).toContain(`${base}/api/connectors/callback`);
-    const list = await call('GET', `/api/connectors?project=${LOCAL_PROJECT_ID}`);
+    const list = await call('GET', `/api/connectors`);
     expect(((await list.json()) as { connectors: unknown[] }).connectors).toEqual([]);
     expect(registerCalls).toBe(0);
   });
 
   test('a secret without a client id, or an unsendable client id, is refused before any network call', async () => {
-    const secretOnly = await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, {
+    const secretOnly = await call('POST', `/api/connectors`, {
       name: 'outlook',
       url: `${vendorBase}/mcp`,
       clientSecret: CLIENT_SECRET,
     });
     expect(secretOnly.status).toBe(400);
     expect(((await secretOnly.json()) as { error: string }).error).toContain('client ID');
-    const spaced = await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, {
+    const spaced = await call('POST', `/api/connectors`, {
       name: 'outlook',
       url: `${vendorBase}/mcp`,
       clientId: 'app 123',
@@ -218,7 +217,7 @@ describe('a connector whose authorization server registers no clients', () => {
   });
 
   test('with a pre-registered client the row is stored and the sign-in url carries that client, the scopes and the callback', async () => {
-    const res = await call('POST', `/api/connectors?project=${LOCAL_PROJECT_ID}`, {
+    const res = await call('POST', `/api/connectors`, {
       name: 'outlook',
       url: `${vendorBase}/mcp`,
       clientId: CLIENT_ID,

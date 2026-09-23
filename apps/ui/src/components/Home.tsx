@@ -7,7 +7,7 @@ import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { AgentPicture, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
 import { AgentRoute } from './AgentModel.js';
-import { accountsForAgent, stationCount, type AccountGroup } from '../api/accounts.js';
+import { flattenAccounts, type AccountGroup } from '../api/accounts.js';
 import { queryError, useConnectorsQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { currentServer } from '../auth/daemon.js';
 import { serverLabel } from '../api/servers.js';
@@ -54,13 +54,13 @@ interface SectionsProps {
 
 function Sections({ agent, groups, project, onSelect }: SectionsProps): ReactNode {
   const connectors = useConnectorsQuery();
-  const channels = stationCount(groups, agent.id);
+  const channels = flattenAccounts(groups).length;
   return (
     <>
       {channels === 0 ? null : (
         <Col gap={8}>
           <SectionHead label="Channels" count={channels} />
-          <ChannelCards groups={accountsForAgent(groups, agent.id)} project={project} onSelect={onSelect} />
+          <ChannelCards groups={groups} project={project} onSelect={onSelect} />
         </Col>
       )}
       {agent.connectorIds.length === 0 ? null : (
@@ -83,7 +83,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
   const servers = useServersQuery();
   const here = currentServer();
   const server = servers.data?.find((s) => s.id === here?.id);
-  const agent = data?.agents[0];
+  const agent = data?.agent;
   const name = useBoxName(agent);
   useDocumentTitle(name);
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;

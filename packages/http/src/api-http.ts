@@ -57,13 +57,6 @@ export interface AgentIdentity {
   agentId: string;
 }
 
-export function projectParam(req: IncomingMessage): string | null {
-  const raw = new URL(req.url ?? '/', 'http://localhost').searchParams.get(
-    'project',
-  );
-  return raw === null || raw === '' ? null : raw;
-}
-
 export async function readJsonBody(req: IncomingMessage, max = BODY_MAX): Promise<unknown> {
   const chunks: Buffer[] = [];
   let total = 0;

@@ -7,8 +7,6 @@ export class AgentAdminError extends ApiError {}
 export interface AgentSummary {
   id: string;
   name: string | null;
-  owned: boolean;
-  key: string | null;
 }
 
 export interface CreatedAgent {
@@ -16,13 +14,6 @@ export interface CreatedAgent {
   name: string | null;
   key: string;
 }
-
-export interface OwnedAgent {
-  id: string;
-  name: string | null;
-}
-
-export type DeletedAgent = OwnedAgent;
 
 export function normalizeAgentName(raw: unknown): string {
   const name = typeof raw === 'string' ? raw.trim() : '';

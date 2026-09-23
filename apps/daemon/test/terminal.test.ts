@@ -1,4 +1,3 @@
-import { ApiError } from '@metro-labs/http/api-error';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
@@ -7,7 +6,7 @@ import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { mintTerminalTicket, pendingTerminalTickets, takeTerminalTicket } from '../src/terminal/tickets.ts';
 import { resizeWindowArgs } from '../src/terminal/socket.ts';
 import { tmuxCommand } from '../src/terminal/api.ts';
-import { auth, TEST_STRANGER } from './identity-helper.ts';
+import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 let server: Server;
@@ -19,9 +18,6 @@ beforeAll(async () => {
   process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
   server = await startWebhookServer(makeEmit(), {
     terminalApi: {
-      authorize: (subject) => {
-        if (subject !== OWNER) throw new ApiError('no such project', 404);
-      },
       command: (session) => ['sh', '-c', session === 'sized' ? 'trap "stty size" WINCH; echo READY; while :; do sleep 0.05; done' : `echo READY ${session}; cat`],
     },
   });
@@ -40,7 +36,7 @@ afterAll(async () => {
   });
 });
 
-const signed = async (method: string, path: string, who: string | typeof TEST_STRANGER = OWNER, body?: unknown): Promise<Response> =>
+const signed = async (method: string, path: string, who = OWNER, body?: unknown): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
     headers: { authorization: await auth(method, path, who), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
@@ -94,12 +90,11 @@ describe('terminal tickets', () => {
 });
 
 describe('the terminal over http and a websocket', () => {
-  test('the owner reads availability and mints a ticket; a stranger and a wrong method are refused', async () => {
+  test('the owner reads availability and mints a ticket; a wrong method is refused', async () => {
     const status = await signed('GET', '/api/terminal');
     expect(status.status).toBe(200);
     expect(await status.json()).toEqual({ available: true, sessions: expect.any(Array) });
     expect((await fetch(`${base}/api/terminal`)).status).toBe(401);
-    expect((await signed('GET', '/api/terminal', TEST_STRANGER)).status).toBe(404);
     expect((await signed('POST', '/api/terminal')).status).toBe(405);
     expect((await signed('GET', '/api/terminal/tickets')).status).toBe(405);
     expect((await signed('POST', '/api/terminal/tickets')).status).toBe(400);
