@@ -61,7 +61,7 @@ function connectorOf(raw: unknown): LoadedConnector {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string' || typeof raw.url !== 'string')
     throw bad('a connector is missing its id, name or url');
   if (!isRecord(raw.config)) throw bad('a connector has no config');
-  return { id: raw.id, name: raw.name, url: raw.url, transport: 'http', config: raw.config };
+  return { id: raw.id, name: raw.name, url: raw.url, config: raw.config };
 }
 
 function agentOf(raw: unknown): AgentBundle['agent'] {

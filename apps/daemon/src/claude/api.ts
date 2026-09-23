@@ -43,7 +43,7 @@ import {
   type SessionDeps,
 } from './session.js';
 import { claudeVersion, updateClaude, type VersionDeps } from './version.js';
-import { readSessionFile, receiveSessionFile, SESSION_FILE_MAX, sessionFilePath, writeSessionFile } from './session-files.js';
+import { receiveSessionFile, sessionFilePath } from './session-files.js';
 import { createReadStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import {
@@ -60,7 +60,6 @@ import {
 
 const PREFIX = '/api/claude';
 const BODY_MAX = SETTINGS_MAX + 4096;
-const SESSION_BODY_MAX = SESSION_FILE_MAX + 4096;
 const WRITABLE = new Set(['GET', 'DELETE', 'PUT', 'POST']);
 const PAGE = 100;
 const PAGE_MAX = 500;
@@ -97,7 +96,6 @@ const COLLECTIONS: Record<string, Handler> = {
 
 const ITEMS: Record<string, Handler> = {
   sessions: (query, dir, id) => {
-    if (query.get('raw') === '1') return { id, text: readSessionFile(projectOf(query), id, dir) };
     const { offset, limit } = pageOf(query);
     return readTranscript(projectOf(query), id, offset, limit, dir);
   },
@@ -110,7 +108,7 @@ const parts = (path: string): string[] => path.slice(PREFIX.length + 1).split('/
 const seenIn = (body: Record<string, unknown>): string | null | undefined =>
   'seenAt' in body ? (typeof body.seenAt === 'string' ? body.seenAt : null) : undefined;
 
-const WRITE_HEADS = new Set(['settings', 'skills', 'memory', 'sessions']);
+const WRITE_HEADS = new Set(['settings', 'skills', 'memory']);
 
 interface Write {
   text: string;
@@ -120,7 +118,6 @@ interface Write {
 
 function writeItem(head: string, item: string, write: Write, search: string, dir: string): unknown {
   if (head === 'skills') return writeClaudeSkill(decodeURIComponent(item), write.text, write.seen, dir);
-  if (head === 'sessions') return writeSessionFile(projectOf(new URLSearchParams(search)), item, write.text, dir);
   if (head === 'memory') return writeMemoryFile(projectOf(new URLSearchParams(search)), decodeURIComponent(item), write.text, dir, write.modifiedAt);
   return writeClaudeSettings(item, write.text, write.seen, dir);
 }
@@ -128,7 +125,7 @@ function writeItem(head: string, item: string, write: Write, search: string, dir
 async function writeAnswer(req: IncomingMessage, path: string, search: string, dir: string): Promise<unknown> {
   const [head = '', item = ''] = parts(path);
   if (!WRITE_HEADS.has(head) || item === '') throw new ApiError('method not allowed', 405);
-  const body = await readJsonBody(req, head === 'sessions' ? SESSION_BODY_MAX : BODY_MAX);
+  const body = await readJsonBody(req, BODY_MAX);
   if (!isRecord(body) || typeof body.text !== 'string') throw new ApiError('text is required', 400);
   const modifiedAt = typeof body.modifiedAt === 'string' ? body.modifiedAt : undefined;
   return writeItem(head, item, { text: body.text, seen: seenIn(body), modifiedAt }, search, dir);
@@ -314,7 +311,8 @@ async function streamed(req: IncomingMessage, res: ServerResponse, path: string,
     });
     return true;
   }
-  if (req.method === 'PUT' && !(req.headers['content-type'] ?? '').includes('json')) {
+  if (req.method === 'PUT') {
+    if ((req.headers['content-type'] ?? '').includes('json')) throw new ApiError('send the session file as text/plain', 415);
     sendJson(req, res, 200, await receiveSessionFile(projectOf(query), item, req, dir));
     return true;
   }

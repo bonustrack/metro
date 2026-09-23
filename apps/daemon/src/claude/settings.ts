@@ -1,14 +1,14 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { claudeDir, listClaudeProjects } from './files.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg } from '@metro-labs/core/log';
+import { writeAtomic } from '@metro-labs/core/secure-fs';
 
 export const SETTINGS_MAX = 256 * 1024;
 const USER_ID = 'user';
 const LOCAL_SUFFIX = '.local';
-const DEFAULT_MODE = 0o644;
 
 export type SettingsScope = 'user' | 'project' | 'local';
 
@@ -90,23 +90,6 @@ function assertSettingsJson(text: string): void {
     throw new ApiError(`that is not valid JSON: ${errMsg(err)}`, 400);
   }
   if (!isRecord(parsed)) throw new ApiError('Claude Code settings must be a JSON object', 400);
-}
-
-function modeOf(path: string): number {
-  try {
-    return statSync(path).mode & 0o777;
-  } catch {
-    return DEFAULT_MODE;
-  }
-}
-
-function writeAtomic(path: string, text: string): void {
-  const mode = existsSync(path) ? modeOf(path) : DEFAULT_MODE;
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.metro-${String(process.pid)}`;
-  writeFileSync(tmp, text, { mode });
-  chmodSync(tmp, mode);
-  renameSync(tmp, path);
 }
 
 export function writeClaudeSettings(

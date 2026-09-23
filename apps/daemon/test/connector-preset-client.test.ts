@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { allowLocalConnectors } from '../src/connectors/url.ts';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -148,7 +147,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  allowLocalConnectors(false);
   await new Promise<void>((done) => daemon.close(() => done()));
   vendor.close();
   rmSync(dir, { recursive: true, force: true });

@@ -105,7 +105,6 @@ describe('reading tailscale funnel', () => {
     expect(funnelDriver(8420, '/Applications/Tailscale.app/Contents/MacOS/Tailscale')).toMatchObject({
       command: '/Applications/Tailscale.app/Contents/MacOS/Tailscale',
       args: ['funnel', '8420'],
-      waitsForDns: true,
     });
     process.env.METRO_TAILSCALE_BIN = '/opt/bin/tailscale';
     expect(funnelDriver(8421).command).toBe('/opt/bin/tailscale');

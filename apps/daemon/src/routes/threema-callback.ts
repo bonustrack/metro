@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { tokenMatches } from '../net/tunnel.js';
+import { tokenMatches } from '../stations/webhook-endpoints.js';
 import {
   findThreemaCallback,
   type ThreemaCallback,

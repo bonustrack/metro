@@ -39,7 +39,6 @@ export interface LoadedConnector {
   id: string;
   name: string;
   url: string;
-  transport: 'http';
   config: Record<string, unknown>;
 }
 

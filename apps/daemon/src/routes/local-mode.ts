@@ -11,7 +11,6 @@ import type { ModeInfo } from '@metro-labs/http/mode-api';
 import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from '../agents/bundle.js';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import type { ConnectorApiDeps } from '../connectors/api.js';
-import { allowLocalConnectors } from '../connectors/url.js';
 import { authenticate } from '../mcp/request-identity.js';
 import type { RelayApiDeps } from '../connectors/relay.js';
 import {
@@ -141,7 +140,7 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
       const bundle: AgentBundle = {
         version: 1,
         agent: { id: file.id, name: file.name ?? '', stations: file.stations },
-        connectors: readLocalConnectors().map((c) => ({ id: c.id, name: c.name, url: c.url, transport: c.transport, config: { ...c.config } })),
+        connectors: readLocalConnectors().map((c) => ({ id: c.id, name: c.name, url: c.url, config: { ...c.config } })),
       };
       return Promise.resolve(bundle);
     },
@@ -180,7 +179,6 @@ async function accountCall(
 }
 
 export function localSessionApis(deps: LocalModeDeps): SessionApis {
-  allowLocalConnectors(true);
   return {
     agentApi: agentApi(deps),
     bundleApi: bundleApi(deps),

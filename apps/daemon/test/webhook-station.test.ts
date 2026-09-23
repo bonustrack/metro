@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { subscribeEvents, type MetroEvent } from '@metro-labs/core/events';
-import { listEndpoints } from '../src/net/tunnel.ts';
+import { listEndpoints } from '../src/stations/webhook-endpoints.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setKeyMap } from '../src/agents/keys.ts';

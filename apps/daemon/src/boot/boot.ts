@@ -6,7 +6,8 @@ import { errMsg, log, logFatalSync } from '@metro-labs/core/log';
 import { acquireLock, STATE_DIR, trainsDir } from './paths.js';
 import { installCrashGuard, markDaemonReady } from './crash-guard.js';
 import { METRO_VERSION } from '@metro-labs/core/version';
-import { funnelDriver, Tunnel, tunnelWanted, webhookPort } from '../net/tunnel.js';
+import { funnelDriver, Tunnel, tunnelWanted } from '../net/tunnel.js';
+import { webhookPort } from '../files/attach-serve.js';
 import {
   localConnectHint,
   publicConnectHint,

@@ -92,6 +92,45 @@ export function apiFailure(
   if (!res.headersSent) sendJson(req, res, 500, { error: `${label} failed` });
 }
 
+export interface SessionRoute {
+  methods: Readonly<Record<string, readonly string[]>>;
+  admin: boolean | readonly string[];
+  label: string;
+}
+
+const needsAdmin = (route: SessionRoute, method: string): boolean =>
+  route.admin === true || (Array.isArray(route.admin) && route.admin.includes(method));
+
+export function sessionRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  route: SessionRoute,
+  handler: (session: ApiSession, path: string) => Promise<unknown>,
+): boolean {
+  const path = (req.url ?? '').split('?')[0] ?? '';
+  const methods = Object.hasOwn(route.methods, path) ? route.methods[path] : undefined;
+  if (methods === undefined) return false;
+  const method = req.method ?? '';
+  if (method === 'OPTIONS') {
+    res.writeHead(204, cors(req)).end();
+    return true;
+  }
+  if (!methods.includes(method)) {
+    sendJson(req, res, 405, { error: 'method not allowed' });
+    return true;
+  }
+  apiSession(req)
+    .then(async (session) => {
+      if (!session) throw new ApiError('unauthorized', 401);
+      if (needsAdmin(route, method)) requireAdmin(session);
+      sendJson(req, res, 200, await handler(session, path));
+    })
+    .catch((err: unknown) => {
+      apiFailure(req, res, err, route.label);
+    });
+  return true;
+}
+
 export function bodyField(body: unknown, key: string): unknown {
   return typeof body === 'object' && body !== null && !Array.isArray(body)
     ? (body as Record<string, unknown>)[key]

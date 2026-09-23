@@ -13,7 +13,9 @@ import {
 import { attachmentOwner, recordAttachmentOwner } from './attach-owner.js';
 import { grantAllows, issueAttachmentGrant } from './attach-grant.js';
 import { errMsg, log } from '@metro-labs/core/log';
-import { currentTunnelUrl, webhookPort } from '../net/tunnel.js';
+import { currentTunnelUrl } from '../net/tunnel.js';
+
+export const webhookPort = (): number => Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 
 function authorized(req: IncomingMessage, name: string): boolean {
   const owner = attachmentOwner(name);

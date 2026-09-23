@@ -153,9 +153,10 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 - **The relay (`/relay/<id>`) strips the caller's key before anything goes upstream** and injects the vendor credential per request. Only `accept`, `content-type`, `mcp-session-id`, `mcp-protocol-version`, `last-event-id` pass through.
 - **Status discipline: the daemon's 401 means only the daemon's own credential.** An upstream 401/403 gets one forced refresh and one retry, then **424** (and the connector is signed out). A remote 401 during verify is the daemon's 400. Upstream 3xx is refused (502). A row with no credential forwards bare.
 - Client disconnect aborts upstream on `res` close and `res.socket` close, guarded by `!res.writableEnded`, never on `req` close. Token refresh is single-flight.
-- **`parseConnectorUrl` is a security boundary.** Every request uses `redirect: 'manual'`. Raw `fetch`, never the SDK `Client`. **No stdio connectors, ever.**
+- **`parseConnectorUrl` is a security boundary**: http or https only, no `user:password`, no fragment. Any host is allowed, loopback and private included, since the daemon runs beside the servers it connects to. Every request uses `redirect: 'manual'`. Raw `fetch`, never the SDK `Client`. **No stdio connectors, ever.**
 - No API returns a connector credential to the browser (`connectorPayload` carries no secret).
 - OAuth: `prepareOAuth` (discovery and registration) runs before any row is stored. `GET /api/connectors/callback` is unauthenticated, keyed by single-use `state`.
+- One MCP HTTP helper: `mcpPost`, `payloadOf`, `INITIALIZE` and `authHeaders` in `connectors/verify.ts` serve verify, the live tool list and the relay target; `refused()` lives in `connectors/url.ts` only.
 - Errors carry the underlying cause (`connectors/reach.ts`): the relay's error body is what Claude Code shows under `/mcp`.
 
 ### Sign-in and ownership (WorkOS)
@@ -164,6 +165,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 - **The owner check lives in one place:** `routes/bearer.ts` `installBearerSessions` refuses a token for another organization with 403 (`test/bearer-session.test.ts`). The agent, account, connector, Claude, model, server and terminal APIs only check that a session exists, plus `requireAdmin` where listed. There is no per-API `authorize` hook and no `?project=`: the daemon ignores a `project` query and `/api/mode` keeps its `project` field only for old pages.
 - **A box verifies the token offline** (`packages/http/src/workos-token.ts`, RS256 against the WorkOS JWKS cached at `<agents dir>/.jwks`). **The owner is the organization: the token's `org_id` must equal `.owner`**, else 403.
 - `--owner` from a service unit never overwrites an organization owner in `.owner` (`boot/local-owner.ts`).
+- Single-path owner routes (`server/*`, `terminal/api`) go through `sessionRoute` in `http/api-http` (path and method match, OPTIONS, 405, session, admin by method, `apiFailure`). One-time single-use tokens with a TTL (OAuth `state`, terminal tickets) are `ticketStore` from `core/tickets`.
 - **`requireAdmin` gates:** stop and restart, the update POST, the Terminal, agent delete, the bundle and restore, `POST /api/owner`, and non-GET Claude `login`, `session`, `version`, `setup` routes. Keep the `ADMIN_ONLY` pattern in `claude/api.ts` matching the full path.
 - metro.box: the launch, server list and admin APIs take the bearer only; the owner is always the signing organization, never a value from the body. Operator pages check the stored email against `OPERATOR_EMAIL`. Waitlist status is checked at the callback and on every refresh.
 
@@ -195,7 +197,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 ### Claude Code on the box
 
 - `claude/files.ts` reads Claude Code's own files under `METRO_CLAUDE_DIR`, `CLAUDE_CONFIG_DIR` or `~/.claude`. Names are validated with regexes before a path is built; the URL is split before decoding.
-- **Settings and skills are resolved by id through their own listing, never by building a path.** Writes are atomic, keep the file's mode (never `writeSecure`, which would force 0600), refuse non-object JSON (400) and a stale `seenAt` (409). Skills list `~/.claude/skills` only; a symlinked skill folder counts, and deleting it removes the link only.
+- **Settings and skills are resolved by id through their own listing, never by building a path.** Writes go through `writeAtomic` (`core/secure-fs`: temp file then rename, keeps the file's mode, 0644 for a new one, or the mode passed in; never `writeSecure`, which would force 0600), refuse non-object JSON (400) and a stale `seenAt` (409). Skills list `~/.claude/skills` only; a symlinked skill folder counts, and deleting it removes the link only.
 - **Setup applied at boot** (`claude/setup.ts`): the worker agent and orchestrator skill are written when missing, and refreshed only when their sha256 is one metro shipped.
 - **Whenever `WORKER_AGENT` or `plugin/orchestrator.md` changes, add the previous text's sha256 to `PRIOR_WORKER` or `PRIOR_SKILL`**, or boxes keep the old copy. Privacy env is merged into `~/.claude/settings.json` (Claude Code's auto-updater is off as a result; the Harness page's Update runs `claude install latest`).
 - **The session watcher** (`claude/session.ts`) keeps tmux session `metro` running `metro claude` (`-c` when a conversation exists), and restarts it after a metro update or a mode or system-prompt change, since flags load at session start.

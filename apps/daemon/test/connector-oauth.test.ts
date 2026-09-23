@@ -5,12 +5,7 @@ import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { authorizeUrl, challengeOf, newVerifier } from '../src/connectors/oauth-client.ts';
 import { resourceMetadataUrls } from '../src/connectors/oauth-discovery.ts';
-import {
-  pendingCount,
-  startPending,
-  takePending,
-} from '../src/connectors/oauth-pending.ts';
-import { oauthExpired } from '../src/connectors/oauth.ts';
+import { oauthExpired, pendingCount, startPending, takePending } from '../src/connectors/oauth.ts';
 
 let server: Server;
 let base = '';

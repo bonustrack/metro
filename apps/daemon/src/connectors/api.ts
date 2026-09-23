@@ -24,7 +24,7 @@ import type {
   ConnectorCheck,
   ConnectorInput,
   DeletedConnector,
-} from './model.js';
+} from './store.js';
 
 const PREFIX = '/api/connectors';
 
@@ -81,7 +81,6 @@ function connectorPayload(row: Connector): Record<string, unknown> {
     id: row.id,
     name: row.name,
     url: row.url,
-    transport: row.transport,
     auth: row.auth,
     header: row.header,
     clientId: row.client?.clientId ?? null,

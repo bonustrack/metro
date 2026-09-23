@@ -1,12 +1,7 @@
-import type { Endpoint } from '@metro-labs/core/endpoints';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { timingSafeEqual } from 'node:crypto';
 import { Resolver } from 'node:dns/promises';
 import { request as httpsRequest } from 'node:https';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
-import { readJson } from '@metro-labs/core/secure-fs';
 import { localOwner } from '../agents/file-admin.js';
 
 const RESTART_DELAY_MS = 2_000;
@@ -35,7 +30,6 @@ export interface TunnelDriver {
   command: string;
   args: string[];
   urlIn: (text: string) => string | null;
-  waitsForDns: boolean;
   adopt?: () => Promise<Adopted>;
 }
 
@@ -49,6 +43,7 @@ const runText = (command: string, args: string[]): Promise<string> =>
 export type Probe = (url: string, owner: string | null) => Promise<boolean>;
 
 const PROBE_MS = 5_000;
+const PUBLIC_RESOLVERS = ['1.1.1.1', '8.8.8.8'];
 
 async function publicAddresses(host: string): Promise<string[]> {
   const found = await Promise.all(
@@ -155,7 +150,6 @@ export const funnelDriver = (
   command: bin,
   args: ['funnel', String(port)],
   urlIn: funnelUrlIn,
-  waitsForDns: true,
   adopt: () => adoptFunnel(bin, port, probe, owner),
 });
 
@@ -165,23 +159,11 @@ export const currentTunnelUrl = (): string | null => liveUrl;
 
 export type Resolves = (host: string) => Promise<boolean>;
 
-const PUBLIC_RESOLVERS = ['1.1.1.1', '8.8.8.8'];
 const RESOLVE_EVERY_MS = 3_000;
 const RESOLVE_GIVE_UP_MS = 180_000;
 
-async function resolvesAt(server: string, host: string): Promise<boolean> {
-  const resolver = new Resolver();
-  resolver.setServers([server]);
-  const answers = await Promise.all([
-    resolver.resolve4(host).catch(() => []),
-    resolver.resolve6(host).catch(() => []),
-  ]);
-  return answers.some((a) => a.length > 0);
-}
-
 export async function resolvesPublicly(host: string): Promise<boolean> {
-  const found = await Promise.all(PUBLIC_RESOLVERS.map((server) => resolvesAt(server, host)));
-  return found.some(Boolean);
+  return (await publicAddresses(host)).length > 0;
 }
 
 async function untilResolvable(host: string, resolves: Resolves): Promise<boolean> {
@@ -193,56 +175,7 @@ async function untilResolvable(host: string, resolves: Resolves): Promise<boolea
   return false;
 }
 
-interface AccountRecord {
-  id?: unknown;
-  webhookId?: unknown;
-  label?: unknown;
-  secret?: unknown;
-  createdAt?: unknown;
-}
-
-export const webhookPort = (): number =>
-  Number(process.env.METRO_WEBHOOK_PORT) || 8420;
-
-export type { Endpoint };
-
-const accountsFile = (): string =>
-  process.env.WEBHOOK_ACCOUNTS_FILE ??
-  join(homedir(), '.metro', 'webhook-accounts.json');
-
-const str = (v: unknown): string | undefined =>
-  typeof v === 'string' && v !== '' ? v : undefined;
-
-function toEndpoint(raw: AccountRecord): Endpoint | null {
-  const id = str(raw.id);
-  if (id === undefined) return null;
-  return {
-    id,
-    webhookId: str(raw.webhookId),
-    label: str(raw.label) ?? id,
-    secret: str(raw.secret),
-    createdAt: str(raw.createdAt) ?? '',
-  };
-}
-
-export function listEndpoints(): Endpoint[] {
-  const raw = readJson<AccountRecord[]>(accountsFile(), [], {
-    warn: 'webhook-accounts.json: malformed, ignoring',
-  });
-  if (!Array.isArray(raw)) return [];
-  return raw.map(toEndpoint).filter((e): e is Endpoint => e !== null);
-}
-
-export const findEndpointByWebhookId = (
-  webhookId: string,
-): Endpoint | undefined =>
-  listEndpoints().find((e) => e.webhookId === webhookId);
-
-export function tokenMatches(secret: string, given: string): boolean {
-  const want = Buffer.from(secret);
-  const got = Buffer.from(given);
-  return want.length === got.length && timingSafeEqual(want, got);
-}
+export { listEndpoints } from '../stations/webhook-endpoints.js';
 
 export class Tunnel {
   private child: ChildProcess | null = null;
@@ -262,11 +195,6 @@ export class Tunnel {
     if (url === null || url === liveUrl) return;
     liveUrl = url;
     this.restartDelay = RESTART_DELAY_MS;
-    if (!this.driver.waitsForDns) {
-      log.info({ url }, `${this.driver.name} up`);
-      this.onUrl(url);
-      return;
-    }
     log.info({ url }, `${this.driver.name} up; waiting for its name to resolve`);
     this.announceWhenResolvable(url).catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, `${this.driver.name}: announce failed`);

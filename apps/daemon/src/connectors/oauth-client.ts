@@ -1,9 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { whyUnreachable } from './reach.js';
-import {
-  ConnectorVerifyError,
-  type OAuthTokens,
-} from './verify.js';
+import { refused, type OAuthTokens } from './verify.js';
 import type { OAuthServer } from './oauth-discovery.js';
 import { isRecord } from '@metro-labs/core/is-record';
 
@@ -13,10 +10,6 @@ const CLIENT_NAME = 'Metro';
 export interface OAuthClient {
   clientId: string;
   clientSecret?: string;
-}
-
-function refused(message: string): ConnectorVerifyError {
-  return new ConnectorVerifyError(message, 400);
 }
 
 export function newVerifier(): string {

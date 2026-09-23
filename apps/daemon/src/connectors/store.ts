@@ -4,12 +4,14 @@ import { listRemoteTools, type RemoteTool } from './tools.js';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { errMsg, log } from '@metro-labs/core/log';
 import {
+  authHeaders,
   connectorUrlText,
   ConnectorVerifyError,
   parseConnectorUrl,
   verifyRemoteMcp,
   type ConnectorAuth,
   type OAuthAuth,
+  type VerifiedRecord,
 } from './verify.js';
 import { oauthExpired, refreshOAuth } from './oauth.js';
 import { advertisesOAuth } from './oauth-discovery.js';
@@ -19,24 +21,13 @@ import {
   connectorClient,
   connectorName,
   readConfig,
+  signInState,
   stamp,
   type ConnectorConfig,
+  type ConnectorSignIn,
 } from './config.js';
-import {
-  bearerHeaders,
-  fixedTarget,
-  unrefreshedTarget,
-  type RelayTarget,
-} from './relay-target.js';
-import {
-  connectorFromRow,
-  UNVERIFIED,
-  type Connector,
-  type ConnectorCheck,
-  type ConnectorInput,
-  type DeletedConnector,
-  type PendingConnectorInput,
-} from './model.js';
+import type { OAuthClient } from './oauth-client.js';
+import { fixedTarget, unrefreshedTarget, type RelayTarget } from './relay-target.js';
 import { agentsDir } from '../agents/files.js';
 import { newId } from '@metro-labs/core/ids';
 import type { LoadedConnector } from '../stations/materialize.js';
@@ -45,8 +36,55 @@ export interface LocalConnectorRow {
   id: string;
   name: string;
   url: string;
-  transport: 'http';
   config: ConnectorConfig;
+}
+
+export interface Connector {
+  id: string;
+  name: string;
+  url: string;
+  auth: ConnectorAuth['kind'];
+  header: string | null;
+  signIn: ConnectorSignIn;
+  verified: VerifiedRecord;
+  client: OAuthClient | null;
+}
+
+export interface PendingConnectorInput {
+  name: unknown;
+  url: unknown;
+  clientId: unknown;
+  clientSecret: unknown;
+}
+
+export interface ConnectorInput extends PendingConnectorInput {
+  header: unknown;
+  value: unknown;
+}
+
+export type ConnectorCheck =
+  | { id: string; name: string; ok: true; verified: VerifiedRecord }
+  | { id: string; name: string; ok: false; reason: string };
+
+export interface DeletedConnector {
+  id: string;
+  name: string;
+}
+
+const UNVERIFIED = { at: '', server: '' };
+
+function connectorFromRow(row: LocalConnectorRow): Connector {
+  const auth = row.config.auth;
+  return {
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    auth: auth.kind,
+    header: auth.kind === 'header' ? auth.name : null,
+    signIn: signInState(row.config),
+    verified: row.config.verified,
+    client: row.config.client,
+  };
 }
 
 const FILE = 'connectors.json';
@@ -70,7 +108,6 @@ export function readLocalConnectors(dir = agentsDir()): LocalConnectorRow[] {
     id: r.id,
     name: r.name,
     url: r.url,
-    transport: 'http' as const,
     config: readConfig(r.config),
   }));
 }
@@ -113,7 +150,6 @@ export function localImportConnectors(
     id: row.id,
     name: row.name,
     url: row.url,
-    transport: 'http',
     config: readConfig(row.config),
   }));
   const ids = new Set(imported.map((r) => r.id));
@@ -137,7 +173,7 @@ function assertNameFree(name: string, exceptId: string | null, dir: string): voi
 
 function insert(dir: string, name: string, url: URL, config: ConnectorConfig): Connector {
   assertNameFree(name, null, dir);
-  const row: LocalConnectorRow = { id: newId(), name, url: connectorUrlText(url), transport: 'http', config };
+  const row: LocalConnectorRow = { id: newId(), name, url: connectorUrlText(url), config };
   writeRows(dir, [...readLocalConnectors(dir), row]);
   return connectorFromRow(row);
 }
@@ -254,10 +290,10 @@ function refreshOnce(row: LocalConnectorRow, auth: OAuthAuth, dir: string): Prom
 }
 
 async function oauthTarget(row: LocalConnectorRow, auth: OAuthAuth, force: boolean, dir: string): Promise<RelayTarget> {
-  if (!force && !oauthExpired(auth)) return { kind: 'ok', url: row.url, headers: bearerHeaders(auth.accessToken) };
+  if (!force && !oauthExpired(auth)) return { kind: 'ok', url: row.url, headers: authHeaders(auth) };
   try {
     const fresh = await refreshOnce(row, auth, dir);
-    return { kind: 'ok', url: row.url, headers: bearerHeaders(fresh.accessToken) };
+    return { kind: 'ok', url: row.url, headers: authHeaders(fresh) };
   } catch (err) {
     log.warn({ id: row.id, err: errMsg(err) }, 'local relay: token refresh failed');
     return unrefreshedTarget(row.url, auth, force);

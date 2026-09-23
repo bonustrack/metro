@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
-import { readJson, writeJson } from '@metro-labs/core/secure-fs';
+import { readJson, writeAtomic, writeJson } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { claudeDir } from './files.js';
 import { stagedMarketplaceDir } from './plugin-install.js';
@@ -115,10 +115,7 @@ export function setSystemPrompt(text: string, agents = agentsDir()): void {
     rmSync(promptPath(agents), { force: true });
     return;
   }
-  mkdirSync(agents, { recursive: true });
-  const tmp = `${promptPath(agents)}.${String(process.pid)}.tmp`;
-  writeFileSync(tmp, `${trimmed}\n`, { mode: 0o600 });
-  renameSync(tmp, promptPath(agents));
+  writeAtomic(promptPath(agents), `${trimmed}\n`, 0o600);
 }
 
 export function guidancePath(env: NodeJS.ProcessEnv = process.env): string {
@@ -166,18 +163,18 @@ function withPrivacy(settings: Record<string, unknown>, enabled: boolean): Recor
   return Object.keys(env).length === 0 ? rest : { ...rest, env };
 }
 
-export function applyPrivacy(dir: string, enabled: boolean): SettingsOutcome {
+function mergeSettings(dir: string, change: (settings: Record<string, unknown>) => Record<string, unknown>): SettingsOutcome {
   const path = join(dir, 'settings.json');
   const current = readSettings(path);
   if (current === null) return 'unreadable';
-  const next = withPrivacy(current, enabled);
+  const next = change(current);
   if (existsSync(path) && JSON.stringify(next) === JSON.stringify(current)) return 'unchanged';
-  const text = `${JSON.stringify(next, null, 2)}\n`;
-  mkdirSync(dir, { recursive: true });
-  const tmp = `${path}.metro-${String(process.pid)}.tmp`;
-  writeFileSync(tmp, text, { mode: 0o644 });
-  renameSync(tmp, path);
+  writeAtomic(path, `${JSON.stringify(next, null, 2)}\n`);
   return 'written';
+}
+
+export function applyPrivacy(dir: string, enabled: boolean): SettingsOutcome {
+  return mergeSettings(dir, (current) => withPrivacy(current, enabled));
 }
 
 const skillPath = (dir: string): string => join(dir, 'skills', SKILL_NAME, 'SKILL.md');
@@ -254,19 +251,11 @@ export function syncAvailableModels(cfg: ModelConfig, deps: SetupDeps = {}): Set
   const route = routeOf(cfg);
   const state = readJson<unknown>(statePath(agents), null);
   const metroWrote = isRecord(state) && state.modelsByMetro === true;
-  const path = join(dir, 'settings.json');
-  const current = readSettings(path);
-  if (current === null) return 'unreadable';
-  const next = withAvailableModels(current, route, metroWrote);
-  mkdirSync(agents, { recursive: true });
-  writeJson(statePath(agents), { ...(isRecord(state) ? state : {}), modelsByMetro: route !== null });
-  if (existsSync(path) && JSON.stringify(next) === JSON.stringify(current)) return 'unchanged';
-  const text = `${JSON.stringify(next, null, 2)}\n`;
-  mkdirSync(dir, { recursive: true });
-  const tmp = `${path}.metro-${String(process.pid)}.tmp`;
-  writeFileSync(tmp, text, { mode: 0o644 });
-  renameSync(tmp, path);
-  return 'written';
+  return mergeSettings(dir, (current) => {
+    mkdirSync(agents, { recursive: true });
+    writeJson(statePath(agents), { ...(isRecord(state) ? state : {}), modelsByMetro: route !== null });
+    return withAvailableModels(current, route, metroWrote);
+  });
 }
 
 export function syncAvailableModelsQuietly(deps: SetupDeps = {}, cfg?: ModelConfig): void {
