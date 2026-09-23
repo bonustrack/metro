@@ -209,6 +209,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 - Disabled thinking is dropped for models that cannot run without it (`withThinkingFor`) and on OpenRouter. Thinking blocks that no longer match are dropped via `block_binding` on the Anthropic route.
 - **A provider refusing the stored credential is relayed as 403, never 401** (a 401 makes Claude Code discard its own login).
 - Every provider stream has an idle deadline (`METRO_GATEWAY_IDLE_MS`, 5 min) and non-Anthropic routes get 25 s pings.
+- Codex and Gemini go through one pipeline, `gateway/subscription.ts` (per-connection token slots with single-flight refresh, `reach`: a 401 gets one refresh and one retry, `relayTranslated`, `answerWhole`). Every non-Anthropic stream shares `relayFrames` in `forward.ts` (pings, usage scanner, idle deadline). A new subscription provider supplies a `TokenSource`, its `send` and a translator.
 - **Codex (ChatGPT subscription) and Gemini (presenting as Google Antigravity) are unofficial clients** that can be cut off at any time; OpenRouter is the supported path. Codex lists models by `CODEX_VERSION` (`METRO_CODEX_VERSION` overrides).
 - **`KNOWN_CLAUDE` in `gateway/provider-models.ts` is hand-written: extend it when Anthropic ships a model**, since a keyless box cannot list models.
 
