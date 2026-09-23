@@ -42,6 +42,7 @@ import { prepareAccount } from '../stations/attach.js';
 import { materializeFrom, reloadFrom } from '../stations/materialize.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import { startUploadReaper } from '../files/upload-store.js';
+import { startAttachReaper } from '../files/attach-reaper.js';
 
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -126,6 +127,7 @@ installBearerSessions(agentsDir(), localOwner);
   metroMcp.startInbound();
   syncPluginServers(readLocalConnectors());
   startUploadReaper();
+  startAttachReaper();
   announceLocalEndpoint();
   tunnel?.start();
   log.info(
