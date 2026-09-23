@@ -137,7 +137,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
   outlook: {
     label: 'Outlook',
-    hint: 'Connects a Microsoft 365 or Outlook.com mailbox. Metro shows a code, you type it on the Microsoft sign-in page and sign in with the mailbox. The agent reads new mail, searches it and answers in the same thread.',
+    hint: 'Connects a Microsoft 365 or Outlook.com mailbox. You sign in with Microsoft in a new tab. The agent reads new mail, searches it and answers in the same thread.',
     interactive: true,
     fields: [],
     since: OUTLOOK_SINCE,

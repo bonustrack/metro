@@ -14,9 +14,11 @@ import {
   pollAttachSession,
   submitAttachStep,
   type AttachSession as Session,
+  type StepBody as StepInput,
 } from '../api/attach-session.js';
 import { stationLabel, type AttachResult } from '../api/attach.js';
 import { DeviceSignIn } from './DeviceSignIn.js';
+import { BrowserSignIn } from './BrowserSignIn.js';
 
 const POLL_MS = 2_000;
 
@@ -83,16 +85,52 @@ function CodeEntry({
   );
 }
 
-function StepBody({
+function MicrosoftStep({
+  agentId,
   session,
   busy,
   onSubmit,
 }: {
+  agentId: string;
   session: Session;
   busy: boolean;
-  onSubmit: (input: { code?: string; password?: string }) => void;
+  onSubmit: (input: StepInput) => void;
+}): ReactNode {
+  if (session.step === 'device')
+    return session.userCode === null ? (
+      <Waiting label="Asking Microsoft for a sign-in code." />
+    ) : (
+      <DeviceSignIn code={session.userCode} uri={session.verificationUri} />
+    );
+  return session.authorizeUrl === null ? (
+    <Waiting label="Preparing the Microsoft sign-in." />
+  ) : (
+    <BrowserSignIn
+      agentId={agentId}
+      attachId={session.attachId}
+      authorizeUrl={session.authorizeUrl}
+      busy={busy}
+      onUseCode={() => {
+        onSubmit({ mode: 'device' });
+      }}
+    />
+  );
+}
+
+function StepBody({
+  agentId,
+  session,
+  busy,
+  onSubmit,
+}: {
+  agentId: string;
+  session: Session;
+  busy: boolean;
+  onSubmit: (input: StepInput) => void;
 }): ReactNode {
   const { step, qr, pairingCode } = session;
+  if (step === 'browser' || step === 'device')
+    return <MicrosoftStep agentId={agentId} session={session} busy={busy} onSubmit={onSubmit} />;
   if (step === 'scan')
     return qr === null ? (
       <Waiting label="Waiting for WhatsApp to hand over a QR code." />
@@ -103,12 +141,6 @@ function StepBody({
         color={QR_INK}
         background={QR_PAPER}
       />
-    );
-  if (step === 'device')
-    return session.userCode === null ? (
-      <Waiting label="Asking Microsoft for a sign-in code." />
-    ) : (
-      <DeviceSignIn code={session.userCode} uri={session.verificationUri} />
     );
   if (step === 'pair')
     return pairingCode === null ? (
@@ -168,7 +200,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
     });
   }, [session.status]);
 
-  const submit = (input: { code?: string; password?: string }): void => {
+  const submit = (input: StepInput): void => {
     setBusy(true);
     setError(null);
     submitAttachStep(agentId, session.attachId, input)
@@ -200,7 +232,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
             {session.prompt}
           </Text>
         </Col>
-        <StepBody session={session} busy={busy} onSubmit={submit} />
+        <StepBody agentId={agentId} session={session} busy={busy} onSubmit={submit} />
         {session.status === 'failed' ? (
           <Text size="sm" role="danger">
             {session.error ?? 'That sign-in failed.'}

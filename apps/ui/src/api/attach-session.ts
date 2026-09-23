@@ -1,7 +1,7 @@
 import { filled, isRecord } from './read.js';
 import { call } from './client.js';
 
-export type AttachStep = 'code' | 'password' | 'scan' | 'pair' | 'device';
+export type AttachStep = 'code' | 'password' | 'scan' | 'pair' | 'device' | 'browser';
 
 export interface AttachSession {
   attachId: string;
@@ -13,6 +13,7 @@ export interface AttachSession {
   pairingCode: string | null;
   userCode: string | null;
   verificationUri: string | null;
+  authorizeUrl: string | null;
   accountId: string | null;
   identity: Record<string, string>;
   activated: boolean;
@@ -25,7 +26,7 @@ export function signInPage(uri: string | null): string {
   return uri?.startsWith('https://') === true ? uri : DEVICE_LOGIN;
 }
 
-const STEPS: AttachStep[] = ['code', 'password', 'scan', 'pair', 'device'];
+const STEPS: AttachStep[] = ['code', 'password', 'scan', 'pair', 'device', 'browser'];
 
 
 export function toIdentity(value: unknown): Record<string, string> {
@@ -56,11 +57,26 @@ export function toSession(body: unknown): AttachSession {
     pairingCode: filled(body.pairingCode),
     userCode: filled(body.userCode),
     verificationUri: filled(body.verificationUri),
+    authorizeUrl: filled(body.authorizeUrl),
     accountId: filled(body.accountId),
     identity: toIdentity(body.identity),
     activated: body.activated === true,
     error: filled(body.error),
   };
+}
+
+export interface StepBody {
+  code?: string;
+  password?: string;
+  mode?: 'device';
+}
+
+export function stateOf(authorizeUrl: string): string {
+  try {
+    return new URL(authorizeUrl).searchParams.get('state') ?? '';
+  } catch {
+    return '';
+  }
 }
 
 const sessionPath = (agentId: string, attachId: string): string =>
@@ -78,7 +94,7 @@ export async function pollAttachSession(
 export async function submitAttachStep(
   agentId: string,
   attachId: string,
-  input: { code?: string; password?: string },
+  input: StepBody,
 ): Promise<AttachSession> {
   return toSession(
     await call({

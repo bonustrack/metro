@@ -5,11 +5,14 @@ import {
   type DeviceCode,
   type FetchLike,
   type Poll,
+  type Tokens,
 } from './auth.js';
-import { verifyMailbox } from './me.js';
+import { authorizeUrl, newState, pkcePair, redeemCode, type Pkce } from './browser.js';
+import { verifyMailbox, type Mailbox } from './me.js';
 
 export { OutlookAuthError as OutlookLoginError } from './auth.js';
 export { NOT_SET_UP } from './config.js';
+export { failureOf } from './auth.js';
 
 export interface OutlookLoginResult {
   config: Record<string, unknown>;
@@ -27,6 +30,44 @@ export interface OutlookLoginDeps {
 }
 
 const SLOW_DOWN_MS = 5_000;
+
+function resultOf(tokens: Tokens, tenantId: string | null, mailbox: Mailbox, now: number): OutlookLoginResult {
+  return {
+    config: {
+      accountEmail: mailbox.email,
+      refreshToken: tokens.refreshToken,
+      accessToken: tokens.accessToken,
+      expiresAt: tokens.expiresAt,
+      tenantId,
+      createdAt: new Date(now).toISOString(),
+    },
+    identity: { email: mailbox.email, ...(mailbox.name === '' ? {} : { name: mailbox.name }) },
+  };
+}
+
+export class OutlookBrowserLogin {
+  readonly state = newState();
+  readonly authorizeUrl: string;
+  private readonly pkce: Pkce = pkcePair();
+  private used = false;
+  private readonly fetchImpl: FetchLike;
+  private readonly now: () => number;
+
+  constructor(deps: OutlookLoginDeps = {}) {
+    this.fetchImpl = deps.fetch ?? ((input, init) => fetch(input, init));
+    this.now = deps.now ?? Date.now;
+    this.authorizeUrl = authorizeUrl(this.pkce.challenge, this.state);
+  }
+
+  async finish(code: string, state: string): Promise<OutlookLoginResult> {
+    if (state !== this.state)
+      throw new OutlookAuthError('This sign-in link belongs to another attempt. Start again from the Channels page.');
+    if (this.used) throw new OutlookAuthError('This sign-in was already used. Start again from the Channels page.');
+    this.used = true;
+    const { tokens, tenantId } = await redeemCode(code, this.pkce.verifier, this.fetchImpl, this.now());
+    return resultOf(tokens, tenantId, await verifyMailbox(tokens.accessToken, this.fetchImpl), this.now());
+  }
+}
 
 export class OutlookLogin {
   private code: DeviceCode | null = null;
@@ -97,16 +138,6 @@ export class OutlookLogin {
     const mailbox = await verifyMailbox(poll.tokens.accessToken, this.fetchImpl);
     if (this.stopped) return;
     this.stopped = true;
-    this.events.onDone({
-      config: {
-        accountEmail: mailbox.email,
-        refreshToken: poll.tokens.refreshToken,
-        accessToken: poll.tokens.accessToken,
-        expiresAt: poll.tokens.expiresAt,
-        tenantId: poll.tenantId,
-        createdAt: new Date(this.now()).toISOString(),
-      },
-      identity: { email: mailbox.email, ...(mailbox.name === '' ? {} : { name: mailbox.name }) },
-    });
+    this.events.onDone(resultOf(poll.tokens, poll.tenantId, mailbox, this.now()));
   }
 }

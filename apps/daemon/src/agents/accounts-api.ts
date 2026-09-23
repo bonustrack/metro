@@ -26,6 +26,7 @@ import {
   isInteractiveStation,
   type InteractiveStation,
 } from '../stations/attach-interactive.js';
+import type { StepInput } from '../stations/attach-driver.js';
 import {
   type AttachOwner,
   type AttachView,
@@ -41,7 +42,7 @@ export interface AttachSessionApi {
   submit: (
     owner: AttachOwner,
     attachId: string,
-    input: { code?: unknown; password?: unknown },
+    input: StepInput,
   ) => Promise<AttachView>;
   cancel: (owner: AttachOwner, attachId: string) => Promise<void>;
 }
@@ -319,9 +320,14 @@ async function handleStep(
   attachId: string,
 ): Promise<void> {
   const body = await readJsonBody(req);
+  const field = (key: string): unknown => bodyField(body, key);
   const view = await deps.attachSessions.submit(owner, attachId, {
-    code: bodyField(body, 'code'),
-    password: bodyField(body, 'password'),
+    code: field('code'),
+    password: field('password'),
+    state: field('state'),
+    mode: field('mode'),
+    error: field('error'),
+    errorDescription: field('errorDescription'),
   });
   sendJson(req, res, 200, view);
 }

@@ -1,41 +1,10 @@
 import { StationAttachError } from './attach.js';
+import type { DriverHooks, StartedAttach } from './attach-driver.js';
+import { startOutlook } from './attach-outlook.js';
 
 export const INTERACTIVE_STATIONS = ['telegram', 'whatsapp', 'outlook'] as const;
 
 export type InteractiveStation = (typeof INTERACTIVE_STATIONS)[number];
-
-export type AttachStep = 'code' | 'password' | 'scan' | 'pair' | 'device';
-
-export interface AttachPrompt {
-  step: AttachStep;
-  prompt: string;
-  qr?: string;
-  pairingCode?: string;
-  userCode?: string;
-  verificationUri?: string;
-}
-
-export interface AttachOutcome {
-  config: Record<string, unknown>;
-  identity: Record<string, string>;
-}
-
-export interface DriverHooks {
-  prompt: (p: AttachPrompt) => void;
-  done: (o: AttachOutcome) => void;
-  fail: (message: string) => void;
-}
-
-export interface AttachDriver {
-  submit: (input: { code?: unknown; password?: unknown }) => Promise<void>;
-  cancel: () => Promise<void>;
-}
-
-export interface StartedAttach {
-  driver: AttachDriver;
-  prompt: AttachPrompt;
-  expiresAt?: number;
-}
 
 const CODE_PROMPT =
   'Telegram sent a login code to that number. Enter it here.';
@@ -148,28 +117,6 @@ async function startWhatsapp(
             'this pairing finishes on your phone, there is nothing to submit here',
             409,
           ),
-        ),
-    },
-  };
-}
-
-const DEVICE_PROMPT =
-  'Open the Microsoft sign-in page, type this code, and sign in with the mailbox this agent should read.';
-
-async function startOutlook(hooks: DriverHooks): Promise<StartedAttach> {
-  const { OutlookLogin, OutlookLoginError } = await import('@metro-labs/outlook/login');
-  const login = new OutlookLogin({ onDone: hooks.done, onFailed: hooks.fail });
-  const code = await login.start().catch((err: unknown) =>
-    refuse(err instanceof OutlookLoginError ? err : null, 'Microsoft refused to start the sign-in'),
-  );
-  return {
-    prompt: { step: 'device', prompt: DEVICE_PROMPT, userCode: code.userCode, verificationUri: code.verificationUri },
-    expiresAt: code.expiresAt,
-    driver: {
-      cancel: () => login.cancel(),
-      submit: () =>
-        Promise.reject(
-          new StationAttachError('this sign-in finishes on the Microsoft page, there is nothing to submit here', 409),
         ),
     },
   };

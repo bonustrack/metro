@@ -29,6 +29,7 @@ describe('attach session parsing', () => {
       pairingCode: null,
       userCode: null,
       verificationUri: null,
+      authorizeUrl: null,
       accountId: null,
       identity: {},
       activated: false,

@@ -3,16 +3,16 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
 import type { StationName } from '@metro-labs/core/station-names';
 import { ensureStationDeps } from './runtime-deps.js';
-import {
-  startInteractiveAttach,
-  type AttachDriver,
-  type AttachOutcome,
-  type AttachPrompt,
-  type AttachStep,
-  type DriverHooks,
-  type InteractiveStation,
-  type StartedAttach,
-} from './attach-interactive.js';
+import { startInteractiveAttach, type InteractiveStation } from './attach-interactive.js';
+import type {
+  AttachDriver,
+  AttachOutcome,
+  AttachPrompt,
+  AttachStep,
+  DriverHooks,
+  StartedAttach,
+  StepInput,
+} from './attach-driver.js';
 
 export type StartAttach = (
   station: InteractiveStation,
@@ -42,6 +42,7 @@ export interface AttachView {
   pairingCode: string | null;
   userCode: string | null;
   verificationUri: string | null;
+  authorizeUrl: string | null;
   accountId: string | null;
   identity: Record<string, string>;
   activated: boolean;
@@ -86,6 +87,7 @@ function blankView(attachId: string, station: string): AttachView {
     pairingCode: null,
     userCode: null,
     verificationUri: null,
+    authorizeUrl: null,
     accountId: null,
     identity: {},
     activated: false,
@@ -138,6 +140,7 @@ export class AttachSessions {
       pairingCode: null,
       userCode: null,
       verificationUri: null,
+      authorizeUrl: null,
       step: null,
       expiresAt: Date.now() + SETTLED_TTL_MS,
     });
@@ -187,6 +190,7 @@ export class AttachSessions {
         session.view.pairingCode = p.pairingCode ?? null;
         session.view.userCode = p.userCode ?? null;
         session.view.verificationUri = p.verificationUri ?? null;
+        session.view.authorizeUrl = p.authorizeUrl ?? null;
       },
       done: (o: AttachOutcome): void => {
         this.finish(attachId, station, o).catch((err: unknown) => {
@@ -247,7 +251,7 @@ export class AttachSessions {
   async submit(
     owner: AttachOwner,
     attachId: string,
-    input: { code?: unknown; password?: unknown },
+    input: StepInput,
   ): Promise<AttachView> {
     const session = this.own(owner, attachId);
     const driver = session.driver;

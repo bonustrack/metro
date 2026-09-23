@@ -27,5 +27,10 @@ const base = (raw: string | undefined, fallback: string): string => {
 export const loginBase = (): string =>
   base(process.env.METRO_OUTLOOK_LOGIN_URL, 'https://login.microsoftonline.com/common');
 
+export const redirectUri = (): string => {
+  const value = trimmed(process.env.METRO_OUTLOOK_REDIRECT);
+  return value === '' ? 'https://metro.box/' : value;
+};
+
 export const graphBase = (): string =>
   base(process.env.METRO_OUTLOOK_GRAPH_URL, 'https://graph.microsoft.com/v1.0');

@@ -30,7 +30,7 @@ export interface StationsView {
   capabilities: Record<string, string[]>;
 }
 
-const agentsUrl = (): string => `${daemonBase()}/api/agents`;
+export const agentsUrl = (): string => `${daemonBase()}/api/agents`;
 const sessionUrl = (): string => `${daemonBase()}/api/session`;
 
 function errorText(body: unknown, status: number): string {

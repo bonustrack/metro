@@ -6,7 +6,7 @@ import {
   type AttachOwner,
   type StartAttach,
 } from '../src/stations/attach-session.ts';
-import type { DriverHooks } from '../src/stations/attach-interactive.ts';
+import type { DriverHooks } from '../src/stations/attach-driver.ts';
 
 const FAKE_SESSION = 'fake-mtproto-session-string';
 
