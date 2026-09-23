@@ -38,7 +38,6 @@ import { handleModeRequest } from '@metro-labs/http/mode-api';
 import { handleUploadRequest } from '../files/upload-api.js';
 import {
   handleMonitorRequest,
-  type MonitorCall,
 } from '../monitor/api.js';
 import { applyMcpCors, handleMcpPreflight } from '@metro-labs/http/cors';
 import { METRO_VERSION } from '@metro-labs/core/version';
@@ -181,11 +180,11 @@ export async function startWebhookServer(
   emit: Emit,
   apis: SessionApis = {},
   mcp?: McpHandler,
-  monitorCall?: MonitorCall,
+  monitor = false,
 ): Promise<Server> {
   const port = webhookPort();
   const server = createServer((req, res) => {
-    handleRequest(req, res, emit, apis, mcp, monitorCall).catch(
+    handleRequest(req, res, emit, apis, mcp, monitor).catch(
       (err: unknown) => {
       log.warn({ err: errMsg(err) }, 'webhook handler error');
       if (!res.headersSent) res.writeHead(500).end();
@@ -340,7 +339,7 @@ async function handlePreMcpRoutes(
   res: ServerResponse,
   emit: Emit,
   apis: SessionApis,
-  monitorCall?: MonitorCall,
+  monitor = false,
 ): Promise<boolean> {
   if (handleEarlyRoutes(req, res, apis)) return true;
   if (handleUploadRequest(req, res)) return true;
@@ -348,7 +347,7 @@ async function handlePreMcpRoutes(
   if (apis.relayApi && handleRelayRequest(req, res, apis.relayApi)) return true;
   if (await handleWebhookRoute(req, res, emit)) return true;
   if (await handleThreemaCallback(req, res)) return true;
-  return Boolean(monitorCall && handleMonitorRequest(req, res, monitorCall));
+  return monitor && handleMonitorRequest(req, res);
 }
 
 async function handleRequest(
@@ -357,9 +356,9 @@ async function handleRequest(
   emit: Emit,
   apis: SessionApis = {},
   mcp?: McpHandler,
-  monitorCall?: MonitorCall,
+  monitor = false,
 ): Promise<void> {
-  if (await handlePreMcpRoutes(req, res, emit, apis, monitorCall)) return;
+  if (await handlePreMcpRoutes(req, res, emit, apis, monitor)) return;
   if (mcp && isMcpPath(req)) {
     applyMcpCors(req, res);
     if (handleMcpPreflight(req, res)) return;

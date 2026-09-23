@@ -37,45 +37,22 @@ const dashboard = async (agents: unknown): Promise<AgentSummary[]> => {
   return (await fetchStations()).agents;
 };
 
-describe('agent credentials on the wire', () => {
-  test('an owned agent carries its key', async () => {
-    const [agent] = await dashboard([
-      { id: 'id000000001', name: 'ada-bot', owned: true, key: 'mk_fake' },
-    ]);
-    expect(agent).toEqual({
-      id: 'id000000001',
-      name: 'ada-bot',
-      owned: true,
-      key: 'mk_fake',
-      connectorIds: [],
-    });
+describe('an agent on the wire', () => {
+  test('the page never keeps an agent key, even when an old daemon sends one', async () => {
+    const [agent] = await dashboard([{ id: 'id000000001', name: 'ada-bot', owned: true, key: 'mk_fake' }]);
+    expect(agent).toEqual({ id: 'id000000001', name: 'ada-bot', owned: true, connectorIds: [] });
   });
 
-  test('a not-owned agent carries no key', async () => {
-    const [agent] = await dashboard([
-      { id: 'id000000005', name: 'legacy', owned: false, key: null },
-    ]);
-    expect(agent).toEqual({
-      id: 'id000000005',
-      name: 'legacy',
-      owned: false,
-      key: null,
-      connectorIds: [],
-    });
-  });
-
-  test('a malformed agent entry never throws and never invents a key', async () => {
+  test('a malformed agent entry never throws', async () => {
     const agents = await dashboard([{ id: 7, key: 9 }, null, 7]);
-    expect(agents).toEqual([
-      { id: '', name: '', owned: false, key: null, connectorIds: [] },
-    ]);
+    expect(agents).toEqual([{ id: '', name: '', owned: false, connectorIds: [] }]);
   });
 });
 
 describe('what an agent holds', () => {
   test('connector ids ride on the agent and junk entries are dropped', async () => {
     const [agent] = await dashboard([
-      { id: 'id000000001', name: 'ada-bot', owned: true, key: null, command: null, connector_ids: ['id000000012', 7, null] },
+      { id: 'id000000001', name: 'ada-bot', owned: true, connector_ids: ['id000000012', 7, null] },
     ]);
     expect(agent?.connectorIds).toEqual(['id000000012']);
   });

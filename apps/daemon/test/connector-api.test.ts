@@ -251,7 +251,7 @@ beforeAll(async () => {
     makeEmit(),
     { connectorApi: deps },
     undefined,
-    () => Promise.resolve({ result: null }),
+    true,
   );
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -782,13 +782,8 @@ describe('the mounting order inside handlePreMcpRoutes', () => {
     );
   });
 
-  test('the monitor really is armed — its own unauthenticated health answers', async () => {
-    const res = await fetch(`${base}/api/health`);
-    expect(res.status).toBe(200);
-    expect((await res.json()) as { ok: boolean }).toMatchObject({
-      ok: true,
-      service: 'metro',
-    });
+  test('the monitor really is armed: the tail answers 401 without a key', async () => {
+    expect((await fetch(`${base}/api/tail`)).status).toBe(401);
   });
 
   test('/health still 200s in front of everything', async () => {
@@ -798,9 +793,8 @@ describe('the mounting order inside handlePreMcpRoutes', () => {
     expect((await fetch(`${base}/healthz`)).status).toBe(200);
   });
 
-  test('the connector prefix does not shadow the monitor call route', async () => {
-    const res = await fetch(`${base}/api/call/telegram-bot/send`, { method: 'POST' });
-    expect(res.status).toBe(401);
+  test('the connector prefix does not shadow the monitor route', async () => {
+    expect((await fetch(`${base}/api/tail`)).status).toBe(401);
   });
 
   test('a path merely starting with the prefix text is not claimed', async () => {

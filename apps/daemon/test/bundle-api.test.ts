@@ -79,15 +79,31 @@ describe('an agent bundle on a local daemon', () => {
     expect(res.status).toBe(200);
     const bundle = (await res.json()) as { version: number; agent: { id: string; name: string; key: string; stations: { station: string; config: { token: string } }[] }; connectors: { id: string; config: { auth: { value: string } } }[] };
     expect(bundle.version).toBe(1);
-    expect(bundle.agent).toMatchObject({ id: tony.id, name: 'Tony', key: tony.key });
+    expect(bundle.agent).toMatchObject({ id: tony.id, name: 'Tony' });
+    expect(bundle.agent).not.toHaveProperty('key');
     expect(bundle.agent.stations.map((a) => [a.station, a.config.token])).toEqual([['telegram-bot', 'bot-token']]);
     expect(bundle.connectors.map((c) => [c.id, c.config.auth.value])).toEqual([['conn0000001', 'Bearer vendor']]);
     expect((await call('GET', `/api/agents/${tony.id}/bundle`, undefined, session(STRANGER))).status).toBe(404);
     expect((await fetch(`${base}/api/agents/${tony.id}/bundle`)).status).toBe(401);
     expect((await call('POST', `/api/agents/${tony.id}/bundle`, {})).status).toBe(405);
+    const member = await auth('GET', '', OWNER, 'member');
+    expect((await fetch(`${base}/api/agents/${tony.id}/bundle`, { headers: { authorization: member } })).status).toBe(403);
   });
 
-  test('restoring that bundle on an empty daemon brings the agent back: same id, key, stations and connectors', async () => {
+  test('a restore never changes the key on disk, whatever key the body carries, and needs the admin role', async () => {
+    const chosen = `mk_${'z'.repeat(43)}`;
+    const body = { version: 1, agent: { id: tony.id, name: 'Tony', key: chosen, stations: [] }, connectors: [] };
+    const member = await auth('POST', '', OWNER, 'member');
+    const refused = await fetch(`${base}/api/agents/restore`, { method: 'POST', headers: { authorization: member, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect(refused.status).toBe(403);
+    expect((await call('POST', '/api/agents/restore', { ...body, mode: 'append' })).status).toBe(201);
+    const file = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { key: string };
+    expect(file.key).toBe(tony.key);
+    expect(agentIdForKey(chosen)).toBeUndefined();
+    expect(agentIdForKey(tony.key)).toBe(tony.id);
+  });
+
+  test('restoring that bundle on an empty daemon brings the agent back with its id, stations and connectors, and a key minted here', async () => {
     const bundle = (await (await call('GET', `/api/agents/${tony.id}/bundle`)).json()) as { agent: { stations: { station: string }[] } };
     const restored = parseBundle(bundle);
     expect(restored.agent.stations.map((a) => a.station)).toEqual(['telegram-bot']);
@@ -98,9 +114,12 @@ describe('an agent bundle on a local daemon', () => {
     const res = await call('POST', '/api/agents/restore', bundle);
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ id: tony.id, name: 'Tony', stations: 1, connectors: 1 });
-    expect(agentIdForKey(tony.key)).toBe(tony.id);
     const file = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { id: string; key: string; connectors: string[]; stations: { config: { token: string } }[] };
-    expect(file).toMatchObject({ id: tony.id, key: tony.key, connectors: [] });
+    expect(file).toMatchObject({ id: tony.id, connectors: [] });
+    expect(file.key).toMatch(/^mk_/);
+    expect(file.key).not.toBe(tony.key);
+    expect(agentIdForKey(file.key)).toBe(tony.id);
+    tony = { id: tony.id, key: file.key };
     expect(file.stations[0]?.config.token).toBe('bot-token');
     expect(existsSync(join(dir, 'connectors.json'))).toBe(true);
     expect(synced).toContain('telegram-bot');
@@ -118,7 +137,7 @@ describe('an agent bundle on a local daemon', () => {
 
     const incoming = {
       version: 1,
-      agent: { id: tony.id, name: 'Tony', key: tony.key, stations: [{ ...here, config: { token: 'from-the-file' } }] },
+      agent: { id: tony.id, name: 'Tony', stations: [{ ...here, config: { token: 'from-the-file' } }] },
       connectors: [],
     };
 
@@ -147,7 +166,7 @@ describe('an agent bundle on a local daemon', () => {
     const before = readLocalConnectors(dir).find((c) => c.name === 'linear');
     if (before === undefined) throw new Error('expected the linear connector to be here');
     const twin = { id: 'conn0000002', name: 'linear', url: 'https://mcp.linear.app/other', transport: 'http', config: {} };
-    const body = { version: 1, agent: { id: tony.id, name: 'Tony', key: tony.key, stations: [] }, connectors: [twin] };
+    const body = { version: 1, agent: { id: tony.id, name: 'Tony', stations: [] }, connectors: [twin] };
     expect((await call('POST', '/api/agents/restore', { ...body, mode: 'append' })).status).toBe(201);
     expect(readLocalConnectors(dir).filter((c) => c.name === 'linear').map((c) => c.id)).toEqual([before.id]);
     expect((await call('POST', '/api/agents/restore', { ...body, mode: 'overwrite' })).status).toBe(201);

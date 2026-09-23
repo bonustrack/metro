@@ -97,20 +97,21 @@ describe('a local daemon, end to end over http', () => {
     expect((await call('GET', `/api/agents?project=${PROJECT}`)).status).toBe(401);
   });
 
-  test('the daemon makes the agent itself; the list shows it with its key', async () => {
+  test('the daemon makes the agent itself; the list shows it, never its key', async () => {
     expect(await ensureLocalAgent(dir)).toBe('created');
     expect(existsSync(join(dir, 'agent.json'))).toBe(true);
     expect((await call('POST', `/api/agents?project=${PROJECT}`, session, { name: 'suzy' })).status).toBe(405);
     const list = (await (await call('GET', `/api/agents?project=${PROJECT}`, session)).json()) as {
-      agents: { id: string; key: string; endpoint: string; connector_ids: string[] }[];
+      agents: { id: string; connector_ids: string[] }[];
     };
     const made = list.agents[0];
     if (made === undefined) throw new Error('expected the agent');
     agentId = made.id;
-    key = made.key;
-    expect(made.endpoint).toContain(`127.0.0.1:8420/mcp?token=${key}`);
+    key = (JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { key: string }).key;
     expect(agentIdForKey(key)).toBe(agentId);
-    expect(list.agents).toMatchObject([{ id: agentId, key, connector_ids: [] }]);
+    expect(list.agents).toMatchObject([{ id: agentId, connector_ids: [] }]);
+    expect(made).not.toHaveProperty('key');
+    expect(made).not.toHaveProperty('endpoint');
   });
 
   test('attaching a station lands in the file and reloads that station', async () => {

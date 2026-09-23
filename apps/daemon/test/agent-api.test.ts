@@ -15,7 +15,6 @@ import {
 } from '../src/agents/admin.ts';
 
 const PUBLIC = 'https://api.metro.box';
-const LOCAL = (): string => `http://127.0.0.1:${PORT()}`;
 
 const fakeKey = (agent: string): string => `mk_fake_${agent}`;
 
@@ -332,8 +331,8 @@ describe('GET /api/agents is light unless accounts are asked for', () => {
   });
 });
 
-describe('GET /api/agents key exposure', () => {
-  test('an owned agent carries its key, tokenised endpoint and paste-ready command', async () => {
+describe('GET /api/agents never carries the agent key', () => {
+  test('an owned agent is listed without its key or an endpoint naming it', async () => {
     const [agent] = await listAgents('ada@lovelace.dev');
     expect(agent).toEqual({
       id: 'agent000001',
@@ -342,9 +341,8 @@ describe('GET /api/agents key exposure', () => {
       connected: false,
       last_seen: null,
       connector_ids: [],
-      key: 'mk_fake_ada-bot',
-      endpoint: `${LOCAL()}/mcp?token=mk_fake_ada-bot`,
     });
+    expect(await (await get(session('ada@lovelace.dev'))).text()).not.toContain('mk_fake_ada-bot');
   });
 
   test('a live session surfaces as connected with a last_seen stamp', async () => {
@@ -375,24 +373,9 @@ describe('GET /api/agents key exposure', () => {
     expect([agent?.connected, agent?.last_seen]).toEqual([false, null]);
   });
 
-  test('the endpoint is always the loopback one, never the public base', async () => {
-    const [agent] = await listAgents('ada@lovelace.dev');
-    expect(agent?.endpoint).toBe(
-      `http://127.0.0.1:${PORT()}/mcp?token=mk_fake_ada-bot`,
-    );
-    expect(agent?.endpoint).not.toContain(PUBLIC);
-  });
-
   test('another signed-in user never receives the first user key', async () => {
     const body = await (await get(session('bob@builder.dev'))).text();
     expect(body).not.toContain('mk_fake_ada-bot');
-  });
-
-  test('a not-owned agent is listed with no key or endpoint', async () => {
-    leakGrantedKeys = true;
-    const agent = (await listAgents('nobody@example.com')).at(-1);
-    expect(agent?.owned).toBe(false);
-    expect([agent?.key, agent?.endpoint]).toEqual([null, null]);
   });
 
   test('a key value that reaches the api layer for a not-owned agent is still not served', async () => {
@@ -402,23 +385,6 @@ describe('GET /api/agents key exposure', () => {
     expect(body).not.toContain('mk_fake_not-mine');
   });
 
-  test('an owned agent that has no key yet is served nulls, not a stale value', async () => {
-    OWNED['keyless@example.com'] = [
-      { id: 'agent000042', name: 'keyless', owned: true, key: null },
-    ];
-    const [agent] = await listAgents('keyless@example.com');
-    expect(agent).toEqual({
-      id: 'agent000042',
-      name: 'keyless',
-      owned: true,
-      connected: false,
-      last_seen: null,
-      connector_ids: [],
-      key: null,
-      endpoint: null,
-    });
-    delete OWNED['keyless@example.com'];
-  });
 });
 
 interface CreateBody {

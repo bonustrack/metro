@@ -143,14 +143,13 @@ const relayApi: RelayApiDeps = {
 function bundleApi(deps: LocalModeDeps): BundleApiDeps {
   return {
     bundle: async (subject, agentId) => {
-      const { agent } = await localOwnedAgentOrThrow(subject, agentId);
+      await localOwnedAgentOrThrow(subject, agentId);
       const file = readLocalAgentFile(agentId);
       const bundle: AgentBundle = {
         version: 1,
-        agent: { id: file.id, name: file.name ?? '', key: file.key ?? '', stations: file.stations },
+        agent: { id: file.id, name: file.name ?? '', stations: file.stations },
         connectors: readLocalConnectors().map((c) => ({ id: c.id, name: c.name, url: c.url, transport: c.transport, config: { ...c.config } })),
       };
-      if (bundle.agent.key === '') throw new ApiError(`agent ${agent.id} has no key to bundle`, 400);
       return bundle;
     },
     restore: async (subject, bundle, mode) => {

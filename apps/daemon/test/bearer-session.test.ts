@@ -9,6 +9,7 @@ import { SigningKeys } from '@metro-labs/http/workos-token';
 import { handleSessionApiRequest } from '../src/routes/session.ts';
 import { handleControlRequest } from '../src/server/control.ts';
 import { handleOwnerRequest } from '../src/server/owner.ts';
+import { handleClaudeRequest } from '../src/claude/api.ts';
 import { bearerSessionsFor, jwksStore } from '../src/routes/bearer.ts';
 import { localOwner, setLocalOwner } from '../src/agents/file-admin.ts';
 import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
@@ -27,6 +28,7 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     if (handleSessionApiRequest(req, res)) return;
     if (handleControlRequest(req, res, { authorize: () => undefined, restart: () => undefined, stop: () => { stopped += 1; }, served: () => true })) return;
+    if (handleClaudeRequest(req, res, { authorize: () => undefined, dir: () => dir })) return;
     if (handleOwnerRequest(req, res, { authorize: () => undefined, setOwner: (owner) => setLocalOwner(owner, dir) })) return;
     res.writeHead(404).end();
   });
@@ -78,6 +80,15 @@ describe('a box owned by an organization', () => {
     expect((await post('/api/stop', bearer({ org_id: ORG, role: 'admin' }))).status).toBe(200);
     await new Promise((r) => setTimeout(r, 700));
     expect(stopped).toBe(before + 1);
+  });
+
+  test('the Claude login, session, version and setup writes need the admin role; reading them does not', async () => {
+    setLocalOwner(ORG, dir);
+    for (const path of ['/api/claude/login', '/api/claude/session', '/api/claude/version', '/api/claude/setup']) {
+      expect((await post(path, bearer({ org_id: ORG, role: 'member' }), {})).status).toBe(403);
+    }
+    expect((await post('/api/claude/setup', bearer({ org_id: ORG, role: 'admin' }), {})).status).toBe(400);
+    expect((await get('/api/claude/skills', bearer({ org_id: ORG, role: 'member' }))).status).toBe(200);
   });
 
   test('an admin moves the machine to another organization: the old token is refused from then on, a member cannot, a bad id is refused', async () => {

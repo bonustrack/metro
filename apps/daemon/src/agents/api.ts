@@ -1,4 +1,3 @@
-import { webhookPort } from '../net/tunnel.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseId } from '@metro-labs/core/ids';
 import { log } from '@metro-labs/core/log';
@@ -63,20 +62,6 @@ export function target(path: string): Target {
   return id === null ? { kind: 'unknown' } : subTarget(id, segments.slice(1));
 }
 
-const localMcpEndpoint = (): string => `http://127.0.0.1:${String(webhookPort())}/mcp`;
-
-interface KeyPayload {
-  key: string | null;
-  endpoint: string | null;
-}
-
-const credentials = (key: string): KeyPayload => ({ key, endpoint: `${localMcpEndpoint()}?token=${key}` });
-
-function keyPayload(agent: AgentSummary): KeyPayload {
-  const value = agent.owned ? agent.key : null;
-  return value === null ? { key: null, endpoint: null } : credentials(value);
-}
-
 function livenessPayload(
   agent: AgentSummary,
   live: Map<string, { connected: boolean; lastSeenAt: number }>,
@@ -100,7 +85,6 @@ function agentPayload(
     owned: agent.owned,
     connector_ids: connectors.get(agent.id) ?? [],
     ...livenessPayload(agent, live),
-    ...keyPayload(agent),
   };
 }
 

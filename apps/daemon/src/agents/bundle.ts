@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { apiFailure, apiSession, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { apiFailure, apiSession, cors, readJsonBody, requireAdmin, sendJson } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { parseId } from '@metro-labs/core/ids';
@@ -14,14 +14,14 @@ const STATION_NAMES = new Set<string>(STATIONS);
 
 export interface AgentBundle {
   version: 1;
-  agent: { id: string; name: string; key: string; stations: LoadedAccount[] };
+  agent: { id: string; name: string; stations: LoadedAccount[] };
   connectors: LoadedConnector[];
 }
 
 export const loadedAgentOf = (bundle: AgentBundle): LoadedAgent => ({
   id: bundle.agent.id,
   name: bundle.agent.name,
-  key: bundle.agent.key,
+  key: null,
   accounts: bundle.agent.stations,
   connectors: [],
 });
@@ -67,11 +67,10 @@ function connectorOf(raw: unknown): LoadedConnector {
 
 function agentOf(raw: unknown): AgentBundle['agent'] {
   if (!isRecord(raw)) throw bad('not a v1 agent bundle');
-  const { id, name, key, stations } = raw;
+  const { id, name, stations } = raw;
   if (typeof id !== 'string' || parseId(id) === null) throw bad('agent id is not an id');
-  if (typeof key !== 'string' || key === '') throw bad('agent has no key');
   if (!Array.isArray(stations)) throw bad('agent has no station list');
-  return { id, name: typeof name === 'string' ? name : '', key, stations: stations.map(stationOf) };
+  return { id, name: typeof name === 'string' ? name : '', stations: stations.map(stationOf) };
 }
 
 export function parseBundle(raw: unknown): AgentBundle {
@@ -106,6 +105,7 @@ export function handleBundleRequest(req: IncomingMessage, res: ServerResponse, d
   apiSession(req)
     .then((session) => {
       if (!session) throw new ApiError('unauthorized', 401);
+      requireAdmin(session);
       return answer(req, deps, session.subject, path);
     })
     .then((body) => {

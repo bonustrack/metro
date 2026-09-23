@@ -20,7 +20,6 @@ export type Mode = 'append' | 'overwrite';
 export interface LocalAgent {
   id: string;
   name: string;
-  key: string;
 }
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -144,7 +143,7 @@ async function applyStations(
   await restoreBundle({
     version: 1,
     mode,
-    agent: { id: agent.id, name: agent.name, key: agent.key, stations: channels },
+    agent: { id: agent.id, name: agent.name, stations: channels },
     connectors,
   });
   return { channels: channels.length, connectors: connectors.length };
@@ -246,7 +245,6 @@ export async function applyPayload(
   mode: Mode,
   agent: LocalAgent,
 ): Promise<Applied> {
-  if (agent.key === '') throw new Error('This box has no agent key yet. Create the agent here first, then import.');
   const moved = await applyStations(payload, sections, mode, agent);
   const skills = await applySkills(picked(sections, 'skills', payload.skills), mode);
   const wanted = picked(sections, 'memory', payload.memory);

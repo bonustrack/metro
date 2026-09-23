@@ -58,12 +58,12 @@ export async function fetchLaunchOverview(): Promise<LaunchOverview> {
   return { enabled: body.enabled === true, regions };
 }
 
-export async function launchServer(name: string, region: string, owner: string): Promise<Launched> {
+export async function launchServer(name: string, region: string): Promise<Launched> {
   const body = await call({
     method: 'POST',
     base: launchUrl(),
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name, region, owner }),
+    body: JSON.stringify({ name, region }),
   });
   if (!isRecord(body)) throw unexpected();
   return {

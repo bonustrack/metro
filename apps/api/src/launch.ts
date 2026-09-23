@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { SigningKeys } from '@metro-labs/http/workos-token';
 import { requestOwner } from './servers.js';
 import { AGENT_NAME_RE, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -93,14 +93,6 @@ function nameOf(body: unknown): string {
   return raw;
 }
 
-function ownerOf(body: unknown): string {
-  const raw = isRecord(body) && typeof body.owner === 'string' ? body.owner.trim() : '';
-  const owner = isOrganizationId(raw) ? raw : null;
-  if (owner === null)
-    throw new ApiError('the wallet address that will own the server is required', 400);
-  return owner;
-}
-
 function regionOf(body: unknown): string {
   const region = isRecord(body) && typeof body.region === 'string' ? body.region.trim() : '';
   if (!REGION_RE.test(region)) throw new ApiError('the region is an AWS region name, as in eu-west-1', 400);
@@ -124,13 +116,12 @@ async function issue(deps: LaunchApiDeps, subject: string, body: unknown): Promi
   const config = allowed(deps);
   const name = nameOf(body);
   const region = regionOf(body);
-  const owner = ownerOf(body);
   holdDuplicate(deps, subject);
   try {
     const launched = await deps.launch({
       name,
       region,
-      owner,
+      owner: subject,
       tailnet: config.tailnet,
       authKey: config.authKey,
       credentials: config.credentials,

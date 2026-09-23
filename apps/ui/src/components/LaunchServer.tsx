@@ -81,15 +81,9 @@ function useLaunchForm(): {
   const client = useQueryClient();
   const launch = (): void => {
     if (busy || name.trim() === '' || region.trim() === '') return;
-
-    const wallet = activeAccount()?.organization ?? null;
-    if (wallet === null) {
-      setError('Sign in again: Metro needs to know which organization will own the agent.');
-      return;
-    }
     setBusy(true);
     setError(null);
-    launchServer(name.trim(), region.trim(), wallet)
+    launchServer(name.trim(), region.trim())
       .then(async (launched) => {
         await refreshServers(client);
         setDone(launched);

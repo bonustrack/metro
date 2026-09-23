@@ -18,7 +18,7 @@ const NOTE = 'The agent id and key stay behind, so an import adds to the agent t
 interface ExportAgentProps {
   open: boolean;
   onClose: () => void;
-  agent: { id: string; name: string; key: string };
+  agent: { id: string; name: string };
 }
 
 function download(text: string, name: string): void {

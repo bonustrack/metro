@@ -174,15 +174,13 @@ export function assertLocalOwner(subject: string, dir = agentsDir()): void {
   if (!isOwner(subject, dir)) throw new AgentAdminError('no such project', 404);
 }
 
-function assertImportable(agent: LoadedAgent): asserts agent is LoadedAgent & { key: string } {
+function assertImportable(agent: LoadedAgent): void {
   const immovable = agent.accounts.find((a) => !MOVABLE_STATIONS.has(a.station));
   if (immovable !== undefined)
     throw new AgentAdminError(
       `a ${immovable.station} endpoint needs a public url and cannot live on a local daemon`,
       400,
     );
-  if (agent.key === null)
-    throw new AgentAdminError('that agent has no key; reset it on metro.box first', 400);
 }
 
 interface ImportTarget {
@@ -190,7 +188,7 @@ interface ImportTarget {
   previous: AgentFile | undefined;
 }
 
-function importTarget(dir: string, agent: LoadedAgent & { key: string }): ImportTarget {
+function importTarget(dir: string, agent: LoadedAgent): ImportTarget {
   const existing = storedAgents(dir);
   const same = existing.find((s) => s.file.id === agent.id);
   if (same === undefined && existing.length > 0)
@@ -210,15 +208,15 @@ export async function localImportAgent(
   assertLocalOwner(subject, dir);
   assertImportable(agent);
   const { path, previous } = importTarget(dir, agent);
-  const file = fileFor(agent, localOwner(dir), path, previous, mode);
+  const key = previous?.key ?? agent.key ?? newApiKey();
+  const file = fileFor({ ...agent, key }, localOwner(dir), path, previous, mode);
   ensureSecureDir(join(path, '..'));
   save({ path, file });
-  if (previous !== undefined && previous.key !== agent.key) unregisterAgentKey(agent.id);
-  registerKey(agent.key, agent.id);
+  registerKey(key, agent.id);
   return Promise.resolve({
     id: agent.id,
     name: agent.name,
-    key: agent.key,
+    key,
     stations: file.stations.length,
   });
 }

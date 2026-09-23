@@ -200,18 +200,11 @@ const stationLabels = (m: Map<StationName, number>): string[] =>
   [...m].map(([station, n]) => `${station}(${n})`);
 
 function applyKeyMap(list: LoadedAgent[]): void {
-  lastKey = list.find((a) => a.key !== null)?.key ?? null;
   setKeyMap(
     list.flatMap((agent) =>
       agent.key === null ? [] : [{ key: agent.key, agentId: agent.id }],
     ),
   );
-}
-
-let lastKey: string | null = null;
-
-export function localAgentKey(): string | null {
-  return lastKey;
 }
 
 async function loadAndWrite(

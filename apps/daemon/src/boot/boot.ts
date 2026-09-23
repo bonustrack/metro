@@ -18,7 +18,6 @@ import {
   startWebhookServer,
   trainEventToMetroEvent,
 } from '../routes/http.js';
-import { localAgentKey } from '../stations/materialize.js';
 import { agentsDir, fileSource } from '../agents/files.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
 import { readLocalConnectors } from '../connectors/store.js';
@@ -36,7 +35,6 @@ import {
   agentLiveness,
   createMetroMcp,
 } from '../mcp/index.js';
-import { metroCall } from '../mcp/ctx.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import {
   accountStationCapabilities,
@@ -79,15 +77,6 @@ setTrainCallBackend((train, action, args) =>
 function announceLocalEndpoint(): void {
   process.stderr.write(
     `\n${tunnel === null ? localConnectHint(webhookPort(), localOwner()) : tunnelPendingHint()}`,
-  );
-  const key = localAgentKey();
-  if (key === null) {
-    log.info('no agent on this machine yet');
-    return;
-  }
-  const url = `http://127.0.0.1:${String(webhookPort())}/mcp?token=${key}`;
-  process.stderr.write(
-    `\nConnect an agent on this machine:\n\n  claude mcp add --transport http metro "${url}"\n\n`,
   );
 }
 
@@ -135,7 +124,7 @@ installBearerSessions(agentsDir(), localOwner);
     emit,
     sessionApis(),
     metroMcp.httpHandler,
-    metroCall,
+    true,
   );
   metroMcp.startInbound();
   syncPluginServers(readLocalConnectors());

@@ -17,7 +17,6 @@ export interface AgentSummary {
   id: string;
   name: string;
   owned: boolean;
-  key: string | null;
   connectorIds: string[];
 }
 
@@ -89,16 +88,12 @@ export async function callRaw(init: CallInit): Promise<Response> {
   throw failed ?? new Error(`Metro returned ${String(res.status)}.`);
 }
 
-const text = (value: unknown): string | null =>
-  typeof value === 'string' && value !== '' ? value : null;
-
 function toAgents(value: unknown): AgentSummary[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((a) => ({
     id: typeof a.id === 'string' ? a.id : '',
     name: typeof a.name === 'string' ? a.name : '',
     owned: a.owned === true,
-    key: text(a.key),
     connectorIds: toStationList(a.connector_ids),
   }));
 }

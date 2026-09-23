@@ -5,7 +5,6 @@ import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import type { MonitorCall } from '../src/monitor/api.ts';
 
 const ONE = 'mk_agent_one';
 const TWO = 'mk_agent_two';
@@ -22,14 +21,12 @@ const NAMES = { ['agent000001']: 'tony', ['agent000002']: 'lisa' };
 interface Harness {
   server: Server;
   base: string;
-  calls: Array<{ train: string; action: string; args: Record<string, unknown> }>;
 }
 
 let active: Harness | undefined;
 
 async function start(
   keys: Array<{ key: string; agentId: number }>,
-  call?: MonitorCall,
 ): Promise<Harness> {
   setKeyMap(keys);
   setAgentMap(AGENTS, NAMES);
@@ -37,16 +34,9 @@ async function start(
     10000 + Math.floor(Math.random() * 20000),
   );
   process.env.METRO_HTTP_HOST = '127.0.0.1';
-  const calls: Harness['calls'] = [];
-  const monitorCall: MonitorCall =
-    call ??
-    (async (train, action, args) => {
-      calls.push({ train, action, args });
-      return { result: { delivered: true, echo: args } };
-    });
-  const server = await startWebhookServer(makeEmit(), {}, undefined, monitorCall);
+  const server = await startWebhookServer(makeEmit(), {}, undefined, true);
   const addr = server.address() as AddressInfo;
-  const h: Harness = { server, base: `http://127.0.0.1:${addr.port}`, calls };
+  const h: Harness = { server, base: `http://127.0.0.1:${addr.port}` };
   active = h;
   return h;
 }
@@ -66,132 +56,25 @@ afterEach(async () => {
   setAgentMap({}, {});
 });
 
-const post = (
-  h: Harness,
-  path: string,
-  token: string | undefined,
-  args: unknown,
-): Promise<Response> =>
-  fetch(`${h.base}${path}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ args }),
-  });
-
 describe('monitor transport', () => {
   test('disabled (404) when the daemon holds no credential at all', async () => {
     const h = await start([]);
-    const res = await fetch(`${h.base}/api/health`);
-    expect(res.status).toBe(404);
+    expect((await fetch(`${h.base}/api/tail`)).status).toBe(404);
   });
 
-  test('/api/call requires a credential', async () => {
+  test('the tail needs a live agent key', async () => {
     const h = await start(both());
-    const res = await post(h, '/api/call/discord-bot/send', undefined, {});
+    expect((await fetch(`${h.base}/api/tail`)).status).toBe(401);
+    const res = await fetch(`${h.base}/api/tail`, { headers: { authorization: 'Bearer mk_revoked' } });
     expect(res.status).toBe(401);
   });
 
-  test('/api/call rejects a token that is not a live agent key', async () => {
+  test('there is no call route and no second health route: a train is reached through MCP only', async () => {
     const h = await start(both());
-    const res = await post(h, '/api/call/discord-bot/send', 'mk_revoked', {
-      line: 'metro://discord-bot/d1/99',
-    });
-    expect(res.status).toBe(401);
-  });
-
-  test('/api/health returns ok/version snapshot', async () => {
-    const h = await start(both());
-    const res = await fetch(`${h.base}/api/health`);
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; version: string };
-    expect(body.ok).toBe(true);
-    expect(typeof body.version).toBe('string');
-  });
-
-  test('/api/call dispatches to a station and returns the result', async () => {
-    const h = await start(both());
-    const res = await post(h, '/api/call/discord-bot/send', ONE, {
-      line: 'metro://discord-bot/d1/99',
-      text: 'hi',
-    });
-    expect(res.status).toBe(200);
-    const j = (await res.json()) as {
-      result: { delivered: boolean; echo: { text: string } };
-    };
-    expect(j.result.delivered).toBe(true);
-    expect(j.result.echo.text).toBe('hi');
-    expect(h.calls[0]?.train).toBe('discord-bot');
-    expect(h.calls[0]?.action).toBe('send');
-  });
-
-  test('an in-core station takes no calls at all', async () => {
-    const h = await start(both());
-    const res = await post(h, '/api/call/webhook/send', ONE, {
-      line: 'metro://webhook/a1-gh',
-      text: 'hi',
-    });
-    expect(res.status).toBe(400);
-    const j = (await res.json()) as { error: string };
-    expect(j.error).toContain('in-core');
-    expect(h.calls).toHaveLength(0);
-  });
-
-  test('an agent key cannot drive another agent line', async () => {
-    const h = await start(both());
-    const res = await post(h, '/api/call/telegram-bot/send', ONE, {
-      line: 'metro://telegram-bot/t2/5',
-      text: 'not mine',
-    });
-    expect(res.status).toBe(403);
-    expect(h.calls).toHaveLength(0);
-  });
-
-  test('an `account` override cannot escape the line scope', async () => {
-    const h = await start(both());
-    const res = await post(h, '/api/call/discord-bot/send', TWO, {
-      line: 'metro://discord-bot/d1/99',
-      account: 'd1',
-      text: 'not mine',
-    });
-    expect(res.status).toBe(403);
-    expect(h.calls).toHaveLength(0);
-  });
-
-  test('a line-less call is allowed only when the station is wholly in scope', async () => {
-    const h = await start(both());
-    expect((await post(h, '/api/call/xmtp/accounts', ONE, {})).status).toBe(200);
-    expect((await post(h, '/api/call/xmtp/accounts', TWO, {})).status).toBe(403);
-  });
-
-  test('a line-less call is refused once a second agent shares the station', async () => {
-    const h = await start(both());
-    setAgentMap({ ...AGENTS, 'discord-bot/d2': 'agent000002' }, NAMES);
-    expect((await post(h, '/api/call/discord-bot/accounts', ONE, {})).status).toBe(
-      403,
-    );
-  });
-
-  test('/api/call surfaces a dispatch error as 502', async () => {
-    const h = await start(both(), async () => {
-      throw new Error('train said no');
-    });
-    const res = await post(h, '/api/call/discord-bot/send', ONE, {
-      line: 'metro://discord-bot/d1/99',
-    });
-    expect(res.status).toBe(502);
-    const j = (await res.json()) as { error: string };
-    expect(j.error).toContain('train said no');
-  });
-
-  test('/api/call rejects GET with 405', async () => {
-    const h = await start(both());
-    const res = await fetch(`${h.base}/api/call/discord-bot/send`, {
-      headers: { authorization: `Bearer ${ONE}` },
-    });
-    expect(res.status).toBe(405);
+    const headers = { authorization: `Bearer ${ONE}`, 'content-type': 'application/json' };
+    const call = await fetch(`${h.base}/api/call/xmtp/claim_name`, { method: 'POST', headers, body: '{}' });
+    expect(call.status).toBe(404);
+    expect((await fetch(`${h.base}/api/health`, { headers })).status).toBe(404);
   });
 });
 

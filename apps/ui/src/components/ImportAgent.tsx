@@ -17,7 +17,7 @@ const OVERWRITE = 'Replaces anything that matches, and the model setup as a whol
 interface ImportAgentProps {
   open: boolean;
   onClose: () => void;
-  agent: { id: string; name: string; key: string };
+  agent: { id: string; name: string };
 }
 
 function landed(result: Applied): string {
@@ -114,7 +114,7 @@ interface ImportState {
   reset: () => void;
 }
 
-function useImport(agent: { id: string; name: string; key: string }): ImportState {
+function useImport(agent: { id: string; name: string }): ImportState {
   const client = useQueryClient();
   const [payload, setPayload] = useState<Payload | null>(null);
   const [pending, setPending] = useState<string | null>(null);

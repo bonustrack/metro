@@ -124,7 +124,7 @@ describe('the overview a wallet on the list sees', () => {
 });
 
 describe('issuing one', () => {
-  test('the box is owned by the organization the page names, never by the one that signed the request', async () => {
+  test('the box is owned by the organization that signed the request, whatever owner the body names', async () => {
     const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'Andy', region: 'us-east-1', owner: WALLET });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
@@ -133,19 +133,16 @@ describe('issuing one', () => {
       region: 'us-east-1',
       server: { id: 'srv00000001', instanceId: 'i-0abc' },
     });
-    expect(launched).toEqual([`Andy us-east-1 ${WALLET} tail17c4f8.ts.net tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop`]);
-    expect(launched[0]).not.toContain(OWNER);
+    expect(launched).toEqual([`Andy us-east-1 ${OWNER} tail17c4f8.ts.net tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop`]);
+    expect(launched[0]).not.toContain(WALLET);
   });
 
-  test('a missing name, region or owner wallet is refused before AWS is asked', async () => {
+  test('a missing name or region is refused before AWS is asked', async () => {
     const region = 'eu-west-1';
-    const owner = WALLET;
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: '  ', region, owner })).status).toBe(400);
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'a'.repeat(41), region, owner })).status).toBe(400);
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', region: 'europe', owner })).status).toBe(400);
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', owner })).status).toBe(400);
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', region })).status).toBe(400);
-    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', region, owner: 'me' })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: '  ', region })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'a'.repeat(41), region })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok', region: 'europe' })).status).toBe(400);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'ok' })).status).toBe(400);
     expect(launched).toEqual([]);
   });
 

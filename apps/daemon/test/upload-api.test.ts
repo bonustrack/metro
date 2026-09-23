@@ -43,9 +43,7 @@ beforeAll(async () => {
     { key: TWO, agentId: 'agent000002' },
   ]);
   setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram-bot/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
-  server = await startWebhookServer(makeEmit(), {}, undefined, () =>
-    Promise.resolve({ result: null }),
-  );
+  server = await startWebhookServer(makeEmit(), {}, undefined, true);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 
@@ -287,7 +285,7 @@ describe('routing', () => {
   });
 
   test('the upload route does not swallow the rest of /api', async () => {
-    const res = await fetch(`${base}/api/health`);
-    expect(res.status).toBe(200);
+    const res = await fetch(`${base}/api/tail`);
+    expect(res.status).toBe(401);
   });
 });

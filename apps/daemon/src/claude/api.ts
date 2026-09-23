@@ -143,7 +143,7 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
   return createClaudeSkill(body.name, typeof body.text === 'string' ? body.text : undefined, dir);
 }
 
-const ADMIN_ONLY = /^\/(login|session|version|setup)(\/|$)/;
+const ADMIN_ONLY = /^\/api\/claude\/(login|session|version|setup)(\/|$)/;
 const LOGIN = 'login';
 const SESSION = 'session';
 const SETUP = 'setup';

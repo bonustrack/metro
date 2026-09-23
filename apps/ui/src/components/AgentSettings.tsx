@@ -139,7 +139,7 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
   const dark = useKitScheme() === 'dark';
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
-  const portable = { id: agent.id, name, key: agent.key ?? '' };
+  const portable = { id: agent.id, name };
   return (
     <Section title="Export and import" note="A .metro file sealed with a passphrase: channels, connectors, skills, memory, sessions and the model setup.">
       <Row gap={8} wrap>

@@ -419,34 +419,16 @@ is the fix.
 
 ### Monitor transport
 
-The **Channel** above is the primary transport. The **Monitor** is an optional second,
-lightweight live transport on the same port for tools that want to observe and drive Metro
-over plain HTTP (no MCP client needed). It is **live-only by design** — no history,
-backlog or replay — and can be attached mid-session.
-
-It uses the same credential as `/mcp` and is **scoped like `/mcp`**: the tail carries only
-events on the caller's own channel accounts, and a call may only drive a line that belongs
-to one of them. While the daemon holds no agent key at all, the whole `/api/*` surface stays
-disabled (404).
-
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/tail` | SSE stream of live bus events from the moment of connection (25s keepalive). No replay. |
-| `POST /api/call/:train/:action` | Invoke a channel verb over HTTP; returns the dispatch result as JSON. |
-| `GET /api/health` | `{ ok, service, version, uptime_s }` snapshot, in front of the auth gate. |
+The **Channel** above is the primary transport. The **Monitor** is a second, live-only
+transport on the same port for tools that only want to watch Metro over plain HTTP: `GET
+/api/tail` is an SSE stream of live bus events from the moment of connection (25s keepalive,
+no replay), with the same credential and the same scope as `/mcp`. `metro tail` uses it.
+While the daemon holds no agent key at all, the whole `/api/*` surface stays disabled (404).
+Sending goes through MCP only.
 
 ```sh
 curl -N -H "Authorization: Bearer $METRO_AGENT_KEY" http://127.0.0.1:8420/api/tail
-curl -X POST -H "Authorization: Bearer $METRO_AGENT_KEY" \
-  -H 'content-type: application/json' \
-  -d '{"args":{"line":"metro://discord-bot/<account_id>/<channel_id>","text":"hi"}}' \
-  http://127.0.0.1:8420/api/call/discord-bot/send
 ```
-
-The line carries the scope, so it is required: a caller may only drive an account it owns,
-and an `account` argument may not re-route the call to somebody else's. A call with no line
-at all (`stations`) is served only when every account of that channel belongs to the
-caller.
 
 ### Attachment links
 
