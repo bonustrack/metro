@@ -1,24 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { InboundRelay } from '../src/channels/inbound.ts';
+import type { InboundRelay } from '../src/channels/inbound.ts';
+import { makeRelay, type Notif } from './relay-fixture.ts';
 import { addressedBy } from '../src/channels/addressed.ts';
-
-type Notif = { method: string; params: Record<string, unknown> };
-
-function makeRelay(): { relay: InboundRelay; notifs: Notif[] } {
-  const notifs: Notif[] = [];
-  const relay = new InboundRelay({
-    mcp: {
-      notification: (n: Notif) => {
-        notifs.push(n);
-        return Promise.resolve();
-      },
-    } as never,
-    log: () => undefined,
-    getStations: () => new Set(['discord-bot']),
-    senderAllowed: () => true,
-  });
-  return { relay, notifs };
-}
 
 const message = (id: string, over: Record<string, unknown> = {}): Record<string, unknown> => ({
   id: `msg_${id}`,
@@ -44,14 +27,14 @@ async function metaOf(relay: InboundRelay, notifs: Notif[], ev: Record<string, u
 
 describe('the addressed verdict on a relayed message', () => {
   test('a plain room message carries no verdict and no reply target', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot']);
     const meta = await metaOf(relay, notifs, message('m1'));
     expect(meta.addressed).toBeUndefined();
     expect(meta.reply_to).toBeUndefined();
   });
 
   test('a private chat is direct, a mention is mention, and direct wins over both', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot']);
     expect((await metaOf(relay, notifs, message('m2', { isPrivate: true }))).addressed).toBe('direct');
     expect((await metaOf(relay, notifs, message('m3', { mentionsSelf: true }))).addressed).toBe('mention');
     expect(
@@ -60,14 +43,14 @@ describe('the addressed verdict on a relayed message', () => {
   });
 
   test('a reply the station knows is ours is a reply, and the target id rides along', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot']);
     const meta = await metaOf(relay, notifs, message('m5', { replyTo: 'bot-said-1', replyToSelf: true, event: { type: 'reply', replyTo: 'bot-said-1' } }));
     expect(meta.addressed).toBe('reply');
     expect(meta.reply_to).toBe('bot-said-1');
   });
 
   test('a reply to a message this session sent is a reply even when the station cannot tell', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot']);
     relay.noteSent('bot-said-2');
     const known = await metaOf(relay, notifs, message('m6', { replyTo: 'bot-said-2', event: { type: 'reply', replyTo: 'bot-said-2' } }));
     expect(known.addressed).toBe('reply');
@@ -77,7 +60,7 @@ describe('the addressed verdict on a relayed message', () => {
   });
 
   test('the sent-id memory is bounded', () => {
-    const { relay } = makeRelay();
+    const { relay } = makeRelay(['discord-bot']);
     for (let i = 0; i < 2_500; i += 1) relay.noteSent(`id-${String(i)}`);
     expect(addressedBy({}, 'id-0', new Set())).toBeUndefined();
     relay.noteSent('');

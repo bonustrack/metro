@@ -52,18 +52,17 @@ beforeEach(() => {
   restarts = 0;
 });
 
-const session = (subject = OWNER): string => subject;
 const call = async (method: string, token: Who | null): Promise<Response> =>
-  fetch(`${base}/api/update`, { method, headers: token === null ? {} : { authorization: await auth(method, '/api/update', token) } });
+  fetch(`${base}/api/update`, { method, headers: token === null ? {} : { authorization: await auth(token) } });
 
 describe('updating metro from the page', () => {
   test('the check reports the running, current and latest versions', async () => {
     fakeCli(`process.stdout.write(JSON.stringify({ current: '0.1.0-beta.51', latest: '0.1.0-beta.52', newer: true }) + '\\n');`);
-    const res = await call('GET', session());
+    const res = await call('GET', OWNER);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ current: '0.1.0-beta.51', latest: '0.1.0-beta.52', newer: true });
     expect((await call('GET', null)).status).toBe(401);
-    expect((await call('DELETE', session())).status).toBe(405);
+    expect((await call('DELETE', OWNER)).status).toBe(405);
   });
 
   test('an update runs the CLI and asks the daemon to restart; nothing newer means no restart', async () => {
@@ -71,7 +70,7 @@ describe('updating metro from the page', () => {
       if (process.argv.includes('--check')) process.stdout.write(JSON.stringify({ current: '0.1.0-beta.51', latest: '0.1.0-beta.52', newer: true }) + '\\n');
       else process.stderr.write('metro is now 0.1.0-beta.52\\n');
     `);
-    const res = await call('POST', session());
+    const res = await call('POST', OWNER);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ updated: true, version: '0.1.0-beta.52', restarting: true });
     await new Promise((r) => setTimeout(r, 700));
@@ -83,7 +82,7 @@ describe('updating metro from the page', () => {
       if (process.argv.includes('--check')) process.stdout.write(JSON.stringify({ current: '0.1.0-beta.51', latest: '0.1.0-beta.53', newer: true }) + '\\n');
       else { process.stderr.write('npm said no\\n'); process.exit(1); }
     `);
-    const res = await call('POST', session());
+    const res = await call('POST', OWNER);
     expect(res.status).toBe(502);
     expect(((await res.json()) as { error: string }).error).toContain('npm said no');
     await new Promise((r) => setTimeout(r, 700));
@@ -91,7 +90,7 @@ describe('updating metro from the page', () => {
   });
 
   test('without a CLI path the daemon says it cannot update itself', async () => {
-    const res = await fetch(`${base}/api/update`, { headers: { authorization: await auth('GET', '/api/update', session()) } }).then(async (r) => {
+    const res = await fetch(`${base}/api/update`, { headers: { authorization: await auth(OWNER) } }).then(async (r) => {
       const local = createServer((req, out) => {
         if (handleUpdateRequest(req, out, { ...deps, cliBin: () => '' })) return;
         out.writeHead(404).end();
@@ -100,7 +99,7 @@ describe('updating metro from the page', () => {
         local.listen(0, '127.0.0.1', done);
       });
       const port = (local.address() as AddressInfo).port;
-      const answer = await fetch(`http://127.0.0.1:${String(port)}/api/update`, { headers: { authorization: await auth('GET', '/api/update', session()) } });
+      const answer = await fetch(`http://127.0.0.1:${String(port)}/api/update`, { headers: { authorization: await auth(OWNER) } });
       local.close();
       return r.ok ? answer : answer;
     });

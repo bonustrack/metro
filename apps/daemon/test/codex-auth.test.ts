@@ -17,6 +17,7 @@ import {
   tokensStale,
 } from '../src/gateway/codex-auth.ts';
 import { newPkce } from '../src/gateway/pkce.ts';
+import { jwt } from './model-fixture.ts';
 
 const dirs: string[] = [];
 function scratch(): string {
@@ -28,7 +29,6 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
 const idToken = jwt({ email: 'less@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_1', chatgpt_plan_type: 'pro' } });
 
 interface Call {

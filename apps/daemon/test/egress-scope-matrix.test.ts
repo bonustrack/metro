@@ -9,15 +9,15 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import type { AddressInfo } from 'node:net';
-import type { IncomingMessage, Server, ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { ChannelRelay } from '../src/channels/relay.ts';
-import { InboundRelay } from '../src/channels/inbound.ts';
+import { makeRelay, type Notif } from './relay-fixture.ts';
+import { settle } from './wait.ts';
 import { BoundedEventStore } from '../src/mcp/event-store.ts';
 import { serveStandaloneGet } from '../src/mcp/raw-get-stream.ts';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { eventInScope } from '../src/agents/scope.ts';
 import { setAgentMap } from '../src/agents/map.ts';
@@ -68,7 +68,7 @@ const CASES: Case[] = [
   { name: 'any webhook at all', reader: NOBODY, line: TONY_HOOK, delivered: false },
 ];
 
-let server: Server | undefined;
+let daemon: Daemon | undefined;
 let monitorBase = '';
 
 beforeAll(async () => {
@@ -77,20 +77,14 @@ beforeAll(async () => {
     { ['agent000001']: 'Tony' },
   );
   setKeyMap([{ key: TONY_KEY, agentId: 'agent000001' }]);
-  process.env.METRO_WEBHOOK_PORT = String(
-    12000 + Math.floor(Math.random() * 12000),
-  );
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
-  server = await startWebhookServer(makeEmit(), {}, undefined, () =>
-    Promise.resolve({ result: null }),
-  );
-  monitorBase = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  daemon = await bootDaemon({}, { monitor: true });
+  monitorBase = daemon.base;
 });
 
 afterAll(async () => {
   setAgentMap({}, {});
   setKeyMap([]);
-  if (server) await new Promise<void>((r) => server?.close(() => r()));
+  if (daemon) await daemon.close();
 });
 
 const stationOf = (line: string): string => line.split('/')[2] ?? 'whatsapp';
@@ -108,31 +102,18 @@ const inbound = (line: string, text: string): MetroEvent =>
     event: { type: 'msg' },
   }) as unknown as MetroEvent;
 
-const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 40));
-
 interface Stream {
   attached: boolean;
   scope: Set<string>;
 }
 
 function channelSession(stream: Stream): {
-  received: string[];
+  notifs: Notif[];
   channel: ChannelRelay;
 } {
-  const received: string[] = [];
-  const relay = new InboundRelay({
-    mcp: {
-      notification: (n: { params: { content?: string } }) => {
-        received.push(n.params.content ?? '');
-        return Promise.resolve();
-      },
-    } as never,
-    log: () => undefined,
-    getStations: () => new Set(['whatsapp', 'webhook']),
-    senderAllowed: () => true,
-  });
+  const { relay, notifs } = makeRelay(['whatsapp', 'webhook']);
   return {
-    received,
+    notifs,
     channel: new ChannelRelay({
       relay,
       log: () => undefined,
@@ -143,12 +124,12 @@ function channelSession(stream: Stream): {
 
 async function liveChannel(reader: Reader, line: string, text: string): Promise<boolean> {
   const stream = { attached: reader.token !== undefined, scope: reader.scope };
-  const { received, channel } = channelSession(stream);
+  const { notifs, channel } = channelSession(stream);
   const stop = channel.start();
   publishEvent(inbound(line, text));
-  await settle();
+  await settle(40);
   stop();
-  return received.includes(text);
+  return notifs.some((n) => n.params.content === text);
 }
 
 async function busReplayAfterReconnect(
@@ -157,15 +138,15 @@ async function busReplayAfterReconnect(
   text: string,
 ): Promise<boolean> {
   const stream = { attached: false, scope: reader.scope };
-  const { received, channel } = channelSession(stream);
+  const { notifs, channel } = channelSession(stream);
   const stop = channel.start();
   publishEvent(inbound(line, text));
-  await settle();
+  await settle(40);
   stream.attached = reader.token !== undefined;
   channel.replayMissed();
-  await settle();
+  await settle(40);
   stop();
-  return received.includes(text);
+  return notifs.some((n) => n.params.content === text);
 }
 
 const fakeGetReq = (lastEventId: string): IncomingMessage => {
@@ -245,7 +226,7 @@ async function monitorTail(reader: Reader, line: string, text: string): Promise<
       // aborted on teardown
     }
   })();
-  await settle();
+  await settle(40);
   publishEvent(inbound(line, text));
   const deadline = Date.now() + 1500;
   while (Date.now() < deadline && !buf.includes(text))

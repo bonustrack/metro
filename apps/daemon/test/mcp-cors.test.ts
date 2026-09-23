@@ -1,30 +1,25 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 
-let server: Server;
+let daemon: Daemon;
 let base: string;
 
 beforeAll(async () => {
-  process.env.METRO_WEBHOOK_PORT = String(
-    10000 + Math.floor(Math.random() * 20000),
-  );
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
   const mode = (): { mode: 'hosted'; owner: null; project: null } => ({
     mode: 'hosted',
     owner: null,
     project: null,
   });
-  server = await startWebhookServer(makeEmit(), { mode }, async (_req, res) => {
-    res.writeHead(200).end('ok');
+  daemon = await bootDaemon({ mode }, {
+    mcp: async (_req, res) => {
+      res.writeHead(200).end('ok');
+    },
   });
-  const addr = server.address() as AddressInfo;
-  base = `http://127.0.0.1:${addr.port}`;
+  base = daemon.base;
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await daemon.close();
 });
 
 describe('MCP CORS (browser cross-origin from the accounts UI)', () => {

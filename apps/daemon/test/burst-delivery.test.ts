@@ -7,7 +7,8 @@
  */
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { InboundRelay } from '../src/channels/inbound.ts';
+import { channelContents, makeRelay } from './relay-fixture.ts';
+import { settle } from './wait.ts';
 import { ChannelRelay } from '../src/channels/relay.ts';
 import {
   classifyEvent,
@@ -16,29 +17,7 @@ import {
 } from '@metro-labs/core/events';
 import type { Line } from '@metro-labs/core/lines';
 
-type Notif = { method: string; params: Record<string, unknown> };
-
-function makeRelay(stations: string[]): {
-  relay: InboundRelay;
-  notifs: Notif[];
-} {
-  const notifs: Notif[] = [];
-  const fakeMcp = {
-    notification: (n: Notif) => {
-      notifs.push(n);
-      return Promise.resolve();
-    },
-  };
-  const relay = new InboundRelay({
-    mcp: fakeMcp as never,
-    log: () => {},
-    getStations: () => new Set(stations),
-    senderAllowed: () => true,
-  });
-  return { relay, notifs };
-}
-
-const drain = (): Promise<void> => new Promise((r) => setTimeout(r, 100));
+const drain = (): Promise<void> => settle(100);
 
 let stop: (() => void) | undefined;
 afterEach(() => {
@@ -67,12 +46,6 @@ function inbound(s: MsgSpec): MetroEvent {
     messageId: s.messageId,
     event: { type: 'msg' },
   };
-}
-
-function channelContents(notifs: Notif[]): string[] {
-  return notifs
-    .filter((n) => n.method === 'notifications/claude/channel')
-    .map((n) => String(n.params.content));
 }
 
 describe('burst delivery', () => {

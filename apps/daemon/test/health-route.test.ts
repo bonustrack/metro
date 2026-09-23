@@ -1,21 +1,16 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 
-let server: Server;
+let daemon: Daemon;
 let base: string;
 
 beforeAll(async () => {
-  process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
-  server = await startWebhookServer(makeEmit());
-  const addr = server.address() as AddressInfo;
-  base = `http://127.0.0.1:${addr.port}`;
+  daemon = await bootDaemon();
+    base = daemon.base;
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await daemon.close();
 });
 
 describe('/health route (Fly health check contract)', () => {

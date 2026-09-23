@@ -56,21 +56,21 @@ afterAll(() => {
 });
 
 const signedPost = async (path: string): Promise<Response> =>
-  fetch(`${base}${path}`, { method: 'POST', headers: { authorization: await auth('POST', path, OWNER) } });
+  fetch(`${base}${path}`, { method: 'POST', headers: { authorization: await auth(OWNER) } });
 
 const get = async (path: string, subject = OWNER): Promise<Response> =>
-  fetch(`${base}${path}`, { headers: { authorization: await auth('GET', path, subject) } });
+  fetch(`${base}${path}`, { headers: { authorization: await auth(subject) } });
 
 const put = async (path: string, body: unknown, subject = OWNER): Promise<Response> =>
   fetch(`${base}${path}`, {
     method: 'PUT',
-    headers: { authorization: await auth('PUT', path, subject), 'content-type': 'application/json' },
+    headers: { authorization: await auth(subject), 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 const putText = async (path: string, body: string, subject = OWNER): Promise<Response> =>
   fetch(`${base}${path}`, {
     method: 'PUT',
-    headers: { authorization: await auth('PUT', path, subject), 'content-type': 'text/plain; charset=utf-8' },
+    headers: { authorization: await auth(subject), 'content-type': 'text/plain; charset=utf-8' },
     body,
   });
 const json = async <T>(path: string): Promise<T> => (await (await get(path)).json()) as T;
@@ -178,7 +178,7 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     const drop = async (name: string, subject = OWNER): Promise<Response> =>
       fetch(`${base}/api/claude/memory/${name}?project=${PROJECT}`, {
         method: 'DELETE',
-        headers: { authorization: await auth('DELETE', `/api/claude/memory/${name}`, subject) },
+        headers: { authorization: await auth(subject) },
       });
     await put(`/api/claude/memory/spare.md?project=${PROJECT}`, { text: '# Spare\n' });
     const res = await drop('spare.md');
@@ -207,7 +207,7 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     const del = async (subject = OWNER): Promise<Response> =>
       fetch(`${base}/api/claude/sessions/${SESSION}?project=${PROJECT}`, {
         method: 'DELETE',
-        headers: { authorization: await auth('DELETE', `/api/claude/sessions/${SESSION}`, subject) },
+        headers: { authorization: await auth(subject) },
       });
     const res = await del();
     expect(res.status).toBe(200);
@@ -215,7 +215,7 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect(existsSync(join(dir, 'projects', PROJECT, `${SESSION}.jsonl`))).toBe(false);
     expect(existsSync(join(dir, 'projects', PROJECT, SESSION))).toBe(false);
     expect((await del()).status).toBe(404);
-    expect((await fetch(`${base}/api/claude/projects`, { method: 'DELETE', headers: { authorization: await auth('DELETE', '/api/claude/projects', OWNER) } })).status).toBe(405);
+    expect((await fetch(`${base}/api/claude/projects`, { method: 'DELETE', headers: { authorization: await auth(OWNER) } })).status).toBe(405);
   });
 
   test('no session gets 401, and only GET is served', async () => {

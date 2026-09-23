@@ -4,6 +4,7 @@ import { ChannelRelay } from '../src/channels/relay.ts';
 import { InboundRelay } from '../src/channels/inbound.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { asLine } from '@metro-labs/core/lines';
+import { settle } from './wait.ts';
 
 interface Capture {
   contents: string[];
@@ -42,9 +43,6 @@ const msg = (text: string): MetroEvent =>
     messageId: `m-${randomUUID()}`,
     event: { type: 'msg' },
   }) as unknown as MetroEvent;
-
-const settle = (): Promise<void> =>
-  new Promise((r) => setTimeout(r, 30));
 
 describe('channel reconnect backfill', () => {
   test('an event whose delivery fails is replayed (not lost) on reconnect', async () => {

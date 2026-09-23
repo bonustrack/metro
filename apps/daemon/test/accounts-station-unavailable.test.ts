@@ -1,17 +1,9 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { gatherAccountsForAgents } from '../src/mcp/accounts.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 
 const OWNED = { 'xmtp/x1': 'agent000001', 'xmtp/tony': 'agent000001', 'telegram-bot/t0': 'agent000001' };
-
-beforeAll(() => {
-  process.env.METRO_MODE = 'local';
-});
-
-afterAll(() => {
-  delete process.env.METRO_MODE;
-});
 
 describe('a station whose train is restarting is unavailable, not empty', () => {
   test('the failing station is named and its rows are not claimed to be zero', async () => {

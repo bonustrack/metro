@@ -8,11 +8,9 @@ import {
   test,
 } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { subscribeEvents, type MetroEvent } from '@metro-labs/core/events';
 import { listEndpoints } from '../src/stations/webhook-endpoints.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
@@ -165,29 +163,23 @@ describe('an in-core station is never reported as unavailable', () => {
 });
 
 describe('the /hook route', () => {
-  let server: Server;
+  let daemon: Daemon;
   let base: string;
   let seen: MetroEvent[];
   let unsubscribe: () => void;
 
   beforeEach(async () => {
-    process.env.METRO_WEBHOOK_PORT = String(
-      12000 + Math.floor(Math.random() * 12000),
-    );
-    process.env.METRO_HTTP_HOST = '127.0.0.1';
     seen = [];
     setKeyMap([{ key: 'mk_monitor_is_mounted', agentId: 'agent000001' }]);
     unsubscribe = subscribeEvents((e: MetroEvent) => seen.push(e));
-    server = await startWebhookServer(makeEmit(), {}, undefined, () =>
-      Promise.resolve({ result: null }),
-    );
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    daemon = await bootDaemon({}, { monitor: true });
+    base = daemon.base;
   });
 
   afterEach(async () => {
     unsubscribe();
     setKeyMap([]);
-    await new Promise<void>((r) => server.close(() => r()));
+    await daemon.close();
   });
 
   const hook = (webhookId: string, token: string): string =>

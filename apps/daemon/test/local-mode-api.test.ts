@@ -63,7 +63,7 @@ const call = async (method: string, path: string, token?: Who, body?: unknown): 
   fetch(`${base}${path}`, {
     method,
     headers: {
-      ...(token === undefined ? {} : { authorization: await auth(method, path, token) }),
+      ...(token === undefined ? {} : { authorization: await auth(token) }),
       ...(body === undefined ? {} : J),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),

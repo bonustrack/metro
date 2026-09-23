@@ -10,7 +10,6 @@ const ENV_KEYS = [
   'METRO_XMTP_ATTACH_DIR',
   'METRO_PUBLIC_URL',
   'METRO_WEBHOOK_PORT',
-  'METRO_MODE',
 ] as const;
 
 let dir: string;
@@ -33,12 +32,10 @@ afterAll(() => {
 beforeEach(() => {
   delete process.env.METRO_PUBLIC_URL;
   delete process.env.METRO_WEBHOOK_PORT;
-  delete process.env.METRO_MODE;
 });
 
 describe('inbound attachment urls on a local daemon', () => {
-  test('a METRO_MODE=local daemon advertises loopback for media and uploads', () => {
-    process.env.METRO_MODE = 'local';
+  test('a local daemon advertises loopback for media and uploads', () => {
     expect(attachmentUrl(NAME, 'agent000001')).toStartWith(
       `http://127.0.0.1:8420/attach/${NAME}?token=`,
     );
@@ -46,21 +43,18 @@ describe('inbound attachment urls on a local daemon', () => {
   });
 
   test('a local daemon serves its own loopback url and records the owner', () => {
-    process.env.METRO_MODE = 'local';
     const url = attachmentUrl(`/data/cache/${NAME}`, 'agent000001');
     expect(url).toStartWith(`http://127.0.0.1:8420/attach/${NAME}?token=`);
     expect(attachmentOwner(NAME)).toBe('agent000001');
   });
 
   test('the advertised port follows METRO_WEBHOOK_PORT', () => {
-    process.env.METRO_MODE = 'local';
     process.env.METRO_WEBHOOK_PORT = '9111';
     const url = attachmentUrl(NAME, 'agent000001');
     expect(url).toStartWith(`http://127.0.0.1:9111/attach/${NAME}?token=`);
   });
 
   test('an explicit METRO_PUBLIC_URL still wins on a local daemon', () => {
-    process.env.METRO_MODE = 'local';
     process.env.METRO_PUBLIC_URL = 'https://metro.example.net';
     const url = attachmentUrl(NAME, 'agent000001');
     expect(url).toStartWith(`https://metro.example.net/attach/${NAME}?token=`);

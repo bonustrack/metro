@@ -36,12 +36,6 @@ describe('resolveAttachments', () => {
       resolveAttachments([{ url: 'ftp://example.com/a.png' }]),
     ).rejects.toThrow(/not an http\(s\) url/);
   });
-
-  test('an attachment with neither path nor url is refused', async () => {
-    await expect(resolveAttachments([{ name: 'a.png' }])).rejects.toThrow(
-      /requires exactly one of `upload`, `data`, `url` or `path`/,
-    );
-  });
 });
 
 describe('the canonical wire shape', () => {

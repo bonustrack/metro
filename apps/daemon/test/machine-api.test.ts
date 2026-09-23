@@ -38,7 +38,7 @@ afterAll(() => {
 
 describe('what a daemon says about its machine', () => {
   test('the owner reads the version, the public address, the port, the machine and the paths', async () => {
-    const res = await fetch(`${base}/api/server`, { headers: { authorization: await auth('GET', '/api/server', OWNER) } });
+    const res = await fetch(`${base}/api/server`, { headers: { authorization: await auth(OWNER) } });
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toMatchObject({

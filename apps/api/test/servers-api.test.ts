@@ -87,7 +87,7 @@ const call = async (method: string, path: string, who: typeof TEST_OWNER | null,
   fetch(`${base}${path}`, {
     method,
     headers: {
-      ...(who === null ? {} : { authorization: await auth(method, path, who) }),
+      ...(who === null ? {} : { authorization: await auth(who) }),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -142,7 +142,7 @@ describe('the server list on metro.box', () => {
 
   test('a member token reads the list; a token with no organization is 401', async () => {
     await call('POST', '/api/servers', TEST_OWNER, { host: 'lisa.tail1234.ts.net', name: 'Lisa' });
-    const member = await fetch(`${base}/api/servers`, { headers: { authorization: await auth('GET', '/api/servers', TEST_OWNER, 'member') } });
+    const member = await fetch(`${base}/api/servers`, { headers: { authorization: await auth(TEST_OWNER, 'member') } });
     expect(((await member.json()) as { servers: ServerEntry[] }).servers.map((s) => s.name)).toEqual(['Lisa']);
     expect((await fetch(`${base}/api/servers`, { headers: { authorization: await bearer({ org_id: undefined, role: undefined }) } })).status).toBe(401);
   });

@@ -123,14 +123,13 @@ describe('create_upload mints a slot over MCP alone', () => {
 });
 
 describe('a local daemon advertises its own loopback base, never hosted metro', () => {
-  const LOCAL_ENV = ['METRO_PUBLIC_URL', 'METRO_MODE', 'METRO_WEBHOOK_PORT'];
+  const LOCAL_ENV = ['METRO_PUBLIC_URL', 'METRO_WEBHOOK_PORT'];
   let stash: Record<string, string | undefined>;
 
   beforeEach(() => {
     stash = Object.fromEntries(LOCAL_ENV.map((k) => [k, process.env[k]]));
     delete process.env.METRO_PUBLIC_URL;
     delete process.env.METRO_WEBHOOK_PORT;
-    process.env.METRO_MODE = 'local';
   });
 
   afterEach(() => {

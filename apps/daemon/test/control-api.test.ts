@@ -50,7 +50,7 @@ beforeEach(() => {
 const call = async (method: string, path: string, who: Who | null): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
-    headers: who === null ? {} : { authorization: await auth(method, path, who) },
+    headers: who === null ? {} : { authorization: await auth(who) },
   });
 
 const settled = (): Promise<void> => new Promise((r) => setTimeout(r, 800));

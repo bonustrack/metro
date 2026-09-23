@@ -103,7 +103,7 @@ describe('the setup over the API', () => {
   const call = async (method: string, body?: unknown): Promise<Response> =>
     fetch(`${base}/api/claude/setup`, {
       method,
-      headers: { authorization: await auth(method, '/api/claude/setup', OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
 
@@ -158,7 +158,7 @@ describe('the permission mode of the session', () => {
   const call = async (method: string, body?: unknown): Promise<Response> =>
     fetch(`${base}/api/claude/setup`, {
       method,
-      headers: { authorization: await auth(method, '/api/claude/setup', OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
 

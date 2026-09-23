@@ -18,7 +18,7 @@ export async function bearer(claims: Record<string, unknown>): Promise<string> {
   return `Bearer ${(await ensureIssuer()).mint(sessionClaims(claims))}`;
 }
 
-export async function auth(_method: string, _path: string, who: Who, role: 'admin' | 'member' = 'admin'): Promise<string> {
+export async function auth(who: Who, role: 'admin' | 'member' = 'admin'): Promise<string> {
   const started = await ensureIssuer();
   return `Bearer ${started.mint(sessionClaims({ org_id: who, role }))}`;
 }

@@ -63,11 +63,10 @@ afterAll(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const session = (subject = OWNER): string => subject;
-const call = async (method: string, path: string, body?: unknown, token: Who = session()): Promise<Response> =>
+const call = async (method: string, path: string, body?: unknown, token: Who = OWNER): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
-    headers: { authorization: await auth(method, path, token), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    headers: { authorization: await auth(token), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
@@ -83,14 +82,14 @@ describe('an agent bundle on a local daemon', () => {
     expect(bundle.connectors.map((c) => [c.id, c.config.auth.value])).toEqual([['conn0000001', 'Bearer vendor']]);
     expect((await fetch(`${base}/api/agents/${tony.id}/bundle`)).status).toBe(401);
     expect((await call('POST', `/api/agents/${tony.id}/bundle`, {})).status).toBe(405);
-    const member = await auth('GET', '', OWNER, 'member');
+    const member = await auth(OWNER, 'member');
     expect((await fetch(`${base}/api/agents/${tony.id}/bundle`, { headers: { authorization: member } })).status).toBe(403);
   });
 
   test('a restore never changes the key on disk, whatever key the body carries, and needs the admin role', async () => {
     const chosen = `mk_${'z'.repeat(43)}`;
     const body = { version: 1, agent: { id: tony.id, name: 'Tony', key: chosen, stations: [] }, connectors: [] };
-    const member = await auth('POST', '', OWNER, 'member');
+    const member = await auth(OWNER, 'member');
     const refused = await fetch(`${base}/api/agents/restore`, { method: 'POST', headers: { authorization: member, 'content-type': 'application/json' }, body: JSON.stringify(body) });
     expect(refused.status).toBe(403);
     expect((await call('POST', '/api/agents/restore', { ...body, mode: 'append' })).status).toBe(201);

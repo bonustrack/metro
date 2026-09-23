@@ -9,7 +9,6 @@ const KEY = `mk_${'a'.repeat(43)}`;
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const saved = {
   agents: process.env.METRO_AGENTS_DIR,
-  mode: process.env.METRO_MODE,
   file: process.env.TELEGRAM_BOT_ACCOUNTS_FILE,
   trains: process.env.METRO_TRAINS_DIR,
 };
@@ -43,7 +42,6 @@ function write(name: string, body: unknown): string {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'metro-agents-'));
   process.env.METRO_AGENTS_DIR = dir;
-  process.env.METRO_MODE = 'local';
   process.env.TELEGRAM_BOT_ACCOUNTS_FILE = join(dir, 'telegram-bot-accounts.json');
   process.env.METRO_TRAINS_DIR = join(dir, 'trains');
 });
@@ -51,7 +49,6 @@ beforeEach(() => {
 afterEach(() => {
   for (const [key, value] of [
     ['METRO_AGENTS_DIR', saved.agents],
-    ['METRO_MODE', saved.mode],
     ['TELEGRAM_BOT_ACCOUNTS_FILE', saved.file],
     ['METRO_TRAINS_DIR', saved.trains],
   ] as const)

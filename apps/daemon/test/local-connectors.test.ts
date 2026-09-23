@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { localSessionApis } from '../src/routes/local-mode.ts';
 import { setLocalOwner, localCreateAgent } from '../src/agents/file-admin.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
@@ -13,14 +13,12 @@ import { auth, type Who } from './identity-helper.ts';
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const saved = {
   dir: process.env.METRO_AGENTS_DIR,
-  port: process.env.METRO_WEBHOOK_PORT,
-  host: process.env.METRO_HTTP_HOST,
   pub: process.env.METRO_PUBLIC_URL,
 };
 let dir = '';
 let vendor: Server;
 let vendorBase = '';
-let daemon: Server;
+let daemon: Daemon;
 let base = '';
 let tony = { id: '', key: '' };
 const seenAuth: string[] = [];
@@ -71,9 +69,6 @@ beforeAll(async () => {
     });
   });
   vendorBase = await listen(vendor);
-  process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
-  process.env.METRO_MODE = 'local';
   const apis = localSessionApis({
     syncStations: () => Promise.resolve(),
     restart: () => undefined,
@@ -82,21 +77,20 @@ beforeAll(async () => {
     capabilities: () => ({}),
     prepareAccount: () => Promise.reject(new Error('not used')),
   });
-  daemon = await startWebhookServer(makeEmit(), apis, async (_req, res) => {
-    res.writeHead(404).end();
+  daemon = await bootDaemon(apis, {
+    mcp: async (_req, res) => {
+      res.writeHead(404).end();
+    },
   });
-  base = `http://127.0.0.1:${String((daemon.address() as AddressInfo).port)}`;
+  base = daemon.base;
 });
 
 afterAll(async () => {
-  await new Promise<void>((done) => daemon.close(() => done()));
+  await daemon.close();
   vendor.close();
   rmSync(dir, { recursive: true, force: true });
-  delete process.env.METRO_MODE;
   for (const [k, v] of [
     ['METRO_AGENTS_DIR', saved.dir],
-    ['METRO_WEBHOOK_PORT', saved.port],
-    ['METRO_HTTP_HOST', saved.host],
     ['METRO_PUBLIC_URL', saved.pub],
   ] as const)
     if (v === undefined) delete process.env[k];
@@ -104,11 +98,10 @@ afterAll(async () => {
 });
 
 const J = { 'content-type': 'application/json' };
-const session = (subject = OWNER): string => subject;
-const call = async (method: string, path: string, body?: unknown, token: Who = session()): Promise<Response> =>
+const call = async (method: string, path: string, body?: unknown, token: Who = OWNER): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
-    headers: { authorization: await auth(method, path, token), ...(body === undefined ? {} : J) },
+    headers: { authorization: await auth(token), ...(body === undefined ? {} : J) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 

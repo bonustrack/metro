@@ -1,7 +1,5 @@
 import { afterEach, beforeAll, afterAll, describe, expect, test } from 'bun:test';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { type AgentApiDeps } from '../src/agents/api.ts';
 import { AgentAdminError } from '../src/agents/admin.ts';
 import { auth, bearer, forged, type Who } from './identity-helper.ts';
@@ -10,10 +8,10 @@ const OWNER = 'ada@lovelace.dev';
 const AGENT = { id: 'agent000001', name: 'ada-bot' };
 const ACCOUNT = { id: 'ada-tg', agentId: 'agent000001' };
 
-let server: Server;
+let daemon: Daemon;
 let base: string;
 let scopes: Set<string>[] = [];
-let heldConnectors = new Map<string, string[]>();
+let connectorMap = new Map<string, string[]>();
 
 const deps: AgentApiDeps = {
   listAgents: () => Promise.resolve([AGENT]),
@@ -22,7 +20,7 @@ const deps: AgentApiDeps = {
     return Promise.resolve({ accounts: { 'telegram-bot': allowed.has(AGENT.id) ? [ACCOUNT] : [], 'discord-bot': [] }, unavailable: [] });
   },
   capabilities: () => ({ 'telegram-bot': ['send'], 'discord-bot': ['send', 'read'] }),
-  connectorIds: () => Promise.resolve(heldConnectors),
+  connectorIds: () => Promise.resolve(connectorMap),
   attachSessions: {
     start: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
     view: () => {
@@ -45,23 +43,21 @@ const deps: AgentApiDeps = {
 
 const get = async (query = '', token?: Who): Promise<Response> =>
   fetch(`${base}/api/agents${query}`, {
-    headers: token === undefined ? {} : { authorization: await auth('GET', '/api/agents', token) },
+    headers: token === undefined ? {} : { authorization: await auth(token) },
   });
 
 beforeAll(async () => {
-  process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
-  server = await startWebhookServer(makeEmit(), { agentApi: deps });
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  daemon = await bootDaemon({ agentApi: deps });
+  ({ base } = daemon);
 });
 
 afterAll(async () => {
-  await new Promise<void>((r) => server.close(() => r()));
+  await daemon.close();
 });
 
 afterEach(() => {
   scopes = [];
-  heldConnectors = new Map();
+  connectorMap = new Map();
 });
 
 describe('/api/agents authentication', () => {
@@ -78,13 +74,13 @@ describe('/api/agents authentication', () => {
   });
 
   test('a ?token= query param never carries a browser identity', async () => {
-    const token = encodeURIComponent(await auth('GET', '/api/agents', OWNER));
+    const token = encodeURIComponent(await auth(OWNER));
     expect((await fetch(`${base}/api/agents?token=${token}`)).status).toBe(401);
   });
 
   test('OPTIONS preflight is 204, other methods 405, and an agent path alone is 404', async () => {
     expect((await fetch(`${base}/api/agents`, { method: 'OPTIONS' })).status).toBe(204);
-    const headers = { authorization: await auth('POST', '/api/agents', OWNER) };
+    const headers = { authorization: await auth(OWNER) };
     expect((await fetch(`${base}/api/agents`, { method: 'POST', headers })).status).toBe(405);
     expect((await fetch(`${base}/api/agents`, { method: 'DELETE', headers })).status).toBe(405);
     expect((await fetch(`${base}/api/agents/agent000001`, { method: 'DELETE', headers })).status).toBe(404);
@@ -93,7 +89,7 @@ describe('/api/agents authentication', () => {
 
 describe('GET /api/agents', () => {
   test('lists the one agent with its connectors, never its key', async () => {
-    heldConnectors = new Map([['agent000001', ['conn0000001', 'conn0000002']]]);
+    connectorMap = new Map([['agent000001', ['conn0000001', 'conn0000002']]]);
     const res = await get('', OWNER);
     expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');

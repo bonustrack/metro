@@ -69,12 +69,12 @@ interface SettingsFile {
 }
 
 const get = async (path: string, subject = OWNER): Promise<Response> =>
-  fetch(`${base}${path}`, { headers: { authorization: await auth('GET', path, subject) } });
+  fetch(`${base}${path}`, { headers: { authorization: await auth(subject) } });
 
 const put = async (path: string, body: unknown, subject = OWNER): Promise<Response> =>
   fetch(`${base}${path}`, {
     method: 'PUT',
-    headers: { authorization: await auth('PUT', path, subject), 'content-type': 'application/json' },
+    headers: { authorization: await auth(subject), 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 

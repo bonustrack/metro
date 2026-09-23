@@ -1,15 +1,12 @@
 import { auth } from './identity-helper.ts';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { authorizeUrl, challengeOf, newVerifier } from '../src/connectors/oauth-client.ts';
 import { resourceMetadataUrls } from '../src/connectors/oauth-discovery.ts';
 import { oauthExpired, pendingCount, startPending, takePending } from '../src/connectors/oauth.ts';
 
-let server: Server;
+let daemon: Daemon;
 let base = '';
-let savedHost: string | undefined;
 
 const SERVER = {
   issuer: 'https://as.example.com/',
@@ -42,21 +39,12 @@ const deps = {
 };
 
 beforeAll(async () => {
-  savedHost = process.env.METRO_HTTP_HOST;
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
-  process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
-  server = await startWebhookServer(makeEmit(), { connectorApi: deps });
-  base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+  daemon = await bootDaemon({ connectorApi: deps });
+  base = daemon.base;
 });
 
 afterAll(async () => {
-  if (savedHost === undefined) delete process.env.METRO_HTTP_HOST;
-  else process.env.METRO_HTTP_HOST = savedHost;
-  await new Promise<void>((r) => {
-    server.close(() => {
-      r();
-    });
-  });
+  await daemon.close();
 });
 
 describe('PKCE', () => {
@@ -260,11 +248,11 @@ describe('the callback route', () => {
   });
 
   test('the list route is still session gated', async () => {
-    expect((await fetch(`${base}/api/connectors?project=p0000000001`)).status).toBe(
+    expect((await fetch(`${base}/api/connectors`)).status).toBe(
       401,
     );
-    const ok = await fetch(`${base}/api/connectors?project=p0000000001`, {
-      headers: { authorization: await auth('GET', '/api/connectors', 'ada@lovelace.dev') },
+    const ok = await fetch(`${base}/api/connectors`, {
+      headers: { authorization: await auth('ada@lovelace.dev') },
     });
     expect(ok.status).toBe(200);
   });
