@@ -129,11 +129,12 @@ function eventText(env: TrainEvent): string | undefined {
 function addressingFacts(
   env: TrainEvent,
   isPrivate: boolean,
-): Pick<MetroEvent, 'isPrivate' | 'mentionsSelf' | 'replyToSelf'> {
+): Pick<MetroEvent, 'isPrivate' | 'mentionsSelf' | 'replyToSelf' | 'senderVerified'> {
   return {
     ...(isPrivate ? { isPrivate: true } : {}),
     ...(env.mentions_self === true ? { mentionsSelf: true } : {}),
     ...(env.reply_to_self === true ? { replyToSelf: true } : {}),
+    ...(typeof env.sender_verified === 'boolean' ? { senderVerified: env.sender_verified } : {}),
   };
 }
 

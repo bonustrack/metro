@@ -12,12 +12,21 @@ function hasControlChar(value: string): boolean {
   return false;
 }
 
+const DOMAIN_ENTRY_RE = /^@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+function domainEntry(value: string): string {
+  const domain = value.toLowerCase();
+  if (!DOMAIN_ENTRY_RE.test(domain))
+    throw new ApiError(`'${value}' is not a domain; write it as @example.com`, 400);
+  return domain;
+}
+
 function senderId(entry: unknown): string {
   if (typeof entry !== 'string') throw new ApiError('allowlist must be a list of sender ids', 400);
   const value = entry.trim();
   if (value.length > MAX_LENGTH || hasControlChar(value))
     throw new ApiError(`a sender id is at most ${String(MAX_LENGTH)} plain characters`, 400);
-  return value;
+  return value.startsWith('@') ? domainEntry(value) : value;
 }
 
 export function normalizeAllowlist(raw: unknown): string[] {

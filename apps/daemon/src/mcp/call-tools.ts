@@ -6,7 +6,8 @@ import {
   type ResolvedAttachment,
 } from '../stations/attach-resolve.js';
 import type { CanonicalAttachment, ToolResult } from '@metro-labs/core/stations/types';
-import { errResult, makeCtx, ok, okJson, toErr } from './ctx.js';
+import { errResult, makeCtx, ok, toErr } from './ctx.js';
+import { runRead } from './read-tool.js';
 import { allowedAgents, currentIdentity } from './request-identity.js';
 import { str } from '@metro-labs/core/str';
 
@@ -137,13 +138,7 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
   }
 }
 
-async function handleRead({ line, a, ctx }: MessageArgs): Promise<ToolResult> {
-  const args: Record<string, unknown> = { line };
-  if (typeof a.limit === 'number') args.limit = a.limit;
-  if (a.before) args.before = str(a.before);
-  if (a.since) args.since = str(a.since);
-  return okJson(await ctx.call('read', args));
-}
+const handleRead = ({ a, station }: MessageArgs): Promise<ToolResult> => runRead(station, a);
 
 type MessageHandler = (m: MessageArgs) => Promise<ToolResult>;
 

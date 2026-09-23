@@ -16,6 +16,7 @@ import {
   type AttachSession as Session,
 } from '../api/attach-session.js';
 import { stationLabel, type AttachResult } from '../api/attach.js';
+import { DeviceSignIn } from './DeviceSignIn.js';
 
 const POLL_MS = 2_000;
 
@@ -102,6 +103,12 @@ function StepBody({
         color={QR_INK}
         background={QR_PAPER}
       />
+    );
+  if (step === 'device')
+    return session.userCode === null ? (
+      <Waiting label="Asking Microsoft for a sign-in code." />
+    ) : (
+      <DeviceSignIn code={session.userCode} uri={session.verificationUri} />
     );
   if (step === 'pair')
     return pairingCode === null ? (
@@ -206,8 +213,8 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
         ) : null}
         <Row justify="between" align="center" gap={12} wrap>
           <Text size="sm" role="secondary">
-            Nothing is stored until the sign-in completes. Metro drops it after
-            five minutes.
+            Nothing is stored until the sign-in completes. Metro drops an
+            unfinished sign-in after a few minutes.
           </Text>
           <Button
             size="sm"

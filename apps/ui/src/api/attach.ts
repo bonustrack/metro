@@ -1,5 +1,6 @@
 import { filled, isRecord } from './read.js';
 import { call } from './client.js';
+import { olderThan } from './version.js';
 import {
   isAttachSession,
   toIdentity,
@@ -29,7 +30,10 @@ export interface StationForm {
   links?: HintLink[];
   interactive: boolean;
   fields: AttachField[];
+  since?: string;
 }
+
+export const OUTLOOK_SINCE = '0.1.0-beta.175';
 
 export const STATION_FORMS: Record<string, StationForm> = {
   'discord-bot': {
@@ -131,6 +135,13 @@ export const STATION_FORMS: Record<string, StationForm> = {
       },
     ],
   },
+  outlook: {
+    label: 'Outlook',
+    hint: 'Connects a Microsoft 365 or Outlook.com mailbox. Metro shows a code, you type it on the Microsoft sign-in page and sign in with the mailbox. The agent reads new mail, searches it and answers in the same thread.',
+    interactive: true,
+    fields: [],
+    since: OUTLOOK_SINCE,
+  },
   webhook: {
     label: 'Webhook',
     hint: 'Metro mints a URL to POST events to. The whole URL is the credential, so treat it like a password. Inbound only: the agent receives events and cannot reply.',
@@ -153,6 +164,13 @@ export const STATION_FORMS: Record<string, StationForm> = {
     ],
   },
 };
+
+export function offeredStations(attachable: string[], version: string | null): string[] {
+  return attachable.filter((s) => {
+    const form = STATION_FORMS[s];
+    return form !== undefined && (form.since === undefined || !olderThan(version, form.since));
+  });
+}
 
 export function stationLabel(station: string): string {
   return STATION_FORMS[station]?.label ?? station;

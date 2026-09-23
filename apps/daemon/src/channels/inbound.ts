@@ -24,7 +24,8 @@ interface InboundDeps {
   mcp: Server;
   log: (...a: unknown[]) => void;
   getStations: () => Set<string>;
-  senderAllowed: (from: string, line: string) => boolean;
+  senderAllowed: (from: string, line: string, verified?: boolean) => boolean;
+  approves?: (station: string) => boolean;
 }
 
 const ATTACH_TIMEOUT_MS = 15_000;
@@ -274,14 +275,25 @@ export class InboundRelay {
     return true;
   }
 
-  private droppedSender(from: string, line: string): boolean {
+  private approves(station: string): boolean {
+    return this.deps.approves?.(station) !== false;
+  }
+
+  private noteLine(base: EventBase): void {
+    if (base.evType !== 'system' && this.approves(base.station)) this.lastLine = base.line;
+    if (!base.line) return;
+    this.allowedLines.add(base.line);
+    capSet(this.allowedLines, ALLOWED_LINES_MAX);
+  }
+
+  private droppedSender(from: string, line: string, verified: unknown): boolean {
     if (
       from.startsWith('metro://claude') ||
       from === 'metro://user' ||
       !from.startsWith('metro://')
     )
       return true;
-    if (!this.deps.senderAllowed(from, line)) {
+    if (!this.deps.senderAllowed(from, line, typeof verified === 'boolean' ? verified : undefined)) {
       this.deps.log('drop: sender not allowed', from);
       return true;
     }
@@ -300,7 +312,7 @@ export class InboundRelay {
     if (!this.deps.getStations().has(station)) return null;
     const from = str(ev.from);
     const line = str(ev.line);
-    if (this.droppedSender(from, line)) return null;
+    if (this.droppedSender(from, line, ev.senderVerified)) return null;
     const text = str(ev.text);
     if (!replay && this.isDuplicate(station, line, evType, str(ev.messageId))) {
       this.deps.log(
@@ -322,7 +334,7 @@ export class InboundRelay {
       this.deps.log('drop: empty message', base.station, base.line, str(ev.messageId));
       return;
     }
-    if (base.evType === 'msg' && (await this.handlePermissionReply(base.text, base.line)))
+    if (base.evType === 'msg' && this.approves(base.station) && (await this.handlePermissionReply(base.text, base.line)))
       return;
     await this.notify('notifications/claude/channel', {
       content:
@@ -351,11 +363,7 @@ export class InboundRelay {
 
     const base = this.routable(ev, replay);
     if (!base) return;
-    if (base.evType !== 'system') this.lastLine = base.line;
-    if (base.line) {
-      this.allowedLines.add(base.line);
-      capSet(this.allowedLines, ALLOWED_LINES_MAX);
-    }
+    this.noteLine(base);
 
     const atts = (ev.payload as { attachments?: PendingAtt[] } | undefined)
       ?.attachments;

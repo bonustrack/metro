@@ -8,6 +8,7 @@ const STATION_SITES: Record<string, string> = {
   'discord-bot': 'https://discord.com',
   whatsapp: 'https://whatsapp.com',
   threema: 'https://threema.ch',
+  outlook: 'https://outlook.com',
 };
 
 export interface StationIconProps {

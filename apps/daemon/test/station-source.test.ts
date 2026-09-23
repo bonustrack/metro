@@ -85,6 +85,7 @@ describe('metro never runs a messenger station, held or not', () => {
   test('the movable set is every station except webhook', () => {
     expect([...MOVABLE_STATIONS].sort()).toEqual([
       'discord-bot',
+      'outlook',
       'telegram',
       'telegram-bot',
       'threema',

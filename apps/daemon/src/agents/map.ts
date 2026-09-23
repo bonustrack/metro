@@ -81,6 +81,15 @@ export function allowlistForLine(line: string): string[] | undefined {
   return a ? allowlistMap[mapKey(a.station, a.accountId)] : undefined;
 }
 
+export function senderPermitted(
+  allowlist: string[] | undefined,
+  from: string,
+  verified?: boolean,
+): boolean {
+  if (allowlist === undefined || allowlist.length === 0 || allowlist.includes('*')) return true;
+  return verified !== false && senderMatchesAllowlist(allowlist, from);
+}
+
 export function senderMatchesAllowlist(
   allowlist: string[],
   from: string,
@@ -90,6 +99,13 @@ export function senderMatchesAllowlist(
   const id = f.split('/').pop() ?? f;
   return allowlist.some((a) => {
     const v = a.toLowerCase();
-    return v === f || v === id;
+    return v === f || v === id || domainMatches(v, id);
   });
+}
+
+const EMAIL_RE = /^[^@\s/]+@([^@\s/]+)$/;
+
+function domainMatches(entry: string, id: string): boolean {
+  if (!entry.startsWith('@') || entry.length < 2) return false;
+  return EMAIL_RE.exec(id)?.[1] === entry.slice(1);
 }

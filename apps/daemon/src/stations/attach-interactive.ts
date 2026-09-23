@@ -1,16 +1,18 @@
 import { StationAttachError } from './attach.js';
 
-export const INTERACTIVE_STATIONS = ['telegram', 'whatsapp'] as const;
+export const INTERACTIVE_STATIONS = ['telegram', 'whatsapp', 'outlook'] as const;
 
 export type InteractiveStation = (typeof INTERACTIVE_STATIONS)[number];
 
-export type AttachStep = 'code' | 'password' | 'scan' | 'pair';
+export type AttachStep = 'code' | 'password' | 'scan' | 'pair' | 'device';
 
 export interface AttachPrompt {
   step: AttachStep;
   prompt: string;
   qr?: string;
   pairingCode?: string;
+  userCode?: string;
+  verificationUri?: string;
 }
 
 export interface AttachOutcome {
@@ -32,6 +34,7 @@ export interface AttachDriver {
 export interface StartedAttach {
   driver: AttachDriver;
   prompt: AttachPrompt;
+  expiresAt?: number;
 }
 
 const CODE_PROMPT =
@@ -150,11 +153,34 @@ async function startWhatsapp(
   };
 }
 
+const DEVICE_PROMPT =
+  'Open the Microsoft sign-in page, type this code, and sign in with the mailbox this agent should read.';
+
+async function startOutlook(hooks: DriverHooks): Promise<StartedAttach> {
+  const { OutlookLogin, OutlookLoginError } = await import('@metro-labs/outlook/login');
+  const login = new OutlookLogin({ onDone: hooks.done, onFailed: hooks.fail });
+  const code = await login.start().catch((err: unknown) =>
+    refuse(err instanceof OutlookLoginError ? err : null, 'Microsoft refused to start the sign-in'),
+  );
+  return {
+    prompt: { step: 'device', prompt: DEVICE_PROMPT, userCode: code.userCode, verificationUri: code.verificationUri },
+    expiresAt: code.expiresAt,
+    driver: {
+      cancel: () => login.cancel(),
+      submit: () =>
+        Promise.reject(
+          new StationAttachError('this sign-in finishes on the Microsoft page, there is nothing to submit here', 409),
+        ),
+    },
+  };
+}
+
 export async function startInteractiveAttach(
   station: InteractiveStation,
   input: Record<string, unknown>,
   hooks: DriverHooks,
 ): Promise<StartedAttach> {
+  if (station === 'outlook') return startOutlook(hooks);
   return station === 'telegram'
     ? startTelegramUser(input, hooks)
     : startWhatsapp(input, hooks);

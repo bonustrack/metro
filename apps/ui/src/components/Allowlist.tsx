@@ -19,6 +19,7 @@ const WHERE_TO_FIND: Record<string, string> = {
   'discord-bot': 'A long number. Turn Developer Mode on in Discord, then right-click the person and choose Copy User ID.',
   whatsapp: 'Their number followed by @s.whatsapp.net, or an id ending in @lid. Look the number up below and metro asks WhatsApp which one they are.',
   threema: 'Their 8-character Threema ID, as in ECHOECHO. The surest way is to have them write once and pick them below.',
+  outlook: 'An email address, or @domain for everyone at a company, as in @anderra.ch. A subdomain needs its own entry.',
   xmtp: 'Their inbox id, the long hex string, not their wallet address. Have them write once and pick them below.',
 };
 

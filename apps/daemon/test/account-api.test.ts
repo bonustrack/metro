@@ -605,6 +605,7 @@ describe('GET /api/agents advertises what can be attached', () => {
       'webhook',
       'telegram',
       'whatsapp',
+      'outlook',
     ]);
   });
 });

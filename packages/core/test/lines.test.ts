@@ -79,6 +79,16 @@ describe('isLocal', () => {
   });
 });
 
+describe('outlook lines', () => {
+  test('a conversation id with the escaped base64 characters parses', () => {
+    expect(Line.parseOutlook('metro://outlook/o1/AAQkAD%2Fabc%2Bdef_-=')).toEqual({ accountId: 'o1', resource: 'AAQkAD%2Fabc%2Bdef_-=' });
+  });
+  test('a sender line and another station are not conversations', () => {
+    expect(Line.parseOutlook('metro://outlook/o1/user/bea@example.ch')).toBeNull();
+    expect(Line.parseOutlook('metro://threema/o1/ECHOECHO')).toBeNull();
+  });
+});
+
 describe('account-scoped xmtp lines', () => {
   test('extra path segments are all preserved', () => {
     expect(Line.parse('metro://xmtp/tony/group/0xdef')).toEqual({

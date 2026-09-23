@@ -39,6 +39,39 @@ describe('per-account allowlist', () => {
   });
 });
 
+describe('domain entries', () => {
+  const from = (address: string): string => `metro://outlook/o1/user/${address}`;
+
+  test('an exact address still matches only that address', () => {
+    expect(senderMatchesAllowlist(['andy@anderra.ch'], from('andy@anderra.ch'))).toBe(true);
+    expect(senderMatchesAllowlist(['andy@anderra.ch'], from('bea@anderra.ch'))).toBe(false);
+  });
+
+  test('@domain matches everyone at that exact domain, in any case', () => {
+    expect(senderMatchesAllowlist(['@Anderra.ch'], from('bea@anderra.ch'))).toBe(true);
+    expect(senderMatchesAllowlist(['@anderra.ch'], from('Andy@ANDERRA.CH'))).toBe(true);
+    expect(senderMatchesAllowlist(['@anderra.ch'], from('bea@example.ch'))).toBe(false);
+  });
+
+  test('a subdomain matches only when it is listed itself', () => {
+    expect(senderMatchesAllowlist(['@anderra.ch'], from('x@mail.anderra.ch'))).toBe(false);
+    expect(senderMatchesAllowlist(['@mail.anderra.ch'], from('x@mail.anderra.ch'))).toBe(true);
+    expect(senderMatchesAllowlist(['@anderra.ch'], from('x@notanderra.ch'))).toBe(false);
+  });
+
+  test('"*" still means anyone, and a sender id that is not an address never matches a domain', () => {
+    expect(senderMatchesAllowlist(['@anderra.ch', '*'], from('x@y.z'))).toBe(true);
+    expect(senderMatchesAllowlist(['@anderra.ch'], 'metro://telegram-bot/t0/user/anderra.ch')).toBe(false);
+    expect(senderMatchesAllowlist(['@anderra.ch'], 'metro://xmtp/x0/user/0xabc@anderra.ch@x')).toBe(false);
+  });
+
+  test('saving keeps a domain entry in lower case and refuses a bare @ or a non-domain', () => {
+    expect(normalizeAllowlist(['@Anderra.CH', 'bea@example.ch'])).toEqual(['@anderra.ch', 'bea@example.ch']);
+    expect(() => normalizeAllowlist(['@'])).toThrow('is not a domain');
+    expect(() => normalizeAllowlist(['@localhost'])).toThrow('is not a domain');
+  });
+});
+
 describe('what the page may put in an allowlist', () => {
   afterAll(() => setAllowlistMap({}));
   test('entries are trimmed, deduped case-insensitively, and an empty list means everyone', () => {

@@ -10,6 +10,7 @@ networks to Claude Code through MCP (the Model Context Protocol):
 - **discord-bot**: a Discord bot.
 - **whatsapp**: a real WhatsApp **user account**, through the multi-device Web protocol.
 - **threema**: a Threema Gateway ID in end-to-end mode. Messages cost Gateway credits.
+- **outlook**: a Microsoft 365 or Outlook.com mailbox, connected with a Microsoft sign-in code.
 - **webhook**: an inbound-only HTTP receiver. The code is there, but the page does not
   offer it yet.
 
@@ -158,7 +159,7 @@ packages/
   core/       @metro-labs/core    the kernel every process shares; the only import a station may use
   http/       @metro-labs/http    how a metro server authenticates and answers a request
   cli/        @stage-labs/metro   the CLI, the only published package
-  xmtp/ telegram-bot/ telegram/ discord-bot/ whatsapp/ threema/ webhook/
+  xmtp/ telegram-bot/ telegram/ discord-bot/ whatsapp/ threema/ outlook/ webhook/
               one package per chat network
 plugin/       the Claude Code plugin, shipped inside the CLI package
 docs/         SETUP.md, ISSUING-SERVERS.md, MICROSOFT-365.md

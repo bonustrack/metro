@@ -26,6 +26,7 @@ export interface MetroEvent {
   isPrivate?: boolean;
   mentionsSelf?: boolean;
   replyToSelf?: boolean;
+  senderVerified?: boolean;
   payload?: unknown;
   display?: string;
   event?: StructuredEvent;

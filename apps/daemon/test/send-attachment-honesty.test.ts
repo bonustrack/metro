@@ -51,6 +51,11 @@ const STATION_CASES: StationCase[] = [
     line: 'metro://threema/t0/ECHOECHO',
     attachmentActions: [],
   },
+  {
+    name: 'outlook',
+    line: 'metro://outlook/o0/AAQkADAwATM3ZmYAZS0zMTg1LTE0NjU=',
+    attachmentActions: [],
+  },
 ];
 
 interface Call {

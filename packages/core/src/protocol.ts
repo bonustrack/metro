@@ -39,6 +39,7 @@ export type TrainEvent = {
   is_private?: boolean;
   mentions_self?: boolean;
   reply_to_self?: boolean;
+  sender_verified?: boolean;
   text?: string;
   emoji?: string;
   payload?: unknown;

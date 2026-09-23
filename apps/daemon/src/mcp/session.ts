@@ -3,11 +3,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { InboundRelay } from '../channels/inbound.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
 import { errMsg } from '@metro-labs/core/log';
-import {
-  allowlistForLine,
-  senderMatchesAllowlist,
-} from '../agents/map.js';
-import { accountStationNames } from '../stations/registry.js';
+import { allowlistForLine, senderPermitted } from '../agents/map.js';
+import { accountStationNames, stationByName } from '../stations/registry.js';
 import { eventInScope } from '../agents/scope.js';
 import { MCP_INSTRUCTIONS } from './instructions.js';
 import { BoundedEventStore } from './event-store.js';
@@ -21,10 +18,10 @@ export const channelLog = (...a: unknown[]): void => {
 
 const getStations = (): Set<string> => new Set(accountStationNames());
 
-const senderAllowed = (from: string, line: string): boolean => {
-  const allowlist = allowlistForLine(line);
-  return allowlist ? senderMatchesAllowlist(allowlist, from) : true;
-};
+const senderAllowed = (from: string, line: string, verified?: boolean): boolean =>
+  senderPermitted(allowlistForLine(line), from, verified);
+
+const approves = (station: string): boolean => stationByName(station)?.approvals !== false;
 
 function makeTransport(
   id: string,
@@ -104,6 +101,7 @@ export class McpSession {
       log: channelLog,
       getStations,
       senderAllowed,
+      approves,
     });
     registerPermissionRelay({
       mcp: this.server,

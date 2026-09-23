@@ -41,6 +41,7 @@
         "@metro-labs/core": "workspace:*",
         "@metro-labs/discord-bot": "workspace:*",
         "@metro-labs/http": "workspace:*",
+        "@metro-labs/outlook": "workspace:*",
         "@metro-labs/telegram": "workspace:*",
         "@metro-labs/telegram-bot": "workspace:*",
         "@metro-labs/threema": "workspace:*",
@@ -89,7 +90,7 @@
     },
     "packages/cli": {
       "name": "@stage-labs/metro",
-      "version": "0.1.0-beta.172",
+      "version": "0.1.0-beta.174",
       "bin": {
         "metro": "dist/cli.js",
       },
@@ -133,6 +134,20 @@
     },
     "packages/http": {
       "name": "@metro-labs/http",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metro-labs/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@stage-labs/config": "0.1.0-beta.2",
+        "eslint": "^10.3.0",
+        "knip": "^6.15.0",
+        "madge": "^8.0.0",
+        "typescript": "^5",
+      },
+    },
+    "packages/outlook": {
+      "name": "@metro-labs/outlook",
       "version": "0.1.0",
       "dependencies": {
         "@metro-labs/core": "workspace:*",
@@ -702,6 +717,8 @@
     "@metro-labs/discord-bot": ["@metro-labs/discord-bot@workspace:packages/discord-bot"],
 
     "@metro-labs/http": ["@metro-labs/http@workspace:packages/http"],
+
+    "@metro-labs/outlook": ["@metro-labs/outlook@workspace:packages/outlook"],
 
     "@metro-labs/telegram": ["@metro-labs/telegram@workspace:packages/telegram"],
 

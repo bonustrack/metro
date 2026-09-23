@@ -82,6 +82,11 @@ const STATION_TARGETS: Record<StationName, StationTarget> = {
     fileEnv: 'THREEMA_ACCOUNTS_FILE',
     trainImport: '@metro-labs/threema/train',
   },
+  outlook: {
+    file: 'outlook-accounts.json',
+    fileEnv: 'OUTLOOK_ACCOUNTS_FILE',
+    trainImport: '@metro-labs/outlook/train',
+  },
   webhook: {
     file: 'webhook-accounts.json',
     fileEnv: 'WEBHOOK_ACCOUNTS_FILE',

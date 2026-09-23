@@ -34,6 +34,7 @@ import {
   type RequestIdentity,
 } from './request-identity.js';
 import { str } from '@metro-labs/core/str';
+import { linelessRead, stationOfAccount } from './read-tool.js';
 
 const STATION_TOOLS = new Map<
   string,
@@ -110,6 +111,12 @@ export function scopeDenied(
   args: Record<string, unknown>,
 ): boolean {
   const allowed = allowedAgents(identity);
+  if (name === 'read' && !str(args.line)) {
+    const account = str(args.account);
+    if (!account) return false;
+    const station = stationOfAccount(account);
+    return station === undefined || callTargetDenied(allowed, station, args);
+  }
   if (name === 'get_profile') {
     const line = profileScopeLine(args);
     return line === undefined || callTargetDenied(allowed, Line.station(line) ?? '', { line });
@@ -178,6 +185,8 @@ async function runTool(
   if (core) return core(a);
 
   if (name === 'list_accounts') return handleListAccounts(identity);
+
+  if (name === 'read' && !str(a.line)) return linelessRead(a);
 
   return dispatchMessageTool(name, a, hooks);
 }

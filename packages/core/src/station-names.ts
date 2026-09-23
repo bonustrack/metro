@@ -5,6 +5,7 @@ export const STATIONS = [
   'discord-bot',
   'whatsapp',
   'threema',
+  'outlook',
   'webhook',
 ] as const;
 

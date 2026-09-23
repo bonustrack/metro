@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
-import { STATION_FORMS, type AttachResult } from '../api/attach.js';
+import { offeredStations, type AttachResult } from '../api/attach.js';
+import { useModeQuery } from '../api/queries.js';
 import { type AttachSession as Session } from '../api/attach-session.js';
 import { AttachedAccount } from './AttachedAccount.js';
 import { AttachSession } from './AttachSession.js';
@@ -16,10 +17,8 @@ const rank = (station: string): number => {
   return at === -1 ? -1 : at;
 };
 
-function orderStations(attachable: string[]): string[] {
-  return attachable
-    .filter((s) => STATION_FORMS[s] !== undefined)
-    .sort((a, b) => rank(a) - rank(b));
+function orderStations(attachable: string[], version: string | null): string[] {
+  return offeredStations(attachable, version).sort((a, b) => rank(a) - rank(b));
 }
 
 type Step =
@@ -39,7 +38,8 @@ interface ConnectStationProps {
 export function ConnectStation(props: ConnectStationProps): ReactNode {
   const { agentId, attachable, open, onClose, onChanged } = props;
   const [step, setStep] = useState<Step>({ kind: 'pick' });
-  const known = orderStations(attachable);
+  const mode = useModeQuery();
+  const known = orderStations(attachable, mode.data?.version ?? null);
 
   const close = (): void => {
     setStep({ kind: 'pick' });

@@ -203,17 +203,18 @@ export function readLocalAgentFile(agentId: string, dir = agentsDir()): AgentFil
   return found.file;
 }
 
-function assertTokenFree(all: Stored[], station: StationName, token: string): void {
-  const taken = all.some((s) =>
-    s.file.stations.some(
-      (a) => a.station === station && a.config.token === token,
-    ),
-  );
-  if (taken)
-    throw new AgentAdminError(
-      'that bot token is already attached to an agent on this machine',
-      409,
-    );
+const UNIQUE_CREDENTIALS: Record<string, string> = {
+  token: 'that bot token is already attached to an agent on this machine',
+  accountEmail: 'that mailbox is already connected to an agent on this machine',
+};
+
+function assertCredentialFree(all: Stored[], station: StationName, config: Record<string, unknown>): void {
+  for (const [key, refusal] of Object.entries(UNIQUE_CREDENTIALS)) {
+    const value = config[key];
+    if (typeof value !== 'string') continue;
+    const taken = all.some((s) => s.file.stations.some((a) => a.station === station && a.config[key] === value));
+    if (taken) throw new AgentAdminError(refusal, 409);
+  }
 }
 
 export async function localAttachAccount(
@@ -228,8 +229,7 @@ export async function localAttachAccount(
       `a ${station} endpoint needs a public url and cannot live on a local daemon`,
       400,
     );
-  const token = config.token;
-  if (typeof token === 'string') assertTokenFree(storedAgents(dir), station, token);
+  assertCredentialFree(storedAgents(dir), station, config);
   const taken = new Set(stored.file.stations.map((a) => a.id));
   const accountId = freshId(taken);
   stored.file.stations.push({ station, id: accountId, allowlist: ['*'], enabled: true, config });

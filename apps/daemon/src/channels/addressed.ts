@@ -21,5 +21,6 @@ export function replyMeta(ev: Record<string, unknown>, sent: ReadonlySet<string>
   return {
     ...(replyTo ? { reply_to: replyTo } : {}),
     ...(addressed === undefined ? {} : { addressed }),
+    ...(typeof ev.senderVerified === 'boolean' ? { sender_verified: String(ev.senderVerified) } : {}),
   };
 }
