@@ -15,7 +15,8 @@
     "madge": "stage madge",
     "build": "turbo build",
     "start": "bun apps/daemon/src/server.ts",
-    "smoke": "bash scripts/smoke.sh"
+    "smoke": "bash scripts/smoke.sh",
+    "compat": "bash scripts/compat.sh"
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.2",
