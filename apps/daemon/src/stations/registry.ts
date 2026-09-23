@@ -1,5 +1,6 @@
 import type { Station } from '@metro-labs/core/stations/types';
 import { Line } from '@metro-labs/core/lines';
+import { errMsg, log } from '@metro-labs/core/log';
 import { xmtpStation } from '@metro-labs/xmtp';
 import { telegramBotStation } from '@metro-labs/telegram-bot';
 import { telegramStation } from '@metro-labs/telegram';
@@ -37,3 +38,14 @@ export const accountStationCapabilities = (): Record<string, string[]> => {
     if (s.hasAccounts) out[s.name] = [...s.messageVerbs].sort();
   return out;
 };
+
+export function forgetOrphans(known: readonly { station: string; id: string }[]): void {
+  for (const s of STATIONS) {
+    if (s.forgetExcept === undefined) continue;
+    try {
+      s.forgetExcept(known.filter((a) => a.station === s.name).map((a) => a.id));
+    } catch (err) {
+      log.warn({ station: s.name, err: errMsg(err) }, 'stations: could not remove the files of detached accounts');
+    }
+  }
+}

@@ -96,6 +96,7 @@ export function StationForm(props: StationFormProps): ReactNode {
               onSubmit={submit}
               style={GROW}
             />
+            {field.hint === undefined ? null : <Text size="sm" role="secondary">{field.hint}</Text>}
           </Col>
         ))}
       </Col>

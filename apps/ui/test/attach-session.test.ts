@@ -101,9 +101,9 @@ describe('interactive station forms', () => {
     expect(fields.find((f) => f.key === 'phone')?.secret).toBe(false);
   });
 
-  test('Outlook asks for nothing and signs in with a code', () => {
+  test('Outlook asks only for an optional mailbox, then signs in with Microsoft', () => {
     expect(STATION_FORMS.outlook?.interactive).toBe(true);
-    expect(STATION_FORMS.outlook?.fields).toEqual([]);
+    expect(STATION_FORMS.outlook?.fields.map((f) => [f.key, f.optional, f.secret])).toEqual([['mailbox', true, false]]);
     expect(stationLabel('outlook')).toBe('Outlook');
   });
 

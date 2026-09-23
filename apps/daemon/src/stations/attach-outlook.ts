@@ -11,13 +11,14 @@ const BROWSER_TTL_MS = 15 * 60_000;
 
 const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
-export async function startOutlook(hooks: DriverHooks): Promise<StartedAttach> {
-  const { OutlookBrowserLogin, OutlookLogin: DeviceLogin, OutlookLoginError, failureOf } = await import('@metro-labs/outlook/login');
+export async function startOutlook(input: Record<string, unknown>, hooks: DriverHooks): Promise<StartedAttach> {
+  const { OutlookBrowserLogin, OutlookLogin: DeviceLogin, OutlookLoginError, failureOf, parseMailbox } = await import('@metro-labs/outlook/login');
   const said = (err: unknown, fallback: string): string =>
     err instanceof OutlookLoginError && err.message !== '' ? err.message : fallback;
-  const browser = (() => {
+  const { browser, mailbox } = (() => {
     try {
-      return new OutlookBrowserLogin();
+      const wanted = parseMailbox(input.mailbox);
+      return { browser: new OutlookBrowserLogin({ mailbox: wanted }), mailbox: wanted };
     } catch (err) {
       throw new StationAttachError(said(err, 'Microsoft refused to start the sign-in'), 400);
     }
@@ -26,7 +27,7 @@ export async function startOutlook(hooks: DriverHooks): Promise<StartedAttach> {
 
   const toDevice = async (): Promise<void> => {
     if (device !== null) return;
-    const login = new DeviceLogin({ onDone: hooks.done, onFailed: hooks.fail });
+    const login = new DeviceLogin({ onDone: hooks.done, onFailed: hooks.fail }, { mailbox });
     const code = await login.start().catch((err: unknown) => {
       throw new StationAttachError(said(err, 'Microsoft refused to start the sign-in'), 400);
     });

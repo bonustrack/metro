@@ -1,6 +1,5 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
+import { accountFiles } from '@metro-labs/core/stations/account-files';
 import { errMsg } from '@metro-labs/core/log';
 
 export const PERSISTED_KEY_TYPES = ['tctoken', 'lid-mapping'] as const;
@@ -14,12 +13,9 @@ const WRITE_DEBOUNCE_MS = 1000;
 export const isPersistedKeyType = (type: string): boolean =>
   PERSISTED.has(type);
 
-const safeSegment = (s: string): string => s.replace(/[^A-Za-z0-9_-]/g, '_');
+export const tokenFiles = accountFiles('WHATSAPP_TOKEN_DIR', 'whatsapp-tokens-');
 
-export function tokenStorePath(accountId: string): string {
-  const dir = process.env.WHATSAPP_TOKEN_DIR ?? join(homedir(), '.metro');
-  return join(dir, `whatsapp-tokens-${safeSegment(accountId)}.json`);
-}
+export const tokenStorePath = (accountId: string): string => tokenFiles.path(accountId);
 
 export function persistedSubset(table: KeyTable): KeyTable {
   const out: KeyTable = {};

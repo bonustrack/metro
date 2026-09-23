@@ -13,8 +13,9 @@ export function pkcePair(verifier = randomBytes(32).toString('base64url')): Pkce
 
 export const newState = (): string => randomBytes(24).toString('base64url');
 
-export function authorizeUrl(challenge: string, state: string): string {
+export function authorizeUrl(challenge: string, state: string, loginHint: string | null = null): string {
   const query = new URLSearchParams({
+    ...(loginHint === null ? {} : { login_hint: loginHint }),
     client_id: requireClientId(),
     response_type: 'code',
     redirect_uri: redirectUri(),

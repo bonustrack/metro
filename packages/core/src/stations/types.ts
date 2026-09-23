@@ -108,6 +108,8 @@ export interface Station {
   readFilters?: ReadonlySet<ReadFilter>;
   approvals?: boolean;
   attachmentMode: AttachmentMode;
+  forget?: (accountId: string) => void;
+  forgetExcept?: (keptAccountIds: readonly string[]) => void;
   sendAttachments?(
     line: string,
     atts: CanonicalAttachment[],

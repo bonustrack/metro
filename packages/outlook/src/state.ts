@@ -1,6 +1,5 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
+import { accountFiles } from '@metro-labs/core/stations/account-files';
 
 export interface AccountState {
   accessToken: string;
@@ -13,12 +12,9 @@ export interface AccountState {
 
 const SEEN_MAX = 500;
 
-const safeSegment = (s: string): string => s.replace(/[^A-Za-z0-9_-]/g, '_');
+export const stateFiles = accountFiles('OUTLOOK_STATE_DIR', 'outlook-state-');
 
-export function statePath(accountId: string): string {
-  const dir = process.env.OUTLOOK_STATE_DIR ?? join(homedir(), '.metro');
-  return join(dir, `outlook-state-${safeSegment(accountId)}.json`);
-}
+const statePath =(accountId: string): string => stateFiles.path(accountId);
 
 const text = (v: unknown): string => (typeof v === 'string' ? v : '');
 const nullable = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);

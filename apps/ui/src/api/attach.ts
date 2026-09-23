@@ -17,6 +17,7 @@ export interface AttachField {
   secret: boolean;
   kind: AttachFieldKind;
   optional?: boolean;
+  hint?: string;
 }
 
 export interface HintLink {
@@ -139,7 +140,17 @@ export const STATION_FORMS: Record<string, StationForm> = {
     label: 'Outlook',
     hint: 'Connects a Microsoft 365 or Outlook.com mailbox. You sign in with Microsoft in a new tab. The agent reads new mail, searches it and answers in the same thread.',
     interactive: true,
-    fields: [],
+    fields: [
+      {
+        key: 'mailbox',
+        label: 'Mailbox (optional)',
+        placeholder: 'andy@company.com',
+        secret: false,
+        kind: 'text',
+        optional: true,
+        hint: 'Type the mailbox to connect, and Metro refuses any other account.',
+      },
+    ],
     since: OUTLOOK_SINCE,
   },
   webhook: {

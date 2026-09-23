@@ -1,5 +1,9 @@
 import { auth, bearer, forged, type Who } from './identity-helper.ts';
-import { afterEach, beforeAll, afterAll, describe, expect, test } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, afterAll, describe, expect, test } from 'bun:test';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { outlookStation } from '@metro-labs/outlook';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import type { AgentApiDeps } from '../src/agents/api.ts';
 import { AttachSessions } from '../src/stations/attach-session.ts';
@@ -588,6 +592,42 @@ describe('DELETE /api/agents/:id/accounts/:station/:account', () => {
       headers: { authorization: await auth('ada@lovelace.dev') },
     });
     expect(res.status).toBe(405);
+  });
+});
+
+describe('detaching removes the station files of that account', () => {
+  const stateDir = mkdtempSync(join(tmpdir(), 'metro-outlook-state-'));
+  const statePath = (id: string): string => join(stateDir, `outlook-state-${id}.json`);
+  const realForget = outlookStation.forget;
+
+  beforeEach(() => {
+    process.env.OUTLOOK_STATE_DIR = stateDir;
+  });
+
+  afterEach(() => {
+    outlookStation.forget = realForget;
+    delete process.env.OUTLOOK_STATE_DIR;
+  });
+
+  test('the Outlook refresh token file goes with the account, and only that one', async () => {
+    rows.push({ agentId: AGENT.id, station: 'outlook', accountId: 'acct0000091', config: {} });
+    writeFileSync(statePath('acct0000091'), '{"refreshToken":"rt"}');
+    writeFileSync(statePath('acct0000092'), '{"refreshToken":"other"}');
+    const res = await detach('ada@lovelace.dev', AGENT.id, 'outlook/acct0000091');
+    expect(res.status).toBe(200);
+    expect(existsSync(statePath('acct0000091'))).toBe(false);
+    expect(existsSync(statePath('acct0000092'))).toBe(true);
+  });
+
+  test('a forget that throws is logged and the detach still answers 200', async () => {
+    rows.push({ agentId: AGENT.id, station: 'outlook', accountId: 'acct0000093', config: {} });
+    outlookStation.forget = () => {
+      throw new Error('disk on fire');
+    };
+    const res = await detach('ada@lovelace.dev', AGENT.id, 'outlook/acct0000093');
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { detached?: boolean }).detached).toBe(true);
+    expect(rows).toEqual([]);
   });
 });
 
