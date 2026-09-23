@@ -2,9 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import {
   createUploadSlot,
   issueUploadTicket,
@@ -20,7 +18,7 @@ const ONE = 'mk_upload_one';
 const TWO = 'mk_upload_two';
 const PDF = Buffer.from('%PDF-1.7 confidential quarterly numbers');
 
-let server: Server;
+let daemon: Daemon;
 let base: string;
 let dir: string;
 const prev = {
@@ -34,21 +32,17 @@ beforeAll(async () => {
   process.env.METRO_XMTP_ATTACH_DIR = mkdtempSync(
     join(tmpdir(), 'metro-upload-cache-'),
   );
-  process.env.METRO_WEBHOOK_PORT = String(
-    10000 + Math.floor(Math.random() * 20000),
-  );
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
   setKeyMap([
     { key: ONE, agentId: 'agent000001' },
     { key: TWO, agentId: 'agent000002' },
   ]);
   setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram-bot/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
-  server = await startWebhookServer(makeEmit(), {}, undefined, true);
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  daemon = await bootDaemon({}, { monitor: true });
+  base = daemon.base;
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await daemon.close();
   for (const [key, value] of [
     ['METRO_UPLOAD_DIR', prev.uploads],
     ['METRO_XMTP_ATTACH_DIR', prev.attach],

@@ -8,7 +8,8 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { ChannelRelay } from '../src/channels/relay.ts';
-import { InboundRelay } from '../src/channels/inbound.ts';
+import { makeRelay, type Notif } from './relay-fixture.ts';
+import { settle } from './wait.ts';
 import { eventInScope } from '../src/agents/scope.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { setAgentMap } from '../src/agents/map.ts';
@@ -23,26 +24,13 @@ beforeEach(() =>
 );
 afterAll(() => setAgentMap({}, {}));
 
-const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 30));
-
 function makeSession(stream: { attached: boolean }): {
-  received: string[];
+  notifs: Notif[];
   channel: ChannelRelay;
 } {
-  const received: string[] = [];
-  const relay = new InboundRelay({
-    mcp: {
-      notification: (n: { params: { content?: string } }) => {
-        received.push(n.params.content ?? '');
-        return Promise.resolve();
-      },
-    } as never,
-    log: () => {},
-    getStations: () => new Set(['whatsapp']),
-    senderAllowed: () => true,
-  });
+  const { relay, notifs } = makeRelay(['whatsapp']);
   return {
-    received,
+    notifs,
     channel: new ChannelRelay({
       relay,
       log: () => {},
@@ -67,7 +55,7 @@ const inbound = (line: string, text: string): MetroEvent =>
 describe('inbound delivery is scoped to the agent', () => {
   test('a line whose account maps to no agent never arrives, the agent own line does', async () => {
     const stream = { attached: true };
-    const { received, channel } = makeSession(stream);
+    const { notifs, channel } = makeSession(stream);
     const stop = channel.start();
 
     publishEvent(inbound(STRAY_LINE, 'stray'));
@@ -77,23 +65,23 @@ describe('inbound delivery is scoped to the agent', () => {
     await settle();
     stop();
 
-    expect(received).toEqual(['hello tony']);
+    expect(notifs.map((n) => n.params.content)).toEqual(['hello tony']);
   });
 
   test('with no stream an event is withheld, then replayed once one attaches', async () => {
     const stream = { attached: false };
-    const { received, channel } = makeSession(stream);
+    const { notifs, channel } = makeSession(stream);
     const stop = channel.start();
 
     publishEvent(inbound(TONY_LINE, 'held for tony'));
     await settle();
-    expect(received).toEqual([]);
+    expect(notifs.map((n) => n.params.content)).toEqual([]);
 
     stream.attached = true;
     channel.replayMissed();
     await settle();
     stop();
 
-    expect(received).toEqual(['held for tony']);
+    expect(notifs.map((n) => n.params.content)).toEqual(['held for tony']);
   });
 });

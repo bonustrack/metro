@@ -20,29 +20,10 @@
  */
 
 import { describe, expect, jest, test } from 'bun:test';
-import { InboundRelay } from '../src/channels/inbound.ts';
-
-type Notif = { method: string; params: Record<string, unknown> };
+import { makeRelay, type Notif } from './relay-fixture.ts';
 
 /** Mirrors ATTACH_TIMEOUT_MS in src/channels/inbound.ts (not exported). */
 const ATTACH_TIMEOUT_MS = 15_000;
-
-function makeRelay(): { relay: InboundRelay; notifs: Notif[] } {
-  const notifs: Notif[] = [];
-  const relay = new InboundRelay({
-    mcp: {
-      notification: (n: Notif) => {
-        notifs.push(n);
-        return Promise.resolve();
-      },
-    } as never,
-    log: () => undefined,
-    getStations: () =>
-      new Set(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']),
-    senderAllowed: () => true,
-  });
-  return { relay, notifs };
-}
 
 const channelNotifs = (notifs: Notif[]): Notif[] =>
   notifs.filter((n) => n.method === 'notifications/claude/channel');
@@ -175,7 +156,7 @@ const xmtpSaved = (): Record<string, unknown> => ({
 
 describe('discord-bot: the caption reaches the agent with the attachment', () => {
   test("Less's real 'Great caption here' survives the happy path", async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 
     await relay.handleEvent(
       discordMsg('Great caption here [file: exploding-kittens-bot.html]'),
@@ -200,7 +181,7 @@ describe('discord-bot: the caption reaches the agent with the attachment', () =>
 
 describe('telegram: the caption reaches the agent with the attachment', () => {
   test("Less's real 'Monster truck' survives the happy path", async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 
     await relay.handleEvent(telegramMsg());
     await relay.handleEvent(telegramSaved());
@@ -218,7 +199,7 @@ describe('telegram: the caption reaches the agent with the attachment', () => {
 
 describe('xmtp: the caption reaches the agent with the attachment', () => {
   test('a captioned remote attachment carries text and identity', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 
     await relay.handleEvent(xmtpMsg());
     await relay.handleEvent(xmtpSaved());
@@ -234,7 +215,7 @@ describe('xmtp: the caption reaches the agent with the attachment', () => {
 
 describe('telegram-bot (bot): the station that never buffered is unchanged', () => {
   test('the caption is emitted on its own and the media note follows', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 
     await relay.handleEvent({
       event: { type: 'msg' },
@@ -283,7 +264,7 @@ describe('telegram-bot (bot): the station that never buffered is unchanged', () 
 
 describe('the caption is delivered exactly once', () => {
   test('two attachments on one message produce two notes and one caption', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
     const msg = discordMsg('two files, one caption');
     (msg.payload as { attachments: unknown[] }).attachments = [
       { name: 'a.png' },
@@ -307,7 +288,7 @@ describe('the caption is delivered exactly once', () => {
   });
 
   test('the timeout fallback does not repeat a caption already surfaced', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
     const msg = discordMsg('one lands, one hangs');
     (msg.payload as { attachments: unknown[] }).attachments = [
       { name: 'a.html' },
@@ -333,7 +314,7 @@ describe('the caption is delivered exactly once', () => {
   });
 
   test('a download that never lands still surfaces the caption at the timeout', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 
     jest.useFakeTimers();
     try {
@@ -358,7 +339,7 @@ describe('the caption is delivered exactly once', () => {
 
 describe('the media note tells the truth about where the file is', () => {
   test('it names the daemon host and does not order a local Read', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 
     await relay.handleEvent(discordMsg('caption'));
     await relay.handleEvent(discordSaved());
@@ -376,7 +357,7 @@ describe('the media note tells the truth about where the file is', () => {
   });
 
   test('with no public url configured it says the file is daemon-only', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
     const saved = discordSaved();
     delete (saved.payload as Record<string, unknown>).url;
 
@@ -397,7 +378,7 @@ describe('the media note tells the truth about where the file is', () => {
 
 describe('paths that must not change', () => {
   test('a plain message with no attachments is untouched', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
     const plain = discordMsg('just text');
     delete plain.payload;
 
@@ -409,7 +390,7 @@ describe('paths that must not change', () => {
   });
 
   test('an attachment with no caption surfaces the note alone', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 
     await relay.handleEvent(discordMsg(''));
     await relay.handleEvent(discordSaved());
@@ -422,7 +403,7 @@ describe('paths that must not change', () => {
   });
 
   test('an unsolicited attachmentSaved on a known line still surfaces', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 
     await relay.handleEvent(discordMsg('a plain earlier message'));
     const orphan = discordSaved();
@@ -439,7 +420,7 @@ describe('paths that must not change', () => {
 
 describe('a message with media keeps who it was for', () => {
   test('a direct message with a photo is still addressed: direct, with its reply target, on the saved note', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
     await relay.handleEvent({ ...telegramMsg(), isPrivate: true, replyTo: '1975' });
     await relay.handleEvent(telegramSaved());
     const [only] = channelNotifs(notifs);
@@ -449,7 +430,7 @@ describe('a message with media keeps who it was for', () => {
   test('and on the fallback note when the download never lands', async () => {
     jest.useFakeTimers();
     try {
-      const { relay, notifs } = makeRelay();
+      const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
       await relay.handleEvent({ ...telegramMsg(), isPrivate: true });
       jest.advanceTimersByTime(ATTACH_TIMEOUT_MS + 10);
       await Promise.resolve();

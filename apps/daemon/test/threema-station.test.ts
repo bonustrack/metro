@@ -8,12 +8,10 @@ import {
   test,
 } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { publicKeyOf } from '@metro-labs/threema/verify';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
@@ -157,14 +155,12 @@ describe('attaching a Threema Gateway ID', () => {
 });
 
 describe('the callback route', () => {
-  let server: Server;
+  let daemon: Daemon;
   let base: string;
   let calls: Call[];
   let answer: () => Promise<{ result?: unknown; error?: string }>;
 
   beforeEach(async () => {
-    process.env.METRO_WEBHOOK_PORT = String(12000 + Math.floor(Math.random() * 12000));
-    process.env.METRO_HTTP_HOST = '127.0.0.1';
     calls = [];
     answer = () => Promise.resolve({ result: { ok: true, kind: 'text' } });
     setKeyMap([{ key: 'mk_monitor_is_mounted', agentId: 'agent000001' }]);
@@ -172,13 +168,13 @@ describe('the callback route', () => {
       calls.push({ train, action, args: args as Record<string, unknown> });
       return answer();
     });
-    server = await startWebhookServer(makeEmit(), {}, undefined, () => Promise.resolve({ result: null }));
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    daemon = await bootDaemon({}, { monitor: true });
+    base = daemon.base;
   });
 
   afterEach(async () => {
     setKeyMap([]);
-    await new Promise<void>((r) => server.close(() => r()));
+    await daemon.close();
   });
 
   const post = (path: string, body: string): Promise<Response> =>

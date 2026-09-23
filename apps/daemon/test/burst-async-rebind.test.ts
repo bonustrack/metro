@@ -1,34 +1,11 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { InboundRelay } from '../src/channels/inbound.ts';
+import { channelContents, makeRelay } from './relay-fixture.ts';
+import { settle } from './wait.ts';
 import { ChannelRelay } from '../src/channels/relay.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import type { Line } from '@metro-labs/core/lines';
 
-type Notif = { method: string; params: Record<string, unknown> };
-
-function makeRelay(
-  stations: string[],
-  notify: (n: Notif) => Promise<void>,
-): { relay: InboundRelay; notifs: Notif[] } {
-  const notifs: Notif[] = [];
-  const fakeMcp = {
-    notification: (n: Notif) => {
-      notifs.push(n);
-      return notify(n);
-    },
-  };
-  const relay = new InboundRelay({
-    mcp: fakeMcp as never,
-    log: () => {},
-    getStations: () => new Set(stations),
-    senderAllowed: () => true,
-  });
-  return { relay, notifs };
-}
-
-const tick = (ms: number): Promise<void> =>
-  new Promise((r) => setTimeout(r, ms));
-const drain = (): Promise<void> => tick(200);
+const drain = (): Promise<void> => settle(200);
 
 let stop: (() => void) | undefined;
 afterEach(() => {
@@ -51,37 +28,31 @@ function inbound(messageId: string, text: string): MetroEvent {
   };
 }
 
-function contents(notifs: Notif[]): string[] {
-  return notifs
-    .filter((n) => n.method === 'notifications/claude/channel')
-    .map((n) => String(n.params.content));
-}
-
 describe('burst with async delivery + mid-burst rebind', () => {
   test('async sink: 10 rapid events all delivered once, in order', async () => {
-    const { relay, notifs } = makeRelay(['discord-bot'], () => tick(5));
+    const { relay, notifs } = makeRelay(['discord-bot'], () => settle(5));
     const channel = new ChannelRelay({ relay, log: () => {}, inScope: () => true });
     stop = channel.start();
 
     for (let i = 1; i <= 10; i++) publishEvent(inbound(`a-${i}`, String(i)));
     await drain();
 
-    expect(contents(notifs)).toEqual(
+    expect(channelContents(notifs)).toEqual(
       Array.from({ length: 10 }, (_, i) => String(i + 1)),
     );
   });
 
   test('rebind in the middle of an async burst: every event once, no dups', async () => {
-    const { relay, notifs } = makeRelay(['discord-bot'], () => tick(5));
+    const { relay, notifs } = makeRelay(['discord-bot'], () => settle(5));
     const channel = new ChannelRelay({ relay, log: () => {}, inScope: () => true });
     stop = channel.start();
 
     for (let i = 1; i <= 10; i++) publishEvent(inbound(`b-${i}`, String(i)));
-    await tick(12);
+    await settle(12);
     channel.replayMissed();
     await drain();
 
-    const got = contents(notifs);
+    const got = channelContents(notifs);
     expect(got.sort((a, b) => Number(a) - Number(b))).toEqual(
       Array.from({ length: 10 }, (_, i) => String(i + 1)),
     );
@@ -92,7 +63,7 @@ describe('burst with async delivery + mid-burst rebind', () => {
     const { relay, notifs } = makeRelay(['discord-bot'], () => {
       calls += 1;
       if (calls === 3) return Promise.reject(new Error('transport down'));
-      return tick(5);
+      return settle(5);
     });
     const channel = new ChannelRelay({ relay, log: () => {}, inScope: () => true });
     stop = channel.start();
@@ -102,7 +73,7 @@ describe('burst with async delivery + mid-burst rebind', () => {
     channel.replayMissed();
     await drain();
 
-    const got = contents(notifs);
+    const got = channelContents(notifs);
     for (let i = 1; i <= 10; i++) expect(got).toContain(String(i));
     expect(new Set(got).size).toBe(10);
   });

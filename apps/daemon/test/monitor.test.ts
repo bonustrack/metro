@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
@@ -18,27 +16,15 @@ const AGENTS = {
 };
 const NAMES = { ['agent000001']: 'tony', ['agent000002']: 'lisa' };
 
-interface Harness {
-  server: Server;
-  base: string;
-}
-
-let active: Harness | undefined;
+let active: Daemon | undefined;
 
 async function start(
   keys: Array<{ key: string; agentId: number }>,
-): Promise<Harness> {
+): Promise<Daemon> {
   setKeyMap(keys);
   setAgentMap(AGENTS, NAMES);
-  process.env.METRO_WEBHOOK_PORT = String(
-    10000 + Math.floor(Math.random() * 20000),
-  );
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
-  const server = await startWebhookServer(makeEmit(), {}, undefined, true);
-  const addr = server.address() as AddressInfo;
-  const h: Harness = { server, base: `http://127.0.0.1:${addr.port}` };
-  active = h;
-  return h;
+  active = await bootDaemon({}, { monitor: true });
+  return active;
 }
 
 const both = (): Array<{ key: string; agentId: number }> => [
@@ -47,11 +33,8 @@ const both = (): Array<{ key: string; agentId: number }> => [
 ];
 
 afterEach(async () => {
-  if (active) {
-    const s = active.server;
-    await new Promise<void>((r) => s.close(() => r()));
-    active = undefined;
-  }
+  await active?.close();
+  active = undefined;
   setKeyMap([]);
   setAgentMap({}, {});
 });

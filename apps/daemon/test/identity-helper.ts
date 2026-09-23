@@ -38,4 +38,4 @@ export async function forged(who: Who = TEST_OWNER): Promise<string> {
   return `Bearer ${started.mint(sessionClaims({ org_id: who, role: 'admin' }), { key: foreign.privateKey })}`;
 }
 
-export const auth = (_method: string, _path: string, who: Who, role: 'admin' | 'member' = 'admin'): Promise<string> => bearer({ org_id: who, role });
+export const auth = (who: Who, role: 'admin' | 'member' = 'admin'): Promise<string> => bearer({ org_id: who, role });

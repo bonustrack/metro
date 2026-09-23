@@ -7,6 +7,7 @@ import { setKeyMap } from '../src/agents/keys.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { asLine } from '@metro-labs/core/lines';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
+import { initSession, postInitialize } from './mcp-probe.ts';
 
 const TOKEN = 'mk_test_agent_key';
 setKeyMap([{ key: TOKEN, agentId: 'agent000001' }]);
@@ -61,23 +62,7 @@ describe('MCP session survives daemon restart', () => {
     const port = (server.address() as AddressInfo).port;
     const url = `http://127.0.0.1:${port}/mcp?token=${TOKEN}`;
 
-    const init = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2025-06-18',
-          capabilities: {},
-          clientInfo: { name: 'probe', version: '0.0.0' },
-        },
-      }),
-    });
+    const init = await postInitialize(url);
     expect(init.status).toBe(200);
     const liveSessionId = init.headers.get('mcp-session-id');
     expect(typeof liveSessionId).toBe('string');
@@ -171,26 +156,7 @@ describe('the tool list_changed notice', () => {
     const port = (second.address() as AddressInfo).port;
     const url = `http://127.0.0.1:${port}/mcp?token=${TOKEN}`;
 
-    const init = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2025-06-18',
-          capabilities: {},
-          clientInfo: { name: 'probe', version: '0.0.0' },
-        },
-      }),
-    });
-    const sessionId = init.headers.get('mcp-session-id') ?? '';
-    await init.body?.cancel();
-    expect(sessionId).not.toBe('');
+    const sessionId = await initSession(url);
 
     const ac = new AbortController();
     const sseRes = await fetch(url, {

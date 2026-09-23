@@ -9,6 +9,7 @@ import { auth, type Who } from './identity-helper.ts';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { jwt } from './model-fixture.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 
@@ -22,7 +23,6 @@ let stored: ModelConfig;
 let home = '';
 const seenModelUrls: string[] = [];
 const creditsAuth: string[] = [];
-const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
 const idToken = jwt({ email: 'less@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_1', chatgpt_plan_type: 'plus' } });
 
 beforeAll(async () => {
@@ -189,7 +189,7 @@ const conns = async (method: string, path = '', body?: unknown): Promise<Respons
   fetch(`${base}/api/model/connections${path}`, {
     method,
     headers: {
-      authorization: await auth(method, `/api/model/connections${path}`, OWNER),
+      authorization: await auth(OWNER),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -204,7 +204,7 @@ const call = async (method: string, who: Who | null, body?: unknown): Promise<Re
   fetch(`${base}/api/model`, {
     method,
     headers: {
-      ...(who === null ? {} : { authorization: await auth(method, '/api/model', who) }),
+      ...(who === null ? {} : { authorization: await auth(who) }),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -293,7 +293,7 @@ const gemini = async (name: string, method: 'GET' | 'POST', body?: unknown): Pro
   fetch(`${base}/api/model/gemini/${name}`, {
     method,
     headers: {
-      authorization: await auth(method, `/api/model/gemini/${name}`, OWNER),
+      authorization: await auth(OWNER),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -303,7 +303,7 @@ const codex = async (name: string, method: 'GET' | 'POST', body?: unknown): Prom
   fetch(`${base}/api/model/codex/${name}`, {
     method,
     headers: {
-      authorization: await auth(method, `/api/model/codex/${name}`, OWNER),
+      authorization: await auth(OWNER),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -312,14 +312,14 @@ const codex = async (name: string, method: 'GET' | 'POST', body?: unknown): Prom
 describe('the model setup as a whole, for the export file', () => {
   test('the owner reads it with its keys and writes it back; anything else is refused', async () => {
     await add({ provider: 'openrouter', apiKey: 'or-key', model: 'google/gemini-3.8-flash', zdr: true });
-    const bundle = await fetch(`${base}/api/model/bundle`, { headers: { authorization: await auth('GET', '/api/model/bundle', OWNER) } });
+    const bundle = await fetch(`${base}/api/model/bundle`, { headers: { authorization: await auth(OWNER) } });
     expect(bundle.status).toBe(200);
     const body = (await bundle.json()) as ModelConfig;
     expect(body.connections[0]).toMatchObject({ provider: 'openrouter', apiKey: 'or-key', model: 'google/gemini-3.8-flash', zdr: true });
     stored = { version: 2, route: '', connections: [] };
     const restored = await fetch(`${base}/api/model/restore`, {
       method: 'POST',
-      headers: { authorization: await auth('POST', '/api/model/restore', OWNER), 'content-type': 'application/json' },
+      headers: { authorization: await auth(OWNER), 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
     expect(restored.status).toBe(200);
@@ -327,7 +327,7 @@ describe('the model setup as a whole, for the export file', () => {
     expect(stored.connections[0]?.apiKey).toBe('or-key');
     const bad = await fetch(`${base}/api/model/restore`, {
       method: 'POST',
-      headers: { authorization: await auth('POST', '/api/model/restore', OWNER), 'content-type': 'application/json' },
+      headers: { authorization: await auth(OWNER), 'content-type': 'application/json' },
       body: '[]',
     });
     expect(bad.status).toBe(400);
@@ -404,10 +404,10 @@ describe('connecting Google for Gemini from the page', () => {
     expect(await (await gemini('models', 'GET')).json()).toEqual({ models: ['gemini-3.8-flash-tiered', 'gemini-3.1-pro-high'] });
     expect(modelsAsked.at(-1)).toEqual({ project: 'managed-proj-7' });
     const geminiId = String(shown.connections[0]?.id);
-    const quiet = (await (await fetch(`${base}/api/model`, { headers: { authorization: await auth('GET', '/api/model', OWNER) } })).json()) as { usage: Record<string, unknown> };
+    const quiet = (await (await fetch(`${base}/api/model`, { headers: { authorization: await auth(OWNER) } })).json()) as { usage: Record<string, unknown> };
     expect(quiet.usage[geminiId]).toBeUndefined();
     await conns('PUT', `/${geminiId}`, { model: 'gemini-3.8-flash-tiered' });
-    const settings = (await (await fetch(`${base}/api/model`, { headers: { authorization: await auth('GET', '/api/model', OWNER) } })).json()) as { usage: Record<string, { windows: { label: string; used: number; resetAt: string; detail: string | null }[] }> };
+    const settings = (await (await fetch(`${base}/api/model`, { headers: { authorization: await auth(OWNER) } })).json()) as { usage: Record<string, { windows: { label: string; used: number; resetAt: string; detail: string | null }[] }> };
     expect(settings.usage[geminiId]?.windows).toEqual([{ label: 'gemini-3.8-flash-tiered', used: 0.25, resetAt: '2026-09-21T10:00:00Z', detail: null }]);
     expect((await conns('DELETE', `/${geminiId}`)).status).toBe(200);
     expect(stored.connections).toEqual([]);
@@ -475,7 +475,7 @@ describe('the device-code sign-in from the page', () => {
 describe('picking an OpenRouter model without typing its id', () => {
   test('the daemon lists what OpenRouter serves newest first, dropping rows with no id', async () => {
     const res = await fetch(`${base}/api/model/openrouter/models`, {
-      headers: { authorization: await auth('GET', '/api/model/openrouter/models', OWNER) },
+      headers: { authorization: await auth(OWNER) },
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
@@ -485,7 +485,7 @@ describe('picking an OpenRouter model without typing its id', () => {
       ],
     });
     const wrong = await fetch(`${base}/api/model/openrouter/nope`, {
-      headers: { authorization: await auth('GET', '/api/model/openrouter/nope', OWNER) },
+      headers: { authorization: await auth(OWNER) },
     });
     expect(wrong.status).toBe(404);
   });
@@ -512,7 +512,7 @@ describe('the Codex client version metro announces', () => {
 describe('zero data retention on OpenRouter', () => {
   test('the daemon lists the models with a zero data retention endpoint, once each, sorted', async () => {
     const res = await fetch(`${base}/api/model/openrouter/zdr`, {
-      headers: { authorization: await auth('GET', '/api/model/openrouter/zdr', OWNER) },
+      headers: { authorization: await auth(OWNER) },
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ models: ['anthropic/claude-sonnet-4.5', 'openai/gpt-5.2-codex'] });
@@ -522,21 +522,21 @@ describe('zero data retention on OpenRouter', () => {
 describe('picking an Anthropic or Bedrock model without typing its id', () => {
   test('Anthropic lists the known Claude models without a key, and the account list with one', async () => {
     await add({ provider: 'anthropic' });
-    const res = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth('GET', '/api/model/anthropic/models', OWNER) } });
+    const res = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth(OWNER) } });
     expect(res.status).toBe(200);
     const known = ((await res.json()) as { models: { id: string }[] }).models.map((m) => m.id);
     expect(known).toContain('claude-sonnet-5');
     expect(known).toContain('claude-opus-5-5');
     stored.connections[0] = { ...stored.connections[0]!, apiKey: 'sk-ant' };
-    const live = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth('GET', '/api/model/anthropic/models', OWNER) } });
+    const live = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth(OWNER) } });
     expect(await live.json()).toEqual({ models: [{ id: 'claude-opus-5', name: 'Claude Opus 5' }, { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' }] });
   });
 
   test('Bedrock lists the active Anthropic inference profiles of the region, and says why when it cannot', async () => {
-    const refused = await fetch(`${base}/api/model/bedrock/models`, { headers: { authorization: await auth('GET', '/api/model/bedrock/models', OWNER) } });
+    const refused = await fetch(`${base}/api/model/bedrock/models`, { headers: { authorization: await auth(OWNER) } });
     expect(refused.status).toBe(400);
     await add({ provider: 'bedrock', region: 'eu-central-1', apiKey: 'aws-key' });
-    const res = await fetch(`${base}/api/model/bedrock/models`, { headers: { authorization: await auth('GET', '/api/model/bedrock/models', OWNER) } });
+    const res = await fetch(`${base}/api/model/bedrock/models`, { headers: { authorization: await auth(OWNER) } });
     expect(await res.json()).toEqual({ models: [{ id: 'eu.anthropic.claude-sonnet-5', name: 'EU Claude Sonnet 5' }] });
   });
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { beginDeviceLogin, pollDeviceLogin } from '../src/gateway/codex-device.ts';
+import { jwt } from './model-fixture.ts';
 
-const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
 const idToken = jwt({ email: 'less@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_1', chatgpt_plan_type: 'pro' } });
 
 interface Call {

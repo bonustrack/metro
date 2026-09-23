@@ -32,3 +32,5 @@ export function conn(cfg: ModelConfig, provider: Provider): Connection {
 export function use(cfg: ModelConfig, provider: Provider): void {
   cfg.route = conn(cfg, provider).id;
 }
+
+export const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');

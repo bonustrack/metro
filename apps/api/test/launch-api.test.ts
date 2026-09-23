@@ -88,7 +88,7 @@ const call = async (method: string, path: string, who = TEST_OWNER, body?: unkno
   fetch(`${base}${path}`, {
     method,
     headers: {
-      authorization: await auth(method, path, who),
+      authorization: await auth(who),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),

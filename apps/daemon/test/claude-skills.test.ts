@@ -33,7 +33,7 @@ const call = async (method: string, path: string, body?: unknown, who = OWNER): 
     method,
     headers: {
       'content-type': 'application/json',
-      authorization: await auth(method, path.split('?')[0] ?? path, who),
+      authorization: await auth(who),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });

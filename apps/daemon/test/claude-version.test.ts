@@ -99,7 +99,7 @@ describe('the version over the API', () => {
   });
 
   const call = async (method: string): Promise<Response> =>
-    fetch(`${base}/api/claude/version`, { method, headers: { authorization: await auth(method, '/api/claude/version', OWNER) } });
+    fetch(`${base}/api/claude/version`, { method, headers: { authorization: await auth(OWNER) } });
 
   test('the owner reads the versions and runs the update', async () => {
     expect((await (await call('GET')).json()) as unknown).toEqual({ installed: '2.1.272', latest: '2.1.274', newer: true });

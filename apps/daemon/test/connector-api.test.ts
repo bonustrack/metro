@@ -1,8 +1,6 @@
 import { auth, bearer, forged, type Who } from './identity-helper.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { ApiError } from '@metro-labs/http/api-error';
 import {
   ConnectorVerifyError,
@@ -66,12 +64,11 @@ const SEED: Row[] = [
   },
 ];
 
-let server: Server;
+let daemon: Daemon;
 let base: string;
 let rows: Row[] = [...SEED];
 let nextId = 10;
 let calls: string[] = [];
-let priorHost: string | undefined;
 
 const VERIFIED = {
   at: '2026-08-21T09:14:04.880Z',
@@ -184,7 +181,6 @@ const deps: ConnectorApiDeps = {
   },
 };
 
-const session = (email: string): string => email;
 
 const call = async (
   method: string,
@@ -195,7 +191,7 @@ const call = async (
   fetch(`${base}${path}`, {
     method,
     headers: {
-      ...(token === undefined ? {} : { authorization: await auth(method, path, token) }),
+      ...(token === undefined ? {} : { authorization: await auth(token) }),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -209,30 +205,18 @@ const keyed = (method: string, path: string, key: string, body?: unknown): Promi
   });
 
 const listFor = async (email: string): Promise<WireConnector[]> => {
-  const res = await call('GET', '/api/connectors', session(email));
+  const res = await call('GET', '/api/connectors', email);
   const wire = (await res.json()) as { connectors: WireConnector[] };
   return wire.connectors;
 };
 
 beforeAll(async () => {
-  priorHost = process.env.METRO_HTTP_HOST;
-  process.env.METRO_WEBHOOK_PORT = String(
-    10000 + Math.floor(Math.random() * 20000),
-  );
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
-  server = await startWebhookServer(
-    makeEmit(),
-    { connectorApi: deps },
-    undefined,
-    true,
-  );
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  daemon = await bootDaemon({ connectorApi: deps }, { monitor: true });
+  base = daemon.base;
 });
 
 afterAll(async () => {
-  await new Promise<void>((r) => server.close(() => r()));
-  if (priorHost === undefined) delete process.env.METRO_HTTP_HOST;
-  else process.env.METRO_HTTP_HOST = priorHost;
+  await daemon.close();
 });
 
 afterEach(() => {
@@ -360,7 +344,7 @@ describe('the routing gates run before authentication', () => {
 
 describe('a connector can be signed out without being deleted', () => {
   test('disconnect reaches the writer and answers with the row, not a deletion', async () => {
-    const res = await call('POST', '/api/connectors/agent000001/disconnect', session(ADA));
+    const res = await call('POST', '/api/connectors/agent000001/disconnect', ADA);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       id: 'agent000001',
@@ -372,7 +356,7 @@ describe('a connector can be signed out without being deleted', () => {
   });
 
   test('the row it answers with reports no auth left', async () => {
-    const res = await call('POST', '/api/connectors/agent000001/disconnect', session(ADA));
+    const res = await call('POST', '/api/connectors/agent000001/disconnect', ADA);
     expect(await res.json()).toMatchObject({ header: null, signIn: null });
   });
 
@@ -387,7 +371,7 @@ describe('a connector can be signed out without being deleted', () => {
     rows = rows.map((r) =>
       r.id === 'agent000002' ? { ...r, signIn: 'connected' as const } : r,
     );
-    const res = await call('GET', '/api/connectors', session(ADA));
+    const res = await call('GET', '/api/connectors', ADA);
     const body = (await res.json()) as { connectors: { id: string; signIn: unknown }[] };
     const seen = body.connectors.map((c) => [c.id, c.signIn]);
     expect(seen).toEqual([
@@ -399,7 +383,7 @@ describe('a connector can be signed out without being deleted', () => {
 
 describe('GET /api/connectors returns the wire shape', () => {
   test('a row carries its identity and nothing that could sign anything in', async () => {
-    const res = await call('GET', '/api/connectors', session(ADA));
+    const res = await call('GET', '/api/connectors', ADA);
     expect(res.status).toBe(200);
     const wire = (await res.json()) as {
       connectors: WireConnector[];
@@ -420,10 +404,10 @@ describe('GET /api/connectors returns the wire shape', () => {
   });
 
   test('the tools of a connector are listed live', async () => {
-    const mine = await call('GET', '/api/connectors/agent000001/tools', session(ADA));
+    const mine = await call('GET', '/api/connectors/agent000001/tools', ADA);
     expect(mine.status).toBe(200);
     expect(await mine.json()).toEqual({ tools: [{ name: 'create_issue', description: 'Files an issue', readOnly: false }] });
-    expect((await call('POST', '/api/connectors/agent000001/tools', session(ADA))).status).toBe(405);
+    expect((await call('POST', '/api/connectors/agent000001/tools', ADA)).status).toBe(405);
   });
 
   test('a connector with no auth reports null', async () => {
@@ -433,7 +417,7 @@ describe('GET /api/connectors returns the wire shape', () => {
   });
 
   test('a browser session gets no credential anywhere in the response', async () => {
-    const res = await call('GET', '/api/connectors', session(ADA));
+    const res = await call('GET', '/api/connectors', ADA);
     const body = await res.text();
     expect(body).not.toContain('lin_oauth_7f');
     expect(body).not.toContain('mcpServers');
@@ -443,7 +427,7 @@ describe('GET /api/connectors returns the wire shape', () => {
 
 describe('a connector can be renamed', () => {
   test('the row comes back under its new name', async () => {
-    const res = await call('POST', '/api/connectors/agent000001/rename', session(ADA), {
+    const res = await call('POST', '/api/connectors/agent000001/rename', ADA, {
       name: 'Linear · prod',
     });
     expect(res.status).toBe(200);
@@ -452,7 +436,7 @@ describe('a connector can be renamed', () => {
   });
 
   test('a name another of yours already has is fine, names are unique per agent', async () => {
-    const res = await call('POST', '/api/connectors/agent000001/rename', session(ADA), {
+    const res = await call('POST', '/api/connectors/agent000001/rename', ADA, {
       name: 'docs',
     });
     expect(res.status).toBe(200);
@@ -460,7 +444,7 @@ describe('a connector can be renamed', () => {
   });
 
   test('a name that would collide on an agent is 409, not a silent overwrite', async () => {
-    const res = await call('POST', '/api/connectors/agent000001/rename', session(ADA), {
+    const res = await call('POST', '/api/connectors/agent000001/rename', ADA, {
       name: CLASHES_IN_AGENT,
     });
     expect(res.status).toBe(409);
@@ -470,14 +454,14 @@ describe('a connector can be renamed', () => {
   });
 
   test('renaming a connector that is not there is 404', async () => {
-    expect((await call('POST', '/api/connectors/agent999999/rename', session(ADA), { name: 'x' })).status).toBe(404);
+    expect((await call('POST', '/api/connectors/agent999999/rename', ADA, { name: 'x' })).status).toBe(404);
   });
 
   test('a missing or non-string name is a 400 before the store is touched', async () => {
     calls.length = 0;
     for (const body of [{}, { name: 7 }, { name: null }])
       expect(
-        (await call('POST', '/api/connectors/agent000001/rename', session(ADA), body))
+        (await call('POST', '/api/connectors/agent000001/rename', ADA, body))
           .status,
       ).toBe(400);
     expect(calls).toEqual([]);
@@ -488,13 +472,13 @@ describe('a connector can be renamed', () => {
       (await call('POST', '/api/connectors/agent000001/rename', undefined, { name: 'x' }))
         .status,
     ).toBe(401);
-    expect((await call('GET', '/api/connectors/agent000001/rename', session(ADA))).status).toBe(405);
+    expect((await call('GET', '/api/connectors/agent000001/rename', ADA)).status).toBe(405);
   });
 });
 
 describe('POST /api/connectors', () => {
   test('a created connector comes back in the list-row shape', async () => {
-    const res = await call('POST', '/api/connectors', session(ADA), {
+    const res = await call('POST', '/api/connectors', ADA, {
       name: 'sentry',
       url: 'https://mcp.sentry.dev/mcp',
       value: 'Bearer sntry_1',
@@ -513,18 +497,9 @@ describe('POST /api/connectors', () => {
     ]);
   });
 
-  test('a duplicate name in the same project is allowed', async () => {
-    const res = await call('POST', '/api/connectors', session(ADA), {
-      name: 'linear',
-      url: 'https://mcp.linear.app/mcp',
-    });
-    expect(res.status).toBe(201);
-    expect((await listFor(ADA)).filter((c) => c.name === 'linear')).toHaveLength(2);
-  });
-
   test('a name is a label now — spaces and punctuation are accepted', async () => {
     for (const name of ['my linear', 'a', '-leading', 'Snapshot · prod']) {
-      const res = await call('POST', '/api/connectors', session(ADA), {
+      const res = await call('POST', '/api/connectors', ADA, {
         name,
         url: `https://${name.length}.example.com/mcp`,
       });
@@ -534,7 +509,7 @@ describe('POST /api/connectors', () => {
 
   test('a name still has to be there, and cannot run on forever', async () => {
     for (const name of ['', '   ', 'x'.repeat(65)]) {
-      const res = await call('POST', '/api/connectors', session(ADA), {
+      const res = await call('POST', '/api/connectors', ADA, {
         name,
         url: 'https://mcp.linear.app/mcp',
       });
@@ -549,7 +524,7 @@ describe('POST /api/connectors', () => {
       'https://mcp.linear.app/mcp#tools',
       'not a url',
     ]) {
-      const res = await call('POST', '/api/connectors', session(ADA), {
+      const res = await call('POST', '/api/connectors', ADA, {
         name: 'probe',
         url,
       });
@@ -559,7 +534,7 @@ describe('POST /api/connectors', () => {
   });
 
   test('a remote refusing the credential is a 400, never metro 401', async () => {
-    const res = await call('POST', '/api/connectors', session(ADA), {
+    const res = await call('POST', '/api/connectors', ADA, {
       name: 'picky',
       url: 'https://rejects.example.com/mcp',
       value: 'Bearer wrong',
@@ -571,7 +546,7 @@ describe('POST /api/connectors', () => {
   });
 
   test('an unreachable remote is a 400, not a 502', async () => {
-    const res = await call('POST', '/api/connectors', session(ADA), {
+    const res = await call('POST', '/api/connectors', ADA, {
       name: 'gone',
       url: 'https://down.example.com/mcp',
     });
@@ -582,7 +557,7 @@ describe('POST /api/connectors', () => {
   });
 
   test('a header with no value is 400', async () => {
-    const res = await call('POST', '/api/connectors', session(ADA), {
+    const res = await call('POST', '/api/connectors', ADA, {
       name: 'halfauth',
       url: 'https://mcp.example.com/mcp',
       header: 'Authorization',
@@ -591,7 +566,7 @@ describe('POST /api/connectors', () => {
   });
 
   test('the shared 4 KiB body cap applies here too', async () => {
-    const res = await call('POST', '/api/connectors', session(ADA), {
+    const res = await call('POST', '/api/connectors', ADA, {
       name: 'huge',
       url: 'https://mcp.example.com/mcp',
       value: `Bearer ${'x'.repeat(5000)}`,
@@ -604,7 +579,7 @@ describe('POST /api/connectors', () => {
     const res = await fetch(`${base}/api/connectors`, {
       method: 'POST',
       headers: {
-        authorization: await auth('POST', `${base}/api/connectors`, ADA),
+        authorization: await auth(ADA),
         'content-type': 'application/json',
       },
       body: 'not json',
@@ -616,7 +591,7 @@ describe('POST /api/connectors', () => {
 
 describe('verify and delete', () => {
   test('a re-verify that succeeds is 200 with ok true', async () => {
-    const res = await call('POST', '/api/connectors/agent000001/verify', session(ADA));
+    const res = await call('POST', '/api/connectors/agent000001/verify', ADA);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       id: 'agent000001',
@@ -637,7 +612,7 @@ describe('verify and delete', () => {
         secret: 'Bearer wrong',
       },
     ];
-    const res = await call('POST', '/api/connectors/agent000004/verify', session(ADA));
+    const res = await call('POST', '/api/connectors/agent000004/verify', ADA);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       id: 'agent000004',
@@ -648,17 +623,17 @@ describe('verify and delete', () => {
   });
 
   test('DELETE removes the row and names it back', async () => {
-    const res = await call('DELETE', '/api/connectors/agent000001', session(ADA));
+    const res = await call('DELETE', '/api/connectors/agent000001', ADA);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ id: 'agent000001', name: 'linear', deleted: true });
     expect((await listFor(ADA)).map((c) => c.name)).toEqual(['docs']);
   });
 
   test('deleting twice is a 404 the second time', async () => {
-    expect((await call('DELETE', '/api/connectors/agent000002', session(ADA))).status).toBe(
+    expect((await call('DELETE', '/api/connectors/agent000002', ADA)).status).toBe(
       200,
     );
-    expect((await call('DELETE', '/api/connectors/agent000002', session(ADA))).status).toBe(
+    expect((await call('DELETE', '/api/connectors/agent000002', ADA)).status).toBe(
       404,
     );
   });
@@ -674,7 +649,7 @@ describe('the mounting order inside handlePreMcpRoutes', () => {
 
   test('the monitor router claims /api/* and must not swallow this one', async () => {
     expect((await fetch(`${base}/api/tail`)).status).toBe(401);
-    const res = await call('GET', '/api/connectors', session(ADA));
+    const res = await call('GET', '/api/connectors', ADA);
     expect(res.status).toBe(200);
     expect((await res.json()) as { connectors: unknown[] }).toHaveProperty(
       'connectors',

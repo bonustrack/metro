@@ -14,6 +14,8 @@ import { setKeyMap } from '../src/agents/keys.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { asLine } from '@metro-labs/core/lines';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
+import { initSession, openGet } from './mcp-probe.ts';
+import { settle, waitFor } from './wait.ts';
 
 const TOKEN = 'mk_one_tony';
 const ACCOUNT = 'a1-onetony';
@@ -38,93 +40,6 @@ const msg = (line: string, text: string): MetroEvent =>
     messageId: `m-${randomUUID()}`,
     event: { type: 'msg' },
   }) as unknown as MetroEvent;
-
-const initSession = async (): Promise<string> => {
-  const res = await fetch(url(), {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-06-18',
-        capabilities: {},
-        clientInfo: { name: 'probe', version: '0.0.0' },
-      },
-    }),
-  });
-  const sessionId = res.headers.get('mcp-session-id');
-  await res.body?.cancel();
-  if (!sessionId) throw new Error('no session id from initialize');
-  return sessionId;
-};
-
-interface Stream {
-  raw: () => string;
-  status: number;
-  ended: () => boolean;
-  stop: () => Promise<void>;
-}
-
-const openGet = async (
-  sessionId: string,
-  lastEventId?: string,
-): Promise<Stream> => {
-  const ac = new AbortController();
-  const headers: Record<string, string> = {
-    accept: 'text/event-stream',
-    'mcp-session-id': sessionId,
-    'mcp-protocol-version': '2025-06-18',
-  };
-  if (lastEventId !== undefined) headers['last-event-id'] = lastEventId;
-  const res = await fetch(url(), {
-    method: 'GET',
-    signal: ac.signal,
-    headers,
-  });
-  let raw = '';
-  let ended = false;
-  const reader = res.body?.getReader();
-  const decoder = new TextDecoder();
-  const pump = (async () => {
-    if (!reader) return;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) {
-          ended = true;
-          break;
-        }
-        raw += decoder.decode(value, { stream: true });
-      }
-    } catch {
-      // aborted on teardown
-    }
-  })();
-  return {
-    raw: () => raw,
-    status: res.status,
-    ended: () => ended,
-    stop: async () => {
-      ac.abort();
-      await pump;
-    },
-  };
-};
-
-const waitFor = async (predicate: () => boolean, ms = 5000): Promise<void> => {
-  const start = Date.now();
-  while (Date.now() - start < ms) {
-    if (predicate()) return;
-    await new Promise((r) => setTimeout(r, 25));
-  }
-};
-
-const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 150));
 
 beforeAll(async () => {
   setKeyMap([{ key: TOKEN, agentId: 'agent000001' }]);
@@ -158,16 +73,16 @@ const toolsList = (sessionId?: string): Promise<Response> =>
 
 describe('one session per box', () => {
   test('a second initialize supersedes the first and ends its stream', async () => {
-    const first = await initSession();
-    const old = await openGet(first);
-    await settle();
-    const second = await initSession();
+    const first = await initSession(url());
+    const old = await openGet(url(), first);
+    await settle(150);
+    const second = await initSession(url());
     expect(second).not.toBe(first);
     await waitFor(() => old.ended());
     expect(old.ended()).toBe(true);
 
-    const fresh = await openGet(second);
-    await settle();
+    const fresh = await openGet(url(), second);
+    await settle(150);
     const text = `after-reinit-${randomUUID()}`;
     publishEvent(msg(LINE, text));
     await waitFor(() => fresh.raw().includes(text));
@@ -186,9 +101,9 @@ describe('one session per box', () => {
   }, 30000);
 
   test('a line whose account maps to no agent is never delivered', async () => {
-    const sessionId = await initSession();
-    const stream = await openGet(sessionId);
-    await settle();
+    const sessionId = await initSession(url());
+    const stream = await openGet(url(), sessionId);
+    await settle(150);
     const stray = `stray-${randomUUID()}`;
     const mine = `mine-${randomUUID()}`;
     publishEvent(msg(STRAY_LINE, stray));
@@ -202,17 +117,17 @@ describe('one session per box', () => {
   }, 30000);
 
   test('a gap message arrives after reconnecting a dropped stream', async () => {
-    const sessionId = await initSession();
-    const first = await openGet(sessionId);
-    await settle();
+    const sessionId = await initSession(url());
+    const first = await openGet(url(), sessionId);
+    await settle(150);
     await first.stop();
-    await settle();
+    await settle(150);
 
     const gap = `gap-${randomUUID()}`;
     publishEvent(msg(LINE, gap));
-    await settle();
+    await settle(150);
 
-    const second = await openGet(sessionId);
+    const second = await openGet(url(), sessionId);
     await waitFor(() => second.raw().includes(gap));
     const body = second.raw();
     await second.stop();
@@ -220,18 +135,18 @@ describe('one session per box', () => {
   }, 30000);
 
   test('a gap message survives a full re-initialize', async () => {
-    const firstSession = await initSession();
-    const first = await openGet(firstSession);
-    await settle();
+    const firstSession = await initSession(url());
+    const first = await openGet(url(), firstSession);
+    await settle(150);
     await first.stop();
-    await settle();
+    await settle(150);
 
     const gap = `gap-across-init-${randomUUID()}`;
     publishEvent(msg(LINE, gap));
-    await settle();
+    await settle(150);
 
-    const secondSession = await initSession();
-    const second = await openGet(secondSession);
+    const secondSession = await initSession(url());
+    const second = await openGet(url(), secondSession);
     await waitFor(() => second.raw().includes(gap));
     const body = second.raw();
     await second.stop();

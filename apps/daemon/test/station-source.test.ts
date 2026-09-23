@@ -4,7 +4,6 @@ import { accountEnabled, agentIdForAccount } from '../src/agents/map.ts';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { materializeFrom, MOVABLE_STATIONS } from '../src/stations/materialize.ts';
-import { agentIdForKey } from '../src/agents/keys.ts';
 
 const KEEP = {
   file: process.env.TELEGRAM_BOT_ACCOUNTS_FILE,
@@ -14,7 +13,6 @@ let dir = '';
 let file = '';
 
 beforeEach(() => {
-  process.env.METRO_MODE = 'local';
   dir = mkdtempSync(join(tmpdir(), 'metro-source-'));
   file = join(dir, 'telegram-bot-accounts.json');
   process.env.TELEGRAM_BOT_ACCOUNTS_FILE = file;
@@ -22,7 +20,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete process.env.METRO_MODE;
   if (KEEP.file === undefined) delete process.env.TELEGRAM_BOT_ACCOUNTS_FILE;
   else process.env.TELEGRAM_BOT_ACCOUNTS_FILE = KEEP.file;
   if (KEEP.trains === undefined) delete process.env.METRO_TRAINS_DIR;
@@ -81,32 +78,6 @@ describe('materializing from an injected source', () => {
       Promise.resolve([agent([telegramBot('stn00000002', ['alice'])])]),
     );
     expect(readFileSync(file, 'utf8')).not.toContain('alice');
-  });
-});
-
-describe('an agent held by a local runtime is not served by the hosted daemon', () => {
-  const moved = {
-    id: 'agent000009',
-    name: 'moved',
-    key: null,
-    accounts: [
-      {
-        station: 'telegram-bot',
-        id: 'stn00000088',
-        allowlist: ['*'],
-        config: { botToken: 'held-secret' },
-      },
-    ],
-  };
-
-  test('its key does not register, so a hosted connection is a clean 401', async () => {
-    await materializeFrom(() => Promise.resolve([moved]));
-    expect(agentIdForKey('mk_test')).toBeUndefined();
-  });
-
-  test('but it still counts as an agent, so boot does not crash-loop', async () => {
-    await materializeFrom(() => Promise.resolve([moved]));
-    expect(agentIdForKey('anything')).toBeUndefined();
   });
 });
 

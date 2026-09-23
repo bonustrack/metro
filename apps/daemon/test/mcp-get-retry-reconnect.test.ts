@@ -7,6 +7,8 @@ import { setKeyMap } from '../src/agents/keys.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { asLine } from '@metro-labs/core/lines';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
+import { initSession, openGet } from './mcp-probe.ts';
+import { settle, waitFor } from './wait.ts';
 
 const TOKEN = 'mk_test_agent_key';
 setKeyMap([{ key: TOKEN, agentId: 'agent000001' }]);
@@ -61,89 +63,6 @@ const parseFrames = (raw: string): Frame[] => {
   return out;
 };
 
-const initSession = async (url: string): Promise<string> => {
-  const init = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-06-18',
-        capabilities: {},
-        clientInfo: { name: 'probe', version: '0.0.0' },
-      },
-    }),
-  });
-  const sessionId = init.headers.get('mcp-session-id');
-  await init.body?.cancel();
-  if (!sessionId) throw new Error('no session id from initialize');
-  return sessionId;
-};
-
-interface Stream {
-  frames: Frame[];
-  raw: () => string;
-  stop: () => Promise<void>;
-}
-
-const openGet = async (
-  url: string,
-  sessionId: string,
-  lastEventId?: string,
-): Promise<Stream> => {
-  const ac = new AbortController();
-  const headers: Record<string, string> = {
-    accept: 'text/event-stream',
-    'mcp-session-id': sessionId,
-    'mcp-protocol-version': '2025-06-18',
-  };
-  if (lastEventId) headers['last-event-id'] = lastEventId;
-  const res = await fetch(url, { method: 'GET', signal: ac.signal, headers });
-  expect(res.status).toBe(200);
-  const frames: Frame[] = [];
-  let raw = '';
-  const reader = res.body?.getReader();
-  const decoder = new TextDecoder();
-  const pump = (async () => {
-    if (!reader) return;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        raw += decoder.decode(value, { stream: true });
-        frames.length = 0;
-        for (const f of parseFrames(raw)) frames.push(f);
-      }
-    } catch {
-      // aborted on teardown
-    }
-  })();
-  return {
-    frames,
-    raw: () => raw,
-    stop: async () => {
-      ac.abort();
-      await pump;
-    },
-  };
-};
-
-const waitFor = async (
-  predicate: () => boolean,
-  ms = 5000,
-): Promise<void> => {
-  const start = Date.now();
-  while (Date.now() - start < ms) {
-    if (predicate()) return;
-    await new Promise((r) => setTimeout(r, 25));
-  }
-};
-
 let server: Server | undefined;
 afterAll(async () => {
   if (server) await new Promise<void>((r) => server?.close(() => r()));
@@ -163,14 +82,15 @@ describe('standalone GET SSE self-heal', () => {
     const sessionId = await initSession(url);
 
     const first = await openGet(url, sessionId);
+    expect(first.status).toBe(200);
     await waitFor(() => first.raw().includes('retry:'));
     expect(first.raw()).toContain('retry: 15000');
 
-    await new Promise((r) => setTimeout(r, 150));
+    await settle(150);
     const live = `live-${randomUUID()}`;
     publishEvent(msgEvent(live));
-    await waitFor(() => first.frames.some((f) => f.content === live));
-    const delivered = first.frames.find((f) => f.content === live);
+    await waitFor(() => parseFrames(first.raw()).some((f) => f.content === live));
+    const delivered = parseFrames(first.raw()).find((f) => f.content === live);
     expect(delivered).toBeDefined();
     const lastEventId = delivered?.id;
     expect(typeof lastEventId).toBe('string');
@@ -179,12 +99,13 @@ describe('standalone GET SSE self-heal', () => {
 
     const gap = `gap-${randomUUID()}`;
     publishEvent(msgEvent(gap));
-    await new Promise((r) => setTimeout(r, 100));
+    await settle(100);
 
     const second = await openGet(url, sessionId, lastEventId);
-    await waitFor(() => second.frames.some((f) => f.content === gap));
-    const gapFrames = second.frames.filter((f) => f.content === gap);
-    const liveDup = second.frames.filter((f) => f.content === live);
+    expect(second.status).toBe(200);
+    await waitFor(() => parseFrames(second.raw()).some((f) => f.content === gap));
+    const gapFrames = parseFrames(second.raw()).filter((f) => f.content === gap);
+    const liveDup = parseFrames(second.raw()).filter((f) => f.content === live);
     await second.stop();
 
     expect(gapFrames.length).toBe(1);

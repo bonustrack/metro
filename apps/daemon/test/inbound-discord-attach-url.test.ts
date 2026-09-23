@@ -17,9 +17,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { makeEmit } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { subscribeEvents, type MetroEvent } from '@metro-labs/core/events';
 import { attachmentOwner } from '../src/files/attach-owner.ts';
 import { readAttachmentGrant } from '../src/files/attach-grant.ts';
@@ -32,7 +31,7 @@ const CDN_ONLY = 'msg_1534630426356880_0.html';
 const LINE = 'metro://discord-bot/d0/1504226489359401221';
 const BODY = Buffer.from('<html>hi</html>');
 
-let server: Server;
+let daemon: Daemon;
 let base: string;
 let attachDir: string;
 const prevEnv = {
@@ -80,18 +79,14 @@ beforeAll(async () => {
   for (const name of [FIXED, CDN_ONLY]) writeFileSync(join(attachDir, name), BODY);
   process.env.METRO_XMTP_ATTACH_DIR = attachDir;
   process.env.METRO_PUBLIC_URL = 'https://api.metro.box';
-  process.env.METRO_WEBHOOK_PORT = String(
-    10000 + Math.floor(Math.random() * 20000),
-  );
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
   setKeyMap([{ key: AGENT_KEY, agentId: 'agent000007' }]);
   setAgentMap({ 'discord-bot/d0': 'agent000007' }, { ['agent000007']: 'tony' });
-  server = await startWebhookServer(makeEmit());
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  daemon = await bootDaemon();
+  base = daemon.base;
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await daemon.close();
   if (prevEnv.dir === undefined) delete process.env.METRO_XMTP_ATTACH_DIR;
   else process.env.METRO_XMTP_ATTACH_DIR = prevEnv.dir;
   if (prevEnv.publicUrl === undefined) delete process.env.METRO_PUBLIC_URL;

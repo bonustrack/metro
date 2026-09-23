@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { localSessionApis } from '../src/routes/local-mode.ts';
 import { setLocalOwner } from '../src/agents/file-admin.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
@@ -17,15 +17,13 @@ const CLIENT_ID = 'app-123';
 const CLIENT_SECRET = 's3cret';
 const saved = {
   dir: process.env.METRO_AGENTS_DIR,
-  port: process.env.METRO_WEBHOOK_PORT,
-  host: process.env.METRO_HTTP_HOST,
   pub: process.env.METRO_PUBLIC_URL,
   claude: process.env.METRO_CLAUDE_DIR,
 };
 let dir = '';
 let vendor: Server;
 let vendorBase = '';
-let daemon: Server;
+let daemon: Daemon;
 let base = '';
 const tokenForms: URLSearchParams[] = [];
 let registerCalls = 0;
@@ -129,8 +127,6 @@ beforeAll(async () => {
     });
   });
   vendorBase = await listen(vendor);
-  process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
   const apis = localSessionApis({
     syncStations: () => Promise.resolve(),
     reloadAgents: () => Promise.resolve(),
@@ -140,20 +136,20 @@ beforeAll(async () => {
     capabilities: () => ({}),
     prepareAccount: () => Promise.reject(new Error('not used')),
   });
-  daemon = await startWebhookServer(makeEmit(), apis, async (_req, res) => {
-    res.writeHead(404).end();
+  daemon = await bootDaemon(apis, {
+    mcp: async (_req, res) => {
+      res.writeHead(404).end();
+    },
   });
-  base = `http://127.0.0.1:${String((daemon.address() as AddressInfo).port)}`;
+  base = daemon.base;
 });
 
 afterAll(async () => {
-  await new Promise<void>((done) => daemon.close(() => done()));
+  await daemon.close();
   vendor.close();
   rmSync(dir, { recursive: true, force: true });
   for (const [k, v] of [
     ['METRO_AGENTS_DIR', saved.dir],
-    ['METRO_WEBHOOK_PORT', saved.port],
-    ['METRO_HTTP_HOST', saved.host],
     ['METRO_PUBLIC_URL', saved.pub],
     ['METRO_CLAUDE_DIR', saved.claude],
   ] as const)
@@ -165,7 +161,7 @@ const J = { 'content-type': 'application/json' };
 const call = async (method: string, path: string, body?: unknown): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
-    headers: { authorization: await auth(method, path, OWNER), ...(body === undefined ? {} : J) },
+    headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : J) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     redirect: 'manual',
   });

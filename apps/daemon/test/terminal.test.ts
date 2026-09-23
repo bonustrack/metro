@@ -1,45 +1,32 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
 import WebSocket from 'ws';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { mintTerminalTicket, pendingTerminalTickets, takeTerminalTicket } from '../src/terminal/tickets.ts';
 import { resizeWindowArgs } from '../src/terminal/socket.ts';
 import { tmuxCommand } from '../src/terminal/api.ts';
 import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-let server: Server;
+let daemon: Daemon;
 let base = '';
-const saved = { host: process.env.METRO_HTTP_HOST, port: process.env.METRO_WEBHOOK_PORT };
 
 beforeAll(async () => {
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
-  process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
-  server = await startWebhookServer(makeEmit(), {
+  daemon = await bootDaemon({
     terminalApi: {
       command: (session) => ['sh', '-c', session === 'sized' ? 'trap "stty size" WINCH; echo READY; while :; do sleep 0.05; done' : `echo READY ${session}; cat`],
     },
   });
-  base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+  base = daemon.base;
 });
 
 afterAll(async () => {
-  if (saved.host === undefined) delete process.env.METRO_HTTP_HOST;
-  else process.env.METRO_HTTP_HOST = saved.host;
-  if (saved.port === undefined) delete process.env.METRO_WEBHOOK_PORT;
-  else process.env.METRO_WEBHOOK_PORT = saved.port;
-  await new Promise<void>((r) => {
-    server.close(() => {
-      r();
-    });
-  });
+  await daemon.close();
 });
 
 const signed = async (method: string, path: string, who = OWNER, body?: unknown): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
-    headers: { authorization: await auth(method, path, who), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    headers: { authorization: await auth(who), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 

@@ -1,32 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { InboundRelay } from '../src/channels/inbound.ts';
+import { makeRelay, type FakeRelay } from './relay-fixture.ts';
 import { buildWebhookNote } from '../src/channels/webhook-note.ts';
 import { makeEmit } from '../src/routes/http.ts';
 import { subscribeEvents, type MetroEvent } from '@metro-labs/core/events';
 import { webhookEntry } from '@metro-labs/webhook';
 
 const LINE = 'metro://webhook/a1-gh';
-
-interface Sent {
-  method: string;
-  params: { content?: string; meta?: Record<string, unknown> };
-}
-
-function relayWith(stations: string[]): { sent: Sent[]; relay: InboundRelay } {
-  const sent: Sent[] = [];
-  const relay = new InboundRelay({
-    mcp: {
-      notification: (n: Sent) => {
-        sent.push(n);
-        return Promise.resolve();
-      },
-    } as never,
-    log: () => undefined,
-    getStations: () => new Set(stations),
-    senderAllowed: () => true,
-  });
-  return { sent, relay };
-}
 
 const hookEvent = (
   headers: Record<string, string>,
@@ -58,10 +37,10 @@ const chatEvent = (line: string, text: string): Record<string, unknown> => ({
 });
 
 describe('a webhook delivery reaches the agent', () => {
-  let harness: { sent: Sent[]; relay: InboundRelay };
+  let harness: FakeRelay;
 
   beforeEach(() => {
-    harness = relayWith(['discord-bot', 'webhook']);
+    harness = makeRelay(['discord-bot', 'webhook']);
   });
 
   test('the note carries the payload, not just the summary line', async () => {
@@ -70,13 +49,13 @@ describe('a webhook delivery reaches the agent', () => {
         ref: 'refs/heads/main',
       }),
     );
-    expect(harness.sent).toHaveLength(1);
-    const content = harness.sent[0]?.params.content ?? '';
+    expect(harness.notifs).toHaveLength(1);
+    const content = harness.notifs[0]?.params.content ?? '';
     expect(content).toContain('[webhook received]');
     expect(content).toContain('github');
     expect(content).toContain('refs/heads/main');
     expect(content).toContain('x-github-delivery: d-1');
-    expect(harness.sent[0]?.params.meta).toMatchObject({
+    expect(harness.notifs[0]?.params.meta).toMatchObject({
       line: LINE,
       station: 'webhook',
       message_id: 'd-1',
@@ -84,16 +63,16 @@ describe('a webhook delivery reaches the agent', () => {
   });
 
   test('a station the channel does not serve is still dropped', async () => {
-    const only = relayWith(['discord-bot']);
+    const only = makeRelay(['discord-bot']);
     await only.relay.handleEvent(hookEvent({ 'x-github-event': 'push' }, {}));
-    expect(only.sent).toHaveLength(0);
+    expect(only.notifs).toHaveLength(0);
   });
 
   test('the same delivery twice is relayed once', async () => {
     const ev = hookEvent({ 'x-github-delivery': 'd-2' }, { a: 1 });
     await harness.relay.handleEvent(ev);
     await harness.relay.handleEvent(ev);
-    expect(harness.sent).toHaveLength(1);
+    expect(harness.notifs).toHaveLength(1);
   });
 
   test('a webhook never becomes the line a permission prompt replies to', async () => {
@@ -109,7 +88,7 @@ describe('a webhook delivery reaches the agent', () => {
     await harness.relay.handleEvent(
       hookEvent({ 'x-github-event': 'push' }, { text: 'yes abcde' }),
     );
-    expect(harness.sent).toHaveLength(1);
+    expect(harness.notifs).toHaveLength(1);
   });
 });
 

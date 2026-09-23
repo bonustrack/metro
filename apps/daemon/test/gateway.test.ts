@@ -6,7 +6,7 @@ import { lastServed } from '../src/gateway/served.ts';
 import { usageSeen } from '../src/gateway/usage.ts';
 import { encodeFrame } from '../src/gateway/eventstream.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
-import { conn, configOf, connectionId, makeConnection, use } from './model-fixture.ts';
+import { conn, configOf, connectionId, jwt, makeConnection, use } from './model-fixture.ts';
 import type { CodexTokens } from '../src/gateway/codex-auth.ts';
 import type { GeminiTokens } from '../src/gateway/gemini-auth.ts';
 
@@ -65,7 +65,6 @@ const geminiFailures: number[] = [];
 const geminiRefusals: string[] = [];
 const geminiTokens = (): GeminiTokens => ({ accessToken: 'ga-1', refreshToken: 'gr-1', expiresAt: Date.now() + 3_600_000, email: 'less@gmail.com', project: 'proj-1', tier: 'Google AI Pro', savedAt: new Date().toISOString() });
 const saved: CodexTokens[] = [];
-const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
 const tokens = (): CodexTokens => ({ accessToken: 'at-1', refreshToken: 'rt-1', idToken: '', accountId: 'acct_1', email: 'less@example.com', plan: 'pro', savedAt: new Date().toISOString() });
 const codexEvents = (): string[] => [
   JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }),

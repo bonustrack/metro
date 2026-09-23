@@ -46,7 +46,7 @@ async function start(command: string[]): Promise<string> {
 const call = async (method: string, path: string, body?: unknown, who = OWNER): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
-    headers: { authorization: await auth(method, path, who), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    headers: { authorization: await auth(who), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 

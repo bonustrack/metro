@@ -22,29 +22,11 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { InboundRelay } from '../src/channels/inbound.ts';
-
-type Notif = { method: string; params: Record<string, unknown> };
+import { makeRelay, type Notif } from './relay-fixture.ts';
 
 const LINE = 'metro://whatsapp/w0/19453952815@s.whatsapp.net';
 const FROM = 'metro://whatsapp/w0/user/19453952815@s.whatsapp.net';
 const SELF = 'metro://claude/user/8a1857f3-4039-4da6-a4e1-611b432d2082';
-
-function makeRelay(): { relay: InboundRelay; notifs: Notif[] } {
-  const notifs: Notif[] = [];
-  const relay = new InboundRelay({
-    mcp: {
-      notification: (n: Notif) => {
-        notifs.push(n);
-        return Promise.resolve();
-      },
-    } as never,
-    log: () => undefined,
-    getStations: () => new Set(['whatsapp']),
-    senderAllowed: () => true,
-  });
-  return { relay, notifs };
-}
 
 const message = (
   id: string,
@@ -129,7 +111,7 @@ const REASON =
 
 describe('a failed download reaches the agent', () => {
   test('buffering the message alone notifies nobody yet', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['whatsapp']);
     await relay.handleEvent(
       message('msg_a', 'the whole quarter is in here', 'document', 'q3.zip'),
     );
@@ -137,7 +119,7 @@ describe('a failed download reaches the agent', () => {
   });
 
   test('the failure carries the caption, the sender and the reason', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['whatsapp']);
     await relay.handleEvent(
       message('msg_b', 'the whole quarter is in here', 'document', 'q3.zip'),
     );
@@ -162,7 +144,7 @@ describe('a failed download reaches the agent', () => {
   });
 
   test('the failure note advertises no url and no local path', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['whatsapp']);
     await relay.handleEvent(message('msg_c', 'caption', 'document', 'q3.zip'));
     await relay.handleEvent(failure('msg_c', 'document', 'q3.zip', REASON));
     const [note] = channel(notifs);
@@ -172,7 +154,7 @@ describe('a failed download reaches the agent', () => {
   });
 
   test('the caption is handed over once, so the timeout cannot repeat it', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['whatsapp']);
     await relay.handleEvent(message('msg_d', 'only once', 'document', 'q3.zip'));
     await relay.handleEvent(failure('msg_d', 'document', 'q3.zip', REASON));
     await relay.handleEvent(failure('msg_d', 'document', 'q3.zip', REASON));
@@ -183,13 +165,13 @@ describe('a failed download reaches the agent', () => {
   });
 
   test('an unknown line is not a channel to shout into', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['whatsapp']);
     await relay.handleEvent(failure('msg_never', 'document', 'x.pdf', REASON));
     expect(channel(notifs)).toHaveLength(0);
   });
 
   test('a message with no attachments is unaffected', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['whatsapp']);
     await relay.handleEvent({
       event: { type: 'msg' },
       id: 'msg_plain',
@@ -207,7 +189,7 @@ describe('a failed download reaches the agent', () => {
 
 describe("the note uses the station's kind when it has one", () => {
   test('a voice note is a voice note, not a generic audio file', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['whatsapp']);
     await relay.handleEvent(
       message('msg_v', 'listen', 'voice', 'voice-message.ogg'),
     );
@@ -222,14 +204,14 @@ describe("the note uses the station's kind when it has one", () => {
   });
 
   test('an mp3 with the same mime family stays audio', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['whatsapp']);
     await relay.handleEvent(message('msg_m', 'track', 'audio', 'audio.mp3'));
     await relay.handleEvent(saved('msg_m', 'audio', 'audio.mp3', 'audio/mpeg'));
     expect(metaOf(channel(notifs)[0] as Notif).kind).toBe('audio');
   });
 
   test('a station that sends no kind still gets one from the mime', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['whatsapp']);
     await relay.handleEvent(message('msg_x', 'pic', 'image', 'a.jpg'));
     const ev = saved('msg_x', 'image', 'a.jpg', 'image/jpeg');
     delete (ev.payload as Record<string, unknown>).kind;

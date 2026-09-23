@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { createMetroMcp } from '../src/mcp/index.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 import { setAgentMap } from '../src/agents/map.ts';
+import { initSession } from './mcp-probe.ts';
 
 const TOKEN = 'mk_test_agent_key';
 setKeyMap([{ key: TOKEN, agentId: 'agent000001' }]);
@@ -76,29 +77,6 @@ const listTools = (id: number): Record<string, unknown> => ({
   params: {},
 });
 
-const initialize = async (): Promise<string> => {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-06-18',
-        capabilities: {},
-        clientInfo: { name: 'probe', version: '0.0.0' },
-      },
-    }),
-  });
-  const sessionId = res.headers.get('mcp-session-id') ?? '';
-  await res.body?.cancel();
-  return sessionId;
-};
-
 describe('an adopted session with no standalone stream', () => {
   test('is told the schema moved on the response to its next tool call', async () => {
     const stale = randomUUID();
@@ -132,7 +110,7 @@ describe('an adopted session with no standalone stream', () => {
 
 describe('a session the client initialized itself', () => {
   test('is never told the schema moved on a tool call', async () => {
-    const sessionId = await initialize();
+    const sessionId = await initSession(url);
     expect(sessionId).not.toBe('');
 
     const { frames } = await post(callTool(9), sessionId);

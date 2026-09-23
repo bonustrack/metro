@@ -7,31 +7,12 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { InboundRelay } from '../src/channels/inbound.ts';
+import { makeRelay } from './relay-fixture.ts';
 import { publishEvent, subscribeEvents } from '@metro-labs/core/events';
-
-type Notif = { method: string; params: Record<string, unknown> };
-
-function makeRelay(): { relay: InboundRelay; notifs: Notif[] } {
-  const notifs: Notif[] = [];
-  const fakeMcp = {
-    notification: (n: Notif) => {
-      notifs.push(n);
-      return Promise.resolve();
-    },
-  };
-  const relay = new InboundRelay({
-    mcp: fakeMcp as never,
-    log: () => {},
-    getStations: () => new Set(['discord-bot']),
-    senderAllowed: () => true,
-  });
-  return { relay, notifs };
-}
 
 describe('inbound event bus → InboundRelay', () => {
   test('a published inbound msg produces a claude/channel notification', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot']);
     const stop = subscribeEvents((e) => {
       void relay.handleEvent(e as unknown as Record<string, unknown>);
     });
@@ -69,7 +50,7 @@ describe('inbound event bus → InboundRelay', () => {
   });
 
   test('a message with no text and no attachment reaches nobody: a join, a poll or a sticker the station could not read is not a turn', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot']);
     const stop = subscribeEvents((e) => {
       void relay.handleEvent(e as unknown as Record<string, unknown>);
     });
@@ -92,7 +73,7 @@ describe('inbound event bus → InboundRelay', () => {
   });
 
   test('every meta value is a string — a non-string drops the whole notification', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot']);
     const stop = subscribeEvents((e) => {
       void relay.handleEvent(e as unknown as Record<string, unknown>);
     });
@@ -125,7 +106,7 @@ describe('inbound event bus → InboundRelay', () => {
   });
 
   test('events from a non-subscribed station are ignored', async () => {
-    const { relay, notifs } = makeRelay();
+    const { relay, notifs } = makeRelay(['discord-bot']);
     const stop = subscribeEvents((e) => {
       void relay.handleEvent(e as unknown as Record<string, unknown>);
     });

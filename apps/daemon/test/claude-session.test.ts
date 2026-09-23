@@ -187,7 +187,7 @@ describe('the session over the API', () => {
   const call = async (method: string, body?: unknown, who = OWNER): Promise<Response> =>
     fetch(`${base}/api/claude/session`, {
       method,
-      headers: { authorization: await auth(method, '/api/claude/session', who), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { authorization: await auth(who), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
 

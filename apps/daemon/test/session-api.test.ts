@@ -1,34 +1,22 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 import { auth, bearer, forged } from './identity-helper.ts';
 
-let server: Server;
+let daemon: Daemon;
 let base = '';
-let savedHost: string | undefined;
 const get = async (who?: Who, at?: number): Promise<Response> =>
   fetch(`${base}/api/session`, {
-    headers: who === undefined ? {} : { authorization: await auth('GET', '/api/session', who, at) },
+    headers: who === undefined ? {} : { authorization: await auth(who, at) },
   });
 
 beforeAll(async () => {
-  savedHost = process.env.METRO_HTTP_HOST;
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
-  process.env.METRO_WEBHOOK_PORT = String(10000 + Math.floor(Math.random() * 20000));
-  server = await startWebhookServer(makeEmit());
-  base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+  daemon = await bootDaemon();
+  base = daemon.base;
 });
 
 afterAll(async () => {
-  if (savedHost === undefined) delete process.env.METRO_HTTP_HOST;
-  else process.env.METRO_HTTP_HOST = savedHost;
-  await new Promise<void>((r) => {
-    server.close(() => {
-      r();
-    });
-  });
+  await daemon.close();
 });
 
 describe('GET /api/session is the boot gate', () => {

@@ -2,9 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
+import { bootDaemon, type Daemon } from './http-harness.ts';
 import {
   attachmentEventUrl,
   attachmentUrl,
@@ -26,7 +24,7 @@ const TWO = 'mk_agent_two';
 const tokenOf = (url: string | null): string =>
   new URL(url ?? 'http://x/').searchParams.get('token') ?? '';
 
-let server: Server;
+let daemon: Daemon;
 let base: string;
 let attachDir: string;
 const prevEnv = {
@@ -40,18 +38,13 @@ beforeAll(async () => {
     writeFileSync(join(attachDir, name), PNG);
   process.env.METRO_XMTP_ATTACH_DIR = attachDir;
   process.env.METRO_PUBLIC_URL = 'https://api.metro.box/';
-  process.env.METRO_WEBHOOK_PORT = String(
-    10000 + Math.floor(Math.random() * 20000),
-  );
-  process.env.METRO_HTTP_HOST = '127.0.0.1';
   setKeyMap([
     { key: ONE, agentId: 'agent000001' },
     { key: TWO, agentId: 'agent000002' },
   ]);
   setAgentMap({ 'xmtp/x1': 'agent000001', 'telegram-bot/t2': 'agent000002' }, { ['agent000001']: 'tony', ['agent000002']: 'lisa' });
-  server = await startWebhookServer(makeEmit());
-  const addr = server.address() as AddressInfo;
-  base = `http://127.0.0.1:${addr.port}`;
+  daemon = await bootDaemon();
+    base = daemon.base;
 });
 
 function restore(key: string, value: string | undefined): void {
@@ -60,7 +53,7 @@ function restore(key: string, value: string | undefined): void {
 }
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await daemon.close();
   restore('METRO_XMTP_ATTACH_DIR', prevEnv.dir);
   restore('METRO_PUBLIC_URL', prevEnv.publicUrl);
   setKeyMap([]);
