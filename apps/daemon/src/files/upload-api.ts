@@ -70,22 +70,6 @@ const query = (req: IncomingMessage, key: string): string | undefined =>
 const identityScope = (req: IncomingMessage): Set<string> =>
   allowedAgents(authenticate(req) ?? undefined);
 
-function ownerFromScope(req: IncomingMessage, allowed: Set<string>): string {
-  const requested = query(req, 'agent');
-  if (requested !== undefined) {
-    if (!allowed.has(requested))
-      throw new ApiError(`agent ${requested} is outside your scope`, 403);
-    return requested;
-  }
-  const [only] = [...allowed];
-  if (allowed.size === 1 && only !== undefined) return only;
-  throw new ApiError(
-    `this credential covers ${allowed.size} agents; ` +
-      'name the owning agent with ?agent=<id>',
-    400,
-  );
-}
-
 function mimeFor(req: IncomingMessage, name: string): string {
   const explicit = query(req, 'mime');
   if (explicit !== undefined && explicit !== '') return explicit;
@@ -185,10 +169,10 @@ async function handleCreate(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  const allowed = identityScope(req);
-  if (allowed.size === 0) throw new ApiError('unauthorized', 401);
+  const [owner] = identityScope(req);
+  if (owner === undefined) throw new ApiError('unauthorized', 401);
   const name = safeFileName(query(req, 'name'));
-  const id = createUploadSlot(ownerFromScope(req, allowed), {
+  const id = createUploadSlot(owner, {
     name,
     mime: mimeFor(req, name),
   });

@@ -25,11 +25,6 @@ export function registerKey(key: string, agentId: string): void {
   agentIdByKeyHash.set(digest(key), agentId);
 }
 
-export function unregisterAgentKey(agentId: string): void {
-  for (const [hash, id] of agentIdByKeyHash)
-    if (id === agentId) agentIdByKeyHash.delete(hash);
-}
-
 export function agentIdForKey(token: string): string | undefined {
   if (token === '') return undefined;
   return agentIdByKeyHash.get(digest(token));

@@ -3,8 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { hostname } from 'node:os';
 import { handleMachineRequest, machineInfo } from '../src/server/machine.js';
-import { ApiError } from '@metro-labs/http/api-error';
-import { auth, TEST_STRANGER } from './identity-helper.ts';
+import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 let server: Server;
@@ -17,9 +16,6 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     if (
       handleMachineRequest(req, res, {
-        authorize: (subject) => {
-          if (subject !== OWNER) throw new ApiError('no such project', 404);
-        },
         startedAt: '2026-09-05T20:00:00.000Z',
       })
     )
@@ -65,10 +61,8 @@ describe('what a daemon says about its machine', () => {
     expect(typeof disk.path).toBe('string');
   });
 
-  test('no signature is 401, a stranger is 404, a wrong method 405, preflight passes', async () => {
+  test('no signature is 401, a wrong method 405, preflight passes', async () => {
     expect((await fetch(`${base}/api/server`)).status).toBe(401);
-    expect((await fetch(`${base}/api/server`, { headers: { authorization: await auth('GET', '/api/server', TEST_STRANGER) } })).status).toBe(404);
-    expect((await fetch(`${base}/api/server`, { headers: { authorization: await auth('GET', '/api/server', 'someone@else.test') } })).status).toBe(404);
     expect((await fetch(`${base}/api/server`, { method: 'POST' })).status).toBe(405);
     expect((await fetch(`${base}/api/server`, { method: 'OPTIONS' })).status).toBe(204);
   });

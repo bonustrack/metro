@@ -101,23 +101,24 @@ function Heading({
 function AllowlistSection({
   station,
   row,
+  agentId,
   onSaved,
 }: {
   station: string;
   row: AccountRow;
+  agentId: string | undefined;
   onSaved: (() => Promise<unknown>) | undefined;
 }): ReactNode {
-  const agentId = row.agentId;
   const id = row.id;
-  if (id === null || agentId === null || onSaved === undefined || row.allowlist === null) return null;
+  if (id === null || agentId === undefined || onSaved === undefined || row.allowlist === null) return null;
   return <Allowlist agentId={agentId} station={station} accountId={id} allowlist={row.allowlist} onSaved={onSaved} />;
 }
 
-function NameSection({ station, row }: { station: string; row: AccountRow }): ReactNode {
-  if (station !== 'xmtp' || row.id === null || row.agentId === null) return null;
+function NameSection({ station, row, agentId }: { station: string; row: AccountRow; agentId: string | undefined }): ReactNode {
+  if (station !== 'xmtp' || row.id === null || agentId === undefined) return null;
   return (
     <Section title="Name">
-      <StationName agentId={row.agentId} station={station} accountId={row.id} />
+      <StationName agentId={agentId} station={station} accountId={row.id} />
     </Section>
   );
 }
@@ -148,6 +149,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
   const { station, row, agent, verbs, onOpenAgent, onDetach, onAllowlistSaved, onToggle } = props;
   const { url, endpoint, callback, details } = stationFields(row);
   const id = row.id;
+  const agentId = agent?.id;
 
   return (
     <Col gap={20}>
@@ -197,7 +199,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
         </Section>
       )}
 
-      <NameSection station={station} row={row} />
+      <NameSection station={station} row={row} agentId={agentId} />
 
       {url === undefined ? null : (
         <Section title="Link">
@@ -225,7 +227,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
         </Section>
       )}
 
-      <AllowlistSection station={station} row={row} onSaved={onAllowlistSaved} />
+      <AllowlistSection station={station} row={row} agentId={agentId} onSaved={onAllowlistSaved} />
 
       <Section title="What this station can do">
         {verbs.length === 0 ? (

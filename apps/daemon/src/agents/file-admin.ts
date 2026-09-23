@@ -1,4 +1,4 @@
-import { readFileSync, rmdirSync, rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isOrganizationId } from '@metro-labs/http/workos-token';
@@ -9,8 +9,6 @@ import {
   normalizeAgentName,
   type AgentSummary,
   type CreatedAgent,
-  type DeletedAgent,
-  type OwnedAgent,
 } from './admin.js';
 import type { AccountRef } from './account-attach.js';
 import {
@@ -23,12 +21,11 @@ import {
   type AgentFile,
 } from './files.js';
 import { newId } from '@metro-labs/core/ids';
-import { registerKey, unregisterAgentKey } from './keys.js';
+import { registerKey } from './keys.js';
 import { MOVABLE_STATIONS, type LoadedAgent } from '../stations/materialize.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import { normalizeAddress } from '@metro-labs/core/address';
 
-export const LOCAL_PROJECT_ID = 'localdaemon';
 const OWNER_FILE = '.owner';
 
 interface Stored {
@@ -59,12 +56,6 @@ export function setLocalOwner(raw: string, dir = agentsDir()): string {
   return owner;
 }
 
-
-function isOwner(subject: string, dir: string): boolean {
-  const owner = localOwner(dir);
-  return owner !== null && owner === parseOwner(subject);
-}
-
 export function storedAgents(dir: string): Stored[] {
   return listAgentFiles(dir).map((path) => ({ path, file: readAgentFile(path) }));
 }
@@ -73,34 +64,14 @@ function save(stored: Stored): void {
   writeSecure(stored.path, `${JSON.stringify(stored.file, null, 2)}\n`);
 }
 
-function ownedOrThrow(subject: string, id: string, dir: string): Stored {
-  if (!isOwner(subject, dir)) throw missing();
+function agentOrThrow(id: string, dir: string): Stored {
   const found = storedAgents(dir).find((s) => s.file.id === id);
   if (found === undefined) throw missing();
   return found;
 }
 
-export async function localOwnedAgentOrThrow(
-  subject: string,
-  id: string,
-  dir = agentsDir(),
-): Promise<{ agent: OwnedAgent }> {
-  const { file } = ownedOrThrow(subject, id, dir);
-  return Promise.resolve({ agent: { id: file.id, name: file.name } });
-}
-
-export async function localListAgents(
-  subject: string,
-  project: string,
-  dir = agentsDir(),
-): Promise<AgentSummary[]> {
-  if (project !== LOCAL_PROJECT_ID || !isOwner(subject, dir))
-    throw new AgentAdminError('no such project', 404);
-  return Promise.resolve(
-    storedAgents(dir)
-      .map(({ file }) => ({ id: file.id, name: file.name, owned: true, key: file.key }))
-      .sort((a, b) => a.id.localeCompare(b.id)),
-  );
+export async function localListAgents(dir = agentsDir()): Promise<AgentSummary[]> {
+  return Promise.resolve(storedAgents(dir).map(({ file }) => ({ id: file.id, name: file.name })));
 }
 
 function freshId(taken: Set<string>): string {
@@ -111,14 +82,7 @@ function freshId(taken: Set<string>): string {
   throw new AgentAdminError('could not allocate a free id', 500);
 }
 
-export async function localCreateAgent(
-  subject: string,
-  project: string,
-  rawName?: string,
-  dir = agentsDir(),
-): Promise<CreatedAgent> {
-  if (project !== LOCAL_PROJECT_ID || !isOwner(subject, dir))
-    throw new AgentAdminError('no such project', 404);
+export async function localCreateAgent(rawName?: string, dir = agentsDir()): Promise<CreatedAgent> {
   const name = rawName === undefined ? null : normalizeAgentName(rawName);
   const existing = storedAgents(dir);
   if (existing.length > 0) throw new AgentAdminError('this box already has its agent', 409);
@@ -127,7 +91,7 @@ export async function localCreateAgent(
   ensureSecureDir(dir);
   save({
     path: agentFilePath(dir),
-    file: { version: 1, id, name, key, owner: localOwner(dir), stations: [], connectors: [] },
+    file: { version: 1, id, name, key, stations: [] },
   });
   registerKey(key, id);
   return Promise.resolve({ id, name, key });
@@ -137,28 +101,9 @@ export type Ensured = 'created' | 'present' | 'no-owner';
 
 export async function ensureLocalAgent(dir = agentsDir()): Promise<Ensured> {
   if (storedAgents(dir).length > 0) return 'present';
-  const owner = localOwner(dir);
-  if (owner === null) return 'no-owner';
-  await localCreateAgent(owner, LOCAL_PROJECT_ID, undefined, dir);
+  if (localOwner(dir) === null) return 'no-owner';
+  await localCreateAgent(undefined, dir);
   return 'created';
-}
-
-export async function localDeleteAgent(
-  subject: string,
-  id: string,
-  dir = agentsDir(),
-): Promise<DeletedAgent> {
-  const stored = ownedOrThrow(subject, id, dir);
-  const attached = stored.file.stations.length;
-  if (attached > 0)
-    throw new AgentAdminError(
-      `the agent still has ${String(attached)} station account(s) attached — detach them first`,
-      409,
-    );
-  rmSync(stored.path);
-  removeIfEmpty(join(stored.path, '..'));
-  unregisterAgentKey(id);
-  return Promise.resolve({ id, name: stored.file.name });
 }
 
 function assertUnclaimed(existing: Stored[], agent: LoadedAgent): void {
@@ -168,10 +113,6 @@ function assertUnclaimed(existing: Stored[], agent: LoadedAgent): void {
     if (agent.key !== null && file.key === agent.key)
       throw new AgentAdminError('that agent key is already on this machine', 409);
   }
-}
-
-export function assertLocalOwner(subject: string, dir = agentsDir()): void {
-  if (!isOwner(subject, dir)) throw new AgentAdminError('no such project', 404);
 }
 
 function assertImportable(agent: LoadedAgent): void {
@@ -200,16 +141,14 @@ function importTarget(dir: string, agent: LoadedAgent): ImportTarget {
 export type ImportMode = 'append' | 'overwrite';
 
 export async function localImportAgent(
-  subject: string,
   agent: LoadedAgent,
   dir = agentsDir(),
   mode: ImportMode = 'overwrite',
 ): Promise<{ id: string; name: string; key: string; stations: number }> {
-  assertLocalOwner(subject, dir);
   assertImportable(agent);
   const { path, previous } = importTarget(dir, agent);
   const key = previous?.key ?? agent.key ?? newApiKey();
-  const file = fileFor({ ...agent, key }, localOwner(dir), path, previous, mode);
+  const file = fileFor({ ...agent, key }, path, previous, mode);
   ensureSecureDir(join(path, '..'));
   save({ path, file });
   registerKey(key, agent.id);
@@ -237,7 +176,6 @@ function mergedStations(
 
 function fileFor(
   agent: LoadedAgent,
-  owner: string | null,
   path: string,
   previous: AgentFile | undefined,
   mode: ImportMode,
@@ -249,9 +187,7 @@ function fileFor(
         id: agent.id,
         name: previous?.name ?? null,
         key: agent.key,
-        owner,
         stations: mergedStations(agent, previous, mode),
-        connectors: previous?.connectors ?? [],
       }),
       path,
     );
@@ -268,14 +204,6 @@ export function readLocalAgentFile(agentId: string, dir = agentsDir()): AgentFil
   return found.file;
 }
 
-function removeIfEmpty(folder: string): void {
-  try {
-    rmdirSync(folder);
-  } catch {
-    return;
-  }
-}
-
 function assertTokenFree(all: Stored[], station: StationName, token: string): void {
   const taken = all.some((s) =>
     s.file.stations.some(
@@ -290,13 +218,12 @@ function assertTokenFree(all: Stored[], station: StationName, token: string): vo
 }
 
 export async function localAttachAccount(
-  subject: string,
   agentId: string,
   station: StationName,
   config: Record<string, unknown>,
   dir = agentsDir(),
 ): Promise<AccountRef> {
-  const stored = ownedOrThrow(subject, agentId, dir);
+  const stored = agentOrThrow(agentId, dir);
   if (!MOVABLE_STATIONS.has(station))
     throw new AgentAdminError(
       `a ${station} endpoint needs a public url and cannot live on a local daemon`,
@@ -312,14 +239,13 @@ export async function localAttachAccount(
 }
 
 export async function localSetAllowlist(
-  subject: string,
   agentId: string,
   station: StationName,
   accountId: string,
   allowlist: string[],
   dir = agentsDir(),
 ): Promise<string[]> {
-  const stored = ownedOrThrow(subject, agentId, dir);
+  const stored = agentOrThrow(agentId, dir);
   const account = stored.file.stations.find((a) => a.station === station && a.id === accountId);
   if (account === undefined) throw new AgentAdminError('no such account on this agent', 404);
   account.allowlist = allowlist;
@@ -328,14 +254,13 @@ export async function localSetAllowlist(
 }
 
 export async function localSetAccountEnabled(
-  subject: string,
   agentId: string,
   station: StationName,
   accountId: string,
   enabled: boolean,
   dir = agentsDir(),
 ): Promise<boolean> {
-  const stored = ownedOrThrow(subject, agentId, dir);
+  const stored = agentOrThrow(agentId, dir);
   const account = stored.file.stations.find((a) => a.station === station && a.id === accountId);
   if (account === undefined) throw new AgentAdminError('no such account on this agent', 404);
   account.enabled = enabled;
@@ -344,13 +269,12 @@ export async function localSetAccountEnabled(
 }
 
 export async function localDetachAccount(
-  subject: string,
   agentId: string,
   station: StationName,
   accountId: string,
   dir = agentsDir(),
 ): Promise<AccountRef> {
-  const stored = ownedOrThrow(subject, agentId, dir);
+  const stored = agentOrThrow(agentId, dir);
   const before = stored.file.stations.length;
   stored.file.stations = stored.file.stations.filter(
     (a) => !(a.station === station && a.id === accountId),

@@ -7,7 +7,6 @@ const SWEEP_MS = 60_000;
 const MAX_PENDING = 100;
 
 export interface PendingAuth {
-  subject: string;
   name: string;
   url: string;
   resource: string;

@@ -8,14 +8,12 @@ import { log } from '@metro-labs/core/log';
 const PATH = '/api/owner';
 
 export interface OwnerApiDeps {
-  authorize: (subject: string) => void;
   setOwner: (owner: string) => string;
 }
 
 async function move(req: IncomingMessage, deps: OwnerApiDeps): Promise<{ owner: string }> {
   const session = await apiSession(req);
   if (!session) throw new ApiError('unauthorized', 401);
-  deps.authorize(session.subject);
   requireAdmin(session);
   const body = await readJsonBody(req);
   const owner = isRecord(body) && typeof body.owner === 'string' ? body.owner.trim() : '';

@@ -42,8 +42,8 @@ export function StationPage({
       </Text>
     );
 
-  const agent = data.agents.find((a) => a.id === found.row.agentId);
-  const owner = found.row.agentId;
+  const agent = data.agent;
+  const owner = agent?.id ?? null;
 
   return (
     <StationDetail

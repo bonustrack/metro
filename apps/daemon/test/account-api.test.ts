@@ -1,11 +1,11 @@
-import { TEST_STRANGER, auth, bearer, forged, type Who } from './identity-helper.ts';
+import { auth, bearer, forged, type Who } from './identity-helper.ts';
 import { afterEach, beforeAll, afterAll, describe, expect, test } from 'bun:test';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import type { AgentApiDeps } from '../src/agents/api.ts';
 import { AttachSessions } from '../src/stations/attach-session.ts';
-import { AgentAdminError, type AgentSummary } from '../src/agents/admin.ts';
+import { AgentAdminError } from '../src/agents/admin.ts';
 import type { StationName } from '@metro-labs/core/station-names';
 import {
   StationAttachError,
@@ -27,16 +27,7 @@ interface Row {
   enabled?: boolean;
 }
 
-const AGENTS: Record<string, AgentSummary[]> = {
-  'ada@lovelace.dev': [{ id: 'agent000001', name: 'ada-bot', owned: true, key: null }],
-  'bob@builder.dev': [{ id: 'agent000002', name: 'bob-bot', owned: true, key: null }],
-};
-
-const OWNER_OF: Record<string, string | null> = {
-  agent000001: 'ada@lovelace.dev',
-  agent000002: 'bob@builder.dev',
-  agent000005: null,
-};
+const AGENT = { id: 'agent000001', name: 'ada-bot' };
 
 let server: Server;
 let base: string;
@@ -51,11 +42,8 @@ let xmtpInboxFails = false;
 let attachFails = false;
 let discarded = 0;
 
-function ownedOrThrow(email: string, id: string): void {
-  const owner = OWNER_OF[id];
-  const missing = new AgentAdminError('no such agent', 404);
-  if (owner === undefined || owner === null) throw missing;
-  if (owner !== email) throw missing;
+function agentOrThrow(id: string): void {
+  if (id !== AGENT.id) throw new AgentAdminError('no such agent', 404);
 }
 
 function fakePrepare(input: AttachInput): Promise<PreparedAccount> {
@@ -94,7 +82,7 @@ function fakePrepare(input: AttachInput): Promise<PreparedAccount> {
 const attachSessions = new AttachSessions({
   authorize: (owner) => {
     try {
-      ownedOrThrow(owner.subject, owner.agentId);
+      agentOrThrow(owner.agentId);
     } catch (err) {
       return Promise.reject(err as Error);
     }
@@ -104,7 +92,7 @@ const attachSessions = new AttachSessions({
     nextAccount += 1;
     const accountId = `acct${String(nextAccount).padStart(7, '0')}`;
     try {
-      ownedOrThrow(owner.subject, owner.agentId);
+      agentOrThrow(owner.agentId);
     } catch (err) {
       return Promise.reject(err as Error);
     }
@@ -138,20 +126,15 @@ const attachSessions = new AttachSessions({
   },
 });
 
-const PROJECT = 'prj00000001';
-
 const deps: AgentApiDeps = {
   attachSessions,
-  listAgents: (email, _project) => Promise.resolve(AGENTS[email] ?? []),
-  createAgent: () => Promise.reject(new AgentAdminError('not used here', 400)),
-  deleteAgent: () => Promise.reject(new AgentAdminError('not used here', 400)),
-  gatherAccounts: () => Promise.resolve({}),
+  listAgents: () => Promise.resolve([AGENT]),
+  gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }),
   capabilities: () => ({}),
-  liveness: () => new Map(),
   connectorIds: () => Promise.resolve(new Map()),
   prepareAccount: fakePrepare,
-  attachAccount: (email, agentId, station, config) => {
-    ownedOrThrow(email, agentId);
+  attachAccount: (agentId, station, config) => {
+    agentOrThrow(agentId);
     if (attachFails) throw new AgentAdminError('postgres said no', 500);
     if (
       typeof config.token === 'string' &&
@@ -166,8 +149,8 @@ const deps: AgentApiDeps = {
     rows.push({ agentId, station, accountId, config });
     return Promise.resolve({ agentId, station, accountId });
   },
-  detachAccount: (email, agentId, station, accountId) => {
-    ownedOrThrow(email, agentId);
+  detachAccount: (agentId, station, accountId) => {
+    agentOrThrow(agentId);
     const before = rows.length;
     rows = rows.filter(
       (r) =>
@@ -186,8 +169,8 @@ const deps: AgentApiDeps = {
     synced.push(station);
     return Promise.resolve();
   },
-  setAllowlist: (email, agentId, station, accountId, allowlist) => {
-    ownedOrThrow(email, agentId);
+  setAllowlist: (agentId, station, accountId, allowlist) => {
+    agentOrThrow(agentId);
     const row = rows.find((r) => r.agentId === agentId && r.station === station && r.accountId === accountId);
     if (row === undefined) throw new AgentAdminError('no such account on this agent', 404);
     row.allowlist = allowlist;
@@ -203,8 +186,8 @@ const deps: AgentApiDeps = {
     if (action === 'name') return Promise.resolve({ account: args.account, name: null, canClaim: true });
     return Promise.resolve({ account: args.account, name: `${String(args.label)}.stage.base.eth` });
   },
-  setAccountEnabled: (email, agentId, station, accountId, enabled) => {
-    ownedOrThrow(email, agentId);
+  setAccountEnabled: (agentId, station, accountId, enabled) => {
+    agentOrThrow(agentId);
     const row = rows.find((r) => r.agentId === agentId && r.station === station && r.accountId === accountId);
     if (row === undefined) throw new AgentAdminError('no such account on this agent', 404);
     row.enabled = enabled;
@@ -301,17 +284,8 @@ describe('POST /api/agents/:id/accounts/start authorisation', () => {
     expect(rows).toEqual([]);
   });
 
-  test('attaching to somebody else agent is a flat 404', async () => {
+  test('attaching to an agent that is not here is a flat 404', async () => {
     const res = await start(session('ada@lovelace.dev'), 'agent000002', {
-      station: 'telegram-bot',
-      token: FAKE_TOKEN,
-    });
-    expect(res.status).toBe(404);
-    expect(rows).toEqual([]);
-  });
-
-  test('an operator-provisioned agent is never attachable, by anyone', async () => {
-    const res = await start(session('ada@lovelace.dev'), 'agent000005', {
       station: 'telegram-bot',
       token: FAKE_TOKEN,
     });
@@ -592,13 +566,6 @@ describe('DELETE /api/agents/:id/accounts/:station/:account', () => {
     expect(synced).toEqual(['telegram-bot']);
   });
 
-  test('another owner cannot detach it', async () => {
-    const id = await attachOne('ada@lovelace.dev', 'agent000001');
-    const res = await detach(session('bob@builder.dev'), 'agent000001', `telegram-bot/${id}`);
-    expect(res.status).toBe(404);
-    expect(rows.length).toBe(1);
-  });
-
   test('detaching without a session removes nothing', async () => {
     const id = await attachOne('ada@lovelace.dev', 'agent000001');
     expect((await detach(undefined, 'agent000001', `telegram-bot/${id}`)).status).toBe(401);
@@ -633,8 +600,8 @@ describe('DELETE /api/agents/:id/accounts/:station/:account', () => {
 
 describe('GET /api/agents advertises what can be attached', () => {
   test('lists the attachable stations', async () => {
-    const res = await fetch(`${base}/api/agents?project=${PROJECT}`, {
-      headers: { authorization: await auth('GET', `${base}/api/agents?project=${PROJECT}`, 'ada@lovelace.dev') },
+    const res = await fetch(`${base}/api/agents`, {
+      headers: { authorization: await auth('GET', `${base}/api/agents`, 'ada@lovelace.dev') },
     });
     const body = (await res.json()) as { attachable?: string[] };
     expect(body.attachable).toEqual([
@@ -726,21 +693,6 @@ describe('interactive attach sessions over HTTP', () => {
     expect(await poll.text()).not.toContain('fake-session-for-');
   });
 
-  test('another signed-in user cannot poll or step somebody else session', async () => {
-    const attachId = await startSession('ada@lovelace.dev');
-    const bob = (method: string, url: string): Promise<string> => auth(method, url, 'bob@builder.dev');
-    expect(
-      (await fetch(sessionUrl('agent000001', attachId), { headers: { authorization: await bob('GET', sessionUrl('agent000001', attachId)) } })).status,
-    ).toBe(404);
-    const step = await fetch(`${sessionUrl('agent000001', attachId)}/step`, {
-      method: 'POST',
-      headers: { authorization: await bob('POST', `${sessionUrl('agent000001', attachId)}/step`), 'content-type': 'application/json' },
-      body: JSON.stringify({ code: '12345' }),
-    });
-    expect(step.status).toBe(404);
-    expect(rows).toEqual([]);
-  });
-
   test('polling without a session is 401', async () => {
     const attachId = await startSession('ada@lovelace.dev');
     expect((await fetch(sessionUrl('agent000001', attachId))).status).toBe(401);
@@ -769,16 +721,7 @@ describe('interactive attach sessions over HTTP', () => {
     }
   });
 
-  test('an operator agent is refused before any login is attempted', async () => {
-    const res = await start(session('ada@lovelace.dev'), 'agent000005', {
-      station: 'whatsapp',
-      phone: '447700900123',
-    });
-    expect(res.status).toBe(404);
-    expect(rows).toEqual([]);
-  });
-
-  test('an interactive sign-in on somebody else agent is a flat 404', async () => {
+  test('an interactive sign-in on an agent that is not here is a flat 404', async () => {
     const res = await start(session('ada@lovelace.dev'), 'agent000002', {
       station: 'telegram',
       apiId: 1,
@@ -913,16 +856,15 @@ describe('the allowlist of a station account', () => {
     expect(await emptied.json()).toMatchObject({ allowlist: ['*'] });
   });
 
-  test('a bad list, an unknown account and somebody else agent are each refused', async () => {
+  test('a bad list, an unknown account and an unknown agent are each refused', async () => {
     const created = (await (await start(session('ada@lovelace.dev'), 'agent000001', { station: 'telegram-bot', token: 'allowlist-bot-token-2' })).json()) as AttachBody;
     expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: 'ada' })).status).toBe(400);
     expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['a'.repeat(201)] })).status).toBe(400);
     expect((await put('agent000001', 'telegram-bot', 'acct9999999', { allowlist: ['x'] })).status).toBe(404);
     expect((await put('agent000002', 'telegram-bot', created.accountId, { allowlist: ['x'] }, session('ada@lovelace.dev'))).status).toBe(404);
-    expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['x'] }, TEST_STRANGER)).status).toBe(404);
   });
 
-  test('a phone number is turned into the id the station really sends, and only for the owner', async () => {
+  test('a phone number is turned into the id the station really sends', async () => {
     const ask = async (station: string, query: string, who: Who = session('ada@lovelace.dev')): Promise<Response> => {
       const path = `/api/agents/agent000001/accounts/${station}/acct0000001/resolve`;
       return fetch(`${base}${path}?q=${encodeURIComponent(query)}`, {
@@ -941,7 +883,7 @@ describe('the allowlist of a station account', () => {
     expect((await fetch(`${base}/api/agents/agent000001/accounts/whatsapp/acct0000001/resolve?q=1`)).status).toBe(401);
   });
 
-  test('an XMTP account reads and claims its stage name through the train, and only for the owner', async () => {
+  test('an XMTP account reads and claims its stage name through the train', async () => {
     const path = '/api/agents/agent000001/accounts/xmtp/acct0000001/name';
     lookedUp = [];
     const read = await fetch(`${base}${path}`, { headers: { authorization: await auth('GET', path, session('ada@lovelace.dev')) } });
@@ -967,7 +909,7 @@ describe('the allowlist of a station account', () => {
     expect(lookedUp).toHaveLength(2);
   });
 
-  test('the senders seen on a station are offered to the owner, and only to the owner', async () => {
+  test('the senders seen on a station are offered to the owner', async () => {
     const path = '/api/agents/agent000001/accounts/telegram-bot/acct0000001/senders';
     const mine = await fetch(`${base}${path}`, { headers: { authorization: await auth('GET', path, session('ada@lovelace.dev')) } });
     expect(mine.status).toBe(200);
@@ -1000,11 +942,10 @@ describe('switching a station account off and on', () => {
     expect(synced).toEqual(['telegram-bot', 'telegram-bot']);
   });
 
-  test('anything but a boolean, an unknown account and somebody else agent are refused', async () => {
+  test('anything but a boolean, an unknown account and an unknown agent are refused', async () => {
     const created = (await (await start(session('ada@lovelace.dev'), 'agent000001', { station: 'telegram-bot', token: 'enabled-bot-token-2' })).json()) as AttachBody;
     expect((await put('agent000001', 'telegram-bot', created.accountId, { enabled: 'no' })).status).toBe(400);
     expect((await put('agent000001', 'telegram-bot', 'acct9999999', { enabled: false })).status).toBe(404);
     expect((await put('agent000002', 'telegram-bot', created.accountId, { enabled: false })).status).toBe(404);
-    expect((await put('agent000001', 'telegram-bot', created.accountId, { enabled: false }, TEST_STRANGER)).status).toBe(404);
   });
 });

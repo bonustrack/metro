@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { auth, TEST_OWNER, TEST_STRANGER, type Who } from './identity-helper.ts';
+import { auth, TEST_OWNER, type Who } from './identity-helper.ts';
 import { handleModeRequest } from '@metro-labs/http/mode-api';
 import { handleSessionApis, type SessionApis } from '../src/routes/session-apis.js';
 import { setLocalOwner, ensureLocalAgent } from '../src/agents/file-admin.ts';
@@ -13,8 +13,6 @@ import { localSessionApis } from '../src/routes/local-mode.js';
 import { agentIdForKey, setKeyMap } from '../src/agents/keys.js';
 
 const OWNER = TEST_OWNER;
-const STRANGER = TEST_STRANGER;
-const PROJECT = 'localdaemon';
 const saved = {
   dir: process.env.METRO_AGENTS_DIR,
   port: process.env.METRO_WEBHOOK_PORT,
@@ -38,7 +36,6 @@ beforeAll(async () => {
     stop: () => undefined,
     gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }),
     capabilities: () => ({}),
-    liveness: () => new Map(),
     prepareAccount: (input) =>
       Promise.resolve({ config: { token: String(input.token) }, identity: { handle: '@bot' } }),
   });
@@ -77,31 +74,28 @@ const call = async (method: string, path: string, token?: Who, body?: unknown): 
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
-let session: Who = STRANGER;
+const session: Who = OWNER;
 let agentId = '';
 let key = '';
 
 describe('a local daemon, end to end over http', () => {
-  test('it says it is local, unowned, with a machine project', async () => {
-    expect(await (await call('GET', '/api/mode')).json()).toEqual({ mode: 'local', owner: null, project: PROJECT, version: expect.any(String) });
+  test('it says it is local and unowned, with the project field old pages read', async () => {
+    expect(await (await call('GET', '/api/mode')).json()).toEqual({ mode: 'local', owner: null, project: 'localdaemon', version: expect.any(String) });
     expect((await call('OPTIONS', '/api/mode')).status).toBe(204);
     expect((await call('POST', '/api/mode')).status).toBe(405);
   });
 
-  test('nobody gets in until the operator sets the owner organization; then its members do and another organization does not', async () => {
-    expect((await call('GET', `/api/agents?project=${PROJECT}`, OWNER)).status).toBe(404);
+  test('the operator sets the owner organization, and no session is still 401', async () => {
     setLocalOwner(OWNER, dir);
-    session = OWNER;
     expect(((await (await call('GET', '/api/mode')).json()) as { owner: string }).owner).toBe(OWNER);
-    expect((await call('GET', `/api/agents?project=${PROJECT}`, STRANGER)).status).toBe(404);
-    expect((await call('GET', `/api/agents?project=${PROJECT}`)).status).toBe(401);
+    expect((await call('GET', '/api/agents')).status).toBe(401);
   });
 
   test('the daemon makes the agent itself; the list shows it, never its key', async () => {
     expect(await ensureLocalAgent(dir)).toBe('created');
     expect(existsSync(join(dir, 'agent.json'))).toBe(true);
-    expect((await call('POST', `/api/agents?project=${PROJECT}`, session, { name: 'suzy' })).status).toBe(405);
-    const list = (await (await call('GET', `/api/agents?project=${PROJECT}`, session)).json()) as {
+    expect((await call('POST', `/api/agents`, session, { name: 'suzy' })).status).toBe(405);
+    const list = (await (await call('GET', `/api/agents`, session)).json()) as {
       agents: { id: string; connector_ids: string[] }[];
     };
     const made = list.agents[0];
@@ -138,21 +132,16 @@ describe('a local daemon, end to end over http', () => {
     expect(gone.status).toBe(200);
   });
 
-  test('the key route is gone, and delete removes the file and the key', async () => {
-    expect((await call('POST', `/api/agents/${agentId}/key`, session)).status).toBe(404);
+  test('what a local daemon refuses: the key, delete, code, connector and runtime routes are gone', async () => {
+    for (const [method, path] of [
+      ['POST', `/api/agents/${agentId}/key`],
+      ['DELETE', `/api/agents/${agentId}`],
+      ['POST', `/api/agents/${agentId}/code`],
+      ['POST', `/api/agents/${agentId}/connectors`],
+      ['DELETE', `/api/agents/${agentId}/runtime`],
+    ] as const)
+      expect([path, (await call(method, path, session)).status]).toEqual([path, 404]);
+    expect(existsSync(join(dir, 'agent.json'))).toBe(true);
     expect(agentIdForKey(key)).toBe(agentId);
-    expect((await call('DELETE', `/api/agents/${agentId}`, session)).status).toBe(200);
-    expect(existsSync(join(dir, 'agent.json'))).toBe(false);
-    expect(agentIdForKey(key)).toBeUndefined();
-  });
-
-  test('what a local daemon refuses, and what a stranger sees', async () => {
-    expect(await ensureLocalAgent(dir)).toBe('created');
-    const made = ((await (await call('GET', `/api/agents?project=${PROJECT}`, session)).json()) as { agents: { id: string }[] }).agents[0] ?? { id: '' };
-    expect((await call('POST', `/api/agents/${made.id}/code`, session)).status).toBe(404);
-    expect((await call('POST', `/api/agents/${made.id}/connectors`, session, { connectorId: 'conn0000001' })).status).toBe(404);
-    expect((await call('DELETE', `/api/agents/${made.id}/runtime`, session)).status).toBe(404);
-    expect((await call('GET', `/api/agents?project=${PROJECT}`, STRANGER)).status).toBe(404);
-    expect((await call('GET', `/api/agents/${made.id}/connectors`, STRANGER)).status).toBe(404);
   });
 });

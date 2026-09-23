@@ -8,7 +8,6 @@ import {
   bodyField,
   readJsonBody,
   sendJson,
-  type ApiSession,
 } from '@metro-labs/http/api-http';
 import { type AccountRef } from './account-attach.js';
 import { type AccountRoute } from './account-routes.js';
@@ -51,13 +50,11 @@ export interface AccountApiDeps {
   attachSessions: AttachSessionApi;
   prepareAccount: (input: AttachInput) => Promise<PreparedAccount>;
   attachAccount: (
-    subject: string,
     agentId: string,
     station: StationName,
     config: Record<string, unknown>,
   ) => Promise<AccountRef>;
   detachAccount: (
-    subject: string,
     agentId: string,
     station: StationName,
     accountId: string,
@@ -65,7 +62,6 @@ export interface AccountApiDeps {
   syncStations: (station: StationName) => Promise<void>;
   reloadAgents: () => Promise<void>;
   setAllowlist: (
-    subject: string,
     agentId: string,
     station: StationName,
     accountId: string,
@@ -83,7 +79,6 @@ export interface AccountApiDeps {
     args: Record<string, unknown>,
   ) => Promise<unknown>;
   setAccountEnabled: (
-    subject: string,
     agentId: string,
     station: StationName,
     accountId: string,
@@ -160,14 +155,12 @@ interface AttachPayload {
 
 async function storeAccount(
   deps: AccountApiDeps,
-  session: ApiSession,
   agentId: string,
   station: StationName,
   prepared: PreparedAccount,
 ): Promise<AccountRef> {
   try {
     return await deps.attachAccount(
-      session.subject,
       agentId,
       station,
       prepared.config,
@@ -178,9 +171,6 @@ async function storeAccount(
   }
 }
 
-function ownerOf(session: ApiSession, agentId: string): AttachOwner {
-  return { subject: session.subject, agentId };
-}
 
 function asInput(body: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -193,14 +183,13 @@ async function handleStart(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AccountApiDeps,
-  session: ApiSession,
   agentId: string,
 ): Promise<void> {
   const body = await readJsonBody(req);
   const station = bodyField(body, 'station');
   if (isInteractiveStation(station)) {
     const view = await deps.attachSessions.start(
-      ownerOf(session, agentId),
+      { agentId },
       station,
       asInput(body),
     );
@@ -210,7 +199,7 @@ async function handleStart(
   if (!isAttachStation(station))
     throw new ApiError(`station must be one of ${ATTACHABLE.join(', ')}`, 400);
   const prepared = await deps.prepareAccount(attachInputOf(station, body));
-  const ref = await storeAccount(deps, session, agentId, station, prepared);
+  const ref = await storeAccount(deps, agentId, station, prepared);
   log.info(
     { agentId: ref.agentId, station, account: ref.accountId },
     'account-api: attached a station account',
@@ -237,12 +226,10 @@ async function handleDetach(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AccountApiDeps,
-  session: ApiSession,
   agentId: string,
   target: { station: StationName; accountId: string },
 ): Promise<void> {
   const ref = await deps.detachAccount(
-    session.subject,
     agentId,
     target.station,
     target.accountId,
@@ -274,12 +261,11 @@ async function handleAllowlist(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AccountApiDeps,
-  session: ApiSession,
   agentId: string,
   target: { station: StationName; accountId: string },
 ): Promise<void> {
   const wanted = normalizeAllowlist(bodyField(await readJsonBody(req), 'allowlist'));
-  const allowlist = await deps.setAllowlist(session.subject, agentId, target.station, target.accountId, wanted);
+  const allowlist = await deps.setAllowlist(agentId, target.station, target.accountId, wanted);
   log.info({ agentId, station: target.station, account: target.accountId, senders: allowlist.length }, 'account-api: allowlist set');
   sendJson(req, res, 200, {
     agentId,
@@ -294,13 +280,12 @@ async function handleEnabled(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AccountApiDeps,
-  session: ApiSession,
   agentId: string,
   target: { station: StationName; accountId: string },
 ): Promise<void> {
   const wanted = bodyField(await readJsonBody(req), 'enabled');
   if (typeof wanted !== 'boolean') throw new ApiError('enabled must be true or false', 400);
-  const enabled = await deps.setAccountEnabled(session.subject, agentId, target.station, target.accountId, wanted);
+  const enabled = await deps.setAccountEnabled(agentId, target.station, target.accountId, wanted);
   log.info({ agentId, station: target.station, account: target.accountId, enabled }, 'account-api: account enabled flag set');
   sendJson(req, res, 200, {
     agentId,
@@ -345,43 +330,41 @@ async function dispatchRoute(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AccountApiDeps,
-  session: ApiSession,
   agentId: string,
   route: AccountRoute,
 ): Promise<void> {
   if (route.kind === 'start')
-    return handleStart(req, res, deps, session, agentId);
+    return handleStart(req, res, deps, agentId);
   if (route.kind === 'session')
     return handleSession(
       req,
       res,
       deps,
-      ownerOf(session, agentId),
+      { agentId },
       route.attachId,
     );
   if (route.kind === 'step')
-    return handleStep(req, res, deps, ownerOf(session, agentId), route.attachId);
-  if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, session, agentId, route);
-  if (route.kind === 'enabled') return handleEnabled(req, res, deps, session, agentId, route);
+    return handleStep(req, res, deps, { agentId }, route.attachId);
+  if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, agentId, route);
+  if (route.kind === 'enabled') return handleEnabled(req, res, deps, agentId, route);
   if (route.kind === 'resolve') return handleResolve(req, res, deps, route);
   if (route.kind === 'name') return handleName(req, res, deps, route);
   if (route.kind === 'senders') {
     sendJson(req, res, 200, { senders: deps.recentSenders(route.station, route.accountId) });
     return;
   }
-  return handleDetach(req, res, deps, session, agentId, route);
+  return handleDetach(req, res, deps, agentId, route);
 }
 
 export async function handleAccountRoute(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AccountApiDeps,
-  session: ApiSession,
   agentId: string,
   route: AccountRoute,
 ): Promise<void> {
   try {
-    await dispatchRoute(req, res, deps, session, agentId, route);
+    await dispatchRoute(req, res, deps, agentId, route);
   } catch (err) {
     apiFailure(req, res, err);
   }

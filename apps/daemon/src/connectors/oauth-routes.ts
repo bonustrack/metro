@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { bodyField, readJsonBody, sendJson, type ApiSession } from '@metro-labs/http/api-http';
+import { bodyField, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import {
   beginOAuth,
   completeOAuth,
@@ -25,25 +25,15 @@ export function hostOf(url: string): string {
 }
 
 export interface OAuthRouteDeps {
-  createPendingConnector: (
-    subject: string,
-    project: string,
-    input: PendingConnectorInput,
-  ) => Promise<Connector>;
-  reconnectConnector: (
-    subject: string,
-    id: string,
-    auth: OAuthAuth,
-  ) => Promise<Connector>;
-  getConnector: (subject: string, id: string) => Promise<Connector>;
+  createPendingConnector: (input: PendingConnectorInput) => Promise<Connector>;
+  reconnectConnector: (id: string, auth: OAuthAuth) => Promise<Connector>;
+  getConnector: (id: string) => Promise<Connector>;
 }
 
 export async function startOAuth(
   req: IncomingMessage,
   res: ServerResponse,
   deps: OAuthRouteDeps,
-  session: ApiSession,
-  project: string,
   body: unknown,
   payload: (row: Connector) => Record<string, unknown>,
 ): Promise<void> {
@@ -56,14 +46,13 @@ export async function startOAuth(
     client: connectorClient(clientId, clientSecret),
     returnTo,
   });
-  const row = await deps.createPendingConnector(session.subject, project, {
+  const row = await deps.createPendingConnector({
     name: bodyField(body, 'name'),
     url: bodyField(body, 'url'),
     clientId,
     clientSecret,
   });
   const authorize = beginOAuth(prepared, {
-    subject: session.subject,
     name: row.name,
     url,
     returnTo,
@@ -80,16 +69,14 @@ export async function handleConnect(
   req: IncomingMessage,
   res: ServerResponse,
   deps: OAuthRouteDeps,
-  session: ApiSession,
   id: string,
 ): Promise<void> {
-  const row = await deps.getConnector(session.subject, id);
+  const row = await deps.getConnector(id);
   const url = parseConnectorUrl(row.url);
   const body = await readJsonBody(req);
   const returnTo = asText(bodyField(body, 'returnTo'));
   const prepared = await prepareOAuth({ url, client: row.client, returnTo });
   const authorize = beginOAuth(prepared, {
-    subject: session.subject,
     name: row.name,
     url,
     returnTo,
@@ -124,7 +111,7 @@ async function saveOAuth(
   entry: PendingAuth,
   auth: OAuthAuth,
 ): Promise<Connector> {
-  return deps.reconnectConnector(entry.subject, entry.connectorId, auth);
+  return deps.reconnectConnector(entry.connectorId, auth);
 }
 
 async function settleCallback(

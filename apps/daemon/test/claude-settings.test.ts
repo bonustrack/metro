@@ -6,11 +6,9 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, st
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { ApiError } from '@metro-labs/http/api-error';
 import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 const SESSION = '11111111-2222-4333-8444-555555555555';
 
 let dir = '';
@@ -34,9 +32,6 @@ beforeAll(async () => {
   writeFileSync(join(dir, 'projects', bare.replace(/[/.]/g, '-'), `${SESSION}.jsonl`), transcript(bare));
   server = createServer((req, res) => {
     const deps = {
-      authorize: (subject: string) => {
-        if (subject !== OWNER) throw new ApiError('no such project', 404);
-      },
       dir: () => dir,
     };
     if (handleClaudeRequest(req, res, deps)) return;
@@ -151,11 +146,6 @@ describe('Claude Code settings, read and written on the machine the daemon runs 
     expect((await get('/api/claude/settings/user')).status).toBe(404);
   });
 
-  test('a stranger reads and writes nothing', async () => {
-    expect((await get('/api/claude/settings', STRANGER)).status).toBe(404);
-    expect((await put('/api/claude/settings/user', { text: '{}' }, STRANGER)).status).toBe(404);
-    expect(readFileSync(join(dir, 'settings.json'), 'utf8')).toContain('opus');
-  });
 });
 
 describe('a box that runs Claude Code in its home folder', () => {

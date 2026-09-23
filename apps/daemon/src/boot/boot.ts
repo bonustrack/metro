@@ -31,10 +31,7 @@ import { migrateAgentLayout } from '../agents/files.js';
 import { ensureStationDeps } from '../stations/runtime-deps.js';
 import { localSessionApis } from '../routes/local-mode.js';
 import type { SessionApis } from '../routes/session-apis.js';
-import {
-  agentLiveness,
-  createMetroMcp,
-} from '../mcp/index.js';
+import { createMetroMcp } from '../mcp/index.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import {
   accountStationCapabilities,
@@ -106,7 +103,6 @@ function sessionApis(): SessionApis {
       },
       gatherAccounts: gatherAccountsForAgents,
       capabilities: accountStationCapabilities,
-      liveness: agentLiveness,
       prepareAccount,
     });
 }
@@ -117,7 +113,7 @@ async function main(): Promise<void> {
 installBearerSessions(agentsDir(), localOwner);
   migrateAgentLayout();
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
-  await materializeFrom(fileSource, { allowEmpty: true });
+  await materializeFrom(fileSource);
   supervisor.start();
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(

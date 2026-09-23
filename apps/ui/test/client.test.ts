@@ -32,28 +32,25 @@ function serve(body: unknown, status = 200): void {
   }) as unknown as typeof fetch;
 }
 
-const dashboard = async (agents: unknown): Promise<AgentSummary[]> => {
+const dashboard = async (agents: unknown): Promise<AgentSummary | undefined> => {
   serve({ agents });
-  return (await fetchStations()).agents;
+  return (await fetchStations()).agent;
 };
 
-describe('an agent on the wire', () => {
+describe('the agent on the wire', () => {
   test('the page never keeps an agent key, even when an old daemon sends one', async () => {
-    const [agent] = await dashboard([{ id: 'id000000001', name: 'ada-bot', owned: true, key: 'mk_fake' }]);
-    expect(agent).toEqual({ id: 'id000000001', name: 'ada-bot', owned: true, connectorIds: [] });
+    const agent = await dashboard([{ id: 'id000000001', name: 'ada-bot', owned: true, key: 'mk_fake' }]);
+    expect(agent).toEqual({ id: 'id000000001', name: 'ada-bot', connectorIds: [] });
   });
 
-  test('a malformed agent entry never throws', async () => {
-    const agents = await dashboard([{ id: 7, key: 9 }, null, 7]);
-    expect(agents).toEqual([{ id: '', name: '', owned: false, connectorIds: [] }]);
+  test('a malformed or missing agent never throws', async () => {
+    expect(await dashboard([{ id: 7, key: 9 }, null, 7])).toEqual({ id: '', name: '', connectorIds: [] });
+    expect(await dashboard([null])).toBeUndefined();
+    expect(await dashboard('nope')).toBeUndefined();
   });
-});
 
-describe('what an agent holds', () => {
   test('connector ids ride on the agent and junk entries are dropped', async () => {
-    const [agent] = await dashboard([
-      { id: 'id000000001', name: 'ada-bot', owned: true, connector_ids: ['id000000012', 7, null] },
-    ]);
+    const agent = await dashboard([{ id: 'id000000001', name: 'ada-bot', connector_ids: ['id000000012', 7, null] }]);
     expect(agent?.connectorIds).toEqual(['id000000012']);
   });
 });

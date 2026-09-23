@@ -4,7 +4,6 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ApiError } from '@metro-labs/http/api-error';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import { claudeVersion, forgetClaudeVersion, newerThan, updateClaude } from '../src/claude/version.js';
 import { auth } from './identity-helper.ts';
@@ -84,9 +83,6 @@ describe('the version over the API', () => {
     const claude = fakeClaude();
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
-        authorize: (subject: string) => {
-          if (subject !== OWNER) throw new ApiError('no such project', 404);
-        },
         session: { tmux: fakeTmux() },
         version: { claude, fetchImpl: npm('2.1.274') },
       });
@@ -105,10 +101,8 @@ describe('the version over the API', () => {
   const call = async (method: string): Promise<Response> =>
     fetch(`${base}/api/claude/version`, { method, headers: { authorization: await auth(method, '/api/claude/version', OWNER) } });
 
-  test('the owner reads the versions and runs the update; a stranger gets nothing', async () => {
+  test('the owner reads the versions and runs the update', async () => {
     expect((await (await call('GET')).json()) as unknown).toEqual({ installed: '2.1.272', latest: '2.1.274', newer: true });
     expect((await (await call('POST')).json()) as unknown).toEqual({ installed: '2.1.274', latest: '2.1.274', newer: false, restarted: true });
-    const stranger = await fetch(`${base}/api/claude/version`, { headers: { authorization: await auth('GET', '/api/claude/version', '0x0000000000000000000000000000000000000001') } });
-    expect(stranger.status).not.toBe(200);
   });
 });

@@ -48,7 +48,6 @@ export interface LoadedAgent {
   name: string;
   accounts: LoadedAccount[];
   key: string | null;
-  connectors?: LoadedConnector[];
 }
 
 const METRO_DIR = join(homedir(), '.metro');
@@ -215,18 +214,8 @@ async function loadAndWrite(
   return { ...writeStations(list), agents: list.length };
 }
 
-export interface MaterializeOptions {
-  allowEmpty?: boolean;
-}
-
-export async function materializeFrom(
-  source: StationSource,
-  opts: MaterializeOptions = {},
-): Promise<void> {
+export async function materializeFrom(source: StationSource): Promise<void> {
   const { active, agents: found } = await loadAndWrite(source);
-
-  if (found === 0 && opts.allowEmpty !== true)
-    throw new Error('no agents found — nothing to materialize');
   const removed = pruneStations(active);
   log.info(
     { stations: stationLabels(active), agents: found, removed },

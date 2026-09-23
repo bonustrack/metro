@@ -66,7 +66,6 @@ const PAGE = 100;
 const PAGE_MAX = 500;
 
 export interface ClaudeApiDeps {
-  authorize: (subject: string) => void;
   dir?: () => string;
   login?: LoginDeps;
   session?: SessionDeps;
@@ -340,7 +339,6 @@ export function handleClaudeRequest(
   apiSession(req)
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
-      deps.authorize(session.subject);
       if (req.method !== 'GET' && ADMIN_ONLY.test(path)) requireAdmin(session);
       if (await streamed(req, res, path, search, (deps.dir ?? claudeDir)())) return;
       sendJson(req, res, 200, await routed(req, path, search, deps));

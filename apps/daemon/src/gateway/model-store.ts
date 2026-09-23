@@ -9,7 +9,6 @@ import { ModelConfigError, connectionOf, publicModelConfig, routedConnection, ty
 import type { SetupDeps } from '../claude/setup.js';
 
 export interface ModelApiDeps {
-  authorize: (subject: string) => void;
   read?: () => ModelConfig;
   write?: (cfg: ModelConfig) => void;
   issuer?: string;

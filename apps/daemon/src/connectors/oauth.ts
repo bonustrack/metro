@@ -54,7 +54,6 @@ export async function prepareOAuth(input: PrepareInput): Promise<PreparedOAuth> 
 
 export interface BeginInput {
   connectorId: string;
-  subject: string;
   name: string;
   url: URL;
   returnTo: string;
@@ -65,7 +64,6 @@ export function beginOAuth(prepared: PreparedOAuth, input: BeginInput): string {
   const verifier = newVerifier();
   const resource = resourceOf(input.url);
   const state = startPending({
-    subject: input.subject,
     name: input.name,
     url: input.url.toString(),
     resource,

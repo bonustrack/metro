@@ -7,7 +7,6 @@ import { ListHeader } from './ListHeader.js';
 import { AccountList } from './AccountList.js';
 import { ConnectStation } from './ConnectStation.js';
 import { Loading } from './Loading.js';
-import { accountsForAgent } from '../api/accounts.js';
 import { detachAccount } from '../api/attach.js';
 import { dropAccount, queryError, refreshAgents, useStationsQuery } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
@@ -27,9 +26,9 @@ export function Stations({ project, onOpen }: StationsProps): ReactNode {
   useDocumentTitle('Channels');
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
-  const agent = data.agents[0];
+  const agent = data.agent;
   if (agent === undefined) return <Text size="sm" role="secondary">Create the agent first, from the first page.</Text>;
-  const mine = accountsForAgent(data.groups, agent.id);
+  const mine = data.groups;
   return (
     <Col gap={16}>
       <ListHeader

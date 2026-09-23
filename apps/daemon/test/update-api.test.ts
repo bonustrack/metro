@@ -5,11 +5,9 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleUpdateRequest, type UpdateApiDeps } from '../src/server/update.ts';
-import { ApiError } from '@metro-labs/http/api-error';
 import { auth, type Who } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const OTHER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 
 let dir = '';
 let bin = '';
@@ -22,9 +20,6 @@ function fakeCli(script: string): void {
 }
 
 const deps: UpdateApiDeps = {
-  authorize: (subject) => {
-    if (subject !== OWNER) throw new ApiError('no such project', 404);
-  },
   restart: () => {
     restarts += 1;
   },
@@ -62,12 +57,11 @@ const call = async (method: string, token: Who | null): Promise<Response> =>
   fetch(`${base}/api/update`, { method, headers: token === null ? {} : { authorization: await auth(method, '/api/update', token) } });
 
 describe('updating metro from the page', () => {
-  test('the check reports the running, current and latest versions, and only the owner may ask', async () => {
+  test('the check reports the running, current and latest versions', async () => {
     fakeCli(`process.stdout.write(JSON.stringify({ current: '0.1.0-beta.51', latest: '0.1.0-beta.52', newer: true }) + '\\n');`);
     const res = await call('GET', session());
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ current: '0.1.0-beta.51', latest: '0.1.0-beta.52', newer: true });
-    expect((await call('GET', session(OTHER))).status).toBe(404);
     expect((await call('GET', null)).status).toBe(401);
     expect((await call('DELETE', session())).status).toBe(405);
   });

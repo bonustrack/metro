@@ -18,17 +18,12 @@ const ttlMinutes = (): number => Math.round(UPLOAD_TTL_MS / 60_000);
 const NO_AGENT =
   'create_upload needs an agent credential; this session is not scoped to one agent';
 
-const manyAgents = (n: number): string =>
-  `create_upload is scoped to one agent, but this session covers ${String(n)}` +
-  ' (a multi-agent sign-in); use `POST /api/uploads?agent=<id>` directly instead';
-
 type OwnerAgent = { agentId: string } | { error: string };
 
 function ownerAgent(): OwnerAgent {
   const allowed = allowedAgents(currentIdentity());
   const [only] = [...allowed];
-  if (allowed.size === 1 && only !== undefined) return { agentId: only };
-  return { error: allowed.size === 0 ? NO_AGENT : manyAgents(allowed.size) };
+  return allowed.size === 1 && only !== undefined ? { agentId: only } : { error: NO_AGENT };
 }
 
 export function dispatchCreateUpload(

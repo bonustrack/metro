@@ -3,10 +3,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  LOCAL_PROJECT_ID,
   localAttachAccount,
   localCreateAgent,
-  localDeleteAgent,
   localDetachAccount,
   localImportAgent,
   localListAgents,
@@ -37,7 +35,7 @@ const status = async (work: Promise<unknown>): Promise<number> =>
     (err: unknown) => (err instanceof ApiError ? err.status : -1),
   );
 
-const stored = (): { key: string; owner: string; stations: { id: string; config: Record<string, unknown> }[] } =>
+const stored = (): { key: string; stations: { id: string; config: Record<string, unknown> }[] } =>
   JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as never;
 
 describe('who owns a local daemon', () => {
@@ -54,56 +52,47 @@ describe('who owns a local daemon', () => {
 
 describe('agents kept as files', () => {
   test('creating one writes a 0600 file with a fresh key that authenticates at once', async () => {
-    const made = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
+    const made = await localCreateAgent('suzy', dir);
     expect(made.key).toMatch(/^mk_[A-Za-z0-9_-]{43}$/);
     const path = join(dir, 'agent.json');
     expect((statSync(path).mode & 0o777).toString(8)).toBe('600');
-    expect(stored()).toMatchObject({ key: made.key, owner: OWNER, stations: [] });
+    expect(stored()).toEqual({ version: 1, id: made.id, name: 'suzy', key: made.key, stations: [] });
     expect(agentIdForKey(made.key)).toBe(made.id);
-    expect(await localListAgents(OWNER, LOCAL_PROJECT_ID, dir)).toEqual([
-      { id: made.id, name: 'suzy', owned: true, key: made.key },
+    expect(await localListAgents(dir)).toEqual([
+      { id: made.id, name: 'suzy' },
     ]);
   });
 
-  test('another wallet, another project, a bad name, or a second agent are refused', async () => {
-    await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
-    expect(await status(localCreateAgent(OTHER, LOCAL_PROJECT_ID, 'x1', dir))).toBe(404);
-    expect(await status(localCreateAgent(OWNER, 'prj00000001', 'x1', dir))).toBe(404);
-    expect(await status(localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'has space', dir))).toBe(400);
-    expect(await status(localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'tony', dir))).toBe(409);
-    expect(await status(localListAgents(OTHER, LOCAL_PROJECT_ID, dir))).toBe(404);
+  test('a bad name or a second agent are refused', async () => {
+    await localCreateAgent('suzy', dir);
+    expect(await status(localCreateAgent('has space', dir))).toBe(400);
+    expect(await status(localCreateAgent('tony', dir))).toBe(409);
   });
 
   test('a station lands in the file with a fresh id; the same bot token cannot land twice', async () => {
-    const suzy = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
-    const ref = await localAttachAccount(OWNER, suzy.id, 'telegram-bot', { token: 'tok' }, dir);
+    const suzy = await localCreateAgent('suzy', dir);
+    const ref = await localAttachAccount(suzy.id, 'telegram-bot', { token: 'tok' }, dir);
     expect(ref.accountId).toMatch(/^[A-Za-z0-9][A-Za-z0-9_-]{10}$/);
     expect(stored().stations).toEqual([
       { station: 'telegram-bot', id: ref.accountId, allowlist: ['*'], enabled: true, config: { token: 'tok' } },
     ]);
-    expect(await localSetAccountEnabled(OWNER, suzy.id, 'telegram-bot', ref.accountId, false, dir)).toBe(false);
+    expect(await localSetAccountEnabled(suzy.id, 'telegram-bot', ref.accountId, false, dir)).toBe(false);
     expect(stored().stations[0]).toMatchObject({ id: ref.accountId, enabled: false, config: { token: 'tok' } });
-    expect(await localSetAccountEnabled(OWNER, suzy.id, 'telegram-bot', ref.accountId, true, dir)).toBe(true);
+    expect(await localSetAccountEnabled(suzy.id, 'telegram-bot', ref.accountId, true, dir)).toBe(true);
     expect(stored().stations[0]).toMatchObject({ enabled: true });
-    expect(await status(localSetAccountEnabled(OWNER, suzy.id, 'telegram-bot', 'acct9999999', false, dir))).toBe(404);
-    expect(await status(localSetAccountEnabled(OTHER, suzy.id, 'telegram-bot', ref.accountId, false, dir))).toBe(404);
-    expect(await status(localAttachAccount(OWNER, suzy.id, 'telegram-bot', { token: 'tok' }, dir))).toBe(409);
-    expect(await status(localAttachAccount(OWNER, suzy.id, 'webhook', {}, dir))).toBe(400);
-    expect(await status(localAttachAccount(OTHER, suzy.id, 'telegram-bot', { token: 'x' }, dir))).toBe(404);
+    expect(await status(localSetAccountEnabled(suzy.id, 'telegram-bot', 'acct9999999', false, dir))).toBe(404);
+    expect(await status(localAttachAccount(suzy.id, 'telegram-bot', { token: 'tok' }, dir))).toBe(409);
+    expect(await status(localAttachAccount(suzy.id, 'webhook', {}, dir))).toBe(400);
+    expect(await status(localAttachAccount('agent009999', 'telegram-bot', { token: 'x' }, dir))).toBe(404);
   });
 
-  test('detach and delete, in the order a person would do them', async () => {
-    const suzy = await localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'suzy', dir);
-    const ref = await localAttachAccount(OWNER, suzy.id, 'xmtp', { privateKey: '0x1' }, dir);
-    expect(await status(localDeleteAgent(OWNER, suzy.id, dir))).toBe(409);
-    expect(await status(localDetachAccount(OWNER, suzy.id, 'xmtp', 'nope0000001', dir))).toBe(404);
-    await localDetachAccount(OWNER, suzy.id, 'xmtp', ref.accountId, dir);
+  test('a detach removes the station and keeps the agent and its key', async () => {
+    const suzy = await localCreateAgent('suzy', dir);
+    const ref = await localAttachAccount(suzy.id, 'xmtp', { privateKey: '0x1' }, dir);
+    expect(await status(localDetachAccount(suzy.id, 'xmtp', 'nope0000001', dir))).toBe(404);
+    await localDetachAccount(suzy.id, 'xmtp', ref.accountId, dir);
     expect(stored().stations).toEqual([]);
     expect(agentIdForKey(suzy.key)).toBe(suzy.id);
-    expect(await localDeleteAgent(OWNER, suzy.id, dir)).toEqual({ id: suzy.id, name: 'suzy' });
-    expect(existsSync(join(dir, 'agent.json'))).toBe(false);
-    expect(agentIdForKey(suzy.key)).toBeUndefined();
-    expect(await status(localDeleteAgent(OWNER, suzy.id, dir))).toBe(404);
   });
 });
 
@@ -120,33 +109,31 @@ describe('importing an agent from metro.box', () => {
     ...over,
   });
 
-  test('keeps id, key and station ids, registers the key, and the owner is this machine', async () => {
-    const made = await localImportAgent(OWNER, loaded(), dir);
+  test('keeps id, key and station ids, and registers the key', async () => {
+    const made = await localImportAgent(loaded(), dir);
     expect(made).toEqual({ id: 'agentTony01', name: 'Tony', key: TONY_KEY, stations: 2 });
     expect(stored()).toMatchObject({
       key: TONY_KEY,
-      owner: OWNER,
       stations: [
         { station: 'telegram-bot', id: 'stn00000001', allowlist: ['*'], config: { token: 't' } },
         { station: 'xmtp', id: 'stn00000002', allowlist: ['x'], config: { privateKey: '0x1' } },
       ],
     });
     expect(agentIdForKey(TONY_KEY)).toBe('agentTony01');
-    expect((await localListAgents(OWNER, LOCAL_PROJECT_ID, dir)).map((a) => a.id)).toEqual(['agentTony01']);
+    expect((await localListAgents(dir)).map((a) => a.id)).toEqual(['agentTony01']);
   });
 
   test("metro.box's older 64-character keys import as they are", async () => {
     const old = 'a1b2c3d4'.repeat(8);
-    const made = await localImportAgent(OWNER, loaded({ key: old, name: 'Old' }), dir);
+    const made = await localImportAgent(loaded({ key: old, name: 'Old' }), dir);
     expect(made.key).toBe(old);
     expect(agentIdForKey(old)).toBe('agentTony01');
   });
 
   test('importing the same agent again refreshes it in place and keeps what was attached here', async () => {
-    await localImportAgent(OWNER, loaded(), dir);
-    await localAttachAccount(OWNER, 'agentTony01', 'discord-bot', { token: 'd' }, dir);
+    await localImportAgent(loaded(), dir);
+    await localAttachAccount('agentTony01', 'discord-bot', { token: 'd' }, dir);
     const again = await localImportAgent(
-      OWNER,
       loaded({ accounts: [{ station: 'telegram-bot', id: 'stn00000001', allowlist: null, config: { token: 't2' } }] }),
       dir,
     );
@@ -157,27 +144,26 @@ describe('importing an agent from metro.box', () => {
   });
 
   test('importing into the agent already here keeps its key, whatever key the import carries', async () => {
-    await localImportAgent(OWNER, loaded(), dir);
+    await localImportAgent(loaded(), dir);
     const other = `mk_${'d'.repeat(43)}`;
-    expect((await localImportAgent(OWNER, loaded({ key: other }), dir)).key).toBe(TONY_KEY);
+    expect((await localImportAgent(loaded({ key: other }), dir)).key).toBe(TONY_KEY);
     expect(stored().key).toBe(TONY_KEY);
     expect(agentIdForKey(other)).toBeUndefined();
   });
 
   test('a shape the file cannot hold is a 400 naming the field, not a bare 500', async () => {
-    const bad = localImportAgent(OWNER, loaded({ name: 'Bad', id: 'agentTony09', key: 'mk_nope' }), dir);
+    const bad = localImportAgent(loaded({ name: 'Bad', id: 'agentTony09', key: 'mk_nope' }), dir);
     await expect(bad).rejects.toThrow(/not an agent key/);
-    expect(await status(localImportAgent(OWNER, loaded({ name: 'Bad', id: 'agentTony09', key: 'mk_nope' }), dir))).toBe(400);
+    expect(await status(localImportAgent(loaded({ name: 'Bad', id: 'agentTony09', key: 'mk_nope' }), dir))).toBe(400);
   });
 
-  test('a stranger, a webhook station and every clash are refused', async () => {
-    expect(await status(localImportAgent(OTHER, loaded(), dir))).toBe(404);
-    expect(await status(localImportAgent(OWNER, loaded({ accounts: [{ station: 'webhook', id: 'stn00000003', allowlist: null, config: {} }] }), dir))).toBe(400);
-    await localImportAgent(OWNER, loaded(), dir);
-    expect(await status(localImportAgent(OWNER, loaded({ name: 'tony2' }), dir))).toBe(0);
+  test('a webhook station and every clash are refused', async () => {
+    expect(await status(localImportAgent(loaded({ accounts: [{ station: 'webhook', id: 'stn00000003', allowlist: null, config: {} }] }), dir))).toBe(400);
+    await localImportAgent(loaded(), dir);
+    expect(await status(localImportAgent(loaded({ name: 'tony2' }), dir))).toBe(0);
     expect(stored().stations).toHaveLength(2);
-    expect(await status(localImportAgent(OWNER, loaded({ name: 'tony3', id: 'agentTony02' }), dir))).toBe(409);
-    expect(await status(localImportAgent(OWNER, loaded({ name: 'suzy', id: 'agentTony03', key: `mk_${'c'.repeat(43)}` }), dir))).toBe(409);
+    expect(await status(localImportAgent(loaded({ name: 'tony3', id: 'agentTony02' }), dir))).toBe(409);
+    expect(await status(localImportAgent(loaded({ name: 'suzy', id: 'agentTony03', key: `mk_${'c'.repeat(43)}` }), dir))).toBe(409);
     expect(agentIdForKey(TONY_KEY)).toBe('agentTony01');
   });
 });
@@ -191,7 +177,7 @@ describe('one agent per box, at a fixed place', () => {
     expect(file.name).toBeNull();
     expect(file.key.startsWith('mk_')).toBe(true);
     expect(await ensureLocalAgent(dir)).toBe('present');
-    expect(await status(localCreateAgent(OWNER, LOCAL_PROJECT_ID, 'second', dir))).toBe(409);
+    expect(await status(localCreateAgent('second', dir))).toBe(409);
   });
 
   test('an agent file from the folder-per-agent days is moved to the fixed place at boot, id and key kept', async () => {

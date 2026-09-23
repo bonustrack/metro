@@ -49,12 +49,6 @@ describe('materializing from an injected source', () => {
     await materializeFrom(() => Promise.resolve([agent([])]));
   });
 
-  test('no agents at all is still a loud failure', async () => {
-    expect(materializeFrom(() => Promise.resolve([]))).rejects.toThrow(
-      /no agents found/,
-    );
-  });
-
   test('a station record reaches its account file, written 0600', async () => {
     await materializeFrom(() =>
       Promise.resolve([agent([telegramBot('stn00000001', ['*'])])]),
@@ -78,7 +72,7 @@ describe('materializing from an injected source', () => {
     expect(agentIdForAccount('telegram-bot', 'stn00000002')).toBe('agent000001');
     expect(accountEnabled('telegram-bot', 'stn00000002')).toBe(false);
     expect(accountEnabled('telegram-bot', 'stn00000001')).toBe(true);
-    await materializeFrom(() => Promise.resolve([agent([{ ...telegramBot('stn00000002', ['*']), enabled: false }])]), { allowEmpty: true });
+    await materializeFrom(() => Promise.resolve([agent([{ ...telegramBot('stn00000002', ['*']), enabled: false }])]));
     expect(existsSync(file) ? readFileSync(file, 'utf8').trim() : '[]').toBe('[]');
   });
 

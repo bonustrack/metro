@@ -10,11 +10,8 @@ import type { DriverHooks } from '../src/stations/attach-interactive.ts';
 
 const FAKE_SESSION = 'fake-mtproto-session-string';
 
-const ADA: AttachOwner = {
-  subject: 'ada@lovelace.dev',
-  agentId: 'agent000001',
-};
-const BOB: AttachOwner = { subject: 'bob@builder.dev', agentId: 'agent000002' };
+const ADA: AttachOwner = { agentId: 'agent000001' };
+const BOB: AttachOwner = { agentId: 'agent000002' };
 
 interface Recorded {
   config: Record<string, unknown>;

@@ -4,7 +4,6 @@ import {
   hasAnyKey,
   registerKey,
   setKeyMap,
-  unregisterAgentKey,
 } from '../src/agents/keys.ts';
 
 afterEach(() => setKeyMap([]));
@@ -57,22 +56,6 @@ describe('key map', () => {
     expect(agentIdForKey('mk_ada_new')).toBe('agent000007');
   });
 
-  test('unregisterAgentKey evicts that agent key and nobody else', () => {
-    setKeyMap([
-      { key: 'mk_ada', agentId: 'agent000007' },
-      { key: 'mk_bob', agentId: 'agent000008' },
-    ]);
-    unregisterAgentKey('agent000007');
-    expect(agentIdForKey('mk_ada')).toBeUndefined();
-    expect(agentIdForKey('mk_bob')).toBe('agent000008');
-  });
-
-  test('unregistering an agent with no key is a no-op', () => {
-    setKeyMap([{ key: 'mk_bob', agentId: 'agent000008' }]);
-    unregisterAgentKey('agent000099');
-    expect(agentIdForKey('mk_bob')).toBe('agent000008');
-  });
-
   test('blank keys and malformed agent ids are never registered', () => {
     setKeyMap([
       { key: '', agentId: 'agent000001' },
@@ -92,7 +75,7 @@ describe('key map', () => {
     expect(hasAnyKey()).toBe(false);
     setKeyMap([{ key: 'mk_ada', agentId: 'agent000007' }]);
     expect(hasAnyKey()).toBe(true);
-    unregisterAgentKey('agent000007');
+    setKeyMap([]);
     expect(hasAnyKey()).toBe(false);
   });
 
@@ -103,7 +86,6 @@ describe('key map', () => {
       'hasAnyKey',
       'registerKey',
       'setKeyMap',
-      'unregisterAgentKey',
     ]);
   });
 });

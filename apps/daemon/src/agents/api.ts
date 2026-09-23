@@ -1,13 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseId } from '@metro-labs/core/ids';
-import { log } from '@metro-labs/core/log';
 import {
   apiFailure,
-  apiSession, requireAdmin,
-  projectParam,
+  apiSession,
   cors,
   sendJson,
-  type ApiSession,
 } from '@metro-labs/http/api-http';
 import { ATTACHABLE, handleAccountRoute, type AccountApiDeps } from './accounts-api.js';
 import {
@@ -15,38 +12,28 @@ import {
   accountRouteAllows,
   type AccountRoute,
 } from './account-routes.js';
-import {
-  type AgentSummary,
-  type DeletedAgent,
-} from './admin.js';
+import type { AgentSummary } from './admin.js';
 
 const PREFIX = '/api/agents';
 
 export interface AgentApiDeps extends AccountApiDeps {
-  listAgents: (subject: string, project: string) => Promise<AgentSummary[]>;
-  deleteAgent: (
-    subject: string,
-    id: string,
-  ) => Promise<DeletedAgent>;
+  listAgents: () => Promise<AgentSummary[]>;
   gatherAccounts: (allowed: Set<string>) => Promise<{
     accounts: Record<string, unknown[]>;
     unavailable: string[];
   }>;
   capabilities: () => Record<string, string[]>;
   attachable?: string[];
-  liveness: () => Map<string, { connected: boolean; lastSeenAt: number }>;
   connectorIds: (agentIds: string[]) => Promise<Map<string, string[]>>;
 }
 
 type Routable =
   | { kind: 'collection' }
-  | { kind: 'agent'; id: string }
   | { kind: 'accounts'; id: string; route: AccountRoute };
 
 type Target = Routable | { kind: 'unknown' } | null;
 
 function subTarget(id: string, rest: string[]): Target {
-  if (rest.length === 0) return { kind: 'agent', id };
   if (rest[0] !== 'accounts') return { kind: 'unknown' };
   const route = accountRoute(rest.slice(1));
   return route === null ? { kind: 'unknown' } : { kind: 'accounts', id, route };
@@ -62,30 +49,8 @@ export function target(path: string): Target {
   return id === null ? { kind: 'unknown' } : subTarget(id, segments.slice(1));
 }
 
-function livenessPayload(
-  agent: AgentSummary,
-  live: Map<string, { connected: boolean; lastSeenAt: number }>,
-): Record<string, unknown> {
-  const found = agent.owned ? live.get(agent.id) : undefined;
-  if (found === undefined) return { connected: false, last_seen: null };
-  return {
-    connected: found.connected,
-    last_seen: new Date(found.lastSeenAt).toISOString(),
-  };
-}
-
-function agentPayload(
-  agent: AgentSummary,
-  live: Map<string, { connected: boolean; lastSeenAt: number }>,
-  connectors: Map<string, string[]>,
-): Record<string, unknown> {
-  return {
-    id: agent.id,
-    name: agent.name,
-    owned: agent.owned,
-    connector_ids: connectors.get(agent.id) ?? [],
-    ...livenessPayload(agent, live),
-  };
+function agentPayload(agent: AgentSummary, connectors: Map<string, string[]>): Record<string, unknown> {
+  return { id: agent.id, name: agent.name, connector_ids: connectors.get(agent.id) ?? [] };
 }
 
 function wantsAccounts(req: IncomingMessage): boolean {
@@ -97,18 +62,11 @@ async function handleList(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AgentApiDeps,
-  session: ApiSession,
 ): Promise<void> {
-  const project = projectParam(req);
-  if (project === null) {
-    sendJson(req, res, 400, { error: 'a project is required' });
-    return;
-  }
-  const list = await deps.listAgents(session.subject, project);
-  const live = deps.liveness();
+  const list = await deps.listAgents();
   const connectors = await deps.connectorIds(list.map((a) => a.id));
   const base = {
-    agents: list.map((a) => agentPayload(a, live, connectors)),
+    agents: list.map((a) => agentPayload(a, connectors)),
     capabilities: deps.capabilities(),
     attachable: deps.attachable ?? ATTACHABLE,
   };
@@ -122,48 +80,11 @@ async function handleList(
   sendJson(req, res, 200, { ...base, accounts, unavailable });
 }
 
-async function handleDelete(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: AgentApiDeps,
-  session: ApiSession,
-  id: string,
-): Promise<void> {
-  const gone = await deps.deleteAgent(session.subject, id);
-  log.info(
-    { agent: gone.name, id: gone.id, owner: session.subject },
-    'agent-api: deleted agent',
-  );
-  sendJson(req, res, 200, { id: gone.id, name: gone.name, deleted: true });
-}
-
-type AgentTarget = Exclude<Routable, { kind: 'accounts' }>;
-
-async function routeAgent(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: AgentApiDeps,
-  session: ApiSession,
-  tgt: AgentTarget,
-): Promise<void> {
-  try {
-    if (tgt.kind === 'agent') {
-      requireAdmin(session);
-      await handleDelete(req, res, deps, session, tgt.id);
-    } else await handleList(req, res, deps, session);
-  } catch (err) {
-    apiFailure(req, res, err);
-  }
-}
-
-const ALLOWED: Record<AgentTarget['kind'], string[]> = {
-  collection: ['GET'],
-  agent: ['DELETE'],
-};
+const ALLOWED_LIST = ['GET'];
 
 function methodAllowed(tgt: Routable, method: string | undefined): boolean {
   if (tgt.kind === 'accounts') return accountRouteAllows(tgt.route, method);
-  return ALLOWED[tgt.kind].includes(method ?? '');
+  return ALLOWED_LIST.includes(method ?? '');
 }
 
 async function dispatch(
@@ -177,9 +98,8 @@ async function dispatch(
     sendJson(req, res, 401, { error: 'unauthorized' });
     return;
   }
-  if (tgt.kind === 'accounts')
-    await handleAccountRoute(req, res, deps, session, tgt.id, tgt.route);
-  else await routeAgent(req, res, deps, session, tgt);
+  if (tgt.kind === 'accounts') await handleAccountRoute(req, res, deps, tgt.id, tgt.route);
+  else await handleList(req, res, deps);
 }
 
 export function handleAgentApiRequest(

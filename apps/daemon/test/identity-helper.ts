@@ -4,7 +4,6 @@ import { isOrganizationId, SigningKeys, verifyToken } from '@metro-labs/http/wor
 import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
 
 export const TEST_OWNER = 'org_01TESTOWNER000000';
-export const TEST_STRANGER = 'org_01TESTSTRANGER00';
 
 export type Who = string;
 

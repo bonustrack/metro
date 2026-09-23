@@ -5,12 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { ApiError } from '@metro-labs/http/api-error';
 import { forgetClaudeLogin, loginUrlIn, plainText } from '../src/claude/login.js';
 import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const STRANGER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
 const ESC = String.fromCharCode(27);
 const SCRIPT =
   'printf "Open \\033[1mhttps://claude.ai/oauth/authorize?code=1\\033[0m in a browser\\n"; read code; test "$code" = "the-code" && exit 0; exit 3';
@@ -33,9 +31,6 @@ async function start(command: string[]): Promise<string> {
   process.env.CLAUDE_CONFIG_DIR = configDir;
   server = createServer((req, res) => {
     const deps = {
-      authorize: (subject: string) => {
-        if (subject !== OWNER) throw new ApiError('no such project', 404);
-      },
       login: { command },
     };
     if (handleClaudeRequest(req, res, deps)) return;
@@ -106,9 +101,8 @@ describe('signing Claude Code in from the page, by driving its own login', () =>
     expect(existsSync(join(configDir, '.claude.json'))).toBe(false);
   }, 20_000);
 
-  test('only the owner may drive it, a stale id is a 404, and the body must carry text', async () => {
+  test('a stale id is a 404, and the body must carry text', async () => {
     await start(['sh', '-c', SCRIPT]);
-    expect((await call('POST', '/api/claude/login', undefined, STRANGER)).status).toBe(404);
     const started = (await (await call('POST', '/api/claude/login')).json()) as View;
     const path = `/api/claude/login/${started.id}`;
     expect((await call('POST', path, { nope: 1 })).status).toBe(400);

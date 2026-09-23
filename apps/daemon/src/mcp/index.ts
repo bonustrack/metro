@@ -18,7 +18,6 @@ import { channelLog, type McpSession } from './session.js';
 import {
   SessionCapacityError,
   SessionRegistry,
-  type AgentLiveness,
 } from './session-registry.js';
 import { routeSession, sessionScopeKey } from './session-route.js';
 
@@ -133,10 +132,6 @@ async function serveGet(
 }
 
 let activeRegistry: SessionRegistry | undefined;
-
-export function agentLiveness(): Map<string, AgentLiveness> {
-  return activeRegistry?.liveness() ?? new Map<string, AgentLiveness>();
-}
 
 export async function createMetroMcp(): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;

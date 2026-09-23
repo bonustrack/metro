@@ -81,10 +81,9 @@ describe('agents kept as files', () => {
     });
   });
 
-  test('a missing dir is no agents, and an empty one materializes only when allowed', async () => {
+  test('a missing dir is no agents, and an empty one still materializes', async () => {
     expect(loadFileAgents(join(dir, 'nowhere'))).toEqual([]);
-    await expect(materializeFrom(fileSource)).rejects.toThrow(/no agents found/);
-    await materializeFrom(fileSource, { allowEmpty: true });
+    await materializeFrom(fileSource);
   });
 
   test('a station is on unless its file says enabled: false, and the flag survives the load', async () => {
@@ -105,15 +104,16 @@ describe('agents kept as files', () => {
     expect(written).toEqual([{ id: 'stn00000001', botToken: 'secret-token' }]);
   });
 
-  test('a key or owner may be absent, nothing else may', () => {
-    const parsed = parseAgentFile(JSON.stringify(agent({ key: null, owner: undefined })), 'x');
-    expect([parsed.key, parsed.owner]).toEqual([null, null]);
+  test('a key may be absent, an old owner or connectors key is ignored, nothing else may be wrong', () => {
+    expect(parseAgentFile(JSON.stringify(agent({ key: null })), 'x').key).toBeNull();
+    const old = parseAgentFile(JSON.stringify(agent({ owner: 'anything', connectors: ['x'] })), 'x');
+    expect(old).not.toHaveProperty('owner');
+    expect(old).not.toHaveProperty('connectors');
     for (const [over, reason] of [
       [{ version: 2 }, 'version'],
       [{ id: 'short' }, 'id'],
       [{ name: 'has space' }, 'name'],
       [{ key: 'mk_short' }, 'key'],
-      [{ owner: '0xEF8305E140AC520225DAF050E2F71D5FBCC543E7' }, 'owner'],
       [{ stations: {} }, 'stations'],
       [{ stations: [{ station: 'line', id: 'stn00000001', config: {} }] }, 'station'],
       [{ stations: [{ station: 'xmtp', id: 'nope', config: {} }] }, 'id'],
@@ -126,15 +126,6 @@ describe('agents kept as files', () => {
       expect(attempt).toThrow('suzy/agent.json');
     }
     expect(() => parseAgentFile('{not json', 'p')).toThrow('not valid JSON');
-  });
-
-  test('two files sharing an id or a key are refused, naming both', () => {
-    write('suzy', agent());
-    write('copy', agent({ name: 'copy' }));
-    expect(() => loadFileAgents(dir)).toThrow('already used');
-    rmSync(join(dir, 'copy'), { recursive: true });
-    write('twin', agent({ id: 'agent000002', name: 'twin' }));
-    expect(() => loadFileAgents(dir)).toThrow('key is already used');
   });
 });
 

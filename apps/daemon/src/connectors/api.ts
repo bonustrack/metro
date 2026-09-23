@@ -5,12 +5,10 @@ import type { RemoteTool } from './tools.js';
 import {
   apiFailure,
   apiSession,
-  projectParam,
   bodyField,
   cors,
   readJsonBody,
   sendJson,
-  type ApiSession,
 } from '@metro-labs/http/api-http';
 import { parseId } from '@metro-labs/core/ids';
 import {
@@ -34,21 +32,13 @@ const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
 
 export interface ConnectorApiDeps extends OAuthRouteDeps {
-  listConnectors: (subject: string, project: string) => Promise<Connector[]>;
-  createConnector: (
-    subject: string,
-    project: string,
-    input: ConnectorInput,
-  ) => Promise<Connector>;
-  verifyConnector: (subject: string, id: string) => Promise<ConnectorCheck>;
-  connectorTools: (subject: string, id: string) => Promise<RemoteTool[]>;
-  disconnectConnector: (subject: string, id: string) => Promise<Connector>;
-  renameConnector: (
-    subject: string,
-    id: string,
-    name: string,
-  ) => Promise<Connector>;
-  deleteConnector: (subject: string, id: string) => Promise<DeletedConnector>;
+  listConnectors: () => Promise<Connector[]>;
+  createConnector: (input: ConnectorInput) => Promise<Connector>;
+  verifyConnector: (id: string) => Promise<ConnectorCheck>;
+  connectorTools: (id: string) => Promise<RemoteTool[]>;
+  disconnectConnector: (id: string) => Promise<Connector>;
+  renameConnector: (id: string, name: string) => Promise<Connector>;
+  deleteConnector: (id: string) => Promise<DeletedConnector>;
 }
 
 type Routable =
@@ -105,14 +95,8 @@ async function handleList(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
-  session: ApiSession,
 ): Promise<void> {
-  const project = projectParam(req);
-  if (project === null) {
-    sendJson(req, res, 400, { error: 'a project is required' });
-    return;
-  }
-  const rows = await deps.listConnectors(session.subject, project);
+  const rows = await deps.listConnectors();
   sendJson(req, res, 200, {
     connectors: rows.map((row) => connectorPayload(row)),
   });
@@ -122,17 +106,11 @@ async function handleCreate(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
-  session: ApiSession,
 ): Promise<void> {
   const body = await readJsonBody(req);
-  const project = projectParam(req);
-  if (project === null) {
-    sendJson(req, res, 400, { error: 'a project is required' });
-    return;
-  }
   const offered = asText(bodyField(body, 'value')).trim() !== '';
   try {
-    const created = await deps.createConnector(session.subject, project, {
+    const created = await deps.createConnector({
       name: bodyField(body, 'name'),
       url: bodyField(body, 'url'),
       header: bodyField(body, 'header'),
@@ -147,7 +125,7 @@ async function handleCreate(
     sendJson(req, res, 201, connectorPayload(created));
   } catch (err) {
     if (offered || !(err instanceof ConnectorUnauthorized)) throw err;
-    await startOAuth(req, res, deps, session, project, body, (row) =>
+    await startOAuth(req, res, deps, body, (row) =>
       connectorPayload(row),
     );
   }
@@ -157,10 +135,9 @@ async function handleVerify(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
-  session: ApiSession,
   id: string,
 ): Promise<void> {
-  const check = await deps.verifyConnector(session.subject, id);
+  const check = await deps.verifyConnector(id);
   log.info(
     { id: check.id, name: check.name, ok: check.ok },
     'connector-api: re-verified connector',
@@ -172,10 +149,9 @@ async function handleDisconnect(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
-  session: ApiSession,
   id: string,
 ): Promise<void> {
-  const row = await deps.disconnectConnector(session.subject, id);
+  const row = await deps.disconnectConnector(id);
   log.info(
     { id: row.id, name: row.name },
     'connector-api: signed the connector out',
@@ -187,10 +163,9 @@ async function handleDelete(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
-  session: ApiSession,
   id: string,
 ): Promise<void> {
-  const gone = await deps.deleteConnector(session.subject, id);
+  const gone = await deps.deleteConnector(id);
   log.info(
     { id: gone.id, name: gone.name },
     'connector-api: deleted connector',
@@ -202,14 +177,13 @@ async function handleConnector(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
-  session: ApiSession,
   id: string,
 ): Promise<void> {
   if (req.method !== 'GET') {
-    await handleDelete(req, res, deps, session, id);
+    await handleDelete(req, res, deps, id);
     return;
   }
-  const row = await deps.getConnector(session.subject, id);
+  const row = await deps.getConnector(id);
   sendJson(req, res, 200, connectorPayload(row));
 }
 
@@ -217,7 +191,6 @@ async function handleRename(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
-  session: ApiSession,
   id: string,
 ): Promise<void> {
   const name = bodyField(await readJsonBody(req), 'name');
@@ -225,7 +198,7 @@ async function handleRename(
     sendJson(req, res, 400, { error: 'name is required' });
     return;
   }
-  const row = await deps.renameConnector(session.subject, id, name);
+  const row = await deps.renameConnector(id, name);
   log.info({ id: row.id, name: row.name }, 'connector-api: renamed connector');
   sendJson(req, res, 200, connectorPayload(row));
 }
@@ -234,24 +207,23 @@ async function route(
   req: IncomingMessage,
   res: ServerResponse,
   deps: ConnectorApiDeps,
-  session: ApiSession,
   tgt: Routable,
 ): Promise<void> {
   try {
     if (tgt.kind === 'callback') return;
     if (tgt.kind === 'verify')
-      await handleVerify(req, res, deps, session, tgt.id);
-    else if (tgt.kind === 'tools') sendJson(req, res, 200, { tools: await deps.connectorTools(session.subject, tgt.id) });
+      await handleVerify(req, res, deps, tgt.id);
+    else if (tgt.kind === 'tools') sendJson(req, res, 200, { tools: await deps.connectorTools(tgt.id) });
     else if (tgt.kind === 'connect')
-      await handleConnect(req, res, deps, session, tgt.id);
+      await handleConnect(req, res, deps, tgt.id);
     else if (tgt.kind === 'disconnect')
-      await handleDisconnect(req, res, deps, session, tgt.id);
+      await handleDisconnect(req, res, deps, tgt.id);
     else if (tgt.kind === 'rename')
-      await handleRename(req, res, deps, session, tgt.id);
+      await handleRename(req, res, deps, tgt.id);
     else if (tgt.kind === 'connector')
-      await handleConnector(req, res, deps, session, tgt.id);
-    else if (req.method === 'GET') await handleList(req, res, deps, session);
-    else await handleCreate(req, res, deps, session);
+      await handleConnector(req, res, deps, tgt.id);
+    else if (req.method === 'GET') await handleList(req, res, deps);
+    else await handleCreate(req, res, deps);
   } catch (err) {
     apiFailure(req, res, err, 'connector-api');
   }
@@ -283,7 +255,7 @@ async function dispatch(
     sendJson(req, res, 401, { error: 'unauthorized' });
     return;
   }
-  await route(req, res, deps, session, tgt);
+  await route(req, res, deps, tgt);
 }
 
 export function handleConnectorApiRequest(
