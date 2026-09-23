@@ -3,7 +3,7 @@ import { cors, sendJson } from './api-http.js';
 
 const PATH = '/api/mode';
 
-export type DaemonMode = 'hosted' | 'linked' | 'local';
+export type DaemonMode = 'hosted' | 'local';
 
 export interface ModeInfo {
   mode: DaemonMode;

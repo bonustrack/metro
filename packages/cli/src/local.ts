@@ -1,13 +1,12 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { localUrl } from './runtime.js';
 
 const PROBE_MS = 3_000;
 
-interface LocalAgent {
+export interface LocalAgent {
   id: string;
-  name: string;
   key: string;
 }
 
@@ -16,60 +15,28 @@ export function agentsDir(): string {
   return explicit !== undefined && explicit !== '' ? explicit : join(homedir(), '.metro', 'agents');
 }
 
-function agentFiles(dir: string): string[] {
-  const fixed = join(dir, 'agent.json');
-  if (existsSync(fixed)) return [fixed];
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => join(dir, entry.name, 'agent.json'))
-    .filter((path) => existsSync(path));
+function agentFile(dir: string): { id?: unknown; key?: unknown; stations?: unknown } | null {
+  try {
+    return JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { id?: unknown; key?: unknown; stations?: unknown };
+  } catch {
+    return null;
+  }
 }
 
-export function localAgents(dir = agentsDir()): LocalAgent[] {
-  const out: LocalAgent[] = [];
-  for (const path of agentFiles(dir)) {
-    try {
-      const file = JSON.parse(readFileSync(path, 'utf8')) as { id?: unknown; name?: unknown; key?: unknown };
-      if (typeof file.id === 'string' && typeof file.key === 'string')
-        out.push({ id: file.id, name: typeof file.name === 'string' ? file.name : 'agent', key: file.key });
-    } catch {
-      continue;
-    }
-  }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+export function localAgent(dir = agentsDir()): LocalAgent | null {
+  const file = agentFile(dir);
+  return typeof file?.id === 'string' && typeof file.key === 'string' ? { id: file.id, key: file.key } : null;
 }
 
 export function localStations(dir = agentsDir()): string[] {
+  const stations = agentFile(dir)?.stations;
+  if (!Array.isArray(stations)) return [];
   const out = new Set<string>();
-  for (const path of agentFiles(dir)) {
-    try {
-      const file = JSON.parse(readFileSync(path, 'utf8')) as { stations?: unknown };
-      if (!Array.isArray(file.stations)) continue;
-      for (const s of file.stations) {
-        const station = (s as { station?: unknown }).station;
-        if (typeof station === 'string') out.add(station);
-      }
-    } catch {
-      continue;
-    }
+  for (const s of stations) {
+    const station = (s as { station?: unknown }).station;
+    if (typeof station === 'string') out.add(station);
   }
   return [...out].sort();
-}
-
-export function pickLocalAgent(agents: LocalAgent[], wanted?: string): LocalAgent {
-  if (wanted !== undefined && wanted !== '') {
-    const found = agents.find((a) => a.name === wanted || a.id === wanted);
-    if (found === undefined) throw new Error(`no local agent named '${wanted}'`);
-    return found;
-  }
-  const only = agents[0];
-  if (only !== undefined && agents.length === 1) return only;
-  throw new Error(
-    agents.length === 0
-      ? 'no agent on this machine yet'
-      : `several agents on this machine — name one: ${agents.map((a) => a.name).join(', ')}`,
-  );
 }
 
 export async function localDaemonUp(base = localUrl()): Promise<boolean> {

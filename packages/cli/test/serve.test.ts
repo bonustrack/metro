@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { findTailscale, parseServeArgs, servePlan } from '../src/serve.ts';
+import { findTailscale, parseServeArgs, requireOwner, servePlan } from '../src/serve.ts';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { serveStateDir } from '../src/control.ts';
@@ -14,8 +14,6 @@ const RUNTIME = {
 
 const KEYS = [
   'METRO_WEBHOOK_PORT',
-  'METRO_RUN_TOKEN',
-  'METRO_AGENT',
   'DATABASE_URL',
   'METRO_HTTP_HOST',
   'METRO_STATE_DIR',
@@ -46,12 +44,20 @@ describe('metro serve arguments', () => {
       expect(() => parseServeArgs(gone)).toThrow(/--tunnel is gone/);
     expect(parseServeArgs(['--owner', '0xEF8305E140ac520225DAf050e2f71d5fBCC543e7'])).toEqual({
       port: 8422,
-      owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7',
+      owner: null,
+      ignoredOwner: '0xEF8305E140ac520225DAf050e2f71d5fBCC543e7',
     });
-    expect(parseServeArgs(['--owner=0xef8305e140ac520225daf050e2f71d5fbcc543e7']).owner).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
+    expect(parseServeArgs(['--owner=0xef8305e140ac520225daf050e2f71d5fbcc543e7']).owner).toBeNull();
     expect(parseServeArgs(['--owner', 'org_01M2TNE064H99ECTG4X228Y6B6']).owner).toBe('org_01M2TNE064H99ECTG4X228Y6B6');
-    expect(() => parseServeArgs(['--owner', 'org_x'])).toThrow('neither an organization id');
-    expect(() => parseServeArgs(['--owner', 'less.eth'])).toThrow(/nor an Ethereum address/);
+    expect(() => parseServeArgs(['--owner', 'org_x'])).toThrow('not an organization id');
+    expect(() => parseServeArgs(['--owner', 'less.eth'])).toThrow(/not an organization id/);
+  });
+
+  test('a wallet --owner, which every installed unit still carries, never stops serve from starting', () => {
+    const empty = mkdtempSync(join(tmpdir(), 'metro-owner-'));
+    expect(() => requireOwner(parseServeArgs(['--owner', '0xef8305e140ac520225daf050e2f71d5fbcc543e7']), empty)).not.toThrow();
+    expect(() => requireOwner(parseServeArgs([]), empty)).toThrow(/no owner is set/);
+    rmSync(empty, { recursive: true, force: true });
   });
 
   test('a bad port or an unknown flag is refused with the usage', () => {
@@ -63,8 +69,6 @@ describe('metro serve arguments', () => {
 
 describe('the daemon a serve plan starts', () => {
   test('is local, on loopback, with trains and state of its own, and never linked or hosted', () => {
-    process.env.METRO_RUN_TOKEN = 'rt-left-over';
-    process.env.METRO_AGENT = 'HURgz4SdQvG';
     process.env.DATABASE_URL = 'postgres://prod';
     delete process.env.METRO_HTTP_HOST;
     delete process.env.METRO_STATE_DIR;
@@ -72,7 +76,7 @@ describe('the daemon a serve plan starts', () => {
     const plan = servePlan({ runtime: RUNTIME, port: 8421, owner: null, tailscaleBin: 'tailscale' });
     expect(plan.env.METRO_TUNNEL).toBe('tailscale');
     expect(plan.env.METRO_OWNER).toBeUndefined();
-    expect(servePlan({ runtime: RUNTIME, port: 8421, owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7', tailscaleBin: 'tailscale' }).env.METRO_OWNER).toBe('0xef8305e140ac520225daf050e2f71d5fbcc543e7');
+    expect(servePlan({ runtime: RUNTIME, port: 8421, owner: 'org_01M2TNE064H99ECTG4X228Y6B6', tailscaleBin: 'tailscale' }).env.METRO_OWNER).toBe('org_01M2TNE064H99ECTG4X228Y6B6');
     expect(plan.args).toEqual([RUNTIME.entry]);
     expect(plan.cwd).toBe('/opt/metro/runtime');
     expect(plan.env.METRO_VERSION).toMatch(/^\d+\.\d+\.\d+/);
@@ -81,8 +85,6 @@ describe('the daemon a serve plan starts', () => {
     expect(plan.env.METRO_HTTP_HOST).toBe('127.0.0.1');
     expect(plan.env.METRO_TRAINS_DIR).toBe(join('/opt/metro/runtime', 'trains'));
     expect(plan.env.METRO_STATE_DIR).toBe('/tmp/cache-home/metro/serve');
-    expect(plan.env.METRO_RUN_TOKEN).toBeUndefined();
-    expect(plan.env.METRO_AGENT).toBeUndefined();
     expect(plan.env.DATABASE_URL).toBeUndefined();
     expect(plan.env.METRO_RUNTIME_STORE).toBeUndefined();
     expect(plan.env.METRO_RUNTIME_MANIFEST).toBeUndefined();

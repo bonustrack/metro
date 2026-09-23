@@ -7,7 +7,7 @@ export const isOperatorEmail = (email: string | null): boolean => email?.toLower
 
 export type Intent = 'login' | 'waitlist';
 
-export type Refusal = 'no-account' | 'waiting' | 'not-open' | 'unverified' | 'cancelled' | 'failed' | 'not-set-up';
+export type Refusal = 'no-account' | 'waiting' | 'not-open' | 'unverified' | 'cancelled' | 'failed';
 
 export type Admission = { kind: 'in' } | { kind: 'waiting' } | { kind: 'refused'; reason: Refusal };
 

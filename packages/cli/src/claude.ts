@@ -3,7 +3,7 @@ import { markOnboardingDone, seedChannels } from './onboarding.js';
 import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
 import { currentRoute, permissionMode, routeModelEnv, systemPrompt, type PermissionMode } from './route.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
-import { localAgents, pickLocalAgent } from './local.js';
+import { localAgent, type LocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
 import { localPort, localUrl } from './runtime.js';
 
@@ -86,32 +86,8 @@ async function daemonServing(base = localUrl()): Promise<boolean> {
 
 export type Verdict = { key: string } | { skip: string };
 
-interface AgentLike {
-  id: string;
-  name: string;
-  key: string;
-}
-
-export function agentKey(agents: AgentLike[], wanted: string | undefined): Verdict {
-  if (agents.length === 0) return { skip: 'no agent lives on this machine yet, so Claude Code talks to Anthropic directly' };
-  try {
-    return { key: pickLocalAgent(agents, wanted).key };
-  } catch {
-    return {
-      skip:
-        wanted === undefined || wanted === ''
-          ? 'this box has no agent yet (or several old ones), so Claude Code talks to Anthropic directly for now'
-          : `no agent named '${wanted}' lives here, so Claude Code talks to Anthropic directly`,
-    };
-  }
-}
-
-function localAgentList(): AgentLike[] {
-  try {
-    return localAgents();
-  } catch {
-    return [];
-  }
+export function agentKey(agent: LocalAgent | null): Verdict {
+  return agent === null ? { skip: 'no agent lives on this machine yet, so Claude Code talks to Anthropic directly' } : { key: agent.key };
 }
 
 async function verdict(): Promise<Verdict> {
@@ -119,7 +95,7 @@ async function verdict(): Promise<Verdict> {
   if (pinned !== null) return { skip: `${pinned} is set, so Claude Code keeps talking to it` };
   const conflicts = settingsConflicts(settingsFiles());
   if (conflicts.length > 0) return { skip: `a settings file pins the provider (${conflicts.join(', ')}), so Claude Code keeps it` };
-  const picked = agentKey(localAgentList(), undefined);
+  const picked = agentKey(localAgent());
   if ('skip' in picked) return picked;
   if (await daemonServing()) return picked;
   return { skip: 'the daemon is not serving here (stopped, or not running), so Claude Code talks to Anthropic directly' };
@@ -148,7 +124,7 @@ export function runClaude(args: string[], env: NodeJS.ProcessEnv): Promise<numbe
 
 async function servedKey(decision: Verdict): Promise<string | null> {
   if ('key' in decision) return decision.key;
-  const picked = agentKey(localAgentList(), undefined);
+  const picked = agentKey(localAgent());
   if ('skip' in picked) return null;
   return (await daemonServing()) ? picked.key : null;
 }

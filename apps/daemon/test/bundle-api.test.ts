@@ -12,7 +12,7 @@ import { localImportConnectors, readLocalConnectors } from '../src/connectors/st
 import { parseBundle } from '../src/agents/bundle.ts';
 import { auth, type Who } from './identity-helper.ts';
 
-const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
+const OWNER = 'org_01TESTOWNER000000';
 const saved = { dir: process.env.METRO_AGENTS_DIR };
 let dir = '';
 let server: Server;

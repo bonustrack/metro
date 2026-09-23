@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { daemonHost, parseDaemonUrl } from '../src/auth/daemon.js';
-import { connectRefusal, toMode } from '../src/api/mode.js';
+import { toMode } from '../src/api/mode.js';
 
 const base = (raw: string): string | null => {
   const parsed = parseDaemonUrl(raw);
@@ -68,14 +68,9 @@ describe('what /api/mode says', () => {
     expect(toMode({ mode: 'local', owner: '0xabc', project: 'localdaemon', version: '1', stopped: 'yes' })?.stopped).toBe(false);
   });
 
-  test('a linked daemon is refused by the connect card, the others are not', () => {
-    expect(connectRefusal({ mode: 'linked', owner: null, project: null, version: null, stopped: false })).toContain('metro start');
-    expect(connectRefusal({ mode: 'local', owner: null, project: 'localdaemon', version: null, stopped: false })).toBeNull();
-    expect(connectRefusal({ mode: 'hosted', owner: null, project: null, version: null, stopped: false })).toBeNull();
-  });
-
   test('anything else is not a mode', () => {
     expect(toMode({ mode: 'cloud' })).toBeNull();
+    expect(toMode({ mode: 'linked' })).toBeNull();
     expect(toMode({ status: 'ok' })).toBeNull();
     expect(toMode('local')).toBeNull();
     expect(toMode(null)).toBeNull();

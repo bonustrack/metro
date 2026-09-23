@@ -107,14 +107,9 @@ describe('when metro claude leaves Claude Code alone', () => {
     expect(servingDaemon(null)).toBe(false);
   });
 
-  test('no agent, several agents without METRO_AGENT, or an unknown name each say so', () => {
-    const tony = { id: 'agent000001', name: 'tony', key: 'mk_t' };
-    const lisa = { id: 'agent000002', name: 'lisa', key: 'mk_l' };
-    expect(agentKey([], undefined)).toEqual({ skip: expect.stringContaining('no agent lives') as unknown as string });
-    expect(agentKey([tony], undefined)).toEqual({ key: 'mk_t' });
-    expect(agentKey([tony, lisa], 'lisa')).toEqual({ key: 'mk_l' });
-    expect(JSON.stringify(agentKey([tony, lisa], undefined))).toContain('several old ones');
-    expect(JSON.stringify(agentKey([tony, lisa], 'suzy'))).toContain("'suzy'");
+  test('no agent says so, and the one agent file gives its key', () => {
+    expect(agentKey(null)).toEqual({ skip: expect.stringContaining('no agent lives') as unknown as string });
+    expect(agentKey({ id: 'agent000001', key: 'mk_t' })).toEqual({ key: 'mk_t' });
   });
 });
 

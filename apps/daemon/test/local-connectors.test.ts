@@ -10,7 +10,7 @@ import { setLocalOwner, localCreateAgent } from '../src/agents/file-admin.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 import { auth, type Who } from './identity-helper.ts';
 
-const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
+const OWNER = 'org_01TESTOWNER000000';
 const saved = {
   dir: process.env.METRO_AGENTS_DIR,
   port: process.env.METRO_WEBHOOK_PORT,

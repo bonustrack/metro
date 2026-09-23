@@ -24,7 +24,6 @@ import { newId } from '@metro-labs/core/ids';
 import { registerKey } from './keys.js';
 import { MOVABLE_STATIONS, type LoadedAgent } from '../stations/materialize.js';
 import type { StationName } from '@metro-labs/core/station-names';
-import { normalizeAddress } from '@metro-labs/core/address';
 
 const OWNER_FILE = '.owner';
 
@@ -37,7 +36,7 @@ const missing = (): AgentAdminError => new AgentAdminError('no such agent', 404)
 
 export function parseOwner(raw: string): string | null {
   const text = raw.trim();
-  return isOrganizationId(text) ? text : normalizeAddress(text);
+  return isOrganizationId(text) ? text : null;
 }
 
 export function localOwner(dir = agentsDir()): string | null {
@@ -50,7 +49,7 @@ export function localOwner(dir = agentsDir()): string | null {
 
 export function setLocalOwner(raw: string, dir = agentsDir()): string {
   const owner = parseOwner(raw);
-  if (owner === null) throw new ApiError(`'${raw}' is neither an organization id nor an Ethereum address`, 400);
+  if (owner === null) throw new ApiError(`'${raw}' is not an organization id`, 400);
   ensureSecureDir(dir);
   writeSecure(join(dir, OWNER_FILE), `${owner}\n`);
   return owner;

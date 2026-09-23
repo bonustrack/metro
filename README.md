@@ -100,7 +100,7 @@ daemon apply all of it.
 | `metro serve [--port <n>] [--owner <organization id>]` | Run the daemon in the foreground. |
 | `metro service install [--port <n>] [--owner <organization id>]` | Run `metro serve` as a service. `metro service uninstall` and `metro service status` too. |
 | `metro stop` | Stop metro on this machine. |
-| `metro tail <agent-id>` | Follow this machine's inbound events, one JSON line each. |
+| `metro tail [agent-id]` | Follow this machine's inbound events, one JSON line each. |
 | `metro whoami` | Print the agent this machine runs. |
 | `metro claude [args...]` | Open Claude Code with the metro channel, the metro MCP server and the model gateway. |
 | `metro update` | Update to the newest published version. `--check` only reports. |

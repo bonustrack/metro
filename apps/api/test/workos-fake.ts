@@ -8,10 +8,8 @@ export interface FakeWorkos {
   calls: { path: string; body: Record<string, unknown>; auth: string | null }[];
   codes: Map<string, { organization: string | null }>;
   organizations: string[];
-  enabled: Set<string>;
   members: { id: string; user_id: string; role: string }[];
   invitations: { id: string; email: string; state: string; role_slug: string }[];
-  outage: { on: boolean };
   selection: { on: boolean };
   close: () => Promise<void>;
 }
@@ -32,7 +30,6 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
   const calls: FakeWorkos['calls'] = [];
   const codes = new Map<string, { organization: string | null; sub: string }>();
   const organizations: string[] = [];
-  const enabled = new Set<string>(['GoogleOAuth']);
   const members: FakeWorkos['members'] = [{ id: 'om_admin', user_id: 'user_01ABC', role: 'admin' }, { id: 'om_bob', user_id: 'user_02BOB', role: 'member' }];
   const invitations: FakeWorkos['invitations'] = [];
   const USERS = [
@@ -41,7 +38,6 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
   ];
   let refreshCount = 0;
   const holders = new Map<string, string>();
-  const outage = { on: false };
   const selection = { on: false };
   const actor = { sub: 'user_01ABC' };
   let orgName = 'Stage Labs';
@@ -60,16 +56,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     const send = (status: number, payload: unknown): void => {
       res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(payload));
     };
-    if (outage.on) {
-      send(500, { message: 'WorkOS is having a bad minute' });
-      return;
-    }
     if (url.pathname === '/user_management/authorize') {
-      if (!enabled.has(url.searchParams.get('provider') ?? '')) return send(404, { message: 'Not Found' });
-      if (url.searchParams.get('state') === 'probe') {
-        res.writeHead(302, { location: 'https://accounts.google.com/o/oauth2/v2/auth?probe=1' }).end();
-        return;
-      }
       const code = `code_${String(codes.size + 1)}`;
       codes.set(code, { organization: organizations[0] ?? null, sub: actor.sub });
       res.writeHead(302, { location: `${url.searchParams.get('redirect_uri') ?? ''}?code=${code}&state=${url.searchParams.get('state') ?? ''}` }).end();
@@ -186,10 +173,8 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     calls,
     codes,
     organizations,
-    enabled,
     members,
     invitations,
-    outage,
     selection,
     actor,
     close: async () => {

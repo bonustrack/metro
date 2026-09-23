@@ -1,7 +1,7 @@
 import { filled, isRecord } from './read.js';
 import { daemonBase, daemonHost } from '../auth/daemon.js';
 
-export type DaemonMode = 'hosted' | 'linked' | 'local';
+export type DaemonMode = 'hosted' | 'local';
 
 export interface ModeInfo {
   mode: DaemonMode;
@@ -11,7 +11,7 @@ export interface ModeInfo {
   stopped: boolean;
 }
 
-const MODES: DaemonMode[] = ['hosted', 'linked', 'local'];
+const MODES: DaemonMode[] = ['hosted', 'local'];
 
 
 export function toMode(body: unknown): ModeInfo | null {
@@ -25,12 +25,6 @@ export function toMode(body: unknown): ModeInfo | null {
     version: filled(body.version),
     stopped: body.stopped === true,
   };
-}
-
-export function connectRefusal(info: ModeInfo): string | null {
-  return info.mode === 'linked'
-    ? 'That daemon runs an agent for metro.box (metro start) and has no pages of its own. Manage that agent on metro.box.'
-    : null;
 }
 
 export async function fetchMode(base = daemonBase()): Promise<ModeInfo> {
