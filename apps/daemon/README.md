@@ -1,87 +1,51 @@
-# @metro-labs/mcp
+# @metro-labs/daemon
 
-> The Metro core daemon: the MCP protocol surface, the supervised runtime, and the
-> station contract the platform packages implement.
+What `metro serve` runs on a box. See the [root README](../../README.md) for what Metro is
+and how to install it.
 
-This is the entry-point package of the monorepo (see the [root README](../../README.md)
-for what Metro is and how to run/deploy it). It ships the `metro-daemon` bin
-(`./dist/server.js`) and the `@metro-labs/mcp/*` exports the station packages depend on.
-`src/server.ts` just imports `daemon/boot`, which boots one in-process daemon that
-serves the MCP and supervises a subprocess ("train") per configured station.
+One Bun process that:
 
-## Three areas
+- serves the MCP server Claude Code connects to, at `/` and `/mcp`,
+- runs one subprocess ("train") per chat network the agent uses, and passes events
+  between them and Claude Code through an in-memory bus,
+- serves the APIs the page at https://metro.box uses, checked against a WorkOS token whose
+  organization must match the box's owner (`~/.metro/agents/.owner`),
+- relays connector traffic at `/relay/<id>`,
+- serves the model gateway at `/gateway`, which sends Claude Code's inference to the
+  provider chosen on the Model page,
+- keeps a Claude Code session running in tmux, and serves the Terminal tab.
 
-### `src/mcp/` — the MCP protocol surface
+The agent, its channels and its connectors are plain files under `~/.metro/agents`
+(`METRO_AGENTS_DIR` overrides). There is no database.
 
-The Model Context Protocol server (`createMetroMcp`), mounted at the root path of the
-HTTP server so it can sit behind its own host. It exposes the `mcp__metro__*` tools
-(`send`/`reply`/`react`/`read`/`create_channel`/… plus `list_accounts`), gathers the
-configured accounts (`accounts.ts`), routes each tool call to the owning station by its
-`line` (`call-tools.ts`), and runs the **inbound relay** (`inbound.ts`): it subscribes
-to the daemon event bus and pushes `notifications/claude/channel` to the connected AI
-client. `ctx.ts` builds the per-call `ToolContext` and the outbound `metroCall` bridge;
-`tool-schemas.ts` holds the tool/zod schemas. The HTTP transport is session-tolerant —
-it survives a daemon restart so connected sessions auto-resume.
+## Layout
 
-### `src/daemon/` — the supervised runtime
+`src/server.ts` imports `boot/boot.ts`. Each folder under `src/` is one area:
 
-- `boot.ts` — wires everything together at startup (lock, identity, supervisor, HTTP,
-  IPC, MCP mount).
-- `supervisor.ts` / `supervisor-io.ts` — the **train supervisor**: spawns one
-  subprocess per train script in `METRO_TRAINS_DIR` (`~/.metro/trains/*` by default),
-  hot-reloads them, and multiplexes their JSON event stream.
-- `http.ts` — the dispatcher HTTP server on `METRO_WEBHOOK_PORT` (8420): the public
-  `GET /health`, the MCP at `/` and `/mcp`, and the webhook receiver at
-  `/api/webhooks/<id>/<token>`.
-  `makeEmit` publishes train events onto the event bus.
-- `events.ts` — the in-memory event bus (`subscribeEvents`, `mintId`, the `MetroEvent`
-  shape) the MCP relay subscribes to. Inbound is never journaled to disk.
-- `train-call.ts` — the in-process backend that forwards outbound calls to trains.
-- `protocol.ts` — the station↔daemon wire protocol / envelope (`@metro-labs/mcp/trains/protocol`).
-- `paths.ts`, `tunnel.ts`, `identity.ts`, `log.ts`, `secure-fs.ts`, `train-error.ts` —
-  state dirs + singleton lock, webhook port/tunnel config, user identity, pino logger,
-  scoped fs, train error formatting.
+| Folder | What it holds |
+| --- | --- |
+| `boot/` | Startup, the crash guard, paths and the lock, the owner file. |
+| `routes/` | The HTTP server and the order routes are mounted in. |
+| `agents/` | The agent file, keys, scope checks, and the agent and account APIs. |
+| `stations/` | The station registry, attaching accounts, train files, the supervisor. |
+| `mcp/` | The MCP server and its tools, one session per identity. |
+| `channels/` | Bus events turned into Claude Code channel notifications. |
+| `monitor/` | `GET /api/tail`, the live event stream `metro tail` reads. |
+| `connectors/` | Connectors, their OAuth sign-in, the relay, the plugin's server list. |
+| `gateway/` | The model gateway and the Model page API. |
+| `claude/` | Claude Code on the box: sessions, memory, settings, skills, login, setup. |
+| `terminal/` | The Terminal tab's WebSocket and tmux. |
+| `files/` | Attachment links and uploads. |
+| `net/` | The Tailscale Funnel tunnel. |
+| `server/` | Stop, restart, update, and what the box knows about itself. |
 
-### `src/stations/` — the station contract the core reads
-
-- `types.ts` — the `Station` / `StationTool` / `Verb` / `ToolContext` contract.
-- `station-runtime.ts` — `makeStation`, `CallMsg`, the emit/respond/mintId helpers a
-  train uses.
-- `account-store.ts` — the multi-bot account store (reads the materialized accounts file, validates, selects).
-- `attachments.ts` — `saveBufferToCache`, `toCanonical`, the MIME table.
-- `messaging-normalize.ts` — shared inbound normalization helpers.
-- `lines.ts` — the `metro://<station>/<path>` Line parser.
-- `registry.ts` — the static list of station descriptors (`STATIONS`) the core reads:
-  it imports each package's `.` export (`xmtpStation`, `telegramBotStation`,
-  `discordBotStation`, `webhookStation`) and resolves a line/verb to its owner.
-
-## Architecture (in-process)
-
-```
-train subprocess --(JSON event)--> dispatcher http.makeEmit
-  --> daemon event bus (events.ts) --> MCP inbound relay --> AI client (channel notification)
-
-AI client --(mcp__metro__* tool call)--> mcp/call-tools --> train-call forward --> train subprocess
-```
-
-Everything runs in one Bun process. A station is consumed two ways: as a **descriptor**
-(its `.` export / `station.ts`, read by the registry) and as a **train subprocess**
-(its `./train` export / `index.ts`, spawned by the supervisor). See the root README's
-"How it works" and each station package's README.
-
-## Exports
-
-`@metro-labs/mcp` re-exports the core building blocks the station packages import:
-`.` (createMetroMcp), `./server`, `./log`, `./train-error`, `./secure-fs`, `./lines`,
-`./events`, `./endpoints`, `./trains/protocol`, and `./stations/*` (`types`,
-`station-runtime`, `account-store`, `attachments`, `messaging-normalize`).
+The chat network packages (`packages/xmtp`, `packages/telegram`, and so on) import only
+`@metro-labs/core`.
 
 ## Scripts
 
 ```sh
-bun run start        # bun src/server.ts (the metro-daemon)
-bun run build        # tsc -> dist/
-bun run typecheck    # tsc --noEmit
-bun run test         # tsc + bun test test/
-bun run lint
+bun run start        # bun src/server.ts, a daemon on http://127.0.0.1:8420
+bun run build        # tsc
+bun run test         # tsc --noEmit, then bun test test/
 ```

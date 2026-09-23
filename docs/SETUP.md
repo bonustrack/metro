@@ -10,9 +10,9 @@ and this page explains what they apply, how to check it, and what it costs.
 | --- | --- | --- |
 | Orchestrator-only guard on the main thread | the metro plugin (`hooks/hooks.json`, `bin/guard.mjs`) | every session where the plugin is installed |
 | Standing rules loaded at session start | the metro plugin (`bin/session-start.mjs`) | read from the `metro-orchestrator` skill |
-| The `metro-orchestrator` skill | the daemon, once, at boot | `~/.claude/skills/metro-orchestrator/SKILL.md`, editable on the Skills page |
-| The `worker` subagent | the daemon, once, at boot | `~/.claude/agents/worker.md` |
-| Privacy settings and transcript retention | the daemon, at boot, switchable on the Claude page | `~/.claude/settings.json` |
+| The `metro-orchestrator` skill | the daemon, at boot | `~/.claude/skills/metro-orchestrator/SKILL.md`, editable on the Skills page |
+| The `worker` subagent | the daemon, at boot | `~/.claude/agents/worker.md` |
+| Privacy settings and transcript retention | the daemon, at boot, switchable on the Harness page | `~/.claude/settings.json` |
 | The metro MCP server, Channels, the model route | `metro claude`, at every launch | the session only |
 | The session itself | the daemon, in a tmux session named `metro` | the Terminal tab |
 
@@ -59,21 +59,22 @@ trade-off chosen for boxes never sitting half configured.
 
 `worker` is not a built-in subagent type; the daemon writes it to `~/.claude/agents/worker.md`
 at boot when it is missing. It has full tool access and maximum effort, works to completion,
-never calls a blocking tool, and reports to the orchestrator with evidence. It is never
-overwritten, so edits on the box stick.
+never calls a blocking tool, and reports to the orchestrator with evidence. When a new metro
+release changes the text, the daemon replaces a copy that metro wrote and nobody edited. A
+copy edited on the box is never touched, so edits stick.
 
 ### The standing rules
 
 `~/.claude/skills/metro-orchestrator/SKILL.md` holds the rules: read `addressed` before
 answering, react first, delegate everything that is work, never wait on the terminal, report
-like a relay, keep going. The daemon writes it once from the copy the plugin carries, and the
+like a relay, keep going. The daemon writes it from the copy the plugin carries, and the
 plugin's `SessionStart` hook loads its body into every session, so the agent does not have to
-invoke the skill. Edit it on the Skills page to change the rules on that box; the plugin's copy
-is only the fallback when the file is gone.
+invoke the skill. Edit it on the Skills page to change the rules on that box; an edited copy is
+never replaced by an update. The plugin's copy is only the fallback when the file is gone.
 
 ## Privacy and data retention
 
-On by default, switchable on the Claude page. The daemon merges into `~/.claude/settings.json`:
+On by default, switchable on the Harness page. The daemon merges into `~/.claude/settings.json`:
 
 ```json
 {
@@ -112,7 +113,7 @@ directory anywhere. `claude project purge <path>` removes one project's traces.
 
 ## Check it
 
-- **Claude page**: the Setup block lists the guard, the worker, the rules and the privacy
+- **Harness page**: the Setup block lists the guard, the worker, the rules and the privacy
   settings, each green when in place.
 - **Terminal tab**: the session the daemon started shows the metro channel loaded and no
   wizard. Ask the agent to run `echo hi` with Bash: it must say the main thread is

@@ -3,12 +3,12 @@
 metro.box can launch a box for you: it holds one AWS key and one Tailscale auth
 key, runs the EC2 calls itself, and adds the machine to your server list. Nothing
 of yours is involved, and no key is ever sent to a browser. This is off until the
-deployment is configured, and even then only the wallets named below may ask for
-one, because every box is billed to the AWS account whose key is configured here.
+deployment is configured. Every box is billed to the AWS account whose key is
+configured here.
 
 ## What you set on the deployment
 
-Five Fly secrets on the `metro` app. With any of them unset or malformed the
+Four Fly secrets on the `metro` app. With any of them unset or malformed the
 feature stays off, and the boot log names which ones: `fly logs` prints
 `launch: metro issues no servers, these are unset or malformed`.
 
@@ -19,21 +19,6 @@ feature stays off, and the boot log names which ones: `fly logs` prints
 | `METRO_LAUNCH_TAILNET` | The tailnet suffix the boxes join, as in `tail17c4f8.ts.net`. |
 | `METRO_TAILSCALE_AUTH_KEY` | A **reusable** auth key, `tskey-auth-…`. |
 
-### Who may launch
-
-Anyone signed in to metro.box with an organization. There is no allowlist since 2026-09-19; the one bound on spend is that one identity cannot run two launches at once.
-
-```sql
-select distinct owner from servers;
-```
-
-A launch refused for this reason also logs the identity it saw, so
-`fly logs -a metro | grep launch:` names the address to add.
-
-There is no cap on how many servers an allowlisted identity may have Metro issue.
-What bounds the damage is the allowlist itself and a 409 on two launches at once
-from the same identity.
-
 ```
 fly secrets set -a metro \
   METRO_AWS_ACCESS_KEY_ID=AKIA... \
@@ -41,6 +26,13 @@ fly secrets set -a metro \
   METRO_LAUNCH_TAILNET=tail17c4f8.ts.net \
   METRO_TAILSCALE_AUTH_KEY=tskey-auth-...
 ```
+
+### Who may launch
+
+Anyone signed in to metro.box, for their current organization. There is no
+allowlist and no cap on how many boxes an organization may have. The one bound on
+spend is that one organization cannot run two launches at once: the second one is
+refused with a 409.
 
 ## The IAM user, step by step
 
@@ -117,14 +109,9 @@ the region you launch in.
 
 ## What a launch does
 
-The browser sends a name, a region and the wallet the box is to belong to, all
-three required: the region is chosen in the form from the regions the account has
-enabled, so the deployment configures none, and the wallet comes from the browser
-because it is the one thing this app cannot work out for itself. The identity
-that signs the request is derived from the wallet by a one-way function, and the
-wallet's own signature never leaves the browser, so metro.box takes the address
-the page names on trust. Nothing is spent on that trust: naming somebody else's
-wallet only produces a box the asker cannot sign in to.
+The browser sends a name and a region, both required. The region is chosen in
+the form, so the deployment configures none. The owner is not sent: it is the
+organization in the sign-in token of the person who asks.
 
 The server picks the newest Ubuntu 24.04
 arm64 image, runs one `t4g.medium` with an 8 GiB gp3 root, and retries every
@@ -132,9 +119,10 @@ availability zone in the region when AWS answers `InsufficientInstanceCapacity`,
 which is what a region running short of that instance type looks like. The
 machine joins the tailnet under a random `metro-xxxxxx` name that cannot clash
 with another box, installs Node, bun, Claude Code, Tailscale and Metro on first
-boot, and runs `metro service install --owner <the wallet that asked>`, so the
-box belongs to that wallet and not to the deployment.
+boot, and runs `metro service install --owner <the organization that asked>`, so the
+box belongs to that organization and not to the deployment. Only members of that
+organization can sign in to it.
 
-Two launches at once from one wallet are refused with a 409 rather than starting
-two instances, and the row is written to your server list only once EC2 has
+Two launches at once from one organization are refused with a 409 rather than starting
+two instances, and the row is written to your agent list only once EC2 has
 answered with an instance id.
