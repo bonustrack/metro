@@ -1,7 +1,6 @@
 import type { StationTool } from '@metro-labs/core/stations/types';
 import {
   str,
-  createChannel,
   setChannelMetadata,
   xmtpSendAttachments,
 } from './tools-handlers.js';
@@ -15,41 +14,6 @@ const lineProp = {
 } as const;
 
 export const XMTP_TOOLS: StationTool[] = [
-  {
-    name: 'create_channel',
-    description:
-      'Create a new XMTP group conversation (channel). Args: addresses (required, array of ' +
-      'Ethereum 0x addresses to add as members), name (required, the group name), labels? ' +
-      '(optional string[] status labels applied after creation), account? ' +
-      '(defaults to your only XMTP account). Calls the daemon xmtp `newGroup`, then ' +
-      '`updateChannelMeta` if labels ' +
-      'are given. Returns the new metro:// line and convId. This is an xmtp-only operation. ' +
-      'NOTE: there is no add-members verb on the daemon, so members must be supplied at ' +
-      'creation time.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        addresses: {
-          type: 'array',
-          description: 'Ethereum 0x addresses to add as group members.',
-          items: { type: 'string' },
-        },
-        name: { type: 'string', description: 'The group/channel name.' },
-        labels: {
-          type: 'array',
-          description: 'Optional status labels to apply after creation.',
-          items: { type: 'string' },
-        },
-        account: {
-          type: 'string',
-          description:
-            'XMTP account to create under. Omit when you have only one.',
-        },
-      },
-      required: ['addresses', 'name'],
-    },
-    handle: (a, ctx) => createChannel(a, ctx),
-  },
   {
     name: 'ask',
     description:
@@ -120,7 +84,7 @@ export const XMTP_TOOLS: StationTool[] = [
       'Open (or reuse) a 1:1 XMTP DM with an Ethereum address. Args: address (required, 0x...), ' +
       'account? (defaults to your only XMTP account). Returns the new metro:// line and ' +
       'convId. xmtp-only ' +
-      '(daemon `newDm`). Use this instead of create_channel when there is a single recipient.',
+      '(daemon `newDm`). For a group, use create_group.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -164,17 +128,33 @@ export const XMTP_TOOLS: StationTool[] = [
   {
     name: 'close_channel',
     description:
-      'Archive/close an XMTP group (removes members). Args: line (required). xmtp-only ' +
-      '(daemon `closeGroup`). Irreversible-ish: members are removed from the group.',
+      'Remove members from an XMTP group, and optionally leave it. Args: line (required), ' +
+      'removeInboxIds? (inbox ids to remove; your own is ignored here), removeSelf? (true to ' +
+      'leave the group yourself). With neither, nothing changes. xmtp-only (daemon ' +
+      '`closeGroup`). Returns {removed, leftSelf}.',
     inputSchema: {
       type: 'object',
-      properties: { line: lineProp },
+      properties: {
+        line: lineProp,
+        removeInboxIds: {
+          type: 'array',
+          description: 'Inbox ids of the members to remove.',
+          items: { type: 'string' },
+        },
+        removeSelf: {
+          type: 'boolean',
+          description: 'Leave the group after removing the others.',
+        },
+      },
       required: ['line'],
     },
     async handle(a, ctx) {
       const line = str(a.line);
       if (!line) return ctx.err('close_channel requires `line`');
-      return ctx.okJson(await ctx.call('closeGroup', { line }));
+      const args: Record<string, unknown> = { line };
+      if (Array.isArray(a.removeInboxIds)) args.removeInboxIds = a.removeInboxIds.map(String);
+      if (a.removeSelf === true) args.removeSelf = true;
+      return ctx.okJson(await ctx.call('closeGroup', args));
     },
   },
   {
@@ -182,8 +162,8 @@ export const XMTP_TOOLS: StationTool[] = [
     description:
       "Update an existing channel's metadata. Args: line (required, the metro:// line), and " +
       'any of labels? (string[]), github? (url), preview? (url), name? (string). All provided ' +
-      'fields are applied together in one atomic updateChannelMeta daemon call (a single ' +
-      'appData merge plus name update). xmtp-only ' +
+      'fields go in one updateChannelMeta call: the name first, then the labels and links ' +
+      'merged into the group appData. xmtp-only ' +
       '(channel metadata lives on xmtp groups). Returns the updated channel info.',
     inputSchema: {
       type: 'object',

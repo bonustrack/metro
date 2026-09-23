@@ -18,8 +18,6 @@ import {
   type CallMsg,
   type StationHandler,
 } from '@metro-labs/core/stations/station-runtime';
-import { joinVoice, leaveVoice, voiceDebug, voiceTranscribe } from './voice.js';
-import { speak } from './voice-speak.js';
 import { readProfile, setProfile } from './profile.js';
 import { discordMembers } from './members.js';
 import {
@@ -235,11 +233,6 @@ const HANDLERS: Record<string, StationHandler> = {
   listMembers,
   set_profile: setProfile,
   profile: readProfile,
-  joinVoice,
-  leaveVoice,
-  speak,
-  voiceDebug,
-  voiceTranscribe,
 };
 
 export const handleCall = makeStation({

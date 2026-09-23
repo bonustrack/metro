@@ -9,53 +9,6 @@ import {
 
 export const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-function strList(value: unknown): string[] {
-  return (value as unknown[] | undefined)?.map(String).filter(Boolean) ?? [];
-}
-
-interface CreatedGroup {
-  line?: string;
-  id?: string;
-  account?: string;
-}
-
-async function applyCreateLabels(
-  line: string,
-  labels: string[],
-  ctx: ToolContext,
-): Promise<unknown> {
-  if (!labels.length) return undefined;
-  return ctx.call('updateChannelMeta', { line, appData: { labels } });
-}
-
-export async function createChannel(
-  a: Record<string, unknown>,
-  ctx: ToolContext,
-) {
-  const addresses = strList(a.addresses);
-  const channelName = str(a.name);
-  const labels = strList(a.labels);
-  const account = str(a.account) || undefined;
-  if (!addresses.length)
-    return ctx.err('create_channel requires a non-empty `addresses` array');
-  if (!channelName) return ctx.err('create_channel requires `name`');
-  const groupArgs: Record<string, unknown> = { addresses, name: channelName };
-  if (account) groupArgs.account = account;
-  const { result } = (await ctx.call('newGroup', groupArgs)) as {
-    result: CreatedGroup | null;
-  };
-  const newLine = result?.line ?? '';
-  const labelResult = newLine.length
-    ? await applyCreateLabels(newLine, labels, ctx)
-    : undefined;
-  return ctx.okJson({
-    line: newLine,
-    convId: result?.id,
-    account: result?.account,
-    labels: labelResult,
-  });
-}
-
 export async function setChannelMetadata(
   a: Record<string, unknown>,
   ctx: ToolContext,

@@ -224,11 +224,6 @@ async function accountsAction(id: string): Promise<void> {
   });
 }
 
-function unsupportedVerb(id: string, verb: string): Promise<void> {
-  respond(id, { error: `unsupported verb '${verb}' on xmtp` });
-  return Promise.resolve();
-}
-
 const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   accounts: (id) => accountsAction(id),
   set_profile: setProfile,
@@ -241,8 +236,6 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   reply,
   sendAttachment,
   sendImage,
-  edit: (id) => unsupportedVerb(id, 'edit'),
-  delete: (id) => unsupportedVerb(id, 'delete'),
   ...convHandlers,
 };
 

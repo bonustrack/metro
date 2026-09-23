@@ -244,11 +244,4 @@ const HANDLERS: Record<string, StationHandler> = {
 export const handleCall = makeStation({
   handlers: HANDLERS,
   normalize: normalizeTelegram,
-  preDispatch: (id, action) => {
-    if (action === 'read') {
-      respond(id, { error: "unsupported verb 'read' on telegram-bot" });
-      return true;
-    }
-    return false;
-  },
 });

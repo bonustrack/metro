@@ -29,13 +29,12 @@ export type StationHandler = (id: string, args: Args) => void | Promise<void>;
 export interface StationConfig {
   handlers: Record<string, StationHandler>;
   normalize: (action: string, args: Args) => Normalized;
-  preDispatch?: (id: string, action: string) => boolean;
 }
 
 const lineTag = (args: Args): string =>
   typeof args.line === 'string' ? args.line : '?';
 
-export function makeStation({ handlers, normalize, preDispatch }: StationConfig) {
+export function makeStation({ handlers, normalize }: StationConfig) {
   const known = Object.keys(handlers).join(', ');
   return async function handleCall(msg: CallMsg): Promise<void> {
     const { id } = msg;
@@ -44,7 +43,6 @@ export function makeStation({ handlers, normalize, preDispatch }: StationConfig)
     try {
       ({ action, args } = normalize(msg.action, msg.args));
       emit({ op: 'log', text: `call ${action} recv (line=${lineTag(args)})` });
-      if (preDispatch?.(id, action)) return;
       const handler = handlers[action];
       if (!handler) {
         respond(id, { error: `unknown action '${action}' (have: ${known})` });

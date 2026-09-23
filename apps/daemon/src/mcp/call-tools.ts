@@ -208,6 +208,11 @@ export async function dispatchMessageTool(
   }
   const handler = MESSAGE_HANDLERS[name];
   if (!handler) return errResult(`unknown tool: ${name}`);
+  const verbs: ReadonlySet<string> = station.messageVerbs;
+  if (!verbs.has(name))
+    return errResult(
+      `${station.name} does not support ${name}; it supports ${[...verbs].join(', ')}.`,
+    );
   try {
     return await handler({ line, a, ctx: makeCtx(station.name), station, onSent: hooks.onSent });
   } catch (e) {

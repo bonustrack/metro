@@ -5,8 +5,6 @@ import { TrainError } from '@metro-labs/core/train-error';
 import {
   buildGroupInfo,
   buildMemberList,
-  ethIdentifiers,
-  warmGroupName,
 } from './conv-helpers.js';
 import { closeGroup } from './actions-close.js';
 import {
@@ -30,30 +28,6 @@ async function newDm(id: string, args: Args): Promise<void> {
     result: {
       line: lineOf(acct.cfg.id, dm.id),
       id: dm.id,
-      account: acct.cfg.id,
-    },
-  });
-}
-
-async function newGroup(id: string, args: Args): Promise<void> {
-  const { addresses, name, permissions } = args as {
-    addresses: string[];
-    name?: string;
-    permissions?: 'admin-only' | 'default';
-  };
-  const acct = accountForCall(args);
-  const opts: { groupName?: string; permissions?: number } = {};
-  if (name) opts.groupName = name;
-  if (permissions === 'admin-only') opts.permissions = 1;
-  const group = await acct.client.conversations.createGroupWithIdentifiers(
-    ethIdentifiers(addresses),
-    opts,
-  );
-  warmGroupName(group.id, name);
-  respond(id, {
-    result: {
-      line: lineOf(acct.cfg.id, group.id),
-      id: group.id,
       account: acct.cfg.id,
     },
   });
@@ -110,7 +84,6 @@ async function listMembers(id: string, args: Args): Promise<void> {
 
 export const convHandlers: Record<string, Handler> = {
   newDm,
-  newGroup,
   updateChannelMeta,
   closeGroup,
   query,
