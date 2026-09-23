@@ -1,4 +1,4 @@
-import { tg, tgForm, targetOf } from './accounts.js';
+import { tgForm, targetOf } from './accounts.js';
 import { emit, mintId, respond, SELF_URI } from './wire.js';
 import { appendFile } from '@metro-labs/core/stations/attachments';
 
@@ -82,25 +82,6 @@ export async function sendMedia(
   return { accountId, message_id: r.message_id };
 }
 
-export async function media(
-  id: string,
-  method: string,
-  field: string,
-  label: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const { accountId, message_id } = await sendMedia(method, field, args);
-  const line = (args as { line: string }).line;
-  finishSend(
-    id,
-    accountId,
-    line,
-    String(message_id),
-    label,
-    args.replyTo as string | undefined,
-  );
-}
-
 export const MEDIA_METHOD_FIELD: Record<
   string,
   { method: string; field: string }
@@ -111,56 +92,3 @@ export const MEDIA_METHOD_FIELD: Record<
   video: { method: 'sendVideo', field: 'video' },
   document: { method: 'sendDocument', field: 'document' },
 };
-
-export async function sendDice(
-  id: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const {
-    line,
-    emoji = '\U0001F3B2',
-    account,
-  } = args as { line: string; emoji?: string; account?: string };
-  const { accountId, chatId, topicId } = targetOf(line, account);
-  const body: Record<string, unknown> = { chat_id: chatId, emoji };
-  if (topicId !== undefined) body.message_thread_id = topicId;
-  const r = await tg<{ message_id: number; dice?: { value: number } }>(
-    accountId,
-    'sendDice',
-    body,
-  );
-  finishSend(
-    id,
-    accountId,
-    line,
-    String(r.message_id),
-    `[dice ${emoji} = ${r.dice?.value ?? '?'}]`,
-    undefined,
-    { value: r.dice?.value },
-  );
-}
-
-export async function sendLocation(
-  id: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const { line, latitude, longitude, account } = args as {
-    line: string;
-    latitude: number;
-    longitude: number;
-    account?: string;
-  };
-  const { accountId, chatId } = targetOf(line, account);
-  const r = await tg<{ message_id: number }>(accountId, 'sendLocation', {
-    chat_id: chatId,
-    latitude,
-    longitude,
-  });
-  finishSend(
-    id,
-    accountId,
-    line,
-    String(r.message_id),
-    `[location: ${latitude}, ${longitude}]`,
-  );
-}

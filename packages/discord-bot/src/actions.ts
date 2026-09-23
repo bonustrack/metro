@@ -1,20 +1,13 @@
+import type { Message } from 'discord.js';
 import {
-  ActivityType,
-  type Message,
-  type PresenceStatusData,
-} from 'discord.js';
-import {
-  accountFor,
   accounts,
   encodeEmoji,
-  lineOf,
   rest,
   routeOf,
 } from './accounts.js';
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
 import { respond } from './wire.js';
 import { normalizeDiscord } from '@metro-labs/core/stations/messaging-normalize';
-import { assertContentLength } from '@metro-labs/core/stations/attachments';
 import {
   appendFiles,
   outgoingFiles,
@@ -108,38 +101,6 @@ async function send(id: string, args: Record<string, unknown>): Promise<void> {
       account: accountId,
       ...(res.delivered.length ? { attachments: res.delivered } : {}),
     },
-  });
-}
-
-function presence(id: string, args: Record<string, unknown>): void {
-  const {
-    text,
-    status = 'online',
-    account,
-  } = args as {
-    text?: string;
-    status?: PresenceStatusData;
-    account?: string;
-  };
-  const accountId = accountFor({ account });
-  const acct = accounts.get(accountId);
-  if (!acct) {
-    respond(id, { error: `unknown account '${accountId}'` });
-    return;
-  }
-  const client = acct.client;
-  if (!client.user) {
-    respond(id, { error: `gateway not ready for account '${accountId}'` });
-    return;
-  }
-  client.user.setPresence({
-    status,
-    activities: text
-      ? [{ name: 'Custom Status', type: ActivityType.Custom, state: text }]
-      : [],
-  });
-  respond(id, {
-    result: { ok: true, text: text ?? null, status, account: accountId },
   });
 }
 
@@ -245,104 +206,6 @@ async function fetchMessages(
   respond(id, { result: { messages: msgs, account: accountId } });
 }
 
-async function download(
-  id: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const {
-    line,
-    messageId,
-    outDir = '/tmp',
-    account,
-  } = args as {
-    line: string;
-    messageId: string;
-    outDir?: string;
-    account?: string;
-  };
-  const { accountId, channelId } = routeOf(line, account);
-  const msg = await rest<{
-    attachments: { url: string; content_type?: string; filename: string }[];
-  }>(accountId, 'GET', `/channels/${channelId}/messages/${messageId}`);
-  const files: { path: string; mediaType: string }[] = [];
-  for (const att of msg.attachments) {
-    const res = await fetch(att.url, { signal: AbortSignal.timeout(60_000) });
-    if (!res.ok)
-      throw new Error(`discord-bot download ${res.status} for ${att.url}`);
-    assertContentLength(res.headers.get('content-length'));
-    const buf = await res.arrayBuffer();
-    const path = `${outDir}/${messageId}-${att.filename}`;
-    await Bun.write(path, buf);
-    files.push({
-      path,
-      mediaType: att.content_type ?? 'application/octet-stream',
-    });
-  }
-  respond(id, { result: { files, account: accountId } });
-}
-
-async function threadCreate(
-  id: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const {
-    line,
-    messageId,
-    name,
-    autoArchiveDuration = 1440,
-    account,
-  } = args as {
-    line: string;
-    messageId?: string;
-    name: string;
-    autoArchiveDuration?: number;
-    account?: string;
-  };
-  const { accountId, channelId } = routeOf(line, account);
-  const path = messageId
-    ? `/channels/${channelId}/messages/${messageId}/threads`
-    : `/channels/${channelId}/threads`;
-  const res = await rest<{ id: string }>(accountId, 'POST', path, {
-    name,
-    auto_archive_duration: autoArchiveDuration,
-  });
-  respond(id, {
-    result: {
-      threadId: res.id,
-      line: lineOf(accountId, res.id),
-      account: accountId,
-    },
-  });
-}
-
-async function pin(id: string, args: Record<string, unknown>): Promise<void> {
-  const { line, messageId, account } = args as {
-    line: string;
-    messageId: string;
-    account?: string;
-  };
-  const { accountId, channelId } = routeOf(line, account);
-  await rest(accountId, 'PUT', `/channels/${channelId}/pins/${messageId}`);
-  respond(id, { result: { ok: true, account: accountId } });
-}
-
-async function typing(id: string, args: Record<string, unknown>): Promise<void> {
-  const { line, account } = args as { line: string; account?: string };
-  const { accountId, channelId } = routeOf(line, account);
-  await rest(accountId, 'POST', `/channels/${channelId}/typing`);
-  respond(id, { result: { ok: true, account: accountId } });
-}
-
-async function channel(
-  id: string,
-  args: Record<string, unknown>,
-): Promise<void> {
-  const { line, account } = args as { line: string; account?: string };
-  const { accountId, channelId } = routeOf(line, account);
-  const res = await rest(accountId, 'GET', `/channels/${channelId}`);
-  respond(id, { result: res });
-}
-
 async function listMembers(
   id: string,
   args: Record<string, unknown>,
@@ -369,13 +232,7 @@ const HANDLERS: Record<string, StationHandler> = {
   edit,
   delete: remove,
   fetch: fetchMessages,
-  download,
-  thread_create: threadCreate,
-  pin,
-  typing,
-  channel,
   listMembers,
-  set_presence: presence,
   set_profile: setProfile,
   profile: readProfile,
   joinVoice,

@@ -1,4 +1,4 @@
-import { accountFor, accounts, tg, targetOf } from './accounts.js';
+import { accounts, tg, targetOf } from './accounts.js';
 import { respond } from './wire.js';
 import { errMsg } from '@metro-labs/core/log';
 import { normalizeTelegram } from '@metro-labs/core/stations/messaging-normalize';
@@ -13,20 +13,13 @@ import {
   type StationHandler,
 } from '@metro-labs/core/stations/station-runtime';
 import { mediaKindOf } from './attachments.js';
-import { assertContentLength } from '@metro-labs/core/stations/attachments';
 import {
   emitOutbound,
   finishSend,
-  media,
   MEDIA_METHOD_FIELD,
-  sendDice,
-  sendLocation,
   sendMedia,
 } from './media-actions.js';
 import { readProfile, setProfile } from './profile.js';
-
-
-
 
 export type { CallMsg };
 
@@ -211,34 +204,6 @@ async function remove(id: string, args: Record<string, unknown>): Promise<void> 
   respond(id, { result: { ok: true, account: accountId } });
 }
 
-
-
-async function download(id: string, args: Record<string, unknown>): Promise<void> {
-  const {
-    fileId,
-    outDir = '/tmp',
-    account,
-  } = args as { fileId: string; outDir?: string; account?: string };
-  const accountId = accountFor({ account });
-  const acct = accounts.get(accountId);
-  if (!acct) throw new Error(`unknown account '${accountId}'`);
-  const meta = await tg<{ file_path: string }>(accountId, 'getFile', {
-    file_id: fileId,
-  });
-  const res = await fetch(`${acct.fileApi}/${meta.file_path}`, {
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!res.ok) throw new Error(`telegram-bot download ${res.status}`);
-  assertContentLength(res.headers.get('content-length'));
-  const data = await res.arrayBuffer();
-  const filename = meta.file_path.split('/').pop() ?? `${fileId}.bin`;
-  const path = `${outDir}/${Date.now()}-${filename}`;
-  await Bun.write(path, data);
-  respond(id, {
-    result: { path, fileSize: data.byteLength, account: accountId },
-  });
-}
-
 async function listMembers(
   id: string,
   args: Record<string, unknown>,
@@ -274,15 +239,6 @@ const HANDLERS: Record<string, StationHandler> = {
   listMembers,
   set_profile: setProfile,
   profile: readProfile,
-  send_photo: (id, args) =>
-    media(id, 'sendPhoto', 'photo', ((args.caption as string) ?? '') + ' [image]', args),
-  send_document: (id, args) =>
-    media(id, 'sendDocument', 'document', ((args.caption as string) ?? '') + ' [file]', args),
-  send_voice: (id, args) => media(id, 'sendVoice', 'voice', '[voice]', args),
-  send_sticker: (id, args) => media(id, 'sendSticker', 'sticker', '[sticker]', args),
-  send_dice: sendDice,
-  send_location: sendLocation,
-  download,
 };
 
 export const handleCall = makeStation({

@@ -11,7 +11,7 @@ export interface GroupLike {
 const MAX_LABELS = 16;
 const MAX_LABEL_LEN = 24;
 
-export function cleanLabels(raw: unknown): string[] {
+function cleanLabels(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
   const seen = new Set<string>();
@@ -39,24 +39,6 @@ function parseAppDataObject(
     return {};
   }
   return {};
-}
-
-export function labelsBlob(
-  existingAppData: string | undefined,
-  labels: string[],
-  github?: string,
-): string {
-  const existing = parseAppDataObject(existingAppData);
-  const blob: Record<string, unknown> = {
-    ...existing,
-    v: 1,
-    labels: cleanLabels(labels),
-  };
-  if (typeof github === 'string') {
-    if (github.trim()) blob.github = github.trim();
-    else delete blob.github;
-  }
-  return JSON.stringify(blob);
 }
 
 function trimmedString(v: unknown): string | undefined {

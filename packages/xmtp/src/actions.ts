@@ -4,20 +4,10 @@ import {
   AttachmentCodec,
   type Attachment,
 } from '@xmtp/content-type-remote-attachment';
-import {
-  WalletSendCallsCodec,
-  type WalletSendCallsParams,
-} from '@xmtp/content-type-wallet-send-calls';
-import { toHex } from 'viem';
 import { convOf } from './accounts.js';
 import { resolveMsgId, respond } from './wire.js';
 import { emitOutbound } from './emit.js';
-import {
-  PollCodec,
-  buildPollContent,
-  SignatureRequestCodec,
-  type SignatureRequestContent,
-} from './codecs.js';
+import { PollCodec, buildPollContent } from './codecs.js';
 import { convHandlers } from './actions-conv.js';
 import { normalizeXmtp } from '@metro-labs/core/stations/messaging-normalize';
 import { TrainError } from '@metro-labs/core/train-error';
@@ -215,121 +205,6 @@ async function sendImage(id: string, args: Args): Promise<void> {
   respond(id, { result: { messageId: sentId } });
 }
 
-interface TxRequestArgs {
-  to: string;
-  amountEth?: number;
-  data?: string;
-  note?: string;
-  chainId?: number;
-}
-
-function validateTxAmount(amountEth: number | undefined, hasData: boolean): void {
-  if (!hasData && (typeof amountEth !== 'number' || !(amountEth > 0))) {
-    throw badArgs(
-      'sendTxRequest requires a positive `amountEth` (or `data` for a contract call)',
-    );
-  }
-  if (amountEth != null && (typeof amountEth !== 'number' || amountEth < 0)) {
-    throw badArgs('sendTxRequest `amountEth` must be a non-negative number');
-  }
-}
-
-function validateTxRequest(a: TxRequestArgs): boolean {
-  const { to, amountEth, data } = a;
-  if (!to || typeof to !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(to)) {
-    throw badArgs('sendTxRequest requires a valid 0x `to` address');
-  }
-  const hasData = data != null;
-  if (
-    hasData &&
-    (typeof data !== 'string' || !/^0x([0-9a-fA-F]{2})*$/.test(data))
-  ) {
-    throw badArgs('sendTxRequest `data` must be 0x-prefixed hex calldata');
-  }
-  validateTxAmount(amountEth, hasData);
-  return hasData;
-}
-
-function buildTxContent(
-  a: TxRequestArgs,
-  from: string,
-  hasData: boolean,
-): WalletSendCallsParams {
-  const { to, amountEth, data, note, chainId } = a;
-  const weiHex = amountEth
-    ? '0x' + BigInt(Math.round(amountEth * 1e18)).toString(16)
-    : '0x0';
-  return {
-    version: '1.0',
-    chainId: toHex(chainId ?? 1),
-    from: from as `0x${string}`,
-    calls: [
-      {
-        to: to as `0x${string}`,
-        value: weiHex as `0x${string}`,
-        ...(hasData ? { data: data as `0x${string}` } : {}),
-        metadata: {
-          description: note ?? (hasData ? 'Contract call' : 'Payment request'),
-          transactionType: 'transfer',
-        },
-      },
-    ],
-  };
-}
-
-function txRequestLabel(a: TxRequestArgs, hasData: boolean): string {
-  const { amountEth, note } = a;
-  return hasData
-    ? `📝 ${note ?? 'Contract call'}${amountEth ? ` (${amountEth} ETH)` : ''}`
-    : `💸 ${note ?? 'Payment request'} (${amountEth} ETH)`;
-}
-
-async function sendTxRequest(id: string, args: Args): Promise<void> {
-  const { line } = args as { line: string };
-  const txArgs = args as Args & TxRequestArgs;
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
-  const hasData = validateTxRequest(txArgs);
-  const content = buildTxContent(txArgs, acct.address, hasData);
-  const sentId = await conv.send(new WalletSendCallsCodec().encode(content));
-  emitOutbound(acct.cfg.id, line, sentId, txRequestLabel(txArgs, hasData));
-  respond(id, { result: { messageId: sentId } });
-}
-
-async function sendSignatureRequest(id: string, args: Args): Promise<void> {
-  const { line, kind, eip712, message, description } = args as {
-    line: string;
-    kind?: 'eip712' | 'personal';
-    eip712?: unknown;
-    message?: string;
-    description?: string;
-  };
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
-  const k: 'eip712' | 'personal' = kind === 'eip712' ? 'eip712' : 'personal';
-  if (k === 'eip712' && !eip712)
-    throw badArgs(
-      'sendSignatureRequest eip712 requires an `eip712` typed-data object',
-    );
-  if (k === 'personal' && (!message || typeof message !== 'string')) {
-    throw badArgs('sendSignatureRequest personal requires a `message` string');
-  }
-  const content: SignatureRequestContent = {
-    id: 'sig_' + Date.now().toString(36),
-    kind: k,
-    ...(k === 'eip712' ? { eip712 } : { message }),
-    description,
-  };
-  const sentId = await conv.send(new SignatureRequestCodec().encode(content));
-  emitOutbound(
-    acct.cfg.id,
-    line,
-    sentId,
-    `✍️ ${description ?? 'Signature request'}`,
-  );
-  respond(id, { result: { messageId: sentId } });
-}
-
 async function accountsAction(id: string): Promise<void> {
   const { accounts } = await import('./accounts.js');
   respond(id, {
@@ -362,13 +237,10 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   profile: profileAction,
   send,
   ask,
-  sendPoll: ask,
   react,
   reply,
   sendAttachment,
   sendImage,
-  sendTxRequest,
-  sendSignatureRequest,
   edit: (id) => unsupportedVerb(id, 'edit'),
   delete: (id) => unsupportedVerb(id, 'delete'),
   ...convHandlers,
