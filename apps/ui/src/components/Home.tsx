@@ -66,7 +66,7 @@ function Sections({ agent, groups, project, onSelect }: SectionsProps): ReactNod
       {agent.connectorIds.length === 0 ? null : (
         <Col gap={12}>
           <SectionHead label="Connectors" count={agent.connectorIds.length} />
-          <ConnectorIcons connectors={connectors.data?.connectors ?? []} project={project} onSelect={onSelect} />
+          {connectors.data === undefined ? null : <ConnectorIcons connectors={connectors.data.connectors} project={project} onSelect={onSelect} />}
         </Col>
       )}
     </>
