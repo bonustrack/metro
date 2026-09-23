@@ -176,21 +176,6 @@ export function stationLabel(station: string): string {
   return STATION_FORMS[station]?.label ?? station;
 }
 
-const STATIONS_SHOWN = 3;
-
-export function matchStations(
-  stations: string[],
-  query: string,
-  shown = STATIONS_SHOWN,
-): string[] {
-  const q = query.trim().toLowerCase();
-  if (q === '') return stations.slice(0, shown);
-  return stations.filter(
-    (s) =>
-      s.toLowerCase().includes(q) || stationLabel(s).toLowerCase().includes(q),
-  );
-}
-
 export interface OneTimeSecret {
   label: string;
   value: string;

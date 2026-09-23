@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { matchStations, stationLabel, STATION_FORMS } from '../src/api/attach.js';
+import { stationLabel, STATION_FORMS } from '../src/api/attach.js';
 
 describe('station attach forms', () => {
   test('every form Metro can render has a human label and a hint', () => {
@@ -26,33 +26,3 @@ describe('station attach forms', () => {
   });
 });
 
-describe('the station search', () => {
-  const ALL = ['discord-bot', 'telegram-bot', 'telegram', 'whatsapp', 'xmtp', 'webhook'];
-
-  test('an empty query shows the first three, in the order given', () => {
-    expect(matchStations(ALL, '')).toEqual(['discord-bot', 'telegram-bot', 'telegram']);
-    expect(matchStations(ALL, '   ')).toEqual(['discord-bot', 'telegram-bot', 'telegram']);
-  });
-
-  test('a query searches the label a person actually sees, not only the key', () => {
-    expect(matchStations(ALL, 'Discord bot')).toEqual(['discord-bot']);
-    expect(matchStations(ALL, 'whats')).toEqual(['whatsapp']);
-  });
-
-  test('searching reaches past the three shown by default', () => {
-    expect(matchStations(ALL, 'webhook')).toEqual(['webhook']);
-    expect(matchStations(ALL, 'xmtp')).toEqual(['xmtp']);
-  });
-
-  test('a partial match can return several, and is case insensitive', () => {
-    expect(matchStations(ALL, 'TELEGRAM')).toEqual(['telegram-bot', 'telegram']);
-  });
-
-  test('nothing matching is an empty list, never a fallback to everything', () => {
-    expect(matchStations(ALL, 'signal')).toEqual([]);
-  });
-
-  test('a daemon offering fewer than three shows only what it has', () => {
-    expect(matchStations(['discord-bot'], '')).toEqual(['discord-bot']);
-  });
-});

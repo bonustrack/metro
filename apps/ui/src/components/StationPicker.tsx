@@ -1,12 +1,13 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Input } from './ui.js';
-import { GROW } from '../theme.js';
-import { matchStations, stationLabel } from '../api/attach.js';
+import { Button } from './ui.js';
+import { stationLabel } from '../api/attach.js';
 import { StationIcon } from './StationIcon.js';
 
-const ICON_SIZE = 20;
+const ICON_SIZE = 22;
+const ICON_GAP_EXTRA = 4;
+const FULL_WIDTH = { alignSelf: 'stretch' } as const;
 
 interface StationPickerProps {
   stations: string[];
@@ -14,77 +15,29 @@ interface StationPickerProps {
   onPick: (station: string) => void;
 }
 
-function Option({
-  station,
-  disabled,
-  onPick,
-}: {
-  station: string;
-  disabled: boolean;
-  onPick: (station: string) => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      className="picker-option"
-      disabled={disabled}
-      onClick={() => {
-        onPick(station);
-      }}
-    >
-      <StationIcon station={station} size={ICON_SIZE} />
-      <Text size="lg" weight="semibold">{stationLabel(station)}</Text>
-    </button>
-  );
-}
-
-export function StationPicker({
-  stations,
-  disabled,
-  onPick,
-}: StationPickerProps): ReactNode {
+export function StationPicker({ stations, disabled, onPick }: StationPickerProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const [query, setQuery] = useState('');
-  const shown = matchStations(stations, query);
-
   return (
-    <Col gap={8}>
-      <Input
-        name="station-search"
-        value={query}
-        placeholder="Search stations"
-        disabled={disabled}
-        dark={dark}
-        onChangeText={setQuery}
-        onSubmit={() => {
-          const only = shown[0];
-          if (only !== undefined) onPick(only);
-        }}
-        style={GROW}
-      />
-      {shown.length === 0 ? (
-        <Text size="sm" role="secondary">
-          No station matches “{query.trim()}”.
-        </Text>
-      ) : (
-        <div className="picker-menu">
-          {shown.map((station) => (
-            <Option
-              key={station}
-              station={station}
-              disabled={disabled}
-              onPick={onPick}
-            />
-          ))}
-        </div>
-      )}
-      {query.trim() === '' && stations.length > shown.length ? (
-        <Row gap={4}>
-          <Text size="sm" role="secondary">
-            Type to search {String(stations.length - shown.length)} more.
-          </Text>
-        </Row>
-      ) : null}
+    <Col gap={10}>
+      {stations.map((station) => (
+        <Button
+          key={station}
+          size="lg"
+          color="secondary"
+          dark={dark}
+          disabled={disabled}
+          label={stationLabel(station)}
+          icon={
+            <Row padding={{ right: ICON_GAP_EXTRA }}>
+              <StationIcon station={station} size={ICON_SIZE} />
+            </Row>
+          }
+          style={FULL_WIDTH}
+          onPress={() => {
+            onPick(station);
+          }}
+        />
+      ))}
     </Col>
   );
 }

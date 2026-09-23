@@ -53,7 +53,7 @@ export function ConnectStation(props: ConnectStationProps): ReactNode {
           <Text size="sm" role="secondary">
             {known.length === 0
               ? 'This Metro daemon offers no channel you can connect.'
-              : 'Pick the network this agent should be reachable on.'}
+              : 'Pick where this agent should be reachable.'}
           </Text>
           <StationPicker
             stations={known}
