@@ -275,6 +275,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 ## The page (`apps/ui`)
 
 - Addresses are `#/<org slug or id>/<agent slug or id>/<page>`; `#/settings`, `#/login`, `#/auth/<code>`, `#/admin…` are global. A first segment with a dot or colon is a box host (the link a daemon prints) and is added to the list, then rewritten. A bare slug is never a box address.
+- **The page ships before the boxes update, so it must keep talking to older daemons.** It still sends `?project=localdaemon` (`OLD_DAEMON_PROJECT`) on the agents list and connector calls, because a daemon before beta.173 requires it (a page without it answered "a project is required" on every box, 2026-09-23). Before removing a parameter or field a daemon reads, check which daemon version stops needing it and keep sending it until every box is past that version.
 - **Not an MCP client.** `apps/ui/src/mcp/client.ts` must not come back.
 - A feature that needs a newer daemon is gated with `olderThan(version, X_SINCE)` and shows "Update first"; an unknown version never hides a feature. The only gate left is `CONNECTIONS_SINCE` (beta.165, the Model page and the agent home). Do not add a gate for a version below what the page can talk to at all (beta.138, WorkOS bearer).
 - **Every colour comes from the kit palette via `theme-mode.tsx`.** No hand-picked hex or `color-mix`. Exceptions: the pairing QR and favicon tiles pin light tokens, and the build dot's pure white/black.

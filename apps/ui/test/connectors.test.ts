@@ -89,7 +89,7 @@ describe('the connectors surface is its own endpoint', () => {
   test('a list reads /api/connectors, never a path under /api/agents', async () => {
     serve({ connectors: [], json: '{}' });
     await fetchConnectors();
-    expect(calls[0]?.url).toBe(CONNECTORS);
+    expect(calls[0]?.url).toBe(`${CONNECTORS}?project=localdaemon`);
     expect(calls[0]?.url).not.toContain('/api/agents');
     expect(calls[0]?.method).toBe('GET');
   });
@@ -99,7 +99,7 @@ describe('the connectors surface is its own endpoint', () => {
     await createConnector(NEW);
     expect(calls).toEqual([
       {
-        url: CONNECTORS,
+        url: `${CONNECTORS}?project=localdaemon`,
         method: 'POST',
         body: { name: 'linear', url: 'https://mcp.linear.app/mcp', returnTo: '' },
         authorization: expect.stringMatching(/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/),

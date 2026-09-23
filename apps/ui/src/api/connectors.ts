@@ -1,6 +1,6 @@
 import { isRecord, str } from './read.js';
 import { daemonBase } from '../auth/daemon.js';
-import { call } from './client.js';
+import { call, OLD_DAEMON_PROJECT } from './client.js';
 
 export type ConnectorAuth = 'header' | 'oauth' | 'none';
 
@@ -140,6 +140,7 @@ export async function fetchConnectors(): Promise<ConnectorsView> {
   const body = await call({
     method: 'GET',
     base: connectorsUrl(),
+    path: `?project=${OLD_DAEMON_PROJECT}`,
   });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   const rows = Array.isArray(body.connectors) ? body.connectors : [];
@@ -154,6 +155,7 @@ export async function createConnector(input: NewConnector): Promise<AddResult> {
   const body = await call({
     method: 'POST',
     base: connectorsUrl(),
+    path: `?project=${OLD_DAEMON_PROJECT}`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ ...payload(input), returnTo: returnTo() }),
   });

@@ -1,6 +1,7 @@
 import { beforeAll } from 'bun:test';
 import { installTestAccount } from './account-fixture.js';
 import { afterEach, describe, expect, test } from 'bun:test';
+import { fetchConnectors } from '../src/api/connectors.js';
 import { fetchSession, fetchStations, StoppedError, type AgentSummary } from '../src/api/client.js';
 
 beforeAll(() => {
@@ -36,6 +37,16 @@ const dashboard = async (agents: unknown): Promise<AgentSummary | undefined> => 
   serve({ agents });
   return (await fetchStations()).agent;
 };
+
+describe('a page newer than the daemon', () => {
+  test('still names the project a daemon before beta.173 requires, on the agents list and on connectors', async () => {
+    await dashboard([]);
+    expect(calls[0]?.url).toContain('project=localdaemon');
+    serve({ connectors: [] });
+    await fetchConnectors();
+    expect(calls[0]?.url).toContain('project=localdaemon');
+  });
+});
 
 describe('the agent on the wire', () => {
   test('the page never keeps an agent key, even when an old daemon sends one', async () => {
