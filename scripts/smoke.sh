@@ -43,7 +43,7 @@ expect_body() {
 
 hosted_checks() {
   expect_body "$1" /api/mode '"mode":"hosted"'
-  expect GET "$1" /api/vault 401
+  expect GET "$1" /api/vault 404
   expect GET "$1" /api/servers 401
   expect GET "$1" /api/agents 404
   expect GET "$1" /mcp 404

@@ -3,7 +3,7 @@ import {
   accountStationNames,
   stationByName,
 } from '../stations/registry.js';
-import { listEndpoints } from '../net/tunnel.js';
+import { listEndpoints } from '../stations/webhook-endpoints.js';
 import { hookUrl, threemaCallbackUrl } from '../stations/attach.js';
 import { accountEnabled, agentIdForAccount, allowlistForAccount, knownAccounts, type KnownAccount } from '../agents/map.js';
 

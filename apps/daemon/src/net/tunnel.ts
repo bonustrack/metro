@@ -175,7 +175,6 @@ async function untilResolvable(host: string, resolves: Resolves): Promise<boolea
   return false;
 }
 
-export { listEndpoints } from '../stations/webhook-endpoints.js';
 
 export class Tunnel {
   private child: ChildProcess | null = null;
