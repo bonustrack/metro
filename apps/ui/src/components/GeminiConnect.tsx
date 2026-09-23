@@ -1,40 +1,20 @@
 import { type ReactNode, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../theme.js';
 import { beginGeminiLogin, finishGeminiLogin, type ConnectionRow } from '../api/model.js';
-import { queryError, refreshModel } from '../api/queries.js';
+import { useModelAction, useSignInTab } from './sign-in-tab.js';
 
 const FIELD_WIDTH = 420;
 const PASTE_HINT = 'Google ends on a localhost:51121 address that will not load. Paste that whole address here.';
 const WHICH_ACCOUNT = 'Use the account with your Google AI plan. Metro presents itself as Google Antigravity, which Google does not support.';
 const PROJECT_HINT = 'Optional: a Google Cloud project with a Gemini Code Assist licence. Empty for a personal account.';
 
-function useAction(): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>, fallback: string) => void } {
-  const client = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const run = (job: () => Promise<unknown>, fallback: string): void => {
-    setBusy(true);
-    setError(null);
-    job()
-      .then(() => refreshModel(client))
-      .catch((err: unknown) => {
-        setError(queryError(err, fallback));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
-  return { busy, error, run };
-}
-
 function PasteCode({ state, project, id }: { state: string; project: string; id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const { busy, error, run } = useAction();
+  const { busy, error, run } = useModelAction();
   const [code, setCode] = useState('');
   return (
     <Col gap={6} maxWidth={FIELD_WIDTH}>
@@ -62,28 +42,7 @@ function PasteCode({ state, project, id }: { state: string; project: string; id:
 function SignInFlow({ label, color, id }: { label: string; color: 'primary' | 'secondary'; id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [project, setProject] = useState('');
-  const [starting, setStarting] = useState(false);
-  const [started, setStarted] = useState<{ url: string; state: string } | null>(null);
-  const [link, setLink] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const connect = (): void => {
-    const tab = window.open('', '_blank');
-    setStarting(true);
-    setError(null);
-    beginGeminiLogin()
-      .then((login) => {
-        if (tab !== null) tab.location.assign(login.url);
-        else setLink(login.url);
-        setStarted(login);
-      })
-      .catch((err: unknown) => {
-        tab?.close();
-        setError(queryError(err, 'Could not start the Google sign-in.'));
-      })
-      .finally(() => {
-        setStarting(false);
-      });
-  };
+  const { starting, started, link, error, start: connect } = useSignInTab(beginGeminiLogin, (login) => login.url, 'Could not start the Google sign-in.');
   return (
     <Col gap={10}>
       <Col gap={6} maxWidth={FIELD_WIDTH}>

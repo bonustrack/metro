@@ -12,8 +12,9 @@ import {
 import { addBeta, anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
 import { BINDING_BETA, cappedEffort, effortToApply, plannedEffort, withBlockBinding, withEffort, withThinkingFor } from './effort.js';
 import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, setGeminiAuth, writeModelConfig, type Connection, type ModelConfig, type Route } from './model-config.js';
-import { codexCount, codexMessages, sharedCodexState } from './codex.js';
-import { geminiCount, geminiMessages, sharedGeminiState } from './gemini.js';
+import { codexMessages, sharedCodexState } from './codex.js';
+import { geminiMessages, sharedGeminiState } from './gemini.js';
+import { countTokens } from './subscription.js';
 import type { GeminiDeps } from './gemini.js';
 import type { CodexDeps } from './codex.js';
 import type { GeminiTokens } from './gemini-auth.js';
@@ -193,12 +194,8 @@ function noteRefusal(connection: string, model: string, upstream: Response): voi
 
 async function toSubscription(req: IncomingMessage, res: ServerResponse, path: string, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
   const conn = route.connection;
-  if (conn.provider === 'gemini') {
-    if (path === COUNT) geminiCount(res, body);
-    else await geminiMessages(req, res, body, route.model, conn, { save: saveGeminiTokens, ...deps.gemini }, sharedGeminiState, watchUpstream(res));
-    return;
-  }
-  if (path === COUNT) codexCount(res, body);
+  if (path === COUNT) countTokens(res, body);
+  else if (conn.provider === 'gemini') await geminiMessages(req, res, body, route.model, conn, { save: saveGeminiTokens, ...deps.gemini }, sharedGeminiState, watchUpstream(res));
   else await codexMessages(req, res, body, route.model, conn, { save: saveCodexTokens, ...deps.codex }, sharedCodexState, watchUpstream(res));
 }
 

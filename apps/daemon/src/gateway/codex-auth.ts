@@ -1,15 +1,15 @@
-import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { isRecord } from '@metro-labs/core/is-record';
+import { PendingLogins } from './pkce.js';
+import { nonEmpty } from './text.js';
 
 export const CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 export const CODEX_ISSUER = 'https://auth.openai.com';
 export const CODEX_REDIRECT = 'http://localhost:1455/auth/callback';
 const SCOPE = 'openid profile email offline_access api.connectors.read api.connectors.invoke';
 const AUTH_CLAIM = 'https://api.openai.com/auth';
-const PENDING_TTL_MS = 10 * 60_000;
 export const ACCESS_TOKEN_TTL_MS = 55 * 60_000;
 
 export interface CodexTokens {
@@ -24,20 +24,7 @@ export interface CodexTokens {
 
 export class CodexAuthError extends Error {}
 
-interface Pending {
-  verifier: string;
-  at: number;
-}
-
-const pending = new Map<string, Pending>();
-
-const b64url = (buf: Buffer): string => buf.toString('base64url');
-
-export function newPkce(): { verifier: string; challenge: string } {
-  const verifier = b64url(randomBytes(32));
-  const challenge = b64url(createHash('sha256').update(verifier).digest());
-  return { verifier, challenge };
-}
+const pending = new PendingLogins(24);
 
 export function authorizeUrl(state: string, challenge: string, issuer = CODEX_ISSUER): string {
   const query = new URLSearchParams({
@@ -55,15 +42,8 @@ export function authorizeUrl(state: string, challenge: string, issuer = CODEX_IS
   return `${issuer}/oauth/authorize?${query.toString()}`;
 }
 
-function sweep(now: number): void {
-  for (const [state, entry] of pending) if (now - entry.at > PENDING_TTL_MS) pending.delete(state);
-}
-
 export function beginLogin(issuer = CODEX_ISSUER, now = Date.now()): { url: string; state: string } {
-  sweep(now);
-  const { verifier, challenge } = newPkce();
-  const state = b64url(randomBytes(24));
-  pending.set(state, { verifier, at: now });
+  const { state, challenge } = pending.begin(now);
   return { url: authorizeUrl(state, challenge, issuer), state };
 }
 
@@ -92,12 +72,11 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> {
   }
 }
 
-const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
 export function claimsOf(idToken: string): { accountId: string | null; email: string | null; plan: string | null } {
   const payload = decodeJwtPayload(idToken);
   const auth = isRecord(payload[AUTH_CLAIM]) ? payload[AUTH_CLAIM] : {};
-  return { accountId: text(auth.chatgpt_account_id), email: text(payload.email), plan: text(auth.chatgpt_plan_type) };
+  return { accountId: nonEmpty(auth.chatgpt_account_id), email: nonEmpty(payload.email), plan: nonEmpty(auth.chatgpt_plan_type) };
 }
 
 interface TokenResponse {
@@ -119,11 +98,11 @@ const pick = (fresh: string | null, kept: string | null): string | null => fresh
 export function tokensFrom(body: unknown, previous: CodexTokens | null, now = new Date()): CodexTokens {
   const res = (isRecord(body) ? body : {}) as TokenResponse;
   const kept = previous ?? EMPTY_TOKENS;
-  const idToken = pick(text(res.id_token), kept.idToken) ?? '';
+  const idToken = pick(nonEmpty(res.id_token), kept.idToken) ?? '';
   const claims = claimsOf(idToken);
   return assertUsable({
-    accessToken: text(res.access_token) ?? '',
-    refreshToken: pick(text(res.refresh_token), kept.refreshToken) ?? '',
+    accessToken: nonEmpty(res.access_token) ?? '',
+    refreshToken: pick(nonEmpty(res.refresh_token), kept.refreshToken) ?? '',
     idToken,
     accountId: pick(claims.accountId, kept.accountId) ?? '',
     email: pick(claims.email, kept.email),
@@ -139,7 +118,7 @@ async function tokenCall(issuer: string, init: RequestInit, fetchImpl: typeof fe
     let detail = raw.slice(0, 300);
     try {
       const parsed: unknown = JSON.parse(raw);
-      if (isRecord(parsed)) detail = text(parsed.error_description) ?? text(parsed.error) ?? detail;
+      if (isRecord(parsed)) detail = nonEmpty(parsed.error_description) ?? nonEmpty(parsed.error) ?? detail;
     } catch {
       detail = raw.slice(0, 300);
     }
@@ -154,12 +133,10 @@ export async function finishLogin(
   fetchImpl: typeof fetch = fetch,
   now = Date.now(),
 ): Promise<CodexTokens> {
-  sweep(now);
   const { code, state } = parseCallback(callback);
-  const entry = pending.get(state);
-  if (entry === undefined) throw new CodexAuthError('this sign-in link has expired or was started elsewhere; press Connect again');
-  pending.delete(state);
-  return exchangeCode(issuer, code, entry.verifier, CODEX_REDIRECT, fetchImpl, now);
+  const verifier = pending.take(state, now);
+  if (verifier === null) throw new CodexAuthError('this sign-in link has expired or was started elsewhere; press Connect again');
+  return exchangeCode(issuer, code, verifier, CODEX_REDIRECT, fetchImpl, now);
 }
 
 export async function exchangeCode(
@@ -215,16 +192,16 @@ export function readCodexCliAuth(home = homedir()): CodexTokens {
   const raw = readAuthFile(home);
   if (!isRecord(raw.tokens)) throw new CodexAuthError('~/.codex/auth.json holds no ChatGPT tokens (an API-key login cannot be reused here)');
   const stored = raw.tokens;
-  const idToken = text(stored.id_token) ?? '';
+  const idToken = nonEmpty(stored.id_token) ?? '';
   const claims = claimsOf(idToken);
   const found: CodexTokens = {
-    accessToken: text(stored.access_token) ?? '',
-    refreshToken: text(stored.refresh_token) ?? '',
+    accessToken: nonEmpty(stored.access_token) ?? '',
+    refreshToken: nonEmpty(stored.refresh_token) ?? '',
     idToken,
-    accountId: text(stored.account_id) ?? claims.accountId ?? '',
+    accountId: nonEmpty(stored.account_id) ?? claims.accountId ?? '',
     email: claims.email,
     plan: claims.plan,
-    savedAt: text(raw.last_refresh) ?? new Date(0).toISOString(),
+    savedAt: nonEmpty(raw.last_refresh) ?? new Date(0).toISOString(),
   };
   if ([found.accessToken, found.refreshToken, found.accountId].includes('')) throw new CodexAuthError('~/.codex/auth.json is missing a token or the account id');
   return found;

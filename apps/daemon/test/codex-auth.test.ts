@@ -10,13 +10,13 @@ import {
   CODEX_CLIENT_ID,
   CODEX_REDIRECT,
   finishLogin,
-  newPkce,
   parseCallback,
   readCodexCliAuth,
   refreshTokens,
   tokensFrom,
   tokensStale,
 } from '../src/gateway/codex-auth.ts';
+import { newPkce } from '../src/gateway/pkce.ts';
 
 const dirs: string[] = [];
 function scratch(): string {

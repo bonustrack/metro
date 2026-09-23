@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg } from '@metro-labs/core/log';
 import { CODEX_CLIENT_ID, CODEX_ISSUER, CodexAuthError, exchangeCode, type CodexTokens } from './codex-auth.js';
+import { stringOf } from './text.js';
 
 const VERIFY_PATH = '/codex/device';
 const DEVICE_TTL_MS = 15 * 60_000;
@@ -28,7 +29,6 @@ interface Entry {
 
 const logins = new Map<string, Entry>();
 
-const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 function intervalOf(value: unknown): number {
   const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
@@ -49,8 +49,8 @@ export async function beginDeviceLogin(issuer = CODEX_ISSUER, fetchImpl: typeof 
   if (!res.ok) throw new CodexAuthError(`OpenAI refused to start the device-code sign-in (${String(res.status)})`);
   const body: unknown = await res.json();
   const parsed = isRecord(body) ? body : {};
-  const deviceAuthId = str(parsed.device_auth_id);
-  const userCode = str(parsed.user_code) || str(parsed.usercode);
+  const deviceAuthId = stringOf(parsed.device_auth_id);
+  const userCode = stringOf(parsed.user_code) || stringOf(parsed.usercode);
   if (deviceAuthId === '' || userCode === '') throw new CodexAuthError('OpenAI answered without a device code');
   const id = randomBytes(ID_BYTES).toString('base64url');
   const interval = intervalOf(parsed.interval);
@@ -67,8 +67,8 @@ async function claim(entry: Entry, fetchImpl: typeof fetch, now: number): Promis
   if (!res.ok) return { status: 'failed', error: `OpenAI ended the device-code sign-in (${String(res.status)})` };
   const body: unknown = await res.json();
   const parsed = isRecord(body) ? body : {};
-  const code = str(parsed.authorization_code);
-  const verifier = str(parsed.code_verifier);
+  const code = stringOf(parsed.authorization_code);
+  const verifier = stringOf(parsed.code_verifier);
   if (code === '' || verifier === '') return { status: 'failed', error: 'OpenAI approved the sign-in but sent no code back' };
   const tokens = await exchangeCode(entry.issuer, code, verifier, `${entry.issuer}/deviceauth/callback`, fetchImpl, now);
   return { status: 'done', tokens };

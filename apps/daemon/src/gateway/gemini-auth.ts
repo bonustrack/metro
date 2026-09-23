@@ -1,5 +1,6 @@
-import { createHash, randomBytes } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
+import { PendingLogins } from './pkce.js';
+import { nonEmpty } from './text.js';
 
 export const GEMINI_CLIENT_ID = '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
 export const GEMINI_CLIENT_SECRET = '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';
@@ -13,7 +14,6 @@ const SCOPE = [
   'https://www.googleapis.com/auth/cclog',
   'https://www.googleapis.com/auth/experimentsandconfigs',
 ].join(' ');
-const PENDING_TTL_MS = 10 * 60_000;
 const EXPIRY_MARGIN_MS = 5 * 60_000;
 const DEFAULT_TTL_MS = 55 * 60_000;
 
@@ -29,19 +29,7 @@ export interface GeminiTokens {
 
 export class GeminiAuthError extends Error {}
 
-interface Pending {
-  verifier: string;
-  at: number;
-}
-
-const pending = new Map<string, Pending>();
-
-const b64url = (buf: Buffer): string => buf.toString('base64url');
-
-export function newPkce(): { verifier: string; challenge: string } {
-  const verifier = b64url(randomBytes(32));
-  return { verifier, challenge: b64url(createHash('sha256').update(verifier).digest()) };
-}
+const pending = new PendingLogins(16);
 
 export function authorizeUrl(state: string, challenge: string, base = GEMINI_AUTH_BASE): string {
   const params = new URLSearchParams({
@@ -58,27 +46,19 @@ export function authorizeUrl(state: string, challenge: string, base = GEMINI_AUT
   return `${base}/o/oauth2/v2/auth?${params.toString()}`;
 }
 
-function sweep(now: number): void {
-  for (const [state, entry] of pending) if (now - entry.at > PENDING_TTL_MS) pending.delete(state);
-}
-
 export function beginLogin(base = GEMINI_AUTH_BASE, now = Date.now()): { url: string; state: string } {
-  sweep(now);
-  const { verifier, challenge } = newPkce();
-  const state = b64url(randomBytes(16));
-  pending.set(state, { verifier, at: now });
+  const { state, challenge } = pending.begin(now);
   return { url: authorizeUrl(state, challenge, base), state };
 }
 
-const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
-const refusalIn = (body: Record<string, unknown>): string => text(body.error_description) ?? text(body.error) ?? 'Google answered without an access token';
+const refusalIn = (body: Record<string, unknown>): string => nonEmpty(body.error_description) ?? nonEmpty(body.error) ?? 'Google answered without an access token';
 
 function grantedTokens(body: unknown, previous: GeminiTokens | null): { accessToken: string; refreshToken: string; ttl: number } {
   if (!isRecord(body)) throw new GeminiAuthError('Google answered without tokens');
-  const accessToken = text(body.access_token);
+  const accessToken = nonEmpty(body.access_token);
   if (accessToken === null) throw new GeminiAuthError(refusalIn(body));
-  const refreshToken = text(body.refresh_token) ?? previous?.refreshToken ?? '';
+  const refreshToken = nonEmpty(body.refresh_token) ?? previous?.refreshToken ?? '';
   if (refreshToken === '') throw new GeminiAuthError('Google issued no refresh token; sign in again');
   return { accessToken, refreshToken, ttl: typeof body.expires_in === 'number' ? body.expires_in * 1000 : DEFAULT_TTL_MS };
 }
@@ -109,7 +89,7 @@ async function tokenCall(form: Record<string, string>, base: string, fetchImpl: 
     throw new GeminiAuthError(`could not reach Google: ${err instanceof Error ? err.message : String(err)}`);
   }
   const body: unknown = await res.json().catch(() => null);
-  if (!res.ok) throw new GeminiAuthError(isRecord(body) ? (text(body.error_description) ?? text(body.error) ?? `Google answered ${String(res.status)}`) : `Google answered ${String(res.status)}`);
+  if (!res.ok) throw new GeminiAuthError(isRecord(body) ? (nonEmpty(body.error_description) ?? nonEmpty(body.error) ?? `Google answered ${String(res.status)}`) : `Google answered ${String(res.status)}`);
   return body;
 }
 
@@ -131,13 +111,11 @@ export function codeIn(pasted: string, state: string): string {
 }
 
 export async function exchangeCode(pasted: string, state: string, base = GEMINI_TOKEN_BASE, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<GeminiTokens> {
-  sweep(now);
-  const entry = pending.get(state);
-  if (entry === undefined) throw new GeminiAuthError('that sign-in has expired; start it again');
-  pending.delete(state);
+  const verifier = pending.take(state, now);
+  if (verifier === null) throw new GeminiAuthError('that sign-in has expired; start it again');
   const code = codeIn(pasted, state);
   const body = await tokenCall(
-    { client_id: GEMINI_CLIENT_ID, client_secret: GEMINI_CLIENT_SECRET, grant_type: 'authorization_code', code, code_verifier: entry.verifier, redirect_uri: GEMINI_REDIRECT },
+    { client_id: GEMINI_CLIENT_ID, client_secret: GEMINI_CLIENT_SECRET, grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: GEMINI_REDIRECT },
     base,
     fetchImpl,
   );
@@ -159,7 +137,7 @@ export async function userEmail(tokens: GeminiTokens, base = 'https://www.google
   try {
     const res = await fetchImpl(`${base}/oauth2/v2/userinfo`, { headers: { authorization: `Bearer ${tokens.accessToken}` }, signal: AbortSignal.timeout(15_000) });
     const body: unknown = await res.json().catch(() => null);
-    return res.ok && isRecord(body) ? text(body.email) : null;
+    return res.ok && isRecord(body) ? nonEmpty(body.email) : null;
   } catch {
     return null;
   }
@@ -167,16 +145,16 @@ export async function userEmail(tokens: GeminiTokens, base = 'https://www.google
 
 export function tokensFromDisk(raw: unknown): GeminiTokens | null {
   if (!isRecord(raw)) return null;
-  const accessToken = text(raw.accessToken);
-  const refreshToken = text(raw.refreshToken);
+  const accessToken = nonEmpty(raw.accessToken);
+  const refreshToken = nonEmpty(raw.refreshToken);
   if (accessToken === null || refreshToken === null) return null;
   return {
     accessToken,
     refreshToken,
     expiresAt: typeof raw.expiresAt === 'number' ? raw.expiresAt : 0,
-    email: text(raw.email),
-    project: text(raw.project) ?? '',
-    tier: text(raw.tier),
-    savedAt: text(raw.savedAt) ?? '',
+    email: nonEmpty(raw.email),
+    project: nonEmpty(raw.project) ?? '',
+    tier: nonEmpty(raw.tier),
+    savedAt: nonEmpty(raw.savedAt) ?? '',
   };
 }

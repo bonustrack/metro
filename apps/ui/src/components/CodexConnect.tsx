@@ -7,28 +7,11 @@ import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../theme.js';
 import { beginCodexDevice, beginCodexLogin, codexImport, finishCodexLogin, pollCodexDevice, type ConnectionRow, type DeviceLogin } from '../api/model.js';
 import { queryError, refreshModel } from '../api/queries.js';
+import { useModelAction, useSignInTab } from './sign-in-tab.js';
 
 const FIELD_WIDTH = 420;
+const START_FAILED = 'Could not start the ChatGPT sign-in.';
 const PASTE_HINT = 'The sign-in ends on a localhost:1455 address that will not load. Paste that whole address here.';
-
-function useAction(): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>, fallback: string) => void } {
-  const client = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const run = (job: () => Promise<unknown>, fallback: string): void => {
-    setBusy(true);
-    setError(null);
-    job()
-      .then(() => refreshModel(client))
-      .catch((err: unknown) => {
-        setError(queryError(err, fallback));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
-  return { busy, error, run };
-}
 
 function useDevicePolling(login: DeviceLogin | null, id: string, settle: (error: string | null) => void): void {
   const client = useQueryClient();
@@ -61,34 +44,8 @@ function useDevicePolling(login: DeviceLogin | null, id: string, settle: (error:
 
 function DeviceFlow({ label, id }: { label: string; id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const [starting, setStarting] = useState(false);
-  const [login, setLogin] = useState<DeviceLogin | null>(null);
-  const [link, setLink] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const settle = (message: string | null): void => {
-    setLogin(null);
-    setError(message);
-  };
+  const { starting, started: login, link, error, start: connect, settle } = useSignInTab(beginCodexDevice, (started) => started.verifyUrl, START_FAILED);
   useDevicePolling(login, id, settle);
-  const connect = (): void => {
-    const tab = window.open('', '_blank');
-    setStarting(true);
-    setError(null);
-    setLink(null);
-    beginCodexDevice()
-      .then((started) => {
-        if (tab !== null) tab.location.assign(started.verifyUrl);
-        else setLink(started.verifyUrl);
-        setLogin(started);
-      })
-      .catch((err: unknown) => {
-        tab?.close();
-        setError(queryError(err, 'Could not start the ChatGPT sign-in.'));
-      })
-      .finally(() => {
-        setStarting(false);
-      });
-  };
   return (
     <Col gap={10}>
       <Row gap={8} wrap align="center">
@@ -117,7 +74,7 @@ function DeviceFlow({ label, id }: { label: string; id: string }): ReactNode {
 
 function PasteBack({ id }: { id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const { busy, error, run } = useAction();
+  const { busy, error, run } = useModelAction();
   const [pasted, setPasted] = useState('');
   return (
     <Col gap={6} maxWidth={FIELD_WIDTH}>
@@ -135,28 +92,7 @@ function PasteBack({ id }: { id: string }): ReactNode {
 
 function RedirectFlow({ label, id }: { label: string; id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const [starting, setStarting] = useState(false);
-  const [started, setStarted] = useState(false);
-  const [link, setLink] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const connect = (): void => {
-    const tab = window.open('', '_blank');
-    setStarting(true);
-    setError(null);
-    beginCodexLogin()
-      .then((url) => {
-        if (tab !== null) tab.location.assign(url);
-        else setLink(url);
-        setStarted(true);
-      })
-      .catch((err: unknown) => {
-        tab?.close();
-        setError(queryError(err, 'Could not start the ChatGPT sign-in.'));
-      })
-      .finally(() => {
-        setStarting(false);
-      });
-  };
+  const { starting, started, link, error, start: connect } = useSignInTab(beginCodexLogin, (url) => url, START_FAILED);
   return (
     <Col gap={10}>
       <Row gap={8} wrap align="center">
@@ -169,7 +105,7 @@ function RedirectFlow({ label, id }: { label: string; id: string }): ReactNode {
           </Text>
         ) : null}
       </Row>
-      {started ? <PasteBack id={id} /> : null}
+      {started === null ? null : <PasteBack id={id} />}
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
     </Col>
   );
@@ -189,7 +125,7 @@ function SignedIn({ codex }: { codex: ConnectionRow }): ReactNode {
 
 function NotConnected({ id }: { id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const { busy, error, run } = useAction();
+  const { busy, error, run } = useModelAction();
   return (
     <Col gap={10}>
       <Text size="sm" role="secondary">

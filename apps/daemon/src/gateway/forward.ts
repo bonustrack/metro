@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { UsageScanner } from './usage.js';
+import { UsageScanner } from './usage.js';
 
 export class GatewayError extends Error {
   constructor(
@@ -14,6 +14,7 @@ export class GatewayError extends Error {
 export const BODY_MAX = 64 * 1024 * 1024;
 const DRAIN_FACTOR = 2;
 const PING_MS = 25_000;
+const PING_FRAME = 'event: ping\ndata: {"type":"ping"}\n\n';
 const IDLE_MS = 300_000;
 const HOP_BY_HOP = new Set([
   'host',
@@ -170,7 +171,7 @@ export async function pipeResponse(upstream: Response, res: ServerResponse, watc
     res.end();
     return;
   }
-  const ping = opts.keepalive === true && streaming ? setInterval(() => res.write('event: ping\ndata: {"type":"ping"}\n\n'), PING_MS) : null;
+  const ping = opts.keepalive === true && streaming ? setInterval(() => res.write(PING_FRAME), PING_MS) : null;
   try {
     await pump(body, res, watch, opts.scanner);
   } catch (err) {
@@ -181,6 +182,46 @@ export async function pipeResponse(upstream: Response, res: ServerResponse, watc
     watch.stop();
     res.end();
     opts.scanner?.done();
+  }
+}
+
+export interface Relayed {
+  push: (chunk: Uint8Array, emit: (frames: string) => void) => void;
+  close: () => string;
+  idle: (message: string) => string;
+}
+
+export async function relayFrames(upstream: Response, res: ServerResponse, watch: Watch, key: string, relayed: Relayed): Promise<void> {
+  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
+  const body = upstream.body;
+  if (body === null) {
+    res.end(relayed.close());
+    return;
+  }
+  const ping = setInterval(() => res.write(PING_FRAME), PING_MS);
+  const scanner = new UsageScanner(key);
+  const emit = (frames: string): void => {
+    if (frames === '') return;
+    scanner.feed(frames);
+    res.write(frames);
+  };
+  try {
+    const reader = body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      watch.touch();
+      relayed.push(value, emit);
+    }
+    emit(relayed.close());
+  } catch (err) {
+    if (!watch.idle()) throw err;
+    res.write(relayed.idle(idleMessage(watch.ms)));
+  } finally {
+    clearInterval(ping);
+    watch.stop();
+    res.end();
+    scanner.done();
   }
 }
 

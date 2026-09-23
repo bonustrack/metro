@@ -1,5 +1,8 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { errorFrame } from './forward.js';
+import { frame, messageEnd, messageStart, type Usage } from './frames.js';
 import { encodeSignature, newCallId, rememberSignature } from './gemini-translate.js';
+import { stringOf } from './text.js';
 
 type Item = Record<string, unknown>;
 
@@ -9,14 +12,6 @@ interface Open {
   signature: string | null;
 }
 
-interface Usage {
-  input_tokens: number;
-  output_tokens: number;
-  cache_read_input_tokens: number;
-}
-
-const frame = (event: string, data: unknown): string => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 const num = (value: unknown): number => (typeof value === 'number' ? value : 0);
 
 const STOP_OF: Record<string, string> = { STOP: 'end_turn', MAX_TOKENS: 'max_tokens' };
@@ -56,10 +51,7 @@ export class GeminiStreamTranslator {
   private start(): string {
     if (this.started) return '';
     this.started = true;
-    return frame('message_start', {
-      type: 'message_start',
-      message: { id: 'msg_gemini', type: 'message', role: 'assistant', model: this.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 0, output_tokens: 0 } },
-    });
+    return messageStart('msg_gemini', this.model);
   }
 
   private closeOpen(): string {
@@ -81,10 +73,10 @@ export class GeminiStreamTranslator {
 
   private textPart(part: Item): string {
     const kind = part.thought === true ? 'thinking' : 'text';
-    const text = str(part.text);
+    const text = stringOf(part.text);
     let out = this.ensure(kind);
     const block = this.open;
-    if (block !== null && str(part.thoughtSignature) !== '') block.signature = str(part.thoughtSignature);
+    if (block !== null && stringOf(part.thoughtSignature) !== '') block.signature = stringOf(part.thoughtSignature);
     if (text === '') return out;
     const delta = kind === 'text' ? { type: 'text_delta', text } : { type: 'thinking_delta', thinking: text };
     out += frame('content_block_delta', { type: 'content_block_delta', index: block?.index ?? 0, delta });
@@ -93,20 +85,20 @@ export class GeminiStreamTranslator {
 
   private callPart(call: Item, signature: string): string {
     this.toolCalls += 1;
-    const id = str(call.id) || newCallId();
+    const id = stringOf(call.id) || newCallId();
     if (signature !== '') rememberSignature(id, signature);
     const index = this.next;
     this.next += 1;
     return (
       this.closeOpen() +
-      frame('content_block_start', { type: 'content_block_start', index, content_block: { type: 'tool_use', id, name: this.restore(str(call.name)), input: {} } }) +
+      frame('content_block_start', { type: 'content_block_start', index, content_block: { type: 'tool_use', id, name: this.restore(stringOf(call.name)), input: {} } }) +
       frame('content_block_delta', { type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(isRecord(call.args) ? call.args : {}) } }) +
       frame('content_block_stop', { type: 'content_block_stop', index })
     );
   }
 
   private part(part: Item): string {
-    if (isRecord(part.functionCall)) return this.callPart(part.functionCall, str(part.thoughtSignature));
+    if (isRecord(part.functionCall)) return this.callPart(part.functionCall, stringOf(part.thoughtSignature));
     if (typeof part.text === 'string') return this.textPart(part);
     return '';
   }
@@ -115,7 +107,7 @@ export class GeminiStreamTranslator {
     const content = isRecord(candidate.content) ? candidate.content : {};
     const parts = Array.isArray(content.parts) ? content.parts.filter(isRecord) : [];
     const out = parts.map((part) => this.part(part)).join('');
-    const finish = str(candidate.finishReason);
+    const finish = stringOf(candidate.finishReason);
     if (finish !== '') this.finishedBy = finish;
     const stop = STOP_OF[finish];
     if (stop !== undefined) this.stop = stop;
@@ -130,7 +122,7 @@ export class GeminiStreamTranslator {
     if (isRecord(response.usageMetadata)) this.usage = usageOf(response.usageMetadata);
     const candidate = Array.isArray(response.candidates) ? response.candidates.find(isRecord) : undefined;
     if (candidate !== undefined) return out + this.candidate(candidate);
-    const feedback = isRecord(response.promptFeedback) ? str(response.promptFeedback.blockReason) : '';
+    const feedback = isRecord(response.promptFeedback) ? stringOf(response.promptFeedback.blockReason) : '';
     if (feedback !== '') this.refusal = `Gemini blocked the prompt (${feedback})`;
     return out;
   }
@@ -138,14 +130,10 @@ export class GeminiStreamTranslator {
   close(error?: string): string {
     if (this.done) return '';
     this.done = true;
-    let out = this.start() + this.closeOpen();
+    const out = this.start() + this.closeOpen();
     const unfinished = this.finishedBy === null && this.refusal === null ? 'Gemini ended the stream before completing the response' : null;
     const failure = error ?? this.refusal ?? unfinished;
-    if (failure !== null)
-      return out + frame('error', { type: 'error', error: { type: 'api_error', message: failure } });
-    const stop = this.toolCalls > 0 ? 'tool_use' : this.stop;
-    out += frame('message_delta', { type: 'message_delta', delta: { stop_reason: stop, stop_sequence: null }, usage: this.usage });
-    out += frame('message_stop', { type: 'message_stop' });
-    return out;
+    if (failure !== null) return out + errorFrame('api_error', failure);
+    return out + messageEnd(this.toolCalls > 0 ? 'tool_use' : this.stop, this.usage);
   }
 }
