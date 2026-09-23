@@ -2,7 +2,7 @@
   "name": "@metro-labs/api",
   "version": "0.1.0",
   "private": true,
-  "description": "api.metro.box: the vault of sealed agent bundles and each wallet's server list, behind the same signed-identity header every local daemon takes. Nothing else answers there.",
+  "description": "api.metro.box: sign-in through WorkOS, organizations and members, each organization's agent list, and launching agents on AWS.",
   "license": "MIT",
   "type": "module",
   "engines": {

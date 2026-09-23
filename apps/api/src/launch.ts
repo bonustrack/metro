@@ -103,7 +103,7 @@ function holdDuplicate(deps: LaunchApiDeps, subject: string): void {
   const now = deps.now();
   for (const [who, at] of inFlight) if (now - at > IN_FLIGHT_MS) inFlight.delete(who);
   if (inFlight.has(subject))
-    throw new ApiError('a launch for this wallet is already running; wait for it to answer', 409);
+    throw new ApiError('a launch for this organization is already running; wait for it to answer', 409);
   inFlight.set(subject, now);
 }
 

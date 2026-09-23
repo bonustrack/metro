@@ -2,7 +2,7 @@
   "name": "@metro-labs/ui",
   "version": "0.1.0",
   "private": true,
-  "description": "Metro control panel: sign in with an Ethereum wallet, create an agent, get its API key and MCP endpoint, and see the accounts attached to the agents you own. Talks to the daemon's session-gated /api/agents endpoint \u2014 no MCP client, so a page load never touches the agent's MCP session. Built with the Stage design system (@stage-labs/kit) rendered on the web via react-native-web.",
+  "description": "Metro control panel at metro.box: sign in through WorkOS, then manage the agent that runs on each of your organization's boxes. Talks to each daemon over HTTP, never as an MCP client. Built with @stage-labs/kit on react-native-web.",
   "license": "MIT",
   "type": "module",
   "scripts": {
