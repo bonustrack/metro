@@ -81,7 +81,6 @@ function Targets({ server, rows }: { server: Server; rows: OrganizationRow[] }):
           `The machine and its row in your list move to ${target?.name ?? target?.id ?? ''}. Only members of that organization can open it afterwards.`,
           'The agent keeps running. Nothing on the machine changes except who may log in.',
         ]}
-        prompt="Type move to confirm."
         confirmWord="move"
         confirmLabel="Move agent"
         busy={move.busy}

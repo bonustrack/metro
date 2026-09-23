@@ -1,5 +1,5 @@
+import { filled, isRecord, str } from './read.js';
 import { call } from './client.js';
-import { isRecord } from './accounts.js';
 import { daemonBase } from '../auth/daemon.js';
 
 export interface Machine {
@@ -19,30 +19,28 @@ export interface Machine {
   disk: { path: string; totalBytes: number; freeBytes: number } | null;
 }
 
-const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
-const word = (value: unknown): string => text(value) ?? '';
 
 function diskOf(value: unknown): Machine['disk'] {
   if (!isRecord(value) || typeof value.totalBytes !== 'number' || typeof value.freeBytes !== 'number') return null;
-  return { path: word(value.path), totalBytes: value.totalBytes, freeBytes: value.freeBytes };
+  return { path: str(value.path), totalBytes: value.totalBytes, freeBytes: value.freeBytes };
 }
 
 export function toMachine(body: unknown): Machine {
   if (!isRecord(body) || typeof body.hostname !== 'string') throw new Error('Metro returned an unexpected response.');
   return {
-    version: text(body.version),
-    owner: text(body.owner),
+    version: filled(body.version),
+    owner: filled(body.owner),
     hostname: body.hostname,
-    platform: word(body.platform),
-    arch: word(body.arch),
+    platform: str(body.platform),
+    arch: str(body.arch),
     port: typeof body.port === 'number' ? body.port : 0,
-    publicUrl: text(body.publicUrl),
+    publicUrl: filled(body.publicUrl),
     uptimeSeconds: typeof body.uptimeSeconds === 'number' ? body.uptimeSeconds : 0,
-    startedAt: text(body.startedAt),
-    bun: text(body.bun),
-    agentsDir: word(body.agentsDir),
-    claudeDir: word(body.claudeDir),
-    runtimeStore: text(body.runtimeStore),
+    startedAt: filled(body.startedAt),
+    bun: filled(body.bun),
+    agentsDir: str(body.agentsDir),
+    claudeDir: str(body.claudeDir),
+    runtimeStore: filled(body.runtimeStore),
     disk: diskOf(body.disk),
   };
 }

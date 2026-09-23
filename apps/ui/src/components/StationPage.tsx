@@ -3,12 +3,7 @@ import { Text } from './ui.js';
 import { findAccount } from '../api/accounts.js';
 import { detachAccount, setAccountEnabled } from '../api/attach.js';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  dropAccount,
-  queryError,
-  stationsKey,
-  useStationsQuery,
-} from '../api/queries.js';
+import { dropAccount, queryError, refresh, useStationsQuery } from '../api/queries.js';
 import { Loading } from './Loading.js';
 import { StationDetail } from './StationDetail.js';
 import { useDocumentTitle } from '../title.js';
@@ -53,12 +48,12 @@ export function StationPage({
       agent={agent}
       verbs={data.capabilities[found.station] ?? []}
       onOpenAgent={onOpenAgent}
-      onAllowlistSaved={() => client.invalidateQueries({ queryKey: stationsKey() })}
+      onAllowlistSaved={() => refresh(client, 'stations')}
       onToggle={
         owner !== null
           ? async (station, id, enabled) => {
               await setAccountEnabled(owner, station, id, enabled);
-              await client.invalidateQueries({ queryKey: stationsKey() });
+              await refresh(client, 'stations');
             }
           : undefined
       }
@@ -67,7 +62,7 @@ export function StationPage({
           ? async (station, id) => {
               await detachAccount(owner, station, id);
               dropAccount(client, station, id);
-              await client.invalidateQueries({ queryKey: stationsKey() });
+              await refresh(client, 'stations');
             }
           : undefined
       }

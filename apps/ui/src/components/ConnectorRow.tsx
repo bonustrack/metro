@@ -36,7 +36,6 @@ function RowActions({ row, onChanged, onDelete, onError }: ActionProps): ReactNo
       <DeleteConnector
         connector={row}
         onDelete={onDelete}
-        onError={onError}
         extra={[
           {
             label: 'Rename',

@@ -7,7 +7,7 @@ import { Modal } from './Modal.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { priceLabel, PROVIDERS, releaseLabel, saveConnection, chooseConnection, type ConnectionRow, type ModelOption, type ModelSettings } from '../api/model.js';
 import { pickRows, typedRow, type PickRow } from '../api/providers.js';
-import { queryError, refreshModel, useConnectionModelsQuery, useOpenRouterZdrQuery } from '../api/queries.js';
+import { queryError, refresh, useConnectionModelsQuery, useOpenRouterZdrQuery } from '../api/queries.js';
 import { GROW } from '../theme.js';
 
 const IN_SESSION = 'Inside a running session, /model <provider>:<id> switches that session only.';
@@ -92,7 +92,7 @@ export function ModelPickerModal({ open, settings, onClose }: { open: boolean; s
     setError(null);
     saveConnection(row.connection, { model: row.id })
       .then(() => chooseConnection(row.connection))
-      .then(() => refreshModel(client))
+      .then(() => refresh(client, 'model'))
       .then(onClose)
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not change the model.'));

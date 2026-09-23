@@ -1,7 +1,7 @@
 import { builtInDaemon } from '../auth/daemon.js';
 import { type Account } from '../auth/account.js';
 import { accessToken } from './auth.js';
-import { isRecord } from './accounts.js';
+import { isRecord } from './read.js';
 
 export const OPERATOR_EMAIL = 'admin@stage.box';
 

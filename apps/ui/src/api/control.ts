@@ -1,5 +1,5 @@
 import { daemonBase, daemonHost } from '../auth/daemon.js';
-import { isRecord } from './accounts.js';
+import { isRecord } from './read.js';
 import { call } from './client.js';
 import { fetchMode } from './mode.js';
 

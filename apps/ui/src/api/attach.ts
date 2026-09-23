@@ -1,5 +1,5 @@
+import { filled, isRecord } from './read.js';
 import { call } from './client.js';
-import { isRecord } from './accounts.js';
 import {
   isAttachSession,
   toIdentity,
@@ -275,8 +275,6 @@ export interface SenderLookup {
   id: string | null;
 }
 
-const found = (value: unknown): string | null =>
-  typeof value === 'string' && value !== '' ? value : null;
 
 export async function lookupSender(
   agentId: string,
@@ -290,12 +288,12 @@ export async function lookupSender(
   });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   return {
-    query: found(body.query) ?? query,
-    number: found(body.number) ?? '',
+    query: filled(body.query) ?? query,
+    number: filled(body.number) ?? '',
     exists: body.exists === true,
-    jid: found(body.jid),
-    lid: found(body.lid),
-    id: found(body.id),
+    jid: filled(body.jid),
+    lid: filled(body.lid),
+    id: filled(body.id),
   };
 }
 

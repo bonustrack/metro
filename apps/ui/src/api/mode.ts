@@ -1,4 +1,4 @@
-import { isRecord } from './accounts.js';
+import { filled, isRecord } from './read.js';
 import { daemonBase, daemonHost } from '../auth/daemon.js';
 
 export type DaemonMode = 'hosted' | 'linked' | 'local';
@@ -13,8 +13,6 @@ export interface ModeInfo {
 
 const MODES: DaemonMode[] = ['hosted', 'linked', 'local'];
 
-const text = (value: unknown): string | null =>
-  typeof value === 'string' && value !== '' ? value : null;
 
 export function toMode(body: unknown): ModeInfo | null {
   if (!isRecord(body)) return null;
@@ -22,9 +20,9 @@ export function toMode(body: unknown): ModeInfo | null {
   if (mode === undefined) return null;
   return {
     mode,
-    owner: text(body.owner),
-    project: text(body.project),
-    version: text(body.version),
+    owner: filled(body.owner),
+    project: filled(body.project),
+    version: filled(body.version),
     stopped: body.stopped === true,
   };
 }

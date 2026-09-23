@@ -92,7 +92,6 @@ export function DaemonControls(): ReactNode {
         open={confirming}
         title="Stop metro on this machine"
         lines={STOP_LINES}
-        prompt="Type stop to confirm."
         confirmWord="stop"
         confirmLabel="Stop metro"
         busy={phase === 'stopping'}

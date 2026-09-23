@@ -1,4 +1,4 @@
-import { splitOrganization } from './org-segment.js';
+import { RESERVED_SEGMENTS, splitOrganization } from './org-segment.js';
 const DAEMON_KEY = 'metro.daemon';
 const SERVER_KEY = 'metro.server';
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
@@ -51,7 +51,6 @@ export function parseDaemonUrl(raw: string): DaemonParse {
 }
 
 const FIRST_SEGMENT = /^#\/([A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?)(?:\/|$)/;
-export const RESERVED_SEGMENTS = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'waitlist', 'members', 'organization', 'admin']);
 
 export function segmentOf(base: string): string {
   try {

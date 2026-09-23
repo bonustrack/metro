@@ -1,3 +1,4 @@
+import { isRecord, recordOf, str } from '../api/read.js';
 import { fromBase64Url, toBase64Url } from './bytes.js';
 import { isPassphraseEnvelope, openWithPassphrase, sealWithPassphrase, type PassphraseEnvelope } from './passphrase.js';
 
@@ -127,10 +128,6 @@ export async function packFile(payload: Payload, passphrase: string): Promise<Me
 
 export const sealedWith = (file: MetroFile): 'passphrase' | 'wallet' => (isPassphraseEnvelope(file.envelope) ? 'passphrase' : 'wallet');
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 export function parseMetroFile(text: string): MetroFile {
   let raw: unknown;
   try {
@@ -148,48 +145,46 @@ function listOf<T>(raw: unknown, of: (entry: unknown) => T): T[] | undefined {
   return Array.isArray(raw) ? raw.map(of) : undefined;
 }
 
-const text = (value: unknown): string => (typeof value === 'string' ? value : '');
-const config = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
 function channelOf(raw: unknown): PackedChannel {
-  if (!isRecord(raw) || text(raw.station) === '' || text(raw.id) === '')
+  if (!isRecord(raw) || str(raw.station) === '' || str(raw.id) === '')
     throw new Error('That export file has a channel metro cannot read.');
   return {
-    station: text(raw.station),
-    id: text(raw.id),
-    allowlist: Array.isArray(raw.allowlist) ? raw.allowlist.map(text) : null,
+    station: str(raw.station),
+    id: str(raw.id),
+    allowlist: Array.isArray(raw.allowlist) ? raw.allowlist.map(str) : null,
     ...(raw.enabled === false ? { enabled: false } : {}),
-    config: config(raw.config),
+    config: recordOf(raw.config),
   };
 }
 
 function connectorOf(raw: unknown): PackedConnector {
-  if (!isRecord(raw) || text(raw.id) === '' || text(raw.url) === '')
+  if (!isRecord(raw) || str(raw.id) === '' || str(raw.url) === '')
     throw new Error('That export file has a connector metro cannot read.');
-  return { id: text(raw.id), name: text(raw.name), url: text(raw.url), transport: 'http', config: config(raw.config) };
+  return { id: str(raw.id), name: str(raw.name), url: str(raw.url), transport: 'http', config: recordOf(raw.config) };
 }
 
 function skillOf(raw: unknown): PackedSkill {
-  if (!isRecord(raw) || text(raw.name) === '') throw new Error('That export file has a skill metro cannot read.');
-  return { place: text(raw.place), name: text(raw.name), text: text(raw.text) };
+  if (!isRecord(raw) || str(raw.name) === '') throw new Error('That export file has a skill metro cannot read.');
+  return { place: str(raw.place), name: str(raw.name), text: str(raw.text) };
 }
 
 function memoryOf(raw: unknown): PackedMemory {
-  if (!isRecord(raw) || text(raw.name) === '')
+  if (!isRecord(raw) || str(raw.name) === '')
     throw new Error('That export file has a memory file metro cannot read.');
-  const modifiedAt = text(raw.modifiedAt);
-  return { project: text(raw.project), name: text(raw.name), text: text(raw.text), ...(modifiedAt === '' ? {} : { modifiedAt }) };
+  const modifiedAt = str(raw.modifiedAt);
+  return { project: str(raw.project), name: str(raw.name), text: str(raw.text), ...(modifiedAt === '' ? {} : { modifiedAt }) };
 }
 
 function sessionOf(raw: unknown): PackedSession {
-  if (!isRecord(raw) || text(raw.id) === '' || text(raw.text) === '')
+  if (!isRecord(raw) || str(raw.id) === '' || str(raw.text) === '')
     throw new Error('That export file has a session metro cannot read.');
-  return { project: text(raw.project), id: text(raw.id), text: text(raw.text) };
+  return { project: str(raw.project), id: str(raw.id), text: str(raw.text) };
 }
 
 function modelOf(raw: unknown): PackedModel {
-  if (!isRecord(raw) || text(raw.provider) === '') throw new Error('That export file has a model setup metro cannot read.');
-  return { ...raw, provider: text(raw.provider) };
+  if (!isRecord(raw) || str(raw.provider) === '') throw new Error('That export file has a model setup metro cannot read.');
+  return { ...raw, provider: str(raw.provider) };
 }
 
 export function parsePayload(raw: unknown): Payload {
@@ -197,8 +192,8 @@ export function parsePayload(raw: unknown): Payload {
   const agent = isRecord(raw.agent) ? raw.agent : {};
   return {
     version: FILE_VERSION,
-    exportedAt: text(raw.exportedAt),
-    agent: { id: text(agent.id), name: text(agent.name) },
+    exportedAt: str(raw.exportedAt),
+    agent: { id: str(agent.id), name: str(agent.name) },
     channels: listOf(raw.channels, channelOf),
     connectors: listOf(raw.connectors, connectorOf),
     skills: listOf(raw.skills, skillOf),

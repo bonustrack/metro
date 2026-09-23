@@ -1,4 +1,4 @@
-import { isRecord } from './accounts.js';
+import { filled, isRecord } from './read.js';
 import { claudeCall } from './claude.js';
 
 export interface ClaudeSessionStatus {
@@ -10,7 +10,6 @@ export interface ClaudeSessionStatus {
   lastError: string | null;
 }
 
-const optionalText = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
 export function toClaudeSession(body: unknown): ClaudeSessionStatus {
   if (!isRecord(body) || typeof body.running !== 'boolean') throw new Error('Metro returned an unexpected response.');
@@ -18,9 +17,9 @@ export function toClaudeSession(body: unknown): ClaudeSessionStatus {
     name: typeof body.name === 'string' ? body.name : 'metro',
     running: body.running,
     autostart: body.autostart !== false,
-    blocked: optionalText(body.blocked),
-    lastStartedAt: optionalText(body.lastStartedAt),
-    lastError: optionalText(body.lastError),
+    blocked: filled(body.blocked),
+    lastStartedAt: filled(body.lastStartedAt),
+    lastError: filled(body.lastError),
   };
 }
 
@@ -81,7 +80,7 @@ export interface ClaudeVersion {
 
 export function toClaudeVersion(body: unknown): ClaudeVersion {
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
-  return { installed: optionalText(body.installed), latest: optionalText(body.latest), newer: body.newer === true };
+  return { installed: filled(body.installed), latest: filled(body.latest), newer: body.newer === true };
 }
 
 export async function fetchClaudeVersion(): Promise<ClaudeVersion> {

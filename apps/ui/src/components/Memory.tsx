@@ -1,28 +1,42 @@
 import { type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
 import { BackLink } from './BackLink.js';
 import { useHomeProject } from './home-project.js';
 import { ListRow } from './ListRow.js';
-import { MemoryMenu } from './MemoryMenu.js';
+import { DeleteMenu } from './DeleteMenu.js';
 import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
 import { PageTitle } from './PageTitle.js';
 import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
-import { type MemoryFile } from '../api/claude.js';
-import { queryError, useMemoryFileQuery, useMemoryQuery } from '../api/queries.js';
+import { deleteMemoryFile, type MemoryFile } from '../api/claude.js';
+import { queryError, refresh, useMemoryFileQuery, useMemoryQuery } from '../api/queries.js';
 import { ListHeader } from './ListHeader.js';
 import { sizeLabel, whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
 function FileRow({ claudeProject, file, onOpen }: { claudeProject: string; file: MemoryFile; onOpen: () => void }): ReactNode {
+  const client = useQueryClient();
   return (
     <ListRow
       title={file.name}
       detail={`${sizeLabel(file.bytes)} · ${whenLabel(file.modifiedAt)}`}
       onOpen={onOpen}
-      trailing={<MemoryMenu claudeProject={claudeProject} name={file.name} />}
+      trailing={
+        <DeleteMenu
+          label={`Actions for ${file.name}`}
+          action="Delete memory"
+          title="Delete this memory?"
+          lines={[`“${file.name}” is removed from this machine. Claude writes a new one if it learns the same thing again.`]}
+          failure="Could not delete the memory."
+          run={async () => {
+            await deleteMemoryFile(claudeProject, file.name);
+            await refresh(client, ['memory', claudeProject]);
+          }}
+        />
+      }
     />
   );
 }

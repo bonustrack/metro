@@ -4,12 +4,12 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { GROW } from '../theme.js';
 import { Modal } from './Modal.js';
+import { confirmMatches, confirmPrompt } from './confirm.js';
 
 interface ConfirmModalProps {
   open: boolean;
   title: string;
   lines: string[];
-  prompt: string;
   confirmWord: string;
   confirmLabel: string;
   busy: boolean;
@@ -19,10 +19,10 @@ interface ConfirmModalProps {
 }
 
 export function ConfirmModal(props: ConfirmModalProps): ReactNode {
-  const { open, title, lines, prompt, confirmWord, confirmLabel } = props;
+  const { open, title, lines, confirmWord, confirmLabel } = props;
   const dark = useKitScheme() === 'dark';
   const [typed, setTyped] = useState('');
-  const matches = typed.trim() === confirmWord;
+  const matches = confirmMatches(typed, confirmWord);
 
   const close = (): void => {
     setTyped('');
@@ -41,7 +41,7 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
           <Text key={line} size="sm" role="secondary">{line}</Text>
         ))}
         <Col gap={4}>
-          <Text size="sm" role="secondary">{prompt}</Text>
+          <Text size="sm" role="secondary">{confirmPrompt(confirmWord)}</Text>
           <Input
             name="confirm-word"
             value={typed}

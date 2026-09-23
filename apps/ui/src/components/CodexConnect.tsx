@@ -6,7 +6,7 @@ import { Text, Button, Input } from './ui.js';
 import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../theme.js';
 import { beginCodexDevice, beginCodexLogin, codexImport, finishCodexLogin, pollCodexDevice, type ConnectionRow, type DeviceLogin } from '../api/model.js';
-import { queryError, refreshModel } from '../api/queries.js';
+import { queryError, refresh } from '../api/queries.js';
 import { useModelAction, useSignInTab } from './sign-in-tab.js';
 
 const FIELD_WIDTH = 420;
@@ -27,7 +27,7 @@ function useDevicePolling(login: DeviceLogin | null, id: string, settle: (error:
             timer = setTimeout(tick, login.interval * 1000);
             return;
           }
-          if (result.status === 'done') await refreshModel(client);
+          if (result.status === 'done') await refresh(client, 'model');
           settle(result.status === 'failed' ? result.error : null);
         })
         .catch((err: unknown) => {

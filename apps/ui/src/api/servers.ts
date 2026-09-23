@@ -1,5 +1,5 @@
+import { filled, isRecord } from './read.js';
 import { call } from './client.js';
-import { isRecord } from './accounts.js';
 import { fetchMode } from './mode.js';
 import { baseFromSegment, builtInDaemon, daemonBase } from '../auth/daemon.js';
 import { rememberAgents } from '../auth/agent-route.js';
@@ -27,8 +27,6 @@ const PROBE_MS = 6_000;
 const listUrl = (): string => `${builtInDaemon()}/api/servers`;
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 
-const filled = (value: unknown): string | null =>
-  typeof value === 'string' && value !== '' ? value : null;
 
 export function toServer(value: unknown): Server {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.host !== 'string') throw unexpected();

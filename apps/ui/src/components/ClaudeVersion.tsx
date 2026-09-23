@@ -4,7 +4,7 @@ import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { updateClaudeCode, type ClaudeVersion as Version } from '../api/claude-box.js';
-import { queryError, refreshClaudeSession, refreshClaudeVersion, useClaudeVersionQuery } from '../api/queries.js';
+import { queryError, refresh, useClaudeVersionQuery } from '../api/queries.js';
 
 type Phase = { kind: 'idle' } | { kind: 'updating'; to: string } | { kind: 'done'; to: string; restarted: boolean };
 
@@ -32,8 +32,8 @@ export function ClaudeVersion(): ReactNode {
     updateClaudeCode()
       .then(async (result) => {
         setPhase({ kind: 'done', to: result.installed ?? '', restarted: result.restarted });
-        await refreshClaudeVersion(client);
-        await refreshClaudeSession(client);
+        await refresh(client, 'claude-version');
+        await refresh(client, 'claude-session');
       })
       .catch((err: unknown) => {
         setPhase({ kind: 'idle' });

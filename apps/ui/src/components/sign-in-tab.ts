@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { queryError, refreshModel } from '../api/queries.js';
+import { queryError, refresh } from '../api/queries.js';
 
 export async function inNewTab<T>(begin: () => Promise<T>, urlOf: (started: T) => string, blocked: (url: string) => void): Promise<T> {
   const tab = window.open('', '_blank');
@@ -59,7 +59,7 @@ export function useModelAction(): { busy: boolean; error: string | null; run: (j
     setBusy(true);
     setError(null);
     job()
-      .then(() => refreshModel(client))
+      .then(() => refresh(client, 'model'))
       .catch((err: unknown) => {
         setError(queryError(err, fallback));
       })

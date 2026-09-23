@@ -1,6 +1,6 @@
+import { isRecord, str } from './read.js';
 import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
-import { isRecord } from './accounts.js';
 
 export type ConnectorAuth = 'header' | 'oauth' | 'none';
 
@@ -71,7 +71,6 @@ function returnTo(): string {
   }
 }
 
-const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 const nullable = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;

@@ -4,7 +4,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } from '../api/claude-box.js';
-import { queryError, refreshClaudeSetup, useClaudeSetupQuery } from '../api/queries.js';
+import { queryError, refresh, useClaudeSetupQuery } from '../api/queries.js';
 import { routeHash } from '../route.js';
 import { SystemPromptEditor } from './SystemPrompt.js';
 
@@ -41,7 +41,9 @@ function Lines({ setup, project }: { setup: Setup; project: string }): ReactNode
   );
 }
 
-function PrivacySwitch({ setup }: { setup: Setup }): ReactNode {
+const MODE_NOTE = 'Auto asks before a risky tool call, relayed to chat. Bypass never asks. Changing this restarts the session.';
+
+function SetupSwitch({ note, label, failure, run }: { note: string; label: string; failure: string; run: () => Promise<unknown> }): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
@@ -49,10 +51,10 @@ function PrivacySwitch({ setup }: { setup: Setup }): ReactNode {
   const flip = (): void => {
     setBusy(true);
     setError(null);
-    setClaudePrivacy(!setup.privacy)
-      .then(() => refreshClaudeSetup(client))
+    run()
+      .then(() => refresh(client, 'claude-setup'))
       .catch((err: unknown) => {
-        setError(queryError(err, 'Could not change the privacy setting.'));
+        setError(queryError(err, failure));
       })
       .finally(() => {
         setBusy(false);
@@ -60,42 +62,31 @@ function PrivacySwitch({ setup }: { setup: Setup }): ReactNode {
   };
   return (
     <Col gap={8}>
-      <Text size="sm" role="secondary">{PRIVACY}</Text>
+      <Text size="sm" role="secondary">{note}</Text>
       <Row gap={10} align="center" wrap>
-        <Button size="sm" color="secondary" dark={dark} label={setup.privacy ? 'Privacy: on' : 'Privacy: off'} disabled={busy} onPress={flip} />
+        <Button size="sm" color="secondary" dark={dark} label={label} disabled={busy} onPress={flip} />
       </Row>
       {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
     </Col>
   );
 }
 
-const MODE_NOTE = 'Auto asks before a risky tool call, relayed to chat. Bypass never asks. Changing this restarts the session.';
-
-function ModeSwitch({ setup }: { setup: Setup }): ReactNode {
-  const client = useQueryClient();
-  const dark = useKitScheme() === 'dark';
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const flip = (): void => {
-    setBusy(true);
-    setError(null);
-    setClaudePermissionMode(setup.permissionMode === 'auto' ? 'bypass' : 'auto')
-      .then(() => refreshClaudeSetup(client))
-      .catch((err: unknown) => {
-        setError(queryError(err, 'Could not change the permission mode.'));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
+function Switches({ setup }: { setup: Setup }): ReactNode {
   return (
-    <Col gap={8}>
-      <Text size="sm" role="secondary">{MODE_NOTE}</Text>
-      <Row gap={10} align="center" wrap>
-        <Button size="sm" color="secondary" dark={dark} label={setup.permissionMode === 'auto' ? 'Permissions: auto' : 'Permissions: bypass'} disabled={busy} onPress={flip} />
-      </Row>
-      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
-    </Col>
+    <>
+      <SetupSwitch
+        note={PRIVACY}
+        label={setup.privacy ? 'Privacy: on' : 'Privacy: off'}
+        failure="Could not change the privacy setting."
+        run={() => setClaudePrivacy(!setup.privacy)}
+      />
+      <SetupSwitch
+        note={MODE_NOTE}
+        label={setup.permissionMode === 'auto' ? 'Permissions: auto' : 'Permissions: bypass'}
+        failure="Could not change the permission mode."
+        run={() => setClaudePermissionMode(setup.permissionMode === 'auto' ? 'bypass' : 'auto')}
+      />
+    </>
   );
 }
 
@@ -109,8 +100,7 @@ export function ClaudeSetup({ project }: { project: string }): ReactNode {
       ) : setup.data === undefined ? null : (
         <Col gap={12}>
           <Lines setup={setup.data} project={project} />
-          <PrivacySwitch setup={setup.data} />
-          <ModeSwitch setup={setup.data} />
+          <Switches setup={setup.data} />
           <SystemPromptEditor setup={setup.data} />
         </Col>
       )}

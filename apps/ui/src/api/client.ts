@@ -1,6 +1,7 @@
 import { daemonBase } from '../auth/daemon.js';
 import { accessToken, refreshAccount } from './auth.js';
-import { groupAccounts, isRecord, type AccountGroup } from './accounts.js';
+import { groupAccounts, type AccountGroup } from './accounts.js';
+import { isRecord } from './read.js';
 
 export class AuthError extends Error {
   constructor(
