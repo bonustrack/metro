@@ -1,14 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { EventStreamDecoder, type EventStreamMessage } from './eventstream.js';
-import { errorFrame, GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
+import { errorFrame, GatewayError, providerStatus, relayFrames, sendError, upstreamMessage, type Watch } from './forward.js';
 import type { Connection } from './model-config.js';
+import { estimateTokens } from './subscription.js';
 import { UsageScanner } from './usage.js';
 
 const ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 const EXTRA_INPUT_RE = /^([A-Za-z0-9_]+)(?:\.[^:]*)?: Extra inputs are not permitted/;
 const MAX_REPAIRS = 4;
-const PING_MS = 25_000;
 
 export interface Adaptations {
   fields: Set<string>;
@@ -155,50 +155,26 @@ function eventTypeOf(event: string): string {
   }
 }
 
-function writeEvent(res: ServerResponse, message: EventStreamMessage, scanner: UsageScanner): void {
+function eventFrame(message: EventStreamMessage): string {
   if (message.headers[':message-type'] === 'event') {
     const parsed = JSON.parse(message.payload.toString('utf8')) as { bytes?: unknown };
-    if (typeof parsed.bytes !== 'string') return;
+    if (typeof parsed.bytes !== 'string') return '';
     const event = Buffer.from(parsed.bytes, 'base64').toString('utf8');
-    scanner.feed(`${event}\n`);
-    res.write(`event: ${eventTypeOf(event)}\ndata: ${event}\n\n`);
-    return;
+    return `event: ${eventTypeOf(event)}\ndata: ${event}\n\n`;
   }
   const errorType = message.headers[':exception-type'] ?? message.headers[':error-code'] ?? null;
-  const body = {
-    type: 'error',
-    error: { type: errorKind(500, errorType), message: upstreamMessage(message.payload.toString('utf8'), 'Bedrock stream error') },
-  };
-  res.write(`event: error\ndata: ${JSON.stringify(body)}\n\n`);
+  return errorFrame(errorKind(500, errorType), upstreamMessage(message.payload.toString('utf8'), 'Bedrock stream error'));
 }
 
-async function relayStream(upstream: Response, res: ServerResponse, watch: Watch, key: string): Promise<void> {
-  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
-  const body = upstream.body;
-  if (body === null) {
-    res.end();
-    return;
-  }
-  const ping = setInterval(() => res.write('event: ping\ndata: {"type":"ping"}\n\n'), PING_MS);
-  const scanner = new UsageScanner(key);
-  try {
-    const decoder = new EventStreamDecoder();
-    const reader = body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      watch.touch();
-      for (const message of decoder.push(Buffer.from(value))) writeEvent(res, message, scanner);
-    }
-  } catch (err) {
-    if (!watch.idle()) throw err;
-    res.write(errorFrame('api_error', idleMessage(watch.ms)));
-  } finally {
-    clearInterval(ping);
-    watch.stop();
-    res.end();
-    scanner.done();
-  }
+function relayStream(upstream: Response, res: ServerResponse, watch: Watch, key: string): Promise<void> {
+  const decoder = new EventStreamDecoder();
+  return relayFrames(upstream, res, watch, key, {
+    push: (chunk, emit) => {
+      for (const message of decoder.push(Buffer.from(chunk))) emit(eventFrame(message));
+    },
+    close: () => '',
+    idle: (message) => errorFrame('api_error', message),
+  });
 }
 
 async function relayFailure(upstream: Response, res: ServerResponse): Promise<void> {
@@ -230,8 +206,6 @@ export async function bedrockMessages(
   res.writeHead(200, { 'content-type': 'application/json' });
   res.end(text);
 }
-
-const estimateTokens = (body: Record<string, unknown>): number => Math.ceil(JSON.stringify(body).length / 4);
 
 export async function bedrockCount(
   req: IncomingMessage,

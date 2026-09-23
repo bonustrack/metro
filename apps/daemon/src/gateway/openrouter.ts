@@ -1,5 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { GatewayError } from './forward.js';
+import { stringOf } from './text.js';
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api';
 const MODELS_MAX = 2000;
@@ -12,7 +13,6 @@ export interface OpenRouterModel {
   created: number | null;
 }
 
-const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 function price(raw: unknown): number | null {
   const value = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : Number.NaN;
@@ -25,12 +25,12 @@ function released(raw: unknown): number | null {
 
 function modelOf(entry: unknown): OpenRouterModel | null {
   if (!isRecord(entry)) return null;
-  const id = str(entry.id);
+  const id = stringOf(entry.id);
   if (id === '') return null;
   const pricing = isRecord(entry.pricing) ? entry.pricing : {};
   return {
     id,
-    name: str(entry.name) || id,
+    name: stringOf(entry.name) || id,
     prompt: price(pricing.prompt),
     completion: price(pricing.completion),
     created: released(entry.created),
@@ -85,6 +85,6 @@ export async function openrouterZdrModels(base = OPENROUTER_BASE, fetchImpl: typ
   const data = typeof body === 'object' && body !== null ? (body as { data?: unknown }).data : undefined;
   if (!Array.isArray(data)) throw new GatewayError(502, 'api_error', 'OpenRouter answered with no endpoint list');
   const ids = new Set<string>();
-  for (const entry of data) if (isRecord(entry) && str(entry.model_id) !== '') ids.add(str(entry.model_id));
+  for (const entry of data) if (isRecord(entry) && stringOf(entry.model_id) !== '') ids.add(stringOf(entry.model_id));
   return [...ids].sort();
 }

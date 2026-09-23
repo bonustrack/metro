@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { assembleMessage, CodexEventTranslator, parseEvent, SseParser } from '../src/gateway/codex-stream.ts';
+import { CodexEventTranslator } from '../src/gateway/codex-stream.ts';
+import { assembleMessage, parseEvent, SseParser } from '../src/gateway/frames.ts';
 import { decodeSignature } from '../src/gateway/codex-translate.ts';
 
 const events = (translator: CodexEventTranslator, list: Record<string, unknown>[]): string =>

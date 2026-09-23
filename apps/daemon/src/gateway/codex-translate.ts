@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
+import { resultText, stringOf } from './text.js';
 
 export const SIGNATURE_PREFIX = 'metro-codex:';
 const DEFAULT_EFFORT = 'medium';
 const EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh']);
 const EFFORT_ALIAS: Record<string, string> = { max: 'xhigh' };
-const IMAGE_NOTE = '[an image was attached here; this model cannot see it]';
 const NAME_MAX = 64;
 const NAME_RE = /^[a-zA-Z0-9_-]+$/;
 const HASH_LEN = 8;
@@ -31,7 +31,6 @@ export interface ResponsesRequest {
   prompt_cache_key: string;
 }
 
-const textOf = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 export function codexToolName(name: string): string {
   if (name.length <= NAME_MAX && NAME_RE.test(name)) return name;
@@ -60,7 +59,7 @@ function blocksText(content: unknown): string {
   return content
     .filter(isRecord)
     .filter((block) => block.type === 'text')
-    .map((block) => textOf(block.text))
+    .map((block) => stringOf(block.text))
     .join('\n');
 }
 
@@ -83,18 +82,10 @@ export function decodeSignature(signature: unknown): Item | null {
 }
 
 function userPart(block: Item): Item | null {
-  if (block.type === 'text') return { type: 'input_text', text: textOf(block.text) };
+  if (block.type === 'text') return { type: 'input_text', text: stringOf(block.text) };
   if (block.type === 'image' && isRecord(block.source) && block.source.type === 'base64')
-    return { type: 'input_image', image_url: `data:${textOf(block.source.media_type)};base64,${textOf(block.source.data)}` };
+    return { type: 'input_image', image_url: `data:${stringOf(block.source.media_type)};base64,${stringOf(block.source.data)}` };
   return null;
-}
-
-const partText = (part: Item): string => (part.type === 'text' ? textOf(part.text) : part.type === 'image' ? IMAGE_NOTE : '');
-
-function resultText(block: Item): string {
-  const content = block.content;
-  const text = typeof content === 'string' ? content : Array.isArray(content) ? content.filter(isRecord).map(partText).filter((t) => t !== '').join('\n') : '';
-  return block.is_error === true ? `[tool error] ${text}` : text;
 }
 
 function userItems(content: unknown): Item[] {
@@ -109,7 +100,7 @@ function userItems(content: unknown): Item[] {
   for (const block of content.filter(isRecord)) {
     if (block.type === 'tool_result') {
       flush();
-      out.push({ type: 'function_call_output', call_id: textOf(block.tool_use_id), output: resultText(block) });
+      out.push({ type: 'function_call_output', call_id: stringOf(block.tool_use_id), output: resultText(block) });
       continue;
     }
     const part = userPart(block);
@@ -124,9 +115,9 @@ function assistantItems(content: unknown, names: ToolNames): Item[] {
   if (!Array.isArray(content)) return [];
   const out: Item[] = [];
   for (const block of content.filter(isRecord)) {
-    if (block.type === 'text') out.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: textOf(block.text) }] });
+    if (block.type === 'text') out.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: stringOf(block.text) }] });
     else if (block.type === 'tool_use')
-      out.push({ type: 'function_call', call_id: textOf(block.id), name: names.alias(textOf(block.name)), arguments: JSON.stringify(block.input ?? {}) });
+      out.push({ type: 'function_call', call_id: stringOf(block.id), name: names.alias(stringOf(block.name)), arguments: JSON.stringify(block.input ?? {}) });
     else if (block.type === 'thinking') {
       const reasoning = decodeSignature(block.signature);
       if (reasoning !== null) out.push({ type: 'reasoning', ...reasoning, summary: [] });
@@ -152,8 +143,8 @@ export function toolItems(tools: unknown, names = new ToolNames()): Item[] {
     .filter((tool) => typeof tool.name === 'string' && isRecord(tool.input_schema))
     .map((tool) => ({
       type: 'function',
-      name: names.alias(textOf(tool.name)),
-      description: textOf(tool.description),
+      name: names.alias(stringOf(tool.name)),
+      description: stringOf(tool.description),
       parameters: tool.input_schema,
       strict: false,
     }));

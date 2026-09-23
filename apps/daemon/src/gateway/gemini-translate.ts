@@ -3,12 +3,12 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ToolNames } from './codex-translate.js';
 import { CLIENT_NAME, requestId, SYSTEM_PREFIX } from './gemini-client.js';
 import { cappedEffort, effortToApply } from './effort.js';
+import { resultText, stringOf } from './text.js';
 
 type Item = Record<string, unknown>;
 
 export const SIGNATURE_PREFIX = 'metro-gemini:';
 export const SKIP_SIGNATURE = 'skip_thought_signature_validator';
-const IMAGE_NOTE = '[an image was attached here; this model cannot see it]';
 const SCHEMA_KEEP = new Set([
   'type',
   'description',
@@ -30,7 +30,6 @@ const SCHEMA_LISTS = new Set(['anyOf', 'oneOf']);
 const SIGNATURES_MAX = 2000;
 const MAX_OUTPUT_TOKENS = 16384;
 
-const textOf = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 const callSignatures = new Map<string, string>();
 
@@ -57,25 +56,17 @@ export function systemText(system: unknown): string {
   if (!Array.isArray(system)) return '';
   return system
     .filter(isRecord)
-    .map((block) => textOf(block.text))
+    .map((block) => stringOf(block.text))
     .filter((t) => t !== '')
     .join('\n\n')
     .trim();
 }
 
 function userPart(block: Item): Item | null {
-  if (block.type === 'text') return { text: textOf(block.text) };
+  if (block.type === 'text') return { text: stringOf(block.text) };
   if (block.type === 'image' && isRecord(block.source) && block.source.type === 'base64')
-    return { inlineData: { mimeType: textOf(block.source.media_type), data: textOf(block.source.data) } };
+    return { inlineData: { mimeType: stringOf(block.source.media_type), data: stringOf(block.source.data) } };
   return null;
-}
-
-const partText = (part: Item): string => (part.type === 'text' ? textOf(part.text) : part.type === 'image' ? IMAGE_NOTE : '');
-
-function resultText(block: Item): string {
-  const content = block.content;
-  const text = typeof content === 'string' ? content : Array.isArray(content) ? content.filter(isRecord).map(partText).filter((t) => t !== '').join('\n') : '';
-  return block.is_error === true ? `[tool error] ${text}` : text;
 }
 
 function userParts(content: unknown, calls: Map<string, string>): Item[] {
@@ -84,7 +75,7 @@ function userParts(content: unknown, calls: Map<string, string>): Item[] {
   const out: Item[] = [];
   for (const block of content.filter(isRecord)) {
     if (block.type === 'tool_result') {
-      const id = textOf(block.tool_use_id);
+      const id = stringOf(block.tool_use_id);
       out.push({ functionResponse: { id, name: calls.get(id) ?? 'tool', response: { result: resultText(block) } } });
       continue;
     }
@@ -95,18 +86,18 @@ function userParts(content: unknown, calls: Map<string, string>): Item[] {
 }
 
 function callPart(block: Item, names: ToolNames, calls: Map<string, string>): Item {
-  const id = textOf(block.id);
-  const name = names.alias(textOf(block.name));
+  const id = stringOf(block.id);
+  const name = names.alias(stringOf(block.name));
   calls.set(id, name);
   return { functionCall: { id, name, args: isRecord(block.input) ? block.input : {} }, thoughtSignature: callSignatures.get(id) ?? SKIP_SIGNATURE };
 }
 
 function assistantPart(block: Item, names: ToolNames, calls: Map<string, string>): Item | null {
-  if (block.type === 'text') return { text: textOf(block.text) };
+  if (block.type === 'text') return { text: stringOf(block.text) };
   if (block.type === 'tool_use') return callPart(block, names, calls);
   if (block.type !== 'thinking') return null;
   const signature = decodeSignature(block.signature);
-  return signature === null ? null : { text: textOf(block.thinking) || ' ', thought: true, thoughtSignature: signature };
+  return signature === null ? null : { text: stringOf(block.thinking) || ' ', thought: true, thoughtSignature: signature };
 }
 
 function assistantParts(content: unknown, names: ToolNames, calls: Map<string, string>): Item[] {
@@ -171,8 +162,8 @@ export function toolDeclarations(tools: unknown, names = new ToolNames()): Item[
     .filter(isRecord)
     .filter((tool) => typeof tool.name === 'string' && (tool.type === undefined || tool.type === 'custom'))
     .map((tool) => ({
-      name: names.alias(textOf(tool.name)),
-      description: textOf(tool.description),
+      name: names.alias(stringOf(tool.name)),
+      description: stringOf(tool.description),
       parameters: cleanSchema(isRecord(tool.input_schema) ? tool.input_schema : { type: 'object', properties: {} }),
     }));
 }
@@ -181,7 +172,7 @@ function toolConfig(choice: unknown, names: ToolNames): Item | null {
   if (!isRecord(choice)) return null;
   if (choice.type === 'any') return { functionCallingConfig: { mode: 'ANY' } };
   if (choice.type === 'none') return { functionCallingConfig: { mode: 'NONE' } };
-  if (choice.type === 'tool') return { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [names.alias(textOf(choice.name))] } };
+  if (choice.type === 'tool') return { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [names.alias(stringOf(choice.name))] } };
   return null;
 }
 

@@ -1,6 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { GatewayError } from './forward.js';
 import type { Connection } from './model-config.js';
+import { stringOf } from './text.js';
 
 export const ANTHROPIC_API = 'https://api.anthropic.com';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -19,7 +20,6 @@ export const KNOWN_CLAUDE: ProviderModel[] = [
   { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' },
 ];
 
-const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 export async function anthropicModels(settings: Connection, base = ANTHROPIC_API, fetchImpl: typeof fetch = fetch): Promise<ProviderModel[]> {
   if (settings.apiKey === '') return KNOWN_CLAUDE;
@@ -32,7 +32,7 @@ export async function anthropicModels(settings: Connection, base = ANTHROPIC_API
   const data = isRecord(body) && Array.isArray(body.data) ? body.data : null;
   if (data === null) throw new GatewayError(502, 'api_error', 'Anthropic answered with no model list');
   return data
-    .flatMap((entry) => (isRecord(entry) && str(entry.id) !== '' ? [{ id: str(entry.id), name: str(entry.display_name) || str(entry.id) }] : []))
+    .flatMap((entry) => (isRecord(entry) && stringOf(entry.id) !== '' ? [{ id: stringOf(entry.id), name: stringOf(entry.display_name) || stringOf(entry.id) }] : []))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
@@ -57,10 +57,10 @@ export async function bedrockModels(settings: Connection, base?: string, fetchIm
   return list
     .flatMap((entry) => {
       if (!isRecord(entry)) return [];
-      const id = str(entry.inferenceProfileId);
-      const status = str(entry.status);
+      const id = stringOf(entry.inferenceProfileId);
+      const status = stringOf(entry.status);
       if (id === '' || !id.includes('anthropic') || (status !== '' && status !== 'ACTIVE')) return [];
-      return [{ id, name: str(entry.inferenceProfileName) || id }];
+      return [{ id, name: stringOf(entry.inferenceProfileName) || id }];
     })
     .sort((a, b) => a.id.localeCompare(b.id));
 }

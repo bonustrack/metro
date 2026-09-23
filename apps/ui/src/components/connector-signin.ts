@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { connectConnector, disconnectConnector, type Connector } from '../api/connectors.js';
 import { queryError } from '../api/queries.js';
+import { inNewTab } from './sign-in-tab.js';
 
 export interface SignInActions {
   busy: boolean;
@@ -13,15 +14,17 @@ export function useSignIn(connector: Connector, onChanged: () => void, onError: 
   const connect = (): void => {
     if (busy) return;
     setBusy(true);
-    const tab = window.open('', '_blank');
-    connectConnector(connector.id).then(
+    inNewTab(
+      () => connectConnector(connector.id),
+      (authorizeUrl) => authorizeUrl,
       (authorizeUrl) => {
+        window.location.assign(authorizeUrl);
+      },
+    ).then(
+      () => {
         setBusy(false);
-        if (tab === null) window.location.assign(authorizeUrl);
-        else tab.location.assign(authorizeUrl);
       },
       (err: unknown) => {
-        tab?.close();
         onError(queryError(err, 'Could not start the sign-in.'));
         setBusy(false);
       },

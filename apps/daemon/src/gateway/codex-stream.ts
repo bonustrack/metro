@@ -1,5 +1,8 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { encodeSignature } from './codex-translate.js';
+import { errorFrame } from './forward.js';
+import { frame, messageEnd, messageStart, type Usage } from './frames.js';
+import { stringOf } from './text.js';
 
 type Item = Record<string, unknown>;
 
@@ -9,14 +12,6 @@ interface Block {
   deltas: number;
 }
 
-interface Usage {
-  input_tokens: number;
-  output_tokens: number;
-  cache_read_input_tokens: number;
-}
-
-const frame = (event: string, data: unknown): string => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 const responseOf = (data: Item): Item => (isRecord(data.response) ? data.response : {});
 const itemOf = (data: Item): Item => (isRecord(data.item) ? data.item : {});
 
@@ -43,7 +38,7 @@ const startBlock = (kind: Block['kind'], id: string, name: string): Item =>
   kind === 'text' ? { type: 'text', text: '' } : kind === 'thinking' ? { type: 'thinking', thinking: '' } : { type: 'tool_use', id, name, input: {} };
 
 const messageText = (item: Item): string =>
-  Array.isArray(item.content) ? item.content.filter(isRecord).map((part) => str(part.text)).join('') : '';
+  Array.isArray(item.content) ? item.content.filter(isRecord).map((part) => stringOf(part.text)).join('') : '';
 
 export class CodexEventTranslator {
   private readonly blocks = new Map<string, Block>();
@@ -56,10 +51,10 @@ export class CodexEventTranslator {
   private readonly handlers: Record<string, (data: Item) => string> = {
     'response.created': (d) => this.start(responseOf(d)),
     'response.output_item.added': (d) => this.start({}) + this.itemAdded(itemOf(d)),
-    'response.output_text.delta': (d) => this.delta(str(d.item_id), 'text', str(d.delta)),
-    'response.reasoning_summary_text.delta': (d) => this.delta(str(d.item_id), 'thinking', str(d.delta)),
-    'response.reasoning_summary_part.added': (d) => this.partAdded(str(d.item_id)),
-    'response.function_call_arguments.delta': (d) => this.delta(str(d.item_id), 'tool_use', str(d.delta)),
+    'response.output_text.delta': (d) => this.delta(stringOf(d.item_id), 'text', stringOf(d.delta)),
+    'response.reasoning_summary_text.delta': (d) => this.delta(stringOf(d.item_id), 'thinking', stringOf(d.delta)),
+    'response.reasoning_summary_part.added': (d) => this.partAdded(stringOf(d.item_id)),
+    'response.function_call_arguments.delta': (d) => this.delta(stringOf(d.item_id), 'tool_use', stringOf(d.delta)),
     'response.output_item.done': (d) => this.itemDone(itemOf(d)),
     'response.completed': (d) => this.start(responseOf(d)) + this.completed(responseOf(d)),
     'response.failed': (d) => this.failed(responseOf(d), 'Codex failed the response'),
@@ -86,28 +81,16 @@ export class CodexEventTranslator {
   private start(response: Item): string {
     if (this.started) return '';
     this.started = true;
-    return frame('message_start', {
-      type: 'message_start',
-      message: {
-        id: str(response.id) || 'msg_codex',
-        type: 'message',
-        role: 'assistant',
-        model: this.model,
-        content: [],
-        stop_reason: null,
-        stop_sequence: null,
-        usage: { input_tokens: 0, output_tokens: 0 },
-      },
-    });
+    return messageStart(stringOf(response.id) || 'msg_codex', this.model);
   }
 
   private openCall(key: string, item: Item): string {
     this.toolCalls += 1;
-    return this.open(key, 'tool_use', str(item.call_id) || key, this.restore(str(item.name)));
+    return this.open(key, 'tool_use', stringOf(item.call_id) || key, this.restore(stringOf(item.name)));
   }
 
   private itemAdded(item: Item): string {
-    const key = str(item.id) || String(this.next);
+    const key = stringOf(item.id) || String(this.next);
     if (item.type === 'function_call') return this.openCall(key, item);
     if (item.type === 'reasoning') return this.open(key, 'thinking');
     return '';
@@ -145,12 +128,12 @@ export class CodexEventTranslator {
 
   private callDone(key: string, item: Item): string {
     let out = this.blocks.has(key) ? '' : this.openCall(key, item);
-    if (this.blocks.get(key)?.deltas === 0 && str(item.arguments) !== '') out += this.delta(key, 'tool_use', str(item.arguments));
+    if (this.blocks.get(key)?.deltas === 0 && stringOf(item.arguments) !== '') out += this.delta(key, 'tool_use', stringOf(item.arguments));
     return out + this.stop(key);
   }
 
   private itemDone(item: Item): string {
-    const key = str(item.id);
+    const key = stringOf(item.id);
     if (item.type === 'reasoning') return this.reasoningDone(key, item);
     if (item.type === 'function_call') return this.callDone(key, item);
     if (item.type === 'message' && !this.blocks.has(key) && messageText(item) !== '') return this.delta(key, 'text', messageText(item)) + this.stop(key);
@@ -162,20 +145,19 @@ export class CodexEventTranslator {
     let out = '';
     for (const key of [...this.blocks.keys()]) out += this.stop(key);
     const stop = forced ?? (this.toolCalls > 0 ? 'tool_use' : 'end_turn');
-    out += frame('message_delta', { type: 'message_delta', delta: { stop_reason: stop, stop_sequence: null }, usage: usageOf(response) });
-    return out + frame('message_stop', { type: 'message_stop' });
+    return out + messageEnd(stop, usageOf(response));
   }
 
   private incomplete(response: Item): string {
     const details = isRecord(response.incomplete_details) ? response.incomplete_details : {};
     if (details.reason === 'max_output_tokens') return this.start(response) + this.completed(response, 'max_tokens');
-    return this.failed(response, `Codex left the response incomplete (${str(details.reason) || 'no reason given'})`);
+    return this.failed(response, `Codex left the response incomplete (${stringOf(details.reason) || 'no reason given'})`);
   }
 
   private failed(response: Item, fallback: string): string {
     this.done = true;
     const error = isRecord(response.error) ? response.error : {};
-    return frame('error', { type: 'error', error: { type: errorKind(str(error.code)), message: str(error.message) || fallback } });
+    return errorFrame(errorKind(stringOf(error.code)), stringOf(error.message) || fallback);
   }
 
   push(event: string, data: Item): string {
@@ -186,103 +168,6 @@ export class CodexEventTranslator {
   close(message = 'Codex ended the stream before completing the response'): string {
     if (this.done) return '';
     this.done = true;
-    return frame('error', { type: 'error', error: { type: 'api_error', message } });
+    return errorFrame('api_error', message);
   }
-}
-
-export interface SseEvent {
-  event: string;
-  data: string;
-}
-
-export class SseParser {
-  private pending = '';
-
-  push(chunk: string): SseEvent[] {
-    this.pending += chunk;
-    const out: SseEvent[] = [];
-    for (;;) {
-      const at = this.pending.indexOf('\n\n');
-      if (at < 0) break;
-      const raw = this.pending.slice(0, at);
-      this.pending = this.pending.slice(at + 2);
-      let event = '';
-      const data: string[] = [];
-      for (const line of raw.split('\n')) {
-        if (line.startsWith('event:')) event = line.slice(6).trim();
-        else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
-      }
-      if (data.length > 0) out.push({ event, data: data.join('\n') });
-    }
-    return out;
-  }
-}
-
-export function parseEvent(raw: SseEvent): { event: string; data: Item } | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw.data);
-  } catch {
-    return null;
-  }
-  if (!isRecord(parsed)) return null;
-  const event = raw.event !== '' ? raw.event : str(parsed.type);
-  return event === '' ? null : { event, data: parsed };
-}
-
-interface Assembled {
-  message: Item;
-  blocks: Item[];
-}
-
-const FOLDS: Record<string, (state: Assembled, data: Item) => void> = {
-  message_start: (state, data) => {
-    if (isRecord(data.message)) state.message = { ...data.message };
-  },
-  content_block_start: (state, data) => {
-    if (isRecord(data.content_block)) state.blocks.push({ ...data.content_block });
-  },
-  content_block_delta: (state, data) => {
-    if (isRecord(data.delta)) applyDelta(state.blocks[typeof data.index === 'number' ? data.index : -1], data.delta);
-  },
-  message_delta: (state, data) => {
-    if (isRecord(data.delta)) state.message.stop_reason = data.delta.stop_reason ?? null;
-    if (isRecord(data.usage)) state.message.usage = data.usage;
-  },
-  error: (state, data) => {
-    state.message = { type: 'error', error: data.error };
-  },
-};
-
-function foldFrame(state: Assembled, event: string, data: Item): void {
-  FOLDS[event]?.(state, data);
-}
-
-function applyDelta(block: Item | undefined, delta: Item): void {
-  if (block === undefined) return;
-  if (delta.type === 'text_delta') block.text = str(block.text) + str(delta.text);
-  else if (delta.type === 'thinking_delta') block.thinking = str(block.thinking) + str(delta.thinking);
-  else if (delta.type === 'signature_delta') block.signature = str(delta.signature);
-  else if (delta.type === 'input_json_delta') block.json = str(block.json) + str(delta.partial_json);
-}
-
-export function assembleMessage(frames: string): Item {
-  const state: Assembled = { message: {}, blocks: [] };
-  for (const raw of new SseParser().push(frames)) {
-    const parsed = parseEvent(raw);
-    if (parsed !== null) foldFrame(state, parsed.event, parsed.data);
-  }
-  if (state.message.type === 'error') return state.message;
-  const content = state.blocks.map((block) => {
-    if (block.type !== 'tool_use') return block;
-    const { json, ...rest } = block;
-    let input: unknown = {};
-    try {
-      input = JSON.parse(str(json) || '{}');
-    } catch {
-      input = {};
-    }
-    return { ...rest, input };
-  });
-  return { ...state.message, content };
 }

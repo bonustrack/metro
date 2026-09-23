@@ -1,20 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { arch, platform, release } from 'node:os';
-import { isRecord } from '@metro-labs/core/is-record';
-import { errMsg, log } from '@metro-labs/core/log';
+import { log } from '@metro-labs/core/log';
 import { refreshTokens, tokensStale, type CodexTokens } from './codex-auth.js';
-import { assembleMessage, CodexEventTranslator, parseEvent, SseParser } from './codex-stream.js';
+import { CodexEventTranslator } from './codex-stream.js';
 import { ToolNames, toResponsesRequest } from './codex-translate.js';
-import { GatewayError, idleMessage, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
+import { GatewayError, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
+import { parseEvent, SseParser, type SseEvent } from './frames.js';
 import type { Connection } from './model-config.js';
-import { noteUsageHeaders, UsageScanner } from './usage.js';
+import { answerWhole, currentOf, errorKind, reach, refreshed, relayTranslated, sessionHeader, type TokenSource, type TokenState } from './subscription.js';
+import { noteUsageHeaders } from './usage.js';
 
 export const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
 const CODEX_VERSION = '0.153.4';
 const VERSION_RE = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/;
-const PING_MS = 25_000;
-const STATUS_OF: Record<string, number> = { rate_limit_error: 429, invalid_request_error: 400, permission_error: 403, overloaded_error: 529 };
+const INVALID = [400, 404, 422];
 
 export interface CodexDeps {
   base?: string;
@@ -23,22 +23,16 @@ export interface CodexDeps {
   save: (id: string, tokens: CodexTokens) => void;
 }
 
-interface Slot {
-  refreshing: Promise<CodexTokens> | null;
-  latest: CodexTokens | null;
-}
-
-export type CodexState = Map<string, Slot>;
+export type CodexState = TokenState<CodexTokens>;
 
 export const sharedCodexState: CodexState = new Map();
 
-function slotFor(state: CodexState, id: string): Slot {
-  const found = state.get(id);
-  if (found !== undefined) return found;
-  const made: Slot = { refreshing: null, latest: null };
-  state.set(id, made);
-  return made;
-}
+const sourceOf = (deps: CodexDeps): TokenSource<CodexTokens> => ({
+  label: 'Codex',
+  stale: (tokens) => tokensStale(tokens),
+  refresh: (tokens) => refreshTokens(tokens, deps.issuer, deps.fetchImpl),
+  save: deps.save,
+});
 
 const OS_NAMES: Record<string, string> = { darwin: 'Mac OS', linux: 'Linux', win32: 'Windows' };
 
@@ -65,47 +59,8 @@ function headersFor(tokens: CodexTokens, sessionId: string): Record<string, stri
   };
 }
 
-const newerThan = (a: CodexTokens, b: CodexTokens): boolean => Date.parse(a.savedAt) > Date.parse(b.savedAt);
-
-function refreshed(id: string, tokens: CodexTokens, deps: CodexDeps, state: CodexState): Promise<CodexTokens> {
-  const slot = slotFor(state, id);
-  const latest = slot.latest;
-  if (latest !== null && newerThan(latest, tokens) && !tokensStale(latest)) return Promise.resolve(latest);
-  if (slot.refreshing !== null) return slot.refreshing;
-  const run = refreshTokens(tokens, deps.issuer, deps.fetchImpl)
-    .then((fresh) => {
-      deps.save(id, fresh);
-      slot.latest = fresh;
-      return fresh;
-    })
-    .catch((err: unknown) => {
-      throw new GatewayError(403, 'permission_error', `Codex sign-in expired (${errMsg(err)}): connect again on the Model page`);
-    })
-    .finally(() => {
-      slot.refreshing = null;
-    });
-  slot.refreshing = run;
-  return run;
-}
-
-export function currentTokens(conn: Connection, deps: CodexDeps, state: CodexState): Promise<CodexTokens> {
-  const tokens = conn.codex;
-  if (tokens === null) throw new GatewayError(400, 'invalid_request_error', 'Codex is not connected: sign in on the Model page.');
-  return tokensStale(tokens) ? refreshed(conn.id, tokens, deps, state) : Promise.resolve(tokens);
-}
-
-function errorKind(status: number): string {
-  if (status === 401 || status === 403) return 'permission_error';
-  if (status === 429) return 'rate_limit_error';
-  if (status === 400 || status === 404 || status === 422) return 'invalid_request_error';
-  return 'api_error';
-}
-
-const sessionIdOf = (req: IncomingMessage): string => {
-  const raw = req.headers['x-claude-code-session-id'];
-  const given = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? '';
-  return given === '' ? randomUUID() : given;
-};
+export const currentTokens = (conn: Connection, deps: CodexDeps, state: CodexState): Promise<CodexTokens> =>
+  currentOf(state, conn.id, conn.codex, sourceOf(deps), 'Codex is not connected: sign in on the Model page.');
 
 interface Call {
   body: Record<string, unknown>;
@@ -127,74 +82,6 @@ function send(call: Call, tokens: CodexTokens): Promise<Response> {
   });
 }
 
-async function reach(call: Call, conn: Connection, state: CodexState): Promise<Response> {
-  let tokens = await currentTokens(conn, call.deps, state);
-  let upstream = await send(call, tokens);
-  if (upstream.status === 401) {
-    await upstream.body?.cancel();
-    tokens = await refreshed(conn.id, tokens, call.deps, state);
-    upstream = await send(call, tokens);
-  }
-  return upstream;
-}
-
-async function relayStream(upstream: Response, res: ServerResponse, model: string, names: ToolNames, watch: Watch, key: string): Promise<void> {
-  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
-  const translator = new CodexEventTranslator(model, (name) => names.restore(name));
-  const body = upstream.body;
-  if (body === null) {
-    res.end(translator.close());
-    return;
-  }
-  const ping = setInterval(() => res.write('event: ping\ndata: {"type":"ping"}\n\n'), PING_MS);
-  const scanner = new UsageScanner(key);
-  const emit = (frames: string): void => {
-    scanner.feed(frames);
-    res.write(frames);
-  };
-  try {
-    const parser = new SseParser();
-    const decoder = new TextDecoder();
-    const reader = body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      watch.touch();
-      for (const raw of parser.push(decoder.decode(value, { stream: true }))) {
-        const parsed = parseEvent(raw);
-        if (parsed !== null) emit(translator.push(parsed.event, parsed.data));
-      }
-    }
-    emit(translator.close());
-  } catch (err) {
-    if (!watch.idle()) throw err;
-    res.write(translator.finished ? '' : translator.close(idleMessage(watch.ms)));
-  } finally {
-    clearInterval(ping);
-    watch.stop();
-    res.end();
-    scanner.done();
-  }
-}
-
-async function relayWhole(upstream: Response, res: ServerResponse, model: string, names: ToolNames, key: string): Promise<void> {
-  const translator = new CodexEventTranslator(model, (name) => names.restore(name));
-  let frames = '';
-  const parser = new SseParser();
-  for (const raw of parser.push(await upstream.text())) {
-    const parsed = parseEvent(raw);
-    if (parsed !== null) frames += translator.push(parsed.event, parsed.data);
-  }
-  frames += translator.close();
-  const scanner = new UsageScanner(key);
-  scanner.feed(frames);
-  scanner.done();
-  const message = assembleMessage(frames);
-  const kind = isRecord(message.error) ? String(message.error.type) : '';
-  res.writeHead(message.type === 'error' ? (STATUS_OF[kind] ?? 502) : 200, { 'content-type': 'application/json' });
-  res.end(JSON.stringify(message));
-}
-
 export async function codexMessages(
   req: IncomingMessage,
   res: ServerResponse,
@@ -205,21 +92,29 @@ export async function codexMessages(
   state: CodexState,
   watch: Watch,
 ): Promise<void> {
-  const call: Call = { body, model, sessionId: sessionIdOf(req), watch, deps, names: new ToolNames() };
-  const upstream = await reach(call, conn, state);
+  const call: Call = { body, model, sessionId: sessionHeader(req) || randomUUID(), watch, deps, names: new ToolNames() };
+  const upstream = await reach(
+    () => currentTokens(conn, deps, state),
+    (tokens) => refreshed(state, conn.id, tokens, sourceOf(deps)),
+    (tokens) => send(call, tokens),
+  );
   noteUsageHeaders('codex', conn.id, upstream.headers);
   if (!upstream.ok) {
     const text = await upstream.text();
-    sendError(res, providerStatus(upstream.status), errorKind(upstream.status), upstreamMessage(text, `Codex answered ${String(upstream.status)}`));
+    sendError(res, providerStatus(upstream.status), errorKind(upstream.status, INVALID), upstreamMessage(text, `Codex answered ${String(upstream.status)}`));
     return;
   }
-  if (body.stream === true) await relayStream(upstream, res, model, call.names, watch, conn.id);
-  else await relayWhole(upstream, res, model, call.names, conn.id);
-}
-
-export function codexCount(res: ServerResponse, body: Record<string, unknown>): void {
-  res.writeHead(200, { 'content-type': 'application/json' });
-  res.end(JSON.stringify({ input_tokens: Math.ceil(JSON.stringify(body).length / 4) }));
+  const translator = new CodexEventTranslator(model, (name) => call.names.restore(name));
+  const onEvent = (raw: SseEvent): string => {
+    const parsed = parseEvent(raw);
+    return parsed === null ? '' : translator.push(parsed.event, parsed.data);
+  };
+  if (body.stream === true) {
+    await relayTranslated(upstream, res, watch, conn.id, translator, onEvent);
+    return;
+  }
+  const frames = new SseParser().push(await upstream.text()).map(onEvent).join('');
+  answerWhole(res, frames + translator.close(), conn.id);
 }
 
 export async function codexModels(tokens: CodexTokens, deps: Omit<CodexDeps, 'save'>): Promise<string[]> {
@@ -227,7 +122,7 @@ export async function codexModels(tokens: CodexTokens, deps: Omit<CodexDeps, 'sa
     headers: { ...headersFor(tokens, randomUUID()), accept: 'application/json' },
     redirect: 'manual',
   });
-  if (!res.ok) throw new GatewayError(res.status, errorKind(res.status), `Codex would not list models (${String(res.status)})`);
+  if (!res.ok) throw new GatewayError(res.status, errorKind(res.status, INVALID), `Codex would not list models (${String(res.status)})`);
   const slugs = new Set<string>();
   const walk = (value: unknown): void => {
     if (Array.isArray(value)) value.forEach(walk);
