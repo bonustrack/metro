@@ -6,7 +6,7 @@ import { TrainError } from '@metro-labs/core/train-error';
 
 type Args = Record<string, unknown>;
 
-export function resolveLine(args: Args, verb: string): string {
+function resolveLine(args: Args, verb: string): string {
   const line = (args as { line?: string }).line;
   if (line) return line;
   const groupId = (args as { groupId?: string }).groupId;
@@ -53,7 +53,7 @@ async function applyMergedAppData(
   return readAppData(group.appData);
 }
 
-export async function applyChannelMeta(
+async function applyChannelMeta(
   args: {
     line: string;
     name?: string;
@@ -115,43 +115,4 @@ export async function updateChannelMeta(id: string, args: Args): Promise<void> {
     'updateChannelMeta',
   );
   respond(id, { result });
-}
-
-export async function setGithub(id: string, args: Args): Promise<void> {
-  const line = resolveLine(args, 'setGithub');
-  const { url } = args as { url: string };
-  if (typeof url !== 'string')
-    throw new Error('setGithub requires a `url` string');
-  const result = await applyChannelMeta(
-    { line, appData: { github: url } },
-    'setGithub',
-  );
-  respond(id, {
-    result: {
-      line: result.line,
-      id: result.id,
-      account: result.account,
-      github: result.github,
-    },
-  });
-}
-
-export async function setPreview(id: string, args: Args): Promise<void> {
-  const line = resolveLine(args, 'setPreview');
-  const a = args as { preview?: unknown; url?: unknown };
-  const value = typeof a.preview === 'string' ? a.preview : a.url;
-  if (typeof value !== 'string')
-    throw new Error('setPreview requires a `preview` string');
-  const result = await applyChannelMeta(
-    { line, appData: { preview: value } },
-    'setPreview',
-  );
-  respond(id, {
-    result: {
-      line: result.line,
-      id: result.id,
-      account: result.account,
-      preview: result.preview,
-    },
-  });
 }

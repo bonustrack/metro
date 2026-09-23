@@ -1,7 +1,6 @@
 import type { Conversation, DecodedMessage } from '@xmtp/node-sdk';
-import { lineOf, parseLine } from './accounts.js';
+import { lineOf } from './accounts.js';
 import { emit, mintId, rememberSent, rememberUid, SELF_URI } from './wire.js';
-import { fcmPushToAll } from './push.js';
 import { emitInbound, emitAttachmentSaved } from './emit-core.js';
 import { typedEnvelope, type EnvelopeCtx } from './emit-payloads.js';
 import type { StructuredEvent } from '@metro-labs/core/events';
@@ -69,12 +68,4 @@ export function emitOutbound(
     ...(event ? { event } : {}),
     payload: { account: accountId },
   });
-  void (async (): Promise<void> => {
-    const data: Record<string, string> = { line, messageId };
-    {
-      const p = parseLine(line);
-      if (p) data.convId = p.convId.toLowerCase();
-    }
-    await fcmPushToAll(accountId, data);
-  })().catch(() => undefined);
 }

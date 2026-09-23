@@ -9,7 +9,6 @@ import {
 import { emitInbound, envelope } from './emit.js';
 import { groupNameFor } from './conv-helpers.js';
 import { senderFieldsNow } from './sender.js';
-import { handleControlDm, pushInbound } from './push.js';
 import { readCalls } from '@metro-labs/core/trains/protocol';
 import { handleCall } from './actions.js';
 
@@ -60,7 +59,6 @@ async function handleStreamMessage(
   const { id } = acct.cfg;
   if (msg.senderInboxId === acct.client.inboxId) return;
   if (SILENT_TYPES.has(msg.contentType?.typeId ?? '')) return;
-  if (handleControlDm(id, msg)) return;
   const conv = await acct.client.conversations.getConversationById(
     msg.conversationId,
   );
@@ -75,7 +73,6 @@ async function handleStreamMessage(
     env.payload = { ...p, lineName: name };
   }
   emitInbound(id, env);
-  pushInbound(id, env, msg, conv);
 }
 
 async function runAccount(acct: Account): Promise<void> {
