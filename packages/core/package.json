@@ -7,7 +7,6 @@
   "exports": {
     "./log": "./src/log.ts",
     "./events": "./src/events.ts",
-    "./identity": "./src/identity.ts",
     "./is-record": "./src/is-record.ts",
     "./secure-fs": "./src/secure-fs.ts",
     "./version": "./src/version.ts",
@@ -15,7 +14,6 @@
     "./trains/protocol": "./src/protocol.ts",
     "./ids": "./src/ids.ts",
     "./tickets": "./src/tickets.ts",
-    "./address": "./src/address.ts",
     "./station-names": "./src/station-names.ts",
     "./str": "./src/str.ts",
     "./lines": "./src/lines.ts",

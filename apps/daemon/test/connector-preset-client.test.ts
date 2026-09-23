@@ -11,7 +11,7 @@ import { setKeyMap } from '../src/agents/keys.ts';
 import { localRelayTarget } from '../src/connectors/store.ts';
 import { auth } from './identity-helper.ts';
 
-const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
+const OWNER = 'org_01TESTOWNER000000';
 const RETURN_TO = 'https://metro.box/';
 const CLIENT_ID = 'app-123';
 const CLIENT_SECRET = 's3cret';

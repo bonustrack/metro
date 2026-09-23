@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -15,14 +15,14 @@ import {
 import { agentIdForKey, setKeyMap } from '../src/agents/keys.ts';
 import { ApiError } from '@metro-labs/http/api-error';
 
-const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const OTHER = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8';
+const OWNER = 'org_01TESTOWNER000000';
+const OTHER = 'org_01OTHERORG000000';
 let dir = '';
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-admin-'));
   setKeyMap([]);
-  setLocalOwner(OWNER.toUpperCase().replace('0X', '0x'), dir);
+  setLocalOwner(` ${OWNER}\n`, dir);
 });
 
 afterEach(() => {
@@ -39,12 +39,15 @@ const stored = (): { key: string; stations: { id: string; config: Record<string,
   JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as never;
 
 describe('who owns a local daemon', () => {
-  test('the operator sets the owner, lowercased, 0600, and may change it', () => {
+  test('the operator sets the owner, trimmed, 0600, and may change it', () => {
     expect(localOwner(dir)).toBe(OWNER);
     expect((statSync(join(dir, '.owner')).mode & 0o777).toString(8)).toBe('600');
-    expect(() => setLocalOwner('nope', dir)).toThrow(/nor an Ethereum address/);
+    expect(() => setLocalOwner('nope', dir)).toThrow(/not an organization id/);
+    expect(() => setLocalOwner('0xef8305e140ac520225daf050e2f71d5fbcc543e7', dir)).toThrow(/not an organization id/);
     expect(setLocalOwner(OTHER, dir)).toBe(OTHER);
     expect(localOwner(dir)).toBe(OTHER);
+    writeFileSync(join(dir, '.owner'), '0xef8305e140ac520225daf050e2f71d5fbcc543e7\n');
+    expect(localOwner(dir)).toBeNull();
     setLocalOwner(OWNER, dir);
   });
 

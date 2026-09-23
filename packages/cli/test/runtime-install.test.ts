@@ -29,9 +29,9 @@ function stageSources(version: string): string {
 
 function agentWith(stations: string[]): string {
   const agents = join(root, 'agents');
-  mkdirSync(join(agents, 'suzy'), { recursive: true });
+  mkdirSync(agents, { recursive: true });
   writeFileSync(
-    join(agents, 'suzy', 'agent.json'),
+    join(agents, 'agent.json'),
     JSON.stringify({ id: 'suzy', name: 'suzy', key: 'mk_x', stations: stations.map((station) => ({ station })) }),
   );
   return agents;

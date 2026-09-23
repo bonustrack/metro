@@ -119,12 +119,12 @@ describe('metro service install, uninstall and status', () => {
   test('install checks the machine, writes the unit and enables it', async () => {
     const owners: (string | null)[] = [];
     const f = fake(linuxRoot, {
-      preflight: (owner) => {
+      preflight: ({ owner }) => {
         owners.push(owner);
       },
     });
     expect(await service(['install', '--owner', '0xEF8305E140ac520225DAf050e2f71d5fBCC543e7'], f.deps)).toBe(0);
-    expect(owners).toEqual(['0xef8305e140ac520225daf050e2f71d5fbcc543e7']);
+    expect(owners).toEqual([null]);
     expect(f.files.get('/etc/systemd/system/metro.service')).toContain(
       'serve --owner 0xEF8305E140ac520225DAf050e2f71d5fBCC543e7\n',
     );

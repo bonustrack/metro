@@ -1,4 +1,4 @@
-import { localAgents } from './local.js';
+import { localAgent } from './local.js';
 import { assertAgentId, localUrl } from './runtime.js';
 
 const BACKOFF_MS = [1_000, 2_000, 5_000] as const;
@@ -28,16 +28,16 @@ interface KeySource {
   fixed: boolean;
 }
 
-function keySource(agentId: string): KeySource {
+function keySource(agentId: string | undefined): KeySource {
   const fromEnv = process.env.METRO_AGENT_KEY?.trim();
   if (fromEnv !== undefined && fromEnv !== '')
     return { resolve: () => Promise.resolve(fromEnv), fixed: true };
   return {
     resolve: (): Promise<string> => {
-      const agent = localAgents().find((a) => a.id === agentId);
-      if (agent === undefined)
+      const agent = localAgent();
+      if (agent === null || (agentId !== undefined && agent.id !== agentId))
         throw new Error(
-          `no agent ${agentId} on this machine — create or restore it in the web UI of metro serve, or set METRO_AGENT_KEY`,
+          `no agent ${agentId === undefined ? '' : `${agentId} `}on this machine — start metro serve, or set METRO_AGENT_KEY`,
         );
       return Promise.resolve(agent.key);
     },
@@ -119,7 +119,6 @@ async function settle(
   end: StreamEnd,
   source: KeySource,
   key: string,
-  agentId: string,
   state: { last: string },
 ): Promise<string> {
   if (end === 'unauthorized') {
@@ -131,13 +130,13 @@ async function settle(
     return source.resolve();
   }
   if (end === 'unreachable')
-    note(state, `no metro daemon on ${localUrl()} — run 'metro serve' (agent ${agentId})`);
+    note(state, `no metro daemon on ${localUrl()} — run 'metro serve'`);
   else note(state, 'stream ended — reconnecting');
   return key;
 }
 
 export async function tailEvents(argv: string[]): Promise<number> {
-  const agentId = assertAgentId(argv[0]);
+  const agentId = argv[0] === undefined ? undefined : assertAgentId(argv[0]);
   const source = keySource(agentId);
   let key = await source.resolve();
   const state = { last: '' };
@@ -145,7 +144,7 @@ export async function tailEvents(argv: string[]): Promise<number> {
   for (;;) {
     const end = await streamOnce(key);
     if (end === 'ended') attempt = 0;
-    key = await settle(end, source, key, agentId, state);
+    key = await settle(end, source, key, state);
     await delay(backoffAt(attempt));
     attempt += 1;
   }

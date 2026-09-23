@@ -23,7 +23,7 @@ const USAGE = `metro — run your agent on this machine
                   starts at boot and after a crash, so the page can stop, start and
                   restart it with no shell; metro service uninstall and status as well
   metro stop      stop metro on this machine, metro serve included
-  metro tail <agent-id>
+  metro tail [agent-id]
                   follow this machine's inbound events, one JSON line each
   metro whoami    print the agent this machine runs
   metro claude [args...]
@@ -56,8 +56,8 @@ const HELP = new Set([undefined, 'help', '--help', '-h']);
 
 const COMMANDS: Record<string, () => Promise<number>> = {
   whoami: async () => {
-    const { agent, where } = await whoisAuthorized(process.argv[3]);
-    process.stdout.write(`agent '${agent}' on ${where}\n`);
+    const { agent, where } = await whoisAuthorized();
+    process.stdout.write(`agent ${agent} on ${where}\n`);
     return 0;
   },
   serve: () => serve(process.argv.slice(3)),

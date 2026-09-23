@@ -1,10 +1,9 @@
 import type { IncomingMessage } from 'node:http';
 import { createPublicKey, verify, type JsonWebKey, type KeyObject } from 'node:crypto';
 
-export const WORKOS_API = 'https://api.workos.com';
+const WORKOS_API = 'https://api.workos.com';
 const ORG_RE = /^org_[A-Za-z0-9]{10,64}$/;
 export const isOrganizationId = (value: string): boolean => ORG_RE.test(value);
-export const WORKOS_ISSUER = 'https://api.workos.com';
 export const DEFAULT_CLIENT_ID = 'client_01M2TJJJ6RM9CT081QB4XZK3G2';
 const SKEW_S = 60;
 const REFETCH_COOLDOWN_MS = 60_000;
@@ -129,7 +128,7 @@ function parseToken(token: string): Parts | null {
   return { signed: `${head}.${body}`, body, signature: b64url(sig), kid };
 }
 
-export async function verifyToken(token: string, keys: SigningKeys, issuer = WORKOS_ISSUER, now = Date.now()): Promise<Session | null> {
+export async function verifyToken(token: string, keys: SigningKeys, issuer = WORKOS_API, now = Date.now()): Promise<Session | null> {
   const parts = parseToken(token);
   if (parts === null) return null;
   const key = await keys.keyFor(parts.kid, now).catch(() => null);
@@ -144,7 +143,7 @@ export function bearerToken(req: IncomingMessage): string | null {
   return scheme?.toLowerCase() === 'bearer' && token?.includes('.') === true ? token : null;
 }
 
-export async function bearerSession(req: IncomingMessage, keys: SigningKeys, issuer = WORKOS_ISSUER): Promise<Session | null> {
+export async function bearerSession(req: IncomingMessage, keys: SigningKeys, issuer = WORKOS_API): Promise<Session | null> {
   const token = bearerToken(req);
   return token === null ? null : verifyToken(token, keys, issuer);
 }

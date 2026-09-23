@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { localAgents, localDaemonUp, localStations, pickLocalAgent } from '../src/local.ts';
+import { localAgent, localDaemonUp, localStations } from '../src/local.ts';
 
 const KEEP = { dir: process.env.METRO_AGENTS_DIR, port: process.env.METRO_WEBHOOK_PORT };
 let dir = '';
@@ -50,23 +50,11 @@ afterAll(() => {
 });
 
 describe('the agents a local daemon owns, as the CLI sees them', () => {
-  test('one per readable agent.json in the old folder layout, sorted by name, broken files skipped', () => {
-    expect(localAgents(dir).map((a) => `${a.name}/${a.id}`)).toEqual(['suzy/agentSuzy01', 'tony/agentTony01']);
-  });
-
-  test('the fixed agent.json wins over old folders, needs no name, and carries the stations', () => {
-    expect(localAgents(fixed).map((a) => `${a.name}/${a.id}`)).toEqual(['agent/agentOnly001']);
+  test('only the fixed agent.json counts, needs no name, and carries the stations', () => {
+    expect(localAgent(fixed)).toEqual({ id: 'agentOnly001', key: `mk_${'f'.repeat(43)}` });
     expect(localStations(fixed)).toEqual(['xmtp']);
-  });
-
-  test('picking: by name or id, the sole one by default, otherwise ask', () => {
-    const agents = localAgents(dir);
-    expect(pickLocalAgent(agents, 'tony').id).toBe('agentTony01');
-    expect(pickLocalAgent(agents, 'agentSuzy01').name).toBe('suzy');
-    expect(() => pickLocalAgent(agents)).toThrow(/several agents on this machine — name one: suzy, tony/);
-    expect(() => pickLocalAgent(agents, 'lisa')).toThrow(/no local agent named 'lisa'/);
-    expect(pickLocalAgent(agents.slice(1)).name).toBe('tony');
-    expect(() => pickLocalAgent([])).toThrow(/no agent on this machine yet/);
+    expect(localAgent(dir)).toBeNull();
+    expect(localStations(dir)).toEqual([]);
   });
 
   test('the local daemon is detected', async () => {

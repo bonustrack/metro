@@ -1,12 +1,5 @@
 import { index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
-import { STATIONS, type StationName } from '@metro-labs/core/station-names';
-
-export { STATIONS, type StationName };
-
-export type ProjectRole = 'admin' | 'member';
-
-
 export const agents = pgTable(
   'agents',
   {

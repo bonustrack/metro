@@ -4,7 +4,7 @@ import { homedir, platform, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { serveLockedBy } from './control.js';
 import { findBun } from './runtime.js';
-import { findTailscale, parseServeArgs, requireOwner } from './serve.js';
+import { findTailscale, parseServeArgs, requireOwner, type ServeArgs } from './serve.js';
 
 const USAGE = 'usage: metro service install [--port <n>] [--owner <organization id>] | uninstall | status';
 const SERVICE = 'metro';
@@ -43,7 +43,7 @@ export interface ServiceDeps {
   host: ServiceHost;
   run: (command: Command) => { status: number; output: string };
   running: () => number | null;
-  preflight: (owner: string | null) => void;
+  preflight: (args: ServeArgs) => void;
   mkdir: (dir: string) => void;
   write: (file: string, content: string) => void;
   remove: (file: string) => void;
@@ -175,7 +175,7 @@ export function servicePlan(host: ServiceHost, serveArgs: string[]): ServicePlan
 }
 
 function install(serveArgs: string[], deps: ServiceDeps): number {
-  const { owner } = parseServeArgs(serveArgs);
+  const args = parseServeArgs(serveArgs);
   const plan = servicePlan(deps.host, serveArgs);
   if (deps.exists(plan.file)) {
     deps.out(
@@ -183,7 +183,7 @@ function install(serveArgs: string[], deps: ServiceDeps): number {
     );
     return 0;
   }
-  deps.preflight(owner);
+  deps.preflight(args);
   const pid = deps.running();
   if (pid !== null)
     throw new Error(
@@ -268,8 +268,8 @@ function realDeps(): ServiceDeps {
       return { status: code, output: `${result.stdout}${result.stderr}` };
     },
     running: serveLockedBy,
-    preflight: (owner) => {
-      requireOwner(owner);
+    preflight: (args) => {
+      requireOwner(args);
       findBun();
       findTailscale();
     },

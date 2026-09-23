@@ -39,11 +39,8 @@ const REFUSALS: Record<string, string> = {
   failed: 'The sign-in failed. Try again.',
 };
 
-const PROVIDER_NAME: Record<string, string> = { google: 'Google', microsoft: 'Microsoft', github: 'GitHub' };
-
-function refusalText(refused: string | null, provider: string | null): string | null {
+function refusalText(refused: string | null): string | null {
   if (refused === null) return null;
-  if (refused === 'not-set-up') return `${PROVIDER_NAME[provider ?? ''] ?? 'That'} sign-in is not set up on Metro yet.`;
   return REFUSALS[refused] ?? REFUSALS.failed ?? null;
 }
 
@@ -140,7 +137,7 @@ function DaemonHint(): ReactNode {
 export function Login(): ReactNode {
   const [outcome] = useState(readOutcome);
   useEffect(clearOutcome, []);
-  const failed = refusalText(outcome.refused, outcome.provider);
+  const failed = refusalText(outcome.refused);
   const waitlist = atWaitlist();
   if (waitlist && outcome.joined)
     return (

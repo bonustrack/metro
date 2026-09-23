@@ -9,7 +9,7 @@ import { prepareRuntime, type PreparedRuntime } from './runtime-install.js';
 import { ensureNodeName } from './node-name.js';
 import { holdUntilStart, type HoldInfo } from './hold.js';
 
-const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
+const SCRUBBED = new Set(['DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
 const OWNER_FLAG = /^--owner=(.*)$/;
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -24,9 +24,10 @@ interface ServeOptions {
   owner: string | null;
 }
 
-interface ServeArgs {
+export interface ServeArgs {
   port: number;
   owner: string | null;
+  ignoredOwner?: string;
 }
 
 function portOf(raw: string | undefined): number {
@@ -39,16 +40,15 @@ function portOf(raw: string | undefined): number {
 
 const ORGANIZATION = /^org_[A-Za-z0-9]{10,64}$/;
 
-function ownerOf(raw: string | undefined): string {
-  if (raw !== undefined && ORGANIZATION.test(raw)) return raw;
-  if (raw === undefined || !ADDRESS.test(raw))
-    throw new Error(`'${raw ?? ''}' is neither an organization id (org_…) nor an Ethereum address — ${USAGE}`);
-  return raw.toLowerCase();
+function ownerOf(raw: string | undefined): Pick<ServeArgs, 'owner' | 'ignoredOwner'> {
+  if (raw !== undefined && ORGANIZATION.test(raw)) return { owner: raw };
+  if (raw !== undefined && ADDRESS.test(raw)) return { owner: null, ignoredOwner: raw };
+  throw new Error(`'${raw ?? ''}' is not an organization id (org_…) — ${USAGE}`);
 }
 
 export function parseServeArgs(argv: string[]): ServeArgs {
   let port = localPort();
-  let owner: string | null = null;
+  let owner: Pick<ServeArgs, 'owner' | 'ignoredOwner'> = { owner: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? '';
     if (TUNNEL_FLAG.test(arg))
@@ -75,11 +75,15 @@ export function parseServeArgs(argv: string[]): ServeArgs {
     }
     throw new Error(`unknown argument '${arg}' — ${USAGE}`);
   }
-  return { port, owner };
+  return { port, ...owner };
 }
 
-export function requireOwner(owner: string | null, dir = agentsDir()): void {
-  if (owner !== null || existsSync(join(dir, '.owner'))) return;
+export function requireOwner(args: Pick<ServeArgs, 'owner' | 'ignoredOwner'>, dir = agentsDir()): void {
+  if (args.ignoredOwner !== undefined) {
+    process.stderr.write(`--owner ${args.ignoredOwner} is a wallet address, which metro ignores: the organization id in ${join(dir, '.owner')} decides who signs in\n`);
+    return;
+  }
+  if (args.owner !== null || existsSync(join(dir, '.owner'))) return;
   throw new Error(
     'no owner is set for this machine, so nobody could sign in.\n' +
       'Pass the organization that owns it once; it is remembered in ' +
@@ -91,8 +95,7 @@ export function requireOwner(owner: string | null, dir = agentsDir()): void {
 export function readOwner(dir = agentsDir()): string | null {
   try {
     const raw = readFileSync(join(dir, '.owner'), 'utf8').trim();
-    if (ORGANIZATION.test(raw)) return raw;
-    return ADDRESS.test(raw.toLowerCase()) ? raw.toLowerCase() : null;
+    return ORGANIZATION.test(raw) ? raw : null;
   } catch {
     return null;
   }
@@ -170,14 +173,15 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
 }
 
 export function serve(argv: string[]): Promise<number> {
-  const { port, owner } = parseServeArgs(argv);
+  const args = parseServeArgs(argv);
+  const { port, owner } = args;
   const running = serveLockedBy();
   if (running !== null)
     throw new Error(
       `a metro serve daemon is already running on this machine (pid ${String(running)}). ` +
         'Stop it first: metro stop',
     );
-  requireOwner(owner);
+  requireOwner(args);
   const tailscaleBin = findTailscale();
   const node = ensureNodeName(tailscaleBin);
   process.stderr.write(

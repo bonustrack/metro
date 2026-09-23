@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { SigningKeys } from '@metro-labs/http/workos-token';
 import { handleAuthApiRequest, type AuthApiDeps } from '../src/auth/routes.ts';
-import { forgetProviders, readWorkosConfig } from '../src/auth/workos.ts';
+import { readWorkosConfig } from '../src/auth/workos.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
 import { memoryUsers } from './users-fake.ts';
@@ -142,39 +142,10 @@ describe('signing in to metro.box through WorkOS', () => {
     }
   });
 
-  test('the status says whether sign-in is configured and which providers WorkOS answers for; a provider not set up is refused by name', async () => {
-    forgetProviders();
-    expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
+  test('every provider goes straight to WorkOS, and sign-in answers 503 when it is not configured', async () => {
     const microsoft = await fetch(`${base}/api/auth/login?provider=microsoft&return_to=https://metro.box/`, { redirect: 'manual' });
     expect(microsoft.status).toBe(302);
-    expect(microsoft.headers.get('location')).toBe('https://metro.box/#/login?refused=not-set-up&provider=microsoft');
-    workos.enabled.add('MicrosoftOAuth');
-    workos.enabled.add('GitHubOAuth');
-    forgetProviders();
-    expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google', 'microsoft', 'github'] });
-    workos.enabled.delete('MicrosoftOAuth');
-    workos.enabled.delete('GitHubOAuth');
-    forgetProviders();
-    expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
-    workos.outage.on = true;
-    try {
-      deps.now = () => Date.now() + 2 * 60_000;
-      expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
-      await new Promise((r) => setTimeout(r, 50));
-      expect(await (await json('GET', '/api/auth')).json()).toEqual({ enabled: true, providers: ['google'] });
-    } finally {
-      workos.outage.on = false;
-      deps.now = undefined;
-    }
-    forgetProviders();
-    workos.outage.on = true;
-    try {
-      const cold = await fetch(`${base}/api/auth/login?provider=google&return_to=https://metro.box/`, { redirect: 'manual' });
-      expect(cold.headers.get('location') ?? '').not.toContain('not-set-up');
-    } finally {
-      workos.outage.on = false;
-    }
-    forgetProviders();
+    expect(microsoft.headers.get('location') ?? '').toContain('provider=MicrosoftOAuth');
     const off = { ...deps, config: () => null };
     const s = createServer((req, res) => {
       handleAuthApiRequest(req, res, off);
@@ -183,7 +154,6 @@ describe('signing in to metro.box through WorkOS', () => {
       s.listen(0, '127.0.0.1', r);
     });
     const port = String((s.address() as AddressInfo).port);
-    expect(await (await fetch(`http://127.0.0.1:${port}/api/auth`)).json()).toEqual({ enabled: false, providers: [] });
     expect((await fetch(`http://127.0.0.1:${port}/api/auth/login?provider=google&return_to=https://metro.box/`, { redirect: 'manual' })).status).toBe(503);
     s.close();
   });
