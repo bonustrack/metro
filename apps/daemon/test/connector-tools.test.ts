@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { listRemoteTools } from '../src/connectors/tools.ts';
-import { allowLocalConnectors, ConnectorVerifyError } from '../src/connectors/url.ts';
+import { ConnectorVerifyError } from '../src/connectors/url.ts';
 
 interface Seen {
   method: string;
@@ -22,7 +22,6 @@ const answer = (res: ServerResponse, id: number, result: unknown): void => {
 };
 
 beforeAll(async () => {
-  allowLocalConnectors(true);
   server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => chunks.push(c));
@@ -53,7 +52,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  allowLocalConnectors(false);
   await new Promise<void>((r) => server.close(() => r()));
 });
 

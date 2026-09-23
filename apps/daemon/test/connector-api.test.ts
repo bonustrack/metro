@@ -1,6 +1,5 @@
 import { auth, bearer, forged, type Who } from './identity-helper.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { allowLocalConnectors } from '../src/connectors/url.ts';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
@@ -39,7 +38,6 @@ interface WireConnector {
   id: string;
   name: string;
   url: string;
-  transport: string;
   auth: string;
   header: string | null;
   secret: string | null;
@@ -84,7 +82,6 @@ const toConnector = (row: Row) => ({
   id: row.id,
   name: row.name,
   url: row.url,
-  transport: 'http',
   auth: row.secret === null ? 'none' : 'header',
   header: row.header,
   secret: row.secret,
@@ -242,10 +239,6 @@ afterEach(() => {
   rows = [...SEED];
   nextId = 10;
   calls = [];
-});
-
-beforeAll(() => {
-  allowLocalConnectors(false);
 });
 
 describe('/api/connectors is the Google session surface', () => {
@@ -417,7 +410,6 @@ describe('GET /api/connectors returns the wire shape', () => {
       id: 'agent000001',
       name: 'linear',
       url: 'https://mcp.linear.app/mcp',
-      transport: 'http',
       auth: 'header',
       header: 'Authorization',
       clientId: null,
@@ -511,7 +503,6 @@ describe('POST /api/connectors', () => {
     const created = (await res.json()) as WireConnector;
     expect(created).toMatchObject({
       name: 'sentry',
-      transport: 'http',
       auth: 'header',
       header: 'Authorization',
     });
@@ -551,12 +542,12 @@ describe('POST /api/connectors', () => {
     }
   });
 
-  test('a localhost url is 400 with the policy sentence, never a 500', async () => {
+  test('a malformed url is 400 with a sentence, never a 500', async () => {
     for (const url of [
-      'https://localhost/mcp',
-      'https://127.0.0.1/mcp',
-      'http://mcp.linear.app/mcp',
-      'https://intranet/mcp',
+      'ws://mcp.linear.app/mcp',
+      'https://user:pass@mcp.linear.app/mcp',
+      'https://mcp.linear.app/mcp#tools',
+      'not a url',
     ]) {
       const res = await call('POST', '/api/connectors', session(ADA), {
         name: 'probe',

@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { allowLocalConnectors } from '../src/connectors/url.ts';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
@@ -8,9 +7,6 @@ import {
   verifyRemoteMcp,
   type ConnectorAuth,
 } from '../src/connectors/verify.ts';
-
-const POLICY_MESSAGE =
-  'Metro connects from its own server, so it cannot reach a URL on your machine. localhost and private addresses are not usable as connectors.';
 
 const NONE: ConnectorAuth = { kind: 'none' };
 const BEARER: ConnectorAuth = {
@@ -135,10 +131,6 @@ beforeEach(() => {
   reply = sseServer();
 });
 
-beforeAll(() => {
-  allowLocalConnectors(false);
-});
-
 describe('parseConnectorUrl is the security boundary', () => {
   test('an ordinary https url passes through', () => {
     const url = parseConnectorUrl('  https://mcp.linear.app/mcp  ');
@@ -151,38 +143,23 @@ describe('parseConnectorUrl is the security boundary', () => {
     );
   });
 
-  const policy = [
+  const local = [
+    'http://127.0.0.1:8080/mcp',
     'https://localhost/mcp',
-    'https://LOCALHOST/mcp',
-    'https://foo.localhost/mcp',
-    'https://box.local/mcp',
-    'https://svc.internal/mcp',
-    'https://127.0.0.1/mcp',
+    'http://box.local/mcp',
     'https://10.0.0.7/mcp',
-    'https://192.168.1.5/mcp',
     'https://[::1]/mcp',
-    'https://[fd00::1]/mcp',
     'https://intranet/mcp',
-    'https://metro.flycast/mcp',
-    'https://top1.nearest.of.metro.internal/mcp',
   ];
 
-  for (const raw of policy)
-    test(`${raw} is refused with the one policy sentence`, () => {
-      let caught: unknown;
-      try {
-        parseConnectorUrl(raw);
-      } catch (err) {
-        caught = err;
-      }
-      expect(caught).toBeInstanceOf(ConnectorVerifyError);
-      expect((caught as ConnectorVerifyError).message).toBe(POLICY_MESSAGE);
-      expect((caught as ConnectorVerifyError).status).toBe(400);
+  for (const raw of local)
+    test(`${raw} passes: a daemon runs beside the servers it connects to`, () => {
+      expect(parseConnectorUrl(raw).toString()).toBe(raw);
     });
 
   const malformed: [string, RegExp][] = [
-    ['http://mcp.linear.app/mcp', /must start with https/],
     ['ws://mcp.linear.app/mcp', /must start with https/],
+    ['ftp://mcp.linear.app/mcp', /must start with https/],
     ['https://user:pass@mcp.linear.app/mcp', /user:password/],
     ['https://user@mcp.linear.app/mcp', /user:password/],
     ['https://mcp.linear.app/mcp#tools', /#fragment/],
@@ -207,10 +184,6 @@ describe('parseConnectorUrl is the security boundary', () => {
   test('a non-string is refused rather than coerced', () => {
     for (const raw of [undefined, null, 42, {}, ['https://mcp.linear.app/mcp']])
       expect(() => parseConnectorUrl(raw)).toThrow(ConnectorVerifyError);
-  });
-
-  test('the loopback fixture this file talks to is itself refused', () => {
-    expect(() => parseConnectorUrl(origin)).toThrow(ConnectorVerifyError);
   });
 });
 

@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, apiSession, requireAdmin, bodyField, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { bodyField, readJsonBody, sessionRoute } from '@metro-labs/http/api-http';
 import { log } from '@metro-labs/core/log';
 import { mintTerminalTicket } from './tickets.js';
 
@@ -64,32 +64,11 @@ export function sessionOf(raw: unknown): string {
 }
 
 export function handleTerminalRequest(req: IncomingMessage, res: ServerResponse, deps: TerminalApiDeps): boolean {
-  const path = (req.url ?? '').split('?')[0] ?? '';
-  if (path !== PREFIX && path !== TICKETS) return false;
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, cors(req)).end();
-    return true;
-  }
-  const wanted = path === TICKETS ? 'POST' : 'GET';
-  if (req.method !== wanted) {
-    sendJson(req, res, 405, { error: 'method not allowed' });
-    return true;
-  }
-  apiSession(req)
-    .then(async (session) => {
-      if (!session) throw new ApiError('unauthorized', 401);
-      requireAdmin(session);
-      if (path === PREFIX) {
-        sendJson(req, res, 200, { available: tmuxAvailable(deps), sessions: tmuxSessions() });
-        return;
-      }
-      const wanted = sessionOf(bodyField(await readJsonBody(req), 'session'));
-      const minted = mintTerminalTicket(session.subject, wanted);
-      log.info({ subject: session.subject, session: wanted }, 'terminal: ticket minted');
-      sendJson(req, res, 200, { ...minted, session: wanted, path: `${PREFIX}/${minted.ticket}` });
-    })
-    .catch((err: unknown) => {
-      apiFailure(req, res, err, 'terminal-api');
-    });
-  return true;
+  return sessionRoute(req, res, { methods: { [PREFIX]: ['GET'], [TICKETS]: ['POST'] }, admin: true, label: 'terminal-api' }, async (session, path) => {
+    if (path === PREFIX) return { available: tmuxAvailable(deps), sessions: tmuxSessions() };
+    const wanted = sessionOf(bodyField(await readJsonBody(req), 'session'));
+    const minted = mintTerminalTicket(session.subject, wanted);
+    log.info({ subject: session.subject, session: wanted }, 'terminal: ticket minted');
+    return { ...minted, session: wanted, path: `${PREFIX}/${minted.ticket}` };
+  });
 }

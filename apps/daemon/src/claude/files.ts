@@ -2,21 +2,19 @@ import {
   closeSync,
   createReadStream,
   existsSync,
-  mkdirSync,
   openSync,
   readdirSync,
   readSync,
-  renameSync,
   rmSync,
   statSync,
   utimesSync,
-  writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
+import { writeAtomic } from '@metro-labs/core/secure-fs';
 
 export const PROJECT_RE = /^[A-Za-z0-9._-]{1,200}$/;
 export const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
@@ -340,11 +338,8 @@ export function writeMemoryFile(project: string, name: string, text: string, dir
     throw new ApiError(`a memory file is at most ${String(MEMORY_MAX)} bytes`, 400);
   const folder = memoryDir(project, dir);
   const file = safeName(name, MEMORY_RE, 'memory file name');
-  mkdirSync(folder, { recursive: true });
   const path = join(folder, file);
-  const tmp = `${path}.metro-${String(process.pid)}`;
-  writeFileSync(tmp, text, { mode: MEMORY_MODE });
-  renameSync(tmp, path);
+  writeAtomic(path, text, MEMORY_MODE);
   const stamp = stampOf(modifiedAt);
   if (stamp !== null) utimesSync(path, stamp, stamp);
   const stat = statSync(path);

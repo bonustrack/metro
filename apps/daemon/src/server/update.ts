@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { errMsg, log } from '@metro-labs/core/log';
+import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, apiSession, requireAdmin, cors, sendJson } from '@metro-labs/http/api-http';
+import { sessionRoute } from '@metro-labs/http/api-http';
 import { isRecord } from '@metro-labs/core/is-record';
 import { METRO_VERSION } from '@metro-labs/core/version';
 
@@ -82,34 +82,9 @@ function binOrThrow(deps: UpdateApiDeps): string {
 }
 
 export function handleUpdateRequest(req: IncomingMessage, res: ServerResponse, deps: UpdateApiDeps): boolean {
-  const path = (req.url ?? '').split('?')[0] ?? '';
-  if (path !== PATH) return false;
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, cors(req)).end();
-    return true;
-  }
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    sendJson(req, res, 405, { error: 'method not allowed' });
-    return true;
-  }
-  Promise.resolve()
-    .then(async (): Promise<unknown> => {
-      const session = await apiSession(req);
-      if (!session) throw new ApiError('unauthorized', 401);
-      if (req.method === 'POST') requireAdmin(session);
-      const bin = binOrThrow(deps);
-      if (req.method === 'GET') return { ...(await check(bin)), running: METRO_VERSION };
-      return apply(bin, deps);
-    })
-    .then((body) => {
-      sendJson(req, res, 200, body);
-    })
-    .catch((err: unknown) => {
-      if (err instanceof ApiError) apiFailure(req, res, err, 'update-api');
-      else {
-        log.warn({ err: errMsg(err) }, 'update-api: request failed');
-        if (!res.headersSent) sendJson(req, res, 500, { error: 'update api failed' });
-      }
-    });
-  return true;
+  return sessionRoute(req, res, { methods: { [PATH]: ['GET', 'POST'] }, admin: ['POST'], label: 'update-api' }, async () => {
+    const bin = binOrThrow(deps);
+    if (req.method === 'GET') return { ...(await check(bin)), running: METRO_VERSION };
+    return apply(bin, deps);
+  });
 }

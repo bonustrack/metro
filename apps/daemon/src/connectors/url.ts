@@ -4,39 +4,17 @@ export class ConnectorVerifyError extends ApiError {}
 
 export class ConnectorUnauthorized extends ConnectorVerifyError {}
 
-export const POLICY_MESSAGE =
-  'Metro connects from its own server, so it cannot reach a URL on your machine. localhost and private addresses are not usable as connectors.';
-
-let localAllowed = false;
-
-export function allowLocalConnectors(on: boolean): void {
-  localAllowed = on;
-}
-
-const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
-const PRIVATE_SUFFIX = /(?:^|\.)(?:localhost|local|internal|flycast)$/;
-
 export function refused(message: string): ConnectorVerifyError {
   return new ConnectorVerifyError(message, 400);
 }
 
-function hostAllowed(host: string): boolean {
-  if (host === '' || host.startsWith('[')) return false;
-  if (IPV4.test(host) || !host.includes('.')) return false;
-  return !PRIVATE_SUFFIX.test(host);
-}
-
-function schemeAllowed(url: URL): boolean {
-  return url.protocol === 'https:' || (localAllowed && url.protocol === 'http:');
-}
-
 function refuseShape(url: URL): void {
-  if (!schemeAllowed(url)) throw refused('a connector url must start with https://');
+  if (url.protocol !== 'https:' && url.protocol !== 'http:')
+    throw refused('a connector url must start with https:// or http://');
   if (url.username !== '' || url.password !== '')
     throw refused('a connector url must not carry a user:password');
   if (url.hash !== '')
     throw refused('a connector url must not carry a #fragment');
-  if (!localAllowed && !hostAllowed(url.hostname.toLowerCase())) throw refused(POLICY_MESSAGE);
 }
 
 export function parseConnectorUrl(raw: unknown): URL {

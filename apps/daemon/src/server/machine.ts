@@ -2,11 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { hostname, homedir } from 'node:os';
 import { statfs } from 'node:fs/promises';
 import { errMsg, log } from '@metro-labs/core/log';
-import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, apiSession, cors, sendJson } from '@metro-labs/http/api-http';
-import { publicBaseUrl } from '../files/attach-serve.js';
+import { sessionRoute } from '@metro-labs/http/api-http';
+import { publicBaseUrl, webhookPort } from '../files/attach-serve.js';
 import { claudeDir } from '../claude/files.js';
-import { webhookPort } from '../net/tunnel.js';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir } from '../agents/files.js';
 import { localOwner } from '../agents/file-admin.js';
@@ -56,23 +54,5 @@ export async function machineInfo(startedAt = bootedAt): Promise<Record<string, 
 }
 
 export function handleMachineRequest(req: IncomingMessage, res: ServerResponse, deps: MachineApiDeps): boolean {
-  const path = (req.url ?? '').split('?')[0] ?? '';
-  if (path !== PATH) return false;
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, cors(req)).end();
-    return true;
-  }
-  if (req.method !== 'GET') {
-    sendJson(req, res, 405, { error: 'method not allowed' });
-    return true;
-  }
-  apiSession(req)
-    .then(async (session) => {
-      if (!session) throw new ApiError('unauthorized', 401);
-      sendJson(req, res, 200, await machineInfo(deps.startedAt));
-    })
-    .catch((err: unknown) => {
-      apiFailure(req, res, err, 'machine-api');
-    });
-  return true;
+  return sessionRoute(req, res, { methods: { [PATH]: ['GET'] }, admin: false, label: 'machine-api' }, () => machineInfo(deps.startedAt));
 }

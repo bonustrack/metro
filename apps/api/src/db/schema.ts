@@ -1,8 +1,8 @@
 import { index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
-import { STATIONS, type ConnectorTransport, type StationName } from '@metro-labs/core/station-names';
+import { STATIONS, type StationName } from '@metro-labs/core/station-names';
 
-export { STATIONS, type ConnectorTransport, type StationName };
+export { STATIONS, type StationName };
 
 export type ProjectRole = 'admin' | 'member';
 

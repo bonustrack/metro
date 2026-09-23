@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { claudeDir } from './files.js';
+import { writeAtomic } from '@metro-labs/core/secure-fs';
 
 export const SKILL_MAX = 256 * 1024;
 export const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -70,13 +71,6 @@ export function readClaudeSkill(id: string, dir = claudeDir()): ClaudeSkill & { 
   return { ...skill, text: skill.editable ? readFileSync(skill.path, 'utf8') : '' };
 }
 
-function writeAtomic(path: string, text: string): void {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.metro-${String(process.pid)}`;
-  writeFileSync(tmp, text, { mode: DEFAULT_MODE });
-  renameSync(tmp, path);
-}
-
 function assertText(text: string): void {
   if (text.length > SKILL_MAX) throw new ApiError('that is more text than a skill may hold', 413);
   if (text.trim() === '') throw new ApiError('a skill needs some text', 400);
@@ -93,7 +87,7 @@ export function writeClaudeSkill(
   assertText(text);
   if (seenAt !== undefined && seenAt !== skill.updatedAt)
     throw new ApiError('that skill changed on disk since you opened it; reload it before saving', 409);
-  writeAtomic(skill.path, text);
+  writeAtomic(skill.path, text, DEFAULT_MODE);
   return entryOf(skill.name, skill.path);
 }
 
@@ -107,7 +101,7 @@ export function createClaudeSkill(name: string, text: string | undefined, dir = 
   if (existsSync(path)) throw new ApiError('a skill by that name already lives there', 409);
   const body = text === undefined || text.trim() === '' ? skillTemplate(name) : text;
   assertText(body);
-  writeAtomic(path, body);
+  writeAtomic(path, body, DEFAULT_MODE);
   return entryOf(name, path);
 }
 

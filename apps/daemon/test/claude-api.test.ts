@@ -100,7 +100,7 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect(sessions.map((s) => s.id)).toEqual([moved]);
     expect((await putText(`/api/claude/sessions/${moved}?project=-root`, 'not json lines\n')).status).toBe(400);
     expect(readFileSync(join(dir, 'projects', '-root', `${moved}.jsonl`), 'utf8')).toBe(raw);
-    expect((await put(`/api/claude/sessions/${moved}?project=-root`, { text: raw })).status).toBe(200);
+    expect((await put(`/api/claude/sessions/${moved}?project=-root`, { text: raw })).status).toBe(415);
     expect((await putText(`/api/claude/sessions/..%2Fescape?project=-root`, raw)).status).toBe(400);
   });
 

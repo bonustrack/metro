@@ -7,6 +7,7 @@ export {
   ConnectorVerifyError,
   connectorUrlText,
   parseConnectorUrl,
+  refused,
 } from './url.js';
 
 export interface OAuthTokens {
@@ -37,26 +38,44 @@ export interface VerifiedRecord extends VerifiedServer {
   at: string;
 }
 
-const PROTOCOL_VERSION = '2025-11-25';
 const PROBE_TIMEOUT_MS = 10_000;
 
-const INITIALIZE = {
+export const INITIALIZE = {
   jsonrpc: '2.0',
   id: 1,
   method: 'initialize',
-  params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'metro', version: '0.1.0' } },
+  params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'metro', version: '0.1.0' } },
 };
 
 export function authHeaders(auth: ConnectorAuth): Record<string, string> {
   if (auth.kind === 'header') return { [auth.name]: auth.value };
-  if (auth.kind === 'oauth') return { authorization: `Bearer ${auth.accessToken}` };
+  if (auth.kind === 'oauth') return { Authorization: `Bearer ${auth.accessToken}` };
   return {};
 }
 
-function payloadOf(text: string, contentType: string): string {
+export function payloadOf(text: string, contentType: string): string {
   if (!contentType.includes('text/event-stream')) return text;
   for (const line of text.replace(/\r\n/g, '\n').split('\n')) if (line.startsWith('data:')) return line.slice(5).trim();
   return '';
+}
+
+export async function mcpPost(
+  url: URL,
+  auth: ConnectorAuth,
+  body: unknown,
+  opts: { timeoutMs: number; headers?: Record<string, string> },
+): Promise<Response> {
+  try {
+    return await fetch(url, {
+      method: 'POST',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(opts.timeoutMs),
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...authHeaders(auth), ...opts.headers },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw refused(`Metro could not reach ${url.hostname}: ${whyUnreachable(err)}`);
+  }
 }
 
 function serverNameOf(url: URL, text: string, contentType: string): string {
@@ -74,22 +93,8 @@ function serverNameOf(url: URL, text: string, contentType: string): string {
   return typeof info.name === 'string' ? info.name : url.hostname;
 }
 
-async function post(url: URL, auth: ConnectorAuth): Promise<Response> {
-  try {
-    return await fetch(url, {
-      method: 'POST',
-      redirect: 'manual',
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...authHeaders(auth) },
-      body: JSON.stringify(INITIALIZE),
-    });
-  } catch (err) {
-    throw refused(`Metro could not reach ${url.hostname}: ${whyUnreachable(err)}`);
-  }
-}
-
 export async function verifyRemoteMcp(url: URL, auth: ConnectorAuth): Promise<VerifiedServer> {
-  const res = await post(url, auth);
+  const res = await mcpPost(url, auth, INITIALIZE, { timeoutMs: PROBE_TIMEOUT_MS });
   const text = await res.text().catch(() => '');
   if (res.status >= 300 && res.status < 400) throw refused('that url redirects — use the url it redirects to');
   if (res.status === 401 || res.status === 403)

@@ -1,4 +1,4 @@
-import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import type { Readable } from 'node:stream';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -21,10 +21,6 @@ export function sessionFilePath(project: string, session: string, dir = claudeDi
   if (!existsSync(path)) throw new ApiError('no such session', 404);
   if (statSync(path).size > SESSION_FILE_MAX) throw new ApiError(`a session file is at most ${String(SESSION_FILE_MAX)} bytes`, 400);
   return path;
-}
-
-export function readSessionFile(project: string, session: string, dir = claudeDir()): string {
-  return readFileSync(sessionFilePath(project, session, dir), 'utf8');
 }
 
 const HEAD_BYTES = 64 * 1024;
@@ -76,15 +72,4 @@ function firstLineIsJson(text: string): boolean {
   } catch {
     return false;
   }
-}
-
-export function writeSessionFile(project: string, session: string, text: string, dir = claudeDir()): SessionFile {
-  if (!firstLineIsJson(text)) throw new ApiError('a session file is JSON lines, one Claude Code entry per line', 400);
-  if (Buffer.byteLength(text, 'utf8') > SESSION_FILE_MAX) throw new ApiError(`a session file is at most ${String(SESSION_FILE_MAX)} bytes`, 400);
-  const path = transcriptPath(project, session, dir);
-  mkdirSync(join(path, '..'), { recursive: true });
-  const tmp = `${path}.metro-${String(process.pid)}`;
-  writeFileSync(tmp, text, { mode: FILE_MODE });
-  renameSync(tmp, path);
-  return { id: safeName(session, SESSION_RE, 'session id'), bytes: statSync(path).size };
 }

@@ -1,8 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
-import { whyUnreachable } from './reach.js';
-import { refused } from './url.js';
-import { authHeaders, type ConnectorAuth } from './verify.js';
+import { authHeaders, INITIALIZE, mcpPost, payloadOf, refused, type ConnectorAuth } from './verify.js';
 
 export interface RemoteTool {
   name: string;
@@ -12,32 +10,11 @@ export interface RemoteTool {
 
 const TIMEOUT_MS = 15_000;
 const MAX_PAGES = 10;
-const ACCEPT = 'application/json, text/event-stream';
-
-function dataOf(text: string, contentType: string): string {
-  if (!contentType.includes('text/event-stream')) return text;
-  for (const line of text.replace(/\r\n/g, '\n').split('\n')) if (line.startsWith('data:')) return line.slice(5).trim();
-  return '';
-}
-
-async function post(url: URL, auth: ConnectorAuth, session: Map<string, string>, body: unknown): Promise<Response> {
-  try {
-    return await fetch(url, {
-      method: 'POST',
-      redirect: 'manual',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { 'content-type': 'application/json', accept: ACCEPT, ...authHeaders(auth), ...Object.fromEntries(session) },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    throw refused(`Metro could not reach ${url.hostname}: ${whyUnreachable(err)}`);
-  }
-}
 
 function resultOf(text: string, contentType: string): Record<string, unknown> | null {
   let parsed: unknown = null;
   try {
-    parsed = JSON.parse(dataOf(text, contentType));
+    parsed = JSON.parse(payloadOf(text, contentType));
   } catch {
     return null;
   }
@@ -45,7 +22,7 @@ function resultOf(text: string, contentType: string): Record<string, unknown> | 
 }
 
 async function rpc(url: URL, auth: ConnectorAuth, session: Map<string, string>, body: unknown): Promise<Record<string, unknown> | null> {
-  const res = await post(url, auth, session, body);
+  const res = await mcpPost(url, auth, body, { timeoutMs: TIMEOUT_MS, headers: Object.fromEntries(session) });
   const id = res.headers.get('mcp-session-id');
   if (id !== null && id !== '') session.set('mcp-session-id', id);
   const text = await res.text().catch(() => '');
@@ -93,12 +70,7 @@ async function walkTools(url: URL, auth: ConnectorAuth, session: Map<string, str
 
 export async function listRemoteTools(url: URL, auth: ConnectorAuth): Promise<RemoteTool[]> {
   const session = new Map<string, string>();
-  const init = await rpc(url, auth, session, {
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'initialize',
-    params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'metro', version: '0.1.0' } },
-  });
+  const init = await rpc(url, auth, session, INITIALIZE);
   if (init === null || typeof init.protocolVersion !== 'string') throw refused(`${url.hostname} answered, but it does not speak MCP.`);
   session.set('mcp-protocol-version', init.protocolVersion);
   await rpc(url, auth, session, { jsonrpc: '2.0', method: 'notifications/initialized' });

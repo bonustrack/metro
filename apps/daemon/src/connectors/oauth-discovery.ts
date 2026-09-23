@@ -1,4 +1,4 @@
-import { ConnectorVerifyError, parseConnectorUrl } from './verify.js';
+import { parseConnectorUrl, refused } from './verify.js';
 import { isRecord } from '@metro-labs/core/is-record';
 
 const DISCOVERY_TIMEOUT_MS = 10_000;
@@ -15,10 +15,6 @@ export interface OAuthServer {
 interface ResourceMetadata {
   issuer: URL;
   scopes: string[];
-}
-
-function refused(message: string): ConnectorVerifyError {
-  return new ConnectorVerifyError(message, 400);
 }
 
 const str = (value: unknown): string =>

@@ -11,7 +11,7 @@ import {
 import { connectorClient } from './config.js';
 import { parseConnectorUrl } from './verify.js';
 import type { OAuthAuth } from './verify.js';
-import type { Connector, PendingConnectorInput } from './model.js';
+import type { Connector, PendingConnectorInput } from './store.js';
 
 const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';

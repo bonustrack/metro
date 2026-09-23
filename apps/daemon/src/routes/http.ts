@@ -23,14 +23,9 @@ import {
 } from '@metro-labs/core/events';
 import type { TrainEvent } from '@metro-labs/core/trains/protocol';
 import { agentForLine, agentIdForLine } from '../agents/map.js';
-import {
-  findEndpointByWebhookId,
-  listEndpoints,
-  tokenMatches,
-  webhookPort,
-  type Endpoint,
-} from '../net/tunnel.js';
-import { attachmentEventUrl, handleAttachRequest } from '../files/attach-serve.js';
+import type { Endpoint } from '@metro-labs/core/endpoints';
+import { findEndpointByWebhookId, listEndpoints, tokenMatches } from '../stations/webhook-endpoints.js';
+import { attachmentEventUrl, handleAttachRequest, webhookPort } from '../files/attach-serve.js';
 import { webhookEntry } from '@metro-labs/webhook';
 import { attachTerminalSockets } from '../terminal/socket.js';
 import { tmuxCommand } from '../terminal/api.js';

@@ -1,6 +1,6 @@
 import { publicBaseOrDefault } from '../files/attach-serve.js';
 import {
-  ConnectorVerifyError,
+  refused,
   type OAuthAuth,
   type OAuthTokens,
 } from './verify.js';
@@ -14,9 +14,26 @@ import {
   type OAuthClient,
 } from './oauth-client.js';
 import { discoverOAuth, type OAuthServer } from './oauth-discovery.js';
-import { startPending, takePending, type PendingAuth } from './oauth-pending.js';
+import { ticketStore } from '@metro-labs/core/tickets';
 
-export { takePending, type PendingAuth };
+export interface PendingAuth {
+  name: string;
+  url: string;
+  resource: string;
+  returnTo: string;
+  verifier: string;
+  server: OAuthServer;
+  client: OAuthClient;
+  connectorId: string;
+}
+
+const pending = ticketStore<PendingAuth>(10 * 60_000, 100);
+
+export const startPending = (entry: PendingAuth, now = Date.now()): string => pending.mint(entry, now).ticket;
+
+export const takePending = (state: string, now = Date.now()): PendingAuth | undefined => pending.take(state, now);
+
+export const pendingCount = (): number => pending.size();
 
 const REFRESH_SKEW_MS = 300_000;
 
@@ -24,10 +41,6 @@ const CALLBACK_PATH = '/api/connectors/callback';
 
 const callbackUri = (): string =>
   `${publicBaseOrDefault()}${CALLBACK_PATH}`;
-
-function refused(message: string): ConnectorVerifyError {
-  return new ConnectorVerifyError(message, 400);
-}
 
 const resourceOf = (url: URL): string => url.toString();
 

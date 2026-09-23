@@ -10,4 +10,3 @@ export const STATIONS = [
 
 export type StationName = (typeof STATIONS)[number];
 
-export type ConnectorTransport = 'http' | 'sse';

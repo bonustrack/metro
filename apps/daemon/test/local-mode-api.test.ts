@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { allowLocalConnectors } from '../src/connectors/url.ts';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -48,10 +47,6 @@ beforeAll(async () => {
     server.listen(0, '127.0.0.1', done);
   });
   base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
-});
-
-afterAll(() => {
-  allowLocalConnectors(false);
 });
 
 afterAll(() => {

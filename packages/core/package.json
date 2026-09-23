@@ -14,6 +14,7 @@
     "./train-error": "./src/train-error.ts",
     "./trains/protocol": "./src/protocol.ts",
     "./ids": "./src/ids.ts",
+    "./tickets": "./src/tickets.ts",
     "./address": "./src/address.ts",
     "./station-names": "./src/station-names.ts",
     "./str": "./src/str.ts",

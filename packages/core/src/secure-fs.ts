@@ -38,6 +38,23 @@ export function writeSecure(path: string, data: string): void {
   chmodIfExists(path, 0o600);
 }
 
+function modeOf(path: string): number | null {
+  try {
+    return statSync(path).mode & 0o777;
+  } catch {
+    return null;
+  }
+}
+
+export function writeAtomic(path: string, data: string, mode?: number): void {
+  const chosen = mode ?? modeOf(path) ?? 0o644;
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.metro-${String(process.pid)}.tmp`;
+  writeFileSync(tmp, data, { mode: chosen });
+  chmodSync(tmp, chosen);
+  renameSync(tmp, path);
+}
+
 export function readJson<T>(
   path: string,
   fallback: T,
