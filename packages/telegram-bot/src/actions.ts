@@ -53,7 +53,6 @@ async function listAccounts(id: string): Promise<void> {
         id: a.cfg.id,
         handle: username === null ? null : `@${username}`,
         url: username === null ? null : `https://t.me/${username}`,
-        owner: a.cfg.owner ?? null,
         botId: me?.id ?? null,
         username,
       };

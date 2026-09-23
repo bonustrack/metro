@@ -1,36 +1,11 @@
 import type { Message } from '@mtcute/bun';
 import { errMsg, log } from '@metro-labs/core/log';
 import { emit } from './wire.js';
-import { envelope, isOwnEcho, attachmentFailedEnvelope, attachmentSavedEnvelope } from './format.js';
+import { reportAttachment } from '@metro-labs/core/stations/train-events';
+import { envelope, isOwnEcho } from './format.js';
 import { downloadMedia, isDownloadable } from './attachments.js';
 import { subscribeReactions } from './reactions.js';
 import type { UserClient } from './client.js';
-
-async function saveMediaAndEmit(
-  client: UserClient,
-  m: Message,
-  env: Record<string, unknown>,
-): Promise<void> {
-  const { media } = m;
-  if (media === null || !isDownloadable(media)) return;
-  const accountId = client.account.id;
-  try {
-    const saved = await downloadMedia(client, media, String(m.id), 0);
-    emit(
-      attachmentSavedEnvelope(
-        accountId,
-        env.line as string,
-        env.id as string,
-        saved,
-      ),
-    );
-  } catch (e) {
-    process.stderr.write(
-      `telegram[${accountId}] media save failed: ${errMsg(e)}\n`,
-    );
-    emit(attachmentFailedEnvelope(accountId, env.line as string, env.id as string, errMsg(e)));
-  }
-}
 
 function emitMessage(client: UserClient, m: Message): void {
   log.debug(
@@ -40,12 +15,15 @@ function emitMessage(client: UserClient, m: Message): void {
   if (isOwnEcho(m)) return;
   const env = envelope(client.account.id, m);
   emit(env);
-  if (m.media !== null)
-    saveMediaAndEmit(client, m, env).catch((err: unknown) => {
-      process.stderr.write(
-        `telegram[${client.account.id}] media save failed: ${errMsg(err)}\n`,
-      );
-    });
+  const { media } = m;
+  if (media === null || !isDownloadable(media)) return;
+  reportAttachment(downloadMedia(client, media, String(m.id), 0), {
+    station: 'telegram',
+    account: client.account.id,
+    line: String(env.line),
+    forId: String(env.id),
+    index: 0,
+  });
 }
 
 function subscribe(client: UserClient): void {

@@ -246,7 +246,6 @@ describe('whatsapp outbound handlers', () => {
         accounts: [
           {
             id: 'w0',
-            owner: null,
             handle: '+447700900123',
             url: 'https://wa.me/447700900123',
             connected: true,

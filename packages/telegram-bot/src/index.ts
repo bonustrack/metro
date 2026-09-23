@@ -1,8 +1,8 @@
 import { errMsg } from '@metro-labs/core/log';
 import { accounts, loadAccounts, tg, type Account } from './accounts.js';
-import { emit } from './wire.js';
+import { emitInbound } from '@metro-labs/core/stations/train-events';
+import { announceAccounts } from '@metro-labs/core/stations/train-boot';
 import {
-  emitInbound,
   envelope,
   reactionCountEnvelope,
   reactionEnvelope,
@@ -26,16 +26,16 @@ interface Update {
 function handleUpdate(id: string, u: Update): void {
   if (u.message && !u.message.from?.is_bot) {
     const env = envelope(id, u.message);
-    emitInbound(emit, id, env);
-    saveMediaAndEmit(emit, id, u.message, env.id as string);
+    emitInbound(id, env);
+    saveMediaAndEmit(id, u.message, env.id as string);
   }
   if (u.message_reaction) {
     const env = reactionEnvelope(id, u.message_reaction);
-    if (env) emitInbound(emit, id, env);
+    if (env) emitInbound(id, env);
   }
   if (u.message_reaction_count) {
     const env = reactionCountEnvelope(id, u.message_reaction_count);
-    if (env) emitInbound(emit, id, env);
+    if (env) emitInbound(id, env);
   }
 }
 
@@ -93,13 +93,7 @@ for (const cfg of cfgs) {
     offset: 0,
   });
 }
-if (accounts.size === 0) {
-  process.stderr.write('telegram-bot: no accounts booted, exiting\n');
-  process.exit(2);
-}
-process.stderr.write(
-  `telegram-bot train ready (multi) — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
-);
+announceAccounts('telegram-bot', accounts.keys());
 
 for (const acct of accounts.values())
   runAccount(acct).catch((err: unknown) => {

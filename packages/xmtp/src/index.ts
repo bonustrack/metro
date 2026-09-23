@@ -6,7 +6,9 @@ import {
   loadAccounts,
   type Account,
 } from './accounts.js';
-import { emitInbound, envelope } from './emit.js';
+import { emitInbound } from '@metro-labs/core/stations/train-events';
+import { announceAccounts } from '@metro-labs/core/stations/train-boot';
+import { envelope } from './emit.js';
 import { groupNameFor } from './conv-helpers.js';
 import { senderFieldsNow } from './sender.js';
 import { readCalls } from '@metro-labs/core/trains/protocol';
@@ -110,13 +112,7 @@ for (const cfg of cfgs) {
     );
   }
 }
-if (accounts.size === 0) {
-  process.stderr.write('xmtp: no accounts booted, exiting\n');
-  process.exit(2);
-}
-process.stderr.write(
-  `xmtp train ready — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
-);
+announceAccounts('xmtp', accounts.keys());
 
 for (const acct of accounts.values())
   runAccount(acct).catch((err: unknown) => {

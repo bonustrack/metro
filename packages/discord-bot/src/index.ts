@@ -14,9 +14,11 @@ import {
   lineOf,
   type AccountConfig,
 } from './accounts.js';
-import { emitInbound, messageEnvelope, reactionEnvelope } from './format.js';
+import { emitInbound } from '@metro-labs/core/stations/train-events';
+import { messageEnvelope, reactionEnvelope } from './format.js';
 import { mintId } from './wire.js';
 import { readCalls } from '@metro-labs/core/trains/protocol';
+import { announceAccounts } from '@metro-labs/core/stations/train-boot';
 import { handleCall } from './actions.js';
 
 readCalls('discord-bot', handleCall);
@@ -103,7 +105,7 @@ async function bootAccount(cfg: AccountConfig): Promise<void> {
   accounts.set(accountId, { cfg, client });
   await client.login(cfg.token);
   process.stderr.write(
-    `discord-bot[${accountId}] ready — ${client.user?.tag ?? '?'} (owner=${cfg.owner ?? '(broadcast)'})\n`,
+    `discord-bot[${accountId}] ready — ${client.user?.tag ?? '?'}\n`,
   );
 }
 
@@ -117,10 +119,4 @@ for (const cfg of cfgs) {
     );
   }
 }
-if (accounts.size === 0) {
-  process.stderr.write('discord-bot: no accounts booted, exiting\n');
-  process.exit(2);
-}
-process.stderr.write(
-  `discord-bot train ready — ${accounts.size} account(s): ${[...accounts.keys()].join(', ')}\n`,
-);
+announceAccounts('discord-bot', accounts.keys());

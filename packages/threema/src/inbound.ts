@@ -1,7 +1,7 @@
 import type { Account } from './accounts.js';
+import { emitInbound } from '@metro-labs/core/stations/train-events';
 import {
   DIRECT,
-  emitInbound,
   reactionEnvelope,
   receiptEnvelope,
   textEnvelope,
@@ -33,7 +33,7 @@ function reactions(acct: Account, m: InboundMeta, d: Extract<Decoded, { kind: 'r
   for (const target of d.messageIds) {
     const env = receiptEnvelope(acct.cfg.id, m, d.status, target, roomOf(acct, d.group));
     if (env === null) continue;
-    emitInbound(acct.cfg.id, acct.cfg.owner, env);
+    emitInbound(acct.cfg.id, env);
     count += 1;
   }
   return count > 0 ? 'reaction' : `receipt:${String(d.status)}`;
@@ -56,14 +56,13 @@ function control(acct: Account, m: InboundMeta, d: Decoded): string | null {
 }
 
 function chat(acct: Account, m: InboundMeta, d: Decoded): string | null {
-  const owner = acct.cfg.owner;
   if (d.kind === 'text') {
-    emitInbound(acct.cfg.id, owner, textEnvelope(acct.cfg.id, m, d.text, sentByUs));
+    emitInbound(acct.cfg.id, textEnvelope(acct.cfg.id, m, d.text, sentByUs));
     return 'text';
   }
   if (d.kind === 'group-text') {
     askForRoster(acct, d.group);
-    emitInbound(acct.cfg.id, owner, textEnvelope(acct.cfg.id, m, d.text, sentByUs, roomOf(acct, d.group)));
+    emitInbound(acct.cfg.id, textEnvelope(acct.cfg.id, m, d.text, sentByUs, roomOf(acct, d.group)));
     return 'group-text';
   }
   if (d.kind === 'file') {
@@ -73,7 +72,7 @@ function chat(acct: Account, m: InboundMeta, d: Decoded): string | null {
   }
   if (d.kind === 'reaction') {
     if (d.group !== null) askForRoster(acct, d.group);
-    emitInbound(acct.cfg.id, owner, reactionEnvelope(acct.cfg.id, m, d.emoji, d.messageId, d.removed, roomOf(acct, d.group)));
+    emitInbound(acct.cfg.id, reactionEnvelope(acct.cfg.id, m, d.emoji, d.messageId, d.removed, roomOf(acct, d.group)));
     return 'reaction';
   }
   return null;

@@ -22,7 +22,6 @@ const ACCOUNTS_FILE =
 export interface AccountConfig {
   id: string;
   privateKey?: string;
-  owner?: string;
   dbPath?: string;
   smart?: boolean;
 }
@@ -71,7 +70,7 @@ export async function bootAccount(cfg: AccountConfig): Promise<void> {
         'an inbox allows 10, and each machine you run metro on spends one\n',
     );
   process.stderr.write(
-    `xmtp[${cfg.id}] ready — inbox ${client.inboxId} (${address}, owner=${cfg.owner ?? '(broadcast)'})\n`,
+    `xmtp[${cfg.id}] ready — inbox ${client.inboxId} (${address})\n`,
   );
 }
 

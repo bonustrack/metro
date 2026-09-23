@@ -1,9 +1,8 @@
 import { emit, mintId } from '@metro-labs/core/stations/station-runtime';
+import { selfUri } from '@metro-labs/core/stations/train-events';
 import { unquote } from './crypto.js';
 import { groupKey } from './groups.js';
 import { RECEIPT_ACK, RECEIPT_DECLINE, type GroupRef } from './messages.js';
-
-const SELF_URI = process.env.METRO_SELF_URI ?? '';
 
 const REACTION_OF: Record<number, string> = {
   [RECEIPT_ACK]: '👍',
@@ -120,18 +119,6 @@ export function receiptEnvelope(
   return emoji === undefined ? null : reactionEnvelope(accountId, m, emoji, targetId, false, room, 'receipt');
 }
 
-export function emitInbound(
-  accountId: string,
-  owner: string | undefined,
-  env: Record<string, unknown>,
-): void {
-  const payload = {
-    ...(env.payload as Record<string, unknown> | undefined),
-    account: accountId,
-  };
-  emit({ ...env, ...(owner ? { to: owner } : {}), account: accountId, payload });
-}
-
 export function emitOutbound(
   accountId: string,
   line: string,
@@ -145,7 +132,7 @@ export function emitOutbound(
     ts: new Date().toISOString(),
     station: 'threema',
     line,
-    from: SELF_URI,
+    from: selfUri('threema', accountId),
     to: line,
     message_id: messageId,
     text,
@@ -170,7 +157,7 @@ export function emitOutboundReaction(
     ts: new Date().toISOString(),
     station: 'threema',
     line,
-    from: SELF_URI,
+    from: selfUri('threema', accountId),
     to: line,
     message_id: messageId,
     text: `[react ${emoji}${removed ? ' (removed)' : ''}]`,

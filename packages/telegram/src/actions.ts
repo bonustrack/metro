@@ -225,7 +225,6 @@ function makeAccounts(clientFor: ClientFor): StationHandler {
         id: a.id,
         handle: username === null ? me?.phone ?? null : `@${username}`,
         url: username === null ? null : `https://t.me/${username}`,
-        owner: a.owner ?? null,
       };
     });
     respond(id, { result: { accounts: list } });

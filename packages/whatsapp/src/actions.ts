@@ -156,7 +156,6 @@ function makeAccounts(clientFor: ClientFor): StationHandler {
         handle: phone === null ? null : `+${phone}`,
         url: phone === null ? null : `https://wa.me/${phone}`,
         connected: phone !== null,
-        owner: a.owner ?? null,
       };
     });
     respond(id, { result: { accounts: list } });

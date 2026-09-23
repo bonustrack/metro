@@ -13,7 +13,6 @@ const ACCOUNTS_FILE =
 export interface AccountConfig {
   id: string;
   token: string;
-  owner?: string;
 }
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({

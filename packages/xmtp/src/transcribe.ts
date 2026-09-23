@@ -1,7 +1,6 @@
 import { errMsg } from '@metro-labs/core/log';
-import { mintId, SELF_URI } from './wire.js';
-
-type EmitInbound = (accountId: string, e: Record<string, unknown>) => void;
+import { emitInbound, selfUri } from '@metro-labs/core/stations/train-events';
+import { mintId } from './wire.js';
 
 const WHISPER_BIN = process.env.METRO_WHISPER_BIN ?? 'whisper-cli';
 const WHISPER_MODEL =
@@ -14,7 +13,6 @@ export async function transcribeAndEmit(
   line: string,
   accountId: string,
   sourceMsgId: string,
-  emitInbound: EmitInbound,
 ): Promise<void> {
   const {
     existsSync: ex,
@@ -69,7 +67,7 @@ export async function transcribeAndEmit(
       ts: new Date().toISOString(),
       station: 'xmtp',
       line,
-      from: SELF_URI,
+      from: selfUri('xmtp', accountId),
       text: `🎙️ ${text}`,
       payload: {
         contentType: 'transcript',
