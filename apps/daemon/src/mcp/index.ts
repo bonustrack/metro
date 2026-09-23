@@ -4,7 +4,6 @@ import {
   readBody as readBodyBuffer,
 } from '../routes/http.js';
 import {
-  allowedAgents,
   authenticate,
   runWithIdentity,
   type RequestIdentity,
@@ -15,11 +14,7 @@ import {
   serveChannelGet,
 } from './raw-get-stream.js';
 import { channelLog, type McpSession } from './session.js';
-import {
-  SessionCapacityError,
-  SessionRegistry,
-} from './session-registry.js';
-import { routeSession, sessionScopeKey } from './session-route.js';
+import { SessionSlot } from './session-slot.js';
 
 const isInitialize = (b: unknown): boolean =>
   !!b &&
@@ -53,93 +48,57 @@ async function readOrReject(
   }
 }
 
+const NO_SESSION_HEADER = 'Bad Request: Mcp-Session-Id header is required';
+
 async function resolveSession(
-  registry: SessionRegistry,
+  slot: SessionSlot,
   req: IncomingMessage,
   body: unknown,
   identity: RequestIdentity,
   res: ServerResponse,
 ): Promise<McpSession | undefined> {
+  if (isInitialize(body)) return slot.open(identity);
   const presented = headerValue(req, 'mcp-session-id');
-  const scopeKey = sessionScopeKey(identity);
-  const route = routeSession({
-    isInitialize: isInitialize(body),
-    presented,
-    ownership: registry.ownership(presented, scopeKey),
-    hasOwnSession: registry.forScope(scopeKey) !== undefined,
-  });
-  if (route.kind === 'reject') {
-    channelLog(
-      'session: refused',
-      'status',
-      route.status,
-      'presented',
-      presented ?? '(none)',
-      'scope',
-      scopeKey,
-    );
-    res.writeHead(route.status).end(route.message);
+  const current = slot.current;
+  if (presented === undefined) {
+    if (current) return current;
+    channelLog('session: refused, no Mcp-Session-Id and no session');
+    res.writeHead(400).end(NO_SESSION_HEADER);
     return undefined;
   }
-  if (route.kind === 'use') {
-    const found =
-      presented === undefined
-        ? registry.forScope(scopeKey)
-        : registry.get(presented);
-    if (found) return found;
-    res.writeHead(404).end('Session not found');
-    return undefined;
-  }
-  try {
-    return await registry.create(identity, route.adoptId);
-  } catch (err) {
-    if (!(err instanceof SessionCapacityError)) throw err;
-    res.writeHead(503).end(err.message);
-    return undefined;
-  }
+  if (current?.id === presented) return current;
+  return slot.open(identity, presented);
 }
 
 async function serveGet(
   session: McpSession,
   req: IncomingMessage,
   res: ServerResponse,
-  identity: RequestIdentity,
 ): Promise<void> {
-  if (session.currentSink && !session.owner.streamBelongsTo(identity)) {
-    channelLog(
-      'session: refused stream takeover',
-      'session',
-      session.id,
-      'scope',
-      session.scopeKey,
-    );
-    res.writeHead(409).end('Conflict: stream held by another identity');
-    return;
-  }
   const served = await serveChannelGet({
     transport: session.transport,
     eventStore: session.eventStore,
-    scope: allowedAgents(identity),
+    scope: session.scope,
     req,
     res,
     previous: session.currentSink,
     log: channelLog,
     registerSink: (sink) => {
-      session.bindSink(sink, identity);
+      session.bindSink(sink);
     },
   });
   if (served) session.channel.replayMissed();
 }
 
-let activeRegistry: SessionRegistry | undefined;
+let activeSlot: SessionSlot | undefined;
 
 export async function createMetroMcp(): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
 }> {
-  await activeRegistry?.closeAll();
-  const registry = new SessionRegistry(channelLog);
-  activeRegistry = registry;
+  await activeSlot?.close();
+  const slot = new SessionSlot();
+  activeSlot = slot;
 
   const httpHandler = async (
     req: IncomingMessage,
@@ -154,16 +113,15 @@ export async function createMetroMcp(): Promise<{
     if (!parsed.ok) return;
     await runWithIdentity(identity, async () => {
       const session = await resolveSession(
-        registry,
+        slot,
         req,
         parsed.body,
         identity,
         res,
       );
       if (!session) return;
-      session.touch();
       if (isStandaloneGet(req)) {
-        await serveGet(session, req, res, identity);
+        await serveGet(session, req, res);
         return;
       }
       await session.transport.handleRequest(req, res, parsed.body);
@@ -171,10 +129,8 @@ export async function createMetroMcp(): Promise<{
   };
 
   const startInbound = (): void => {
-    registry.startInbound();
-    channelLog(
-      'inbound: per-session bus subscriptions (bounded replay on reconnect)',
-    );
+    slot.startInbound();
+    channelLog('inbound: bus subscription (bounded replay on reconnect)');
   };
 
   return { httpHandler, startInbound };

@@ -190,16 +190,6 @@ describe('an upload belongs to the agent that made it', () => {
     expect(text(res)).toContain('is not a live upload of yours');
     expect(seen).toHaveLength(0);
   });
-
-  test('a google session over that agent may use it', async () => {
-    labels = ['file'];
-    const id = stored('agent000001');
-    const res = await runWithIdentity(
-      { kind: 'session', subject: 'x@y.z', agentIds: ['agent000001', 'agent000003'] },
-      () => dispatchMessageTool('send', { line: WHATSAPP, attachments: [{ upload: id }] }),
-    );
-    expect(res.isError).toBeUndefined();
-  });
 });
 
 describe('an upload that is not there is an error, never a silent drop', () => {

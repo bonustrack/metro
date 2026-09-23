@@ -8,13 +8,12 @@ import {
   senderMatchesAllowlist,
 } from '../agents/map.js';
 import { accountStationNames } from '../stations/registry.js';
+import { eventInScope } from '../agents/scope.js';
 import { MCP_INSTRUCTIONS } from './instructions.js';
-import { ChannelOwner } from './channel-owner.js';
 import { BoundedEventStore } from './event-store.js';
 import { registerPermissionRelay } from './permission-relay.js';
 import { registerToolHandlers, toolSchemaSignature } from './tool-dispatch.js';
 import { web, type RawGetSink } from './raw-get-stream.js';
-import type { RequestIdentity } from './request-identity.js';
 
 export const channelLog = (...a: unknown[]): void => {
   console.error('[metro-mcp]', ...a);
@@ -47,7 +46,7 @@ function makeTransport(
 
 export interface SessionInit {
   id: string;
-  scopeKey: string;
+  scope: Set<string>;
   adopted: boolean;
   ledger: ReplayLedger;
   onClosed: (session: McpSession) => void;
@@ -55,14 +54,12 @@ export interface SessionInit {
 
 export class McpSession {
   readonly id: string;
-  readonly scopeKey: string;
-  readonly owner = new ChannelOwner();
+  readonly scope: Set<string>;
   readonly eventStore: BoundedEventStore;
   readonly transport: StreamableHTTPServerTransport;
   readonly server: Server;
   readonly relay: InboundRelay;
   readonly channel: ChannelRelay;
-  lastSeenAt = Date.now();
   private sink: RawGetSink | undefined;
   private unsubscribe: (() => void) | undefined;
   private closed = false;
@@ -72,12 +69,10 @@ export class McpSession {
 
   private constructor(init: SessionInit) {
     this.id = init.id;
-    this.scopeKey = init.scopeKey;
+    this.scope = init.scope;
     this.issuedSchema = init.adopted ? undefined : toolSchemaSignature();
     this.onClosed = init.onClosed;
-    this.eventStore = new BoundedEventStore({
-      scopeOf: () => this.owner.scope(),
-    });
+    this.eventStore = new BoundedEventStore();
     this.transport = makeTransport(init.id, this.eventStore, init.adopted);
     this.server = new Server(
       { name: 'metro', version: '0.1.0' },
@@ -113,13 +108,13 @@ export class McpSession {
     registerPermissionRelay({
       mcp: this.server,
       relay: this.relay,
-      owner: this.owner,
+      inScope: (line) => this.inScope(line),
       log: channelLog,
     });
     this.channel = new ChannelRelay({
       relay: this.relay,
       log: channelLog,
-      inScope: (line) => this.owner.inScope(line),
+      inScope: (line) => this.inScope(line),
       ledger: init.ledger,
     });
   }
@@ -143,22 +138,17 @@ export class McpSession {
     return this.sink;
   }
 
-  touch(): void {
-    this.lastSeenAt = Date.now();
+  inScope(line: string): boolean {
+    return this.streamAttached && eventInScope(this.scope, line);
   }
 
   startChannel(): void {
     this.unsubscribe ??= this.channel.start();
   }
 
-  bindSink(sink: RawGetSink | undefined, identity: RequestIdentity): void {
+  bindSink(sink: RawGetSink | undefined): void {
     this.sink = sink;
-    if (sink === undefined) {
-      this.owner.releaseStream();
-      return;
-    }
-    this.owner.bindStream(identity);
-    this.announceToolSchema();
+    if (sink !== undefined) this.announceToolSchema();
   }
 
   private get schemaNoticeDue(): boolean {
@@ -176,15 +166,7 @@ export class McpSession {
   private deliverSchemaNotice(send: () => Promise<void>, via: string): void {
     if (!this.schemaNoticeDue || this.announcing) return;
     this.announcing = true;
-    channelLog(
-      'session: tool list changed',
-      'id',
-      this.id,
-      'scope',
-      this.scopeKey,
-      'via',
-      via,
-    );
+    channelLog('session: tool list changed', 'id', this.id, 'via', via);
     send()
       .then(() => {
         this.issuedSchema = toolSchemaSignature();
@@ -199,7 +181,6 @@ export class McpSession {
   dropStream(): void {
     const sink = this.sink;
     this.sink = undefined;
-    this.owner.releaseStream();
     sink?.close();
   }
 

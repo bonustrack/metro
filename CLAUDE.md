@@ -112,11 +112,11 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 - **The agent key is the only credential for `/mcp`, the relay, the gateway, uploads and `/api/tail`.** `authenticate()` checks the key map only (`agents/keys.ts`, SHA-256 of the key to agent id, no plaintext). A daemon with no key is closed, not open.
 - **The agent key never leaves the box and no API returns it to the page.** `GET /api/agents` and the bundle carry no key; a restore keeps the key on disk. The key is needed because Funnel delivers internet requests from loopback.
 - There is no key reset. Recovery: a new `key` in `agent.json`, then a restart.
-- `allowedAgents()` is the one place turning an identity into a `Set`; it never returns `undefined`.
+- `allowedAgents()` is the one place turning an identity into a `Set`; it never returns `undefined`. The only identity is `{kind: 'agent', agentId}`.
 - **Scope by agent id, never by name.** Names are not unique; a name comparison in an auth path is a cross-owner leak that is not a type error.
-- **Per-identity MCP sessions** (`mcp/session.ts`): each `McpSession` owns its server, transport, stream, `ChannelOwner`, event store, relays and bus subscription. **Do not collapse any of this into a singleton** (`test/session-concurrency.test.ts`).
-- One live session per scope key (the sorted agent id set). `MAX_SESSIONS` 64 evicts the LRU streamless session, else 503; never drop a live one. Idle streamless sessions go after 10 minutes.
-- `routeSession`: someone else's session id is a flat 404. An adopted session is told the tool schema moved (on the GET stream or inside a `tools/call`); `tools/list` settles it silently, since notifying there loops.
+- **One MCP session per box** (`mcp/session-slot.ts`): a box runs one agent, so the daemon holds one `McpSession` (its server, transport, stream, event store, relays and bus subscription). An `initialize` closes the current one and opens a new one. A request with no session id uses the current one. An unknown session id is adopted (a client that outlived a daemon restart), never refused. `test/one-session.test.ts`.
+- **The replay ledger belongs to the slot, not the session**, so a message that arrived while the agent was away is delivered after a reconnect and after a full re-initialize.
+- An adopted session is told the tool schema moved (on the GET stream or inside a `tools/call`); `tools/list` settles it silently, since notifying there loops.
 - **A client that is neither streaming nor calling cannot be reached.** After any daemon restart or deploy, tell the user to reconnect `/mcp` or restart the client.
 
 ### One scope predicate for every egress (`agents/scope.ts`)
@@ -124,9 +124,9 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 - `lineTargetDenied` resolves `args.line` and also any `args.account` override (stations resolve `account ?? line`). `stationFullyScoped` covers calls with no line.
 - **`eventInScope` fails closed.** An account-station line whose account maps to no agent goes nowhere; an unparsable line reaches nobody. The one carve-out is by station: a station with no accounts (`metro://claude/…`) reaches every authenticated tail. Do not remove that carve-out.
 - **Four egresses share one case table** (`test/egress-scope-matrix.test.ts`): channel live, channel bus replay, SSE resumption, monitor tail. **Add any new egress to that table.**
-- **SSE resumption re-checks every frame** (`replayEventsAfter` takes the reconnecting scope as a required option; `scope: undefined` replays nothing). Keep both this gate and the relay gate even though they look redundant.
-- An out-of-scope event is withheld, not dropped, so its owner still gets it on replay. `streamBelongsTo` (409) stays as the last guard.
-- `permission-relay.ts` re-checks scope before pushing an approval prompt (it contains tool input).
+- **SSE resumption re-checks every frame that names a line** (`replayEventsAfter` takes the reconnecting scope as a required option); a frame with no line (a response, a tool list notice) replays. Keep both this gate and the relay gate.
+- The channel delivers only while a GET stream is attached. Otherwise the event is withheld, not dropped, and the bus ring replays it when a stream comes back.
+- `permission-relay.ts` re-checks the line with the session's scope before pushing an approval prompt (it contains tool input).
 
 ### Human in the loop
 

@@ -1,41 +1,31 @@
 /**
- * Two agents, two owners, one account each. Drives the real inbound path
- * (publishEvent -> bus -> ChannelRelay -> InboundRelay -> notification) with the
- * same `eventInScope` predicate the outbound gate and the Monitor tail use, and
- * asserts an account's traffic only ever reaches the session that owns it.
+ * Drives the real inbound path (publishEvent -> bus -> ChannelRelay ->
+ * InboundRelay -> notification) with the gate the session uses: a stream must
+ * be attached and the line must pass `eventInScope`. A line whose account maps
+ * to no agent never arrives; an event with no stream to read it waits in the
+ * ring for the next one.
  */
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { ChannelRelay } from '../src/channels/relay.ts';
 import { InboundRelay } from '../src/channels/inbound.ts';
-import { ChannelOwner } from '../src/mcp/channel-owner.ts';
+import { eventInScope } from '../src/agents/scope.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { setAgentMap } from '../src/agents/map.ts';
 import { asLine } from '@metro-labs/core/lines';
-import type { RequestIdentity } from '../src/mcp/request-identity.ts';
 
-const TONY: RequestIdentity = { kind: 'agent', agentId: 'agent000001' };
-const LISA: RequestIdentity = { kind: 'agent', agentId: 'agent000034' };
-const TONY_OWNER: RequestIdentity = {
-  kind: 'session',
-  subject: 'tony@example.test',
-  agentIds: ['agent000001'],
-};
-
+const TONY = new Set(['agent000001']);
 const TONY_LINE = 'metro://whatsapp/a1-tony/111@lid';
-const LISA_LINE = 'metro://whatsapp/a34-lisa/222@lid';
+const STRAY_LINE = 'metro://whatsapp/a9-stray/222@lid';
 
 beforeEach(() =>
-  setAgentMap(
-    { 'whatsapp/a1-tony': 'agent000001', 'whatsapp/a34-lisa': 'agent000034' },
-    { ['agent000001']: 'Tony', ['agent000034']: 'Lisa' },
-  ),
+  setAgentMap({ 'whatsapp/a1-tony': 'agent000001' }, { ['agent000001']: 'Tony' }),
 );
 afterAll(() => setAgentMap({}, {}));
 
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 30));
 
-function makeSession(owner: ChannelOwner): {
+function makeSession(stream: { attached: boolean }): {
   received: string[];
   channel: ChannelRelay;
 } {
@@ -56,7 +46,7 @@ function makeSession(owner: ChannelOwner): {
     channel: new ChannelRelay({
       relay,
       log: () => {},
-      inScope: (line) => owner.inScope(line),
+      inScope: (line) => stream.attached && eventInScope(TONY, line),
     }),
   };
 }
@@ -74,109 +64,36 @@ const inbound = (line: string, text: string): MetroEvent =>
     event: { type: 'msg' },
   }) as unknown as MetroEvent;
 
-describe('inbound delivery is scoped to the account owner', () => {
-  test('each session receives only its own account traffic', async () => {
-    const owner = new ChannelOwner();
-    const { received, channel } = makeSession(owner);
+describe('inbound delivery is scoped to the agent', () => {
+  test('a line whose account maps to no agent never arrives, the agent own line does', async () => {
+    const stream = { attached: true };
+    const { received, channel } = makeSession(stream);
     const stop = channel.start();
 
-    owner.bindStream(TONY);
+    publishEvent(inbound(STRAY_LINE, 'stray'));
     publishEvent(inbound(TONY_LINE, 'hello tony'));
-    publishEvent(inbound(LISA_LINE, 'hello lisa'));
     await settle();
-
-    expect(received).toEqual(['hello tony']);
-
-    owner.bindStream(LISA);
     channel.replayMissed();
     await settle();
     stop();
 
-    expect(received).toEqual(['hello tony', 'hello lisa']);
+    expect(received).toEqual(['hello tony']);
   });
 
-  test('a session holding the transport never receives another agent traffic', async () => {
-    const owner = new ChannelOwner();
-    const { received, channel } = makeSession(owner);
+  test('with no stream an event is withheld, then replayed once one attaches', async () => {
+    const stream = { attached: false };
+    const { received, channel } = makeSession(stream);
     const stop = channel.start();
 
-    owner.bindStream(LISA);
-    publishEvent(inbound(TONY_LINE, 'tony only'));
-    await settle();
-    stop();
-
-    expect(received).toEqual([]);
-  });
-
-  test('a withheld event is replayed to its owner, not dropped', async () => {
-    const owner = new ChannelOwner();
-    const { received, channel } = makeSession(owner);
-    const stop = channel.start();
-
-    owner.bindStream(LISA);
     publishEvent(inbound(TONY_LINE, 'held for tony'));
     await settle();
     expect(received).toEqual([]);
 
-    owner.bindStream(TONY);
+    stream.attached = true;
     channel.replayMissed();
     await settle();
     stop();
 
     expect(received).toEqual(['held for tony']);
-  });
-
-  test('an unauthenticated channel receives nothing', async () => {
-    const owner = new ChannelOwner();
-    const { received, channel } = makeSession(owner);
-    const stop = channel.start();
-
-    publishEvent(inbound(TONY_LINE, 'nobody is bound'));
-    publishEvent(inbound(LISA_LINE, 'nobody is bound either'));
-    await settle();
-    stop();
-
-    expect(received).toEqual([]);
-  });
-
-  test('a google session scoped to one agent sees only that agent', async () => {
-    const owner = new ChannelOwner();
-    const { received, channel } = makeSession(owner);
-    const stop = channel.start();
-
-    owner.bindStream(TONY_OWNER);
-    publishEvent(inbound(LISA_LINE, 'not yours'));
-    publishEvent(inbound(TONY_LINE, 'yours'));
-    await settle();
-    stop();
-
-    expect(received).toEqual(['yours']);
-  });
-});
-
-describe('ChannelOwner', () => {
-  test('the bound stream decides what is in scope', () => {
-    const owner = new ChannelOwner();
-    owner.bindStream(LISA);
-    expect(owner.inScope(TONY_LINE)).toBe(false);
-    expect(owner.inScope(LISA_LINE)).toBe(true);
-  });
-
-  test('with no stream bound nothing is deliverable', () => {
-    const owner = new ChannelOwner();
-    expect(owner.inScope(TONY_LINE)).toBe(false);
-    expect(owner.inScope('metro://webhook/gh')).toBe(false);
-    owner.bindStream(TONY);
-    owner.releaseStream();
-    expect(owner.inScope(TONY_LINE)).toBe(false);
-  });
-
-  test('an open stream is only kept across a rebind by the same scope', () => {
-    const owner = new ChannelOwner();
-    expect(owner.streamBelongsTo(TONY)).toBe(false);
-    owner.bindStream(TONY);
-    expect(owner.streamBelongsTo(TONY)).toBe(true);
-    expect(owner.streamBelongsTo(TONY_OWNER)).toBe(true);
-    expect(owner.streamBelongsTo(LISA)).toBe(false);
   });
 });

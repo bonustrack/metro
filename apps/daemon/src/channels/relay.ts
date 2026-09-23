@@ -83,7 +83,7 @@ export class ChannelRelay {
   private withhold(event: MetroEvent, busSeq: number): void {
     this.ledger.delivered.delete(busSeq);
     this.deps.log(
-      'relay: withheld (line outside the channel session scope)',
+      'relay: withheld (no stream, or line outside the agent scope)',
       'busSeq',
       busSeq,
       'line',

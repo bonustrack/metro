@@ -4,7 +4,8 @@ import type {
   StreamId,
 } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
-import { frameInScope, frameLine } from './frame-scope.js';
+import { str } from '@metro-labs/core/str';
+import { eventInScope } from '../agents/scope.js';
 
 const EVENT_STORE_MAX = 500;
 
@@ -13,21 +14,23 @@ interface StoredEvent {
   streamId: StreamId;
   message: JSONRPCMessage;
   line: string | undefined;
-  owner: Set<string>;
-}
-
-export interface EventStoreDeps {
-  scopeOf: () => Set<string>;
-  max?: number;
 }
 
 export interface ScopedReplay {
   send: (eventId: EventId, message: JSONRPCMessage) => Promise<void>;
-  scope: Set<string> | undefined;
+  scope: Set<string>;
   onWithheld?: (eventId: EventId, line: string | undefined) => void;
 }
 
 const SEP = '_';
+
+function frameLine(message: JSONRPCMessage): string | undefined {
+  const params: unknown = (message as { params?: unknown }).params;
+  if (typeof params !== 'object' || params === null) return undefined;
+  const meta: unknown = (params as { meta?: unknown }).meta;
+  if (typeof meta !== 'object' || meta === null) return undefined;
+  return str((meta as { line?: unknown }).line) || undefined;
+}
 
 const encodeEventId = (streamId: StreamId, seq: number): EventId =>
   `${streamId}${SEP}${seq}`;
@@ -40,13 +43,11 @@ const decodeStreamId = (eventId: EventId): StreamId | undefined => {
 
 export class BoundedEventStore implements EventStore {
   private readonly max: number;
-  private readonly scopeOf: () => Set<string>;
   private readonly events: StoredEvent[] = [];
   private seq = 0;
 
-  constructor(deps: EventStoreDeps) {
-    this.scopeOf = deps.scopeOf;
-    this.max = deps.max ?? EVENT_STORE_MAX;
+  constructor(max = EVENT_STORE_MAX) {
+    this.max = max;
   }
 
   storeEvent(streamId: StreamId, message: JSONRPCMessage): Promise<EventId> {
@@ -56,7 +57,6 @@ export class BoundedEventStore implements EventStore {
       streamId,
       message,
       line: frameLine(message),
-      owner: new Set(this.scopeOf()),
     });
     if (this.events.length > this.max) this.events.shift();
     return Promise.resolve(eventId);
@@ -72,7 +72,6 @@ export class BoundedEventStore implements EventStore {
   ): Promise<StreamId> {
     const streamId = decodeStreamId(lastEventId);
     if (streamId === undefined) return '';
-    const allowed = scope ?? new Set<string>();
     let seen = false;
     for (const e of this.events) {
       if (e.streamId !== streamId) continue;
@@ -80,7 +79,7 @@ export class BoundedEventStore implements EventStore {
         if (e.eventId === lastEventId) seen = true;
         continue;
       }
-      if (!frameInScope(allowed, e)) {
+      if (e.line !== undefined && !eventInScope(scope, e.line)) {
         onWithheld?.(e.eventId, e.line);
         continue;
       }

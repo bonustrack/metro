@@ -2,9 +2,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage } from 'node:http';
 import { agentIdForKey } from '../agents/keys.js';
 
-export type RequestIdentity =
-  | { kind: 'agent'; agentId: string }
-  | { kind: 'session'; subject: string; agentIds: string[] };
+export interface RequestIdentity {
+  kind: 'agent';
+  agentId: string;
+}
 
 const storage = new AsyncLocalStorage<RequestIdentity>();
 
@@ -41,7 +42,5 @@ export function authenticate(req: IncomingMessage): RequestIdentity | null {
 export function allowedAgents(
   identity: RequestIdentity | undefined,
 ): Set<string> {
-  if (identity?.kind === 'session') return new Set(identity.agentIds);
-  if (identity?.kind === 'agent') return new Set([identity.agentId]);
-  return new Set();
+  return identity ? new Set([identity.agentId]) : new Set();
 }

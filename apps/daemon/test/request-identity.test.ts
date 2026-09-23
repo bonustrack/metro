@@ -67,11 +67,4 @@ describe('allowedAgents', () => {
   test('an agent key is scoped to exactly its own agent id', () => {
     expect(allowedAgents({ kind: 'agent', agentId: 'agent000012' })).toEqual(new Set(['agent000012']));
   });
-
-  test('a multi-agent scope is exactly its agent ids, and an empty one is nothing', () => {
-    expect(allowedAgents({ kind: 'session', subject: 'a@b.co', agentIds: ['agent000001', 'agent000002'] })).toEqual(
-      new Set(['agent000001', 'agent000002']),
-    );
-    expect(allowedAgents({ kind: 'session', subject: 'a@b.co', agentIds: [] })).toEqual(new Set());
-  });
 });

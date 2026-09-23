@@ -1,7 +1,6 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { z } from 'zod';
 import type { InboundRelay } from '../channels/inbound.js';
-import type { ChannelOwner } from './channel-owner.js';
 import { metroCall } from './ctx.js';
 
 const PermissionRequestSchema = z.object({
@@ -33,12 +32,12 @@ function promptBody(params: PermissionRequest['params']): string {
 export interface PermissionRelayDeps {
   mcp: Server;
   relay: InboundRelay;
-  owner: ChannelOwner;
+  inScope: (line: string) => boolean;
   log: (...a: unknown[]) => void;
 }
 
 export function registerPermissionRelay(deps: PermissionRelayDeps): void {
-  const { mcp, relay, owner, log } = deps;
+  const { mcp, relay, inScope, log } = deps;
   mcp.setNotificationHandler(
     PermissionRequestSchema as never,
     async (n: PermissionRequest) => {
@@ -48,9 +47,9 @@ export function registerPermissionRelay(deps: PermissionRelayDeps): void {
         log('permission_request but no known line to relay to', params.request_id);
         return;
       }
-      if (!owner.inScope(line)) {
+      if (!inScope(line)) {
         log(
-          'permission_request: known line is outside the channel session scope',
+          'permission_request: known line is outside the agent scope',
           params.request_id,
         );
         return;

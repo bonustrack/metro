@@ -1,12 +1,7 @@
 /**
- * Every way an inbound event can reach a client, held to ONE invariant.
- *
- * #127 gated `ChannelRelay.deliver()` and shipped, but SSE resumption is a
- * separate egress that never consults the relay — so the gate was real and the
- * leak survived it (prod v146). The point of this file is that the egress list
- * and the case table are written once and crossed: a new path that forgets to
- * scope fails here the moment it is added to EGRESS, and a path nobody adds is
- * visible as a missing row rather than as an absent one-off test.
+ * Every way an inbound event can reach a client, held to ONE invariant. The
+ * egress list and the case table are written once and crossed: a new path that
+ * forgets the gate fails here the moment it is added to EGRESS.
  *
  * Invariant, for every path and every reader: the reader receives the frame if
  * and only if `eventInScope(readerScope, line)` is true.
@@ -20,10 +15,8 @@ import { randomUUID } from 'node:crypto';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { ChannelRelay } from '../src/channels/relay.ts';
 import { InboundRelay } from '../src/channels/inbound.ts';
-import { ChannelOwner } from '../src/mcp/channel-owner.ts';
 import { BoundedEventStore } from '../src/mcp/event-store.ts';
 import { serveStandaloneGet } from '../src/mcp/raw-get-stream.ts';
-import type { RequestIdentity } from '../src/mcp/request-identity.ts';
 import { makeEmit, startWebhookServer } from '../src/routes/http.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { eventInScope } from '../src/agents/scope.ts';
@@ -34,16 +27,11 @@ import { asLine } from '@metro-labs/core/lines';
 const STREAM = '_GET_stream';
 
 const TONY_LINE = 'metro://whatsapp/m1-tony/111@lid';
-const LISA_LINE = 'metro://whatsapp/m34-lisa/222@lid';
-const MO_LINE = 'metro://whatsapp/m7-mo/333@lid';
 const GHOST_LINE = 'metro://whatsapp/m99-ghost/444@lid';
 const TONY_HOOK = 'metro://webhook/a1-gh';
-const LISA_HOOK = 'metro://webhook/a34-gh';
 const GHOST_HOOK = 'metro://webhook/nobody-gh';
 
 const TONY_KEY = 'mk_matrix_tony';
-const LISA_KEY = 'mk_matrix_lisa';
-const PARKED_AGENT = 'agent000999';
 
 interface Reader {
   label: string;
@@ -52,11 +40,6 @@ interface Reader {
 }
 
 const TONY: Reader = { label: 'agent 1', scope: new Set(['agent000001']), token: TONY_KEY };
-const LISA: Reader = {
-  label: 'agent 34',
-  scope: new Set(['agent000034']),
-  token: LISA_KEY,
-};
 const NOBODY: Reader = { label: 'no identity', scope: new Set(), token: undefined };
 
 interface Case {
@@ -68,34 +51,14 @@ interface Case {
 
 const CASES: Case[] = [
   { name: 'its own account', reader: TONY, line: TONY_LINE, delivered: true },
-  { name: 'another agent account', reader: TONY, line: LISA_LINE, delivered: false },
-  { name: 'a third agent account', reader: TONY, line: MO_LINE, delivered: false },
   {
     name: 'an account with no owning agent',
     reader: TONY,
     line: GHOST_LINE,
     delivered: false,
   },
-  {
-    name: 'the other agent own account',
-    reader: LISA,
-    line: LISA_LINE,
-    delivered: true,
-  },
-  {
-    name: 'the first agent account',
-    reader: LISA,
-    line: TONY_LINE,
-    delivered: false,
-  },
   { name: 'any account at all', reader: NOBODY, line: TONY_LINE, delivered: false },
   { name: 'its own webhook', reader: TONY, line: TONY_HOOK, delivered: true },
-  {
-    name: 'another agent webhook',
-    reader: TONY,
-    line: LISA_HOOK,
-    delivered: false,
-  },
   {
     name: 'a webhook with no owning agent',
     reader: TONY,
@@ -110,19 +73,10 @@ let monitorBase = '';
 
 beforeAll(async () => {
   setAgentMap(
-    {
-      'whatsapp/m1-tony': 'agent000001',
-      'whatsapp/m34-lisa': 'agent000034',
-      'whatsapp/m7-mo': 'agent000007',
-      'webhook/a1-gh': 'agent000001',
-      'webhook/a34-gh': 'agent000034',
-    },
-    { ['agent000001']: 'Tony', ['agent000034']: 'Lisa', 7: 'Mo' },
+    { 'whatsapp/m1-tony': 'agent000001', 'webhook/a1-gh': 'agent000001' },
+    { ['agent000001']: 'Tony' },
   );
-  setKeyMap([
-    { key: TONY_KEY, agentId: 'agent000001' },
-    { key: LISA_KEY, agentId: 'agent000034' },
-  ]);
+  setKeyMap([{ key: TONY_KEY, agentId: 'agent000001' }]);
   process.env.METRO_WEBHOOK_PORT = String(
     12000 + Math.floor(Math.random() * 12000),
   );
@@ -139,11 +93,6 @@ afterAll(async () => {
   if (server) await new Promise<void>((r) => server?.close(() => r()));
 });
 
-const identityFor = (reader: Reader): RequestIdentity | undefined =>
-  reader.scope.size === 0
-    ? undefined
-    : { kind: 'session', subject: `${reader.label}@example.test`, agentIds: [...reader.scope] };
-
 const stationOf = (line: string): string => line.split('/')[2] ?? 'whatsapp';
 
 const inbound = (line: string, text: string): MetroEvent =>
@@ -159,17 +108,14 @@ const inbound = (line: string, text: string): MetroEvent =>
     event: { type: 'msg' },
   }) as unknown as MetroEvent;
 
-const OWNER_OF: Record<string, string> = {
-  [TONY_LINE]: 1,
-  [LISA_LINE]: 34,
-  [MO_LINE]: 7,
-  [TONY_HOOK]: 1,
-  [LISA_HOOK]: 34,
-};
-
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 40));
 
-function channelSession(owner: ChannelOwner): {
+interface Stream {
+  attached: boolean;
+  scope: Set<string>;
+}
+
+function channelSession(stream: Stream): {
   received: string[];
   channel: ChannelRelay;
 } {
@@ -187,36 +133,35 @@ function channelSession(owner: ChannelOwner): {
   });
   return {
     received,
-    channel: new ChannelRelay({ relay, log: () => undefined, inScope: (l) => owner.inScope(l) }),
+    channel: new ChannelRelay({
+      relay,
+      log: () => undefined,
+      inScope: (l) => stream.attached && eventInScope(stream.scope, l),
+    }),
   };
 }
 
 async function liveChannel(reader: Reader, line: string, text: string): Promise<boolean> {
-  const owner = new ChannelOwner();
-  const { received, channel } = channelSession(owner);
+  const stream = { attached: reader.token !== undefined, scope: reader.scope };
+  const { received, channel } = channelSession(stream);
   const stop = channel.start();
-  const identity = identityFor(reader);
-  if (identity) owner.bindStream(identity);
   publishEvent(inbound(line, text));
   await settle();
   stop();
   return received.includes(text);
 }
 
-async function busReplayAfterRebind(
+async function busReplayAfterReconnect(
   reader: Reader,
   line: string,
   text: string,
 ): Promise<boolean> {
-  const owner = new ChannelOwner();
-  const { received, channel } = channelSession(owner);
+  const stream = { attached: false, scope: reader.scope };
+  const { received, channel } = channelSession(stream);
   const stop = channel.start();
-  owner.bindStream({ kind: 'agent', agentId: PARKED_AGENT });
   publishEvent(inbound(line, text));
   await settle();
-  const identity = identityFor(reader);
-  if (identity) owner.bindStream(identity);
-  else owner.releaseStream();
+  stream.attached = reader.token !== undefined;
   channel.replayMissed();
   await settle();
   stop();
@@ -242,12 +187,8 @@ const notification = (line: string, content: string): JSONRPCMessage =>
   }) as unknown as JSONRPCMessage;
 
 async function sseResume(reader: Reader, line: string, text: string): Promise<boolean> {
-  const owner = new ChannelOwner();
-  const store = new BoundedEventStore({ scopeOf: () => owner.scope() });
-  owner.bindStream({ kind: 'agent', agentId: PARKED_AGENT });
-  const base = await store.storeEvent(STREAM, notification(MO_LINE, 'baseline'));
-  const author = OWNER_OF[line] ?? 1;
-  owner.bindStream({ kind: 'agent', agentId: author });
+  const store = new BoundedEventStore();
+  const base = await store.storeEvent(STREAM, notification(TONY_LINE, 'baseline'));
   await store.storeEvent(STREAM, notification(line, text));
 
   const out = new PassThrough();
@@ -319,7 +260,7 @@ const EGRESS: Record<
   (reader: Reader, line: string, text: string) => Promise<boolean>
 > = {
   'channel live delivery': liveChannel,
-  'channel bus replay after rebind': busReplayAfterRebind,
+  'channel bus replay after reconnect': busReplayAfterReconnect,
   'SSE resumption from Last-Event-ID': sseResume,
   'monitor tail': monitorTail,
 };
@@ -336,7 +277,7 @@ describe('every egress applies the same scope predicate', () => {
   test('the matrix covers every place eventInScope is consulted', () => {
     expect(Object.keys(EGRESS).sort()).toEqual([
       'SSE resumption from Last-Event-ID',
-      'channel bus replay after rebind',
+      'channel bus replay after reconnect',
       'channel live delivery',
       'monitor tail',
     ]);

@@ -101,7 +101,7 @@ describe('validateStandaloneSession', () => {
 
 describe('serveStandaloneGet', () => {
   test('writes headers + priming comment, registers sink, replays last-event-id', async () => {
-    const eventStore = new BoundedEventStore({ scopeOf: () => TONY });
+    const eventStore = new BoundedEventStore();
     const id = await eventStore.storeEvent('_GET_stream', {
       jsonrpc: '2.0',
       method: 'notifications/claude/channel',
@@ -196,7 +196,7 @@ async function serve(): Promise<Served> {
   const registered: (RawGetSink | undefined)[] = [];
   await serveStandaloneGet({
     transport: transport as never,
-    eventStore: new BoundedEventStore({ scopeOf: () => TONY }),
+    eventStore: new BoundedEventStore(),
     scope: TONY,
     req: fakeReq('GET', { accept: 'text/event-stream', 'mcp-session-id': 's1' }),
     res,
