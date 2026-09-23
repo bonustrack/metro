@@ -3,6 +3,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const PRODUCTION_HEAD = 1788557725042;
+
 const DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'drizzle');
 
 interface JournalEntry {
@@ -42,8 +44,12 @@ describe('the migrations the release command applies', () => {
       expect(tags.has(file.replace(/\.sql$/, ''))).toBe(true);
   });
 
-  test('0034 is the newest migration, and no snapshot is kept for a generator nobody runs', () => {
-    expect(journal().at(-1)?.tag).toBe('0034_user_status');
+  test('the baseline carries the stamp of the last migration production applied, so the migrator skips it there', () => {
+    expect(journal()[0]).toMatchObject({ tag: '0000_baseline', when: PRODUCTION_HEAD });
     expect(readdirSync(join(DIR, 'meta'))).toEqual(['_journal.json']);
+  });
+
+  test('a migration added later is stamped after the baseline, or production never runs it', () => {
+    for (const entry of journal().slice(1)) expect(entry.when).toBeGreaterThan(PRODUCTION_HEAD);
   });
 });

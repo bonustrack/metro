@@ -1,2 +1,0 @@
-UPDATE "accounts" SET "config" = "config" || jsonb_build_object('credentials', "credentials") WHERE "station" = 'whatsapp' AND "credentials" IS NOT NULL;--> statement-breakpoint
-ALTER TABLE "accounts" DROP COLUMN "credentials";

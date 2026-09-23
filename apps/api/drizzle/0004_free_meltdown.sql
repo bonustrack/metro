@@ -1,1 +1,0 @@
-DROP TABLE "whatsapp_auth" CASCADE;

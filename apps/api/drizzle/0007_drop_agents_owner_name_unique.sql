@@ -1,1 +1,0 @@
-DROP INDEX IF EXISTS "agents_owner_name_unique";
