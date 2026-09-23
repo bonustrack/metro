@@ -12,11 +12,9 @@ import { ListRow } from './ListRow.js';
 import { routeHash } from '../route.js';
 import { whenLabel } from '../api/when.js';
 import { createClaudeSkill, deleteClaudeSkill, type ClaudeSkill, type SkillListing } from '../api/claude.js';
-import { queryError, refreshClaudeSkills, useClaudeSkillsQuery, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
+import { queryError, refreshClaudeSkills, useClaudeSkillsQuery } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
 
-const SKILLS_SINCE = '0.1.0-beta.87';
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const NAME_HELP = 'A skill name is lowercase letters, digits and dashes, like write-as-less.';
 
@@ -42,7 +40,6 @@ function SkillRow({ skill, project, onOpen, onDelete }: { skill: ClaudeSkill; pr
 }
 
 interface ListingProps {
-  old: boolean;
   error: unknown;
   data: SkillListing | undefined;
   project: string;
@@ -50,13 +47,7 @@ interface ListingProps {
   onDelete: (skill: ClaudeSkill) => void;
 }
 
-function Listing({ old, error, data, project, onOpen, onDelete }: ListingProps): ReactNode {
-  if (old)
-    return (
-      <Text size="sm" role="secondary">
-        {`Skills need metro ${SKILLS_SINCE} or newer on this machine. Update it on the Server tab.`}
-      </Text>
-    );
+function Listing({ error, data, project, onOpen, onDelete }: ListingProps): ReactNode {
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
   if (data === undefined) return <Loading />;
   if (data.skills.length === 0) return <Text size="sm" role="secondary">No skill on this machine yet.</Text>;
@@ -81,9 +72,7 @@ function Listing({ old, error, data, project, onOpen, onDelete }: ListingProps):
 
 export function Skills({ project, onOpen }: { project: string; onOpen: (id: string) => void }): ReactNode {
   const client = useQueryClient();
-  const mode = useModeQuery();
-  const old = olderThan(mode.data?.version ?? null, SKILLS_SINCE);
-  const { data, error } = useClaudeSkillsQuery(!old);
+  const { data, error } = useClaudeSkillsQuery();
   const dark = useKitScheme() === 'dark';
   const [naming, setNaming] = useState(false);
   const [dropping, setDropping] = useState<ClaudeSkill | null>(null);
@@ -114,19 +103,17 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
         title="Skills"
         count={data?.skills.length}
         action={
-          old ? null : (
-            <Button
-              color="primary"
-              dark={dark}
-              label="New skill"
-              onPress={() => {
-                setNaming(true);
-              }}
-            />
-          )
+          <Button
+            color="primary"
+            dark={dark}
+            label="New skill"
+            onPress={() => {
+              setNaming(true);
+            }}
+          />
         }
       />
-      <Listing old={old} error={error} data={data} project={project} onOpen={onOpen} onDelete={setDropping} />
+      <Listing error={error} data={data} project={project} onOpen={onOpen} onDelete={setDropping} />
       <NameModal
         title="New skill"
         action="Create"

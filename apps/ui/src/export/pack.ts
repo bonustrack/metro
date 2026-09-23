@@ -64,9 +64,6 @@ export interface MetroFile {
   envelope: PassphraseEnvelope | Record<string, unknown>;
 }
 
-export const BOX_SECTIONS: readonly Section[] = ['sessions', 'model'];
-export const BOX_SECTIONS_SINCE = '0.1.0-beta.127';
-
 export const SECTION_LABELS: Record<Section, string> = {
   channels: 'Channels',
   connectors: 'Connectors',

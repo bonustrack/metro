@@ -293,8 +293,7 @@ body {
 .markdown ul,
 .markdown ol,
 .markdown blockquote,
-.markdown pre,
-.markdown .markdown-table { margin: 0 0 1em; }
+.markdown pre { margin: 0 0 1em; }
 
 .markdown ul,
 .markdown ol { padding-left: 1.4em; }
@@ -337,7 +336,6 @@ body {
   margin: 2em 0;
 }
 
-.markdown .markdown-table { overflow-x: auto; }
 .markdown table { border-collapse: collapse; }
 .markdown th,
 .markdown td {
@@ -424,29 +422,6 @@ body {
   text-decoration: none;
 }
 
-.agent-top {
-  display: flex;
-  align-items: flex-start;
-  gap: 40px;
-}
-
-.agent-top > * {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-@media (max-width: 1100px) {
-  .agent-top {
-    flex-direction: column;
-    gap: 24px;
-  }
-
-  .agent-top > * {
-    flex: 0 0 auto;
-    width: 100%;
-  }
-}
-
 .agent-card {
   position: relative;
   display: flex;
@@ -483,11 +458,6 @@ body {
   display: inline-flex;
   color: inherit;
   text-decoration: none;
-}
-
-.row-title {
-  display: block;
-  min-width: 0;
 }
 
 input,
@@ -651,11 +621,6 @@ textarea:focus-visible {
   .boot-pulse {
     animation: none;
   }
-}
-
-.wallet-icon {
-  border-radius: 2px;
-  flex-shrink: 0;
 }
 
 .markdown-compact,

@@ -5,15 +5,13 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { setClaudeSystemPrompt, type ClaudeSetup as Setup } from '../api/claude-box.js';
 import { queryError, refreshClaudeSetup } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
 import { GROW } from '../theme.js';
 
-export const PROMPT_SINCE = '0.1.0-beta.133';
 const EDITOR = { minHeight: 160, lineHeight: 22 } as const;
 const NO_ASSIST = { multiline: true, autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
 const NOTE = 'Appended to Claude Code’s own system prompt. Saving restarts the session.';
 
-export function SystemPromptEditor({ setup, version }: { setup: Setup; version: string | null }): ReactNode {
+export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const [draft, setDraft] = useState(setup.systemPrompt);
@@ -22,13 +20,6 @@ export function SystemPromptEditor({ setup, version }: { setup: Setup; version: 
   useEffect(() => {
     setDraft(setup.systemPrompt);
   }, [setup.systemPrompt]);
-  if (olderThan(version, PROMPT_SINCE))
-    return (
-      <Col gap={4}>
-        <Text size="md" weight="semibold">System prompt</Text>
-        <Text size="sm" role="secondary">Needs metro {PROMPT_SINCE}. Update first.</Text>
-      </Col>
-    );
   const changed = draft.trim() !== setup.systemPrompt;
   const save = (): void => {
     setBusy(true);

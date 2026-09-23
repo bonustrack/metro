@@ -151,13 +151,12 @@ export function useClaudeSetupQuery(): UseQueryResult<ClaudeSetup> {
   });
 }
 
-export function useClaudeVersionQuery(enabled: boolean): UseQueryResult<ClaudeVersion> {
+export function useClaudeVersionQuery(): UseQueryResult<ClaudeVersion> {
   return useQuery({
     queryKey: ['claude-version', daemonBase()],
     queryFn: () => fetchClaudeVersion(),
     staleTime: 10 * 60_000,
     retry: false,
-    enabled,
   });
 }
 
@@ -280,12 +279,11 @@ export function refreshClaudeSettings(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: claudeSettingsKey() });
 }
 
-export function useClaudeSkillsQuery(enabled = true): UseQueryResult<SkillListing> {
+export function useClaudeSkillsQuery(): UseQueryResult<SkillListing> {
   return useQuery({
     queryKey: skillsKey(),
     queryFn: () => fetchClaudeSkills(),
     refetchInterval: LIVE_LIST_MS,
-    enabled,
   });
 }
 

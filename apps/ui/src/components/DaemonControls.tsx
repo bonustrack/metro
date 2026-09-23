@@ -5,12 +5,10 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { awaitRestart, awaitStopped, restartDaemon, stopDaemon } from '../api/control.js';
-import { queryError, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
+import { queryError } from '../api/queries.js';
 
 type Phase = 'idle' | 'restarting' | 'restarted' | 'stopping';
 
-const CONTROLS_SINCE = '0.1.0-beta.67';
 const STOP_LINES = [
   'Channels and connectors go offline until metro starts again.',
   'metro serve keeps holding the address, so Start works from this page and from the agent list.',
@@ -20,7 +18,7 @@ const PHASE_TEXT: Partial<Record<Phase, string>> = {
   restarted: 'Restarted.',
 };
 
-function Controls(): ReactNode {
+export function DaemonControls(): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const [phase, setPhase] = useState<Phase>('idle');
@@ -106,15 +104,4 @@ function Controls(): ReactNode {
       />
     </Row>
   );
-}
-
-export function DaemonControls(): ReactNode {
-  const mode = useModeQuery();
-  if (olderThan(mode.data?.version ?? null, CONTROLS_SINCE))
-    return (
-      <Text size="sm" role="secondary">
-        Stop and Restart need metro {CONTROLS_SINCE} or newer on the machine. Update first.
-      </Text>
-    );
-  return <Controls />;
 }

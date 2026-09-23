@@ -4,10 +4,7 @@ import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { updateClaudeCode, type ClaudeVersion as Version } from '../api/claude-box.js';
-import { queryError, refreshClaudeSession, refreshClaudeVersion, useClaudeVersionQuery, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
-
-const VERSION_SINCE = '0.1.0-beta.124';
+import { queryError, refreshClaudeSession, refreshClaudeVersion, useClaudeVersionQuery } from '../api/queries.js';
 
 type Phase = { kind: 'idle' } | { kind: 'updating'; to: string } | { kind: 'done'; to: string; restarted: boolean };
 
@@ -23,12 +20,10 @@ function Status({ phase, check, onUpdate }: { phase: Phase; check: Version; onUp
 
 export function ClaudeVersion(): ReactNode {
   const client = useQueryClient();
-  const mode = useModeQuery();
-  const old = olderThan(mode.data?.version ?? null, VERSION_SINCE);
-  const check = useClaudeVersionQuery(mode.data !== undefined && !old);
+  const check = useClaudeVersionQuery();
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [error, setError] = useState<string | null>(null);
-  if (old || check.data === undefined) return null;
+  if (check.data === undefined) return null;
   const installed = check.data.installed;
 
   const update = (): void => {

@@ -36,7 +36,6 @@ describe('the first segment is the daemon', () => {
   });
 
   test('the fixed pages win over a host that happens to spell their name', () => {
-    expect(routeSelection('#/docs/setup')).toEqual({ kind: 'docs' });
     expect(routeSelection('#/settings')).toEqual({ kind: 'settings' });
     expect(routeSelection('#/admin')).toEqual({ kind: 'admin' });
     expect(routeHash({ kind: 'admin' })).toBe('#/admin');
@@ -47,7 +46,6 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/connect/http%3A%2F%2F127.0.0.1%3A8420')).toEqual({ kind: 'none' });
     expect(routeSelection('#/login')).toEqual({ kind: 'none' });
     expect(routeSelection('#/login?redirect=%2Fhost.example.com')).toEqual({ kind: 'none' });
-    expect(routeHash({ kind: 'docs' })).toBe('#/docs/setup');
     expect(routeHash({ kind: 'connect' })).toBe('#/connect');
   });
 

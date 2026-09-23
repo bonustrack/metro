@@ -10,7 +10,6 @@ const CLAUDE = '[A-Za-z0-9._-]+';
 const SKILL = '[A-Za-z0-9._:%-]+';
 
 const SERVERS_PATH = /^#?\/?$/;
-const DOCS_PATH = /^#?\/docs\/setup$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const ADMIN_PATH = /^#?\/admin$/;
 const ADMIN_USERS_PATH = /^#?\/admin\/users$/;
@@ -37,7 +36,6 @@ const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/(${CLAUDE
 
 const EXACT: [RegExp, Selection][] = [
   [SERVERS_PATH, { kind: 'servers' }],
-  [DOCS_PATH, { kind: 'docs' }],
   [SETTINGS_PATH, { kind: 'settings' }],
   [ADMIN_PATH, { kind: 'admin' }],
   [ADMIN_USERS_PATH, { kind: 'admin-users' }],
@@ -71,7 +69,6 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
 ];
 
 const GLOBAL: Partial<Record<Selection['kind'], string>> = {
-  docs: '#/docs/setup',
   settings: '#/settings',
   admin: '#/admin',
   'admin-users': '#/admin/users',

@@ -4,11 +4,10 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { Modal } from './Modal.js';
 import { checkPassphrase } from '../export/passphrase.js';
-import { BOX_SECTIONS, BOX_SECTIONS_SINCE, countOf, digest, fileName, packFile, SECTION_LABELS, SECTIONS, type Section } from '../export/pack.js';
-import { useModeQuery, useServersQuery } from '../api/queries.js';
+import { countOf, digest, fileName, packFile, SECTION_LABELS, SECTIONS, type Section } from '../export/pack.js';
+import { useServersQuery } from '../api/queries.js';
 import { currentServer } from '../auth/daemon.js';
 import { serverLabel } from '../api/servers.js';
-import { olderThan } from '../api/version.js';
 import { gatherPayload } from '../export/transfer.js';
 
 const HOW = 'Sealed in the browser with a passphrase you choose. Only that passphrase opens the file.';
@@ -41,9 +40,7 @@ function useServerName(): string {
 
 export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const mode = useModeQuery();
   const serverName = useServerName();
-  const oldBox = olderThan(mode.data?.version ?? null, BOX_SECTIONS_SINCE);
   const [picked, setPicked] = useState<Set<Section>>(new Set(SECTIONS));
   const [passphrase, setPassphrase] = useState('');
   const [busy, setBusy] = useState(false);
@@ -73,7 +70,7 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
     }
     setBusy(true);
     setError(null);
-    const wanted = new Set([...picked].filter((s) => !(oldBox && BOX_SECTIONS.includes(s))));
+    const wanted = new Set(picked);
     gatherPayload(agent, wanted, new Date().toISOString())
       .then(async ({ payload, leftOut }) => {
         const text = JSON.stringify(await packFile(payload, passphrase));
@@ -100,7 +97,7 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
               size="sm"
               color={picked.has(section) ? 'primary' : 'secondary'}
               dark={dark}
-              disabled={busy || (oldBox && BOX_SECTIONS.includes(section))}
+              disabled={busy}
               label={SECTION_LABELS[section]}
               onPress={() => {
                 toggle(section);
@@ -108,11 +105,6 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
             />
           ))}
         </Row>
-        {oldBox ? (
-          <Text size="sm" role="secondary">
-            {`Sessions and the model setup need metro ${BOX_SECTIONS_SINCE} on this box. Update it from the Server page first.`}
-          </Text>
-        ) : null}
         <Input name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase for this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
         <Text size="sm" role="secondary">{NOTE}</Text>
         {done === null ? null : <Text size="md">{`Saved: ${done}`}</Text>}

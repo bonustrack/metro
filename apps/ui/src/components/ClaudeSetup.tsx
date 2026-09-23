@@ -4,12 +4,10 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } from '../api/claude-box.js';
-import { queryError, refreshClaudeSetup, useClaudeSetupQuery, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
+import { queryError, refreshClaudeSetup, useClaudeSetupQuery } from '../api/queries.js';
 import { routeHash } from '../route.js';
 import { SystemPromptEditor } from './SystemPrompt.js';
 
-const SETUP_SINCE = '0.1.0-beta.105';
 const PRIVACY = 'No usage metrics or error reports, and local transcripts swept after a week. Prompts still reach the model.';
 
 function Line({ label, ok, detail }: { label: string; ok: boolean; detail: string }): ReactNode {
@@ -102,15 +100,7 @@ function ModeSwitch({ setup }: { setup: Setup }): ReactNode {
 }
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {
-  const mode = useModeQuery();
   const setup = useClaudeSetupQuery();
-  if (olderThan(mode.data?.version ?? null, SETUP_SINCE))
-    return (
-      <Col gap={4}>
-        <Text size="md" weight="semibold">Setup</Text>
-        <Text size="sm" role="secondary">Needs metro {SETUP_SINCE}. Update first.</Text>
-      </Col>
-    );
   return (
     <Col gap={10}>
       <Text size="md" weight="semibold">Setup</Text>
@@ -121,7 +111,7 @@ export function ClaudeSetup({ project }: { project: string }): ReactNode {
           <Lines setup={setup.data} project={project} />
           <PrivacySwitch setup={setup.data} />
           <ModeSwitch setup={setup.data} />
-          <SystemPromptEditor setup={setup.data} version={mode.data?.version ?? null} />
+          <SystemPromptEditor setup={setup.data} />
         </Col>
       )}
     </Col>

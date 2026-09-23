@@ -10,7 +10,7 @@ import { currentServer } from '../auth/daemon.js';
 import { serverLabel } from '../api/servers.js';
 import { type Selection } from './selection.js';
 
-const OFFLINE_PAGES: Selection['kind'][] = ['agent-settings', 'settings', 'docs'];
+const OFFLINE_PAGES: Selection['kind'][] = ['agent-settings', 'settings'];
 
 export const worksOffline = (kind: Selection['kind']): boolean => OFFLINE_PAGES.includes(kind);
 
