@@ -8,7 +8,7 @@ A relay between chat networks (XMTP, Telegram, Discord, WhatsApp, Threema) and C
 
 Inbound: network message, station, in-process bus, MCP channel notification. Outbound: agent tool call, station verb, network. `api.metro.box` (`apps/api`, Fly) runs no station: sign-in, the agent list, AWS launches, `/health`. The page `https://metro.box` (`apps/ui`, Netlify) manages one box at a time. **Every daemon is local. There is no hosted mode.**
 
-**One box is one agent.** The daemon creates `~/.metro/agents/agent.json` (`{version: 1, id, key, owner, stations[], connectors[]}`) at first boot. A second agent, or an import of another agent id, is 409. The name a person sees is the box's row on metro.box.
+**One box is one agent.** The daemon creates `~/.metro/agents/agent.json` (`{version: 1, id, name?, key, stations[]}`; an old file's `owner` and `connectors` keys are ignored and dropped at the next save) at first boot. A second agent, or an import of another agent id, is 409. The name a person sees is the box's row on metro.box.
 
 **Vocabulary:** the page says "channel"; code, files, wire and this document say `station`. Do not rename `station` identifiers, JSON keys or `metro://<station>/…` lines without a migration: they are on-disk and wire contracts.
 
@@ -161,6 +161,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 ### Sign-in and ownership (WorkOS)
 
 - The page signs in through api.metro.box with WorkOS (Google, Microsoft, GitHub). Zero cookies: the page keeps the tokens and sends `Authorization: Bearer` to metro.box and to every box.
+- **The owner check lives in one place:** `routes/bearer.ts` `installBearerSessions` refuses a token for another organization with 403 (`test/bearer-session.test.ts`). The agent, account, connector, Claude, model, server and terminal APIs only check that a session exists, plus `requireAdmin` where listed. There is no per-API `authorize` hook and no `?project=`: the daemon ignores a `project` query and `/api/mode` keeps its `project` field only for old pages.
 - **A box verifies the token offline** (`packages/http/src/workos-token.ts`, RS256 against the WorkOS JWKS cached at `<agents dir>/.jwks`). **The owner is the organization: the token's `org_id` must equal `.owner`**, else 403.
 - `--owner` from a service unit never overwrites an organization owner in `.owner` (`boot/local-owner.ts`).
 - **`requireAdmin` gates:** stop and restart, the update POST, the Terminal, agent delete, the bundle and restore, `POST /api/owner`, and non-GET Claude `login`, `session`, `version`, `setup` routes. Keep the `ADMIN_ONLY` pattern in `claude/api.ts` matching the full path.
@@ -230,7 +231,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 | `/gateway/v1/messages`, `/count_tokens`, `/models` | agent key in `x-metro-key` | Model gateway. `HEAD /gateway/api/hello` is open. |
 | `GET /api/mode` | none | `{mode: 'local', owner, version}`, CORS with private-network allowed. `stopped: true` while parked. |
 | `GET /api/session` | bearer | `{subject, role}`, the page's boot gate. |
-| `/api/agents…`, `/api/agents/<id>/accounts…` | bearer | Agent list (no key), account attach, allowlist, enable, senders, resolve, XMTP name. Delete is admin. |
+| `GET /api/agents`, `/api/agents/<id>/accounts…` | bearer | The one agent as `{id, name, connector_ids}` (no key, no delete), account attach, allowlist, enable, senders, resolve, XMTP name. |
 | `GET /api/agents/<id>/bundle`, `POST /api/agents/restore` | bearer, admin | Plaintext bundle for the page's own export. |
 | `/api/connectors…` | bearer | Connectors, OAuth, live tools. `GET /api/connectors/callback` is open (single-use state). |
 | `/api/claude/…` | bearer (writes on login/session/version/setup are admin) | Transcripts, memory, settings, skills, setup, session, version, login. |
