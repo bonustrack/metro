@@ -175,7 +175,7 @@ async function storeAccount(
 
 function asInput(body: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const key of ['apiId', 'apiHash', 'phone'])
+  for (const key of ['apiId', 'apiHash', 'phone', 'mailbox'])
     out[key] = bodyField(body, key);
   return out;
 }

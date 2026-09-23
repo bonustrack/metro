@@ -81,6 +81,8 @@ function fakePrepare(input: AttachInput): Promise<PreparedAccount> {
   });
 }
 
+const startInputs: { station: string; input: Record<string, unknown> }[] = [];
+
 const attachSessions = new AttachSessions({
   authorize: (owner) => {
     try {
@@ -102,6 +104,7 @@ const attachSessions = new AttachSessions({
     return Promise.resolve({ accountId, activated: true });
   },
   start: (station, input, hooks) => {
+    startInputs.push({ station, input });
     if (input.phone === 'reject')
       return Promise.reject(new AgentAdminError('that number was refused', 400));
     if (input.phone === 'handset-refuses')
@@ -981,5 +984,14 @@ describe('switching a station account off and on', () => {
     expect((await put('agent000001', 'telegram-bot', created.accountId, { enabled: 'no' })).status).toBe(400);
     expect((await put('agent000001', 'telegram-bot', 'acct9999999', { enabled: false })).status).toBe(404);
     expect((await put('agent000002', 'telegram-bot', created.accountId, { enabled: false })).status).toBe(404);
+  });
+});
+
+describe('POST /api/agents/:id/accounts/start for Outlook', () => {
+  test('the route hands the mailbox typed on the page to the Outlook sign-in', async () => {
+    startInputs.length = 0;
+    const res = await start('ada@lovelace.dev', 'agent000001', { station: 'outlook', mailbox: 'andy@anderra.ch' });
+    expect(res.status).toBe(201);
+    expect(startInputs.at(-1)).toMatchObject({ station: 'outlook', input: { mailbox: 'andy@anderra.ch' } });
   });
 });
