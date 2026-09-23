@@ -1,5 +1,4 @@
 import type { Chat, Message, Peer, User } from '@mtcute/bun';
-import type { SavedAttachment } from '@metro-labs/core/stations/attachments';
 import { lineOf } from './accounts.js';
 import { mintId } from './wire.js';
 import { isDownloadable, pendingDescriptorOf } from './attachments.js';
@@ -92,53 +91,6 @@ export function envelope(
       message_id: String(m.id),
       ...(attachments ? { attachments } : {}),
     },
-  };
-}
-
-export function attachmentSavedEnvelope(
-  accountId: string,
-  line: string,
-  sourceEnvId: string,
-  saved: SavedAttachment,
-  index = 0,
-): Record<string, unknown> {
-  return {
-    kind: 'inbound',
-    id: mintId(),
-    ts: new Date().toISOString(),
-    station: 'telegram',
-    line,
-    from: `metro://telegram/${accountId}/self`,
-    text: `📎 saved: ${saved.path}`,
-    payload: {
-      account: accountId,
-      contentType: 'attachmentSaved',
-      attachmentFor: sourceEnvId,
-      index,
-      attachmentPath: saved.path,
-      localPath: saved.path,
-      mime: saved.mime,
-      name: saved.name,
-    },
-  };
-}
-
-export function attachmentFailedEnvelope(
-  accountId: string,
-  line: string,
-  sourceEnvId: string,
-  reason: string,
-  index = 0,
-): Record<string, unknown> {
-  return {
-    kind: 'inbound',
-    id: mintId(),
-    ts: new Date().toISOString(),
-    station: 'telegram',
-    line,
-    from: `metro://telegram/${accountId}/self`,
-    text: `📎 not fetched: ${reason}`,
-    payload: { account: accountId, contentType: 'attachmentFailed', attachmentFor: sourceEnvId, index, reason },
   };
 }
 

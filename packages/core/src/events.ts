@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { Line } from './lines.js';
 
 export { userSelf, daemonSelf } from './identity.js';
@@ -74,8 +73,7 @@ export function formatDisplay(e: MetroEvent): string {
   return `${headerFor('📩', [e.station, e.fromName ?? e.from, e.lineName])}\n> ${body}`;
 }
 
-export const mintId = (): string =>
-  `msg_${randomBytes(6).toString('base64url')}`;
+export { mintId } from './ids.js';
 
 export type BusListener = (event: MetroEvent, busSeq: number) => void;
 

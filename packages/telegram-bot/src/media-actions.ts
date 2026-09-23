@@ -1,5 +1,6 @@
 import { tgForm, targetOf } from './accounts.js';
-import { emit, mintId, respond, SELF_URI } from './wire.js';
+import { selfUri } from '@metro-labs/core/stations/train-events';
+import { emit, mintId, respond } from './wire.js';
 import { appendFile } from '@metro-labs/core/stations/attachments';
 
 export function emitOutbound(
@@ -15,7 +16,7 @@ export function emitOutbound(
     ts: new Date().toISOString(),
     station: 'telegram-bot',
     line,
-    from: SELF_URI,
+    from: selfUri('telegram-bot', accountId),
     to: line,
     message_id: messageId,
     text,

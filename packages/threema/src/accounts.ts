@@ -23,7 +23,6 @@ export interface AccountConfig {
   privateKey: string;
   callbackId?: string;
   callbackToken?: string;
-  owner?: string;
 }
 
 function checkAccount(a: AccountConfig, die: Die): void {

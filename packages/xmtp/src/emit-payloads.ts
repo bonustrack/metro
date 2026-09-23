@@ -7,7 +7,7 @@ import {
   saveRemoteAttachment,
   type RemoteEntry,
 } from './attachments.js';
-import { emitInbound, emitAttachmentSaved } from './emit-core.js';
+import { reportAttachment } from '@metro-labs/core/stations/train-events';
 import { sentByMe } from './wire.js';
 
 export interface EnvelopeCtx {
@@ -189,19 +189,12 @@ function inlineAttachmentPayload(
       ctx.line,
       ctx.accountId,
       ctx.baseId,
-      emitInbound,
     ).catch((err: unknown) => {
       process.stderr.write(
         `xmtp[${ctx.accountId}] voice transcription failed: ${errMsg(err)}\n`,
       );
     });
-  emitAttachmentSaved(
-    ctx.accountId,
-    ctx.line,
-    ctx.baseId,
-    0,
-    saveInlineAttachment(c, ctx.msgId, 0),
-  );
+  reportAttachment(saveInlineAttachment(c, ctx.msgId, 0), { station: 'xmtp', account: ctx.accountId, line: ctx.line, forId: ctx.baseId, index: 0 });
   return out;
 }
 
@@ -212,13 +205,7 @@ function remoteStaticPayload(
   ctx: EnvelopeCtx,
 ): Record<string, unknown> {
   const kind = IMG_RE.test(c.url) ? 'image' : 'file';
-  emitAttachmentSaved(
-    ctx.accountId,
-    ctx.line,
-    ctx.baseId,
-    0,
-    saveRemoteAttachment(c, ctx.msgId, 0),
-  );
+  reportAttachment(saveRemoteAttachment(c, ctx.msgId, 0), { station: 'xmtp', account: ctx.accountId, line: ctx.line, forId: ctx.baseId, index: 0 });
   return {
     ...base,
     text: `[${kind}: ${c.filename ?? c.url}]`,
@@ -234,13 +221,7 @@ function multiRemoteEnvelope(
 ): Record<string, unknown> {
   const m = c as { attachments?: RemoteEntry[] };
   (Array.isArray(m.attachments) ? m.attachments : []).forEach((r, i) => {
-    emitAttachmentSaved(
-      ctx.accountId,
-      ctx.line,
-      ctx.baseId,
-      i,
-      saveRemoteAttachment(r, ctx.msgId, i),
-    );
+    reportAttachment(saveRemoteAttachment(r, ctx.msgId, i), { station: 'xmtp', account: ctx.accountId, line: ctx.line, forId: ctx.baseId, index: i });
   });
   return multiRemotePayload(base, typeId, c);
 }

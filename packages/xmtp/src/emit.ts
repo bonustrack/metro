@@ -1,11 +1,9 @@
 import type { Conversation, DecodedMessage } from '@xmtp/node-sdk';
 import { lineOf } from './accounts.js';
-import { emit, mintId, rememberSent, rememberUid, SELF_URI } from './wire.js';
-import { emitInbound, emitAttachmentSaved } from './emit-core.js';
+import { selfUri } from '@metro-labs/core/stations/train-events';
+import { emit, mintId, rememberSent, rememberUid } from './wire.js';
 import { typedEnvelope, type EnvelopeCtx } from './emit-payloads.js';
 import type { StructuredEvent } from '@metro-labs/core/events';
-
-export { emitInbound, emitAttachmentSaved };
 
 export function envelope(
   accountId: string,
@@ -60,7 +58,7 @@ export function emitOutbound(
     ts: new Date().toISOString(),
     station: 'xmtp',
     line,
-    from: SELF_URI,
+    from: selfUri('xmtp', accountId),
     to: line,
     message_id: messageId,
     text,

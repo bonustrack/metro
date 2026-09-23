@@ -216,9 +216,6 @@ async function accountsAction(id: string): Promise<void> {
         address: a.address,
         inboxId: a.inboxId,
         smart: a.smart !== null,
-        env: 'production',
-        owner: a.cfg.owner ?? null,
-        keySource: 'privateKey',
       })),
     },
   });

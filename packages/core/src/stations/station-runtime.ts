@@ -12,8 +12,7 @@ export const respond = (
     JSON.stringify({ op: 'response', id, ...body }) + '\n',
   );
 
-export const mintId = (): string =>
-  `msg_${Math.random().toString(36).slice(2, 10)}`;
+export { mintId } from '../ids.js';
 
 type Args = Record<string, unknown>;
 

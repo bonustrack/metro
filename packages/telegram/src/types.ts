@@ -3,5 +3,4 @@ export interface UserAccount {
   session: string;
   apiId?: number;
   apiHash?: string;
-  owner?: string;
 }

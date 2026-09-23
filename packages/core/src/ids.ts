@@ -5,6 +5,9 @@ const REROLLS = 16;
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
 
+export const mintId = (): string =>
+  `msg_${randomBytes(6).toString('base64url')}`;
+
 export function newId(): string {
   for (let attempt = 0; attempt < REROLLS; attempt += 1) {
     const id = randomBytes(ID_BYTES).toString('base64url');

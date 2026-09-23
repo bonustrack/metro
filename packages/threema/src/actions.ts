@@ -28,7 +28,6 @@ function listAccounts(id: string): void {
     id: a.cfg.id,
     handle: a.cfg.gatewayId,
     url: chatUrl(a.cfg.gatewayId),
-    owner: a.cfg.owner ?? null,
     gatewayId: a.cfg.gatewayId,
     groups: a.groups.list().map((g) => ({ line: groupLineOf(a.cfg.id, g), name: g.name, members: g.members.length })),
     ...(a.cfg.callbackId && a.cfg.callbackToken

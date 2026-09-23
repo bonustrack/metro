@@ -1,64 +1,8 @@
 import { MessageFlags, type Message, type MessageReaction, type User } from 'discord.js';
+import { reportAttachment, selfUri } from '@metro-labs/core/stations/train-events';
 import { accounts, lineOf } from './accounts.js';
-import { emit, mintId, SELF_URI } from './wire.js';
+import { emit, mintId } from './wire.js';
 import { saveDiscordAttachment } from './attachments.js';
-
-export function emitInbound(
-  accountId: string,
-  e: Record<string, unknown>,
-): void {
-  const owner = accounts.get(accountId)?.cfg.owner;
-  const payload = {
-    ...(e.payload as Record<string, unknown> | undefined),
-    account: accountId,
-  };
-  emit({ ...e, ...(owner ? { to: owner } : {}), account: accountId, payload });
-}
-
-function emitAttachmentSaved(
-  accountId: string,
-  line: string,
-  sourceMsgId: string,
-  index: number,
-  ref: { url: string; name?: string | null; contentType?: string | null },
-  messageId: string,
-): void {
-  void saveDiscordAttachment(ref, messageId, index)
-    .then((saved) => {
-      emitInbound(accountId, {
-        kind: 'inbound',
-        id: mintId(),
-        ts: new Date().toISOString(),
-        station: 'discord-bot',
-        line,
-        from: SELF_URI,
-        text: `📎 saved: ${saved.path}`,
-        payload: {
-          contentType: 'attachmentSaved',
-          attachmentFor: sourceMsgId,
-          index,
-          attachmentPath: saved.path,
-          localPath: saved.path,
-          mime: saved.mime,
-          name: saved.name,
-        },
-      });
-    })
-    .catch((err: unknown) => {
-      const reason = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`discord-bot attachment save failed: ${reason}\n`);
-      emitInbound(accountId, {
-        kind: 'inbound',
-        id: mintId(),
-        ts: new Date().toISOString(),
-        station: 'discord-bot',
-        line,
-        from: SELF_URI,
-        text: `📎 not fetched: ${reason}`,
-        payload: { contentType: 'attachmentFailed', attachmentFor: sourceMsgId, index, name: ref.name ?? undefined, mime: ref.contentType ?? undefined, reason },
-      });
-    });
-}
 
 const AV_TAG: Record<string, string> = { audio: 'audio', video: 'video' };
 
@@ -112,13 +56,10 @@ export function messageEnvelope(
     size: a.size,
   }));
   attachments.forEach((a, i) => {
-    emitAttachmentSaved(
-      accountId,
-      line,
-      envId,
-      i,
-      { url: a.url, name: a.name, contentType: a.contentType },
-      m.id,
+    reportAttachment(
+      saveDiscordAttachment({ url: a.url, name: a.name, contentType: a.contentType }, m.id, i),
+      { station: 'discord-bot', account: accountId, line, forId: envId, index: i },
+      { failed: { name: a.name, mime: a.contentType ?? undefined } },
     );
   });
   return {
@@ -187,7 +128,7 @@ function outbound(
     ts: new Date().toISOString(),
     station: 'discord-bot',
     line,
-    from: SELF_URI,
+    from: selfUri('discord-bot', accountId),
     to: line,
     message_id: messageId,
     ...extra,

@@ -25,7 +25,9 @@
     "./stations/attachments": "./src/stations/attachments.ts",
     "./stations/messaging-normalize": "./src/stations/messaging-normalize.ts",
     "./stations/profile": "./src/stations/profile.ts",
-    "./stations/sender-profile": "./src/stations/sender-profile.ts"
+    "./stations/sender-profile": "./src/stations/sender-profile.ts",
+    "./stations/train-events": "./src/stations/train-events.ts",
+    "./stations/train-boot": "./src/stations/train-boot.ts"
   },
   "scripts": {
     "build": "tsc",

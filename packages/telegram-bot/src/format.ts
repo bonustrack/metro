@@ -1,6 +1,6 @@
-import { errMsg } from '@metro-labs/core/log';
 import { accounts, lineOf } from './accounts.js';
-import { mintId, SELF_URI } from './wire.js';
+import { reportAttachment } from '@metro-labs/core/stations/train-events';
+import { mintId } from './wire.js';
 import { mediaRefOf, saveTelegramMedia } from './attachments.js';
 import type { TgMsg, TgReaction, TgReactionCount, TgUser } from './types.js';
 
@@ -155,21 +155,7 @@ export function reactionCountEnvelope(
   };
 }
 
-export function emitInbound(
-  emit: (e: unknown) => void,
-  accountId: string,
-  e: Record<string, unknown>,
-): void {
-  const owner = accounts.get(accountId)?.cfg.owner;
-  const payload = {
-    ...(e.payload as Record<string, unknown> | undefined),
-    account: accountId,
-  };
-  emit({ ...e, ...(owner ? { to: owner } : {}), account: accountId, payload });
-}
-
 export function saveMediaAndEmit(
-  emit: (e: unknown) => void,
   accountId: string,
   m: TgMsg,
   sourceEnvId: string,
@@ -177,38 +163,11 @@ export function saveMediaAndEmit(
   const ref = mediaRefOf(m);
   if (!ref) return;
   const line = lineForMsg(accountId, m).line;
-  void saveTelegramMedia(accountId, ref, String(m.message_id), 0)
-    .then((saved) => {
-      emitInbound(emit, accountId, {
-        kind: 'inbound',
-        id: mintId(),
-        ts: new Date().toISOString(),
-        station: 'telegram-bot',
-        line,
-        from: SELF_URI || `metro://telegram-bot/${accountId}/self`,
-        text: `📎 saved: ${saved.path}`,
-        payload: {
-          contentType: 'attachmentSaved',
-          attachmentFor: sourceEnvId,
-          index: 0,
-          attachmentPath: saved.path,
-          localPath: saved.path,
-          mime: saved.mime,
-          name: saved.name,
-        },
-      });
-    })
-    .catch((err: unknown) => {
-      process.stderr.write(`telegram-bot media save failed: ${errMsg(err)}\n`);
-      emitInbound(emit, accountId, {
-        kind: 'inbound',
-        id: mintId(),
-        ts: new Date().toISOString(),
-        station: 'telegram-bot',
-        line,
-        from: SELF_URI || `metro://telegram-bot/${accountId}/self`,
-        text: `📎 not fetched: ${errMsg(err)}`,
-        payload: { contentType: 'attachmentFailed', attachmentFor: sourceEnvId, index: 0, reason: errMsg(err) },
-      });
-    });
+  reportAttachment(saveTelegramMedia(accountId, ref, String(m.message_id), 0), {
+    station: 'telegram-bot',
+    account: accountId,
+    line,
+    forId: sourceEnvId,
+    index: 0,
+  });
 }

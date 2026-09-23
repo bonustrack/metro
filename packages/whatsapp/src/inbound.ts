@@ -1,9 +1,8 @@
 import type { WAMessage } from 'baileys';
-import { errMsg } from '@metro-labs/core/log';
 import { emit } from './wire.js';
+import { reportAttachment } from '@metro-labs/core/stations/train-events';
+import { lineOf } from './accounts.js';
 import {
-  attachmentFailedEnvelope,
-  attachmentSavedEnvelope,
   envelope,
   reactionEnvelope,
   type InboundMessage,
@@ -11,31 +10,19 @@ import {
 import { saveWhatsAppMedia } from './attachments.js';
 import type { WAClient } from './client.js';
 
-async function saveMedia(
+function saveMedia(
   client: WAClient,
   m: InboundMessage,
   raw: WAMessage,
   sourceId: string,
-): Promise<void> {
+): void {
   const ref = m.media;
   if (!ref) return;
-  try {
-    const saved = await saveWhatsAppMedia(
-      m.accountId,
-      raw,
-      ref,
-      m.messageId,
-      0,
-      (msg) => client.reuploadMedia(msg),
-    );
-    emit(attachmentSavedEnvelope(m, sourceId, ref, saved, 0));
-  } catch (err) {
-    const reason = errMsg(err);
-    process.stderr.write(
-      `whatsapp[${m.accountId}] ${ref.kind} download failed for ${m.messageId}: ${reason}\n`,
-    );
-    emit(attachmentFailedEnvelope(m, sourceId, ref, 0, reason));
-  }
+  reportAttachment(
+    saveWhatsAppMedia(m.accountId, raw, ref, m.messageId, 0, (msg) => client.reuploadMedia(msg)),
+    { station: 'whatsapp', account: m.accountId, line: lineOf(m.accountId, m.chatJid), forId: sourceId, index: 0 },
+    { saved: { kind: ref.kind }, failed: { kind: ref.kind, name: ref.name, mime: ref.mime } },
+  );
 }
 
 export async function startInbound(client: WAClient): Promise<void> {
@@ -44,11 +31,7 @@ export async function startInbound(client: WAClient): Promise<void> {
       const env = envelope(m);
       emit(env);
       if (!m.media) return;
-      saveMedia(client, m, raw, String(env.id)).catch((err: unknown) => {
-        process.stderr.write(
-          `whatsapp[${m.accountId}] media event not emitted: ${errMsg(err)}\n`,
-        );
-      });
+      saveMedia(client, m, raw, String(env.id));
     },
     onReaction: (r) => {
       emit(reactionEnvelope(r));

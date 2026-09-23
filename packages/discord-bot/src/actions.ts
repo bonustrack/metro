@@ -114,7 +114,6 @@ function listAccounts(id: string): void {
         url: profileUrl(a.client.user?.id),
         userId: a.client.user?.id ?? null,
         username: a.client.user?.username ?? null,
-        owner: a.cfg.owner ?? null,
         ready: a.client.isReady(),
       })),
     },
