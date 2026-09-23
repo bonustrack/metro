@@ -1,7 +1,6 @@
 export type Selection =
   | { kind: 'none' }
   | { kind: 'servers' }
-  | { kind: 'docs' }
   | { kind: 'settings' }
   | { kind: 'admin' }
   | { kind: 'admin-users' }

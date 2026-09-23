@@ -2,7 +2,6 @@ import { type ReactNode } from 'react';
 import { deleteConnector } from '../api/connectors.js';
 import { ConnectorPage } from './ConnectorPage.js';
 import { Connectors } from './Connectors.js';
-import { Docs } from './Docs.js';
 import { Home } from './Home.js';
 import { Memory } from './Memory.js';
 import { Sessions } from './Sessions.js';
@@ -120,7 +119,6 @@ function ScopedPanel({ project, selection, onSelect }: ScopedProps): ReactNode {
 
 export function AgentPanel(props: AgentPanelProps): ReactNode {
   const { selection } = props;
-  if (selection.kind === 'docs') return <Docs />;
   if (selection.kind === 'settings') return <Settings />;
   if (!('project' in selection)) return null;
   return <ScopedPanel {...props} project={selection.project} />;

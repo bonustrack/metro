@@ -7,11 +7,8 @@ import { ConfirmModal } from './ConfirmModal.js';
 import { enterOrganization } from '../auth/org-route.js';
 import { fetchOrganizations, type OrganizationRow } from '../api/auth.js';
 import { moveBoxOwner, moveServer, serverLabel, type Server } from '../api/servers.js';
-import { queryError, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
+import { queryError } from '../api/queries.js';
 import { activeAccount } from '../auth/account.js';
-
-const MOVE_SINCE = '0.1.0-beta.139';
 
 function Section({ title, note, children }: { title: string; note: string; children: ReactNode }): ReactNode {
   const palette = useKitPalette();
@@ -102,20 +99,12 @@ function Targets({ server, rows }: { server: Server; rows: OrganizationRow[] }):
 
 export function MoveSection({ server }: { server: Server }): ReactNode {
   const account = activeAccount();
-  const mode = useModeQuery();
   const orgs = useQuery({ queryKey: ['organizations'], queryFn: fetchOrganizations, staleTime: 30_000 });
   if (account?.role !== 'admin') return null;
-  const old = olderThan(mode.data?.version ?? null, MOVE_SINCE);
   const others = (orgs.data ?? []).filter((o) => o.id !== account.organization && o.role === 'admin');
   return (
     <Section title="Move to another organization" note="The machine and its row in your list change owner. You must be an admin of both organizations.">
-      {old ? (
-        <Text size="sm" role="secondary">
-          {`Moving needs metro ${MOVE_SINCE} or newer on this machine. Update it from the Server page first.`}
-        </Text>
-      ) : (
-        <Targets server={server} rows={others} />
-      )}
+      <Targets server={server} rows={others} />
     </Section>
   );
 }

@@ -5,10 +5,8 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button, Input, Text } from './ui.js';
 import { GROW } from '../theme.js';
 import { accountName, claimAccountName } from '../api/attach.js';
-import { queryError, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
+import { queryError } from '../api/queries.js';
 
-export const NAMES_SINCE = '0.1.0-beta.154';
 const FIELD_WIDTH = 420;
 const SUFFIX = '.stage.base.eth';
 const NO_NAME = 'No name yet, so no profile on Stage. 6 to 32 lowercase letters, digits and single hyphens, and it cannot be changed once claimed.';
@@ -56,20 +54,11 @@ function ClaimName({ agentId, station, accountId }: { agentId: string; station: 
 }
 
 export function StationName({ agentId, station, accountId }: { agentId: string; station: string; accountId: string }): ReactNode {
-  const mode = useModeQuery();
-  const supported = !olderThan(mode.data?.version ?? null, NAMES_SINCE);
   const { data, error } = useQuery({
     queryKey: nameKey(station, accountId),
     queryFn: () => accountName(agentId, station, accountId),
     staleTime: 60_000,
-    enabled: supported,
   });
-  if (!supported)
-    return (
-      <Text size="sm" role="secondary">
-        A name needs metro {NAMES_SINCE} or newer on the machine. Update first.
-      </Text>
-    );
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the name.')}</Text>;
   if (data === undefined) return null;
   if (data.name !== null) return <Text size="sm">{data.name}</Text>;
