@@ -1,5 +1,5 @@
 import { call } from './client.js';
-import { isRecord } from './accounts.js';
+import { isRecord } from './read.js';
 
 export interface AgentBundle {
   version: 1;

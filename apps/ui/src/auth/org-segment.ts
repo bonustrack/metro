@@ -1,11 +1,10 @@
 const ORG_RE = /^org_[A-Za-z0-9]{10,64}$/;
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
-const NOT_A_SLUG = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'waitlist', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new', 'connector', 'connectors']);
+export const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
+export const RESERVED_SEGMENTS: ReadonlySet<string> = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'waitlist', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new', 'connector', 'connectors']);
 
 export const isOrganizationId = (segment: string): boolean => ORG_RE.test(segment);
 
-export const isOrganizationSlug = (segment: string): boolean => SLUG_RE.test(segment) && !NOT_A_SLUG.has(segment);
-
+export const isOrganizationSlug = (segment: string): boolean => SLUG_RE.test(segment) && !RESERVED_SEGMENTS.has(segment);
 
 const AGENT_PAGES = new Set(['server', 'settings', 'terminal', 'model', 'harness', 'claude', 'skills', 'skill', 'channels', 'channel', 'connectors', 'connector', 'sessions', 'memory']);
 

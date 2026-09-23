@@ -3,7 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { controlClaudeSession, type ClaudeSessionStatus } from '../api/claude-box.js';
-import { queryError, refreshClaudeSession, useClaudeSessionQuery } from '../api/queries.js';
+import { queryError, refresh, useClaudeSessionQuery } from '../api/queries.js';
 import { routeHash } from '../route.js';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -25,7 +25,7 @@ function Controls({ status, project }: { status: ClaudeSessionStatus; project: s
     setBusy(true);
     setError(null);
     controlClaudeSession(input)
-      .then(() => refreshClaudeSession(client))
+      .then(() => refresh(client, 'claude-session'))
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not change the Claude session.'));
       })

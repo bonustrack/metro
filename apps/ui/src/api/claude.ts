@@ -1,6 +1,6 @@
+import { filled, isRecord, str } from './read.js';
 import { daemonBase } from '../auth/daemon.js';
 import { call, callRaw } from './client.js';
-import { isRecord } from './accounts.js';
 
 export interface ClaudeProject {
   id: string;
@@ -51,7 +51,6 @@ export interface MemoryListing {
 }
 
 const base = (): string => `${daemonBase()}/api/claude`;
-const text = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 const num = (v: unknown): number => (typeof v === 'number' ? v : 0);
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 
@@ -59,9 +58,9 @@ function toProject(v: unknown): ClaudeProject | null {
   if (!isRecord(v) || typeof v.id !== 'string') return null;
   return {
     id: v.id,
-    cwd: text(v.cwd),
+    cwd: filled(v.cwd),
     sessions: num(v.sessions),
-    lastActiveAt: text(v.lastActiveAt),
+    lastActiveAt: filled(v.lastActiveAt),
     hasMemory: v.hasMemory === true,
   };
 }
@@ -70,18 +69,18 @@ function toSession(v: unknown): ClaudeSession | null {
   if (!isRecord(v) || typeof v.id !== 'string') return null;
   return {
     id: v.id,
-    title: text(v.title) ?? 'Untitled session',
-    startedAt: text(v.startedAt),
-    lastAt: text(v.lastAt),
+    title: filled(v.title) ?? 'Untitled session',
+    startedAt: filled(v.startedAt),
+    lastAt: filled(v.lastAt),
     bytes: num(v.bytes),
-    gitBranch: text(v.gitBranch),
+    gitBranch: filled(v.gitBranch),
   };
 }
 
 const BLOCKS: Record<string, (v: Record<string, unknown>) => Block> = {
-  text: (v) => ({ kind: 'text', text: text(v.text) ?? '' }),
-  tool_use: (v) => ({ kind: 'tool_use', name: text(v.name) ?? 'tool', input: text(v.input) ?? '' }),
-  tool_result: (v) => ({ kind: 'tool_result', text: text(v.text) ?? '', isError: v.isError === true }),
+  text: (v) => ({ kind: 'text', text: filled(v.text) ?? '' }),
+  tool_use: (v) => ({ kind: 'tool_use', name: filled(v.name) ?? 'tool', input: filled(v.input) ?? '' }),
+  tool_result: (v) => ({ kind: 'tool_result', text: filled(v.text) ?? '', isError: v.isError === true }),
   thinking: () => ({ kind: 'thinking' }),
   image: () => ({ kind: 'image' }),
 };
@@ -95,7 +94,7 @@ function toBlock(v: unknown): Block | null {
 function toEntry(v: unknown): TranscriptEntry | null {
   if (!isRecord(v) || (v.role !== 'user' && v.role !== 'assistant')) return null;
   const blocks = Array.isArray(v.blocks) ? v.blocks.map(toBlock).filter((b): b is Block => b !== null) : [];
-  return { uuid: text(v.uuid) ?? '', at: text(v.at), role: v.role, blocks };
+  return { uuid: filled(v.uuid) ?? '', at: filled(v.at), role: v.role, blocks };
 }
 
 const list = <T>(v: unknown, make: (x: unknown) => T | null): T[] =>
@@ -163,11 +162,11 @@ export async function fetchMemory(project: string): Promise<MemoryListing> {
   const files = Array.isArray(body.files)
     ? body.files.flatMap((f: unknown) =>
         isRecord(f) && typeof f.name === 'string'
-          ? [{ name: f.name, bytes: num(f.bytes), modifiedAt: text(f.modifiedAt) ?? '' }]
+          ? [{ name: f.name, bytes: num(f.bytes), modifiedAt: filled(f.modifiedAt) ?? '' }]
           : [],
       )
     : [];
-  return { files, index: text(body.index) };
+  return { files, index: filled(body.index) };
 }
 
 export async function fetchMemoryFile(project: string, name: string): Promise<string> {
@@ -220,12 +219,12 @@ export function toSettingsFile(v: unknown): ClaudeSettingsFile | null {
   return {
     id: v.id,
     scope: v.scope,
-    label: text(v.label) ?? v.path,
+    label: filled(v.label) ?? v.path,
     path: v.path,
     exists: v.exists === true,
     editable: v.editable === true,
     text: typeof v.text === 'string' ? v.text : '',
-    modifiedAt: text(v.modifiedAt),
+    modifiedAt: filled(v.modifiedAt),
   };
 }
 
@@ -271,16 +270,16 @@ function toLogin(body: unknown): ClaudeLogin {
   return {
     id: body.id,
     state: body.state,
-    url: text(body.url),
+    url: filled(body.url),
     output: typeof body.output === 'string' ? body.output : '',
-    error: text(body.error),
+    error: filled(body.error),
   };
 }
 
 export async function fetchClaudeAccount(): Promise<ClaudeAccount> {
   const body = await call({ base: base(), path: '/login', method: 'GET' });
   if (!isRecord(body)) throw unexpected();
-  return { available: body.available === true, signedIn: body.signedIn === true, account: text(body.account) };
+  return { available: body.available === true, signedIn: body.signedIn === true, account: filled(body.account) };
 }
 
 export async function startClaudeLogin(): Promise<ClaudeLogin> {
@@ -330,17 +329,16 @@ export interface SkillListing {
   skills: ClaudeSkill[];
 }
 
-const skillText = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 function toSkill(raw: unknown): ClaudeSkill | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string') return null;
-  const title = skillText(raw.title);
+  const title = str(raw.title);
   return {
     id: raw.id,
     name: raw.name,
     title: title === '' ? raw.name : title,
-    description: skillText(raw.description),
-    path: skillText(raw.path),
+    description: str(raw.description),
+    path: str(raw.path),
     editable: raw.editable !== false,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : null,
   };

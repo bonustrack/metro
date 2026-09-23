@@ -1,3 +1,4 @@
+import { isRecord } from './read.js';
 export interface AccountField {
   label: string;
   value: string;
@@ -28,10 +29,6 @@ export interface AccountGroup {
 
 const SECRET_KEY_PATTERN =
   /(token|secret|key|mnemonic|private|session|apihash|apiid|cred|password|derive|passphrase|seed)/i;
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function stringifyValue(value: unknown): string {
   if (value === null || value === undefined) return '-';

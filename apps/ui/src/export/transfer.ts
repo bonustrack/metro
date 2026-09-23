@@ -1,3 +1,4 @@
+import { recordOf } from '../api/read.js';
 import {
   createClaudeSkill,
   fetchClaudeProjects,
@@ -22,31 +23,29 @@ export interface LocalAgent {
   name: string;
 }
 
-const record = (value: unknown): Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
 function channelsOf(stations: unknown[]): PackedChannel[] {
   return stations.map((raw) => {
-    const s = record(raw);
+    const s = recordOf(raw);
     return {
       station: typeof s.station === 'string' ? s.station : '',
       id: typeof s.id === 'string' ? s.id : '',
       allowlist: Array.isArray(s.allowlist) ? s.allowlist.map(String) : null,
       ...(s.enabled === false ? { enabled: false } : {}),
-      config: record(s.config),
+      config: recordOf(s.config),
     };
   });
 }
 
 function connectorsOf(rows: unknown[]): PackedConnector[] {
   return rows.map((raw) => {
-    const c = record(raw);
+    const c = recordOf(raw);
     return {
       id: typeof c.id === 'string' ? c.id : '',
       name: typeof c.name === 'string' ? c.name : '',
       url: typeof c.url === 'string' ? c.url : '',
       transport: 'http',
-      config: record(c.config),
+      config: recordOf(c.config),
     };
   });
 }
@@ -175,12 +174,18 @@ async function applySkills(skills: PackedSkill[], mode: Mode): Promise<{ written
 const targetProject = (file: { project: string }, projects: Set<string>, fallback: string): string =>
   projects.has(file.project) || fallback === '' ? file.project : fallback;
 
-async function applyMemory(
-  files: PackedMemory[],
+interface Placed<F> {
+  key: (file: F) => string;
+  present: (project: string, exists: boolean) => Promise<Set<string>>;
+  write: (project: string, file: F) => Promise<void>;
+}
+
+async function applyPlaced<F extends { project: string }>(
+  files: F[],
   mode: Mode,
   known: string[],
+  how: Placed<F>,
 ): Promise<{ written: number; skipped: number }> {
-  if (files.length === 0) return { written: 0, skipped: 0 };
   const projects = new Set(known);
   const seen = new Map<string, Set<string>>();
   let written = 0;
@@ -191,40 +196,30 @@ async function applyMemory(
       skipped += 1;
       continue;
     }
-    if (!seen.has(project)) seen.set(project, await memoryNames(project));
-    if (mode === 'append' && seen.get(project)?.has(file.name) === true) {
+    if (!seen.has(project)) seen.set(project, await how.present(project, projects.has(project)));
+    if (mode === 'append' && seen.get(project)?.has(how.key(file)) === true) {
       skipped += 1;
       continue;
     }
-    await saveMemoryFile(project, file.name, file.text, file.modifiedAt);
+    await how.write(project, file);
     written += 1;
   }
   return { written, skipped };
 }
 
-async function applySessions(
-  files: PackedSession[],
-  mode: Mode,
-  known: string[],
-): Promise<{ written: number; skipped: number }> {
-  if (files.length === 0) return { written: 0, skipped: 0 };
-  const projects = new Set(known);
-  const seen = new Map<string, Set<string>>();
-  let written = 0;
-  let skipped = 0;
-  for (const file of files) {
-    const project = targetProject(file, projects, known[0] ?? '');
-    if (!seen.has(project))
-      seen.set(project, new Set(projects.has(project) ? (await fetchClaudeSessions(project)).map((s) => s.id) : []));
-    if (mode === 'append' && seen.get(project)?.has(file.id) === true) {
-      skipped += 1;
-      continue;
-    }
-    await saveSessionFile(project, file.id, file.text);
-    written += 1;
-  }
-  return { written, skipped };
-}
+const applyMemory = (files: PackedMemory[], mode: Mode, known: string[]): Promise<{ written: number; skipped: number }> =>
+  applyPlaced(files, mode, known, {
+    key: (file) => file.name,
+    present: (project) => memoryNames(project),
+    write: (project, file) => saveMemoryFile(project, file.name, file.text, file.modifiedAt),
+  });
+
+const applySessions = (files: PackedSession[], mode: Mode, known: string[]): Promise<{ written: number; skipped: number }> =>
+  applyPlaced(files, mode, known, {
+    key: (file) => file.id,
+    present: async (project, exists) => new Set(exists ? (await fetchClaudeSessions(project)).map((s) => s.id) : []),
+    write: (project, file) => saveSessionFile(project, file.id, file.text),
+  });
 
 async function modelConfigured(): Promise<boolean> {
   const current = await fetchModel();

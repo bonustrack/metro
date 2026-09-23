@@ -10,7 +10,7 @@ import { GeminiConnect } from './GeminiConnect.js';
 import { ClaudeLoginCard } from './ClaudeLogin.js';
 import { addConnection, ANTHROPIC_KEYS_URL, OPENROUTER_KEYS_URL, PROVIDERS, saveConnection, type ConnectionPatch, type ConnectionRow, type Provider } from '../api/model.js';
 import { providerLabel, usesKey } from '../api/providers.js';
-import { queryError, refreshModel } from '../api/queries.js';
+import { queryError, refresh } from '../api/queries.js';
 import { GROW } from '../theme.js';
 
 const ZDR_NOTE = 'Only reaches providers that keep no prompts. A model without such an endpoint fails rather than falling back.';
@@ -86,7 +86,7 @@ function KeyForm({ editing, onDone }: { editing: Editing; onDone: () => void }):
     const patch = patchOf(editing.provider, draft);
     const job = row === null ? addConnection({ provider: editing.provider, ...patch }) : saveConnection(row.id, patch);
     job
-      .then(() => refreshModel(client))
+      .then(() => refresh(client, 'model'))
       .then(onDone)
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not save.'));
@@ -123,7 +123,7 @@ function Body({ editing, onDone }: { editing: Editing; onDone: () => void }): Re
       <Col gap={20}>
         <ClaudeLoginCard
           onChange={() => {
-            refreshModel(client).catch(() => undefined);
+            refresh(client, 'model').catch(() => undefined);
           }}
         />
         <KeyForm editing={editing} onDone={onDone} />

@@ -14,7 +14,7 @@ import { ModelPickerModal } from './ModelPickerModal.js';
 import type { MenuItem } from './Dropdown.js';
 import { chooseConnection, dropConnection, saveConnection, type ConnectionRow, type ModelSettings } from '../api/model.js';
 import { CONNECTIONS_SINCE, usesKey } from '../api/providers.js';
-import { queryError, refreshModel, useModelQuery, useModeQuery } from '../api/queries.js';
+import { queryError, refresh, useModelQuery, useModeQuery } from '../api/queries.js';
 import { olderThan } from '../api/version.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -42,7 +42,7 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
   const run: Run = (job, fallback) => {
     setError(null);
     job()
-      .then(() => refreshModel(client))
+      .then(() => refresh(client, 'model'))
       .catch((err: unknown) => {
         setError(queryError(err, fallback));
       });

@@ -1,4 +1,4 @@
-import { isRecord } from './accounts.js';
+import { filled, isRecord } from './read.js';
 
 
 export interface UsageWindow {
@@ -25,12 +25,11 @@ export interface ProviderUsage {
 
 export type Usage = Record<string, ProviderUsage>;
 
-const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
 function toWindow(raw: unknown): UsageWindow | null {
   if (!isRecord(raw) || typeof raw.label !== 'string') return null;
   const used = typeof raw.used === 'number' && Number.isFinite(raw.used) ? Math.min(1, Math.max(0, raw.used)) : null;
-  return { label: raw.label, used, resetAt: text(raw.resetAt), detail: text(raw.detail) };
+  return { label: raw.label, used, resetAt: filled(raw.resetAt), detail: filled(raw.detail) };
 }
 
 const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0);
@@ -45,7 +44,7 @@ function toProviderUsage(raw: unknown): ProviderUsage | null {
   if (!isRecord(raw) || typeof raw.at !== 'string' || !Array.isArray(raw.windows)) return null;
   const windows = raw.windows.flatMap((w: unknown) => toWindow(w) ?? []);
   const tally = toTally(raw.tally);
-  return windows.length === 0 && tally === null ? null : { windows, note: text(raw.note), at: raw.at, tally };
+  return windows.length === 0 && tally === null ? null : { windows, note: filled(raw.note), at: raw.at, tally };
 }
 
 export function toUsage(raw: unknown): Usage {

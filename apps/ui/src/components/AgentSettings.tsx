@@ -2,19 +2,21 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Text, Button } from './ui.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { useAvatarPicker } from './AvatarPicker.js';
-import { ConfirmModal } from './ConfirmModal.js';
+import { ConfirmDialog, useConfirm } from './DeleteMenu.js';
+import { SaveField, useSave } from './SaveField.js';
 import { ExportAgent } from './ExportAgent.js';
 import { ImportAgent } from './ImportAgent.js';
 import { type AgentSummary } from '../api/client.js';
-import { queryError, refreshServers, useServersQuery, useStationsQuery } from '../api/queries.js';
+import { refreshServers, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { removeServer, renameServer, serverLabel, setServerSlug, type Server } from '../api/servers.js';
 import { routeHash } from '../route.js';
 import { currentServer } from '../auth/daemon.js';
+import { SLUG_RE } from '../auth/org-segment.js';
 import { MoveSection } from './MoveAgent.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -59,78 +61,36 @@ function AvatarSection({ server }: { server: Server }): ReactNode {
 }
 
 function NameSection({ server }: { server: Server }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const [name, setName] = useState(server.name ?? '');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const trimmed = name.trim();
-  const ready = trimmed !== '' && trimmed.length <= NAME_MAX && trimmed !== (server.name ?? '');
-  const save = (): void => {
-    if (!ready || busy) return;
-    setBusy(true);
-    setError(null);
-    renameServer(server.id, trimmed)
-      .then(() => refreshServers(client))
-      .catch((err: unknown) => {
-        setError(queryError(err, 'Could not save the name.'));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
+  const saving = useSave({
+    initial: server.name ?? '',
+    valid: (name) => name !== '' && name.length <= NAME_MAX,
+    run: (name) => renameServer(server.id, name).then(() => refreshServers(client)),
+    failure: 'Could not save the name.',
+  });
   return (
     <Section title="Name" note="What the agent is called in your list and in the rail.">
-      <Row gap={8} align="center" wrap>
-        <Input name="agent-name" value={name} placeholder={server.host} dark={dark} disabled={busy} onChangeText={setName} />
-        <Button color="primary" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !ready} onPress={save} />
-      </Row>
-      {error === null ? null : (
-        <Text size="sm" role="danger">
-          {error}
-        </Text>
-      )}
+      <SaveField saving={saving} name="agent-name" placeholder={server.host} />
     </Section>
   );
 }
 
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
-
 function SlugSection({ server }: { server: Server }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const [slug, setSlug] = useState(server.slug ?? '');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const trimmed = slug.trim().toLowerCase();
-  const ready = SLUG_RE.test(trimmed) && trimmed !== (server.slug ?? '');
-  const save = (): void => {
-    if (!ready || busy) return;
-    setBusy(true);
-    setError(null);
-    setServerSlug(server.id, trimmed)
-      .then(() => refreshServers(client))
-      .then(() => {
-        window.location.replace(`${window.location.pathname}${routeHash({ kind: 'agent-settings', project: server.id })}`);
-      })
-      .catch((err: unknown) => {
-        setError(queryError(err, 'Could not change the slug.'));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
+  const saving = useSave({
+    initial: server.slug ?? '',
+    clean: (slug) => slug.trim().toLowerCase(),
+    valid: (slug) => SLUG_RE.test(slug),
+    run: async (slug) => {
+      await setServerSlug(server.id, slug);
+      await refreshServers(client);
+      window.location.replace(`${window.location.pathname}${routeHash({ kind: 'agent-settings', project: server.id })}`);
+    },
+    failure: 'Could not change the slug.',
+  });
   return (
     <Section title="Slug" note="The agent's part of every address. Lowercase letters, digits and dashes, unique within the organization.">
-      <Row gap={8} align="center" wrap>
-        <Input name="agent-slug" value={slug} placeholder={server.slug ?? ''} dark={dark} disabled={busy} onChangeText={setSlug} />
-        <Button color="primary" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !ready} onPress={save} />
-      </Row>
-      {error === null ? null : (
-        <Text size="sm" role="danger">
-          {error}
-        </Text>
-      )}
+      <SaveField saving={saving} name="agent-slug" placeholder={server.slug ?? ''} />
     </Section>
   );
 }
@@ -181,47 +141,26 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
 function RemoveSection({ server }: { server: Server }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const remove = (): void => {
-    setBusy(true);
-    setError(null);
-    removeServer(server.id)
-      .then(() => refreshServers(client))
-      .then(() => {
-        window.location.hash = routeHash({ kind: 'servers' });
-      })
-      .catch((err: unknown) => {
-        setError(queryError(err, 'Could not remove the agent.'));
-        setBusy(false);
-      });
-  };
+  const confirming = useConfirm(
+    async () => {
+      await removeServer(server.id);
+      await refreshServers(client);
+    },
+    'Could not remove the agent.',
+    () => {
+      window.location.hash = routeHash({ kind: 'servers' });
+    },
+  );
   return (
     <Section title="Remove" note="Takes the agent out of your list. The machine keeps running and can be added again by its address.">
       <Row>
-        <Button
-          color="danger"
-          dark={dark}
-          label="Remove agent"
-          onPress={() => {
-            setOpen(true);
-          }}
-        />
+        <Button color="danger" dark={dark} label="Remove agent" onPress={confirming.show} />
       </Row>
-      <ConfirmModal
-        open={open}
+      <ConfirmDialog
+        confirming={confirming}
         title="Remove this agent?"
         lines={[`${serverLabel(server)} leaves your list and the rail. Nothing on the machine is deleted.`]}
-        prompt="Type delete to confirm."
-        confirmWord="delete"
-        confirmLabel="Remove agent"
-        busy={busy}
-        error={error}
-        onClose={() => {
-          if (!busy) setOpen(false);
-        }}
-        onConfirm={remove}
+        action="Remove agent"
       />
     </Section>
   );

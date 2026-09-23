@@ -1,5 +1,5 @@
+import { filled, isRecord } from './read.js';
 import { call } from './client.js';
-import { isRecord } from './accounts.js';
 
 export type AttachStep = 'code' | 'password' | 'scan' | 'pair';
 
@@ -19,8 +19,6 @@ export interface AttachSession {
 
 const STEPS: AttachStep[] = ['code', 'password', 'scan', 'pair'];
 
-const text = (v: unknown): string | null =>
-  typeof v === 'string' && v !== '' ? v : null;
 
 export function toIdentity(value: unknown): Record<string, string> {
   const out: Record<string, string> = {};
@@ -46,12 +44,12 @@ export function toSession(body: unknown): AttachSession {
       status === 'done' || status === 'failed' ? status : 'pending',
     step: STEPS.find((s) => s === step) ?? null,
     prompt: typeof body.prompt === 'string' ? body.prompt : '',
-    qr: text(body.qr),
-    pairingCode: text(body.pairingCode),
-    accountId: text(body.accountId),
+    qr: filled(body.qr),
+    pairingCode: filled(body.pairingCode),
+    accountId: filled(body.accountId),
     identity: toIdentity(body.identity),
     activated: body.activated === true,
-    error: text(body.error),
+    error: filled(body.error),
   };
 }
 

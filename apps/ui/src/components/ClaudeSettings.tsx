@@ -10,7 +10,7 @@ import { ClaudeSetup } from './ClaudeSetup.js';
 import { ClaudeVersion } from './ClaudeVersion.js';
 import { GROW } from '../theme.js';
 import { saveClaudeSettings, type ClaudeSettingsFile } from '../api/claude.js';
-import { queryError, refreshClaudeSettings, useClaudeSettingsQuery } from '../api/queries.js';
+import { queryError, refresh, useClaudeSettingsQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -121,7 +121,7 @@ function Editor({ file, draft, onEdit, onSaved }: EditorProps): ReactNode {
     saveClaudeSettings(file.id, shown, file.modifiedAt)
       .then(async () => {
         onSaved();
-        await refreshClaudeSettings(client);
+        await refresh(client, 'claude-settings');
         setNote('Saved. The next Claude Code session on this machine reads it.');
       })
       .catch((err: unknown) => {

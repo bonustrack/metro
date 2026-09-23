@@ -1,5 +1,5 @@
+import { filled, isRecord, str } from './read.js';
 import { call } from './client.js';
-import { isRecord } from './accounts.js';
 import { builtInDaemon } from '../auth/daemon.js';
 import { toServer, type Server } from './servers.js';
 
@@ -40,15 +40,13 @@ export interface Launched {
 const launchUrl = (): string => `${builtInDaemon()}/api/launch`;
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 
-const text = (value: unknown): string => (typeof value === 'string' ? value : '');
-const nullable = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
 const STATES: StepState[] = ['pending', 'active', 'done', 'failed'];
 
 function toStep(value: unknown): BootStep | null {
   if (!isRecord(value) || typeof value.key !== 'string') return null;
   const state = STATES.find((s) => s === value.state) ?? 'pending';
-  return { key: value.key, label: text(value.label), state };
+  return { key: value.key, label: str(value.label), state };
 }
 
 export async function fetchLaunchOverview(): Promise<LaunchOverview> {
@@ -68,17 +66,17 @@ export async function launchServer(name: string, region: string): Promise<Launch
   if (!isRecord(body)) throw unexpected();
   return {
     server: toServer(body.server),
-    host: text(body.host),
-    node: text(body.node),
-    region: text(body.region),
-    zone: nullable(body.zone),
+    host: str(body.host),
+    node: str(body.node),
+    region: str(body.region),
+    zone: filled(body.zone),
   };
 }
 
 export async function fetchInstanceView(serverId: string): Promise<InstanceView> {
   const body = await call({ method: 'GET', base: launchUrl(), path: `/${serverId}` });
   if (!isRecord(body)) throw unexpected();
-  return { state: text(body.state) || 'unknown', publicIp: nullable(body.publicIp) };
+  return { state: str(body.state) || 'unknown', publicIp: filled(body.publicIp) };
 }
 
 export async function fetchBootView(serverId: string): Promise<BootView> {
@@ -86,5 +84,5 @@ export async function fetchBootView(serverId: string): Promise<BootView> {
   if (!isRecord(body)) throw unexpected();
   const steps = Array.isArray(body.steps) ? body.steps.flatMap((s) => toStep(s) ?? []) : [];
   const lines = Array.isArray(body.lines) ? body.lines.filter((l): l is string => typeof l === 'string') : [];
-  return { steps, failed: body.failed === true, finished: body.finished === true, lines, at: nullable(body.at) };
+  return { steps, failed: body.failed === true, finished: body.finished === true, lines, at: filled(body.at) };
 }

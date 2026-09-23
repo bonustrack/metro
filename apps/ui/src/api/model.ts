@@ -1,6 +1,6 @@
+import { filled, isRecord, str } from './read.js';
 import { call } from './client.js';
 import { toUsage, type Usage } from './usage.js';
-import { isRecord } from './accounts.js';
 import { daemonBase } from '../auth/daemon.js';
 
 export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex' | 'gemini';
@@ -74,15 +74,13 @@ export interface ConnectionPatch {
 }
 
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
-const word = (value: unknown): string => (typeof value === 'string' ? value : '');
-const maybe = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 const isProvider = (value: unknown): value is Provider => PROVIDERS.some((p) => p.id === value);
 
 export function toServed(value: unknown): Served | null {
   if (!isRecord(value)) return null;
-  const model = word(value.model);
-  const at = word(value.at);
-  return model === '' || at === '' ? null : { connection: word(value.connection), provider: word(value.provider), model, at };
+  const model = str(value.model);
+  const at = str(value.at);
+  return model === '' || at === '' ? null : { connection: str(value.connection), provider: str(value.provider), model, at };
 }
 
 function toConnection(raw: unknown): ConnectionRow | null {
@@ -90,23 +88,23 @@ function toConnection(raw: unknown): ConnectionRow | null {
   return {
     id: raw.id,
     provider: raw.provider,
-    label: word(raw.label),
-    model: word(raw.model),
+    label: str(raw.label),
+    model: str(raw.model),
     hasKey: raw.hasKey === true,
-    region: word(raw.region),
+    region: str(raw.region),
     zdr: raw.zdr === true,
     signedIn: raw.signedIn === true,
-    account: maybe(raw.account),
-    plan: maybe(raw.plan),
+    account: filled(raw.account),
+    plan: filled(raw.plan),
   };
 }
 
 export function toModelSettings(body: unknown): ModelSettings {
   if (!isRecord(body) || !Array.isArray(body.connections)) throw unexpected();
   return {
-    route: word(body.route),
+    route: str(body.route),
     ready: body.ready === true,
-    reason: maybe(body.reason),
+    reason: filled(body.reason),
     lastServed: toServed(body.lastServed),
     usage: toUsage(body.usage),
     connections: body.connections.flatMap((c: unknown) => toConnection(c) ?? []),

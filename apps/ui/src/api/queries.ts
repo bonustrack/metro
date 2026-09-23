@@ -1,25 +1,15 @@
-import { daemonBase } from '../auth/daemon.js';
 import {
   QueryCache,
   QueryClient,
   useQuery,
   useQueryClient,
+  type UseQueryOptions,
   type UseQueryResult,
 } from '@tanstack/react-query';
+import { daemonBase } from '../auth/daemon.js';
 import { carryForward, type AccountGroup } from './accounts.js';
-import {
-  AuthError,
-  StoppedError,
-  fetchSession,
-  fetchStations,
-  type StationsView,
-} from './client.js';
-import {
-  fetchConnector,
-  fetchConnectors,
-  type Connector,
-  type ConnectorsView,
-} from './connectors.js';
+import { AuthError, StoppedError, fetchSession, fetchStations, type StationsView } from './client.js';
+import { fetchConnector, fetchConnectors, type Connector, type ConnectorsView } from './connectors.js';
 import {
   fetchClaudeProjects,
   fetchClaudeSessions,
@@ -41,25 +31,61 @@ import { fetchMode, type ModeInfo } from './mode.js';
 import { fetchUpdate, type UpdateCheck } from './update.js';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
 import { fetchMachine, type Machine } from './machine.js';
+import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
 import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
+const LIVE_MS = 5_000;
+const LONG_MS = 10 * 60_000;
+const STATUS_POLL_MS = 15_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
-export const sessionKey = (): string[] => ['session', daemonBase()];
-const claudeProjectsKey = (): string[] => ['claude', 'projects', daemonBase()];
-const claudeSessionsKey = (project: string): string[] => ['claude', 'sessions', daemonBase(), project];
-const claudeSettingsKey = (): string[] => ['claude', 'settings', daemonBase()];
-const skillsKey = (): string[] => ['claude', 'skills', daemonBase()];
-const skillKey = (id: string): string[] => ['claude', 'skill', daemonBase(), id];
-const memoryKey = (project: string): string[] => ['claude', 'memory', daemonBase(), project];
-const memoryFileKey = (project: string, name: string): string[] => ['claude', 'memory', daemonBase(), project, name];
-const LIVE_LIST_MS = 5_000;
-const LIVE_MEMORY_MS = 5_000;
-export const stationsKey = (): string[] => ['stations', daemonBase()];
-const connectorsKey = (): string[] => ['connectors', daemonBase()];
-const connectorKey = (id: string): string[] => ['connector', daemonBase(), id];
+type BoxName =
+  | 'update'
+  | 'machine'
+  | 'claude-session'
+  | 'claude-setup'
+  | 'claude-version'
+  | 'claude-projects'
+  | 'claude-sessions'
+  | 'claude-settings'
+  | 'claude-skills'
+  | 'claude-skill'
+  | 'memory'
+  | 'model'
+  | 'openrouter-zdr'
+  | 'connection-models'
+  | 'mode'
+  | 'session'
+  | 'stations'
+  | 'connectors'
+  | 'connector'
+  | 'connector-tools'
+  | 'account-name';
+
+export type BoxKey = BoxName | readonly [BoxName, ...string[]];
+
+export function boxKey(key: BoxKey): string[] {
+  const [name, ...parts] = typeof key === 'string' ? [key] : key;
+  return [name, daemonBase(), ...parts];
+}
+
+type BoxOptions<T> = Omit<UseQueryOptions<T, Error, T, string[]>, 'queryKey' | 'queryFn'>;
+
+export function useBoxQuery<T>(key: BoxKey, fn: () => Promise<T>, options: BoxOptions<T> = {}): UseQueryResult<T> {
+  return useQuery({ ...options, queryKey: boxKey(key), queryFn: () => fn() });
+}
+
+export function refresh(client: QueryClient, key: BoxKey): Promise<void> {
+  return client.invalidateQueries({ queryKey: boxKey(key) });
+}
+
+function refreshQuietly(client: QueryClient, keys: BoxKey[]): void {
+  for (const key of keys) refresh(client, key).catch(() => undefined);
+}
+
+export const stationsKey = (): string[] => boxKey('stations');
 
 export function makeQueryClient(onAuthError: () => void): QueryClient {
   return new QueryClient({
@@ -85,19 +111,7 @@ export function queryError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
-export function useUpdateQuery(): UseQueryResult<UpdateCheck> {
-  return useQuery({
-    queryKey: ['update', daemonBase()],
-    queryFn: () => fetchUpdate(),
-    staleTime: 10 * 60_000,
-    retry: false,
-  });
-}
-
-import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
-
 export const serversKey = (): string[] => ['servers'];
-const STATUS_POLL_MS = 15_000;
 
 export function useServersQuery(): UseQueryResult<Server[]> {
   return useQuery({ queryKey: serversKey(), queryFn: () => fetchServers(), staleTime: 30_000 });
@@ -125,249 +139,106 @@ export function refreshServerStatus(client: QueryClient, host: string): Promise<
   return client.invalidateQueries({ queryKey: ['server-status', host] });
 }
 
-export function useMachineQuery(): UseQueryResult<Machine> {
-  return useQuery({
-    queryKey: ['machine', daemonBase()],
-    queryFn: () => fetchMachine(),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  });
-}
+export const useUpdateQuery = (): UseQueryResult<UpdateCheck> => useBoxQuery('update', fetchUpdate, { staleTime: LONG_MS, retry: false });
 
-export function useClaudeSessionQuery(): UseQueryResult<ClaudeSessionStatus> {
-  return useQuery({
-    queryKey: ['claude-session', daemonBase()],
-    queryFn: () => fetchClaudeSession(),
-    staleTime: 3_000,
-    refetchInterval: 10_000,
-  });
-}
+export const useMachineQuery = (): UseQueryResult<Machine> =>
+  useBoxQuery('machine', fetchMachine, { staleTime: 30_000, refetchInterval: 60_000 });
 
-export function useClaudeSetupQuery(): UseQueryResult<ClaudeSetup> {
-  return useQuery({
-    queryKey: ['claude-setup', daemonBase()],
-    queryFn: () => fetchClaudeSetup(),
-    staleTime: 10_000,
-  });
-}
+export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
+  useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: 10_000 });
 
-export function useClaudeVersionQuery(): UseQueryResult<ClaudeVersion> {
-  return useQuery({
-    queryKey: ['claude-version', daemonBase()],
-    queryFn: () => fetchClaudeVersion(),
-    staleTime: 10 * 60_000,
-    retry: false,
-  });
-}
+export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, { staleTime: 10_000 });
 
-export function refreshClaudeVersion(client: QueryClient): Promise<void> {
-  return client.invalidateQueries({ queryKey: ['claude-version', daemonBase()] });
-}
+export const useClaudeVersionQuery = (): UseQueryResult<ClaudeVersion> =>
+  useBoxQuery('claude-version', fetchClaudeVersion, { staleTime: LONG_MS, retry: false });
 
-export function refreshClaudeSetup(client: QueryClient): Promise<void> {
-  return client.invalidateQueries({ queryKey: ['claude-setup', daemonBase()] });
-}
+export const useModelQuery = (): UseQueryResult<ModelSettings> =>
+  useBoxQuery('model', fetchModel, { staleTime: 5_000, refetchInterval: STATUS_POLL_MS });
 
-export function refreshClaudeSession(client: QueryClient): Promise<void> {
-  return client.invalidateQueries({ queryKey: ['claude-session', daemonBase()] });
-}
+export const useOpenRouterZdrQuery = (enabled: boolean): UseQueryResult<Set<string>> =>
+  useBoxQuery('openrouter-zdr', openrouterZdrModels, { enabled, staleTime: LONG_MS });
 
-export function useModelQuery(): UseQueryResult<ModelSettings> {
-  return useQuery({
-    queryKey: ['model', daemonBase()],
-    queryFn: () => fetchModel(),
-    staleTime: 5_000,
-    refetchInterval: 15_000,
-  });
-}
-
-export function refreshModel(client: QueryClient): Promise<void> {
-  return client.invalidateQueries({ queryKey: ['model', daemonBase()] });
-}
-
-
-export function useOpenRouterZdrQuery(enabled: boolean): UseQueryResult<Set<string>> {
-  return useQuery({
-    queryKey: ['openrouter', 'zdr', daemonBase()],
-    queryFn: () => openrouterZdrModels(),
-    enabled,
-    staleTime: 10 * 60_000,
-  });
+async function connectionModels(provider: string, id: string): Promise<ModelOption[]> {
+  if (provider === 'anthropic') return anthropicModels(id);
+  if (provider === 'bedrock') return bedrockModels(id);
+  if (provider === 'openrouter') return openrouterModels();
+  const ids = provider === 'gemini' ? await geminiModels(id) : await codexModels(id);
+  return ids.map((each) => ({ id: each, name: each }));
 }
 
 export function useConnectionModelsQuery(connection: { id: string; provider: string } | undefined): UseQueryResult<ModelOption[]> {
   const id = connection?.id ?? '';
   const provider = connection?.provider ?? '';
-  return useQuery({
-    queryKey: ['connection', 'models', provider, id, daemonBase()],
-    queryFn: async () => {
-      if (provider === 'anthropic') return anthropicModels(id);
-      if (provider === 'bedrock') return bedrockModels(id);
-      if (provider === 'openrouter') return openrouterModels();
-      const ids = provider === 'gemini' ? await geminiModels(id) : await codexModels(id);
-      return ids.map((each) => ({ id: each, name: each }));
-    },
-    enabled: id !== '',
-    staleTime: 10 * 60_000,
-  });
+  return useBoxQuery(['connection-models', provider, id], () => connectionModels(provider, id), { enabled: id !== '', staleTime: LONG_MS });
 }
 
-export function useModeQuery(): UseQueryResult<ModeInfo> {
-  return useQuery({
-    queryKey: ['mode', daemonBase()],
-    queryFn: () => fetchMode(),
-    staleTime: 60_000,
-  });
-}
+export const useModeQuery = (): UseQueryResult<ModeInfo> => useBoxQuery('mode', fetchMode, { staleTime: 60_000 });
 
-export function useSessionQuery(): UseQueryResult<string> {
-  return useQuery({
-    queryKey: sessionKey(),
-    queryFn: () => fetchSession(),
-    staleTime: 5 * 60_000,
-  });
-}
+export const useSessionQuery = (): UseQueryResult<string> => useBoxQuery('session', fetchSession, { staleTime: 5 * 60_000 });
 
 export function useStationsQuery(): UseQueryResult<StationsView> {
   const client = useQueryClient();
-  return useQuery({
-    queryKey: stationsKey(),
-    refetchInterval: (query) =>
-      (query.state.data?.unavailable.length ?? 0) > 0 ? STARTING_POLL_MS : false,
-    queryFn: async () => {
+  return useBoxQuery(
+    'stations',
+    async () => {
       const next = await fetchStations();
       const prev = client.getQueryData<StationsView>(stationsKey());
-      return {
-        ...next,
-        groups: carryForward(next.groups, prev?.groups ?? [], next.unavailable),
-      };
+      return { ...next, groups: carryForward(next.groups, prev?.groups ?? [], next.unavailable) };
     },
-  });
+    { refetchInterval: (query) => ((query.state.data?.unavailable.length ?? 0) > 0 ? STARTING_POLL_MS : false) },
+  );
 }
 
-export function useClaudeProjectsQuery(): UseQueryResult<ClaudeProject[]> {
-  return useQuery({
-    queryKey: claudeProjectsKey(),
-    queryFn: () => fetchClaudeProjects(),
-    refetchInterval: LIVE_LIST_MS,
-  });
+export const useClaudeProjectsQuery = (): UseQueryResult<ClaudeProject[]> =>
+  useBoxQuery('claude-projects', fetchClaudeProjects, { refetchInterval: LIVE_MS });
+
+export const useClaudeSessionsQuery = (project: string): UseQueryResult<ClaudeSession[]> =>
+  useBoxQuery(['claude-sessions', project], () => fetchClaudeSessions(project), { refetchInterval: LIVE_MS });
+
+export async function removeClaudeSession(client: QueryClient, project: string, id: string): Promise<void> {
+  await deleteClaudeSession(project, id);
+  refreshQuietly(client, [['claude-sessions', project], 'claude-projects']);
 }
 
-export function useClaudeSessionsQuery(project: string): UseQueryResult<ClaudeSession[]> {
-  return useQuery({
-    queryKey: claudeSessionsKey(project),
-    queryFn: () => fetchClaudeSessions(project),
-    refetchInterval: LIVE_LIST_MS,
-  });
-}
+export const useClaudeSettingsQuery = (): UseQueryResult<ClaudeSettingsFile[]> =>
+  useBoxQuery('claude-settings', fetchClaudeSettings, { staleTime: 30_000 });
 
-export function removeClaudeSession(client: QueryClient, project: string, id: string): Promise<void> {
-  return deleteClaudeSession(project, id).then(() => {
-    invalidate(client, [claudeSessionsKey(project), claudeProjectsKey()]);
-  });
-}
+export const useClaudeSkillsQuery = (): UseQueryResult<SkillListing> => useBoxQuery('claude-skills', fetchClaudeSkills, { refetchInterval: LIVE_MS });
 
-export function useClaudeSettingsQuery(): UseQueryResult<ClaudeSettingsFile[]> {
-  return useQuery({
-    queryKey: claudeSettingsKey(),
-    queryFn: () => fetchClaudeSettings(),
-    staleTime: 30_000,
-  });
-}
-
-export function refreshClaudeSettings(client: QueryClient): Promise<void> {
-  return client.invalidateQueries({ queryKey: claudeSettingsKey() });
-}
-
-export function useClaudeSkillsQuery(): UseQueryResult<SkillListing> {
-  return useQuery({
-    queryKey: skillsKey(),
-    queryFn: () => fetchClaudeSkills(),
-    refetchInterval: LIVE_LIST_MS,
-  });
-}
-
-export function useClaudeSkillQuery(id: string): UseQueryResult<ClaudeSkill & { text: string }> {
-  return useQuery({
-    queryKey: skillKey(id),
-    queryFn: () => fetchClaudeSkill(id),
-  });
-}
+export const useClaudeSkillQuery = (id: string): UseQueryResult<ClaudeSkill & { text: string }> =>
+  useBoxQuery(['claude-skill', id], () => fetchClaudeSkill(id));
 
 export async function refreshClaudeSkills(client: QueryClient, id?: string): Promise<void> {
-  await client.invalidateQueries({ queryKey: skillsKey() });
-  if (id !== undefined) await client.invalidateQueries({ queryKey: skillKey(id) });
+  await refresh(client, 'claude-skills');
+  if (id !== undefined) await refresh(client, ['claude-skill', id]);
 }
 
-export function refreshMemory(client: QueryClient, project: string): Promise<void> {
-  return client.invalidateQueries({ queryKey: memoryKey(project) });
-}
+export const useMemoryQuery = (project: string): UseQueryResult<MemoryListing> =>
+  useBoxQuery(['memory', project], () => fetchMemory(project), { refetchInterval: LIVE_MS });
 
-export function useMemoryQuery(project: string): UseQueryResult<MemoryListing> {
-  return useQuery({
-    queryKey: memoryKey(project),
-    queryFn: () => fetchMemory(project),
-    refetchInterval: LIVE_MEMORY_MS,
-  });
-}
+export const useMemoryFileQuery = (project: string, name: string): UseQueryResult<string> =>
+  useBoxQuery(['memory', project, name], () => fetchMemoryFile(project, name), { refetchInterval: LIVE_MS });
 
-export function useMemoryFileQuery(project: string, name: string): UseQueryResult<string> {
-  return useQuery({
-    queryKey: memoryFileKey(project, name),
-    queryFn: () => fetchMemoryFile(project, name),
-    refetchInterval: LIVE_MEMORY_MS,
-  });
-}
+export const useConnectorsQuery = (): UseQueryResult<ConnectorsView> => useBoxQuery('connectors', fetchConnectors);
 
-function invalidate(client: QueryClient, keys: (string | number)[][]): void {
-  for (const queryKey of keys)
-    client.invalidateQueries({ queryKey }).catch(() => undefined);
-}
+export const useConnectorQuery = (id: string): UseQueryResult<Connector> => useBoxQuery(['connector', id], () => fetchConnector(id));
 
 export function refreshAgents(client: QueryClient): void {
-  invalidate(client, [stationsKey()]);
-}
-
-export function useConnectorsQuery(): UseQueryResult<ConnectorsView> {
-  return useQuery({
-    queryKey: connectorsKey(),
-    queryFn: () => fetchConnectors(),
-  });
+  refreshQuietly(client, ['stations']);
 }
 
 export function refreshConnectors(client: QueryClient, id?: string): void {
-  const keys: (string | number)[][] = [connectorsKey(), stationsKey()];
-  if (id !== undefined) keys.push(connectorKey(id));
-  invalidate(client, keys);
+  refreshQuietly(client, id === undefined ? ['connectors', 'stations'] : ['connectors', 'stations', ['connector', id]]);
 }
 
-export function useConnectorQuery(
-  id: string,
-): UseQueryResult<Connector> {
-  return useQuery({
-    queryKey: connectorKey(id),
-    queryFn: () => fetchConnector(id),
-  });
-}
-
-function withoutAccount(
-  groups: AccountGroup[],
-  station: string,
-  accountId: string,
-): AccountGroup[] {
+function withoutAccount(groups: AccountGroup[], station: string, accountId: string): AccountGroup[] {
   return groups
-    .map((g) =>
-      g.station === station
-        ? { station: g.station, rows: g.rows.filter((r) => r.id !== accountId) }
-        : g,
-    )
+    .map((g) => (g.station === station ? { station: g.station, rows: g.rows.filter((r) => r.id !== accountId) } : g))
     .filter((g) => g.rows.length > 0);
 }
 
 export function dropAccount(client: QueryClient, station: string, accountId: string): void {
   client.setQueryData<StationsView>(stationsKey(), (prev) =>
-    prev === undefined
-      ? prev
-      : { ...prev, groups: withoutAccount(prev.groups, station, accountId) },
+    prev === undefined ? prev : { ...prev, groups: withoutAccount(prev.groups, station, accountId) },
   );
 }

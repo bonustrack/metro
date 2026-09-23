@@ -4,7 +4,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { setClaudeSystemPrompt, type ClaudeSetup as Setup } from '../api/claude-box.js';
-import { queryError, refreshClaudeSetup } from '../api/queries.js';
+import { queryError, refresh } from '../api/queries.js';
 import { GROW } from '../theme.js';
 
 const EDITOR = { minHeight: 160, lineHeight: 22 } as const;
@@ -25,7 +25,7 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
     setBusy(true);
     setError(null);
     setClaudeSystemPrompt(draft)
-      .then(() => refreshClaudeSetup(client))
+      .then(() => refresh(client, 'claude-setup'))
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not save the system prompt.'));
       })

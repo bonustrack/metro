@@ -1,5 +1,6 @@
 import { type Selection } from './components/selection.js';
-import { RESERVED_SEGMENTS, storedServerId } from './auth/daemon.js';
+import { storedServerId } from './auth/daemon.js';
+import { RESERVED_SEGMENTS } from './auth/org-segment.js';
 import { noteRoutedOrganization, organizationSegment, splitOrganization } from './auth/org-route.js';
 import { agentSegment } from './auth/agent-route.js';
 

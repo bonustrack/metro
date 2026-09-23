@@ -1,6 +1,6 @@
 import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
-import { isRecord } from './accounts.js';
+import { isRecord } from './read.js';
 
 export interface UpdateCheck {
   running: string;

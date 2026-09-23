@@ -1,12 +1,12 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Text, Button } from './ui.js';
+import { SaveField, useSave } from './SaveField.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { useImagePicker } from './AvatarPicker.js';
 import { updateAccount } from '../api/auth.js';
 import { activeAccount, type Account } from '../auth/account.js';
-import { queryError } from '../api/queries.js';
 
 const PAGE_AVATAR = 56;
 const NAME_MAX = 80;
@@ -33,38 +33,19 @@ function Picture({ account, onChanged }: { account: Account; onChanged: () => vo
 }
 
 function Name({ account, onChanged }: { account: Account; onChanged: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const [name, setName] = useState(account.user.name ?? '');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const trimmed = name.trim().replace(/\s+/g, ' ');
-  const ready = trimmed !== '' && trimmed.length <= NAME_MAX && trimmed !== (account.user.name ?? '');
-  const save = (): void => {
-    if (!ready || busy) return;
-    setBusy(true);
-    setError(null);
-    updateAccount({ name: trimmed })
-      .then(() => {
-        onChanged();
-      })
-      .catch((err: unknown) => {
-        setError(queryError(err, 'Could not save the name.'));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
+  const saving = useSave({
+    initial: account.user.name ?? '',
+    clean: (name) => name.trim().replace(/\s+/g, ' '),
+    valid: (name) => name !== '' && name.length <= NAME_MAX,
+    run: async (name) => {
+      await updateAccount({ name });
+      onChanged();
+    },
+    failure: 'Could not save the name.',
+  });
   return (
     <Col gap={8}>
-      <Row gap={8} align="center" wrap>
-        <Input name="account-name" value={name} placeholder={account.user.email ?? ''} dark={dark} disabled={busy} onChangeText={setName} />
-        <Button color="primary" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !ready} onPress={save} />
-      </Row>
-      {error === null ? null : (
-        <Text size="sm" role="danger">
-          {error}
-        </Text>
-      )}
+      <SaveField saving={saving} name="account-name" placeholder={account.user.email ?? ''} />
     </Col>
   );
 }

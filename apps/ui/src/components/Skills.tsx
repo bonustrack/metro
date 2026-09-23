@@ -6,8 +6,7 @@ import { Button, Text } from './ui.js';
 import { Loading } from './Loading.js';
 import { ListHeader } from './ListHeader.js';
 import { NameModal } from './NameModal.js';
-import { KebabMenu } from './KebabMenu.js';
-import { ConfirmModal } from './ConfirmModal.js';
+import { DeleteMenu } from './DeleteMenu.js';
 import { ListRow } from './ListRow.js';
 import { routeHash } from '../route.js';
 import { whenLabel } from '../api/when.js';
@@ -18,7 +17,8 @@ import { useDocumentTitle } from '../title.js';
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const NAME_HELP = 'A skill name is lowercase letters, digits and dashes, like write-as-less.';
 
-function SkillRow({ skill, project, onOpen, onDelete }: { skill: ClaudeSkill; project: string; onOpen: () => void; onDelete: () => void }): ReactNode {
+function SkillRow({ skill, project, onOpen }: { skill: ClaudeSkill; project: string; onOpen: () => void }): ReactNode {
+  const client = useQueryClient();
   return (
     <ListRow
       title={skill.title}
@@ -26,13 +26,19 @@ function SkillRow({ skill, project, onOpen, onDelete }: { skill: ClaudeSkill; pr
       href={routeHash({ kind: 'skill', project, id: skill.id })}
       onOpen={onOpen}
       trailing={
-        <KebabMenu
+        <DeleteMenu
           label={`Actions for ${skill.name}`}
-          size="lg"
-          items={[
-            { label: 'Edit', onSelect: onOpen },
-            { label: 'Delete', danger: true, onSelect: onDelete },
-          ]}
+          items={[{ label: 'Edit', onSelect: onOpen }]}
+          item="Delete"
+          action="Delete skill"
+          title="Delete skill"
+          lines={["This removes the skill's folder on that machine, and everything in it.", 'Claude Code stops loading it at once.']}
+          word={skill.name}
+          failure="Could not delete that skill."
+          run={async () => {
+            await deleteClaudeSkill(skill.id);
+            await refreshClaudeSkills(client);
+          }}
         />
       }
     />
@@ -44,10 +50,9 @@ interface ListingProps {
   data: SkillListing | undefined;
   project: string;
   onOpen: (id: string) => void;
-  onDelete: (skill: ClaudeSkill) => void;
 }
 
-function Listing({ error, data, project, onOpen, onDelete }: ListingProps): ReactNode {
+function Listing({ error, data, project, onOpen }: ListingProps): ReactNode {
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
   if (data === undefined) return <Loading />;
   if (data.skills.length === 0) return <Text size="sm" role="secondary">No skill on this machine yet.</Text>;
@@ -61,9 +66,6 @@ function Listing({ error, data, project, onOpen, onDelete }: ListingProps): Reac
           onOpen={() => {
             onOpen(skill.id);
           }}
-          onDelete={() => {
-            onDelete(skill);
-          }}
         />
       ))}
     </Col>
@@ -75,27 +77,7 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
   const { data, error } = useClaudeSkillsQuery();
   const dark = useKitScheme() === 'dark';
   const [naming, setNaming] = useState(false);
-  const [dropping, setDropping] = useState<ClaudeSkill | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [dropError, setDropError] = useState<string | null>(null);
   useDocumentTitle('Skills');
-
-  const drop = (): void => {
-    if (dropping === null) return;
-    setBusy(true);
-    setDropError(null);
-    deleteClaudeSkill(dropping.id)
-      .then(() => refreshClaudeSkills(client))
-      .then(() => {
-        setDropping(null);
-      })
-      .catch((err: unknown) => {
-        setDropError(queryError(err, 'Could not delete that skill.'));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
 
   return (
     <Col gap={16}>
@@ -113,7 +95,7 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
           />
         }
       />
-      <Listing error={error} data={data} project={project} onOpen={onOpen} onDelete={setDropping} />
+      <Listing error={error} data={data} project={project} onOpen={onOpen} />
       <NameModal
         title="New skill"
         action="Create"
@@ -130,24 +112,6 @@ export function Skills({ project, onOpen }: { project: string; onOpen: (id: stri
           onOpen(made.id);
           return made.id;
         }}
-      />
-      <ConfirmModal
-        open={dropping !== null}
-        title="Delete skill"
-        lines={[
-          "This removes the skill's folder on that machine, and everything in it.",
-          'Claude Code stops loading it at once.',
-        ]}
-        prompt={`Type ${dropping?.name ?? ''} to confirm.`}
-        confirmWord={dropping?.name ?? ''}
-        confirmLabel="Delete skill"
-        busy={busy}
-        error={dropError}
-        onClose={() => {
-          setDropping(null);
-          setDropError(null);
-        }}
-        onConfirm={drop}
       />
     </Col>
   );

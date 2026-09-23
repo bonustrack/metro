@@ -1,4 +1,4 @@
-import { isRecord } from '../api/accounts.js';
+import { filled, isRecord } from '../api/read.js';
 
 const STORAGE_KEY = 'metro.account';
 const EXPIRY_MARGIN_MS = 60_000;
@@ -24,7 +24,6 @@ let active: Account | null = null;
 
 export const activeAccount = (): Account | null => active;
 
-const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
 export function tokenClaims(token: string): Record<string, unknown> | null {
   const body = token.split('.')[1];
@@ -49,19 +48,19 @@ export const tokenExpiring = (token: string, now = Date.now()): boolean => {
 
 export function accountFrom(body: unknown): Account {
   if (!isRecord(body) || !isRecord(body.user)) throw new Error('Metro returned an unexpected response.');
-  const accessToken = text(body.accessToken);
-  const refreshToken = text(body.refreshToken);
-  const id = text(body.user.id);
+  const accessToken = filled(body.accessToken);
+  const refreshToken = filled(body.refreshToken);
+  const id = filled(body.user.id);
   if (accessToken === null || refreshToken === null || id === null) throw new Error('Metro returned an unexpected response.');
   const claims = tokenClaims(accessToken) ?? {};
   return {
     accessToken,
     refreshToken,
-    organization: text(body.organization) ?? text(claims.org_id),
-    organizationName: text(body.organizationName),
-    organizationSlug: text(body.organizationSlug),
-    role: text(claims.role),
-    user: { id, email: text(body.user.email), name: text(body.user.name), picture: text(body.user.picture) },
+    organization: filled(body.organization) ?? filled(claims.org_id),
+    organizationName: filled(body.organizationName),
+    organizationSlug: filled(body.organizationSlug),
+    role: filled(claims.role),
+    user: { id, email: filled(body.user.email), name: filled(body.user.name), picture: filled(body.user.picture) },
   };
 }
 

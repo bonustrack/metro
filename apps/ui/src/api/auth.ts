@@ -1,6 +1,6 @@
 import { builtInDaemon } from '../auth/daemon.js';
 import { accountFrom, activeAccount, clearAccount, storeAccount, tokenExpiring, type Account } from '../auth/account.js';
-import { isRecord } from './accounts.js';
+import { isRecord } from './read.js';
 
 export type Provider = 'google' | 'microsoft' | 'github';
 export const PROVIDERS: Provider[] = ['google', 'microsoft', 'github'];

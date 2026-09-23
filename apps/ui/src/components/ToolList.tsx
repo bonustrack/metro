@@ -1,5 +1,4 @@
 import { type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
@@ -7,14 +6,14 @@ import { Pill } from './Pill.js';
 import { CountBadge } from './CountBadge.js';
 import { Loading } from './Loading.js';
 import { fetchConnectorTools } from '../api/connectors.js';
-import { queryError } from '../api/queries.js';
+import { queryError, useBoxQuery } from '../api/queries.js';
 import { SHRINK } from '../theme.js';
 
 const ROW_PAD_Y = 8;
 
 export function ToolList({ id }: { id: string }): ReactNode {
   const palette = useKitPalette();
-  const { data, error } = useQuery({ queryKey: ['connector-tools', id], queryFn: () => fetchConnectorTools(id), staleTime: 60_000, retry: false });
+  const { data, error } = useBoxQuery(['connector-tools', id], () => fetchConnectorTools(id), { staleTime: 60_000, retry: false });
   return (
     <Col gap={10}>
       <Row gap={10} align="center">
