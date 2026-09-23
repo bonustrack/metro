@@ -127,7 +127,7 @@ export async function startInteractiveAttach(
   input: Record<string, unknown>,
   hooks: DriverHooks,
 ): Promise<StartedAttach> {
-  if (station === 'outlook') return startOutlook(hooks);
+  if (station === 'outlook') return startOutlook(input, hooks);
   return station === 'telegram'
     ? startTelegramUser(input, hooks)
     : startWhatsapp(input, hooks);

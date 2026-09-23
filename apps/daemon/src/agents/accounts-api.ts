@@ -246,6 +246,18 @@ async function handleDetach(
     detached: true,
     activated: await activate(deps, ref.station),
   });
+  forgetAccount(ref.station, ref.accountId);
+}
+
+function forgetAccount(station: StationName, accountId: string): void {
+  try {
+    stationByName(station)?.forget?.(accountId);
+  } catch (err) {
+    log.warn(
+      { station, account: accountId, err: errMsg(err) },
+      'account-api: could not remove the files of a detached account',
+    );
+  }
 }
 
 async function applied(deps: AccountApiDeps): Promise<boolean> {

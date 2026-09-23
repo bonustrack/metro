@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { accountFiles } from '@metro-labs/core/stations/account-files';
 import type { GroupRef } from './messages.js';
 
 export const GROUP_RE = /^([A-Z0-9]{8}|\*[A-Z0-9]{7})-([0-9a-f]{16})$/i;
@@ -19,8 +19,9 @@ export function parseGroupKey(resource: string): GroupRef | null {
   return m === null ? null : { creator: (m[1] ?? '').toUpperCase(), groupId: (m[2] ?? '').toLowerCase() };
 }
 
-const groupsFile = (accountId: string): string =>
-  join(process.env.THREEMA_GROUPS_DIR ?? join(homedir(), '.metro'), `threema-groups-${accountId}.json`);
+export const groupFiles = accountFiles('THREEMA_GROUPS_DIR', 'threema-groups-');
+
+const groupsFile = (accountId: string): string => groupFiles.path(accountId);
 
 function readRosters(accountId: string): Map<string, GroupRoster> {
   try {

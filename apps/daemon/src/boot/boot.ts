@@ -36,9 +36,11 @@ import { createMetroMcp } from '../mcp/index.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import {
   accountStationCapabilities,
+  forgetOrphans,
   stationByName,
 } from '../stations/registry.js';
 import { prepareAccount } from '../stations/attach.js';
+import { knownAccounts } from '../agents/map.js';
 import { materializeFrom, reloadFrom } from '../stations/materialize.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import { startUploadReaper } from '../files/upload-store.js';
@@ -116,6 +118,7 @@ installBearerSessions(agentsDir(), localOwner);
   migrateAgentLayout();
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource);
+  forgetOrphans(knownAccounts());
   supervisor.start();
   const metroMcp = await createMetroMcp();
   webhookServer = await startWebhookServer(

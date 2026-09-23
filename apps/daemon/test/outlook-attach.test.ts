@@ -13,6 +13,7 @@ const json = (body: unknown, status = 200): Response =>
 let tokenAnswers: Response[] = [];
 let exchanges: URLSearchParams[] = [];
 let stored: { station: string; config: Record<string, unknown> }[] = [];
+let me: Record<string, string> = {};
 const realFetch = globalThis.fetch;
 
 function fakeMicrosoft(input: string | URL | Request, init?: RequestInit): Promise<Response> {
@@ -24,7 +25,7 @@ function fakeMicrosoft(input: string | URL | Request, init?: RequestInit): Promi
     if (body.get('grant_type') === 'authorization_code') exchanges.push(body);
     return Promise.resolve(tokenAnswers.shift() ?? json({ error: 'authorization_pending' }, 400));
   }
-  if (url.startsWith(`${GRAPH}/me?`)) return Promise.resolve(json({ mail: 'Andy@Anderra.ch', displayName: 'Andy' }));
+  if (url.startsWith(`${GRAPH}/me?`)) return Promise.resolve(json(me));
   return Promise.resolve(json({}, 404));
 }
 
@@ -56,6 +57,7 @@ beforeEach(() => {
   tokenAnswers = [];
   exchanges = [];
   stored = [];
+  me = { mail: 'Andy@Anderra.ch', displayName: 'Andy' };
   globalThis.fetch = fakeMicrosoft as typeof fetch;
 });
 
@@ -144,6 +146,72 @@ describe('connecting Outlook through the Microsoft sign-in page', () => {
     });
     const failed = await settle(s, started.attachId);
     expect(failed.error).toContain('declined');
+    await s.stop();
+  });
+});
+
+describe('naming the mailbox to connect', () => {
+  const signIn = async (mailbox: string): Promise<AttachView> => {
+    tokenAnswers = [json({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })];
+    const s = sessions();
+    const started = await s.start(ADA, 'outlook', { mailbox });
+    await s.submit(ADA, started.attachId, { code: 'the-code', state: query(started).get('state') });
+    const done = await settle(s, started.attachId);
+    await s.stop();
+    return done;
+  };
+
+  test('the mailbox rides as the login hint, and account selection stays on', async () => {
+    const s = sessions();
+    const q = query(await s.start(ADA, 'outlook', { mailbox: ' Andy@Anderra.ch ' }));
+    expect(q.get('login_hint')).toBe('andy@anderra.ch');
+    expect(q.get('prompt')).toBe('select_account');
+    await s.stop();
+  });
+
+  test('no mailbox, no hint', async () => {
+    const s = sessions();
+    expect(query(await s.start(ADA, 'outlook', {})).get('login_hint')).toBeNull();
+    await s.stop();
+  });
+
+  test('something that is not an address is refused before any sign-in', async () => {
+    const s = sessions();
+    await expect(s.start(ADA, 'outlook', { mailbox: 'andy' })).rejects.toThrow('whole address');
+    await s.stop();
+  });
+
+  test('the named mailbox connects', async () => {
+    const done = await signIn('andy@anderra.ch');
+    expect(done).toMatchObject({ status: 'done', identity: { email: 'andy@anderra.ch' } });
+    expect(stored[0]?.config).toMatchObject({ accountEmail: 'andy@anderra.ch' });
+  });
+
+  test('the user principal name counts too', async () => {
+    me = { mail: 'andy@anderra.ch', userPrincipalName: 'andy.m@anderra.onmicrosoft.com', displayName: 'Andy' };
+    expect((await signIn('andy.m@anderra.onmicrosoft.com')).status).toBe('done');
+  });
+
+  test('another account is refused and nothing is stored', async () => {
+    me = { mail: 'fabien@anderra.ch', displayName: 'Fabien' };
+    const failed = await signIn('andy@anderra.ch');
+    expect(failed.status).toBe('failed');
+    expect(failed.error).toBe(
+      'You signed in as fabien@anderra.ch, not andy@anderra.ch. Nothing was connected. Start again and pick andy@anderra.ch on Microsoft\'s page, or use "Use another account".',
+    );
+    expect(stored).toEqual([]);
+  });
+
+  test('the sign-in code checks the mailbox the same way', async () => {
+    me = { mail: 'fabien@anderra.ch', displayName: 'Fabien' };
+    tokenAnswers = [json({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })];
+    const s = sessions();
+    const started = await s.start(ADA, 'outlook', { mailbox: 'andy@anderra.ch' });
+    await s.submit(ADA, started.attachId, { mode: 'device' });
+    const failed = await settle(s, started.attachId);
+    expect(failed.status).toBe('failed');
+    expect(failed.error).toContain('You signed in as fabien@anderra.ch, not andy@anderra.ch.');
+    expect(stored).toEqual([]);
     await s.stop();
   });
 });

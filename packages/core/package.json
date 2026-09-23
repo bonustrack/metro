@@ -19,6 +19,7 @@
     "./lines": "./src/lines.ts",
     "./endpoints": "./src/endpoints.ts",
     "./stations/types": "./src/stations/types.ts",
+    "./stations/account-files": "./src/stations/account-files.ts",
     "./stations/station-runtime": "./src/stations/station-runtime.ts",
     "./stations/account-store": "./src/stations/account-store.ts",
     "./stations/attachments": "./src/stations/attachments.ts",
