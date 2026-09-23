@@ -5,10 +5,10 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { beginLogin, finishLogin, readCodexCliAuth, type CodexTokens } from './codex-auth.js';
 import { beginDeviceLogin, pollDeviceLogin } from './codex-device.js';
-import { codexModels, currentTokens, freshCodexState } from './codex.js';
+import { codexModels, currentTokens, sharedCodexState } from './codex.js';
 import { beginLogin as beginGeminiLogin, exchangeCode as exchangeGeminiCode, userEmail, type GeminiTokens } from './gemini-auth.js';
 import { onboard, parseGeminiProject } from './gemini-setup.js';
-import { currentGeminiTokens, freshGeminiState, listGeminiModels, type GeminiDeps } from './gemini.js';
+import { currentGeminiTokens, listGeminiModels, sharedGeminiState, type GeminiDeps } from './gemini.js';
 import { openrouterCredits } from './openrouter.js';
 import { lastServed } from './served.js';
 import { geminiUsage, noteUsage, openrouterUsage, usageOf } from './usage.js';
@@ -23,8 +23,6 @@ import {
 } from './model-config.js';
 import { asApiError, askedConnection, BODY_MAX, connectionFor, CREDITS_TTL_MS, settingsBody, type ModelApiDeps, type Route, type Store } from './model-store.js';
 
-const codexState = freshCodexState();
-const geminiState = freshGeminiState();
 
 function connectionToFill(store: Store, req: IncomingMessage, provider: Provider): { cfg: ModelConfig; id: string } {
   const asked = askedConnection(req);
@@ -100,7 +98,7 @@ export const CODEX_ROUTES: Record<string, Route> = {
       const conn = connectionFor(store.read(), req, 'codex');
       if (conn.codex === null) throw new ApiError('this connection is not signed in yet', 400);
       const codexDeps = codexDepsFor(deps, store, conn.id);
-      const auth = await currentTokens(conn, codexDeps, codexState).catch(asApiError);
+      const auth = await currentTokens(conn, codexDeps, sharedCodexState).catch(asApiError);
       return { models: await codexModels(auth, codexDeps).catch(asApiError) };
     },
   },
@@ -117,7 +115,7 @@ export const geminiDeps = (deps: ModelApiDeps, store: Store): GeminiDeps => ({
 
 async function geminiModelsOf(conn: Connection, deps: ModelApiDeps, store: Store): Promise<Awaited<ReturnType<typeof listGeminiModels>>> {
   if (conn.gemini === null) throw new ApiError('this connection is not signed in yet', 400);
-  const tokens = await currentGeminiTokens(conn, geminiDeps(deps, store), geminiState);
+  const tokens = await currentGeminiTokens(conn, geminiDeps(deps, store), sharedGeminiState);
   return listGeminiModels(tokens, geminiDeps(deps, store));
 }
 

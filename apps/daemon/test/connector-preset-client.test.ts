@@ -278,6 +278,19 @@ describe('a connector whose authorization server registers no clients', () => {
     expect(form.get('client_secret')).toBe(CLIENT_SECRET);
   });
 
+  test('the page listing tools while the relay also needs a fresh token sends ONE refresh', async () => {
+    const file = stored();
+    const row = file.connectors[0];
+    if (row === undefined) throw new Error('no row');
+    row.config.auth.expiresAt = Date.now() - 1;
+    writeFileSync(join(dir, 'connectors.json'), JSON.stringify(file));
+    const before = tokenForms.length;
+    const [target, tools] = await Promise.all([localRelayTarget(outlook, false, dir), call('GET', `/api/connectors/${outlook}/tools`)]);
+    expect(target).toMatchObject({ kind: 'ok' });
+    expect(tools.status).toBe(200);
+    expect(tokenForms.length - before).toBe(1);
+  });
+
   test('signing out keeps the app, so Connect signs in again as the same client with no registration', async () => {
     const out = await call('POST', `/api/connectors/${outlook}/disconnect`);
     expect(out.status).toBe(200);

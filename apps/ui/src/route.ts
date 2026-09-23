@@ -1,5 +1,5 @@
 import { type Selection } from './components/selection.js';
-import { RESERVED_SEGMENTS } from './auth/daemon.js';
+import { RESERVED_SEGMENTS, storedServerId } from './auth/daemon.js';
 import { noteRoutedOrganization, organizationSegment, splitOrganization } from './auth/org-route.js';
 import { agentSegment } from './auth/agent-route.js';
 
@@ -101,7 +101,16 @@ export function routeSelection(fullHash: string): Selection {
   return plainSelection(rest);
 }
 
-function plainSelection(hash: string): Selection {
+const BARE_CONNECTOR = new RegExp(`^#?\\/(connectors|connector\\/${ID})$`);
+
+function withStoredAgent(hash: string): string {
+  const found = BARE_CONNECTOR.exec(hash);
+  const agent = storedServerId();
+  return found === null || agent === null ? hash : `#/${agent}/${found[1] ?? ''}`;
+}
+
+function plainSelection(bare: string): Selection {
+  const hash = withStoredAgent(bare);
   const exact = exactSelection(hash);
   if (exact !== null) return exact;
   for (const [pattern, make] of SCOPED) {

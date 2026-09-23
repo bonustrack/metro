@@ -13,7 +13,7 @@ const SCRUBBED = new Set(['METRO_RUN_TOKEN', 'METRO_AGENT', 'DATABASE_URL']);
 const PORT_FLAG = /^--port=(.*)$/;
 const OWNER_FLAG = /^--owner=(.*)$/;
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-const USAGE = 'usage: metro serve [--port <n>] [--owner <address>]';
+const USAGE = 'usage: metro serve [--port <n>] [--owner <organization id>]';
 const TUNNEL_FLAG = /^--(no-)?tunnel(=.*)?$/;
 const TAILSCALE_APP = '/Applications/Tailscale.app/Contents/MacOS/Tailscale';
 

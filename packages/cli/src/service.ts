@@ -6,7 +6,7 @@ import { serveLockedBy } from './control.js';
 import { findBun } from './runtime.js';
 import { findTailscale, parseServeArgs, requireOwner } from './serve.js';
 
-const USAGE = 'usage: metro service install [--port <n>] [--owner <address>] | uninstall | status';
+const USAGE = 'usage: metro service install [--port <n>] [--owner <organization id>] | uninstall | status';
 const SERVICE = 'metro';
 const LABEL = 'box.metro.serve';
 const CARRIED = /^(METRO_.*|XDG_CACHE_HOME|PATH|HOME)$/;

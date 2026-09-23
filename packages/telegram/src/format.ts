@@ -123,6 +123,25 @@ export function attachmentSavedEnvelope(
   };
 }
 
+export function attachmentFailedEnvelope(
+  accountId: string,
+  line: string,
+  sourceEnvId: string,
+  reason: string,
+  index = 0,
+): Record<string, unknown> {
+  return {
+    kind: 'inbound',
+    id: mintId(),
+    ts: new Date().toISOString(),
+    station: 'telegram',
+    line,
+    from: `metro://telegram/${accountId}/self`,
+    text: `📎 not fetched: ${reason}`,
+    payload: { account: accountId, contentType: 'attachmentFailed', attachmentFor: sourceEnvId, index, reason },
+  };
+}
+
 export interface ReactionInput {
   accountId: string;
   chatId: number;

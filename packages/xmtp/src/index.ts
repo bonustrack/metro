@@ -90,7 +90,9 @@ async function runAccount(acct: Account): Promise<void> {
       });
       for await (const msg of stream) {
         if (!msg) continue;
-        await handleStreamMessage(acct, msg);
+        await handleStreamMessage(acct, msg).catch((err: unknown) => {
+          process.stderr.write(`xmtp[${id}] one message failed and was skipped: ${errMsg(err)}\n`);
+        });
       }
     } catch (err) {
       process.stderr.write(

@@ -328,3 +328,39 @@ describe('temp filenames are derived safely from a caller-supplied name', () => 
     expect(leftBehind()).toHaveLength(0);
   });
 });
+
+describe('a url attachment', () => {
+  test('streams into a temp file outside the attachment cache, and cleanup removes it', async () => {
+    const server = Bun.serve({ port: 0, fetch: () => new Response(PAYLOAD, { headers: { 'content-type': 'image/png' } }) });
+    try {
+      const [a] = await resolveAttachments([{ url: `http://127.0.0.1:${String(server.port)}/pic.png` }]);
+      if (a === undefined) throw new Error('expected one attachment');
+      expect(a).toMatchObject({ mime: 'image/png', name: 'pic.png', bytes: PAYLOAD.length });
+      expect(readFileSync(a.path)).toEqual(PAYLOAD);
+      expect(a.path.startsWith(attachDir())).toBe(false);
+      expect(a.temp).toBeString();
+      await cleanupAttachments([a]);
+      expect(leftBehind()).toEqual([]);
+    } finally {
+      await server.stop(true);
+    }
+  });
+
+  test('a body that grows past the ceiling without a length header is refused and leaves nothing', async () => {
+    const chunk = new Uint8Array(1024 * 1024);
+    const server = Bun.serve({
+      port: 0,
+      fetch: () => {
+        let sent = 0;
+        return new Response(new ReadableStream({ pull(c) { sent += 1; if (sent > 200) c.close(); else c.enqueue(chunk); } }));
+      },
+    });
+    try {
+      const refused = resolveAttachments([{ url: `http://127.0.0.1:${String(server.port)}/big.bin` }]);
+      await expect(refused).rejects.toThrow(/exceeds limit/);
+      expect(leftBehind()).toEqual([]);
+    } finally {
+      await server.stop(true);
+    }
+  });
+});

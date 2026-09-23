@@ -216,19 +216,25 @@ export function localMarkSignedOut(id: string, dir = agentsDir()): void {
   replace(dir, signedOut(row));
 }
 
-async function freshAuth(auth: ConnectorAuth, resource: string): Promise<ConnectorAuth> {
+async function freshAuth(row: LocalConnectorRow, dir: string): Promise<ConnectorAuth> {
+  const auth = row.config.auth;
   if (auth.kind !== 'oauth' || !oauthExpired(auth)) return auth;
-  return refreshOAuth(auth, resource);
+  return refreshOnce(row, auth, dir);
+}
+
+function updateRow(dir: string, id: string, config: Partial<LocalConnectorRow['config']>): void {
+  const now = readLocalConnectors(dir).find((r) => r.id === id);
+  if (now !== undefined) replace(dir, { ...now, config: { ...now.config, ...config } });
 }
 
 export async function localVerifyConnector(subject: string, id: string, dir = agentsDir()): Promise<ConnectorCheck> {
   const row = rowOrThrow(subject, id, dir);
   try {
     const url = parseConnectorUrl(row.url);
-    const auth = await freshAuth(row.config.auth, url.toString());
+    const auth = await freshAuth(row, dir);
     const verified = stamp(await verifyRemoteMcp(url, auth));
     const oauth = row.config.oauth || (await oauthCapable(url, auth));
-    replace(dir, { ...row, config: { ...row.config, auth, verified, oauth } });
+    updateRow(dir, row.id, { auth, verified, oauth });
     return { id: row.id, name: row.name, ok: true, verified };
   } catch (err) {
     if (!(err instanceof ConnectorVerifyError)) throw err;
@@ -239,9 +245,7 @@ export async function localVerifyConnector(subject: string, id: string, dir = ag
 export async function localConnectorTools(subject: string, id: string, dir = agentsDir()): Promise<RemoteTool[]> {
   const row = rowOrThrow(subject, id, dir);
   const url = parseConnectorUrl(row.url);
-  const auth = await freshAuth(row.config.auth, url.toString());
-  if (auth !== row.config.auth) replace(dir, { ...row, config: { ...row.config, auth } });
-  return listRemoteTools(url, auth);
+  return listRemoteTools(url, await freshAuth(row, dir));
 }
 
 export async function localRenameConnector(subject: string, id: string, raw: string, dir = agentsDir()): Promise<Connector> {
@@ -264,7 +268,7 @@ function refreshOnce(row: LocalConnectorRow, auth: OAuthAuth, dir: string): Prom
   if (running !== undefined) return running;
   const job = refreshOAuth(auth, parseConnectorUrl(row.url).toString())
     .then((fresh) => {
-      replace(dir, { ...row, config: { ...row.config, auth: fresh } });
+      updateRow(dir, row.id, { auth: fresh });
       return fresh;
     })
     .finally(() => {

@@ -172,7 +172,7 @@ function writeEvent(res: ServerResponse, message: EventStreamMessage, scanner: U
   res.write(`event: error\ndata: ${JSON.stringify(body)}\n\n`);
 }
 
-async function relayStream(upstream: Response, res: ServerResponse, watch: Watch): Promise<void> {
+async function relayStream(upstream: Response, res: ServerResponse, watch: Watch, key: string): Promise<void> {
   res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
   const body = upstream.body;
   if (body === null) {
@@ -180,7 +180,7 @@ async function relayStream(upstream: Response, res: ServerResponse, watch: Watch
     return;
   }
   const ping = setInterval(() => res.write('event: ping\ndata: {"type":"ping"}\n\n'), PING_MS);
-  const scanner = new UsageScanner('bedrock');
+  const scanner = new UsageScanner(key);
   try {
     const decoder = new EventStreamDecoder();
     const reader = body.getReader();
@@ -220,11 +220,11 @@ export async function bedrockMessages(
     return;
   }
   if (rewritten.stream) {
-    await relayStream(upstream, res, up.watch);
+    await relayStream(upstream, res, up.watch, up.settings.id);
     return;
   }
   const text = await upstream.text();
-  const scanner = new UsageScanner('bedrock');
+  const scanner = new UsageScanner(up.settings.id);
   scanner.feed(text);
   scanner.done();
   res.writeHead(200, { 'content-type': 'application/json' });

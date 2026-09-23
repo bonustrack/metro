@@ -160,3 +160,23 @@ describe('discord-bot voice notes', () => {
     await Bun.sleep(50);
   });
 });
+
+describe('discord-bot attachment that cannot be fetched', () => {
+  test('is reported as attachmentFailed for the same message, so the daemon does not wait 15s', async () => {
+    const working = globalThis.fetch;
+    globalThis.fetch = (() => Promise.resolve(new Response('gone', { status: 404 }))) as unknown as typeof fetch;
+    try {
+      messageEnvelope('d0', fakeMessage([htmlAttachment], 0));
+      let failed: Record<string, unknown> | undefined;
+      for (let waited = 0; waited < 5000 && failed === undefined; waited += 25) {
+        failed = lines.map((l) => JSON.parse(l) as { payload?: Record<string, unknown> }).find((e) => e.payload?.contentType === 'attachmentFailed')?.payload;
+        if (failed === undefined) await Bun.sleep(25);
+      }
+      expect(failed).toMatchObject({ contentType: 'attachmentFailed', index: 0, name: 'exploding-kittens-bot.html' });
+      expect(String(failed?.reason)).not.toBe('');
+      expect(failed?.attachmentFor).toBeString();
+    } finally {
+      globalThis.fetch = working;
+    }
+  });
+});

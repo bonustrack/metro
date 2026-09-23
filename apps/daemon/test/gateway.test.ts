@@ -637,6 +637,26 @@ describe('what keeps a session alive through a bad hour', () => {
     expect(tokenIssuer.seen.length - before).toBe(1);
   });
 
+  test('two ChatGPT connections never share a refreshed token: each refreshes with its own', async () => {
+    use(cfg, 'codex');
+    const stale = new Date(Date.now() - 5_000).toISOString();
+    conn(cfg, 'codex').codex = { ...tokens(), accessToken: 'expired', savedAt: stale };
+    expect((await post('/gateway/v1/messages', message('gpt-5.4', true))).status).toBe(200);
+    const second = makeConnection('codex', { id: 'cn-codex-two', model: 'gpt-5.4', codex: { ...tokens(), accessToken: 'expired', refreshToken: 'rt-second', accountId: 'acct_2', savedAt: stale } });
+    cfg.connections.push(second);
+    cfg.route = second.id;
+    const before = tokenIssuer.seen.length;
+    try {
+      const res = await post('/gateway/v1/messages', message('gpt-5.4', true));
+      expect(res.status).toBe(200);
+      await res.text();
+      expect(tokenIssuer.seen.length - before).toBe(1);
+      expect(JSON.parse(tokenIssuer.seen.at(-1)?.body ?? '{}')).toMatchObject({ refresh_token: 'rt-second' });
+    } finally {
+      cfg.connections = cfg.connections.filter((c) => c.id !== second.id);
+    }
+  });
+
   test('a provider that goes silent is cut off with an error frame instead of hanging behind the pings', async () => {
     const answer = openrouter.answer;
     openrouter.answer = (_req, res) => {

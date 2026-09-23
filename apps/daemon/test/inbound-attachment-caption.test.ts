@@ -436,3 +436,28 @@ describe('paths that must not change', () => {
     expect(metaOf(note).message_id).toBeUndefined();
   });
 });
+
+describe('a message with media keeps who it was for', () => {
+  test('a direct message with a photo is still addressed: direct, with its reply target, on the saved note', async () => {
+    const { relay, notifs } = makeRelay();
+    await relay.handleEvent({ ...telegramMsg(), isPrivate: true, replyTo: '1975' });
+    await relay.handleEvent(telegramSaved());
+    const [only] = channelNotifs(notifs);
+    expect(metaOf(only as Notif)).toMatchObject({ addressed: 'direct', reply_to: '1975' });
+  });
+
+  test('and on the fallback note when the download never lands', async () => {
+    jest.useFakeTimers();
+    try {
+      const { relay, notifs } = makeRelay();
+      await relay.handleEvent({ ...telegramMsg(), isPrivate: true });
+      jest.advanceTimersByTime(ATTACH_TIMEOUT_MS + 10);
+      await Promise.resolve();
+      await Promise.resolve();
+      const [only] = channelNotifs(notifs);
+      expect(metaOf(only as Notif)).toMatchObject({ addressed: 'direct' });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});

@@ -89,6 +89,15 @@ describe('a Code Assist stream becomes Anthropic frames', () => {
     text += cut.close();
     expect(text).toContain('"stop_reason":"max_tokens"');
 
+    const unfinished = new GeminiStreamTranslator('m');
+    const half = unfinished.push({ response: { candidates: [{ content: { parts: [{ text: 'half an ans' }] } }] } }) + unfinished.close();
+    expect(half).toContain('"type":"error"');
+    expect(half).not.toContain('"stop_reason":"end_turn"');
+
+    const idle = new GeminiStreamTranslator('m');
+    const timedOut = idle.push({ response: { candidates: [{ content: { parts: [{ text: 'some' }] } }] } }) + idle.close('the provider sent nothing');
+    expect(timedOut).toContain('the provider sent nothing');
+
     const blocked = new GeminiStreamTranslator('m');
     const err = blocked.push({ response: { promptFeedback: { blockReason: 'SAFETY' } } }) + blocked.close();
     expect(err).toContain('"type":"error"');

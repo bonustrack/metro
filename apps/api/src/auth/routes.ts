@@ -101,7 +101,7 @@ async function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDep
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
   const provider = query.get('provider');
   const returnTo = query.get('return_to') ?? '';
-  if (!isProvider(provider)) throw new ApiError('provider must be google or microsoft', 400);
+  if (!isProvider(provider)) throw new ApiError('provider must be google, microsoft or github', 400);
   if (!validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
   if (!(await providers(req, deps)).includes(provider)) {
     redirect(res, withHash(returnTo, `${refusedHash('not-set-up')}&provider=${provider}`));

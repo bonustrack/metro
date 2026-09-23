@@ -39,6 +39,7 @@ export class GeminiStreamTranslator {
   private toolCalls = 0;
   private usage: Usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0 };
   private stop = 'end_turn';
+  private finishedBy: string | null = null;
   private refusal: string | null = null;
   private readonly model: string;
   private readonly restore: (name: string) => string;
@@ -115,6 +116,7 @@ export class GeminiStreamTranslator {
     const parts = Array.isArray(content.parts) ? content.parts.filter(isRecord) : [];
     const out = parts.map((part) => this.part(part)).join('');
     const finish = str(candidate.finishReason);
+    if (finish !== '') this.finishedBy = finish;
     const stop = STOP_OF[finish];
     if (stop !== undefined) this.stop = stop;
     else if (REFUSALS.has(finish)) this.refusal = `Gemini stopped the answer (${finish})`;
@@ -137,8 +139,9 @@ export class GeminiStreamTranslator {
     if (this.done) return '';
     this.done = true;
     let out = this.start() + this.closeOpen();
-    const failure = error ?? this.refusal;
-    if (failure !== null && failure !== undefined && this.toolCalls === 0 && this.next === 0)
+    const unfinished = this.finishedBy === null && this.refusal === null ? 'Gemini ended the stream before completing the response' : null;
+    const failure = error ?? this.refusal ?? unfinished;
+    if (failure !== null)
       return out + frame('error', { type: 'error', error: { type: 'api_error', message: failure } });
     const stop = this.toolCalls > 0 ? 'tool_use' : this.stop;
     out += frame('message_delta', { type: 'message_delta', delta: { stop_reason: stop, stop_sequence: null }, usage: this.usage });

@@ -2,13 +2,13 @@ import {
   assertAttachmentSize,
   assertContentLength,
   guessMime,
-  saveBufferToCache,
 } from '@metro-labs/core/stations/attachments';
 import {
   assertInlineTotal,
   decodeInline,
   removeInlineTemp,
   splitInlineData,
+  streamToTemp,
   writeInlineTemp,
 } from './attach-inline.js';
 import { realpathSync } from 'node:fs';
@@ -38,8 +38,6 @@ const basenameOf = (src: string): string =>
   src.split('?')[0]?.split('#')[0]?.split('/').filter(Boolean).pop() ?? '';
 
 const isHttpUrl = (src: string): boolean => /^https?:\/\//i.test(src);
-
-const mintId = (): string => Math.random().toString(36).slice(2, 12);
 
 const HIDDEN_SEGMENT = /(^|\/)\.[^/]/;
 
@@ -93,15 +91,12 @@ async function fromUrl(
   if (!res.ok)
     throw new Error(`attachment fetch failed ${res.status} for '${url}'`);
   assertContentLength(res.headers.get('content-length'));
-  const data = new Uint8Array(await res.arrayBuffer());
   const mime =
     a.mime ?? res.headers.get('content-type')?.split(';')[0] ?? guessMime(url);
   const name = a.name ?? basenameOf(url) ?? 'attachment';
-  const saved = await saveBufferToCache(data, `out${mintId()}`, 0, {
-    mime,
-    name,
-  });
-  return { path: saved.path, mime, name, bytes: data.length };
+  if (res.body === null) throw new Error(`attachment fetch returned no body for '${url}'`);
+  const { dir, path, bytes } = await streamToTemp(res.body, name);
+  return { path, mime, name, bytes, temp: dir };
 }
 
 async function fromData(

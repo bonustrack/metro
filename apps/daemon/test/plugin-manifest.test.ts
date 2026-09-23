@@ -13,8 +13,8 @@ describe('the plugin manifest', () => {
     expect(manifest.hooks).toBeUndefined();
   });
 
-  test('carries the skills directory and a version Claude Code can compare', () => {
-    expect(manifest.skills).toBe('./skills/');
+  test('names no skills folder, since none ships, and carries a version Claude Code can compare', () => {
+    expect(manifest.skills).toBeUndefined();
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });

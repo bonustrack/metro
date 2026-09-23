@@ -44,11 +44,20 @@ function emitAttachmentSaved(
         },
       });
     })
-    .catch((err: unknown) =>
-      process.stderr.write(
-        `discord-bot attachment save failed: ${err instanceof Error ? err.message : String(err)}\n`,
-      ),
-    );
+    .catch((err: unknown) => {
+      const reason = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`discord-bot attachment save failed: ${reason}\n`);
+      emitInbound(accountId, {
+        kind: 'inbound',
+        id: mintId(),
+        ts: new Date().toISOString(),
+        station: 'discord-bot',
+        line,
+        from: SELF_URI,
+        text: `📎 not fetched: ${reason}`,
+        payload: { contentType: 'attachmentFailed', attachmentFor: sourceMsgId, index, name: ref.name ?? undefined, mime: ref.contentType ?? undefined, reason },
+      });
+    });
 }
 
 const AV_TAG: Record<string, string> = { audio: 'audio', video: 'video' };

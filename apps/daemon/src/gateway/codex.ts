@@ -23,12 +23,22 @@ export interface CodexDeps {
   save: (id: string, tokens: CodexTokens) => void;
 }
 
-export interface CodexState {
+interface Slot {
   refreshing: Promise<CodexTokens> | null;
   latest: CodexTokens | null;
 }
 
-export const freshCodexState = (): CodexState => ({ refreshing: null, latest: null });
+export type CodexState = Map<string, Slot>;
+
+export const sharedCodexState: CodexState = new Map();
+
+function slotFor(state: CodexState, id: string): Slot {
+  const found = state.get(id);
+  if (found !== undefined) return found;
+  const made: Slot = { refreshing: null, latest: null };
+  state.set(id, made);
+  return made;
+}
 
 const OS_NAMES: Record<string, string> = { darwin: 'Mac OS', linux: 'Linux', win32: 'Windows' };
 
@@ -58,22 +68,23 @@ function headersFor(tokens: CodexTokens, sessionId: string): Record<string, stri
 const newerThan = (a: CodexTokens, b: CodexTokens): boolean => Date.parse(a.savedAt) > Date.parse(b.savedAt);
 
 function refreshed(id: string, tokens: CodexTokens, deps: CodexDeps, state: CodexState): Promise<CodexTokens> {
-  const latest = state.latest;
+  const slot = slotFor(state, id);
+  const latest = slot.latest;
   if (latest !== null && newerThan(latest, tokens) && !tokensStale(latest)) return Promise.resolve(latest);
-  if (state.refreshing !== null) return state.refreshing;
+  if (slot.refreshing !== null) return slot.refreshing;
   const run = refreshTokens(tokens, deps.issuer, deps.fetchImpl)
     .then((fresh) => {
       deps.save(id, fresh);
-      state.latest = fresh;
+      slot.latest = fresh;
       return fresh;
     })
     .catch((err: unknown) => {
       throw new GatewayError(403, 'permission_error', `Codex sign-in expired (${errMsg(err)}): connect again on the Model page`);
     })
     .finally(() => {
-      state.refreshing = null;
+      slot.refreshing = null;
     });
-  state.refreshing = run;
+  slot.refreshing = run;
   return run;
 }
 

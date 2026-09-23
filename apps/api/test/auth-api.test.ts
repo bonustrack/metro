@@ -167,6 +167,14 @@ describe('signing in to metro.box through WorkOS', () => {
       deps.now = undefined;
     }
     forgetProviders();
+    workos.outage.on = true;
+    try {
+      const cold = await fetch(`${base}/api/auth/login?provider=google&return_to=https://metro.box/`, { redirect: 'manual' });
+      expect(cold.headers.get('location') ?? '').not.toContain('not-set-up');
+    } finally {
+      workos.outage.on = false;
+    }
+    forgetProviders();
     const off = { ...deps, config: () => null };
     const s = createServer((req, res) => {
       handleAuthApiRequest(req, res, off);

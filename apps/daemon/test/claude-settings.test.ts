@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { listClaudeSettings } from '../src/claude/settings.ts';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
@@ -130,6 +131,8 @@ describe('Claude Code settings, read and written on the machine the daemon runs 
   });
 
   test('a file that changed on disk since it was read refuses the save', async () => {
+    const earlier = new Date(Date.now() - 60_000);
+    utimesSync(join(dir, 'settings.json'), earlier, earlier);
     const seenAt = (await listing())[0]?.modifiedAt ?? null;
     writeFileSync(join(dir, 'settings.json'), '{"model":"someone else"}');
     const stale = await put('/api/claude/settings/user', { text: '{"model":"mine"}', seenAt });
@@ -152,5 +155,22 @@ describe('Claude Code settings, read and written on the machine the daemon runs 
     expect((await get('/api/claude/settings', STRANGER)).status).toBe(404);
     expect((await put('/api/claude/settings/user', { text: '{}' }, STRANGER)).status).toBe(404);
     expect(readFileSync(join(dir, 'settings.json'), 'utf8')).toContain('opus');
+  });
+});
+
+describe('a box that runs Claude Code in its home folder', () => {
+  test('lists ~/.claude/settings.json once, not again as the home project settings', () => {
+    const home = mkdtempSync(join(tmpdir(), 'metro-home-'));
+    const claude = join(home, '.claude');
+    try {
+      const encoded = home.replace(/[/.]/g, '-');
+      mkdirSync(join(claude, 'projects', encoded), { recursive: true });
+      writeFileSync(join(claude, 'projects', encoded, `${SESSION}.jsonl`), transcript(home));
+      writeFileSync(join(claude, 'settings.json'), '{}');
+      const listed = listClaudeSettings(claude).map((f) => f.path);
+      expect(listed).toEqual([join(claude, 'settings.json')]);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });

@@ -22,32 +22,43 @@ export interface GeminiDeps {
   save: (id: string, tokens: GeminiTokens) => void;
 }
 
-export interface GeminiState {
+interface Slot {
   refreshing: Promise<GeminiTokens> | null;
   latest: GeminiTokens | null;
 }
 
-export const freshGeminiState = (): GeminiState => ({ refreshing: null, latest: null });
+export type GeminiState = Map<string, Slot>;
+
+export const sharedGeminiState: GeminiState = new Map();
+
+function slotFor(state: GeminiState, id: string): Slot {
+  const found = state.get(id);
+  if (found !== undefined) return found;
+  const made: Slot = { refreshing: null, latest: null };
+  state.set(id, made);
+  return made;
+}
 
 const newerThan = (a: GeminiTokens, b: GeminiTokens): boolean => Date.parse(a.savedAt) > Date.parse(b.savedAt);
 
 function refreshed(id: string, tokens: GeminiTokens, deps: GeminiDeps, state: GeminiState): Promise<GeminiTokens> {
-  const latest = state.latest;
+  const slot = slotFor(state, id);
+  const latest = slot.latest;
   if (latest !== null && newerThan(latest, tokens) && !tokensStale(latest)) return Promise.resolve(latest);
-  if (state.refreshing !== null) return state.refreshing;
+  if (slot.refreshing !== null) return slot.refreshing;
   const run = refreshTokens(tokens, deps.tokenBase, deps.fetchImpl)
     .then((fresh) => {
       deps.save(id, fresh);
-      state.latest = fresh;
+      slot.latest = fresh;
       return fresh;
     })
     .catch((err: unknown) => {
       throw new GatewayError(403, 'permission_error', `Google sign-in expired (${errMsg(err)}): connect again on the Model page`);
     })
     .finally(() => {
-      state.refreshing = null;
+      slot.refreshing = null;
     });
-  state.refreshing = run;
+  slot.refreshing = run;
   return run;
 }
 

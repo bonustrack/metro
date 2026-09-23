@@ -70,12 +70,49 @@ function sweep(now: number): void {
   }
 }
 
-export function claudeInstalled(): boolean {
-  const run = spawnSync('claude', ['--version'], { stdio: 'ignore' });
-  return run.error === undefined && run.status === 0;
+const CHECK_MS = 30_000;
+
+interface Checked<T> {
+  at: number;
+  value: T;
 }
 
-export function claudeAccount(): { signedIn: boolean; account: string | null } {
+const checks: { installed?: Checked<boolean>; account?: Checked<ClaudeAccount> } = {};
+
+function remembered<T>(slot: Checked<T> | undefined, read: () => T, keep: (c: Checked<T>) => void): T {
+  const now = Date.now();
+  if (slot !== undefined && now - slot.at < CHECK_MS) return slot.value;
+  const value = read();
+  keep({ at: now, value });
+  return value;
+}
+
+function forgetClaudeChecks(): void {
+  delete checks.installed;
+  delete checks.account;
+}
+
+export function claudeInstalled(): boolean {
+  return remembered(checks.installed, () => {
+    const run = spawnSync('claude', ['--version'], { stdio: 'ignore' });
+    return run.error === undefined && run.status === 0;
+  }, (c) => {
+    checks.installed = c;
+  });
+}
+
+interface ClaudeAccount {
+  signedIn: boolean;
+  account: string | null;
+}
+
+export function claudeAccount(): ClaudeAccount {
+  return remembered(checks.account, readAccount, (c) => {
+    checks.account = c;
+  });
+}
+
+function readAccount(): ClaudeAccount {
   const run = spawnSync('claude', STATUS_COMMAND, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (run.error !== undefined || typeof run.stdout !== 'string') return { signedIn: false, account: null };
   try {
@@ -126,6 +163,7 @@ export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now()): LoginV
       session.state = code === 0 ? 'done' : 'failed';
       if (code !== 0) session.error = `the login ended with status ${String(code)}`;
       terminal.close();
+      forgetClaudeChecks();
       const onboarding = code === 0 ? markOnboardingDone() : 'skipped';
       log.info({ state: session.state, onboarding }, 'claude-login: the official login finished');
     })

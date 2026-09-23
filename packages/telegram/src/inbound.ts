@@ -1,7 +1,7 @@
 import type { Message } from '@mtcute/bun';
 import { errMsg, log } from '@metro-labs/core/log';
 import { emit } from './wire.js';
-import { envelope, isOwnEcho, attachmentSavedEnvelope } from './format.js';
+import { envelope, isOwnEcho, attachmentFailedEnvelope, attachmentSavedEnvelope } from './format.js';
 import { downloadMedia, isDownloadable } from './attachments.js';
 import { subscribeReactions } from './reactions.js';
 import type { UserClient } from './client.js';
@@ -28,6 +28,7 @@ async function saveMediaAndEmit(
     process.stderr.write(
       `telegram[${accountId}] media save failed: ${errMsg(e)}\n`,
     );
+    emit(attachmentFailedEnvelope(accountId, env.line as string, env.id as string, errMsg(e)));
   }
 }
 

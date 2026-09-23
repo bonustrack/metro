@@ -55,7 +55,7 @@ export function registerPermissionRelay(deps: PermissionRelayDeps): void {
         );
         return;
       }
-      relay.registerPermission(params.request_id);
+      relay.registerPermission(params.request_id, line);
       try {
         await metroSend(line, promptBody(params));
       } catch (e) {

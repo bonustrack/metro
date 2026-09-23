@@ -10,15 +10,15 @@ import { currentVersion } from './version.js';
 
 const USAGE = `metro — run your agent on this machine
 
-  metro serve [--port <n>] [--owner <address>]
+  metro serve [--port <n>] [--owner <organization id>]
                   run the daemon: the agent, its channels and its connectors live in
                   ~/.metro/agents here, and it is published through Tailscale Funnel at a
                   permanent https://<machine>.<tailnet>.ts.net (Tailscale installed and
                   signed in on this machine); the page at metro.box manages it through the
-                  link it prints; --owner names the one wallet that may sign in, needed on
-                  the first start only; Stop on the page parks the daemon and keeps the
+                  link it prints; --owner names the organization whose members may sign
+                  in, needed on the first start only; Stop on the page parks the daemon and keeps the
                   address, so Start works from the page too
-  metro service install [--port <n>] [--owner <address>]
+  metro service install [--port <n>] [--owner <organization id>]
                   run metro serve as a service (systemd on Linux, launchd on macOS): it
                   starts at boot and after a crash, so the page can stop, start and
                   restart it with no shell; metro service uninstall and status as well
@@ -27,18 +27,15 @@ const USAGE = `metro — run your agent on this machine
                   follow this machine's inbound events, one JSON line each
   metro whoami    print the agent this machine runs
   metro claude [args...]
-                  open Claude Code with the metro channel; every argument is passed through
-                  the same, with inference on Amazon Bedrock through a local proxy so the
-                  channel still works (needs AWS_BEARER_TOKEN_BEDROCK and AWS_REGION)
+                  open Claude Code with the metro channel and the metro MCP server, its
+                  inference routed through the daemon's model gateway (the Model page);
+                  every argument is passed through the same
   metro update    update to the newest published version (--check only reports)
   metro version   print this CLI's version
 
   METRO_WEBHOOK_PORT the daemon's port (default 8420)
   METRO_AGENTS_DIR   where the agents live (default ~/.metro/agents)
   METRO_AGENT_KEY    the key metro tail presents, instead of the agent file's
-  METRO_BEDROCK_MODEL
-                     send every request to this Bedrock model id (default: derive from the
-                     model Claude Code asks for, e.g. eu.anthropic.claude-sonnet-4-6)
   METRO_RUNTIME_DIR  run the daemon from this directory instead of the bundled one
 `;
 

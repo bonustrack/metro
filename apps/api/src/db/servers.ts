@@ -76,8 +76,29 @@ async function freeSlug(owner: string, base: string): Promise<string> {
 async function withSlug(owner: string, row: Row): Promise<Row> {
   if (row.slug !== null) return row;
   const slug = await freeSlug(owner, row.name ?? row.host);
-  await getDb().update(agents).set({ slug }).where(and(eq(agents.id, row.id), eq(agents.owner, owner)));
+  try {
+    await getDb().update(agents).set({ slug }).where(and(eq(agents.id, row.id), eq(agents.owner, owner)));
+  } catch (err) {
+    if (isUniqueViolation(err)) return row;
+    throw err;
+  }
   return { ...row, slug };
+}
+
+const INSERT_TRIES = 3;
+
+async function insertAgent<T extends typeof agents.$inferInsert & { slug: string }>(owner: string, first: T, base: string): Promise<T> {
+  let next = first;
+  for (let attempt = 1; attempt <= INSERT_TRIES; attempt += 1) {
+    try {
+      await getDb().insert(agents).values(next);
+      return next;
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      next = { ...next, slug: await freeSlug(owner, base) };
+    }
+  }
+  throw new ServerListError('that organization already lists an agent with this address or slug', 409);
 }
 
 export interface AgentSummary {
@@ -120,8 +141,7 @@ export async function addServerForOwner(subject: string, body: unknown): Promise
     return entryOf({ ...row, name });
   }
   const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null, avatar: null, slug: await freeSlug(owner, name ?? host) };
-  await db.insert(agents).values(next);
-  return entryOf(next);
+  return entryOf(await insertAgent(owner, next, name ?? host));
 }
 
 export interface LaunchRecord {
@@ -147,8 +167,7 @@ export async function addLaunchedServer(subject: string, launch: LaunchRecord): 
     avatar: null,
     slug: await freeSlug(owner, launch.name),
   };
-  await getDb().insert(agents).values(next);
-  return entryOf(next);
+  return entryOf(await insertAgent(owner, next, launch.name));
 }
 
 export interface ServerLaunch {

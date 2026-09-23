@@ -198,9 +198,17 @@ export function saveMediaAndEmit(
         },
       });
     })
-    .catch((err: unknown) =>
-      process.stderr.write(
-        `telegram-bot media save failed: ${errMsg(err)}\n`,
-      ),
-    );
+    .catch((err: unknown) => {
+      process.stderr.write(`telegram-bot media save failed: ${errMsg(err)}\n`);
+      emitInbound(emit, accountId, {
+        kind: 'inbound',
+        id: mintId(),
+        ts: new Date().toISOString(),
+        station: 'telegram-bot',
+        line,
+        from: SELF_URI || `metro://telegram-bot/${accountId}/self`,
+        text: `📎 not fetched: ${errMsg(err)}`,
+        payload: { contentType: 'attachmentFailed', attachmentFor: sourceEnvId, index: 0, reason: errMsg(err) },
+      });
+    });
 }

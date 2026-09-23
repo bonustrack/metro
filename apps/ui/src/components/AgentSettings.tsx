@@ -111,7 +111,7 @@ function SlugSection({ server }: { server: Server }): ReactNode {
     setServerSlug(server.id, trimmed)
       .then(() => refreshServers(client))
       .then(() => {
-        window.history.replaceState(null, '', `${window.location.pathname}${routeHash({ kind: 'agent-settings', project: server.id })}`);
+        window.location.replace(`${window.location.pathname}${routeHash({ kind: 'agent-settings', project: server.id })}`);
       })
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not change the slug.'));
@@ -234,7 +234,7 @@ export function AgentSettings(): ReactNode {
   const server = servers.data?.find((s) => s.id === here?.id);
   const agent = stations.data?.agents[0];
   useDocumentTitle('Settings');
-  if (server === undefined || agent === undefined) return <Loading />;
+  if (server === undefined) return <Loading />;
   const name = serverLabel(server);
   return (
     <Col gap={20}>
@@ -242,7 +242,7 @@ export function AgentSettings(): ReactNode {
       <AvatarSection server={server} />
       <NameSection key={server.name ?? ''} server={server} />
       <SlugSection key={server.slug ?? ''} server={server} />
-      <TransferSection agent={agent} name={name} />
+      {agent === undefined ? null : <TransferSection agent={agent} name={name} />}
       <MoveSection server={server} />
       <RemoveSection server={server} />
     </Col>

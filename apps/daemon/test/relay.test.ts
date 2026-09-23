@@ -328,5 +328,7 @@ describe('the standalone GET stream', () => {
     while (!upstreamAborted && Date.now() < until)
       await new Promise((r) => setTimeout(r, 20));
     expect(upstreamAborted).toBe(true);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(healthOf(CONN)?.ok).toBe(true);
   });
 });

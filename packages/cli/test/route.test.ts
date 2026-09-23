@@ -15,13 +15,22 @@ afterEach(() => {
 });
 
 describe('the model route metro claude tells Claude Code about', () => {
-  test('is provider:model from the Model page for a non-Anthropic provider, and nothing otherwise', () => {
+  test('is provider:model of the connection the Model page routes to, for a non-Anthropic provider, and nothing otherwise', () => {
+    const write = (route: string, connections: unknown[]): void => {
+      writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route, connections }));
+    };
+    const or = { id: 'c1', provider: 'openrouter', model: 'anthropic/claude-sonnet-5' };
+    const sub = { id: 'c2', provider: 'anthropic', model: 'claude-opus-5' };
     expect(currentRoute(dir)).toBeNull();
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ provider: 'openrouter', openrouter: { model: 'anthropic/claude-sonnet-5' } }));
+    write('c1', [sub, or]);
     expect(currentRoute(dir)).toBe('openrouter:anthropic/claude-sonnet-5');
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ provider: 'anthropic', anthropic: { model: 'claude-opus-5' } }));
+    write('c2', [sub, or]);
     expect(currentRoute(dir)).toBeNull();
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ provider: 'bedrock', bedrock: { model: '' } }));
+    write('c1', [{ ...or, model: '' }]);
+    expect(currentRoute(dir)).toBeNull();
+    write('gone', [or]);
+    expect(currentRoute(dir)).toBeNull();
+    writeFileSync(join(dir, 'model.json'), JSON.stringify({ provider: 'openrouter', openrouter: { model: 'x/y' } }));
     expect(currentRoute(dir)).toBeNull();
     writeFileSync(join(dir, 'model.json'), '{broken');
     expect(currentRoute(dir)).toBeNull();

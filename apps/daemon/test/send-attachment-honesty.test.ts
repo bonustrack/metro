@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -186,8 +187,8 @@ describe('the canonical wire carries what a station needs to label honestly', ()
     const [wire] = (calls.find((c) => c.action === 'send')?.args
       .attachments ?? []) as { path: string; name: string }[];
     expect(wire?.name).toBe('horse.mp3');
-    expect(wire?.path).toMatch(/msg_out[a-z0-9]+_0\.mp3$/);
-    expect(wire?.path).not.toContain('horse.mp3');
+    expect(wire?.path).toContain('metro-inline-');
+    expect(existsSync(wire?.path ?? '')).toBe(false);
   });
 });
 

@@ -12,8 +12,8 @@ import {
 import { addBeta, anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
 import { BINDING_BETA, cappedEffort, effortToApply, plannedEffort, withBlockBinding, withEffort, withThinkingFor } from './effort.js';
 import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, setGeminiAuth, writeModelConfig, type Connection, type ModelConfig, type Route } from './model-config.js';
-import { codexCount, codexMessages, freshCodexState } from './codex.js';
-import { freshGeminiState, geminiCount, geminiMessages } from './gemini.js';
+import { codexCount, codexMessages, sharedCodexState } from './codex.js';
+import { geminiCount, geminiMessages, sharedGeminiState } from './gemini.js';
 import type { GeminiDeps } from './gemini.js';
 import type { CodexDeps } from './codex.js';
 import type { GeminiTokens } from './gemini-auth.js';
@@ -41,16 +41,14 @@ export interface GatewayDeps {
 }
 
 const learned: Adaptations = freshAdaptations();
-const codexState = freshCodexState();
-const geminiState = freshGeminiState();
 
 export function resetGatewayState(): void {
   forgetServed();
   forgetUsage();
   learned.fields.clear();
   learned.dropBetas = false;
-  Object.assign(codexState, freshCodexState());
-  Object.assign(geminiState, freshGeminiState());
+  sharedCodexState.clear();
+  sharedGeminiState.clear();
 }
 
 const saveCodexTokens = (id: string, tokens: CodexTokens): void => {
@@ -197,11 +195,11 @@ async function toSubscription(req: IncomingMessage, res: ServerResponse, path: s
   const conn = route.connection;
   if (conn.provider === 'gemini') {
     if (path === COUNT) geminiCount(res, body);
-    else await geminiMessages(req, res, body, route.model, conn, { save: saveGeminiTokens, ...deps.gemini }, geminiState, watchUpstream(res));
+    else await geminiMessages(req, res, body, route.model, conn, { save: saveGeminiTokens, ...deps.gemini }, sharedGeminiState, watchUpstream(res));
     return;
   }
   if (path === COUNT) codexCount(res, body);
-  else await codexMessages(req, res, body, route.model, conn, { save: saveCodexTokens, ...deps.codex }, codexState, watchUpstream(res));
+  else await codexMessages(req, res, body, route.model, conn, { save: saveCodexTokens, ...deps.codex }, sharedCodexState, watchUpstream(res));
 }
 
 function shapedFor(req: IncomingMessage, sent: Record<string, unknown>): Record<string, unknown> {

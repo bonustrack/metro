@@ -1,4 +1,5 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, open, rm, writeFile } from 'node:fs/promises';
+import { assertAttachmentSize } from '@metro-labs/core/stations/attachments';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -98,3 +99,30 @@ export async function writeInlineTemp(
 
 export const removeInlineTemp = (dir: string): Promise<void> =>
   rm(dir, { recursive: true, force: true });
+
+export async function streamToTemp(
+  body: ReadableStream<Uint8Array>,
+  name: string | undefined,
+): Promise<InlineTemp & { bytes: number }> {
+  const dir = await mkdtemp(join(tmpdir(), INLINE_TEMP_PREFIX));
+  const path = join(dir, safeFileName(name));
+  const handle = await open(path, 'wx', 0o600);
+  const reader = body.getReader();
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.length;
+      assertAttachmentSize(bytes);
+      await handle.write(value);
+    }
+  } catch (err) {
+    await reader.cancel().catch(() => undefined);
+    await handle.close();
+    await removeInlineTemp(dir);
+    throw err;
+  }
+  await handle.close();
+  return { dir, path, bytes };
+}

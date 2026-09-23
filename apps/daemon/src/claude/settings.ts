@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { claudeDir, listClaudeProjects } from './files.js';
@@ -68,8 +68,17 @@ function projectEntries(dir: string): ClaudeSettingsFile[] {
   return out;
 }
 
+const sameFile = (a: string, b: string): boolean => {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return a === b;
+  }
+};
+
 export function listClaudeSettings(dir = claudeDir()): ClaudeSettingsFile[] {
-  return [entryOf(USER_ID, 'user', 'This machine', join(dir, 'settings.json')), ...projectEntries(dir)];
+  const user = entryOf(USER_ID, 'user', 'This machine', join(dir, 'settings.json'));
+  return [user, ...projectEntries(dir).filter((p) => !sameFile(p.path, user.path))];
 }
 
 function assertSettingsJson(text: string): void {

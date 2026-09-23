@@ -2,18 +2,26 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentsDir } from './local.js';
 
-const PROVIDERS = ['bedrock', 'openrouter', 'codex', 'gemini'] as const;
+const PROVIDERS = new Set(['bedrock', 'openrouter', 'codex', 'gemini']);
+
+const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+function routeIn(cfg: unknown): string | null {
+  if (typeof cfg !== 'object' || cfg === null) return null;
+  const { route, connections } = cfg as { route?: unknown; connections?: unknown };
+  if (!Array.isArray(connections)) return null;
+  const conn: unknown = connections.find((c: unknown) => typeof c === 'object' && c !== null && (c as { id?: unknown }).id === route);
+  if (typeof conn !== 'object' || conn === null) return null;
+  const provider = text((conn as { provider?: unknown }).provider);
+  const model = text((conn as { model?: unknown }).model);
+  return PROVIDERS.has(provider) && model !== '' ? `${provider}:${model}` : null;
+}
 
 export function currentRoute(dir = agentsDir()): string | null {
   const path = join(dir, 'model.json');
   if (!existsSync(path)) return null;
   try {
-    const cfg = JSON.parse(readFileSync(path, 'utf8')) as { provider?: unknown } & Record<string, unknown>;
-    const provider = PROVIDERS.find((p) => p === cfg.provider);
-    if (provider === undefined) return null;
-    const block = cfg[provider];
-    const model = typeof block === 'object' && block !== null ? (block as { model?: unknown }).model : undefined;
-    return typeof model === 'string' && model !== '' ? `${provider}:${model}` : null;
+    return routeIn(JSON.parse(readFileSync(path, 'utf8')));
   } catch {
     return null;
   }

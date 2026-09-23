@@ -26,7 +26,7 @@ export function makeAccountStore<T extends { id: string }>(
   function loadAccounts(): T[] {
     if (!existsSync(opts.file))
       return die(
-        `no accounts file ${opts.file} — the daemon writes it from the database at boot; set DATABASE_URL and populate the accounts table`,
+        `no accounts file ${opts.file} — the daemon writes it from ~/.metro/agents/agent.json at boot; attach an account to this station from the page first`,
       );
     chmodIfExists(opts.file);
     let raw: T[];

@@ -120,8 +120,8 @@ describe('one relay per session', () => {
   test('a chat reply cannot answer another session pending permission', async () => {
     const tony = makeRelay();
     const lisa = makeRelay();
-    tony.relay.registerPermission('abcde');
-    lisa.relay.registerPermission('fghij');
+    tony.relay.registerPermission('abcde', TONY_A);
+    lisa.relay.registerPermission('fghij', LISA_A);
 
     await tony.relay.handleEvent(inbound(TONY_A, 'yes fghij', 'p-1'));
     expect(
@@ -142,9 +142,11 @@ describe('one relay per session', () => {
     });
   });
 
-  test('each session answers only its own prompt', async () => {
+  test('a prompt is answered only on the line it went to, never from another chat', async () => {
     const tony = makeRelay();
-    tony.relay.registerPermission('abcde');
+    tony.relay.registerPermission('abcde', TONY_A);
+    await tony.relay.handleEvent(inbound(TONY_B, 'yes abcde', 'p-4'));
+    expect(tony.notifs.filter((n) => n.method === 'notifications/claude/channel/permission')).toEqual([]);
     await tony.relay.handleEvent(inbound(TONY_A, 'yes abcde', 'p-3'));
     const answered = tony.notifs.filter(
       (n) => n.method === 'notifications/claude/channel/permission',

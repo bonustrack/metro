@@ -34,10 +34,10 @@ primary_region = "iad"
 
 # Secrets are NOT stored here — set them with `fly secrets set` (see README "Deploying"):
 #   DATABASE_URL  (required — the Postgres holding the server lists)
-#   To have metro issue servers, five more (docs/ISSUING-SERVERS.md), and with any of
+#   WORKOS_API_KEY and WORKOS_CLIENT_ID (sign-in)
+#   To have metro issue servers, four more (docs/ISSUING-SERVERS.md), and with any of
 #   them unset the feature is simply off: METRO_AWS_ACCESS_KEY_ID,
-#   METRO_AWS_SECRET_ACCESS_KEY, METRO_LAUNCH_TAILNET, METRO_TAILSCALE_AUTH_KEY,
-#   METRO_LAUNCH_OWNERS (the wallets allowed to ask), plus optional METRO_LAUNCH_MAX.
+#   METRO_AWS_SECRET_ACCESS_KEY, METRO_LAUNCH_TAILNET, METRO_TAILSCALE_AUTH_KEY.
 
 [http_service]
   internal_port = 8420

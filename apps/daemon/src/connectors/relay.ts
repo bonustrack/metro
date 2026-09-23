@@ -146,6 +146,18 @@ function startKeepalive(res: ServerResponse): Keepalive {
   };
 }
 
+function drainedOrClosed(res: ServerResponse): Promise<void> {
+  return new Promise((resolve) => {
+    const done = (): void => {
+      res.off('drain', done);
+      res.off('close', done);
+      resolve();
+    };
+    res.once('drain', done);
+    res.once('close', done);
+  });
+}
+
 async function pumpBody(
   res: ServerResponse,
   body: ReadableStream<Uint8Array>,
@@ -156,11 +168,7 @@ async function pumpBody(
     const { done, value } = await reader.read();
     if (done) return;
     touch();
-    const ok = res.write(value);
-    if (!ok)
-      await new Promise((resolve) => {
-        res.once('drain', resolve);
-      });
+    if (!res.write(value)) await drainedOrClosed(res);
   }
 }
 
@@ -229,13 +237,29 @@ async function relayExchange(
   res.once('finish', () => {
     res.socket?.removeListener('close', bail);
   });
+  try {
+    await relayOnce(req, res, connectorId, deps, control.signal);
+  } catch (err) {
+    if (!control.signal.aborted) throw err;
+    log.debug({ connector: connectorId }, 'relay: the client left before the answer ended');
+    if (!res.writableEnded) res.end();
+  }
+}
+
+async function relayOnce(
+  req: IncomingMessage,
+  res: ServerResponse,
+  connectorId: string,
+  deps: RelayApiDeps,
+  signal: AbortSignal,
+): Promise<void> {
   const body = req.method === 'POST' ? await readCapped(req) : null;
   const out = await exchange(
     req,
     connectorId,
     deps,
     body,
-    control.signal,
+    signal,
   );
   if (out.kind === 'missing') {
     answer(res, 404, { error: 'no such connector' });

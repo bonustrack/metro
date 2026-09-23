@@ -47,9 +47,17 @@ export function emitAttachmentSaved(
         },
       });
     })
-    .catch((err: unknown) =>
-      process.stderr.write(
-        `xmtp attachment save failed: ${err instanceof Error ? err.message : String(err)}\n`,
-      ),
-    );
+    .catch((err: unknown) => {
+      const reason = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`xmtp attachment save failed: ${reason}\n`);
+      emitInbound(accountId, {
+        id: mintId(),
+        ts: new Date().toISOString(),
+        station: 'xmtp',
+        line,
+        from: SELF_URI,
+        text: `📎 not fetched: ${reason}`,
+        payload: { contentType: 'attachmentFailed', attachmentFor: sourceMsgId, index, reason },
+      });
+    });
 }

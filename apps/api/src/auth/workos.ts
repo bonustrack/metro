@@ -48,7 +48,7 @@ let probed: { at: number; providers: Provider[] } | null = null;
 let probing: Promise<Provider[]> | null = null;
 
 async function probeProviders(cfg: WorkosConfig, redirectUri: string, now: number): Promise<Provider[]> {
-  const before = probed?.providers ?? [];
+  const before = probed?.providers ?? ALL_PROVIDERS;
   const answers = await Promise.all(ALL_PROVIDERS.map((p) => providerEnabled(cfg, p, redirectUri)));
   const providers = ALL_PROVIDERS.filter((p, i) => answers[i] === true || (answers[i] === null && before.includes(p)));
   if (answers.every((a) => a === null)) {

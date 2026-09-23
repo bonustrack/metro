@@ -44,7 +44,7 @@ export class InboundRelay {
   private readonly pendingAttachments = new Map<string, PendingMsg>();
   private readonly seenEvents = new Map<string, number>();
   private readonly allowedLines = new Set<string>();
-  private readonly pendingPermissions = new Set<string>();
+  private readonly pendingPermissions = new Map<string, string>();
   private readonly sentIds = new Set<string>();
   private lastLine: string | undefined;
 
@@ -56,9 +56,13 @@ export class InboundRelay {
     return this.lastLine;
   }
 
-  registerPermission(requestId: string): void {
-    this.pendingPermissions.add(requestId);
-    capSet(this.pendingPermissions, PENDING_PERMISSIONS_MAX);
+  registerPermission(requestId: string, line: string): void {
+    this.pendingPermissions.set(requestId, line);
+    while (this.pendingPermissions.size > PENDING_PERMISSIONS_MAX) {
+      const oldest = this.pendingPermissions.keys().next();
+      if (oldest.done) break;
+      this.pendingPermissions.delete(oldest.value);
+    }
   }
 
   noteSent(messageId: string): void {
@@ -104,6 +108,7 @@ export class InboundRelay {
         from: ctx.from,
         station: ctx.station,
         ...senderMeta(ctx),
+        ...ctx.reply,
         kind: note.kind,
         mime: p.mime ?? '',
         name: note.name,
@@ -149,6 +154,7 @@ export class InboundRelay {
         line_name: e.lineName,
         from_name: e.fromName,
         ...displayNameMeta(e.fromDisplayName),
+        ...e.reply,
       },
     });
   }
@@ -206,6 +212,7 @@ export class InboundRelay {
       lineName: str(ev.lineName),
       fromName: str(ev.fromName),
       fromDisplayName: str(ev.fromDisplayName),
+      reply: replyMeta(ev, this.sentIds),
       attachments: atts.map((a) => ({ kind: a.kind, name: a.name })),
       saved: new Set<number>(),
       timer: setTimeout(() => {
@@ -253,12 +260,12 @@ export class InboundRelay {
     });
   }
 
-  private async handlePermissionReply(text: string): Promise<boolean> {
+  private async handlePermissionReply(text: string, line: string): Promise<boolean> {
     const m = PERMISSION_REPLY_RE.exec(text);
     if (m?.[1] === undefined || m[2] === undefined || !this.pendingPermissions.size)
       return false;
     const id = m[2].toLowerCase();
-    if (!this.pendingPermissions.has(id)) return false;
+    if (this.pendingPermissions.get(id) !== line) return false;
     this.pendingPermissions.delete(id);
     await this.notify('notifications/claude/channel/permission', {
       request_id: id,
@@ -315,7 +322,7 @@ export class InboundRelay {
       this.deps.log('drop: empty message', base.station, base.line, str(ev.messageId));
       return;
     }
-    if (base.evType === 'msg' && (await this.handlePermissionReply(base.text)))
+    if (base.evType === 'msg' && (await this.handlePermissionReply(base.text, base.line)))
       return;
     await this.notify('notifications/claude/channel', {
       content:

@@ -47,22 +47,19 @@ const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
-export const sessionKey = (): string[] => ['session'];
-const claudeProjectsKey = (): string[] => ['claude', 'projects'];
-const claudeSessionsKey = (project: string): string[] => ['claude', 'sessions', project];
+export const sessionKey = (): string[] => ['session', daemonBase()];
+const claudeProjectsKey = (): string[] => ['claude', 'projects', daemonBase()];
+const claudeSessionsKey = (project: string): string[] => ['claude', 'sessions', daemonBase(), project];
 const claudeSettingsKey = (): string[] => ['claude', 'settings', daemonBase()];
 const skillsKey = (): string[] => ['claude', 'skills', daemonBase()];
 const skillKey = (id: string): string[] => ['claude', 'skill', daemonBase(), id];
-const memoryKey = (project: string): string[] => ['claude', 'memory', project];
-const memoryFileKey = (project: string, name: string): string[] => ['claude', 'memory', project, name];
+const memoryKey = (project: string): string[] => ['claude', 'memory', daemonBase(), project];
+const memoryFileKey = (project: string, name: string): string[] => ['claude', 'memory', daemonBase(), project, name];
 const LIVE_LIST_MS = 5_000;
 const LIVE_MEMORY_MS = 5_000;
 export const stationsKey = (): string[] => ['stations', daemonBase()];
 const connectorsKey = (): string[] => ['connectors', daemonBase()];
-const connectorKey = (id: string): (string | number)[] => [
-  'connector',
-  id,
-];
+const connectorKey = (id: string): string[] => ['connector', daemonBase(), id];
 
 export function makeQueryClient(onAuthError: () => void): QueryClient {
   return new QueryClient({

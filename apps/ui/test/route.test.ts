@@ -171,3 +171,17 @@ describe('the organization rides in front of every route but settings and docs',
     routeSelection('#/settings');
   });
 });
+
+describe('a connector link the daemon builds without an organization or an agent', () => {
+  test('opens that connector on the agent this browser used last, not a "not a member" page', () => {
+    const saved = new Map<string, string>([['metro.server', 'agent000001']]);
+    const holder = globalThis as { window?: unknown };
+    const before = holder.window;
+    holder.window = { localStorage: { getItem: (k: string) => saved.get(k) ?? null } };
+    expect(splitOrganization('#/connector/conn0000001').organization).toBeNull();
+    expect(routeSelection('#/connector/conn0000001')).toEqual({ kind: 'connector', project: 'agent000001', id: 'conn0000001' });
+    expect(routeSelection('#/connectors')).toEqual({ kind: 'connectors', project: 'agent000001' });
+    holder.window = before;
+    expect(routeSelection('#/connector/conn0000001')).toEqual({ kind: 'none' });
+  });
+});
