@@ -185,9 +185,9 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 - Telegram user account (`telegram`): the session is a full-account secret, single writer, ToS risk.
 - **Threema:** Gateway ID in end-to-end mode only; the private key never leaves the train. The callback checks the MAC first; a down train answers 503 (Threema retries), a refusing train 400 (it stops).
 - **Webhook:** the url names `webhookId` (random digits), never `account_id`, which would leak the agent id. The whole url is the credential; anything else is a flat 404. The route must stay before the monitor router. **Attaching a webhook is refused on a local daemon today** (400, it needs a public url), so the code path is dormant.
-- **The daemon does not check a call's verb against the station's `messageVerbs`**: every station with at least one verb gets all seven verb tools passed through. So a train refuses an undeclared verb itself (telegram-bot's `preDispatch` for `read`, xmtp's `edit`/`delete`). A train action that no declared verb, group op, tool, profile or account route names is dead code: delete it.
-- Discord-bot verbs: all seven, group ops, and voice (kept, not reachable from any agent tool today). An inbound Discord edit reaches `metro tail` only; the channel relay routes `msg`, `react` and `system`.
-- XMTP has no push: no FCM, no `METRO_CTRL:` control DMs. Every inbound DM goes through the allowlist.
+- **The daemon checks a call's verb against the station's `messageVerbs`**: `dispatchMessageTool` refuses an undeclared verb before any train call, naming the verbs the station supports (`test/message-verb-gate.test.ts`). Trains do not refuse verbs themselves. A train action that no declared verb, group op, tool, profile or account route names is dead code: delete it.
+- Discord-bot verbs: all seven and group ops. Voice was removed. An inbound Discord edit reaches `metro tail` only; the channel relay routes `msg`, `react` and `system`.
+- XMTP has no push: no FCM, no `METRO_CTRL:` control DMs. Every inbound DM goes through the allowlist. Its own tools are the Stage ones (`close_channel` with `removeInboxIds`/`removeSelf`, `set_channel_metadata`, labels); there is no `create_channel`, an agent uses `create_group` then `set_channel_metadata`.
 - **Receiving is never held for a profile lookup**; anything costing a network call is behind the `get_profile` tool.
 
 ### Claude Code on the box
