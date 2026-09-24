@@ -62,6 +62,7 @@ export function registerPermissionRelay(deps: PermissionRelayDeps): void {
       },
       mcp,
       answer(params.request_id),
+      line === undefined ? undefined : async (text) => metroSend(line, text),
     );
     if (line === undefined) return;
     try {

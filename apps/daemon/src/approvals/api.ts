@@ -29,7 +29,7 @@ async function answer(req: IncomingMessage, id: string | undefined, subject: str
   if (req.method !== 'POST') throw new ApiError('method not allowed', 405);
   if (!ID_RE.test(id)) throw new ApiError('no such approval', 404);
   const decision = decisionOf(await readJsonBody(req));
-  const answered = await answerPrompt(id, decision, `page ${subject}`);
+  const answered = await answerPrompt(id, decision, 'page', subject);
   if (answered === undefined) throw new ApiError('no such approval', 404);
   return { approval: approvalView(answered), decision };
 }

@@ -26,7 +26,7 @@ const approves = (station: string): boolean => stationByName(station)?.approvals
 
 async function answerPermission(requestId: string, behavior: 'allow' | 'deny', line: string): Promise<boolean> {
   if (promptLine(requestId) !== line) return false;
-  return (await answerPrompt(requestId, behavior, `chat ${line}`)) !== undefined;
+  return (await answerPrompt(requestId, behavior, 'chat', line)) !== undefined;
 }
 
 function makeTransport(

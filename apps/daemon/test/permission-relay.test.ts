@@ -10,6 +10,7 @@ import { setAgentMap, setAllowlistMap } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
 import { promptBody } from '../src/mcp/permission-prompt.ts';
+import { MCP_INSTRUCTIONS } from '../src/mcp/instructions.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import { auth, TEST_OWNER } from './identity-helper.ts';
 import { initSession, openGet, type GetStream } from './mcp-probe.ts';
@@ -59,14 +60,26 @@ const chat = (line: string, from: string, text: string, verified?: boolean): voi
 
 const preview = (input: Record<string, unknown>): string => JSON.stringify(input, null, 1).replace(/\n\s*/g, ' ');
 
-async function ask(requestId: string, input: Record<string, unknown>): Promise<void> {
+const elided = (text: string): string => {
+  const chars = [...text];
+  return `${chars.slice(0, 1999).join('')}\n⋯ ${String(chars.length - 3498)} code points elided ⋯\n${chars.slice(-1499).join('')}`;
+};
+
+const LONG = Array.from({ length: 900 }, (_, i) => `word${String(i).padStart(5, '0')}`).join('');
+
+async function ask(requestId: string, input: Record<string, unknown> | string): Promise<void> {
   const res = await fetch(mcpUrl, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({
       jsonrpc: '2.0',
       method: 'notifications/claude/channel/permission_request',
-      params: { request_id: requestId, tool_name: 'mcp__metro__send', description: 'Send a message', input_preview: preview(input) },
+      params: {
+        request_id: requestId,
+        tool_name: 'mcp__metro__send',
+        description: 'Send a message'.repeat(300),
+        input_preview: typeof input === 'string' ? input : preview(input),
+      },
     }),
   });
   await res.body?.cancel();
@@ -158,7 +171,7 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     const list = await pageCall('GET', '');
     expect(list.status).toBe(200);
     expect(list.body.approvals).toEqual([
-      expect.objectContaining({ id: 'bcdef', tool: 'mcp__metro__send', line: LINE, description: 'Send a message' }),
+      expect.objectContaining({ id: 'bcdef', tool: 'mcp__metro__send', line: LINE }),
     ]);
     expect((await pageCall('POST', '/bcdef', { decision: 'maybe' })).status).toBe(400);
     const done = await pageCall('POST', '/bcdef', { decision: 'deny' });
@@ -166,6 +179,18 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     await waitFor(() => answered('bcdef', 'deny'));
     expect(answered('bcdef', 'deny')).toBe(true);
     expect((await pageCall('POST', '/bcdef', { decision: 'allow' })).status).toBe(404);
+    await waitFor(() => calls.some((c) => c.args.text === 'Denied on the page.'));
+    expect(calls.filter((c) => c.action === 'send').map((c) => [c.args.line, c.args.text])).toEqual([
+      [LINE, expect.stringContaining('Approval needed: send')],
+      [LINE, 'Denied on the page.'],
+    ]);
+  });
+
+  test('tells the chat when the page approves it', async () => {
+    await ask('bcdeg', { line: LINE, text: 'third' });
+    expect((await pageCall('POST', '/bcdeg', { decision: 'allow' })).status).toBe(200);
+    await waitFor(() => calls.some((c) => c.args.text === 'Approved on the page.'));
+    expect(calls.at(-1)?.args).toEqual({ line: LINE, text: 'Approved on the page.' });
   });
 
   test('is refused after the time to live, with a deny Claude Code understands', async () => {
@@ -175,6 +200,7 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     await waitFor(() => answered('cdefg', 'deny'));
     expect(answered('cdefg', 'deny')).toBe(true);
     expect(pendingPrompts()).toEqual([]);
+    expect(calls.at(-1)?.args).toEqual({ line: LINE, text: 'Expired, denied.' });
   });
 
   test('is dropped once the call it asked about reaches the daemon, answered in the terminal', async () => {
@@ -182,9 +208,45 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     await callTool('send', { line: LINE, text: 'from the terminal' });
     expect(pendingPrompts()).toEqual([]);
   });
+
+  test('survives a long input Claude Code elided: a short chat message, and settled by the real call', async () => {
+    const raw = preview({ line: LINE, text: LONG });
+    const cut = raw.replace(LONG, elided(LONG));
+    await ask('efghi', cut);
+    const prompt = calls.find((c) => c.action === 'send');
+    const text = String(prompt?.args.text);
+    expect(text.length).toBeLessThanOrEqual(1000);
+    expect(text).toStartWith('Approval needed: send\nChannel: telegram-bot · -100777\nText: "word00000');
+    expect(text).not.toContain('Send a message');
+    expect(text).toEndWith('Reply "yes efghi" or "no efghi"');
+
+    await callTool('send', { line: LINE, text: `${LONG}x` });
+    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['efghi']);
+    await callTool('send', { line: LINE, text: LONG });
+    expect(pendingPrompts()).toEqual([]);
+  });
+
+  test('is settled when Claude Code also elided whole fields', async () => {
+    const cut = `${preview({ line: LINE, text: LONG }).replace(LONG, elided(LONG)).replace(/ ?}$/, '')}\n⋯ 1 field(s) elided ⋯\n}`;
+    await ask('fghij', cut);
+    expect(String(calls.find((c) => c.action === 'send')?.args.text)).toContain('Text: "word00000');
+    await callTool('send', { line: LINE, text: LONG, reply_to: 'm-1' });
+    expect(pendingPrompts()).toEqual([]);
+  });
 });
 
 describe('the prompt text', () => {
+  test('the server instructions fit the 2048 characters Claude Code keeps', () => {
+    expect(MCP_INSTRUCTIONS.length).toBeLessThanOrEqual(2048);
+    expect(MCP_INSTRUCTIONS).toContain('yes <id>');
+  });
+
+  test('caps any prompt at 1000 characters', () => {
+    const text = promptBody({ request_id: 'abcde', tool_name: 'Bash', description: 'd'.repeat(5000), input_preview: 'x'.repeat(5000) });
+    expect(text.length).toBeLessThanOrEqual(1000);
+    expect(text).toEndWith('Reply "yes abcde" or "no abcde"');
+  });
+
   test('keeps the raw preview for a tool that is not metro', () => {
     expect(
       promptBody({ request_id: 'abcde', tool_name: 'Bash', description: 'Run a command', input_preview: '{ "command": "ls" }' }),

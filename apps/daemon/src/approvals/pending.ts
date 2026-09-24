@@ -1,7 +1,9 @@
-import { isDeepStrictEqual } from 'node:util';
 import { errMsg, log } from '@metro-labs/core/log';
+import { previewMatches } from './preview.js';
 
 export type Behavior = 'allow' | 'deny';
+
+export type AnsweredVia = 'chat' | 'page' | 'expiry';
 
 export interface PendingPrompt {
   requestId: string;
@@ -15,6 +17,7 @@ export interface PendingPrompt {
 interface Held extends PendingPrompt {
   owner: object;
   send: (behavior: Behavior) => Promise<void>;
+  tell: ((text: string) => Promise<void>) | undefined;
 }
 
 const PENDING_MAX = 500;
@@ -38,8 +41,13 @@ const shown = ({ requestId, tool, description, preview, line, at }: Held): Pendi
   at,
 });
 
-export function holdPrompt(prompt: PendingPrompt, owner: object, send: (behavior: Behavior) => Promise<void>): void {
-  held.set(prompt.requestId, { ...prompt, owner, send });
+export function holdPrompt(
+  prompt: PendingPrompt,
+  owner: object,
+  send: (behavior: Behavior) => Promise<void>,
+  tell?: (text: string) => Promise<void>,
+): void {
+  held.set(prompt.requestId, { ...prompt, owner, send, tell });
   while (held.size > PENDING_MAX) {
     const oldest = held.keys().next();
     if (oldest.done) break;
@@ -51,12 +59,32 @@ export const pendingPrompts = (): PendingPrompt[] => [...held.values()].map(show
 
 export const promptLine = (requestId: string): string | undefined => held.get(requestId)?.line;
 
-export async function answerPrompt(requestId: string, behavior: Behavior, by: string): Promise<PendingPrompt | undefined> {
+function chatNotice(via: AnsweredVia, behavior: Behavior): string | undefined {
+  if (via === 'expiry') return 'Expired, denied.';
+  if (via === 'page') return behavior === 'allow' ? 'Approved on the page.' : 'Denied on the page.';
+  return undefined;
+}
+
+async function tellChat(entry: Held, via: AnsweredVia, behavior: Behavior): Promise<void> {
+  const text = chatNotice(via, behavior);
+  if (text === undefined || entry.tell === undefined) return;
+  await entry.tell(text).catch((err: unknown) => {
+    log.warn({ requestId: entry.requestId, err: errMsg(err) }, 'approvals: the chat could not be told the answer');
+  });
+}
+
+export async function answerPrompt(
+  requestId: string,
+  behavior: Behavior,
+  via: AnsweredVia,
+  who: string = via,
+): Promise<PendingPrompt | undefined> {
   const entry = held.get(requestId);
   if (entry === undefined) return undefined;
   held.delete(requestId);
-  log.info({ requestId, tool: entry.tool, behavior, by }, 'approvals: a Claude Code permission prompt answered');
+  log.info({ requestId, tool: entry.tool, behavior, by: who === via ? via : `${via} ${who}` }, 'approvals: a Claude Code permission prompt answered');
   await entry.send(behavior);
+  await tellChat(entry, via, behavior);
   return shown(entry);
 }
 
@@ -64,17 +92,9 @@ export function forgetPromptsOf(owner: object): void {
   for (const [id, entry] of held) if (entry.owner === owner) held.delete(id);
 }
 
-function previewArgs(preview: string): unknown {
-  try {
-    return JSON.parse(preview);
-  } catch {
-    return undefined;
-  }
-}
-
 export function settlePromptsFor(name: string, args: Record<string, unknown>): void {
   for (const [id, entry] of held)
-    if (entry.tool.endsWith(`__${name}`) && isDeepStrictEqual(previewArgs(entry.preview), args)) {
+    if (entry.tool.endsWith(`__${name}`) && previewMatches(entry.preview, args)) {
       held.delete(id);
       log.info({ requestId: id, tool: entry.tool }, 'approvals: the call ran, so the prompt was answered in Claude Code');
     }

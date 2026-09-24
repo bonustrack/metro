@@ -1,4 +1,4 @@
-import { isRecord } from '@metro-labs/core/is-record';
+import { readPreview, shownValue } from '../approvals/preview.js';
 import { connectorToolOf } from '../connectors/gates.js';
 
 export interface PermissionParams {
@@ -10,10 +10,15 @@ export interface PermissionParams {
 
 const METRO_TOOL = /^mcp__metro__(.+)$/;
 const FIELD_MAX = 300;
+const PROMPT_MAX = 1000;
+const RAW_MAX = 600;
 const LEAD = ['text', 'emoji', 'name', 'bio', 'question', 'message_id', 'query', 'from'];
 const PLACE = new Set(['line', 'account', 'station']);
 
-const shorten = (text: string, max = FIELD_MAX): string => (text.length > max ? `${text.slice(0, max)}…` : text);
+const shorten = (text: string, max = FIELD_MAX): string => {
+  const shown = shownValue(text);
+  return shown.length > max ? `${shown.slice(0, max)}…` : shown;
+};
 
 function valueText(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() === '' ? undefined : value;
@@ -64,25 +69,19 @@ function connectorLines(name: string, tool: string, input: Record<string, unknow
   return lines;
 }
 
-function parsedPreview(preview: string): Record<string, unknown> | undefined {
-  try {
-    const parsed: unknown = JSON.parse(preview);
-    return isRecord(parsed) ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
+function bodyLines(params: PermissionParams): string[] {
+  const metro = METRO_TOOL.exec(params.tool_name)?.[1];
+  const { input } = readPreview(params.input_preview);
+  const raw = params.input_preview.trim() === '' ? [] : [shorten(params.input_preview, RAW_MAX)];
+  if (metro !== undefined) return input === undefined ? [`Approval needed: ${metro}`, ...raw] : metroLines(metro, input);
+  const connector = connectorToolOf(params.tool_name);
+  if (connector !== undefined) return connectorLines(connector.gate.name, connector.tool, input);
+  return [`Claude wants to run ${params.tool_name}: ${shorten(params.description)}`, '', ...raw];
 }
 
 export function promptBody(params: PermissionParams): string {
   const answer = `Reply "yes ${params.request_id}" or "no ${params.request_id}"`;
-  const metro = METRO_TOOL.exec(params.tool_name)?.[1];
-  const input = parsedPreview(params.input_preview);
-  if (metro !== undefined && input !== undefined) return `${metroLines(metro, input).join('\n')}\n\n${answer}`;
-  const connector = connectorToolOf(params.tool_name);
-  if (connector !== undefined) return `${connectorLines(connector.gate.name, connector.tool, input).join('\n')}\n\n${answer}`;
-  return (
-    `Claude wants to run ${params.tool_name}: ${params.description}\n` +
-    (params.input_preview ? `\n${params.input_preview}\n` : '') +
-    `\n${answer}`
-  );
+  const body = bodyLines(params).join('\n');
+  const room = PROMPT_MAX - answer.length - 3;
+  return `${body.length > room ? `${body.slice(0, room)}…` : body}\n\n${answer}`;
 }
