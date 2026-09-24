@@ -19,6 +19,9 @@ import { writeAtomic } from '@metro-labs/core/secure-fs';
 export const PROJECT_RE = /^[A-Za-z0-9._-]{1,200}$/;
 export const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
 const MEMORY_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.md$/;
+const FOLDER_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
+const MEMORY_DEPTH = 6;
+const MEMORY_FILES_MAX = 5000;
 const EDGE_BYTES = 64 * 1024;
 const TEXT_CAP = 20_000;
 const RESULT_CAP = 8_000;
@@ -312,16 +315,37 @@ function readCapped(path: string): string {
   }
 }
 
+function memoryName(name: string): string[] {
+  const segments = name.split('/');
+  const file = segments.at(-1) ?? '';
+  const folders = segments.slice(0, -1);
+  if (folders.length >= MEMORY_DEPTH || !MEMORY_RE.test(file) || folders.some((f) => !FOLDER_RE.test(f)))
+    throw new ApiError('that is not a memory file name', 400);
+  return segments;
+}
+
+function memoryPath(project: string, name: string, dir: string): string {
+  return join(memoryDir(project, dir), ...memoryName(name));
+}
+
+function walkMemory(root: string, folders: string[], out: MemoryFile[]): void {
+  for (const entry of readdirSync(join(root, ...folders), { withFileTypes: true })) {
+    if (out.length >= MEMORY_FILES_MAX) return;
+    const inner = [...folders, entry.name];
+    if (entry.isDirectory() && FOLDER_RE.test(entry.name) && inner.length < MEMORY_DEPTH) walkMemory(root, inner, out);
+    else if (entry.isFile() && MEMORY_RE.test(entry.name) && !(folders.length === 0 && entry.name === 'MEMORY.md')) {
+      const s = statSync(join(root, ...inner));
+      out.push({ name: inner.join('/'), bytes: s.size, modifiedAt: s.mtime.toISOString() });
+    }
+  }
+}
+
 export function listMemory(project: string, dir = claudeDir()): MemoryListing {
   const path = memoryDir(project, dir);
   if (!existsSync(path)) return { files: [], index: null };
-  const files = readdirSync(path)
-    .filter((name) => MEMORY_RE.test(name) && name !== 'MEMORY.md')
-    .map((name) => {
-      const s = statSync(join(path, name));
-      return { name, bytes: s.size, modifiedAt: s.mtime.toISOString() };
-    })
-    .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt) || a.name.localeCompare(b.name));
+  const files: MemoryFile[] = [];
+  walkMemory(path, [], files);
+  files.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt) || a.name.localeCompare(b.name));
   const index = join(path, 'MEMORY.md');
   return { files, index: existsSync(index) ? readCapped(index) : null };
 }
@@ -336,26 +360,23 @@ export function writeMemoryFile(project: string, name: string, text: string, dir
   if (text.trim() === '') throw new ApiError('a memory file cannot be empty', 400);
   if (Buffer.byteLength(text, 'utf8') > MEMORY_MAX)
     throw new ApiError(`a memory file is at most ${String(MEMORY_MAX)} bytes`, 400);
-  const folder = memoryDir(project, dir);
-  const file = safeName(name, MEMORY_RE, 'memory file name');
-  const path = join(folder, file);
+  const path = memoryPath(project, name, dir);
   writeAtomic(path, text, MEMORY_MODE);
   const stamp = stampOf(modifiedAt);
   if (stamp !== null) utimesSync(path, stamp, stamp);
   const stat = statSync(path);
-  return { name: file, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
+  return { name, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
 }
 
 export function deleteMemoryFile(project: string, name: string, dir = claudeDir()): string {
-  const file = safeName(name, MEMORY_RE, 'memory file name');
-  const path = join(memoryDir(project, dir), file);
+  const path = memoryPath(project, name, dir);
   if (!existsSync(path)) throw new ApiError('no such memory file', 404);
   rmSync(path);
-  return file;
+  return name;
 }
 
 export function readMemoryFile(project: string, name: string, dir = claudeDir()): string {
-  const path = join(memoryDir(project, dir), safeName(name, MEMORY_RE, 'memory file name'));
+  const path = memoryPath(project, name, dir);
   if (!existsSync(path)) throw new ApiError('no such memory file', 404);
   return readCapped(path);
 }

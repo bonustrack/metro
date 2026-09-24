@@ -19,10 +19,12 @@ import { useDocumentTitle } from '../title.js';
 
 function FileRow({ claudeProject, file, onOpen }: { claudeProject: string; file: MemoryFile; onOpen: () => void }): ReactNode {
   const client = useQueryClient();
+  const cut = file.name.lastIndexOf('/');
+  const folder = cut === -1 ? '' : `${file.name.slice(0, cut)} · `;
   return (
     <ListRow
-      title={file.name}
-      detail={`${sizeLabel(file.bytes)} · ${whenLabel(file.modifiedAt)}`}
+      title={file.name.slice(cut + 1)}
+      detail={`${folder}${sizeLabel(file.bytes)} · ${whenLabel(file.modifiedAt)}`}
       onOpen={onOpen}
       trailing={
         <DeleteMenu

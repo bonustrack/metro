@@ -27,6 +27,7 @@ describe('the first segment is the daemon', () => {
         { kind: 'skill', project, id: 'user:write-as-less' },
         { kind: 'skill', project, id: '-Users-less-Cursor-bonustrack-metro:ship-it' },
         { kind: 'memory', project, claudeProject: '-Users-less-Cursor-bonustrack-metro', file: 'project_cli_redesign.md' },
+        { kind: 'memory', project, claudeProject: '-root', file: 'entities/people/less.md' },
       ];
       for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);
     }

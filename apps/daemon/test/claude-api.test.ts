@@ -143,6 +143,31 @@ describe('Claude Code sessions and memory, read from the disk the daemon runs on
     expect((await get(`/api/claude/memory/gone.md?project=${PROJECT}`)).status).toBe(404);
   });
 
+  test('memory: files in folders are listed by their path and read, written and deleted by it', async () => {
+    const root = join(dir, 'projects', PROJECT, 'memory');
+    mkdirSync(join(root, 'entities', 'people'), { recursive: true });
+    mkdirSync(join(root, '.hidden'), { recursive: true });
+    writeFileSync(join(root, 'entities', 'people', 'less.md'), '# Less\n');
+    writeFileSync(join(root, 'entities', 'MEMORY.md'), '# not the index\n');
+    writeFileSync(join(root, '.hidden', 'secret.md'), 'no');
+    const names = (await json<{ files: { name: string }[] }>(`/api/claude/memory?project=${PROJECT}`)).files.map((f) => f.name);
+    expect(names).toContain('entities/people/less.md');
+    expect(names).toContain('entities/MEMORY.md');
+    expect(names.some((n) => n.includes('secret'))).toBe(false);
+    const nested = `/api/claude/memory/${encodeURIComponent('entities/people/less.md')}?project=${PROJECT}`;
+    expect(await json<{ name: string; content: string }>(nested)).toEqual({ name: 'entities/people/less.md', content: '# Less\n' });
+    const made = await put(`/api/claude/memory/${encodeURIComponent('timeline/daily/2026-09-24.md')}?project=${PROJECT}`, { text: '# Day\n' });
+    expect((await made.json()) as { name: string }).toMatchObject({ name: 'timeline/daily/2026-09-24.md' });
+    expect(existsSync(join(root, 'timeline', 'daily', '2026-09-24.md'))).toBe(true);
+    for (const bad of ['../x.md', 'a/../x.md', '.hidden/secret.md', 'a//b.md', 'a/b/c/d/e/f/g.md'])
+      expect((await get(`/api/claude/memory/${encodeURIComponent(bad)}?project=${PROJECT}`)).status).toBe(400);
+    const gone = await fetch(`${base}${nested}`, { method: 'DELETE', headers: { authorization: await auth(OWNER) } });
+    expect(await gone.json()).toEqual({ deleted: 'entities/people/less.md' });
+    rmSync(join(root, 'entities'), { recursive: true });
+    rmSync(join(root, 'timeline'), { recursive: true });
+    rmSync(join(root, '.hidden'), { recursive: true });
+  });
+
   test('memory: a file can be written back, and only where the name and size allow', async () => {
     const path = `/api/claude/memory/imported.md?project=${PROJECT}`;
     const made = await put(path, { text: '# Imported\n\nFrom a .metro file.\n' });

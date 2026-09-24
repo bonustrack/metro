@@ -99,7 +99,10 @@ const ITEMS: Record<string, Handler> = {
     const { offset, limit } = pageOf(query);
     return readTranscript(projectOf(query), id, offset, limit, dir);
   },
-  memory: (query, dir, name) => ({ name, content: readMemoryFile(projectOf(query), name, dir) }),
+  memory: (query, dir, raw) => {
+    const name = decodeURIComponent(raw);
+    return { name, content: readMemoryFile(projectOf(query), name, dir) };
+  },
   skills: (_query, dir, id) => readClaudeSkill(decodeURIComponent(id), dir),
 };
 

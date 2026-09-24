@@ -33,7 +33,7 @@ const STATION_PATH = new RegExp(`^#?/(${HOST})/channel/(${ACCOUNT})$`);
 const CONNECTORS_PATH = new RegExp(`^#?/(${HOST})/connectors$`);
 const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
-const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/(${CLAUDE}\\.md))?)?$`);
+const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/((?:${CLAUDE}/)*${CLAUDE}\\.md))?)?$`);
 
 const EXACT: [RegExp, Selection][] = [
   [SERVERS_PATH, { kind: 'servers' }],
