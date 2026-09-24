@@ -13,7 +13,7 @@ import {
 import type { Station, StationTool, ToolResult } from '@metro-labs/core/stations/types';
 import { listedTools, stationForTool, type PublishedTool } from './tool-catalog.js';
 import { policyGate, withEffectivePolicy } from './policy-gate.js';
-import type { ApprovalOutcome, ApprovalRecord } from '../approvals/store.js';
+import { settlePromptsFor } from '../approvals/pending.js';
 import { errResult, makeCtx, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool, type ToolHooks } from './call-tools.js';
 import { dispatchListMembers } from './member-tools.js';
@@ -33,7 +33,6 @@ import { log } from '@metro-labs/core/log';
 import {
   allowedAgents,
   currentIdentity,
-  runWithIdentity,
   type RequestIdentity,
 } from './request-identity.js';
 import { str } from '@metro-labs/core/str';
@@ -153,8 +152,9 @@ async function runTool(
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');
 
-  const gated = await policyGate(name, a, { agentId: identity?.agentId, knownLine: hooks.knownLine?.(), approved: hooks.approved });
-  if (gated) return gated;
+  const blocked = policyGate(name, a);
+  if (blocked) return blocked;
+  settlePromptsFor(name, a);
 
   return dispatchTool(name, a, identity, hooks);
 }
@@ -188,13 +188,6 @@ export async function callToolHandler(
   if (result.isError === true)
     logToolFailure(req.params.name, req.params.arguments ?? {}, result);
   return result;
-}
-
-export async function runApprovedCall(rec: ApprovalRecord): Promise<ApprovalOutcome> {
-  const result = await runWithIdentity({ kind: 'agent', agentId: rec.agentId }, () =>
-    callToolHandler({ params: { name: rec.tool, arguments: rec.args } }, { approved: true }),
-  );
-  return { ok: result.isError !== true, text: result.content.map((c) => c.text).join('\n') };
 }
 
 const TOOL_LIST_CHANGED = 'notifications/tools/list_changed';

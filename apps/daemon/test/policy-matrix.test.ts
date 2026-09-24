@@ -7,15 +7,13 @@ import { runWithIdentity } from '../src/mcp/request-identity.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { decide, normalizePolicy, parsePolicy, setPolicies, type Access, type ToolPolicy } from '../src/policy/policy.ts';
-import { setApprovalChat } from '../src/approvals/flow.ts';
-import { forgetLoadedApprovals } from '../src/approvals/store.ts';
 
 const AGENT = 'agent000001';
 const ACCOUNT = 'tg000000001';
 const LINE = `metro://telegram/${ACCOUNT}/-100555`;
 const TARGET = { kind: 'channel', station: 'telegram', account: ACCOUNT } as const;
 
-type Outcome = 'ran' | 'blocked' | 'waiting';
+type Outcome = 'ran' | 'blocked';
 
 interface Call {
   tool: string;
@@ -52,8 +50,8 @@ const CASES: Case[] = [
   { tool: 'send', policy: WRITE_DENY, outcome: 'blocked' },
   { tool: 'delete', policy: WRITE_DENY, outcome: 'blocked' },
   { tool: 'create_group', policy: WRITE_DENY, outcome: 'blocked' },
-  { tool: 'send', policy: WRITE_ASK, outcome: 'waiting' },
-  { tool: 'create_group', policy: WRITE_ASK, outcome: 'waiting' },
+  { tool: 'send', policy: WRITE_ASK, outcome: 'ran' },
+  { tool: 'create_group', policy: WRITE_ASK, outcome: 'ran' },
   { tool: 'read', policy: WRITE_ASK, outcome: 'ran' },
   { tool: 'read', policy: READ_DENY, outcome: 'blocked' },
   { tool: 'list_members', policy: READ_DENY, outcome: 'blocked' },
@@ -61,7 +59,7 @@ const CASES: Case[] = [
   { tool: 'send', policy: READ_DENY, outcome: 'ran' },
   { tool: 'send', policy: SEND_ONLY, outcome: 'ran' },
   { tool: 'delete', policy: SEND_ONLY, outcome: 'blocked' },
-  { tool: 'read', policy: READ_ASKS, outcome: 'waiting' },
+  { tool: 'read', policy: READ_ASKS, outcome: 'ran' },
   { tool: 'list_members', policy: READ_ASKS, outcome: 'ran' },
   { tool: 'delete', policy: DELETE_BLOCKED, outcome: 'blocked' },
   { tool: 'send', policy: DELETE_BLOCKED, outcome: 'ran' },
@@ -71,15 +69,12 @@ let trainCalls: string[] = [];
 
 beforeAll(() => {
   process.env.METRO_AGENTS_DIR = mkdtempSync(join(tmpdir(), 'metro-policy-'));
-  forgetLoadedApprovals();
-  setApprovalChat(undefined);
   setAgentMap({ [`telegram/${ACCOUNT}`]: AGENT }, { [AGENT]: 'Andy' });
 });
 
 afterAll(() => {
   setPolicies('channel', []);
   setAgentMap({}, {});
-  forgetLoadedApprovals();
   delete process.env.METRO_AGENTS_DIR;
 });
 
@@ -93,11 +88,10 @@ beforeEach(() => {
 
 const outcomeOf = (text: string, calls: string[]): Outcome | string => {
   if (text.startsWith("Blocked by the owner's policy for telegram (")) return calls.length === 0 ? 'blocked' : 'blocked after a train call';
-  if (text.startsWith("Waiting for the owner's approval (id ")) return calls.length === 0 ? 'waiting' : 'waiting after a train call';
   return calls.length > 0 ? 'ran' : `nothing ran: ${text}`;
 };
 
-describe('the tool policy of a channel account', () => {
+describe('the tool policy of a channel account, as the daemon enforces it (ask is left to the plugin hook)', () => {
   for (const c of CASES)
     test(`${c.tool} under ${JSON.stringify(c.policy)} ${c.outcome}`, async () => {
       setPolicies('channel', [[TARGET, c.policy]]);

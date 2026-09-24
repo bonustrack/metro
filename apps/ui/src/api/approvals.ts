@@ -2,66 +2,57 @@ import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
 import { isRecord } from './read.js';
 
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired';
-export type Decision = 'approve' | 'reject';
+export type Decision = 'allow' | 'deny';
 
 export interface Approval {
   id: string;
   tool: string;
-  label: string;
+  channel: string;
   preview: string;
-  status: ApprovalStatus;
   requestedAt: string;
-  expiresAt: string;
-  decidedAt: string | null;
-  decidedBy: string | null;
-  outcome: { ok: boolean; text: string } | null;
   inChat: boolean;
 }
 
-const STATUSES = new Set<string>(['pending', 'approved', 'rejected', 'expired']);
+const METRO_TOOL = /^mcp__metro__(.+)$/;
+const PREVIEW_MAX = 300;
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
-const orNull = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+const toolLabel = (tool: string): string => METRO_TOOL.exec(tool)?.[1] ?? tool;
 
-function isApprovalStatus(value: unknown): value is ApprovalStatus {
-  return typeof value === 'string' && STATUSES.has(value);
+const stationOfLine = (line: string): string => (line.startsWith('metro://') ? (line.split('/')[2] ?? '') : '');
+
+function channelOf(line: string, input: Record<string, unknown> | null): string {
+  return stationOfLine(text(input?.line)) || text(input?.station) || stationOfLine(line);
 }
 
-function outcomeOf(value: unknown): Approval['outcome'] {
-  return isRecord(value) && typeof value.ok === 'boolean' ? { ok: value.ok, text: text(value.text) } : null;
+function parsed(preview: string): Record<string, unknown> | null {
+  try {
+    const value: unknown = JSON.parse(preview);
+    return isRecord(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function previewOf(preview: string, input: Record<string, unknown> | null): string {
+  const said = text(input?.text);
+  const shown = said !== '' ? `"${said}"` : preview;
+  return shown.length > PREVIEW_MAX ? `${shown.slice(0, PREVIEW_MAX)}…` : shown;
 }
 
 export function approvalOf(raw: unknown): Approval | null {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.tool !== 'string' || !isApprovalStatus(raw.status)) return null;
+  if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.tool !== 'string') return null;
+  const input = parsed(text(raw.preview));
+  const line = text(raw.line);
   return {
     id: raw.id,
-    tool: raw.tool,
-    label: text(raw.label),
-    preview: text(raw.preview),
-    status: raw.status,
+    tool: toolLabel(raw.tool),
+    channel: channelOf(line, input),
+    preview: previewOf(text(raw.preview), input),
     requestedAt: text(raw.requestedAt),
-    expiresAt: text(raw.expiresAt),
-    decidedAt: orNull(raw.decidedAt),
-    decidedBy: orNull(raw.decidedBy),
-    outcome: outcomeOf(raw.outcome),
-    inChat: typeof raw.promptLine === 'string',
+    inChat: line !== '',
   };
-}
-
-export function splitApprovals(list: Approval[]): { pending: Approval[]; recent: Approval[] } {
-  return {
-    pending: list.filter((a) => a.status === 'pending').sort((a, b) => b.requestedAt.localeCompare(a.requestedAt)),
-    recent: list.filter((a) => a.status !== 'pending').sort((a, b) => (b.decidedAt ?? '').localeCompare(a.decidedAt ?? '')),
-  };
-}
-
-export function verdictLabel(a: Approval): string {
-  if (a.status === 'pending') return 'Waiting';
-  if (a.status === 'rejected') return 'Rejected';
-  if (a.status === 'expired') return 'Expired';
-  return a.outcome?.ok === false ? 'Approved, failed' : 'Approved';
 }
 
 const base = (): string => `${daemonBase()}/api/approvals`;
@@ -69,21 +60,20 @@ const base = (): string => `${daemonBase()}/api/approvals`;
 export async function fetchApprovals(): Promise<Approval[]> {
   const body = await call({ method: 'GET', base: base() });
   if (!isRecord(body) || !Array.isArray(body.approvals)) throw new Error('Metro returned an unexpected response.');
-  return body.approvals.flatMap((raw) => {
-    const a = approvalOf(raw);
-    return a === null ? [] : [a];
-  });
+  return body.approvals
+    .flatMap((raw) => {
+      const a = approvalOf(raw);
+      return a === null ? [] : [a];
+    })
+    .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
 }
 
-export async function decideApproval(id: string, decision: Decision): Promise<Approval> {
-  const body = await call({
+export async function decideApproval(id: string, decision: Decision): Promise<void> {
+  await call({
     method: 'POST',
     base: base(),
     path: `/${encodeURIComponent(id)}`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ decision }),
   });
-  const a = isRecord(body) ? approvalOf(body.approval) : null;
-  if (a === null) throw new Error('Metro returned an unexpected response.');
-  return a;
 }

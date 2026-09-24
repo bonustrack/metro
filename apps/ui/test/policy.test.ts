@@ -9,7 +9,7 @@ import {
   withGroup,
   withTool,
 } from '../src/api/policy.ts';
-import { approvalOf, splitApprovals, verdictLabel } from '../src/api/approvals.ts';
+import { approvalOf } from '../src/api/approvals.ts';
 import { groupAccounts } from '../src/api/accounts.ts';
 
 const SEND = { name: 'send', group: 'write' } as const;
@@ -47,44 +47,29 @@ describe('a channel tool policy on the page', () => {
   });
 });
 
-describe('approvals on the page', () => {
-  const raw = (id: string, status: string, extra: Record<string, unknown> = {}): unknown => ({
-    id,
-    tool: 'send',
-    label: 'telegram-bot',
-    preview: 'in -100, "hi"',
-    status,
-    requestedAt: '2026-09-24T10:00:00.000Z',
-    expiresAt: '2026-09-25T10:00:00.000Z',
-    ...extra,
+describe('Claude Code permission prompts on the page', () => {
+  test('a metro call reads as the tool, the channel it targets and its text', () => {
+    expect(
+      approvalOf({
+        id: 'abcde',
+        tool: 'mcp__metro__send',
+        description: 'Send a message',
+        preview: '{ "line": "metro://telegram-bot/tb1/-100", "text": "hi" }',
+        line: 'metro://discord-bot/d1/42',
+        requestedAt: '2026-09-24T10:00:00.000Z',
+      }),
+    ).toEqual({ id: 'abcde', tool: 'send', channel: 'telegram-bot', preview: '"hi"', requestedAt: '2026-09-24T10:00:00.000Z', inChat: true });
   });
 
-  test('pending ones come first, newest first, and decided ones are recent', () => {
-    const list = [
-      raw('aaaaa', 'pending'),
-      raw('bbbbb', 'approved', { decidedAt: '2026-09-24T11:00:00.000Z', outcome: { ok: true, text: 'sent' } }),
-      raw('ccccc', 'pending', { requestedAt: '2026-09-24T12:00:00.000Z', promptLine: 'metro://x' }),
-      { id: 'broken' },
-    ].flatMap((r) => {
-      const a = approvalOf(r);
-      return a === null ? [] : [a];
+  test('another tool keeps its name and raw input, and a prompt held for the page only says so', () => {
+    expect(approvalOf({ id: 'bcdef', tool: 'Bash', preview: '{ "command": "ls" }', line: null, requestedAt: '' })).toEqual({
+      id: 'bcdef',
+      tool: 'Bash',
+      channel: '',
+      preview: '{ "command": "ls" }',
+      requestedAt: '',
+      inChat: false,
     });
-    const { pending, recent } = splitApprovals(list);
-    expect(pending.map((a) => a.id)).toEqual(['ccccc', 'aaaaa']);
-    expect(pending[0]?.inChat).toBe(true);
-    expect(recent.map((a) => a.id)).toEqual(['bbbbb']);
-  });
-
-  test('the verdict says how it ended', () => {
-    const of = (status: string, outcome?: unknown): string => {
-      const a = approvalOf(raw('ddddd', status, outcome === undefined ? {} : { outcome }));
-      if (a === null) throw new Error('not an approval');
-      return verdictLabel(a);
-    };
-    expect(of('pending')).toBe('Waiting');
-    expect(of('rejected')).toBe('Rejected');
-    expect(of('expired')).toBe('Expired');
-    expect(of('approved', { ok: true, text: 'sent' })).toBe('Approved');
-    expect(of('approved', { ok: false, text: 'Blocked' })).toBe('Approved, failed');
+    expect(approvalOf({ id: 'broken' })).toBeNull();
   });
 });

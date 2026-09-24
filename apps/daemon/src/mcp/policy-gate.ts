@@ -1,18 +1,15 @@
 import { str } from '@metro-labs/core/str';
 import type { ToolResult } from '@metro-labs/core/stations/types';
-import { accountFromLine, agentForLine, agentIdForLine, knownAccounts } from '../agents/map.js';
-import { eventInScope } from '../agents/scope.js';
+import { accountFromLine, knownAccounts } from '../agents/map.js';
 import { policyFor, storedPolicy, strictest, type Access, type PolicyTarget } from '../policy/policy.js';
-import { requestApproval, waitingText } from '../approvals/flow.js';
-import { previewArgs } from '../approvals/preview.js';
-import { errResult, ok } from './ctx.js';
+import { errResult } from './ctx.js';
 import { profileScopeLine } from './profile-lookup.js';
 import { stationOfAccount } from './read-tool.js';
 import { stationForTool, toolGroupOf } from './tool-catalog.js';
 
 export type ChannelTarget = Extract<PolicyTarget, { kind: 'channel' }>;
 
-const UNGATED = new Set(['list_accounts', 'create_upload']);
+export const UNGATED = new Set<string>(['list_accounts', 'create_upload']);
 
 function fromLine(line: string, override: string | undefined): ChannelTarget[] {
   const acct = accountFromLine(line);
@@ -51,42 +48,10 @@ export function channelDecision(name: string, a: Record<string, unknown>): Polic
   return verdict;
 }
 
-export interface GateContext {
-  agentId: string | undefined;
-  knownLine?: string;
-  approved?: boolean;
-}
-
-function requesterOf(a: Record<string, unknown>, ctx: GateContext, agentId: string): string | undefined {
-  const line = str(a.line);
-  if (line) return line;
-  const known = ctx.knownLine;
-  return known !== undefined && eventInScope(new Set([agentId]), known) ? known : undefined;
-}
-
-function agentNameOf(target: ChannelTarget): string {
-  const line = `metro://${target.station}/${target.account}`;
-  const name = agentForLine(line);
-  return name === undefined || name === agentIdForLine(line) ? 'Your agent' : name;
-}
-
-export async function policyGate(name: string, a: Record<string, unknown>, ctx: GateContext): Promise<ToolResult | undefined> {
+export function policyGate(name: string, a: Record<string, unknown>): ToolResult | undefined {
   const { access, target } = channelDecision(name, a);
-  if (access === 'allow' || target === undefined) return undefined;
-  if (access === 'deny') return errResult(`Blocked by the owner's policy for ${target.station} (${name}).`);
-  if (ctx.approved === true) return undefined;
-  if (ctx.agentId === undefined) return errResult(`${name} needs the owner's approval, and no agent made this call.`);
-  const requesterLine = requesterOf(a, ctx, ctx.agentId);
-  const rec = await requestApproval({
-    target,
-    tool: name,
-    args: a,
-    agentId: ctx.agentId,
-    agentName: agentNameOf(target),
-    preview: previewArgs(a),
-    ...(requesterLine === undefined ? {} : { requesterLine }),
-  });
-  return ok(waitingText(rec.id));
+  if (access !== 'deny' || target === undefined) return undefined;
+  return errResult(`Blocked by the owner's policy for ${target.station} (${name}).`);
 }
 
 export interface EffectivePolicy {

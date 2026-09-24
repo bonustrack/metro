@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
+import { policyVerdict } from './policy.mjs';
 
 const BLOCKING = new Set(['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode']);
 const ORCHESTRATION = new Set([
@@ -23,15 +24,26 @@ const IMAGE = /\.(png|jpe?g|gif|webp|bmp)$/i;
 const MCP = /^mcp__/;
 const METRO_MCP = /^mcp__metro__/;
 
-function deny(reason) {
+function answer(decision, reason) {
   process.stdout.write(
-    `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } })}\n`,
+    `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: decision, permissionDecisionReason: reason } })}\n`,
   );
 }
 
-function verdict(payload) {
+function ownerPolicy(tool, input, subagent) {
+  const verdict = policyVerdict(tool, input);
+  if (verdict === null) return null;
+  const where = `${verdict.tool} on ${verdict.station} (${verdict.account})`;
+  if (verdict.access === 'deny') return { decision: 'deny', reason: `Blocked by the owner's policy for ${verdict.station} (${verdict.tool}).` };
+  if (subagent) return { decision: 'ask', reason: `The owner asked to approve ${where}.` };
+  return {
+    decision: 'deny',
+    reason: `${where} needs the owner's approval, and waiting for it here would stop the whole session. Run this exact call from a background worker (Agent, run_in_background: true): the worker waits for the owner's answer while you keep answering.`,
+  };
+}
+
+function verdict(payload, input) {
   const tool = typeof payload.tool_name === 'string' ? payload.tool_name : '';
-  const input = payload.tool_input !== null && typeof payload.tool_input === 'object' ? payload.tool_input : {};
   if (BLOCKING.has(tool))
     return `${tool} blocks the session waiting on the terminal, and nobody is watching it. Decide with your best judgement and state the assumption, or ask over chat with the metro tools and keep working in the meantime.`;
   if (typeof payload.agent_id === 'string' && payload.agent_id !== '') return null;
@@ -51,5 +63,9 @@ try {
 } catch {
   payload = {};
 }
-const reason = verdict(payload !== null && typeof payload === 'object' ? payload : {});
-if (reason !== null) deny(reason);
+const shaped = payload !== null && typeof payload === 'object' ? payload : {};
+const input = shaped.tool_input !== null && typeof shaped.tool_input === 'object' ? shaped.tool_input : {};
+const reason = verdict(shaped, input);
+const policy = reason === null && typeof shaped.tool_name === 'string' ? ownerPolicy(shaped.tool_name, input, typeof shaped.agent_id === 'string' && shaped.agent_id !== '') : null;
+if (reason !== null) answer('deny', reason);
+else if (policy !== null) answer(policy.decision, policy.reason);

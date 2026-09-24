@@ -1,35 +1,37 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, bodyField, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { decideApproval, type Decision } from './flow.js';
-import { listApprovals, type ApprovalRecord } from './store.js';
+import { answerPrompt, pendingPrompts, type Behavior, type PendingPrompt } from './pending.js';
 
 const PREFIX = '/api/approvals';
 const ID_RE = /^[a-km-z]{5}$/;
 
-export function approvalView(rec: ApprovalRecord): Record<string, unknown> {
-  const shown: Record<string, unknown> = { ...rec };
-  delete shown.args;
-  return shown;
-}
+const approvalView = (p: PendingPrompt): Record<string, unknown> => ({
+  id: p.requestId,
+  tool: p.tool,
+  description: p.description,
+  preview: p.preview,
+  line: p.line ?? null,
+  requestedAt: new Date(p.at).toISOString(),
+});
 
-function decisionOf(body: unknown): Decision {
+function decisionOf(body: unknown): Behavior {
   const value = bodyField(body, 'decision');
-  if (value !== 'approve' && value !== 'reject') throw new ApiError("decision is 'approve' or 'reject'", 400);
+  if (value !== 'allow' && value !== 'deny') throw new ApiError("decision is 'allow' or 'deny'", 400);
   return value;
 }
 
 async function answer(req: IncomingMessage, id: string | undefined, subject: string): Promise<unknown> {
   if (id === undefined) {
     if (req.method !== 'GET') throw new ApiError('method not allowed', 405);
-    return { approvals: listApprovals().map(approvalView) };
+    return { approvals: pendingPrompts().map(approvalView) };
   }
   if (req.method !== 'POST') throw new ApiError('method not allowed', 405);
   if (!ID_RE.test(id)) throw new ApiError('no such approval', 404);
   const decision = decisionOf(await readJsonBody(req));
-  const rec = await decideApproval(id, decision, `page ${subject}`);
-  if (rec === undefined) throw new ApiError('no such approval', 404);
-  return { approval: approvalView(rec) };
+  const answered = await answerPrompt(id, decision, `page ${subject}`);
+  if (answered === undefined) throw new ApiError('no such approval', 404);
+  return { approval: approvalView(answered), decision };
 }
 
 export function handleApprovalsRequest(req: IncomingMessage, res: ServerResponse): boolean {

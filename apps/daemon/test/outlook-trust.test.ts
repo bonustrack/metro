@@ -8,8 +8,9 @@ import type { Notif } from './relay-fixture.ts';
 const LINE = 'metro://outlook/o1/AAQkAD=';
 const FROM = 'metro://outlook/o1/user/bea@anderra.ch';
 
-function relayWith(allowlist: string[]): { relay: InboundRelay; notifs: Notif[] } {
+function relayWith(allowlist: string[]): { relay: InboundRelay; notifs: Notif[]; answered: string[] } {
   const notifs: Notif[] = [];
+  const answered: string[] = [];
   const relay = new InboundRelay({
     mcp: {
       notification: (n: Notif) => {
@@ -21,8 +22,12 @@ function relayWith(allowlist: string[]): { relay: InboundRelay; notifs: Notif[] 
     getStations: () => new Set(['outlook', 'discord-bot']),
     senderAllowed: (from, _line, verified) => senderPermitted(allowlist, from, verified),
     approves: (station) => stationByName(station)?.approvals !== false,
+    answerPermission: (id) => {
+      answered.push(id);
+      return Promise.resolve(true);
+    },
   });
-  return { relay, notifs };
+  return { relay, notifs, answered };
 }
 
 const mail = (text: string, senderVerified?: boolean): Record<string, unknown> => ({
@@ -74,9 +79,9 @@ describe('approvals never go through email', () => {
   });
 
   test('a yes <id> by email is an ordinary message, never an answer', async () => {
-    const { relay, notifs } = relayWith(['*']);
-    relay.registerPermission('abcde', LINE);
+    const { relay, notifs, answered } = relayWith(['*']);
     await relay.handleEvent(mail('yes abcde', true));
+    expect(answered).toEqual([]);
     const methods = notifs.map((n) => n.method);
     expect(methods).toEqual(['notifications/claude/channel']);
     expect(notifs[0]?.params.content).toBe('yes abcde');

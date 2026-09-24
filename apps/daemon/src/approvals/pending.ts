@@ -1,0 +1,106 @@
+import { isDeepStrictEqual } from 'node:util';
+import { errMsg, log } from '@metro-labs/core/log';
+
+export type Behavior = 'allow' | 'deny';
+
+export interface PendingPrompt {
+  requestId: string;
+  tool: string;
+  description: string;
+  preview: string;
+  line: string | undefined;
+  at: number;
+}
+
+interface Held extends PendingPrompt {
+  owner: object;
+  send: (behavior: Behavior) => Promise<void>;
+}
+
+const PENDING_MAX = 500;
+const SWEEP_MS = 60_000;
+const DEFAULT_TTL_H = 24;
+const HOUR_MS = 3_600_000;
+
+const held = new Map<string, Held>();
+
+export function approvalTtlMs(env: NodeJS.ProcessEnv = process.env): number {
+  const hours = Number(env.METRO_APPROVAL_TTL_H);
+  return (Number.isFinite(hours) && hours > 0 ? hours : DEFAULT_TTL_H) * HOUR_MS;
+}
+
+const shown = ({ requestId, tool, description, preview, line, at }: Held): PendingPrompt => ({
+  requestId,
+  tool,
+  description,
+  preview,
+  line,
+  at,
+});
+
+export function holdPrompt(prompt: PendingPrompt, owner: object, send: (behavior: Behavior) => Promise<void>): void {
+  held.set(prompt.requestId, { ...prompt, owner, send });
+  while (held.size > PENDING_MAX) {
+    const oldest = held.keys().next();
+    if (oldest.done) break;
+    held.delete(oldest.value);
+  }
+}
+
+export const pendingPrompts = (): PendingPrompt[] => [...held.values()].map(shown).sort((a, b) => b.at - a.at);
+
+export const promptLine = (requestId: string): string | undefined => held.get(requestId)?.line;
+
+export async function answerPrompt(requestId: string, behavior: Behavior, by: string): Promise<PendingPrompt | undefined> {
+  const entry = held.get(requestId);
+  if (entry === undefined) return undefined;
+  held.delete(requestId);
+  log.info({ requestId, tool: entry.tool, behavior, by }, 'approvals: a Claude Code permission prompt answered');
+  await entry.send(behavior);
+  return shown(entry);
+}
+
+export function forgetPromptsOf(owner: object): void {
+  for (const [id, entry] of held) if (entry.owner === owner) held.delete(id);
+}
+
+function previewArgs(preview: string): unknown {
+  try {
+    return JSON.parse(preview);
+  } catch {
+    return undefined;
+  }
+}
+
+export function settlePromptsFor(name: string, args: Record<string, unknown>): void {
+  for (const [id, entry] of held)
+    if (entry.tool.endsWith(`__${name}`) && isDeepStrictEqual(previewArgs(entry.preview), args)) {
+      held.delete(id);
+      log.info({ requestId: id, tool: entry.tool }, 'approvals: the call ran, so the prompt was answered in Claude Code');
+    }
+}
+
+export async function expirePrompts(now = Date.now(), ttl = approvalTtlMs()): Promise<number> {
+  const overdue = [...held.values()].filter((entry) => now - entry.at >= ttl);
+  for (const entry of overdue)
+    await answerPrompt(entry.requestId, 'deny', 'expiry').catch((err: unknown) => {
+      log.warn({ requestId: entry.requestId, err: errMsg(err) }, 'approvals: the expiry answer could not be sent');
+    });
+  return overdue.length;
+}
+
+export function startPromptExpiry(): () => void {
+  const timer = setInterval(() => {
+    expirePrompts().catch((err: unknown) => {
+      log.warn({ err: errMsg(err) }, 'approvals: the expiry sweep failed');
+    });
+  }, SWEEP_MS);
+  timer.unref();
+  return () => {
+    clearInterval(timer);
+  };
+}
+
+export function forgetAllPrompts(): void {
+  held.clear();
+}

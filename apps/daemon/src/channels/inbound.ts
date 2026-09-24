@@ -9,7 +9,7 @@ import {
   type SavedMedia,
 } from './media-note.js';
 import { buildWebhookNote } from './webhook-note.js';
-import { approvalNote, reactContent, reactionEmoji } from './approval-note.js';
+import { reactContent, reactionEmoji } from './react-note.js';
 import { replyMeta } from './addressed.js';
 import {
   capSet,
@@ -28,14 +28,13 @@ interface InboundDeps {
   getStations: () => Set<string>;
   senderAllowed: (from: string, line: string, verified?: boolean) => boolean;
   approves?: (station: string) => boolean;
-  approvalReply?: (text: string, line: string, from: string, verified: boolean | undefined) => boolean;
+  answerPermission?: (requestId: string, behavior: 'allow' | 'deny', line: string) => Promise<boolean>;
 }
 
 const ATTACH_TIMEOUT_MS = 15_000;
 const DEDUPE_TTL_MS = 30_000;
 const DEDUPE_MAX = 2_000;
 const ALLOWED_LINES_MAX = 2_000;
-const PENDING_PERMISSIONS_MAX = 500;
 const SENT_IDS_MAX = 2_000;
 
 export class InboundRelay {
@@ -43,7 +42,6 @@ export class InboundRelay {
   private readonly pendingAttachments = new Map<string, PendingMsg>();
   private readonly seenEvents = new Map<string, number>();
   private readonly allowedLines = new Set<string>();
-  private readonly pendingPermissions = new Map<string, string>();
   private readonly sentIds = new Set<string>();
   private lastLine: string | undefined;
 
@@ -53,15 +51,6 @@ export class InboundRelay {
 
   get knownLine(): string | undefined {
     return this.lastLine;
-  }
-
-  registerPermission(requestId: string, line: string): void {
-    this.pendingPermissions.set(requestId, line);
-    while (this.pendingPermissions.size > PENDING_PERMISSIONS_MAX) {
-      const oldest = this.pendingPermissions.keys().next();
-      if (oldest.done) break;
-      this.pendingPermissions.delete(oldest.value);
-    }
   }
 
   noteSent(messageId: string): void {
@@ -257,18 +246,12 @@ export class InboundRelay {
     });
   }
 
-  private async handlePermissionReply(text: string, line: string): Promise<boolean> {
-    const m = PERMISSION_REPLY_RE.exec(text);
-    if (m?.[1] === undefined || m[2] === undefined || !this.pendingPermissions.size)
-      return false;
-    const id = m[2].toLowerCase();
-    if (this.pendingPermissions.get(id) !== line) return false;
-    this.pendingPermissions.delete(id);
-    await this.notify('notifications/claude/channel/permission', {
-      request_id: id,
-      behavior: m[1].toLowerCase().startsWith('y') ? 'allow' : 'deny',
-    });
-    return true;
+  private async handlePermissionReply(ev: Record<string, unknown>, base: EventBase): Promise<boolean> {
+    const answer = this.deps.answerPermission;
+    if (answer === undefined || base.evType !== 'msg' || !this.approves(base.station) || ev.senderVerified === false) return false;
+    const m = PERMISSION_REPLY_RE.exec(base.text);
+    if (m?.[1] === undefined || m[2] === undefined) return false;
+    return answer(m[2].toLowerCase(), m[1].toLowerCase().startsWith('y') ? 'allow' : 'deny', base.line);
   }
 
   private approves(station: string): boolean {
@@ -322,13 +305,6 @@ export class InboundRelay {
     return { evType, station, from, line, text };
   }
 
-  private answersApproval(ev: Record<string, unknown>, base: EventBase): boolean {
-    const verified = typeof ev.senderVerified === 'boolean' ? ev.senderVerified : undefined;
-    if (base.evType !== 'msg' || this.deps.approvalReply?.(base.text, base.line, base.from, verified) !== true) return false;
-    this.deps.log('inbound: an answer to a policy approval, not relayed', base.line);
-    return true;
-  }
-
   private async emitMessage(
     ev: Record<string, unknown>,
     base: EventBase,
@@ -337,9 +313,7 @@ export class InboundRelay {
       this.deps.log('drop: empty message', base.station, base.line, str(ev.messageId));
       return;
     }
-    if (base.evType === 'msg' && this.approves(base.station) && (await this.handlePermissionReply(base.text, base.line)))
-      return;
-    if (this.answersApproval(ev, base)) return;
+    if (await this.handlePermissionReply(ev, base)) return;
     await this.notify('notifications/claude/channel', {
       content:
         base.evType === 'system'
@@ -363,11 +337,6 @@ export class InboundRelay {
     ev: Record<string, unknown>,
     replay = false,
   ): Promise<void> {
-    const approval = approvalNote(ev);
-    if (approval !== undefined) {
-      await this.notify('notifications/claude/channel', { ...approval });
-      return;
-    }
     if (await this.routeAttachment(ev)) return;
 
     const base = this.routable(ev, replay);

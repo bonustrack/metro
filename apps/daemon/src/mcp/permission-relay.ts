@@ -1,7 +1,9 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { z } from 'zod';
 import type { InboundRelay } from '../channels/inbound.js';
+import { holdPrompt, type Behavior } from '../approvals/pending.js';
 import { metroCall } from './ctx.js';
+import { promptBody } from './permission-prompt.js';
 
 const PermissionRequestSchema = z.object({
   method: z.literal('notifications/claude/channel/permission_request'),
@@ -21,14 +23,6 @@ async function metroSend(line: string, text: string): Promise<void> {
   await metroCall(trainOf(line), 'send', { line, text });
 }
 
-function promptBody(params: PermissionRequest['params']): string {
-  return (
-    `Claude wants to run ${params.tool_name}: ${params.description}\n` +
-    (params.input_preview ? `\n${params.input_preview}\n` : '') +
-    `\nReply "yes ${params.request_id}" or "no ${params.request_id}"`
-  );
-}
-
 export interface PermissionRelayDeps {
   mcp: Server;
   relay: InboundRelay;
@@ -36,30 +30,44 @@ export interface PermissionRelayDeps {
   log: (...a: unknown[]) => void;
 }
 
+function relayLine(deps: PermissionRelayDeps, requestId: string): string | undefined {
+  const line = deps.relay.knownLine;
+  if (!line) {
+    deps.log('permission_request: no known line, held for the page only', requestId);
+    return undefined;
+  }
+  if (!deps.inScope(line)) {
+    deps.log('permission_request: known line is outside the agent scope, held for the page only', requestId);
+    return undefined;
+  }
+  return line;
+}
+
 export function registerPermissionRelay(deps: PermissionRelayDeps): void {
-  const { mcp, relay, inScope, log } = deps;
-  mcp.setNotificationHandler(
-    PermissionRequestSchema as never,
-    async (n: PermissionRequest) => {
-      const { params } = n;
-      const line = relay.knownLine;
-      if (!line) {
-        log('permission_request but no known line to relay to', params.request_id);
-        return;
-      }
-      if (!inScope(line)) {
-        log(
-          'permission_request: known line is outside the agent scope',
-          params.request_id,
-        );
-        return;
-      }
-      relay.registerPermission(params.request_id, line);
-      try {
-        await metroSend(line, promptBody(params));
-      } catch (e) {
-        log('relay send failed', e);
-      }
-    },
-  );
+  const { mcp, log } = deps;
+  const answer = (requestId: string) => async (behavior: Behavior): Promise<void> => {
+    await mcp.notification({ method: 'notifications/claude/channel/permission', params: { request_id: requestId, behavior } });
+  };
+  mcp.setNotificationHandler(PermissionRequestSchema as never, async (n: PermissionRequest) => {
+    const { params } = n;
+    const line = relayLine(deps, params.request_id);
+    holdPrompt(
+      {
+        requestId: params.request_id,
+        tool: params.tool_name,
+        description: params.description,
+        preview: params.input_preview,
+        line,
+        at: Date.now(),
+      },
+      mcp,
+      answer(params.request_id),
+    );
+    if (line === undefined) return;
+    try {
+      await metroSend(line, promptBody(params));
+    } catch (e) {
+      log('relay send failed', e);
+    }
+  });
 }

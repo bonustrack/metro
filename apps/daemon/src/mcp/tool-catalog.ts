@@ -54,6 +54,8 @@ export const listedTools = (): PublishedTool[] =>
 
 const STATION_OF_TOOL = new Map(STATIONS.flatMap((s) => s.tools.map((t) => [t.name, s.name] as const)));
 
+export const stationToolOwners = (): Record<string, string> => Object.fromEntries(STATION_OF_TOOL);
+
 export function stationForTool(name: string, args: Record<string, unknown>): string | undefined {
   if (name === 'create_group' || name === 'set_profile')
     return typeof args.station === 'string' && args.station !== '' ? args.station : undefined;

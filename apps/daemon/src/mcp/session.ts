@@ -1,7 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { InboundRelay } from '../channels/inbound.js';
-import { isApprovalReply } from '../approvals/flow.js';
+import { answerPrompt, forgetPromptsOf, promptLine } from '../approvals/pending.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
 import { errMsg } from '@metro-labs/core/log';
 import { allowlistForLine, senderPermitted } from '../agents/map.js';
@@ -23,6 +23,11 @@ const senderAllowed = (from: string, line: string, verified?: boolean): boolean 
   senderPermitted(allowlistForLine(line), from, verified);
 
 const approves = (station: string): boolean => stationByName(station)?.approvals !== false;
+
+async function answerPermission(requestId: string, behavior: 'allow' | 'deny', line: string): Promise<boolean> {
+  if (promptLine(requestId) !== line) return false;
+  return (await answerPrompt(requestId, behavior, `chat ${line}`)) !== undefined;
+}
 
 function makeTransport(
   id: string,
@@ -96,7 +101,6 @@ export class McpSession {
       onSent: (id): void => {
         this.relay.noteSent(id);
       },
-      knownLine: () => this.relay.knownLine,
     });
     this.relay = new InboundRelay({
       mcp: this.server,
@@ -104,7 +108,7 @@ export class McpSession {
       getStations,
       senderAllowed,
       approves,
-      approvalReply: isApprovalReply,
+      answerPermission,
     });
     registerPermissionRelay({
       mcp: this.server,
@@ -189,6 +193,7 @@ export class McpSession {
     if (this.closed) return;
     this.closed = true;
     this.onClosed(this);
+    forgetPromptsOf(this.server);
     this.dropStream();
     this.unsubscribe?.();
     this.unsubscribe = undefined;
