@@ -6,6 +6,8 @@ import type {
 } from './verify.js';
 import type { OAuthClient } from './oauth-client.js';
 import { isRecord } from '@metro-labs/core/is-record';
+import type { ToolGroup } from '@metro-labs/core/stations/types';
+import { parsePolicy, type ToolPolicy } from '../policy/policy.js';
 
 const CONNECTOR_NAME_MAX = 64;
 const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
@@ -24,6 +26,8 @@ export interface ConnectorConfig {
   verified: VerifiedRecord;
   oauth: boolean;
   client: OAuthClient | null;
+  policy?: ToolPolicy;
+  toolGroups?: Record<string, ToolGroup>;
 }
 
 function text(value: unknown): string {
@@ -135,15 +139,30 @@ function readVerified(raw: unknown): VerifiedRecord {
   return { at: text(record.at), server: text(record.server) };
 }
 
+const TOOL_NAME_MAX = 128;
+const TOOL_GROUPS_MAX = 1000;
+
+export function readToolGroups(raw: unknown): Record<string, ToolGroup> | undefined {
+  if (!isRecord(raw)) return undefined;
+  const kept = Object.entries(raw)
+    .filter((entry): entry is [string, ToolGroup] => entry[0].length <= TOOL_NAME_MAX && (entry[1] === 'read' || entry[1] === 'write'))
+    .slice(0, TOOL_GROUPS_MAX);
+  return kept.length > 0 ? Object.fromEntries(kept) : undefined;
+}
+
 export function readConfig(raw: unknown): ConnectorConfig {
   const record = isRecord(raw) ? raw : {};
   const auth = readAuth(record.auth);
+  const policy = parsePolicy(record.policy, 'connectors.json');
+  const toolGroups = readToolGroups(record.toolGroups);
   return {
     auth,
     createdAt: text(record.createdAt),
     verified: readVerified(record.verified),
     oauth: record.oauth === true || auth.kind === 'oauth',
     client: readClient(record.client),
+    ...(policy === undefined || Object.keys(policy).length === 0 ? {} : { policy }),
+    ...(toolGroups === undefined ? {} : { toolGroups }),
   };
 }
 

@@ -80,3 +80,6 @@ export const toolsIn = (tools: GroupedTool[], group: ToolGroup): GroupedTool[] =
 
 export const overrideCount = (policy: ToolPolicy, tools: GroupedTool[]): number =>
   tools.filter((t) => toolOverride(policy, t.name) !== undefined).length;
+
+export const connectorToolGroups = (tools: readonly { name: string; readOnly: boolean }[]): GroupedTool[] =>
+  tools.map((tool) => ({ name: tool.name, group: tool.readOnly ? 'read' : 'write' }));

@@ -5,11 +5,13 @@ import type { RelayTarget } from './relay-target.js';
 import type { AgentIdentity } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
+import { answerBlocked, mergeBlocked, screenCalls, type BlockedReason } from './relay-policy.js';
 
 export interface RelayApiDeps {
   target: (connectorId: string, force: boolean) => Promise<RelayTarget>;
   identify: (req: IncomingMessage) => AgentIdentity | null;
   signedOut: (connectorId: string) => void;
+  blocked?: BlockedReason;
 }
 
 const ID_PATH_RE = /^\/relay\/([A-Za-z0-9][A-Za-z0-9_-]{10})$/;
@@ -172,11 +174,20 @@ async function pumpBody(
   }
 }
 
-async function pipe(res: ServerResponse, upstream: Response): Promise<void> {
+function passedHeaders(upstream: Response): Record<string, string> {
   const headers: Record<string, string> = {};
   for (const name of PASS_RES) {
     const value = upstream.headers.get(name);
     if (value !== null) headers[name] = value;
+  }
+  return headers;
+}
+
+async function pipe(res: ServerResponse, upstream: Response, answers: Record<string, unknown>[]): Promise<void> {
+  const headers = passedHeaders(upstream);
+  if (answers.length > 0 && (upstream.status === 200 || upstream.status === 202)) {
+    await mergeBlocked(res, upstream, headers, answers);
+    return;
   }
   const sse = (headers['content-type'] ?? '').includes('text/event-stream');
   if (sse) headers['x-accel-buffering'] = 'no';
@@ -246,21 +257,13 @@ async function relayExchange(
   }
 }
 
-async function relayOnce(
-  req: IncomingMessage,
+async function deliver(
   res: ServerResponse,
   connectorId: string,
   deps: RelayApiDeps,
-  signal: AbortSignal,
+  out: Exchanged,
+  answers: Record<string, unknown>[],
 ): Promise<void> {
-  const body = req.method === 'POST' ? await readCapped(req) : null;
-  const out = await exchange(
-    req,
-    connectorId,
-    deps,
-    body,
-    signal,
-  );
   if (out.kind === 'missing') {
     answer(res, 404, { error: 'no such connector' });
     return;
@@ -279,7 +282,24 @@ async function relayOnce(
   }
   const { status } = out.upstream;
   noteHealth(connectorId, status < 400, status < 400 ? null : `the connector answered ${String(status)}`);
-  await pipe(res, out.upstream);
+  await pipe(res, out.upstream, answers);
+}
+
+async function relayOnce(
+  req: IncomingMessage,
+  res: ServerResponse,
+  connectorId: string,
+  deps: RelayApiDeps,
+  signal: AbortSignal,
+): Promise<void> {
+  const read = req.method === 'POST' ? await readCapped(req) : null;
+  const screened = read === null || deps.blocked === undefined ? null : screenCalls(read, connectorId, deps.blocked);
+  if (screened?.forward === null) {
+    answerBlocked(res, screened);
+    return;
+  }
+  const out = await exchange(req, connectorId, deps, screened === null ? read : screened.forward, signal);
+  await deliver(res, connectorId, deps, out, screened?.answers ?? []);
 }
 
 function dispatch(

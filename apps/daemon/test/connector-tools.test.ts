@@ -66,9 +66,9 @@ describe('listing a connector\'s tools live', () => {
     pages = 2;
     const tools = await listRemoteTools(new URL(`${origin}/mcp`), { kind: 'header', name: 'Authorization', value: 'Bearer v1' });
     expect(tools).toEqual([
-      { name: 'Search', description: 'Finds things', readOnly: true },
-      { name: 'delete_thing', description: '', readOnly: false },
-      { name: 'page_two', description: '', readOnly: false },
+      { name: 'search', title: 'Search', description: 'Finds things', readOnly: true },
+      { name: 'delete_thing', title: 'delete_thing', description: '', readOnly: false },
+      { name: 'page_two', title: 'page_two', description: '', readOnly: false },
     ]);
     expect(seen.map((s) => s.rpc || s.method)).toEqual(['initialize', 'notifications/initialized', 'tools/list', 'tools/list', 'DELETE']);
     for (const frame of seen.slice(1)) {

@@ -1,4 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { connectorToolOf } from '../connectors/gates.js';
 
 export interface PermissionParams {
   request_id: string;
@@ -44,6 +45,25 @@ function metroLines(tool: string, input: Record<string, unknown>): string[] {
   return lines;
 }
 
+const ARGS_MAX = 8;
+
+function argText(value: unknown): string | undefined {
+  const plain = valueText(value);
+  if (plain !== undefined || value === null || typeof value !== 'object') return plain;
+  return JSON.stringify(value);
+}
+
+function connectorLines(name: string, tool: string, input: Record<string, unknown> | undefined): string[] {
+  const lines = [`Approval needed: ${tool}`, `Connector: ${name}`];
+  const args = Object.entries(input ?? {}).flatMap(([key, value]) => {
+    const text = argText(value);
+    return text === undefined ? [] : [`${key}: ${shorten(text)}`];
+  });
+  lines.push(...args.slice(0, ARGS_MAX));
+  if (args.length > ARGS_MAX) lines.push(`(${String(args.length - ARGS_MAX)} more)`);
+  return lines;
+}
+
 function parsedPreview(preview: string): Record<string, unknown> | undefined {
   try {
     const parsed: unknown = JSON.parse(preview);
@@ -58,6 +78,8 @@ export function promptBody(params: PermissionParams): string {
   const metro = METRO_TOOL.exec(params.tool_name)?.[1];
   const input = parsedPreview(params.input_preview);
   if (metro !== undefined && input !== undefined) return `${metroLines(metro, input).join('\n')}\n\n${answer}`;
+  const connector = connectorToolOf(params.tool_name);
+  if (connector !== undefined) return `${connectorLines(connector.gate.name, connector.tool, input).join('\n')}\n\n${answer}`;
   return (
     `Claude wants to run ${params.tool_name}: ${params.description}\n` +
     (params.input_preview ? `\n${params.input_preview}\n` : '') +

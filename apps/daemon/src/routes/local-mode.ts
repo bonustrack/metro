@@ -28,7 +28,9 @@ import {
   localVerifyConnector,
   localMarkSignedOut,
   localConnectorTools,
+  localSetConnectorPolicy,
 } from '../connectors/store.js';
+import { blockedReason } from '../connectors/gates.js';
 import {
   setLocalOwner,
   localAttachAccount,
@@ -120,6 +122,7 @@ const connectorApi: ConnectorApiDeps = {
   disconnectConnector: localDisconnectConnector,
   renameConnector: localRenameConnector,
   deleteConnector: localDeleteConnector,
+  setConnectorPolicy: (id, policy) => localSetConnectorPolicy(id, policy),
   createPendingConnector: localCreatePendingConnector,
   reconnectConnector: localReconnectConnector,
   getConnector: localGetConnector,
@@ -134,6 +137,7 @@ const relayApi: RelayApiDeps = {
   signedOut: (id) => {
     localMarkSignedOut(id);
   },
+  blocked: blockedReason,
 };
 
 

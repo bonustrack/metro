@@ -21,7 +21,7 @@ import {
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
-import { readLocalConnectors } from '../connectors/store.js';
+import { loadConnectorPolicies, readLocalConnectors } from '../connectors/store.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
 import { tryClaudeSetup } from '../claude/setup.js';
@@ -121,6 +121,9 @@ async function main(): Promise<void> {
 installBearerSessions(agentsDir(), localOwner);
   migrateAgentLayout();
   watchPolicySnapshot();
+  loadConnectorPolicies().catch((err: unknown) => {
+    log.warn({ err: errMsg(err) }, 'connector policy: loading the policies failed');
+  });
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource);
   forgetOrphans(knownAccounts());

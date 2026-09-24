@@ -191,6 +191,7 @@ describe('a connector row is coerced field by field', () => {
         signIn: null,
         verified: VERIFIED,
         health: null,
+        policy: {},
       },
     ]);
   });
@@ -261,6 +262,7 @@ describe('a connector row is coerced field by field', () => {
       signIn: null,
       verified: null,
       health: null,
+      policy: {},
     });
   });
 

@@ -20,7 +20,6 @@ import {
   type ToolPolicy,
 } from '../api/policy.js';
 import { queryError } from '../api/queries.js';
-import { setPolicy } from '../api/attach.js';
 
 const SAVE_FAILED = 'Could not save the permissions.';
 const SAME = 'Same as group';
@@ -115,21 +114,19 @@ function GroupBlock({ group, tools, policy, busy, onSave }: GroupProps): ReactNo
 }
 
 interface PermissionsProps {
-  agentId: string;
-  station: string;
-  accountId: string;
   policy: ToolPolicy;
   tools: GroupedTool[];
+  store: (next: ToolPolicy) => Promise<unknown>;
   onSaved: () => Promise<unknown>;
 }
 
-export function Permissions({ agentId, station, accountId, policy, tools, onSaved }: PermissionsProps): ReactNode {
+export function Permissions({ policy, tools, store, onSaved }: PermissionsProps): ReactNode {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = (next: ToolPolicy): void => {
     setBusy(true);
     setError(null);
-    setPolicy(agentId, station, accountId, next)
+    store(next)
       .then(() => onSaved())
       .catch((err: unknown) => {
         setError(queryError(err, SAVE_FAILED));

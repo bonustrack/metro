@@ -4,6 +4,7 @@ import { authHeaders, INITIALIZE, mcpPost, payloadOf, refused, type ConnectorAut
 
 export interface RemoteTool {
   name: string;
+  title: string;
   description: string;
   readOnly: boolean;
 }
@@ -35,7 +36,7 @@ function toTool(raw: unknown): RemoteTool | null {
   if (!isRecord(raw) || typeof raw.name !== 'string') return null;
   const annotations = isRecord(raw.annotations) ? raw.annotations : {};
   const title = typeof raw.title === 'string' && raw.title !== '' ? raw.title : raw.name;
-  return { name: title, description: typeof raw.description === 'string' ? raw.description : '', readOnly: annotations.readOnlyHint === true };
+  return { name: raw.name, title, description: typeof raw.description === 'string' ? raw.description : '', readOnly: annotations.readOnlyHint === true };
 }
 
 async function endSession(url: URL, auth: ConnectorAuth, session: Map<string, string>): Promise<void> {

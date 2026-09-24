@@ -30,16 +30,21 @@ export function serverKey(name: string): string {
   return slug === '' ? 'connector' : slug;
 }
 
-export function pluginServers(rows: PluginRow[], base: string): Record<string, PluginServer> {
+export function serverKeysOf(rows: PluginRow[]): Map<string, string> {
   const taken = new Map<string, number>();
-  const out: Record<string, PluginServer> = {};
+  const keys = new Map<string, string>();
   for (const row of rows) {
     const wanted = serverKey(row.name);
     const seen = taken.get(wanted) ?? 0;
     taken.set(wanted, seen + 1);
-    const key = seen === 0 ? wanted : `${wanted}-${row.id.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4)}`;
-    out[key] = { type: 'http', url: `${base}/relay/${row.id}`, headersHelper: HELPER };
+    keys.set(row.id, seen === 0 ? wanted : `${wanted}-${row.id.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4)}`);
   }
+  return keys;
+}
+
+export function pluginServers(rows: PluginRow[], base: string): Record<string, PluginServer> {
+  const out: Record<string, PluginServer> = {};
+  for (const [id, key] of serverKeysOf(rows)) out[key] = { type: 'http', url: `${base}/relay/${id}`, headersHelper: HELPER };
   return out;
 }
 

@@ -33,8 +33,8 @@ function answer(decision, reason) {
 function ownerPolicy(tool, input, subagent) {
   const verdict = policyVerdict(tool, input);
   if (verdict === null) return null;
-  const where = `${verdict.tool} on ${verdict.station} (${verdict.account})`;
-  if (verdict.access === 'deny') return { decision: 'deny', reason: `Blocked by the owner's policy for ${verdict.station} (${verdict.tool}).` };
+  const { where } = verdict;
+  if (verdict.access === 'deny') return { decision: 'deny', reason: `Blocked by the owner's policy for ${verdict.owner} (${verdict.tool}).` };
   if (subagent) return { decision: 'ask', reason: `The owner asked to approve ${where}.` };
   return {
     decision: 'deny',

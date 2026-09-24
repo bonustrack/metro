@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  connectorToolGroups,
   effectiveAccess,
   groupAccess,
   overrideCount,
@@ -71,5 +72,19 @@ describe('Claude Code permission prompts on the page', () => {
       inChat: false,
     });
     expect(approvalOf({ id: 'broken' })).toBeNull();
+  });
+});
+
+describe('a connector tool policy on the page', () => {
+  test('the vendor read-only hint is the read group, everything else is write', () => {
+    const tools = connectorToolGroups([
+      { name: 'list_issues', readOnly: true },
+      { name: 'delete_issue', readOnly: false },
+    ]);
+    expect(tools).toEqual([
+      { name: 'list_issues', group: 'read' },
+      { name: 'delete_issue', group: 'write' },
+    ]);
+    expect(effectiveAccess({ write: 'deny', tools: { list_issues: 'ask' } }, tools[1] ?? { name: '', group: 'read' })).toBe('deny');
   });
 });

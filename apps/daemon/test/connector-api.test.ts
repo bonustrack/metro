@@ -8,6 +8,7 @@ import {
 } from '../src/connectors/verify.ts';
 import type { ConnectorApiDeps } from '../src/connectors/api.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
+import type { ToolPolicy } from '../src/policy/policy.ts';
 
 const ADA = 'ada@lovelace.dev';
 const CLASHES_IN_AGENT = 'already-on-suzy';
@@ -30,6 +31,7 @@ interface Row {
   header: string | null;
   secret: string | null;
   signIn?: 'connected' | 'disconnected' | null;
+  policy?: ToolPolicy;
 }
 
 interface WireConnector {
@@ -84,6 +86,7 @@ const toConnector = (row: Row) => ({
   secret: row.secret,
   signIn: row.signIn ?? null,
   verified: VERIFIED,
+  policy: row.policy ?? {},
 });
 
 const missing = (): ApiError => new ApiError('no such connector', 404);
@@ -170,6 +173,12 @@ const deps: ConnectorApiDeps = {
         409,
       );
     const next: Row = { ...row, name };
+    rows = rows.map((r) => (r.id === id ? next : r));
+    return toConnector(next);
+  },
+  setConnectorPolicy: async (id, policy) => {
+    calls.push(`policy ${id}`);
+    const next: Row = { ...rowOrThrow(id), policy };
     rows = rows.map((r) => (r.id === id ? next : r));
     return toConnector(next);
   },
@@ -399,6 +408,7 @@ describe('GET /api/connectors returns the wire shape', () => {
       clientId: null,
       signIn: null,
       verified: VERIFIED,
+      policy: {},
       health: null,
     });
   });
@@ -422,6 +432,29 @@ describe('GET /api/connectors returns the wire shape', () => {
     expect(body).not.toContain('lin_oauth_7f');
     expect(body).not.toContain('mcpServers');
     expect(JSON.parse(body) as { json?: string }).not.toHaveProperty('json');
+  });
+});
+
+describe('a connector carries the owner\'s tool policy', () => {
+  test('PUT /policy stores a valid policy and the row answers with it', async () => {
+    const res = await call('PUT', '/api/connectors/agent000001/policy', ADA, { policy: { write: 'ask', read: null, tools: { delete_issue: 'deny' } } });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { policy: unknown }).policy).toEqual({ write: 'ask', tools: { delete_issue: 'deny' } });
+    expect(calls).toEqual(['policy agent000001']);
+    expect((await listFor(ADA))[0]).toMatchObject({ policy: { write: 'ask', tools: { delete_issue: 'deny' } } });
+  });
+
+  test('a bad value is a 400 by name before the store is touched', async () => {
+    const res = await call('PUT', '/api/connectors/agent000001/policy', ADA, { policy: { write: 'maybe' } });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe('write must be allow, ask or deny');
+    expect(calls).toEqual([]);
+  });
+
+  test('it needs a session, and only PUT', async () => {
+    expect((await call('PUT', '/api/connectors/agent000001/policy', undefined, { policy: {} })).status).toBe(401);
+    expect((await call('POST', '/api/connectors/agent000001/policy', ADA, { policy: {} })).status).toBe(405);
+    expect((await call('PUT', '/api/connectors/nope0000000/policy', ADA, { policy: {} })).status).toBe(404);
   });
 });
 

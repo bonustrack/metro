@@ -1,6 +1,7 @@
 import { isRecord, str } from './read.js';
 import { daemonBase } from '../auth/daemon.js';
 import { call, OLD_DAEMON_PROJECT } from './client.js';
+import { policyOf, type ToolPolicy } from './policy.js';
 
 export type ConnectorAuth = 'header' | 'oauth' | 'none';
 
@@ -28,6 +29,7 @@ export interface Connector {
   signIn: ConnectorSignIn;
   verified: ConnectorVerified | null;
   health: ConnectorHealth | null;
+  policy: ToolPolicy;
 }
 
 export interface ConnectorsView {
@@ -110,6 +112,7 @@ function toConnector(value: unknown): Connector {
     signIn: toSignIn(value.signIn),
     verified: toVerified(value.verified),
     health: toHealth(value.health),
+    policy: policyOf(value.policy),
   };
 }
 
@@ -193,6 +196,7 @@ export async function fetchConnector(
 
 export interface ConnectorTool {
   name: string;
+  title: string;
   description: string;
   readOnly: boolean;
 }
@@ -201,7 +205,9 @@ export async function fetchConnectorTools(id: string): Promise<ConnectorTool[]> 
   const body = await call({ method: 'GET', base: connectorsUrl(), path: `/${id}/tools` });
   if (!isRecord(body) || !Array.isArray(body.tools)) throw new Error('Metro returned an unexpected response.');
   return body.tools.flatMap((t: unknown) =>
-    isRecord(t) && typeof t.name === 'string' ? [{ name: t.name, description: str(t.description), readOnly: t.readOnly === true }] : [],
+    isRecord(t) && typeof t.name === 'string'
+      ? [{ name: t.name, title: str(t.title) === '' ? t.name : str(t.title), description: str(t.description), readOnly: t.readOnly === true }]
+      : [],
   );
 }
 
@@ -259,6 +265,17 @@ export async function renameConnector(
     path: `/${id}/rename`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name }),
+  });
+  return toConnector(body);
+}
+
+export async function setConnectorPolicy(id: string, policy: ToolPolicy): Promise<Connector> {
+  const body = await call({
+    method: 'PUT',
+    base: connectorsUrl(),
+    path: `/${id}/policy`,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ policy }),
   });
   return toConnector(body);
 }

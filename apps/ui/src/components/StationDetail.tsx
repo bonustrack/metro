@@ -4,7 +4,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { PageTitle } from './PageTitle.js';
-import { stationLabel } from '../api/attach.js';
+import { setPolicy, stationLabel } from '../api/attach.js';
 import { stationFields, type AccountRow } from '../api/accounts.js';
 import { type AgentSummary } from '../api/client.js';
 import { BackLink } from './BackLink.js';
@@ -141,7 +141,14 @@ function PermissionsSection({
         <Text size="sm" role="secondary">{`Needs metro ${POLICY_SINCE}. Update first, from the Server page.`}</Text>
       </Section>
     );
-  return <Permissions agentId={agentId} station={station} accountId={id} policy={row.policy} tools={tools} onSaved={onSaved} />;
+  return (
+    <Permissions
+      policy={row.policy}
+      tools={tools}
+      store={(next) => setPolicy(agentId, station, id, next)}
+      onSaved={onSaved}
+    />
+  );
 }
 
 function NameSection({ station, row, agentId }: { station: string; row: AccountRow; agentId: string | undefined }): ReactNode {

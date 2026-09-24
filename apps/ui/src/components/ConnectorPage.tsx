@@ -18,6 +18,7 @@ import { Field } from './Field.js';
 import { Loading } from './Loading.js';
 import { useDocumentTitle } from '../title.js';
 import { ToolList } from './ToolList.js';
+import { ConnectorPermissions } from './ConnectorPermissions.js';
 
 const FALLBACK = 'Could not load this connector.';
 
@@ -153,6 +154,7 @@ export function ConnectorPage({
       <ConnectorFacts connector={data} />
       <HealthLine connector={data} />
       {status !== null ? <Text size="sm" role="secondary">{status}</Text> : null}
+      <ConnectorPermissions connector={data} />
       <ToolList id={data.id} />
     </Col>
   );

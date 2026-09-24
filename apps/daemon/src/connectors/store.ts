@@ -1,5 +1,8 @@
 import { join } from 'node:path';
 import { syncPluginServers } from './plugin-sync.js';
+import { registerConnectors } from './gates.js';
+import type { ToolPolicy } from '../policy/policy.js';
+import type { ToolGroup } from '@metro-labs/core/stations/types';
 import { listRemoteTools, type RemoteTool } from './tools.js';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { errMsg, log } from '@metro-labs/core/log';
@@ -48,6 +51,7 @@ export interface Connector {
   signIn: ConnectorSignIn;
   verified: VerifiedRecord;
   client: OAuthClient | null;
+  policy: ToolPolicy;
 }
 
 export interface PendingConnectorInput {
@@ -84,6 +88,7 @@ function connectorFromRow(row: LocalConnectorRow): Connector {
     signIn: signInState(row.config),
     verified: row.config.verified,
     client: row.config.client,
+    policy: row.config.policy ?? {},
   };
 }
 
@@ -114,7 +119,9 @@ export function readLocalConnectors(dir = agentsDir()): LocalConnectorRow[] {
 
 function writeRows(dir: string, rows: LocalConnectorRow[]): void {
   writeSecure(filePath(dir), `${JSON.stringify({ version: 1, connectors: rows }, null, 2)}\n`);
-  if (dir === agentsDir()) syncPluginServers(rows);
+  if (dir !== agentsDir()) return;
+  syncPluginServers(rows);
+  registerConnectors(rows);
 }
 
 const missing = (): ConnectorError => new ConnectorError('no such connector', 404);
@@ -253,10 +260,47 @@ export async function localVerifyConnector(id: string, dir = agentsDir()): Promi
   }
 }
 
+const groupsOf = (tools: RemoteTool[]): Record<string, ToolGroup> =>
+  Object.fromEntries(tools.map((tool) => [tool.name, tool.readOnly ? 'read' : 'write'] as const));
+
+function keepGroups(dir: string, id: string, tools: RemoteTool[]): void {
+  const now = readLocalConnectors(dir).find((r) => r.id === id);
+  const groups = groupsOf(tools);
+  if (now === undefined || JSON.stringify(now.config.toolGroups ?? {}) === JSON.stringify(groups)) return;
+  const config = { ...now.config };
+  delete config.toolGroups;
+  replace(dir, { ...now, config: Object.keys(groups).length > 0 ? { ...config, toolGroups: groups } : config });
+}
+
 export async function localConnectorTools(id: string, dir = agentsDir()): Promise<RemoteTool[]> {
   const row = rowOrThrow(id, dir);
   const url = parseConnectorUrl(row.url);
-  return listRemoteTools(url, await freshAuth(row, dir));
+  const tools = await listRemoteTools(url, await freshAuth(row, dir));
+  keepGroups(dir, id, tools);
+  return tools;
+}
+
+async function refreshGroups(id: string, dir: string): Promise<void> {
+  try {
+    await localConnectorTools(id, dir);
+  } catch (err) {
+    log.warn({ id, err: errMsg(err) }, 'connector policy: could not list the tools; the last known read and write groups stay');
+  }
+}
+
+export async function localSetConnectorPolicy(id: string, policy: ToolPolicy, dir = agentsDir()): Promise<Connector> {
+  const row = rowOrThrow(id, dir);
+  const config = { ...row.config };
+  delete config.policy;
+  const saved = replace(dir, { ...row, config: Object.keys(policy).length > 0 ? { ...config, policy } : config });
+  await refreshGroups(id, dir);
+  return saved;
+}
+
+export async function loadConnectorPolicies(dir = agentsDir()): Promise<void> {
+  const rows = readLocalConnectors(dir);
+  registerConnectors(rows);
+  for (const row of rows) if (row.config.policy !== undefined) await refreshGroups(row.id, dir);
 }
 
 export async function localRenameConnector(id: string, raw: string, dir = agentsDir()): Promise<Connector> {

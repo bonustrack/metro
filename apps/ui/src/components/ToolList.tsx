@@ -38,7 +38,7 @@ export function ToolList({ id }: { id: string }): ReactNode {
             <Row key={tool.name} align="center" gap={12} padding={{ y: ROW_PAD_Y }} border={{ bottom: { width: 1, color: palette.border } }}>
               <Col gap={2} style={SHRINK} flex={1}>
                 <Text size="md" weight="semibold" numberOfLines={1}>
-                  {tool.name}
+                  {tool.title}
                 </Text>
                 {tool.description === '' ? null : (
                   <Text size="sm" role="secondary" numberOfLines={2}>

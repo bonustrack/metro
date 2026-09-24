@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { healthOf } from './health.js';
 import type { RemoteTool } from './tools.js';
+import { normalizePolicy, type ToolPolicy } from '../policy/policy.js';
 import {
   apiFailure,
   apiSession,
@@ -39,6 +40,7 @@ export interface ConnectorApiDeps extends OAuthRouteDeps {
   disconnectConnector: (id: string) => Promise<Connector>;
   renameConnector: (id: string, name: string) => Promise<Connector>;
   deleteConnector: (id: string) => Promise<DeletedConnector>;
+  setConnectorPolicy: (id: string, policy: ToolPolicy) => Promise<Connector>;
 }
 
 type Routable =
@@ -49,7 +51,8 @@ type Routable =
   | { kind: 'tools'; id: string }
   | { kind: 'connect'; id: string }
   | { kind: 'disconnect'; id: string }
-  | { kind: 'rename'; id: string };
+  | { kind: 'rename'; id: string }
+  | { kind: 'policy'; id: string };
 
 type Target = Routable | { kind: 'unknown' } | null;
 
@@ -62,6 +65,7 @@ function subTarget(id: string, rest: string[]): Target {
   if (head === 'connect') return { kind: 'connect', id };
   if (head === 'disconnect') return { kind: 'disconnect', id };
   if (head === 'rename') return { kind: 'rename', id };
+  if (head === 'policy') return { kind: 'policy', id };
   return { kind: 'unknown' };
 }
 
@@ -86,6 +90,7 @@ function connectorPayload(row: Connector): Record<string, unknown> {
     clientId: row.client?.clientId ?? null,
     signIn: row.signIn,
     verified: row.verified,
+    policy: row.policy,
     health: healthOf(row.id),
   };
 }
@@ -202,6 +207,32 @@ async function handleRename(
   sendJson(req, res, 200, connectorPayload(row));
 }
 
+async function handlePolicy(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ConnectorApiDeps,
+  id: string,
+): Promise<void> {
+  const policy = normalizePolicy(bodyField(await readJsonBody(req), 'policy'));
+  const row = await deps.setConnectorPolicy(id, policy);
+  log.info({ id: row.id, name: row.name, policy: row.policy }, 'connector-api: tool policy set');
+  sendJson(req, res, 200, connectorPayload(row));
+}
+
+type ById = Exclude<Routable['kind'], 'collection' | 'callback'>;
+
+const BY_ID: Record<ById, (req: IncomingMessage, res: ServerResponse, deps: ConnectorApiDeps, id: string) => Promise<void>> = {
+  verify: handleVerify,
+  tools: async (req, res, deps, id) => {
+    sendJson(req, res, 200, { tools: await deps.connectorTools(id) });
+  },
+  connect: handleConnect,
+  disconnect: handleDisconnect,
+  rename: handleRename,
+  policy: handlePolicy,
+  connector: handleConnector,
+};
+
 async function route(
   req: IncomingMessage,
   res: ServerResponse,
@@ -210,17 +241,7 @@ async function route(
 ): Promise<void> {
   try {
     if (tgt.kind === 'callback') return;
-    if (tgt.kind === 'verify')
-      await handleVerify(req, res, deps, tgt.id);
-    else if (tgt.kind === 'tools') sendJson(req, res, 200, { tools: await deps.connectorTools(tgt.id) });
-    else if (tgt.kind === 'connect')
-      await handleConnect(req, res, deps, tgt.id);
-    else if (tgt.kind === 'disconnect')
-      await handleDisconnect(req, res, deps, tgt.id);
-    else if (tgt.kind === 'rename')
-      await handleRename(req, res, deps, tgt.id);
-    else if (tgt.kind === 'connector')
-      await handleConnector(req, res, deps, tgt.id);
+    if (tgt.kind !== 'collection') await BY_ID[tgt.kind](req, res, deps, tgt.id);
     else if (req.method === 'GET') await handleList(req, res, deps);
     else await handleCreate(req, res, deps);
   } catch (err) {
@@ -237,6 +258,7 @@ const ALLOWED: Record<Routable['kind'], string[]> = {
   connect: ['POST'],
   disconnect: ['POST'],
   rename: ['POST'],
+  policy: ['PUT'],
 };
 
 async function dispatch(
