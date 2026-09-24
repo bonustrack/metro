@@ -5,6 +5,7 @@ import { agentIdForAccount, accountFromLine, knownAccounts } from '../agents/map
 import { attachmentUrl } from '../files/attach-serve.js';
 import { stationByName } from '../stations/registry.js';
 import { errResult, makeCtx, okJson, toErr } from './ctx.js';
+import { agentUser } from '../agent-user/user.js';
 
 const FILTERS: readonly (readonly [string, ReadFilter, string])[] = [
   ['query', 'query', 'query'],
@@ -45,7 +46,8 @@ function withUrls(result: unknown, agentId: string | undefined): unknown {
   const attachments = files.map((f: unknown) => {
     if (!isRecord(f) || typeof f.local_path !== 'string') return f;
     const url = attachmentUrl(f.local_path, agentId);
-    return url === null ? f : { ...f, url };
+    const shown = agentUser() === null ? f : Object.fromEntries(Object.entries(f).filter(([key]) => key !== 'local_path'));
+    return url === null ? shown : { ...shown, url };
   });
   return { ...result, message: { ...result.message, attachments } };
 }

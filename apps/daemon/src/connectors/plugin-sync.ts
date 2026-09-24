@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { writeHomeInPlace } from '../agent-user/home-fs.js';
+import { agentMarketplaceDir, agentUser } from '../agent-user/user.js';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { claudeDir } from '../claude/files.js';
@@ -70,7 +71,9 @@ function pluginRootsUnder(dir: string, depth: number, out: string[]): void {
 
 export function stagedPluginDir(env: NodeJS.ProcessEnv = process.env): string | null {
   const store = env.METRO_RUNTIME_STORE?.trim() ?? '';
-  return store === '' ? null : join(store, 'marketplace', 'plugin');
+  if (store === '') return null;
+  const user = agentUser();
+  return join(user === null ? join(store, 'marketplace') : agentMarketplaceDir(user), 'plugin');
 }
 
 export function installedPluginFiles(dir = claudeDir(), staged = stagedPluginDir()): string[] {

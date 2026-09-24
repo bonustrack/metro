@@ -34,6 +34,7 @@ import { fetchServers, probeServer, type Server, type ServerStatus } from './ser
 import { fetchMachine, type Machine } from './machine.js';
 import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
 import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
+import { fetchAgentUser, type AgentUserStatus } from './agent-user.js';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -64,7 +65,8 @@ type BoxName =
   | 'connectors'
   | 'connector'
   | 'connector-tools'
-  | 'account-name';
+  | 'account-name'
+  | 'agent-user';
 
 export type BoxKey = BoxName | readonly [BoxName, ...string[]];
 
@@ -150,6 +152,9 @@ export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
   useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: 10_000 });
 
 export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, { staleTime: 10_000 });
+
+export const useAgentUserQuery = (enabled: boolean): UseQueryResult<AgentUserStatus> =>
+  useBoxQuery('agent-user', fetchAgentUser, { staleTime: 10_000, enabled });
 
 export const useClaudeVersionQuery = (): UseQueryResult<ClaudeVersion> =>
   useBoxQuery('claude-version', fetchClaudeVersion, { staleTime: LONG_MS, retry: false });

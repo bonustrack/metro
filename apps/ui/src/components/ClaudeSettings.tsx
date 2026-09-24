@@ -7,6 +7,7 @@ import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { ClaudeSetup } from './ClaudeSetup.js';
+import { AgentUserSwitch } from './AgentUserSwitch.js';
 import { ClaudeVersion } from './ClaudeVersion.js';
 import { GROW } from '../theme.js';
 import { saveClaudeSettings, type ClaudeSettingsFile } from '../api/claude.js';
@@ -180,6 +181,7 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
         <ClaudeVersion />
       </Col>
       <ClaudeSetup project={project} />
+      <AgentUserSwitch />
       {settings.error !== null ? (
         <Text size="sm" role="danger">
           {queryError(settings.error, 'Could not read the settings files.')}

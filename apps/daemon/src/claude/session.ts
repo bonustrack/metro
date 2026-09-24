@@ -96,9 +96,14 @@ function realDir(dir: string): string {
   }
 }
 
+const encodedCwd = (dir: string): string => dir.replace(/[^A-Za-z0-9]/g, '-');
+
 export function hasConversation(home: string, dir = claudeDir()): boolean {
   const cwd = realDir(home);
-  return listClaudeProjects(dir).some((project) => project.sessions > 0 && project.cwd !== null && realDir(project.cwd) === cwd);
+  const folder = encodedCwd(cwd);
+  return listClaudeProjects(dir).some(
+    (project) => project.sessions > 0 && (project.id === folder || (project.cwd !== null && realDir(project.cwd) === cwd)),
+  );
 }
 
 function metroCommand(deps: SessionDeps, home: string): string[] {

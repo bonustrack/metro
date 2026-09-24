@@ -4,6 +4,8 @@ import { provisionAgentUser } from '../../apps/daemon/src/agent-user/provision.t
 import { agentUser, asAgent } from '../../apps/daemon/src/agent-user/user.ts';
 import { writeHomeText } from '../../apps/daemon/src/agent-user/home-fs.ts';
 import { resolveAttachments } from '../../apps/daemon/src/stations/attach-resolve.ts';
+import { hasConversation, sessionRunning, startSession, stopSession } from '../../apps/daemon/src/claude/session.ts';
+import { stagedPluginDir, syncPluginServers } from '../../apps/daemon/src/connectors/plugin-sync.ts';
 
 const results: string[] = [];
 const check = (what: string, ok: boolean): void => { results.push(`${ok ? 'PASS' : 'FAIL'} ${what}`); };
@@ -27,6 +29,14 @@ const view = readFileSync(`${u.home}/.metro/agents/agent.json`, 'utf8');
 check('the agent file the agent reads has the key', view.includes('agent-key-0123456789abcdef'));
 check('and no channel credential', !view.includes('SECRET'));
 check('model copy has no provider key', !readFileSync(`${u.home}/.metro/agents/model.json`, 'utf8').includes('SECRET'));
+check('the moved conversation is resumed with -c', hasConversation(u.home));
+process.env.METRO_RUNTIME_STORE = '/opt/store';
+check('the plugin server list goes to the agent copy', stagedPluginDir() === `${u.home}/.metro/marketplace/plugin`);
+spawnSync(...asAgent('mkdir', ['-p', `${u.home}/.metro/marketplace/plugin/bin`]));
+spawnSync(...asAgent('touch', [`${u.home}/.metro/marketplace/plugin/bin/metro-plugin.mjs`]));
+syncPluginServers([{ id: 'c1', name: 'Linear', url: 'https://mcp.linear.app/mcp', transport: 'http', config: {} }] as never);
+const mcp = `${u.home}/.metro/marketplace/plugin/.mcp.json`;
+check('and is written as the agent', existsSync(mcp) && owner(mcp) === u.uid && readFileSync(mcp, 'utf8').includes('relay/c1'));
 check('the agent cannot read root\'s agent file', !asAgentOk('cat', ['/root/.metro/agents/agent.json']));
 check('the agent cannot list /root', !asAgentOk('ls', ['/root']));
 writeHomeText(`${u.home}/.claude/skills/ok/SKILL.md`, 'x', 0o644);
@@ -42,5 +52,13 @@ check('a send cannot attach a root-only file', (await tryPath('/root/secret.txt'
 check('a send cannot attach root\'s agent file', (await tryPath('/root/.metro/agents/agent.json')).startsWith('refused'));
 spawnSync(...asAgent('sh', ['-c', `echo mine > ${u.home}/ok.txt`]));
 check('a send can attach the agent\'s own file', (await tryPath(`${u.home}/ok.txt`)).trim() === 'mine');
+startSession({ metro: ['sleep', '600'], agents: '/root/.metro/agents', continues: () => false });
+await new Promise((r) => setTimeout(r, 500));
+const who = spawnSync('ps', ['-o', 'user=', '-C', 'sleep'], { encoding: 'utf8' }).stdout.trim();
+check(`the Claude session runs as the agent (${who})`, who === 'agent');
+check('the watcher sees it in the agent\'s tmux', sessionRunning());
+check('root has no session of its own', spawnSync('tmux', ['has-session', '-t', 'metro']).status !== 0);
+stopSession({ agents: '/root/.metro/agents' });
+check('stopping it stops the agent\'s session', !sessionRunning());
 console.log(results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);

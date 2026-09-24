@@ -123,11 +123,11 @@ export async function provisionAgentUser(dir = agentsDir(), env: NodeJS.ProcessE
   try {
     const user = ensureUser(name);
     if (user === null) throw new Error(`the user ${name} could not be found after creating it`);
+    stopRootSession();
     migrateClaude(user, dir);
     await installClaude(user);
     copyMarketplace(user, env);
     watchAgentView();
-    stopRootSession();
     return 'ready';
   } catch (err) {
     log.error({ user: name, err: errMsg(err) }, 'agent-user: could not prepare the agent user; the Claude session stays stopped');

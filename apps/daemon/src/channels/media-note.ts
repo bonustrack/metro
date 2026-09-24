@@ -50,22 +50,27 @@ function howToRead(url: string | undefined, tooBig: boolean): string {
   return 'Fetch the Public URL to view it. The path is on the daemon host, so the Read tool works only for an agent running there.';
 }
 
+const headline = (kind: string, name: string, mime: string | undefined, size: number): string =>
+  `[${kind} attachment received: ${name}${mime ? `, ${mime}` : ''}${size ? ` (${(size / 1024 / 1024).toFixed(2)} MB)` : ''}]\n`;
+
+const whereItIs = (path: string, url: string | undefined, size: number, showPath: boolean): string =>
+  showPath ? `Daemon-host path: ${path}\n${howToRead(url, size > MAX_INLINE_BYTES)}` : 'Fetch the Public URL to get the file.';
+
 export async function buildMediaNote(
   p: SavedMedia,
   caption: string,
+  showPath = true,
 ): Promise<MediaNote | null> {
   const path = p.attachmentPath ?? p.localPath;
   if (!path) return null;
   const kind = p.kind ?? mediaKind(p.mime, p.name);
   const name = p.name ?? path.split('/').pop() ?? 'attachment';
   const size = await fileSize(path);
-  const sizeNote = size ? ` (${(size / 1024 / 1024).toFixed(2)} MB)` : '';
   const content =
     (caption ? `${caption}\n` : '') +
-    `[${kind} attachment received: ${name}${p.mime ? `, ${p.mime}` : ''}${sizeNote}]\n` +
+    headline(kind, name, p.mime, size) +
     (p.url ? `Public URL: ${p.url}\n` : '') +
-    `Daemon-host path: ${path}\n` +
-    howToRead(p.url, size > MAX_INLINE_BYTES);
+    whereItIs(path, p.url, size, showPath);
   return { content, kind, name, path };
 }
 

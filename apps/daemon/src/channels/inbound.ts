@@ -21,6 +21,7 @@ import {
   type PendingAtt,
   type PendingMsg,
 } from './pending.js';
+import { agentUser } from '../agent-user/user.js';
 
 interface InboundDeps {
   mcp: Server;
@@ -106,11 +107,12 @@ export class InboundRelay {
   }
 
   private async surfaceMedia(ctx: MediaCtx, p: SavedMedia): Promise<void> {
-    const note = await buildMediaNote(p, ctx.text ?? '');
+    const ownUser = agentUser() !== null;
+    const note = await buildMediaNote(p, ctx.text ?? '', !ownUser);
     if (!note) return;
     await this.surfaceNote(ctx, p, note, {
       ...(p.url ? { url: p.url } : {}),
-      local_path: note.path,
+      ...(ownUser ? {} : { local_path: note.path }),
     });
   }
 

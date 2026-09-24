@@ -64,7 +64,13 @@ async function fromPathAs(
 ): Promise<ResolvedAttachment> {
   const proc = Bun.spawn(agentCommand(['cat', '--', path]), { stdout: 'pipe', stderr: 'pipe' });
   const name = a.name ?? basenameOf(path) ?? 'attachment';
-  const saved = await streamToTemp(proc.stdout, name);
+  let saved: Awaited<ReturnType<typeof streamToTemp>>;
+  try {
+    saved = await streamToTemp(proc.stdout, name);
+  } catch (err) {
+    proc.kill();
+    throw err;
+  }
   if ((await proc.exited) !== 0) {
     await removeInlineTemp(saved.dir);
     throw new Error(

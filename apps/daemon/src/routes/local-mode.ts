@@ -195,6 +195,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     claudeApi: {},
     updateApi: { restart: deps.restart },
     controlApi: { restart: deps.restart, stop: deps.stop },
+    agentUserApi: { restart: deps.restart },
     ownerApi: { setOwner: (owner) => setLocalOwner(owner) },
     machineApi: {},
     modelApi: {},
