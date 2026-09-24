@@ -1,3 +1,4 @@
+import { answerPrompt, holdPrompt } from '../src/approvals/pending.ts';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
@@ -102,10 +103,16 @@ describe('a connector carries a tool policy', () => {
     expect(connectors['linear-twin']).toMatchObject({ id: TWIN, policy: {} });
   });
 
-  test('the daemon blocks what the policy denies, by tool group, and only that', () => {
+  test('the daemon blocks what the policy denies, and runs an ask call only once it was approved', async () => {
     expect(blockedReason(LINEAR, 'delete_issue')).toBe("Blocked by the owner's policy for Linear (delete_issue).");
     expect(blockedReason(LINEAR, 'unknown_tool')).toBe("Blocked by the owner's policy for Linear (unknown_tool).");
-    expect(blockedReason(LINEAR, 'list_issues')).toBeNull();
+    expect(blockedReason(LINEAR, 'list_issues')).toStartWith("Needs the owner's approval for Linear (list_issues).");
+    holdPrompt({ requestId: 'lnrqa', tool: 'mcp__plugin_metro_linear__list_issues', description: '', preview: '{"team":"core"}', line: undefined, at: Date.now() }, {}, () => Promise.resolve());
+    await answerPrompt('lnrqa', 'allow', 'page');
+    expect(blockedReason(TWIN, 'list_issues', { team: 'core' })).toBeNull();
+    expect(blockedReason(LINEAR, 'list_issues', { team: 'other' })).toStartWith("Needs the owner's approval");
+    expect(blockedReason(LINEAR, 'list_issues', { team: 'core' })).toBeNull();
+    expect(blockedReason(LINEAR, 'list_issues', { team: 'core' })).toStartWith("Needs the owner's approval");
     expect(blockedReason(TWIN, 'delete_issue')).toBeNull();
   });
 

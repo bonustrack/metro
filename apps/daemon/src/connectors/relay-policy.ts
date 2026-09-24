@@ -2,7 +2,7 @@ import type { ServerResponse } from 'node:http';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 
-export type BlockedReason = (connectorId: string, tool: string) => string | null;
+export type BlockedReason = (connectorId: string, tool: string, args: Record<string, unknown>) => string | null;
 
 export interface Screened {
   forward: Uint8Array<ArrayBuffer> | null;
@@ -31,9 +31,14 @@ function blockedAnswer(message: Record<string, unknown>, reason: string): Record
   return { jsonrpc: '2.0', id: message.id, result: { isError: true, content: [{ type: 'text', text: reason }] } };
 }
 
+function argsOf(message: unknown): Record<string, unknown> {
+  if (!isRecord(message) || !isRecord(message.params)) return {};
+  return isRecord(message.params.arguments) ? message.params.arguments : {};
+}
+
 function reasonFor(message: unknown, connectorId: string, blocked: BlockedReason): string | null {
   const tool = toolOf(message);
-  return tool === null ? null : blocked(connectorId, tool);
+  return tool === null ? null : blocked(connectorId, tool, argsOf(message));
 }
 
 export function screenCalls(body: Uint8Array<ArrayBuffer>, connectorId: string, blocked: BlockedReason): Screened | null {

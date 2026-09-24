@@ -1,6 +1,8 @@
 import type { ToolGroup } from '@metro-labs/core/stations/types';
 import { policyFor, setPolicies, type PolicyTarget, type ToolPolicy } from '../policy/policy.js';
 import { serverKeysOf } from './plugin-sync.js';
+import { takeGrant } from '../approvals/pending.js';
+import { NEEDS_APPROVAL } from '../approvals/needs.js';
 
 interface GateRow {
   id: string;
@@ -39,11 +41,18 @@ export const connectorGates = (): readonly ConnectorGate[] => gates;
 
 export const toolGroupOf = (gate: ConnectorGate, tool: string): ToolGroup => (gate.tools[tool] === 'read' ? 'read' : 'write');
 
-export function blockedReason(connectorId: string, tool: string): string | null {
+const promptFor = (connectorId: string, tool: string) => (asked: string): boolean => {
+  const found = connectorToolOf(asked);
+  return found?.gate.id === connectorId && found.tool === tool;
+};
+
+export function blockedReason(connectorId: string, tool: string, args: Record<string, unknown> = {}): string | null {
   const gate = gates.find((g) => g.id === connectorId);
   if (gate === undefined) return null;
   const access = policyFor({ kind: 'connector', id: connectorId }, { name: tool, group: toolGroupOf(gate, tool) });
-  return access === 'deny' ? `Blocked by the owner's policy for ${gate.name} (${tool}).` : null;
+  if (access === 'deny') return `Blocked by the owner's policy for ${gate.name} (${tool}).`;
+  if (access === 'allow' || takeGrant(promptFor(connectorId, tool), args)) return null;
+  return NEEDS_APPROVAL(gate.name, tool);
 }
 
 function prefixesOf(gate: ConnectorGate): string[] {

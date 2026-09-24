@@ -1,3 +1,4 @@
+import { answerPrompt, holdPrompt } from '../src/approvals/pending.ts';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -106,7 +107,12 @@ describe('the relay applies the owner policy to tools/call', () => {
     expect(seen).toEqual([]);
   });
 
-  test('an allowed call and an ask call pass through byte for byte', async () => {
+  test('an allowed call passes byte for byte, an ask call only once the owner approved it', async () => {
+    const waiting = await post(call(9, 'get_issue'));
+    expect(JSON.parse(waiting.text)).toMatchObject({ id: 9, result: { isError: true, content: [{ text: expect.stringContaining("Needs the owner's approval for Linear (get_issue)") as unknown as string }] } });
+    expect(seen).toEqual([]);
+    holdPrompt({ requestId: 'rlyaa', tool: 'mcp__plugin_metro_linear__get_issue', description: '', preview: '{}', line: undefined, at: Date.now() }, {}, () => Promise.resolve());
+    await answerPrompt('rlyaa', 'allow', 'chat');
     for (const name of ['list_issues', 'get_issue']) {
       const out = await post(call(9, name));
       expect(JSON.parse(out.text)).toEqual({ jsonrpc: '2.0', id: 9, result: { upstream: true } });

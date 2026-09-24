@@ -6,6 +6,7 @@ import { callToolHandler } from '../src/mcp/tool-dispatch.ts';
 import { runWithIdentity } from '../src/mcp/request-identity.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
+import { answerPrompt, forgetAllPrompts, holdPrompt } from '../src/approvals/pending.ts';
 import { decide, normalizePolicy, parsePolicy, setPolicies, type Access, type ToolPolicy } from '../src/policy/policy.ts';
 
 const AGENT = 'agent000001';
@@ -13,7 +14,7 @@ const ACCOUNT = 'tg000000001';
 const LINE = `metro://telegram/${ACCOUNT}/-100555`;
 const TARGET = { kind: 'channel', station: 'telegram', account: ACCOUNT } as const;
 
-type Outcome = 'ran' | 'blocked';
+type Outcome = 'ran' | 'blocked' | 'waits';
 
 interface Call {
   tool: string;
@@ -50,8 +51,8 @@ const CASES: Case[] = [
   { tool: 'send', policy: WRITE_DENY, outcome: 'blocked' },
   { tool: 'delete', policy: WRITE_DENY, outcome: 'blocked' },
   { tool: 'create_group', policy: WRITE_DENY, outcome: 'blocked' },
-  { tool: 'send', policy: WRITE_ASK, outcome: 'ran' },
-  { tool: 'create_group', policy: WRITE_ASK, outcome: 'ran' },
+  { tool: 'send', policy: WRITE_ASK, outcome: 'waits' },
+  { tool: 'create_group', policy: WRITE_ASK, outcome: 'waits' },
   { tool: 'read', policy: WRITE_ASK, outcome: 'ran' },
   { tool: 'read', policy: READ_DENY, outcome: 'blocked' },
   { tool: 'list_members', policy: READ_DENY, outcome: 'blocked' },
@@ -59,7 +60,7 @@ const CASES: Case[] = [
   { tool: 'send', policy: READ_DENY, outcome: 'ran' },
   { tool: 'send', policy: SEND_ONLY, outcome: 'ran' },
   { tool: 'delete', policy: SEND_ONLY, outcome: 'blocked' },
-  { tool: 'read', policy: READ_ASKS, outcome: 'ran' },
+  { tool: 'read', policy: READ_ASKS, outcome: 'waits' },
   { tool: 'list_members', policy: READ_ASKS, outcome: 'ran' },
   { tool: 'delete', policy: DELETE_BLOCKED, outcome: 'blocked' },
   { tool: 'send', policy: DELETE_BLOCKED, outcome: 'ran' },
@@ -88,10 +89,11 @@ beforeEach(() => {
 
 const outcomeOf = (text: string, calls: string[]): Outcome | string => {
   if (text.startsWith("Blocked by the owner's policy for telegram (")) return calls.length === 0 ? 'blocked' : 'blocked after a train call';
+  if (text.startsWith("Needs the owner's approval for telegram (")) return calls.length === 0 ? 'waits' : 'waited after a train call';
   return calls.length > 0 ? 'ran' : `nothing ran: ${text}`;
 };
 
-describe('the tool policy of a channel account, as the daemon enforces it (ask is left to the plugin hook)', () => {
+describe('the tool policy of a channel account, as the daemon enforces it', () => {
   for (const c of CASES)
     test(`${c.tool} under ${JSON.stringify(c.policy)} ${c.outcome}`, async () => {
       setPolicies('channel', [[TARGET, c.policy]]);
@@ -137,5 +139,32 @@ describe('the tool policy of a channel account, as the daemon enforces it (ask i
   test('the API refuses a bad policy by name', () => {
     expect(() => normalizePolicy({ write: 'maybe' })).toThrow('write must be allow, ask or deny');
     expect(normalizePolicy({ read: 'ask', tools: { send: 'deny' } })).toEqual({ read: 'ask', tools: { send: 'deny' } });
+  });
+});
+
+describe('a call that needs approval runs only once the owner approved that exact call', () => {
+  const run = async (args: Record<string, unknown>): Promise<string> => {
+    const res = await runWithIdentity({ kind: 'agent', agentId: AGENT }, () => callToolHandler({ params: { name: 'send', arguments: args } }));
+    return res.content.map((x) => x.text).join('\n');
+  };
+  const ask = (id: string, args: Record<string, unknown>): void => {
+    holdPrompt({ requestId: id, tool: 'mcp__metro__send', description: '', preview: JSON.stringify(args), line: undefined, at: Date.now() }, {}, () => Promise.resolve());
+  };
+
+  test('approved once: that call runs once, another call or a second run waits again, a denial grants nothing', async () => {
+    forgetAllPrompts();
+    setPolicies('channel', [[TARGET, WRITE_ASK]]);
+    const args = { line: LINE, text: 'hello' };
+    ask('aaaaa', args);
+    expect(await run(args)).toStartWith("Needs the owner's approval");
+    await answerPrompt('aaaaa', 'allow', 'chat');
+    expect(await run({ line: LINE, text: 'something else' })).toStartWith("Needs the owner's approval");
+    expect(await run(args)).toStartWith('sent');
+    expect(trainCalls).toEqual(['telegram:send']);
+    expect(await run(args)).toStartWith("Needs the owner's approval");
+    ask('bbbbb', args);
+    await answerPrompt('bbbbb', 'deny', 'page');
+    expect(await run(args)).toStartWith("Needs the owner's approval");
+    expect(trainCalls).toEqual(['telegram:send']);
   });
 });

@@ -27,6 +27,27 @@ const HOUR_MS = 3_600_000;
 
 const held = new Map<string, Held>();
 
+interface Grant {
+  tool: string;
+  preview: string;
+  at: number;
+}
+
+const GRANT_TTL_MS = 10 * 60_000;
+const GRANTS_MAX = 200;
+let grants: Grant[] = [];
+
+function grant(entry: Held, now = Date.now()): void {
+  grants = [...grants.filter((g) => now - g.at < GRANT_TTL_MS), { tool: entry.tool, preview: entry.preview, at: now }].slice(-GRANTS_MAX);
+}
+
+export function takeGrant(toolMatches: (tool: string) => boolean, args: Record<string, unknown>, now = Date.now()): boolean {
+  const at = grants.findIndex((g) => now - g.at < GRANT_TTL_MS && toolMatches(g.tool) && previewMatches(g.preview, args));
+  if (at < 0) return false;
+  grants = grants.filter((_, i) => i !== at);
+  return true;
+}
+
 export function approvalTtlMs(env: NodeJS.ProcessEnv = process.env): number {
   const hours = Number(env.METRO_APPROVAL_TTL_H);
   return (Number.isFinite(hours) && hours > 0 ? hours : DEFAULT_TTL_H) * HOUR_MS;
@@ -82,6 +103,7 @@ export async function answerPrompt(
   const entry = held.get(requestId);
   if (entry === undefined) return undefined;
   held.delete(requestId);
+  if (behavior === 'allow' && via !== 'expiry') grant(entry);
   log.info({ requestId, tool: entry.tool, behavior, by: who === via ? via : `${via} ${who}` }, 'approvals: a Claude Code permission prompt answered');
   await entry.send(behavior);
   await tellChat(entry, via, behavior);
@@ -123,4 +145,5 @@ export function startPromptExpiry(): () => void {
 
 export function forgetAllPrompts(): void {
   held.clear();
+  grants = [];
 }
