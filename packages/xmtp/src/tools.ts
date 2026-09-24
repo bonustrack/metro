@@ -16,6 +16,7 @@ const lineProp = {
 export const XMTP_TOOLS: StationTool[] = [
   {
     name: 'ask',
+    group: 'write',
     description:
       'Ask a question as a poll in an XMTP conversation (mirrors Claude AskUserQuestion). ' +
       'Single-question form: question (required), options? (string[]), header?, multiSelect?, ' +
@@ -80,6 +81,7 @@ export const XMTP_TOOLS: StationTool[] = [
   },
   {
     name: 'dm',
+    group: 'write',
     description:
       'Open (or reuse) a 1:1 XMTP DM with an Ethereum address. Args: address (required, 0x...), ' +
       'account? (defaults to your only XMTP account). Returns the new metro:// line and ' +
@@ -109,6 +111,7 @@ export const XMTP_TOOLS: StationTool[] = [
   },
   {
     name: 'group_info',
+    group: 'read',
     description:
       "Read an XMTP channel's current metadata + membership. Args: line (required). Returns " +
       '{line, id, account, version (dm|group), name, memberCount, labels, github, preview, ' +
@@ -127,6 +130,8 @@ export const XMTP_TOOLS: StationTool[] = [
   },
   {
     name: 'close_channel',
+    group: 'write',
+    destructive: true,
     description:
       'Remove members from an XMTP group, and optionally leave it. Args: line (required), ' +
       'removeInboxIds? (inbox ids to remove; your own is ignored here), removeSelf? (true to ' +
@@ -159,6 +164,7 @@ export const XMTP_TOOLS: StationTool[] = [
   },
   {
     name: 'set_channel_metadata',
+    group: 'write',
     description:
       "Update an existing channel's metadata. Args: line (required, the metro:// line), and " +
       'any of labels? (string[]), github? (url), preview? (url), name? (string). All provided ' +

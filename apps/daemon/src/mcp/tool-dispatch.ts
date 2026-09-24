@@ -11,7 +11,9 @@ import {
   accountStationCapabilities,
 } from '../stations/registry.js';
 import type { Station, StationTool, ToolResult } from '@metro-labs/core/stations/types';
-import { COMMON_TOOLS, LIST_ACCOUNTS_TOOL } from './tool-schemas.js';
+import { listedTools, stationForTool, type PublishedTool } from './tool-catalog.js';
+import { policyGate, withEffectivePolicy } from './policy-gate.js';
+import type { ApprovalOutcome, ApprovalRecord } from '../approvals/store.js';
 import { errResult, makeCtx, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool, type ToolHooks } from './call-tools.js';
 import { dispatchListMembers } from './member-tools.js';
@@ -22,8 +24,8 @@ import {
   dispatchRemoveMembers,
 } from './group-tools.js';
 import { dispatchCreateUpload } from './upload-tool.js';
-import { dispatchSetProfile, profileCapabilities, SET_PROFILE_TOOL } from './profile-tool.js';
-import { dispatchGetProfile, GET_PROFILE_TOOL, profileScopeLine } from './profile-lookup.js';
+import { dispatchSetProfile, profileCapabilities } from './profile-tool.js';
+import { dispatchGetProfile, profileScopeLine } from './profile-lookup.js';
 import { callTargetDenied, lineTargetDenied } from '../agents/scope.js';
 import { SOURCE_KEYS } from '../stations/attach-resolve.js';
 import { decodedLengthOf } from '../stations/attach-inline.js';
@@ -31,6 +33,7 @@ import { log } from '@metro-labs/core/log';
 import {
   allowedAgents,
   currentIdentity,
+  runWithIdentity,
   type RequestIdentity,
 } from './request-identity.js';
 import { str } from '@metro-labs/core/str';
@@ -57,21 +60,7 @@ const CORE_DISPATCH: Record<
   get_profile: dispatchGetProfile,
 };
 
-const toolList = (): { tools: unknown[] } => ({
-  tools: [
-    ...COMMON_TOOLS,
-    ...STATIONS.flatMap((s) =>
-      s.tools.map((t) => ({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema,
-      })),
-    ),
-    LIST_ACCOUNTS_TOOL,
-    SET_PROFILE_TOOL,
-    GET_PROFILE_TOOL,
-  ],
-});
+export const toolList = (): { tools: PublishedTool[] } => ({ tools: listedTools() });
 
 let schemaSignature: string | undefined;
 
@@ -88,21 +77,13 @@ async function handleListAccounts(
 ): Promise<ToolResult> {
   try {
     return okJson({
-      accounts: await gatherAccounts(allowedAgents(identity)),
+      accounts: withEffectivePolicy(await gatherAccounts(allowedAgents(identity))),
       capabilities: accountStationCapabilities(),
       profiles: profileCapabilities(),
     });
   } catch (e) {
     return errResult(`metro list_accounts failed: ${String(e)}`);
   }
-}
-
-function stationForTool(
-  name: string,
-  args: Record<string, unknown>,
-): string | undefined {
-  if (name === 'create_group' || name === 'set_profile') return str(args.station) || undefined;
-  return STATION_TOOLS.get(name)?.station.name;
 }
 
 export function scopeDenied(
@@ -172,6 +153,18 @@ async function runTool(
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');
 
+  const gated = await policyGate(name, a, { agentId: identity?.agentId, knownLine: hooks.knownLine?.(), approved: hooks.approved });
+  if (gated) return gated;
+
+  return dispatchTool(name, a, identity, hooks);
+}
+
+async function dispatchTool(
+  name: string,
+  a: Record<string, unknown>,
+  identity: RequestIdentity | undefined,
+  hooks: ToolHooks,
+): Promise<ToolResult> {
   const owned = STATION_TOOLS.get(name);
   if (owned) {
     try {
@@ -180,14 +173,10 @@ async function runTool(
       return toErr(name, e);
     }
   }
-
   const core = CORE_DISPATCH[name];
   if (core) return core(a);
-
   if (name === 'list_accounts') return handleListAccounts(identity);
-
   if (name === 'read' && !str(a.line)) return linelessRead(a);
-
   return dispatchMessageTool(name, a, hooks);
 }
 
@@ -199,6 +188,13 @@ export async function callToolHandler(
   if (result.isError === true)
     logToolFailure(req.params.name, req.params.arguments ?? {}, result);
   return result;
+}
+
+export async function runApprovedCall(rec: ApprovalRecord): Promise<ApprovalOutcome> {
+  const result = await runWithIdentity({ kind: 'agent', agentId: rec.agentId }, () =>
+    callToolHandler({ params: { name: rec.tool, arguments: rec.args } }, { approved: true }),
+  );
+  return { ok: result.isError !== true, text: result.content.map((c) => c.text).join('\n') };
 }
 
 const TOOL_LIST_CHANGED = 'notifications/tools/list_changed';

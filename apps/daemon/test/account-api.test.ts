@@ -27,6 +27,7 @@ interface Row {
   config: Record<string, unknown>;
   allowlist?: string[];
   enabled?: boolean;
+  policy?: unknown;
 }
 
 const AGENT = { id: 'agent000001', name: 'ada-bot' };
@@ -180,6 +181,13 @@ const deps: AgentApiDeps = {
     if (row === undefined) throw new AgentAdminError('no such account on this agent', 404);
     row.allowlist = allowlist;
     return Promise.resolve(allowlist);
+  },
+  setPolicy: (agentId, station, accountId, policy) => {
+    agentOrThrow(agentId);
+    const row = rows.find((r) => r.agentId === agentId && r.station === station && r.accountId === accountId);
+    if (row === undefined) throw new AgentAdminError('no such account on this agent', 404);
+    row.policy = policy;
+    return Promise.resolve(policy);
   },
   recentSenders: (station, accountId) => [{ id: `${station}-${accountId}-seen`, name: 'Ada', at: '2026-09-10T09:00:00.000Z' }],
   resolveSender: (station, accountId, query) => {
@@ -864,6 +872,33 @@ describe('a sign-in that never completes leaves the accounts table alone', () =>
     expect((await poll(attachId)).status).toBe('done');
     expect(rows.length).toBe(before.length + 1);
     expect(rows.at(-1)?.station).toBe('telegram');
+  });
+});
+
+describe('the tool policy of a station account', () => {
+  const put = async (accountId: string, body: unknown): Promise<Response> =>
+    fetch(`${base}/api/agents/agent000001/accounts/telegram-bot/${accountId}/policy`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: await auth('ada@lovelace.dev', 'member') },
+      body: JSON.stringify(body),
+    });
+
+  test('a member sets group defaults and a per-tool override, and the maps reload', async () => {
+    const created = (await (await start('ada@lovelace.dev', 'agent000001', { station: 'telegram-bot', token: 'policy-bot-token' })).json()) as AttachBody;
+    reloaded = 0;
+    const res = await put(created.accountId, { policy: { read: 'allow', write: 'ask', tools: { delete: 'deny' } } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ policy: { read: 'allow', write: 'ask', tools: { delete: 'deny' } }, activated: true });
+    expect(rows.find((r) => r.accountId === created.accountId)?.policy).toEqual({ read: 'allow', write: 'ask', tools: { delete: 'deny' } });
+    expect(reloaded).toBe(1);
+  });
+
+  test('a bad value is refused by name, an unknown account is 404', async () => {
+    const created = (await (await start('ada@lovelace.dev', 'agent000001', { station: 'telegram-bot', token: 'policy-bot-token-2' })).json()) as AttachBody;
+    const bad = await put(created.accountId, { policy: { write: 'sometimes' } });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ error: 'write must be allow, ask or deny' });
+    expect((await put('acct9999999', { policy: {} })).status).toBe(404);
   });
 });
 

@@ -1,3 +1,4 @@
+import { storedPolicy } from '../policy/policy.js';
 import { forwardTrainCall } from '../stations/train-call.js';
 import {
   accountStationNames,
@@ -25,7 +26,9 @@ function withAgentId(station: string, acc: unknown): unknown {
   const agentId = agentIdForAccount(station, id);
   if (agentId === undefined) return acc;
   const allowlist = allowlistForAccount(station, id);
-  const tagged = allowlist === undefined ? { ...rec, agentId } : { ...rec, agentId, allowlist };
+  const stored = storedPolicy({ kind: 'channel', station, account: id });
+  const policy = stored === undefined ? {} : { policy: stored };
+  const tagged = allowlist === undefined ? { ...rec, agentId, ...policy } : { ...rec, agentId, allowlist, ...policy };
   return accountEnabled(station, id) ? tagged : { ...tagged, enabled: false };
 }
 

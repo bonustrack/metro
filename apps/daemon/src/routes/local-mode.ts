@@ -34,6 +34,7 @@ import {
   localAttachAccount,
   localDetachAccount,
   localSetAllowlist,
+  localSetPolicy,
   localSetAccountEnabled,
   localImportAgent,
   localListAgents,
@@ -50,6 +51,7 @@ export interface LocalModeDeps {
   stop: () => void;
   gatherAccounts: AgentApiDeps['gatherAccounts'];
   capabilities: AgentApiDeps['capabilities'];
+  toolGroups?: AgentApiDeps['toolGroups'];
   prepareAccount: AccountApiDeps['prepareAccount'];
 }
 
@@ -82,6 +84,7 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     listAgents: localListAgents,
     gatherAccounts: deps.gatherAccounts,
     capabilities: deps.capabilities,
+    ...(deps.toolGroups === undefined ? {} : { toolGroups: deps.toolGroups }),
     attachable: ATTACHABLE.filter((s) => s !== 'webhook'),
     connectorIds: connectorIdsOfLocalAgents,
     prepareAccount: deps.prepareAccount,
@@ -89,6 +92,7 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     detachAccount: localDetachAccount,
     syncStations: deps.syncStations,
     setAllowlist: localSetAllowlist,
+    setPolicy: localSetPolicy,
     setAccountEnabled: localSetAccountEnabled,
     recentSenders,
     resolveSender: (station, accountId, query) => accountCall(station, 'resolve_sender', { account: accountId, query }),

@@ -1,11 +1,13 @@
+import type { ToolDef } from './tool-def.js';
 import { Line } from '@metro-labs/core/lines';
 import type { Station, ToolResult } from '@metro-labs/core/stations/types';
 import { str } from '@metro-labs/core/str';
 import { stationByName } from '../stations/registry.js';
 import { errResult, makeCtx, okJson, toErr } from './ctx.js';
 
-export const GET_PROFILE_TOOL = {
+export const GET_PROFILE_TOOL: ToolDef = {
   name: 'get_profile',
+  group: 'read',
   description:
     'Who is this person? Give the `from` attribute of one of their messages verbatim ' +
     '(`metro://<station>/<account>/user/<id>`) and get what their network says about them: ' +

@@ -1,3 +1,4 @@
+import type { ToolDef } from './tool-def.js';
 import type { CanonicalAttachment, Station, ToolResult } from '@metro-labs/core/stations/types';
 import { PROFILE_FIELDS, type ProfileField } from '@metro-labs/core/stations/profile';
 import { str } from '@metro-labs/core/str';
@@ -8,8 +9,9 @@ import { allowedAgents, currentIdentity } from './request-identity.js';
 
 const SOURCE = { type: 'string' };
 
-export const SET_PROFILE_TOOL = {
+export const SET_PROFILE_TOOL: ToolDef = {
   name: 'set_profile',
+  group: 'write',
   description:
     'Change how one of your accounts presents itself on its network: the display name, the bio ' +
     '(about line) and the avatar. Args: station (required), account? (which account of that station; ' +

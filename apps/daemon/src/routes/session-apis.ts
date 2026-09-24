@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleSessionApiRequest } from './session.js';
+import { handleApprovalsRequest } from '../approvals/api.js';
 import { handleAgentApiRequest, type AgentApiDeps } from '../agents/api.js';
 import {
   handleConnectorApiRequest,
@@ -43,6 +44,7 @@ export function handleSessionApis(
 ): boolean {
   const routes: (() => boolean)[] = [
     () => handleSessionApiRequest(req, res),
+    () => handleApprovalsRequest(req, res),
     ...when(apis.connectorApi, (d) => handleConnectorApiRequest(req, res, d)),
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),

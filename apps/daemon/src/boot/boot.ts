@@ -33,7 +33,9 @@ import { ensureStationDeps } from '../stations/runtime-deps.js';
 import { localSessionApis } from '../routes/local-mode.js';
 import type { SessionApis } from '../routes/session-apis.js';
 import { createMetroMcp } from '../mcp/index.js';
+import { startChannelApprovals } from '../mcp/approvals-wiring.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
+import { stationToolGroups } from '../mcp/tool-catalog.js';
 import {
   accountStationCapabilities,
   forgetOrphans,
@@ -107,6 +109,7 @@ function sessionApis(): SessionApis {
       },
       gatherAccounts: gatherAccountsForAgents,
       capabilities: accountStationCapabilities,
+      toolGroups: stationToolGroups,
       prepareAccount,
     });
 }
@@ -128,6 +131,7 @@ installBearerSessions(agentsDir(), localOwner);
     true,
   );
   metroMcp.startInbound();
+  startChannelApprovals();
   syncPluginServers(readLocalConnectors());
   startUploadReaper();
   startAttachReaper();

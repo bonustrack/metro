@@ -186,6 +186,8 @@ const MESSAGE_HANDLERS: Record<string, MessageHandler> = {
 
 export interface ToolHooks {
   onSent?: (messageId: string) => void;
+  knownLine?: () => string | undefined;
+  approved?: boolean;
 }
 
 export async function dispatchMessageTool(

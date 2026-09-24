@@ -6,6 +6,7 @@ import { AGENT_NAME_RE, ID_RE } from '@metro-labs/core/ids';
 import { STATIONS, type StationName } from '@metro-labs/core/station-names';
 import type { LoadedAccount, LoadedAgent, StationSource } from '../stations/materialize.js';
 import { isRecord } from '@metro-labs/core/is-record';
+import { parsePolicy } from '../policy/policy.js';
 
 export const AGENT_FILE = 'agent.json';
 
@@ -56,7 +57,15 @@ function stationOf(raw: unknown, path: string, index: number): LoadedAccount {
   if (typeof id !== 'string' || !ID_RE.test(id))
     fail(path, `${where}.id is not an 11-character id`);
   if (!isRecord(config)) fail(path, `${where}.config is not an object`);
-  return { station, id, allowlist: allowlistOf(raw.allowlist, path, where), enabled: raw.enabled !== false, config };
+  const policy = parsePolicy(raw.policy, `${path} ${where}`);
+  return {
+    station,
+    id,
+    allowlist: allowlistOf(raw.allowlist, path, where),
+    enabled: raw.enabled !== false,
+    ...(policy === undefined ? {} : { policy }),
+    config,
+  };
 }
 
 function optionalMatch(

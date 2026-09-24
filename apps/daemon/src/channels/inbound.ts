@@ -1,6 +1,7 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { str } from '@metro-labs/core/str';
 import { dedupeKey } from './dedupe.js';
+import { PERMISSION_REPLY_RE } from './reply-id.js';
 import {
   buildMediaFailureNote,
   buildMediaNote,
@@ -8,6 +9,7 @@ import {
   type SavedMedia,
 } from './media-note.js';
 import { buildWebhookNote } from './webhook-note.js';
+import { approvalNote, reactContent, reactionEmoji } from './approval-note.js';
 import { replyMeta } from './addressed.js';
 import {
   capSet,
@@ -26,6 +28,7 @@ interface InboundDeps {
   getStations: () => Set<string>;
   senderAllowed: (from: string, line: string, verified?: boolean) => boolean;
   approves?: (station: string) => boolean;
+  approvalReply?: (text: string, line: string, from: string, verified: boolean | undefined) => boolean;
 }
 
 const ATTACH_TIMEOUT_MS = 15_000;
@@ -34,11 +37,6 @@ const DEDUPE_MAX = 2_000;
 const ALLOWED_LINES_MAX = 2_000;
 const PENDING_PERMISSIONS_MAX = 500;
 const SENT_IDS_MAX = 2_000;
-
-const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
-
-const shortId = (id: string): string =>
-  id.length > 10 ? `${id.slice(0, 6)}…` : id;
 
 export class InboundRelay {
   private readonly deps: InboundDeps;
@@ -241,9 +239,7 @@ export class InboundRelay {
     const removed =
       (ev.payload as { removed?: boolean } | undefined)?.removed === true ||
       / \(removed\)\]?$/.test(base.text);
-    const verb = removed ? 'removed from' : 'reacted to';
-    const label = removed ? emoji || 'reaction' : emoji || 'reacted';
-    const content = `${label} ${verb} message ${shortId(target)}`.trim();
+    const content = reactContent(emoji, target, removed);
     await this.notify('notifications/claude/channel', {
       content,
       meta: {
@@ -326,6 +322,13 @@ export class InboundRelay {
     return { evType, station, from, line, text };
   }
 
+  private answersApproval(ev: Record<string, unknown>, base: EventBase): boolean {
+    const verified = typeof ev.senderVerified === 'boolean' ? ev.senderVerified : undefined;
+    if (base.evType !== 'msg' || this.deps.approvalReply?.(base.text, base.line, base.from, verified) !== true) return false;
+    this.deps.log('inbound: an answer to a policy approval, not relayed', base.line);
+    return true;
+  }
+
   private async emitMessage(
     ev: Record<string, unknown>,
     base: EventBase,
@@ -336,6 +339,7 @@ export class InboundRelay {
     }
     if (base.evType === 'msg' && this.approves(base.station) && (await this.handlePermissionReply(base.text, base.line)))
       return;
+    if (this.answersApproval(ev, base)) return;
     await this.notify('notifications/claude/channel', {
       content:
         base.evType === 'system'
@@ -359,6 +363,11 @@ export class InboundRelay {
     ev: Record<string, unknown>,
     replay = false,
   ): Promise<void> {
+    const approval = approvalNote(ev);
+    if (approval !== undefined) {
+      await this.notify('notifications/claude/channel', { ...approval });
+      return;
+    }
     if (await this.routeAttachment(ev)) return;
 
     const base = this.routable(ev, replay);
@@ -388,8 +397,3 @@ interface EventBase {
   text: string;
 }
 
-function reactionEmoji(raw: unknown): string {
-  if (typeof raw === 'string') return raw;
-  const obj = raw as { name?: string; reaction?: string } | undefined;
-  return obj?.name ?? obj?.reaction ?? '';
-}

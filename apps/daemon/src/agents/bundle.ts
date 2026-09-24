@@ -1,3 +1,4 @@
+import { parsePolicy } from '../policy/policy.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { apiFailure, apiSession, cors, readJsonBody, requireAdmin, sendJson } from '@metro-labs/http/api-http';
@@ -54,7 +55,15 @@ function stationOf(raw: unknown): LoadedAccount {
   const allowlist = Array.isArray(raw.allowlist)
     ? raw.allowlist.filter((s): s is string => typeof s === 'string')
     : null;
-  return { station: raw.station as LoadedAccount['station'], id: raw.id, allowlist, enabled: raw.enabled !== false, config: raw.config };
+  const policy = parsePolicy(raw.policy, `bundle ${raw.station}/${raw.id}`);
+  return {
+    station: raw.station as LoadedAccount['station'],
+    id: raw.id,
+    allowlist,
+    enabled: raw.enabled !== false,
+    ...(policy === undefined ? {} : { policy }),
+    config: raw.config,
+  };
 }
 
 function connectorOf(raw: unknown): LoadedConnector {

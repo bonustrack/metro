@@ -34,10 +34,14 @@ export interface ToolContext {
   readFile(path: string): Promise<Buffer>;
 }
 
+export type ToolGroup = 'read' | 'write';
+
 export interface StationTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  group?: ToolGroup;
+  destructive?: boolean;
   handle(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
 }
 

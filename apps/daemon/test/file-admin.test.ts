@@ -11,7 +11,9 @@ import {
   localOwner,
   setLocalOwner,
   localSetAccountEnabled,
+  localSetPolicy,
 } from '../src/agents/file-admin.ts';
+import { loadFileAgents } from '../src/agents/files.ts';
 import { agentIdForKey, setKeyMap } from '../src/agents/keys.ts';
 import { ApiError } from '@metro-labs/http/api-error';
 
@@ -87,6 +89,17 @@ describe('agents kept as files', () => {
     expect(await status(localAttachAccount(suzy.id, 'telegram-bot', { token: 'tok' }, dir))).toBe(409);
     expect(await status(localAttachAccount(suzy.id, 'webhook', {}, dir))).toBe(400);
     expect(await status(localAttachAccount('agent009999', 'telegram-bot', { token: 'x' }, dir))).toBe(404);
+  });
+
+  test('a tool policy is stored on the account, read back, and an empty one removes the key', async () => {
+    const suzy = await localCreateAgent('suzy', dir);
+    const ref = await localAttachAccount(suzy.id, 'telegram-bot', { token: 'tok-policy' }, dir);
+    await localSetPolicy(suzy.id, 'telegram-bot', ref.accountId, { write: 'ask', tools: { delete: 'deny' } }, dir);
+    expect(stored().stations[0]).toMatchObject({ policy: { write: 'ask', tools: { delete: 'deny' } } });
+    expect(loadFileAgents(dir)[0]?.accounts[0]?.policy).toEqual({ write: 'ask', tools: { delete: 'deny' } });
+    await localSetPolicy(suzy.id, 'telegram-bot', ref.accountId, {}, dir);
+    expect('policy' in (stored().stations[0] ?? {})).toBe(false);
+    expect(await status(localSetPolicy(suzy.id, 'telegram-bot', 'acct9999999', {}, dir))).toBe(404);
   });
 
   test('a detach removes the station and keeps the agent and its key', async () => {

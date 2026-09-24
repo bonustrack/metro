@@ -1,6 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { InboundRelay } from '../channels/inbound.js';
+import { isApprovalReply } from '../approvals/flow.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
 import { errMsg } from '@metro-labs/core/log';
 import { allowlistForLine, senderPermitted } from '../agents/map.js';
@@ -95,6 +96,7 @@ export class McpSession {
       onSent: (id): void => {
         this.relay.noteSent(id);
       },
+      knownLine: () => this.relay.knownLine,
     });
     this.relay = new InboundRelay({
       mcp: this.server,
@@ -102,6 +104,7 @@ export class McpSession {
       getStations,
       senderAllowed,
       approves,
+      approvalReply: isApprovalReply,
     });
     registerPermissionRelay({
       mcp: this.server,

@@ -24,6 +24,7 @@ import { newId } from '@metro-labs/core/ids';
 import { registerKey } from './keys.js';
 import { MOVABLE_STATIONS, type LoadedAgent } from '../stations/materialize.js';
 import type { StationName } from '@metro-labs/core/station-names';
+import type { ToolPolicy } from '../policy/policy.js';
 
 const OWNER_FILE = '.owner';
 
@@ -250,6 +251,22 @@ export async function localSetAllowlist(
   account.allowlist = allowlist;
   save(stored);
   return Promise.resolve(allowlist);
+}
+
+export async function localSetPolicy(
+  agentId: string,
+  station: StationName,
+  accountId: string,
+  policy: ToolPolicy,
+  dir = agentsDir(),
+): Promise<ToolPolicy> {
+  const stored = agentOrThrow(agentId, dir);
+  const account = stored.file.stations.find((a) => a.station === station && a.id === accountId);
+  if (account === undefined) throw new AgentAdminError('no such account on this agent', 404);
+  if (policy.read === undefined && policy.write === undefined && policy.tools === undefined) delete account.policy;
+  else account.policy = policy;
+  save(stored);
+  return Promise.resolve(policy);
 }
 
 export async function localSetAccountEnabled(

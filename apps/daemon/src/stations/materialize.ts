@@ -1,3 +1,4 @@
+import { setPolicies, type PolicyTarget, type ToolPolicy } from '../policy/policy.js';
 import {
   existsSync,
   mkdirSync,
@@ -32,6 +33,7 @@ export interface LoadedAccount {
   id: string;
   allowlist: string[] | null;
   enabled?: boolean;
+  policy?: ToolPolicy;
   config: Record<string, unknown>;
 }
 
@@ -128,6 +130,13 @@ interface WrittenStations {
   changed: StationName[];
 }
 
+const channelPolicies = (list: LoadedAgent[]): [PolicyTarget, ToolPolicy][] =>
+  list.flatMap((agent) =>
+    agent.accounts.flatMap((a): [PolicyTarget, ToolPolicy][] =>
+      a.policy === undefined ? [] : [[{ kind: 'channel', station: a.station, account: a.id }, a.policy]],
+    ),
+  );
+
 function writeStations(list: LoadedAgent[]): WrittenStations {
   mkdirSync(METRO_DIR, { recursive: true });
   mkdirSync(trainsDir(), { recursive: true });
@@ -161,6 +170,7 @@ function writeStations(list: LoadedAgent[]): WrittenStations {
   setAgentMap(map, names);
   setAllowlistMap(allow);
   setDisabledAccounts(disabled);
+  setPolicies('channel', channelPolicies(list));
 
   const active = new Map<StationName, number>();
   const changed: StationName[] = [];

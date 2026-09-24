@@ -11,6 +11,7 @@ import {
 } from '@metro-labs/http/api-http';
 import { type AccountRef } from './account-attach.js';
 import { type AccountRoute } from './account-routes.js';
+import { handlePolicy, type SetPolicy } from './policy-route.js';
 import { stationByName } from '../stations/registry.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import {
@@ -68,6 +69,7 @@ export interface AccountApiDeps {
     accountId: string,
     allowlist: string[],
   ) => Promise<string[]>;
+  setPolicy: SetPolicy;
   recentSenders: (station: StationName, accountId: string) => RecentSender[];
   resolveSender: (
     station: StationName,
@@ -365,6 +367,7 @@ async function dispatchRoute(
     return handleStep(req, res, deps, { agentId }, route.attachId);
   if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, agentId, route);
   if (route.kind === 'enabled') return handleEnabled(req, res, deps, agentId, route);
+  if (route.kind === 'policy') return handlePolicy(req, res, deps, agentId, route);
   if (route.kind === 'resolve') return handleResolve(req, res, deps, route);
   if (route.kind === 'name') return handleName(req, res, deps, route);
   if (route.kind === 'senders') {
