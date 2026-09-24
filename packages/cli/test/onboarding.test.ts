@@ -65,15 +65,24 @@ describe('the Channels flag on a box with no Anthropic account', () => {
     expect(seedChannels(path)).toBe('marked');
     expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
       hasCompletedOnboarding: true,
-      cachedGrowthBookFeatures: { tengu_other: 3, tengu_harbor: true },
+      cachedGrowthBookFeatures: { tengu_other: 3, tengu_harbor: true, tengu_harbor_permissions: true },
     });
     expect(seedChannels(path)).toBe('already');
+  });
+
+  test('a box seeded before the permission relay gets its flag too', () => {
+    const path = join(dir, '.claude.json');
+    writeFileSync(path, JSON.stringify({ cachedGrowthBookFeatures: { tengu_harbor: true } }));
+    expect(seedChannels(path)).toBe('marked');
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
+      cachedGrowthBookFeatures: { tengu_harbor: true, tengu_harbor_permissions: true },
+    });
   });
 
   test('a missing config gets only the flag, and an unreadable one is left alone', () => {
     const path = join(dir, '.claude.json');
     expect(seedChannels(path)).toBe('marked');
-    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ cachedGrowthBookFeatures: { tengu_harbor: true } });
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ cachedGrowthBookFeatures: { tengu_harbor: true, tengu_harbor_permissions: true } });
     writeFileSync(path, '{broken');
     expect(seedChannels(path)).toBe('unreadable');
     expect(readFileSync(path, 'utf8')).toBe('{broken');

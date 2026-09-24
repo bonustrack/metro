@@ -33,7 +33,7 @@ export function markOnboardingDone(path = claudeConfigPath()): OnboardingMark {
 }
 
 const FEATURES = 'cachedGrowthBookFeatures';
-const CHANNELS_FLAG = 'tengu_harbor';
+const CHANNEL_FLAGS = ['tengu_harbor', 'tengu_harbor_permissions'];
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -41,8 +41,9 @@ export function seedChannels(path = claudeConfigPath()): OnboardingMark {
   const config = readConfig(path);
   if (config === null) return 'unreadable';
   const features = isRecord(config[FEATURES]) ? config[FEATURES] : {};
-  if (features[CHANNELS_FLAG] === true) return 'already';
-  const next = { ...config, [FEATURES]: { ...features, [CHANNELS_FLAG]: true } };
+  if (CHANNEL_FLAGS.every((flag) => features[flag] === true)) return 'already';
+  const seeded = Object.fromEntries(CHANNEL_FLAGS.map((flag) => [flag, true]));
+  const next = { ...config, [FEATURES]: { ...features, ...seeded } };
   writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
   return 'marked';
 }
