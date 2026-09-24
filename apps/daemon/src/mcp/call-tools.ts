@@ -32,7 +32,13 @@ const withId = (text: string, messageId: string | undefined): string =>
 interface Sent {
   labels: string[];
   messageId?: string;
+  thread?: string;
 }
+
+const threadOf = (response: { result: unknown }, asked: string): string | undefined => {
+  const line = (response.result as { line?: unknown } | null)?.line;
+  return typeof line === 'string' && line !== '' && line !== asked ? line : undefined;
+};
 
 const deliveredLabels = (response: { result: unknown }): string[] => {
   const list = (response.result as { attachments?: unknown } | null)
@@ -89,17 +95,20 @@ async function sendForwarded(
   const { line, ctx, station } = m;
   const args: Record<string, unknown> = { line };
   if (text) args.text = text;
+  if (typeof m.a.subject === 'string' && m.a.subject.trim() !== '') args.subject = m.a.subject;
   if (replyTo) args.replyTo = replyTo;
   if (atts.length) args.attachments = atts.map(toCanonical);
   const response = await ctx.call('send', args);
   const messageId = messageIdOf(response);
+  const thread = threadOf(response, line);
   const labels: string[] = [];
   if (text) labels.push('text');
-  if (!atts.length) return { labels, messageId };
-  const delivered = deliveredLabels(response);
-  assertDelivered(station, delivered, atts);
-  labels.push(...delivered);
-  return { labels, messageId };
+  if (atts.length) {
+    const delivered = deliveredLabels(response);
+    assertDelivered(station, delivered, atts);
+    labels.push(...delivered);
+  }
+  return thread === undefined ? { labels, messageId } : { labels, messageId, thread };
 }
 
 const unsupported = (station: Station, atts: CanonicalAttachment[]): string =>
@@ -132,7 +141,8 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
     if (!sent.labels.length)
       return errResult('send requires `text` or `attachments`');
     noteSent(m, sent.messageId);
-    return ok(withId(`sent: ${sent.labels.join(', ')}`, sent.messageId));
+    const done = withId(`sent: ${sent.labels.join(', ')}`, sent.messageId);
+    return ok(sent.thread === undefined ? done : `${done} — new thread line: ${sent.thread}`);
   } finally {
     await cleanupAttachments(atts);
   }

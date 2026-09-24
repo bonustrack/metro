@@ -184,6 +184,33 @@ describe('answering', () => {
     expect(seen.at(-1)).toMatchObject({ method: 'DELETE', url: `${GRAPH}/me/messages/draft-2` });
   });
 
+  test('send to an address line starts a new email and names its thread', async () => {
+    boot([
+      (req) => (req.method === 'POST' && req.url === `${GRAPH}/me/messages` ? json({ id: 'new-1', conversationId: 'NEWCONV=' }, 201) : undefined),
+      accepted,
+    ]);
+    await call('send', { line: lineOf('o1', 'Bea@Example.ch'), text: 'Hello Bea\nMore below', subject: 'Offer' });
+    expect(seen.map((s) => `${s.method} ${s.url.replace(GRAPH, '')}`)).toEqual(['POST /me/messages', 'POST /me/messages/new-1/send']);
+    expect(JSON.parse(seen[0]?.body ?? '')).toEqual({
+      subject: 'Offer',
+      body: { contentType: 'Text', content: 'Hello Bea\nMore below' },
+      toRecipients: [{ emailAddress: { address: 'bea@example.ch' } }],
+    });
+    expect(result()).toMatchObject({ account: 'o1', messageId: 'new-1', line: lineOf('o1', 'NEWCONV=') });
+  });
+
+  test('a new email without a subject takes its first line, and a bad address or a reply is refused', async () => {
+    boot([(req) => (req.method === 'POST' && req.url === `${GRAPH}/me/messages` ? json({ id: 'new-2' }, 201) : undefined), accepted]);
+    await call('send', { line: lineOf('o1', 'bea@example.ch'), text: '\n  Quick question  \nbody' });
+    expect(JSON.parse(seen[0]?.body ?? '')).toMatchObject({ subject: 'Quick question' });
+    boot([]);
+    await call('send', { line: lineOf('o1', 'not@an'), text: 'x' });
+    expect(errorOf()).toContain('not an email address');
+    await call('reply', { line: lineOf('o1', 'bea@example.ch'), replyTo: 'm1', text: 'x' });
+    expect(errorOf()).toContain('starts a new email');
+    expect(seen).toEqual([]);
+  });
+
   test('a file over 3 MB is refused before anything is created', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'outlook-out-'));
     writeFileSync(join(dir, 'big.bin'), Buffer.alloc(3 * 1024 * 1024 + 1));

@@ -34,7 +34,9 @@ export const COMMON_TOOLS: ToolDef[] = [
     group: 'write',
     description:
       'Send a message (and/or media) to a Metro conversation. Args: line, text?, reply_to?, ' +
-      'attachments?. The station is derived from the line. Each attachment names EXACTLY ONE ' +
+      'subject?, attachments?. The station is derived from the line. Outlook: send to ' +
+      'metro://outlook/<account>/<email address> to start a new email (subject defaults to the ' +
+      'first line of text); the result names the new thread line. Each attachment names EXACTLY ONE ' +
       'source, and the choice matters: `upload` (an `upload_id` from `create_upload`, the ' +
       'route for any real file on your own machine, confidential or not, up to 64 MiB); ' +
       '`data` (base64 inline -- TINY FILES ONLY, a few KB, because the base64 has to be ' +
@@ -54,6 +56,10 @@ export const COMMON_TOOLS: ToolDef[] = [
         reply_to: {
           type: 'string',
           description: 'Optional message_id to quote/reply to.',
+        },
+        subject: {
+          type: 'string',
+          description: 'Outlook only: the subject of a new email.',
         },
         attachments: {
           type: 'array',
