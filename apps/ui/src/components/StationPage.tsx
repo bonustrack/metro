@@ -47,6 +47,7 @@ export function StationPage({
       row={found.row}
       agent={agent}
       verbs={data.capabilities[found.station] ?? []}
+      tools={data.tools[found.station] ?? []}
       onOpenAgent={onOpenAgent}
       onAllowlistSaved={() => refresh(client, 'stations')}
       onToggle={

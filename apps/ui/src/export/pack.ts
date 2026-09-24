@@ -15,6 +15,7 @@ export interface PackedChannel {
   id: string;
   allowlist: string[] | null;
   enabled?: boolean;
+  policy?: Record<string, unknown>;
   config: Record<string, unknown>;
 }
 
@@ -154,6 +155,7 @@ function channelOf(raw: unknown): PackedChannel {
     id: str(raw.id),
     allowlist: Array.isArray(raw.allowlist) ? raw.allowlist.map(str) : null,
     ...(raw.enabled === false ? { enabled: false } : {}),
+    ...(isRecord(raw.policy) ? { policy: raw.policy } : {}),
     config: recordOf(raw.config),
   };
 }

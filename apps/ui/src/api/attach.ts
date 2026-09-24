@@ -1,3 +1,4 @@
+import { policyOf, type ToolPolicy } from './policy.js';
 import { filled, isRecord } from './read.js';
 import { call } from './client.js';
 import { olderThan } from './version.js';
@@ -247,6 +248,17 @@ export interface RecentSender {
 
 const accountPath = (agentId: string, station: string, accountId: string): string =>
   `/${agentId}/accounts/${encodeURIComponent(station)}/${encodeURIComponent(accountId)}`;
+
+export async function setPolicy(agentId: string, station: string, accountId: string, policy: ToolPolicy): Promise<ToolPolicy> {
+  const body = await call({
+    method: 'PUT',
+    path: `${accountPath(agentId, station, accountId)}/policy`,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ policy }),
+  });
+  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
+  return policyOf(body.policy);
+}
 
 export async function setAllowlist(
   agentId: string,

@@ -19,6 +19,10 @@ import { type DetachHandler } from './AccountList.js';
 import { Allowlist } from './Allowlist.js';
 import { ToggleAccount } from './ToggleAccount.js';
 import { StationName } from './StationName.js';
+import { Permissions } from './Permissions.js';
+import { POLICY_SINCE, type GroupedTool } from '../api/policy.js';
+import { olderThan } from '../api/version.js';
+import { useModeQuery } from '../api/queries.js';
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
@@ -51,6 +55,7 @@ interface StationDetailProps {
   row: AccountRow;
   agent: AgentSummary | undefined;
   verbs: string[];
+  tools: GroupedTool[];
   onOpenAgent: (id: string) => void;
   onDetach?: DetachHandler;
   onAllowlistSaved?: () => Promise<unknown>;
@@ -114,6 +119,31 @@ function AllowlistSection({
   return <Allowlist agentId={agentId} station={station} accountId={id} allowlist={row.allowlist} onSaved={onSaved} />;
 }
 
+function PermissionsSection({
+  station,
+  row,
+  agentId,
+  tools,
+  onSaved,
+}: {
+  station: string;
+  row: AccountRow;
+  agentId: string | undefined;
+  tools: GroupedTool[];
+  onSaved: (() => Promise<unknown>) | undefined;
+}): ReactNode {
+  const mode = useModeQuery();
+  const id = row.id;
+  if (id === null || agentId === undefined || onSaved === undefined || tools.length === 0) return null;
+  if (olderThan(mode.data?.version ?? null, POLICY_SINCE))
+    return (
+      <Section title="Permissions">
+        <Text size="sm" role="secondary">{`Needs metro ${POLICY_SINCE}. Update first, from the Server page.`}</Text>
+      </Section>
+    );
+  return <Permissions agentId={agentId} station={station} accountId={id} policy={row.policy} tools={tools} onSaved={onSaved} />;
+}
+
 function NameSection({ station, row, agentId }: { station: string; row: AccountRow; agentId: string | undefined }): ReactNode {
   if (station !== 'xmtp' || row.id === null || agentId === undefined) return null;
   return (
@@ -146,7 +176,7 @@ function HeaderActions({
 
 export function StationDetail(props: StationDetailProps): ReactNode {
   const { project } = props;
-  const { station, row, agent, verbs, onOpenAgent, onDetach, onAllowlistSaved, onToggle } = props;
+  const { station, row, agent, verbs, tools, onOpenAgent, onDetach, onAllowlistSaved, onToggle } = props;
   const { url, endpoint, callback, details } = stationFields(row);
   const id = row.id;
   const agentId = agent?.id;
@@ -228,6 +258,8 @@ export function StationDetail(props: StationDetailProps): ReactNode {
       )}
 
       <AllowlistSection station={station} row={row} agentId={agentId} onSaved={onAllowlistSaved} />
+
+      <PermissionsSection station={station} row={row} agentId={agentId} tools={tools} onSaved={onAllowlistSaved} />
 
       <Section title="What this station can do">
         {verbs.length === 0 ? (

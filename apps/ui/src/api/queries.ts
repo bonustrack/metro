@@ -9,6 +9,7 @@ import {
 import { daemonBase } from '../auth/daemon.js';
 import { carryForward, type AccountGroup } from './accounts.js';
 import { AuthError, StoppedError, fetchSession, fetchStations, type StationsView } from './client.js';
+import { fetchApprovals, type Approval } from './approvals.js';
 import { fetchConnector, fetchConnectors, type Connector, type ConnectorsView } from './connectors.js';
 import {
   fetchClaudeProjects,
@@ -43,6 +44,7 @@ const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
 type BoxName =
   | 'update'
+  | 'approvals'
   | 'machine'
   | 'claude-session'
   | 'claude-setup'
@@ -171,6 +173,9 @@ export function useConnectionModelsQuery(connection: { id: string; provider: str
   const provider = connection?.provider ?? '';
   return useBoxQuery(['connection-models', provider, id], () => connectionModels(provider, id), { enabled: id !== '', staleTime: LONG_MS });
 }
+
+export const useApprovalsQuery = (enabled: boolean): UseQueryResult<Approval[]> =>
+  useBoxQuery('approvals', fetchApprovals, { enabled, staleTime: 5_000, refetchInterval: enabled ? 15_000 : false });
 
 export const useModeQuery = (): UseQueryResult<ModeInfo> => useBoxQuery('mode', fetchMode, { staleTime: 60_000 });
 

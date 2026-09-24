@@ -7,6 +7,7 @@ import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { AgentPicture, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
 import { AgentRoute } from './AgentModel.js';
+import { Approvals } from './Approvals.js';
 import { flattenAccounts, type AccountGroup } from '../api/accounts.js';
 import { queryError, useConnectorsQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { currentServer } from '../auth/daemon.js';
@@ -102,6 +103,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
         <MetroVersion />
       </Col>
       <AgentRoute project={project} onSelect={onSelect} />
+      <Approvals />
       <Sections agent={agent} groups={data.groups} project={project} onSelect={onSelect} />
     </Col>
   );

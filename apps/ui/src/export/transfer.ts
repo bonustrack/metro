@@ -1,4 +1,4 @@
-import { recordOf } from '../api/read.js';
+import { isRecord, recordOf } from '../api/read.js';
 import {
   createClaudeSkill,
   fetchClaudeProjects,
@@ -32,6 +32,7 @@ function channelsOf(stations: unknown[]): PackedChannel[] {
       id: typeof s.id === 'string' ? s.id : '',
       allowlist: Array.isArray(s.allowlist) ? s.allowlist.map(String) : null,
       ...(s.enabled === false ? { enabled: false } : {}),
+      ...(isRecord(s.policy) ? { policy: s.policy } : {}),
       config: recordOf(s.config),
     };
   });

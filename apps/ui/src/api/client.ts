@@ -1,4 +1,5 @@
 import { daemonBase } from '../auth/daemon.js';
+import { toolGroupsOf, type GroupedTool } from './policy.js';
 import { accessToken, refreshAccount } from './auth.js';
 import { groupAccounts, type AccountGroup } from './accounts.js';
 
@@ -28,6 +29,7 @@ export interface StationsView {
   attachable: string[];
   unavailable: string[];
   capabilities: Record<string, string[]>;
+  tools: Record<string, GroupedTool[]>;
 }
 
 export const agentsUrl = (): string => `${daemonBase()}/api/agents`;
@@ -129,6 +131,7 @@ export async function fetchStations(): Promise<StationsView> {
     attachable: toStationList(body.attachable),
     unavailable: toStationList(body.unavailable),
     capabilities: toCapabilities(body.capabilities),
+    tools: toolGroupsOf(body.tools),
   };
 }
 
