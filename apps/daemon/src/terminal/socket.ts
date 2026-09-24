@@ -5,6 +5,7 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { takeTerminalTicket, type TerminalGrant } from './tickets.js';
+import { asAgent } from '../agent-user/user.js';
 
 const TICKET_PATH = /^\/api\/terminal\/([A-Za-z0-9_-]{43})$/;
 const MAX_MESSAGE = 1024 * 1024;
@@ -31,8 +32,8 @@ export const resizeWindowArgs = (session: string, cols: number, rows: number): s
 ];
 
 function sizeTmuxWindow(command: string[], session: string, cols: number, rows: number): void {
-  if (command[0] !== 'tmux') return;
-  const child = spawn('tmux', resizeWindowArgs(session, cols, rows), { stdio: 'ignore' });
+  if (!command.includes('tmux')) return;
+  const child = spawn(...asAgent('tmux', resizeWindowArgs(session, cols, rows)), { stdio: 'ignore' });
   child.on('error', (err) => {
     log.warn({ err: errMsg(err) }, 'terminal: resize-window could not run');
   });

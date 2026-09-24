@@ -5,12 +5,13 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { bodyField, readJsonBody, sessionRoute } from '@metro-labs/http/api-http';
 import { log } from '@metro-labs/core/log';
 import { mintTerminalTicket } from './tickets.js';
+import { agentCommand, asAgent, claudeHome } from '../agent-user/user.js';
 
 const PREFIX = '/api/terminal';
 const TICKETS = `${PREFIX}/tickets`;
 const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 
-export const tmuxCommand = (session: string, home = homedir()): string[] => [
+export const tmuxCommand = (session: string, home = claudeHome() ?? homedir()): string[] => agentCommand([
   'tmux',
   'new-session',
   '-A',
@@ -34,7 +35,7 @@ export const tmuxCommand = (session: string, home = homedir()): string[] => [
   '-as',
   'terminal-features',
   ',xterm-256color:clipboard',
-];
+], { TERM: 'xterm-256color', COLORTERM: 'truecolor' });
 
 export interface TerminalApiDeps {
   command?: (session: string) => string[];
@@ -42,12 +43,12 @@ export interface TerminalApiDeps {
 
 function tmuxAvailable(deps: TerminalApiDeps): boolean {
   if (deps.command !== undefined) return true;
-  const run = spawnSync('tmux', ['-V'], { stdio: 'ignore' });
+  const run = spawnSync(...asAgent('tmux', ['-V']), { stdio: 'ignore' });
   return run.error === undefined && run.status === 0;
 }
 
 export function tmuxSessions(): string[] {
-  const run = spawnSync('tmux', ['list-sessions', '-F', '#{session_name}'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const run = spawnSync(...asAgent('tmux', ['list-sessions', '-F', '#{session_name}']), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (run.error !== undefined || run.status !== 0) return [];
   return run.stdout
     .split('\n')

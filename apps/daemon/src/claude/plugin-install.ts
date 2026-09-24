@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
+import { agentMarketplaceDir, agentUser, asAgent, claudeBin } from '../agent-user/user.js';
 
 const MARKETPLACE = 'metro';
 const PLUGIN = 'metro@metro';
@@ -25,11 +26,19 @@ export interface PluginInstallDeps {
 
 export type PluginOutcome = 'skipped' | 'unchanged' | 'installed' | 'updated' | 'failed';
 
-export function stagedMarketplaceDir(env: NodeJS.ProcessEnv = process.env): string | null {
+export function storeMarketplaceDir(env: NodeJS.ProcessEnv = process.env): string | null {
   const store = env.METRO_RUNTIME_STORE?.trim() ?? '';
   if (store === '') return null;
   const dir = join(store, 'marketplace');
   return existsSync(join(dir, '.claude-plugin', 'marketplace.json')) ? dir : null;
+}
+
+export function stagedMarketplaceDir(env: NodeJS.ProcessEnv = process.env): string | null {
+  const store = storeMarketplaceDir(env);
+  const user = agentUser();
+  if (store === null || user === null) return store;
+  const copy = agentMarketplaceDir(user);
+  return existsSync(join(copy, '.claude-plugin', 'marketplace.json')) ? copy : null;
 }
 
 export function stagedPluginVersion(dir: string): string | null {
@@ -45,13 +54,13 @@ const runner =
   (bin: string): Run =>
   (args) =>
     new Promise((resolve) => {
-      execFile(bin, args, { encoding: 'utf8', timeout: STEP_MS, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+      execFile(...asAgent(bin, args), { encoding: 'utf8', timeout: STEP_MS, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
         const status = err === null ? 0 : typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1;
         resolve({ status, stdout, stderr });
       });
     });
 
-export async function findClaude(candidates = ['claude', join(homedir(), '.local', 'bin', 'claude')]): Promise<Run | null> {
+export async function findClaude(candidates = agentUser() === null ? ['claude', join(homedir(), '.local', 'bin', 'claude')] : [claudeBin()]): Promise<Run | null> {
   for (const bin of candidates) {
     const run = runner(bin);
     if ((await run(['--version'])).status === 0) return run;

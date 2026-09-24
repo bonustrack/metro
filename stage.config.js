@@ -35,7 +35,7 @@ export default defineConfig({
     ],
   },
   knip: {
-    ignore: ['stage.config.js', 'plugin/**', 'scripts/compat/**'],
+    ignore: ['stage.config.js', 'plugin/**', 'scripts/compat/**', 'scripts/agent-user/**'],
   },
   workspaces: {
     'apps/ui': {
@@ -66,7 +66,7 @@ export default defineConfig({
       knip: {
         entry: ['test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
-        ignoreBinaries: ['claude', 'mktemp', 'ps', 'tmux'],
+        ignoreBinaries: ['getent', 'mktemp', 'ps', 'tmux'],
       },
     },
     'packages/core': {

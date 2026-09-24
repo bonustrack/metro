@@ -5,6 +5,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { sessionRunning, stopSession, type SessionDeps } from './session.js';
+import { agentUser, asAgent, claudeBin } from '../agent-user/user.js';
 
 const LATEST_URL = 'https://registry.npmjs.org/@anthropic-ai/claude-code/latest';
 const VERSION_RE = /(\d+)\.(\d+)\.(\d+)/;
@@ -27,7 +28,10 @@ export interface ClaudeVersion {
 
 let cached: { latest: string | null; at: number } | null = null;
 
-const candidates = (deps: VersionDeps): string[] => (deps.claude === undefined ? ['claude', join(homedir(), '.local', 'bin', 'claude')] : [deps.claude]);
+function candidates(deps: VersionDeps): string[] {
+  if (deps.claude !== undefined) return [deps.claude];
+  return agentUser() === null ? ['claude', join(homedir(), '.local', 'bin', 'claude')] : [claudeBin()];
+}
 
 const parse = (text: string): string | null => {
   const m = VERSION_RE.exec(text);
@@ -35,7 +39,7 @@ const parse = (text: string): string | null => {
 };
 
 function probe(bin: string): string | null {
-  const run = spawnSync(bin, ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const run = spawnSync(...asAgent(bin, ['--version']), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   return run.error === undefined && run.status === 0 && typeof run.stdout === 'string' ? parse(run.stdout) : null;
 }
 
@@ -84,7 +88,7 @@ export async function claudeVersion(deps: VersionDeps = {}): Promise<ClaudeVersi
 }
 
 function install(bin: string): void {
-  const run = spawnSync(bin, ['install', 'latest'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: INSTALL_TIMEOUT_MS });
+  const run = spawnSync(...asAgent(bin, ['install', 'latest']), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: INSTALL_TIMEOUT_MS });
   if (run.error !== undefined) throw new ApiError(`claude install latest failed: ${errMsg(run.error)}`, 502);
   if (run.status === 0) return;
   const said = `${run.stderr ?? ''}${run.stdout ?? ''}`.trim().slice(-TAIL);

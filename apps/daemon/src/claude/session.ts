@@ -11,6 +11,14 @@ import { notReady, readModelConfig, routedConnection } from '../gateway/model-co
 import { claudeDir, listClaudeProjects } from './files.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
+import { agentUser, agentViewDir, asAgent, claudeHome, wantedAgentUser } from '../agent-user/user.js';
+
+function sessionEnv(): Record<string, string> {
+  const user = agentUser();
+  if (user === null) return {};
+  const port = process.env.METRO_WEBHOOK_PORT?.trim() ?? '';
+  return { METRO_AGENTS_DIR: agentViewDir(user), ...(port === '' ? {} : { METRO_WEBHOOK_PORT: port }) };
+}
 
 export const SESSION_NAME = 'metro';
 const STATE_FILE = 'claude-session.json';
@@ -74,7 +82,7 @@ export function startedVersion(agents = agentsDir()): string | null {
 }
 
 function tmuxOk(tmux: string, args: string[]): boolean {
-  const run = spawnSync(tmux, args, { stdio: 'ignore' });
+  const run = spawnSync(...asAgent(tmux, args), { stdio: 'ignore' });
   return run.error === undefined && run.status === 0;
 }
 
@@ -95,9 +103,12 @@ export function hasConversation(home: string, dir = claudeDir()): boolean {
 
 function metroCommand(deps: SessionDeps, home: string): string[] {
   const bin = process.env.METRO_CLI_BIN?.trim() ?? '';
-  const base = deps.metro ?? (bin === '' ? ['metro', 'claude'] : [process.execPath, bin, 'claude']);
+  const runtime = agentUser() === null ? process.execPath : 'node';
+  const base = deps.metro ?? (bin === '' ? ['metro', 'claude'] : [runtime, bin, 'claude']);
   const continues = (deps.continues ?? hasConversation)(home);
-  return continues ? [...base, '-c'] : base;
+  const env = Object.entries(sessionEnv()).map(([k, v]) => `${k}=${v}`);
+  const command = env.length === 0 || deps.metro !== undefined ? base : ['env', ...env, ...base];
+  return continues ? [...command, '-c'] : command;
 }
 
 function credentialReady(deps: SessionDeps): string | null {
@@ -113,16 +124,21 @@ function credentialReady(deps: SessionDeps): string | null {
   return 'Claude Code is not signed in and the Model page routes nowhere yet';
 }
 
+const agentUserMissing = (deps: SessionDeps, agents: string): boolean =>
+  deps.metro === undefined && wantedAgentUser(agents) !== null && agentUser(agents) === null;
+
 export function sessionBlocked(deps: SessionDeps = {}): string | null {
   const agents = deps.agents ?? agentsDir();
   if (listAgentFiles(agents).length === 0) return 'no agent on this machine yet';
+  if (agentUserMissing(deps, agents))
+    return 'Claude Code is set to run as its own user, and that user is not ready (Linux and a daemon running as root are needed; see the log)';
   if (deps.metro === undefined && !claudeInstalled()) return 'Claude Code is not installed on this machine';
   if (!tmuxOk(deps.tmux ?? 'tmux', ['-V'])) return 'tmux is not installed on this machine';
   return credentialReady(deps);
 }
 
 function capturePane(tmux: string): string {
-  const run = spawnSync(tmux, ['capture-pane', '-p', '-t', SESSION_NAME], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const run = spawnSync(...asAgent(tmux, ['capture-pane', '-p', '-t', SESSION_NAME]), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   return run.error === undefined && run.status === 0 ? run.stdout : '';
 }
 
@@ -130,7 +146,7 @@ function confirmChannels(tmux: string, until: number): void {
   const tick = (): void => {
     const pane = capturePane(tmux);
     if (pane.includes(WARNING) && pane.includes('server:metro')) {
-      spawnSync(tmux, ['send-keys', '-t', SESSION_NAME, 'Enter'], { stdio: 'ignore' });
+      spawnSync(...asAgent(tmux, ['send-keys', '-t', SESSION_NAME, 'Enter']), { stdio: 'ignore' });
       log.info('claude-session: confirmed the development channels dialog for server:metro');
       return;
     }
@@ -153,18 +169,19 @@ function recordStart(deps: SessionDeps, tmux: string, now: number, run: { error?
 
 export function startSession(deps: SessionDeps = {}): SessionStatus {
   const tmux = deps.tmux ?? 'tmux';
-  const home = deps.home ?? homedir();
+  const home = deps.home ?? claudeHome() ?? homedir();
   const now = (deps.now ?? Date.now)();
   const trusted = trustFolder(home);
   const [command = 'metro', ...args] = metroCommand(deps, home);
-  const run = spawnSync(tmux, ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: home });
+  const tmuxArgs = ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args];
+  const run = spawnSync(...asAgent(tmux, tmuxArgs), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: home });
   recordStart(deps, tmux, now, run);
   if (memory.lastError === null) log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
   return sessionStatus(deps);
 }
 
 export function stopSession(deps: SessionDeps = {}): SessionStatus {
-  spawnSync(deps.tmux ?? 'tmux', ['kill-session', '-t', SESSION_NAME], { stdio: 'ignore' });
+  spawnSync(...asAgent(deps.tmux ?? 'tmux', ['kill-session', '-t', SESSION_NAME]), { stdio: 'ignore' });
   return sessionStatus(deps);
 }
 

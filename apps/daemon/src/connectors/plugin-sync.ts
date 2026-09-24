@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { writeHomeInPlace } from '../agent-user/home-fs.js';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { claudeDir } from '../claude/files.js';
@@ -90,7 +91,7 @@ const readOrNull = (path: string): string | null => {
 
 function writeIfChanged(path: string, text: string): boolean {
   if (readOrNull(path) === text) return false;
-  writeFileSync(path, text, { mode: 0o644 });
+  writeHomeInPlace(path, text, 0o644);
   return true;
 }
 

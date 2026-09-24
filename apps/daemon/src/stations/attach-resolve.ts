@@ -12,6 +12,7 @@ import {
   writeInlineTemp,
 } from './attach-inline.js';
 import { realpathSync } from 'node:fs';
+import { agentCommand, agentUser, type AgentUser } from '../agent-user/user.js';
 import { log } from '@metro-labs/core/log';
 import { readUpload, UPLOAD_TTL_MS } from '../files/upload-store.js';
 import type { CanonicalAttachment } from '@metro-labs/core/stations/types';
@@ -56,11 +57,32 @@ function assertReadablePath(path: string): void {
     );
 }
 
+async function fromPathAs(
+  user: AgentUser,
+  a: CanonicalAttachment,
+  path: string,
+): Promise<ResolvedAttachment> {
+  const proc = Bun.spawn(agentCommand(['cat', '--', path]), { stdout: 'pipe', stderr: 'pipe' });
+  const name = a.name ?? basenameOf(path) ?? 'attachment';
+  const saved = await streamToTemp(proc.stdout, name);
+  if ((await proc.exited) !== 0) {
+    await removeInlineTemp(saved.dir);
+    throw new Error(
+      `attachment path '${path}' cannot be read by the ${user.name} user Claude Code runs as. ` +
+        '`path` is read on the daemon machine with the agent\'s own rights; pass `upload` instead.',
+    );
+  }
+  assertAttachmentSize(saved.bytes);
+  return { path: saved.path, mime: a.mime ?? guessMime(path), name, bytes: saved.bytes, temp: saved.dir };
+}
+
 async function fromPath(
   a: CanonicalAttachment,
   path: string,
 ): Promise<ResolvedAttachment> {
   assertReadablePath(path);
+  const user = agentUser();
+  if (user !== null) return fromPathAs(user, a, path);
   const file = Bun.file(path);
   if (!(await file.exists()))
     throw new Error(

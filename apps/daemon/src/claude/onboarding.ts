@@ -1,7 +1,9 @@
-import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { isRecord } from '@metro-labs/core/is-record';
+import { writeHomeText } from '../agent-user/home-fs.js';
+import { agentUser } from '../agent-user/user.js';
 
 const FILE = '.claude.json';
 const FLAG = 'hasCompletedOnboarding';
@@ -12,6 +14,8 @@ const given = (value: string | undefined): string | undefined =>
   value !== undefined && value.trim() !== '' ? value.trim() : undefined;
 
 export function claudeConfigPath(env: NodeJS.ProcessEnv = process.env): string {
+  const user = agentUser();
+  if (user !== null) return join(user.home, FILE);
   return join(given(env.CLAUDE_CONFIG_DIR) ?? given(env.HOME) ?? homedir(), FILE);
 }
 
@@ -29,7 +33,7 @@ export function markOnboardingDone(path = claudeConfigPath()): OnboardingMark {
   const config = readConfig(path);
   if (config === null) return 'unreadable';
   if (config[FLAG] === true) return 'already';
-  writeFileSync(path, `${JSON.stringify({ ...config, [FLAG]: true }, null, 2)}\n`, { mode: 0o600 });
+  writeHomeText(path, `${JSON.stringify({ ...config, [FLAG]: true }, null, 2)}\n`, 0o600);
   return 'marked';
 }
 
@@ -51,6 +55,6 @@ export function trustFolder(dir: string, path = claudeConfigPath()): OnboardingM
   const project = isRecord(projects[key]) ? projects[key] : {};
   if (project[TRUST] === true) return 'already';
   const next = { ...config, projects: { ...projects, [key]: { ...project, [TRUST]: true } } };
-  writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
+  writeHomeText(path, `${JSON.stringify(next, null, 2)}\n`, 0o600);
   return 'marked';
 }

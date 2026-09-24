@@ -16,7 +16,8 @@
     "build": "turbo build",
     "start": "bun apps/daemon/src/server.ts",
     "smoke": "bash scripts/smoke.sh",
-    "compat": "bash scripts/compat.sh"
+    "compat": "bash scripts/compat.sh",
+    "agent-user-check": "bash scripts/agent-user/run.sh"
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.2",

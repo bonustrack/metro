@@ -4,7 +4,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { claudeDir, listClaudeProjects } from './files.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg } from '@metro-labs/core/log';
-import { writeAtomic } from '@metro-labs/core/secure-fs';
+import { writeHomeText } from '../agent-user/home-fs.js';
 
 export const SETTINGS_MAX = 256 * 1024;
 const USER_ID = 'user';
@@ -104,6 +104,6 @@ export function writeClaudeSettings(
   assertSettingsJson(text);
   if (seenAt !== undefined && seenAt !== target.modifiedAt)
     throw new ApiError('that file changed on disk since you opened it; reload it before saving', 409);
-  writeAtomic(target.path, text);
+  writeHomeText(target.path, text, existsSync(target.path) ? statSync(target.path).mode & 0o777 : 0o644);
   return entryOf(target.id, target.scope, target.label, target.path);
 }

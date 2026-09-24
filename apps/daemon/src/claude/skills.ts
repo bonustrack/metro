@@ -1,8 +1,8 @@
-import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { claudeDir } from './files.js';
-import { writeAtomic } from '@metro-labs/core/secure-fs';
+import { removeHome, writeHomeText } from '../agent-user/home-fs.js';
 
 export const SKILL_MAX = 256 * 1024;
 export const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -87,7 +87,7 @@ export function writeClaudeSkill(
   assertText(text);
   if (seenAt !== undefined && seenAt !== skill.updatedAt)
     throw new ApiError('that skill changed on disk since you opened it; reload it before saving', 409);
-  writeAtomic(skill.path, text, DEFAULT_MODE);
+  writeHomeText(skill.path, text, DEFAULT_MODE);
   return entryOf(skill.name, skill.path);
 }
 
@@ -101,7 +101,7 @@ export function createClaudeSkill(name: string, text: string | undefined, dir = 
   if (existsSync(path)) throw new ApiError('a skill by that name already lives there', 409);
   const body = text === undefined || text.trim() === '' ? skillTemplate(name) : text;
   assertText(body);
-  writeAtomic(path, body, DEFAULT_MODE);
+  writeHomeText(path, body, DEFAULT_MODE);
   return entryOf(name, path);
 }
 
@@ -109,6 +109,6 @@ export function deleteClaudeSkill(id: string, dir = claudeDir()): string {
   const skill = found(id, dir);
   const folder = dirname(skill.path);
   if (basename(folder) !== skill.name) throw new ApiError('that skill does not live in its own folder', 409);
-  rmSync(folder, { recursive: true, force: true });
+  removeHome(folder, true);
   return id;
 }

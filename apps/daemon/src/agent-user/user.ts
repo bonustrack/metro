@@ -1,0 +1,92 @@
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+import { isRecord } from '@metro-labs/core/is-record';
+import { readJson } from '@metro-labs/core/secure-fs';
+import { agentsDir } from '../agents/files.js';
+
+export const CONFIG_FILE = 'agent-user.json';
+const NAME_RE = /^[a-z_][a-z0-9_-]{0,31}$/;
+const AGENT_PATH = ['.local/bin', '/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin'];
+
+export interface AgentUser {
+  name: string;
+  uid: number;
+  gid: number;
+  home: string;
+}
+
+export interface UserHost {
+  platform: string;
+  uid: number | undefined;
+  lookup: (name: string) => AgentUser | null;
+}
+
+function lookupUser(name: string): AgentUser | null {
+  const run = spawnSync('getent', ['passwd', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  if (run.error !== undefined || run.status !== 0) return null;
+  const [, , uid = '', gid = '', , home = ''] = run.stdout.trim().split(':');
+  const u = Number(uid);
+  const g = Number(gid);
+  return Number.isInteger(u) && u > 0 && Number.isInteger(g) && home.startsWith('/') ? { name, uid: u, gid: g, home } : null;
+}
+
+const realHost: UserHost = { platform: process.platform, uid: process.getuid?.(), lookup: lookupUser };
+
+export function wantedAgentUser(dir = agentsDir()): string | null {
+  const raw = readJson<unknown>(join(dir, CONFIG_FILE), null);
+  if (!isRecord(raw) || raw.enabled === false) return null;
+  const name = typeof raw.user === 'string' ? raw.user : 'agent';
+  return NAME_RE.test(name) && name !== 'root' ? name : null;
+}
+
+let cached: { key: string; user: AgentUser | null } | null = null;
+
+export function agentUser(dir = agentsDir(), host: UserHost = realHost): AgentUser | null {
+  const name = wantedAgentUser(dir);
+  if (name === null || host.platform !== 'linux' || host.uid !== 0) return null;
+  const key = `${dir}\n${name}`;
+  if (cached?.key === key && cached.user !== null) return cached.user;
+  cached = { key, user: host.lookup(name) };
+  return cached.user;
+}
+
+export function forgetAgentUser(): void {
+  cached = null;
+}
+
+export function agentEnv(user: AgentUser, extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    HOME: user.home,
+    USER: user.name,
+    LOGNAME: user.name,
+    SHELL: '/bin/bash',
+    LANG: process.env.LANG ?? 'C.UTF-8',
+    TERM: process.env.TERM ?? 'xterm-256color',
+    PATH: AGENT_PATH.map((p) => (p.startsWith('/') ? p : join(user.home, p))).join(':'),
+    ...extra,
+  };
+}
+
+export function asUser(user: AgentUser | null, file: string, args: readonly string[], extra: Record<string, string> = {}): [string, string[]] {
+  if (user === null) return [file, [...args]];
+  const env = Object.entries(agentEnv(user, extra)).map(([k, v]) => `${k}=${v}`);
+  return ['runuser', ['-u', user.name, '--', 'env', '-i', ...env, file, ...args]];
+}
+
+export const asAgent = (file: string, args: readonly string[], extra: Record<string, string> = {}): [string, string[]] =>
+  asUser(agentUser(), file, args, extra);
+
+export const agentCommand = (command: readonly string[], extra: Record<string, string> = {}): string[] => {
+  const [file = '', ...args] = command;
+  const [bin, argv] = asAgent(file, args, extra);
+  return [bin, ...argv];
+};
+
+export function claudeBin(user = agentUser()): string {
+  return user === null ? 'claude' : join(user.home, '.local', 'bin', 'claude');
+}
+
+export const claudeHome = (user = agentUser()): string | null => (user === null ? null : user.home);
+
+export const agentMarketplaceDir = (user: AgentUser): string => join(user.home, '.metro', 'marketplace');
+export const agentViewDir = (user: AgentUser): string => join(user.home, '.metro', 'agents');

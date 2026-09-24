@@ -1,5 +1,6 @@
-import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
-import type { Readable } from 'node:stream';
+import { existsSync, statSync } from 'node:fs';
+import { Transform, type Readable } from 'node:stream';
+import { moveHome, receiveHomeFile, removeHome } from '../agent-user/home-fs.js';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -25,42 +26,41 @@ export function sessionFilePath(project: string, session: string, dir = claudeDi
 
 const HEAD_BYTES = 64 * 1024;
 
-async function spool(body: Readable, tmp: string): Promise<string> {
-  const out = createWriteStream(tmp, { mode: FILE_MODE });
-  const head: Buffer[] = [];
+function watched(body: Readable, head: Buffer[]): Transform {
   let total = 0;
   let kept = 0;
-  for await (const chunk of body) {
-    const buf = chunk as Buffer;
-    total += buf.length;
-    if (total > SESSION_FILE_MAX) {
-      out.destroy();
-      rmSync(tmp, { force: true });
-      throw new ApiError(`a session file is at most ${String(SESSION_FILE_MAX)} bytes`, 413);
-    }
-    if (kept < HEAD_BYTES) {
-      head.push(buf.subarray(0, HEAD_BYTES - kept));
-      kept += buf.length;
-    }
-    if (!out.write(buf)) await new Promise<void>((r) => out.once('drain', r));
-  }
-  await new Promise<void>((resolve, reject) => {
-    out.once('error', reject);
-    out.end(resolve);
+  const check = new Transform({
+    transform(chunk: Buffer, _enc, done): void {
+      total += chunk.length;
+      if (total > SESSION_FILE_MAX) {
+        done(new ApiError(`a session file is at most ${String(SESSION_FILE_MAX)} bytes`, 413));
+        return;
+      }
+      if (kept < HEAD_BYTES) {
+        head.push(chunk.subarray(0, HEAD_BYTES - kept));
+        kept += chunk.length;
+      }
+      done(null, chunk);
+    },
   });
-  return Buffer.concat(head).toString('utf8');
+  return body.pipe(check);
 }
 
 export async function receiveSessionFile(project: string, session: string, body: Readable, dir = claudeDir()): Promise<SessionFile> {
   const path = transcriptPath(project, session, dir);
-  mkdirSync(join(path, '..'), { recursive: true });
-  const tmp = `${path}.metro-${String(process.pid)}`;
-  const head = await spool(body, tmp);
-  if (!firstLineIsJson(head)) {
-    rmSync(tmp, { force: true });
+  const tmp = `${path}.metro-upload`;
+  const head: Buffer[] = [];
+  try {
+    await receiveHomeFile(tmp, watched(body, head), FILE_MODE);
+  } catch (err) {
+    removeHome(tmp);
+    throw err;
+  }
+  if (!firstLineIsJson(Buffer.concat(head).toString('utf8'))) {
+    removeHome(tmp);
     throw new ApiError('a session file is JSON lines, one Claude Code entry per line', 400);
   }
-  renameSync(tmp, path);
+  moveHome(tmp, path);
   return { id: safeName(session, SESSION_RE, 'session id'), bytes: statSync(path).size };
 }
 

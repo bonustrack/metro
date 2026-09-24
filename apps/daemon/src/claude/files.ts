@@ -5,16 +5,15 @@ import {
   openSync,
   readdirSync,
   readSync,
-  rmSync,
   statSync,
-  utimesSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
-import { writeAtomic } from '@metro-labs/core/secure-fs';
+import { removeHome, writeHomeText } from '../agent-user/home-fs.js';
+import { agentUser } from '../agent-user/user.js';
 
 export const PROJECT_RE = /^[A-Za-z0-9._-]{1,200}$/;
 export const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
@@ -36,7 +35,8 @@ export function claudeDir(): string {
   if (explicit !== undefined && explicit !== '') return explicit;
   const cfg = process.env.CLAUDE_CONFIG_DIR?.trim();
   if (cfg !== undefined && cfg !== '') return cfg;
-  return join(homedir(), '.claude');
+  const user = agentUser();
+  return join(user === null ? homedir() : user.home, '.claude');
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
@@ -284,8 +284,8 @@ export function deleteClaudeSession(project: string, session: string, dir = clau
   const id = safeName(session, SESSION_RE, 'session id');
   const file = join(root, `${id}.jsonl`);
   if (!existsSync(file)) throw new ApiError('no such session', 404);
-  rmSync(file);
-  rmSync(join(root, id), { recursive: true, force: true });
+  removeHome(file);
+  removeHome(join(root, id), true);
 }
 
 export interface MemoryFile {
@@ -361,9 +361,7 @@ export function writeMemoryFile(project: string, name: string, text: string, dir
   if (Buffer.byteLength(text, 'utf8') > MEMORY_MAX)
     throw new ApiError(`a memory file is at most ${String(MEMORY_MAX)} bytes`, 400);
   const path = memoryPath(project, name, dir);
-  writeAtomic(path, text, MEMORY_MODE);
-  const stamp = stampOf(modifiedAt);
-  if (stamp !== null) utimesSync(path, stamp, stamp);
+  writeHomeText(path, text, MEMORY_MODE, stampOf(modifiedAt) ?? undefined);
   const stat = statSync(path);
   return { name, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
 }
@@ -371,7 +369,7 @@ export function writeMemoryFile(project: string, name: string, text: string, dir
 export function deleteMemoryFile(project: string, name: string, dir = claudeDir()): string {
   const path = memoryPath(project, name, dir);
   if (!existsSync(path)) throw new ApiError('no such memory file', 404);
-  rmSync(path);
+  removeHome(path);
   return name;
 }
 

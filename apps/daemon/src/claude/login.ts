@@ -4,8 +4,9 @@ import { markOnboardingDone } from './onboarding.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
+import { agentCommand, asAgent, claudeBin } from '../agent-user/user.js';
 
-const LOGIN_COMMAND = ['claude', 'auth', 'login', '--claudeai'];
+const LOGIN_ARGS = ['auth', 'login', '--claudeai'];
 const STATUS_COMMAND = ['auth', 'status', '--json'];
 const TTL_MS = 10 * 60_000;
 const OUTPUT_MAX = 8_000;
@@ -94,7 +95,7 @@ function forgetClaudeChecks(): void {
 
 export function claudeInstalled(): boolean {
   return remembered(checks.installed, () => {
-    const run = spawnSync('claude', ['--version'], { stdio: 'ignore' });
+    const run = spawnSync(...asAgent(claudeBin(), ['--version']), { stdio: 'ignore' });
     return run.error === undefined && run.status === 0;
   }, (c) => {
     checks.installed = c;
@@ -113,7 +114,7 @@ export function claudeAccount(): ClaudeAccount {
 }
 
 function readAccount(): ClaudeAccount {
-  const run = spawnSync('claude', STATUS_COMMAND, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const run = spawnSync(...asAgent(claudeBin(), STATUS_COMMAND), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (run.error !== undefined || typeof run.stdout !== 'string') return { signedIn: false, account: null };
   try {
     const parsed: unknown = JSON.parse(run.stdout);
@@ -133,7 +134,7 @@ function note(session: Live, chunk: string): void {
 export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now()): LoginView {
   sweep(now);
   if (live !== null && live.state === 'pending') return view(live);
-  const command = deps.command ?? LOGIN_COMMAND;
+  const command = deps.command ?? agentCommand([claudeBin(), ...LOGIN_ARGS], { TERM: 'xterm-256color' });
   const session: Live = {
     id: randomBytes(9).toString('base64url'),
     startedAt: now,

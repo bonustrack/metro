@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { readJson, writeAtomic, writeJson } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
+import { writeHomeText } from '../agent-user/home-fs.js';
 import { claudeDir } from './files.js';
 import { stagedMarketplaceDir } from './plugin-install.js';
 import { readModelConfig, routedConnection, type ModelConfig } from '../gateway/model-config.js';
@@ -137,13 +138,12 @@ const digest = (text: string): string => createHash('sha256').update(text).diges
 
 export function placeFile(path: string, text: string, prior: ReadonlySet<string> = new Set()): Placed {
   if (!existsSync(path)) {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, text, { mode: 0o644 });
+    writeHomeText(path, text, 0o644);
     return 'written';
   }
   const current = readFileSync(path, 'utf8');
   if (current === text || !prior.has(digest(current))) return 'present';
-  writeFileSync(path, text, { mode: 0o644 });
+  writeHomeText(path, text, 0o644);
   return 'updated';
 }
 
@@ -172,7 +172,7 @@ function mergeSettings(dir: string, change: (settings: Record<string, unknown>) 
   if (current === null) return 'unreadable';
   const next = change(current);
   if (existsSync(path) && JSON.stringify(next) === JSON.stringify(current)) return 'unchanged';
-  writeAtomic(path, `${JSON.stringify(next, null, 2)}\n`);
+  writeHomeText(path, `${JSON.stringify(next, null, 2)}\n`, existsSync(path) ? statSync(path).mode & 0o777 : 0o644);
   return 'written';
 }
 
