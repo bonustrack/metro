@@ -2,14 +2,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { whyUnreachable } from './reach.js';
 import { noteHealth } from './health.js';
 import type { RelayTarget } from './store.js';
-import type { AgentIdentity } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
 import { answerBlocked, mergeBlocked, screenCalls, type BlockedReason } from './relay-policy.js';
 
 export interface RelayApiDeps {
   target: (connectorId: string, force: boolean) => Promise<RelayTarget>;
-  identify: (req: IncomingMessage) => AgentIdentity | null;
+  identify: (req: IncomingMessage) => { subject: string; agentId: string } | null;
   signedOut: (connectorId: string) => void;
   blocked?: BlockedReason;
 }

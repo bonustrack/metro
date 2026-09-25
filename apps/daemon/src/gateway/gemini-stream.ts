@@ -2,7 +2,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { errorFrame } from './forward.js';
 import { frame, messageEnd, messageStart, type Usage } from './frames.js';
 import { encodeSignature, newCallId, rememberSignature } from './gemini-translate.js';
-import { stringOf } from './text.js';
+import { stringOf } from '@metro-labs/http/api-http';
 
 type Item = Record<string, unknown>;
 

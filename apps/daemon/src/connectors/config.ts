@@ -1,4 +1,5 @@
 import { ApiError } from '@metro-labs/http/api-error';
+import { stringOf } from '@metro-labs/http/api-http';
 import type {
   ConnectorAuth,
   VerifiedRecord,
@@ -30,10 +31,6 @@ export interface ConnectorConfig {
   toolGroups?: Record<string, ToolGroup>;
 }
 
-function text(value: unknown): string {
-  return typeof value === 'string' ? value : '';
-}
-
 function hasControlChar(value: string): boolean {
   for (const ch of value) {
     const code = ch.codePointAt(0) ?? 0;
@@ -62,8 +59,8 @@ export function connectorAuth(
   rawHeader: unknown,
   rawValue: unknown,
 ): ConnectorAuth {
-  const header = text(rawHeader).trim();
-  const value = text(rawValue).trim();
+  const header = stringOf(rawHeader).trim();
+  const value = stringOf(rawValue).trim();
   if (header === '' && value === '') return { kind: 'none' };
   if (value === '')
     throw new ConnectorError(
@@ -82,8 +79,8 @@ export function connectorClient(
   rawId: unknown,
   rawSecret: unknown,
 ): OAuthClient | null {
-  const clientId = text(rawId).trim();
-  const clientSecret = text(rawSecret).trim();
+  const clientId = stringOf(rawId).trim();
+  const clientSecret = stringOf(rawSecret).trim();
   if (clientId === '' && clientSecret === '') return null;
   if (clientId === '')
     throw new ConnectorError('a client secret needs the client ID it belongs to', 400);
@@ -96,27 +93,27 @@ export function connectorClient(
 
 function readClient(raw: unknown): OAuthClient | null {
   if (!isRecord(raw)) return null;
-  const clientId = text(raw.clientId);
+  const clientId = stringOf(raw.clientId);
   if (clientId === '') return null;
-  const clientSecret = text(raw.clientSecret);
+  const clientSecret = stringOf(raw.clientSecret);
   return { clientId, ...(clientSecret === '' ? {} : { clientSecret }) };
 }
 
 function readOAuth(raw: Record<string, unknown>): ConnectorAuth {
-  const accessToken = text(raw.accessToken);
-  const clientId = text(raw.clientId);
-  const tokenEndpoint = text(raw.tokenEndpoint);
+  const accessToken = stringOf(raw.accessToken);
+  const clientId = stringOf(raw.clientId);
+  const tokenEndpoint = stringOf(raw.tokenEndpoint);
   if (accessToken === '' || clientId === '' || tokenEndpoint === '')
     return { kind: 'none' };
-  const refreshToken = text(raw.refreshToken);
-  const clientSecret = text(raw.clientSecret);
-  const scope = text(raw.scope);
+  const refreshToken = stringOf(raw.refreshToken);
+  const clientSecret = stringOf(raw.clientSecret);
+  const scope = stringOf(raw.scope);
   return {
     kind: 'oauth',
     accessToken,
     clientId,
     tokenEndpoint,
-    issuer: text(raw.issuer),
+    issuer: stringOf(raw.issuer),
     ...(refreshToken === '' ? {} : { refreshToken }),
     ...(clientSecret === '' ? {} : { clientSecret }),
     ...(scope === '' ? {} : { scope }),
@@ -128,15 +125,15 @@ function readAuth(raw: unknown): ConnectorAuth {
   if (!isRecord(raw)) return { kind: 'none' };
   if (raw.kind === 'oauth') return readOAuth(raw);
   if (raw.kind !== 'header') return { kind: 'none' };
-  const name = text(raw.name);
-  const value = text(raw.value);
+  const name = stringOf(raw.name);
+  const value = stringOf(raw.value);
   if (name === '' || value === '') return { kind: 'none' };
   return { kind: 'header', name, value };
 }
 
 function readVerified(raw: unknown): VerifiedRecord {
   const record = isRecord(raw) ? raw : {};
-  return { at: text(record.at), server: text(record.server) };
+  return { at: stringOf(record.at), server: stringOf(record.server) };
 }
 
 const TOOL_NAME_MAX = 128;
@@ -157,7 +154,7 @@ export function readConfig(raw: unknown): ConnectorConfig {
   const toolGroups = readToolGroups(record.toolGroups);
   return {
     auth,
-    createdAt: text(record.createdAt),
+    createdAt: stringOf(record.createdAt),
     verified: readVerified(record.verified),
     oauth: record.oauth === true || auth.kind === 'oauth',
     client: readClient(record.client),

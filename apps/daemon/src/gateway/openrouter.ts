@@ -1,6 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { GatewayError } from './forward.js';
-import { stringOf } from './text.js';
+import { stringOf } from '@metro-labs/http/api-http';
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api';
 const MODELS_MAX = 2000;

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
-import { resultText, stringOf } from './text.js';
+import { resultText } from './text.js';
+import { stringOf } from '@metro-labs/http/api-http';
 
 export const SIGNATURE_PREFIX = 'metro-codex:';
 const DEFAULT_EFFORT = 'medium';

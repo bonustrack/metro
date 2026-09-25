@@ -52,11 +52,6 @@ export function apiSession(req: IncomingMessage): Promise<ApiSession | null> {
   return bearerSessions === null ? Promise.resolve(null) : bearerSessions(req);
 }
 
-export interface AgentIdentity {
-  subject: string;
-  agentId: string;
-}
-
 export async function readJsonBody(req: IncomingMessage, max = BODY_MAX): Promise<unknown> {
   const chunks: Buffer[] = [];
   let total = 0;
@@ -136,3 +131,5 @@ export function bodyField(body: unknown, key: string): unknown {
     ? (body as Record<string, unknown>)[key]
     : undefined;
 }
+
+export const stringOf = (value: unknown): string => (typeof value === 'string' ? value : '');

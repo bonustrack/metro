@@ -1,8 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { stringOf } from '@metro-labs/http/api-http';
 
 const IMAGE_NOTE = '[an image was attached here; this model cannot see it]';
-
-export const stringOf = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 export const nonEmpty = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 

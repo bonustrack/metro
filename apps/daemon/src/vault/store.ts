@@ -1,4 +1,5 @@
 import { existsSync, rmSync } from 'node:fs';
+import { stringOf } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { newId } from '@metro-labs/core/ids';
@@ -34,12 +35,10 @@ const MAX_SECRETS = 100;
 const MAX_HOSTS = 20;
 const MAX_VALUE = 16 * 1024;
 
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
-
 function secretOf(raw: unknown): VaultSecret | null {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || !ENV_RE.test(str(raw.env))) return null;
+  if (!isRecord(raw) || typeof raw.id !== 'string' || !ENV_RE.test(stringOf(raw.env))) return null;
   const hosts = Array.isArray(raw.hosts) ? raw.hosts.filter((h): h is string => typeof h === 'string' && HOST_RE.test(h)) : [];
-  return { id: raw.id, name: str(raw.name) || str(raw.env), env: str(raw.env), hosts, createdAt: str(raw.createdAt), updatedAt: str(raw.updatedAt) };
+  return { id: raw.id, name: stringOf(raw.name) || stringOf(raw.env), env: stringOf(raw.env), hosts, createdAt: stringOf(raw.createdAt), updatedAt: stringOf(raw.updatedAt) };
 }
 
 export function readVault(dir = vaultDir()): VaultState {
@@ -55,13 +54,13 @@ export function writeVault(state: VaultState, dir = vaultDir()): void {
 }
 
 export function normalizeName(raw: unknown): string {
-  const name = str(raw).trim();
+  const name = stringOf(raw).trim();
   if (name === '' || name.length > 80) throw new ApiError('a name of 1 to 80 characters is required', 400);
   return name;
 }
 
 export function normalizeEnv(raw: unknown): string {
-  const env = str(raw).trim();
+  const env = stringOf(raw).trim();
   if (!ENV_RE.test(env) || RESERVED_ENV.has(env))
     throw new ApiError('the variable name must be capital letters, digits and _, 3 to 64 long, like OPENAI_API_KEY', 400);
   return env;
@@ -69,7 +68,7 @@ export function normalizeEnv(raw: unknown): string {
 
 export function normalizeHosts(raw: unknown): string[] {
   if (!Array.isArray(raw)) throw new ApiError('hosts must be a list of websites, like api.openai.com', 400);
-  const hosts = [...new Set(raw.map((h) => str(h).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')).filter((h) => h !== ''))];
+  const hosts = [...new Set(raw.map((h) => stringOf(h).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')).filter((h) => h !== ''))];
   if (hosts.length === 0 || hosts.length > MAX_HOSTS) throw new ApiError(`a secret needs 1 to ${String(MAX_HOSTS)} websites`, 400);
   const bad = hosts.find((h) => !HOST_RE.test(h));
   if (bad !== undefined) throw new ApiError(`'${bad}' is not a website name; write it as api.example.com or *.example.com`, 400);
@@ -77,7 +76,7 @@ export function normalizeHosts(raw: unknown): string[] {
 }
 
 export function normalizeValue(raw: unknown): string {
-  const value = str(raw).trim();
+  const value = stringOf(raw).trim();
   if (value === '' || value.length > MAX_VALUE) throw new ApiError('a value of 1 to 16384 characters is required', 400);
   return value;
 }

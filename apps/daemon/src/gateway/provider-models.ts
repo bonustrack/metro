@@ -1,7 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { GatewayError } from './forward.js';
 import type { Connection } from './model-config.js';
-import { stringOf } from './text.js';
+import { stringOf } from '@metro-labs/http/api-http';
 
 export const ANTHROPIC_API = 'https://api.anthropic.com';
 const ANTHROPIC_VERSION = '2023-06-01';

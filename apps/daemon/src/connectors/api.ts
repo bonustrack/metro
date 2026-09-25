@@ -10,6 +10,7 @@ import {
   cors,
   readJsonBody,
   sendJson,
+  stringOf,
 } from '@metro-labs/http/api-http';
 import { parseId } from '@metro-labs/core/ids';
 import {
@@ -28,9 +29,6 @@ import type {
 } from './store.js';
 
 const PREFIX = '/api/connectors';
-
-const asText = (value: unknown): string =>
-  typeof value === 'string' ? value : '';
 
 export interface ConnectorApiDeps extends OAuthRouteDeps {
   listConnectors: () => Promise<Connector[]>;
@@ -112,7 +110,7 @@ async function handleCreate(
   deps: ConnectorApiDeps,
 ): Promise<void> {
   const body = await readJsonBody(req);
-  const offered = asText(bodyField(body, 'value')).trim() !== '';
+  const offered = stringOf(bodyField(body, 'value')).trim() !== '';
   try {
     const created = await deps.createConnector({
       name: bodyField(body, 'name'),

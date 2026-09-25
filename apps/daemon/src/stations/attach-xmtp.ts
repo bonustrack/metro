@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { stringOf } from '@metro-labs/http/api-http';
 import { rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { errMsg, log } from '@metro-labs/core/log';
@@ -42,8 +43,6 @@ interface VerifyReply {
   dbPath?: unknown;
   error?: unknown;
 }
-
-const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 function readReply(raw: string): VerifyReply {
   const line = raw.trim().split('\n').at(-1) ?? '';
@@ -97,13 +96,13 @@ export async function verifyXmtpKeyOutOfProcess(
   const reply = readReply(raw);
   if (reply.ok !== true)
     throw new XmtpAttachError(
-      withoutKey(str(reply.error) || UNREACHABLE, privateKey),
+      withoutKey(stringOf(reply.error) || UNREACHABLE, privateKey),
     );
   const identity = {
-    inboxId: str(reply.inboxId),
-    address: str(reply.address),
-    installationId: str(reply.installationId),
-    dbPath: str(reply.dbPath),
+    inboxId: stringOf(reply.inboxId),
+    address: stringOf(reply.address),
+    installationId: stringOf(reply.installationId),
+    dbPath: stringOf(reply.dbPath),
   };
   if (identity.inboxId === '' || identity.address === '')
     throw new XmtpAttachError(UNREACHABLE);

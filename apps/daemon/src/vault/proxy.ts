@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { stringOf } from '@metro-labs/http/api-http';
 import { randomBytes } from 'node:crypto';
 import { basename } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -30,8 +31,6 @@ const state: { child: ChildProcess | null; wanted: { bin: string; config: string
   startedAt: 0,
 };
 
-const text = (v: unknown): string => (typeof v === 'string' ? v : '');
-
 function swappedIds(transforms: unknown): string[] {
   if (!Array.isArray(transforms)) return [];
   return transforms.flatMap((t) => {
@@ -51,12 +50,12 @@ export function requestOf(line: string): ProxyRequest | null {
   const audit = parsed.audit;
   if (audit.method === 'CONNECT') return null;
   return {
-    at: text(parsed.time),
-    method: text(audit.method),
-    host: text(audit.host),
-    path: text(audit.path),
+    at: stringOf(parsed.time),
+    method: stringOf(audit.method),
+    host: stringOf(audit.host),
+    path: stringOf(audit.path),
     status: typeof audit.status_code === 'number' ? audit.status_code : null,
-    action: text(audit.action),
+    action: stringOf(audit.action),
     swapped: swappedIds(parsed.request_transforms),
   };
 }
