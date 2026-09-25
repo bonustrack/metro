@@ -25,15 +25,6 @@ export const claudeArgs = (extra: string[], mcpConfig?: string, mode: Permission
 
 const set = (env: NodeJS.ProcessEnv, name: string): boolean => (env[name] ?? '').trim() !== '';
 
-export function bypassSandboxEnv(
-  env: NodeJS.ProcessEnv,
-  mode: PermissionMode,
-  uid: number | undefined,
-): NodeJS.ProcessEnv {
-  if (mode !== 'bypass' || uid !== 0 || env.IS_SANDBOX !== undefined) return env;
-  return { ...env, IS_SANDBOX: '1' };
-}
-
 export function pinnedBy(env: NodeJS.ProcessEnv): string | null {
   if (set(env, 'ANTHROPIC_BASE_URL')) return 'ANTHROPIC_BASE_URL';
   return PROVIDER_FLAGS.find((flag) => set(env, flag)) ?? null;
@@ -156,18 +147,12 @@ export async function launchClaude(extra: string[]): Promise<number> {
   const mode = permissionMode();
   const prompt = systemPrompt();
   if (prompt !== null) process.stderr.write('metro claude: the system prompt from the Harness page is appended to this session\n');
-  const sandbox = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
-    const out = bypassSandboxEnv(env, mode, process.getuid?.());
-    if (out !== env)
-      process.stderr.write('metro claude: bypass permission mode under root, so IS_SANDBOX=1 is set for Claude Code (it refuses to skip permissions as root otherwise); this box is a dedicated single-tenant machine\n');
-    return out;
-  };
   try {
     if ('skip' in decision) {
       process.stderr.write(`metro claude: ${decision.skip}\n`);
-      return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), sandbox(process.env));
+      return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), process.env);
     }
-    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), sandbox(gatewayLaunchEnv(decision.key, port)));
+    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), gatewayLaunchEnv(decision.key, port));
   } finally {
     mcp?.cleanup();
   }

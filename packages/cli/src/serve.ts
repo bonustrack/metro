@@ -161,9 +161,8 @@ export function servePlan(opts: ServeOptions): DaemonPlan {
       METRO_WEBHOOK_PORT: String(opts.port),
       METRO_HTTP_HOST: process.env.METRO_HTTP_HOST ?? '127.0.0.1',
       METRO_TRAINS_DIR: opts.runtime.trains,
-      ...(opts.runtime.manifest === null
-        ? {}
-        : { METRO_RUNTIME_STORE: opts.runtime.dir, METRO_RUNTIME_MANIFEST: opts.runtime.manifest }),
+      METRO_RUNTIME_STORE: opts.runtime.dir,
+      METRO_RUNTIME_MANIFEST: opts.runtime.manifest,
       METRO_STATE_DIR: process.env.METRO_STATE_DIR ?? serveStateDir(),
       METRO_TUNNEL: 'tailscale',
       METRO_TAILSCALE_BIN: opts.tailscaleBin,

@@ -9,7 +9,7 @@ const RUNTIME = {
   dir: '/opt/metro/runtime',
   entry: join('/opt/metro/runtime', 'server.ts'),
   trains: join('/opt/metro/runtime', 'trains'),
-  manifest: null,
+  manifest: '/opt/cli/runtime/stations.json',
 };
 
 const KEYS = [
@@ -86,8 +86,7 @@ describe('the daemon a serve plan starts', () => {
     expect(plan.env.METRO_TRAINS_DIR).toBe(join('/opt/metro/runtime', 'trains'));
     expect(plan.env.METRO_STATE_DIR).toBe('/tmp/cache-home/metro/serve');
     expect(plan.env.DATABASE_URL).toBeUndefined();
-    expect(plan.env.METRO_RUNTIME_STORE).toBeUndefined();
-    expect(plan.env.METRO_RUNTIME_MANIFEST).toBeUndefined();
+    expect(plan.env.METRO_RUNTIME_STORE).toBe('/opt/metro/runtime');
   });
 
   test('a runtime store names itself and its manifest to the daemon, so channels attached later install their SDK', () => {

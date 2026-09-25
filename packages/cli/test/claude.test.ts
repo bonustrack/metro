@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { agentKey, bypassSandboxEnv, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, servingDaemon } from '../src/claude.ts';
+import { agentKey, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, servingDaemon } from '../src/claude.ts';
 
 describe('metro claude hands everything to claude untouched', () => {
   test('the channel and permission flags come first, then the user arguments verbatim, so a user flag wins', () => {
@@ -39,15 +39,6 @@ describe('metro claude hands everything to claude untouched', () => {
   test('the permission mode the box chose is passed, bypass as bypassPermissions', () => {
     expect(claudeArgs([], undefined, 'bypass').slice(2, 4)).toEqual(['--permission-mode', 'bypassPermissions']);
     expect(claudeArgs([], undefined, 'auto').slice(2, 4)).toEqual(['--permission-mode', 'auto']);
-  });
-
-  test('bypass under root sets IS_SANDBOX=1 so Claude Code does not refuse to skip permissions as root, and nothing else does', () => {
-    expect(bypassSandboxEnv({ HOME: '/root' }, 'bypass', 0)).toEqual({ HOME: '/root', IS_SANDBOX: '1' });
-    expect(bypassSandboxEnv({ HOME: '/root' }, 'auto', 0)).toEqual({ HOME: '/root' });
-    expect(bypassSandboxEnv({ HOME: '/Users/less' }, 'bypass', 501)).toEqual({ HOME: '/Users/less' });
-    expect(bypassSandboxEnv({}, 'bypass', undefined)).toEqual({});
-    const already = { IS_SANDBOX: '0' };
-    expect(bypassSandboxEnv(already, 'bypass', 0)).toBe(already);
   });
 
   test('the metro MCP server rides along as an --mcp-config file, before the user arguments', () => {

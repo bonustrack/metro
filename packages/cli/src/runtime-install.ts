@@ -19,7 +19,7 @@ export interface PreparedRuntime {
   dir: string;
   entry: string;
   trains: string;
-  manifest: string | null;
+  manifest: string;
 }
 
 export interface PrepareOptions {
@@ -115,8 +115,7 @@ export function installDependencies(
 export function prepareRuntime(opts: PrepareOptions = {}): PreparedRuntime {
   const sources = opts.sources ?? runtimeDir();
   const manifestPath = join(sources, MANIFEST_FILE);
-  if (!existsSync(manifestPath))
-    return { dir: sources, entry: daemonEntry(sources), trains: join(sources, 'trains'), manifest: null };
+  const manifest = readManifest(manifestPath);
   const store = opts.store ?? runtimeStore();
   const log =
     opts.log ??
@@ -127,7 +126,7 @@ export function prepareRuntime(opts: PrepareOptions = {}): PreparedRuntime {
   syncSources(sources, store);
   installDependencies(
     store,
-    dependenciesFor(readManifest(manifestPath), localStations(opts.agents)),
+    dependenciesFor(manifest, localStations(opts.agents)),
     opts.bun ?? findBun(),
     log,
   );

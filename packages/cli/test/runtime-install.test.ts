@@ -3,7 +3,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dependenciesFor, installDependencies, prepareRuntime, readManifest } from '../src/runtime-install.js';
-import { PACKAGE_ENTRY } from '../src/runtime.js';
+
+const PACKAGE_ENTRY = join('node_modules', '@metro-labs', 'daemon', 'src', 'server.ts');
 
 const MANIFEST = {
   core: { pino: '^9', viem: '2.52.2', zod: '^3' },
@@ -100,15 +101,10 @@ describe('the per-channel runtime store', () => {
     expect(existsSync(join(store, 'node_modules', '.metro-installed'))).toBe(false);
   });
 
-  test('sources without a manifest run in place, the from-source layout', () => {
+  test('sources without a manifest are refused, never run in place', () => {
     const sources = join(root, 'repo');
     mkdirSync(sources, { recursive: true });
-    expect(prepareRuntime({ sources, store: join(root, 'unused'), bun })).toEqual({
-      dir: sources,
-      entry: join(sources, PACKAGE_ENTRY),
-      trains: join(sources, 'trains'),
-      manifest: null,
-    });
+    expect(() => prepareRuntime({ sources, store: join(root, 'unused'), bun })).toThrow('stations.json');
     expect(existsSync(join(root, 'unused'))).toBe(false);
   });
 

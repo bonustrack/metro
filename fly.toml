@@ -1,7 +1,7 @@
 # Fly.io deployment for api.metro.box (apps/api).
 #
 # ONE always-on machine and nothing on disk. This app runs no station, no MCP
-# session and no daemon: it serves wallet sign-in, the server list, the launch
+# session and no daemon: it serves WorkOS sign-in, the server list, the launch
 # API and /health, all backed by Postgres. The volume it used to mount went with
 # the daemon.
 #

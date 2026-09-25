@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7-labs
-# api.metro.box — the hosted service: the vault and the server list on :8420.
+# api.metro.box: sign-in, the server list and the AWS launcher on :8420.
 # No station, no MCP, no gateway runs here; those live in the daemon a user runs on
 # their own machine. No build step: it runs from source via `bun apps/api/src/server.ts`.
 FROM oven/bun:1.4.0

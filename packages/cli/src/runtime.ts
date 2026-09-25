@@ -5,18 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const AGENT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
 export const STORE_ENTRY = 'server.ts';
-export const PACKAGE_ENTRY = join(
-  'node_modules',
-  '@metro-labs',
-  'daemon',
-  'src',
-  'server.ts',
-);
 
-export const daemonEntry = (dir: string): string =>
-  existsSync(join(dir, STORE_ENTRY))
-    ? join(dir, STORE_ENTRY)
-    : join(dir, PACKAGE_ENTRY);
+export const daemonEntry = (dir: string): string => join(dir, STORE_ENTRY);
 
 export class MissingRuntime extends Error {}
 

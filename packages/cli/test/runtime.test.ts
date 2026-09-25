@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -49,8 +49,6 @@ describe('the agent id is validated before anything else happens', () => {
   });
 });
 
-const ENTRY = join('node_modules', '@metro-labs', 'daemon', 'src');
-
 describe('locating the bundled daemon', () => {
   test('the runtime shipped in the package is found with no configuration', () => {
     delete process.env.METRO_RUNTIME_DIR;
@@ -64,8 +62,7 @@ describe('locating the bundled daemon', () => {
 
   test('METRO_RUNTIME_DIR wins when it does hold one', () => {
     const dir = scratch();
-    mkdirSync(join(dir, ENTRY), { recursive: true });
-    writeFileSync(join(dir, ENTRY, 'server.ts'), '');
+    writeFileSync(join(dir, 'server.ts'), '');
     process.env.METRO_RUNTIME_DIR = dir;
     expect(runtimeDir()).toBe(dir);
   });
@@ -132,12 +129,5 @@ describe('the store entry shim', () => {
     process.env.METRO_RUNTIME_DIR = dir;
     expect(runtimeDir()).toBe(dir);
     expect(daemonEntry(dir)).toBe(join(dir, 'server.ts'));
-  });
-
-  test('without the shim the package entry is used, the from-source layout', () => {
-    const dir = scratch();
-    mkdirSync(join(dir, ENTRY), { recursive: true });
-    writeFileSync(join(dir, ENTRY, 'server.ts'), '');
-    expect(daemonEntry(dir)).toBe(join(dir, ENTRY, 'server.ts'));
   });
 });
