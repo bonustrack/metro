@@ -7,7 +7,8 @@ export type Verb =
   | 'unreact'
   | 'edit'
   | 'delete'
-  | 'read';
+  | 'read'
+  | 'typing';
 
 export interface ToolResult {
   content: { type: 'text'; text: string }[];
@@ -104,6 +105,7 @@ export interface Station {
   hasAccounts: boolean;
   hasTrain: boolean;
   messageVerbs: ReadonlySet<Verb>;
+  typingRefreshMs?: number;
   groupOps?: ReadonlySet<GroupOp>;
   resolvesSenders?: boolean;
   profileFields?: ReadonlySet<ProfileField>;

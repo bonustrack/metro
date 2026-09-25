@@ -157,6 +157,17 @@ async function react(id: string, args: Record<string, unknown>): Promise<void> {
   respond(id, { result: { ok: true, account: accountId } });
 }
 
+async function typing(id: string, args: Record<string, unknown>): Promise<void> {
+  const { line, on, account } = args as { line: string; on?: boolean; account?: string };
+  const { accountId, chatId, topicId } = targetOf(line, account);
+  if (on !== false) {
+    const body: Record<string, unknown> = { chat_id: chatId, action: 'typing' };
+    if (topicId !== undefined) body.message_thread_id = topicId;
+    await tg(accountId, 'sendChatAction', body);
+  }
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
 async function edit(id: string, args: Record<string, unknown>): Promise<void> {
   const { line, messageId, text, account } = args as {
     line: string;
@@ -217,6 +228,7 @@ const HANDLERS: Record<string, StationHandler> = {
   accounts: (id) => listAccounts(id),
   send,
   react,
+  typing,
   edit,
   delete: remove,
   listMembers,

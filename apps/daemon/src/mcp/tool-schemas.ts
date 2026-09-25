@@ -86,6 +86,20 @@ export const COMMON_TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'typing',
+    group: 'write',
+    description:
+      'Show "typing…" in a chat while you prepare an answer that takes more than a few seconds. Call it once: metro keeps it alive and stops it when you send or reply on that line, when you call it with on: false, or after 2 minutes. Args: line, on (default true).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        line: lineProp,
+        on: { type: 'boolean', description: 'false stops it. Default true.' },
+      },
+      required: ['line'],
+    },
+  },
+  {
     name: 'unreact',
     group: 'write',
     description:

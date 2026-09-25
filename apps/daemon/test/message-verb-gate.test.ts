@@ -18,7 +18,7 @@ describe('a message verb the line station does not declare', () => {
   test('read on a telegram-bot line is refused before any train call', async () => {
     const res = await dispatchMessageTool('read', { line: 'metro://telegram-bot/t0/-100123' });
     expect(res.isError).toBe(true);
-    expect(text(res)).toBe('telegram-bot does not support read; it supports send, reply, react, unreact, edit, delete.');
+    expect(text(res)).toBe('telegram-bot does not support read; it supports send, reply, react, unreact, edit, delete, typing.');
     expect(calls).toEqual([]);
   });
 

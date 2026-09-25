@@ -25,6 +25,7 @@ function fakeClient(calls: Captured[]): WAClient {
     sendText: record('sendText'),
     sendMedia: record('sendMedia'),
     sendReaction: record('sendReaction'),
+    setTyping: record('setTyping'),
     editMessage: record('editMessage'),
     deleteMessage: record('deleteMessage'),
     setProfile: record('setProfile'),

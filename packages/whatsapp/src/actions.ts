@@ -127,6 +127,14 @@ function makeReact(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeTyping(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const { accountId, client, jid } = resolve(args, clientFor);
+    await guard(() => client.setTyping(jid, args.on !== false));
+    respond(id, { result: { ok: true, account: accountId } });
+  };
+}
+
 function makeEdit(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
     const { accountId, client, jid } = resolve(args, clientFor);
@@ -201,6 +209,7 @@ export function makeHandleCall(
       accounts: makeAccounts(clientFor),
       send: makeSend(clientFor),
       react: makeReact(clientFor),
+      typing: makeTyping(clientFor),
       edit: makeEdit(clientFor),
       delete: makeDelete(clientFor),
       resolve_sender: makeResolveSender(clientFor),

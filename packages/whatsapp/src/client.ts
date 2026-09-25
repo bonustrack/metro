@@ -50,6 +50,7 @@ export interface WAClient {
   sendText(jid: string, text: string, quotedId?: string): Promise<string>;
   sendMedia(jid: string, media: WAMedia, quotedId?: string): Promise<string>;
   sendReaction(jid: string, messageId: string, emoji: string): Promise<void>;
+  setTyping(jid: string, on: boolean): Promise<void>;
   editMessage(jid: string, messageId: string, text: string): Promise<void>;
   deleteMessage(jid: string, messageId: string): Promise<void>;
   reuploadMedia(m: WAMessage): Promise<WAMessage>;
@@ -338,6 +339,10 @@ export function createClient(account: WhatsAppAccount): WAClient {
         mediaContent(media),
         quotedId ? quotedOpts(st, jid, quotedId) : undefined,
       );
+    },
+    async setTyping(jid, on) {
+      const sock = await ready(st);
+      await sock.sendPresenceUpdate(on ? 'composing' : 'paused', jid);
     },
     async sendReaction(jid, messageId, emoji) {
       const target = targetKey(st.keys, jid, messageId, 'react to');
