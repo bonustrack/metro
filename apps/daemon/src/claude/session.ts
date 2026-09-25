@@ -12,13 +12,13 @@ import { claudeDir, listClaudeProjects } from './files.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
 import { inSessionScope } from './memory.js';
-import { agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
+import { agentExtraEnv, agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
 
 function sessionEnv(): Record<string, string> {
   const user = agentUser();
   if (user === null) return {};
   const port = process.env.METRO_WEBHOOK_PORT?.trim() ?? '';
-  return { METRO_AGENTS_DIR: agentViewDir(user), ...(port === '' ? {} : { METRO_WEBHOOK_PORT: port }) };
+  return { ...agentExtraEnv(), METRO_AGENTS_DIR: agentViewDir(user), ...(port === '' ? {} : { METRO_WEBHOOK_PORT: port }) };
 }
 
 export const SESSION_NAME = 'metro';

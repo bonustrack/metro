@@ -19,6 +19,7 @@ import type { GatewayDeps } from '../gateway/gateway.js';
 import { handleTerminalRequest, type TerminalApiDeps } from '../terminal/api.js';
 import { handleSchedulesRequest } from '../agent-user/schedules-api.js';
 import { handleFilesRequest } from '../agent-user/files-api.js';
+import { handleVaultRequest } from '../vault/api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
@@ -27,6 +28,7 @@ export interface SessionApis {
   controlApi?: ControlApiDeps;
   schedulesApi?: true;
   filesApi?: true;
+  vaultApi?: true;
   ownerApi?: OwnerApiDeps;
   machineApi?: MachineApiDeps;
   modelApi?: ModelApiDeps;
@@ -55,6 +57,7 @@ export function handleSessionApis(
     ...when(apis.controlApi, (d) => handleControlRequest(req, res, d)),
     ...when(apis.schedulesApi, () => handleSchedulesRequest(req, res)),
     ...when(apis.filesApi, () => handleFilesRequest(req, res)),
+    ...when(apis.vaultApi, () => handleVaultRequest(req, res)),
     ...when(apis.ownerApi, (d) => handleOwnerRequest(req, res, d)),
     ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),
     ...when(apis.modelApi, (d) => handleModelRequest(req, res, d)),

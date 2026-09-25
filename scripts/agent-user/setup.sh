@@ -1,5 +1,5 @@
 set -e
-apt-get update -qq >/dev/null && apt-get install -y -qq tmux procps cron git >/dev/null
+apt-get update -qq >/dev/null && apt-get install -y -qq tmux procps cron git iptables ca-certificates curl >/dev/null
 chmod 700 /root
 mkdir -p /root/.metro/agents /root/.claude/projects/-root /opt/store/marketplace/.claude-plugin /opt/store/marketplace/plugin/.claude-plugin
 cat > /root/.metro/agents/agent.json <<J

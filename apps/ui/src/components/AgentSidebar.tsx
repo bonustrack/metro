@@ -50,6 +50,7 @@ export function AgentSidebar({ project, selection, onSelect, offline = false }: 
             <NavRow label="Skills" icon="sparkles" selected={SKILL_PAGES.includes(selection.kind)} target={{ kind: 'skills', project }} onSelect={onSelect} disabled={offline} />
             <NavRow label="Channels" icon="chat" selected={STATION_PAGES.includes(selection.kind)} target={{ kind: 'stations', project }} onSelect={onSelect} disabled={offline} />
             <NavRow label="Connectors" icon="viewGridAdd" selected={CONNECTOR_PAGES.includes(selection.kind)} target={{ kind: 'connectors', project }} onSelect={onSelect} disabled={offline} />
+            <NavRow label="Secrets" icon="key" selected={selection.kind === 'secrets'} target={{ kind: 'secrets', project }} onSelect={onSelect} disabled={offline} />
             <NavRow label="Memory" icon="bookmark" selected={selection.kind === 'memory'} target={{ kind: 'memory', project, claudeProject: null, file: null }} onSelect={onSelect} disabled={offline} />
             <NavRow label="Files" icon="folder" selected={selection.kind === 'files'} target={{ kind: 'files', project, path: '' }} onSelect={onSelect} disabled={offline} />
             <NavRow label="Sessions" icon="clock" selected={selection.kind === 'sessions'} target={{ kind: 'sessions', project, claudeProject: null, id: null }} onSelect={onSelect} disabled={offline} />

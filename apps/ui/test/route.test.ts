@@ -33,6 +33,7 @@ describe('the first segment is the daemon', () => {
         { kind: 'memory', project, claudeProject: '-root', file: 'entities/people/less.md' },
         { kind: 'memory', project, claudeProject: '-root', file: 'entities/people' },
         { kind: 'files', project, path: '' },
+        { kind: 'secrets', project },
         { kind: 'files', project, path: 'work/my notes/a#b.md' },
       ];
       for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);

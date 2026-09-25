@@ -197,6 +197,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     controlApi: { restart: deps.restart, stop: deps.stop },
     schedulesApi: true,
     filesApi: true,
+    vaultApi: true,
     ownerApi: { setOwner: (owner) => setLocalOwner(owner) },
     machineApi: {},
     modelApi: {},

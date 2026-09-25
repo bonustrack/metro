@@ -66,7 +66,7 @@ export default defineConfig({
       knip: {
         entry: ['test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
-        ignoreBinaries: ['du', 'getent', 'mktemp', 'ps', 'systemctl', 'tmux'],
+        ignoreBinaries: ['apt-get', 'du', 'getent', 'mktemp', 'ps', 'systemctl', 'tmux', 'update-ca-certificates'],
       },
     },
     'packages/core': {

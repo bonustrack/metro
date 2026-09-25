@@ -27,6 +27,7 @@ const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
 const MODEL_PATH = new RegExp(`^#?/(${HOST})/model$`);
 const CLAUDE_PATH = new RegExp(`^#?/(${HOST})/(?:harness|claude)$`);
 const SKILLS_PATH = new RegExp(`^#?/(${HOST})/skills$`);
+const SECRETS_PATH = new RegExp(`^#?/(${HOST})/secrets$`);
 const SCHEDULED_PATH = new RegExp(`^#?/(${HOST})/scheduled$`);
 const SCHEDULED_JOB_PATH = new RegExp(`^#?/(${HOST})/scheduled/([^/]+)$`);
 const SKILL_PATH = new RegExp(`^#?/(${HOST})/skill/(${SKILL})$`);
@@ -64,6 +65,7 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [CLAUDE_PATH, (project) => ({ kind: 'claude', project })],
   [SKILLS_PATH, (project) => ({ kind: 'skills', project })],
   [SCHEDULED_PATH, (project) => ({ kind: 'scheduled', project })],
+  [SECRETS_PATH, (project) => ({ kind: 'secrets', project })],
   [SCHEDULED_JOB_PATH, (project, id) => ({ kind: 'scheduled-job', project, id: decodeURIComponent(id) })],
   [SKILL_PATH, (project, id) => ({ kind: 'skill', project, id: decodeURIComponent(id) })],
   [STATIONS_PATH, (project) => ({ kind: 'stations', project })],
@@ -141,6 +143,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   claude: () => '/harness',
   skills: () => '/skills',
   scheduled: () => '/scheduled',
+  secrets: () => '/secrets',
   'scheduled-job': (s) => `/scheduled/${s.kind === 'scheduled-job' ? encodeURIComponent(s.id) : ''}`,
   skill: (s) => `/skill/${s.kind === 'skill' ? encodeURIComponent(s.id) : ''}`,
   stations: () => '/channels',

@@ -25,6 +25,7 @@ import { loadConnectorPolicies, readLocalConnectors } from '../connectors/store.
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { provisionAgentUser } from '../agent-user/provision.js';
 import { convertRootJobs } from '../agent-user/schedules.js';
+import { applyVault } from '../vault/index.js';
 import { agentUser as currentAgentUser } from '../agent-user/user.js';
 import { ensureServiceOomPolicy } from '../claude/memory.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
@@ -164,6 +165,8 @@ async function startClaude(): Promise<void> {
   if (agentUser === 'ready') {
     const switched = convertRootJobs(currentAgentUser());
     if (switched > 0) log.info({ switched }, "schedules: jobs that pointed into root's home now run as the agent user");
+    const vault = (await applyVault()).status;
+    if (vault.enabled) log.info({ running: vault.running, problem: vault.problem }, 'vault: the agent reaches the internet through the vault');
   }
   ensureMetroPlugin()
     .then((outcome) => {

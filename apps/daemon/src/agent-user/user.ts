@@ -42,6 +42,14 @@ export function forgetAgentUser(): void {
   cached = null;
 }
 
+let extraEnv: Record<string, string> = {};
+
+export function setAgentExtraEnv(env: Record<string, string>): void {
+  extraEnv = { ...env };
+}
+
+export const agentExtraEnv = (): Record<string, string> => ({ ...extraEnv });
+
 export function agentEnv(user: AgentUser, extra: Record<string, string> = {}): Record<string, string> {
   return {
     HOME: user.home,
@@ -51,6 +59,7 @@ export function agentEnv(user: AgentUser, extra: Record<string, string> = {}): R
     LANG: process.env.LANG ?? 'C.UTF-8',
     TERM: process.env.TERM ?? 'xterm-256color',
     PATH: AGENT_PATH.map((p) => (p.startsWith('/') ? p : join(user.home, p))).join(':'),
+    ...extraEnv,
     ...extra,
   };
 }

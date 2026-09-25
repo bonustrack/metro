@@ -26,13 +26,14 @@ export type Selection =
   | { kind: 'scheduled'; project: string }
   | { kind: 'scheduled-job'; project: string; id: string }
   | { kind: 'files'; project: string; path: string }
+  | { kind: 'secrets'; project: string }
   | { kind: 'skill'; project: string; id: string };
 
 export function selectionProject(selection: Selection): string | null {
   return 'project' in selection ? selection.project : null;
 }
 
-type PlainKind = 'home' | 'agent-settings' | 'server' | 'terminal' | 'model' | 'stations' | 'connectors' | 'claude' | 'skills' | 'scheduled';
+type PlainKind = 'home' | 'agent-settings' | 'server' | 'terminal' | 'model' | 'stations' | 'connectors' | 'claude' | 'skills' | 'scheduled' | 'secrets';
 type LandingKind = PlainKind | 'sessions' | 'memory' | 'files';
 
 const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
@@ -53,6 +54,7 @@ const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
   sessions: 'sessions',
   memory: 'memory',
   files: 'files',
+  secrets: 'secrets',
 };
 
 export function sameViewOn(selection: Selection, project: string): Selection {
