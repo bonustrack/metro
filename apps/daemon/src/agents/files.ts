@@ -1,5 +1,4 @@
-import { existsSync, readdirSync, readFileSync, renameSync, rmdirSync } from 'node:fs';
-import { log } from '@metro-labs/core/log';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { AGENT_NAME_RE, ID_RE } from '@metro-labs/core/ids';
@@ -126,34 +125,9 @@ export function readAgentFile(path: string): AgentFile {
   return parseAgentFile(raw, path);
 }
 
-function legacyAgentFiles(dir: string): string[] {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => join(dir, entry.name, AGENT_FILE))
-    .filter((path) => existsSync(path))
-    .sort();
-}
-
 export function listAgentFiles(dir = agentsDir()): string[] {
   const fixed = agentFilePath(dir);
-  return existsSync(fixed) ? [fixed] : legacyAgentFiles(dir);
-}
-
-export function migrateAgentLayout(dir = agentsDir()): 'moved' | 'kept' | 'none' {
-  const fixed = agentFilePath(dir);
-  if (existsSync(fixed)) return 'kept';
-  const [first, ...rest] = legacyAgentFiles(dir);
-  if (first === undefined) return 'none';
-  renameSync(first, fixed);
-  try {
-    rmdirSync(join(first, '..'));
-  } catch {
-    log.warn({ folder: join(first, '..') }, 'agent layout: the old agent folder is not empty and was left in place');
-  }
-  for (const extra of rest) log.warn({ path: extra }, 'agent layout: a second agent file is ignored; a box holds one agent');
-  log.info({ from: first, to: fixed }, 'agent layout: moved the agent file to its fixed place');
-  return 'moved';
+  return existsSync(fixed) ? [fixed] : [];
 }
 
 export function loadFileAgents(dir = agentsDir()): LoadedAgent[] {
