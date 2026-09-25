@@ -35,5 +35,6 @@ describe('the files the agent can see', () => {
     expect(() => segmentsOf('work/../../etc')).toThrow();
     expect(segmentsOf('/work//notes/')).toEqual(['work', 'notes']);
     expect(() => readAgentPath(null, 'missing', home())).toThrow(/no such/);
+    expect(() => readAgentPath(null, '')).toThrow(/does not run as its own user/);
   });
 });

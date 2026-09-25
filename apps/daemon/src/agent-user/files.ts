@@ -1,6 +1,5 @@
 import { spawnSync } from 'node:child_process';
 import { closeSync, openSync, readdirSync, readSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { asUser, type AgentUser } from './user.js';
@@ -113,5 +112,8 @@ function readLocal(root: string, path: string): FilesAnswer {
   return folderAnswer(root, path, entries);
 }
 
-export const readAgentPath = (user: AgentUser | null, path: string, localRoot = homedir()): FilesAnswer =>
-  user === null ? readLocal(localRoot, path) : readAsAgent(user, path);
+export function readAgentPath(user: AgentUser | null, path: string, localRoot?: string): FilesAnswer {
+  if (user !== null) return readAsAgent(user, path);
+  if (localRoot === undefined) throw new ApiError('Claude Code does not run as its own user on this machine, so there is no agent folder to show', 409);
+  return readLocal(localRoot, path);
+}

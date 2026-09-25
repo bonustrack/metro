@@ -18,13 +18,12 @@ interface FilesProps {
   onSelect: (selection: Selection) => void;
 }
 
-const HOME = 'Home';
 const EMPTY = 'This folder is empty.';
-const INTRO = "Everything in the agent's home folder, read with the agent's own rights: what you see here is what the agent can open.";
+const INTRO = "The agent's own folder, read with the agent's rights: only what the agent itself can open. Metro's files and the channel credentials are not here.";
 
-function crumbsOf(project: string, path: string, onSelect: (s: Selection) => void): Crumb[] {
+function crumbsOf(project: string, root: string, path: string, onSelect: (s: Selection) => void): Crumb[] {
   const parts = pathSegments(path);
-  return [HOME, ...parts].map((label, at) => {
+  return [root, ...parts].map((label, at) => {
     const target: Selection = { kind: 'files', project, path: parts.slice(0, at).join('/') };
     return { label, href: routeHash(target), onPress: () => { onSelect(target); } };
   });
@@ -78,7 +77,12 @@ function FilesBody({ project, path, onSelect }: FilesProps): ReactNode {
   const query = useBoxQuery(['agent-files', path], () => fetchAgentPath(path), { staleTime: 5_000, retry: false });
   if (query.error !== null) return <Text size="sm" role="danger">{queryError(query.error, 'Could not read that path.')}</Text>;
   if (query.data === undefined) return <Loading />;
-  return query.data.kind === 'folder' ? <FolderList project={project} answer={query.data} onSelect={onSelect} /> : <FileView answer={query.data} />;
+  return (
+    <Col gap={16}>
+      <Crumbs crumbs={crumbsOf(project, query.data.root === '' ? 'Agent folder' : query.data.root, path, onSelect)} />
+      {query.data.kind === 'folder' ? <FolderList project={project} answer={query.data} onSelect={onSelect} /> : <FileView answer={query.data} />}
+    </Col>
+  );
 }
 
 export function Files({ project, path, onSelect }: FilesProps): ReactNode {
@@ -93,7 +97,6 @@ export function Files({ project, path, onSelect }: FilesProps): ReactNode {
       ) : (
         <>
           <Text size="sm" role="secondary">{INTRO}</Text>
-          <Crumbs crumbs={crumbsOf(project, path, onSelect)} />
           <FilesBody project={project} path={path} onSelect={onSelect} />
         </>
       )}
