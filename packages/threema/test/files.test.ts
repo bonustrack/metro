@@ -77,7 +77,10 @@ const inboundFrom = (from: string, plain: Uint8Array, messageId = 'aaaaaaaaaaaaa
 const openedTo = (form: URLSearchParams): ReturnType<typeof decode> =>
   decode(open(new Uint8Array(Buffer.from(form.get('box') ?? '', 'hex')), new Uint8Array(Buffer.from(form.get('nonce') ?? '', 'hex')), gateway.publicKey, alice) ?? new Uint8Array());
 
-const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
+async function eventCount(n: number): Promise<void> {
+  const until = Date.now() + 2_000;
+  while (cap.written.events.length < n && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
+}
 
 beforeEach(() => {
   process.env.THREEMA_GROUPS_DIR = mkdtempSync(join(tmpdir(), 'threema-groups-'));
@@ -125,7 +128,7 @@ describe('files on the wire', () => {
     expect(cap.written.responses[0]).toMatchObject({ result: { ok: true, kind: 'file' } });
     const message = cap.written.events[0] ?? {};
     expect(message).toMatchObject({ line: 'metro://threema/t0/ALICE001', text: 'my cat', message_id: 'aaaaaaaaaaaaaaaa', payload: { attachments: [{ kind: 'image', name: 'cat.png', mime: 'image/png', size: 4 }] } });
-    await settle();
+    await eventCount(2);
     const saved = cap.written.events[1] ?? {};
     expect(saved).toMatchObject({ line: 'metro://threema/t0/ALICE001', payload: { contentType: 'attachmentSaved', attachmentFor: message.id, index: 0, kind: 'image', mime: 'image/png', name: 'cat.png', size: 4 } });
     const path = String((saved.payload as { attachmentPath: string }).attachmentPath);
@@ -135,13 +138,13 @@ describe('files on the wire', () => {
 
   test('a blob that is gone or does not decrypt is reported as a failed attachment, never silently', async () => {
     await call('callback', inboundFrom('ALICE001', encodeFile({ blobId: 'e'.repeat(32), key: bytesToHex(newBlobKey()), mime: 'application/pdf', name: 'q.pdf', size: null, caption: null, media: false })));
-    await settle();
+    await eventCount(2);
     expect(cap.written.events[0]).toMatchObject({ text: '', payload: { attachments: [{ kind: 'file', name: 'q.pdf' }] } });
     expect(cap.written.events[1]).toMatchObject({ payload: { contentType: 'attachmentFailed', kind: 'file' } });
     blobs.set('f'.repeat(32), sealBlob(new Uint8Array([1]), newBlobKey()));
     cap.written.events.length = 0;
     await call('callback', inboundFrom('ALICE001', encodeGroupFile(GROUP, { blobId: 'f'.repeat(32), key: bytesToHex(newBlobKey()), mime: 'text/plain', name: 'n.txt', size: 1, caption: null, media: false })));
-    await settle();
+    await eventCount(2);
     expect(cap.written.events[0]).toMatchObject({ line: GROUP_LINE, is_private: false });
     expect(cap.written.events.at(-1)).toMatchObject({ line: GROUP_LINE, payload: { contentType: 'attachmentFailed', reason: expect.stringContaining('did not decrypt') as unknown } });
   });
