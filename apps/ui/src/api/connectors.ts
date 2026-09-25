@@ -5,14 +5,14 @@ import { policyOf, type ToolPolicy } from './policy.js';
 
 export type ConnectorAuth = 'header' | 'oauth' | 'none';
 
-export type ConnectorSignIn = 'connected' | 'disconnected' | null;
+type ConnectorSignIn = 'connected' | 'disconnected' | null;
 
-export interface ConnectorVerified {
+interface ConnectorVerified {
   at: string;
   server: string;
 }
 
-export interface ConnectorHealth {
+interface ConnectorHealth {
   ok: boolean;
   reason: string | null;
   at: string;

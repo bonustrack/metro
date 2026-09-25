@@ -5,7 +5,7 @@ import type { ToolGroup } from '@metro-labs/core/stations/types';
 
 export type Access = 'allow' | 'ask' | 'deny';
 
-export const ACCESS: readonly Access[] = ['allow', 'ask', 'deny'];
+const ACCESS: readonly Access[] = ['allow', 'ask', 'deny'];
 
 export interface ToolPolicy {
   read?: Access;

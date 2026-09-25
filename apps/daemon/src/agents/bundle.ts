@@ -27,21 +27,21 @@ export const loadedAgentOf = (bundle: AgentBundle): LoadedAgent => ({
   accounts: bundle.agent.stations,
 });
 
-export interface RestoredAgent {
+interface RestoredAgent {
   id: string;
   name: string;
   stations: number;
   connectors: number;
 }
 
-export type ImportMode = 'append' | 'overwrite';
+type ImportMode = 'append' | 'overwrite';
 
 export interface BundleApiDeps {
   bundle: (agentId: string) => Promise<AgentBundle>;
   restore: (bundle: AgentBundle, mode: ImportMode) => Promise<RestoredAgent>;
 }
 
-export function parseMode(raw: unknown): ImportMode {
+function parseMode(raw: unknown): ImportMode {
   const mode = isRecord(raw) && typeof raw.mode === 'string' ? raw.mode : 'overwrite';
   if (mode !== 'append' && mode !== 'overwrite') throw bad("mode is 'append' or 'overwrite'");
   return mode;

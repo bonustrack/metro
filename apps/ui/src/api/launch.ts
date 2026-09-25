@@ -5,7 +5,7 @@ import { toServer, type Server } from './servers.js';
 
 export type StepState = 'pending' | 'active' | 'done' | 'failed';
 
-export interface BootStep {
+interface BootStep {
   key: string;
   label: string;
   state: StepState;

@@ -44,7 +44,7 @@ function toInvitation(value: unknown): Invitation | null {
   return { id: value.id, email: value.email, role: value.role === undefined || value.role === null ? null : roleOf(value.role), expiresAt: filled(value.expiresAt) };
 }
 
-export function toOrganization(body: unknown): Organization {
+function toOrganization(body: unknown): Organization {
   if (!isRecord(body) || typeof body.id !== 'string' || typeof body.self !== 'string') throw unexpected();
   const members = Array.isArray(body.members) ? body.members.map(toMember).filter((m): m is Member => m !== null) : [];
   const invitations = Array.isArray(body.invitations) ? body.invitations.map(toInvitation).filter((i): i is Invitation => i !== null) : [];

@@ -3,7 +3,7 @@ import { filled, isRecord } from '../api/read.js';
 const STORAGE_KEY = 'metro.account';
 const EXPIRY_MARGIN_MS = 60_000;
 
-export interface AccountUser {
+interface AccountUser {
   id: string;
   email: string | null;
   name: string | null;
@@ -28,7 +28,7 @@ const HANDOFF_RE = /^#\/auth\/([A-Za-z0-9_-]{16,128})$/;
 
 export const handoffCode = (hash: string): string | null => HANDOFF_RE.exec(hash)?.[1] ?? null;
 
-export function tokenClaims(token: string): Record<string, unknown> | null {
+function tokenClaims(token: string): Record<string, unknown> | null {
   const body = token.split('.')[1];
   if (body === undefined) return null;
   try {

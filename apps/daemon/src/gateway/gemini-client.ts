@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-export const CODE_ASSIST_BASE = 'https://cloudcode-pa.googleapis.com';
-export const CODE_ASSIST_DAILY = 'https://daily-cloudcode-pa.googleapis.com';
+const CODE_ASSIST_BASE = 'https://cloudcode-pa.googleapis.com';
+const CODE_ASSIST_DAILY = 'https://daily-cloudcode-pa.googleapis.com';
 export const API = 'v1internal';
-export const APP_VERSION = '2.0.3';
-export const CLIENT_VERSION = '1.110.0';
+const APP_VERSION = '2.0.3';
+const CLIENT_VERSION = '1.110.0';
 export const CLIENT_NAME = 'antigravity';
-export const IDE_TYPE = 9;
-export const PLUGIN_TYPE = 2;
+const IDE_TYPE = 9;
+const PLUGIN_TYPE = 2;
 export const SYSTEM_PREFIX =
   'You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding.You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.**Absolute paths only****Proactiveness**';
 
@@ -15,7 +15,7 @@ const PLATFORMS: Record<string, number> = { 'darwin-x64': 1, 'darwin-arm64': 2, 
 
 const osName = (): string => (process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux');
 
-export const platformCode = (): number => PLATFORMS[`${process.platform}-${process.arch}`] ?? 0;
+const platformCode = (): number => PLATFORMS[`${process.platform}-${process.arch}`] ?? 0;
 
 export const clientMetadata = (project: string | null): Record<string, unknown> => ({
   ideType: IDE_TYPE,

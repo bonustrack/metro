@@ -13,7 +13,7 @@ const WIDTH = 760;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const CARD_MIN = 150;
 
-export function sinceWeek(rows: { at: string | null }[], now: number): number {
+function sinceWeek(rows: { at: string | null }[], now: number): number {
   return rows.filter((r) => r.at !== null && now - Date.parse(r.at) < WEEK_MS).length;
 }
 

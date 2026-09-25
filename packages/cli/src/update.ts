@@ -31,7 +31,7 @@ export const checkReport = (current: string, latest: string): UpdateCheck => ({
   newer: latest !== '' && isNewer(latest, current),
 });
 
-export async function updateCheck(): Promise<UpdateCheck> {
+async function updateCheck(): Promise<UpdateCheck> {
   return checkReport(currentVersion(), await publishedVersion());
 }
 

@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { isRecord } from '@metro-labs/core/is-record';
 
-export const ELIDED = '\u0000';
+const ELIDED = '\u0000';
 
 const CODE_POINTS = /(?:\\n|\n)⋯ \d+ code points elided ⋯(?:\\n|\n)/g;
 const FIELD_BLOCK = /[\s,]*(?:\\n|\n)?\s*⋯[^]*$/;

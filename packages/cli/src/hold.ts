@@ -50,7 +50,7 @@ function sendJson(req: IncomingMessage, res: ServerResponse, status: number, bod
   res.end(JSON.stringify(body));
 }
 
-export function holdRequest(req: IncomingMessage, res: ServerResponse, info: HoldInfo, onStart: () => void): void {
+function holdRequest(req: IncomingMessage, res: ServerResponse, info: HoldInfo, onStart: () => void): void {
   const path = (req.url ?? '').split('?')[0] ?? '';
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders(req)).end();

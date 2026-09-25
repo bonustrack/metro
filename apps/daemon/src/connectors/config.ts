@@ -139,7 +139,7 @@ function readVerified(raw: unknown): VerifiedRecord {
 const TOOL_NAME_MAX = 128;
 const TOOL_GROUPS_MAX = 1000;
 
-export function readToolGroups(raw: unknown): Record<string, ToolGroup> | undefined {
+function readToolGroups(raw: unknown): Record<string, ToolGroup> | undefined {
   if (!isRecord(raw)) return undefined;
   const kept = Object.entries(raw)
     .filter((entry): entry is [string, ToolGroup] => entry[0].length <= TOOL_NAME_MAX && (entry[1] === 'read' || entry[1] === 'write'))

@@ -7,7 +7,7 @@ import { helperRun } from './unit-files.js';
 const UNIT_DIR = '/etc/systemd/system';
 const OWN_UNITS = /^metro(-claude-\d+)?\.(service|scope)$/;
 
-export type JobKind = 'timer' | 'cron-agent';
+type JobKind = 'timer' | 'cron-agent';
 
 export interface ScheduledJob {
   id: string;
@@ -47,7 +47,7 @@ export function showProps(runner: Runner, unit: string, props: string[]): Record
   return found;
 }
 
-export function execArgv(execStart: string): string[] {
+function execArgv(execStart: string): string[] {
   const m = /argv\[\]=(.*?) ;/.exec(execStart);
   return m?.[1] === undefined ? [] : m[1].split(' ').filter((a) => a !== '');
 }

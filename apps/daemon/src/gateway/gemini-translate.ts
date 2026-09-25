@@ -8,7 +8,7 @@ import { stringOf } from '@metro-labs/http/api-http';
 
 type Item = Record<string, unknown>;
 
-export const SIGNATURE_PREFIX = 'metro-gemini:';
+const SIGNATURE_PREFIX = 'metro-gemini:';
 export const SKIP_SIGNATURE = 'skip_thought_signature_validator';
 const SCHEMA_KEEP = new Set([
   'type',

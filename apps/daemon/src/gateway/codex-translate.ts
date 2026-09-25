@@ -3,7 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { resultText } from './text.js';
 import { stringOf } from '@metro-labs/http/api-http';
 
-export const SIGNATURE_PREFIX = 'metro-codex:';
+const SIGNATURE_PREFIX = 'metro-codex:';
 const DEFAULT_EFFORT = 'medium';
 const EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh']);
 const EFFORT_ALIAS: Record<string, string> = { max: 'xhigh' };

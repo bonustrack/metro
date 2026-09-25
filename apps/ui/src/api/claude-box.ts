@@ -11,7 +11,7 @@ export interface ClaudeSessionStatus {
 }
 
 
-export function toClaudeSession(body: unknown): ClaudeSessionStatus {
+function toClaudeSession(body: unknown): ClaudeSessionStatus {
   if (!isRecord(body) || typeof body.running !== 'boolean') throw new Error('Metro returned an unexpected response.');
   return {
     name: typeof body.name === 'string' ? body.name : 'metro',
@@ -43,7 +43,7 @@ export interface ClaudeSetup {
   retentionDays: number | null;
 }
 
-export function toClaudeSetup(body: unknown): ClaudeSetup {
+function toClaudeSetup(body: unknown): ClaudeSetup {
   if (!isRecord(body) || typeof body.privacy !== 'boolean') throw new Error('Metro returned an unexpected response.');
   return {
     privacy: body.privacy,
@@ -78,7 +78,7 @@ export interface ClaudeVersion {
   newer: boolean;
 }
 
-export function toClaudeVersion(body: unknown): ClaudeVersion {
+function toClaudeVersion(body: unknown): ClaudeVersion {
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   return { installed: filled(body.installed), latest: filled(body.latest), newer: body.newer === true };
 }

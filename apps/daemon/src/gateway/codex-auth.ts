@@ -10,7 +10,7 @@ export const CODEX_ISSUER = 'https://auth.openai.com';
 export const CODEX_REDIRECT = 'http://localhost:1455/auth/callback';
 const SCOPE = 'openid profile email offline_access api.connectors.read api.connectors.invoke';
 const AUTH_CLAIM = 'https://api.openai.com/auth';
-export const ACCESS_TOKEN_TTL_MS = 55 * 60_000;
+const ACCESS_TOKEN_TTL_MS = 55 * 60_000;
 
 export interface CodexTokens {
   accessToken: string;

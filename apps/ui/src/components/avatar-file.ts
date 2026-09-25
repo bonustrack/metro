@@ -1,8 +1,8 @@
-export const RASTER_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
+const RASTER_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
 export const AVATAR_ACCEPT = RASTER_TYPES.join(',');
-export const AVATAR_SIDE = 128;
+const AVATAR_SIDE = 128;
 export const AVATAR_MAX_BYTES = 96 * 1024;
-export const NOT_RASTER = 'Pick a PNG, JPEG, WebP or GIF image. SVG is not accepted.';
+const NOT_RASTER = 'Pick a PNG, JPEG, WebP or GIF image. SVG is not accepted.';
 const PREFIX = 'data:image/png;base64,';
 
 export const acceptsAvatar = (type: string): boolean => (RASTER_TYPES as readonly string[]).includes(type.toLowerCase());

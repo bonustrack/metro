@@ -17,7 +17,7 @@ export interface UserHost {
   lookup: (name: string) => AgentUser | null;
 }
 
-export function lookupUser(name: string): AgentUser | null {
+function lookupUser(name: string): AgentUser | null {
   const run = spawnSync('getent', ['passwd', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (run.error !== undefined || run.status !== 0) return null;
   const [, , uid = '', gid = '', , home = ''] = run.stdout.trim().split(':');
@@ -50,7 +50,7 @@ export function setAgentExtraEnv(env: Record<string, string>): void {
 
 export const agentExtraEnv = (): Record<string, string> => ({ ...extraEnv });
 
-export function agentEnv(user: AgentUser, extra: Record<string, string> = {}): Record<string, string> {
+function agentEnv(user: AgentUser, extra: Record<string, string> = {}): Record<string, string> {
   return {
     HOME: user.home,
     USER: user.name,

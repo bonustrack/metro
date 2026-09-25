@@ -8,7 +8,7 @@ export type Db = PostgresJsDatabase<typeof schema>;
 let sql: ReturnType<typeof postgres> | null = null;
 let db: Db | null = null;
 
-export function databaseUrl(): string | undefined {
+function databaseUrl(): string | undefined {
   const url = process.env.DATABASE_URL?.trim();
   if (!url) return undefined;
   return url;

@@ -69,7 +69,7 @@ function pluginRootsUnder(dir: string, depth: number, out: string[]): void {
       pluginRootsUnder(join(dir, entry.name), depth - 1, out);
 }
 
-export function stagedPluginDir(env: NodeJS.ProcessEnv = process.env): string | null {
+function stagedPluginDir(env: NodeJS.ProcessEnv = process.env): string | null {
   const store = env.METRO_RUNTIME_STORE?.trim() ?? '';
   if (store === '') return null;
   const user = agentUser();

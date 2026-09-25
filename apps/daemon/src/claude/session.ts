@@ -22,7 +22,7 @@ function sessionEnv(): Record<string, string> {
   return { ...agentExtraEnv(), METRO_AGENTS_DIR: agentViewDir(user), ...(port === '' ? {} : { METRO_WEBHOOK_PORT: port }) };
 }
 
-export const SESSION_NAME = 'metro';
+const SESSION_NAME = 'metro';
 const STATE_FILE = 'claude-session.json';
 const WARNING = 'WARNING: Loading development channels';
 const CONFIRM_POLL_MS = 500;
@@ -78,7 +78,7 @@ export function setAutostart(enabled: boolean, agents = agentsDir()): void {
   writeState(agents, { autostart: enabled });
 }
 
-export function startedVersion(agents = agentsDir()): string | null {
+function startedVersion(agents = agentsDir()): string | null {
   const version = readState(agents).version;
   return typeof version === 'string' ? version : null;
 }

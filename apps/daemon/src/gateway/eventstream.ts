@@ -56,7 +56,7 @@ function readHeaders(buf: Buffer): Record<string, string> {
   return out;
 }
 
-export function decodeFrame(buf: Buffer, offset: number): { message: EventStreamMessage; end: number } | null {
+function decodeFrame(buf: Buffer, offset: number): { message: EventStreamMessage; end: number } | null {
   if (buf.length - offset < PRELUDE_BYTES) return null;
   const total = buf.readUInt32BE(offset);
   const headersLen = buf.readUInt32BE(offset + 4);

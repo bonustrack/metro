@@ -10,7 +10,7 @@ import { UNGATED } from './policy-gate.js';
 import { connectorGates } from '../connectors/gates.js';
 import { stationToolOwners, TOOL_DEFS, toolGroupOf } from './tool-catalog.js';
 
-export interface PolicySnapshot {
+interface PolicySnapshot {
   version: 1;
   tools: Record<string, ToolGroup>;
   owners: Record<string, string>;
@@ -31,7 +31,7 @@ const FILE = 'policy.json';
 
 export const policySnapshotPath = (dir = agentsDir()): string => join(dir, FILE);
 
-export function policySnapshot(): PolicySnapshot {
+function policySnapshot(): PolicySnapshot {
   const accounts: Record<string, ToolPolicy> = {};
   for (const { target, policy } of storedPolicies())
     if (target.kind === 'channel') accounts[`${target.station}/${target.account}`] = policy;
@@ -60,7 +60,7 @@ function current(path: string): string | undefined {
   }
 }
 
-export function writePolicySnapshot(path = policySnapshotPath()): void {
+function writePolicySnapshot(path = policySnapshotPath()): void {
   const text = `${JSON.stringify(policySnapshot(), null, 2)}\n`;
   if (current(path) === text) return;
   try {

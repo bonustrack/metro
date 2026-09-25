@@ -11,7 +11,7 @@ export class GatewayError extends Error {
   }
 }
 
-export const BODY_MAX = 64 * 1024 * 1024;
+const BODY_MAX = 64 * 1024 * 1024;
 const DRAIN_FACTOR = 2;
 const PING_MS = 25_000;
 const PING_FRAME = 'event: ping\ndata: {"type":"ping"}\n\n';
@@ -40,9 +40,9 @@ export const errorFrame = (kind: string, message: string): string => `event: err
 
 export const providerStatus = (status: number): number => (status === 401 ? 403 : status);
 
-export const idleMs = (): number => Number(process.env.METRO_GATEWAY_IDLE_MS) || IDLE_MS;
+const idleMs = (): number => Number(process.env.METRO_GATEWAY_IDLE_MS) || IDLE_MS;
 
-export const idleMessage = (ms: number): string => `metro gateway: the provider sent nothing for ${String(Math.round(ms / 1000))}s; giving up on this request`;
+const idleMessage = (ms: number): string => `metro gateway: the provider sent nothing for ${String(Math.round(ms / 1000))}s; giving up on this request`;
 
 export interface Watch {
   signal: AbortSignal;

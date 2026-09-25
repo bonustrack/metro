@@ -26,7 +26,7 @@ export interface PluginInstallDeps {
 
 export type PluginOutcome = 'skipped' | 'unchanged' | 'installed' | 'updated' | 'failed';
 
-export function storeMarketplaceDir(env: NodeJS.ProcessEnv = process.env): string | null {
+function storeMarketplaceDir(env: NodeJS.ProcessEnv = process.env): string | null {
   const store = env.METRO_RUNTIME_STORE?.trim() ?? '';
   if (store === '') return null;
   const dir = join(store, 'marketplace');
@@ -60,7 +60,7 @@ const runner =
       });
     });
 
-export async function findClaude(candidates = agentUser() === null ? ['claude', join(homedir(), '.local', 'bin', 'claude')] : [claudeBin()]): Promise<Run | null> {
+async function findClaude(candidates = agentUser() === null ? ['claude', join(homedir(), '.local', 'bin', 'claude')] : [claudeBin()]): Promise<Run | null> {
   for (const bin of candidates) {
     const run = runner(bin);
     if ((await run(['--version'])).status === 0) return run;

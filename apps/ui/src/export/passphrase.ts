@@ -1,6 +1,6 @@
 import { buffer, fromBase64Url, toBase64Url } from './bytes.js';
 
-export const PASSPHRASE_MIN = 8;
+const PASSPHRASE_MIN = 8;
 const ITERATIONS = 600_000;
 const SALT_BYTES = 16;
 const NONCE_BYTES = 12;

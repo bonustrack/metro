@@ -61,7 +61,7 @@ export function newerThan(a: string, b: string): boolean {
   return false;
 }
 
-export async function latestClaudeVersion(deps: VersionDeps = {}): Promise<string | null> {
+async function latestClaudeVersion(deps: VersionDeps = {}): Promise<string | null> {
   const now = (deps.now ?? Date.now)();
   if (cached !== null && now - cached.at < CACHE_MS) return cached.latest;
   const fetchImpl = deps.fetchImpl ?? fetch;

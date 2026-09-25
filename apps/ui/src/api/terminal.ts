@@ -9,7 +9,7 @@ export interface TerminalStatus {
 
 const REMEMBERED = 'metro.terminal.session';
 
-export function rememberedSession(base: string, sessions: string[]): string | null {
+function rememberedSession(base: string, sessions: string[]): string | null {
   try {
     const held = localStorage.getItem(`${REMEMBERED}:${base}`);
     return held !== null && sessions.includes(held) ? held : null;

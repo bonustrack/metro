@@ -7,7 +7,7 @@ import type { LoadedAccount, LoadedAgent, StationSource } from '../stations/mate
 import { isRecord } from '@metro-labs/core/is-record';
 import { parsePolicy } from '../policy/policy.js';
 
-export const AGENT_FILE = 'agent.json';
+const AGENT_FILE = 'agent.json';
 
 const KEY_RE = /^[A-Za-z0-9_-]{16,128}$/;
 const STATION_NAMES = new Set<string>(STATIONS);

@@ -3,7 +3,7 @@ import { GatewayError } from './forward.js';
 import type { Connection } from './model-config.js';
 import { stringOf } from '@metro-labs/http/api-http';
 
-export const ANTHROPIC_API = 'https://api.anthropic.com';
+const ANTHROPIC_API = 'https://api.anthropic.com';
 const ANTHROPIC_VERSION = '2023-06-01';
 const LIST_MAX = 1000;
 
@@ -12,7 +12,7 @@ export interface ProviderModel {
   name: string;
 }
 
-export const KNOWN_CLAUDE: ProviderModel[] = [
+const KNOWN_CLAUDE: ProviderModel[] = [
   { id: 'claude-fable-5-1', name: 'Claude Fable 5.1' },
   { id: 'claude-opus-5-5', name: 'Claude Opus 5.5' },
   { id: 'claude-opus-5', name: 'Claude Opus 5' },

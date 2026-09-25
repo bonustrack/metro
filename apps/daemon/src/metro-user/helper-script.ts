@@ -1,8 +1,8 @@
 export const HELPER_PATH = '/usr/local/lib/metro/root-helper';
-export const HELPER_VERSION = 1;
+const HELPER_VERSION = 1;
 export const SUDOERS_PATH = '/etc/sudoers.d/metro';
 export const METRO_USER = 'metro';
-export const METRO_HOME = '/var/lib/metro';
+const METRO_HOME = '/var/lib/metro';
 
 export const sudoersText = (agent: string): string =>
   [

@@ -3,7 +3,7 @@ import { type Account } from '../auth/account.js';
 import { accessToken } from './auth.js';
 import { isRecord } from './read.js';
 
-export const OPERATOR_EMAIL = 'admin@stage.box';
+const OPERATOR_EMAIL = 'admin@stage.box';
 
 export const isOperator = (account: Account | null): boolean => account?.user.email?.toLowerCase() === OPERATOR_EMAIL;
 

@@ -1,13 +1,13 @@
 type Key = string;
 
-export interface UsageWindow {
+interface UsageWindow {
   label: string;
   used: number | null;
   resetAt: string | null;
   detail: string | null;
 }
 
-export interface Tally {
+interface Tally {
   requests: number;
   input: number;
   output: number;

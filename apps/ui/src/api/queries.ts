@@ -122,7 +122,7 @@ export function queryError(err: unknown, fallback: string): string {
 
 export const orgKey = (...parts: string[]): string[] => ['org', currentOrganization() ?? 'none', ...parts];
 
-export const serversKey = (): string[] => orgKey('servers');
+const serversKey = (): string[] => orgKey('servers');
 
 export function useServersQuery(): UseQueryResult<Server[]> {
   return useQuery({ queryKey: serversKey(), queryFn: () => fetchServers(), staleTime: 30_000 });

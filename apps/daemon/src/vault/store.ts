@@ -48,25 +48,25 @@ export function readVault(dir = vaultDir()): VaultState {
   return { version: 1, enabled: raw.enabled === true, secrets };
 }
 
-export function writeVault(state: VaultState, dir = vaultDir()): void {
+function writeVault(state: VaultState, dir = vaultDir()): void {
   ensureSecureDir(dir);
   writeSecure(stateFile(dir), `${JSON.stringify(state, null, 2)}\n`);
 }
 
-export function normalizeName(raw: unknown): string {
+function normalizeName(raw: unknown): string {
   const name = stringOf(raw).trim();
   if (name === '' || name.length > 80) throw new ApiError('a name of 1 to 80 characters is required', 400);
   return name;
 }
 
-export function normalizeEnv(raw: unknown): string {
+function normalizeEnv(raw: unknown): string {
   const env = stringOf(raw).trim();
   if (!ENV_RE.test(env) || RESERVED_ENV.has(env))
     throw new ApiError('the variable name must be capital letters, digits and _, 3 to 64 long, like OPENAI_API_KEY', 400);
   return env;
 }
 
-export function normalizeHosts(raw: unknown): string[] {
+function normalizeHosts(raw: unknown): string[] {
   if (!Array.isArray(raw)) throw new ApiError('hosts must be a list of websites, like api.openai.com', 400);
   const hosts = [...new Set(raw.map((h) => stringOf(h).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')).filter((h) => h !== ''))];
   if (hosts.length === 0 || hosts.length > MAX_HOSTS) throw new ApiError(`a secret needs 1 to ${String(MAX_HOSTS)} websites`, 400);
@@ -75,7 +75,7 @@ export function normalizeHosts(raw: unknown): string[] {
   return hosts;
 }
 
-export function normalizeValue(raw: unknown): string {
+function normalizeValue(raw: unknown): string {
   const value = stringOf(raw).trim();
   if (value === '' || value.length > MAX_VALUE) throw new ApiError('a value of 1 to 16384 characters is required', 400);
   return value;

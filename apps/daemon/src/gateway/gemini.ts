@@ -91,7 +91,7 @@ const detailText = (detail: Record<string, unknown>): string[] => {
   return out.filter((x) => x !== '');
 };
 
-export function refusalMessage(text: string, status: number): string {
+function refusalMessage(text: string, status: number): string {
   const message = upstreamMessage(text, `Gemini answered ${String(status)}`);
   let details: unknown = null;
   try {

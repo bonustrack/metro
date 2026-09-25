@@ -199,7 +199,7 @@ export async function saveMemoryFile(project: string, name: string, content: str
 
 const SCOPES = ['user', 'project', 'local'] as const;
 
-export type SettingsScope = (typeof SCOPES)[number];
+type SettingsScope = (typeof SCOPES)[number];
 
 const isScope = (v: unknown): v is SettingsScope => SCOPES.some((scope) => scope === v);
 
@@ -247,7 +247,7 @@ export async function saveClaudeSettings(id: string, content: string, seenAt: st
   return file;
 }
 
-export type LoginState = 'pending' | 'done' | 'failed';
+type LoginState = 'pending' | 'done' | 'failed';
 
 export interface ClaudeLogin {
   id: string;

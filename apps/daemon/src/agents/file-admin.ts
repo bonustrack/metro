@@ -35,7 +35,7 @@ interface Stored {
 
 const missing = (): AgentAdminError => new AgentAdminError('no such agent', 404);
 
-export function parseOwner(raw: string): string | null {
+function parseOwner(raw: string): string | null {
   const text = raw.trim();
   return isOrganizationId(text) ? text : null;
 }
@@ -56,7 +56,7 @@ export function setLocalOwner(raw: string, dir = agentsDir()): string {
   return owner;
 }
 
-export function storedAgents(dir: string): Stored[] {
+function storedAgents(dir: string): Stored[] {
   return listAgentFiles(dir).map((path) => ({ path, file: readAgentFile(path) }));
 }
 

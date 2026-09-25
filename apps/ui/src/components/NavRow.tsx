@@ -17,7 +17,7 @@ export const NAV_ICON_SIZE = 18;
 
 export const NAV_GAP = 6;
 
-export function NavIcon({ name, color }: { name: HeroIconName; color: string }): ReactNode {
+function NavIcon({ name, color }: { name: HeroIconName; color: string }): ReactNode {
   return (
     <Row width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} align="center" justify="center">
       <Icon name={name} size={NAV_ICON_SIZE} color={color} />

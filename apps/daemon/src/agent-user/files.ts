@@ -3,9 +3,9 @@ import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { asUser, type AgentUser } from './user.js';
 
-export type EntryKind = 'folder' | 'file' | 'other';
+type EntryKind = 'folder' | 'file' | 'other';
 
-export interface FileEntry {
+interface FileEntry {
   name: string;
   kind: EntryKind;
   bytes: number;

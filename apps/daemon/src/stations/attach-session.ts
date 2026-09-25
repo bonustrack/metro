@@ -50,13 +50,13 @@ export interface AttachView {
   expiresAt: number;
 }
 
-export type CompleteAttach = (
+type CompleteAttach = (
   owner: AttachOwner,
   station: StationName,
   config: Record<string, unknown>,
 ) => Promise<{ accountId: string; activated: boolean }>;
 
-export type AuthorizeAttach = (owner: AttachOwner) => Promise<void>;
+type AuthorizeAttach = (owner: AttachOwner) => Promise<void>;
 
 export interface AttachSessionDeps {
   authorize: AuthorizeAttach;

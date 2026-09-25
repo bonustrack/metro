@@ -12,7 +12,7 @@ const SVG_STYLE = { display: 'block', width: '100%', height: HEIGHT } as const;
 
 const dayStart = (ms: number): number => Math.floor(ms / DAY_MS) * DAY_MS;
 
-export function signupsByDay(users: { createdAt: string | null }[], now: number, days = DAYS): number[] {
+function signupsByDay(users: { createdAt: string | null }[], now: number, days = DAYS): number[] {
   const first = dayStart(now) - (days - 1) * DAY_MS;
   const counts = new Array<number>(days).fill(0);
   for (const user of users) {

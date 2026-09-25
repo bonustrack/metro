@@ -37,7 +37,7 @@ export interface Schedules {
   jobs: ScheduledJob[];
 }
 
-export function toSchedules(body: unknown): Schedules {
+function toSchedules(body: unknown): Schedules {
   if (!isRecord(body) || !Array.isArray(body.jobs)) throw new Error('Metro returned an unexpected response.');
   return { agentUser: filled(body.agentUser), jobs: body.jobs.map(toJob).filter((j): j is ScheduledJob => j !== null) };
 }

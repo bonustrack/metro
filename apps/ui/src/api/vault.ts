@@ -10,7 +10,7 @@ export interface VaultSecret {
   updatedAt: string;
 }
 
-export interface VaultRequest {
+interface VaultRequest {
   at: string;
   method: string;
   host: string;
@@ -40,7 +40,7 @@ const requestOf = (raw: unknown): VaultRequest[] =>
     ? [{ at: str(raw.at), method: str(raw.method), host: str(raw.host), path: str(raw.path), status: typeof raw.status === 'number' ? raw.status : null, swapped: strings(raw.swapped) }]
     : [];
 
-export function toVault(body: unknown): Vault {
+function toVault(body: unknown): Vault {
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   return {
     available: body.available === true,

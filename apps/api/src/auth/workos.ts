@@ -29,7 +29,7 @@ export class WorkosError extends Error {
   }
 }
 
-export const ALL_PROVIDERS: Provider[] = ['google', 'microsoft', 'github'];
+const ALL_PROVIDERS: Provider[] = ['google', 'microsoft', 'github'];
 export const isProvider = (value: unknown): value is Provider => typeof value === 'string' && (ALL_PROVIDERS as string[]).includes(value);
 
 export function readWorkosConfig(env: NodeJS.ProcessEnv = process.env): WorkosConfig | null {
@@ -203,7 +203,7 @@ export const ORGANIZATION_NAME_RE = /^[^\p{Cc}]{2,64}$/u;
 
 const names = new Map<string, string>();
 
-export function rememberOrganizationName(id: string, name: string): void {
+function rememberOrganizationName(id: string, name: string): void {
   names.set(id, name);
 }
 

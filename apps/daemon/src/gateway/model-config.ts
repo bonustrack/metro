@@ -34,14 +34,14 @@ export interface Route {
 
 export class ModelConfigError extends Error {}
 
-export const MODEL_FILE = 'model.json';
+const MODEL_FILE = 'model.json';
 const MAX_FIELD = 512;
 const MAX_LABEL = 60;
 const MAX_CONNECTIONS = 20;
 const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex|gemini):(.+)$/;
 const SMALL_RE = /haiku/i;
 
-export const LABELS: Record<Provider, string> = {
+const LABELS: Record<Provider, string> = {
   anthropic: 'Anthropic',
   bedrock: 'Amazon Bedrock',
   openrouter: 'OpenRouter',
@@ -56,7 +56,7 @@ const maybe = (value: unknown): string | null => (typeof value === 'string' && v
 
 export const empty = (): ModelConfig => ({ version: 2, route: '', connections: [] });
 
-export const newConnection = (provider: Provider, label: string): Connection => ({
+const newConnection = (provider: Provider, label: string): Connection => ({
   id: newId(),
   provider,
   label,
@@ -127,7 +127,7 @@ export const connectionOf = (cfg: ModelConfig, id: string): Connection | null =>
 
 export const routedConnection = (cfg: ModelConfig): Connection | null => connectionOf(cfg, cfg.route);
 
-export function requireConnection(cfg: ModelConfig, id: string): Connection {
+function requireConnection(cfg: ModelConfig, id: string): Connection {
   const found = connectionOf(cfg, id);
   if (found === null) throw new ModelConfigError('no such connection');
   return found;
@@ -160,7 +160,7 @@ export function notReady(cfg: ModelConfig, conn = routedConnection(cfg)): string
   return CHECKS[conn.provider].find(([missing]) => missing(conn))?.[1] ?? null;
 }
 
-export const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
+const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
 
 const DEFAULTS: Record<Provider, (requested: string, c: Connection) => string> = {
   openrouter: (requested, c) => (requested.includes('/') ? requested : c.model),
@@ -189,7 +189,7 @@ export function resolveRoute(requested: string, cfg: ModelConfig): Route | null 
 export const routeLabel = (route: Route): string =>
   route.connection.provider === 'anthropic' ? route.model : `${route.connection.provider}:${route.model}`;
 
-export function publicConnection(c: Connection): Record<string, unknown> {
+function publicConnection(c: Connection): Record<string, unknown> {
   return {
     id: c.id,
     provider: c.provider,
@@ -235,7 +235,7 @@ function flag(patch: Record<string, unknown>, key: string, current: boolean, wha
   return value;
 }
 
-export function labelFor(cfg: ModelConfig, provider: Provider, given: string): string {
+function labelFor(cfg: ModelConfig, provider: Provider, given: string): string {
   if (given !== '') return given.slice(0, MAX_LABEL);
   const taken = cfg.connections.filter((c) => c.provider === provider).length;
   return taken === 0 ? LABELS[provider] : `${LABELS[provider]} ${String(taken + 1)}`;
@@ -249,7 +249,7 @@ export function addConnection(cfg: ModelConfig, patch: unknown): ModelConfig {
   return { ...cfg, route: cfg.route === '' ? filled.id : cfg.route, connections: [...cfg.connections, filled] };
 }
 
-export function applyToConnection(c: Connection, patch: Record<string, unknown>): Connection {
+function applyToConnection(c: Connection, patch: Record<string, unknown>): Connection {
   return {
     ...c,
     label: field(patch, 'label', c.label, 'label', MAX_LABEL),

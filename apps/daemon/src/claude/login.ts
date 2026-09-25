@@ -16,7 +16,7 @@ const ESC = String.fromCharCode(27);
 const CSI = /^\[[0-9;?]*[a-zA-Z]/;
 const URL_RE = /https:\/\/[^\s"'`]+/g;
 
-export type LoginState = 'pending' | 'done' | 'failed';
+type LoginState = 'pending' | 'done' | 'failed';
 
 export interface LoginView {
   id: string;

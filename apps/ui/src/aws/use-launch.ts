@@ -5,9 +5,9 @@ import type { Server } from '../api/servers.js';
 
 const POLL_MS = 20_000;
 const CONSOLE_POLL_MS = 30_000;
-export const BOOT_WINDOW_MS = 30 * 60_000;
+const BOOT_WINDOW_MS = 30 * 60_000;
 
-export function stillBooting(server: Server, now = Date.now()): boolean {
+function stillBooting(server: Server, now = Date.now()): boolean {
   if (server.instanceId === null || server.launchedAt === null) return false;
   const at = Date.parse(server.launchedAt);
   return Number.isFinite(at) && now - at < BOOT_WINDOW_MS;

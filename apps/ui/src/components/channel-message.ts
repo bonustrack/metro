@@ -9,7 +9,7 @@ const WRAPPER = /^\s*<channel\s([^>]*)>([\s\S]*?)<\/channel>\s*$/;
 const ATTR = /([a-z_]+)="([^"]*)"/g;
 const ENTITIES: Record<string, string> = { '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&amp;': '&' };
 
-export const unescapeAttr = (value: string): string => value.replace(/&(lt|gt|quot|#39|amp);/g, (m) => ENTITIES[m] ?? m);
+const unescapeAttr = (value: string): string => value.replace(/&(lt|gt|quot|#39|amp);/g, (m) => ENTITIES[m] ?? m);
 
 const filled = (value: string | undefined): string | null => {
   if (value === undefined) return null;

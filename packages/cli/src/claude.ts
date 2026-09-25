@@ -49,7 +49,7 @@ export function credentialEnv(env: NodeJS.ProcessEnv, agentKey: string, signedIn
   return { ...env, ANTHROPIC_AUTH_TOKEN: agentKey };
 }
 
-export function claudeSignedIn(): boolean {
+function claudeSignedIn(): boolean {
   const run = spawnSync('claude', ['auth', 'status', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (run.error !== undefined || typeof run.stdout !== 'string') return false;
   try {
@@ -92,7 +92,7 @@ async function verdict(): Promise<Verdict> {
   return { skip: 'the daemon is not serving here (stopped, or not running), so Claude Code talks to Anthropic directly' };
 }
 
-export function runClaude(args: string[], env: NodeJS.ProcessEnv): Promise<number> {
+function runClaude(args: string[], env: NodeJS.ProcessEnv): Promise<number> {
   return new Promise((resolve, reject) => {
     const leaveToChild = (): undefined => undefined;
     process.on('SIGINT', leaveToChild);

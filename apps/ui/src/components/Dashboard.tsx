@@ -38,7 +38,7 @@ function Framed({ project, selection, onSelect, onLock, offline }: FramedProps):
   );
 }
 
-export interface Offline {
+interface Offline {
   retry: () => void;
 }
 

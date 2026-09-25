@@ -22,7 +22,7 @@ function entryOf(raw: unknown): FileEntry | null {
   return { name: raw.name, kind, bytes: num(raw.bytes), modifiedAt: str(raw.modifiedAt) };
 }
 
-export function toAgentPath(body: unknown): AgentPath {
+function toAgentPath(body: unknown): AgentPath {
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   const base = { path: str(body.path), root: str(body.root) };
   if (body.kind === 'folder' && Array.isArray(body.entries))

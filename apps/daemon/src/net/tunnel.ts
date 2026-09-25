@@ -83,7 +83,7 @@ function modeThrough(ip: string, host: string): Promise<{ mode?: unknown; owner?
   });
 }
 
-export async function daemonAnswersAt(url: string, owner: string | null): Promise<boolean> {
+async function daemonAnswersAt(url: string, owner: string | null): Promise<boolean> {
   const host = new URL(url).host;
   const addresses = await publicAddresses(host);
   if (addresses.length === 0) return false;
@@ -162,7 +162,7 @@ export type Resolves = (host: string) => Promise<boolean>;
 const RESOLVE_EVERY_MS = 3_000;
 const RESOLVE_GIVE_UP_MS = 180_000;
 
-export async function resolvesPublicly(host: string): Promise<boolean> {
+async function resolvesPublicly(host: string): Promise<boolean> {
   return (await publicAddresses(host)).length > 0;
 }
 

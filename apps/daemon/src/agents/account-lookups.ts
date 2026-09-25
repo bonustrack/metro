@@ -11,7 +11,7 @@ interface Target {
   accountId: string;
 }
 
-export interface LookupDeps extends SenderCardDeps {
+interface LookupDeps extends SenderCardDeps {
   resolveSender: (station: StationName, accountId: string, query: string) => Promise<unknown>;
 }
 

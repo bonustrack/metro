@@ -16,7 +16,7 @@ export interface Tally {
   since: string;
 }
 
-export interface ProviderUsage {
+interface ProviderUsage {
   windows: UsageWindow[];
   note: string | null;
   at: string;

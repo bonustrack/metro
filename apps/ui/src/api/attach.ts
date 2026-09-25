@@ -8,7 +8,7 @@ import {
   type AttachSession,
 } from './attach-session.js';
 
-export type AttachFieldKind = 'text' | 'tel' | 'number';
+type AttachFieldKind = 'text' | 'tel' | 'number';
 
 export interface AttachField {
   key: string;
@@ -181,7 +181,7 @@ export function stationLabel(station: string): string {
   return STATION_FORMS[station]?.label ?? station;
 }
 
-export interface OneTimeSecret {
+interface OneTimeSecret {
   label: string;
   value: string;
   note: string;

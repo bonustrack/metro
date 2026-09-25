@@ -15,7 +15,7 @@ export interface Server {
   slug: string | null;
 }
 
-export type ServerState = 'live' | 'stopped' | 'offline';
+type ServerState = 'live' | 'stopped' | 'offline';
 
 export interface ServerStatus {
   state: ServerState;

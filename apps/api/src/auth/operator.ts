@@ -1,7 +1,7 @@
 import type { UserStore, UserStatus } from '../users.js';
 import type { Tokens } from './workos.js';
 
-export const OPERATOR_EMAIL = 'admin@stage.box';
+const OPERATOR_EMAIL = 'admin@stage.box';
 
 export const isOperatorEmail = (email: string | null): boolean => email?.toLowerCase() === OPERATOR_EMAIL;
 

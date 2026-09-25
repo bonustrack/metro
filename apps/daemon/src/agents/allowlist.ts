@@ -1,6 +1,6 @@
 import { ApiError } from '@metro-labs/http/api-error';
 
-export const EVERYONE = '*';
+const EVERYONE = '*';
 const MAX_ENTRIES = 500;
 const MAX_LENGTH = 200;
 

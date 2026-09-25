@@ -9,7 +9,7 @@ import { profileScopeLine } from './profile-lookup.js';
 import { stationOfAccount } from './read-tool.js';
 import { stationForTool, toolGroupOf } from './tool-catalog.js';
 
-export type ChannelTarget = Extract<PolicyTarget, { kind: 'channel' }>;
+type ChannelTarget = Extract<PolicyTarget, { kind: 'channel' }>;
 
 export const UNGATED = new Set<string>(['list_accounts', 'create_upload']);
 
@@ -18,7 +18,7 @@ function fromLine(line: string, override: string | undefined): ChannelTarget[] {
   return acct === undefined ? [] : [{ kind: 'channel', station: acct.station, account: override ?? acct.accountId }];
 }
 
-export function channelTargets(name: string, a: Record<string, unknown>): ChannelTarget[] {
+function channelTargets(name: string, a: Record<string, unknown>): ChannelTarget[] {
   if (UNGATED.has(name)) return [];
   if (name === 'get_profile') {
     const line = profileScopeLine(a);
@@ -59,13 +59,13 @@ export function policyGate(name: string, a: Record<string, unknown>): ToolResult
   return takeGrant(isChannelTool(name), a) ? undefined : errResult(NEEDS_APPROVAL(target.station, name));
 }
 
-export interface EffectivePolicy {
+interface EffectivePolicy {
   read: Access;
   write: Access;
   tools: Record<string, Access>;
 }
 
-export function effectivePolicy(target: ChannelTarget): EffectivePolicy {
+function effectivePolicy(target: ChannelTarget): EffectivePolicy {
   const stored = storedPolicy(target);
   return { read: stored?.read ?? 'allow', write: stored?.write ?? 'allow', tools: { ...stored?.tools } };
 }

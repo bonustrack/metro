@@ -4,8 +4,8 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { claudeDir } from './files.js';
 import { removeHome, writeHomeText } from '../agent-user/home-fs.js';
 
-export const SKILL_MAX = 256 * 1024;
-export const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const SKILL_MAX = 256 * 1024;
+const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const FILE = 'SKILL.md';
 const DEFAULT_MODE = 0o644;
 const SUMMARY_MAX = 300;
@@ -44,7 +44,7 @@ function entryOf(name: string, path: string): ClaudeSkill {
   };
 }
 
-export const userSkillsRoot = (dir: string): string => join(dir, 'skills');
+const userSkillsRoot = (dir: string): string => join(dir, 'skills');
 
 function isFolder(path: string): boolean {
   try {
@@ -97,7 +97,7 @@ export function writeClaudeSkill(
   return entryOf(skill.name, skill.path);
 }
 
-export const skillTemplate = (name: string): string =>
+const skillTemplate = (name: string): string =>
   ['---', `name: ${name}`, 'description: what this skill does, and when Claude should reach for it', '---', '', `# ${name}`, '', 'Write the instructions here.', ''].join('\n');
 
 export function createClaudeSkill(name: string, text: string | undefined, dir = claudeDir()): ClaudeSkill {

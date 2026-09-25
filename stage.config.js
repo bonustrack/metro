@@ -7,6 +7,7 @@ export default defineConfig({
       '**/scripts/**',
       'packages/cli/runtime/**',
       'apps/daemon/trains/**',
+      '.claude/**',
     ],
     extends: [
       {

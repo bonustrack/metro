@@ -10,7 +10,7 @@ export const SETTINGS_MAX = 256 * 1024;
 const USER_ID = 'user';
 const LOCAL_SUFFIX = '.local';
 
-export type SettingsScope = 'user' | 'project' | 'local';
+type SettingsScope = 'user' | 'project' | 'local';
 
 export interface ClaudeSettingsFile {
   id: string;

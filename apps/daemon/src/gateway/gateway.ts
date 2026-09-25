@@ -24,8 +24,8 @@ import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import type { CodexTokens } from './codex-auth.js';
 
-export const GATEWAY_PREFIX = '/gateway';
-export const ANTHROPIC_BASE = 'https://api.anthropic.com';
+const GATEWAY_PREFIX = '/gateway';
+const ANTHROPIC_BASE = 'https://api.anthropic.com';
 const MESSAGES = '/v1/messages';
 const COUNT = '/v1/messages/count_tokens';
 const MODELS = '/v1/models';
@@ -178,7 +178,7 @@ async function toOpenRouter(
 
 const thinkingOff = (body: Record<string, unknown>): boolean => isRecord(body.thinking) && body.thinking.type === 'disabled';
 
-export function openrouterBody(body: Record<string, unknown>, model: string, zdr: boolean): Record<string, unknown> {
+function openrouterBody(body: Record<string, unknown>, model: string, zdr: boolean): Record<string, unknown> {
   const sent: Record<string, unknown> = { ...body, model };
   if (thinkingOff(body)) delete sent.thinking;
   const effort = effortToApply(body);

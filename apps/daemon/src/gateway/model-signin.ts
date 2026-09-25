@@ -104,7 +104,7 @@ export const CODEX_ROUTES: Record<string, Route> = {
   },
 };
 
-export const geminiDeps = (deps: ModelApiDeps, store: Store): GeminiDeps => ({
+const geminiDeps = (deps: ModelApiDeps, store: Store): GeminiDeps => ({
   base: deps.geminiBase,
   tokenBase: deps.geminiTokenBase,
   fetchImpl: deps.fetchImpl,

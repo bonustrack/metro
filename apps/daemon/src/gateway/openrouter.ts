@@ -37,7 +37,7 @@ function modelOf(entry: unknown): OpenRouterModel | null {
   };
 }
 
-export function newestFirst(a: OpenRouterModel, b: OpenRouterModel): number {
+function newestFirst(a: OpenRouterModel, b: OpenRouterModel): number {
   const when = (b.created ?? 0) - (a.created ?? 0);
   return when !== 0 ? when : a.id.localeCompare(b.id);
 }

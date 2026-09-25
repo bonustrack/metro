@@ -11,7 +11,7 @@ import type { Connection } from './model-config.js';
 import { answerWhole, currentOf, errorKind, reach, refreshed, relayTranslated, sessionHeader, type TokenSource, type TokenState } from './subscription.js';
 import { noteUsageHeaders } from './usage.js';
 
-export const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
+const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
 const CODEX_VERSION = '0.153.4';
 const VERSION_RE = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/;
 const INVALID = [400, 404, 422];

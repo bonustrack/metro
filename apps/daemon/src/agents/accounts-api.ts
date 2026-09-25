@@ -32,7 +32,7 @@ import {
   type AttachView,
 } from '../stations/attach-session.js';
 
-export interface AttachSessionApi {
+interface AttachSessionApi {
   start: (
     owner: AttachOwner,
     station: InteractiveStation,

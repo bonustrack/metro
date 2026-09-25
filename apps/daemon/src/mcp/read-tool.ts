@@ -22,7 +22,7 @@ export function stationOfAccount(account: string): string | undefined {
   return hits.length === 1 ? hits[0]?.station : undefined;
 }
 
-export function readArgs(a: Record<string, unknown>): Record<string, unknown> {
+function readArgs(a: Record<string, unknown>): Record<string, unknown> {
   const args: Record<string, unknown> = {};
   if (str(a.line)) args.line = str(a.line);
   if (str(a.account)) args.account = str(a.account);
@@ -34,7 +34,7 @@ export function readArgs(a: Record<string, unknown>): Record<string, unknown> {
   return args;
 }
 
-export function ignoredFilters(station: Station, a: Record<string, unknown>): string[] {
+function ignoredFilters(station: Station, a: Record<string, unknown>): string[] {
   const supported = station.readFilters ?? new Set<ReadFilter>();
   return FILTERS.filter(([snake, filter]) => given(a[snake]) && !supported.has(filter)).map(([snake]) => snake);
 }

@@ -23,7 +23,7 @@ export type ReturnPlan =
 const KEY = 'metro.outlook.pending';
 const TTL_MS = 15 * 60_000;
 const KEPT = 5;
-export const EXPIRED = 'This sign-in link has expired, start again from the Channels page.';
+const EXPIRED = 'This sign-in link has expired, start again from the Channels page.';
 
 const text = (v: unknown): string => (typeof v === 'string' ? v : '');
 
@@ -73,7 +73,7 @@ export function rememberSignIn(entry: PendingSignIn): void {
   writePending([entry, ...kept].slice(0, KEPT));
 }
 
-export function forgetSignIn(state: string): void {
+function forgetSignIn(state: string): void {
   writePending(readPending().filter((e) => e.state !== state));
 }
 
@@ -87,7 +87,7 @@ export function microsoftReturn(search: string): MicrosoftReturn | null {
   return null;
 }
 
-export function refusalText(error: string, description: string): string {
+function refusalText(error: string, description: string): string {
   if (error === 'access_denied') return 'The sign-in was declined, so nothing was connected.';
   const first = description.split(/\r?\n/)[0] ?? '';
   return first === '' ? `Microsoft refused the sign-in (${error}).` : `Microsoft refused the sign-in: ${first}`;

@@ -1,8 +1,8 @@
 import type { IncomingMessage } from 'node:http';
 import { isRecord } from '@metro-labs/core/is-record';
 
-export const MAIN_EFFORT = 'low';
-export const SUBAGENT_EFFORT = 'max';
+const MAIN_EFFORT = 'low';
+const SUBAGENT_EFFORT = 'max';
 export const BINDING_BETA = 'thinking-binding-controls-2026-08-01';
 
 const SUBAGENT_HEADER = 'x-claude-code-agent-id';

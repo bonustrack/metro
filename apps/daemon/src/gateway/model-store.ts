@@ -31,7 +31,7 @@ export interface Store {
   write: (cfg: ModelConfig) => void;
 }
 
-export type Handler = (req: IncomingMessage, deps: ModelApiDeps, store: Store) => Promise<unknown>;
+type Handler = (req: IncomingMessage, deps: ModelApiDeps, store: Store) => Promise<unknown>;
 
 export interface Route {
   method: 'GET' | 'POST';

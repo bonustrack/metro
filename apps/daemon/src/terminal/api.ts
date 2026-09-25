@@ -56,7 +56,7 @@ function tmuxAvailable(deps: TerminalApiDeps): boolean {
   return run.error === undefined && run.status === 0;
 }
 
-export function tmuxSessions(): string[] {
+function tmuxSessions(): string[] {
   const run = spawnSync(...asAgent('tmux', ['list-sessions', '-F', '#{session_name}']), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (run.error !== undefined || run.status !== 0) return [];
   return run.stdout
@@ -65,7 +65,7 @@ export function tmuxSessions(): string[] {
     .filter((l) => SESSION_RE.test(l));
 }
 
-export function sessionOf(raw: unknown): string {
+function sessionOf(raw: unknown): string {
   if (raw === undefined || raw === null || raw === '')
     throw new ApiError('name the tmux session to open; GET /api/terminal lists the ones that exist', 400);
   if (typeof raw !== 'string' || !SESSION_RE.test(raw))

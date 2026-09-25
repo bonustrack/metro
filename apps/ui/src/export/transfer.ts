@@ -82,7 +82,7 @@ async function memoryNames(project: string): Promise<Set<string>> {
   return new Set([...listing.files.map((f) => f.name), ...(listing.index === null ? [] : [INDEX])]);
 }
 
-export const SESSION_BYTES_MAX = 512 * 1024 * 1024;
+const SESSION_BYTES_MAX = 512 * 1024 * 1024;
 
 async function gatherSessions(leftOut: string[]): Promise<PackedSession[]> {
   const projects = await fetchClaudeProjects();

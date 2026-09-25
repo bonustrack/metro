@@ -43,12 +43,12 @@ const PREFIXES: [RegExp, string][] = [
   [/^ap-/, 'apac'],
 ];
 
-export function regionPrefix(region: string): string {
+function regionPrefix(region: string): string {
   for (const [pattern, prefix] of PREFIXES) if (pattern.test(region)) return prefix;
   return 'global';
 }
 
-export function bedrockModelId(requested: string, region: string): string {
+function bedrockModelId(requested: string, region: string): string {
   if (requested.includes('anthropic.')) return requested;
   return `${regionPrefix(region)}.anthropic.${requested}`;
 }
@@ -63,7 +63,7 @@ function splitBetas(header: string | string[] | undefined): string[] {
     .filter((b) => b !== '');
 }
 
-export function rewriteForBedrock(
+function rewriteForBedrock(
   body: Record<string, unknown>,
   model: string,
   betaHeader: string | string[] | undefined,
@@ -78,7 +78,7 @@ export function rewriteForBedrock(
   return { modelId: bedrockModelId(model, region), stream: body.stream === true, body: out, betas };
 }
 
-export function errorKind(status: number, errorType: string | null): string {
+function errorKind(status: number, errorType: string | null): string {
   if (status === 429 || errorType === 'ThrottlingException') return 'rate_limit_error';
   if (status === 400) return 'invalid_request_error';
   if (status === 401 || status === 403) return 'permission_error';

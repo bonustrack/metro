@@ -21,7 +21,7 @@ export interface MediaNote {
   path: string;
 }
 
-export function mediaKind(mime?: string, name?: string): string {
+function mediaKind(mime?: string, name?: string): string {
   const m = (mime ?? '').toLowerCase();
   if (m.startsWith('image/')) return 'image';
   if (m.startsWith('video/')) return 'video';

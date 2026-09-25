@@ -16,14 +16,14 @@ export class AwsError extends Error {
   }
 }
 
-export const EC2_VERSION = '2016-11-15';
+const EC2_VERSION = '2016-11-15';
 export const INSTANCE_TYPE = 't4g.medium';
-export const ROOT_GIB = '8';
+const ROOT_GIB = '8';
 const CANONICAL = '099720109477';
 const UBUNTU_NAME = 'ubuntu/images/hvm-ssd*/ubuntu-noble-24.04-arm64-server-*';
 const CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=utf-8';
 
-export const ec2Endpoint = (region: string): string => `https://ec2.${region}.amazonaws.com/`;
+const ec2Endpoint = (region: string): string => `https://ec2.${region}.amazonaws.com/`;
 
 export async function ec2(
   credentials: AwsCredentials,

@@ -38,7 +38,7 @@ export async function startDaemon(base = daemonBase()): Promise<void> {
   );
 }
 
-export const daemonState = (base = daemonBase()): Promise<DaemonState> =>
+const daemonState = (base = daemonBase()): Promise<DaemonState> =>
   fetchMode(base).then(
     (mode): DaemonState => (mode.stopped ? 'stopped' : 'live'),
     (): DaemonState => 'offline',

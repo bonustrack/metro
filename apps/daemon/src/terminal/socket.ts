@@ -45,7 +45,7 @@ function sizeTmuxWindow(command: string[], session: string, cols: number, rows: 
 const dimension = (raw: unknown): number | null =>
   typeof raw === 'number' && Number.isInteger(raw) && raw > 1 && raw <= MAX_DIMENSION ? raw : null;
 
-export function sizeFrom(control: unknown): { cols: number; rows: number } | null {
+function sizeFrom(control: unknown): { cols: number; rows: number } | null {
   if (!isRecord(control)) return null;
   const cols = dimension(control.cols);
   const rows = dimension(control.rows);

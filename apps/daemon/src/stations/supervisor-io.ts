@@ -6,7 +6,7 @@ import type { Pending } from '@metro-labs/core/trains/protocol';
 export const RESTART_BACKOFFS_MS = [1_000, 5_000, 30_000] as const;
 export const MAX_CONSECUTIVE_FAILS = 5;
 export const HOT_RELOAD_DEBOUNCE_MS = 300;
-export const TRAIN_EXT = /\.(ts|js|mjs)$/;
+const TRAIN_EXT = /\.(ts|js|mjs)$/;
 
 export interface TrainState {
   name: string;

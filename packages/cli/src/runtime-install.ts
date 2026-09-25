@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { localStations } from './local.js';
 import { STORE_ENTRY, daemonEntry, findBun, runtimeDir } from './runtime.js';
 
-export const MANIFEST_FILE = 'stations.json';
-export const MARKETPLACE = 'marketplace';
+const MANIFEST_FILE = 'stations.json';
+const MARKETPLACE = 'marketplace';
 const METRO_SOURCES = join('node_modules', '@metro-labs');
 const INSTALL_TIMEOUT_MS = 15 * 60_000;
 

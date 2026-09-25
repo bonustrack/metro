@@ -13,13 +13,13 @@ const UPDATE_TIMEOUT_MS = 5 * 60_000;
 const RESTART_DELAY_MS = 500;
 const OUTPUT_TAIL = 800;
 
-export interface UpdateCheck {
+interface UpdateCheck {
   current: string;
   latest: string;
   newer: boolean;
 }
 
-export interface UpdateResult {
+interface UpdateResult {
   updated: boolean;
   version: string;
   restarting: boolean;

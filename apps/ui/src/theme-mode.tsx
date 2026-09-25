@@ -11,7 +11,7 @@ import { semanticPalette } from '@stage-labs/kit/tokens';
 import { FONT_HEAD, FONT_SANS, TYPE_SCALE } from './theme.js';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
-export type Scheme = 'light' | 'dark';
+type Scheme = 'light' | 'dark';
 
 const STORAGE_KEY = 'metro.theme';
 const DARK_QUERY = '(prefers-color-scheme: dark)';

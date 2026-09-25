@@ -14,8 +14,8 @@ import { metroSetupLines, progressOf, type Progress } from './boot-log.js';
 import { hostOf, randomNodeName, slugOf } from './names.js';
 import { cloudInit } from './user-data.js';
 
-export const METRO_TAG = 'beta';
-export const NO_CAPACITY = 'InsufficientInstanceCapacity';
+const METRO_TAG = 'beta';
+const NO_CAPACITY = 'InsufficientInstanceCapacity';
 const TSKEY = /tskey-[A-Za-z0-9_-]+/g;
 
 export interface LaunchInput {

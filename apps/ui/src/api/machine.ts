@@ -57,7 +57,7 @@ export const systemLabel = (machine: Machine): string =>
 const GB = 1024 * 1024 * 1024;
 const gb = (bytes: number): string => `${(bytes / GB).toFixed(1)} GB`;
 
-export const DISK_WARN = 0.9;
+const DISK_WARN = 0.9;
 
 export function diskLabel(disk: NonNullable<Machine['disk']>): { text: string; full: boolean } {
   const used = disk.totalBytes - disk.freeBytes;

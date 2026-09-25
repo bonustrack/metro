@@ -2,11 +2,11 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { PendingLogins } from './pkce.js';
 import { nonEmpty } from './text.js';
 
-export const GEMINI_CLIENT_ID = '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
-export const GEMINI_CLIENT_SECRET = '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';
-export const GEMINI_AUTH_BASE = 'https://accounts.google.com';
-export const GEMINI_TOKEN_BASE = 'https://oauth2.googleapis.com';
-export const GEMINI_REDIRECT = 'http://localhost:51121/oauth-callback';
+const GEMINI_CLIENT_ID = '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
+const GEMINI_CLIENT_SECRET = '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';
+const GEMINI_AUTH_BASE = 'https://accounts.google.com';
+const GEMINI_TOKEN_BASE = 'https://oauth2.googleapis.com';
+const GEMINI_REDIRECT = 'http://localhost:51121/oauth-callback';
 const SCOPE = [
   'https://www.googleapis.com/auth/cloud-platform',
   'https://www.googleapis.com/auth/userinfo.email',
@@ -93,7 +93,7 @@ async function tokenCall(form: Record<string, string>, base: string, fetchImpl: 
   return body;
 }
 
-export function codeIn(pasted: string, state: string): string {
+function codeIn(pasted: string, state: string): string {
   const trimmed = pasted.trim();
   if (trimmed === '') throw new GeminiAuthError('paste the address the browser landed on, or the code in it');
   if (!/^https?:\/\//i.test(trimmed)) return trimmed;

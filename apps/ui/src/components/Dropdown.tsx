@@ -12,7 +12,7 @@ export interface MenuItem {
   onSelect: () => void;
 }
 
-export interface TriggerButton {
+interface TriggerButton {
   label: string;
   color?: 'primary' | 'secondary';
   size?: 'sm' | 'md';

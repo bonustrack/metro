@@ -2,9 +2,9 @@ import { isRecord, recordOf, str } from '../api/read.js';
 import { fromBase64Url, toBase64Url } from './bytes.js';
 import { isPassphraseEnvelope, openWithPassphrase, sealWithPassphrase, type PassphraseEnvelope } from './passphrase.js';
 
-export const FILE_VERSION = 1;
-export const FILE_KIND = 'agent-export';
-export const FILE_EXTENSION = '.metro';
+const FILE_VERSION = 1;
+const FILE_KIND = 'agent-export';
+const FILE_EXTENSION = '.metro';
 export const SECTIONS = ['channels', 'connectors', 'skills', 'memory', 'sessions', 'model'] as const;
 export type Section = (typeof SECTIONS)[number];
 
@@ -111,7 +111,7 @@ export async function gunzip(encoded: string): Promise<string> {
 const HASH_CHARS = 16;
 const two = (n: number): string => String(n).padStart(2, '0');
 
-export const fileStamp = (at: Date): string => `${String(at.getFullYear())}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
+const fileStamp = (at: Date): string => `${String(at.getFullYear())}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
 
 export async function digest(text: string): Promise<string> {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));

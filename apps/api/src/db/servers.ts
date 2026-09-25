@@ -11,7 +11,7 @@ import { parseSlug, slugify, withSuffix } from '../slug.js';
 import { isOrganizationId, type Session } from '@metro-labs/http/workos-token';
 import { userOrganizations, type WorkosConfig } from '../auth/workos.js';
 
-export class ServerListError extends ApiError {}
+class ServerListError extends ApiError {}
 
 const missing = (): ServerListError => new ServerListError('no such server', 404);
 

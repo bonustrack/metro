@@ -1,7 +1,7 @@
 import { filled, isRecord } from './read.js';
 import { call } from './client.js';
 
-export type AttachStep = 'code' | 'password' | 'scan' | 'pair' | 'device' | 'browser';
+type AttachStep = 'code' | 'password' | 'scan' | 'pair' | 'device' | 'browser';
 
 export interface AttachSession {
   attachId: string;

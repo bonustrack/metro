@@ -9,7 +9,7 @@ const DROP_IN = '11-metro-vault.conf';
 const BEGIN = '# metro vault: begin';
 const END = '# metro vault: end';
 
-export const jobEnvFile = (user: AgentUser): string => join(user.home, '.metro', 'vault.env');
+const jobEnvFile = (user: AgentUser): string => join(user.home, '.metro', 'vault.env');
 
 export function withCronEnv(lines: string[], env: Record<string, string>): string[] {
   const start = lines.indexOf(BEGIN);

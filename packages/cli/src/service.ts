@@ -31,7 +31,7 @@ export interface RunAs {
   helper: string;
 }
 
-export interface Command {
+interface Command {
   args: string[];
   mayFail?: boolean;
 }
@@ -96,7 +96,7 @@ function unitText(service: string[], target: string): string {
 
 const RESTART = ['Restart=always', 'RestartSec=2', 'OOMPolicy=continue'];
 
-export function systemdUnit(host: ServiceHost, exec: string[], target: string): string {
+function systemdUnit(host: ServiceHost, exec: string[], target: string): string {
   const env = carriedEnv(host.env).map(([key, value]) => `Environment=${unitWord(`${key}=${value}`)}`);
   return unitText([`ExecStart=${exec.map(unitWord).join(' ')}`, ...RESTART, `WorkingDirectory=${unitWord(host.home)}`, ...env], target);
 }
@@ -133,7 +133,7 @@ const xml = (text: string): string =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;');
 
-export function launchdPlist(host: ServiceHost, exec: string[], logFile: string): string {
+function launchdPlist(host: ServiceHost, exec: string[], logFile: string): string {
   const env = carriedEnv(host.env).map(([key, value]) => `    <key>${xml(key)}</key><string>${xml(value)}</string>`);
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',

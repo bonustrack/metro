@@ -167,14 +167,14 @@ export function listClaudeSessions(project: string, dir = claudeDir()): ClaudeSe
   );
 }
 
-export type Block =
+type Block =
   | { kind: 'text'; text: string }
   | { kind: 'tool_use'; name: string; input: string }
   | { kind: 'tool_result'; text: string; isError: boolean }
   | { kind: 'thinking' }
   | { kind: 'image' };
 
-export interface TranscriptEntry {
+interface TranscriptEntry {
   uuid: string;
   at: string | null;
   role: 'user' | 'assistant';

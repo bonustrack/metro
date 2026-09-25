@@ -17,13 +17,13 @@ export interface MachineApiDeps {
 
 const bootedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
 
-export interface Disk {
+interface Disk {
   path: string;
   totalBytes: number;
   freeBytes: number;
 }
 
-export async function diskInfo(path = homedir()): Promise<Disk | null> {
+async function diskInfo(path = homedir()): Promise<Disk | null> {
   try {
     const s = await statfs(path);
     return { path, totalBytes: s.bsize * s.blocks, freeBytes: s.bsize * s.bavail };

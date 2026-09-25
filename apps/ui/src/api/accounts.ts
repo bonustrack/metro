@@ -1,6 +1,6 @@
 import { isRecord } from './read.js';
 import { policyOf, type ToolPolicy } from './policy.js';
-export interface AccountField {
+interface AccountField {
   label: string;
   value: string;
 }

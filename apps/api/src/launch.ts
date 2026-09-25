@@ -36,7 +36,7 @@ type Target =
   | { kind: 'unknown' }
   | null;
 
-export function launchTarget(path: string): Target {
+function launchTarget(path: string): Target {
   if (path === PREFIX || path === `${PREFIX}/`) return { kind: 'index' };
   if (!path.startsWith(`${PREFIX}/`)) return null;
   const segments = path.slice(PREFIX.length + 1).split('/').filter(Boolean);

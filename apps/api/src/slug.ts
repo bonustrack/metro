@@ -1,10 +1,10 @@
 import { ApiError } from '@metro-labs/http/api-error';
 
-export const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
-export const SLUG_MAX = 32;
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
+const SLUG_MAX = 32;
 const SLUG_MIN = 3;
 
-export const RESERVED_SLUGS = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'waitlist', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new', 'connector', 'connectors']);
+const RESERVED_SLUGS = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'waitlist', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new', 'connector', 'connectors']);
 
 export function slugify(name: string): string {
   const base = name

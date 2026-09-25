@@ -1,6 +1,6 @@
 import { whenLabel } from './api/when.js';
 
-export const REPO_URL = 'https://github.com/bonustrack/metro';
+const REPO_URL = 'https://github.com/bonustrack/metro';
 const FRESH_MS = 30 * 60_000;
 const SHORT = 7;
 

@@ -92,7 +92,7 @@ export function requireOwner(args: Pick<ServeArgs, 'owner' | 'ignoredOwner'>, di
   );
 }
 
-export function readOwner(dir = agentsDir()): string | null {
+function readOwner(dir = agentsDir()): string | null {
   try {
     const raw = readFileSync(join(dir, '.owner'), 'utf8').trim();
     return ORGANIZATION.test(raw) ? raw : null;
@@ -101,7 +101,7 @@ export function readOwner(dir = agentsDir()): string | null {
   }
 }
 
-export function holdInfo(port: number, owner: string | null, tailscaleBin: string | null): HoldInfo {
+function holdInfo(port: number, owner: string | null, tailscaleBin: string | null): HoldInfo {
   return {
     port,
     host: process.env.METRO_HTTP_HOST ?? '127.0.0.1',

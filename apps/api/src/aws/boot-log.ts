@@ -1,7 +1,7 @@
 import { SETUP_STEPS, type SetupStep } from './user-data.js';
 
-export const SETUP_START = 'metro setup: start';
-export const SETUP_DONE = 'metro setup: done';
+const SETUP_START = 'metro setup: start';
+const SETUP_DONE = 'metro setup: done';
 const TAIL_LINES = 80;
 const ANSI = /\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]|\r/g;
 const KERNEL_STAMP = /^\[\s*\d+\.\d+\]\s*/;
@@ -26,7 +26,7 @@ export function metroSetupLines(text: string): BootLog {
   return { lines, started, done: from.some((l) => l.includes(SETUP_DONE)) };
 }
 
-export const STEP_LABELS: Record<SetupStep, string> = {
+const STEP_LABELS: Record<SetupStep, string> = {
   packages: 'System packages',
   node: 'Node.js 22',
   bun: 'bun',
@@ -36,7 +36,7 @@ export const STEP_LABELS: Record<SetupStep, string> = {
   service: 'Metro service started',
 };
 
-export type StepState = 'pending' | 'active' | 'done' | 'failed';
+type StepState = 'pending' | 'active' | 'done' | 'failed';
 
 export interface Progress {
   steps: { key: SetupStep; label: string; state: StepState }[];

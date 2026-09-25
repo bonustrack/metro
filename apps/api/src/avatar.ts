@@ -2,7 +2,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 
 export const AVATAR_MAX_BYTES = 96 * 1024;
 export const AVATAR_BODY_MAX = 192 * 1024;
-export const AVATAR_SIDE_MAX = 256;
+const AVATAR_SIDE_MAX = 256;
 const DATA_RE = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PNG_END = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);

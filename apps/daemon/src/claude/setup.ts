@@ -19,13 +19,13 @@ export const PRIVACY_ENV: Record<string, string> = {
   CLAUDE_CODE_GB_DISK_CACHE_WHEN_TELEMETRY_OFF: '1',
 };
 export const RETENTION_DAYS = 7;
-export const SKILL_NAME = 'metro-orchestrator';
+const SKILL_NAME = 'metro-orchestrator';
 const STATE_FILE = 'claude-setup.json';
 const GUIDANCE = 'orchestrator.md';
-export const SYSTEM_PROMPT_FILE = 'system-prompt.md';
+const SYSTEM_PROMPT_FILE = 'system-prompt.md';
 export const SYSTEM_PROMPT_MAX = 64 * 1024;
 
-export const WORKER_AGENT = `---
+const WORKER_AGENT = `---
 name: worker
 description: Default execution agent for delegated work. Full tool access and maximum reasoning effort. Use for any substantive task the orchestrator main thread cannot perform itself - reading and writing code, running commands, research, analysis.
 effort: xhigh
@@ -73,7 +73,7 @@ export interface SetupStatus {
 
 const statePath = (agents: string): string => join(agents, STATE_FILE);
 
-export const PERMISSION_MODES = ['auto', 'bypass'] as const;
+const PERMISSION_MODES = ['auto', 'bypass'] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 function readState(agents: string): Record<string, unknown> {
@@ -86,7 +86,7 @@ function writeState(agents: string, patch: Record<string, unknown>): void {
   writeJson(statePath(agents), { ...readState(agents), ...patch });
 }
 
-export const privacyEnabled = (agents = agentsDir()): boolean => readState(agents).privacy !== false;
+const privacyEnabled = (agents = agentsDir()): boolean => readState(agents).privacy !== false;
 
 export function setPrivacy(enabled: boolean, agents = agentsDir()): void {
   writeState(agents, { privacy: enabled });
@@ -120,7 +120,7 @@ export function setSystemPrompt(text: string, agents = agentsDir()): void {
   writeAtomic(promptPath(agents), `${trimmed}\n`, 0o600);
 }
 
-export function guidancePath(env: NodeJS.ProcessEnv = process.env): string {
+function guidancePath(env: NodeJS.ProcessEnv = process.env): string {
   const staged = stagedMarketplaceDir(env);
   if (staged !== null) {
     const path = join(staged, 'plugin', GUIDANCE);
@@ -177,7 +177,7 @@ function mergeSettings(dir: string, change: (settings: Record<string, unknown>) 
   return 'written';
 }
 
-export function applyPrivacy(dir: string, enabled: boolean): SettingsOutcome {
+function applyPrivacy(dir: string, enabled: boolean): SettingsOutcome {
   return mergeSettings(dir, (current) => withPrivacy(current, enabled));
 }
 
