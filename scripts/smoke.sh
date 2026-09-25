@@ -75,7 +75,7 @@ expect_body "$P1" /api/mode '"mode":"local"'
 expect HEAD "$P1" /gateway/api/hello 200
 expect GET "$P1" /mcp 401
 expect GET "$P1" /api/agents 401
-expect GET "$P1" /api/vault 404
+expect GET "$P1" /api/vault 401
 
 echo "2. api.metro.box alone, with no database"
 P2=$(port)
