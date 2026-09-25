@@ -450,6 +450,19 @@ body {
 
 .login-page {
   padding-top: 15vh;
+  padding-bottom: 24px;
+}
+
+.login-top {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 10;
+}
+
+.login-logo {
+  display: inline-flex;
+  text-decoration: none;
 }
 
 .card-cover {

@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
+import { MetroLogo } from './MetroLogo.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
@@ -90,9 +91,23 @@ function Footer(): ReactNode {
   );
 }
 
+const TOP_LOGO = 24;
+
+function TopBar(): ReactNode {
+  const palette = useKitPalette();
+  return (
+    <div className="login-top">
+      <a className="login-logo" href="#/" aria-label="Metro home">
+        <MetroLogo size={TOP_LOGO} color={palette.link} />
+      </a>
+    </div>
+  );
+}
+
 function Frame({ title, children }: { title: ReactNode; children: ReactNode }): ReactNode {
   return (
     <div className="login-page">
+      <TopBar />
       <Row justify="center" align="start" padding={{ x: 24, bottom: 24 }}>
         <Col gap={CARD_GAP} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
           <Col gap={typeof title === 'string' ? TITLE_GAP : LOGO_GAP}>
