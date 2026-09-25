@@ -11,6 +11,7 @@ export interface SenderCard {
   id: string;
   name?: string;
   handle?: string;
+  avatar?: string;
 }
 
 export interface SenderCardDeps {
@@ -28,10 +29,12 @@ function cardOf(id: string, profile: unknown, seenName: string | undefined): Sen
   const display = filled(p.display_name);
   const handle = filled(p.name);
   const name = display ?? seenName ?? handle;
+  const avatar = filled(p.avatar);
   return {
     id,
     ...(name === undefined ? {} : { name }),
     ...(handle === undefined || handle === name ? {} : { handle }),
+    ...(avatar?.startsWith('https://') === true ? { avatar } : {}),
   };
 }
 

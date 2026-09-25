@@ -18,12 +18,12 @@ describe('the names shown next to listed senders', () => {
   test('come from the network profile, then from recent messages, and a failed lookup keeps the id', async () => {
     setAllowlistMap({ 'telegram-bot/tb1': ['111', '222', '333', '444', '*'] });
     const cards = await senderCards(
-      deps({ '111': { id: '111', name: '@ada', display_name: 'Ada Lovelace' }, '222': { id: '222', name: '@bob' }, '444': new Error('down') }),
+      deps({ '111': { id: '111', name: '@ada', display_name: 'Ada Lovelace', avatar: 'https://cdn.example/ada.png' }, '222': { id: '222', name: '@bob' }, '444': new Error('down') }),
       'telegram-bot',
       'tb1',
     );
     expect(cards).toEqual([
-      { id: '111', name: 'Ada Lovelace', handle: '@ada' },
+      { id: '111', name: 'Ada Lovelace', handle: '@ada', avatar: 'https://cdn.example/ada.png' },
       { id: '222', name: '@bob' },
       { id: '333', name: 'Seen Sam' },
       { id: '444' },

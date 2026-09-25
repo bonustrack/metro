@@ -200,6 +200,7 @@ function People({ station, entries, seen, busy, onRemove, approvers, onApprove, 
       id={entry}
       name={nameOf(entry)}
       handle={cardOf(entry)?.handle ?? ''}
+      avatar={cardOf(entry)?.avatar ?? null}
       busy={busy !== null}
       approves={approvers === null ? null : isIn(approvers, entry)}
       onApprove={(approves) => {

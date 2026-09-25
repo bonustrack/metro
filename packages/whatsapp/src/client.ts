@@ -17,7 +17,7 @@ import type { ProfileChange } from '@metro-labs/core/stations/profile';
 import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';
 import { baileysLogger } from './logger.js';
-import { makeNameBook, phoneOf, type NameBook } from './names.js';
+import { makeNameBook, nameFiles, phoneOf, type NameBook } from './names.js';
 import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 import { makeOutbox, type Outbox } from './outbox.js';
@@ -301,7 +301,7 @@ export function createClient(account: WhatsAppAccount): WAClient {
     keys: makeKeyCache(),
     outbox: makeOutbox(),
     acks: makeAckWatch(),
-    names: makeNameBook(),
+    names: makeNameBook(nameFiles.path(account.id)),
   };
   resetGate(st);
   const senders = makeProfileCache<SenderProfile>((jid) => readProfile(st, jid), {

@@ -6,6 +6,7 @@ export interface SenderCard {
   id: string;
   name?: string;
   handle?: string;
+  avatar?: string;
 }
 
 export async function fetchSenderCards(agentId: string, station: string, accountId: string): Promise<SenderCard[]> {
@@ -15,7 +16,8 @@ export async function fetchSenderCards(agentId: string, station: string, account
     if (!isRecord(raw) || typeof raw.id !== 'string') return [];
     const name = filled(raw.name);
     const handle = filled(raw.handle);
-    return [{ id: raw.id, ...(name === null ? {} : { name }), ...(handle === null ? {} : { handle }) }];
+    const avatar = filled(raw.avatar);
+    return [{ id: raw.id, ...(name === null ? {} : { name }), ...(handle === null ? {} : { handle }), ...(avatar?.startsWith('https://') === true ? { avatar } : {}) }];
   });
 }
 

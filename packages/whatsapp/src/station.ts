@@ -1,6 +1,7 @@
 import type { Station, Verb } from '@metro-labs/core/stations/types';
 import { PROFILE_FIELDS, type ProfileField } from '@metro-labs/core/stations/profile';
 import { tokenFiles } from './token-store.js';
+import { nameFiles } from './names.js';
 
 export const whatsappStation: Station = {
   name: 'whatsapp',
@@ -19,7 +20,13 @@ export const whatsappStation: Station = {
   profileFields: new Set<ProfileField>(PROFILE_FIELDS),
   readsProfiles: true,
   resolvesSenders: true,
-  forget: tokenFiles.forget,
-  forgetExcept: tokenFiles.forgetExcept,
+  forget: (accountId) => {
+    tokenFiles.forget(accountId);
+    nameFiles.forget(accountId);
+  },
+  forgetExcept: (kept) => {
+    tokenFiles.forgetExcept(kept);
+    nameFiles.forgetExcept(kept);
+  },
   tools: [],
 };

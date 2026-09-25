@@ -21,3 +21,18 @@ describe('who a WhatsApp id is', () => {
     expect(book.get('1@lid')).toBe('Ada L');
   });
 });
+
+describe('names kept on disk', () => {
+  test('a name learned once is there after a restart, and goes with the account', async () => {
+    const { mkdtempSync, existsSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const { makeNameBook: book } = await import('../src/names.ts');
+    const file = join(mkdtempSync(join(tmpdir(), 'wa-names-')), 'whatsapp-names-a1.json');
+    const first = book(file);
+    first.note('1@lid', 'Ada');
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(existsSync(file)).toBe(true);
+    expect(book(file).get('1@lid')).toBe('Ada');
+  });
+});

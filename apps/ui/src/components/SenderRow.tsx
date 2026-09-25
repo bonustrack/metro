@@ -7,14 +7,17 @@ import { KebabMenu } from './KebabMenu.js';
 import { type MenuItem } from './Dropdown.js';
 import { SHRINK } from '../theme.js';
 import { chatLink } from '../api/senders.js';
+import { AgentAvatar } from './AgentAvatar.js';
 
 const CHAT_ICON = 16;
+const AVATAR = 32;
 
 export interface SenderRowProps {
   station: string;
   id: string;
   name: string;
   handle: string;
+  avatar: string | null;
   busy: boolean;
   approves: boolean | null;
   onApprove: (approves: boolean) => void;
@@ -24,7 +27,7 @@ export interface SenderRowProps {
 const subtitleOf = (id: string, name: string, handle: string): string =>
   [handle, name === '' ? '' : id].filter((part) => part !== '' && part !== name).join(' · ');
 
-export function SenderRow({ station, id, name, handle, busy, approves, onApprove, onRemove }: SenderRowProps): ReactNode {
+export function SenderRow({ station, id, name, handle, avatar, busy, approves, onApprove, onRemove }: SenderRowProps): ReactNode {
   const palette = useKitPalette();
   const title = name === '' ? (handle === '' ? id : handle) : name;
   const subtitle = subtitleOf(id, name, handle === title ? '' : handle);
@@ -51,19 +54,22 @@ export function SenderRow({ station, id, name, handle, busy, approves, onApprove
   ];
   return (
     <Row justify="between" align="center" gap={12} padding={{ x: 16, y: 10 }}>
-      <Col gap={2} style={SHRINK}>
-        <Row gap={8} align="center">
-          <Text size="md" weight="medium" numberOfLines={1} style={SHRINK}>
-            {title}
-          </Text>
-          {approves === true ? <span className="tag">Approver</span> : null}
-        </Row>
-        {subtitle === '' ? null : (
-          <Text size="sm" role="secondary" numberOfLines={1}>
-            {subtitle}
-          </Text>
-        )}
-      </Col>
+      <Row gap={12} align="center" style={SHRINK}>
+        <AgentAvatar seed={id} src={avatar} size={AVATAR} />
+        <Col gap={2} style={SHRINK}>
+          <Row gap={8} align="center">
+            <Text size="md" weight="medium" numberOfLines={1} style={SHRINK}>
+              {title}
+            </Text>
+            {approves === true ? <span className="tag">Approver</span> : null}
+          </Row>
+          {subtitle === '' ? null : (
+            <Text size="sm" role="secondary" numberOfLines={1}>
+              {subtitle}
+            </Text>
+          )}
+        </Col>
+      </Row>
       <Row gap={8} align="center">
         {link === null ? null : (
           <a className="kebab" href={link} target="_blank" rel="noreferrer" aria-label={`Open a chat with ${title}`} title="Open chat">
