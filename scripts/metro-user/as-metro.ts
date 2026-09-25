@@ -63,6 +63,7 @@ removeFirewall(u.uid);
 check('and comes off', out(...asAgent('curl', ['-s', '-m', '15', '-o', '/dev/null', 'https://example.com'])).ok);
 
 const claudeDirOf = '/home/agent/.claude';
+check("the agent can read Metro's CLI but not its files", out(...asAgent('test', ['-r', '/var/lib/metro/.npm-global/lib/node_modules/@stage-labs/metro/dist/cli.js'])).ok && !out(...asAgent('test', ['-r', '/var/lib/metro/.metro/agents/agent.json'])).ok);
 check(`provisioning as metro sees Claude installed and opens the home to crossing (${await provisionAgentUser({ METRO_RUNTIME_STORE: '' })})`, out('stat', ['-c', '%a', '/home/agent']).text === '711');
 check('Sessions lists the projects', listClaudeProjects(claudeDirOf).some((p) => p.id === '-home-agent'));
 check('and a private transcript inside a closed folder', listClaudeSessions('-home-agent', claudeDirOf).some((x) => x.id === '11111111-2222-4333-8444-555555555555'));

@@ -1,6 +1,8 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from './agent-fs.js';
 import { join } from 'node:path';
+import { chmodSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { copyIntoHome } from './home-fs.js';
@@ -19,9 +21,15 @@ function run(file: string, args: string[]): void {
   if (done.status !== 0) throw new Error(`${file} ${args.join(' ')}: ${done.stderr.trim() || `exit ${String(done.status)}`}`);
 }
 
+function openMetroHome(): void {
+  chmodSync(homedir(), 0o711);
+  chmodSync(join(homedir(), '.metro'), 0o700);
+}
+
 function ensureUser(): AgentUser | null {
   if (runningAsMetro()) {
     mustHelper(['ensure-agent']);
+    openMetroHome();
     forgetAgentUser();
     const user = agentUser();
     if (user !== null) run(...asUser(user, 'chmod', ['711', user.home]));

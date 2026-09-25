@@ -36,6 +36,7 @@ describe('moving Metro from root to its own user', () => {
     expect(script).toContain("B='/root/.bun/bin/bun'; case \"$B\" in /root/*) install -m 755 \"$B\" /usr/local/bin/bun");
     expect(script.indexOf('cannot find $bin')).toBeLessThan(script.indexOf('systemctl stop metro'));
     expect(script).toContain('http://127.0.0.1:8430/health');
+    expect(script).toContain('chmod 711 /var/lib/metro && chmod 700 "$NEW"');
     expect(script).toContain("npm install --global --prefix /var/lib/metro/.npm-global @stage-labs/metro@0.1.0-beta.199");
     expect(script.indexOf('fail "npm install')).toBeLessThan(script.indexOf('systemctl stop metro'));
     expect(script).toContain('mv "$NEW" "$OLD" && chown -R root:root "$OLD"');
