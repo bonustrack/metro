@@ -2,8 +2,6 @@ import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
 import { isRecord } from './read.js';
 
-export const FILES_SINCE = '0.1.0-beta.196';
-
 export interface FileEntry {
   name: string;
   kind: 'folder' | 'file' | 'other';

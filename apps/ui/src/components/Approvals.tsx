@@ -52,7 +52,7 @@ function PendingRow({ approval }: { approval: Approval }): ReactNode {
 }
 
 export function Approvals(): ReactNode {
-  const query = useApprovalsQuery(true);
+  const query = useApprovalsQuery();
   if (query.data === undefined || query.data.length === 0) return null;
   return (
     <Col gap={8}>

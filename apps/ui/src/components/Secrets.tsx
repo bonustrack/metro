@@ -9,9 +9,8 @@ import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { SecretForm } from './SecretForm.js';
-import { changeVault, fetchVault, VAULT_SINCE, type Vault, type VaultSecret } from '../api/vault.js';
-import { queryError, useBoxQuery, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
+import { changeVault, fetchVault, type Vault, type VaultSecret } from '../api/vault.js';
+import { queryError, useBoxQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -136,13 +135,11 @@ function SecretsBody(): ReactNode {
 
 export function Secrets(): ReactNode {
   useDocumentTitle('Secrets');
-  const mode = useModeQuery();
-  if (mode.data === undefined) return <Loading />;
   return (
     <Col gap={16}>
       <PageTitle>Secrets</PageTitle>
       <Text size="sm" role="secondary">{INTRO}</Text>
-      {olderThan(mode.data.version, VAULT_SINCE) ? <Text size="sm" role="secondary">{`Needs metro ${VAULT_SINCE}. Update first, from the Server page.`}</Text> : <SecretsBody />}
+      <SecretsBody />
     </Col>
   );
 }
