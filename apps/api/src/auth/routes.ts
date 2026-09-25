@@ -9,6 +9,7 @@ import type { SlugStore } from '../slug.js';
 import type { ServerEntry } from '../server-types.js';
 import { parseAccountName, type UserStore } from '../users.js';
 import { AVATAR_BODY_MAX, parseAvatar } from '../avatar.js';
+import { invitationFrom, startEmailCode, verifyEmailCode } from './email.js';
 import { admit, stillIn, type Intent, type Refusal, mayCreateOrganization } from './operator.js';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import {
@@ -54,13 +55,8 @@ interface Started {
   invitation?: string;
 }
 
-const INVITATION_RE = /^[A-Za-z0-9_-]{8,200}$/;
-
 function invitationOf(query: URLSearchParams): { invitation?: string } {
-  const invitation = query.get('invitation_token') ?? '';
-  if (invitation === '') return {};
-  if (!INVITATION_RE.test(invitation)) throw new ApiError('invitation_token is not an invitation', 400);
-  return { invitation };
+  return invitationFrom(query.get('invitation_token') ?? '');
 }
 
 const states = new Map<string, Pending<Started>>();
@@ -136,13 +132,16 @@ function handoffFor(tokens: Tokens, now: number): string {
   return handoff;
 }
 
-async function landing(cfg: WorkosConfig, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
-  const tokens = await exchangeCode(cfg, code, started.invitation);
-  const verdict = await admit(deps.users, tokens, started.intent, new Date(now).toISOString());
+async function admitted(deps: AuthApiDeps, tokens: Tokens, intent: Intent, now: number): Promise<string> {
+  const verdict = await admit(deps.users, tokens, intent, new Date(now).toISOString());
   if (verdict.kind === 'in') return `#/auth/${handoffFor(tokens, now)}`;
-  log.info({ user: tokens.user.id, intent: started.intent, verdict: verdict.kind }, 'auth: not let in');
+  log.info({ user: tokens.user.id, intent, verdict: verdict.kind }, 'auth: not let in');
   if (verdict.kind === 'waiting') return '#/waitlist?joined=1';
   return refusedHash(verdict.reason);
+}
+
+async function landing(cfg: WorkosConfig, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
+  return admitted(deps, await exchangeCode(cfg, code, started.invitation), started.intent, now);
 }
 
 function exchangeRefusal(err: unknown): Refusal {
@@ -287,6 +286,8 @@ interface PrivateRoute {
 const PUBLIC: Record<string, PublicRoute> = {
   '/exchange': { method: 'POST', run: exchange },
   '/refresh': { method: 'POST', run: refresh },
+  '/email/start': { method: 'POST', run: startEmailCode },
+  '/email/verify': { method: 'POST', run: (req, deps) => verifyEmailCode(req, deps, admitted) },
 };
 
 const PRIVATE: Record<string, PrivateRoute> = {

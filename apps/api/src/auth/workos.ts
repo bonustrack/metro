@@ -103,8 +103,15 @@ async function authenticate(cfg: WorkosConfig, grant: Record<string, string>, se
   return tokensOf(body);
 }
 
+const withInvitation = (invitation?: string): Record<string, string> => (invitation === undefined ? {} : { invitation_token: invitation });
+
 export const exchangeCode = (cfg: WorkosConfig, code: string, invitation?: string): Promise<Tokens> =>
-  authenticate(cfg, { grant_type: 'authorization_code', code, ...(invitation === undefined ? {} : { invitation_token: invitation }) });
+  authenticate(cfg, { grant_type: 'authorization_code', code, ...withInvitation(invitation) });
+
+const MAGIC_GRANT = 'urn:workos:oauth:grant-type:magic-auth:code';
+
+export const exchangeMagicCode = (cfg: WorkosConfig, email: string, code: string, invitation?: string): Promise<Tokens> =>
+  authenticate(cfg, { grant_type: MAGIC_GRANT, email, code, ...withInvitation(invitation) });
 
 export const refreshTokens = (cfg: WorkosConfig, refreshToken: string, organization?: string): Promise<Tokens> =>
   authenticate(cfg, { grant_type: 'refresh_token', refresh_token: refreshToken, ...(organization === undefined ? {} : { organization_id: organization }) });
@@ -125,6 +132,10 @@ async function request(cfg: WorkosConfig, method: string, path: string, body?: R
 }
 
 const api = (cfg: WorkosConfig, path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> => request(cfg, 'POST', path, body);
+
+export async function sendMagicCode(cfg: WorkosConfig, email: string, invitation?: string): Promise<void> {
+  await api(cfg, '/user_management/magic_auth', { email, ...withInvitation(invitation) });
+}
 
 const rows = (answer: Record<string, unknown>): Record<string, unknown>[] => (Array.isArray(answer.data) ? answer.data.filter(isRecord) : []);
 

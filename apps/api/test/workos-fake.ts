@@ -116,6 +116,10 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
             if (parsed.pending_authentication_token !== 'pat_select') return send(400, { code: 'invalid_grant', message: 'bad pending token' });
             return send(200, tokens(String(parsed.organization_id)));
           }
+          if (parsed.grant_type === 'urn:workos:oauth:grant-type:magic-auth:code') {
+            if (parsed.code !== '123456') return send(400, { code: 'invalid_grant', message: 'The code is invalid or expired.' });
+            return send(200, tokens(organizations[0] ?? null, USERS.find((u) => u.email === parsed.email)?.id ?? 'user_01ABC'));
+          }
           if (parsed.grant_type === 'refresh_token') {
             if (String(parsed.refresh_token) === 'rt_dead') return send(400, { code: 'invalid_grant', message: 'refresh token revoked' });
             return send(200, tokens(typeof parsed.organization_id === 'string' ? parsed.organization_id : organizations[0] ?? null, holders.get(String(parsed.refresh_token))));
@@ -123,6 +127,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
           return send(400, { code: 'invalid_grant', message: 'unknown grant' });
         }
         if (url.pathname === '/user_management/sessions/revoke') return send(200, {});
+        if (url.pathname === '/user_management/magic_auth') return send(201, { id: 'magic_auth_01', email: parsed.email });
         if (url.pathname.startsWith('/user_management/users/') && req.method === 'PUT') {
           const who = USERS.find((u) => u.id === url.pathname.split('/').pop());
           if (who === undefined) return send(404, { message: 'no such user' });

@@ -39,6 +39,18 @@ export function loginUrl(provider: Provider, intent: Intent): string {
   return authUrl(`/login?provider=${provider}&return_to=${encodeURIComponent(returnTo())}${extra}`);
 }
 
+export async function sendEmailCode(email: string, intent: Intent): Promise<void> {
+  const invitation = pendingInvitation();
+  await post('/email/start', { email, intent, ...(invitation === null ? {} : { invitation }) });
+}
+
+export async function verifyEmailCode(email: string, code: string, intent: Intent): Promise<string> {
+  const invitation = pendingInvitation();
+  const answer = await post('/email/verify', { email, code, intent, ...(invitation === null ? {} : { invitation }) });
+  if (!isRecord(answer) || typeof answer.hash !== 'string' || !answer.hash.startsWith('#/')) throw unexpected();
+  return answer.hash;
+}
+
 export async function exchangeHandoff(code: string): Promise<Account> {
   const account = accountFrom(await post('/exchange', { code }));
   storeAccount(account);

@@ -3,6 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { MetroLogo } from './MetroLogo.js';
+import { EmailLogin } from './EmailLogin.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
@@ -15,6 +16,7 @@ const CARD_PAD = 24;
 const CARD_WIDTH = CONTENT_WIDTH + 2 * CARD_PAD;
 const CARD_GAP = 32;
 const BUTTONS_TOP = 8;
+const OR_GAP = 16;
 const TITLE_GAP = 14;
 const LOGO_GAP = 24;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft', github: 'Continue with GitHub' };
@@ -26,14 +28,14 @@ const CENTER_TEXT = { textAlign: 'center' } as const;
 const WAITLIST_TITLE = 'Join the waitlist';
 const JOINED = 'You are on the waitlist. We will let you in soon, and you can then log in with the same account.';
 const INVITED = 'Your invitation is accepted. Log in with the same account to open Metro.';
-const INVITATION = 'You are invited to an organization. Log in with the account the invitation was sent to: Google, Microsoft or GitHub.';
+const INVITATION = 'You are invited to an organization. Log in with the address the invitation was sent to: Google, Microsoft, GitHub or a code by email.';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
 
 const REFUSALS: Record<string, string> = {
   'no-account': 'No Metro account for this email yet. Join the waitlist first.',
   waiting: 'You are on the waitlist already. We will let you in soon.',
   'not-open': 'Metro is not open to this account.',
-  unverified: 'That account has no verified email address, so Metro cannot accept it. Log in with Google or GitHub, or use an account whose address is verified.',
+  unverified: 'That account has no verified email address, so Metro cannot accept it. Log in with a code sent to your email instead.',
   cancelled: 'The sign-in was cancelled.',
   failed: 'The sign-in failed. Try again.',
 };
@@ -178,8 +180,12 @@ export function Login(): ReactNode {
           {INVITED}
         </Text>
       ) : null}
-      <Col padding={{ top: BUTTONS_TOP }}>
+      <Col padding={{ top: BUTTONS_TOP }} gap={OR_GAP}>
         <ProviderButtons intent={waitlist ? 'waitlist' : 'login'} />
+        <Text size="sm" role="secondary" style={CENTER_TEXT}>
+          or with a code sent to your work email
+        </Text>
+        <EmailLogin intent={waitlist ? 'waitlist' : 'login'} />
       </Col>
     </Frame>
   );
