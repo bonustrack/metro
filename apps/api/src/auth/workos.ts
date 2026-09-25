@@ -103,7 +103,8 @@ async function authenticate(cfg: WorkosConfig, grant: Record<string, string>, se
   return tokensOf(body);
 }
 
-export const exchangeCode = (cfg: WorkosConfig, code: string): Promise<Tokens> => authenticate(cfg, { grant_type: 'authorization_code', code });
+export const exchangeCode = (cfg: WorkosConfig, code: string, invitation?: string): Promise<Tokens> =>
+  authenticate(cfg, { grant_type: 'authorization_code', code, ...(invitation === undefined ? {} : { invitation_token: invitation }) });
 
 export const refreshTokens = (cfg: WorkosConfig, refreshToken: string, organization?: string): Promise<Tokens> =>
   authenticate(cfg, { grant_type: 'refresh_token', refresh_token: refreshToken, ...(organization === undefined ? {} : { organization_id: organization }) });

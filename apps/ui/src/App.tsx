@@ -28,6 +28,7 @@ import { Organization } from './components/Organization.js';
 import { daemonBase, daemonHost, looksLikeHost, setCurrentServer, storedServerId } from './auth/daemon.js';
 import { OutlookReturn } from './components/OutlookReturn.js';
 import { microsoftReturn } from './api/outlook-return.js';
+import { pendingInvitation, takeInvitationFromUrl } from './auth/invitation.js';
 
 type Phase = 'loading' | 'login' | 'organization' | 'unlocked';
 
@@ -37,6 +38,7 @@ async function boot(): Promise<Phase> {
     window.history.replaceState(null, '', `${window.location.pathname}#/`);
     await exchangeHandoff(handoff);
   } else loadAccount();
+  if (handoff === null && pendingInvitation() !== null) return 'login';
   const stored = activeAccount();
   if (stored !== null && stored.organization !== null && stored.organizationName === null) await refreshAccount();
   const account = activeAccount();
@@ -214,6 +216,7 @@ export function App(): ReactNode {
 }
 
 function MetroApp(): ReactNode {
+  useState(takeInvitationFromUrl);
   const [phase, setPhase] = useState<Phase>('loading');
   const [selection, setSelection] = useState<Selection>(currentSelection);
   useEffect(() => subscribeRoute(setSelection), []);

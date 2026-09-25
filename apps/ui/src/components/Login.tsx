@@ -7,6 +7,7 @@ import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
 import { atWaitlist, clearOutcome, readOutcome } from '../auth/login-route.js';
+import { pendingInvitation } from '../auth/invitation.js';
 import { loginUrl, PROVIDERS, type Intent, type Provider } from '../api/auth.js';
 
 const CONTENT_WIDTH = 340;
@@ -25,6 +26,7 @@ const CENTER_TEXT = { textAlign: 'center' } as const;
 const WAITLIST_TITLE = 'Join the waitlist';
 const JOINED = 'You are on the waitlist. We will let you in soon, and you can then log in with the same account.';
 const INVITED = 'Your invitation is accepted. Log in with the same account to open Metro.';
+const INVITATION = 'You are invited to an organization. Log in with the account the invitation was sent to: Google, Microsoft or GitHub.';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
 
 const REFUSALS: Record<string, string> = {
@@ -166,6 +168,11 @@ export function Login(): ReactNode {
           {failed}
         </Text>
       )}
+      {pendingInvitation() !== null && !outcome.invited ? (
+        <Text size="xl" style={CENTER_TEXT}>
+          {INVITATION}
+        </Text>
+      ) : null}
       {outcome.invited ? (
         <Text size="xl" style={CENTER_TEXT}>
           {INVITED}

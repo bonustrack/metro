@@ -1,6 +1,7 @@
 import { builtInDaemon } from '../auth/daemon.js';
 import { accountFrom, activeAccount, clearAccount, storeAccount, tokenExpiring, type Account } from '../auth/account.js';
 import { isRecord } from './read.js';
+import { clearInvitation, pendingInvitation } from '../auth/invitation.js';
 
 export type Provider = 'google' | 'microsoft' | 'github';
 export const PROVIDERS: Provider[] = ['google', 'microsoft', 'github'];
@@ -32,12 +33,16 @@ export const returnTo = (): string => `${window.location.origin}${window.locatio
 
 export type Intent = 'login' | 'waitlist';
 
-export const loginUrl = (provider: Provider, intent: Intent): string =>
-  authUrl(`/login?provider=${provider}&return_to=${encodeURIComponent(returnTo())}${intent === 'waitlist' ? '&intent=waitlist' : ''}`);
+export function loginUrl(provider: Provider, intent: Intent): string {
+  const invitation = pendingInvitation();
+  const extra = `${intent === 'waitlist' ? '&intent=waitlist' : ''}${invitation === null ? '' : `&invitation_token=${encodeURIComponent(invitation)}`}`;
+  return authUrl(`/login?provider=${provider}&return_to=${encodeURIComponent(returnTo())}${extra}`);
+}
 
 export async function exchangeHandoff(code: string): Promise<Account> {
   const account = accountFrom(await post('/exchange', { code }));
   storeAccount(account);
+  clearInvitation();
   return account;
 }
 

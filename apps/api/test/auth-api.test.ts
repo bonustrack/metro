@@ -78,6 +78,16 @@ async function signIn(): Promise<TokenBody> {
 }
 
 describe('signing in to metro.box through WorkOS', () => {
+  test('a login opened from an invitation hands the invitation to WorkOS with the code, and a malformed one is refused', async () => {
+    const start = await fetch(`${base}/api/auth/login?provider=microsoft&return_to=${encodeURIComponent('https://metro.box/')}&invitation_token=inv_TOKEN123`, { redirect: 'manual' });
+    expect(start.status).toBe(302);
+    const fromProvider = await fetch(new URL(start.headers.get('location') ?? ''), { redirect: 'manual' });
+    await fetch(fromProvider.headers.get('location') ?? '', { redirect: 'manual' });
+    const exchange = workos.calls.filter((c) => c.path === '/user_management/authenticate').at(-1);
+    expect((exchange?.body as { invitation_token?: string } | undefined)?.invitation_token).toBe('inv_TOKEN123');
+    expect((await fetch(`${base}/api/auth/login?provider=google&return_to=${encodeURIComponent('https://metro.box/')}&invitation_token=bad%20token`, { redirect: 'manual' })).status).toBe(400);
+  });
+
   test('the account name goes to WorkOS and the picture to metro.box, and both come back on the next tokens', async () => {
     const tokens = await signIn();
     expect((await json('PUT', '/api/auth/account', { name: '  Fabien   Less ' }, tokens.accessToken)).status).toBe(200);

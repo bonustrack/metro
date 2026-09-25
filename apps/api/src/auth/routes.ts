@@ -51,6 +51,16 @@ interface Pending<T> {
 interface Started {
   returnTo: string;
   intent: Intent;
+  invitation?: string;
+}
+
+const INVITATION_RE = /^[A-Za-z0-9_-]{8,200}$/;
+
+function invitationOf(query: URLSearchParams): { invitation?: string } {
+  const invitation = query.get('invitation_token') ?? '';
+  if (invitation === '') return {};
+  if (!INVITATION_RE.test(invitation)) throw new ApiError('invitation_token is not an invitation', 400);
+  return { invitation };
 }
 
 const states = new Map<string, Pending<Started>>();
@@ -102,7 +112,7 @@ function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, que
   const now = (deps.now ?? Date.now)();
   prune(states, STATE_TTL_MS, now);
   const state = token();
-  states.set(state, { value: { returnTo, intent: query.get('intent') === 'waitlist' ? 'waitlist' : 'login' }, at: now });
+  states.set(state, { value: { returnTo, intent: query.get('intent') === 'waitlist' ? 'waitlist' : 'login', ...invitationOf(query) }, at: now });
   redirect(res, authorizationUrl(cfg, provider, callbackUri(req, deps), state));
 }
 
@@ -127,7 +137,7 @@ function handoffFor(tokens: Tokens, now: number): string {
 }
 
 async function landing(cfg: WorkosConfig, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
-  const tokens = await exchangeCode(cfg, code);
+  const tokens = await exchangeCode(cfg, code, started.invitation);
   const verdict = await admit(deps.users, tokens, started.intent, new Date(now).toISOString());
   if (verdict.kind === 'in') return `#/auth/${handoffFor(tokens, now)}`;
   log.info({ user: tokens.user.id, intent: started.intent, verdict: verdict.kind }, 'auth: not let in');
