@@ -158,13 +158,11 @@ async function react(id: string, args: Record<string, unknown>): Promise<void> {
 }
 
 async function typing(id: string, args: Record<string, unknown>): Promise<void> {
-  const { line, on, account } = args as { line: string; on?: boolean; account?: string };
+  const { line, account } = args as { line: string; account?: string };
   const { accountId, chatId, topicId } = targetOf(line, account);
-  if (on !== false) {
-    const body: Record<string, unknown> = { chat_id: chatId, action: 'typing' };
-    if (topicId !== undefined) body.message_thread_id = topicId;
-    await tg(accountId, 'sendChatAction', body);
-  }
+  const body: Record<string, unknown> = { chat_id: chatId, action: 'typing' };
+  if (topicId !== undefined) body.message_thread_id = topicId;
+  await tg(accountId, 'sendChatAction', body);
   respond(id, { result: { ok: true, account: accountId } });
 }
 

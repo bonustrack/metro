@@ -13,6 +13,7 @@ export const discordBotStation: Station = {
     'edit',
     'delete',
     'read',
+    'typing',
   ]),
   groupOps: new Set<GroupOp>(['create_group', 'add_members', 'remove_members']),
   attachmentMode: 'canonical',

@@ -10,7 +10,6 @@ import { errResult, makeCtx, ok, toErr } from './ctx.js';
 import { runRead } from './read-tool.js';
 import { allowedAgents, currentIdentity } from './request-identity.js';
 import { str } from '@metro-labs/core/str';
-import { startTyping, stopTyping, TYPING_MAX_MS } from './typing.js';
 
 type Station = NonNullable<ReturnType<typeof stationForLine>>;
 
@@ -187,13 +186,9 @@ function makeVerbHandler(verb: string, spec: VerbSpec): MessageHandler {
   };
 }
 
-const handleTyping = async ({ line, a, ctx, station }: MessageArgs): Promise<ToolResult> => {
-  if (a.on === false) {
-    stopTyping(line);
-    return ok('typing stopped');
-  }
-  await startTyping(line, (on) => ctx.call('typing', { line, on }), station.typingRefreshMs);
-  return ok(`typing shown; it stops when you send or reply here, or after ${String(TYPING_MAX_MS / 60_000)} minutes`);
+const handleTyping = async ({ line, ctx }: MessageArgs): Promise<ToolResult> => {
+  await ctx.call('typing', { line });
+  return ok('typing shown');
 };
 
 const MESSAGE_HANDLERS: Record<string, MessageHandler> = {
@@ -204,13 +199,6 @@ const MESSAGE_HANDLERS: Record<string, MessageHandler> = {
     Object.entries(MESSAGE_VERBS).map(([verb, spec]) => [verb, makeVerbHandler(verb, spec)]),
   ),
 };
-
-const SENDS = new Set(['send', 'reply']);
-
-function endTypingOnSend(name: string, line: string, result: ToolResult): ToolResult {
-  if (SENDS.has(name) && result.isError !== true) stopTyping(line);
-  return result;
-}
 
 export interface ToolHooks {
   onSent?: (messageId: string) => void;
@@ -237,7 +225,7 @@ export async function dispatchMessageTool(
       `${station.name} does not support ${name}; it supports ${[...verbs].join(', ')}.`,
     );
   try {
-    return endTypingOnSend(name, line, await handler({ line, a, ctx: makeCtx(station.name), station, onSent: hooks.onSent }));
+    return await handler({ line, a, ctx: makeCtx(station.name), station, onSent: hooks.onSent });
   } catch (e) {
     return toErr(name, e);
   }

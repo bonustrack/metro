@@ -92,6 +92,13 @@ function listAccounts(id: string): void {
   });
 }
 
+async function typing(id: string, args: Record<string, unknown>): Promise<void> {
+  const { line, account } = args as { line: string; account?: string };
+  const { accountId, channelId } = routeOf(line, account);
+  await rest(accountId, 'POST', `/channels/${channelId}/typing`);
+  respond(id, { result: { ok: true, account: accountId } });
+}
+
 async function react(id: string, args: Record<string, unknown>): Promise<void> {
   const { line, messageId, emoji, account } = args as {
     line: string;
@@ -198,6 +205,7 @@ const HANDLERS: Record<string, StationHandler> = {
   groupRemoveMembers: groupRemoveHandler,
   send,
   react,
+  typing,
   edit,
   delete: remove,
   read,

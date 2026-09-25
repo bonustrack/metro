@@ -15,7 +15,6 @@ export const whatsappStation: Station = {
     'delete',
     'typing',
   ]),
-  typingRefreshMs: 20_000,
   attachmentMode: 'canonical',
   profileFields: new Set<ProfileField>(PROFILE_FIELDS),
   readsProfiles: true,

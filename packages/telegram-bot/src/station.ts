@@ -14,7 +14,6 @@ export const telegramBotStation: Station = {
     'delete',
     'typing',
   ]),
-  typingRefreshMs: 4_000,
   attachmentMode: 'canonical',
   profileFields: new Set<ProfileField>(PROFILE_FIELDS),
   readsProfiles: true,

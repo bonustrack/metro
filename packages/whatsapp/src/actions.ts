@@ -130,7 +130,7 @@ function makeReact(clientFor: ClientFor): StationHandler {
 function makeTyping(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
     const { accountId, client, jid } = resolve(args, clientFor);
-    await guard(() => client.setTyping(jid, args.on !== false));
+    await guard(() => client.showTyping(jid));
     respond(id, { result: { ok: true, account: accountId } });
   };
 }

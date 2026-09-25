@@ -134,6 +134,7 @@ const PRIOR_SKILL: ReadonlySet<string> = new Set([
   '0b3d122ed95beff09d579cf912cd4238e1db524c41fce4b314de57d6ff5908ad',
   '36f4fb57f231a119d717b5e3d6ccb654f94960fcca708683f376679aead8df25',
   '3840bc50253e51f431691376cf29a925b8245d87b77b8b20804a159e378a6e67',
+  'e6b59eba825b4568dfa9ace5049fd9568a2e10d731719976ad2657084fd4e5f9',
 ]);
 
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex');

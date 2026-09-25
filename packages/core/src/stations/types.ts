@@ -105,7 +105,6 @@ export interface Station {
   hasAccounts: boolean;
   hasTrain: boolean;
   messageVerbs: ReadonlySet<Verb>;
-  typingRefreshMs?: number;
   groupOps?: ReadonlySet<GroupOp>;
   resolvesSenders?: boolean;
   profileFields?: ReadonlySet<ProfileField>;
