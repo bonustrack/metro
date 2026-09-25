@@ -1,7 +1,5 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { str } from '@metro-labs/core/str';
-import { dedupeKey } from './dedupe.js';
-import { PERMISSION_REPLY_RE } from './reply-id.js';
 import {
   buildMediaFailureNote,
   buildMediaNote,
@@ -9,7 +7,6 @@ import {
   type SavedMedia,
 } from './media-note.js';
 import { buildWebhookNote } from './webhook-note.js';
-import { reactContent, reactionEmoji } from './react-note.js';
 import { replyMeta } from './addressed.js';
 import {
   capSet,
@@ -22,6 +19,31 @@ import {
   type PendingMsg,
 } from './pending.js';
 import { agentUser } from '../agent-user/user.js';
+
+const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
+
+const accountStrippedLine = (line: string): string => {
+  const parts = line.split('/');
+  if (parts.length < 5) return line;
+  return [parts[0], parts[1], parts[2], ...parts.slice(4)].join('/');
+};
+
+const dedupeKey = (station: string, line: string, kind: string, messageId: string): string =>
+  `${station} ${accountStrippedLine(line)} ${kind} ${messageId}`;
+
+const shortId = (id: string): string => (id.length > 10 ? `${id.slice(0, 6)}…` : id);
+
+function reactionEmoji(raw: unknown): string {
+  if (typeof raw === 'string') return raw;
+  const obj = raw as { name?: string; reaction?: string } | undefined;
+  return obj?.name ?? obj?.reaction ?? '';
+}
+
+function reactContent(emoji: string, target: string, removed: boolean): string {
+  const verb = removed ? 'removed from' : 'reacted to';
+  const label = removed ? emoji || 'reaction' : emoji || 'reacted';
+  return `${label} ${verb} message ${shortId(target)}`.trim();
+}
 
 interface InboundDeps {
   mcp: Server;

@@ -8,7 +8,7 @@ import {
 import type { AddressInfo } from 'node:net';
 import { handleRelayRequest, type RelayApiDeps } from '../src/connectors/relay.ts';
 import { forgetHealth, healthOf } from '../src/connectors/health.ts';
-import type { RelayTarget } from '../src/connectors/relay-target.ts';
+import type { RelayTarget } from '../src/connectors/store.ts';
 
 const EMAIL = 'less@bonustrack.co';
 const AGENT = 'agent000001';

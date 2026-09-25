@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { whyUnreachable } from './reach.js';
 import { noteHealth } from './health.js';
-import type { RelayTarget } from './relay-target.js';
+import type { RelayTarget } from './store.js';
 import type { AgentIdentity } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
