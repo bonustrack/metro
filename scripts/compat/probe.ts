@@ -103,6 +103,7 @@ await ok('setClaudeSystemPrompt', () => box.setClaudeSystemPrompt('compat'));
 await ok('setClaudeSystemPrompt clear', () => box.setClaudeSystemPrompt(''));
 await ok('fetchClaudeVersion', () => box.fetchClaudeVersion());
 await ok('fetchAgentUser', () => agentUser.fetchAgentUser());
+await ok('fetchSchedules', () => agentUser.fetchSchedules());
 await ok('fetchClaudeAccount', () => claude.fetchClaudeAccount());
 const settings = await ok('fetchClaudeSettings', () => claude.fetchClaudeSettings());
 const first = settings?.[0];

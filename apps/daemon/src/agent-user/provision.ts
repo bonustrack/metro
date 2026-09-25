@@ -8,6 +8,7 @@ import { agentsDir } from '../agents/files.js';
 import { copyIntoHome } from './home-fs.js';
 import { agentMarketplaceDir, agentUser, asUser, claudeBin, forgetAgentUser, lookupUser, wantedAgentUser, type AgentUser } from './user.js';
 import { watchAgentView } from './view.js';
+import { repairGitLinks } from './git-links.js';
 
 const INSTALL_MS = 10 * 60_000;
 const INSTALLER = 'curl -fsSL https://claude.ai/install.sh | bash';
@@ -185,6 +186,9 @@ export async function provisionAgentUser(dir = agentsDir(), env: NodeJS.ProcessE
     await installClaude(user);
     copyMarketplace(user, env);
     watchAgentView();
+    repairGitLinks(user).catch((err: unknown) => {
+      log.warn({ err: errMsg(err) }, 'agent-user: could not repair git links');
+    });
     return 'ready';
   } catch (err) {
     log.error({ user: name, err: errMsg(err) }, 'agent-user: could not prepare the agent user; the Claude session stays stopped');

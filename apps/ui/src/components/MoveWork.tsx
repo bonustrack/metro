@@ -3,12 +3,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { moveWorkspace, WORKSPACE_SINCE, type WorkspaceEntry } from '../api/agent-user.js';
+import { moveWorkspace, SCHEDULES_SINCE, WORKSPACE_SINCE, type MoveMode, type WorkspaceEntry } from '../api/agent-user.js';
 import { queryError, refresh, useModeQuery, useWorkspaceQuery } from '../api/queries.js';
 import { sizeLabel } from '../api/when.js';
 import { olderThan } from '../api/version.js';
 
-const ABOUT = 'Copy the agent\'s work from root\'s home to its own. The originals stay in /root. Hidden files, such as SSH keys and settings, are never offered.';
+const ABOUT = 'Give the agent its work from root\'s home. Hidden folders are offered only when safe (model caches, Python and Node installs), never keys or settings.';
+
+const MODE_TEXT: Record<MoveMode, string> = {
+  move: 'Move: instant and uses no extra disk; the originals leave /root.',
+  copy: 'Copy: keeps the originals in /root, but needs as much free disk again.',
+};
 
 const STATE_TEXT: Record<WorkspaceEntry['state'], string> = { here: '', waiting: 'waiting', copying: 'copying…', moved: 'moved', failed: 'failed' };
 
@@ -32,11 +37,13 @@ function EntryRow({ entry, picked, onToggle }: { entry: WorkspaceEntry; picked: 
   );
 }
 
-function List({ entries }: { entries: WorkspaceEntry[] }): ReactNode {
+function List({ entries, modes }: { entries: WorkspaceEntry[]; modes: boolean }): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [chosen, setMode] = useState<MoveMode>('move');
+  const mode: MoveMode = modes ? chosen : 'copy';
   const [error, setError] = useState<string | null>(null);
   const toggle = (name: string): void => {
     const next = new Set(picked);
@@ -47,7 +54,7 @@ function List({ entries }: { entries: WorkspaceEntry[] }): ReactNode {
   const move = (): void => {
     setBusy(true);
     setError(null);
-    moveWorkspace([...picked])
+    moveWorkspace([...picked], mode)
       .then(() => {
         setPicked(new Set());
         return refresh(client, 'agent-workspace');
@@ -79,9 +86,13 @@ function List({ entries }: { entries: WorkspaceEntry[] }): ReactNode {
           />
         ))}
       </Col>
-      <Row>
-        <Button size="sm" color="secondary" dark={dark} label={`Move ${String(picked.size)}`} disabled={busy || picked.size === 0} onPress={move} />
+      <Row gap={10} align="center">
+        {modes ? (
+          <Button size="sm" color="secondary" dark={dark} label={mode === 'move' ? 'Mode: move' : 'Mode: copy'} onPress={() => { setMode(mode === 'move' ? 'copy' : 'move'); }} />
+        ) : null}
+        <Button size="sm" color="primary" dark={dark} label={`${mode === 'move' ? 'Move' : 'Copy'} ${String(picked.size)}`} disabled={busy || picked.size === 0} onPress={move} />
       </Row>
+      <Text size="sm" role="secondary">{MODE_TEXT[mode]}</Text>
       {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
     </Col>
   );
@@ -101,7 +112,7 @@ export function MoveWork(): ReactNode {
       ) : work.data === undefined ? (
         <Text size="sm" role="secondary">Reading root's home…</Text>
       ) : (
-        <List entries={work.data} />
+        <List entries={work.data} modes={!olderThan(mode.data?.version ?? null, SCHEDULES_SINCE)} />
       )}
     </Col>
   );

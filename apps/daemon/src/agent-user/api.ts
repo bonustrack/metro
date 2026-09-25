@@ -7,10 +7,12 @@ import { log } from '@metro-labs/core/log';
 import { writeSecure } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { agentUser, CONFIG_FILE, forgetAgentUser, wantedAgentUser } from './user.js';
-import { listWorkspace, startMove } from './workspace.js';
+import { listWorkspace, modeOf, startMove } from './workspace.js';
+import { changeSchedule, listSchedules } from './schedules.js';
 
 const PATH = '/api/agent-user';
 const WORKSPACE = '/api/agent-user/workspace';
+const SCHEDULES = '/api/schedules';
 const EXIT_DELAY_MS = 500;
 const NAMES_BODY_MAX = 128 * 1024;
 
@@ -59,26 +61,38 @@ async function workspaceAnswer(req: IncomingMessage, dir: string): Promise<unkno
   const user = agentUser(dir);
   if (user === null) throw new ApiError('switch Claude Code to its own user first', 409);
   if (req.method === 'GET') return { user: user.name, home: user.home, entries: listWorkspace(user) };
-  const started = startMove(bodyField(await readJsonBody(req, NAMES_BODY_MAX), 'names'), user);
+  const body = await readJsonBody(req, NAMES_BODY_MAX);
+  const started = startMove(bodyField(body, 'names'), user, modeOf(bodyField(body, 'mode')));
   return { started, entries: listWorkspace(user) };
 }
 
+async function schedulesAnswer(req: IncomingMessage, dir: string): Promise<unknown> {
+  const user = agentUser(dir);
+  if (req.method === 'GET') return { agentUser: user?.name ?? null, jobs: listSchedules(user) };
+  const body = await readJsonBody(req);
+  const id = bodyField(body, 'id');
+  if (typeof id !== 'string' || id === '') throw new ApiError('id is required', 400);
+  return { agentUser: user?.name ?? null, jobs: changeSchedule(id, bodyField(body, 'action'), user) };
+}
+
+async function switchAnswer(req: IncomingMessage, deps: AgentUserApiDeps, subject: string): Promise<unknown> {
+  const enabled = bodyField(await readJsonBody(req), 'enabled');
+  if (typeof enabled !== 'boolean') throw new ApiError('enabled must be true or false', 400);
+  const reason = unsupported((deps.host ?? realHost)());
+  if (enabled && reason !== null) throw new ApiError(reason, 400);
+  setWanted((deps.agents ?? agentsDir)(), enabled);
+  log.info({ enabled, subject }, 'agent-user-api: switched from the page; restarting');
+  setTimeout(deps.restart, EXIT_DELAY_MS).unref();
+  return { ...agentUserStatus(deps), restarting: true };
+}
+
 export function handleAgentUserRequest(req: IncomingMessage, res: ServerResponse, deps: AgentUserApiDeps): boolean {
-  const methods = { [PATH]: ['GET', 'POST'], [WORKSPACE]: ['GET', 'POST'] };
+  const methods = { [PATH]: ['GET', 'POST'], [WORKSPACE]: ['GET', 'POST'], [SCHEDULES]: ['GET', 'POST'] };
   return sessionRoute(req, res, { methods, admin: ['POST'], label: 'agent-user-api' }, async (session, path) => {
-    if (path === WORKSPACE) {
-      requireAdmin(session);
-      return workspaceAnswer(req, (deps.agents ?? agentsDir)());
-    }
-    if (req.method === 'GET') return agentUserStatus(deps);
-    const enabled = bodyField(await readJsonBody(req), 'enabled');
-    if (typeof enabled !== 'boolean') throw new ApiError('enabled must be true or false', 400);
-    const reason = unsupported((deps.host ?? realHost)());
-    if (enabled && reason !== null) throw new ApiError(reason, 400);
     const dir = (deps.agents ?? agentsDir)();
-    setWanted(dir, enabled);
-    log.info({ enabled, subject: session.subject }, 'agent-user-api: switched from the page; restarting');
-    setTimeout(deps.restart, EXIT_DELAY_MS).unref();
-    return { ...agentUserStatus(deps), restarting: true };
+    if (path !== PATH) requireAdmin(session);
+    if (path === WORKSPACE) return workspaceAnswer(req, dir);
+    if (path === SCHEDULES) return schedulesAnswer(req, dir);
+    return req.method === 'GET' ? agentUserStatus(deps) : switchAnswer(req, deps, session.subject);
   });
 }
