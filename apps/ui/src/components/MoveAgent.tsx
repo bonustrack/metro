@@ -1,29 +1,15 @@
 import { type ReactNode, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Row } from '@stage-labs/kit/react-native/box';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
+import { SettingsSection } from './SettingsSection.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { enterOrganization } from '../auth/org-route.js';
 import { fetchOrganizations, type OrganizationRow } from '../api/auth.js';
 import { moveBoxOwner, moveServer, serverLabel, type Server } from '../api/servers.js';
 import { queryError } from '../api/queries.js';
 import { activeAccount } from '../auth/account.js';
-
-function Section({ title, note, children }: { title: string; note: string; children: ReactNode }): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <Col gap={12} padding={{ bottom: 20 }} border={{ bottom: { width: 1, color: palette.border } }}>
-      <Col gap={2}>
-        <Text weight="semibold">{title}</Text>
-        <Text size="sm" role="secondary">
-          {note}
-        </Text>
-      </Col>
-      {children}
-    </Col>
-  );
-}
 
 function useMove(server: Server): { busy: boolean; error: string | null; run: (to: OrganizationRow) => void } {
   const client = useQueryClient();
@@ -102,8 +88,8 @@ export function MoveSection({ server }: { server: Server }): ReactNode {
   if (account?.role !== 'admin') return null;
   const others = (orgs.data ?? []).filter((o) => o.id !== account.organization && o.role === 'admin');
   return (
-    <Section title="Move to another organization" note="The machine and its row in your list change owner. You must be an admin of both organizations.">
+    <SettingsSection title="Move to another organization" note="The machine and its row in your list change owner. You must be an admin of both organizations.">
       <Targets server={server} rows={others} />
-    </Section>
+    </SettingsSection>
   );
 }

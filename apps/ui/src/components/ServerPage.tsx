@@ -1,9 +1,8 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
-import { SHRINK } from '../theme.js';
 import { PageTitle } from './PageTitle.js';
+import { InfoRow } from './InfoRow.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
@@ -16,26 +15,6 @@ import { ownerLabel } from '../auth/owner-label.js';
 import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not read this server.';
-
-function InfoRow({ label, value, href, danger = false }: { label: string; value: string; href?: string; danger?: boolean }): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <Row justify="between" align="center" gap={16} padding={{ y: 10 }} border={{ bottom: { width: 1, color: palette.border } }}>
-      <Text size="sm" role="secondary">
-        {label}
-      </Text>
-      <Text size="sm" numberOfLines={1} style={SHRINK} role={danger ? 'danger' : undefined}>
-        {href === undefined ? (
-          value
-        ) : (
-          <a className="hint-link" href={href} target="_blank" rel="noreferrer">
-            {value}
-          </a>
-        )}
-      </Text>
-    </Row>
-  );
-}
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
