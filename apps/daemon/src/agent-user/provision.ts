@@ -1,14 +1,14 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from './agent-fs.js';
+import { existsSync } from './agent-fs.js';
 import { join } from 'node:path';
 import { chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { errMsg, log } from '@metro-labs/core/log';
-import { isRecord } from '@metro-labs/core/is-record';
 import { copyIntoHome } from './home-fs.js';
 import { AGENT_NAME, agentMarketplaceDir, agentUser, agentUserExpected, asUser, claudeBin, forgetAgentUser, type AgentUser } from './user.js';
 import { watchAgentView } from './view.js';
 import { mustHelper } from '../metro-user/privilege.js';
+import { stagedPluginVersion } from '../claude/plugin-install.js';
 
 const INSTALL_MS = 10 * 60_000;
 const INSTALLER = 'curl -fsSL https://claude.ai/install.sh | bash';
@@ -54,23 +54,14 @@ function installClaude(user: AgentUser): Promise<void> {
   });
 }
 
-const pluginVersion = (dir: string): string | null => {
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(join(dir, 'plugin', '.claude-plugin', 'plugin.json'), 'utf8'));
-    return isRecord(parsed) && typeof parsed.version === 'string' ? parsed.version : null;
-  } catch {
-    return null;
-  }
-};
-
 function copyMarketplace(user: AgentUser, env: NodeJS.ProcessEnv): void {
   const store = env.METRO_RUNTIME_STORE?.trim() ?? '';
   const from = join(store, 'marketplace');
   if (store === '' || !existsSync(join(from, '.claude-plugin', 'marketplace.json'))) return;
   const to = agentMarketplaceDir(user);
-  if (pluginVersion(from) !== null && pluginVersion(from) === pluginVersion(to)) return;
+  if (stagedPluginVersion(from) !== null && stagedPluginVersion(from) === stagedPluginVersion(to)) return;
   const files = copyIntoHome(from, to, user);
-  log.info({ files, version: pluginVersion(from) }, 'agent-user: copied the metro plugin where the agent user can load it');
+  log.info({ files, version: stagedPluginVersion(from) }, 'agent-user: copied the metro plugin where the agent user can load it');
 }
 
 export async function provisionAgentUser(env: NodeJS.ProcessEnv = process.env): Promise<Provisioned> {

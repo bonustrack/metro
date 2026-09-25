@@ -11,7 +11,7 @@ import { useDocumentTitle } from '../title.js';
 
 const ABOUT = "The agent's timers and cron jobs. They all run as the user agent; one left in root's home is switched at every start.";
 
-const KIND: Record<ScheduledJob['kind'], string> = { timer: 'timer', 'cron-root': 'cron', 'cron-agent': 'cron' };
+const KIND: Record<ScheduledJob['kind'], string> = { timer: 'timer', 'cron-agent': 'cron' };
 
 export function detail(job: ScheduledJob): string {
   const parts = [KIND[job.kind], job.schedule, `runs as ${job.runsAs}`];
@@ -41,7 +41,6 @@ export function ScheduledJobs({ project, onOpen }: { project: string; onOpen: (i
               title={job.name}
               detail={detail(job)}
               href={routeHash({ kind: 'scheduled-job', project, id: job.id })}
-              extra={job.problem === null ? null : <Text size="sm" role="danger">still runs as root</Text>}
               onOpen={() => {
                 onOpen(job.id);
               }}

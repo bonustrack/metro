@@ -6,13 +6,13 @@ import { Text, Button } from './ui.js';
 import { BackLink } from './BackLink.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
-import { fetchScheduleDetail, retrySchedule, runSchedule, type JobDetail } from '../api/schedules.js';
+import { fetchScheduleDetail, runSchedule, type JobDetail } from '../api/schedules.js';
 import { queryError, refresh, useBoxQuery } from '../api/queries.js';
 import { routeHash } from '../route.js';
 import { whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
-const KIND: Record<JobDetail['kind'], string> = { timer: 'systemd timer', 'cron-root': "root's crontab", 'cron-agent': "the agent's crontab" };
+const KIND: Record<JobDetail['kind'], string> = { timer: 'systemd timer', 'cron-agent': "the agent's crontab" };
 
 function Field({ label, value }: { label: string; value: string }): ReactNode {
   return (
@@ -60,18 +60,13 @@ function useAction(id: string): { busy: boolean; error: string | null; run: (act
   return { busy, error, run };
 }
 
-function Actions({ job, onMoved }: { job: JobDetail; onMoved: () => void }): ReactNode {
+function Actions({ job }: { job: JobDetail }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { busy, error, run } = useAction(job.id);
   return (
     <Col gap={8}>
-      {job.problem === null ? null : <Text size="sm" role="danger">{`Still runs as root: ${job.problem}`}</Text>}
       <Row gap={10}>
-        {job.runsAs === 'root' ? (
-          <Button size="sm" color="secondary" dark={dark} label="Retry the switch" disabled={busy} onPress={() => { run(() => retrySchedule(job.id).then(onMoved), 'Could not switch that job.'); }} />
-        ) : (
-          <Button size="sm" color="secondary" dark={dark} label="Run now" disabled={busy} onPress={() => { run(() => runSchedule(job.id), 'Could not start that job.'); }} />
-        )}
+        <Button size="sm" color="secondary" dark={dark} label="Run now" disabled={busy} onPress={() => { run(() => runSchedule(job.id), 'Could not start that job.'); }} />
       </Row>
       {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
     </Col>
@@ -104,7 +99,7 @@ export function ScheduledJobPage({ project, id, onBack }: { project: string; id:
         <Col gap={20}>
           <PageTitle>{detail.data.name}</PageTitle>
           <Facts job={detail.data} />
-          <Actions job={detail.data} onMoved={onBack} />
+          <Actions job={detail.data} />
           {detail.data.script === null ? null : <Block title="Script" note={detail.data.script.path} text={detail.data.script.text} empty="The script is empty." />}
           <Block title="Definition" note={null} text={detail.data.definition} empty="Nothing to show." />
           <Block

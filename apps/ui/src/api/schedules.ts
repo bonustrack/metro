@@ -4,7 +4,7 @@ import { filled, isRecord } from './read.js';
 
 export interface ScheduledJob {
   id: string;
-  kind: 'timer' | 'cron-root' | 'cron-agent';
+  kind: 'timer' | 'cron-agent';
   name: string;
   schedule: string;
   command: string;
@@ -12,11 +12,9 @@ export interface ScheduledJob {
   next: string | null;
   last: string | null;
   lastResult: string | null;
-  usesRoot: boolean;
-  problem: string | null;
 }
 
-const KINDS = new Set(['timer', 'cron-root', 'cron-agent']);
+const KINDS = new Set(['timer', 'cron-agent']);
 
 function toJob(raw: unknown): ScheduledJob | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.kind !== 'string' || !KINDS.has(raw.kind)) return null;
@@ -31,8 +29,6 @@ function toJob(raw: unknown): ScheduledJob | null {
     next: filled(raw.next),
     last: filled(raw.last),
     lastResult: filled(raw.lastResult),
-    usesRoot: raw.usesRoot === true,
-    problem: filled(raw.problem),
   };
 }
 
@@ -77,17 +73,6 @@ export async function runSchedule(id: string): Promise<JobDetail> {
       base: `${daemonBase()}/api/schedules`,
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ id, action: 'run' }),
-    }),
-  );
-}
-
-export async function retrySchedule(id: string): Promise<Schedules> {
-  return toSchedules(
-    await call({
-      method: 'POST',
-      base: `${daemonBase()}/api/schedules`,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id }),
     }),
   );
 }

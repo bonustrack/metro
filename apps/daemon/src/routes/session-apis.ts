@@ -26,9 +26,6 @@ export interface SessionApis {
   bundleApi?: BundleApiDeps;
   updateApi?: UpdateApiDeps;
   controlApi?: ControlApiDeps;
-  schedulesApi?: true;
-  filesApi?: true;
-  vaultApi?: true;
   ownerApi?: OwnerApiDeps;
   machineApi?: MachineApiDeps;
   modelApi?: ModelApiDeps;
@@ -55,9 +52,9 @@ export function handleSessionApis(
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
     ...when(apis.controlApi, (d) => handleControlRequest(req, res, d)),
-    ...when(apis.schedulesApi, () => handleSchedulesRequest(req, res)),
-    ...when(apis.filesApi, () => handleFilesRequest(req, res)),
-    ...when(apis.vaultApi, () => handleVaultRequest(req, res)),
+    () => handleSchedulesRequest(req, res),
+    () => handleFilesRequest(req, res),
+    () => handleVaultRequest(req, res),
     ...when(apis.ownerApi, (d) => handleOwnerRequest(req, res, d)),
     ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),
     ...when(apis.modelApi, (d) => handleModelRequest(req, res, d)),
