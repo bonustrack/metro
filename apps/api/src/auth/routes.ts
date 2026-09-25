@@ -108,6 +108,9 @@ function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, que
 
 const refusedHash = (reason: Refusal): string => `#/login?refused=${reason}`;
 
+const PAGE = 'https://metro.box/';
+const INVITED_HASH = '#/login?invited=1';
+
 function refusal(query: URLSearchParams): Refusal | null {
   const error = query.get('error');
   if (error === null && query.get('code') !== null) return null;
@@ -141,6 +144,11 @@ async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearch
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
   const now = (deps.now ?? Date.now)();
   const started = take(states, query.get('state') ?? '', STATE_TTL_MS, now);
+  if (started === null && query.get('code') !== null) {
+    log.info('auth: a sign-in started outside metro.box (an invitation), sent to the login page');
+    redirect(res, withHash(PAGE, INVITED_HASH));
+    return;
+  }
   if (started === null) throw new ApiError('this sign-in link is stale, start again', 400);
   const returnTo = started.returnTo;
   const refused = refusal(query);

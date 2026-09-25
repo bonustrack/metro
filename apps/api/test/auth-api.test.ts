@@ -171,7 +171,11 @@ describe('signing in to metro.box through WorkOS', () => {
   test('a bad provider, a foreign return_to, a stale state and a cancelled sign-in are all handled', async () => {
     expect((await fetch(`${base}/api/auth/login?provider=facebook&return_to=https://metro.box/`, { redirect: 'manual' })).status).toBe(400);
     expect((await fetch(`${base}/api/auth/login?provider=google&return_to=https://evil.example/`, { redirect: 'manual' })).status).toBe(400);
-    expect((await fetch(`${base}/api/auth/callback?code=x&state=unknown`, { redirect: 'manual' })).status).toBe(400);
+    expect((await fetch(`${base}/api/auth/callback?state=unknown`, { redirect: 'manual' })).status).toBe(400);
+    const invited = await fetch(`${base}/api/auth/callback?code=x&state=unknown`, { redirect: 'manual' });
+    expect(invited.status).toBe(302);
+    expect(invited.headers.get('location')).toBe('https://metro.box/#/login?invited=1');
+    expect(workos.calls.some((c) => c.path === '/user_management/authenticate' && JSON.stringify(c.body).includes('"code":"x"'))).toBe(false);
     const start = await fetch(`${base}/api/auth/login?provider=google&return_to=https://metro.box/`, { redirect: 'manual' });
     const state = new URL(start.headers.get('location') ?? '').searchParams.get('state') ?? '';
     const cancelled = await fetch(`${base}/api/auth/callback?error=access_denied&error_description=User+said+no&state=${state}`, { redirect: 'manual' });

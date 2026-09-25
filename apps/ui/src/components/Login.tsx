@@ -24,6 +24,7 @@ const ABOUT = 'Your agents, on your machines, in every chat you use. Your keys s
 const CENTER_TEXT = { textAlign: 'center' } as const;
 const WAITLIST_TITLE = 'Join the waitlist';
 const JOINED = 'You are on the waitlist. We will let you in soon, and you can then log in with the same account.';
+const INVITED = 'Your invitation is accepted. Log in with the same account to open Metro.';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
 
 const REFUSALS: Record<string, string> = {
@@ -165,6 +166,11 @@ export function Login(): ReactNode {
           {failed}
         </Text>
       )}
+      {outcome.invited ? (
+        <Text size="xl" style={CENTER_TEXT}>
+          {INVITED}
+        </Text>
+      ) : null}
       <Col padding={{ top: BUTTONS_TOP }}>
         <ProviderButtons intent={waitlist ? 'waitlist' : 'login'} />
       </Col>
