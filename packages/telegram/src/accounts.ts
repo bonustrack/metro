@@ -1,5 +1,3 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import {
   makeAccountStore,
   resolveAccountId,
@@ -7,31 +5,22 @@ import {
 } from '@metro-labs/core/stations/account-store';
 import type { UserAccount } from './types.js';
 
-const ACCOUNTS_FILE =
-  process.env.TELEGRAM_ACCOUNTS_FILE ??
-  join(homedir(), '.metro', 'telegram-accounts.json');
-
 const isSignedInt = (s: string): boolean => /^-?\d+$/.test(s);
 const isTopic = (s: string): boolean => /^\d+$/.test(s);
 
-function validateAccount(a: UserAccount, seen: Set<string>, die: Die): void {
-  if (!a.id) die('account missing id');
+function validateAccount(a: UserAccount, die: Die): void {
   if (!a.session || typeof a.session !== 'string')
     die(`account '${a.id}' missing session`);
   if (!Number.isInteger(a.apiId) || (a.apiId ?? 0) <= 0)
     die(`account '${a.id}' missing apiId`);
   if (!a.apiHash || typeof a.apiHash !== 'string')
     die(`account '${a.id}' missing apiHash`);
-  if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
-  seen.add(a.id);
 }
 
 export const { loadAccounts } = makeAccountStore<UserAccount>({
   prefix: 'telegram',
-  file: ACCOUNTS_FILE,
   validate(raw, die) {
-    const seen = new Set<string>();
-    for (const a of raw) validateAccount(a, seen, die);
+    for (const a of raw) validateAccount(a, die);
   },
 });
 

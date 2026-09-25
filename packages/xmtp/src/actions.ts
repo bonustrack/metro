@@ -5,7 +5,7 @@ import {
   type Attachment,
 } from '@xmtp/content-type-remote-attachment';
 import { convOf } from './accounts.js';
-import { resolveMsgId, respond } from './wire.js';
+import { resolveMsgId } from './wire.js';
 import { emitOutbound } from './emit.js';
 import { PollCodec, buildPollContent } from './codecs.js';
 import { convHandlers } from './actions-conv.js';
@@ -13,7 +13,7 @@ import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize'
 import { TrainError } from '@metro-labs/core/train-error';
 import { claimNameAction, nameAction, setProfile } from './profile.js';
 import { profileAction } from './sender.js';
-import { makeStation, type CallMsg } from '@metro-labs/core/stations/station-runtime';
+import { makeStation, respond, type CallMsg } from '@metro-labs/core/stations/station-runtime';
 
 type Args = Record<string, unknown>;
 

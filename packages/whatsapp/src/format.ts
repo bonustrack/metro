@@ -1,5 +1,5 @@
 import { lineOf } from './accounts.js';
-import { mintId } from './wire.js';
+import { mintId } from '@metro-labs/core/stations/station-runtime';
 import type { WAMediaRef } from './media.js';
 
 export interface InboundMessage {

@@ -1,6 +1,6 @@
 import { errMsg } from '@metro-labs/core/log';
 import { accountForCall, convOf, lineOf, type Account } from './accounts.js';
-import { respond } from './wire.js';
+import { respond } from '@metro-labs/core/stations/station-runtime';
 import type { GroupLike } from './labels.js';
 
 type Args = Record<string, unknown>;

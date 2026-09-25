@@ -6,18 +6,13 @@ import {
   routeOf,
 } from './accounts.js';
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
-import { respond } from './wire.js';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import {
   appendFiles,
   outgoingFiles,
   type OutgoingFile,
 } from './send-files.js';
-import {
-  makeStation,
-  type CallMsg,
-  type StationHandler,
-} from '@metro-labs/core/stations/station-runtime';
+import { makeStation, respond, type CallMsg, type StationHandler } from '@metro-labs/core/stations/station-runtime';
 import { readProfile, setProfile } from './profile.js';
 import { discordMembers } from './members.js';
 import {

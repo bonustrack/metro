@@ -2,7 +2,7 @@ import { createPublicClient, http, namehash, type Hex } from 'viem';
 import { base } from 'viem/chains';
 import { normalize } from 'viem/ens';
 import { makeProfileCache, type SenderProfile as Profile } from '@metro-labs/core/stations/sender-profile';
-import { respond } from './wire.js';
+import { respond } from '@metro-labs/core/stations/station-runtime';
 import { TrainError } from '@metro-labs/core/train-error';
 import { accountForCall, accounts, type Account } from './accounts.js';
 import { resolveAddresses } from './conv-helpers.js';

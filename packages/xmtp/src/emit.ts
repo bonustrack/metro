@@ -1,7 +1,8 @@
 import type { Conversation, DecodedMessage } from '@xmtp/node-sdk';
 import { lineOf } from './accounts.js';
 import { selfUri } from '@metro-labs/core/stations/train-events';
-import { emit, mintId, rememberSent, rememberUid } from './wire.js';
+import { emit, mintId } from '@metro-labs/core/stations/station-runtime';
+import { rememberSent, rememberUid } from './wire.js';
 import { typedEnvelope, type EnvelopeCtx } from './emit-payloads.js';
 import type { StructuredEvent } from '@metro-labs/core/events';
 

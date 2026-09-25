@@ -1,7 +1,7 @@
 import { MessageFlags, type Message, type MessageReaction, type User } from 'discord.js';
 import { reportAttachment, selfUri } from '@metro-labs/core/stations/train-events';
 import { accounts, lineOf } from './accounts.js';
-import { emit, mintId } from './wire.js';
+import { emit, mintId } from '@metro-labs/core/stations/station-runtime';
 import { saveDiscordAttachment } from './attachments.js';
 
 const AV_TAG: Record<string, string> = { audio: 'audio', video: 'video' };

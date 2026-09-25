@@ -1,6 +1,6 @@
 import { errMsg } from '@metro-labs/core/log';
 import { emitInbound, selfUri } from '@metro-labs/core/stations/train-events';
-import { mintId } from './wire.js';
+import { mintId } from '@metro-labs/core/stations/station-runtime';
 
 const WHISPER_BIN = process.env.METRO_WHISPER_BIN ?? 'whisper-cli';
 const WHISPER_MODEL =

@@ -1,17 +1,11 @@
 import { Client } from 'discord.js';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import {
   makeAccountStore,
   resolveAccountId,
 } from '@metro-labs/core/stations/account-store';
 import { Line } from '@metro-labs/core/lines';
-import { emit } from './wire.js';
+import { emit } from '@metro-labs/core/stations/station-runtime';
 import { API } from './api-base.js';
-
-const ACCOUNTS_FILE =
-  process.env.DISCORD_BOT_ACCOUNTS_FILE ??
-  join(homedir(), '.metro', 'discord-bot-accounts.json');
 
 export interface AccountConfig {
   id: string;
@@ -20,16 +14,10 @@ export interface AccountConfig {
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'discord-bot',
-  file: ACCOUNTS_FILE,
   validate(raw, die) {
-    const seen = new Set<string>();
-    for (const a of raw) {
-      if (!a.id) die('account missing id');
+    for (const a of raw)
       if (!a.token || typeof a.token !== 'string')
         die(`account '${a.id}' missing token`);
-      if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
-      seen.add(a.id);
-    }
   },
 });
 

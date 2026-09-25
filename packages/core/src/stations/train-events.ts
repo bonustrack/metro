@@ -28,6 +28,7 @@ export interface SavedFile {
   path: string;
   mime?: string;
   name?: string;
+  bytes?: number;
 }
 
 function attachmentEvent(at: AttachmentAt, text: string, payload: Fields): Fields {
@@ -45,6 +46,7 @@ function attachmentEvent(at: AttachmentAt, text: string, payload: Fields): Field
 export const attachmentSavedEvent = (at: AttachmentAt & { saved: SavedFile; extra?: Fields }): Fields =>
   attachmentEvent(at, `📎 saved: ${at.saved.path}`, {
     contentType: 'attachmentSaved',
+    ...(at.saved.bytes === undefined ? {} : { size: at.saved.bytes }),
     ...at.extra,
     attachmentPath: at.saved.path,
     mime: at.saved.mime,

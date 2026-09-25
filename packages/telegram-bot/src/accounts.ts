@@ -1,14 +1,8 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import {
   makeAccountStore,
   resolveAccountId,
 } from '@metro-labs/core/stations/account-store';
 import { Line } from '@metro-labs/core/lines';
-
-const ACCOUNTS_FILE =
-  process.env.TELEGRAM_BOT_ACCOUNTS_FILE ??
-  join(homedir(), '.metro', 'telegram-bot-accounts.json');
 
 export interface AccountConfig {
   id: string;
@@ -17,20 +11,15 @@ export interface AccountConfig {
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'telegram-bot',
-  file: ACCOUNTS_FILE,
   validate(raw, die) {
-    const seenId = new Set<string>();
     const seenTok = new Set<string>();
     for (const a of raw) {
-      if (!a.id) die('account missing id');
       if (!a.token || typeof a.token !== 'string')
         die(`account '${a.id}' missing token`);
-      if (seenId.has(a.id)) die(`duplicate account id '${a.id}'`);
       if (seenTok.has(a.token))
         die(
           `account '${a.id}' reuses a token used by another account (409 on getUpdates)`,
         );
-      seenId.add(a.id);
       seenTok.add(a.token);
     }
   },

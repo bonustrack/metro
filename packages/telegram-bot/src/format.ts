@@ -1,6 +1,6 @@
 import { accounts, lineOf } from './accounts.js';
 import { reportAttachment } from '@metro-labs/core/stations/train-events';
-import { mintId } from './wire.js';
+import { mintId } from '@metro-labs/core/stations/station-runtime';
 import { mediaRefOf, saveTelegramMedia } from './attachments.js';
 import type { TgMsg, TgReaction, TgReactionCount, TgUser } from './types.js';
 

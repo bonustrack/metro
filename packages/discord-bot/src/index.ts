@@ -16,7 +16,7 @@ import {
 } from './accounts.js';
 import { emitInbound } from '@metro-labs/core/stations/train-events';
 import { messageEnvelope, reactionEnvelope } from './format.js';
-import { mintId } from './wire.js';
+import { mintId } from '@metro-labs/core/stations/station-runtime';
 import { readCalls } from '@metro-labs/core/trains/protocol';
 import { announceAccounts } from '@metro-labs/core/stations/train-boot';
 import { handleCall } from './actions.js';

@@ -1,5 +1,4 @@
 import { accounts, tg, targetOf } from './accounts.js';
-import { respond } from './wire.js';
 import { errMsg } from '@metro-labs/core/log';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import {
@@ -7,11 +6,7 @@ import {
   inaccessibleMemberList,
   type TgChatMember,
 } from './members.js';
-import {
-  makeStation,
-  type CallMsg,
-  type StationHandler,
-} from '@metro-labs/core/stations/station-runtime';
+import { makeStation, respond, type CallMsg, type StationHandler } from '@metro-labs/core/stations/station-runtime';
 import { mediaKindOf } from './attachments.js';
 import {
   emitOutbound,

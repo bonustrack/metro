@@ -10,7 +10,7 @@ import {
 import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { TrainError } from '@metro-labs/core/train-error';
 import { accountFor, tg, tgForm } from './accounts.js';
-import { respond } from './wire.js';
+import { respond } from '@metro-labs/core/stations/station-runtime';
 
 async function setPhoto(accountId: string, avatar: ProfileAvatar): Promise<void> {
   assertImage(avatar);

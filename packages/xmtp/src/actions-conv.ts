@@ -1,6 +1,7 @@
 import { IdentifierKind } from '@xmtp/node-sdk';
 import { accountForCall, convOf, lineOf, parseLine } from './accounts.js';
-import { resolveMsgId, respond } from './wire.js';
+import { respond } from '@metro-labs/core/stations/station-runtime';
+import { resolveMsgId } from './wire.js';
 import { TrainError } from '@metro-labs/core/train-error';
 import {
   buildGroupInfo,

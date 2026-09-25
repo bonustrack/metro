@@ -15,10 +15,6 @@ import {
 } from '@metro-labs/core/stations/account-store';
 import { Line } from '@metro-labs/core/lines';
 
-const ACCOUNTS_FILE =
-  process.env.XMTP_ACCOUNTS_FILE ??
-  join(homedir(), '.metro', 'xmtp-accounts.json');
-
 export interface AccountConfig {
   id: string;
   privateKey?: string;
@@ -28,15 +24,8 @@ export interface AccountConfig {
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'xmtp',
-  file: ACCOUNTS_FILE,
   validate(raw, die) {
-    const seen = new Set<string>();
-    for (const a of raw) {
-      if (!a.id) die('account missing id');
-      if (!a.privateKey) die(`account '${a.id}' needs a privateKey`);
-      if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
-      seen.add(a.id);
-    }
+    for (const a of raw) if (!a.privateKey) die(`account '${a.id}' needs a privateKey`);
   },
 });
 

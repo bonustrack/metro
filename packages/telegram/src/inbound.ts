@@ -1,6 +1,6 @@
 import type { Message } from '@mtcute/bun';
 import { errMsg, log } from '@metro-labs/core/log';
-import { emit } from './wire.js';
+import { emit } from '@metro-labs/core/stations/station-runtime';
 import { reportAttachment } from '@metro-labs/core/stations/train-events';
 import { envelope, isOwnEcho } from './format.js';
 import { downloadMedia, isDownloadable } from './attachments.js';
