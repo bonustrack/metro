@@ -1,7 +1,7 @@
 import { mkdirSync, statSync, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
-import { daemonSelf } from '@metro-labs/core/events';
+import { userSelf } from '@metro-labs/core/events';
 import {
   drainLines,
   failAllPending,
@@ -209,7 +209,7 @@ export class TrainSupervisor {
           ...process.env,
           ...DYLD_FALLBACK_ENV,
           METRO_TRAIN_NAME: state.name,
-          METRO_SELF_URI: daemonSelf(),
+          METRO_SELF_URI: userSelf(),
         },
       });
       state.proc = proc;

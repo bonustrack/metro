@@ -1,6 +1,8 @@
 import { Line } from './lines.js';
+import { errMsg, log } from './log.js';
 
-export { userSelf, daemonSelf } from './identity.js';
+export const userSelf = (): Line =>
+  (process.env.METRO_FROM ?? 'metro://user') as Line;
 
 export type StructuredEvent =
   | { type: 'msg' }
@@ -98,7 +100,7 @@ export function publishEvent(event: MetroEvent): void {
     try {
       fn(event, seq);
     } catch (err) {
-      console.error('[metro-bus] listener threw for busSeq', seq, err);
+      log.error({ busSeq: seq, err: errMsg(err) }, 'bus: a listener threw');
     }
   }
 }

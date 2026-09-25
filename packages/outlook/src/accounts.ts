@@ -12,8 +12,6 @@ export interface AccountConfig {
   refreshToken: string;
   accessToken?: string;
   expiresAt?: number;
-  tenantId?: string | null;
-  deltaLink?: string | null;
   includeAutomated?: boolean;
 }
 
@@ -43,7 +41,6 @@ export class Account {
       refreshToken: cfg.refreshToken,
       accessToken: cfg.accessToken ?? '',
       expiresAt: cfg.expiresAt ?? 0,
-      deltaLink: cfg.deltaLink ?? null,
     });
   }
 

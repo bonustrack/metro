@@ -124,7 +124,7 @@ function outbound(
     ts: new Date().toISOString(),
     station: 'discord-bot',
     line,
-    from: selfUri('discord-bot', accountId),
+    from: selfUri(),
     to: line,
     message_id: messageId,
     ...extra,

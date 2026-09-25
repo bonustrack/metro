@@ -58,7 +58,7 @@ export function emitOutbound(
     ts: new Date().toISOString(),
     station: 'xmtp',
     line,
-    from: selfUri('xmtp', accountId),
+    from: selfUri(),
     to: line,
     message_id: messageId,
     text,

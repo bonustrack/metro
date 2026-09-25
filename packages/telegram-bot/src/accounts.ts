@@ -38,37 +38,15 @@ export async function tg<T>(
   accountId: string,
   method: string,
   body: unknown,
-  timeoutMs = 30_000,
+  timeoutMs = body instanceof FormData ? 60_000 : 30_000,
 ): Promise<T> {
   const acct = accounts.get(accountId);
   if (!acct) throw new Error(`unknown account '${accountId}'`);
+  const form = body instanceof FormData;
   const res = await fetch(`${acct.api}/${method}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  const json = (await res.json()) as {
-    ok: boolean;
-    description?: string;
-    result?: T;
-  };
-  if (!json.ok)
-    throw new Error(`telegram-bot ${method}: ${json.description ?? 'unknown'}`);
-  return json.result as T;
-}
-
-export async function tgForm<T>(
-  accountId: string,
-  method: string,
-  form: FormData,
-  timeoutMs = 60_000,
-): Promise<T> {
-  const acct = accounts.get(accountId);
-  if (!acct) throw new Error(`unknown account '${accountId}'`);
-  const res = await fetch(`${acct.api}/${method}`, {
-    method: 'POST',
-    body: form,
+    ...(form ? {} : { headers: { 'Content-Type': 'application/json' } }),
+    body: form ? body : JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   });
   const json = (await res.json()) as {

@@ -24,22 +24,21 @@ const isThreemaResource = (s: string): boolean =>
 const isOutlookResource = (s: string): boolean => /^[A-Za-z0-9=_%.@+-]+$/.test(s);
 const isSignedInt = (s: string): boolean => /^-?\d+$/.test(s);
 
+const topicPart = (topicId: string | undefined): { topicId?: number } | null => {
+  if (topicId === undefined) return {};
+  return isSnowflake(topicId) ? { topicId: Number(topicId) } : null;
+};
+
 function parseTelegramLine(
   line: Line | string,
 ): { accountId: string; chatId: number; topicId?: number } | null {
   const p = Line.parse(line);
   if (p?.station !== 'telegram-bot') return null;
-  const [accountId, ...rest] = p.path;
-  const [chatId, topicId] = rest;
-  if (accountId === undefined) return null;
-  if (rest.length < 1 || rest.length > 2 || chatId === undefined || !isSignedInt(chatId))
-    return null;
-  if (topicId !== undefined && !isSnowflake(topicId)) return null;
-  return {
-    accountId,
-    chatId: Number(chatId),
-    ...(topicId !== undefined ? { topicId: Number(topicId) } : {}),
-  };
+  const [accountId, chatId, topicId, ...extra] = p.path;
+  if (accountId === undefined || chatId === undefined || extra.length > 0) return null;
+  if (!isSignedInt(chatId)) return null;
+  const topic = topicPart(topicId);
+  return topic === null ? null : { accountId, chatId: Number(chatId), ...topic };
 }
 
 export const Line = {

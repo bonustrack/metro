@@ -1,4 +1,4 @@
-import { tgForm, targetOf } from './accounts.js';
+import { tg, targetOf } from './accounts.js';
 import { selfUri } from '@metro-labs/core/stations/train-events';
 import { emit, mintId, respond } from '@metro-labs/core/stations/station-runtime';
 import { appendFile } from '@metro-labs/core/stations/attachments';
@@ -15,7 +15,7 @@ export function emitOutbound(
     ts: new Date().toISOString(),
     station: 'telegram-bot',
     line,
-    from: selfUri('telegram-bot', accountId),
+    from: selfUri(),
     to: line,
     message_id: messageId,
     text,
@@ -74,7 +74,7 @@ export async function sendMedia(
     );
   const name = fileName ?? path.split('/').pop() ?? fieldName;
   await appendFile(form, fieldName, path, name);
-  const r = await tgForm<{ message_id: number }>(accountId, method, form);
+  const r = await tg<{ message_id: number }>(accountId, method, form);
   return { accountId, message_id: r.message_id };
 }
 

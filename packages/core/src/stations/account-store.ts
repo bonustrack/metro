@@ -22,11 +22,11 @@ const envName = (prefix: string): string =>
 const accountsFile = (prefix: string): string =>
   process.env[envName(prefix)] ?? join(homedir(), '.metro', `${prefix}-accounts.json`);
 
-function checkIds(raw: { id?: unknown }[], die: Die): void {
-  const seen = new Set<unknown>();
+function checkIds(raw: { id: string }[], die: Die): void {
+  const seen = new Set<string>();
   for (const a of raw) {
     if (!a.id) die('account missing id');
-    if (seen.has(a.id)) die(`duplicate account id '${String(a.id)}'`);
+    if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
     seen.add(a.id);
   }
 }

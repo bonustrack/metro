@@ -4,9 +4,7 @@ import { emit } from './station-runtime.js';
 type Fields = Record<string, unknown>;
 type Out = (e: unknown) => void;
 
-export const selfUri = (station: string, account?: string): string =>
-  process.env.METRO_SELF_URI ??
-  (account === undefined ? `metro://${station}/self` : `metro://${station}/${account}/self`);
+export const selfUri = (): string => process.env.METRO_SELF_URI ?? 'metro://user';
 
 export function emitInbound(account: string, e: Fields, out: Out = emit): void {
   out({
@@ -37,7 +35,7 @@ function attachmentEvent(at: AttachmentAt, text: string, payload: Fields): Field
     ts: new Date().toISOString(),
     station: at.station,
     line: at.line,
-    from: at.from ?? selfUri(at.station, at.account),
+    from: at.from ?? selfUri(),
     text,
     payload: { account: at.account, attachmentFor: at.forId, index: at.index, ...payload },
   };

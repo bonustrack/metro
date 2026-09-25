@@ -18,14 +18,13 @@ afterEach(() => {
 
 describe('selfUri', () => {
   test('reads METRO_SELF_URI, which the supervisor always sets', () => {
-    process.env.METRO_SELF_URI = 'metro://user';
-    expect(selfUri('xmtp', 'a1')).toBe('metro://user');
+    process.env.METRO_SELF_URI = 'metro://user/me';
+    expect(selfUri()).toBe('metro://user/me');
   });
 
-  test('falls back to the account itself', () => {
+  test('falls back to the plain user', () => {
     delete process.env.METRO_SELF_URI;
-    expect(selfUri('xmtp', 'a1')).toBe('metro://xmtp/a1/self');
-    expect(selfUri('xmtp')).toBe('metro://xmtp/self');
+    expect(selfUri()).toBe('metro://user');
   });
 });
 
@@ -48,7 +47,7 @@ describe('attachment events', () => {
   test('attachmentSaved carries the path the daemon reads', () => {
     delete process.env.METRO_SELF_URI;
     const e = attachmentSavedEvent({ ...at, saved: { path: '/cache/msg_42_0.jpg', mime: 'image/jpeg', name: 'pic.jpg' }, extra: { kind: 'image' } });
-    expect(e).toMatchObject({ station: 'telegram', line: at.line, from: 'metro://telegram/default/self', text: '📎 saved: /cache/msg_42_0.jpg' });
+    expect(e).toMatchObject({ station: 'telegram', line: at.line, from: 'metro://user', text: '📎 saved: /cache/msg_42_0.jpg' });
     expect(e).not.toHaveProperty('account');
     expect(e.payload).toEqual({
       account: 'default',

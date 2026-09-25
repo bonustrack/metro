@@ -67,7 +67,7 @@ export async function transcribeAndEmit(
       ts: new Date().toISOString(),
       station: 'xmtp',
       line,
-      from: selfUri('xmtp', accountId),
+      from: selfUri(),
       text: `🎙️ ${text}`,
       payload: {
         contentType: 'transcript',

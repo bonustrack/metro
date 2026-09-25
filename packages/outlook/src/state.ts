@@ -27,7 +27,7 @@ export function loadState(accountId: string, seed: Partial<AccountState>): Accou
     refreshToken,
     accessToken: fromFile ? text(saved.accessToken) : text(seed.accessToken),
     expiresAt: fromFile ? Number(saved.expiresAt) || 0 : Number(seed.expiresAt) || 0,
-    deltaLink: nullable(saved.deltaLink) ?? seed.deltaLink ?? null,
+    deltaLink: nullable(saved.deltaLink),
     syncedAt: nullable(saved.syncedAt),
     seen: Array.isArray(saved.seen) ? saved.seen.filter((s): s is string => typeof s === 'string') : [],
   };
