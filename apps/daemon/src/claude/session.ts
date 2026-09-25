@@ -11,6 +11,7 @@ import { notReady, readModelConfig, routedConnection } from '../gateway/model-co
 import { claudeDir, listClaudeProjects } from './files.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
+import { inSessionScope } from './memory.js';
 import { agentUser, agentViewDir, asAgent, claudeHome, wantedAgentUser } from '../agent-user/user.js';
 
 function sessionEnv(): Record<string, string> {
@@ -87,6 +88,8 @@ function tmuxOk(tmux: string, args: string[]): boolean {
 }
 
 export const sessionRunning = (tmux = 'tmux'): boolean => tmuxOk(tmux, ['has-session', '-t', SESSION_NAME]);
+
+export const tmuxServerUp = (tmux = 'tmux'): boolean => tmuxOk(tmux, ['list-sessions']);
 
 function realDir(dir: string): string {
   try {
@@ -179,7 +182,8 @@ export function startSession(deps: SessionDeps = {}): SessionStatus {
   const trusted = trustFolder(home);
   const [command = 'metro', ...args] = metroCommand(deps, home);
   const tmuxArgs = ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args];
-  const run = spawnSync(...asAgent(tmux, tmuxArgs), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: home });
+  const launch = deps.tmux === undefined && !tmuxServerUp(tmux) ? inSessionScope(asAgent(tmux, tmuxArgs)) : asAgent(tmux, tmuxArgs);
+  const run = spawnSync(...launch, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: home });
   recordStart(deps, tmux, now, run);
   if (memory.lastError === null) log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
   return sessionStatus(deps);

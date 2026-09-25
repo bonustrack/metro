@@ -79,6 +79,7 @@ export function systemdUnit(host: ServiceHost, exec: string[], target: string): 
     `ExecStart=${exec.map(unitWord).join(' ')}`,
     'Restart=always',
     'RestartSec=2',
+    'OOMPolicy=continue',
     `WorkingDirectory=${unitWord(host.home)}`,
     ...env,
     '',

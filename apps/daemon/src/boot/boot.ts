@@ -24,6 +24,7 @@ import { syncPluginServers } from '../connectors/plugin-sync.js';
 import { loadConnectorPolicies, readLocalConnectors } from '../connectors/store.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { provisionAgentUser } from '../agent-user/provision.js';
+import { ensureServiceOomPolicy } from '../claude/memory.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
 import { tryClaudeSetup } from '../claude/setup.js';
 import { applyLocalOwner } from './local-owner.js';
@@ -154,6 +155,7 @@ installBearerSessions(agentsDir(), localOwner);
 }
 
 async function startClaude(): Promise<void> {
+  ensureServiceOomPolicy();
   const agentUser = await provisionAgentUser();
   if (agentUser !== 'off') log.info({ agentUser }, 'agent-user: Claude Code runs as its own user');
   if (agentUser === 'failed' || agentUser === 'unsupported') return;

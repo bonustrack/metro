@@ -6,12 +6,21 @@ import { bodyField, readJsonBody, sessionRoute } from '@metro-labs/http/api-http
 import { log } from '@metro-labs/core/log';
 import { mintTerminalTicket } from './tickets.js';
 import { agentCommand, asAgent, claudeHome } from '../agent-user/user.js';
+import { inSessionScope } from '../claude/memory.js';
+import { tmuxServerUp } from '../claude/session.js';
 
 const PREFIX = '/api/terminal';
 const TICKETS = `${PREFIX}/tickets`;
 const SESSION_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 
-export const tmuxCommand = (session: string, home = claudeHome() ?? homedir()): string[] => agentCommand([
+const scoped = (command: string[]): string[] => {
+  if (tmuxServerUp()) return command;
+  const [file = '', ...args] = command;
+  const [bin, argv] = inSessionScope([file, args]);
+  return [bin, ...argv];
+};
+
+export const tmuxCommand = (session: string, home = claudeHome() ?? homedir()): string[] => scoped(agentCommand([
   'tmux',
   'new-session',
   '-A',
@@ -35,7 +44,7 @@ export const tmuxCommand = (session: string, home = claudeHome() ?? homedir()): 
   '-as',
   'terminal-features',
   ',xterm-256color:clipboard',
-], { TERM: 'xterm-256color', COLORTERM: 'truecolor' });
+], { TERM: 'xterm-256color', COLORTERM: 'truecolor' }));
 
 export interface TerminalApiDeps {
   command?: (session: string) => string[];

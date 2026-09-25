@@ -68,7 +68,7 @@ describe('what metro service writes', () => {
     expect(plan.kind).toBe('systemd');
     expect(plan.file).toBe('/etc/systemd/system/metro.service');
     expect(plan.content).toContain('ExecStart=/usr/bin/node /usr/local/bin/metro serve --port 8421\n');
-    expect(plan.content).toContain('Restart=always\nRestartSec=2\n');
+    expect(plan.content).toContain('Restart=always\nRestartSec=2\nOOMPolicy=continue\n');
     expect(plan.content).toContain('After=network-online.target tailscaled.service');
     expect(plan.content).toContain('Environment=HOME=/root\nEnvironment=METRO_WEBHOOK_PORT=8421\nEnvironment=PATH=/usr/bin:/root/.bun/bin\n');
     expect(plan.content).not.toContain('SHELL');
