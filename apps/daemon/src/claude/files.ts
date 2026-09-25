@@ -1,12 +1,4 @@
-import {
-  closeSync,
-  createReadStream,
-  existsSync,
-  openSync,
-  readdirSync,
-  readSync,
-  statSync,
-} from 'node:fs';
+import { createReadStream, existsSync, readdirEntries, readdirNames, readRange, statSync } from '../agent-user/agent-fs.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -70,16 +62,9 @@ function parseLines(text: string): Record<string, unknown>[] {
 function readEdge(path: string, fromEnd: boolean): Record<string, unknown>[] {
   const size = statSync(path).size;
   const length = Math.min(EDGE_BYTES, size);
-  const fd = openSync(path, 'r');
-  try {
-    const buffer = Buffer.alloc(length);
-    readSync(fd, buffer, 0, length, fromEnd ? size - length : 0);
-    const text = buffer.toString('utf8');
-    const cut = fromEnd && length < size ? text.indexOf('\n') + 1 : 0;
-    return parseLines(text.slice(cut));
-  } finally {
-    closeSync(fd);
-  }
+  const text = readRange(path, fromEnd ? size - length : 0, length).toString('utf8');
+  const cut = fromEnd && length < size ? text.indexOf('\n') + 1 : 0;
+  return parseLines(text.slice(cut));
 }
 
 export interface ClaudeProject {
@@ -91,7 +76,7 @@ export interface ClaudeProject {
 }
 
 function sessionFiles(path: string): { name: string; mtime: number; size: number }[] {
-  return readdirSync(path)
+  return readdirNames(path)
     .filter((name) => name.endsWith('.jsonl'))
     .map((name) => {
       const s = statSync(join(path, name));
@@ -111,7 +96,7 @@ function cwdOf(path: string): string | null {
 export function listClaudeProjects(dir = claudeDir()): ClaudeProject[] {
   const root = join(dir, 'projects');
   if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
+  return readdirEntries(root)
     .filter((entry) => entry.isDirectory() && PROJECT_RE.test(entry.name))
     .map((entry) => {
       const path = join(root, entry.name);
@@ -268,7 +253,7 @@ export async function readTranscript(
   if (!existsSync(path)) throw new ApiError('no such session', 404);
   const entries: TranscriptEntry[] = [];
   let total = 0;
-  const lines = createInterface({ input: createReadStream(path, { encoding: 'utf8' }), crlfDelay: Infinity });
+  const lines = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
   for await (const line of lines) {
     const parsed = parseLines(line)[0];
     const entry = parsed === undefined ? null : entryOf(parsed);
@@ -305,14 +290,8 @@ function memoryDir(project: string, dir: string): string {
 
 function readCapped(path: string): string {
   const size = statSync(path).size;
-  const fd = openSync(path, 'r');
-  try {
-    const buffer = Buffer.alloc(Math.min(size, FILE_CAP));
-    readSync(fd, buffer, 0, buffer.length, 0);
-    return size > FILE_CAP ? `${buffer.toString('utf8')}\n\n… truncated` : buffer.toString('utf8');
-  } finally {
-    closeSync(fd);
-  }
+  const text = readRange(path, 0, Math.min(size, FILE_CAP)).toString('utf8');
+  return size > FILE_CAP ? `${text}\n\n… truncated` : text;
 }
 
 function memoryName(name: string): string[] {
@@ -329,7 +308,7 @@ function memoryPath(project: string, name: string, dir: string): string {
 }
 
 function walkMemory(root: string, folders: string[], out: MemoryFile[]): void {
-  for (const entry of readdirSync(join(root, ...folders), { withFileTypes: true })) {
+  for (const entry of readdirEntries(join(root, ...folders))) {
     if (out.length >= MEMORY_FILES_MAX) return;
     const inner = [...folders, entry.name];
     if (entry.isDirectory() && FOLDER_RE.test(entry.name) && inner.length < MEMORY_DEPTH) walkMemory(root, inner, out);

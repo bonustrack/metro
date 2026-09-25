@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirNames, readFileSync, statSync } from '../agent-user/agent-fs.js';
 import { basename, dirname, join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { claudeDir } from './files.js';
@@ -46,13 +46,19 @@ function entryOf(name: string, path: string): ClaudeSkill {
 
 export const userSkillsRoot = (dir: string): string => join(dir, 'skills');
 
-const isFolder = (path: string): boolean => statSync(path, { throwIfNoEntry: false })?.isDirectory() === true;
+function isFolder(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 export function listClaudeSkills(dir = claudeDir()): ClaudeSkill[] {
   const root = userSkillsRoot(dir);
   if (!existsSync(root)) return [];
   const out: ClaudeSkill[] = [];
-  for (const name of readdirSync(root)) {
+  for (const name of readdirNames(root)) {
     if (!SKILL_NAME_RE.test(name) || !isFolder(join(root, name))) continue;
     const path = join(root, name, FILE);
     if (existsSync(path)) out.push(entryOf(name, path));

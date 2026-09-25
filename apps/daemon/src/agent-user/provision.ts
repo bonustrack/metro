@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from './agent-fs.js';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -23,7 +23,9 @@ function ensureUser(): AgentUser | null {
   if (runningAsMetro()) {
     mustHelper(['ensure-agent']);
     forgetAgentUser();
-    return agentUser();
+    const user = agentUser();
+    if (user !== null) run(...asUser(user, 'chmod', ['711', user.home]));
+    return user;
   }
   if (agentUser() === null) {
     run('useradd', ['--create-home', '--shell', '/bin/bash', AGENT_NAME]);

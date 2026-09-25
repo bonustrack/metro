@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from '../agent-user/agent-fs.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { isRecord } from '@metro-labs/core/is-record';

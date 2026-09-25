@@ -11,7 +11,7 @@ docker run -d --rm --name "$name" --privileged --cgroupns=host -v /sys/fs/cgroup
 for _ in $(seq 1 120); do docker exec "$name" test -f /ready 2>/dev/null && break; sleep 5; done
 docker exec "$name" bash /repo/scripts/metro-user/setup-root.sh | tail -2
 move() {
-  docker exec "$name" sh -c "cd /repo/apps/daemon && bun -e 'import { startMove } from \"./src/metro-user/move.ts\"; startMove(\"$1\")'" >/dev/null
+  docker exec "$name" sh -c "export PATH=/root/.bun/bin:\$PATH && cd /repo/apps/daemon && bun -e 'import { startMove } from \"./src/metro-user/move.ts\"; startMove(\"$1\")'" >/dev/null
   for _ in $(seq 1 120); do s=$(docker exec "$name" cat /var/lib/metro-move/state 2>/dev/null || true); case "$s" in done|failed) break;; esac; sleep 3; done
   echo "$s"
 }

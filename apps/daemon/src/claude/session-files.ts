@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync } from '../agent-user/agent-fs.js';
 import { Transform, type Readable } from 'node:stream';
 import { moveHome, receiveHomeFile, removeHome } from '../agent-user/home-fs.js';
 import { join } from 'node:path';

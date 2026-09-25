@@ -44,7 +44,7 @@ import {
 } from './session.js';
 import { claudeVersion, updateClaude, type VersionDeps } from './version.js';
 import { receiveSessionFile, sessionFilePath } from './session-files.js';
-import { createReadStream } from 'node:fs';
+import { createReadStream } from '../agent-user/agent-fs.js';
 import { pipeline } from 'node:stream/promises';
 import {
   claudeDir,

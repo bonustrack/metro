@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readRange, statSync } from './agent-fs.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { log } from '@metro-labs/core/log';
 import { listSchedules, realRunner, showProps, type Runner, type ScheduledJob } from './schedules.js';
@@ -53,14 +53,7 @@ export function logFileOf(command: string): string | null {
 function tail(path: string): string {
   const size = statSync(path).size;
   const start = Math.max(0, size - TAIL_BYTES);
-  const fd = openSync(path, 'r');
-  try {
-    const buffer = Buffer.alloc(size - start);
-    readSync(fd, buffer, 0, buffer.length, start);
-    return buffer.toString('utf8').split('\n').slice(-LOG_LINES).join('\n');
-  } finally {
-    closeSync(fd);
-  }
+  return readRange(path, start, size - start).toString('utf8').split('\n').slice(-LOG_LINES).join('\n');
 }
 
 function timerDetail(job: ScheduledJob, runner: Runner): JobDetail {
@@ -98,8 +91,8 @@ export function runNow(id: string, user: AgentUser | null, runner: Runner = real
   if (job.kind === 'timer') runner.run('systemctl', ['start', '--no-block', serviceOf(job.id.slice('timer:'.length), runner)]);
   else {
     if (user === null) throw new ApiError('Claude Code does not run as its own user on this machine', 409);
-    const [file, args] = asUser(user, 'sh', ['-c', job.command]);
-    const child = spawn(file, args, { detached: true, stdio: 'ignore', cwd: user.home });
+    const [file, args] = asUser(user, 'sh', ['-c', `cd "$HOME" && ${job.command}`]);
+    const child = spawn(file, args, { detached: true, stdio: 'ignore', cwd: '/' });
     child.unref();
   }
   log.info({ job: job.name }, 'schedules: run now, from the page');

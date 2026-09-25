@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
+import { realpathSync } from '../agent-user/agent-fs.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
@@ -12,6 +12,7 @@ import { claudeDir, listClaudeProjects } from './files.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
 import { inSessionScope } from './memory.js';
+import { runningAsMetro } from '../metro-user/privilege.js';
 import { agentExtraEnv, agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
 
 function sessionEnv(): Record<string, string> {
@@ -175,6 +176,8 @@ function recordStart(deps: SessionDeps, tmux: string, now: number, run: { error?
   confirmChannels(tmux, now + CONFIRM_WAIT_MS);
 }
 
+const spawnCwd = (home: string): string => (runningAsMetro() ? '/' : home);
+
 export function startSession(deps: SessionDeps = {}): SessionStatus {
   const tmux = deps.tmux ?? 'tmux';
   const home = deps.home ?? claudeHome() ?? homedir();
@@ -183,7 +186,7 @@ export function startSession(deps: SessionDeps = {}): SessionStatus {
   const [command = 'metro', ...args] = metroCommand(deps, home);
   const tmuxArgs = ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args];
   const launch = deps.tmux === undefined && !tmuxServerUp(tmux) ? inSessionScope(asAgent(tmux, tmuxArgs)) : asAgent(tmux, tmuxArgs);
-  const run = spawnSync(...launch, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: home });
+  const run = spawnSync(...launch, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: spawnCwd(home) });
   recordStart(deps, tmux, now, run);
   if (memory.lastError === null) log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
   return sessionStatus(deps);

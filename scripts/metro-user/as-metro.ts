@@ -6,6 +6,11 @@ import { runNow } from '../../apps/daemon/src/agent-user/schedule-detail.ts';
 import { inSessionScope } from '../../apps/daemon/src/claude/memory.ts';
 import { applyFirewall, removeFirewall } from '../../apps/daemon/src/vault/firewall.ts';
 import { rootHelper, runningAsMetro } from '../../apps/daemon/src/metro-user/privilege.ts';
+import { listClaudeProjects, listClaudeSessions, listMemory, readMemoryFile, readTranscript } from '../../apps/daemon/src/claude/files.ts';
+import { listClaudeSkills } from '../../apps/daemon/src/claude/skills.ts';
+import { listClaudeSettings } from '../../apps/daemon/src/claude/settings.ts';
+import { hasConversation, sessionRunning, startSession, stopSession } from '../../apps/daemon/src/claude/session.ts';
+import { provisionAgentUser } from '../../apps/daemon/src/agent-user/provision.ts';
 
 const results: string[] = [];
 const check = (what: string, ok: boolean): void => {
@@ -35,9 +40,9 @@ const child = spawnSync('sh', ['-c', `${[scoped[0], ...scoped[1]].map((a) => `'$
 check(`the session starts as the agent in its own memory scope (${child.stdout.trim().replace(/\n/g, ' ')})`, /agent/.test(child.stdout) && /[1-9]\s*$/.test(child.stdout.trim()));
 
 const before = listSchedules(u).map((j) => `${j.kind}:${j.name}:${j.runsAs}`);
-check(`root jobs pointing into /root are listed (${before.join(', ')})`, before.includes('timer:demo:root') && before.some((b) => b.startsWith('cron-root:demo.sh')));
+check(`the root timer and cron line show up (${before.join(', ')})`, before.some((b) => b.startsWith('timer:demo:')) && before.some((b) => /^cron-(root|agent):demo\.sh/.test(b)));
 const switched = convertRootJobs(u);
-check(`they switch to the agent through the helper (${String(switched)})`, switched === 2);
+check(`they switch to the agent through the helper, here or at Metro's own boot (${String(switched)})`, switched === before.filter((b) => b.endsWith(':root')).length);
 const after = listSchedules(u).map((j) => `${j.kind}:${j.name}:${j.runsAs}`);
 check(`and now run as the agent (${after.join(', ')})`, after.includes('timer:demo:agent') && after.some((a) => a.startsWith('cron-agent:demo.sh')));
 check("root's other cron line stays", rootHelper(['root-crontab']).stdout.includes('@reboot /usr/local/bin/keep') && !rootHelper(['root-crontab']).stdout.includes('demo.sh'));
@@ -56,6 +61,22 @@ applyFirewall(u.uid);
 check('the vault firewall goes on through the helper', !out(...asAgent('curl', ['-s', '-m', '5', '-o', '/dev/null', 'https://example.com'])).ok);
 removeFirewall(u.uid);
 check('and comes off', out(...asAgent('curl', ['-s', '-m', '15', '-o', '/dev/null', 'https://example.com'])).ok);
+
+const claudeDirOf = '/home/agent/.claude';
+check(`provisioning as metro sees Claude installed and opens the home to crossing (${await provisionAgentUser({ METRO_RUNTIME_STORE: '' })})`, out('stat', ['-c', '%a', '/home/agent']).text === '711');
+check('Sessions lists the projects', listClaudeProjects(claudeDirOf).some((p) => p.id === '-home-agent'));
+check('and a private transcript inside a closed folder', listClaudeSessions('-home-agent', claudeDirOf).some((x) => x.id === '11111111-2222-4333-8444-555555555555'));
+const turns = await readTranscript('-home-agent', '11111111-2222-4333-8444-555555555555', 0, 50, claudeDirOf);
+check('and reads it', JSON.stringify(turns).includes('hello from a private transcript'));
+check('Memory lists a private file in a folder', listMemory('-home-agent', claudeDirOf).files.some((f) => f.name === 'people/less.md'));
+check('and reads it', readMemoryFile('-home-agent', 'people/less.md', claudeDirOf).includes('short answers'));
+check('Skills lists the agent skill', listClaudeSkills(claudeDirOf).some((k) => k.name === 'demo-skill'));
+check('Settings lists the files', Array.isArray(listClaudeSettings(claudeDirOf)));
+check('the watcher sees there is a conversation to continue', hasConversation('/home/agent', claudeDirOf));
+startSession({ metro: ['sleep', '600'], agents: '/var/lib/metro/.metro/agents', continues: () => false });
+await new Promise((r) => setTimeout(r, 1000));
+check('the Claude session starts under metro', sessionRunning());
+stopSession({ agents: '/var/lib/metro/.metro/agents' });
 
 const winch = asAgent('sh', ['-c', 'trap "stty size" WINCH; stty size; sleep 2; sleep 2']);
 const pty = out('python3', ['/repo/scripts/metro-user/winch.py', winch[0], ...winch[1]]);

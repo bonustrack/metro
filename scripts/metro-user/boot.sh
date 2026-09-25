@@ -5,7 +5,6 @@ apt-get install -y -qq systemd systemd-sysv sudo curl ca-certificates iptables t
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null 2>&1
 apt-get install -y -qq nodejs >/dev/null
 HOME=/root bash -c 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1
-ln -sf /root/.bun/bin/bun /usr/local/bin/bun
 install -m 755 /repo/scripts/metro-user/tailscale-stub.sh /usr/local/bin/tailscale
 touch /ready
 exec /lib/systemd/systemd

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from '../agent-user/agent-fs.js';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { claudeDir, listClaudeProjects } from './files.js';

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from '../agent-user/agent-fs.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { errMsg, log } from '@metro-labs/core/log';

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirEntries, readFileSync } from '../agent-user/agent-fs.js';
 import { writeHomeInPlace } from '../agent-user/home-fs.js';
 import { agentMarketplaceDir, agentUser } from '../agent-user/user.js';
 import { join } from 'node:path';
@@ -56,7 +56,7 @@ function pluginRootsUnder(dir: string, depth: number, out: string[]): void {
   if (depth < 0 || out.length >= 8) return;
   let entries;
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
+    entries = readdirEntries(dir);
   } catch {
     return;
   }

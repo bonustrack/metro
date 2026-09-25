@@ -32,7 +32,9 @@ describe('moving Metro from root to its own user', () => {
   });
 
   test('the move puts everything back when Metro does not come up as metro', () => {
-    const script = moveScript('8430', '@stage-labs/metro@0.1.0-beta.199');
+    const script = moveScript('8430', '@stage-labs/metro@0.1.0-beta.199', '/root/.bun/bin/bun');
+    expect(script).toContain("B='/root/.bun/bin/bun'; case \"$B\" in /root/*) install -m 755 \"$B\" /usr/local/bin/bun");
+    expect(script.indexOf('cannot find $bin')).toBeLessThan(script.indexOf('systemctl stop metro'));
     expect(script).toContain('http://127.0.0.1:8430/health');
     expect(script).toContain("npm install --global --prefix /var/lib/metro/.npm-global @stage-labs/metro@0.1.0-beta.199");
     expect(script.indexOf('fail "npm install')).toBeLessThan(script.indexOf('systemctl stop metro'));

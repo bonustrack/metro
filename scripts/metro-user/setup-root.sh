@@ -1,4 +1,5 @@
 set -e
+export PATH=/root/.bun/bin:$PATH
 cd /
 npm install -g /pkg/metro.tgz >/dev/null 2>&1
 mkdir -p /root/.metro/agents

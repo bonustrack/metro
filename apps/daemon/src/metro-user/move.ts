@@ -72,7 +72,7 @@ export function metroUnit(node: string, facts: UnitFacts): string {
   ].join('\n');
 }
 
-export function moveScript(port: string, spec: string): string {
+export function moveScript(port: string, spec: string, bun: string): string {
   return [
     '#!/bin/sh',
     'set -u',
@@ -88,8 +88,9 @@ export function moveScript(port: string, spec: string): string {
     `id ${METRO_USER} >/dev/null 2>&1 || useradd --system --create-home --home-dir ${METRO_HOME} --shell /usr/sbin/nologin ${METRO_USER} || fail "useradd"`,
     `usermod -aG systemd-journal ${METRO_USER} || true`,
     `mkdir -p ${METRO_HOME} && chown ${METRO_USER}:${METRO_USER} ${METRO_HOME} && chmod 700 ${METRO_HOME}`,
-    'B=$(readlink -f "$(command -v bun)"); case "$B" in /root/*) install -m 755 "$B" /usr/local/bin/bun || fail "bun";; esac',
+    `B=${shellWord(bun)}; case "$B" in /root/*) install -m 755 "$B" /usr/local/bin/bun || fail "bun";; esac`,
     `su -s /bin/sh ${METRO_USER} -c ${shellWord(`cd / && npm install --global --prefix ${PREFIX} ${spec}`)} || fail "npm install for ${METRO_USER}"`,
+    `for bin in node bun tailscale npm; do su -s /bin/sh ${METRO_USER} -c ${shellWord(`PATH=${PREFIX}/bin:/usr/local/bin:/usr/bin:/bin command -v "$1" >/dev/null`)} sh "$bin" || fail "${METRO_USER} cannot find $bin"; done`,
     `tailscale set --operator=${METRO_USER} || fail "tailscale operator"`,
     `cp ${UNIT_FILE} "$DIR/metro.service.root" || fail "unit backup"`,
     'systemctl stop metro',
@@ -110,16 +111,25 @@ export function moveScript(port: string, spec: string): string {
   ].join('\n');
 }
 
-function preflight(): { node: string; unit: string } {
+function whichOrFail(bin: string): string {
+  const found = which(bin);
+  if (found === null) throw new ApiError(`${bin} is missing on this box`, 409);
+  return found;
+}
+
+const requireTools = (): void => {
+  for (const bin of ['sudo', 'visudo', 'tailscale', 'curl', 'npm']) whichOrFail(bin);
+};
+
+function preflight(): { node: string; bun: string; unit: string } {
   if (!runningAsRoot()) throw new ApiError('only a Metro running as root can move itself', 409);
   if (!existsSync(UNIT_FILE)) throw new ApiError('this box does not run Metro as the systemd service `metro`', 409);
   if (process.env.METRO_AGENTS_DIR !== undefined && process.env.METRO_AGENTS_DIR !== '') throw new ApiError('METRO_AGENTS_DIR is set; move this box by hand', 409);
   if (homedir() !== '/root') throw new ApiError(`Metro keeps its files in ${homedir()}, not /root; move this box by hand`, 409);
   const node = which('node');
   if (node === null || node.startsWith('/root/')) throw new ApiError('Node must be installed for every user (not under /root) before the move', 409);
-  for (const bin of ['sudo', 'visudo', 'tailscale', 'curl', 'npm', 'bun'])
-    if (which(bin) === null) throw new ApiError(`${bin} is missing on this box`, 409);
-  return { node, unit: readFileSync(UNIT_FILE, 'utf8') };
+  requireTools();
+  return { node, bun: whichOrFail('bun'), unit: readFileSync(UNIT_FILE, 'utf8') };
 }
 
 function installHelper(): void {
@@ -134,12 +144,12 @@ function installHelper(): void {
 }
 
 export function startMove(spec = `@stage-labs/metro@${METRO_VERSION}`): { log: string } {
-  const { node, unit } = preflight();
+  const { node, bun, unit } = preflight();
   const facts = unitFacts(unit);
   mkdirSync(MOVE_DIR, { recursive: true, mode: 0o700 });
   installHelper();
   writeFileSync(join(MOVE_DIR, 'metro.service.new'), metroUnit(node, facts), { mode: 0o600 });
-  writeFileSync(join(MOVE_DIR, 'move.sh'), moveScript(facts.port, spec), { mode: 0o700 });
+  writeFileSync(join(MOVE_DIR, 'move.sh'), moveScript(facts.port, spec, bun), { mode: 0o700 });
   writeFileSync(join(MOVE_DIR, 'state'), 'starting\n');
   const run = spawnSync('systemd-run', ['--unit=metro-move', '--collect', '--quiet', 'sh', join(MOVE_DIR, 'move.sh')], { encoding: 'utf8' });
   if (run.status !== 0) throw new ApiError(`could not start the move: ${run.stderr.trim()}`, 500);
