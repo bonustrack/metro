@@ -20,6 +20,7 @@ import { handleTerminalRequest, type TerminalApiDeps } from '../terminal/api.js'
 import { handleSchedulesRequest } from '../agent-user/schedules-api.js';
 import { handleFilesRequest } from '../agent-user/files-api.js';
 import { handleVaultRequest } from '../vault/api.js';
+import { handleMetroUserRequest } from '../metro-user/api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
@@ -58,6 +59,7 @@ export function handleSessionApis(
     ...when(apis.schedulesApi, () => handleSchedulesRequest(req, res)),
     ...when(apis.filesApi, () => handleFilesRequest(req, res)),
     ...when(apis.vaultApi, () => handleVaultRequest(req, res)),
+    ...when(apis.vaultApi, () => handleMetroUserRequest(req, res)),
     ...when(apis.ownerApi, (d) => handleOwnerRequest(req, res, d)),
     ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),
     ...when(apis.modelApi, (d) => handleModelRequest(req, res, d)),

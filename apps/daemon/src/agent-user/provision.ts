@@ -6,6 +6,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { copyIntoHome } from './home-fs.js';
 import { AGENT_NAME, agentMarketplaceDir, agentUser, agentUserExpected, asUser, claudeBin, forgetAgentUser, type AgentUser } from './user.js';
 import { watchAgentView } from './view.js';
+import { mustHelper, runningAsMetro } from '../metro-user/privilege.js';
 
 const INSTALL_MS = 10 * 60_000;
 const INSTALLER = 'curl -fsSL https://claude.ai/install.sh | bash';
@@ -19,6 +20,11 @@ function run(file: string, args: string[]): void {
 }
 
 function ensureUser(): AgentUser | null {
+  if (runningAsMetro()) {
+    mustHelper(['ensure-agent']);
+    forgetAgentUser();
+    return agentUser();
+  }
   if (agentUser() === null) {
     run('useradd', ['--create-home', '--shell', '/bin/bash', AGENT_NAME]);
     log.info({ user: AGENT_NAME }, 'agent-user: created the user Claude Code runs as');

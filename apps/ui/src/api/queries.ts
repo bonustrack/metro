@@ -71,7 +71,8 @@ type BoxName =
   | 'schedule'
   | 'sender-cards'
   | 'agent-files'
-  | 'vault';
+  | 'vault'
+  | 'metro-user';
 
 export type BoxKey = BoxName | readonly [BoxName, ...string[]];
 

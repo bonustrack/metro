@@ -8,6 +8,7 @@ import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
 import { ClaudeSession } from './ClaudeSession.js';
+import { MetroUser } from './MetroUser.js';
 import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js';
 import { serverLabel, type Server } from '../api/servers.js';
 import { diskLabel, systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
@@ -105,6 +106,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
         <DaemonControls />
       </Col>
       <ClaudeSession project={project} />
+      <MetroUser />
       {machine.error !== null ? (
         <Text size="sm" role="danger">
           {queryError(machine.error, FALLBACK)}

@@ -17,7 +17,8 @@
     "start": "bun apps/daemon/src/server.ts",
     "smoke": "bash scripts/smoke.sh",
     "compat": "bash scripts/compat.sh",
-    "agent-user-check": "bash scripts/agent-user/run.sh"
+    "agent-user-check": "bash scripts/agent-user/run.sh",
+    "metro-user-check": "bash scripts/metro-user/run.sh"
   },
   "devDependencies": {
     "@stage-labs/config": "0.1.0-beta.2",

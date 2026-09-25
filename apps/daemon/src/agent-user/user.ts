@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { runningAsMetro } from '../metro-user/privilege.js';
 
 export const AGENT_NAME = 'agent';
 const AGENT_PATH = ['.local/bin', '/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin'];
@@ -28,7 +29,7 @@ export function lookupUser(name: string): AgentUser | null {
 
 const realHost: UserHost = { platform: process.platform, uid: process.getuid?.(), lookup: lookupUser };
 
-export const agentUserExpected = (host: UserHost = realHost): boolean => host.platform === 'linux' && host.uid === 0;
+export const agentUserExpected = (host: UserHost = realHost): boolean => host.platform === 'linux' && (host.uid === 0 || runningAsMetro());
 
 let cached: AgentUser | null = null;
 
@@ -67,6 +68,7 @@ export function agentEnv(user: AgentUser, extra: Record<string, string> = {}): R
 export function asUser(user: AgentUser | null, file: string, args: readonly string[], extra: Record<string, string> = {}): [string, string[]] {
   if (user === null) return [file, [...args]];
   const env = Object.entries(agentEnv(user, extra)).map(([k, v]) => `${k}=${v}`);
+  if (runningAsMetro()) return ['sudo', ['-n', '-u', user.name, '--', 'env', '-i', ...env, file, ...args]];
   return ['setpriv', [`--reuid=${String(user.uid)}`, `--regid=${String(user.gid)}`, '--init-groups', 'env', '-i', ...env, file, ...args]];
 }
 

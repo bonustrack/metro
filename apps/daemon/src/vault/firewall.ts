@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { mustHelper, runningAsMetro } from '../metro-user/privilege.js';
 
 const CHAIN = 'METRO_AGENT';
 const TOOLS = ['iptables', 'ip6tables'] as const;
@@ -21,6 +22,10 @@ export const chainRules = (): string[][] => [
 const jump = (uid: number): string[] => ['OUTPUT', '-m', 'owner', '--uid-owner', String(uid), '-j', CHAIN];
 
 export function applyFirewall(uid: number, runner: FirewallRunner = realRunner): void {
+  if (runner === realRunner && runningAsMetro()) {
+    mustHelper(['firewall-on']);
+    return;
+  }
   for (const tool of TOOLS) {
     runner.run(tool, ['-N', CHAIN]);
     if (runner.run(tool, ['-F', CHAIN]) !== 0) throw new Error(`${tool} refused to prepare the ${CHAIN} chain`);
@@ -31,6 +36,10 @@ export function applyFirewall(uid: number, runner: FirewallRunner = realRunner):
 }
 
 export function removeFirewall(uid: number, runner: FirewallRunner = realRunner): void {
+  if (runner === realRunner && runningAsMetro()) {
+    mustHelper(['firewall-off']);
+    return;
+  }
   for (const tool of TOOLS) {
     for (let i = 0; i < 10 && runner.run(tool, ['-C', ...jump(uid)]) === 0; i += 1) runner.run(tool, ['-D', ...jump(uid)]);
     runner.run(tool, ['-F', CHAIN]);

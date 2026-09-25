@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { totalmem } from 'node:os';
 import { dirname } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
+import { helperArgv, runningAsMetro } from '../metro-user/privilege.js';
 
 const UNIT = '/etc/systemd/system/metro.service';
 const DROP_IN = '/etc/systemd/system/metro.service.d/10-metro-memory.conf';
@@ -32,7 +33,16 @@ export function sessionMemoryLimit(total: number): number {
 
 const usesScopes = (host: ScopeHost): boolean => host.platform === 'linux' && host.uid === 0 && host.systemd;
 
+function metroScope(command: [string, string[]], total: number): [string, string[]] {
+  const [file, args] = command;
+  const asAgent = file === 'sudo' && args[0] === '-n' && args[1] === '-u' && args[3] === '--';
+  if (!asAgent) return command;
+  const limit = sessionMemoryLimit(total);
+  return helperArgv(['as-agent-scope', String(limit), String(Math.floor(limit * 0.9)), ...args.slice(4)]);
+}
+
 export function inSessionScope(command: [string, string[]], host: ScopeHost = realHost(), now = Date.now()): [string, string[]] {
+  if (host.systemd && runningAsMetro()) return metroScope(command, host.total);
   if (!usesScopes(host)) return command;
   const limit = sessionMemoryLimit(host.total);
   const [file, args] = command;

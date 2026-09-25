@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
-import type { AgentUser } from './user.js';
+import { asUser, type AgentUser } from './user.js';
+import { metroRun, writeDropIn } from './unit-files.js';
 
 const UNIT_DIR = '/etc/systemd/system';
 const defaultBackups = (): string => join(homedir(), '.metro', 'agents');
@@ -36,6 +37,8 @@ export interface Runner {
 
 export const realRunner: Runner = {
   run: (file, args, input) => {
+    const viaHelper = metroRun(file, args, input);
+    if (viaHelper !== null) return viaHelper;
     const done = spawnSync(file, args, { encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'ignore'], timeout: 20_000 });
     return { status: done.error === undefined ? done.status : null, stdout: done.stdout ?? '' };
   },
@@ -173,17 +176,21 @@ export function dropInText(user: AgentUser, argv: string[], environment: string)
   ].join('\n');
 }
 
+function agentSees(user: AgentUser, path: string): boolean {
+  if (existsSync(path)) return true;
+  const [file, args] = asUser(user, 'test', ['-e', path]);
+  return spawnSync(file, args, { stdio: 'ignore' }).status === 0;
+}
+
 function convertTimer(job: ScheduledJob, user: AgentUser, runner: Runner): void {
   const unit = job.id.slice('timer:'.length);
   const service = showProps(runner, unit, ['Unit']).Unit ?? unit.replace(/\.timer$/, '.service');
   const svc = showProps(runner, service, ['ExecStart', 'Environment']);
   const argv = execArgv(svc.ExecStart ?? '');
   if (argv.length === 0) throw new ApiError('that timer runs no command metro can read', 400);
-  const missing = argv.map((a) => rehome(a, user.home)).find((a) => a.startsWith(`${user.home}/`) && !existsSync(a));
+  const missing = argv.map((a) => rehome(a, user.home)).find((a) => a.startsWith(`${user.home}/`) && !agentSees(user, a));
   if (missing !== undefined) throw new ApiError(`${missing} does not exist; move it to the agent first`, 409);
-  const dir = join(UNIT_DIR, `${service}.d`);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, DROP_IN), dropInText(user, argv, svc.Environment ?? ''), { mode: 0o644 });
+  writeDropIn(service, DROP_IN, dropInText(user, argv, svc.Environment ?? ''));
   runner.run('systemctl', ['daemon-reload']);
   log.info({ unit, service, user: user.name }, 'schedules: a timer now runs as the agent user');
 }

@@ -3,12 +3,17 @@ import { copyFileSync, chmodSync, existsSync, readFileSync, rmSync } from 'node:
 import { errMsg, log } from '@metro-labs/core/log';
 import { asUser, type AgentUser } from '../agent-user/user.js';
 import { TRUSTED_CA } from './paths.js';
+import { mustHelper, rootHelper, runningAsMetro } from '../metro-user/privilege.js';
 
 const has = (bin: string): boolean => spawnSync('sh', ['-c', `command -v ${bin}`], { stdio: 'ignore' }).status === 0;
 
 export function trustSystem(caFile: string): void {
   const same = existsSync(TRUSTED_CA) && readFileSync(TRUSTED_CA, 'utf8') === readFileSync(caFile, 'utf8');
   if (same) return;
+  if (runningAsMetro()) {
+    mustHelper(['trust-ca']);
+    return;
+  }
   copyFileSync(caFile, TRUSTED_CA);
   chmodSync(TRUSTED_CA, 0o644);
   const run = spawnSync('update-ca-certificates', [], { encoding: 'utf8' });
@@ -17,6 +22,10 @@ export function trustSystem(caFile: string): void {
 
 export function untrustSystem(): void {
   if (!existsSync(TRUSTED_CA)) return;
+  if (runningAsMetro()) {
+    mustHelper(['untrust-ca']);
+    return;
+  }
   rmSync(TRUSTED_CA, { force: true });
   spawnSync('update-ca-certificates', ['--fresh'], { stdio: 'ignore' });
 }
@@ -32,6 +41,7 @@ const NSS_SCRIPT = [
 
 function ensureCertutil(): boolean {
   if (has('certutil')) return true;
+  if (runningAsMetro()) return rootHelper(['install-nss-tools']).status === 0 && has('certutil');
   if (!has('apt-get')) return false;
   const run = spawnSync('apt-get', ['install', '-y', '-q', 'libnss3-tools'], { stdio: 'ignore', timeout: 180_000, env: { ...process.env, DEBIAN_FRONTEND: 'noninteractive' } });
   return run.status === 0 && has('certutil');

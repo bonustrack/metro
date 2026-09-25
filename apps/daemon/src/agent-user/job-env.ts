@@ -1,11 +1,10 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { log } from '@metro-labs/core/log';
 import { writeHomeText } from './home-fs.js';
 import { listSchedules, realRunner, showProps, type Runner } from './schedules.js';
 import type { AgentUser } from './user.js';
+import { removeDropIn, writeDropIn } from './unit-files.js';
 
-const UNIT_DIR = '/etc/systemd/system';
 const DROP_IN = '11-metro-vault.conf';
 const BEGIN = '# metro vault: begin';
 const END = '# metro vault: end';
@@ -35,15 +34,10 @@ function setTimerEnv(user: AgentUser, on: boolean, runner: Runner): void {
     if (job.kind !== 'timer' || job.runsAs !== user.name) continue;
     const unit = job.id.slice('timer:'.length);
     const service = showProps(runner, unit, ['Unit']).Unit ?? unit.replace(/\.timer$/, '.service');
-    const file = join(UNIT_DIR, `${service}.d`, DROP_IN);
     if (on) {
-      mkdirSync(join(UNIT_DIR, `${service}.d`), { recursive: true });
-      writeFileSync(file, `[Service]\nEnvironmentFile=-${jobEnvFile(user)}\n`, { mode: 0o644 });
+      writeDropIn(service, DROP_IN, `[Service]\nEnvironmentFile=-${jobEnvFile(user)}\n`);
       changed = true;
-    } else if (existsSync(file)) {
-      rmSync(file, { force: true });
-      changed = true;
-    }
+    } else if (removeDropIn(service, DROP_IN)) changed = true;
   }
   if (changed) runner.run('systemctl', ['daemon-reload']);
 }
