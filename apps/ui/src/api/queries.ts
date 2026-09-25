@@ -124,8 +124,39 @@ export const orgKey = (...parts: string[]): string[] => ['org', currentOrganizat
 
 const serversKey = (): string[] => orgKey('servers');
 
+const SERVERS_CACHE = 'metro.servers:';
+
+const isServerRow = (v: unknown): v is Server =>
+  typeof v === 'object' && v !== null && typeof (v as { id?: unknown }).id === 'string' && typeof (v as { host?: unknown }).host === 'string';
+
+function cachedServers(key: string): Server[] | undefined {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(`${SERVERS_CACHE}${key}`) ?? 'null');
+    return Array.isArray(parsed) && parsed.every(isServerRow) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function keepServers(key: string, servers: Server[]): Server[] {
+  try {
+    window.localStorage.setItem(`${SERVERS_CACHE}${key}`, JSON.stringify(servers));
+  } catch {
+    return servers;
+  }
+  return servers;
+}
+
 export function useServersQuery(): UseQueryResult<Server[]> {
-  return useQuery({ queryKey: serversKey(), queryFn: () => fetchServers(), staleTime: 30_000 });
+  const key = serversKey();
+  const org = key[1] ?? 'none';
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => keepServers(org, await fetchServers()),
+    staleTime: 30_000,
+    initialData: () => cachedServers(org),
+    initialDataUpdatedAt: 0,
+  });
 }
 
 export function useLaunchOverviewQuery(): UseQueryResult<LaunchOverview> {

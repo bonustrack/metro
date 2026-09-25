@@ -84,7 +84,6 @@ function Gate({ onLock }: { onLock: () => void }): ReactNode {
     refetch().catch(() => undefined);
   };
   if (error !== null) return <Dashboard onLock={onLock} offline={{ retry }} />;
-  if (subject === undefined) return <BootLoading />;
   return <Dashboard onLock={onLock} />;
 }
 
