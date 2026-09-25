@@ -1,15 +1,15 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Text, Button } from './ui.js';
 import { FieldLabel } from './FieldLabel.js';
-import { GROW } from '../theme.js';
 import { beginCodexDevice, beginCodexLogin, codexImport, finishCodexLogin, pollCodexDevice, type ConnectionRow, type DeviceLogin } from '../api/model.js';
 import { queryError, refresh } from '../api/queries.js';
 import { useModelAction, useSignInTab } from './sign-in-tab.js';
+import { PasteAddress, SignedInAs, SignInLink } from './ProviderSignIn.js';
 
-const FIELD_WIDTH = 420;
+const SIGN_IN_LINK = 'Open the ChatGPT sign-in';
 const START_FAILED = 'Could not start the ChatGPT sign-in.';
 const PASTE_HINT = 'The sign-in ends on a localhost:1455 address that will not load. Paste that whole address here.';
 
@@ -48,16 +48,9 @@ function DeviceFlow({ label, id }: { label: string; id: string }): ReactNode {
   useDevicePolling(login, id, settle);
   return (
     <Col gap={10}>
-      <Row gap={8} wrap align="center">
+      <SignInLink link={link} label={SIGN_IN_LINK}>
         <Button size="sm" dark={dark} label={label} loading={starting} disabled={starting || login !== null} onPress={connect} />
-        {link !== null ? (
-          <Text size="sm">
-            <a className="hint-link" href={link} target="_blank" rel="noreferrer">
-              Open the ChatGPT sign-in
-            </a>
-          </Text>
-        ) : null}
-      </Row>
+      </SignInLink>
       {login !== null ? (
         <Col gap={4}>
           <Text size="sm">Enter this code on the ChatGPT page that opened:</Text>
@@ -72,53 +65,16 @@ function DeviceFlow({ label, id }: { label: string; id: string }): ReactNode {
   );
 }
 
-function PasteBack({ id }: { id: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const { busy, error, run } = useModelAction();
-  const [pasted, setPasted] = useState('');
-  return (
-    <Col gap={6} maxWidth={FIELD_WIDTH}>
-      <Text size="sm" role="secondary">
-        {PASTE_HINT}
-      </Text>
-      <Input name="codex-callback" value={pasted} placeholder="http://localhost:1455/auth/callback?code=…&state=…" dark={dark} onChangeText={setPasted} style={GROW} />
-      <Row gap={8}>
-        <Button size="sm" dark={dark} label={busy ? 'Finishing…' : 'Finish sign-in'} loading={busy} disabled={busy || pasted.trim() === ''} onPress={() => { run(() => finishCodexLogin(pasted, id), 'Could not finish the sign-in.'); }} />
-      </Row>
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
-    </Col>
-  );
-}
-
 function RedirectFlow({ label, id }: { label: string; id: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { starting, started, link, error, start: connect } = useSignInTab(beginCodexLogin, (url) => url, START_FAILED);
   return (
     <Col gap={10}>
-      <Row gap={8} wrap align="center">
+      <SignInLink link={link} label={SIGN_IN_LINK}>
         <Button size="sm" color="secondary" dark={dark} label={label} loading={starting} disabled={starting} onPress={connect} />
-        {link !== null ? (
-          <Text size="sm">
-            <a className="hint-link" href={link} target="_blank" rel="noreferrer">
-              Open the ChatGPT sign-in
-            </a>
-          </Text>
-        ) : null}
-      </Row>
-      {started === null ? null : <PasteBack id={id} />}
+      </SignInLink>
+      {started === null ? null : <PasteAddress hint={PASTE_HINT} name="codex-callback" placeholder="http://localhost:1455/auth/callback?code=…&state=…" finish={(pasted) => finishCodexLogin(pasted, id)} />}
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
-    </Col>
-  );
-}
-
-function SignedIn({ codex }: { codex: ConnectionRow }): ReactNode {
-  return (
-    <Col gap={10}>
-      <Text size="sm">
-        Signed in{codex.account === null ? '' : ` as ${codex.account}`}
-        {codex.plan === null ? '' : ` (${codex.plan})`}
-      </Text>
-      <DeviceFlow label="Connect again" id={codex.id} />
     </Col>
   );
 }
@@ -148,7 +104,11 @@ export function CodexConnect({ codex }: { codex: ConnectionRow | null }): ReactN
   return (
     <Col gap={4}>
       <FieldLabel>ChatGPT account</FieldLabel>
-      {codex?.signedIn === true ? <SignedIn codex={codex} /> : <NotConnected id={codex?.id ?? ''} />}
+      {codex?.signedIn === true ? (
+        <SignedInAs connection={codex}>
+          <DeviceFlow label="Connect again" id={codex.id} />
+        </SignedInAs>
+      ) : <NotConnected id={codex?.id ?? ''} />}
     </Col>
   );
 }

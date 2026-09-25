@@ -11,10 +11,17 @@ import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js'
 import { serverLabel, type Server } from '../api/servers.js';
 import { diskLabel, systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
 import { whenLabel } from '../api/when.js';
-import { ownerLabel } from '../auth/owner-label.js';
+import { activeAccount } from '../auth/account.js';
 import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not read this server.';
+
+function ownerLabel(owner: string | null): string {
+  if (owner === null) return 'not set';
+  const account = activeAccount();
+  if (account?.organization === owner) return account.organizationName ?? owner;
+  return owner;
+}
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (

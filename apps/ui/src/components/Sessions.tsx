@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
 import { BackLink } from './BackLink.js';
-import { useHomeProject } from './home-project.js';
+import { ProjectGate } from './ProjectGate.js';
 import { ListRow } from './ListRow.js';
 import { ListHeader } from './ListHeader.js';
 import { Loading } from './Loading.js';
@@ -125,27 +125,24 @@ function SessionsTitle({ claudeProject }: { claudeProject: string }): ReactNode 
 
 export function Sessions({ project, claudeProject, id, onSelect }: SessionsProps): ReactNode {
   useDocumentTitle('Sessions');
-  const home = useHomeProject();
-  const picked = claudeProject ?? home.project;
-  if (picked === null)
-    return (
-      <Col gap={16}>
-        <PageTitle>Sessions</PageTitle>
-        {home.loading ? <Loading /> : <Text size="sm" role="secondary">{NONE}</Text>}
-      </Col>
-    );
-  if (id === null)
-    return (
-      <Col gap={16}>
-        <SessionsTitle claudeProject={picked} />
-        <SessionList
-          project={project}
-          claudeProject={picked}
-          onOpen={(sid) => {
-            onSelect({ kind: 'sessions', project, claudeProject: picked, id: sid });
-          }}
-        />
-      </Col>
-    );
-  return <SessionView project={project} claudeProject={picked} id={id} onSelect={onSelect} />;
+  return (
+    <ProjectGate title="Sessions" claudeProject={claudeProject} none={NONE}>
+      {(picked) =>
+        id === null ? (
+          <Col gap={16}>
+            <SessionsTitle claudeProject={picked} />
+            <SessionList
+              project={project}
+              claudeProject={picked}
+              onOpen={(sid) => {
+                onSelect({ kind: 'sessions', project, claudeProject: picked, id: sid });
+              }}
+            />
+          </Col>
+        ) : (
+          <SessionView project={project} claudeProject={picked} id={id} onSelect={onSelect} />
+        )
+      }
+    </ProjectGate>
+  );
 }
