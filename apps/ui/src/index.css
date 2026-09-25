@@ -41,6 +41,9 @@ body {
 .app-sidebar,
 .app-drawer {
   background: var(--metro-bg);
+}
+
+.app-drawer {
   border-right: 1px solid var(--metro-border);
 }
 
