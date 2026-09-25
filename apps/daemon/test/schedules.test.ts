@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { calendarOf, convertRootJobs, dropInText, execArgv, listSchedules, parseCronLine, rehome, usesRootHome, type Runner } from '../src/agent-user/schedules.ts';
 import type { AgentUser } from '../src/agent-user/user.ts';
-import { logFileOf } from '../src/agent-user/schedule-detail.ts';
+import { logFileOf, scriptOf } from '../src/agent-user/schedule-detail.ts';
+import { writeFileSync } from 'node:fs';
 
 const AGENT: AgentUser = { name: 'agent', uid: 1001, gid: 1001, home: '/home/agent' };
 
@@ -84,5 +85,15 @@ describe('scheduled jobs on a box', () => {
     expect(logFileOf('/home/agent/bin/memory-refresh.sh >> /home/agent/.claude/memory-refresh.log 2>&1')).toBe('/home/agent/.claude/memory-refresh.log');
     expect(logFileOf('/home/agent/x.sh > /tmp/x.log')).toBe('/tmp/x.log');
     expect(logFileOf('/usr/local/bin/warm')).toBeNull();
+  });
+
+  test("the job's script is shown, text only, never its log or a binary", () => {
+    const dir = mkdtempSync(join(tmpdir(), 'metro-script-'));
+    writeFileSync(join(dir, 'refresh.sh'), '#!/bin/sh\nclaude -p "refresh the memory"\n');
+    writeFileSync(join(dir, 'blob'), Buffer.from([0x7f, 0x45, 0x00, 0x01]));
+    expect(scriptOf(`/bin/sh ${dir}/refresh.sh >> ${dir}/x.log 2>&1`)?.text).toContain('claude -p "refresh the memory"');
+    expect(scriptOf(`${dir}/refresh.sh`)?.path).toBe(`${dir}/refresh.sh`);
+    expect(scriptOf(`${dir}/blob`)).toBeNull();
+    expect(scriptOf('/nope/missing.sh')).toBeNull();
   });
 });

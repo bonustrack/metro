@@ -105,6 +105,7 @@ export function ScheduledJobPage({ project, id, onBack }: { project: string; id:
           <PageTitle>{detail.data.name}</PageTitle>
           <Facts job={detail.data} />
           <Actions job={detail.data} onMoved={onBack} />
+          {detail.data.script === null ? null : <Block title="Script" note={detail.data.script.path} text={detail.data.script.text} empty="The script is empty." />}
           <Block title="Definition" note={null} text={detail.data.definition} empty="Nothing to show." />
           <Block
             title="Recent output"

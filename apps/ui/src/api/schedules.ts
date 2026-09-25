@@ -56,6 +56,7 @@ export interface JobDetail extends ScheduledJob {
   definition: string;
   logs: string;
   logSource: string | null;
+  script: { path: string; text: string } | null;
 }
 
 function toDetail(body: unknown): JobDetail {
@@ -63,7 +64,8 @@ function toDetail(body: unknown): JobDetail {
   const job = toJob(raw);
   if (job === null || !isRecord(raw)) throw new Error('Metro returned an unexpected response.');
   const s = (v: unknown): string => (typeof v === 'string' ? v : '');
-  return { ...job, definition: s(raw.definition), logs: s(raw.logs), logSource: filled(raw.logSource) };
+  const script = isRecord(raw.script) && typeof raw.script.path === 'string' && typeof raw.script.text === 'string' ? { path: raw.script.path, text: raw.script.text } : null;
+  return { ...job, definition: s(raw.definition), logs: s(raw.logs), logSource: filled(raw.logSource), script };
 }
 
 export async function fetchScheduleDetail(id: string): Promise<JobDetail> {

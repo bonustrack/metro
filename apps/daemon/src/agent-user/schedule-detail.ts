@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import { ApiError } from '@metro-labs/http/api-error';
 import { log } from '@metro-labs/core/log';
 import { listSchedules, realRunner, showProps, type Runner, type ScheduledJob } from './schedules.js';
@@ -12,6 +12,29 @@ export interface JobDetail extends ScheduledJob {
   definition: string;
   logs: string;
   logSource: string | null;
+  script: { path: string; text: string } | null;
+}
+
+const SCRIPT_MAX = 64 * 1024;
+
+function textFile(path: string): string | null {
+  try {
+    const st = statSync(path);
+    if (!st.isFile() || st.size > SCRIPT_MAX) return null;
+    const text = readFileSync(path, 'utf8');
+    return text.includes('\u0000') ? null : text;
+  } catch {
+    return null;
+  }
+}
+
+export function scriptOf(command: string): { path: string; text: string } | null {
+  const words = command.split(/\s+/).filter((w) => w.startsWith('/') && !w.includes('>'));
+  for (const path of words.slice(0, 3)) {
+    const text = textFile(path);
+    if (text !== null) return { path, text };
+  }
+  return null;
 }
 
 function findJob(id: string, user: AgentUser | null, runner: Runner): ScheduledJob {
@@ -48,6 +71,7 @@ function timerDetail(job: ScheduledJob, runner: Runner): JobDetail {
     definition: runner.run('systemctl', ['cat', unit, service, '--no-pager']).stdout,
     logs: runner.run('journalctl', ['-u', service, '-n', String(LOG_LINES), '--no-pager', '-o', 'short-iso']).stdout,
     logSource: `journalctl -u ${service}`,
+    script: scriptOf(job.command),
   };
 }
 
@@ -59,6 +83,7 @@ function cronDetail(job: ScheduledJob): JobDetail {
     definition: `${job.schedule} ${job.command}`,
     logs: readable ? tail(file) : '',
     logSource: file,
+    script: scriptOf(job.command),
   };
 }
 
