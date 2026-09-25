@@ -30,7 +30,7 @@ export const STEP_LABELS: Record<SetupStep, string> = {
   packages: 'System packages',
   node: 'Node.js 22',
   bun: 'bun',
-  claude: 'Claude Code',
+  user: 'Metro user',
   tailscale: 'Tailscale joined',
   metro: 'Metro installed',
   service: 'Metro service started',

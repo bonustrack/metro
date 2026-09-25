@@ -47,7 +47,7 @@ describe('the checklist read off the markers', () => {
       'packages:done',
       'node:active',
       'bun:pending',
-      'claude:pending',
+      'user:pending',
       'tailscale:pending',
       'metro:pending',
       'service:pending',
@@ -65,6 +65,6 @@ describe('the checklist read off the markers', () => {
     const progress = progressOf(metroSetupLines('metro setup: start\nmetro setup: step service\nmetro setup: done now'));
     expect(progress.finished).toBe(true);
     expect(progress.steps.every((s) => s.state === 'done')).toBe(true);
-    expect(states('')).toEqual(['packages:pending', 'node:pending', 'bun:pending', 'claude:pending', 'tailscale:pending', 'metro:pending', 'service:pending']);
+    expect(states('')).toEqual(['packages:pending', 'node:pending', 'bun:pending', 'user:pending', 'tailscale:pending', 'metro:pending', 'service:pending']);
   });
 });

@@ -8,7 +8,7 @@ import { serve } from './serve.js';
 import { service, serviceStopHint } from './service.js';
 import { currentVersion } from './version.js';
 
-const USAGE = `metro — run your agent on this machine
+const USAGE = `metro: run your agent on this machine
 
   metro serve [--port <n>] [--owner <organization id>]
                   run the daemon: the agent, its channels and its connectors live in
@@ -18,10 +18,12 @@ const USAGE = `metro — run your agent on this machine
                   link it prints; --owner names the organization whose members may sign
                   in, needed on the first start only; Stop on the page parks the daemon and keeps the
                   address, so Start works from the page too
-  metro service install [--port <n>] [--owner <organization id>]
+  metro service install [--port <n>] [--owner <organization id>] [--user metro]
                   run metro serve as a service (systemd on Linux, launchd on macOS): it
                   starts at boot and after a crash, so the page can stop, start and
-                  restart it with no shell; metro service uninstall and status as well
+                  restart it with no shell; on Linux, root passes --user metro so Metro
+                  runs as its own user and Claude Code as the user agent;
+                  metro service uninstall and status as well
   metro stop      stop metro on this machine, metro serve included
   metro tail [agent-id]
                   follow this machine's inbound events, one JSON line each

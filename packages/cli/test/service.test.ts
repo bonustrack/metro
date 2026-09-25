@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { service, servicePlan, type ServiceDeps, type ServiceHost, serviceStopHint } from '../src/service.ts';
+import { service, servicePlan, type RunAs, type ServiceDeps, type ServiceHost, serviceStopHint } from '../src/service.ts';
 
 const linuxRoot: ServiceHost = {
   platform: 'linux',
@@ -21,6 +21,9 @@ const mac: ServiceHost = {
   env: { PATH: '/opt/homebrew/bin', HOME: '/Users/less' },
 };
 
+const HELPER = '/var/lib/metro/.npm-global/lib/node_modules/@stage-labs/metro/runtime/node_modules/@metro-labs/daemon/src/metro-user/install.ts';
+const METRO: RunAs = { name: 'metro', home: '/var/lib/metro', helper: HELPER };
+
 interface Fake {
   deps: ServiceDeps;
   ran: string[];
@@ -41,6 +44,8 @@ function fake(host: ServiceHost, over: Partial<ServiceDeps> = {}): Fake {
       },
       running: () => null,
       preflight: () => undefined,
+      account: (name) => (name === 'metro' ? { name, home: '/var/lib/metro' } : null),
+      helperEntry: () => HELPER,
       mkdir: (dir) => {
         ran.push(`mkdir ${dir}`);
       },
@@ -77,7 +82,29 @@ describe('what metro service writes', () => {
     expect(plan.install.map((c) => c.args.join(' '))).toEqual(['systemctl daemon-reload', 'systemctl enable --now metro']);
     expect(plan.uninstall.map((c) => c.args.join(' '))).toEqual(['systemctl disable --now metro']);
     expect(plan.status.args.join(' ')).toBe('systemctl is-active metro');
+    expect(plan.hints[0]).toBe('Logs:  journalctl -u metro -f');
+    expect(plan.hints[1]).toContain('never starts Claude Code; install it as its own user:  metro service install --user metro');
+  });
+
+  test('root installing for the metro user gets a system unit that runs as metro, from its own CLI, with nothing under /root', () => {
+    const host = { ...linuxRoot, env: { ...linuxRoot.env, METRO_AGENTS_DIR: '/root/.metro/agents', METRO_RUNTIME_STORE: '/root/.metro/runtime' } };
+    const plan = servicePlan(host, ['--owner', 'org_01M2TNE064H99ECTG4X228Y6B6'], METRO);
+    expect(plan.file).toBe('/etc/systemd/system/metro.service');
+    expect(plan.content).toContain('[Service]\nUser=metro\nGroup=metro\n');
+    expect(plan.content).toContain(
+      'ExecStart=/usr/bin/node /var/lib/metro/.npm-global/lib/node_modules/@stage-labs/metro/dist/cli.js serve --owner org_01M2TNE064H99ECTG4X228Y6B6\n',
+    );
+    expect(plan.content).toContain('Restart=always\nRestartSec=2\nOOMPolicy=continue\nWorkingDirectory=/\n');
+    expect(plan.content).toContain('Environment=HOME=/var/lib/metro\nEnvironment=PATH=/var/lib/metro/.npm-global/bin:/usr/local/bin:/usr/bin:/bin\nEnvironment=NPM_CONFIG_PREFIX=/var/lib/metro/.npm-global\nEnvironment=METRO_WEBHOOK_PORT=8421\n');
+    expect(plan.content).toContain('WantedBy=multi-user.target');
+    expect(plan.content).not.toContain('/root');
+    expect(plan.install.map((c) => c.args.join(' '))).toEqual([`bun ${HELPER}`, 'systemctl daemon-reload', 'systemctl enable --now metro']);
     expect(plan.hints).toEqual(['Logs:  journalctl -u metro -f']);
+  });
+
+  test('--user is for root on Linux only', () => {
+    expect(() => servicePlan(linuxUser, [], METRO)).toThrow(/run it as root on Linux/);
+    expect(() => servicePlan(mac, [], METRO)).toThrow(/run it as root on Linux/);
   });
 
   test('another user gets a user unit, with the linger hint', () => {
@@ -130,6 +157,31 @@ describe('metro service install, uninstall and status', () => {
     );
     expect(f.ran).toEqual(['systemctl daemon-reload', 'systemctl enable --now metro']);
     expect(f.lines[0]).toContain('Installed /etc/systemd/system/metro.service');
+  });
+
+  test('install --user metro writes the helper first, then the unit, and checks the owner against the metro user files', async () => {
+    const seen: (string | undefined)[] = [];
+    const f = fake(linuxRoot, {
+      preflight: (_args, agents) => {
+        seen.push(agents);
+      },
+    });
+    expect(await service(['install', '--owner', 'org_01M2TNE064H99ECTG4X228Y6B6', '--user', 'metro'], f.deps)).toBe(0);
+    expect(seen).toEqual(['/var/lib/metro/.metro/agents']);
+    expect(f.ran).toEqual([`bun ${HELPER}`, 'systemctl daemon-reload', 'systemctl enable --now metro']);
+    expect(f.files.get('/etc/systemd/system/metro.service')).toContain('User=metro\n');
+    const inline = fake(linuxRoot);
+    expect(await service(['install', '--user=metro', '--port', '8430'], inline.deps)).toBe(0);
+    expect(inline.files.get('/etc/systemd/system/metro.service')).toContain('dist/cli.js serve --port 8430\n');
+  });
+
+  test('install --user refuses another name or a missing user before touching anything', () => {
+    const other = fake(linuxRoot);
+    expect(() => service(['install', '--user', 'bob'], other.deps)).toThrow(/pass --user metro/);
+    const missing = fake(linuxRoot, { account: () => null });
+    expect(() => service(['install', '--user', 'metro'], missing.deps)).toThrow(/no user metro/);
+    expect([...other.ran, ...missing.ran]).toEqual([]);
+    expect(other.files.size + missing.files.size).toBe(0);
   });
 
   test('install refuses while a metro serve is running, and refuses a bad flag before touching anything', () => {

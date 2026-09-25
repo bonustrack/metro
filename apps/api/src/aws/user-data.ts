@@ -4,10 +4,14 @@ export const OWNER_RE = /^org_[A-Za-z0-9]{10,64}$/;
 export const AUTH_KEY_RE = /^tskey-auth-[A-Za-z0-9_-]{8,200}$/;
 const TAG_RE = /^[a-z0-9][A-Za-z0-9.-]{0,40}$/;
 
-export const SETUP_STEPS = ['packages', 'node', 'bun', 'claude', 'tailscale', 'metro', 'service'] as const;
+export const SETUP_STEPS = ['packages', 'node', 'bun', 'user', 'tailscale', 'metro', 'service'] as const;
 export type SetupStep = (typeof SETUP_STEPS)[number];
 
 const step = (name: SetupStep): string => `echo "metro setup: step ${name}"`;
+
+const METRO_HOME = '/var/lib/metro';
+const PREFIX = `${METRO_HOME}/.npm-global`;
+const AGENTS = `${METRO_HOME}/.metro/agents`;
 
 export interface BoxSpec {
   hostname: string;
@@ -30,6 +34,29 @@ function checkAuthKey(value: string): string {
   );
 }
 
+const TOOLS = [
+  step('packages'),
+  'apt-get -o DPkg::Lock::Timeout=600 update -y',
+  'apt-get -o DPkg::Lock::Timeout=600 install -y curl ca-certificates git tmux unzip sudo iptables',
+  step('node'),
+  'curl -fsSL https://deb.nodesource.com/setup_22.x | bash -',
+  'apt-get -o DPkg::Lock::Timeout=600 install -y nodejs',
+  step('bun'),
+  'curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash',
+  step('user'),
+  `useradd --system --create-home --home-dir ${METRO_HOME} --shell /usr/sbin/nologin --groups systemd-journal metro`,
+  `chmod 711 ${METRO_HOME}`,
+];
+
+const metroSteps = (node: string, owner: string, tag: string): string[] => [
+  step('metro'),
+  `sudo -u metro -H sh -c "cd / && npm install --global --prefix ${PREFIX} '@stage-labs/metro@${tag}'"`,
+  `install -d -o metro -g metro -m 700 ${METRO_HOME}/.metro ${AGENTS}`,
+  `printf '%s\\n' '${node}' > ${AGENTS}/.node && chown metro:metro ${AGENTS}/.node && chmod 600 ${AGENTS}/.node`,
+  step('service'),
+  `${PREFIX}/bin/metro service install --owner '${owner}' --user metro`,
+];
+
 export function cloudInit(spec: BoxSpec): string {
   const hostname = check(spec.hostname, HOSTNAME_RE, 'The host name');
   const node = check(spec.node, NODE_RE, 'The tailnet name');
@@ -44,27 +71,11 @@ export function cloudInit(spec: BoxSpec): string {
     'exec > >(tee -a /var/log/metro-setup.log) 2>&1',
     'echo "metro setup: start $(date -u +%FT%TZ)"',
     `hostnamectl set-hostname '${hostname}'`,
-    step('packages'),
-    'apt-get -o DPkg::Lock::Timeout=600 update -y',
-    'apt-get -o DPkg::Lock::Timeout=600 install -y curl ca-certificates git tmux unzip',
-    step('node'),
-    'curl -fsSL https://deb.nodesource.com/setup_22.x | bash -',
-    'apt-get -o DPkg::Lock::Timeout=600 install -y nodejs',
-    step('bun'),
-    'curl -fsSL https://bun.sh/install | bash',
-    'ln -sf /root/.bun/bin/bun /usr/local/bin/bun',
-    step('claude'),
-    'curl -fsSL https://claude.ai/install.sh | bash',
-    'ln -sf /root/.local/bin/claude /usr/local/bin/claude',
+    ...TOOLS,
     step('tailscale'),
     'curl -fsSL https://tailscale.com/install.sh | sh',
-    `tailscale up --auth-key='${key}' --hostname='${node}' --ssh`,
-    step('metro'),
-    `npm install -g '@stage-labs/metro@${tag}'`,
-    'mkdir -p /root/.metro/agents && chmod 700 /root/.metro/agents',
-    `printf '%s\\n' '${node}' > /root/.metro/agents/.node && chmod 600 /root/.metro/agents/.node`,
-    step('service'),
-    `metro service install --owner '${owner}'`,
+    `tailscale up --auth-key='${key}' --hostname='${node}' --ssh --operator=metro`,
+    ...metroSteps(node, owner, tag),
     'echo "metro setup: done $(date -u +%FT%TZ)"',
     '',
   ].join('\n');

@@ -3,13 +3,16 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, platform, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { serveLockedBy } from './control.js';
-import { findBun } from './runtime.js';
+import { findBun, runtimeDir } from './runtime.js';
 import { findTailscale, parseServeArgs, requireOwner, type ServeArgs } from './serve.js';
 
-const USAGE = 'usage: metro service install [--port <n>] [--owner <organization id>] | uninstall | status';
+const USAGE = 'usage: metro service install [--port <n>] [--owner <organization id>] [--user metro] | uninstall | status';
 const SERVICE = 'metro';
 const LABEL = 'box.metro.serve';
 const CARRIED = /^(METRO_.*|XDG_CACHE_HOME|PATH|HOME)$/;
+const OWN_PATHS = new Set(['METRO_AGENTS_DIR', 'METRO_RUNTIME_STORE']);
+const METRO_USER = 'metro';
+const USER_FLAG = /^--user=(.*)$/;
 const PLAIN_WORD = /^[A-Za-z0-9_/.:=+@,-]+$/;
 
 export interface ServiceHost {
@@ -20,6 +23,12 @@ export interface ServiceHost {
   node: string;
   cli: string;
   env: NodeJS.ProcessEnv;
+}
+
+export interface RunAs {
+  name: string;
+  home: string;
+  helper: string;
 }
 
 export interface Command {
@@ -43,7 +52,9 @@ export interface ServiceDeps {
   host: ServiceHost;
   run: (command: Command) => { status: number; output: string };
   running: () => number | null;
-  preflight: (args: ServeArgs) => void;
+  preflight: (args: ServeArgs, agents?: string) => void;
+  account: (name: string) => { name: string; home: string } | null;
+  helperEntry: () => string;
   mkdir: (dir: string) => void;
   write: (file: string, content: string) => void;
   remove: (file: string) => void;
@@ -67,8 +78,7 @@ function unitWord(arg: string): string {
   return `"${escaped.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
 }
 
-export function systemdUnit(host: ServiceHost, exec: string[], target: string): string {
-  const env = carriedEnv(host.env).map(([key, value]) => `Environment=${unitWord(`${key}=${value}`)}`);
+function unitText(service: string[], target: string): string {
   return [
     '[Unit]',
     'Description=Metro daemon (metro serve)',
@@ -76,17 +86,43 @@ export function systemdUnit(host: ServiceHost, exec: string[], target: string): 
     'Wants=network-online.target',
     '',
     '[Service]',
-    `ExecStart=${exec.map(unitWord).join(' ')}`,
-    'Restart=always',
-    'RestartSec=2',
-    'OOMPolicy=continue',
-    `WorkingDirectory=${unitWord(host.home)}`,
-    ...env,
+    ...service,
     '',
     '[Install]',
     `WantedBy=${target}`,
     '',
   ].join('\n');
+}
+
+const RESTART = ['Restart=always', 'RestartSec=2', 'OOMPolicy=continue'];
+
+export function systemdUnit(host: ServiceHost, exec: string[], target: string): string {
+  const env = carriedEnv(host.env).map(([key, value]) => `Environment=${unitWord(`${key}=${value}`)}`);
+  return unitText([`ExecStart=${exec.map(unitWord).join(' ')}`, ...RESTART, `WorkingDirectory=${unitWord(host.home)}`, ...env], target);
+}
+
+const npmPrefix = (home: string): string => join(home, '.npm-global');
+
+function runAsUnit(host: ServiceHost, runAs: RunAs, serveArgs: string[]): string {
+  const prefix = npmPrefix(runAs.home);
+  const exec = [host.node, join(prefix, 'lib', 'node_modules', '@stage-labs', 'metro', 'dist', 'cli.js'), 'serve', ...serveArgs];
+  const env = carriedEnv(host.env)
+    .filter(([key]) => key.startsWith('METRO_') && !OWN_PATHS.has(key))
+    .map(([key, value]) => `Environment=${unitWord(`${key}=${value}`)}`);
+  return unitText(
+    [
+      `User=${runAs.name}`,
+      `Group=${runAs.name}`,
+      `ExecStart=${exec.map(unitWord).join(' ')}`,
+      ...RESTART,
+      'WorkingDirectory=/',
+      `Environment=HOME=${unitWord(runAs.home)}`,
+      `Environment=${unitWord(`PATH=${prefix}/bin:/usr/local/bin:/usr/bin:/bin`)}`,
+      `Environment=${unitWord(`NPM_CONFIG_PREFIX=${prefix}`)}`,
+      ...env,
+    ],
+    'multi-user.target',
+  );
 }
 
 const xml = (text: string): string =>
@@ -124,7 +160,10 @@ export function launchdPlist(host: ServiceHost, exec: string[], logFile: string)
   ].join('\n');
 }
 
-function systemdPlan(host: ServiceHost, exec: string[]): ServicePlan {
+const ROOT_HINT = `Metro running as root never starts Claude Code; install it as its own user:  metro service install --user ${METRO_USER}`;
+
+function systemdPlan(host: ServiceHost, serveArgs: string[], runAs?: RunAs): ServicePlan {
+  const exec = [host.node, host.cli, 'serve', ...serveArgs];
   const system = host.uid === 0;
   const ctl = system ? ['systemctl'] : ['systemctl', '--user'];
   const file = system
@@ -133,14 +172,15 @@ function systemdPlan(host: ServiceHost, exec: string[]): ServicePlan {
   return {
     kind: 'systemd',
     file,
-    content: systemdUnit(host, exec, system ? 'multi-user.target' : 'default.target'),
+    content: runAs === undefined ? systemdUnit(host, exec, system ? 'multi-user.target' : 'default.target') : runAsUnit(host, runAs, serveArgs),
     dirs: [],
-    install: [{ args: [...ctl, 'daemon-reload'] }, { args: [...ctl, 'enable', '--now', SERVICE] }],
+    install: [...(runAs === undefined ? [] : [{ args: ['bun', runAs.helper] }]), { args: [...ctl, 'daemon-reload'] }, { args: [...ctl, 'enable', '--now', SERVICE] }],
     uninstall: [{ args: [...ctl, 'disable', '--now', SERVICE], mayFail: true }],
     reload: [{ args: [...ctl, 'daemon-reload'], mayFail: true }],
     status: { args: [...ctl, 'is-active', SERVICE], mayFail: true },
     hints: [
       `Logs:  journalctl ${system ? '' : '--user '}-u ${SERVICE} -f`,
+      ...(system && runAs === undefined ? [ROOT_HINT] : []),
       ...(system
         ? []
         : [`A user service stops with your login session; keep it up without one:  loginctl enable-linger ${host.user}`]),
@@ -168,23 +208,52 @@ function launchdPlan(host: ServiceHost, exec: string[]): ServicePlan {
   };
 }
 
-export function servicePlan(host: ServiceHost, serveArgs: string[]): ServicePlan {
+export function servicePlan(host: ServiceHost, serveArgs: string[], runAs?: RunAs): ServicePlan {
   const exec = [host.node, host.cli, 'serve', ...serveArgs];
-  if (host.platform === 'linux') return systemdPlan(host, exec);
+  if (runAs !== undefined && (host.platform !== 'linux' || host.uid !== 0))
+    throw new Error('--user installs a system service for another user: run it as root on Linux');
+  if (host.platform === 'linux') return systemdPlan(host, serveArgs, runAs);
   if (host.platform === 'darwin') return launchdPlan(host, exec);
   throw new Error(`metro service supports Linux (systemd) and macOS (launchd), not ${host.platform}`);
 }
 
-function install(serveArgs: string[], deps: ServiceDeps): number {
+function splitUser(argv: string[]): { user: string | null; rest: string[] } {
+  const rest: string[] = [];
+  let user: string | null = null;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i] ?? '';
+    const inline = USER_FLAG.exec(arg);
+    if (inline === null && arg !== '--user') {
+      rest.push(arg);
+      continue;
+    }
+    user = inline?.[1] ?? argv[i + 1] ?? '';
+    if (inline === null) i += 1;
+  }
+  return { user, rest };
+}
+
+function runAsOf(name: string | null, deps: ServiceDeps): RunAs | undefined {
+  if (name === null) return undefined;
+  if (name !== METRO_USER)
+    throw new Error(`the root helper and its sudo rules are written for the user ${METRO_USER}; pass --user ${METRO_USER}, not '${name}'`);
+  const account = deps.account(name);
+  if (account === null) throw new Error(`there is no user ${name} on this machine; create it first (useradd --system --create-home --home-dir /var/lib/${name} ${name})`);
+  return { ...account, helper: deps.helperEntry() };
+}
+
+function install(argv: string[], deps: ServiceDeps): number {
+  const { user, rest: serveArgs } = splitUser(argv);
   const args = parseServeArgs(serveArgs);
-  const plan = servicePlan(deps.host, serveArgs);
+  const runAs = runAsOf(user, deps);
+  const plan = servicePlan(deps.host, serveArgs, runAs);
   if (deps.exists(plan.file)) {
     deps.out(
       `metro is already installed as a ${plan.kind} service (${plan.file}) and restarts on its own; metro service status says whether it is running. To change its arguments: metro service uninstall, then install again`,
     );
     return 0;
   }
-  deps.preflight(args);
+  deps.preflight(args, runAs === undefined ? undefined : join(runAs.home, '.metro', 'agents'));
   const pid = deps.running();
   if (pid !== null)
     throw new Error(
@@ -255,6 +324,12 @@ export function serviceStopHint(
   return `metro runs as a ${plan.kind} service here (${plan.file}), so it starts again on its own in a moment. To keep it stopped:  ${keep}`;
 }
 
+function lookupAccount(name: string): { name: string; home: string } | null {
+  const run = spawnSync('getent', ['passwd', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const home = run.status === 0 ? (run.stdout.trim().split(':')[5] ?? '') : '';
+  return home.startsWith('/') ? { name, home } : null;
+}
+
 function realDeps(): ServiceDeps {
   return {
     host: realHost(),
@@ -269,8 +344,10 @@ function realDeps(): ServiceDeps {
       return { status: code, output: `${result.stdout}${result.stderr}` };
     },
     running: serveLockedBy,
-    preflight: (args) => {
-      requireOwner(args);
+    account: lookupAccount,
+    helperEntry: () => join(runtimeDir(), 'node_modules', '@metro-labs', 'daemon', 'src', 'metro-user', 'install.ts'),
+    preflight: (args, agents) => {
+      requireOwner(args, agents);
       findBun();
       findTailscale();
     },
