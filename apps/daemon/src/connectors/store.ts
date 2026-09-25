@@ -30,7 +30,6 @@ import {
   type ConnectorSignIn,
 } from './config.js';
 import type { OAuthClient } from './oauth-client.js';
-import { fixedTarget, unrefreshedTarget, type RelayTarget } from './relay-target.js';
 import { agentsDir } from '../agents/files.js';
 import { newId } from '@metro-labs/core/ids';
 import type { LoadedConnector } from '../stations/materialize.js';
@@ -331,6 +330,34 @@ function refreshOnce(row: LocalConnectorRow, auth: OAuthAuth, dir: string): Prom
     });
   inflight.set(row.id, job);
   return job;
+}
+
+export type RelayTarget =
+  | { kind: 'ok'; url: string; headers: Record<string, string> }
+  | { kind: 'missing' }
+  | { kind: 'signin' };
+
+function staleUsable(auth: OAuthAuth, now = Date.now()): boolean {
+  return auth.expiresAt === undefined || auth.expiresAt > now;
+}
+
+function unrefreshedTarget(
+  url: string,
+  auth: OAuthAuth,
+  force: boolean,
+  now = Date.now(),
+): RelayTarget {
+  if (force) return { kind: 'signin' };
+  return { kind: 'ok', url, headers: staleUsable(auth, now) ? authHeaders(auth) : {} };
+}
+
+function fixedTarget(
+  url: string,
+  auth: Exclude<ConnectorAuth, OAuthAuth>,
+  force: boolean,
+): RelayTarget {
+  if (force) return { kind: 'signin' };
+  return { kind: 'ok', url, headers: authHeaders(auth) };
 }
 
 async function oauthTarget(row: LocalConnectorRow, auth: OAuthAuth, force: boolean, dir: string): Promise<RelayTarget> {

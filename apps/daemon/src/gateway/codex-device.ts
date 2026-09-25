@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg } from '@metro-labs/core/log';
 import { CODEX_CLIENT_ID, CODEX_ISSUER, CodexAuthError, exchangeCode, type CodexTokens } from './codex-auth.js';
-import { stringOf } from './text.js';
+import { stringOf } from '@metro-labs/http/api-http';
 
 const VERIFY_PATH = '/codex/device';
 const DEVICE_TTL_MS = 15 * 60_000;

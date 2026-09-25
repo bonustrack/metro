@@ -1,4 +1,5 @@
 import { parseConnectorUrl, refused } from './verify.js';
+import { stringOf } from '@metro-labs/http/api-http';
 import { isRecord } from '@metro-labs/core/is-record';
 
 const DISCOVERY_TIMEOUT_MS = 10_000;
@@ -16,9 +17,6 @@ interface ResourceMetadata {
   issuer: URL;
   scopes: string[];
 }
-
-const str = (value: unknown): string =>
-  typeof value === 'string' ? value : '';
 
 async function getJson(url: URL): Promise<Record<string, unknown> | null> {
   let res: Response;
@@ -72,7 +70,7 @@ function scopesOf(body: Record<string, unknown> | null): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
   for (const entry of raw) {
-    const scope = str(entry).trim();
+    const scope = stringOf(entry).trim();
     if (scope !== '' && !/\s/.test(scope) && !out.includes(scope)) out.push(scope);
   }
   return out;
@@ -94,16 +92,16 @@ function toServer(
   issuer: URL,
   scopes: string[],
 ): OAuthServer {
-  const authorizationEndpoint = str(body.authorization_endpoint);
-  const tokenEndpoint = str(body.token_endpoint);
+  const authorizationEndpoint = stringOf(body.authorization_endpoint);
+  const tokenEndpoint = stringOf(body.token_endpoint);
   if (authorizationEndpoint === '' || tokenEndpoint === '')
     throw refused(
       `${issuer.hostname} advertises OAuth but not where to sign in.`,
     );
   const methods = body.code_challenge_methods_supported;
-  const registration = str(body.registration_endpoint);
+  const registration = stringOf(body.registration_endpoint);
   return {
-    issuer: str(body.issuer) === '' ? issuer.origin : str(body.issuer),
+    issuer: stringOf(body.issuer) === '' ? issuer.origin : stringOf(body.issuer),
     authorizationEndpoint,
     tokenEndpoint,
     registrationEndpoint: registration === '' ? null : registration,

@@ -3,7 +3,8 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ToolNames } from './codex-translate.js';
 import { CLIENT_NAME, requestId, SYSTEM_PREFIX } from './gemini-client.js';
 import { cappedEffort, effortToApply } from './effort.js';
-import { resultText, stringOf } from './text.js';
+import { resultText } from './text.js';
+import { stringOf } from '@metro-labs/http/api-http';
 
 type Item = Record<string, unknown>;
 

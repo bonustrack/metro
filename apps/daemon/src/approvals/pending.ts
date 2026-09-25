@@ -1,6 +1,9 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import { previewMatches } from './preview.js';
 
+export const NEEDS_APPROVAL = (where: string, tool: string): string =>
+  `Needs the owner's approval for ${where} (${tool}). Make this exact call from a background worker so Claude Code asks the owner in chat, and wait for the answer. An approval given only in the terminal does not count.`;
+
 export type Behavior = 'allow' | 'deny';
 
 export type AnsweredVia = 'chat' | 'page' | 'expiry';
@@ -22,8 +25,7 @@ interface Held extends PendingPrompt {
 
 const PENDING_MAX = 500;
 const SWEEP_MS = 60_000;
-const DEFAULT_TTL_H = 24;
-const HOUR_MS = 3_600_000;
+const APPROVAL_TTL_MS = 24 * 3_600_000;
 
 const held = new Map<string, Held>();
 
@@ -46,11 +48,6 @@ export function takeGrant(toolMatches: (tool: string) => boolean, args: Record<s
   if (at < 0) return false;
   grants = grants.filter((_, i) => i !== at);
   return true;
-}
-
-export function approvalTtlMs(env: NodeJS.ProcessEnv = process.env): number {
-  const hours = Number(env.METRO_APPROVAL_TTL_H);
-  return (Number.isFinite(hours) && hours > 0 ? hours : DEFAULT_TTL_H) * HOUR_MS;
 }
 
 const shown = ({ requestId, tool, description, preview, line, at }: Held): PendingPrompt => ({
@@ -122,7 +119,7 @@ export function settlePromptsFor(name: string, args: Record<string, unknown>): v
     }
 }
 
-export async function expirePrompts(now = Date.now(), ttl = approvalTtlMs()): Promise<number> {
+export async function expirePrompts(now = Date.now(), ttl = APPROVAL_TTL_MS): Promise<number> {
   const overdue = [...held.values()].filter((entry) => now - entry.at >= ttl);
   for (const entry of overdue)
     await answerPrompt(entry.requestId, 'deny', 'expiry').catch((err: unknown) => {

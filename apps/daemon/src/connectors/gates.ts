@@ -1,8 +1,7 @@
 import type { ToolGroup } from '@metro-labs/core/stations/types';
 import { policyFor, setPolicies, type PolicyTarget, type ToolPolicy } from '../policy/policy.js';
 import { serverKeysOf } from './plugin-sync.js';
-import { takeGrant } from '../approvals/pending.js';
-import { NEEDS_APPROVAL } from '../approvals/needs.js';
+import { NEEDS_APPROVAL, takeGrant } from '../approvals/pending.js';
 
 interface GateRow {
   id: string;

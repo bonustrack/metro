@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { bodyField, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { bodyField, readJsonBody, sendJson, stringOf } from '@metro-labs/http/api-http';
 import {
   beginOAuth,
   completeOAuth,
@@ -12,9 +12,6 @@ import { connectorClient } from './config.js';
 import { parseConnectorUrl } from './verify.js';
 import type { OAuthAuth } from './verify.js';
 import type { Connector, PendingConnectorInput } from './store.js';
-
-const asText = (value: unknown): string =>
-  typeof value === 'string' ? value : '';
 
 export function hostOf(url: string): string {
   try {
@@ -38,7 +35,7 @@ export async function startOAuth(
   payload: (row: Connector) => Record<string, unknown>,
 ): Promise<void> {
   const url = parseConnectorUrl(bodyField(body, 'url'));
-  const returnTo = asText(bodyField(body, 'returnTo'));
+  const returnTo = stringOf(bodyField(body, 'returnTo'));
   const clientId = bodyField(body, 'clientId');
   const clientSecret = bodyField(body, 'clientSecret');
   const prepared = await prepareOAuth({
@@ -74,7 +71,7 @@ export async function handleConnect(
   const row = await deps.getConnector(id);
   const url = parseConnectorUrl(row.url);
   const body = await readJsonBody(req);
-  const returnTo = asText(bodyField(body, 'returnTo'));
+  const returnTo = stringOf(bodyField(body, 'returnTo'));
   const prepared = await prepareOAuth({ url, client: row.client, returnTo });
   const authorize = beginOAuth(prepared, {
     name: row.name,

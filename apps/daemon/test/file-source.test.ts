@@ -31,10 +31,8 @@ const agent = (over: Record<string, unknown> = {}): Record<string, unknown> => (
   ...over,
 });
 
-function write(name: string, body: unknown): string {
-  const folder = join(dir, name);
-  mkdirSync(folder, { recursive: true });
-  const path = join(folder, 'agent.json');
+function write(body: unknown): string {
+  const path = join(dir, 'agent.json');
   writeFileSync(path, typeof body === 'string' ? body : JSON.stringify(body));
   return path;
 }
@@ -58,17 +56,14 @@ afterEach(() => {
 });
 
 describe('agents kept as files', () => {
-  test('every agent.json under the agents dir is an agent, others are ignored', () => {
-    write('suzy', agent());
-    write('tony', agent({ id: 'agent000002', name: 'tony', key: `mk_${'b'.repeat(43)}`, stations: [] }));
-    mkdirSync(join(dir, 'empty-folder'));
+  test('only agent.json at the top of the agents dir is the agent, anything else is ignored', () => {
+    write(agent());
+    mkdirSync(join(dir, 'tony'));
+    writeFileSync(join(dir, 'tony', 'agent.json'), JSON.stringify(agent({ id: 'agent000002', name: 'tony', stations: [] })));
     writeFileSync(join(dir, 'stray.json'), '{}');
-    expect(listAgentFiles(dir)).toHaveLength(2);
+    expect(listAgentFiles(dir)).toEqual([join(dir, 'agent.json')]);
     const loaded = loadFileAgents(dir);
-    expect(loaded.map((a) => [a.id, a.name, a.key, a.accounts.length])).toEqual([
-      ['agent000001', 'suzy', KEY, 1],
-      ['agent000002', 'tony', `mk_${'b'.repeat(43)}`, 0],
-    ]);
+    expect(loaded.map((a) => [a.id, a.name, a.key, a.accounts.length])).toEqual([['agent000001', 'suzy', KEY, 1]]);
     expect(loaded[0]?.accounts[0]).toEqual({
       station: 'telegram-bot',
       id: 'stn00000001',
@@ -84,7 +79,7 @@ describe('agents kept as files', () => {
   });
 
   test('a station is on unless its file says enabled: false, and the flag survives the load', async () => {
-    write('suzy', agent({ stations: [
+    write(agent({ stations: [
       { station: 'telegram-bot', id: 'stn00000001', allowlist: ['*'], config: { botToken: 'a' } },
       { station: 'telegram-bot', id: 'stn00000002', allowlist: ['*'], enabled: false, config: { botToken: 'b' } },
     ] }));
@@ -93,7 +88,7 @@ describe('agents kept as files', () => {
   });
 
   test('a station in a file runs on this machine', async () => {
-    write('suzy', agent());
+    write(agent());
     await materializeFrom(fileSource);
     const written = JSON.parse(
       readFileSync(process.env.TELEGRAM_BOT_ACCOUNTS_FILE ?? '', 'utf8'),
@@ -128,7 +123,7 @@ describe('agents kept as files', () => {
 
 describe('train stubs at first boot', () => {
   test('a stale stub for a station with no account is removed and the live one is written', async () => {
-    write('suzy', agent());
+    write(agent());
     const trains = join(dir, 'trains');
     mkdirSync(trains, { recursive: true });
     writeFileSync(join(trains, 'discord-bot.ts'), "import '@metro-labs/discord-bot/train';\n");
@@ -144,16 +139,16 @@ describe('keys of every vintage', () => {
   test("metro.box keys older than today's mk_ shape, plain 64-hex included, are still keys", () => {
     const hex = 'a1b2c3d4'.repeat(8);
     expect(hex).toHaveLength(64);
-    expect(readAgentFile(write('suzy', agent({ key: hex }))).key).toBe(hex);
+    expect(readAgentFile(write(agent({ key: hex }))).key).toBe(hex);
     const mid = `mk_${'A1b2'.repeat(15)}z`;
-    expect(readAgentFile(write('tony', agent({ id: 'agent000002', key: mid }))).key).toBe(mid);
+    expect(readAgentFile(write(agent({ id: 'agent000002', key: mid }))).key).toBe(mid);
   });
 
   test('but not something too short, or carrying a character a url would mangle', () => {
-    expect(() => readAgentFile(write('suzy', agent({ key: 'mk_short' })))).toThrow(/not an agent key/);
-    const spaced = write('tony', agent({ id: 'agent000002', key: `mk_${'x'.repeat(20)} y` }));
+    expect(() => readAgentFile(write(agent({ key: 'mk_short' })))).toThrow(/not an agent key/);
+    const spaced = write(agent({ id: 'agent000002', key: `mk_${'x'.repeat(20)} y` }));
     expect(() => readAgentFile(spaced)).toThrow(/not an agent key/);
-    const plus = write('lisa', agent({ id: 'agent000003', key: `${'x'.repeat(20)}+/=` }));
+    const plus = write(agent({ id: 'agent000003', key: `${'x'.repeat(20)}+/=` }));
     expect(() => readAgentFile(plus)).toThrow(/not an agent key/);
   });
 });

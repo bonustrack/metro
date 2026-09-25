@@ -41,11 +41,8 @@ function fakeTmux(): void {
 }
 
 function agent(): void {
-  mkdirSync(join(dir, 'agents', 'andy'), { recursive: true });
-  writeFileSync(
-    join(dir, 'agents', 'andy', 'agent.json'),
-    JSON.stringify({ version: 1, id: 'agent000001', name: 'andy', key: KEY, owner: OWNER, stations: [] }),
-  );
+  mkdirSync(join(dir, 'agents'), { recursive: true });
+  writeFileSync(join(dir, 'agents', 'agent.json'), JSON.stringify({ version: 1, id: 'agent000001', key: KEY, stations: [] }));
 }
 
 const deps = (over: Partial<SessionDeps> = {}): SessionDeps => ({
@@ -100,7 +97,7 @@ describe('what stands in the way of a session', () => {
     agent();
     writeFileSync(
       join(dir, 'agents', 'model.json'),
-      JSON.stringify({ version: 1, provider: 'openrouter', bedrock: { region: '', apiKey: '', model: '' }, openrouter: { apiKey: 'k', model: 'anthropic/claude' }, codex: { model: '', auth: null } }),
+      JSON.stringify({ version: 2, route: 'c1', connections: [{ id: 'c1', provider: 'openrouter', apiKey: 'k', model: 'anthropic/claude' }] }),
     );
     expect(sessionBlocked(deps({ signedIn: () => false }))).toBeNull();
   });

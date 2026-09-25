@@ -31,7 +31,6 @@ import { tryClaudeSetup } from '../claude/setup.js';
 import { applyLocalOwner } from './local-owner.js';
 import { installBearerSessions } from '../routes/bearer.js';
 import { ensureLocalAgent, localOwner } from '../agents/file-admin.js';
-import { migrateAgentLayout } from '../agents/files.js';
 import { ensureStationDeps } from '../stations/runtime-deps.js';
 import { localSessionApis } from '../routes/local-mode.js';
 import type { SessionApis } from '../routes/session-apis.js';
@@ -122,7 +121,6 @@ function sessionApis(): SessionApis {
 async function main(): Promise<void> {
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
-  migrateAgentLayout();
   watchPolicySnapshot();
   loadConnectorPolicies().catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'connector policy: loading the policies failed');

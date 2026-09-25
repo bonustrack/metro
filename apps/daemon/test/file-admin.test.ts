@@ -195,18 +195,4 @@ describe('one agent per box, at a fixed place', () => {
     expect(await ensureLocalAgent(dir)).toBe('present');
     expect(await status(localCreateAgent('second', dir))).toBe(409);
   });
-
-  test('an agent file from the folder-per-agent days is moved to the fixed place at boot, id and key kept', async () => {
-    const { migrateAgentLayout } = await import('../src/agents/files.ts');
-    const { mkdirSync, writeFileSync } = await import('node:fs');
-    expect(migrateAgentLayout(dir)).toBe('none');
-    mkdirSync(join(dir, 'Tony'));
-    const legacy = { version: 1, id: 'agentTony01', name: 'Tony', key: 'mk_' + 'a'.repeat(40), owner: OWNER, stations: [], connectors: [] };
-    writeFileSync(join(dir, 'Tony', 'agent.json'), JSON.stringify(legacy));
-    expect(migrateAgentLayout(dir)).toBe('moved');
-    expect(existsSync(join(dir, 'Tony'))).toBe(false);
-    const moved = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { id: string; key: string; name: string };
-    expect(moved).toMatchObject({ id: 'agentTony01', key: legacy.key, name: 'Tony' });
-    expect(migrateAgentLayout(dir)).toBe('kept');
-  });
 });
