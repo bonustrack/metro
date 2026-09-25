@@ -154,7 +154,7 @@ describe('groups on the wire', () => {
   test('a group text lands on the group line, asks the creator for the roster once, and a setup fills it', async () => {
     await call('callback', inboundFrom('ALICE001', encodeGroupText(GROUP, 'hello @@*METRO01')));
     expect(cap.written.responses[0]).toMatchObject({ result: { ok: true, kind: 'group-text' } });
-    expect(cap.written.events[0]).toMatchObject({ kind: 'inbound', line: GROUP_LINE, line_name: 'ALICE001-0011223344556677', is_private: false, mentions_self: true, text: 'hello @@*METRO01', from: 'metro://threema/t0/user/ALICE001' });
+    expect(cap.written.events[0]).toMatchObject({ line: GROUP_LINE, line_name: 'ALICE001-0011223344556677', is_private: false, mentions_self: true, text: 'hello @@*METRO01', from: 'metro://threema/t0/user/ALICE001' });
     await new Promise((r) => setTimeout(r, 10));
     expect(sends).toHaveLength(1);
     expect(sends[0]?.get('to')).toBe('ALICE001');
@@ -194,7 +194,7 @@ describe('groups on the wire', () => {
     expect(sends).toHaveLength(1);
     expect(sends[0]?.get('group')).toBeNull();
     expect(openedTo(sends[0] ?? new URLSearchParams())).toEqual({ kind: 'reaction', group: null, messageId: '0123456789abcdef', emoji: '👍', removed: false });
-    expect(cap.written.events[0]).toMatchObject({ kind: 'outbound', text: '[react 👍]', event: { type: 'react', emoji: '👍', targetId: '0123456789abcdef' } });
+    expect(cap.written.events[0]).toMatchObject({ text: '[react 👍]', event: { type: 'react', emoji: '👍', targetId: '0123456789abcdef' } });
     await call('callback', inboundFrom('ALICE001', new Uint8Array([MSG_GROUP_SETUP, ...Buffer.from('0011223344556677', 'hex'), ...Buffer.from('BOB00002', 'ascii')])));
     sends.length = 0;
     await call('unreact', { line: GROUP_LINE, messageId: '0123456789abcdef', emoji: '👍' });
@@ -202,7 +202,7 @@ describe('groups on the wire', () => {
     expect(openedTo(sends[1] ?? new URLSearchParams())).toEqual({ kind: 'reaction', group: GROUP, messageId: '0123456789abcdef', emoji: '👍', removed: true });
     cap.written.events.length = 0;
     await call('callback', inboundFrom('ALICE001', encodeGroupReaction(GROUP, 'fedcba9876543210', '🎉', false)));
-    expect(cap.written.events[0]).toMatchObject({ kind: 'inbound', line: GROUP_LINE, is_private: false, emoji: '🎉', text: '[react 🎉]', event: { type: 'react', emoji: '🎉', targetId: 'fedcba9876543210' } });
+    expect(cap.written.events[0]).toMatchObject({ line: GROUP_LINE, is_private: false, emoji: '🎉', text: '[react 🎉]', event: { type: 'react', emoji: '🎉', targetId: 'fedcba9876543210' } });
     await call('callback', inboundFrom('ALICE001', encodeReaction('fedcba9876543210', '🎉', true)));
     expect(cap.written.events[1]).toMatchObject({ line: 'metro://threema/t0/ALICE001', is_private: true, text: '[react 🎉 (removed)]', event: { type: 'react', emoji: '🎉', removed: true } });
     cap.written.responses.length = 0;

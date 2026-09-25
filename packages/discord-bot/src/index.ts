@@ -45,7 +45,6 @@ function makeClient(): Client {
 function onEdit(accountId: string, m: Message): void {
   if (m.author.bot) return;
   emitInbound(accountId, {
-    kind: 'edit',
     id: mintId(),
     ts: new Date(m.editedTimestamp ?? Date.now()).toISOString(),
     station: 'discord-bot',

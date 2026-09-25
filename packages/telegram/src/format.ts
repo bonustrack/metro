@@ -72,7 +72,6 @@ export function envelope(
       ? [pendingDescriptorOf(media)]
       : undefined;
   return {
-    kind: 'inbound',
     id: mintId(),
     ts: m.date.toISOString(),
     station: 'telegram',
@@ -108,7 +107,6 @@ export interface ReactionInput {
 
 export function reactionEnvelope(r: ReactionInput): Record<string, unknown> {
   return {
-    kind: 'react',
     id: mintId(),
     ts: r.date.toISOString(),
     station: 'telegram',

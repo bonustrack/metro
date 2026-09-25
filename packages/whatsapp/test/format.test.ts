@@ -17,7 +17,6 @@ const dm = (over: Partial<InboundMessage> = {}): InboundMessage => ({
 describe('envelope', () => {
   test('DM text → private envelope', () => {
     const e = envelope(dm());
-    expect(e.kind).toBe('inbound');
     expect(e.station).toBe('whatsapp');
     expect(e.line).toBe('metro://whatsapp/w0/111@s.whatsapp.net');
     expect(e.from).toBe('metro://whatsapp/w0/user/111@s.whatsapp.net');
@@ -91,7 +90,6 @@ describe('reactionEnvelope', () => {
 
   test('normalizes a reaction', () => {
     const e = reactionEnvelope(base);
-    expect(e.kind).toBe('react');
     expect(e.line).toBe('metro://whatsapp/w0/999-1@g.us');
     expect(e.message_id).toBe('ABC');
     expect(e.event).toEqual({ type: 'react', emoji: '👍', targetId: 'ABC' });

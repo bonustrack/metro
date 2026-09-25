@@ -70,8 +70,6 @@ const discordSaved = (): Record<string, unknown> => ({
     index: 0,
     attachmentPath:
       '/data/.cache/metro/messenger-uploads/msg_1534630426356879_0.html',
-    localPath:
-      '/data/.cache/metro/messenger-uploads/msg_1534630426356879_0.html',
     mime: 'text/html; charset=utf-8',
     name: 'exploding-kittens-bot.html',
     url: 'https://api.metro.box/attach/msg_1534630426356879_0.html?token=at_grant',
@@ -110,7 +108,6 @@ const telegramSaved = (): Record<string, unknown> => ({
     attachmentFor: 'msg_69awj0yf',
     index: 0,
     attachmentPath: '/data/.cache/metro/messenger-uploads/msg_1976_0.jpg',
-    localPath: '/data/.cache/metro/messenger-uploads/msg_1976_0.jpg',
     mime: 'image/jpeg',
     name: 'msg_1976_0.jpg',
     url: 'https://api.metro.box/attach/msg_1976_0.jpg?token=at_grant',
@@ -147,7 +144,6 @@ const xmtpSaved = (): Record<string, unknown> => ({
     index: 0,
     attachmentPath:
       '/data/.cache/metro/messenger-uploads/msg_82c863542725f2d7_0.pdf',
-    localPath: '/data/.cache/metro/messenger-uploads/msg_82c863542725f2d7_0.pdf',
     mime: 'application/pdf',
     name: 'deck.pdf',
     url: 'https://api.metro.box/attach/msg_82c863542725f2d7_0.pdf?token=at_grant',
@@ -243,7 +239,6 @@ describe('telegram-bot (bot): the station that never buffered is unchanged', () 
         attachmentFor: 'msg_y48j9o5s',
         index: 0,
         attachmentPath: '/data/.cache/metro/messenger-uploads/msg_1569_0.jpg',
-        localPath: '/data/.cache/metro/messenger-uploads/msg_1569_0.jpg',
         mime: 'image/jpeg',
         url: 'https://api.metro.box/attach/msg_1569_0.jpg?token=at_grant',
       },

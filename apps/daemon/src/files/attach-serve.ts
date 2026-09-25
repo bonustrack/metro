@@ -56,7 +56,7 @@ export function attachmentEventUrl(
 ): string | null {
   if (payload.contentType !== 'attachmentSaved') return null;
   if (typeof payload.url === 'string' && payload.url.length > 0) return null;
-  const p = payload.attachmentPath ?? payload.localPath;
+  const p = payload.attachmentPath;
   return typeof p === 'string' ? attachmentUrl(p, agentId) : null;
 }
 

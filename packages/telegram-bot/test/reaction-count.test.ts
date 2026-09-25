@@ -23,7 +23,6 @@ describe('reactionCountEnvelope', () => {
     const env = reactionCountEnvelope('t0', rc);
     expect(env).not.toBeNull();
     expect(env).toMatchObject({
-      kind: 'react',
       station: 'telegram-bot',
       line: 'metro://telegram-bot/t0/-100123',
       from: 'metro://telegram-bot/t0/user/unknown',

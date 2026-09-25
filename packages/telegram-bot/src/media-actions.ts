@@ -11,7 +11,6 @@ export function emitOutbound(
   replyTo?: string,
 ): void {
   emit({
-    kind: 'outbound',
     id: mintId(),
     ts: new Date().toISOString(),
     station: 'telegram-bot',
@@ -22,7 +21,6 @@ export function emitOutbound(
     text,
     reply_to: replyTo,
     ...(replyTo ? { event: { type: 'reply', replyTo } } : {}),
-    account: accountId,
     payload: { account: accountId },
   });
 }

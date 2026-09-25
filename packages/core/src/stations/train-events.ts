@@ -10,9 +10,7 @@ export const selfUri = (station: string, account?: string): string =>
 
 export function emitInbound(account: string, e: Fields, out: Out = emit): void {
   out({
-    kind: 'inbound',
     ...e,
-    account,
     payload: { ...(e.payload as Fields | undefined), account },
   });
 }
@@ -34,14 +32,12 @@ export interface SavedFile {
 
 function attachmentEvent(at: AttachmentAt, text: string, payload: Fields): Fields {
   return {
-    kind: 'inbound',
     id: mintId(),
     ts: new Date().toISOString(),
     station: at.station,
     line: at.line,
     from: at.from ?? selfUri(at.station, at.account),
     text,
-    account: at.account,
     payload: { account: at.account, attachmentFor: at.forId, index: at.index, ...payload },
   };
 }
@@ -51,7 +47,6 @@ export const attachmentSavedEvent = (at: AttachmentAt & { saved: SavedFile; extr
     contentType: 'attachmentSaved',
     ...at.extra,
     attachmentPath: at.saved.path,
-    localPath: at.saved.path,
     mime: at.saved.mime,
     name: at.saved.name,
   });

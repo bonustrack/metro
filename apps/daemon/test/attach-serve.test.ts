@@ -114,7 +114,7 @@ describe('attachment url helpers', () => {
   test('attachmentEventUrl only enriches attachmentSaved without a url', () => {
     expect(
       attachmentEventUrl(
-        { contentType: 'attachmentSaved', localPath: `/data/x/${CACHE_NAME}` },
+        { contentType: 'attachmentSaved', attachmentPath: `/data/x/${CACHE_NAME}` },
         1,
       ),
     ).toStartWith(`https://api.metro.box/attach/${CACHE_NAME}?token=at_`);
@@ -122,7 +122,7 @@ describe('attachment url helpers', () => {
       attachmentEventUrl(
         {
           contentType: 'attachmentSaved',
-          localPath: `/data/x/${CACHE_NAME}`,
+          attachmentPath: `/data/x/${CACHE_NAME}`,
           url: 'https://cdn.example/x.png',
         },
         1,

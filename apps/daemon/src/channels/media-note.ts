@@ -6,7 +6,6 @@ export interface SavedMedia {
   contentType?: string;
   attachmentFor?: string;
   attachmentPath?: string;
-  localPath?: string;
   url?: string;
   mime?: string;
   name?: string;
@@ -61,7 +60,7 @@ export async function buildMediaNote(
   caption: string,
   showPath = true,
 ): Promise<MediaNote | null> {
-  const path = p.attachmentPath ?? p.localPath;
+  const path = p.attachmentPath;
   if (!path) return null;
   const kind = p.kind ?? mediaKind(p.mime, p.name);
   const name = p.name ?? path.split('/').pop() ?? 'attachment';

@@ -53,7 +53,6 @@ function base(
 ): Record<string, unknown> {
   const group = room.group;
   return {
-    kind: 'inbound',
     id: mintId(),
     ts: tsOf(m.date),
     station: 'threema',
@@ -127,7 +126,6 @@ export function emitOutbound(
   replyTo?: string,
 ): void {
   emit({
-    kind: 'outbound',
     id: mintId(),
     ts: new Date().toISOString(),
     station: 'threema',
@@ -138,7 +136,6 @@ export function emitOutbound(
     text,
     reply_to: replyTo,
     ...(replyTo ? { event: { type: 'reply', replyTo } } : {}),
-    account: accountId,
     payload: { account: accountId },
   });
 }
@@ -152,7 +149,6 @@ export function emitOutboundReaction(
   removed: boolean,
 ): void {
   emit({
-    kind: 'outbound',
     id: mintId(),
     ts: new Date().toISOString(),
     station: 'threema',
@@ -163,7 +159,6 @@ export function emitOutboundReaction(
     text: `[react ${emoji}${removed ? ' (removed)' : ''}]`,
     emoji,
     event: { type: 'react', emoji, targetId, ...(removed ? { removed: true } : {}) },
-    account: accountId,
     payload: { account: accountId },
   });
 }

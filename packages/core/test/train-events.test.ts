@@ -37,24 +37,19 @@ describe('mintId', () => {
 });
 
 describe('emitInbound', () => {
-  test('stamps the account on the event and its payload, and defaults the kind', () => {
+  test('stamps the account on the payload', () => {
     const out: unknown[] = [];
     emitInbound('a1', { id: 'x', text: 'hi', payload: { contentType: 'text' } }, (e) => out.push(e));
-    expect(out).toEqual([{ kind: 'inbound', id: 'x', text: 'hi', account: 'a1', payload: { contentType: 'text', account: 'a1' } }]);
-  });
-
-  test('keeps a kind the station set', () => {
-    const out: unknown[] = [];
-    emitInbound('a1', { kind: 'react' }, (e) => out.push(e));
-    expect(out).toEqual([{ kind: 'react', account: 'a1', payload: { account: 'a1' } }]);
+    expect(out).toEqual([{ id: 'x', text: 'hi', payload: { contentType: 'text', account: 'a1' } }]);
   });
 });
 
 describe('attachment events', () => {
-  test('attachmentSaved carries both path fields the daemon reads', () => {
+  test('attachmentSaved carries the path the daemon reads', () => {
     delete process.env.METRO_SELF_URI;
     const e = attachmentSavedEvent({ ...at, saved: { path: '/cache/msg_42_0.jpg', mime: 'image/jpeg', name: 'pic.jpg' }, extra: { kind: 'image' } });
-    expect(e).toMatchObject({ kind: 'inbound', station: 'telegram', line: at.line, from: 'metro://telegram/default/self', text: '📎 saved: /cache/msg_42_0.jpg', account: 'default' });
+    expect(e).toMatchObject({ station: 'telegram', line: at.line, from: 'metro://telegram/default/self', text: '📎 saved: /cache/msg_42_0.jpg' });
+    expect(e).not.toHaveProperty('account');
     expect(e.payload).toEqual({
       account: 'default',
       contentType: 'attachmentSaved',
@@ -62,7 +57,6 @@ describe('attachment events', () => {
       index: 0,
       kind: 'image',
       attachmentPath: '/cache/msg_42_0.jpg',
-      localPath: '/cache/msg_42_0.jpg',
       mime: 'image/jpeg',
       name: 'pic.jpg',
     });

@@ -57,7 +57,6 @@ const savedEvent = (
       attachmentFor: 'msg_a8rbc9lk',
       index: 0,
       attachmentPath: `/data/.cache/metro/messenger-uploads/${name}`,
-      localPath: `/data/.cache/metro/messenger-uploads/${name}`,
       mime: 'text/html',
       name: 'exploding-kittens-bot.html',
       ...extra,

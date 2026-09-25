@@ -63,7 +63,6 @@ export function messageEnvelope(
     );
   });
   return {
-    kind: 'inbound',
     id: envId,
     ts: new Date(m.createdTimestamp).toISOString(),
     station: 'discord-bot',
@@ -90,7 +89,6 @@ export function reactionEnvelope(
 ): Record<string, unknown> | null {
   if (u.bot) return null;
   return {
-    kind: 'react',
     id: mintId(),
     ts: new Date().toISOString(),
     station: 'discord-bot',
@@ -116,14 +114,12 @@ export function reactionEnvelope(
 }
 
 function outbound(
-  kind: string,
   accountId: string,
   line: string,
   messageId: string,
   extra: object,
 ): void {
   emit({
-    kind,
     id: mintId(),
     ts: new Date().toISOString(),
     station: 'discord-bot',
@@ -132,7 +128,6 @@ function outbound(
     to: line,
     message_id: messageId,
     ...extra,
-    account: accountId,
     payload: { account: accountId },
   });
 }
@@ -144,7 +139,7 @@ export function emitOutbound(
   text: string,
   replyTo?: string,
 ): void {
-  outbound('outbound', accountId, line, messageId, {
+  outbound(accountId, line, messageId, {
     text,
     reply_to: replyTo,
     ...(replyTo ? { event: { type: 'reply', replyTo } } : {}),
@@ -156,7 +151,7 @@ export function emitOutboundReact(
   messageId: string,
   emoji: string,
 ): void {
-  outbound('react', accountId, line, messageId, {
+  outbound(accountId, line, messageId, {
     emoji,
     event: { type: 'react', emoji, targetId: messageId },
   });
@@ -167,7 +162,7 @@ export function emitOutboundEdit(
   messageId: string,
   text: string,
 ): void {
-  outbound('edit', accountId, line, messageId, {
+  outbound(accountId, line, messageId, {
     text,
     event: { type: 'edit', targetId: messageId },
   });

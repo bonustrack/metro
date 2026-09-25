@@ -126,6 +126,5 @@ describe('a download that cannot happen is reported, not dropped', () => {
     const [env, failed] = await run(OVERSIZE, 'BIG2');
     expect(failed?.line).toBe(env?.line);
     expect(failed?.station).toBe('whatsapp');
-    expect(failed?.kind).toBe('inbound');
   });
 });

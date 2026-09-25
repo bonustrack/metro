@@ -80,7 +80,6 @@ export const fullName = (u: TgUser | undefined): string | undefined => {
 export function envelope(accountId: string, m: TgMsg): Record<string, unknown> {
   const { line } = lineForMsg(accountId, m);
   return {
-    kind: 'inbound',
     id: mintId(),
     ts: new Date(m.date * 1000).toISOString(),
     station: 'telegram-bot',
@@ -111,7 +110,6 @@ export function reactionEnvelope(
   const added = newEmojis.filter((e) => !oldEmojis.includes(e));
   if (!added.length) return null;
   return {
-    kind: 'react',
     id: mintId(),
     ts: new Date(r.date * 1000).toISOString(),
     station: 'telegram-bot',
@@ -141,7 +139,6 @@ export function reactionCountEnvelope(
   const emoji = top.type.emoji ?? '';
   if (!emoji) return null;
   return {
-    kind: 'react',
     id: mintId(),
     ts: new Date(rc.date * 1000).toISOString(),
     station: 'telegram-bot',

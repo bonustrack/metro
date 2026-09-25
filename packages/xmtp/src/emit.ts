@@ -53,7 +53,6 @@ export function emitOutbound(
   rememberUid(uid, messageId);
   rememberSent(messageId);
   emit({
-    kind: 'outbound',
     id: uid,
     ts: new Date().toISOString(),
     station: 'xmtp',
@@ -62,7 +61,6 @@ export function emitOutbound(
     to: line,
     message_id: messageId,
     text,
-    account: accountId,
     ...(event ? { event } : {}),
     payload: { account: accountId },
   });

@@ -77,7 +77,6 @@ const groupTopicMessage = (): FakeMessage => ({
 describe('envelope', () => {
   test('DM text → private envelope', () => {
     const e = envelope('default', asMessage(dmMessage()));
-    expect(e.kind).toBe('inbound');
     expect(e.station).toBe('telegram');
     expect(e.line).toBe('metro://telegram/default/111');
     expect(e.from).toBe('metro://telegram/default/user/111');
@@ -160,7 +159,6 @@ describe('reactionEnvelope', () => {
       isPrivate: false,
       senderName: 'Bob',
     });
-    expect(e.kind).toBe('react');
     expect(e.line).toBe('metro://telegram/default/-1009');
     expect(e.message_id).toBe('99');
     expect(e.event).toEqual({ type: 'react', emoji: '👍', targetId: '99' });

@@ -124,11 +124,11 @@ describe('files on the wire', () => {
     await call('callback', inboundFrom('ALICE001', encodeFile({ blobId: 'd'.repeat(32), key: bytesToHex(key), mime: 'image/png', name: 'cat.png', size: 4, caption: 'my cat', media: true })));
     expect(cap.written.responses[0]).toMatchObject({ result: { ok: true, kind: 'file' } });
     const message = cap.written.events[0] ?? {};
-    expect(message).toMatchObject({ kind: 'inbound', line: 'metro://threema/t0/ALICE001', text: 'my cat', message_id: 'aaaaaaaaaaaaaaaa', payload: { attachments: [{ kind: 'image', name: 'cat.png', mime: 'image/png', size: 4 }] } });
+    expect(message).toMatchObject({ line: 'metro://threema/t0/ALICE001', text: 'my cat', message_id: 'aaaaaaaaaaaaaaaa', payload: { attachments: [{ kind: 'image', name: 'cat.png', mime: 'image/png', size: 4 }] } });
     await settle();
     const saved = cap.written.events[1] ?? {};
-    expect(saved).toMatchObject({ kind: 'inbound', line: 'metro://threema/t0/ALICE001', payload: { contentType: 'attachmentSaved', attachmentFor: message.id, index: 0, kind: 'image', mime: 'image/png', name: 'cat.png', size: 4 } });
-    const path = String((saved.payload as { localPath: string }).localPath);
+    expect(saved).toMatchObject({ line: 'metro://threema/t0/ALICE001', payload: { contentType: 'attachmentSaved', attachmentFor: message.id, index: 0, kind: 'image', mime: 'image/png', name: 'cat.png', size: 4 } });
+    const path = String((saved.payload as { attachmentPath: string }).attachmentPath);
     expect(existsSync(path)).toBe(true);
     expect([...readFileSync(path)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
   });
@@ -168,6 +168,6 @@ describe('files on the wire', () => {
     const grouped = openedTo(sends[1] ?? new URLSearchParams());
     expect(grouped).toMatchObject({ kind: 'file', group: GROUP, file: { caption: null } });
     expect(cap.written.responses[0]).toMatchObject({ result: { attachments: ['image'], messageIds: ['0000000000000002', '0000000000000003'] } });
-    expect(cap.written.events.at(-1)).toMatchObject({ kind: 'outbound', text: '[image]' });
+    expect(cap.written.events.at(-1)).toMatchObject({ text: '[image]' });
   });
 });
