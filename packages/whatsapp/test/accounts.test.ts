@@ -65,12 +65,9 @@ describe('whatsapp line helpers', () => {
     });
   });
 
-  test('targetOf defaults the account when unscoped', async () => {
+  test('targetOf refuses a line without an account', async () => {
     const { targetOf } = await fresh();
-    expect(targetOf('metro://whatsapp/111@s.whatsapp.net')).toEqual({
-      accountId: 'default',
-      jid: '111@s.whatsapp.net',
-    });
+    expect(targetOf('metro://whatsapp/111@s.whatsapp.net')).toBeUndefined();
   });
 
   test('targetOf rejects non-whatsapp and jid-less lines', async () => {

@@ -1,4 +1,5 @@
 import { appendFile } from '@metro-labs/core/stations/attachments';
+import type { CanonicalAttachment } from '@metro-labs/core/stations/types';
 
 export interface OutgoingFile {
   path: string;
@@ -6,25 +7,23 @@ export interface OutgoingFile {
   kind: string;
 }
 
+type WireAttachment = CanonicalAttachment & { kind?: string };
+
 const basenameOf = (path: string, index: number): string =>
   path.split('/').pop() ?? `file-${index}`;
 
-export function outgoingFiles(
-  paths: string[],
-  names: string[] | undefined,
-  kinds: string[] | undefined,
-): OutgoingFile[] {
+export function outgoingFiles(attachments: unknown): OutgoingFile[] {
+  if (!Array.isArray(attachments)) return [];
   const out: OutgoingFile[] = [];
-  for (let i = 0; i < paths.length; i++) {
-    const path = paths[i];
-    if (path === undefined || path === '') continue;
-    const given = names?.[i];
+  (attachments as WireAttachment[]).forEach((a, i) => {
+    const path = a.path;
+    if (path === undefined || path === '') return;
     out.push({
       path,
-      name: given !== undefined && given !== '' ? given : basenameOf(path, i),
-      kind: kinds?.[i] ?? 'file',
+      name: a.name !== undefined && a.name !== '' ? a.name : basenameOf(path, i),
+      kind: a.kind ?? 'file',
     });
-  }
+  });
   return out;
 }
 

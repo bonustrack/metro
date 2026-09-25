@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { dispatchMessageTool } from '../src/mcp/call-tools.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import type { TrainCallResponse } from '@metro-labs/core/trains/protocol';
-import { normalizeDiscord } from '@metro-labs/core/stations/messaging-normalize';
 
 const dir = mkdtempSync(join(tmpdir(), 'metro-honesty-'));
 const png = join(dir, 'a.png');
@@ -163,7 +162,6 @@ describe('the canonical wire carries what a station needs to label honestly', ()
       {
         kind: 'image',
         path: png,
-        url: png,
         name: 'horse.png',
         mime: 'image/png',
       },
@@ -194,44 +192,5 @@ describe('the canonical wire carries what a station needs to label honestly', ()
     expect(wire?.name).toBe('horse.mp3');
     expect(wire?.path).toContain('metro-inline-');
     expect(existsSync(wire?.path ?? '')).toBe(false);
-  });
-});
-
-describe('normalizeDiscord hands the train a name per file', () => {
-  test('files, kinds and names line up index for index', () => {
-    const { args } = normalizeDiscord('send', {
-      line: 'metro://discord-bot/d0/1',
-      attachments: [
-        { path: '/cache/msg_outaaa_0.mp3', kind: 'audio', name: 'horse.mp3' },
-        { path: '/cache/msg_outbbb_0.png', kind: 'image', name: 'chart.png' },
-      ],
-    });
-    expect(args.files).toEqual([
-      '/cache/msg_outaaa_0.mp3',
-      '/cache/msg_outbbb_0.png',
-    ]);
-    expect(args.attachmentKinds).toEqual(['audio', 'image']);
-    expect(args.attachmentNames).toEqual(['horse.mp3', 'chart.png']);
-  });
-
-  test('a nameless attachment yields an empty name, so the station falls back', () => {
-    const { args } = normalizeDiscord('send', {
-      line: 'metro://discord-bot/d0/1',
-      attachments: [{ path: '/cache/msg_outaaa_0.mp3', kind: 'audio' }],
-    });
-    expect(args.attachmentNames).toEqual(['']);
-  });
-
-  test('an attachment with no path and no url is dropped from every list', () => {
-    const { args } = normalizeDiscord('send', {
-      line: 'metro://discord-bot/d0/1',
-      attachments: [
-        { path: '/cache/msg_outaaa_0.mp3', kind: 'audio', name: 'horse.mp3' },
-        { kind: 'image', name: 'ghost.png' },
-      ],
-    });
-    expect(args.files).toEqual(['/cache/msg_outaaa_0.mp3']);
-    expect(args.attachmentKinds).toEqual(['audio']);
-    expect(args.attachmentNames).toEqual(['horse.mp3']);
   });
 });

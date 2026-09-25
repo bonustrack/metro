@@ -1,17 +1,10 @@
 import { Client } from 'discord.js';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import {
   makeAccountStore,
   resolveAccountId,
 } from '@metro-labs/core/stations/account-store';
 import { Line } from '@metro-labs/core/lines';
-import { emit } from './wire.js';
 import { API } from './api-base.js';
-
-const ACCOUNTS_FILE =
-  process.env.DISCORD_BOT_ACCOUNTS_FILE ??
-  join(homedir(), '.metro', 'discord-bot-accounts.json');
 
 export interface AccountConfig {
   id: string;
@@ -20,16 +13,10 @@ export interface AccountConfig {
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'discord-bot',
-  file: ACCOUNTS_FILE,
   validate(raw, die) {
-    const seen = new Set<string>();
-    for (const a of raw) {
-      if (!a.id) die('account missing id');
+    for (const a of raw)
       if (!a.token || typeof a.token !== 'string')
         die(`account '${a.id}' missing token`);
-      if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
-      seen.add(a.id);
-    }
   },
 });
 
@@ -69,16 +56,11 @@ export async function rest<T = unknown>(
   };
   if (body !== undefined && !isForm)
     headers['Content-Type'] = 'application/json';
-  emit({ op: 'log', text: `discord-bot[${accountId}] api ${method} ${path}` });
   const res = await fetch(`${API}${path}`, {
     method,
     headers,
     body: restBody(body, isForm),
     signal: AbortSignal.timeout(30_000),
-  });
-  emit({
-    op: 'log',
-    text: `discord-bot[${accountId}] api ${method} ${path} -> ${res.status}`,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');

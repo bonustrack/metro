@@ -4,7 +4,7 @@ import {
   respond,
   type CallMsg,
 } from '@metro-labs/core/stations/station-runtime';
-import type { Normalized } from '@metro-labs/core/stations/messaging-normalize';
+import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import { accountFor, accounts, publicKeyFor, targetOf, type Account } from './accounts.js';
 import { hexToBytes, macMatches, open } from './crypto.js';
 import { groupLineOf, type InboundMeta } from './format.js';
@@ -118,17 +118,7 @@ async function callback(id: string, args: Args): Promise<void> {
   respond(id, { result: { ok: true, kind: deliver(acct, meta, decode(plain)) } });
 }
 
-export function normalizeThreema(action: string, env: Args): Normalized {
-  if (action === 'reply')
-    return {
-      action: 'send',
-      args: { line: env.line, text: env.text, replyTo: env.replyTo, account: env.account },
-    };
-  if (action === 'unreact') return { action: 'react', args: { ...env, action: 'removed' } };
-  return { action, args: env };
-}
-
 export const handleCall = makeStation({
   handlers: { accounts: listAccounts, send, react, callback, listMembers },
-  normalize: normalizeThreema,
+  normalize: messagingAliases({ action: 'removed' }),
 });

@@ -1,5 +1,5 @@
 import { routeOf, rest } from './accounts.js';
-import { respond } from './wire.js';
+import { respond } from '@metro-labs/core/stations/station-runtime';
 import {
   groupAddMembers,
   groupCreate,

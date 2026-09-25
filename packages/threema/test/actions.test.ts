@@ -100,7 +100,6 @@ describe('send', () => {
       result: { messageId: SENT_ID, account: 't0' },
     });
     expect(cap.written.events[0]).toMatchObject({
-      kind: 'outbound',
       station: 'threema',
       line: LINE,
       message_id: SENT_ID,
@@ -157,7 +156,6 @@ describe('callback', () => {
     await call('callback', inbound(encodeText('hi there')));
     expect(cap.written.responses[0]).toEqual({ op: 'response', id: 'c1', result: { ok: true, kind: 'text' } });
     expect(cap.written.events[0]).toMatchObject({
-      kind: 'inbound',
       station: 'threema',
       line: 'metro://threema/t0/ECHOECHO',
       from: 'metro://threema/t0/user/ECHOECHO',
@@ -166,7 +164,7 @@ describe('callback', () => {
       text: 'hi there',
       is_private: true,
       ts: '2023-11-14T22:13:20.000Z',
-      account: 't0',
+      payload: { account: 't0' },
     });
     expect(cap.written.events[0]).not.toHaveProperty('reply_to');
   });

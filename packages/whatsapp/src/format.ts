@@ -1,5 +1,5 @@
 import { lineOf } from './accounts.js';
-import { mintId } from './wire.js';
+import { mintId } from '@metro-labs/core/stations/station-runtime';
 import type { WAMediaRef } from './media.js';
 
 export interface InboundMessage {
@@ -40,7 +40,6 @@ function attachmentView(ref: WAMediaRef): Record<string, unknown> {
 
 export function envelope(m: InboundMessage): Record<string, unknown> {
   return {
-    kind: 'inbound',
     id: mintId(),
     ts: m.date.toISOString(),
     station: 'whatsapp',
@@ -63,7 +62,6 @@ export function envelope(m: InboundMessage): Record<string, unknown> {
 
 export function reactionEnvelope(r: ReactionInput): Record<string, unknown> {
   return {
-    kind: 'react',
     id: mintId(),
     ts: r.date.toISOString(),
     station: 'whatsapp',

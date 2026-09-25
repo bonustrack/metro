@@ -6,18 +6,13 @@ import {
   routeOf,
 } from './accounts.js';
 import { emitOutbound, emitOutboundEdit, emitOutboundReact } from './format.js';
-import { respond } from './wire.js';
-import { normalizeDiscord } from '@metro-labs/core/stations/messaging-normalize';
+import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import {
   appendFiles,
   outgoingFiles,
   type OutgoingFile,
 } from './send-files.js';
-import {
-  makeStation,
-  type CallMsg,
-  type StationHandler,
-} from '@metro-labs/core/stations/station-runtime';
+import { makeStation, respond, type CallMsg, type StationHandler } from '@metro-labs/core/stations/station-runtime';
 import { readProfile, setProfile } from './profile.js';
 import { discordMembers } from './members.js';
 import {
@@ -57,40 +52,17 @@ async function sendMessage(
 export type { CallMsg };
 
 async function send(id: string, args: Record<string, unknown>): Promise<void> {
-  const {
-    line,
-    text,
-    replyTo,
-    embeds,
-    stickerIds,
-    images,
-    files,
-    account,
-    attachmentKinds,
-    attachmentNames,
-  } = args as {
+  const { line, text, replyTo, account } = args as {
     line: string;
     text?: string;
     replyTo?: string;
-    embeds?: unknown[];
-    stickerIds?: string[];
-    images?: string[];
-    files?: string[];
     account?: string;
-    attachmentKinds?: string[];
-    attachmentNames?: string[];
   };
   const { accountId, channelId } = routeOf(line, account);
   const body: Record<string, unknown> = { flags: 4 };
   if (text !== undefined) body.content = text;
   if (replyTo) body.message_reference = { message_id: replyTo };
-  if (embeds) body.embeds = embeds;
-  if (stickerIds) body.sticker_ids = stickerIds;
-  const outgoing = outgoingFiles(
-    [...(images ?? []), ...(files ?? [])],
-    attachmentNames,
-    attachmentKinds,
-  );
+  const outgoing = outgoingFiles(args.attachments);
   const res = await sendMessage(accountId, channelId, body, outgoing);
   emitOutbound(accountId, line, res.id, text ?? '', replyTo);
   respond(id, {
@@ -175,7 +147,7 @@ async function remove(
   respond(id, { result: { ok: true, account: accountId } });
 }
 
-async function fetchMessages(
+async function read(
   id: string,
   args: Record<string, unknown>,
 ): Promise<void> {
@@ -228,7 +200,7 @@ const HANDLERS: Record<string, StationHandler> = {
   react,
   edit,
   delete: remove,
-  fetch: fetchMessages,
+  read,
   listMembers,
   set_profile: setProfile,
   profile: readProfile,
@@ -236,5 +208,5 @@ const HANDLERS: Record<string, StationHandler> = {
 
 export const handleCall = makeStation({
   handlers: HANDLERS,
-  normalize: normalizeDiscord,
+  normalize: messagingAliases(),
 });

@@ -68,12 +68,7 @@ async function handleStreamMessage(
   const env = envelope(id, msg, conv);
   Object.assign(env, senderFieldsNow(acct, msg.senderInboxId));
   const name = await groupNameFor(msg.conversationId, conv);
-  if (name) {
-    env.line_name = name;
-    env.lineName = name;
-    const p = (env.payload ?? {}) as Record<string, unknown>;
-    env.payload = { ...p, lineName: name };
-  }
+  if (name) env.line_name = name;
   emitInbound(id, env);
 }
 

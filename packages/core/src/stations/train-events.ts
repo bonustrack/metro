@@ -4,15 +4,11 @@ import { emit } from './station-runtime.js';
 type Fields = Record<string, unknown>;
 type Out = (e: unknown) => void;
 
-export const selfUri = (station: string, account?: string): string =>
-  process.env.METRO_SELF_URI ??
-  (account === undefined ? `metro://${station}/self` : `metro://${station}/${account}/self`);
+export const selfUri = (): string => process.env.METRO_SELF_URI ?? 'metro://user';
 
 export function emitInbound(account: string, e: Fields, out: Out = emit): void {
   out({
-    kind: 'inbound',
     ...e,
-    account,
     payload: { ...(e.payload as Fields | undefined), account },
   });
 }
@@ -30,18 +26,17 @@ export interface SavedFile {
   path: string;
   mime?: string;
   name?: string;
+  bytes?: number;
 }
 
 function attachmentEvent(at: AttachmentAt, text: string, payload: Fields): Fields {
   return {
-    kind: 'inbound',
     id: mintId(),
     ts: new Date().toISOString(),
     station: at.station,
     line: at.line,
-    from: at.from ?? selfUri(at.station, at.account),
+    from: at.from ?? selfUri(),
     text,
-    account: at.account,
     payload: { account: at.account, attachmentFor: at.forId, index: at.index, ...payload },
   };
 }
@@ -49,9 +44,9 @@ function attachmentEvent(at: AttachmentAt, text: string, payload: Fields): Field
 export const attachmentSavedEvent = (at: AttachmentAt & { saved: SavedFile; extra?: Fields }): Fields =>
   attachmentEvent(at, `📎 saved: ${at.saved.path}`, {
     contentType: 'attachmentSaved',
+    ...(at.saved.bytes === undefined ? {} : { size: at.saved.bytes }),
     ...at.extra,
     attachmentPath: at.saved.path,
-    localPath: at.saved.path,
     mime: at.saved.mime,
     name: at.saved.name,
   });

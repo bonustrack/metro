@@ -1,6 +1,6 @@
-import { tgForm, targetOf } from './accounts.js';
+import { tg, targetOf } from './accounts.js';
 import { selfUri } from '@metro-labs/core/stations/train-events';
-import { emit, mintId, respond } from './wire.js';
+import { emit, mintId, respond } from '@metro-labs/core/stations/station-runtime';
 import { appendFile } from '@metro-labs/core/stations/attachments';
 
 export function emitOutbound(
@@ -11,18 +11,16 @@ export function emitOutbound(
   replyTo?: string,
 ): void {
   emit({
-    kind: 'outbound',
     id: mintId(),
     ts: new Date().toISOString(),
     station: 'telegram-bot',
     line,
-    from: selfUri('telegram-bot', accountId),
+    from: selfUri(),
     to: line,
     message_id: messageId,
     text,
     reply_to: replyTo,
     ...(replyTo ? { event: { type: 'reply', replyTo } } : {}),
-    account: accountId,
     payload: { account: accountId },
   });
 }
@@ -47,7 +45,6 @@ interface MediaArgs {
   path: string;
   caption?: string;
   replyTo?: string;
-  parseMode?: string;
   account?: string;
   name?: string;
 }
@@ -62,7 +59,6 @@ export async function sendMedia(
     path,
     caption,
     replyTo,
-    parseMode,
     account,
     name: fileName,
   } = args as unknown as MediaArgs;
@@ -71,7 +67,6 @@ export async function sendMedia(
   form.append('chat_id', String(chatId));
   if (topicId !== undefined) form.append('message_thread_id', String(topicId));
   if (caption) form.append('caption', caption);
-  if (parseMode) form.append('parse_mode', parseMode);
   if (replyTo)
     form.append(
       'reply_parameters',
@@ -79,7 +74,7 @@ export async function sendMedia(
     );
   const name = fileName ?? path.split('/').pop() ?? fieldName;
   await appendFile(form, fieldName, path, name);
-  const r = await tgForm<{ message_id: number }>(accountId, method, form);
+  const r = await tg<{ message_id: number }>(accountId, method, form);
   return { accountId, message_id: r.message_id };
 }
 

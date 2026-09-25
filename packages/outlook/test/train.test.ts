@@ -81,9 +81,7 @@ describe('inbound mail', () => {
     expect(seen.some((s) => s.url === `${GRAPH}/delta-1`)).toBe(true);
     const [ev] = cap.written.events;
     expect(ev).toMatchObject({
-      kind: 'inbound',
       station: 'outlook',
-      account: 'o1',
       line: 'metro://outlook/o1/AAQkAD%2Fabc%2Bdef=',
       line_name: 'Invoice',
       from: 'metro://outlook/o1/user/bea@example.ch',
@@ -117,7 +115,7 @@ describe('inbound mail', () => {
     const payload = saved?.payload as Record<string, unknown>;
     expect(payload.contentType).toBe('attachmentSaved');
     expect(payload.attachmentFor).toBe(msg?.id);
-    expect(readFileSync(String(payload.localPath), 'utf8')).toBe('PDF');
+    expect(readFileSync(String(payload.attachmentPath), 'utf8')).toBe('PDF');
   });
 });
 

@@ -94,7 +94,6 @@ const saved = (
     index: 0,
     kind,
     attachmentPath: '/tmp/does-not-exist/msg_MSGID001_0.ogg',
-    localPath: '/tmp/does-not-exist/msg_MSGID001_0.ogg',
     mime,
     name,
   },

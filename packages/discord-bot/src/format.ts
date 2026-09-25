@@ -1,7 +1,7 @@
 import { MessageFlags, type Message, type MessageReaction, type User } from 'discord.js';
 import { reportAttachment, selfUri } from '@metro-labs/core/stations/train-events';
 import { accounts, lineOf } from './accounts.js';
-import { emit, mintId } from './wire.js';
+import { emit, mintId } from '@metro-labs/core/stations/station-runtime';
 import { saveDiscordAttachment } from './attachments.js';
 
 const AV_TAG: Record<string, string> = { audio: 'audio', video: 'video' };
@@ -63,7 +63,6 @@ export function messageEnvelope(
     );
   });
   return {
-    kind: 'inbound',
     id: envId,
     ts: new Date(m.createdTimestamp).toISOString(),
     station: 'discord-bot',
@@ -90,7 +89,6 @@ export function reactionEnvelope(
 ): Record<string, unknown> | null {
   if (u.bot) return null;
   return {
-    kind: 'react',
     id: mintId(),
     ts: new Date().toISOString(),
     station: 'discord-bot',
@@ -116,23 +114,20 @@ export function reactionEnvelope(
 }
 
 function outbound(
-  kind: string,
   accountId: string,
   line: string,
   messageId: string,
   extra: object,
 ): void {
   emit({
-    kind,
     id: mintId(),
     ts: new Date().toISOString(),
     station: 'discord-bot',
     line,
-    from: selfUri('discord-bot', accountId),
+    from: selfUri(),
     to: line,
     message_id: messageId,
     ...extra,
-    account: accountId,
     payload: { account: accountId },
   });
 }
@@ -144,7 +139,7 @@ export function emitOutbound(
   text: string,
   replyTo?: string,
 ): void {
-  outbound('outbound', accountId, line, messageId, {
+  outbound(accountId, line, messageId, {
     text,
     reply_to: replyTo,
     ...(replyTo ? { event: { type: 'reply', replyTo } } : {}),
@@ -156,7 +151,7 @@ export function emitOutboundReact(
   messageId: string,
   emoji: string,
 ): void {
-  outbound('react', accountId, line, messageId, {
+  outbound(accountId, line, messageId, {
     emoji,
     event: { type: 'react', emoji, targetId: messageId },
   });
@@ -167,7 +162,7 @@ export function emitOutboundEdit(
   messageId: string,
   text: string,
 ): void {
-  outbound('edit', accountId, line, messageId, {
+  outbound(accountId, line, messageId, {
     text,
     event: { type: 'edit', targetId: messageId },
   });

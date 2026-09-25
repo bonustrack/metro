@@ -1,11 +1,3 @@
-/**
- * `packages/core/src/lines.ts` — canonical account-scoped parsers `Line.parseXmtp` /
- * `Line.parseDiscord`. These are the single source of truth the
- * per-station `parseLine()` helpers (stations/xmtp/accounts.ts,
- * stations/discord-bot/accounts.ts) and cli/send-guard.ts now delegate to, so the
- * cases here pin the exact behavior the old anchored regexes had.
- */
-
 import { describe, expect, test } from 'bun:test';
 import { Line } from '@metro-labs/core/lines';
 
@@ -15,8 +7,8 @@ describe('Line.parseXmtp', () => {
     expect(Line.parseXmtp('metro://xmtp/ben/0xabc')).toEqual({ accountId: 'ben', resource: '0xabc' });
   });
 
-  test('legacy single-segment form → default account', () => {
-    expect(Line.parseXmtp('metro://xmtp/0xconv')).toEqual({ accountId: 'default', resource: '0xconv' });
+  test('a line without an account → null', () => {
+    expect(Line.parseXmtp('metro://xmtp/0xconv')).toBeNull();
   });
 
   test('three or more segments → null (matches old anchored regex)', () => {
@@ -32,9 +24,8 @@ describe('Line.parseXmtp', () => {
     expect(Line.parseXmtp('metro://xmtp')).toBeNull();
   });
 
-  test('round-trips with the train builder (new + legacy)', () => {
+  test('round-trips with the train builder', () => {
     expect(Line.parseXmtp('metro://xmtp/tony/0xc')).toEqual({ accountId: 'tony', resource: '0xc' });
-    expect(Line.parseXmtp('metro://xmtp/0xc')).toEqual({ accountId: 'default', resource: '0xc' });
   });
 });
 
@@ -43,11 +34,11 @@ describe('Line.parseDiscord', () => {
     expect(Line.parseDiscord('metro://discord-bot/main/123456')).toEqual({ accountId: 'main', resource: '123456' });
   });
 
-  test('legacy single-segment snowflake → default account', () => {
-    expect(Line.parseDiscord('metro://discord-bot/123456')).toEqual({ accountId: 'default', resource: '123456' });
+  test('a snowflake without an account → null', () => {
+    expect(Line.parseDiscord('metro://discord-bot/123456')).toBeNull();
   });
 
-  test('non-numeric channel (resource) → null in both forms', () => {
+  test('non-numeric channel (resource) → null', () => {
     expect(Line.parseDiscord('metro://discord-bot/main/not-a-snowflake')).toBeNull();
     expect(Line.parseDiscord('metro://discord-bot/not-a-snowflake')).toBeNull();
   });

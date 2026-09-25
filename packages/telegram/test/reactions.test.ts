@@ -100,7 +100,6 @@ describe('inbound reactions', () => {
     cap.restore();
     expect(cap.events).toHaveLength(1);
     expect(cap.events[0]).toMatchObject({
-      kind: 'react',
       station: 'telegram',
       line: 'metro://telegram/default/111',
       from: 'metro://telegram/default/user/222',
@@ -118,7 +117,6 @@ describe('inbound reactions', () => {
     cap.restore();
     expect(cap.events).toHaveLength(2);
     expect(cap.events[1]).toMatchObject({
-      kind: 'react',
       from: 'metro://telegram/default/user/222',
       message_id: '43',
       payload: { removed: true },
@@ -140,7 +138,6 @@ describe('inbound reactions', () => {
     cap.restore();
     expect(cap.events).toHaveLength(1);
     expect(cap.events[0]).toMatchObject({
-      kind: 'react',
       line: 'metro://telegram/default/111',
       from: 'metro://telegram/default/user/111',
       message_id: '50',
@@ -157,7 +154,6 @@ describe('inbound reactions', () => {
     cap.restore();
     expect(cap.events).toHaveLength(2);
     expect(cap.events[1]).toMatchObject({
-      kind: 'react',
       from: 'metro://telegram/default/user/111',
       message_id: '51',
       payload: { removed: true },

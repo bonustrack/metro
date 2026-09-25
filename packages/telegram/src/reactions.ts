@@ -1,7 +1,7 @@
 import type { tl } from '@mtcute/bun';
 import { getBarePeerId, getMarkedPeerId } from '@mtcute/bun';
 import { errMsg } from '@metro-labs/core/log';
-import { emit } from './wire.js';
+import { emit } from '@metro-labs/core/stations/station-runtime';
 import { reactionEnvelope } from './format.js';
 import type { UserClient } from './client.js';
 

@@ -1,5 +1,5 @@
 import { accountForCall, convOf, lineOf } from './accounts.js';
-import { respond } from './wire.js';
+import { respond } from '@metro-labs/core/stations/station-runtime';
 import { warmGroupName } from './conv-helpers.js';
 import { mergeAppData, readAppData, type GroupLike } from './labels.js';
 import { TrainError } from '@metro-labs/core/train-error';

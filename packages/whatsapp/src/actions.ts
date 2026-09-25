@@ -7,8 +7,8 @@ import {
   type CallMsg,
   type StationHandler,
 } from '@metro-labs/core/stations/station-runtime';
+import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import { accountFor, accounts, targetOf } from './accounts.js';
-import { normalizeWhatsApp } from './normalize.js';
 import { phoneNumberOf, senderLookup } from './resolve.js';
 import { assertImage, fieldsOf, parseProfileChange, type ProfileApplied } from '@metro-labs/core/stations/profile';
 import type { WAClient } from './client.js';
@@ -50,8 +50,7 @@ async function guard<T>(run: () => Promise<T>): Promise<T> {
 
 interface WireAttachment {
   kind?: string;
-  path?: string;
-  url?: string;
+  path: string;
   mime?: string;
   name?: string;
 }
@@ -59,7 +58,7 @@ interface WireAttachment {
 function attachmentsOf(args: Args): WireAttachment[] {
   const raw = args.attachments;
   if (!Array.isArray(raw)) return [];
-  return (raw as WireAttachment[]).filter((a) => Boolean(a.path ?? a.url));
+  return (raw as Partial<WireAttachment>[]).filter((a): a is WireAttachment => Boolean(a.path));
 }
 
 async function sendMediaSet(
@@ -74,7 +73,7 @@ async function sendMediaSet(
   for (let i = 0; i < atts.length; i++) {
     const att = atts[i];
     if (!att) continue;
-    const path = att.path ?? att.url ?? '';
+    const path = att.path;
     const kind = att.kind ?? kindOf(att.mime ?? '', path);
     messageId = await guard(() =>
       client.sendMedia(
@@ -208,6 +207,6 @@ export function makeHandleCall(
       set_profile: makeSetProfile(clientFor),
       profile: makeProfile(clientFor),
     },
-    normalize: normalizeWhatsApp,
+    normalize: messagingAliases(),
   });
 }

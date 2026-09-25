@@ -86,7 +86,6 @@ export function inboundEnvelope(accountId: string, self: string, m: GraphMessage
   const from = addressOf(m.from);
   const title = titleOf(m);
   return {
-    kind: 'inbound',
     id: mintId(),
     ts: m.receivedDateTime ?? new Date().toISOString(),
     station: 'outlook',

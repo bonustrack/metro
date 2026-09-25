@@ -65,7 +65,7 @@ export async function xmtpSendAttachments(
 ): Promise<string[]> {
   const sent: string[] = [];
   for (const a of atts) {
-    const src = a.path ?? a.url ?? '';
+    const src = a.path ?? '';
     if (!src) continue;
     const mime = a.mime ?? guessMime(src);
     if (isImageMime(mime) || isImageExt(src)) {

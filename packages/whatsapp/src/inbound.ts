@@ -1,5 +1,5 @@
 import type { WAMessage } from 'baileys';
-import { emit } from './wire.js';
+import { emit } from '@metro-labs/core/stations/station-runtime';
 import { reportAttachment } from '@metro-labs/core/stations/train-events';
 import { lineOf } from './accounts.js';
 import {

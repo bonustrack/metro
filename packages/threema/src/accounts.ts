@@ -1,5 +1,3 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import {
   makeAccountStore,
   resolveAccountId,
@@ -12,10 +10,6 @@ import { isGatewayId, normalizeThreemaId, parsePrivateKey } from './ids.js';
 import { GroupStore, parseGroupKey } from './groups.js';
 import type { GroupRef } from './messages.js';
 
-const ACCOUNTS_FILE =
-  process.env.THREEMA_ACCOUNTS_FILE ??
-  join(homedir(), '.metro', 'threema-accounts.json');
-
 export interface AccountConfig {
   id: string;
   gatewayId: string;
@@ -26,7 +20,6 @@ export interface AccountConfig {
 }
 
 function checkAccount(a: AccountConfig, die: Die): void {
-  if (!a.id) die('account missing id');
   if (typeof a.gatewayId !== 'string' || !isGatewayId(a.gatewayId))
     die(`account '${a.id}' has no Gateway ID`);
   if (typeof a.secret !== 'string' || a.secret === '')
@@ -37,16 +30,12 @@ function checkAccount(a: AccountConfig, die: Die): void {
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'threema',
-  file: ACCOUNTS_FILE,
   validate(raw, die) {
-    const seenId = new Set<string>();
     const seenGateway = new Set<string>();
     for (const a of raw) {
       checkAccount(a, die);
-      if (seenId.has(a.id)) die(`duplicate account id '${a.id}'`);
       if (seenGateway.has(a.gatewayId))
         die(`account '${a.id}' reuses the Gateway ID of another account`);
-      seenId.add(a.id);
       seenGateway.add(a.gatewayId);
     }
   },

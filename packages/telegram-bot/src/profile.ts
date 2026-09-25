@@ -9,15 +9,15 @@ import {
 } from '@metro-labs/core/stations/profile';
 import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { TrainError } from '@metro-labs/core/train-error';
-import { accountFor, tg, tgForm } from './accounts.js';
-import { respond } from './wire.js';
+import { accountFor, tg } from './accounts.js';
+import { respond } from '@metro-labs/core/stations/station-runtime';
 
 async function setPhoto(accountId: string, avatar: ProfileAvatar): Promise<void> {
   assertImage(avatar);
   const form = new FormData();
   form.append('photo', JSON.stringify({ type: 'static', photo: 'attach://avatar' }));
   await appendFile(form, 'avatar', avatar.path, avatar.name);
-  await tgForm(accountId, 'setMyProfilePhoto', form);
+  await tg(accountId, 'setMyProfilePhoto', form);
 }
 
 export async function applyProfile(accountId: string, change: ProfileChange): Promise<void> {

@@ -1,6 +1,6 @@
 import type { Chat, Message, Peer, User } from '@mtcute/bun';
 import { lineOf } from './accounts.js';
-import { mintId } from './wire.js';
+import { mintId } from '@metro-labs/core/stations/station-runtime';
 import { isDownloadable, pendingDescriptorOf } from './attachments.js';
 
 const isUser = (peer: Peer): peer is User => peer.type === 'user';
@@ -72,7 +72,6 @@ export function envelope(
       ? [pendingDescriptorOf(media)]
       : undefined;
   return {
-    kind: 'inbound',
     id: mintId(),
     ts: m.date.toISOString(),
     station: 'telegram',
@@ -108,7 +107,6 @@ export interface ReactionInput {
 
 export function reactionEnvelope(r: ReactionInput): Record<string, unknown> {
   return {
-    kind: 'react',
     id: mintId(),
     ts: r.date.toISOString(),
     station: 'telegram',

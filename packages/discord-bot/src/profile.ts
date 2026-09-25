@@ -10,7 +10,7 @@ import {
 } from '@metro-labs/core/stations/profile';
 import type { SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { accountFor, accounts } from './accounts.js';
-import { respond } from './wire.js';
+import { respond } from '@metro-labs/core/stations/station-runtime';
 
 export async function applyProfile(
   client: Client,

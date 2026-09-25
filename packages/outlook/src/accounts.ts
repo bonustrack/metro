@@ -1,12 +1,8 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { makeAccountStore, resolveAccountId, type Die } from '@metro-labs/core/stations/account-store';
 import { TrainError } from '@metro-labs/core/train-error';
 import { refreshTokens, type FetchLike } from './auth.js';
 import { conversationOfLine } from './format.js';
 import { loadState, saveState, type AccountState } from './state.js';
-
-const ACCOUNTS_FILE = process.env.OUTLOOK_ACCOUNTS_FILE ?? join(homedir(), '.metro', 'outlook-accounts.json');
 
 const RENEW_BEFORE_MS = 5 * 60_000;
 
@@ -16,27 +12,18 @@ export interface AccountConfig {
   refreshToken: string;
   accessToken?: string;
   expiresAt?: number;
-  tenantId?: string | null;
-  deltaLink?: string | null;
   includeAutomated?: boolean;
 }
 
 function checkAccount(a: AccountConfig, die: Die): void {
-  if (!a.id) die('account missing id');
   if (typeof a.accountEmail !== 'string' || !a.accountEmail.includes('@')) die(`account '${a.id}' has no mailbox address`);
   if (typeof a.refreshToken !== 'string' || a.refreshToken === '') die(`account '${a.id}' has no refresh token`);
 }
 
 export const { loadAccounts } = makeAccountStore<AccountConfig>({
   prefix: 'outlook',
-  file: ACCOUNTS_FILE,
   validate(raw, die) {
-    const seen = new Set<string>();
-    for (const a of raw) {
-      checkAccount(a, die);
-      if (seen.has(a.id)) die(`duplicate account id '${a.id}'`);
-      seen.add(a.id);
-    }
+    for (const a of raw) checkAccount(a, die);
   },
 });
 
@@ -54,7 +41,6 @@ export class Account {
       refreshToken: cfg.refreshToken,
       accessToken: cfg.accessToken ?? '',
       expiresAt: cfg.expiresAt ?? 0,
-      deltaLink: cfg.deltaLink ?? null,
     });
   }
 

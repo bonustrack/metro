@@ -8,7 +8,7 @@ import {
 } from '@metro-labs/core/stations/station-runtime';
 import { accountFor, accounts, targetOf } from './accounts.js';
 import type { UserClient } from './client.js';
-import { normalizeTelegramUser } from './normalize.js';
+import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import {
   sendAttachments,
   type CanonicalAttachment,
@@ -251,6 +251,6 @@ export function makeHandleCall(
       set_profile: makeSetProfile(clientFor),
       profile: makeReadProfile(clientFor),
     },
-    normalize: normalizeTelegramUser,
+    normalize: messagingAliases(),
   });
 }
