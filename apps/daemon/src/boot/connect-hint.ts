@@ -1,14 +1,11 @@
 import { hostname } from 'node:os';
 
-const uiBase = (): string => process.env.METRO_UI_URL ?? 'https://metro.box';
-
-const connectLink = (base: string): string =>
-  `${uiBase()}/#/${new URL(base).host}`;
+const connectLink = (base: string): string => `https://metro.box/#/${new URL(base).host}`;
 
 const ownerLine = (owner: string | null): string =>
   owner === null
-    ? 'No owner is set, so no wallet can sign in. Restart with:  metro serve --owner <address>'
-    : `Only ${owner} can sign in.`;
+    ? 'No owner is set, so nobody can sign in. Restart with:  metro serve --owner <organization id>'
+    : `Only members of the organization ${owner} can sign in.`;
 
 export function localConnectHint(port: number, owner: string | null): string {
   const here = `http://127.0.0.1:${String(port)}`;

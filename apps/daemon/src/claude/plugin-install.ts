@@ -129,7 +129,7 @@ function explainMissingMarketplace(env: NodeJS.ProcessEnv = process.env): void {
   if (store === '') return;
   log.warn(
     { store },
-    'plugin: the runtime store holds no plugin marketplace, so metro cannot install its Claude Code plugin; a `metro serve` started before beta.97 never copied it, restart the service once',
+    'plugin: the runtime store holds no plugin marketplace, so metro cannot install its Claude Code plugin; restart the metro service once so `metro serve` stages it again',
   );
 }
 
