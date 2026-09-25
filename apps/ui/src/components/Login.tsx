@@ -2,7 +2,6 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { LOGO_ASPECT, MetroLogo } from './MetroLogo.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { daemonHost, routedDaemon } from '../auth/daemon.js';
@@ -22,12 +21,8 @@ const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20, git
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
 const ABOUT = 'Your agents, on your machines, in every chat you use. Your keys stay yours.';
 const CENTER_TEXT = { textAlign: 'center' } as const;
-const LOGO_WIDTH = 64;
-const LOGO_SIZE = Math.round(LOGO_WIDTH / LOGO_ASPECT);
-const WAITLIST_HASH = '#/waitlist';
 const WAITLIST_TITLE = 'Join the waitlist';
 const JOINED = 'You are on the waitlist. We will let you in soon, and you can then log in with the same account.';
-const LOGIN_HASH = '#/login';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
 
 const REFUSALS: Record<string, string> = {
@@ -157,37 +152,6 @@ export function Login(): ReactNode {
       )}
       <Col padding={{ top: BUTTONS_TOP }}>
         <ProviderButtons intent={waitlist ? 'waitlist' : 'login'} />
-      </Col>
-    </Frame>
-  );
-}
-
-export function Landing(): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const palette = useKitPalette();
-  return (
-    <Frame title={<MetroLogo size={LOGO_SIZE} color={palette.link} />}>
-      <Col gap={10} padding={{ top: BUTTONS_TOP }}>
-        <Button
-          size="lg"
-          color="primary"
-          dark={dark}
-          label="Join waitlist"
-          style={FULL_WIDTH}
-          onPress={() => {
-            window.location.hash = WAITLIST_HASH;
-          }}
-        />
-        <Button
-          size="lg"
-          color="secondary"
-          dark={dark}
-          label="Log in"
-          style={FULL_WIDTH}
-          onPress={() => {
-            window.location.hash = LOGIN_HASH;
-          }}
-        />
       </Col>
     </Frame>
   );

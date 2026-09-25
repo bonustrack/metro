@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { faviconUrl } from '../api/favicon.js';
+import { brandSrc } from '../api/brands.js';
 
 const REQUEST_SIZE = 32;
 
@@ -19,14 +20,16 @@ export function ConnectorFavicon({
   radius = Math.round(size / 4),
 }: ConnectorFaviconProps): ReactNode {
   const palette = useKitPalette();
+  const dark = useKitScheme() === 'dark';
   const [failed, setFailed] = useState(false);
-  const src = faviconUrl(url, REQUEST_SIZE);
+  const brand = brandSrc(url, dark);
+  const src = brand ?? faviconUrl(url, REQUEST_SIZE);
   const blank = failed || src === '';
   const tile = {
     width: size,
     height: size,
     minWidth: size,
-    borderRadius: radius,
+    borderRadius: brand === null ? radius : 0,
     display: 'flex' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,

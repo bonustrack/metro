@@ -8,7 +8,6 @@ import {
 import { Text as KitText, type TextProps } from '@stage-labs/kit/react-native/text';
 import { Input as KitInput, type InputProps } from '@stage-labs/kit/react-native/input';
 import {
-  FONT_HEAD,
   FONT_SANS,
   TEXT_FONT,
   textSize,
@@ -39,7 +38,7 @@ export function Text({ style, ...props }: TextProps): ReactElement {
 
 export function Button({ textStyle, ...props }: ButtonProps): ReactElement {
   const fontSize = typeSize(BUTTON_FONT_SIZE[props.size ?? 'md']);
-  const merged = { fontFamily: FONT_HEAD, fontSize, ...textStyle };
+  const merged = { fontFamily: FONT_SANS, fontSize, ...textStyle };
   return <KitButton {...props} textStyle={merged} />;
 }
 
