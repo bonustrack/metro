@@ -29,13 +29,14 @@ export async function fetchAgentUser(): Promise<AgentUserStatus> {
 }
 
 export async function switchAgentUser(enabled: boolean): Promise<void> {
+  const since = Date.now();
   await call({
     method: 'POST',
     base: `${daemonBase()}/api/agent-user`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ enabled }),
   });
-  await awaitRestart();
+  await awaitRestart(daemonBase(), since);
 }
 
 export const WORKSPACE_SINCE = '0.1.0-beta.187';
@@ -44,11 +45,11 @@ export interface WorkspaceEntry {
   name: string;
   kind: 'folder' | 'file' | 'link';
   bytes: number | null;
-  state: 'here' | 'copying' | 'moved' | 'failed';
+  state: 'here' | 'waiting' | 'copying' | 'moved' | 'failed';
   error: string | null;
 }
 
-const STATES = new Set(['here', 'copying', 'moved', 'failed']);
+const STATES = new Set(['here', 'waiting', 'copying', 'moved', 'failed']);
 
 function toEntry(raw: unknown): WorkspaceEntry | null {
   if (!isRecord(raw) || typeof raw.name !== 'string') return null;

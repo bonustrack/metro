@@ -69,7 +69,22 @@ export async function awaitStopped(base = daemonBase()): Promise<void> {
   if (!down) throw new Error(`metro has not stopped on ${daemonHost(base)} yet. Check the machine.`);
 }
 
-export async function awaitRestart(base = daemonBase()): Promise<void> {
-  await untilState((s) => s !== 'live', () => daemonState(base), paced(DOWN_MAX_MS));
-  await awaitLive(base);
+async function uptimeOf(base: string): Promise<number | null> {
+  try {
+    const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(5_000) });
+    const body: unknown = await res.json();
+    return isRecord(body) && typeof body.uptime === 'number' ? body.uptime : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function awaitRestart(base = daemonBase(), since = Date.now()): Promise<void> {
+  const until = since + UP_MAX_MS;
+  for (;;) {
+    const uptime = await uptimeOf(base);
+    if (uptime !== null && uptime * 1000 < Date.now() - since) return;
+    if (Date.now() >= until) throw new Error(`metro did not come back on ${daemonHost(base)} yet. Check the machine.`);
+    await wait(1_000);
+  }
 }

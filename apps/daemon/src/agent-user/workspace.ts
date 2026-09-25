@@ -7,10 +7,11 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { AgentUser } from './user.js';
 
 const SKIPPED = new Set(['snap', 'lost+found']);
-const SIZE_MS = 4_000;
-const NAMES_MAX = 100;
+const SIZE_MS = 2_000;
+const SIZES_BUDGET_MS = 6_000;
+const NAMES_MAX = 1_000;
 
-export type EntryState = 'here' | 'copying' | 'moved' | 'failed';
+export type EntryState = 'here' | 'waiting' | 'copying' | 'moved' | 'failed';
 
 export interface WorkspaceEntry {
   name: string;
@@ -21,11 +22,12 @@ export interface WorkspaceEntry {
 }
 
 interface Job {
-  state: 'copying' | 'failed';
+  state: 'waiting' | 'copying' | 'failed';
   error: string | null;
 }
 
 const jobs = new Map<string, Job>();
+let queue: Promise<void> = Promise.resolve();
 
 const offered = (name: string): boolean => !name.startsWith('.') && !SKIPPED.has(name) && !name.includes('/');
 
@@ -54,16 +56,18 @@ function stateOf(name: string, user: AgentUser): Pick<WorkspaceEntry, 'state' | 
   return { state: present(join(user.home, name)) ? 'moved' : 'here', error: null };
 }
 
-export function listWorkspace(user: AgentUser, from = homedir()): WorkspaceEntry[] {
+export function listWorkspace(user: AgentUser, from = homedir(), now = Date.now): WorkspaceEntry[] {
+  const until = now() + SIZES_BUDGET_MS;
   return readdirSync(from)
     .filter(offered)
+    .sort((a, b) => a.localeCompare(b))
     .flatMap((name): WorkspaceEntry[] => {
       const path = join(from, name);
       const kind = kindOf(path);
       if (kind === null) return [];
-      return [{ name, kind, bytes: kind === 'link' ? null : sizeOf(path), ...stateOf(name, user) }];
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+      const bytes = kind === 'file' ? lstatSync(path).size : kind === 'folder' && now() < until ? sizeOf(path) : null;
+      return [{ name, kind, bytes, ...stateOf(name, user) }];
+    });
 }
 
 function run(file: string, args: string[]): Promise<void> {
@@ -105,7 +109,8 @@ function wantedNames(names: unknown): string[] {
 
 function assertMovable(name: string, listed: ReadonlySet<string>, user: AgentUser): void {
   if (!listed.has(name)) throw new ApiError(`${name} is not an entry metro offers to move`, 400);
-  if (jobs.get(name)?.state === 'copying') throw new ApiError(`${name} is already being moved`, 409);
+  const job = jobs.get(name)?.state;
+  if (job === 'copying' || job === 'waiting') throw new ApiError(`${name} is already being moved`, 409);
   if (present(join(user.home, name))) throw new ApiError(`${name} already exists in ${user.home}`, 409);
 }
 
@@ -114,10 +119,13 @@ export function startMove(names: unknown, user: AgentUser, from = homedir()): st
   const listed = new Set(readdirSync(from).filter(offered));
   for (const name of wanted) assertMovable(name, listed, user);
   for (const name of wanted) {
-    jobs.set(name, { state: 'copying', error: null });
-    moveOne(name, user, from).catch((err: unknown) => {
-      jobs.set(name, { state: 'failed', error: errMsg(err) });
-      log.warn({ name, err: errMsg(err) }, 'agent-user: could not move a folder to the agent user');
+    jobs.set(name, { state: 'waiting', error: null });
+    queue = queue.then(async () => {
+      jobs.set(name, { state: 'copying', error: null });
+      await moveOne(name, user, from).catch((err: unknown) => {
+        jobs.set(name, { state: 'failed', error: errMsg(err) });
+        log.warn({ name, err: errMsg(err) }, 'agent-user: could not move a folder to the agent user');
+      });
     });
   }
   return wanted;

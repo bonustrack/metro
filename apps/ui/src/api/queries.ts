@@ -164,7 +164,7 @@ export const useWorkspaceQuery = (enabled: boolean): UseQueryResult<WorkspaceEnt
   useBoxQuery('agent-workspace', fetchWorkspace, {
     staleTime: 5_000,
     enabled,
-    refetchInterval: (query) => (query.state.data?.some((e) => e.state === 'copying') === true ? 3_000 : false),
+    refetchInterval: (query) => (query.state.data?.some((e) => e.state === 'copying' || e.state === 'waiting') === true ? 3_000 : false),
   });
 
 export const useClaudeVersionQuery = (): UseQueryResult<ClaudeVersion> =>

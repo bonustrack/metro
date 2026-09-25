@@ -10,7 +10,9 @@ import { olderThan } from '../api/version.js';
 
 const ABOUT = 'Copy the agent\'s work from root\'s home to its own. The originals stay in /root. Hidden files, such as SSH keys and settings, are never offered.';
 
-const STATE_TEXT: Record<WorkspaceEntry['state'], string> = { here: '', copying: 'copying…', moved: 'moved', failed: 'failed' };
+const STATE_TEXT: Record<WorkspaceEntry['state'], string> = { here: '', waiting: 'waiting', copying: 'copying…', moved: 'moved', failed: 'failed' };
+
+const movable = (entry: WorkspaceEntry): boolean => entry.state === 'here' || entry.state === 'failed';
 
 function detail(entry: WorkspaceEntry): string {
   const size = entry.bytes === null ? '' : sizeLabel(entry.bytes);
@@ -18,11 +20,10 @@ function detail(entry: WorkspaceEntry): string {
 }
 
 function EntryRow({ entry, picked, onToggle }: { entry: WorkspaceEntry; picked: boolean; onToggle: () => void }): ReactNode {
-  const movable = entry.state === 'here' || entry.state === 'failed';
   return (
     <Col gap={2}>
       <label className="move-row">
-        <input type="checkbox" checked={picked} disabled={!movable} onChange={onToggle} />
+        <input type="checkbox" checked={picked} disabled={!movable(entry)} onChange={onToggle} />
         <Text size="sm">{entry.name}</Text>
         <Text size="sm" role="secondary">{detail(entry)}</Text>
       </label>
@@ -58,9 +59,14 @@ function List({ entries }: { entries: WorkspaceEntry[] }): ReactNode {
         setBusy(false);
       });
   };
+  const open = entries.filter(movable).map((e) => e.name);
   if (entries.length === 0) return <Text size="sm" role="secondary">Nothing to move: root's home holds only hidden files.</Text>;
   return (
     <Col gap={8}>
+      <Row gap={10} align="center">
+        <Button size="sm" color="secondary" dark={dark} label={`Select all (${String(open.length)})`} disabled={open.length === 0} onPress={() => { setPicked(new Set(open)); }} />
+        <Button size="sm" color="secondary" dark={dark} label="Clear" disabled={picked.size === 0} onPress={() => { setPicked(new Set()); }} />
+      </Row>
       <Col gap={4}>
         {entries.map((entry) => (
           <EntryRow
@@ -92,7 +98,9 @@ export function MoveWork(): ReactNode {
       <Text size="sm" role="secondary">{ABOUT}</Text>
       {work.error !== null ? (
         <Text size="sm" role="danger">{queryError(work.error, 'Could not list root\'s home.')}</Text>
-      ) : work.data === undefined ? null : (
+      ) : work.data === undefined ? (
+        <Text size="sm" role="secondary">Reading root's home…</Text>
+      ) : (
         <List entries={work.data} />
       )}
     </Col>
