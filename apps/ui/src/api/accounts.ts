@@ -8,6 +8,7 @@ export interface AccountField {
 export interface AccountRow {
   id: string | null;
   allowlist: string[] | null;
+  approvers: string[];
   enabled: boolean;
   policy: ToolPolicy;
   fields: AccountField[];
@@ -42,26 +43,30 @@ function stringifyValue(value: unknown): string {
 
 const AGENT_ID = 'agentId';
 const ALLOWLIST = 'allowlist';
+const APPROVERS = 'approvers';
 const ENABLED = 'enabled';
 const POLICY = 'policy';
+const HIDDEN_KEYS = new Set([AGENT_ID, ALLOWLIST, APPROVERS, ENABLED, POLICY]);
 
 function toRow(account: unknown): AccountRow {
   if (!isRecord(account))
     return {
       id: null,
       allowlist: null,
+      approvers: [],
       enabled: true,
       policy: {},
       fields: [{ label: 'value', value: stringifyValue(account) }],
     };
   const fields: AccountField[] = [];
   for (const [key, value] of Object.entries(account)) {
-    if (key === AGENT_ID || key === ALLOWLIST || key === ENABLED || key === POLICY || SECRET_KEY_PATTERN.test(key)) continue;
+    if (HIDDEN_KEYS.has(key) || SECRET_KEY_PATTERN.test(key)) continue;
     fields.push({ label: key, value: stringifyValue(value) });
   }
   return {
     id: typeof account.id === 'string' ? account.id : null,
     allowlist: allowlistOf(account[ALLOWLIST]),
+    approvers: allowlistOf(account[APPROVERS]) ?? [],
     enabled: account[ENABLED] !== false,
     policy: policyOf(account[POLICY]),
     fields,

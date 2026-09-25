@@ -6,7 +6,7 @@ import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { asLine } from '@metro-labs/core/lines';
 import { createMetroMcp } from '../src/mcp/index.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import { setAgentMap, setAllowlistMap } from '../src/agents/map.ts';
+import { setAgentMap, setAllowlistMap, setApproversMap } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
 import { promptBody } from '../src/mcp/permission-prompt.ts';
@@ -23,6 +23,7 @@ const LINE = `metro://telegram-bot/${TG}/-100777`;
 const OTHER_LINE = `metro://telegram-bot/${TG}/-100888`;
 const OWNER_SENDER = `metro://telegram-bot/${TG}/user/111`;
 const STRANGER = `metro://telegram-bot/${TG}/user/999`;
+const MEMBER = `metro://telegram-bot/${TG}/user/222`;
 
 interface TrainCall {
   action: string;
@@ -112,7 +113,8 @@ beforeAll(async () => {
   forgetAllPrompts();
   setKeyMap([{ key: TOKEN, agentId: AGENT }]);
   setAgentMap({ [`telegram-bot/${TG}`]: AGENT }, { [AGENT]: 'Andy' });
-  setAllowlistMap({ [`telegram-bot/${TG}`]: ['111'] });
+  setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'] });
+  setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
   const mcp = await createMetroMcp();
   mcp.startInbound();
   mcpServer = createServer((req, res) => {
@@ -134,6 +136,7 @@ afterAll(async () => {
   setKeyMap([]);
   setAgentMap({}, {});
   setAllowlistMap({});
+  setApproversMap({});
   forgetAllPrompts();
 });
 
@@ -156,6 +159,7 @@ describe('a Claude Code permission prompt relayed by metro', () => {
 
     chat(OTHER_LINE, OWNER_SENDER, 'yes abcde');
     chat(LINE, STRANGER, 'yes abcde');
+    chat(LINE, MEMBER, 'yes abcde');
     chat(LINE, OWNER_SENDER, 'yes abcde', false);
     await waitFor(() => (stream?.raw() ?? '').includes('-100888'));
     expect(pendingPrompts().map((p) => p.requestId)).toEqual(['abcde']);
@@ -164,6 +168,21 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     await waitFor(() => answered('abcde', 'allow'));
     expect(answered('abcde', 'allow')).toBe(true);
     expect(pendingPrompts()).toEqual([]);
+  });
+
+  test('stays on the page only when nobody on that chat may approve', async () => {
+    setApproversMap({});
+    try {
+      await ask('bcdeh', { line: LINE, text: 'nobody' });
+      expect(calls.some((c) => c.action === 'send')).toBe(false);
+      expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'bcdeh', line: null })]);
+      chat(LINE, OWNER_SENDER, 'yes bcdeh');
+      await waitFor(() => (stream?.raw() ?? '').includes('yes bcdeh'));
+      expect(pendingPrompts().map((p) => p.requestId)).toEqual(['bcdeh']);
+      expect((await pageCall('POST', '/bcdeh', { decision: 'deny' })).status).toBe(200);
+    } finally {
+      setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
+    }
   });
 
   test('is listed on the page and answered from it, once', async () => {

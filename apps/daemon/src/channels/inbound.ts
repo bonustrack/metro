@@ -29,7 +29,7 @@ interface InboundDeps {
   getStations: () => Set<string>;
   senderAllowed: (from: string, line: string, verified?: boolean) => boolean;
   approves?: (station: string) => boolean;
-  answerPermission?: (requestId: string, behavior: 'allow' | 'deny', line: string) => Promise<boolean>;
+  answerPermission?: (requestId: string, behavior: 'allow' | 'deny', line: string, from: string) => Promise<boolean>;
 }
 
 const ATTACH_TIMEOUT_MS = 15_000;
@@ -253,7 +253,7 @@ export class InboundRelay {
     if (answer === undefined || base.evType !== 'msg' || !this.approves(base.station) || ev.senderVerified === false) return false;
     const m = PERMISSION_REPLY_RE.exec(base.text);
     if (m?.[1] === undefined || m[2] === undefined) return false;
-    return answer(m[2].toLowerCase(), m[1].toLowerCase().startsWith('y') ? 'allow' : 'deny', base.line);
+    return answer(m[2].toLowerCase(), m[1].toLowerCase().startsWith('y') ? 'allow' : 'deny', base.line, base.from);
   }
 
   private approves(station: string): boolean {

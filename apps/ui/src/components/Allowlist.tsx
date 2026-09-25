@@ -5,13 +5,17 @@ import { Button, Input, Text } from './ui.js';
 import { GROW, SHRINK } from '../theme.js';
 import { allowsEveryone, EVERYONE } from '../api/accounts.js';
 import { fetchRecentSenders, lookupSender, setAllowlist, type RecentSender } from '../api/attach.js';
-import { queryError } from '../api/queries.js';
+import { queryError, useModeQuery } from '../api/queries.js';
+import { olderThan } from '../api/version.js';
 
 const SAVE_FAILED = 'Could not save who may reach this agent.';
 const NO_INPUT = { autoComplete: 'off', autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
 const OPEN = 'Only these senders reach the agent, in groups too. Remove them all and anyone can again.';
 const CLOSED = 'Every message on this station reaches the agent.';
 const EMPTY = 'Nobody listed, so anyone can reach this agent.';
+const APPROVERS_SINCE = '0.1.0-beta.194';
+const NO_CHAT_APPROVALS = new Set(['outlook']);
+const APPROVE_HINT = 'A sender marked Can approve may answer an approval request in this chat with "yes <id>". With nobody marked, requests wait on the agent page.';
 
 const WHERE_TO_FIND: Record<string, string> = {
   'telegram-bot': 'A number. Have them write to the bot once and pick them below, or ask them to message @userinfobot.',
@@ -108,9 +112,20 @@ interface EditorProps {
   onAdd: (id: string) => void;
   onRemove: (id: string) => void;
   onError: (message: string | null) => void;
+  approvers: string[] | null;
+  onApprove: (id: string, approves: boolean) => void;
 }
 
-function SenderRow({ id, name, busy, onRemove }: { id: string; name: string; busy: boolean; onRemove: () => void }): ReactNode {
+interface SenderRowProps {
+  id: string;
+  name: string;
+  busy: boolean;
+  approves: boolean | null;
+  onApprove: (approves: boolean) => void;
+  onRemove: () => void;
+}
+
+function SenderRow({ id, name, busy, approves, onApprove, onRemove }: SenderRowProps): ReactNode {
   const palette = useKitPalette();
   const dark = useKitScheme() === 'dark';
   return (
@@ -119,7 +134,21 @@ function SenderRow({ id, name, busy, onRemove }: { id: string; name: string; bus
         <Text size="sm" numberOfLines={1}>{name === '' ? id : name}</Text>
         {name === '' ? null : <Text size="sm" role="secondary" numberOfLines={1}>{id}</Text>}
       </Col>
-      <Button size="sm" color="secondary" dark={dark} disabled={busy} label="Remove" onPress={onRemove} />
+      <Row gap={8} align="center">
+        {approves === null ? null : (
+          <Button
+            size="sm"
+            color={approves ? 'primary' : 'secondary'}
+            dark={dark}
+            disabled={busy}
+            label={approves ? 'Can approve' : 'Cannot approve'}
+            onPress={() => {
+              onApprove(!approves);
+            }}
+          />
+        )}
+        <Button size="sm" color="secondary" dark={dark} disabled={busy} label="Remove" onPress={onRemove} />
+      </Row>
     </Row>
   );
 }
@@ -149,7 +178,7 @@ function Suggestions({ senders, busy, onAdd }: { senders: RecentSender[]; busy: 
   );
 }
 
-function Editor({ agentId, station, accountId, entries, seen, busy, onAdd, onRemove, onError }: EditorProps): ReactNode {
+function Editor({ agentId, station, accountId, entries, seen, busy, onAdd, onRemove, onError, approvers, onApprove }: EditorProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [draft, setDraft] = useState('');
   const submit = (): void => {
@@ -169,6 +198,10 @@ function Editor({ agentId, station, accountId, entries, seen, busy, onAdd, onRem
               id={entry}
               name={nameOf(entry)}
               busy={busy !== null}
+              approves={approvers === null ? null : isIn(approvers, entry)}
+              onApprove={(approves) => {
+                onApprove(entry, approves);
+              }}
               onRemove={() => {
                 onRemove(entry);
               }}
@@ -176,6 +209,7 @@ function Editor({ agentId, station, accountId, entries, seen, busy, onAdd, onRem
           ))}
         </Col>
       )}
+      {approvers === null || entries.length === 0 ? null : <Text size="sm" role="secondary">{APPROVE_HINT}</Text>}
       <Row gap={8} align="center" wrap>
         <Input
           name="sender"
@@ -212,11 +246,21 @@ interface AllowlistProps {
   station: string;
   accountId: string;
   allowlist: string[] | null;
+  approvers: string[];
   onSaved: () => Promise<unknown>;
 }
 
-export function Allowlist({ agentId, station, accountId, allowlist, onSaved }: AllowlistProps): ReactNode {
+function useShownApprovers(station: string, approvers: string[]): string[] | null {
+  const mode = useModeQuery();
+  const shown = mode.data !== undefined && !olderThan(mode.data.version, APPROVERS_SINCE) && !NO_CHAT_APPROVALS.has(station);
+  return shown ? approvers : null;
+}
+
+const isIn = (list: string[], id: string): boolean => list.some((entry) => entry.toLowerCase() === id.toLowerCase());
+
+export function Allowlist({ agentId, station, accountId, allowlist, approvers, onSaved }: AllowlistProps): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const shownApprovers = useShownApprovers(station, approvers);
   const everyone = allowsEveryone(allowlist);
   const entries = (allowlist ?? []).filter((entry) => entry !== EVERYONE);
   const [restricting, setRestricting] = useState(false);
@@ -225,10 +269,10 @@ export function Allowlist({ agentId, station, accountId, allowlist, onSaved }: A
   const [seen, setSeen] = useState<RecentSender[]>([]);
   const editing = !everyone || restricting;
 
-  const save = (next: string[], what: string): void => {
+  const save = (next: string[], what: string, nextApprovers?: string[]): void => {
     setBusy(what);
     setError(null);
-    setAllowlist(agentId, station, accountId, next)
+    setAllowlist(agentId, station, accountId, next, nextApprovers ?? approvers.filter((a) => isIn(next, a)))
       .then(() => onSaved())
       .then(() => {
         setRestricting(false);
@@ -286,6 +330,10 @@ export function Allowlist({ agentId, station, accountId, allowlist, onSaved }: A
           onAdd={add}
           onRemove={(id) => { save(entries.filter((e) => e !== id), id); }}
           onError={setError}
+          approvers={shownApprovers}
+          onApprove={(id, yes) => {
+            save(entries, id, yes ? [...approvers, id] : approvers.filter((a) => a.toLowerCase() !== id.toLowerCase()));
+          }}
         />
       ) : null}
       {error === null ? null : <Text size="sm" role="danger">{error}</Text>}

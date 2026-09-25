@@ -7,6 +7,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { parseId } from '@metro-labs/core/ids';
 import type { LoadedAccount, LoadedAgent, LoadedConnector } from '../stations/materialize.js';
 import { STATIONS } from '@metro-labs/core/station-names';
+import { approversOf } from './files.js';
 
 const AGENTS = '/api/agents';
 const RESTORE_PATH = `${AGENTS}/restore`;
@@ -60,6 +61,7 @@ function stationOf(raw: unknown): LoadedAccount {
     station: raw.station as LoadedAccount['station'],
     id: raw.id,
     allowlist,
+    ...approversOf(raw.approvers),
     enabled: raw.enabled !== false,
     ...(policy === undefined ? {} : { policy }),
     config: raw.config,

@@ -922,8 +922,11 @@ describe('the allowlist of a station account', () => {
     expect(rows.find((r) => r.accountId === created.accountId)?.allowlist).toEqual(['4242', 'Ada']);
     expect(reloaded).toBe(1);
     expect(synced).toEqual([]);
-    const widened = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', '*'] });
-    expect(await widened.json()).toMatchObject({ allowlist: ['*'] });
+    const approving = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', 'Ada'], approvers: ['ada', 'nobody', '*'] });
+    expect(await approving.json()).toMatchObject({ allowlist: ['4242', 'Ada'], approvers: ['ada'] });
+    expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242'], approvers: 'ada' })).status).toBe(400);
+    const widened = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', '*'], approvers: ['4242'] });
+    expect(await widened.json()).toMatchObject({ allowlist: ['*'], approvers: [] });
     const emptied = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: [] });
     expect(await emptied.json()).toMatchObject({ allowlist: ['*'] });
   });

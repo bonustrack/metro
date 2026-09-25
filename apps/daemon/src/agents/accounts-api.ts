@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { normalizeAllowlist } from './allowlist.js';
+import { normalizeAllowlist, normalizeApprovers } from './allowlist.js';
+import { approversForAccount } from './map.js';
+import { isRecord } from '@metro-labs/core/is-record';
 import type { RecentSender } from './senders.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import {
@@ -68,6 +70,7 @@ export interface AccountApiDeps {
     station: StationName,
     accountId: string,
     allowlist: string[],
+    approvers?: string[],
   ) => Promise<string[]>;
   setPolicy: SetPolicy;
   recentSenders: (station: StationName, accountId: string) => RecentSender[];
@@ -279,14 +282,18 @@ async function handleAllowlist(
   agentId: string,
   target: { station: StationName; accountId: string },
 ): Promise<void> {
-  const wanted = normalizeAllowlist(bodyField(await readJsonBody(req), 'allowlist'));
-  const allowlist = await deps.setAllowlist(agentId, target.station, target.accountId, wanted);
+  const body = await readJsonBody(req);
+  const wanted = normalizeAllowlist(bodyField(body, 'allowlist'));
+  const asked = isRecord(body) && 'approvers' in body ? body.approvers : approversForAccount(target.station, target.accountId);
+  const approvers = normalizeApprovers(asked, wanted);
+  const allowlist = await deps.setAllowlist(agentId, target.station, target.accountId, wanted, approvers);
   log.info({ agentId, station: target.station, account: target.accountId, senders: allowlist.length }, 'account-api: allowlist set');
   sendJson(req, res, 200, {
     agentId,
     station: target.station,
     accountId: target.accountId,
     allowlist,
+    approvers,
     activated: await applied(deps),
   });
 }

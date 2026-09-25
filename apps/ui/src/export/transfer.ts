@@ -31,6 +31,7 @@ function channelsOf(stations: unknown[]): PackedChannel[] {
       station: typeof s.station === 'string' ? s.station : '',
       id: typeof s.id === 'string' ? s.id : '',
       allowlist: Array.isArray(s.allowlist) ? s.allowlist.map(String) : null,
+      ...(Array.isArray(s.approvers) ? { approvers: s.approvers.map(String) } : {}),
       ...(s.enabled === false ? { enabled: false } : {}),
       ...(isRecord(s.policy) ? { policy: s.policy } : {}),
       config: recordOf(s.config),

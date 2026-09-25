@@ -243,12 +243,15 @@ export async function localSetAllowlist(
   station: StationName,
   accountId: string,
   allowlist: string[],
+  approvers: string[] = [],
   dir = agentsDir(),
 ): Promise<string[]> {
   const stored = agentOrThrow(agentId, dir);
   const account = stored.file.stations.find((a) => a.station === station && a.id === accountId);
   if (account === undefined) throw new AgentAdminError('no such account on this agent', 404);
   account.allowlist = allowlist;
+  if (approvers.length === 0) delete account.approvers;
+  else account.approvers = approvers;
   save(stored);
   return Promise.resolve(allowlist);
 }

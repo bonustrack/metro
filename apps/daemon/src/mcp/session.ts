@@ -4,7 +4,7 @@ import { InboundRelay } from '../channels/inbound.js';
 import { answerPrompt, forgetPromptsOf, promptLine } from '../approvals/pending.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
 import { errMsg } from '@metro-labs/core/log';
-import { allowlistForLine, senderPermitted } from '../agents/map.js';
+import { allowlistForLine, mayApprove, senderPermitted } from '../agents/map.js';
 import { accountStationNames, stationByName } from '../stations/registry.js';
 import { eventInScope } from '../agents/scope.js';
 import { MCP_INSTRUCTIONS } from './instructions.js';
@@ -24,8 +24,8 @@ const senderAllowed = (from: string, line: string, verified?: boolean): boolean 
 
 const approves = (station: string): boolean => stationByName(station)?.approvals !== false;
 
-async function answerPermission(requestId: string, behavior: 'allow' | 'deny', line: string): Promise<boolean> {
-  if (promptLine(requestId) !== line) return false;
+async function answerPermission(requestId: string, behavior: 'allow' | 'deny', line: string, from: string): Promise<boolean> {
+  if (promptLine(requestId) !== line || !mayApprove(line, from)) return false;
   return (await answerPrompt(requestId, behavior, 'chat', line)) !== undefined;
 }
 

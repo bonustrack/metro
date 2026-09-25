@@ -258,12 +258,13 @@ export async function setAllowlist(
   station: string,
   accountId: string,
   allowlist: string[],
+  approvers: string[],
 ): Promise<string[]> {
   const body = await call({
     method: 'PUT',
     path: `${accountPath(agentId, station, accountId)}/allowlist`,
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ allowlist }),
+    body: JSON.stringify({ allowlist, approvers }),
   });
   if (!isRecord(body) || !Array.isArray(body.allowlist)) throw new Error('Metro returned an unexpected response.');
   return body.allowlist.filter((entry): entry is string => typeof entry === 'string');

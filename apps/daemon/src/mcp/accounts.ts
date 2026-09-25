@@ -6,7 +6,7 @@ import {
 } from '../stations/registry.js';
 import { listEndpoints } from '../stations/webhook-endpoints.js';
 import { hookUrl, threemaCallbackUrl } from '../stations/attach.js';
-import { accountEnabled, agentIdForAccount, allowlistForAccount, knownAccounts, type KnownAccount } from '../agents/map.js';
+import { accountEnabled, agentIdForAccount, allowlistForAccount, approversForAccount, knownAccounts, type KnownAccount } from '../agents/map.js';
 
 const accountId = (acc: unknown): string | undefined => {
   const id = (acc as { id?: unknown }).id;
@@ -28,7 +28,9 @@ function withAgentId(station: string, acc: unknown): unknown {
   const allowlist = allowlistForAccount(station, id);
   const stored = storedPolicy({ kind: 'channel', station, account: id });
   const policy = stored === undefined ? {} : { policy: stored };
-  const tagged = allowlist === undefined ? { ...rec, agentId, ...policy } : { ...rec, agentId, allowlist, ...policy };
+  const approvers = approversForAccount(station, id);
+  const extra = approvers.length === 0 ? policy : { ...policy, approvers };
+  const tagged = allowlist === undefined ? { ...rec, agentId, ...extra } : { ...rec, agentId, allowlist, ...extra };
   return accountEnabled(station, id) ? tagged : { ...tagged, enabled: false };
 }
 
