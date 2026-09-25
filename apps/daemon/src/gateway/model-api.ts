@@ -5,7 +5,8 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
-import { syncAvailableModelsQuietly } from '../claude/setup.js';
+import { routeOf, syncAvailableModelsQuietly } from '../claude/setup.js';
+import { sessionRunning, stopSession } from '../claude/session.js';
 import { forgetOne } from './usage.js';
 import {
   addConnection,
@@ -35,10 +36,19 @@ const DEVICE_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
 export type { ModelApiDeps } from './model-store.js';
 
+function restartRunningSession(): boolean {
+  if (!sessionRunning()) return false;
+  stopSession();
+  return true;
+}
+
 function kept(store: Store, next: ModelConfig, deps: ModelApiDeps, note: string, fields: Record<string, unknown>): unknown {
+  const before = routeOf(store.read());
   store.write(next);
   syncAvailableModelsQuietly(deps.setup ?? {}, next);
   log.info(fields, note);
+  if (routeOf(next) !== before && (deps.restartSession ?? restartRunningSession)())
+    log.info({ was: before, now: routeOf(next) }, 'model-api: the model changed, so the Claude session restarts on it');
   return settingsBody(next);
 }
 

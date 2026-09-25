@@ -14,6 +14,7 @@ import { jwt } from './model-fixture.ts';
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 
 let server: Server;
+let restarts = 0;
 let issuer: Server;
 let backend: Server;
 let base = '';
@@ -160,6 +161,10 @@ beforeAll(async () => {
         geminiUserBase: backendBase,
         geminiBase: backendBase,
         setup: { dir: join(home, 'claude'), agents: join(home, 'agents') },
+        restartSession: () => {
+          restarts += 1;
+          return true;
+        },
       })
     )
       return;
@@ -183,6 +188,7 @@ beforeEach(() => {
   creditsAuth.length = 0;
   googleForms.length = 0;
   stored = { version: 2, route: '', connections: [] };
+  restarts = 0;
 });
 
 const conns = async (method: string, path = '', body?: unknown): Promise<Response> =>
@@ -229,9 +235,13 @@ describe('the connections on the page', () => {
     expect(stored.connections.map((c) => c.label)).toEqual(['OpenRouter', 'OpenRouter 2']);
     expect(stored.route).toBe(stored.connections[0]?.id);
 
+    const restartsBefore = restarts;
     const routed = await call('PUT', OWNER, { route: second });
     expect(((await routed.json()) as { route: string }).route).toBe(second);
     expect(stored.route).toBe(second);
+    expect(restarts).toBe(restartsBefore + 1);
+    await conns('PUT', `/${second}`, { label: 'Work' });
+    expect(restarts).toBe(restartsBefore + 1);
   });
 
   test('a connection is renamed, edited and removed on its own; removing the routed one moves the route', async () => {

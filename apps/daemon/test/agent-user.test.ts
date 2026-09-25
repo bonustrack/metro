@@ -48,11 +48,11 @@ describe('which user Claude Code runs as', () => {
     expect(agentUser(dir, host({ lookup: () => null }))).toBeNull();
   });
 
-  test('a command runs through runuser with a clean environment of its own', () => {
+  test('a command runs through setpriv, with no process left in between, and a clean environment of its own', () => {
     expect(asUser(null, 'tmux', ['-V'])).toEqual(['tmux', ['-V']]);
     const [file, args] = asUser(AGENT, 'tmux', ['has-session', '-t', 'metro'], { EXTRA: '1' });
-    expect(file).toBe('runuser');
-    expect(args.slice(0, 5)).toEqual(['-u', 'agent', '--', 'env', '-i']);
+    expect(file).toBe('setpriv');
+    expect(args.slice(0, 5)).toEqual(['--reuid=1001', '--regid=1001', '--init-groups', 'env', '-i']);
     expect(args).toContain('HOME=/home/agent');
     expect(args).toContain('USER=agent');
     expect(args).toContain('EXTRA=1');

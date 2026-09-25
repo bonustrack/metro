@@ -23,6 +23,7 @@ export interface ModelApiDeps {
   anthropicBase?: string;
   bedrockControlBase?: string;
   setup?: SetupDeps;
+  restartSession?: () => boolean;
 }
 
 export interface Store {

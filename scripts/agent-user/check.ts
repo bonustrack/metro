@@ -60,5 +60,7 @@ check('the watcher sees it in the agent\'s tmux', sessionRunning());
 check('root has no session of its own', spawnSync('tmux', ['has-session', '-t', 'metro']).status !== 0);
 stopSession({ agents: '/root/.metro/agents' });
 check('stopping it stops the agent\'s session', !sessionRunning());
+const chain = spawnSync(...asAgent('sh', ['-c', 'echo $PPID']), { encoding: 'utf8' }).stdout.trim();
+check('switching user leaves no process in between (so tmux gets window resizes)', chain === String(process.pid));
 console.log(results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);

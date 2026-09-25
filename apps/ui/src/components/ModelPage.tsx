@@ -18,7 +18,7 @@ import { queryError, refresh, useModelQuery, useModeQuery } from '../api/queries
 import { olderThan } from '../api/version.js';
 import { useDocumentTitle } from '../title.js';
 
-const HOW = 'Where the requests of a metro claude session go. A change applies to the next one.';
+const HOW = 'Where the requests of a metro claude session go. Changing the model restarts the Claude session.';
 const NONE_YET = 'Nothing is connected yet, so a request carries the Claude Code login of the session that sent it.';
 
 type Run = (job: () => Promise<unknown>, fallback: string) => void;

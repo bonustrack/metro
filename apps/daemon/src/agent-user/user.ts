@@ -70,7 +70,7 @@ export function agentEnv(user: AgentUser, extra: Record<string, string> = {}): R
 export function asUser(user: AgentUser | null, file: string, args: readonly string[], extra: Record<string, string> = {}): [string, string[]] {
   if (user === null) return [file, [...args]];
   const env = Object.entries(agentEnv(user, extra)).map(([k, v]) => `${k}=${v}`);
-  return ['runuser', ['-u', user.name, '--', 'env', '-i', ...env, file, ...args]];
+  return ['setpriv', [`--reuid=${String(user.uid)}`, `--regid=${String(user.gid)}`, '--init-groups', 'env', '-i', ...env, file, ...args]];
 }
 
 export const asAgent = (file: string, args: readonly string[], extra: Record<string, string> = {}): [string, string[]] =>
