@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { routeHash, routeSelection } from '../src/route.js';
+import { routeHash, routeSelection, subscribeRoute } from '../src/route.js';
 import { sameViewOn, type Selection } from '../src/components/selection.js';
 import { routedOrganization, splitOrganization } from '../src/auth/org-route.js';
 import { routedDaemon, routedSegment } from '../src/auth/daemon.js';
@@ -182,5 +182,26 @@ describe('a connector link the daemon builds without an organization or an agent
     expect(routeSelection('#/connectors')).toEqual({ kind: 'connectors', project: 'agent000001' });
     holder.window = before;
     expect(routeSelection('#/connector/conn0000001')).toEqual({ kind: 'none' });
+  });
+});
+
+describe('an address change always reaches React as a new value', () => {
+  test('two organizations on the same page kind give two distinct selections', () => {
+    const holder = globalThis as { window?: unknown };
+    const before = holder.window;
+    const listeners = new Map<string, () => void>();
+    const fake = { location: { hash: '#/stage' }, addEventListener: (t: string, f: () => void) => listeners.set(t, f), removeEventListener: (t: string) => listeners.delete(t) };
+    holder.window = fake;
+    const seen: unknown[] = [];
+    const stop = subscribeRoute((s) => seen.push(s));
+    listeners.get('hashchange')?.();
+    fake.location.hash = '#/mci';
+    listeners.get('hashchange')?.();
+    stop();
+    holder.window = before;
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toEqual({ kind: 'servers' });
+    expect(seen[1]).toEqual({ kind: 'servers' });
+    expect(seen[0]).not.toBe(seen[1]);
   });
 });

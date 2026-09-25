@@ -166,7 +166,7 @@ export function applyRoute(selection: Selection, replace: boolean): void {
 
 export function subscribeRoute(onChange: (selection: Selection) => void): () => void {
   const handler = (): void => {
-    onChange(currentSelection());
+    onChange({ ...currentSelection() });
   };
   window.addEventListener('popstate', handler);
   window.addEventListener('hashchange', handler);
