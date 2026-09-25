@@ -197,6 +197,7 @@ const deps: AgentApiDeps = {
   accountCall: (station, action, args) => {
     lookedUp.push(`${station} ${action} ${JSON.stringify(args)}`);
     if (action === 'name') return Promise.resolve({ account: args.account, name: null, canClaim: true });
+    if (action === 'profile') return Promise.resolve(String(args.user).toLowerCase() === 'ada' ? { id: args.user, name: '@ada' } : { id: args.user });
     return Promise.resolve({ account: args.account, name: `${String(args.label)}.stage.base.eth` });
   },
   setAccountEnabled: (agentId, station, accountId, enabled) => {
@@ -925,6 +926,9 @@ describe('the allowlist of a station account', () => {
     const approving = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', 'Ada'], approvers: ['ada', 'nobody', '*'] });
     expect(await approving.json()).toMatchObject({ allowlist: ['4242', 'Ada'], approvers: ['ada'] });
     expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242'], approvers: 'ada' })).status).toBe(400);
+    const stranger = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', 'Ada'], approvers: ['ada', '4242'] });
+    expect(stranger.status).toBe(400);
+    expect(await stranger.text()).toContain('does not know 4242');
     const widened = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', '*'], approvers: ['4242'] });
     expect(await widened.json()).toMatchObject({ allowlist: ['*'], approvers: [] });
     const emptied = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: [] });

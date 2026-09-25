@@ -69,7 +69,8 @@ type BoxName =
   | 'account-name'
   | 'schedules'
   | 'schedule'
-  | 'sender-cards';
+  | 'sender-cards'
+  | 'agent-files';
 
 export type BoxKey = BoxName | readonly [BoxName, ...string[]];
 

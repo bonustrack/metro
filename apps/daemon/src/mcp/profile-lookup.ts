@@ -13,7 +13,7 @@ export const GET_PROFILE_TOOL: ToolDef = {
     '(`metro://<station>/<account>/user/<id>`) and get what their network says about them: ' +
     '{id, name, display_name, about, avatar, address}. XMTP answers the Basename ' +
     '(<label>.stage.base.eth), its name, description and avatar records, and the wallet address; ' +
-    'WhatsApp the about line and the picture; Telegram the handle, the name and the bio; Discord ' +
+    'WhatsApp the phone number, the name they last used, the about line and the picture; Telegram the handle, the name and the bio; Discord ' +
     'the username, the global name and the avatar. Fields the network does not have are absent. ' +
     'The answer is cached for ten minutes, so ask when you want to know someone, not on every message.',
   inputSchema: {

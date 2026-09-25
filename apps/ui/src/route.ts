@@ -35,7 +35,8 @@ const STATION_PATH = new RegExp(`^#?/(${HOST})/channel/(${ACCOUNT})$`);
 const CONNECTORS_PATH = new RegExp(`^#?/(${HOST})/connectors$`);
 const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
-const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/((?:${CLAUDE}/)*${CLAUDE}\\.md))?)?$`);
+const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/((?:${CLAUDE}/)*${CLAUDE}))?)?$`);
+const FILES_PATH = new RegExp(`^#?/(${HOST})/files(?:/(.*))?$`);
 
 const EXACT: [RegExp, Selection][] = [
   [SERVERS_PATH, { kind: 'servers' }],
@@ -70,8 +71,17 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [CONNECTORS_PATH, (project) => ({ kind: 'connectors', project })],
   [CONNECTOR_PATH, (project, id) => ({ kind: 'connector', project, id })],
   [SESSIONS_PATH, (project, cp, id) => ({ kind: 'sessions', project, claudeProject: cp === '' ? null : cp, id: id === '' ? null : id })],
+  [FILES_PATH, (project, path) => ({ kind: 'files', project, path: pathSegmentsOf(path) })],
   [MEMORY_PATH, (project, cp, file) => ({ kind: 'memory', project, claudeProject: cp === '' ? null : cp, file: file === '' ? null : file })],
 ];
+
+function pathSegmentsOf(raw: string): string {
+  try {
+    return raw.split('/').filter((part) => part !== '').map(decodeURIComponent).join('/');
+  } catch {
+    return '';
+  }
+}
 
 const GLOBAL: Partial<Record<Selection['kind'], string>> = {
   settings: '#/settings',
@@ -141,6 +151,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
     s.kind === 'sessions'
       ? `/sessions${s.claudeProject === null ? '' : `/${s.claudeProject}`}${s.id === null ? '' : `/${s.id}`}`
       : '',
+  files: (s) => (s.kind === 'files' && s.path !== '' ? `/files/${s.path.split('/').map(encodeURIComponent).join('/')}` : '/files'),
   memory: (s) =>
     s.kind === 'memory'
       ? `/memory${s.claudeProject === null ? '' : `/${s.claudeProject}`}${s.file === null ? '' : `/${s.file}`}`

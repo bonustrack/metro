@@ -64,6 +64,18 @@ export async function senderCards(deps: SenderCardDeps, station: StationName, ac
   );
 }
 
+const known = (profile: unknown): boolean =>
+  isRecord(profile) && ['name', 'display_name', 'about', 'avatar', 'address'].some((key) => filled(profile[key]) !== undefined);
+
+export async function unconfirmedSenders(deps: SenderCardDeps, station: StationName, accountId: string, ids: string[]): Promise<string[]> {
+  if (stationByName(station)?.readsProfiles !== true || ids.length === 0) return [];
+  const seen = new Set(deps.recentSenders(station, accountId).map((s) => s.id.toLowerCase()));
+  const checks = await Promise.all(
+    ids.map(async (id) => (seen.has(id.toLowerCase()) || known(await lookup(deps, station, accountId, id)) ? null : id)),
+  );
+  return checks.filter((id): id is string => id !== null);
+}
+
 export async function handleSenderCards(
   req: IncomingMessage,
   res: ServerResponse,

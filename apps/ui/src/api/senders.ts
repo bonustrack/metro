@@ -35,7 +35,7 @@ const LINKS: Record<string, (id: string, handle: string | undefined) => string |
   'telegram-bot': telegramLink,
   telegram: telegramLink,
   'discord-bot': (id) => (/^\d+$/.test(id) ? `https://discord.com/users/${id}` : null),
-  whatsapp: whatsappLink,
+  whatsapp: (id, handle) => whatsappLink(id) ?? (handle === undefined ? null : whatsappLink(handle)),
   threema: (id) => (/^[A-Z0-9*]{8}$/i.test(id) ? `https://threema.id/${id.toUpperCase()}` : null),
   outlook: (id) => (id.includes('@') && !id.startsWith('@') ? `mailto:${id}` : null),
 };

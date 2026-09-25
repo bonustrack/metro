@@ -9,10 +9,6 @@ export interface MemoryFolder {
   modifiedAt: string;
 }
 
-export type TreeRow =
-  | { kind: 'folder'; depth: number; folder: MemoryFolder; open: boolean }
-  | { kind: 'file'; depth: number; file: MemoryFile };
-
 const byName = (a: string, b: string): number => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 
 const leafOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
@@ -47,17 +43,6 @@ export function memoryTree(files: MemoryFile[]): MemoryFolder {
   }
   settle(root);
   return root;
-}
-
-export function treeRows(folder: MemoryFolder, open: ReadonlySet<string>, depth = 0): TreeRow[] {
-  const rows: TreeRow[] = [];
-  for (const child of folder.folders) {
-    const expanded = open.has(child.path);
-    rows.push({ kind: 'folder', depth, folder: child, open: expanded });
-    if (expanded) rows.push(...treeRows(child, open, depth + 1));
-  }
-  for (const file of folder.files) rows.push({ kind: 'file', depth, file });
-  return rows;
 }
 
 export const fileLeaf = leafOf;

@@ -17,6 +17,7 @@ import type { ProfileChange } from '@metro-labs/core/stations/profile';
 import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';
 import { baileysLogger } from './logger.js';
+import { makeNameBook, phoneOf, type NameBook } from './names.js';
 import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 import { makeOutbox, type Outbox } from './outbox.js';
@@ -68,6 +69,7 @@ interface State {
   keys: KeyCache;
   outbox: Outbox;
   acks: AckWatch;
+  names: NameBook;
 }
 
 type SendOpts = Parameters<WASocket['sendMessage']>[2];
@@ -94,8 +96,12 @@ function bindInbound(st: State, sock: WASocket): void {
     for (const m of messages) {
       if (m.key.fromMe) continue;
       const inbound = toInbound(st.account.id, m, selfRef(st, sock));
+      if (inbound) st.names.note(inbound.senderJid, inbound.pushName);
       if (inbound) st.handlers.onMessage(inbound, m);
     }
+  });
+  sock.ev.on('contacts.upsert', (contacts) => {
+    for (const c of contacts) st.names.note(c.id, c.name ?? c.notify);
   });
   sock.ev.on('messages.reaction', (events: ReactionEvent[]) => {
     if (!st.handlers) return;
@@ -270,6 +276,22 @@ function mediaContent(m: WAMedia): SendContent {
   };
 }
 
+async function readProfile(st: State, jid: string): Promise<SenderProfile> {
+  const sock = await ready(st);
+  const [statuses, avatar] = await Promise.all([sock.fetchStatus(jid).catch(() => undefined), sock.profilePictureUrl(jid, 'image').catch(() => undefined)]);
+  const about = nonEmpty((statuses?.[0]?.status as { status?: unknown } | undefined)?.status);
+  const picture = nonEmpty(avatar);
+  const phone = phoneOf(jid.endsWith('@lid') ? await sock.signalRepository.lidMapping.getPNForLID(jid).catch(() => null) : jid);
+  const name = st.names.get(jid);
+  return {
+    id: jid,
+    ...(name === undefined ? {} : { display_name: name }),
+    ...(phone === undefined ? {} : { name: phone, address: phone }),
+    ...(about === undefined ? {} : { about }),
+    ...(picture === undefined ? {} : { avatar: picture }),
+  };
+}
+
 export function createClient(account: WhatsAppAccount): WAClient {
   const st: State = {
     account,
@@ -278,18 +300,12 @@ export function createClient(account: WhatsAppAccount): WAClient {
     keys: makeKeyCache(),
     outbox: makeOutbox(),
     acks: makeAckWatch(),
+    names: makeNameBook(),
   };
   resetGate(st);
-  const senders = makeProfileCache<SenderProfile>(
-    async (jid) => {
-      const sock = await ready(st);
-      const [statuses, avatar] = await Promise.all([sock.fetchStatus(jid).catch(() => undefined), sock.profilePictureUrl(jid, 'image').catch(() => undefined)]);
-      const about = nonEmpty((statuses?.[0]?.status as { status?: unknown } | undefined)?.status);
-      const picture = nonEmpty(avatar);
-      return { id: jid, ...(about === undefined ? {} : { about }), ...(picture === undefined ? {} : { avatar: picture }) };
-    },
-    { onError: (jid, err) => process.stderr.write(`whatsapp[${st.account.id}] could not read the profile of ${jid}: ${errMsg(err)}\n`) },
-  );
+  const senders = makeProfileCache<SenderProfile>((jid) => readProfile(st, jid), {
+    onError: (jid, err) => process.stderr.write(`whatsapp[${st.account.id}] could not read the profile of ${jid}: ${errMsg(err)}\n`),
+  });
   return {
     account,
     self() {

@@ -7,6 +7,7 @@ import { resolveAttachments } from '../../apps/daemon/src/stations/attach-resolv
 import { sessionRunning, startSession, stopSession } from '../../apps/daemon/src/claude/session.ts';
 import { stagedPluginDir, syncPluginServers } from '../../apps/daemon/src/connectors/plugin-sync.ts';
 import { convertRootJobs, listSchedules } from '../../apps/daemon/src/agent-user/schedules.ts';
+import { readAgentPath } from '../../apps/daemon/src/agent-user/files.ts';
 
 const results: string[] = [];
 const check = (what: string, ok: boolean): void => {
@@ -79,5 +80,17 @@ check(`every root job pointing into /root is switched at once (${String(convertR
 const agentCron = spawnSync('crontab', ['-l', '-u', 'agent'], { encoding: 'utf8' }).stdout;
 check('the cron line now runs as the agent with its paths rewritten', agentCron.includes(`0 3 * * * ${u.home}/bin/nightly.sh >> ${u.home}/nightly.log`));
 check("and left root's crontab, with a backup kept", !spawnSync('crontab', ['-l', '-u', 'root'], { encoding: 'utf8' }).stdout.includes('nightly.sh') && spawnSync('sh', ['-c', 'ls /root/.metro/agents/crontab-root.*.bak']).status === 0);
+spawnSync(...asAgent('sh', ['-c', `mkdir -p "${u.home}/docs/sub dir" && printf 'hi there' > "${u.home}/docs/note.txt" && ln -s /root "${u.home}/docs/root-link"`]));
+const docs = readAgentPath(u, 'docs');
+check(`the file explorer lists the agent's folder (${docs.kind === 'folder' ? docs.entries.map((e) => `${e.kind}:${e.name}`).join(',') : docs.kind})`, docs.kind === 'folder' && docs.entries.some((e) => e.name === 'sub dir' && e.kind === 'folder') && docs.entries.some((e) => e.name === 'note.txt' && e.kind === 'file' && e.bytes === 8));
+const note = readAgentPath(u, 'docs/note.txt');
+check('and reads a file as text', note.kind === 'file' && note.text === 'hi there' && note.modifiedAt !== '');
+let hidden = false;
+try {
+  readAgentPath(u, 'docs/root-link');
+} catch {
+  hidden = true;
+}
+check('a link to /root shows nothing the agent cannot read itself', hidden);
 console.log(results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);

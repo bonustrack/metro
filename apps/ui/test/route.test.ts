@@ -31,6 +31,9 @@ describe('the first segment is the daemon', () => {
         { kind: 'skill', project, id: '-Users-less-Cursor-bonustrack-metro:ship-it' },
         { kind: 'memory', project, claudeProject: '-Users-less-Cursor-bonustrack-metro', file: 'project_cli_redesign.md' },
         { kind: 'memory', project, claudeProject: '-root', file: 'entities/people/less.md' },
+        { kind: 'memory', project, claudeProject: '-root', file: 'entities/people' },
+        { kind: 'files', project, path: '' },
+        { kind: 'files', project, path: 'work/my notes/a#b.md' },
       ];
       for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);
     }
@@ -75,7 +78,7 @@ describe('the first segment is the daemon', () => {
       '#/x.tail1234.ts.net/members',
       '#/x.tail1234.ts.net/connector/short',
       '#/x.tail1234.ts.net/channel/../etc',
-      '#/x.tail1234.ts.net/memory/-x/notes.txt',
+      '#/x.tail1234.ts.net/memory/-x/a b',
       '#/x.tail1234.ts.net/sessions/-x/id with space',
       '#/-leadingdash/connectors',
     ])

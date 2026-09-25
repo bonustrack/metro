@@ -10,6 +10,7 @@ import { type AccountRef } from './account-attach.js';
 import { type AccountRoute } from './account-routes.js';
 import { handlePolicy, type SetPolicy } from './policy-route.js';
 import { LOOKUPS } from './account-lookups.js';
+import { unconfirmedSenders } from './sender-cards.js';
 import { stationByName } from '../stations/registry.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import {
@@ -243,6 +244,9 @@ async function handleAllowlist(
   const wanted = normalizeAllowlist(bodyField(body, 'allowlist'));
   const asked = isRecord(body) && 'approvers' in body ? body.approvers : approversForAccount(target.station, target.accountId);
   const approvers = normalizeApprovers(asked, wanted);
+  const before = new Set(approversForAccount(target.station, target.accountId).map((a) => a.toLowerCase()));
+  const unknown = await unconfirmedSenders(deps, target.station, target.accountId, approvers.filter((a) => !before.has(a.toLowerCase())));
+  if (unknown.length > 0) throw new ApiError(`${target.station} does not know ${unknown.join(', ')}. Check the id, or have them write to the agent once, then try again.`, 400);
   const allowlist = await deps.setAllowlist(agentId, target.station, target.accountId, wanted, approvers);
   log.info({ agentId, station: target.station, account: target.accountId, senders: allowlist.length }, 'account-api: allowlist set');
   sendJson(req, res, 200, {
