@@ -25,6 +25,8 @@ describe('the first segment is the daemon', () => {
         { kind: 'claude', project },
         { kind: 'skills', project },
         { kind: 'scheduled', project },
+        { kind: 'scheduled-job', project, id: 'cron-agent:0123abcd' },
+        { kind: 'scheduled-job', project, id: 'timer:memory-daily.timer' },
         { kind: 'skill', project, id: 'user:write-as-less' },
         { kind: 'skill', project, id: '-Users-less-Cursor-bonustrack-metro:ship-it' },
         { kind: 'memory', project, claudeProject: '-Users-less-Cursor-bonustrack-metro', file: 'project_cli_redesign.md' },

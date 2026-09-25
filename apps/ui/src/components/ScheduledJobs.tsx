@@ -1,10 +1,10 @@
-import { type ReactNode, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
-import { retrySchedule, SCHEDULES_SINCE, type ScheduledJob } from '../api/schedules.js';
-import { queryError, refresh, useModeQuery, useSchedulesQuery } from '../api/queries.js';
+import { type ReactNode } from 'react';
+import { Col } from '@stage-labs/kit/react-native/box';
+import { Text } from './ui.js';
+import { ListRow } from './ListRow.js';
+import { routeHash } from '../route.js';
+import { SCHEDULES_SINCE, type ScheduledJob } from '../api/schedules.js';
+import { queryError, useModeQuery, useSchedulesQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { olderThan } from '../api/version.js';
 import { Loading } from './Loading.js';
@@ -15,49 +15,14 @@ const ABOUT = "The agent's timers and cron jobs. They all run as the user agent;
 
 const KIND: Record<ScheduledJob['kind'], string> = { timer: 'timer', 'cron-root': 'cron', 'cron-agent': 'cron' };
 
-function detail(job: ScheduledJob): string {
+export function detail(job: ScheduledJob): string {
   const parts = [KIND[job.kind], job.schedule, `runs as ${job.runsAs}`];
   if (job.next !== null) parts.push(`next ${whenLabel(job.next)}`);
   if (job.last !== null) parts.push(`last ${whenLabel(job.last)}${job.lastResult !== null && job.lastResult !== 'success' ? ` (${job.lastResult})` : ''}`);
   return parts.join(' · ');
 }
 
-function JobRow({ job }: { job: ScheduledJob }): ReactNode {
-  const client = useQueryClient();
-  const dark = useKitScheme() === 'dark';
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const retry = (): void => {
-    setBusy(true);
-    setError(null);
-    retrySchedule(job.id)
-      .then(() => refresh(client, 'schedules'))
-      .catch((err: unknown) => {
-        setError(queryError(err, 'Could not switch that job.'));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
-  const stuck = job.problem ?? error;
-  return (
-    <Col gap={4} padding={{ y: 6 }}>
-      <Row gap={10} align="center" wrap>
-        <Text size="sm" weight="semibold">{job.name}</Text>
-        <Text size="sm" role="secondary">{detail(job)}</Text>
-      </Row>
-      <Text size="sm" role="secondary" numberOfLines={2}>{job.command}</Text>
-      {stuck === null ? null : (
-        <Row gap={10} align="center" wrap>
-          <Text size="sm" role="danger">{`Still runs as root: ${stuck}`}</Text>
-          <Button size="sm" color="secondary" dark={dark} label="Retry" disabled={busy} onPress={retry} />
-        </Row>
-      )}
-    </Col>
-  );
-}
-
-export function ScheduledJobs(): ReactNode {
+export function ScheduledJobs({ project, onOpen }: { project: string; onOpen: (id: string) => void }): ReactNode {
   const mode = useModeQuery();
   const supported = mode.data !== undefined && !olderThan(mode.data.version, SCHEDULES_SINCE);
   const schedules = useSchedulesQuery(supported);
@@ -78,7 +43,16 @@ export function ScheduledJobs(): ReactNode {
       ) : (
         <Col>
           {schedules.data.jobs.map((job) => (
-            <JobRow key={job.id} job={job} />
+            <ListRow
+              key={job.id}
+              title={job.name}
+              detail={detail(job)}
+              href={routeHash({ kind: 'scheduled-job', project, id: job.id })}
+              extra={job.problem === null ? null : <Text size="sm" role="danger">still runs as root</Text>}
+              onOpen={() => {
+                onOpen(job.id);
+              }}
+            />
           ))}
         </Col>
       )}

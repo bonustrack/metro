@@ -841,3 +841,17 @@ textarea:focus-visible {
 .connector-chip:hover {
   background: var(--metro-surface);
 }
+
+.job-block {
+  max-height: 360px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--metro-surface);
+  color: var(--metro-text);
+  font-family: var(--metro-font-sans);
+  font-size: calc(13px * var(--metro-type-scale, 1));
+  white-space: pre-wrap;
+  word-break: break-word;
+}

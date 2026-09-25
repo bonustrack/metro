@@ -1,0 +1,82 @@
+import { spawn } from 'node:child_process';
+import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs';
+import { ApiError } from '@metro-labs/http/api-error';
+import { log } from '@metro-labs/core/log';
+import { listSchedules, realRunner, showProps, type Runner, type ScheduledJob } from './schedules.js';
+import { asUser, type AgentUser } from './user.js';
+
+const LOG_LINES = 80;
+const TAIL_BYTES = 64 * 1024;
+
+export interface JobDetail extends ScheduledJob {
+  definition: string;
+  logs: string;
+  logSource: string | null;
+}
+
+function findJob(id: string, user: AgentUser | null, runner: Runner): ScheduledJob {
+  const job = listSchedules(user, runner).find((j) => j.id === id);
+  if (job === undefined) throw new ApiError('no such scheduled job', 404);
+  return job;
+}
+
+const serviceOf = (unit: string, runner: Runner): string => showProps(runner, unit, ['Unit']).Unit ?? unit.replace(/\.timer$/, '.service');
+
+export function logFileOf(command: string): string | null {
+  const m = /(?:^|\s)(?:>>|>)\s*(\/\S+)/.exec(command);
+  return m?.[1] ?? null;
+}
+
+function tail(path: string): string {
+  const size = statSync(path).size;
+  const start = Math.max(0, size - TAIL_BYTES);
+  const fd = openSync(path, 'r');
+  try {
+    const buffer = Buffer.alloc(size - start);
+    readSync(fd, buffer, 0, buffer.length, start);
+    return buffer.toString('utf8').split('\n').slice(-LOG_LINES).join('\n');
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function timerDetail(job: ScheduledJob, runner: Runner): JobDetail {
+  const unit = job.id.slice('timer:'.length);
+  const service = serviceOf(unit, runner);
+  return {
+    ...job,
+    definition: runner.run('systemctl', ['cat', unit, service, '--no-pager']).stdout,
+    logs: runner.run('journalctl', ['-u', service, '-n', String(LOG_LINES), '--no-pager', '-o', 'short-iso']).stdout,
+    logSource: `journalctl -u ${service}`,
+  };
+}
+
+function cronDetail(job: ScheduledJob): JobDetail {
+  const file = logFileOf(job.command);
+  const readable = file !== null && existsSync(file) && statSync(file).isFile();
+  return {
+    ...job,
+    definition: `${job.schedule} ${job.command}`,
+    logs: readable ? tail(file) : '',
+    logSource: file,
+  };
+}
+
+export function scheduleDetail(id: string, user: AgentUser | null, runner: Runner = realRunner): JobDetail {
+  const job = findJob(id, user, runner);
+  return job.kind === 'timer' ? timerDetail(job, runner) : cronDetail(job);
+}
+
+export function runNow(id: string, user: AgentUser | null, runner: Runner = realRunner): JobDetail {
+  const job = findJob(id, user, runner);
+  if (job.runsAs === 'root') throw new ApiError('this job still runs as root; switch it to the agent first', 409);
+  if (job.kind === 'timer') runner.run('systemctl', ['start', '--no-block', serviceOf(job.id.slice('timer:'.length), runner)]);
+  else {
+    if (user === null) throw new ApiError('Claude Code does not run as its own user on this machine', 409);
+    const [file, args] = asUser(user, 'sh', ['-c', job.command]);
+    const child = spawn(file, args, { detached: true, stdio: 'ignore', cwd: user.home });
+    child.unref();
+  }
+  log.info({ job: job.name }, 'schedules: run now, from the page');
+  return scheduleDetail(id, user, runner);
+}

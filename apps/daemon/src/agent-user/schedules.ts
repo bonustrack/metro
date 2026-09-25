@@ -34,7 +34,7 @@ export interface Runner {
   run: (file: string, args: string[], input?: string) => { status: number | null; stdout: string };
 }
 
-const realRunner: Runner = {
+export const realRunner: Runner = {
   run: (file, args, input) => {
     const done = spawnSync(file, args, { encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'ignore'], timeout: 20_000 });
     return { status: done.error === undefined ? done.status : null, stdout: done.stdout ?? '' };
@@ -48,7 +48,7 @@ export const rehome = (text: string, home: string): string => text.replace(/(^|[
 const stamp = (micros: unknown): string | null =>
   typeof micros === 'number' && micros > 0 ? new Date(micros / 1000).toISOString() : null;
 
-function showProps(runner: Runner, unit: string, props: string[]): Record<string, string> {
+export function showProps(runner: Runner, unit: string, props: string[]): Record<string, string> {
   const out = runner.run('systemctl', ['show', unit, '--no-pager', ...props.map((p) => `-p${p}`)]).stdout;
   const found: Record<string, string> = {};
   for (const line of out.split('\n')) {

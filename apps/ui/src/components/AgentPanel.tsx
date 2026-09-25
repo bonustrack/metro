@@ -17,6 +17,7 @@ import { StationPage } from './StationPage.js';
 import { Stations } from './Stations.js';
 import { type Selection } from './selection.js';
 import { ScheduledJobs } from './ScheduledJobs.js';
+import { ScheduledJobPage } from './ScheduledJobPage.js';
 
 interface AgentPanelProps {
   selection: Selection;
@@ -62,7 +63,8 @@ function claudeRoutes(project: string, selection: Selection, go: Go): ReactNode 
   if (selection.kind === 'memory')
     return <Memory project={project} claudeProject={selection.claudeProject} file={selection.file} onSelect={go} />;
   if (selection.kind === 'claude') return <ClaudeSettings project={project} />;
-  if (selection.kind === 'scheduled') return <ScheduledJobs />;
+  if (selection.kind === 'scheduled') return <ScheduledJobs project={project} onOpen={(id) => { go({ kind: 'scheduled-job', project, id }); }} />;
+  if (selection.kind === 'scheduled-job') return <ScheduledJobPage project={project} id={selection.id} onBack={() => { go({ kind: 'scheduled', project }); }} />;
   if (selection.kind === 'skills')
     return (
       <Skills

@@ -67,7 +67,8 @@ type BoxName =
   | 'connector'
   | 'connector-tools'
   | 'account-name'
-  | 'schedules';
+  | 'schedules'
+  | 'schedule';
 
 export type BoxKey = BoxName | readonly [BoxName, ...string[]];
 

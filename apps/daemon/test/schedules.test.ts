@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { calendarOf, convertRootJobs, dropInText, execArgv, listSchedules, parseCronLine, rehome, usesRootHome, type Runner } from '../src/agent-user/schedules.ts';
 import type { AgentUser } from '../src/agent-user/user.ts';
+import { logFileOf } from '../src/agent-user/schedule-detail.ts';
 
 const AGENT: AgentUser = { name: 'agent', uid: 1001, gid: 1001, home: '/home/agent' };
 
@@ -77,5 +78,11 @@ describe('scheduled jobs on a box', () => {
     expect(tabs.root).toBe('@reboot /usr/local/bin/warm\n');
     expect(readdirSync(backups).some((f) => f.startsWith('crontab-root.'))).toBe(true);
     expect(convertRootJobs(AGENT, backups, runner)).toBe(0);
+  });
+
+  test('the log a cron job writes is found from its own redirect', () => {
+    expect(logFileOf('/home/agent/bin/memory-refresh.sh >> /home/agent/.claude/memory-refresh.log 2>&1')).toBe('/home/agent/.claude/memory-refresh.log');
+    expect(logFileOf('/home/agent/x.sh > /tmp/x.log')).toBe('/tmp/x.log');
+    expect(logFileOf('/usr/local/bin/warm')).toBeNull();
   });
 });

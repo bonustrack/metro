@@ -40,7 +40,7 @@ export function AgentSidebar({ project, selection, onSelect, offline = false }: 
             <NavRow label="Server" icon="server" selected={selection.kind === 'server'} target={{ kind: 'server', project }} onSelect={onSelect} disabled={offline} />
             <NavRow label="Model" icon="chip" selected={selection.kind === 'model'} target={{ kind: 'model', project }} onSelect={onSelect} disabled={offline} />
             <NavRow label="Harness" icon="cube" selected={selection.kind === 'claude'} target={{ kind: 'claude', project }} onSelect={onSelect} disabled={offline} />
-            <NavRow label="Scheduled" icon="calendar" selected={selection.kind === 'scheduled'} target={{ kind: 'scheduled', project }} onSelect={onSelect} disabled={offline} />
+            <NavRow label="Scheduled" icon="calendar" selected={selection.kind === 'scheduled' || selection.kind === 'scheduled-job'} target={{ kind: 'scheduled', project }} onSelect={onSelect} disabled={offline} />
             <NavRow label="Terminal" icon="terminal" selected={selection.kind === 'terminal'} target={{ kind: 'terminal', project }} onSelect={onSelect} disabled={offline} />
           </Col>
           <Col gap={NAV_GAP} padding={{ top: 14 }}>

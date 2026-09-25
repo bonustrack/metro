@@ -24,6 +24,7 @@ export type Selection =
   | { kind: 'claude'; project: string }
   | { kind: 'skills'; project: string }
   | { kind: 'scheduled'; project: string }
+  | { kind: 'scheduled-job'; project: string; id: string }
   | { kind: 'skill'; project: string; id: string };
 
 export function selectionProject(selection: Selection): string | null {
@@ -46,6 +47,7 @@ const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
   claude: 'claude',
   skills: 'skills',
   scheduled: 'scheduled',
+  'scheduled-job': 'scheduled',
   skill: 'skills',
   sessions: 'sessions',
   memory: 'memory',
