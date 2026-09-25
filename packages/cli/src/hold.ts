@@ -60,7 +60,6 @@ export function holdRequest(req: IncomingMessage, res: ServerResponse, info: Hol
     sendJson(req, res, 200, {
       mode: 'local',
       owner: info.owner,
-      project: 'localdaemon',
       version: info.version,
       stopped: true,
     });

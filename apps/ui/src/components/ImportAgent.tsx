@@ -4,7 +4,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button, Input } from './ui.js';
 import { Modal } from './Modal.js';
-import { countOf, openMetroFile, parseMetroFile, sealedWith, SECTION_LABELS, sectionsIn, WALLET_SEALED, type Payload, type Section } from '../export/pack.js';
+import { countOf, openMetroFile, parseMetroFile, SECTION_LABELS, sectionsIn, type Payload, type Section } from '../export/pack.js';
 import { applyPayload, type Applied, type Mode } from '../export/transfer.js';
 
 const HOW = 'Opened in the browser with its passphrase. Nothing reaches Metro before you choose.';
@@ -141,7 +141,7 @@ function useImport(agent: { id: string; name: string }): ImportState {
     file
       .text()
       .then((text) => {
-        if (sealedWith(parseMetroFile(text)) !== 'passphrase') throw new Error(WALLET_SEALED);
+        parseMetroFile(text);
         setPending(text);
       })
       .catch(fail('Could not open that file.'));

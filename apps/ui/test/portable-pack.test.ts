@@ -8,7 +8,6 @@ import {
   packFile,
   parseMetroFile,
   parsePayload,
-  sealedWith,
   sectionsIn,
   type Payload,
 } from '../src/export/pack.js';
@@ -36,7 +35,6 @@ describe('a .metro export file', () => {
     const file = await packFile(PAYLOAD, PASSPHRASE);
     expect(file.metro).toBe(1);
     expect(file.kind).toBe('agent-export');
-    expect(sealedWith(file)).toBe('passphrase');
 
     const text = JSON.stringify(file);
     expect(text).not.toContain('secret-token');
@@ -59,10 +57,10 @@ describe('a .metro export file', () => {
     await expect(openMetroFile(JSON.stringify(broken), PASSPHRASE)).rejects.toThrow();
   });
 
-  test('a file from before passphrases, sealed to a wallet, is refused with the reason', async () => {
+  test('a file from before passphrases, sealed to a wallet, is not an export file any more', async () => {
     const legacy = JSON.stringify({ metro: 1, kind: 'agent-export', envelope: { v: 1, keyVersion: 1, agentId: 'agent000001', nonce: 'AAAA', ciphertext: 'AAAA', key: { recipient: '0xabc' } } });
-    expect(sealedWith(parseMetroFile(legacy))).toBe('wallet');
-    await expect(openMetroFile(legacy, PASSPHRASE)).rejects.toThrow('sealed to a wallet');
+    expect(() => parseMetroFile(legacy)).toThrow('not a metro export file');
+    await expect(openMetroFile(legacy, PASSPHRASE)).rejects.toThrow('not a metro export file');
   });
 
   test('anything that is not an export file is refused before the passphrase is asked', () => {

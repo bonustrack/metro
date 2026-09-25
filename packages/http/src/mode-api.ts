@@ -3,12 +3,9 @@ import { cors, sendJson } from './api-http.js';
 
 const PATH = '/api/mode';
 
-export type DaemonMode = 'hosted' | 'local';
-
 export interface ModeInfo {
-  mode: DaemonMode;
+  mode: 'local';
   owner: string | null;
-  project: string | null;
   version: string;
 }
 

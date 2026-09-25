@@ -1,14 +1,9 @@
 import { RESERVED_SEGMENTS, splitOrganization } from './org-segment.js';
 const DAEMON_KEY = 'metro.daemon';
 const SERVER_KEY = 'metro.server';
-export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
+const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
 const HOSTED_DAEMON = 'https://api.metro.box';
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
-const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
-const PLAIN_HTTP =
-  'Plain http only reaches this computer. For another machine, forward its port with ssh -L, or put it behind https.';
-
-export type DaemonParse = { base: string } | { error: string };
 
 export function builtInDaemon(): string {
   const configured = import.meta.env.VITE_METRO_MCP_URL?.trim();
@@ -19,35 +14,6 @@ export function builtInDaemon(): string {
   } catch {
     return HOSTED_DAEMON;
   }
-}
-
-function parsed(text: string): URL | null {
-  try {
-    if (SCHEME.test(text)) return new URL(text);
-    const bare = new URL(`http://${text}`);
-    return LOOPBACK.has(bare.hostname) ? bare : new URL(`https://${text}`);
-  } catch {
-    return null;
-  }
-}
-
-function refusal(url: URL): string | null {
-  if (url.username !== '' || url.password !== '')
-    return 'The address cannot carry a username or password.';
-  if (url.protocol === 'https:') return null;
-  if (url.protocol !== 'http:')
-    return 'The address must start with http:// or https://.';
-  return LOOPBACK.has(url.hostname) ? null : PLAIN_HTTP;
-}
-
-export function parseDaemonUrl(raw: string): DaemonParse {
-  const text = raw.trim();
-  if (text === '')
-    return { error: 'Enter the daemon address, like http://127.0.0.1:8420.' };
-  const url = parsed(text);
-  if (url === null) return { error: 'That is not a valid address.' };
-  const refused = refusal(url);
-  return refused === null ? { base: url.origin } : { error: refused };
 }
 
 const FIRST_SEGMENT = /^#\/([A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?)(?:\/|$)/;
@@ -104,7 +70,7 @@ export function daemonHost(base: string): string {
   }
 }
 
-export function storedDaemon(): string | null {
+function storedDaemon(): string | null {
   try {
     const v = window.localStorage.getItem(DAEMON_KEY);
     return v !== null && v.length > 0 ? v : null;
