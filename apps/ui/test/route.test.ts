@@ -1,11 +1,16 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import { routeHash, routeSelection, subscribeRoute } from '../src/route.js';
 import { sameViewOn, type Selection } from '../src/components/selection.js';
-import { routedOrganization, splitOrganization } from '../src/auth/org-route.js';
+import { noteRoutedOrganization, routedOrganization, splitOrganization } from '../src/auth/org-route.js';
 import { routedDaemon, routedSegment } from '../src/auth/daemon.js';
 import { installTestAccount, TEST_ORGANIZATION } from './account-fixture.js';
-import { storeAccount } from '../src/auth/account.js';
+import { clearAccount, storeAccount } from '../src/auth/account.js';
 import { forgetAgents, rememberAgents } from '../src/auth/agent-route.js';
+
+beforeEach(() => {
+  clearAccount();
+  noteRoutedOrganization(null);
+});
 
 const HOSTS = ['127.0.0.1:8420', 'localhost:8421', 'jelsoft-chan-rooms.tail1234.ts.net', 'suzy.tail1234.ts.net'];
 

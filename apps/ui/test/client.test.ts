@@ -1,4 +1,5 @@
-import { beforeAll } from 'bun:test';
+import { afterAll, beforeAll } from 'bun:test';
+import { clearAccount } from '../src/auth/account.js';
 import { installTestAccount } from './account-fixture.js';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { fetchConnectors } from '../src/api/connectors.js';
@@ -6,6 +7,10 @@ import { fetchSession, fetchStations, StoppedError, type AgentSummary } from '..
 
 beforeAll(() => {
   installTestAccount();
+});
+
+afterAll(() => {
+  clearAccount();
 });
 
 const realFetch = globalThis.fetch;

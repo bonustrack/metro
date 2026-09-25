@@ -1,4 +1,5 @@
-import { beforeAll } from 'bun:test';
+import { afterAll, beforeAll } from 'bun:test';
+import { clearAccount } from '../src/auth/account.js';
 import { installTestAccount } from './account-fixture.js';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { AuthError } from '../src/api/client.js';
@@ -14,6 +15,10 @@ import {
 
 beforeAll(() => {
   installTestAccount();
+});
+
+afterAll(() => {
+  clearAccount();
 });
 
 
