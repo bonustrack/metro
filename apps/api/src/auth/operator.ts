@@ -18,7 +18,7 @@ export async function admit(users: UserStore, t: Tokens, intent: Intent, at: str
   await users.noteLogin(t.user, at);
   if (status === 'rejected') return { kind: 'refused', reason: 'not-open' };
   if (letIn(status, t)) {
-    if (status !== 'approved') await users.setStatus(t.user.id, 'approved');
+    if (status !== 'approved' && isOperatorEmail(t.user.email)) await users.setStatus(t.user.id, 'approved');
     return { kind: 'in' };
   }
   if (intent === 'waitlist') {
@@ -26,6 +26,11 @@ export async function admit(users: UserStore, t: Tokens, intent: Intent, at: str
     return { kind: 'waiting' };
   }
   return { kind: 'refused', reason: status === 'waitlist' ? 'waiting' : 'no-account' };
+}
+
+export async function mayCreateOrganization(users: UserStore, user: string): Promise<boolean> {
+  const record = await users.find(user);
+  return record?.status === 'approved' || isOperatorEmail(record?.email ?? null);
 }
 
 export async function stillIn(users: UserStore, t: Tokens): Promise<boolean> {

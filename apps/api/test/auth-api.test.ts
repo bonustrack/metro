@@ -9,6 +9,7 @@ import { memorySlugs } from './slug-fake.ts';
 import { memoryUsers } from './users-fake.ts';
 import { pngDataUrl } from './png-fixture.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
+import { mayCreateOrganization } from '../src/auth/operator.ts';
 
 let workos: FakeWorkos;
 let server: Server;
@@ -112,7 +113,13 @@ describe('signing in to metro.box through WorkOS', () => {
       workos.organizations.push('org_01INVITED00000');
       await deps.users.setStatus('user_02BOB', 'waitlist');
       expect(await landAfterGoogle('login')).toMatch(/^#\/auth\//);
-      expect((await deps.users.find('user_02BOB'))?.status).toBe('approved');
+      expect((await deps.users.find('user_02BOB'))?.status).toBe('waitlist');
+      const member = await signIn();
+      const refused = await json('POST', '/api/auth/organization', { name: 'Not yet', refreshToken: member.refreshToken }, member.accessToken);
+      expect(refused.status).toBe(403);
+      expect(workos.calls.some((c) => c.path === '/organizations' && JSON.stringify(c.body).includes('Not yet'))).toBe(false);
+      await deps.users.setStatus('user_02BOB', 'approved');
+      expect(await mayCreateOrganization(deps.users, 'user_02BOB')).toBe(true);
     } finally {
       workos.organizations.splice(0, workos.organizations.length, ...before);
       workos.actor.sub = 'user_01ABC';

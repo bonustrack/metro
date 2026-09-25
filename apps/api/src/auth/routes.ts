@@ -9,7 +9,7 @@ import type { SlugStore } from '../slug.js';
 import type { ServerEntry } from '../server-types.js';
 import { parseAccountName, type UserStore } from '../users.js';
 import { AVATAR_BODY_MAX, parseAvatar } from '../avatar.js';
-import { admit, stillIn, type Intent, type Refusal } from './operator.js';
+import { admit, stillIn, type Intent, type Refusal, mayCreateOrganization } from './operator.js';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import {
   addMembership,
@@ -256,6 +256,8 @@ async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDe
   const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
   if (!ORGANIZATION_NAME_RE.test(name)) throw new ApiError('the organization name must be 2 to 64 characters', 400);
   if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
+  if (!(await mayCreateOrganization(deps.users, session.userId)))
+    throw new ApiError('Creating an organization needs an approved account. Join the waitlist, and you can create one once you are let in.', 403);
   const organization = await createOrganization(cfg, name);
   await addMembership(cfg, session.userId, organization, 'admin');
   log.info({ user: session.userId, organization, name }, 'auth: organization created');
