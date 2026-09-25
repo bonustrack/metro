@@ -1,12 +1,14 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button, Input, Text } from './ui.js';
-import { GROW, SHRINK } from '../theme.js';
+import { GROW } from '../theme.js';
 import { allowsEveryone, EVERYONE } from '../api/accounts.js';
 import { fetchRecentSenders, lookupSender, setAllowlist, type RecentSender } from '../api/attach.js';
-import { queryError, useModeQuery } from '../api/queries.js';
+import { queryError, useBoxQuery, useModeQuery } from '../api/queries.js';
 import { olderThan } from '../api/version.js';
+import { fetchSenderCards, SENDER_NAMES_SINCE, type SenderCard } from '../api/senders.js';
+import { SenderRow } from './SenderRow.js';
 
 const SAVE_FAILED = 'Could not save who may reach this agent.';
 const NO_INPUT = { autoComplete: 'off', autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
@@ -114,43 +116,7 @@ interface EditorProps {
   onError: (message: string | null) => void;
   approvers: string[] | null;
   onApprove: (id: string, approves: boolean) => void;
-}
-
-interface SenderRowProps {
-  id: string;
-  name: string;
-  busy: boolean;
-  approves: boolean | null;
-  onApprove: (approves: boolean) => void;
-  onRemove: () => void;
-}
-
-function SenderRow({ id, name, busy, approves, onApprove, onRemove }: SenderRowProps): ReactNode {
-  const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
-  return (
-    <Row justify="between" align="center" gap={12} padding={{ y: 10 }} border={{ bottom: { width: 1, color: palette.border } }}>
-      <Col gap={2} style={SHRINK}>
-        <Text size="sm" numberOfLines={1}>{name === '' ? id : name}</Text>
-        {name === '' ? null : <Text size="sm" role="secondary" numberOfLines={1}>{id}</Text>}
-      </Col>
-      <Row gap={8} align="center">
-        {approves === null ? null : (
-          <Button
-            size="sm"
-            color={approves ? 'primary' : 'secondary'}
-            dark={dark}
-            disabled={busy}
-            label={approves ? 'Can approve' : 'Cannot approve'}
-            onPress={() => {
-              onApprove(!approves);
-            }}
-          />
-        )}
-        <Button size="sm" color="secondary" dark={dark} disabled={busy} label="Remove" onPress={onRemove} />
-      </Row>
-    </Row>
-  );
+  cards: SenderCard[];
 }
 
 function Suggestions({ senders, busy, onAdd }: { senders: RecentSender[]; busy: boolean; onAdd: (id: string) => void }): ReactNode {
@@ -178,14 +144,15 @@ function Suggestions({ senders, busy, onAdd }: { senders: RecentSender[]; busy: 
   );
 }
 
-function Editor({ agentId, station, accountId, entries, seen, busy, onAdd, onRemove, onError, approvers, onApprove }: EditorProps): ReactNode {
+function Editor({ agentId, station, accountId, entries, seen, busy, onAdd, onRemove, onError, approvers, onApprove, cards }: EditorProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [draft, setDraft] = useState('');
   const submit = (): void => {
     onAdd(draft);
     setDraft('');
   };
-  const nameOf = (id: string): string => seen.find((s) => s.id === id)?.name ?? '';
+  const cardOf = (id: string): SenderCard | undefined => cards.find((c) => c.id.toLowerCase() === id.toLowerCase());
+  const nameOf = (id: string): string => cardOf(id)?.name ?? seen.find((s) => s.id === id)?.name ?? '';
   return (
     <Col gap={12}>
       {entries.length === 0 ? (
@@ -195,8 +162,10 @@ function Editor({ agentId, station, accountId, entries, seen, busy, onAdd, onRem
           {entries.map((entry) => (
             <SenderRow
               key={entry}
+              station={station}
               id={entry}
               name={nameOf(entry)}
+              handle={cardOf(entry)?.handle ?? ''}
               busy={busy !== null}
               approves={approvers === null ? null : isIn(approvers, entry)}
               onApprove={(approves) => {
@@ -250,6 +219,16 @@ interface AllowlistProps {
   onSaved: () => Promise<unknown>;
 }
 
+function useSenderCards(agentId: string, station: string, accountId: string, entries: string[]): SenderCard[] {
+  const mode = useModeQuery();
+  const enabled = mode.data !== undefined && !olderThan(mode.data.version, SENDER_NAMES_SINCE) && entries.length > 0;
+  const cards = useBoxQuery(['sender-cards', agentId, station, accountId, entries.join('\n')], () => fetchSenderCards(agentId, station, accountId), {
+    enabled,
+    staleTime: 600_000,
+  });
+  return cards.data ?? [];
+}
+
 function useShownApprovers(station: string, approvers: string[]): string[] | null {
   const mode = useModeQuery();
   const shown = mode.data !== undefined && !olderThan(mode.data.version, APPROVERS_SINCE) && !NO_CHAT_APPROVALS.has(station);
@@ -263,6 +242,7 @@ export function Allowlist({ agentId, station, accountId, allowlist, approvers, o
   const shownApprovers = useShownApprovers(station, approvers);
   const everyone = allowsEveryone(allowlist);
   const entries = (allowlist ?? []).filter((entry) => entry !== EVERYONE);
+  const cards = useSenderCards(agentId, station, accountId, entries);
   const [restricting, setRestricting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -331,6 +311,7 @@ export function Allowlist({ agentId, station, accountId, allowlist, approvers, o
           onRemove={(id) => { save(entries.filter((e) => e !== id), id); }}
           onError={setError}
           approvers={shownApprovers}
+          cards={cards}
           onApprove={(id, yes) => {
             save(entries, id, yes ? [...approvers, id] : approvers.filter((a) => a.toLowerCase() !== id.toLowerCase()));
           }}

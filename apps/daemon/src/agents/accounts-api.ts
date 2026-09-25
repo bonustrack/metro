@@ -5,15 +5,11 @@ import { approversForAccount } from './map.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { RecentSender } from './senders.js';
 import { ApiError } from '@metro-labs/http/api-error';
-import {
-  apiFailure,
-  bodyField,
-  readJsonBody,
-  sendJson,
-} from '@metro-labs/http/api-http';
+import { apiFailure, bodyField, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { type AccountRef } from './account-attach.js';
 import { type AccountRoute } from './account-routes.js';
 import { handlePolicy, type SetPolicy } from './policy-route.js';
+import { LOOKUPS } from './account-lookups.js';
 import { stationByName } from '../stations/registry.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import {
@@ -92,46 +88,7 @@ export interface AccountApiDeps {
   ) => Promise<boolean>;
 }
 
-export const ATTACHABLE: string[] = [
-  ...ATTACHABLE_STATIONS,
-  ...INTERACTIVE_STATIONS,
-];
-
-function lookupQuery(req: IncomingMessage): string {
-  const params = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
-  return (params.get('q') ?? '').trim();
-}
-
-async function handleResolve(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: AccountApiDeps,
-  target: { station: StationName; accountId: string },
-): Promise<void> {
-  if (stationByName(target.station)?.resolvesSenders !== true)
-    throw new ApiError(`metro cannot look a sender up on ${target.station}`, 400);
-  const query = lookupQuery(req);
-  if (query === '') throw new ApiError('a number to look up is required', 400);
-  const found = await deps.resolveSender(target.station, target.accountId, query);
-  sendJson(req, res, 200, found);
-}
-
-async function handleName(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: AccountApiDeps,
-  target: { station: StationName; accountId: string },
-): Promise<void> {
-  if (stationByName(target.station)?.claimsName !== true)
-    throw new ApiError(`${target.station} accounts have no name to claim`, 400);
-  if (req.method === 'GET') {
-    sendJson(req, res, 200, await deps.accountCall(target.station, 'name', { account: target.accountId }));
-    return;
-  }
-  const label = bodyField(await readJsonBody(req), 'label');
-  if (typeof label !== 'string' || label.trim() === '') throw new ApiError('a label is required', 400);
-  sendJson(req, res, 200, await deps.accountCall(target.station, 'claim_name', { account: target.accountId, label }));
-}
+export const ATTACHABLE: string[] = [...ATTACHABLE_STATIONS, ...INTERACTIVE_STATIONS];
 
 async function activate(
   deps: AccountApiDeps,
@@ -353,6 +310,18 @@ async function handleStep(
   sendJson(req, res, 200, view);
 }
 
+async function dispatchAttach(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: AccountApiDeps,
+  agentId: string,
+  route: Extract<AccountRoute, { kind: 'start' | 'session' | 'step' }>,
+): Promise<void> {
+  if (route.kind === 'start') return handleStart(req, res, deps, agentId);
+  if (route.kind === 'session') return handleSession(req, res, deps, { agentId }, route.attachId);
+  return handleStep(req, res, deps, { agentId }, route.attachId);
+}
+
 async function dispatchRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -360,27 +329,12 @@ async function dispatchRoute(
   agentId: string,
   route: AccountRoute,
 ): Promise<void> {
-  if (route.kind === 'start')
-    return handleStart(req, res, deps, agentId);
-  if (route.kind === 'session')
-    return handleSession(
-      req,
-      res,
-      deps,
-      { agentId },
-      route.attachId,
-    );
-  if (route.kind === 'step')
-    return handleStep(req, res, deps, { agentId }, route.attachId);
+  if (route.kind === 'start' || route.kind === 'session' || route.kind === 'step') return dispatchAttach(req, res, deps, agentId, route);
   if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, agentId, route);
   if (route.kind === 'enabled') return handleEnabled(req, res, deps, agentId, route);
   if (route.kind === 'policy') return handlePolicy(req, res, deps, agentId, route);
-  if (route.kind === 'resolve') return handleResolve(req, res, deps, route);
-  if (route.kind === 'name') return handleName(req, res, deps, route);
-  if (route.kind === 'senders') {
-    sendJson(req, res, 200, { senders: deps.recentSenders(route.station, route.accountId) });
-    return;
-  }
+  const lookup = LOOKUPS[route.kind];
+  if (lookup !== undefined && 'station' in route) return lookup(req, res, deps, route);
   return handleDetach(req, res, deps, agentId, route);
 }
 

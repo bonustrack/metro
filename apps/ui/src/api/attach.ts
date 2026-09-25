@@ -239,7 +239,7 @@ export interface RecentSender {
   at: string;
 }
 
-const accountPath = (agentId: string, station: string, accountId: string): string =>
+export const accountPath = (agentId: string, station: string, accountId: string): string =>
   `/${agentId}/accounts/${encodeURIComponent(station)}/${encodeURIComponent(accountId)}`;
 
 export async function setPolicy(agentId: string, station: string, accountId: string, policy: ToolPolicy): Promise<ToolPolicy> {
