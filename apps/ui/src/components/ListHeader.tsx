@@ -2,8 +2,16 @@ import { type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { PageTitle } from './PageTitle.js';
 import { CountBadge } from './CountBadge.js';
+import { useTabbed } from './tabbed.js';
 
 export function ListHeader({ title, count, action }: { title: string; count?: number; action?: ReactNode }): ReactNode {
+  const tabbed = useTabbed();
+  if (tabbed)
+    return action === undefined ? null : (
+      <Row justify="end" align="center">
+        {action}
+      </Row>
+    );
   return (
     <Row justify="between" align="center" gap={12} wrap>
       <Row gap={10} align="center">

@@ -13,7 +13,7 @@ export const NAV_ROW_BOX = {
   padding: { x: 12, y: 4 },
   margin: { x: -12 },
 } as const;
-export const NAV_ICON_SIZE = 18;
+export const NAV_ICON_SIZE = 20;
 
 export const NAV_GAP = 6;
 
@@ -46,7 +46,7 @@ export function NavRow({
   const body = (
     <Row {...NAV_ROW_BOX}>
       {icon === undefined ? null : <NavIcon name={icon} color={selected ? palette.link : palette.sub} />}
-      <Text size="md" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
+      <Text size="lg" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
         {label}
       </Text>
     </Row>

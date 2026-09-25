@@ -1,34 +1,37 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Button, Text } from './ui.js';
+import { SHRINK } from '../theme.js';
 import { PageTitle } from './PageTitle.js';
-import { InfoRow } from './InfoRow.js';
 import { setPolicy, stationLabel } from '../api/attach.js';
 import { stationFields, type AccountRow } from '../api/accounts.js';
 import { type AgentSummary } from '../api/client.js';
+import { queryError } from '../api/queries.js';
+import { useAgentName } from '../api/agent-name.js';
 import { BackLink } from './BackLink.js';
-import { CopyBlock } from './CopyBlock.js';
-import { DetachAccount } from './DetachAccount.js';
+import { Choice } from './Choice.js';
+import { CopyRow } from './CopyRow.js';
+import { ConfirmDialog, useConfirm } from './DeleteMenu.js';
+import { detachLines } from './DetachAccount.js';
 import { CALLBACK_NOTE } from './AttachedAccount.js';
-import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
 import { StationIcon } from './StationIcon.js';
-import { Pill } from './Pill.js';
 import { type DetachHandler } from './AccountList.js';
 import { Allowlist } from './Allowlist.js';
-import { ToggleAccount } from './ToggleAccount.js';
 import { StationName } from './StationName.js';
 import { Permissions } from './Permissions.js';
+import { FactRow, SettingsGroup, SettingsSection } from './SettingsSection.js';
+import { factLabel, factValue } from './channel-facts.js';
 import { type GroupedTool } from '../api/policy.js';
 
-function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
-  return (
-    <Col gap={10}>
-      <Text size="lg" weight="semibold">{title}</Text>
-      {children}
-    </Col>
-  );
-}
+const ICON = 32;
+const ENDPOINT_NOTE = 'Whoever holds this URL can post to the agent. Paste it straight into the service, never anywhere public.';
+const RECEIVE_ON = 'The agent gets the messages written here.';
+const RECEIVE_OFF = 'Paused. Messages written here do not reach the agent.';
+const RECEIVE_ONLY = 'This channel only brings messages in. The agent cannot write here.';
+
+type Toggle = (station: string, accountId: string, enabled: boolean) => Promise<void>;
 
 interface StationDetailProps {
   station: string;
@@ -37,225 +40,182 @@ interface StationDetailProps {
   agent: AgentSummary | undefined;
   verbs: string[];
   tools: GroupedTool[];
-  onOpenAgent: (id: string) => void;
   onDetach?: DetachHandler;
   onAllowlistSaved?: () => Promise<unknown>;
-  onToggle?: (station: string, accountId: string, enabled: boolean) => Promise<void>;
+  onToggle?: Toggle;
 }
 
-function Heading({
-  station,
-  project,
-  row,
-  agent,
-  onOpenAgent,
-}: StationDetailProps): ReactNode {
-  const handle = stationFields(row).handle ?? row.id ?? stationLabel(station);
+function Header({ station, project, row }: { station: string; project: string; row: AccountRow }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const { handle, url } = stationFields(row);
+  const back = routeHash({ kind: 'stations', project });
   return (
-    <Col gap={8}>
-      <Row gap={10} align="center">
-        <StationIcon station={station} size={18} />
-        <Text size="sm" role="secondary">{stationLabel(station)}</Text>
-      </Row>
-      <Row gap={10} align="center">
-        <PageTitle>{handle}</PageTitle>
-        {row.enabled ? null : <Pill label="Disabled" />}
-      </Row>
-      <Row gap={6} align="center" wrap>
-        <Text size="sm" role="secondary">{row.id ?? 'no id'}</Text>
-        {agent === undefined ? null : (
-          <>
-            <Text size="sm" role="secondary">on</Text>
-            <a
-              className="hint-link"
-              href={routeHash({ kind: 'home', project })}
-              onClick={(e) => {
-                if (opensElsewhere(e)) return;
-                e.preventDefault();
-                onOpenAgent(agent.id);
-              }}
-            >
-              <Text size="sm">{agent.name === '' ? 'Agent' : agent.name}</Text>
-            </a>
-          </>
+    <Col gap={16}>
+      <BackLink
+        label="Channels"
+        href={back}
+        onPress={() => {
+          window.location.hash = back;
+        }}
+      />
+      <Row justify="between" align="center" gap={16}>
+        <Row gap={14} align="center" style={SHRINK}>
+          <StationIcon station={station} size={ICON} />
+          <Col gap={2} style={SHRINK}>
+            <PageTitle>{handle ?? row.id ?? stationLabel(station)}</PageTitle>
+            <Text size="sm" role="secondary">
+              {`${stationLabel(station)} · ${row.enabled ? 'Receiving' : 'Paused'}`}
+            </Text>
+          </Col>
+        </Row>
+        {url === undefined ? null : (
+          <Button
+            size="sm"
+            color="secondary"
+            dark={dark}
+            label={`Open in ${stationLabel(station)}`}
+            onPress={() => {
+              window.open(url, '_blank', 'noreferrer');
+            }}
+          />
         )}
       </Row>
     </Col>
   );
 }
 
-function AllowlistSection({
-  station,
-  row,
-  agentId,
-  onSaved,
-}: {
-  station: string;
-  row: AccountRow;
-  agentId: string | undefined;
-  onSaved: (() => Promise<unknown>) | undefined;
-}): ReactNode {
-  const id = row.id;
-  if (id === null || agentId === undefined || onSaved === undefined || row.allowlist === null) return null;
-  return <Allowlist agentId={agentId} station={station} accountId={id} allowlist={row.allowlist} approvers={row.approvers} onSaved={onSaved} />;
-}
-
-function PermissionsSection({
-  station,
-  row,
-  agentId,
-  tools,
-  onSaved,
-}: {
-  station: string;
-  row: AccountRow;
-  agentId: string | undefined;
-  tools: GroupedTool[];
-  onSaved: (() => Promise<unknown>) | undefined;
-}): ReactNode {
-  const id = row.id;
-  if (id === null || agentId === undefined || onSaved === undefined || tools.length === 0) return null;
+function NameSetup({ station, id, agentId }: { station: string; id: string | null; agentId: string | undefined }): ReactNode {
+  if (station !== 'xmtp' || id === null || agentId === undefined) return null;
   return (
-    <Permissions
-      policy={row.policy}
-      tools={tools}
-      store={(next) => setPolicy(agentId, station, id, next)}
-      onSaved={onSaved}
-    />
+    <div className="settings-pad">
+      <StationName agentId={agentId} station={station} accountId={id} />
+    </div>
   );
 }
 
-function NameSection({ station, row, agentId }: { station: string; row: AccountRow; agentId: string | undefined }): ReactNode {
-  if (station !== 'xmtp' || row.id === null || agentId === undefined) return null;
+function Setup({ station, row, agentId }: { station: string; row: AccountRow; agentId: string | undefined }): ReactNode {
+  const { endpoint, callback } = stationFields(row);
+  const named = station === 'xmtp' && row.id !== null && agentId !== undefined;
+  if (endpoint === undefined && callback === undefined && !named) return null;
   return (
-    <Section title="Name">
-      <StationName agentId={agentId} station={station} accountId={row.id} />
-    </Section>
+    <SettingsGroup title="Setup">
+      {callback === undefined ? null : <CopyRow title="Callback URL" note={CALLBACK_NOTE} value={callback} secret />}
+      {endpoint === undefined ? null : <CopyRow title="Webhook URL" note={ENDPOINT_NOTE} value={endpoint} secret />}
+      <NameSetup station={station} id={row.id} agentId={agentId} />
+    </SettingsGroup>
   );
 }
 
-function HeaderActions({
-  station,
-  row,
-  onToggle,
-  onDetach,
-}: {
-  station: string;
-  row: AccountRow;
-  onToggle: StationDetailProps['onToggle'];
-  onDetach: DetachHandler | undefined;
-}): ReactNode {
-  const id = row.id;
-  if (id === null) return null;
+function Details({ station, row }: { station: string; row: AccountRow }): ReactNode {
+  const { details } = stationFields(row);
   return (
-    <Row gap={8} align="center">
-      {onToggle === undefined ? null : <ToggleAccount station={station} accountId={id} enabled={row.enabled} onToggle={onToggle} />}
-      {onDetach === undefined ? null : <DetachAccount station={station} accountId={id} onDetach={onDetach} />}
-    </Row>
+    <SettingsGroup title="Details">
+      {row.id === null ? null : <FactRow label="Channel id" value={row.id} />}
+      {row.id === null ? null : <FactRow label="Address for the agent" value={`metro://${station}/${row.id}`} />}
+      {details.map((field) => (
+        <FactRow key={field.label} label={factLabel(field.label)} value={factValue(field.value)} />
+      ))}
+    </SettingsGroup>
   );
 }
 
-export function StationDetail(props: StationDetailProps): ReactNode {
-  const { project } = props;
-  const { station, row, agent, verbs, tools, onOpenAgent, onDetach, onAllowlistSaved, onToggle } = props;
-  const { url, endpoint, callback, details } = stationFields(row);
-  const id = row.id;
-  const agentId = agent?.id;
-
+function Receive({ station, id, enabled, onToggle }: { station: string; id: string; enabled: boolean; onToggle: Toggle }): ReactNode {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const flip = (next: boolean): void => {
+    setBusy(true);
+    setError(null);
+    onToggle(station, id, next)
+      .catch((err: unknown) => {
+        setError(queryError(err, next ? 'Could not turn the channel on.' : 'Could not pause the channel.'));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
   return (
-    <Col gap={20}>
-      <Col gap={12}>
-        <Row justify="between" align="center" gap={12}>
-          {agent === undefined ? (
-            <Col />
-          ) : (
-            <BackLink
-              label={agent.name === '' ? 'Agent' : agent.name}
-              href={routeHash({ kind: 'home', project })}
-              onPress={() => {
-                onOpenAgent(agent.id);
-              }}
-            />
-          )}
-          <HeaderActions station={station} row={row} onToggle={onToggle} onDetach={onDetach} />
-        </Row>
-        <Heading {...props} />
-      </Col>
+    <SettingsSection title="Receive messages" note={enabled ? RECEIVE_ON : RECEIVE_OFF}>
+      <Choice
+        label="Receive messages"
+        value={enabled ? 'on' : 'off'}
+        options={[
+          { value: 'on', label: 'On' },
+          { value: 'off', label: 'Off' },
+        ]}
+        disabled={busy}
+        onChange={(value) => {
+          flip(value === 'on');
+        }}
+      />
+      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+    </SettingsSection>
+  );
+}
 
-      {id === null ? null : (
-        <CopyBlock label="line" value={`metro://${station}/${id}`} />
+function Remove({ station, id, project, onDetach }: { station: string; id: string; project: string; onDetach: DetachHandler }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const confirming = useConfirm(
+    () => onDetach(station, id),
+    'Could not delete the channel.',
+    () => {
+      window.location.hash = routeHash({ kind: 'stations', project });
+    },
+  );
+  return (
+    <SettingsSection title="Delete channel" note="Removes it from the agent, with the keys Metro keeps for it.">
+      <Button size="sm" color="danger" dark={dark} label="Delete" onPress={confirming.show} />
+      <ConfirmDialog confirming={confirming} title="Delete channel" lines={detachLines(station)} action="Delete channel" word={id} />
+    </SettingsSection>
+  );
+}
+
+function Manage({ station, project, row, onToggle, onDetach }: { station: string; project: string; row: AccountRow; onToggle?: Toggle; onDetach?: DetachHandler }): ReactNode {
+  const id = row.id;
+  if (id === null || (onToggle === undefined && onDetach === undefined)) return null;
+  return (
+    <SettingsGroup title="Manage">
+      {onToggle === undefined ? null : <Receive station={station} id={id} enabled={row.enabled} onToggle={onToggle} />}
+      {onDetach === undefined ? null : <Remove station={station} id={id} project={project} onDetach={onDetach} />}
+    </SettingsGroup>
+  );
+}
+
+function Abilities({ station, row, agent, verbs, tools, onSaved }: { station: string; row: AccountRow; agent: AgentSummary | undefined; verbs: string[]; tools: GroupedTool[]; onSaved?: () => Promise<unknown> }): ReactNode {
+  const title = `What ${useAgentName()} may do here`;
+  const id = row.id;
+  if (verbs.length === 0)
+    return (
+      <SettingsGroup title={title}>
+        <div className="settings-pad">
+          <Text size="sm" role="secondary">{RECEIVE_ONLY}</Text>
+        </div>
+      </SettingsGroup>
+    );
+  if (id === null || agent === undefined || onSaved === undefined || tools.length === 0) return null;
+  return <Permissions title={title} policy={row.policy} tools={tools} store={(next) => setPolicy(agent.id, station, id, next)} onSaved={onSaved} />;
+}
+
+export function StationDetail({ station, project, row, agent, verbs, tools, onDetach, onAllowlistSaved, onToggle }: StationDetailProps): ReactNode {
+  const id = row.id;
+  const name = useAgentName();
+  return (
+    <Col gap={32}>
+      <Header station={station} project={project} row={row} />
+      {id === null || agent === undefined || onAllowlistSaved === undefined || row.allowlist === null ? null : (
+        <Allowlist
+          title={`Who can write to ${name}`}
+          agentId={agent.id}
+          station={station}
+          accountId={id}
+          allowlist={row.allowlist}
+          approvers={row.approvers}
+          onSaved={onAllowlistSaved}
+        />
       )}
-
-      {endpoint === undefined ? null : (
-        <Section title="Endpoint">
-          <Col gap={8}>
-            <CopyBlock label="post events here" value={endpoint} secret />
-            <Text size="sm" role="secondary">
-              The whole URL is the credential. Anyone holding it can post events
-              to this agent, so paste it straight into the provider and do not
-              put it anywhere public.
-            </Text>
-          </Col>
-        </Section>
-      )}
-
-      {callback === undefined ? null : (
-        <Section title="Callback">
-          <Col gap={8}>
-            <CopyBlock label="threema delivers here" value={callback} secret />
-            <Text size="sm" role="secondary">
-              {CALLBACK_NOTE}
-            </Text>
-          </Col>
-        </Section>
-      )}
-
-      <NameSection station={station} row={row} agentId={agentId} />
-
-      {url === undefined ? null : (
-        <Section title="Link">
-          <Col>
-            <CopyBlock
-              label="profile"
-              value={url}
-              actions={
-                <a className="hint-link" href={url} target="_blank" rel="noreferrer">
-                  <Text size="sm">Open</Text>
-                </a>
-              }
-            />
-          </Col>
-        </Section>
-      )}
-
-      {details.length === 0 ? null : (
-        <Section title="Details">
-          <Col>
-            {details.map((field) => (
-              <InfoRow key={field.label} label={field.label} value={field.value} padY={12} />
-            ))}
-          </Col>
-        </Section>
-      )}
-
-      <AllowlistSection station={station} row={row} agentId={agentId} onSaved={onAllowlistSaved} />
-
-      <PermissionsSection station={station} row={row} agentId={agentId} tools={tools} onSaved={onAllowlistSaved} />
-
-      <Section title="What this station can do">
-        {verbs.length === 0 ? (
-          <Text size="sm" role="secondary">
-            Inbound only. Events from this station reach the agent, and the agent
-            cannot send, reply or react on its lines.
-          </Text>
-        ) : (
-          <Row gap={8} wrap>
-            {verbs.map((verb) => (
-              <Text key={verb} size="sm">{verb}</Text>
-            ))}
-          </Row>
-        )}
-      </Section>
+      <Abilities station={station} row={row} agent={agent} verbs={verbs} tools={tools} onSaved={onAllowlistSaved} />
+      <Setup station={station} row={row} agentId={agent?.id} />
+      <Details station={station} row={row} />
+      <Manage station={station} project={project} row={row} onToggle={onToggle} onDetach={onDetach} />
     </Col>
   );
 }

@@ -62,8 +62,17 @@ export function SaveField({ saving, name, placeholder, editable = true }: SaveFi
   return (
     <>
       <Row gap={8} align="center" wrap>
-        <Input name={name} value={saving.value} placeholder={placeholder} dark={dark} disabled={saving.busy || !editable} onChangeText={saving.setValue} />
-        {editable ? <Button color="primary" dark={dark} label={saving.busy ? 'Saving…' : 'Save'} loading={saving.busy} disabled={saving.busy || !saving.ready} onPress={saving.save} /> : null}
+        <Input
+          name={name}
+          value={saving.value}
+          placeholder={placeholder}
+          dark={dark}
+          disabled={saving.busy || !editable}
+          onChangeText={saving.setValue}
+        />
+        {editable && (saving.ready || saving.busy) ? (
+          <Button color="primary" dark={dark} label={saving.busy ? 'Saving…' : 'Save'} loading={saving.busy} disabled={saving.busy} onPress={saving.save} />
+        ) : null}
       </Row>
       {saving.error !== null ? <Text size="sm" role="danger">{saving.error}</Text> : saving.saved ? <Text size="sm" role="secondary">Saved.</Text> : null}
     </>

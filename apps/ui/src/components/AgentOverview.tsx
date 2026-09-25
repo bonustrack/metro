@@ -3,7 +3,6 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
-import { Pill } from './Pill.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { StationIcon } from './StationIcon.js';
 import { ChatIcon } from './ChatIcon.js';
@@ -27,37 +26,47 @@ export function AgentPicture({ server, seed }: { server: Server | undefined; see
   return <AgentAvatar seed={server.host} src={server.avatar} size={PAGE_AVATAR} />;
 }
 
-function harnessLabel(status: ClaudeSessionStatus | undefined): string {
-  if (status === undefined) return 'Harness · checking';
-  if (status.running) return 'Harness · running';
-  if (status.blocked !== null) return 'Harness · waiting';
-  return 'Harness · not running';
+interface Status {
+  text: string;
+  tone: 'good' | 'idle' | 'bad';
+  fix?: Selection;
 }
 
-export function StatusPills({ host, project, onSelect }: { host: string | null; project: string; onSelect: (s: Selection) => void }): ReactNode {
+function statusOf(state: string | undefined, session: ClaudeSessionStatus | undefined, project: string): Status {
+  if (state === undefined) return { text: 'Checking…', tone: 'idle' };
+  if (state === 'stopped') return { text: 'Stopped. Start it again from Settings, Server.', tone: 'bad', fix: { kind: 'server', project } };
+  if (state !== 'live') return { text: 'Offline. The server does not answer.', tone: 'bad' };
+  if (session === undefined) return { text: 'Online', tone: 'good' };
+  if (session.running) return { text: 'Online and ready', tone: 'good' };
+  if (session.blocked !== null) return { text: `Online, but not ready: ${session.blocked}`, tone: 'bad', fix: { kind: 'claude', project } };
+  return { text: 'Online, but Claude Code is not running', tone: 'bad', fix: { kind: 'claude', project } };
+}
+
+export function StatusLine({ host, project, onSelect }: { host: string | null; project: string; onSelect: (s: Selection) => void }): ReactNode {
   const status = useServerStatus(host ?? '');
   const session = useClaudeSessionQuery();
-  const target: Selection = { kind: 'claude', project };
-  const live = status.data?.state === 'live';
+  const { text, tone, fix } = statusOf(host === null ? undefined : status.data?.state, session.data, project);
+  const body = (
+    <span className="status-line">
+      <span className={`status-line-dot is-${tone}`} aria-hidden="true" />
+      <Text size="md" role={tone === 'bad' ? 'danger' : 'secondary'}>
+        {text}
+      </Text>
+    </span>
+  );
+  if (fix === undefined) return body;
   return (
-    <Row gap={8} align="center" wrap>
-      {host === null || status.data === undefined ? (
-        <Pill label="Checking" />
-      ) : (
-        <Pill label={live ? 'Live' : status.data.state === 'stopped' ? 'Stopped' : 'Offline'} variant={live ? 'primary' : 'default'} />
-      )}
-      <a
-        className="pill-link"
-        href={routeHash(target)}
-        onClick={(e) => {
-          if (opensElsewhere(e)) return;
-          e.preventDefault();
-          onSelect(target);
-        }}
-      >
-        <Pill label={harnessLabel(session.data)} variant={session.data?.running === true ? 'primary' : 'default'} />
-      </a>
-    </Row>
+    <a
+      className="status-line-link"
+      href={routeHash(fix)}
+      onClick={(e) => {
+        if (opensElsewhere(e)) return;
+        e.preventDefault();
+        onSelect(fix);
+      }}
+    >
+      {body}
+    </a>
   );
 }
 

@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
+import { EmptyCard, SettingsGroup } from './SettingsSection.js';
 import { ListHeader } from './ListHeader.js';
 import {
   connectorsInOrder,
@@ -22,6 +23,7 @@ import { useDocumentTitle } from '../title.js';
 
 
 const FALLBACK = 'Could not load your connectors.';
+const EMPTY = 'No connector yet. A connector gives your agent tools, like a calendar, Notion or GitHub.';
 
 interface ConnectorsBodyProps {
   project: string;
@@ -41,9 +43,9 @@ function ConnectorsBody({
   onError,
 }: ConnectorsBodyProps): ReactNode {
   const rows = connectorsInOrder(data.connectors);
-  if (rows.length === 0) return null;
+  if (rows.length === 0) return <EmptyCard text={EMPTY} />;
   return (
-    <Col>
+    <SettingsGroup>
       {rows.map((row) => (
         <ConnectorRow
           key={row.id}
@@ -55,7 +57,7 @@ function ConnectorsBody({
           onError={onError}
         />
       ))}
-    </Col>
+    </SettingsGroup>
   );
 }
 

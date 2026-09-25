@@ -14,7 +14,7 @@ function Status({ phase, check, onUpdate }: { phase: Phase; check: Version; onUp
   if (phase.kind === 'done')
     return <Text size="sm" role="secondary">{phase.restarted ? `Updated to ${phase.to}. The session restarts on the new build.` : `Updated to ${phase.to}.`}</Text>;
   if (check.newer && check.latest !== null) return <Button size="sm" color="secondary" dark={dark} label={`Update to ${check.latest}`} onPress={onUpdate} />;
-  if (check.installed !== null && check.latest !== null) return <Text size="sm" role="secondary">up to date</Text>;
+  if (check.installed !== null && check.latest !== null) return <Text size="sm" role="secondary">Up to date</Text>;
   return null;
 }
 
@@ -44,7 +44,7 @@ export function ClaudeVersion(): ReactNode {
   return (
     <Row gap={10} align="center" wrap>
       <Text size="sm" role="secondary">
-        {installed === null ? 'Claude Code is not installed on this machine' : `Claude Code ${installed}`}
+        {installed === null ? 'Not installed yet' : `Version ${installed}`}
       </Text>
       <Status phase={phase} check={check.data} onUpdate={update} />
       {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}

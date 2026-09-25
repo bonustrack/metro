@@ -77,7 +77,7 @@ function Block({ title, note, text, empty }: { title: string; note: string | nul
   return (
     <Col gap={6}>
       <Row gap={10} align="center">
-        <Text size="md" weight="semibold">{title}</Text>
+        <Text size="lg" weight="medium">{title}</Text>
         {note === null ? null : <Text size="sm" role="secondary">{note}</Text>}
       </Row>
       {text.trim() === '' ? <Text size="sm" role="secondary">{empty}</Text> : <pre className="job-block">{text}</pre>}

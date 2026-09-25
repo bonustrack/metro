@@ -97,7 +97,7 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
         <Col gap={2}>
           <Row gap={8} align="center">
             <StatusDot host={server.host} />
-            <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
+            <Text size="md" weight="medium" numberOfLines={1} style={SHRINK}>
               {serverLabel(server)}
             </Text>
           </Row>
@@ -177,7 +177,6 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
   useDocumentTitle('Agents');
   return (
     <Frame
-      selection={{ kind: 'servers' }}
       sidebar={(closeMenu) => (
         <PlainSidebar
           selection={{ kind: 'servers' }}

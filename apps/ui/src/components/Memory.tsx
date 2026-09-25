@@ -13,10 +13,16 @@ import { type Selection } from './selection.js';
 import { deleteMemoryFile, type MemoryFile } from '../api/claude.js';
 import { queryError, refresh, useMemoryFileQuery, useMemoryQuery } from '../api/queries.js';
 import { ListHeader } from './ListHeader.js';
-import { sizeLabel, whenLabel } from '../api/when.js';
+import { EmptyCard, SettingsGroup } from './SettingsSection.js';
+import { whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
 const isFile = (path: string | null): path is string => path?.endsWith('.md') === true;
+
+function noteTitle(name: string): string {
+  const words = fileLeaf(name).replace(/\.md$/i, '').replace(/[_-]+/g, ' ').trim();
+  return words === '' ? name : `${words.slice(0, 1).toUpperCase()}${words.slice(1)}`;
+}
 
 function folderAt(root: MemoryFolder, path: string): MemoryFolder | null {
   let at: MemoryFolder | undefined = root;
@@ -25,16 +31,16 @@ function folderAt(root: MemoryFolder, path: string): MemoryFolder | null {
 }
 
 const folderDetail = (folder: MemoryFolder): string => {
-  const files = `${String(folder.count)} ${folder.count === 1 ? 'file' : 'files'}`;
+  const files = `${String(folder.count)} ${folder.count === 1 ? 'note' : 'notes'}`;
   return folder.modifiedAt === '' ? files : `${files} · ${whenLabel(folder.modifiedAt)}`;
 };
 
 function memoryCrumbs(project: string, claudeProject: string, path: string, onSelect: (s: Selection) => void): Crumb[] {
   const parts = path.split('/').filter((p) => p !== '');
-  return ['Memory', ...parts].map((label, at) => {
+  return ['Notes', ...parts].map((label, at) => {
     const folder = parts.slice(0, at).join('/');
     const target: Selection = { kind: 'memory', project, claudeProject, file: folder === '' ? null : folder };
-    return { label: at === parts.length && isFile(path) ? fileLeaf(label) : label, href: routeHash(target), onPress: () => { onSelect(target); } };
+    return { label: at === parts.length && isFile(path) ? noteTitle(label) : label, href: routeHash(target), onPress: () => { onSelect(target); } };
   });
 }
 
@@ -43,10 +49,10 @@ function DeleteMemory({ claudeProject, file }: { claudeProject: string; file: Me
   return (
     <DeleteMenu
       label={`Actions for ${file.name}`}
-      action="Delete memory"
-      title="Delete this memory?"
-      lines={[`“${file.name}” is removed from this machine. Claude writes a new one if it learns the same thing again.`]}
-      failure="Could not delete the memory."
+      action="Delete note"
+      title="Delete this note?"
+      lines={[`“${noteTitle(file.name)}” is removed. The agent writes a new one if it learns the same thing again.`]}
+      failure="Could not delete the note."
       run={async () => {
         await deleteMemoryFile(claudeProject, file.name);
         await refresh(client, ['memory', claudeProject]);
@@ -60,14 +66,14 @@ function MemoryFolderView({ project, claudeProject, path, onSelect }: { project:
   const tree = useMemo(() => memoryTree(data?.files ?? []), [data]);
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the memory.')}</Text>;
   if (data === undefined) return <Loading />;
-  if (data.files.length === 0) return <Text size="sm" role="secondary">No memory in this project yet.</Text>;
+  if (data.files.length === 0) return <EmptyCard text="No notes yet. The agent writes notes here as it learns about you and your work." />;
   const folder = folderAt(tree, path);
-  if (folder === null) return <Text size="sm" role="secondary">That folder is gone.</Text>;
+  if (folder === null) return <EmptyCard text="That folder is gone." />;
   const open = (target: Selection) => (): void => {
     onSelect(target);
   };
   return (
-    <Col>
+    <SettingsGroup>
       {folder.folders.map((child) => {
         const target: Selection = { kind: 'memory', project, claudeProject, file: child.path };
         return <EntryRow key={`d:${child.path}`} name={child.name} detail={folderDetail(child)} folder href={routeHash(target)} onOpen={open(target)} />;
@@ -77,8 +83,8 @@ function MemoryFolderView({ project, claudeProject, path, onSelect }: { project:
         return (
           <EntryRow
             key={`f:${file.name}`}
-            name={fileLeaf(file.name)}
-            detail={`${sizeLabel(file.bytes)} · ${whenLabel(file.modifiedAt)}`}
+            name={noteTitle(file.name)}
+            detail={`Updated ${whenLabel(file.modifiedAt)}`}
             folder={false}
             href={routeHash(target)}
             onOpen={open(target)}
@@ -86,7 +92,7 @@ function MemoryFolderView({ project, claudeProject, path, onSelect }: { project:
           />
         );
       })}
-    </Col>
+    </SettingsGroup>
   );
 }
 
@@ -94,7 +100,13 @@ function MemoryFileView({ claudeProject, file }: { claudeProject: string; file: 
   const { data, error } = useMemoryFileQuery(claudeProject, file);
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the file.')}</Text>;
   if (data === undefined) return <Loading />;
-  return <MarkdownBlock text={data} />;
+  return (
+    <SettingsGroup>
+      <div className="settings-pad">
+        <MarkdownBlock text={data} />
+      </div>
+    </SettingsGroup>
+  );
 }
 
 interface MemoryProps {
@@ -112,7 +124,7 @@ function MemoryTitle({ claudeProject }: { claudeProject: string }): ReactNode {
 const NONE = 'No Claude Code memory on this box yet. It fills in as Claude works.';
 
 export function Memory({ project, claudeProject, file, onSelect }: MemoryProps): ReactNode {
-  useDocumentTitle('Memory');
+  useDocumentTitle('Notes');
   return (
     <ProjectGate title="Memory" claudeProject={claudeProject} none={NONE}>
       {(picked) => (

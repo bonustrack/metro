@@ -8,6 +8,8 @@ export interface MenuItem {
   label: string;
   icon?: HeroIconName;
   leading?: ReactNode;
+  trailing?: ReactNode;
+  separated?: boolean;
   danger?: boolean;
   onSelect: () => void;
 }
@@ -32,6 +34,7 @@ interface Placement {
   left?: number;
   right?: number;
   maxHeight: number;
+  minWidth?: number;
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
@@ -41,6 +44,7 @@ interface DropdownProps {
   label: string;
   className: string;
   align?: 'start' | 'end';
+  matchWidth?: boolean;
   button?: TriggerButton;
   children?: ReactNode;
 }
@@ -66,6 +70,7 @@ export function Dropdown({
   label,
   className,
   align = 'end',
+  matchWidth = false,
   button,
   children,
 }: DropdownProps): ReactNode {
@@ -80,7 +85,7 @@ export function Dropdown({
   const open = (): void => {
     const box = trigger.current?.getBoundingClientRect();
     if (box === undefined) return;
-    setAt(placement(box, align));
+    setAt({ ...placement(box, align), ...(matchWidth ? { minWidth: box.width } : {}) });
   };
 
   const menuStyle = at ?? undefined;
@@ -125,7 +130,7 @@ export function Dropdown({
               >
                 {items.map((item, at) => (
                   <div key={item.label} className="kebab-row">
-                    {item.danger === true && at > 0 ? <div className="kebab-separator" style={separator} /> : null}
+                    {(item.danger === true || item.separated === true) && at > 0 ? <div className="kebab-separator" style={separator} /> : null}
                     <button
                       type="button"
                       role="menuitem"
@@ -145,6 +150,7 @@ export function Dropdown({
                         />
                       )}
                       <span className="kebab-label">{item.label}</span>
+                      {item.trailing ?? null}
                     </button>
                   </div>
                 ))}

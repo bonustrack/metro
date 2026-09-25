@@ -4,6 +4,7 @@ import { Text } from './ui.js';
 import { Crumbs, EntryRow, type Crumb } from './FolderBrowser.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
+import { SettingsGroup } from './SettingsSection.js';
 import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
 import { fetchAgentPath, joinPath, pathSegments, type AgentPath, type FileEntry } from '../api/files.js';
@@ -38,7 +39,7 @@ const detailOf = (entry: FileEntry): string => {
 function FolderList({ project, answer, onSelect }: { project: string; answer: Extract<AgentPath, { kind: 'folder' }>; onSelect: (s: Selection) => void }): ReactNode {
   if (answer.entries.length === 0) return <Text size="sm" role="secondary">{EMPTY}</Text>;
   return (
-    <Col>
+    <SettingsGroup>
       {answer.entries.map((entry) => {
         const target: Selection = { kind: 'files', project, path: joinPath(answer.path.replace(/^\/+|\/+$/g, ''), entry.name) };
         return (
@@ -52,8 +53,12 @@ function FolderList({ project, answer, onSelect }: { project: string; answer: Ex
           />
         );
       })}
-      {answer.more ? <Text size="sm" role="secondary">Only the first 2,000 entries are shown.</Text> : null}
-    </Col>
+      {answer.more ? (
+        <div className="settings-pad">
+          <Text size="sm" role="secondary">Only the first 2,000 entries are shown.</Text>
+        </div>
+      ) : null}
+    </SettingsGroup>
   );
 }
 

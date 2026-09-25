@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { SettingsSection } from './SettingsSection.js';
+import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { AgentAvatar } from './AgentAvatar.js';
@@ -28,11 +28,11 @@ function AvatarSection({ server }: { server: Server }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const avatar = useAvatarPicker(server);
   return (
-    <SettingsSection title="Avatar" note="A PNG, JPEG, WebP or GIF; it is resized to 128 pixels in the browser.">
-      <Row align="center" gap={16} wrap>
+    <SettingsSection title="Picture" note="Shown in your agent list. PNG, JPEG, WebP or GIF.">
+      <Row align="center" gap={12} wrap>
         <AgentAvatar seed={server.host} src={server.avatar} size={PAGE_AVATAR} />
-        <Button size="sm" color="secondary" dark={dark} label={avatar.busy ? 'Saving…' : 'Set avatar'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
-        {server.avatar === null ? null : <Button size="sm" color="secondary" dark={dark} label="Remove avatar" disabled={avatar.busy} onPress={avatar.remove} />}
+        <Button size="sm" color="secondary" dark={dark} label={avatar.busy ? 'Saving…' : 'Change'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
+        {server.avatar === null ? null : <Button size="sm" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={avatar.busy} onPress={avatar.remove} />}
         {avatar.error === null ? null : (
           <Text size="sm" role="danger">
             {avatar.error}
@@ -53,7 +53,7 @@ function NameSection({ server }: { server: Server }): ReactNode {
     failure: 'Could not save the name.',
   });
   return (
-    <SettingsSection title="Name" note="What the agent is called in your list and in the rail.">
+    <SettingsSection title="Name" note="What your team calls this agent.">
       <SaveField saving={saving} name="agent-name" placeholder={server.host} />
     </SettingsSection>
   );
@@ -73,7 +73,7 @@ function SlugSection({ server }: { server: Server }): ReactNode {
     failure: 'Could not change the slug.',
   });
   return (
-    <SettingsSection title="Slug" note="The agent's part of every address. Lowercase letters, digits and dashes, unique within the organization.">
+    <SettingsSection title="Web address" note="Used in this agent’s links. Lowercase letters, digits and dashes.">
       <SaveField saving={saving} name="agent-slug" placeholder={server.slug ?? ''} />
     </SettingsSection>
   );
@@ -85,25 +85,28 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
   const [importing, setImporting] = useState(false);
   const portable = { id: agent.id, name };
   return (
-    <SettingsSection title="Export and import" note="A .metro file sealed with a passphrase: channels, connectors, skills, memory, sessions and the model setup.">
-      <Row gap={8} wrap>
+    <>
+    <SettingsSection title="Download a backup" note="Channels, connectors, skills, memory and model, in one file locked with a passphrase.">
         <Button
+          size="sm"
           color="secondary"
           dark={dark}
-          label="Export"
+          label="Download"
           onPress={() => {
             setExporting(true);
           }}
         />
+    </SettingsSection>
+    <SettingsSection title="Restore from a backup" note="Adds what the file contains to this agent. Nothing else is deleted.">
         <Button
+          size="sm"
           color="secondary"
           dark={dark}
-          label="Import"
+          label="Restore"
           onPress={() => {
             setImporting(true);
           }}
         />
-      </Row>
       <ExportAgent
         open={exporting}
         agent={portable}
@@ -119,6 +122,7 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
         }}
       />
     </SettingsSection>
+    </>
   );
 }
 
@@ -136,10 +140,8 @@ function RemoveSection({ server }: { server: Server }): ReactNode {
     },
   );
   return (
-    <SettingsSection title="Remove" note="Takes the agent out of your list. The machine keeps running and can be added again by its address.">
-      <Row>
-        <Button color="danger" dark={dark} label="Remove agent" onPress={confirming.show} />
-      </Row>
+    <SettingsSection title="Remove this agent" note="Takes it out of your list. The server keeps running and nothing on it is deleted.">
+      <Button size="sm" color="danger" dark={dark} label="Remove" onPress={confirming.show} />
       <ConfirmDialog
         confirming={confirming}
         title="Remove this agent?"
@@ -156,18 +158,26 @@ export function AgentSettings(): ReactNode {
   const here = currentServer();
   const server = servers.data?.find((s) => s.id === here?.id);
   const agent = stations.data?.agent;
-  useDocumentTitle('Settings');
+  useDocumentTitle('General');
   if (server === undefined) return <Loading />;
   const name = serverLabel(server);
   return (
-    <Col gap={20}>
-      <PageTitle>Settings</PageTitle>
-      <AvatarSection server={server} />
-      <NameSection key={server.name ?? ''} server={server} />
-      <SlugSection key={server.slug ?? ''} server={server} />
-      {agent === undefined ? null : <TransferSection agent={agent} name={name} />}
-      <MoveSection server={server} />
-      <RemoveSection server={server} />
+    <Col gap={32}>
+      <PageTitle>General</PageTitle>
+      <SettingsGroup title="Profile">
+        <AvatarSection server={server} />
+        <NameSection key={server.name ?? ''} server={server} />
+        <SlugSection key={server.slug ?? ''} server={server} />
+      </SettingsGroup>
+      {agent === undefined ? null : (
+        <SettingsGroup title="Backup">
+          <TransferSection agent={agent} name={name} />
+        </SettingsGroup>
+      )}
+      <SettingsGroup title="Danger zone">
+        <MoveSection server={server} />
+        <RemoveSection server={server} />
+      </SettingsGroup>
     </Col>
   );
 }

@@ -7,7 +7,6 @@ import { Memory } from './Memory.js';
 import { Sessions } from './Sessions.js';
 import { ServerPage } from './ServerPage.js';
 import { AgentSettings } from './AgentSettings.js';
-import { TerminalPage } from './Terminal.js';
 import { ModelPage } from './ModelPage.js';
 import { ClaudeSettings } from './ClaudeSettings.js';
 import { Skills } from './Skills.js';
@@ -20,6 +19,9 @@ import { ScheduledJobs } from './ScheduledJobs.js';
 import { ScheduledJobPage } from './ScheduledJobPage.js';
 import { Files } from './Files.js';
 import { Secrets } from './Secrets.js';
+import { SectionTabs } from './SectionTabs.js';
+import { sectionOf } from './sections.js';
+import { Tabbed } from './tabbed.js';
 
 interface AgentPanelProps {
   selection: Selection;
@@ -101,7 +103,6 @@ function ScopedPanel({ project, selection, onSelect }: ScopedProps): ReactNode {
   if (claude !== null) return claude;
   if (selection.kind === 'server') return <ServerPage project={project} />;
   if (selection.kind === 'agent-settings') return <AgentSettings />;
-  if (selection.kind === 'terminal') return <TerminalPage />;
   if (selection.kind === 'model') return <ModelPage />;
   if (selection.kind === 'stations')
     return (
@@ -114,13 +115,7 @@ function ScopedPanel({ project, selection, onSelect }: ScopedProps): ReactNode {
     );
   if (selection.kind === 'station')
     return (
-      <StationPage
-        project={project}
-        accountId={selection.accountId}
-        onOpenAgent={() => {
-          go({ kind: 'home', project });
-        }}
-      />
+      <StationPage project={project} accountId={selection.accountId} />
     );
   return <Home project={project} onSelect={go} />;
 }
@@ -129,5 +124,13 @@ export function AgentPanel(props: AgentPanelProps): ReactNode {
   const { selection } = props;
   if (selection.kind === 'settings') return <Settings />;
   if (!('project' in selection)) return null;
-  return <ScopedPanel {...props} project={selection.project} />;
+  const tabbed = sectionOf(selection.kind)?.tabs !== undefined;
+  return (
+    <>
+      <SectionTabs project={selection.project} selection={selection} onSelect={props.onSelect} />
+      <Tabbed.Provider value={tabbed}>
+        <ScopedPanel {...props} project={selection.project} />
+      </Tabbed.Provider>
+    </>
+  );
 }

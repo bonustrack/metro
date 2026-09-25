@@ -8,6 +8,7 @@ import { ListHeader } from './ListHeader.js';
 import { NameModal } from './NameModal.js';
 import { DeleteMenu } from './DeleteMenu.js';
 import { ListRow } from './ListRow.js';
+import { EmptyCard, SettingsGroup } from './SettingsSection.js';
 import { routeHash } from '../route.js';
 import { whenLabel } from '../api/when.js';
 import { createClaudeSkill, deleteClaudeSkill, type ClaudeSkill, type SkillListing } from '../api/claude.js';
@@ -55,9 +56,9 @@ interface ListingProps {
 function Listing({ error, data, project, onOpen }: ListingProps): ReactNode {
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
   if (data === undefined) return <Loading />;
-  if (data.skills.length === 0) return <Text size="sm" role="secondary">No skill on this machine yet.</Text>;
+  if (data.skills.length === 0) return <EmptyCard text="No skill yet. A skill teaches your agent how to do a task your way." />;
   return (
-    <Col>
+    <SettingsGroup>
       {data.skills.map((skill) => (
         <SkillRow
           key={skill.id}
@@ -68,7 +69,7 @@ function Listing({ error, data, project, onOpen }: ListingProps): ReactNode {
           }}
         />
       ))}
-    </Col>
+    </SettingsGroup>
   );
 }
 

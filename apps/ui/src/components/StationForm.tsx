@@ -76,7 +76,7 @@ export function StationForm(props: StationFormProps): ReactNode {
   return (
     <Col gap={14}>
       <Col gap={2}>
-        <Text size="lg" weight="semibold">{stationLabel(station)}</Text>
+        <Text size="lg" weight="medium">{stationLabel(station)}</Text>
         <LinkedText text={form.hint} links={form.links ?? []} />
       </Col>
       <Col gap={10}>

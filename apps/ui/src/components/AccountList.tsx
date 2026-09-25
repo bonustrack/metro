@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
+import { EmptyCard, SettingsGroup } from './SettingsSection.js';
 import { stationLabel } from '../api/attach.js';
 import { flattenAccounts, stationFields, type AccountGroup, type AccountRow } from '../api/accounts.js';
 import { ChatIcon } from './ChatIcon.js';
@@ -77,17 +77,12 @@ interface AccountListProps {
 
 export function AccountList({ groups, project, empty, onOpen, onDetach }: AccountListProps): ReactNode {
   const flat = flattenAccounts(groups);
-  if (flat.length === 0)
-    return (
-      <Text size="sm" role="secondary">
-        {empty}
-      </Text>
-    );
+  if (flat.length === 0) return <EmptyCard text={empty} />;
   return (
-    <Col>
+    <SettingsGroup>
       {flat.map((item) => (
         <StationRow key={`${item.station}/${item.row.id ?? ''}`} station={item.station} row={item.row} stale={item.stale} project={project} onOpen={onOpen} onDetach={onDetach} />
       ))}
-    </Col>
+    </SettingsGroup>
   );
 }

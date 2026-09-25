@@ -3,7 +3,6 @@ import {
   connectorToolGroups,
   effectiveAccess,
   groupAccess,
-  overrideCount,
   policyOf,
   toolGroupsOf,
   toolsIn,
@@ -30,7 +29,6 @@ describe('a channel tool policy on the page', () => {
     expect(withGroup(start, 'write', 'ask')).toEqual({ tools: { send: 'deny' }, write: 'ask' });
     expect(withTool(start, 'delete', 'ask')).toEqual({ tools: { send: 'deny', delete: 'ask' } });
     expect(withTool(start, 'send', undefined)).toEqual({});
-    expect(overrideCount({ tools: { send: 'deny', read: 'ask' } }, [SEND])).toBe(1);
   });
 
   test('what the daemon sends is read tolerantly', () => {

@@ -18,7 +18,7 @@ export const isAdminSelection = (s: Selection): s is AdminSelection => ADMIN_KIN
 function AdminSidebar({ selection, onSelect }: { selection: AdminSelection; onSelect: (next: Selection) => void }): ReactNode {
   return (
     <Col flex={1} minHeight={0}>
-      <Col gap={NAV_GAP} padding={{ x: 24, top: 24 }}>
+      <Col gap={NAV_GAP} padding={{ x: 20, top: 16 }}>
         <Row padding={{ bottom: 2 }}>
           <FieldLabel>Admin</FieldLabel>
         </Row>
@@ -41,7 +41,6 @@ function AdminPage({ selection }: { selection: AdminSelection }): ReactNode {
 export function AdminArea({ selection, onLock }: { selection: AdminSelection; onLock: () => void }): ReactNode {
   return (
     <Frame
-      selection={selection}
       sidebar={(closeMenu) => (
         <AdminSidebar
           selection={selection}

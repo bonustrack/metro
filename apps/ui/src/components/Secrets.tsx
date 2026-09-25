@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Icon } from '@stage-labs/kit/react-native/icon';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button, Text } from './ui.js';
@@ -8,16 +8,16 @@ import { DeleteMenu } from './DeleteMenu.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
+import { Choice } from './Choice.js';
+import { EmptyCard, SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { SecretForm } from './SecretForm.js';
 import { changeVault, fetchVault, type Vault, type VaultSecret } from '../api/vault.js';
 import { queryError, useBoxQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
-const INTRO =
-  "Keys the agent can use but never read. The agent only gets a placeholder named like the variable, for example OPENAI_API_KEY=OPENAI_API_KEY. When it sends that placeholder to one of the key's websites, Metro puts the real value in on the way out. Sent anywhere else, it stays a useless word.";
-const ON_NOTE =
-  "While the vault is on, all of the agent's internet traffic goes through Metro, and the agent cannot connect around it. Web traffic works as before; other kinds (git over SSH, database ports) are blocked.";
+const INTRO = 'Keys your agent can use without ever seeing them. The agent only holds a stand-in; Metro puts the real key in when the agent talks to that key’s website.';
+const ON_NOTE = 'All of the agent’s web traffic goes through Metro. Other traffic, like git over SSH, is blocked.';
 
 function useVault(): { vault: Vault | undefined; error: unknown; set: (v: Vault) => void } {
   const client = useQueryClient();
@@ -32,7 +32,6 @@ function useVault(): { vault: Vault | undefined; error: unknown; set: (v: Vault)
 }
 
 function Switch({ vault, onChanged }: { vault: Vault; onChanged: (v: Vault) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const flip = (): void => {
@@ -47,18 +46,20 @@ function Switch({ vault, onChanged }: { vault: Vault; onChanged: (v: Vault) => v
         setBusy(false);
       });
   };
-  const state = !vault.enabled ? 'The vault is off.' : vault.running ? 'The vault is on.' : 'The vault is on but not running.';
+  const note = busy ? 'Working…' : vault.enabled && !vault.running ? 'On, but not running yet.' : ON_NOTE;
   return (
-    <Col gap={8}>
-      <Row gap={12} align="center" wrap>
-        <Text size="md" weight="semibold">{state}</Text>
-        <Button size="sm" color={vault.enabled ? 'secondary' : 'primary'} dark={dark} disabled={busy} label={busy ? 'Working…' : vault.enabled ? 'Turn off' : 'Turn on'} onPress={flip} />
-      </Row>
-      <Text size="sm" role="secondary">{ON_NOTE}</Text>
+    <SettingsSection title="Protect secrets" note={note}>
+      <Choice
+        label="Protect secrets"
+        value={vault.enabled ? 'on' : 'off'}
+        options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
+        disabled={busy}
+        onChange={flip}
+      />
       {vault.problem === null ? null : <Text size="sm" role="danger">{vault.problem}</Text>}
       {vault.enabled && vault.browsers !== null ? <Text size="sm" role="secondary">{vault.browsers}</Text> : null}
       {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
-    </Col>
+    </SettingsSection>
   );
 }
 
@@ -90,8 +91,8 @@ function Recent({ vault }: { vault: Vault }): ReactNode {
   if (!vault.enabled || vault.recent.length === 0) return null;
   const envOf = (id: string): string => vault.secrets.find((s) => s.id === id)?.env ?? 'a deleted secret';
   return (
-    <Col gap={8}>
-      <Text size="lg" weight="semibold">Recent requests</Text>
+    <SettingsGroup title="Recent use">
+      <div className="settings-pad">
       <Col gap={4}>
         {vault.recent.slice(0, 40).map((r, at) => (
           <Text key={`${String(at)}:${r.at}`} size="sm" role={r.swapped.length > 0 ? 'default' : 'secondary'} numberOfLines={1}>
@@ -99,35 +100,51 @@ function Recent({ vault }: { vault: Vault }): ReactNode {
           </Text>
         ))}
       </Col>
-    </Col>
+      </div>
+    </SettingsGroup>
   );
 }
 
-function SecretsBody(): ReactNode {
+function SecretList({ vault, set }: { vault: Vault; set: (v: Vault) => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const { vault, error, set } = useVault();
   const [form, setForm] = useState<VaultSecret | 'new' | null>(null);
-  if (error !== null && error !== undefined) return <Text size="sm" role="danger">{queryError(error, 'Could not read the vault.')}</Text>;
-  if (vault === undefined) return <Loading />;
-  if (!vault.available) return <Text size="sm" role="secondary">The vault needs a Linux box where Claude Code runs as its own user.</Text>;
   const saved = (v: Vault): void => {
     set(v);
     setForm(null);
   };
   return (
-    <Col gap={20}>
-      <Switch vault={vault} onChanged={set} />
-      <Col>
-        {vault.secrets.length === 0 ? <Text size="sm" role="secondary">No secret yet.</Text> : null}
-        {vault.secrets.map((s) => (
-          <SecretRow key={s.id} secret={s} onEdit={() => { setForm(s); }} onRemoved={set} />
-        ))}
-      </Col>
-      {form === null ? (
-        <Button size="sm" dark={dark} label="Add a secret" onPress={() => { setForm('new'); }} />
-      ) : (
-        <SecretForm key={form === 'new' ? 'new' : form.id} editing={form === 'new' ? null : form} onSaved={saved} onCancel={() => { setForm(null); }} />
+    <SettingsGroup
+      title="Secrets"
+      action={form === null ? <Button size="sm" color="secondary" dark={dark} label="Add secret" onPress={() => { setForm('new'); }} /> : undefined}
+    >
+      {form === null ? null : (
+        <div className="settings-pad">
+          <SecretForm key={form === 'new' ? 'new' : form.id} editing={form === 'new' ? null : form} onSaved={saved} onCancel={() => { setForm(null); }} />
+        </div>
       )}
+      {vault.secrets.length === 0 && form === null ? (
+        <div className="settings-pad">
+          <Text size="sm" role="secondary">No secret yet. Add one, then turn protection on.</Text>
+        </div>
+      ) : null}
+      {vault.secrets.map((s) => (
+        <SecretRow key={s.id} secret={s} onEdit={() => { setForm(s); }} onRemoved={set} />
+      ))}
+    </SettingsGroup>
+  );
+}
+
+function SecretsBody(): ReactNode {
+  const { vault, error, set } = useVault();
+  if (error !== null && error !== undefined) return <Text size="sm" role="danger">{queryError(error, 'Could not read the vault.')}</Text>;
+  if (vault === undefined) return <Loading />;
+  if (!vault.available) return <EmptyCard text="Secrets need a Linux server where the agent runs as its own user." />;
+  return (
+    <Col gap={32}>
+      <SettingsGroup>
+        <Switch vault={vault} onChanged={set} />
+      </SettingsGroup>
+      <SecretList vault={vault} set={set} />
       <Recent vault={vault} />
     </Col>
   );
@@ -136,7 +153,7 @@ function SecretsBody(): ReactNode {
 export function Secrets(): ReactNode {
   useDocumentTitle('Secrets');
   return (
-    <Col gap={16}>
+    <Col gap={32}>
       <PageTitle>Secrets</PageTitle>
       <Text size="sm" role="secondary">{INTRO}</Text>
       <SecretsBody />

@@ -80,6 +80,7 @@ function applyCanvas(scheme: Scheme, palette: KitPalette): void {
     '--metro-border': palette.border,
     '--metro-surface': palette.inputBg,
     '--metro-danger': palette.danger,
+    '--metro-success': palette.success,
     '--metro-font-sans': FONT_SANS,
     '--metro-font-head': FONT_HEAD,
     '--metro-type-scale': String(TYPE_SCALE),

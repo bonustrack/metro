@@ -7,6 +7,7 @@ import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { ClaudeSetup } from './ClaudeSetup.js';
+import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { ClaudeVersion } from './ClaudeVersion.js';
 import { GROW } from '../theme.js';
 import { saveClaudeSettings, type ClaudeSettingsFile } from '../api/claude.js';
@@ -14,7 +15,7 @@ import { queryError, refresh, useClaudeSettingsQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
-const WHAT = 'Read when a session starts. A change reaches the next one.';
+const WHAT = 'Claude Code’s own settings files, for advanced changes. They apply the next time the agent starts.';
 const EDITOR = { minHeight: 420, lineHeight: 22 } as const;
 const EMPTY = '{\n  \n}\n';
 const INDENT = 2;
@@ -174,12 +175,14 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
   const files = settings.data ?? [];
   const file = files.find((f) => f.id === chosen) ?? files[0];
   return (
-    <Col gap={20}>
-      <Col gap={8}>
-        <PageTitle>Harness</PageTitle>
-        <ClaudeVersion />
-      </Col>
+    <Col gap={32}>
+      <PageTitle>Harness</PageTitle>
       <ClaudeSetup project={project} />
+      <SettingsGroup title="Version">
+        <SettingsSection title="Claude Code" note="The program your agent runs on. Metro keeps it up to date when you ask.">
+          <ClaudeVersion />
+        </SettingsSection>
+      </SettingsGroup>
       {settings.error !== null ? (
         <Text size="sm" role="danger">
           {queryError(settings.error, 'Could not read the settings files.')}
@@ -193,7 +196,7 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
       ) : (
         <Col gap={16}>
           <Col gap={2}>
-            <Text size="md" weight="semibold">Settings</Text>
+            <Text size="lg" weight="medium">Advanced</Text>
             <Text size="sm" role="secondary">{WHAT}</Text>
           </Col>
           <FilePicker

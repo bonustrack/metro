@@ -2,13 +2,13 @@ import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
 import { PageTitle } from './PageTitle.js';
-import { InfoRow } from './InfoRow.js';
+import { FactRow, SettingsGroup } from './SettingsSection.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
 import { ClaudeSession } from './ClaudeSession.js';
 import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js';
-import { serverLabel, type Server } from '../api/servers.js';
+import { type Server } from '../api/servers.js';
 import { diskLabel, systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
 import { whenLabel } from '../api/when.js';
 import { activeAccount } from '../auth/account.js';
@@ -23,53 +23,34 @@ function ownerLabel(owner: string | null): string {
   return owner;
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
-  return (
-    <Col gap={4}>
-      <Text size="md" weight="semibold">
-        {title}
-      </Text>
-      <Col>{children}</Col>
-    </Col>
-  );
-}
-
 function MachineFacts({ machine }: { machine: Machine }): ReactNode {
-  const started = machine.startedAt === null ? '' : ` (since ${whenLabel(machine.startedAt)})`;
   return (
-    <>
-      <Section title="Address">
-        {machine.publicUrl === null ? (
-          <InfoRow label="Public" value="none yet: the Funnel is not up" />
-        ) : (
-          <InfoRow label="Public" value={machine.publicUrl} href={machine.publicUrl} />
-        )}
-        <InfoRow label="On the machine" value={`http://127.0.0.1:${String(machine.port)}`} />
-        <InfoRow label="Owner" value={ownerLabel(machine.owner)} />
-      </Section>
-      <Section title="Machine">
-        <InfoRow label="Hostname" value={machine.hostname} />
-        <InfoRow label="System" value={systemLabel(machine)} />
-        <InfoRow label="Bun" value={machine.bun ?? 'unknown'} />
-        <InfoRow label="Up for" value={`${uptimeLabel(machine.uptimeSeconds)}${started}`} />
-        {machine.disk === null ? null : <InfoRow label="Disk" value={diskLabel(machine.disk).text} danger={diskLabel(machine.disk).full} />}
-      </Section>
-      <Section title="Paths">
-        <InfoRow label="Agents" value={machine.agentsDir} />
-        <InfoRow label="Runtime" value={machine.runtimeStore ?? 'run from source'} />
-        <InfoRow label="Claude Code" value={machine.claudeDir} />
-      </Section>
-    </>
+    <SettingsGroup title="Machine">
+      <FactRow label="Web address" value={machine.publicUrl ?? 'Not online yet'} href={machine.publicUrl ?? undefined} />
+      <FactRow label="Name" value={machine.hostname} />
+      <FactRow label="Running for" value={uptimeLabel(machine.uptimeSeconds)} />
+      {machine.disk === null ? null : <FactRow label="Disk" value={diskLabel(machine.disk).text} danger={diskLabel(machine.disk).full} />}
+      <FactRow label="Owner" value={ownerLabel(machine.owner)} />
+    </SettingsGroup>
   );
 }
 
-function ListEntry({ server }: { server: Server }): ReactNode {
+function Details({ machine, server }: { machine: Machine | undefined; server: Server | undefined }): ReactNode {
   return (
-    <Section title="On metro.box">
-      <InfoRow label="Id" value={server.id} />
-      <InfoRow label="Address" value={server.host} />
-      <InfoRow label="Added" value={server.addedAt === '' ? 'unknown' : whenLabel(server.addedAt)} />
-    </Section>
+    <SettingsGroup title="Details">
+      {server === undefined ? null : <FactRow label="Agent id" value={server.id} />}
+      {server === undefined ? null : <FactRow label="Added" value={server.addedAt === '' ? 'Unknown' : whenLabel(server.addedAt)} />}
+      {machine === undefined ? null : (
+        <>
+          <FactRow label="System" value={systemLabel(machine)} />
+          <FactRow label="Bun" value={machine.bun ?? 'Unknown'} />
+          <FactRow label="Local address" value={`http://127.0.0.1:${String(machine.port)}`} />
+          <FactRow label="Metro files" value={machine.agentsDir} />
+          <FactRow label="Metro program" value={machine.runtimeStore ?? 'Run from source'} />
+          <FactRow label="Claude Code files" value={machine.claudeDir} />
+        </>
+      )}
+    </SettingsGroup>
   );
 }
 
@@ -77,20 +58,17 @@ export function ServerPage({ project }: { project: string }): ReactNode {
   const machine = useMachineQuery();
   const servers = useServersQuery();
   const server = servers.data?.find((s) => s.id === project);
-  useDocumentTitle(server === undefined ? 'Server' : serverLabel(server));
+  useDocumentTitle('Server');
   return (
-    <Col gap={20}>
-      <Col gap={8}>
-        <PageTitle>{server === undefined ? 'Server' : serverLabel(server)}</PageTitle>
-        {server?.name ? (
-          <Text size="sm" role="secondary">
-            {server.host}
-          </Text>
-        ) : null}
+    <Col gap={32}>
+      <PageTitle>Server</PageTitle>
+      <SettingsGroup title="Metro">
         <MetroVersion />
         <DaemonControls />
-      </Col>
-      <ClaudeSession project={project} />
+      </SettingsGroup>
+      <SettingsGroup title="Agent">
+        <ClaudeSession project={project} />
+      </SettingsGroup>
       {machine.error !== null ? (
         <Text size="sm" role="danger">
           {queryError(machine.error, FALLBACK)}
@@ -100,7 +78,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
       ) : (
         <MachineFacts machine={machine.data} />
       )}
-      {server === undefined ? null : <ListEntry server={server} />}
+      <Details machine={machine.data} server={server} />
     </Col>
   );
 }

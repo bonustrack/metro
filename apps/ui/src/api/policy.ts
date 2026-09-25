@@ -8,13 +8,13 @@ export const ACCESS_CHOICES: readonly Access[] = ['allow', 'ask', 'deny'];
 
 export const ACCESS_LABEL: Record<Access, string> = {
   allow: 'Allow',
-  ask: 'Needs approval',
-  deny: 'Blocked',
+  ask: 'Ask first',
+  deny: 'Block',
 };
 
 export const GROUP_LABEL: Record<ToolGroup, string> = {
-  read: 'Read-only tools',
-  write: 'Write/delete tools',
+  read: 'Read',
+  write: 'Write',
 };
 
 export interface ToolPolicy {
@@ -76,9 +76,6 @@ export function withTool(policy: ToolPolicy, name: string, access: Access | unde
 }
 
 export const toolsIn = (tools: GroupedTool[], group: ToolGroup): GroupedTool[] => tools.filter((t) => t.group === group);
-
-export const overrideCount = (policy: ToolPolicy, tools: GroupedTool[]): number =>
-  tools.filter((t) => toolOverride(policy, t.name) !== undefined).length;
 
 export const connectorToolGroups = (tools: readonly { name: string; readOnly: boolean }[]): GroupedTool[] =>
   tools.map((tool) => ({ name: tool.name, group: tool.readOnly ? 'read' : 'write' }));

@@ -207,6 +207,24 @@ describe('signing in to metro.box through WorkOS', () => {
     expect((await json('POST', '/api/auth/organization', { name: 'x', refreshToken: tokens.refreshToken }, tokens.accessToken)).status).toBe(400);
   });
 
+  test('the organization list carries the agents of each organization, so the page can open one in another organization at once', async () => {
+    const tokens = await signIn();
+    const made = (await (await json('POST', '/api/auth/organization', { name: 'Agents here', refreshToken: tokens.refreshToken }, tokens.accessToken)).json()) as TokenBody;
+    const asked: string[] = [];
+    deps.agentsOf = (organization) => {
+      asked.push(organization);
+      return Promise.resolve([{ id: `a-${organization}`, host: 'metro-abc.example.ts.net', name: 'Andy', slug: 'andy', addedAt: '2026-09-26T00:00:00Z', instanceId: 'i-secret', launchedAt: null, avatar: null }]);
+    };
+    try {
+      const listed = (await (await json('GET', '/api/auth/organizations', undefined, made.accessToken)).json()) as { organizations: { id: string; agents?: Record<string, unknown>[] }[] };
+      expect(listed.organizations.length).toBeGreaterThan(0);
+      for (const org of listed.organizations) expect(org.agents).toEqual([{ id: `a-${org.id}`, host: 'metro-abc.example.ts.net', name: 'Andy', slug: 'andy', avatar: null }]);
+      expect(asked.sort()).toEqual(listed.organizations.map((o) => o.id).sort());
+    } finally {
+      delete deps.agentsOf;
+    }
+  });
+
   test('refresh rotates the pair, a revoked refresh token is 401, and logout revokes the session', async () => {
     const tokens = await signIn();
     const fresh = await json('POST', '/api/auth/refresh', { refreshToken: tokens.refreshToken });

@@ -19,7 +19,7 @@ export function Settings(): ReactNode {
       <AccountSettings />
       <Col gap={12}>
           <Col gap={2}>
-            <Text weight="semibold">Appearance</Text>
+            <Text size="lg" weight="medium">Appearance</Text>
             <Text size="sm" role="secondary">
               System follows your device setting and changes with it.
             </Text>

@@ -27,7 +27,7 @@ interface ItemProps {
 export function Item({ title, detail, avatar, badge, trailing }: ItemProps): ReactNode {
   const palette = useKitPalette();
   const heading = (
-    <Text size="md" weight="semibold" numberOfLines={1}>
+    <Text size="md" weight="medium" numberOfLines={1}>
       {title}
     </Text>
   );

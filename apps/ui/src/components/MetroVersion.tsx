@@ -1,8 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
+import { SettingsSection } from './SettingsSection.js';
 import { queryError, useModeQuery, useUpdateQuery } from '../api/queries.js';
 import { fetchMode } from '../api/mode.js';
 import { runUpdate } from '../api/update.js';
@@ -24,19 +24,30 @@ async function untilVersion(version: string): Promise<void> {
 
 type Phase = { kind: 'idle' } | { kind: 'updating'; to: string } | { kind: 'done'; to: string };
 
-export function MetroVersion(): ReactNode {
+interface MetroUpdate {
+  version: string | null;
+  newer: boolean;
+  checked: boolean;
+  idle: boolean;
+  status: string | null;
+  error: string | null;
+  update: () => void;
+}
+
+function statusOf(phase: Phase): string | null {
+  if (phase.kind === 'updating') return `Updating to ${phase.to}. The agent restarts, this takes a minute…`;
+  if (phase.kind === 'done') return `Updated to ${phase.to}.`;
+  return null;
+}
+
+function useMetroUpdate(): MetroUpdate {
   const client = useQueryClient();
-  const dark = useKitScheme() === 'dark';
   const mode = useModeQuery();
   const check = useUpdateQuery();
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [error, setError] = useState<string | null>(null);
-  const version = mode.data?.version ?? null;
-  if (version === null) return null;
-
   const update = (): void => {
-    const to = check.data?.latest ?? '';
-    setPhase({ kind: 'updating', to });
+    setPhase({ kind: 'updating', to: check.data?.latest ?? '' });
     setError(null);
     runUpdate()
       .then(async (result) => {
@@ -49,28 +60,43 @@ export function MetroVersion(): ReactNode {
         setError(queryError(err, 'Could not update metro.'));
       });
   };
+  return {
+    version: mode.data?.version ?? null,
+    newer: check.data?.newer === true,
+    checked: check.data !== undefined,
+    idle: phase.kind === 'idle',
+    status: statusOf(phase),
+    error,
+    update,
+  };
+}
 
+function versionNote(u: MetroUpdate, version: string): string {
+  if (u.status !== null) return u.status;
+  if (u.newer) return `Version ${version}. A new version is ready.`;
+  return u.checked ? `Version ${version}. Up to date.` : `Version ${version}.`;
+}
+
+function UpdateNotice({ u, button }: { u: MetroUpdate; button: ReactNode }): ReactNode {
+  if (u.status === null && u.error === null && !u.newer) return null;
   return (
-    <Row gap={10} align="center" wrap>
-      <Text size="sm" role="secondary">
-        metro {version}
-      </Text>
-      {phase.kind === 'updating' ? (
-        <Text size="sm" role="secondary">
-          Updating to {phase.to}, the daemon restarts…
-        </Text>
-      ) : phase.kind === 'done' ? (
-        <Text size="sm" role="secondary">
-          Updated to {phase.to}.
-        </Text>
-      ) : check.data?.newer === true ? (
-        <Button size="sm" color="secondary" dark={dark} label={`Update to ${check.data.latest}`} onPress={update} />
-      ) : check.data !== undefined ? (
-        <Text size="sm" role="secondary">
-          up to date
-        </Text>
-      ) : null}
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
-    </Row>
+    <div className="update-notice">
+      <Text size="sm">{u.status ?? u.error ?? 'A new version of Metro is ready.'}</Text>
+      {button}
+    </div>
+  );
+}
+
+export function MetroVersion({ quiet = false }: { quiet?: boolean }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const u = useMetroUpdate();
+  if (u.version === null) return null;
+  const button = u.newer && u.idle ? <Button size="sm" color="primary" dark={dark} label="Update" onPress={u.update} /> : null;
+  if (quiet) return <UpdateNotice u={u} button={button} />;
+  return (
+    <SettingsSection title="Version" note={versionNote(u, u.version)}>
+      {button}
+      {u.error === null ? null : <Text size="sm" role="danger">{u.error}</Text>}
+    </SettingsSection>
   );
 }

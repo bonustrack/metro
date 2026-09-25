@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Text } from './ui.js';
 
-const LABEL_STYLE = { textTransform: 'uppercase', letterSpacing: 0.4 } as const;
+const LABEL_STYLE = { textTransform: 'uppercase', letterSpacing: 1.2 } as const;
 
 export function FieldLabel({ children }: { children: string }): ReactNode {
   return (

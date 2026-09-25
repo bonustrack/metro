@@ -29,7 +29,7 @@ const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, version: METRO_VERSION });
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
-const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers };
+const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers, agentsOf: listServersForOwner };
 const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers };
 const serversApi: ServersApiDeps = {
   list: listServersForOwner,

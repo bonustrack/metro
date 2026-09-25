@@ -6,6 +6,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { validateReturnTo } from '@metro-labs/http/return-to';
 import type { SlugStore } from '../slug.js';
+import type { ServerEntry } from '../server-types.js';
 import { parseAccountName, type UserStore } from '../users.js';
 import { AVATAR_BODY_MAX, parseAvatar } from '../avatar.js';
 import { admit, stillIn, type Intent, type Refusal } from './operator.js';
@@ -37,6 +38,7 @@ export interface AuthApiDeps {
   keys: SigningKeys;
   slugs: SlugStore;
   users: UserStore;
+  agentsOf?: (organization: string) => Promise<ServerEntry[]>;
   publicBase?: (req: IncomingMessage) => string;
   now?: () => number;
 }
@@ -230,6 +232,12 @@ async function switchOrg(req: IncomingMessage, session: Session, deps: AuthApiDe
   return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps);
 }
 
+async function agentsPayload(deps: AuthApiDeps, organization: string): Promise<{ agents?: Record<string, unknown>[] }> {
+  if (deps.agentsOf === undefined) return {};
+  const rows = await deps.agentsOf(organization);
+  return { agents: rows.map((a) => ({ id: a.id, host: a.host, name: a.name, slug: a.slug, avatar: a.avatar })) };
+}
+
 const mePayload = (s: Session): Record<string, unknown> => ({ userId: s.userId, organization: s.organization, role: s.role, expiresAt: s.expiresAt });
 
 async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
@@ -271,7 +279,7 @@ const PRIVATE: Record<string, PrivateRoute> = {
       const cfg = deps.config();
       if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
       const mine = await userOrganizations(cfg, session.userId);
-      return { organizations: await Promise.all(mine.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name) }))) };
+      return { organizations: await Promise.all(mine.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name), ...(await agentsPayload(deps, o.id)) }))) };
     },
   },
   '/switch': { method: 'POST', run: (req, deps, session) => switchOrg(req, session, deps) },

@@ -55,7 +55,7 @@ export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNo
         ) : null}
         <Text size="sm" role="secondary">
           <a className="hint-link" href={routeHash({ kind: 'servers' })}>
-            All servers
+            All agents
           </a>
         </Text>
       </Col>

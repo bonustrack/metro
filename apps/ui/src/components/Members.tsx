@@ -9,6 +9,8 @@ import { Pill } from './Pill.js';
 import { KebabMenu } from './KebabMenu.js';
 import { Loading } from './Loading.js';
 import { Frame } from './Frame.js';
+import { Choice } from './Choice.js';
+import { SettingsGroup } from './SettingsSection.js';
 import { PlainSidebar } from './PlainSidebar.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { fetchOrganization, inviteMember, removeMember, revokeInvitation, setMemberRole, type Invitation, type Member, type Organization, type Role } from '../api/organization.js';
@@ -18,7 +20,6 @@ import { useDocumentTitle } from '../title.js';
 import { GROW, SHRINK } from '../theme.js';
 import { orgKey } from '../api/queries.js';
 
-const LIST_WIDTH = 640;
 const AVATAR = 32;
 const HOW = 'Everyone here opens every agent of the organization. Admins can also stop, restart, update and reset agents, open the terminal and manage members.';
 const NO_ASSIST = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
@@ -57,7 +58,7 @@ function MemberRow({ member, org, last, onError }: { member: Member; org: Organi
     <Row align="center" gap={12} padding={{ x: 14, y: 12 }} border={last ? undefined : { bottom: { width: 1, color: palette.border } }}>
       <AgentAvatar seed={member.userId} src={member.picture} size={AVATAR} />
       <Col style={GROW}>
-        <Text size="md" weight="semibold" numberOfLines={1}>
+        <Text size="md" weight="medium" numberOfLines={1}>
           {memberLabel(member, self)}
         </Text>
         {member.name === null || member.email === null ? null : (
@@ -118,16 +119,23 @@ function Invite({ onError }: { onError: (text: string) => void }): ReactNode {
       });
   };
   return (
-    <Col gap={10}>
-      <Text size="md" weight="semibold">Invite someone</Text>
-      <Row gap={8} align="center" wrap>
-        <Input name="email" value={email} dark={dark} placeholder="name@company.com" disabled={busy} onChangeText={setEmail} style={GROW} inputProps={NO_ASSIST} />
-        <Button size="sm" color={role === 'member' ? 'primary' : 'secondary'} dark={dark} label="Member" onPress={() => { setRole('member'); }} />
-        <Button size="sm" color={role === 'admin' ? 'primary' : 'secondary'} dark={dark} label="Admin" onPress={() => { setRole('admin'); }} />
-        <Button color="primary" dark={dark} label={busy ? 'Sending…' : 'Invite'} loading={busy} disabled={busy || email.trim() === ''} onPress={send} />
-      </Row>
-      {sent === null ? null : <Text size="sm" role="secondary">{`An invitation went to ${sent}.`}</Text>}
-    </Col>
+    <SettingsGroup title="Invite someone" note={sent === null ? undefined : `An invitation went to ${sent}.`}>
+      <div className="settings-pad">
+        <Row gap={10} align="center" wrap>
+          <Input name="email" value={email} dark={dark} placeholder="name@company.com" disabled={busy} onChangeText={setEmail} style={GROW} inputProps={NO_ASSIST} />
+          <Choice<Role>
+            label="Role"
+            value={role}
+            options={[
+              { value: 'member', label: 'Member' },
+              { value: 'admin', label: 'Admin' },
+            ]}
+            onChange={setRole}
+          />
+          <Button size="sm" color="primary" dark={dark} label={busy ? 'Sending…' : 'Invite'} loading={busy} disabled={busy || email.trim() === ''} onPress={send} />
+        </Row>
+      </div>
+    </SettingsGroup>
   );
 }
 
@@ -158,7 +166,6 @@ export function Members({ onLock }: { onLock: () => void }): ReactNode {
   useDocumentTitle('Members');
   return (
     <Frame
-      selection={{ kind: 'members' }}
       sidebar={(closeMenu) => (
         <PlainSidebar
           selection={{ kind: 'members' }}
@@ -170,7 +177,7 @@ export function Members({ onLock }: { onLock: () => void }): ReactNode {
       )}
       onLock={onLock}
     >
-      <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
+      <Col gap={20} width="100%">
         <PageTitle>Members</PageTitle>
         <Text size="sm" role="secondary">{HOW}</Text>
         <Body />

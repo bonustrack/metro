@@ -13,13 +13,14 @@ export interface Crumb {
 }
 
 export function Crumbs({ crumbs }: { crumbs: Crumb[] }): ReactNode {
+  if (crumbs.length <= 1) return null;
   return (
     <Row gap={6} align="center" wrap>
       {crumbs.map((crumb, at) => (
         <Fragment key={`${String(at)}:${crumb.label}`}>
           {at === 0 ? null : <Text size="md" role="secondary">/</Text>}
           {at === crumbs.length - 1 ? (
-            <Text size="md" weight="semibold">{crumb.label}</Text>
+            <Text size="md" weight="medium">{crumb.label}</Text>
           ) : (
             <a
               className="crumb-link"

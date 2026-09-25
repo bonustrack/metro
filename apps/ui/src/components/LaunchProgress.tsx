@@ -97,7 +97,7 @@ export function LaunchProgress({ launched }: { launched: Launched }): ReactNode 
   const watch = useLaunchWatch(launched.server.id, live);
   return (
     <Col gap={14}>
-      <Text size="md" weight="semibold">{headline(watch.instance, watch.boot, live)}</Text>
+      <Text size="lg" weight="medium">{headline(watch.instance, watch.boot, live)}</Text>
       {watch.error === null ? null : <Text size="sm" role="danger">{watch.error}</Text>}
       <Steps launched={launched} watch={watch} live={live} />
       <Text size="sm" role="secondary">{captureNote(watch.boot?.at ?? null)}</Text>

@@ -1,67 +1,61 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
-import { UsageBars } from './ModelUsage.js';
 import { ProviderLogo } from './ProviderLogo.js';
-import { PROVIDERS, type ModelSettings } from '../api/model.js';
-import { DEFAULT_MODEL, modelLabel, routedConnection } from '../api/providers.js';
-import { tallyLine } from '../api/usage.js';
-import { queryError, useModelQuery } from '../api/queries.js';
-import { whenLabel } from '../api/when.js';
+import { PROVIDERS, type ConnectionRow, type ModelSettings } from '../api/model.js';
+import { DEFAULT_MODEL, routedConnection } from '../api/providers.js';
+import { queryError, useConnectionModelsQuery, useModelQuery } from '../api/queries.js';
 import { routeHash } from '../route.js';
 import { opensElsewhere } from './link.js';
 import { type Selection } from './selection.js';
-import { SHRINK } from '../theme.js';
 
 const LOGO_SIZE = 28;
 
+const LOW = 0.9;
+
+export function useModelName(conn: ConnectionRow | undefined): string {
+  const models = useConnectionModelsQuery(conn);
+  if (conn === undefined || conn.model === '') return DEFAULT_MODEL;
+  const found = models.data?.find((option) => option.id === conn.model);
+  if (found === undefined || found.name === '') return conn.model;
+  const cut = found.name.indexOf(': ');
+  return cut === -1 ? found.name : found.name.slice(cut + 2);
+}
+
 function Card({ settings, href, onOpen }: { settings: ModelSettings; href: string; onOpen: () => void }): ReactNode {
-  const palette = useKitPalette();
-  const side = { width: 1, color: palette.border };
   const conn = routedConnection(settings);
-  const served = settings.lastServed;
+  const name = useModelName(conn);
   const usage = conn === undefined ? undefined : settings.usage[conn.id];
+  const low = usage?.windows.find((window) => window.used !== null && window.used >= LOW);
   return (
-    <Col gap={16} padding={16} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
-      <a
-        className="block-link"
-        href={href}
-        onClick={(e) => {
-          if (opensElsewhere(e)) return;
-          e.preventDefault();
-          onOpen();
-        }}
-      >
-        <Row gap={12} align="center">
-          <ProviderLogo provider={PROVIDERS.find((p) => p.id === conn?.provider)} size={LOGO_SIZE} />
-          <Col gap={2} style={SHRINK}>
-            <Text size="md" weight="semibold" numberOfLines={1}>
-              {conn === undefined ? DEFAULT_MODEL : modelLabel(conn)}
-            </Text>
-            <Text size="sm" role="secondary" numberOfLines={1}>
-              {`${conn?.label ?? 'Your Claude Code login'}${served === null ? '' : ` · last request ${whenLabel(served.at)}`}`}
-            </Text>
-          </Col>
-        </Row>
-      </a>
-      {settings.reason === null ? null : (
-        <Text size="sm" role="danger">
-          {settings.reason}
+    <a
+      className="model-card"
+      href={href}
+      onClick={(e) => {
+        if (opensElsewhere(e)) return;
+        e.preventDefault();
+        onOpen();
+      }}
+    >
+      <ProviderLogo provider={PROVIDERS.find((p) => p.id === conn?.provider)} size={LOGO_SIZE} />
+      <span className="model-card-text">
+        <Text size="md" weight="medium" numberOfLines={1}>
+          {name}
         </Text>
-      )}
-      {usage === undefined ? null : (
-        <Col gap={10}>
-          <UsageBars windows={usage.windows} />
-          {usage.tally === null ? null : (
-            <Text size="sm" role="secondary">
-              {tallyLine(usage.tally)}
-            </Text>
-          )}
-        </Col>
-      )}
-    </Col>
+        <Text size="sm" role="secondary" numberOfLines={1}>
+          {conn?.label ?? 'Your Claude Code login'}
+        </Text>
+        {settings.reason !== null ? (
+          <Text size="sm" role="danger">
+            {settings.reason}
+          </Text>
+        ) : low === undefined ? null : (
+          <Text size="sm" role="danger">
+            {`${low.label} almost used up (${String(Math.round((low.used ?? 0) * 100))}%). Top up or switch model.`}
+          </Text>
+        )}
+      </span>
+      <span className="model-card-action">Change</span>
+    </a>
   );
 }
 

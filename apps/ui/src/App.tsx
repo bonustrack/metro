@@ -55,7 +55,7 @@ function Notice({ text, onRetry, retryLabel }: { text: string; onRetry: () => vo
         <Button color="secondary" dark={dark} label={retryLabel} onPress={onRetry} style={CENTER_SELF} />
         <Text size="sm" role="secondary">
           <a className="hint-link" href={routeHash({ kind: 'servers' })}>
-            All servers
+            All agents
           </a>
         </Text>
       </Col>

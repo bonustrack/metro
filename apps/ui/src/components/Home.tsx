@@ -5,7 +5,8 @@ import { CountBadge } from './CountBadge.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
-import { AgentPicture, ChannelCards, ConnectorIcons, StatusPills } from './AgentOverview.js';
+import { AgentPicture, ChannelCards, ConnectorIcons, StatusLine } from './AgentOverview.js';
+import { Checklist } from './Checklist.js';
 import { AgentRoute } from './AgentModel.js';
 import { Approvals } from './Approvals.js';
 import { flattenAccounts, type AccountGroup } from '../api/accounts.js';
@@ -21,7 +22,7 @@ const FALLBACK = 'Could not read this machine.';
 function SectionHead({ label, count }: { label: string; count: number }): ReactNode {
   return (
     <Row gap={8} align="center">
-      <Text size="md" weight="semibold">{label}</Text>
+      <Text size="lg" weight="medium">{label}</Text>
       <CountBadge count={count} />
     </Row>
   );
@@ -97,13 +98,20 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
           <AgentPicture server={server} seed={agent.id} />
           <Col gap={6} flex={1} minWidth={0}>
             <PageTitle>{name}</PageTitle>
-            <StatusPills host={here?.host ?? null} project={project} onSelect={onSelect} />
+            <StatusLine host={here?.host ?? null} project={project} onSelect={onSelect} />
           </Col>
         </Row>
-        <MetroVersion />
+        <MetroVersion quiet />
       </Col>
-      <AgentRoute project={project} onSelect={onSelect} />
+      <Checklist
+        name={name}
+        project={project}
+        channels={flattenAccounts(data.groups).length}
+        connectors={agent.connectorIds.length}
+        onSelect={onSelect}
+      />
       <Approvals />
+      <AgentRoute project={project} onSelect={onSelect} />
       <Sections agent={agent} groups={data.groups} project={project} onSelect={onSelect} />
     </Col>
   );

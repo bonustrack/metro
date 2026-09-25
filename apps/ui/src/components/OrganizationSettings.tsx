@@ -1,8 +1,7 @@
 import { type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
 import { SaveField, useSave, type Saving } from './SaveField.js';
+import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { activeAccount, type Account } from '../auth/account.js';
 import { refreshAccount } from '../api/auth.js';
 import { renameOrganization, setOrganizationSlug } from '../api/organization.js';
@@ -43,35 +42,24 @@ function useSlug(account: Account): Saving {
   });
 }
 
-function SlugBlock({ account }: { account: Account }): ReactNode {
+function SlugRow({ account }: { account: Account }): ReactNode {
   const slug = useSlug(account);
   const admin = account.role === 'admin';
+  const note = admin ? `Used in every link: metro.box/#/${account.organizationSlug ?? '…'}. Lowercase letters, digits and dashes.` : 'Only an admin can change it.';
   return (
-    <Col gap={12}>
-      <Col gap={2}>
-        <Text weight="semibold">Slug</Text>
-        <Text size="sm" role="secondary">
-          {admin ? `The organization's part of every address: metro.box/#/${account.organizationSlug ?? '…'}. Lowercase letters, digits and dashes.` : 'Only an admin can change the slug.'}
-        </Text>
-      </Col>
+    <SettingsSection title="Web address" note={note}>
       <SaveField saving={slug} name="slug" editable={admin} />
-    </Col>
+    </SettingsSection>
   );
 }
 
-function Block({ account }: { account: Account }): ReactNode {
+function NameRow({ account }: { account: Account }): ReactNode {
   const rename = useRename(account);
   const admin = account.role === 'admin';
   return (
-    <Col gap={12}>
-      <Col gap={2}>
-        <Text weight="semibold">Name</Text>
-        <Text size="sm" role="secondary">
-          {admin ? 'What every member sees, on this page and in the invitations Metro sends.' : 'Only an admin can rename the organization.'}
-        </Text>
-      </Col>
+    <SettingsSection title="Name" note={admin ? 'What every member sees, and what invitations say.' : 'Only an admin can rename it.'}>
       <SaveField saving={rename} name="organization" editable={admin} />
-    </Col>
+    </SettingsSection>
   );
 }
 
@@ -80,9 +68,9 @@ export function OrganizationSettings(): ReactNode {
   const organization = account?.organization ?? null;
   if (account === null || organization === null) return null;
   return (
-    <Col gap={24}>
-      <Block account={account} />
-      <SlugBlock account={account} />
-    </Col>
+    <SettingsGroup title="Profile">
+      <NameRow account={account} />
+      <SlugRow account={account} />
+    </SettingsGroup>
   );
 }

@@ -34,7 +34,7 @@ export function AttachedAccount({
   return (
     <Col gap={14}>
         <Col gap={4}>
-          <Text size="lg" weight="semibold">
+          <Text size="lg" weight="medium">
             {stationLabel(result.station)} attached
           </Text>
           <Text size="sm" role="secondary">

@@ -1,20 +1,22 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { ConfirmModal } from './ConfirmModal.js';
+import { SettingsSection } from './SettingsSection.js';
 import { awaitRestart, awaitStopped, restartDaemon, stopDaemon } from '../api/control.js';
 import { queryError } from '../api/queries.js';
 
 type Phase = 'idle' | 'restarting' | 'restarted' | 'stopping';
 
 const STOP_LINES = [
-  'Channels and connectors go offline until metro starts again.',
-  'metro serve keeps holding the address, so Start works from this page and from the agent list.',
+  'Your agent stops answering on every channel until Metro starts again.',
+  'You can start it again from this page or from the agent list.',
 ];
+const RESTART_NOTE = 'Turns Metro off and on again. Takes a few seconds.';
+const STOP_NOTE = 'Your agent stops answering until you start it again.';
 const PHASE_TEXT: Partial<Record<Phase, string>> = {
-  restarting: 'The daemon is coming back…',
+  restarting: 'Coming back…',
   restarted: 'Restarted.',
 };
 
@@ -58,42 +60,41 @@ export function DaemonControls(): ReactNode {
   };
 
   return (
-    <Row gap={10} align="center" wrap>
-      <Button
-        size="sm"
-        color="secondary"
-        dark={dark}
-        label={phase === 'restarting' ? 'Restarting…' : 'Restart'}
-        disabled={busy}
-        onPress={restart}
-      />
-      <Button
-        size="sm"
-        color="secondary"
-        dark={dark}
-        label="Stop"
-        disabled={busy}
-        onPress={() => {
-          setError(null);
-          setConfirming(true);
-        }}
-      />
-      {note === undefined ? null : (
-        <Text size="sm" role="secondary">
-          {note}
-        </Text>
-      )}
-      {error !== null && !confirming ? (
-        <Text size="sm" role="danger">
-          {error}
-        </Text>
-      ) : null}
+    <>
+      <SettingsSection title="Restart" note={note ?? RESTART_NOTE}>
+        <Button
+          size="sm"
+          color="secondary"
+          dark={dark}
+          label={phase === 'restarting' ? 'Restarting…' : 'Restart'}
+          disabled={busy}
+          onPress={restart}
+        />
+        {error !== null && !confirming ? (
+          <Text size="sm" role="danger">
+            {error}
+          </Text>
+        ) : null}
+      </SettingsSection>
+      <SettingsSection title="Stop" note={STOP_NOTE}>
+        <Button
+          size="sm"
+          color="danger"
+          dark={dark}
+          label="Stop"
+          disabled={busy}
+          onPress={() => {
+            setError(null);
+            setConfirming(true);
+          }}
+        />
+      </SettingsSection>
       <ConfirmModal
         open={confirming}
-        title="Stop metro on this machine"
+        title="Stop Metro"
         lines={STOP_LINES}
         confirmWord="stop"
-        confirmLabel="Stop metro"
+        confirmLabel="Stop Metro"
         busy={phase === 'stopping'}
         error={confirming ? error : null}
         onClose={() => {
@@ -101,6 +102,6 @@ export function DaemonControls(): ReactNode {
         }}
         onConfirm={stop}
       />
-    </Row>
+    </>
   );
 }

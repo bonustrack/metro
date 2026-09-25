@@ -4,6 +4,7 @@ import { Text } from './ui.js';
 import { BackLink } from './BackLink.js';
 import { ProjectGate } from './ProjectGate.js';
 import { ListRow } from './ListRow.js';
+import { EmptyCard, SettingsGroup } from './SettingsSection.js';
 import { ListHeader } from './ListHeader.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
@@ -13,7 +14,7 @@ import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
 import { type ClaudeSession } from '../api/claude.js';
 import { queryError, useClaudeSessionsQuery } from '../api/queries.js';
-import { sizeLabel, whenLabel } from '../api/when.js';
+import { whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
 function SessionRow({
@@ -27,16 +28,15 @@ function SessionRow({
   target: Selection;
   onOpen: () => void;
 }): ReactNode {
-  const detail = [session.lastAt === null ? null : whenLabel(session.lastAt), session.gitBranch, sizeLabel(session.bytes)]
-    .filter((s): s is string => s !== null)
-    .join(' · ');
+  const detail = session.lastAt === null ? '' : whenLabel(session.lastAt);
+  const title = session.title !== '' && session.title !== session.id ? session.title : 'Conversation';
   return (
     <ListRow
-      title={session.id}
+      title={title}
       detail={detail}
       href={routeHash(target)}
       onOpen={onOpen}
-      trailing={<SessionMenu claudeProject={claudeProject} id={session.id} title={session.id} onDeleted={() => undefined} />}
+      trailing={<SessionMenu claudeProject={claudeProject} id={session.id} title={title} onDeleted={() => undefined} />}
     />
   );
 }
@@ -53,9 +53,9 @@ function SessionList({
   const { data, error } = useClaudeSessionsQuery(claudeProject);
   if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
   if (data === undefined) return <Loading />;
-  if (data.length === 0) return <Text size="sm" role="secondary">No session here yet.</Text>;
+  if (data.length === 0) return <EmptyCard text="No conversation yet." />;
   return (
-    <Col>
+    <SettingsGroup>
       {data.map((s) => (
         <SessionRow
           key={s.id}
@@ -67,7 +67,7 @@ function SessionList({
           }}
         />
       ))}
-    </Col>
+    </SettingsGroup>
   );
 }
 
@@ -88,7 +88,7 @@ function SessionView({
     <Col gap={16}>
       <Row justify="between" align="center" gap={12}>
         <BackLink
-          label="Sessions"
+          label="Conversations"
           href={routeHash(list)}
           onPress={() => {
             onSelect(list);
@@ -120,13 +120,13 @@ const NONE = 'No Claude Code session on this box yet.';
 
 function SessionsTitle({ claudeProject }: { claudeProject: string }): ReactNode {
   const { data } = useClaudeSessionsQuery(claudeProject);
-  return <ListHeader title="Sessions" count={data?.length} />;
+  return <ListHeader title="Conversations" count={data?.length} />;
 }
 
 export function Sessions({ project, claudeProject, id, onSelect }: SessionsProps): ReactNode {
-  useDocumentTitle('Sessions');
+  useDocumentTitle('Conversations');
   return (
-    <ProjectGate title="Sessions" claudeProject={claudeProject} none={NONE}>
+    <ProjectGate title="Conversations" claudeProject={claudeProject} none={NONE}>
       {(picked) =>
         id === null ? (
           <Col gap={16}>

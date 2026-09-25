@@ -225,7 +225,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
   return (
     <Col gap={14}>
         <Col gap={4}>
-          <Text size="lg" weight="semibold">
+          <Text size="lg" weight="medium">
             Connecting {stationLabel(session.station)}
           </Text>
           <Text size="sm" role="secondary">

@@ -3,6 +3,7 @@ import { applyRoute, currentSelection, routeHash, subscribeRoute } from '../rout
 import { AgentPanel } from './AgentPanel.js';
 import { AgentSidebar } from './AgentSidebar.js';
 import { Frame } from './Frame.js';
+import { TerminalPage } from './Terminal.js';
 import { OfflinePanel, worksOffline } from './Offline.js';
 import { selectionProject, type Selection } from './selection.js';
 import { currentServer, storeDaemon, baseFromSegment, storedServerId, storeServerId } from '../auth/daemon.js';
@@ -18,8 +19,6 @@ interface FramedProps {
 function Framed({ project, selection, onSelect, onLock, offline }: FramedProps): ReactNode {
   return (
     <Frame
-      selection={selection}
-      flush={selection.kind === 'terminal'}
       sidebar={(closeMenu) => (
         <AgentSidebar
           project={project}
@@ -72,5 +71,6 @@ export function Dashboard({ onLock, offline = null }: DashboardProps): ReactNode
   }, [routed]);
 
   if (project === null) return null;
+  if (selection.kind === 'terminal') return offline === null ? <TerminalPage /> : <OfflinePanel onRetry={offline.retry} />;
   return <Framed project={project} selection={selection} onSelect={onSelect} onLock={onLock} offline={offline} />;
 }

@@ -45,6 +45,7 @@ function Targets({ server, rows }: { server: Server; rows: OrganizationRow[] }):
         {rows.map((row) => (
           <Button
             key={row.id}
+            size="sm"
             color="secondary"
             dark={dark}
             label={`Move to ${row.name ?? row.id}`}
@@ -88,7 +89,7 @@ export function MoveSection({ server }: { server: Server }): ReactNode {
   if (account?.role !== 'admin') return null;
   const others = (orgs.data ?? []).filter((o) => o.id !== account.organization && o.role === 'admin');
   return (
-    <SettingsSection title="Move to another organization" note="The machine and its row in your list change owner. You must be an admin of both organizations.">
+    <SettingsSection title="Move to another organization" note="Hands this agent over. You must be an admin of both.">
       <Targets server={server} rows={others} />
     </SettingsSection>
   );

@@ -7,13 +7,10 @@ import { OrganizationSettings } from './OrganizationSettings.js';
 import { routeHash } from '../route.js';
 import { useDocumentTitle } from '../title.js';
 
-const PAGE_WIDTH = 640;
-
 export function Organization({ onLock }: { onLock: () => void }): ReactNode {
   useDocumentTitle('Organization');
   return (
     <Frame
-      selection={{ kind: 'organization' }}
       sidebar={(closeMenu) => (
         <PlainSidebar
           selection={{ kind: 'organization' }}
@@ -25,7 +22,7 @@ export function Organization({ onLock }: { onLock: () => void }): ReactNode {
       )}
       onLock={onLock}
     >
-      <Col gap={20} width="100%" maxWidth={PAGE_WIDTH}>
+      <Col gap={32} width="100%">
         <PageTitle>Organization</PageTitle>
         <OrganizationSettings />
       </Col>

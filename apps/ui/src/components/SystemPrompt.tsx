@@ -9,7 +9,7 @@ import { GROW } from '../theme.js';
 
 const EDITOR = { minHeight: 160, lineHeight: 22 } as const;
 const NO_ASSIST = { multiline: true, autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
-const NOTE = 'Appended to Claude Code’s own system prompt. Saving restarts the session.';
+const NOTE = 'Who your agent is and how it should behave. Saving restarts the agent.';
 
 export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   const client = useQueryClient();
@@ -35,7 +35,7 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   };
   return (
     <Col gap={10}>
-      <Text size="md" weight="semibold">System prompt</Text>
+      <Text size="md" weight="medium">System prompt</Text>
       <Text size="sm" role="secondary">{NOTE}</Text>
       <Input
         name="system-prompt"

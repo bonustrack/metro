@@ -22,11 +22,9 @@ function Head({ skill }: { skill: ClaudeSkill }): ReactNode {
     <Col gap={16}>
       <Col gap={8}>
         <PageTitle>{skill.title}</PageTitle>
-        <Text size="sm" role="secondary">{skill.description}</Text>
-      </Col>
-      <Col gap={2}>
-        <Text size="sm" role="secondary">{skill.path}</Text>
-        <Text size="sm" role="secondary">{skill.updatedAt === null ? '' : `Last changed ${whenLabel(skill.updatedAt)}.`}</Text>
+        <Text size="sm" role="secondary">
+          {[skill.description, skill.updatedAt === null ? '' : `Changed ${whenLabel(skill.updatedAt)}.`].filter((part) => part !== '').join(' ')}
+        </Text>
       </Col>
       {skill.editable ? null : <Text size="sm" role="danger">That skill is too large to edit here.</Text>}
     </Col>

@@ -7,14 +7,15 @@ import { type ScheduledJob } from '../api/schedules.js';
 import { queryError, useSchedulesQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { PageTitle } from './PageTitle.js';
+import { SettingsGroup } from './SettingsSection.js';
 import { useDocumentTitle } from '../title.js';
 
-const ABOUT = "The agent's timers and cron jobs. They all run as the user agent; one left in root's home is switched at every start.";
-
-const KIND: Record<ScheduledJob['kind'], string> = { timer: 'timer', 'cron-agent': 'cron' };
+const ABOUT = 'Work your agent does on its own at set times. To add one, ask your agent in chat.';
+const EMPTY = 'No scheduled task yet. Try asking your agent: "every morning at 8, send me a summary".';
 
 export function detail(job: ScheduledJob): string {
-  const parts = [KIND[job.kind], job.schedule, `runs as ${job.runsAs}`];
+  const parts = [job.schedule];
+  if (job.runsAs !== 'agent') parts.push(`runs as ${job.runsAs}`);
   if (job.next !== null) parts.push(`next ${whenLabel(job.next)}`);
   if (job.last !== null) parts.push(`last ${whenLabel(job.last)}${job.lastResult !== null && job.lastResult !== 'success' ? ` (${job.lastResult})` : ''}`);
   return parts.join(' · ');
@@ -22,19 +23,23 @@ export function detail(job: ScheduledJob): string {
 
 export function ScheduledJobs({ project, onOpen }: { project: string; onOpen: (id: string) => void }): ReactNode {
   const schedules = useSchedulesQuery();
-  useDocumentTitle('Scheduled');
+  useDocumentTitle('Scheduled tasks');
   return (
-    <Col gap={16}>
-      <PageTitle>Scheduled</PageTitle>
+    <Col gap={32}>
+      <PageTitle>Scheduled tasks</PageTitle>
       <Text size="sm" role="secondary">{ABOUT}</Text>
       {schedules.error !== null ? (
-        <Text size="sm" role="danger">{queryError(schedules.error, 'Could not read the scheduled jobs.')}</Text>
+        <Text size="sm" role="danger">{queryError(schedules.error, 'Could not read the scheduled tasks.')}</Text>
       ) : schedules.data === undefined ? (
-        <Text size="sm" role="secondary">Reading the scheduled jobs…</Text>
+        <Text size="sm" role="secondary">Reading the scheduled tasks…</Text>
       ) : schedules.data.jobs.length === 0 ? (
-        <Text size="sm" role="secondary">No timer or cron job on this machine.</Text>
+        <SettingsGroup>
+          <div className="settings-pad">
+            <Text size="sm" role="secondary">{EMPTY}</Text>
+          </div>
+        </SettingsGroup>
       ) : (
-        <Col>
+        <SettingsGroup>
           {schedules.data.jobs.map((job) => (
             <ListRow
               key={job.id}
@@ -46,7 +51,7 @@ export function ScheduledJobs({ project, onOpen }: { project: string; onOpen: (i
               }}
             />
           ))}
-        </Col>
+        </SettingsGroup>
       )}
     </Col>
   );

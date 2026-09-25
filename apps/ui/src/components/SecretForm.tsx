@@ -74,7 +74,7 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
   };
   return (
     <Col gap={12}>
-      <Text size="lg" weight="semibold">{editing === null ? 'Add a secret' : `Edit ${editing.name}`}</Text>
+      <Text size="lg" weight="medium">{editing === null ? 'Add a secret' : `Edit ${editing.name}`}</Text>
       <Field label="Name" name="secret-name" value={name} placeholder="OpenAI" busy={busy} onChange={edit('name')} />
       {editing === null ? (
         <Field label="Variable the agent sees" name="secret-env" value={variable} placeholder="OPENAI_API_KEY" busy={busy} onChange={edit('env')} />

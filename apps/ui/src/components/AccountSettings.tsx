@@ -60,7 +60,7 @@ export function AccountSettings(): ReactNode {
   return (
     <Col gap={12}>
       <Col gap={2}>
-        <Text weight="semibold">Account</Text>
+        <Text size="lg" weight="medium">Account</Text>
         <Text size="sm" role="secondary">
           {account.user.email ?? ''}
         </Text>
