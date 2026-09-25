@@ -49,12 +49,13 @@ export function resolveAccountId(
   args: { account?: string; line?: string },
   parseAccountId: (line: string) => string | undefined,
 ): string {
+  const have = [...accounts.keys()];
   let id = args.account;
   id ??= args.line ? parseAccountId(args.line) : undefined;
-  id ??= (accounts.size === 1 ? [...accounts.keys()][0] : 'default') ?? 'default';
+  id ??= have.length === 1 ? have[0] : undefined;
+  if (id === undefined)
+    throw new Error(`name an account (have: ${have.join(', ')})`);
   if (!accounts.has(id))
-    throw new Error(
-      `unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`,
-    );
+    throw new Error(`unknown account '${id}' (have: ${have.join(', ')})`);
   return id;
 }

@@ -56,20 +56,13 @@ interface Target {
   topicId?: number;
 }
 
-function splitScoped(path: string[]): { accountId: string; rest: string[] } {
-  const first = path[0];
-  if (path.length >= 2 && first !== undefined && !isSignedInt(first))
-    return { accountId: first, rest: path.slice(1) };
-  return { accountId: 'default', rest: path };
-}
-
 export function targetOf(line: string): Target | undefined {
   const prefix = 'metro://telegram/';
   if (!line.startsWith(prefix)) return undefined;
   const path = line.slice(prefix.length).split('/').filter(Boolean);
-  const { accountId, rest } = splitScoped(path);
+  const [accountId, ...rest] = path;
   const [chatId, topicId] = rest;
-  if (rest.length < 1 || rest.length > 2 || chatId === undefined) return undefined;
+  if (accountId === undefined || chatId === undefined || rest.length > 2) return undefined;
   if (!isSignedInt(chatId)) return undefined;
   if (topicId !== undefined && !isTopic(topicId)) return undefined;
   return {

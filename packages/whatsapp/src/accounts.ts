@@ -49,18 +49,12 @@ interface Target {
   jid: string;
 }
 
-function splitScoped(path: string[]): { accountId: string; jid?: string } {
-  const first = path[0];
-  if (path.length >= 2 && first !== undefined && !isJid(first))
-    return { accountId: first, jid: path[1] };
-  return { accountId: 'default', jid: first };
-}
-
 export function targetOf(line: string): Target | undefined {
   const prefix = 'metro://whatsapp/';
   if (!line.startsWith(prefix)) return undefined;
   const path = line.slice(prefix.length).split('/').filter(Boolean);
-  const { accountId, jid } = splitScoped(path);
-  if (jid === undefined || !isJid(jid)) return undefined;
+  const [accountId, jid] = path;
+  if (path.length !== 2 || accountId === undefined || jid === undefined) return undefined;
+  if (!isJid(jid)) return undefined;
   return { accountId, jid };
 }

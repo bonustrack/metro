@@ -36,11 +36,11 @@ export function profileTarget(a: Record<string, unknown>): ProfileTarget | { ref
   if (!from) return { refused: 'get_profile requires `from`' };
   const parsed = Line.parse(from);
   const at = parsed?.path.indexOf('user') ?? -1;
-  if (parsed === null || at < 0 || at + 1 >= parsed.path.length) return { refused: `${from} is not a person: expected metro://<station>/<account>/user/<id>` };
+  if (parsed === null || at < 1 || at + 1 >= parsed.path.length) return { refused: `${from} is not a person: expected metro://<station>/<account>/user/<id>` };
   const station = stationByName(parsed.station);
   if (!station) return { refused: `no station named ${parsed.station}` };
   if (station.readsProfiles !== true) return { refused: `${station.name} has no profile metro can read` };
-  return { station, account: at === 0 ? 'default' : parsed.path.slice(0, at).join('/'), user: parsed.path.slice(at + 1).join('/') };
+  return { station, account: parsed.path.slice(0, at).join('/'), user: parsed.path.slice(at + 1).join('/') };
 }
 
 export const profileScopeLine = (a: Record<string, unknown>): string | undefined => {

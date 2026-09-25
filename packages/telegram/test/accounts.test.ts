@@ -68,12 +68,9 @@ describe('telegram line helpers', () => {
     });
   });
 
-  test('targetOf defaults the account when unscoped', async () => {
+  test('targetOf refuses a line without an account', async () => {
     const { targetOf } = await fresh();
-    expect(targetOf('metro://telegram/-100')).toEqual({
-      accountId: 'default',
-      chatId: -100,
-    });
+    expect(targetOf('metro://telegram/-100')).toBeUndefined();
   });
 
   test('targetOf rejects non-telegram and malformed lines', async () => {

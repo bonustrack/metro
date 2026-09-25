@@ -11,15 +11,9 @@ function parseAccountScoped(
   validate?: (resource: string) => boolean,
 ): { accountId: string; resource: string } | null {
   const p = Line.parse(line);
-  if (p?.station !== station) return null;
-  let accountId: string, resource: string;
-  if (p.path.length === 2 && p.path[0] !== undefined && p.path[1] !== undefined) {
-    accountId = p.path[0];
-    resource = p.path[1];
-  } else if (p.path.length === 1 && p.path[0] !== undefined) {
-    accountId = 'default';
-    resource = p.path[0];
-  } else return null;
+  if (p?.station !== station || p.path.length !== 2) return null;
+  const [accountId, resource] = p.path;
+  if (accountId === undefined || resource === undefined) return null;
   if (validate && !validate(resource)) return null;
   return { accountId, resource };
 }
@@ -30,20 +24,14 @@ const isThreemaResource = (s: string): boolean =>
 const isOutlookResource = (s: string): boolean => /^[A-Za-z0-9=_%.@+-]+$/.test(s);
 const isSignedInt = (s: string): boolean => /^-?\d+$/.test(s);
 
-function splitTelegramAccount(path: string[]): { accountId: string; rest: string[] } {
-  const first = path[0];
-  if (path.length >= 2 && first !== undefined && !isSignedInt(first))
-    return { accountId: first, rest: path.slice(1) };
-  return { accountId: 'default', rest: path };
-}
-
 function parseTelegramLine(
   line: Line | string,
 ): { accountId: string; chatId: number; topicId?: number } | null {
   const p = Line.parse(line);
   if (p?.station !== 'telegram-bot') return null;
-  const { accountId, rest } = splitTelegramAccount(p.path);
+  const [accountId, ...rest] = p.path;
   const [chatId, topicId] = rest;
+  if (accountId === undefined) return null;
   if (rest.length < 1 || rest.length > 2 || chatId === undefined || !isSignedInt(chatId))
     return null;
   if (topicId !== undefined && !isSnowflake(topicId)) return null;

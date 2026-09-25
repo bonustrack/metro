@@ -31,7 +31,7 @@ describe('the get_profile tool', () => {
     expect(GET_PROFILE_TOOL.inputSchema.required).toEqual(['from']);
     expect(profileTarget({ from: 'metro://xmtp/a1/user/8f3e' })).toMatchObject({ account: 'a1', user: '8f3e' });
     expect(profileTarget({ from: 'metro://whatsapp/w0/user/4179@s.whatsapp.net' })).toMatchObject({ account: 'w0', user: '4179@s.whatsapp.net' });
-    expect(profileTarget({ from: 'metro://telegram/user/42' })).toMatchObject({ account: 'default', user: '42' });
+    expect(profileTarget({ from: 'metro://telegram/user/42' })).toMatchObject({ refused: expect.stringContaining('is not a person') as unknown });
     expect(profileTarget({})).toEqual({ refused: 'get_profile requires `from`' });
     expect(profileTarget({ from: 'metro://xmtp/a1/conv9' })).toMatchObject({ refused: expect.stringContaining('is not a person') as unknown });
     expect(profileTarget({ from: 'metro://pigeon/a/user/1' })).toEqual({ refused: 'no station named pigeon' });
