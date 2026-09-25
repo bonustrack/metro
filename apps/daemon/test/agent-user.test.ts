@@ -3,10 +3,9 @@ import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from '
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { agentUser, asUser, forgetAgentUser, wantedAgentUser, type AgentUser, type UserHost } from '../src/agent-user/user.ts';
+import { agentUser, agentUserExpected, asUser, forgetAgentUser, type AgentUser, type UserHost } from '../src/agent-user/user.ts';
 import { moveHome, receiveHomeFile, removeHome, writeHomeText } from '../src/agent-user/home-fs.ts';
 import { viewFiles } from '../src/agent-user/view.ts';
-import { sessionBlocked } from '../src/claude/session.ts';
 
 const AGENT: AgentUser = { name: 'agent', uid: 1001, gid: 1001, home: '/home/agent' };
 const host = (over: Partial<UserHost> = {}): UserHost => ({ platform: 'linux', uid: 0, lookup: (name) => (name === 'agent' ? AGENT : null), ...over });
@@ -22,30 +21,14 @@ afterEach(() => {
   forgetAgentUser();
 });
 
-const setting = (value: unknown): void => {
-  writeFileSync(join(dir, 'agent-user.json'), JSON.stringify(value));
-};
-
 describe('which user Claude Code runs as', () => {
-  test('off unless the box asks for it; a bad name or root is refused', () => {
-    expect(wantedAgentUser(dir)).toBeNull();
-    setting({});
-    expect(wantedAgentUser(dir)).toBe('agent');
-    setting({ user: 'claude-bot' });
-    expect(wantedAgentUser(dir)).toBe('claude-bot');
-    for (const bad of [{ user: 'root' }, { user: 'Bad Name' }, { user: '../x' }, { enabled: false }]) {
-      setting(bad);
-      expect(wantedAgentUser(dir)).toBeNull();
-    }
-  });
-
-  test('only on Linux, only for a daemon running as root, and only once the user exists', () => {
-    setting({});
-    expect(agentUser(dir, host())).toEqual(AGENT);
+  test('always on Linux for a daemon running as root, never elsewhere, and only once the user exists', () => {
+    expect(agentUser(host())).toEqual(AGENT);
     forgetAgentUser();
-    expect(agentUser(dir, host({ platform: 'darwin' }))).toBeNull();
-    expect(agentUser(dir, host({ uid: 501 }))).toBeNull();
-    expect(agentUser(dir, host({ lookup: () => null }))).toBeNull();
+    expect(agentUserExpected(host({ platform: 'darwin' }))).toBe(false);
+    expect(agentUser(host({ platform: 'darwin' }))).toBeNull();
+    expect(agentUser(host({ uid: 501 }))).toBeNull();
+    expect(agentUser(host({ lookup: () => null }))).toBeNull();
   });
 
   test('a command runs through setpriv, with no process left in between, and a clean environment of its own', () => {
@@ -60,11 +43,6 @@ describe('which user Claude Code runs as', () => {
     expect(args.slice(-4)).toEqual(['tmux', 'has-session', '-t', 'metro']);
   });
 
-  test('a Claude session set to run as its own user stays stopped where that user cannot exist', () => {
-    writeFileSync(join(dir, 'agent.json'), JSON.stringify({ version: 1, id: 'agent000001', key: 'k'.repeat(32), stations: [] }));
-    setting({});
-    expect(sessionBlocked({ agents: dir, tmux: 'true', signedIn: () => true })).toContain('not ready');
-  });
 });
 
 describe('the Metro files the agent may read', () => {

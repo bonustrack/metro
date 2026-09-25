@@ -1,14 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
-import { log } from '@metro-labs/core/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import type { AgentUser } from './user.js';
 
 const UNIT_DIR = '/etc/systemd/system';
+const defaultBackups = (): string => join(homedir(), '.metro', 'agents');
 const DROP_IN = '10-metro-agent.conf';
 const OWN_UNITS = /^metro(-claude-\d+)?\.(service|scope)$/;
 
@@ -26,6 +27,7 @@ export interface ScheduledJob {
   lastResult: string | null;
   usesRoot: boolean;
   converted: boolean;
+  problem?: string | null;
 }
 
 export interface Runner {
@@ -149,7 +151,7 @@ function cronJobs(runner: Runner, user: string, kind: JobKind): ScheduledJob[] {
   });
 }
 
-export function listSchedules(user: AgentUser | null, runner: Runner = realRunner): ScheduledJob[] {
+function allJobs(user: AgentUser | null, runner: Runner): ScheduledJob[] {
   return [...timerJobs(runner), ...cronJobs(runner, 'root', 'cron-root'), ...(user === null ? [] : cronJobs(runner, user.name, 'cron-agent'))];
 }
 
@@ -186,14 +188,6 @@ function convertTimer(job: ScheduledJob, user: AgentUser, runner: Runner): void 
   log.info({ unit, service, user: user.name }, 'schedules: a timer now runs as the agent user');
 }
 
-function restoreTimer(job: ScheduledJob, runner: Runner): void {
-  const unit = job.id.slice('timer:'.length);
-  const service = showProps(runner, unit, ['Unit']).Unit ?? unit.replace(/\.timer$/, '.service');
-  rmSync(join(UNIT_DIR, `${service}.d`, DROP_IN), { force: true });
-  runner.run('systemctl', ['daemon-reload']);
-  log.info({ unit, service }, 'schedules: a timer runs as root again');
-}
-
 function convertCron(job: ScheduledJob, user: AgentUser, backups: string, runner: Runner): void {
   const lines = crontabOf(runner, 'root');
   const line = lines.find((l) => lineId('cron-root', l) === job.id);
@@ -208,23 +202,44 @@ function convertCron(job: ScheduledJob, user: AgentUser, backups: string, runner
   log.info({ user: user.name }, "schedules: a root cron line moved to the agent's crontab");
 }
 
-function toRoot(job: ScheduledJob, runner: Runner): void {
-  if (job.kind !== 'timer' || !job.converted) throw new ApiError('only a timer metro switched can go back to root', 400);
-  restoreTimer(job, runner);
-}
-
-function toAgent(job: ScheduledJob, user: AgentUser | null, backups: string, runner: Runner): void {
-  if (user === null) throw new ApiError('switch Claude Code to its own user first', 409);
+function toAgent(job: ScheduledJob, user: AgentUser, backups: string, runner: Runner): void {
   if (job.kind === 'timer') convertTimer(job, user, runner);
   else if (job.kind === 'cron-root') convertCron(job, user, backups, runner);
   else throw new ApiError('that job already runs as the agent', 400);
 }
 
-export function changeSchedule(id: string, action: unknown, user: AgentUser | null, backups = join(homedir(), '.metro', 'agents'), runner: Runner = realRunner): ScheduledJob[] {
-  if (action !== 'agent' && action !== 'root') throw new ApiError('action must be agent or root', 400);
-  const job = listSchedules(user, runner).find((j) => j.id === id);
+const problems = new Map<string, string>();
+
+const needsAgent = (job: ScheduledJob): boolean => job.kind !== 'cron-agent' && job.runsAs === 'root' && job.usesRoot;
+
+function tryAgent(job: ScheduledJob, user: AgentUser, backups: string, runner: Runner): boolean {
+  try {
+    toAgent(job, user, backups, runner);
+    problems.delete(job.id);
+    return true;
+  } catch (err) {
+    problems.set(job.id, errMsg(err));
+    log.warn({ job: job.name, err: errMsg(err) }, 'schedules: a job still pointing into /root could not be switched to the agent user');
+    return false;
+  }
+}
+
+export function convertRootJobs(user: AgentUser | null, backups = defaultBackups(), runner: Runner = realRunner): number {
+  if (user === null) return 0;
+  const pending = allJobs(user, runner).filter(needsAgent);
+  return pending.filter((job) => tryAgent(job, user, backups, runner)).length;
+}
+
+export const listSchedules = (user: AgentUser | null, runner: Runner = realRunner): ScheduledJob[] =>
+  allJobs(user, runner)
+    .filter((job) => job.runsAs !== 'root' || job.usesRoot)
+    .map((job) => ({ ...job, problem: problems.get(job.id) ?? null }));
+
+export function retrySchedule(id: string, user: AgentUser | null, backups = defaultBackups(), runner: Runner = realRunner): ScheduledJob[] {
+  if (user === null) throw new ApiError('Claude Code does not run as its own user on this machine', 409);
+  const job = allJobs(user, runner).find((j) => j.id === id);
   if (job === undefined) throw new ApiError('no such scheduled job', 404);
-  if (action === 'root') toRoot(job, runner);
-  else toAgent(job, user, backups, runner);
+  if (needsAgent(job)) toAgent(job, user, backups, runner);
+  problems.delete(id);
   return listSchedules(user, runner);
 }

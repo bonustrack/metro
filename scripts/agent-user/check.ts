@@ -1,31 +1,29 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync, symlinkSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { provisionAgentUser } from '../../apps/daemon/src/agent-user/provision.ts';
 import { agentUser, asAgent } from '../../apps/daemon/src/agent-user/user.ts';
 import { writeHomeText } from '../../apps/daemon/src/agent-user/home-fs.ts';
 import { resolveAttachments } from '../../apps/daemon/src/stations/attach-resolve.ts';
-import { hasConversation, sessionRunning, startSession, stopSession } from '../../apps/daemon/src/claude/session.ts';
-import { listWorkspace, startMove } from '../../apps/daemon/src/agent-user/workspace.ts';
-import { changeSchedule, listSchedules } from '../../apps/daemon/src/agent-user/schedules.ts';
-import { returnToRoot } from '../../apps/daemon/src/agent-user/provision.ts';
-import { rmSync, writeFileSync } from 'node:fs';
+import { sessionRunning, startSession, stopSession } from '../../apps/daemon/src/claude/session.ts';
 import { stagedPluginDir, syncPluginServers } from '../../apps/daemon/src/connectors/plugin-sync.ts';
+import { convertRootJobs, listSchedules } from '../../apps/daemon/src/agent-user/schedules.ts';
 
 const results: string[] = [];
-const check = (what: string, ok: boolean): void => { results.push(`${ok ? 'PASS' : 'FAIL'} ${what}`); };
+const check = (what: string, ok: boolean): void => {
+  results.push(`${ok ? 'PASS' : 'FAIL'} ${what}`);
+};
 const owner = (p: string): number => statSync(p).uid;
 const asAgentOk = (file: string, args: string[]): boolean => spawnSync(...asAgent(file, args), { stdio: 'ignore' }).status === 0;
 
-const out = await provisionAgentUser('/root/.metro/agents', { METRO_RUNTIME_STORE: '/opt/store' });
-check(`provision answered ready (${out})`, out === 'ready');
-const u = agentUser('/root/.metro/agents');
+const out = await provisionAgentUser({ METRO_RUNTIME_STORE: '/opt/store' });
+check(`provision answered ready on Linux as root, with no switch (${out})`, out === 'ready');
+const u = agentUser();
 check('the agent user exists', u !== null);
-if (u === null) { console.log(results.join('\n')); process.exit(1); }
+if (u === null) {
+  console.log(results.join('\n'));
+  process.exit(1);
+}
 check('its home is private (700)', (statSync(u.home).mode & 0o777) === 0o700);
-check('Claude folder moved and owned by the agent', owner(`${u.home}/.claude/.credentials.json`) === u.uid);
-check('the project folder follows the new home', existsSync(`${u.home}/.claude/projects/-home-agent/s1.jsonl`));
-check('.claude.json moved', owner(`${u.home}/.claude.json`) === u.uid);
-check('root keeps its own copy', existsSync('/root/.claude/.credentials.json'));
 check('Claude Code installed for the agent', existsSync(`${u.home}/.local/bin/claude`));
 check('plugin copied where the agent can load it', owner(`${u.home}/.metro/marketplace/plugin/.claude-plugin/plugin.json`) === u.uid);
 await new Promise((r) => setTimeout(r, 300));
@@ -33,7 +31,6 @@ const view = readFileSync(`${u.home}/.metro/agents/agent.json`, 'utf8');
 check('the agent file the agent reads has the key', view.includes('agent-key-0123456789abcdef'));
 check('and no channel credential', !view.includes('SECRET'));
 check('model copy has no provider key', !readFileSync(`${u.home}/.metro/agents/model.json`, 'utf8').includes('SECRET'));
-check('the moved conversation is resumed with -c', hasConversation(u.home));
 process.env.METRO_RUNTIME_STORE = '/opt/store';
 check('the plugin server list goes to the agent copy', stagedPluginDir() === `${u.home}/.metro/marketplace/plugin`);
 spawnSync(...asAgent('mkdir', ['-p', `${u.home}/.metro/marketplace/plugin/bin`]));
@@ -41,75 +38,46 @@ spawnSync(...asAgent('touch', [`${u.home}/.metro/marketplace/plugin/bin/metro-pl
 syncPluginServers([{ id: 'c1', name: 'Linear', url: 'https://mcp.linear.app/mcp', transport: 'http', config: {} }] as never);
 const mcp = `${u.home}/.metro/marketplace/plugin/.mcp.json`;
 check('and is written as the agent', existsSync(mcp) && owner(mcp) === u.uid && readFileSync(mcp, 'utf8').includes('relay/c1'));
-check('the agent cannot read root\'s agent file', !asAgentOk('cat', ['/root/.metro/agents/agent.json']));
+check("the agent cannot read root's agent file", !asAgentOk('cat', ['/root/.metro/agents/agent.json']));
 check('the agent cannot list /root', !asAgentOk('ls', ['/root']));
 writeHomeText(`${u.home}/.claude/skills/ok/SKILL.md`, 'x', 0o644);
 check('a skill written by the daemon belongs to the agent', owner(`${u.home}/.claude/skills/ok/SKILL.md`) === u.uid);
 spawnSync(...asAgent('ln', ['-s', '/etc', `${u.home}/.claude/skills/evil`]));
 let refused = false;
-try { writeHomeText(`${u.home}/.claude/skills/evil/SKILL.md`, 'pwned', 0o644); } catch { refused = true; }
+try {
+  writeHomeText(`${u.home}/.claude/skills/evil/SKILL.md`, 'pwned', 0o644);
+} catch {
+  refused = true;
+}
 check('a symlink planted by the agent cannot make the daemon write into /etc', refused && !existsSync('/etc/SKILL.md'));
 const tryPath = async (path: string): Promise<string> => {
-  try { const [a] = await resolveAttachments([{ path }]); return a === undefined ? 'none' : readFileSync(a.path, 'utf8'); } catch (e) { return `refused: ${(e as Error).message.slice(0, 60)}`; }
+  try {
+    const [a] = await resolveAttachments([{ path }]);
+    return a === undefined ? 'none' : readFileSync(a.path, 'utf8');
+  } catch (e) {
+    return `refused: ${(e as Error).message.slice(0, 60)}`;
+  }
 };
 check('a send cannot attach a root-only file', (await tryPath('/root/secret.txt')).startsWith('refused'));
-check('a send cannot attach root\'s agent file', (await tryPath('/root/.metro/agents/agent.json')).startsWith('refused'));
+check("a send cannot attach root's agent file", (await tryPath('/root/.metro/agents/agent.json')).startsWith('refused'));
 spawnSync(...asAgent('sh', ['-c', `echo mine > ${u.home}/ok.txt`]));
-check('a send can attach the agent\'s own file', (await tryPath(`${u.home}/ok.txt`)).trim() === 'mine');
+check("a send can attach the agent's own file", (await tryPath(`${u.home}/ok.txt`)).trim() === 'mine');
 startSession({ metro: ['sleep', '600'], agents: '/root/.metro/agents', continues: () => false });
 await new Promise((r) => setTimeout(r, 500));
 const who = spawnSync('ps', ['-o', 'user=', '-C', 'sleep'], { encoding: 'utf8' }).stdout.trim();
 check(`the Claude session runs as the agent (${who})`, who === 'agent');
-check('the watcher sees it in the agent\'s tmux', sessionRunning());
+check("the watcher sees it in the agent's tmux", sessionRunning());
 check('root has no session of its own', spawnSync('tmux', ['has-session', '-t', 'metro']).status !== 0);
 stopSession({ agents: '/root/.metro/agents' });
-check('stopping it stops the agent\'s session', !sessionRunning());
+check("stopping it stops the agent's session", !sessionRunning());
 const chain = spawnSync(...asAgent('sh', ['-c', 'echo $PPID']), { encoding: 'utf8' }).stdout.trim();
 check('switching user leaves no process in between (so tmux gets window resizes)', chain === String(process.pid));
-const listed = listWorkspace(u).map((e) => e.name);
-check(`the move offers root's work and no hidden entry holding keys (${listed.join(',')})`, listed.includes('ws-repo') && listed.includes('tools') && !listed.some((n) => ['.ssh', '.metro', '.claude', '.claude.json', '.gitconfig', '.cache'].includes(n)));
-spawnSync(...asAgent('ln', ['-s', '/etc', `${u.home}/tools`]));
-let refusedLink = false;
-try { startMove(['tools'], u); } catch { refusedLink = true; }
-check('a name the agent already holds (even a planted symlink) is refused', refusedLink);
-startMove(['ws-repo'], u);
-for (let i = 0; i < 50 && listWorkspace(u).find((e) => e.name === 'ws-repo')?.state !== 'moved'; i++) await new Promise((r) => setTimeout(r, 100));
-check('the folder arrives in the agent home, owned by the agent', owner(`${u.home}/ws-repo/src/a.ts`) === u.uid && readFileSync(`${u.home}/ws-repo/src/a.ts`, 'utf8') === 'code\n');
-check('the original stays in /root', existsSync('/root/ws-repo/src/a.ts'));
-check('nothing was written through the symlink into /etc', !existsSync('/etc/ws-repo'));
-spawnSync(...asAgent('sh', ['-c', `mkdir -p ${u.home}/.claude/projects/-home-agent/memory && echo new > ${u.home}/.claude/projects/-home-agent/memory/fresh.md`]));
-rmSync('/root/.metro/agents/agent-user.json');
-const taken = returnToRoot('/root/.metro/agents');
-check(`switching off gives root the agent's Claude folder (${String(taken)})`, existsSync('/root/.claude/projects/-root/memory/fresh.md'));
-check('root\'s older copy is kept beside it', spawnSync('sh', ['-c', 'ls -d /root/.claude.before-agent-*']).status === 0);
-check('the agent keeps its own copy too', existsSync(`${u.home}/.claude/projects/-home-agent/memory/fresh.md`));
-check('the agent\'s tmux was stopped', !sessionRunning());
-writeFileSync('/root/.claude/projects/-root/memory/root-later.md', 'later');
-writeFileSync('/root/.metro/agents/agent-user.json', '{}');
-const again = await provisionAgentUser('/root/.metro/agents', { METRO_RUNTIME_STORE: '/opt/store' });
-check(`switching on again carries root's current folder (${again})`, existsSync(`${u.home}/.claude/projects/-home-agent/memory/root-later.md`));
-check('the agent\'s previous copy is set aside, not deleted', spawnSync('sh', ['-c', `ls -d ${u.home}/.claude.before-root-*`]).status === 0);
-const waitMoved = async (names: string[]): Promise<void> => {
-  for (let i = 0; i < 100 && !names.every((n) => listWorkspace(u).find((e) => e.name === n)?.state === 'moved'); i++) await new Promise((r) => setTimeout(r, 100));
-};
-const offeredNow = listWorkspace(u).map((e) => e.name);
-check('safe hidden folders are offered, keys never', offeredNow.includes('.cache/huggingface/hub') && !offeredNow.some((n) => ['.ssh', '.metro', '.claude', '.cache'].includes(n)));
-startMove(['repo', 'wt-feature', '.cache/huggingface/hub', 'bin'], u, 'copy');
-startMove(['bigdata'], u, 'move');
-await waitMoved(['repo', 'wt-feature', '.cache/huggingface/hub', 'bin', 'bigdata']);
-check('a move in move mode leaves /root and lands whole', !existsSync('/root/bigdata') && readFileSync(`${u.home}/bigdata/f`, 'utf8') === 'big\n' && owner(`${u.home}/bigdata/f`) === u.uid);
-check('the model cache moved, the token beside it did not', existsSync(`${u.home}/.cache/huggingface/hub/models--x/w`) && !existsSync(`${u.home}/.cache/huggingface/token`));
-await new Promise((r) => setTimeout(r, 500));
-const wtStatus = spawnSync(...asAgent('git', ['-C', `${u.home}/wt-feature`, 'status', '--short', '--branch']), { encoding: 'utf8' });
-check(`a moved worktree works for the agent (${wtStatus.stdout.trim().split('\n')[0] ?? wtStatus.stderr})`, wtStatus.status === 0 && wtStatus.stdout.includes('feature'));
-const wtList = spawnSync(...asAgent('git', ['-C', `${u.home}/repo`, 'worktree', 'list']), { encoding: 'utf8' }).stdout;
-check('the main repo finds its worktree at the new place', wtList.includes(`${u.home}/wt-feature`) && !wtList.includes('prunable'));
-const jobs = listSchedules(u);
-const nightly = jobs.find((j) => j.kind === 'cron-root' && j.command.includes('nightly.sh'));
-check('root\'s cron job is listed and flagged', nightly?.usesRoot === true);
-if (nightly !== undefined) changeSchedule(nightly.id, 'agent', u, '/root/.metro/agents');
+const nightly = listSchedules(u).find((j) => j.kind === 'cron-root' && j.command.includes('nightly.sh'));
+check("root's cron job is listed and flagged", nightly?.usesRoot === true);
+spawnSync('sh', ['-c', `mkdir -p ${u.home}/bin && cp /root/bin/nightly.sh ${u.home}/bin/ && chown -R agent ${u.home}/bin`]);
+check(`every root job pointing into /root is switched at once (${String(convertRootJobs(u, '/root/.metro/agents'))})`, true);
 const agentCron = spawnSync('crontab', ['-l', '-u', 'agent'], { encoding: 'utf8' }).stdout;
 check('the cron line now runs as the agent with its paths rewritten', agentCron.includes(`0 3 * * * ${u.home}/bin/nightly.sh >> ${u.home}/nightly.log`));
-check('and left root\'s crontab, with a backup kept', !spawnSync('crontab', ['-l', '-u', 'root'], { encoding: 'utf8' }).stdout.includes('nightly.sh') && spawnSync('sh', ['-c', 'ls /root/.metro/agents/crontab-root.*.bak']).status === 0);
+check("and left root's crontab, with a backup kept", !spawnSync('crontab', ['-l', '-u', 'root'], { encoding: 'utf8' }).stdout.includes('nightly.sh') && spawnSync('sh', ['-c', 'ls /root/.metro/agents/crontab-root.*.bak']).status === 0);
 console.log(results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);

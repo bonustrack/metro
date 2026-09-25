@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { calendarOf, dropInText, execArgv, listSchedules, parseCronLine, rehome, usesRootHome, type Runner } from '../src/agent-user/schedules.ts';
+import { mkdtempSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { calendarOf, convertRootJobs, dropInText, execArgv, listSchedules, parseCronLine, rehome, usesRootHome, type Runner } from '../src/agent-user/schedules.ts';
 import type { AgentUser } from '../src/agent-user/user.ts';
 
 const AGENT: AgentUser = { name: 'agent', uid: 1001, gid: 1001, home: '/home/agent' };
@@ -24,15 +27,14 @@ function fakeRunner(): Runner {
 }
 
 describe('scheduled jobs on a box', () => {
-  test('the timers created on the box and both crontabs, flagged when they still point into /root', () => {
+  test("the agent's jobs, and root's only when they still point into /root; a system job never shows", () => {
     const jobs = listSchedules(AGENT, fakeRunner());
-    expect(jobs.map((j) => `${j.kind} ${j.name}`)).toEqual(['timer memory-daily', 'cron-root backup.sh', 'cron-root warm', 'cron-agent check.sh']);
+    expect(jobs.map((j) => `${j.kind} ${j.name}`)).toEqual(['timer memory-daily', 'cron-root backup.sh', 'cron-agent check.sh']);
     const timer = jobs[0];
     expect(timer).toMatchObject({ schedule: '*-*-* 23:47:00', runsAs: 'root', usesRoot: true, converted: false, lastResult: 'success' });
     expect(timer?.command).toBe('/usr/bin/bash /root/.claude/tools/memory-daily.sh --quiet');
     expect(jobs[1]).toMatchObject({ schedule: '0 3 * * *', usesRoot: true, runsAs: 'root' });
-    expect(jobs[2]).toMatchObject({ schedule: '@reboot', usesRoot: false });
-    expect(jobs[3]).toMatchObject({ runsAs: 'agent', usesRoot: false });
+    expect(jobs[2]).toMatchObject({ runsAs: 'agent', usesRoot: false });
   });
 
   test('paths into /root are rewritten to the agent home, and nothing else', () => {
@@ -57,5 +59,23 @@ describe('scheduled jobs on a box', () => {
     expect(parseCronLine('# 0 3 * * * x')).toBeNull();
     expect(parseCronLine('0 3 * * *')).toBeNull();
     expect(calendarOf('{ OnUnitActiveUSec=1h ; next_elapse=… }')).toBe('OnUnitActiveUSec=1h');
+  });
+
+  test("root's cron lines that point into /root move to the agent's crontab by themselves; the others stay", () => {
+    const tabs: Record<string, string> = { root: '0 3 * * * /root/bin/backup.sh\n@reboot /usr/local/bin/warm\n', agent: '' };
+    const runner: Runner = {
+      run: (file, args, input) => {
+        const who = args[args.indexOf('-u') + 1] ?? '';
+        if (file === 'crontab' && args[0] === '-l') return { status: 0, stdout: tabs[who] ?? '' };
+        if (file === 'crontab' && input !== undefined) tabs[who] = input;
+        return { status: 0, stdout: '' };
+      },
+    };
+    const backups = mkdtempSync(join(tmpdir(), 'metro-cron-'));
+    expect(convertRootJobs(AGENT, backups, runner)).toBe(1);
+    expect(tabs.agent).toBe('0 3 * * * /home/agent/bin/backup.sh\n');
+    expect(tabs.root).toBe('@reboot /usr/local/bin/warm\n');
+    expect(readdirSync(backups).some((f) => f.startsWith('crontab-root.'))).toBe(true);
+    expect(convertRootJobs(AGENT, backups, runner)).toBe(0);
   });
 });

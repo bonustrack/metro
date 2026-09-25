@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { changeSchedule, SCHEDULES_SINCE, type ScheduledJob } from '../api/agent-user.js';
+import { retrySchedule, SCHEDULES_SINCE, type ScheduledJob } from '../api/schedules.js';
 import { queryError, refresh, useModeQuery, useSchedulesQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { olderThan } from '../api/version.js';
@@ -11,7 +11,7 @@ import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { useDocumentTitle } from '../title.js';
 
-const ABOUT = 'Timers and cron jobs on this machine. A job still pointing into /root stops working once Claude Code runs as its own user.';
+const ABOUT = "The agent's timers and cron jobs. They all run as the user agent; one left in root's home is switched at every start.";
 
 const KIND: Record<ScheduledJob['kind'], string> = { timer: 'timer', 'cron-root': 'cron', 'cron-agent': 'cron' };
 
@@ -22,54 +22,38 @@ function detail(job: ScheduledJob): string {
   return parts.join(' · ');
 }
 
-function JobRow({ job, agentUser }: { job: ScheduledJob; agentUser: string | null }): ReactNode {
+function JobRow({ job }: { job: ScheduledJob }): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const act = (action: 'agent' | 'root'): void => {
+  const retry = (): void => {
     setBusy(true);
     setError(null);
-    changeSchedule(job.id, action)
+    retrySchedule(job.id)
       .then(() => refresh(client, 'schedules'))
       .catch((err: unknown) => {
-        setError(queryError(err, 'Could not change that job.'));
+        setError(queryError(err, 'Could not switch that job.'));
       })
       .finally(() => {
         setBusy(false);
       });
   };
+  const stuck = job.problem ?? error;
   return (
     <Col gap={4} padding={{ y: 6 }}>
       <Row gap={10} align="center" wrap>
         <Text size="sm" weight="semibold">{job.name}</Text>
         <Text size="sm" role="secondary">{detail(job)}</Text>
-        {job.usesRoot ? <Text size="sm" role="danger">points into /root</Text> : null}
       </Row>
       <Text size="sm" role="secondary" numberOfLines={2}>{job.command}</Text>
-      <JobActions job={job} agentUser={agentUser} busy={busy} dark={dark} act={act} />
-      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+      {stuck === null ? null : (
+        <Row gap={10} align="center" wrap>
+          <Text size="sm" role="danger">{`Still runs as root: ${stuck}`}</Text>
+          <Button size="sm" color="secondary" dark={dark} label="Retry" disabled={busy} onPress={retry} />
+        </Row>
+      )}
     </Col>
-  );
-}
-
-interface ActionsProps {
-  job: ScheduledJob;
-  agentUser: string | null;
-  busy: boolean;
-  dark: boolean;
-  act: (action: 'agent' | 'root') => void;
-}
-
-function JobActions({ job, agentUser, busy, dark, act }: ActionsProps): ReactNode {
-  const toAgent = agentUser !== null && job.kind !== 'cron-agent' && job.runsAs === 'root';
-  const toRoot = job.kind === 'timer' && job.converted;
-  if (!toAgent && !toRoot) return null;
-  return (
-    <Row gap={10}>
-      {toAgent ? <Button size="sm" color="secondary" dark={dark} label={`Run as ${agentUser}`} disabled={busy} onPress={() => { act('agent'); }} /> : null}
-      {toRoot ? <Button size="sm" color="secondary" dark={dark} label="Back to root" disabled={busy} onPress={() => { act('root'); }} /> : null}
-    </Row>
   );
 }
 
@@ -94,7 +78,7 @@ export function ScheduledJobs(): ReactNode {
       ) : (
         <Col>
           {schedules.data.jobs.map((job) => (
-            <JobRow key={job.id} job={job} agentUser={schedules.data.agentUser} />
+            <JobRow key={job.id} job={job} />
           ))}
         </Col>
       )}

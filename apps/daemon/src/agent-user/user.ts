@@ -1,11 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { isRecord } from '@metro-labs/core/is-record';
-import { readJson } from '@metro-labs/core/secure-fs';
-import { agentsDir } from '../agents/files.js';
 
-export const CONFIG_FILE = 'agent-user.json';
-const NAME_RE = /^[a-z_][a-z0-9_-]{0,31}$/;
+export const AGENT_NAME = 'agent';
 const AGENT_PATH = ['.local/bin', '/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin'];
 
 export interface AgentUser {
@@ -32,22 +28,14 @@ export function lookupUser(name: string): AgentUser | null {
 
 const realHost: UserHost = { platform: process.platform, uid: process.getuid?.(), lookup: lookupUser };
 
-export function wantedAgentUser(dir = agentsDir()): string | null {
-  const raw = readJson<unknown>(join(dir, CONFIG_FILE), null);
-  if (!isRecord(raw) || raw.enabled === false) return null;
-  const name = typeof raw.user === 'string' ? raw.user : 'agent';
-  return NAME_RE.test(name) && name !== 'root' ? name : null;
-}
+export const agentUserExpected = (host: UserHost = realHost): boolean => host.platform === 'linux' && host.uid === 0;
 
-let cached: { key: string; user: AgentUser | null } | null = null;
+let cached: AgentUser | null = null;
 
-export function agentUser(dir = agentsDir(), host: UserHost = realHost): AgentUser | null {
-  const name = wantedAgentUser(dir);
-  if (name === null || host.platform !== 'linux' || host.uid !== 0) return null;
-  const key = `${dir}\n${name}`;
-  if (cached?.key === key && cached.user !== null) return cached.user;
-  cached = { key, user: host.lookup(name) };
-  return cached.user;
+export function agentUser(host: UserHost = realHost): AgentUser | null {
+  if (!agentUserExpected(host)) return null;
+  cached ??= host.lookup(AGENT_NAME);
+  return cached;
 }
 
 export function forgetAgentUser(): void {

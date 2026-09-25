@@ -1,6 +1,5 @@
 import { isRecord } from './read.js';
 
-export const POLICY_SINCE = '0.1.0-beta.179';
 
 export type Access = 'allow' | 'ask' | 'deny';
 export type ToolGroup = 'read' | 'write';

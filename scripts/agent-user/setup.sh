@@ -7,7 +7,6 @@ cat > /root/.metro/agents/agent.json <<J
 J
 echo '{"version":2,"route":"c1","connections":[{"id":"c1","provider":"openrouter","model":"x/y","apiKey":"sk-SECRET"}]}' > /root/.metro/agents/model.json
 echo '{"version":1,"accounts":{}}' > /root/.metro/agents/policy.json
-echo '{}' > /root/.metro/agents/agent-user.json
 chmod 600 /root/.metro/agents/*
 echo '{"type":"user"}' > /root/.claude/projects/-root/s1.jsonl
 echo '{"claudeAiOauth":"LOGIN"}' > /root/.claude/.credentials.json
@@ -21,9 +20,5 @@ cat > /usr/local/bin/curl <<'C'
 echo 'mkdir -p "$HOME/.local/bin"; printf "#!/bin/sh\necho 2.1.999\n" > "$HOME/.local/bin/claude"; chmod +x "$HOME/.local/bin/claude"'
 C
 chmod +x /usr/local/bin/curl
-git config --global user.email t@t && git config --global user.name t && git config --global init.defaultBranch main
-mkdir -p /root/repo && cd /root/repo && git init -q && echo a > a && git add a && git commit -qm a && git worktree add -q /root/wt-feature -b feature && cd /
-mkdir -p /root/.cache/huggingface/hub/models--x && echo model > /root/.cache/huggingface/hub/models--x/w && echo SECRET-TOKEN > /root/.cache/huggingface/token
-mkdir -p /root/bigdata && echo big > /root/bigdata/f
 printf '0 3 * * * /root/bin/nightly.sh >> /root/nightly.log 2>&1\n' | crontab -u root -
 mkdir -p /root/bin && printf '#!/bin/sh\necho ok\n' > /root/bin/nightly.sh && chmod +x /root/bin/nightly.sh

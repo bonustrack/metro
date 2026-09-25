@@ -1,7 +1,6 @@
 import { policyOf, type ToolPolicy } from './policy.js';
 import { filled, isRecord } from './read.js';
 import { call } from './client.js';
-import { olderThan } from './version.js';
 import {
   isAttachSession,
   toIdentity,
@@ -32,10 +31,8 @@ export interface StationForm {
   links?: HintLink[];
   interactive: boolean;
   fields: AttachField[];
-  since?: string;
 }
 
-export const OUTLOOK_SINCE = '0.1.0-beta.175';
 
 export const STATION_FORMS: Record<string, StationForm> = {
   'discord-bot': {
@@ -152,7 +149,6 @@ export const STATION_FORMS: Record<string, StationForm> = {
         hint: 'Type the mailbox to connect, and Metro refuses any other account.',
       },
     ],
-    since: OUTLOOK_SINCE,
   },
   webhook: {
     label: 'Webhook',
@@ -177,11 +173,8 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
 };
 
-export function offeredStations(attachable: string[], version: string | null): string[] {
-  return attachable.filter((s) => {
-    const form = STATION_FORMS[s];
-    return form !== undefined && (form.since === undefined || !olderThan(version, form.since));
-  });
+export function offeredStations(attachable: string[]): string[] {
+  return attachable.filter((s) => STATION_FORMS[s] !== undefined);
 }
 
 export function stationLabel(station: string): string {

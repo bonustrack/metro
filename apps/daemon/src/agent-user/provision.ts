@@ -1,20 +1,16 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
-import { agentsDir } from '../agents/files.js';
 import { copyIntoHome } from './home-fs.js';
-import { agentMarketplaceDir, agentUser, asUser, claudeBin, forgetAgentUser, lookupUser, wantedAgentUser, type AgentUser } from './user.js';
+import { AGENT_NAME, agentMarketplaceDir, agentUser, agentUserExpected, asUser, claudeBin, forgetAgentUser, type AgentUser } from './user.js';
 import { watchAgentView } from './view.js';
-import { repairGitLinks } from './git-links.js';
 
 const INSTALL_MS = 10 * 60_000;
 const INSTALLER = 'curl -fsSL https://claude.ai/install.sh | bash';
-const MIGRATED = '.agent-user-migrated';
 
-export type Provisioned = 'off' | 'unsupported' | 'failed' | 'ready';
+export type Provisioned = 'off' | 'failed' | 'ready';
 
 function run(file: string, args: string[]): void {
   const done = spawnSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -22,63 +18,15 @@ function run(file: string, args: string[]): void {
   if (done.status !== 0) throw new Error(`${file} ${args.join(' ')}: ${done.stderr.trim() || `exit ${String(done.status)}`}`);
 }
 
-function ensureUser(name: string): AgentUser | null {
+function ensureUser(): AgentUser | null {
   if (agentUser() === null) {
-    run('useradd', ['--create-home', '--shell', '/bin/bash', name]);
-    log.info({ user: name }, 'agent-user: created the user Claude Code runs as');
+    run('useradd', ['--create-home', '--shell', '/bin/bash', AGENT_NAME]);
+    log.info({ user: AGENT_NAME }, 'agent-user: created the user Claude Code runs as');
     forgetAgentUser();
   }
   const user = agentUser();
   if (user !== null) run('chmod', ['700', user.home]);
   return user;
-}
-
-const absent = (path: string): boolean => {
-  try {
-    lstatSync(path);
-    return false;
-  } catch {
-    return true;
-  }
-};
-
-const encodedCwd = (dir: string): string => dir.replace(/[^A-Za-z0-9]/g, '-');
-
-function moveProject(user: AgentUser, from: string): void {
-  const projects = join(user.home, '.claude', 'projects');
-  const old = join(projects, encodedCwd(from));
-  const next = join(projects, encodedCwd(user.home));
-  if (existsSync(old) && absent(next)) run('mv', ['-T', old, next]);
-}
-
-const stamp = (now: Date): string => now.toISOString().replace(/[-:]/g, '').replace(/\..*$/, '').replace('T', '-');
-
-const kindIs = (path: string, want: 'dir' | 'file'): boolean => {
-  try {
-    const st = lstatSync(path);
-    return want === 'dir' ? st.isDirectory() : st.isFile();
-  } catch {
-    return false;
-  }
-};
-
-function migrateClaude(user: AgentUser, dir: string): void {
-  const marker = join(dir, MIGRATED);
-  if (existsSync(marker)) return;
-  const home = homedir();
-  const copied: string[] = [];
-  for (const name of ['.claude', '.claude.json']) {
-    const from = join(home, name);
-    const to = join(user.home, name);
-    if (!existsSync(from)) continue;
-    if (!absent(to)) run('mv', ['-T', to, `${to}.before-root-${stamp(new Date())}`]);
-    run('cp', ['-aT', from, to]);
-    run('chown', ['-hR', `${user.name}:${String(user.gid)}`, to]);
-    copied.push(name);
-  }
-  if (copied.includes('.claude')) moveProject(user, home);
-  writeFileSync(marker, `${user.name}\n`, { mode: 0o600 });
-  log.info({ user: user.name, copied }, 'agent-user: moved the Claude Code folder and login to the agent user once; root keeps its copy');
 }
 
 function installClaude(user: AgentUser): Promise<void> {
@@ -119,79 +67,17 @@ function copyMarketplace(user: AgentUser, env: NodeJS.ProcessEnv): void {
   log.info({ files, version: pluginVersion(from) }, 'agent-user: copied the metro plugin where the agent user can load it');
 }
 
-function stopRootSession(): void {
-  const running = spawnSync('tmux', ['has-session', '-t', 'metro'], { stdio: 'ignore' });
-  if (running.error !== undefined || running.status !== 0) return;
-  spawnSync('tmux', ['kill-session', '-t', 'metro'], { stdio: 'ignore' });
-  log.info('agent-user: stopped the Claude session root was running; it comes back as the agent user');
-}
-
-function stopAgentSessions(user: AgentUser): void {
-  spawnSync(...asUser(user, 'tmux', ['kill-server']), { stdio: 'ignore' });
-}
-
-function takeBack(user: AgentUser, now: Date): string[] {
-  const home = homedir();
-  const taken: string[] = [];
-  for (const [name, kind] of [['.claude', 'dir'], ['.claude.json', 'file']] as const) {
-    const from = join(user.home, name);
-    if (!kindIs(from, kind)) continue;
-    const to = join(home, name);
-    if (!absent(to)) run('mv', ['-T', to, `${to}.before-agent-${stamp(now)}`]);
-    run('cp', ['-aT', from, to]);
-    run('chown', ['-hR', 'root:root', to]);
-    taken.push(name);
-  }
-  if (taken.includes('.claude')) {
-    const projects = join(home, '.claude', 'projects');
-    const old = join(projects, encodedCwd(user.home));
-    const next = join(projects, encodedCwd(home));
-    if (existsSync(old) && absent(next)) run('mv', ['-T', old, next]);
-  }
-  return taken;
-}
-
-export function returnToRoot(dir = agentsDir(), now = new Date()): string[] | null {
-  const marker = join(dir, MIGRATED);
-  if (process.platform !== 'linux' || process.getuid?.() !== 0 || !existsSync(marker)) return null;
-  const name = readFileSync(marker, 'utf8').trim() || 'agent';
-  const user = lookupUser(name);
-  if (user === null) return null;
-  stopAgentSessions(user);
-  const taken = takeBack(user, now);
-  rmSync(marker);
-  log.info({ user: user.name, taken }, 'agent-user: switched off; the agent\'s Claude folder and login are root\'s again, root\'s older copy is kept beside it');
-  return taken;
-}
-
-export async function provisionAgentUser(dir = agentsDir(), env: NodeJS.ProcessEnv = process.env): Promise<Provisioned> {
-  const name = wantedAgentUser(dir);
-  if (name === null) {
-    try {
-      returnToRoot(dir);
-    } catch (err) {
-      log.error({ err: errMsg(err) }, 'agent-user: could not bring the Claude folder back to root; the agent user keeps it, nothing was deleted');
-    }
-    return 'off';
-  }
-  if (process.platform !== 'linux' || process.getuid?.() !== 0) {
-    log.warn({ user: name }, 'agent-user: running Claude Code as its own user needs Linux and a daemon running as root; the Claude session stays stopped');
-    return 'unsupported';
-  }
+export async function provisionAgentUser(env: NodeJS.ProcessEnv = process.env): Promise<Provisioned> {
+  if (!agentUserExpected()) return 'off';
   try {
-    const user = ensureUser(name);
-    if (user === null) throw new Error(`the user ${name} could not be found after creating it`);
-    stopRootSession();
-    migrateClaude(user, dir);
+    const user = ensureUser();
+    if (user === null) throw new Error(`the user ${AGENT_NAME} could not be found after creating it`);
     await installClaude(user);
     copyMarketplace(user, env);
     watchAgentView();
-    repairGitLinks(user).catch((err: unknown) => {
-      log.warn({ err: errMsg(err) }, 'agent-user: could not repair git links');
-    });
     return 'ready';
   } catch (err) {
-    log.error({ user: name, err: errMsg(err) }, 'agent-user: could not prepare the agent user; the Claude session stays stopped');
+    log.error({ user: AGENT_NAME, err: errMsg(err) }, 'agent-user: could not prepare the agent user; the Claude session stays stopped');
     return 'failed';
   }
 }

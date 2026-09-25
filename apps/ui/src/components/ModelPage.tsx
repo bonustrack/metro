@@ -13,9 +13,8 @@ import { ConnectProviderModal } from './ConnectProviderModal.js';
 import { ModelPickerModal } from './ModelPickerModal.js';
 import type { MenuItem } from './Dropdown.js';
 import { chooseConnection, dropConnection, saveConnection, type ConnectionRow, type ModelSettings } from '../api/model.js';
-import { CONNECTIONS_SINCE, usesKey } from '../api/providers.js';
-import { queryError, refresh, useModelQuery, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
+import { usesKey } from '../api/providers.js';
+import { queryError, refresh, useModelQuery } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
 
 const HOW = 'Where the requests of a metro claude session go. Changing the model restarts the Claude session.';
@@ -86,10 +85,8 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
 }
 
 export function ModelPage(): ReactNode {
-  const mode = useModeQuery();
   const model = useModelQuery();
   useDocumentTitle('Model');
-  const old = olderThan(mode.data?.version ?? null, CONNECTIONS_SINCE);
   return (
     <Col gap={20}>
       <Col gap={8}>
@@ -98,9 +95,7 @@ export function ModelPage(): ReactNode {
           {HOW}
         </Text>
       </Col>
-      {old ? (
-        <Text size="sm" role="secondary">Needs metro {CONNECTIONS_SINCE}. Update first, from the Server page.</Text>
-      ) : model.error !== null ? (
+      {model.error !== null ? (
         <Text size="sm" role="danger">
           {queryError(model.error, 'Could not read the model settings.')}
         </Text>

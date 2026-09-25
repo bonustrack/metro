@@ -38,13 +38,13 @@ const dashboard = async (agents: unknown): Promise<AgentSummary | undefined> => 
   return (await fetchStations()).agent;
 };
 
-describe('a page newer than the daemon', () => {
-  test('still names the project a daemon before beta.173 requires, on the agents list and on connectors', async () => {
+describe('the page names no project any more', () => {
+  test('neither the agents list nor the connectors carry project=', async () => {
     await dashboard([]);
-    expect(calls[0]?.url).toContain('project=localdaemon');
+    expect(calls[0]?.url).not.toContain('project=');
     serve({ connectors: [] });
     await fetchConnectors();
-    expect(calls[0]?.url).toContain('project=localdaemon');
+    expect(calls[0]?.url).not.toContain('project=');
   });
 });
 

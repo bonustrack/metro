@@ -6,9 +6,7 @@ import { Button, Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { CountBadge } from './CountBadge.js';
 import { decideApproval, type Approval, type Decision } from '../api/approvals.js';
-import { POLICY_SINCE } from '../api/policy.js';
-import { olderThan } from '../api/version.js';
-import { queryError, refresh, useApprovalsQuery, useModeQuery } from '../api/queries.js';
+import { queryError, refresh, useApprovalsQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 
 const DECIDE_FAILED = 'Could not send your answer.';
@@ -54,10 +52,8 @@ function PendingRow({ approval }: { approval: Approval }): ReactNode {
 }
 
 export function Approvals(): ReactNode {
-  const mode = useModeQuery();
-  const supported = mode.data !== undefined && !olderThan(mode.data.version, POLICY_SINCE);
-  const query = useApprovalsQuery(supported);
-  if (!supported || query.data === undefined || query.data.length === 0) return null;
+  const query = useApprovalsQuery(true);
+  if (query.data === undefined || query.data.length === 0) return null;
   return (
     <Col gap={8}>
       <Row gap={8} align="center">

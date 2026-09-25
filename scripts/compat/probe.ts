@@ -13,7 +13,7 @@ import * as model from '../../apps/ui/src/api/model.ts';
 import * as term from '../../apps/ui/src/api/terminal.ts';
 import type { Section } from '../../apps/ui/src/export/pack.ts';
 import * as transfer from '../../apps/ui/src/export/transfer.ts';
-import * as agentUser from '../../apps/ui/src/api/agent-user.ts';
+import * as schedules from '../../apps/ui/src/api/schedules.ts';
 
 const need = (name: string): string => {
   const v = process.env[name];
@@ -102,8 +102,7 @@ await ok('setClaudePermissionMode', () => box.setClaudePermissionMode('auto'));
 await ok('setClaudeSystemPrompt', () => box.setClaudeSystemPrompt('compat'));
 await ok('setClaudeSystemPrompt clear', () => box.setClaudeSystemPrompt(''));
 await ok('fetchClaudeVersion', () => box.fetchClaudeVersion());
-await ok('fetchAgentUser', () => agentUser.fetchAgentUser());
-await ok('fetchSchedules', () => agentUser.fetchSchedules());
+await ok('fetchSchedules', () => schedules.fetchSchedules());
 await ok('fetchClaudeAccount', () => claude.fetchClaudeAccount());
 const settings = await ok('fetchClaudeSettings', () => claude.fetchClaudeSettings());
 const first = settings?.[0];

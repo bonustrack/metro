@@ -12,7 +12,7 @@ import { claudeDir, listClaudeProjects } from './files.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
 import { inSessionScope } from './memory.js';
-import { agentUser, agentViewDir, asAgent, claudeHome, wantedAgentUser } from '../agent-user/user.js';
+import { agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
 
 function sessionEnv(): Record<string, string> {
   const user = agentUser();
@@ -132,14 +132,14 @@ function credentialReady(deps: SessionDeps): string | null {
   return 'Claude Code is not signed in and the Model page routes nowhere yet';
 }
 
-const agentUserMissing = (deps: SessionDeps, agents: string): boolean =>
-  deps.metro === undefined && wantedAgentUser(agents) !== null && agentUser(agents) === null;
+const agentUserMissing = (deps: SessionDeps): boolean =>
+  deps.metro === undefined && agentUserExpected() && agentUser() === null;
 
 export function sessionBlocked(deps: SessionDeps = {}): string | null {
   const agents = deps.agents ?? agentsDir();
   if (listAgentFiles(agents).length === 0) return 'no agent on this machine yet';
-  if (agentUserMissing(deps, agents))
-    return 'Claude Code is set to run as its own user, and that user is not ready (Linux and a daemon running as root are needed; see the log)';
+  if (agentUserMissing(deps))
+    return 'Claude Code runs as the user agent here, and that user is not ready yet; see the log';
   if (deps.metro === undefined && !claudeInstalled()) return 'Claude Code is not installed on this machine';
   if (!tmuxOk(deps.tmux ?? 'tmux', ['-V'])) return 'tmux is not installed on this machine';
   return credentialReady(deps);

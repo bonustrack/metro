@@ -34,7 +34,7 @@ import { fetchServers, probeServer, type Server, type ServerStatus } from './ser
 import { fetchMachine, type Machine } from './machine.js';
 import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
 import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
-import { fetchAgentUser, fetchSchedules, fetchWorkspace, type AgentUserStatus, type Schedules, type WorkspaceEntry } from './agent-user.js';
+import { fetchSchedules, type Schedules } from './schedules.js';
 import { currentOrganization } from '../auth/org-route.js';
 
 const STALE_MS = 60_000;
@@ -67,8 +67,6 @@ type BoxName =
   | 'connector'
   | 'connector-tools'
   | 'account-name'
-  | 'agent-user'
-  | 'agent-workspace'
   | 'schedules';
 
 export type BoxKey = BoxName | readonly [BoxName, ...string[]];
@@ -158,18 +156,9 @@ export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
 
 export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, { staleTime: 10_000 });
 
-export const useAgentUserQuery = (enabled: boolean): UseQueryResult<AgentUserStatus> =>
-  useBoxQuery('agent-user', fetchAgentUser, { staleTime: 10_000, enabled });
-
 export const useSchedulesQuery = (enabled: boolean): UseQueryResult<Schedules> =>
   useBoxQuery('schedules', fetchSchedules, { staleTime: 15_000, enabled, retry: false });
 
-export const useWorkspaceQuery = (enabled: boolean): UseQueryResult<WorkspaceEntry[]> =>
-  useBoxQuery('agent-workspace', fetchWorkspace, {
-    staleTime: 5_000,
-    enabled,
-    refetchInterval: (query) => (query.state.data?.some((e) => e.state === 'copying' || e.state === 'waiting') === true ? 3_000 : false),
-  });
 
 export const useClaudeVersionQuery = (): UseQueryResult<ClaudeVersion> =>
   useBoxQuery('claude-version', fetchClaudeVersion, { staleTime: LONG_MS, retry: false });

@@ -17,14 +17,14 @@ import { handleMachineRequest, type MachineApiDeps } from '../server/machine.js'
 import { handleModelRequest, type ModelApiDeps } from '../gateway/model-api.js';
 import type { GatewayDeps } from '../gateway/gateway.js';
 import { handleTerminalRequest, type TerminalApiDeps } from '../terminal/api.js';
-import { handleAgentUserRequest, type AgentUserApiDeps } from '../agent-user/api.js';
+import { handleSchedulesRequest } from '../agent-user/schedules-api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
   bundleApi?: BundleApiDeps;
   updateApi?: UpdateApiDeps;
   controlApi?: ControlApiDeps;
-  agentUserApi?: AgentUserApiDeps;
+  schedulesApi?: true;
   ownerApi?: OwnerApiDeps;
   machineApi?: MachineApiDeps;
   modelApi?: ModelApiDeps;
@@ -51,7 +51,7 @@ export function handleSessionApis(
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
     ...when(apis.controlApi, (d) => handleControlRequest(req, res, d)),
-    ...when(apis.agentUserApi, (d) => handleAgentUserRequest(req, res, d)),
+    ...when(apis.schedulesApi, () => handleSchedulesRequest(req, res)),
     ...when(apis.ownerApi, (d) => handleOwnerRequest(req, res, d)),
     ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),
     ...when(apis.modelApi, (d) => handleModelRequest(req, res, d)),

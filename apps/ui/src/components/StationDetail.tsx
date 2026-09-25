@@ -20,9 +20,7 @@ import { Allowlist } from './Allowlist.js';
 import { ToggleAccount } from './ToggleAccount.js';
 import { StationName } from './StationName.js';
 import { Permissions } from './Permissions.js';
-import { POLICY_SINCE, type GroupedTool } from '../api/policy.js';
-import { olderThan } from '../api/version.js';
-import { useModeQuery } from '../api/queries.js';
+import { type GroupedTool } from '../api/policy.js';
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
@@ -132,15 +130,8 @@ function PermissionsSection({
   tools: GroupedTool[];
   onSaved: (() => Promise<unknown>) | undefined;
 }): ReactNode {
-  const mode = useModeQuery();
   const id = row.id;
   if (id === null || agentId === undefined || onSaved === undefined || tools.length === 0) return null;
-  if (olderThan(mode.data?.version ?? null, POLICY_SINCE))
-    return (
-      <Section title="Permissions">
-        <Text size="sm" role="secondary">{`Needs metro ${POLICY_SINCE}. Update first, from the Server page.`}</Text>
-      </Section>
-    );
   return (
     <Permissions
       policy={row.policy}

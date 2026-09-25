@@ -3,7 +3,6 @@ import { toolGroupsOf, type GroupedTool } from './policy.js';
 import { accessToken, refreshAccount } from './auth.js';
 import { groupAccounts, type AccountGroup } from './accounts.js';
 
-export const OLD_DAEMON_PROJECT = 'localdaemon';
 import { isRecord } from './read.js';
 
 export class AuthError extends Error {
@@ -122,7 +121,7 @@ export async function fetchSession(): Promise<string> {
 export async function fetchStations(): Promise<StationsView> {
   const body = await call({
     method: 'GET',
-    path: `?accounts=1&project=${OLD_DAEMON_PROJECT}`,
+    path: '?accounts=1',
   });
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
   return {
