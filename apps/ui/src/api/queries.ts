@@ -35,6 +35,7 @@ import { fetchMachine, type Machine } from './machine.js';
 import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
 import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
 import { fetchAgentUser, type AgentUserStatus } from './agent-user.js';
+import { currentOrganization } from '../auth/org-route.js';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -115,14 +116,16 @@ export function queryError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
-export const serversKey = (): string[] => ['servers'];
+export const orgKey = (...parts: string[]): string[] => ['org', currentOrganization() ?? 'none', ...parts];
+
+export const serversKey = (): string[] => orgKey('servers');
 
 export function useServersQuery(): UseQueryResult<Server[]> {
   return useQuery({ queryKey: serversKey(), queryFn: () => fetchServers(), staleTime: 30_000 });
 }
 
 export function useLaunchOverviewQuery(): UseQueryResult<LaunchOverview> {
-  return useQuery({ queryKey: ['launch-overview'], queryFn: () => fetchLaunchOverview(), staleTime: 60_000, retry: false });
+  return useQuery({ queryKey: orgKey('launch-overview'), queryFn: () => fetchLaunchOverview(), staleTime: 60_000, retry: false });
 }
 
 export function useServerStatus(host: string): UseQueryResult<ServerStatus> {

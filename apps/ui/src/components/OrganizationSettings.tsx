@@ -9,6 +9,7 @@ import { renameOrganization, setOrganizationSlug } from '../api/organization.js'
 import { noteRoutedOrganization } from '../auth/org-route.js';
 import { routeHash } from '../route.js';
 import { SLUG_RE } from '../auth/org-segment.js';
+import { orgKey } from '../api/queries.js';
 
 const NAME_MIN = 2;
 const NAME_MAX = 64;
@@ -21,7 +22,7 @@ function useRename(account: Account): Saving {
     run: async (name) => {
       await renameOrganization(name);
       await refreshAccount();
-      await client.invalidateQueries({ queryKey: ['organization'] });
+      await client.invalidateQueries({ queryKey: orgKey('organization') });
     },
     failure: 'Could not rename the organization.',
   });

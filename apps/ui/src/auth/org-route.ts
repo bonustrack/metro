@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { fetchOrganizations, switchOrganization } from '../api/auth.js';
+import { fetchServers } from '../api/servers.js';
 import { activeAccount, type Account } from './account.js';
 import { isOrganizationId } from './org-segment.js';
 
@@ -34,7 +35,7 @@ export async function resolveOrganization(segment: string): Promise<string | nul
 
 export async function enterOrganization(client: QueryClient, organization: string, page = ''): Promise<void> {
   if (currentOrganization() !== organization) await switchOrganization(organization);
-  client.clear();
+  await client.prefetchQuery({ queryKey: ['org', organization, 'servers'], queryFn: () => fetchServers(), staleTime: 30_000 });
   routed = null;
   window.location.hash = `#/${names(activeAccount()) ?? organization}${page}`;
 }

@@ -169,7 +169,6 @@ function OrganizationGate({ selection, onLock, children }: { selection: Selectio
         return switchOrganization(id);
       })
       .then(() => {
-        client.clear();
         bump((n) => n + 1);
       })
       .catch((err: unknown) => {

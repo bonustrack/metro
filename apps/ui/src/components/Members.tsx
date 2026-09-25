@@ -16,13 +16,14 @@ import { queryError } from '../api/queries.js';
 import { routeHash } from '../route.js';
 import { useDocumentTitle } from '../title.js';
 import { GROW, SHRINK } from '../theme.js';
+import { orgKey } from '../api/queries.js';
 
 const LIST_WIDTH = 640;
 const AVATAR = 32;
 const HOW = 'Everyone here opens every agent of the organization. Admins can also stop, restart, update and reset agents, open the terminal and manage members.';
 const NO_ASSIST = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 
-const organizationKey = (): string[] => ['organization'];
+const organizationKey = (): string[] => orgKey('organization');
 
 function useOrganizationQuery(): UseQueryResult<Organization> {
   return useQuery({ queryKey: organizationKey(), queryFn: () => fetchOrganization(), staleTime: 30_000 });
