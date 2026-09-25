@@ -24,6 +24,7 @@ describe('the first segment is the daemon', () => {
         { kind: 'memory', project, claudeProject: null, file: null },
         { kind: 'claude', project },
         { kind: 'skills', project },
+        { kind: 'scheduled', project },
         { kind: 'skill', project, id: 'user:write-as-less' },
         { kind: 'skill', project, id: '-Users-less-Cursor-bonustrack-metro:ship-it' },
         { kind: 'memory', project, claudeProject: '-Users-less-Cursor-bonustrack-metro', file: 'project_cli_redesign.md' },

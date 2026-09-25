@@ -23,13 +23,14 @@ export type Selection =
   | { kind: 'memory'; project: string; claudeProject: string | null; file: string | null }
   | { kind: 'claude'; project: string }
   | { kind: 'skills'; project: string }
+  | { kind: 'scheduled'; project: string }
   | { kind: 'skill'; project: string; id: string };
 
 export function selectionProject(selection: Selection): string | null {
   return 'project' in selection ? selection.project : null;
 }
 
-type PlainKind = 'home' | 'agent-settings' | 'server' | 'terminal' | 'model' | 'stations' | 'connectors' | 'claude' | 'skills';
+type PlainKind = 'home' | 'agent-settings' | 'server' | 'terminal' | 'model' | 'stations' | 'connectors' | 'claude' | 'skills' | 'scheduled';
 type LandingKind = PlainKind | 'sessions' | 'memory';
 
 const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
@@ -44,6 +45,7 @@ const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
   connector: 'connectors',
   claude: 'claude',
   skills: 'skills',
+  scheduled: 'scheduled',
   skill: 'skills',
   sessions: 'sessions',
   memory: 'memory',

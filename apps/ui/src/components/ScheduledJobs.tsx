@@ -7,6 +7,9 @@ import { changeSchedule, SCHEDULES_SINCE, type ScheduledJob } from '../api/agent
 import { queryError, refresh, useModeQuery, useSchedulesQuery } from '../api/queries.js';
 import { whenLabel } from '../api/when.js';
 import { olderThan } from '../api/version.js';
+import { Loading } from './Loading.js';
+import { PageTitle } from './PageTitle.js';
+import { useDocumentTitle } from '../title.js';
 
 const ABOUT = 'Timers and cron jobs on this machine. A job still pointing into /root stops working once Claude Code runs as its own user.';
 
@@ -74,10 +77,11 @@ export function ScheduledJobs(): ReactNode {
   const mode = useModeQuery();
   const supported = mode.data !== undefined && !olderThan(mode.data.version, SCHEDULES_SINCE);
   const schedules = useSchedulesQuery(supported);
-  if (mode.data === undefined) return null;
+  useDocumentTitle('Scheduled');
+  if (mode.data === undefined) return <Loading />;
   return (
-    <Col gap={8}>
-      <Text size="md" weight="semibold">Scheduled jobs</Text>
+    <Col gap={16}>
+      <PageTitle>Scheduled</PageTitle>
       <Text size="sm" role="secondary">{ABOUT}</Text>
       {!supported ? (
         <Text size="sm" role="secondary">{`Needs metro ${SCHEDULES_SINCE}. Update first, from the Server page.`}</Text>
