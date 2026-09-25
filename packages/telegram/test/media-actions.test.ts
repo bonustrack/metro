@@ -21,7 +21,7 @@ describe('buildInputMedia', () => {
 
   test('an http url is passed through untouched for telegram-bot to fetch', () => {
     const { media: m } = buildInputMedia(
-      { url: 'https://example.com/a.png', mime: 'image/png' },
+      { path: 'https://example.com/a.png', mime: 'image/png' },
       undefined,
     );
     expect(m.file).toBe('https://example.com/a.png');
@@ -33,13 +33,13 @@ describe('buildInputMedia', () => {
   });
 
   test('image kind without mime → photo', () => {
-    const { media: m } = buildInputMedia({ url: '/cache/b', kind: 'image' }, undefined);
+    const { media: m } = buildInputMedia({ path: '/cache/b', kind: 'image' }, undefined);
     expect(m.type).toBe('photo');
     expect(m.caption).toBeUndefined();
   });
 
   test('image by extension → photo', () => {
-    const { media: m } = buildInputMedia({ url: '/cache/c.png' }, undefined);
+    const { media: m } = buildInputMedia({ path: '/cache/c.png' }, undefined);
     expect(m.type).toBe('photo');
   });
 

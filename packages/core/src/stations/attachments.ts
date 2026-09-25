@@ -190,7 +190,6 @@ export const toCanonical = (a: {
 }): Record<string, unknown> => ({
   kind: kindOf(a.mime, a.path),
   path: a.path,
-  url: a.path,
   name: a.name,
   mime: a.mime,
 });

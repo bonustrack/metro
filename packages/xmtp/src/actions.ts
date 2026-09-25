@@ -1,4 +1,4 @@
-import { ReactionAction, ReactionSchema } from '@xmtp/node-sdk';
+import { ReactionAction, ReactionSchema, type Conversation } from '@xmtp/node-sdk';
 import type { Reply } from '@xmtp/node-bindings';
 import {
   AttachmentCodec,
@@ -9,7 +9,7 @@ import { resolveMsgId, respond } from './wire.js';
 import { emitOutbound } from './emit.js';
 import { PollCodec, buildPollContent } from './codecs.js';
 import { convHandlers } from './actions-conv.js';
-import { normalizeXmtp } from '@metro-labs/core/stations/messaging-normalize';
+import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import { TrainError } from '@metro-labs/core/train-error';
 import { claimNameAction, nameAction, setProfile } from './profile.js';
 import { profileAction } from './sender.js';
@@ -32,68 +32,47 @@ async function send(id: string, args: Args): Promise<void> {
 }
 
 async function ask(id: string, args: Args): Promise<void> {
-  const { line, pollId } = args as { line: string; pollId?: string };
+  const { line } = args as { line: string };
   const { acct, conv } = await convOf(line);
   if (!conv) throw noConv(line);
-  const fallbackId = `poll_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-  const mintedId =
-    pollId ??
-    (typeof crypto?.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : fallbackId);
+  const mintedId = crypto.randomUUID();
   const { poll, title } = buildPollContent(args, mintedId);
   const sentId = await conv.send(new PollCodec().encode(poll));
   emitOutbound(acct.cfg.id, line, sentId, `📊 Poll: ${title}`);
   respond(id, { result: { messageId: sentId, pollId: mintedId } });
 }
 
+async function referenceInboxOf(conv: Conversation, xmtpMsgId: string): Promise<string> {
+  const recent = await conv.messages({ limit: 200, direction: 1 });
+  const inbox = recent.find((m) => m.id === xmtpMsgId)?.senderInboxId;
+  if (!inbox)
+    throw new TrainError('NOT_FOUND', `could not resolve referenceInboxId for ${xmtpMsgId}`);
+  return inbox;
+}
+
 async function react(id: string, args: Args): Promise<void> {
-  const {
-    line,
-    messageId,
-    emoji,
-    action: reactAction,
-    schema: reactSchema,
-  } = args as {
+  const { line, messageId, emoji, action: reactAction } = args as {
     line: string;
     messageId: string;
     emoji: string;
     action?: 'added' | 'removed';
-    schema?: string;
-    referenceInboxId?: string;
   };
   const { acct, conv } = await convOf(line);
   if (!conv) throw noConv(line);
   const xmtpMsgId = resolveMsgId(messageId);
-  let refInbox = (args as { referenceInboxId?: string }).referenceInboxId;
-  if (!refInbox) {
-    const recent = await conv.messages({ limit: 200, direction: 1 });
-    refInbox = recent.find((m) => m.id === xmtpMsgId)?.senderInboxId;
-    if (!refInbox)
-      throw new TrainError(
-        'NOT_FOUND',
-        `could not resolve referenceInboxId for ${xmtpMsgId}`,
-      );
-  }
-  const schemaEnum =
-    reactSchema === 'custom'
-      ? ReactionSchema.Custom
-      : reactSchema === 'shortcode'
-        ? ReactionSchema.Shortcode
-        : ReactionSchema.Unicode;
+  const removed = reactAction === 'removed';
   const sentId = await conv.sendReaction({
     reference: xmtpMsgId,
-    referenceInboxId: refInbox,
-    action:
-      reactAction === 'removed' ? ReactionAction.Removed : ReactionAction.Added,
+    referenceInboxId: await referenceInboxOf(conv, xmtpMsgId),
+    action: removed ? ReactionAction.Removed : ReactionAction.Added,
     content: emoji,
-    schema: schemaEnum,
+    schema: ReactionSchema.Unicode,
   });
   emitOutbound(
     acct.cfg.id,
     line,
     sentId,
-    `[react ${emoji}${reactAction === 'removed' ? ' (removed)' : ''}]`,
+    `[react ${emoji}${removed ? ' (removed)' : ''}]`,
     { type: 'react', emoji, targetId: xmtpMsgId },
   );
   respond(id, { result: { messageId: sentId } });
@@ -151,54 +130,28 @@ const IMG_MIME_BY_EXT: Record<string, string> = {
   webp: 'image/webp',
 };
 
-async function loadImageBytes(
-  path: string | undefined,
-  dataB64: string | undefined,
-): Promise<Uint8Array> {
-  if (path) {
-    const { readFileSync } = await import('node:fs');
-    return new Uint8Array(readFileSync(path));
-  }
-  if (dataB64) return new Uint8Array(Buffer.from(dataB64, 'base64'));
-  throw badArgs('sendImage requires path or dataB64');
-}
-
-function imageMime(
-  mimeType: string | undefined,
-  filename: string | undefined,
-  path: string | undefined,
-): string {
-  if (mimeType) return mimeType;
-  const ext = (filename ?? path ?? '').toLowerCase().split('.').pop() ?? '';
+function imageMime(path: string): string {
+  const ext = path.toLowerCase().split('.').pop() ?? '';
   return IMG_MIME_BY_EXT[ext] ?? 'image/png';
 }
 
-function imageFilename(
-  filename: string | undefined,
-  path: string | undefined,
-): string {
-  if (filename) return filename;
-  const baseName = path ? path.split('/').pop() : undefined;
+function imageFilename(path: string): string {
+  const baseName = path.split('/').pop();
   return baseName != null && baseName !== '' ? baseName : 'image.png';
 }
 
 async function sendImage(id: string, args: Args): Promise<void> {
-  const { line, path, dataB64, filename, mimeType } = args as {
-    line: string;
-    path?: string;
-    dataB64?: string;
-    filename?: string;
-    mimeType?: string;
-  };
+  const { line, path } = args as { line: string; path?: string };
+  if (!path) throw badArgs('sendImage requires path');
   const { acct, conv } = await convOf(line);
   if (!conv) throw noConv(line);
-  const bytes = await loadImageBytes(path, dataB64);
-  const mime = imageMime(mimeType, filename, path);
-  const fname = imageFilename(filename, path);
+  const { readFileSync } = await import('node:fs');
+  const mime = imageMime(path);
+  const fname = imageFilename(path);
   const attachment: Attachment = {
     filename: fname,
     mimeType: mime,
-    data: bytes,
+    data: new Uint8Array(readFileSync(path)),
   };
   const sentId = await conv.send(new AttachmentCodec().encode(attachment));
   emitOutbound(acct.cfg.id, line, sentId, `[${mime.split('/')[0]}: ${fname}]`);
@@ -240,5 +193,5 @@ export type { CallMsg };
 
 export const handleCall = makeStation({
   handlers,
-  normalize: normalizeXmtp,
+  normalize: messagingAliases({ action: 'removed' }),
 });

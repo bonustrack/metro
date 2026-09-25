@@ -6,12 +6,11 @@ import type { UserClient } from './client.js';
 export interface CanonicalAttachment {
   kind?: string;
   path?: string;
-  url?: string;
   mime?: string;
   name?: string;
 }
 
-const srcOf = (att: CanonicalAttachment): string => att.path ?? att.url ?? '';
+const srcOf = (att: CanonicalAttachment): string => att.path ?? '';
 
 function isImage(att: CanonicalAttachment): boolean {
   if (att.kind === 'image') return true;

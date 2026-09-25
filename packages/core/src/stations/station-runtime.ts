@@ -1,5 +1,5 @@
 import { serializeTrainError, type TrainErrorInfo } from '../train-error.js';
-import type { Normalized } from './messaging-normalize.js';
+import type { Normalize } from './messaging-normalize.js';
 
 export const emit = (e: unknown): void =>
   void process.stdout.write(JSON.stringify(e) + '\n');
@@ -27,7 +27,7 @@ export type StationHandler = (id: string, args: Args) => void | Promise<void>;
 
 export interface StationConfig {
   handlers: Record<string, StationHandler>;
-  normalize: (action: string, args: Args) => Normalized;
+  normalize?: Normalize;
 }
 
 const lineTag = (args: Args): string =>
@@ -40,15 +40,13 @@ export function makeStation({ handlers, normalize }: StationConfig) {
     let action = msg.action;
     let args: Args = msg.args;
     try {
-      ({ action, args } = normalize(msg.action, msg.args));
-      emit({ op: 'log', text: `call ${action} recv (line=${lineTag(args)})` });
+      if (normalize && !handlers[action]) ({ action, args } = normalize(action, args));
       const handler = handlers[action];
       if (!handler) {
         respond(id, { error: `unknown action '${action}' (have: ${known})` });
         return;
       }
       await handler(id, args);
-      emit({ op: 'log', text: `call ${action} done (line=${lineTag(args)})` });
     } catch (err) {
       const info = serializeTrainError(err);
       emit({

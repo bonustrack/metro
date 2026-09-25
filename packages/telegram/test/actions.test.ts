@@ -150,7 +150,7 @@ describe('telegram outbound handlers', () => {
       args: {
         line: 'metro://telegram/default/-1004345680824/2',
         text: 'cap',
-        attachments: [{ url: '/cache/a.jpg', mime: 'image/jpeg', name: 'a.jpg' }],
+        attachments: [{ path: '/cache/a.jpg', mime: 'image/jpeg', name: 'a.jpg' }],
       },
     });
     cap.restore();
@@ -260,7 +260,7 @@ describe('telegram outbound handlers', () => {
       args: {
         line: LINE,
         text: 'cap',
-        attachments: [{ url: '/cache/a.jpg', mime: 'image/jpeg', name: 'a.jpg' }],
+        attachments: [{ path: '/cache/a.jpg', mime: 'image/jpeg', name: 'a.jpg' }],
       },
     });
     cap.restore();
@@ -284,7 +284,7 @@ describe('telegram outbound handlers', () => {
       args: {
         line: LINE,
         attachments: [
-          { url: '/cache/a.jpg', mime: 'image/jpeg', kind: 'image' },
+          { path: '/cache/a.jpg', mime: 'image/jpeg', kind: 'image' },
           { mime: 'image/png', kind: 'image' },
         ],
       },

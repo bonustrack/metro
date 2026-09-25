@@ -1,7 +1,7 @@
 import { accounts, tg, targetOf } from './accounts.js';
 import { respond } from './wire.js';
 import { errMsg } from '@metro-labs/core/log';
-import { normalizeTelegram } from '@metro-labs/core/stations/messaging-normalize';
+import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import {
   adminMemberList,
   inaccessibleMemberList,
@@ -65,13 +65,10 @@ interface SendArgs {
   line: string;
   text: string;
   replyTo?: string;
-  parseMode?: string;
-  buttons?: { text: string; url: string }[][];
   account?: string;
   attachments?: {
     kind?: string;
     path?: string;
-    url?: string;
     mime?: string;
     name?: string;
   }[];
@@ -80,11 +77,8 @@ interface SendArgs {
 
 type WireAttachment = NonNullable<SendArgs['attachments']>[number];
 
-const attachmentSrc = (att: WireAttachment): string | undefined =>
-  att.path ?? att.url;
-
 const attachmentKind = (att: WireAttachment): string =>
-  mediaKindOf(att.kind, att.mime, attachmentSrc(att) ?? att.name);
+  mediaKindOf(att.kind, att.mime, att.path ?? att.name);
 
 async function sendOneAttachment(
   a: SendArgs,
@@ -96,10 +90,9 @@ async function sendOneAttachment(
   if (!mf) throw new Error(`telegram-bot cannot send a '${kind}' attachment`);
   const sent = await sendMedia(mf.method, mf.field, {
     line: a.line,
-    path: attachmentSrc(att),
+    path: att.path,
     caption,
     replyTo: a.replyTo,
-    parseMode: a.parseMode,
     account: a.account,
     name: att.name,
   });
@@ -144,13 +137,11 @@ async function send(id: string, args: Record<string, unknown>): Promise<void> {
     await sendAttachments(id, a);
     return;
   }
-  const { line, text, replyTo, parseMode, buttons, account } = a;
+  const { line, text, replyTo, account } = a;
   const { accountId, chatId, topicId } = targetOf(line, account);
   const body: Record<string, unknown> = { chat_id: chatId, text };
   if (topicId !== undefined) body.message_thread_id = topicId;
   if (replyTo) body.reply_parameters = { message_id: Number(replyTo) };
-  if (parseMode) body.parse_mode = parseMode;
-  if (buttons) body.reply_markup = { inline_keyboard: buttons };
   const sent = await tg<{ message_id: number }>(accountId, 'sendMessage', body);
   finishSend(id, accountId, line, String(sent.message_id), text, replyTo);
 }
@@ -172,11 +163,10 @@ async function react(id: string, args: Record<string, unknown>): Promise<void> {
 }
 
 async function edit(id: string, args: Record<string, unknown>): Promise<void> {
-  const { line, messageId, text, parseMode, account } = args as {
+  const { line, messageId, text, account } = args as {
     line: string;
     messageId: string;
     text: string;
-    parseMode?: string;
     account?: string;
   };
   const { accountId, chatId } = targetOf(line, account);
@@ -184,7 +174,6 @@ async function edit(id: string, args: Record<string, unknown>): Promise<void> {
     chat_id: chatId,
     message_id: Number(messageId),
     text,
-    parse_mode: parseMode,
   });
   respond(id, { result: { ok: true, account: accountId } });
 }
@@ -242,5 +231,5 @@ const HANDLERS: Record<string, StationHandler> = {
 
 export const handleCall = makeStation({
   handlers: HANDLERS,
-  normalize: normalizeTelegram,
+  normalize: messagingAliases(),
 });

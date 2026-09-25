@@ -143,7 +143,7 @@ describe('whatsapp outbound handlers', () => {
     expect(calls[1]?.args[1]).not.toHaveProperty('caption');
   });
 
-  test('reply carries attachments through the normalizer', async () => {
+  test('reply carries attachments as a send', async () => {
     const handle = makeHandleCall(() => fakeClient(calls));
     const cap = captureResponses();
     await handle({
@@ -153,7 +153,7 @@ describe('whatsapp outbound handlers', () => {
       args: {
         line: LINE,
         text: 'here',
-        messageId: 'ABC',
+        replyTo: 'ABC',
         attachments: [{ kind: 'image', path: '/cache/a.png' }],
       },
     });
@@ -162,14 +162,14 @@ describe('whatsapp outbound handlers', () => {
     expect(calls[0]?.args[2]).toBe('ABC');
   });
 
-  test('reply normalizes to send with the quoted message id', async () => {
+  test('reply is a send quoting replyTo', async () => {
     const handle = makeHandleCall(() => fakeClient(calls));
     const cap = captureResponses();
     await handle({
       op: 'call',
       id: 'b',
       action: 'reply',
-      args: { line: LINE, text: 'yo', messageId: 'ABC' },
+      args: { line: LINE, text: 'yo', replyTo: 'ABC' },
     });
     cap.restore();
     expect(calls[0]).toEqual({ method: 'sendText', args: [JID, 'yo', 'ABC'] });

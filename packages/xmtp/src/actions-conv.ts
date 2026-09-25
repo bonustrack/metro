@@ -1,6 +1,6 @@
 import { IdentifierKind } from '@xmtp/node-sdk';
 import { accountForCall, convOf, lineOf, parseLine } from './accounts.js';
-import { respond } from './wire.js';
+import { resolveMsgId, respond } from './wire.js';
 import { TrainError } from '@metro-labs/core/train-error';
 import {
   buildGroupInfo,
@@ -33,15 +33,23 @@ async function newDm(id: string, args: Args): Promise<void> {
   });
 }
 
-async function query(id: string, args: Args): Promise<void> {
-  const { line, limit } = args as { line: string; limit?: number };
+function upTo<T extends { id: string }>(all: T[], before: string | undefined): T[] {
+  if (!before) return all;
+  const target = resolveMsgId(before);
+  const at = all.findIndex((m) => m.id === target);
+  if (at < 0) throw new TrainError('NOT_FOUND', `message ${before} is not in this conversation`);
+  return all.slice(0, at);
+}
+
+async function read(id: string, args: Args): Promise<void> {
+  const { line, limit, before } = args as { line: string; limit?: number; before?: string };
   const { conv } = await convOf(line);
   if (!conv)
     throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
   const lim = Math.min(Math.max(1, limit ?? 20), 200);
   await conv.sync().catch(() => undefined);
   const all = await conv.messages();
-  const slice = all.slice(-lim);
+  const slice = upTo(all, before).slice(-lim);
   const parsed = parseLine(line);
   if (!parsed)
     throw new TrainError('NOT_FOUND', `could not parse line ${line}`);
@@ -86,7 +94,7 @@ export const convHandlers: Record<string, Handler> = {
   newDm,
   updateChannelMeta,
   closeGroup,
-  query,
+  read,
   groupInfo,
   listMembers,
   groupCreate: async (id, args) => {

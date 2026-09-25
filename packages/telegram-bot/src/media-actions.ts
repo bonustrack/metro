@@ -47,7 +47,6 @@ interface MediaArgs {
   path: string;
   caption?: string;
   replyTo?: string;
-  parseMode?: string;
   account?: string;
   name?: string;
 }
@@ -62,7 +61,6 @@ export async function sendMedia(
     path,
     caption,
     replyTo,
-    parseMode,
     account,
     name: fileName,
   } = args as unknown as MediaArgs;
@@ -71,7 +69,6 @@ export async function sendMedia(
   form.append('chat_id', String(chatId));
   if (topicId !== undefined) form.append('message_thread_id', String(topicId));
   if (caption) form.append('caption', caption);
-  if (parseMode) form.append('parse_mode', parseMode);
   if (replyTo)
     form.append(
       'reply_parameters',
