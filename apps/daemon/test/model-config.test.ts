@@ -65,35 +65,19 @@ describe('the connections on disk', () => {
     expect(readFileSync(join(dir, 'model.json'), 'utf8')).toContain('aws-key');
   });
 
-  test('a file written before connections existed becomes one connection per configured provider, keeping the route', () => {
-    const old = {
-      version: 1,
-      provider: 'openrouter',
-      anthropic: { apiKey: '', model: '' },
-      bedrock: { region: 'eu-central-1', apiKey: 'aws-key', model: '' },
-      openrouter: { apiKey: 'or-key', model: 'x/y', zdr: true },
-      codex: { model: 'gpt-5.4', auth: CODEX_TOKENS },
-      gemini: { model: '', auth: null },
-    };
-    const cfg = parseModelConfig(old);
-    expect(cfg.version).toBe(2);
-    expect(cfg.connections.map((c) => c.provider)).toEqual(['bedrock', 'openrouter', 'codex']);
-    expect(cfg.connections.map((c) => c.label)).toEqual(['Amazon Bedrock', 'OpenRouter', 'Codex (ChatGPT)']);
-    expect(conn(cfg, 'openrouter')).toMatchObject({ apiKey: 'or-key', model: 'x/y', zdr: true });
-    expect(conn(cfg, 'codex').codex).toEqual(CODEX_TOKENS);
-    expect(cfg.route).toBe(conn(cfg, 'openrouter').id);
-    expect(parseModelConfig({ version: 1, provider: 'anthropic' })).toEqual({ version: 2, route: '', connections: [] });
+  test('a file with no connections list is no connection at all', () => {
+    expect(parseModelConfig({ version: 1, provider: 'openrouter', openrouter: { apiKey: 'or-key' } })).toEqual({ version: 2, route: '', connections: [] });
   });
 
-  test('an old file is written back once converted, so the connection ids stay the same from one read to the next', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'metro-model-'));
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 1, provider: 'codex', anthropic: { apiKey: '', model: 'claude-opus-5' }, codex: { model: 'gpt-5.4', auth: CODEX_TOKENS } }));
+  test('a row saved without an id is written back with one, so the ids stay the same from one read to the next', () => {
+    const dir = scratch();
+    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: '', connections: [{ provider: 'codex', model: 'gpt-5.4', codex: CODEX_TOKENS }] }));
     const first = readModelConfig(dir);
     const second = readModelConfig(dir);
+    expect(first.connections).toHaveLength(1);
     expect(second.connections.map((c) => c.id)).toEqual(first.connections.map((c) => c.id));
     expect(second.route).toBe(first.route);
     expect(JSON.parse(readFileSync(join(dir, 'model.json'), 'utf8'))).toMatchObject({ version: 2, route: first.route });
-    rmSync(dir, { recursive: true, force: true });
   });
 });
 

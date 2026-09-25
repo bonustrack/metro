@@ -102,36 +102,15 @@ function connectionFromDisk(raw: unknown): Connection | null {
   };
 }
 
-function fromVersionOne(raw: Record<string, unknown>): ModelConfig {
-  const block = (name: Provider): Record<string, unknown> => (isRecord(raw[name]) ? raw[name] : {});
-  const made: Connection[] = [];
-  const keep = (provider: Provider, fill: (c: Connection) => Connection, has: boolean): void => {
-    if (has) made.push(fill(newConnection(provider, LABELS[provider])));
-  };
-  const anthropic = block('anthropic');
-  const bedrock = block('bedrock');
-  const openrouter = block('openrouter');
-  const codex = block('codex');
-  const gemini = block('gemini');
-  keep('anthropic', (c) => ({ ...c, apiKey: text(anthropic.apiKey), model: text(anthropic.model) }), text(anthropic.apiKey) !== '' || text(anthropic.model) !== '');
-  keep('bedrock', (c) => ({ ...c, apiKey: text(bedrock.apiKey), region: text(bedrock.region), model: text(bedrock.model) }), text(bedrock.apiKey) !== '');
-  keep('openrouter', (c) => ({ ...c, apiKey: text(openrouter.apiKey), model: text(openrouter.model), zdr: openrouter.zdr === true }), text(openrouter.apiKey) !== '');
-  keep('codex', (c) => ({ ...c, model: text(codex.model), codex: codexFromDisk(codex.auth) }), codexFromDisk(codex.auth) !== null);
-  keep('gemini', (c) => ({ ...c, model: text(gemini.model), gemini: geminiTokensFromDisk(gemini.auth) }), geminiTokensFromDisk(gemini.auth) !== null);
-  const wanted = isProvider(raw.provider) ? raw.provider : 'anthropic';
-  return { version: 2, route: made.find((c) => c.provider === wanted)?.id ?? '', connections: made };
-}
-
 export function parseModelConfig(raw: unknown): ModelConfig {
-  if (!isRecord(raw)) return empty();
-  if (!Array.isArray(raw.connections)) return fromVersionOne(raw);
+  if (!isRecord(raw) || !Array.isArray(raw.connections)) return empty();
   const connections = raw.connections.flatMap((c: unknown) => connectionFromDisk(c) ?? []).slice(0, MAX_CONNECTIONS);
   const route = text(raw.route);
   return { version: 2, route: connections.some((c) => c.id === route) ? route : (connections[0]?.id ?? ''), connections };
 }
 
 const needsIds = (raw: unknown): boolean =>
-  isRecord(raw) && (!Array.isArray(raw.connections) || raw.connections.some((c: unknown) => isRecord(c) && text(c.id) === ''));
+  isRecord(raw) && Array.isArray(raw.connections) && raw.connections.some((c: unknown) => isRecord(c) && text(c.id) === '');
 
 export function readModelConfig(dir = agentsDir()): ModelConfig {
   const raw = readJson<unknown>(join(dir, MODEL_FILE), null, { warn: 'model-config: model.json is unreadable, so every request goes to Anthropic until it is fixed' });
