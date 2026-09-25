@@ -105,7 +105,9 @@ interface Listed {
   avatar: string | null;
 }
 
-function useColumn(org: OrganizationRow | undefined, current: string | null, onClose: () => void): { mine: boolean; list: Listed[] | null; enter: (page: string) => () => void; pick: (agent: Listed) => () => void } {
+const orgHash = (org: OrganizationRow, page = ''): string => `#/${org.slug ?? org.id}${page}`;
+
+function useColumn(org: OrganizationRow | undefined, current: string | null, onClose: () => void): { mine: boolean; list: Listed[] | null; enter: (page: string) => () => void; pick: (agent: Listed) => () => void; hrefOf: (agent: Listed) => string; allHref: string; allAgents: () => void } {
   const client = useQueryClient();
   const servers = useServersQuery();
   const mine = org === undefined || org.id === current;
@@ -122,29 +124,32 @@ function useColumn(org: OrganizationRow | undefined, current: string | null, onC
     onClose();
     go(sameViewOn(currentSelection(), agent.id));
   };
-  return { mine, list, enter, pick };
-}
-
-function AgentColumn({ org, current, onClose }: { org: OrganizationRow | undefined; current: string | null; onClose: () => void }): ReactNode {
-  const here = currentServer();
-  const inAgent = selectionProject(currentSelection()) !== null;
-  const { mine, list, enter, pick } = useColumn(org, current, onClose);
-  const name = org?.name ?? 'this organization';
+  const hrefOf = (agent: Listed): string =>
+    mine || org === undefined ? routeHash(sameViewOn(currentSelection(), agent.id)) : orgHash(org, `/${agent.slug ?? agent.id}`);
+  const allHref = mine || org === undefined ? routeHash({ kind: 'servers' }) : orgHash(org);
   const allAgents = mine
     ? (): void => {
         onClose();
         go({ kind: 'servers' });
       }
     : enter('');
+  return { mine, list, enter, pick, hrefOf, allHref, allAgents };
+}
+
+function AgentColumn({ org, current, onClose }: { org: OrganizationRow | undefined; current: string | null; onClose: () => void }): ReactNode {
+  const here = currentServer();
+  const inAgent = selectionProject(currentSelection()) !== null;
+  const { mine, list, enter, pick, hrefOf, allHref, allAgents } = useColumn(org, current, onClose);
+  const name = org?.name ?? 'this organization';
   return (
     <ScopeColumn title={`Agents in ${name}`}>
       {list === null ? <ScopeItem label={`Open ${name}`} icon="arrowRight" onSelect={enter('')} /> : null}
       {(list ?? []).map((agent) => (
-        <ScopeItem key={agent.id} label={agent.name ?? agent.host} current={mine && inAgent && agent.id === here?.id} leading={<Face server={agent} size={ITEM_AVATAR} />} onSelect={pick(agent)} />
+        <ScopeItem key={agent.id} label={agent.name ?? agent.host} href={hrefOf(agent)} current={mine && inAgent && agent.id === here?.id} leading={<Face server={agent} size={ITEM_AVATAR} />} onSelect={pick(agent)} />
       ))}
       {list?.length === 0 ? <span className="scope-empty">No agent yet</span> : null}
-      <ScopeItem label="All agents" icon="viewGrid" onSelect={allAgents} />
-      {mine ? <ScopeItem label="Add agent" icon="plus" onSelect={() => { onClose(); go({ kind: 'launch' }); }} /> : null}
+      <ScopeItem label="All agents" icon="viewGrid" href={allHref} onSelect={allAgents} />
+      {mine ? <ScopeItem label="Add agent" icon="plus" href={routeHash({ kind: 'launch' })} onSelect={() => { onClose(); go({ kind: 'launch' }); }} /> : null}
     </ScopeColumn>
   );
 }
@@ -176,6 +181,7 @@ function Panel({ place, onClose, onCreate }: PanelProps): ReactNode {
               <ScopeItem
                 key={row.id}
                 label={row.name ?? row.id}
+                href={orgHash(row)}
                 current={row.id === current}
                 shown={row.id === shown}
                 onHover={() => {
@@ -191,8 +197,8 @@ function Panel({ place, onClose, onCreate }: PanelProps): ReactNode {
           <AgentColumn org={rows.find((r) => r.id === shown)} current={current} onClose={onClose} />
         </div>
         <div className="scope-footer">
-          <ScopeItem label="Members" icon="users" onSelect={pick(() => { go({ kind: 'members' }); })} />
-          <ScopeItem label="Organization settings" icon="cog" onSelect={pick(() => { go({ kind: 'organization' }); })} />
+          <ScopeItem label="Members" icon="users" href={routeHash({ kind: 'members' })} onSelect={pick(() => { go({ kind: 'members' }); })} />
+          <ScopeItem label="Organization settings" icon="cog" href={routeHash({ kind: 'organization' })} onSelect={pick(() => { go({ kind: 'organization' }); })} />
         </div>
       </div>
     </div>

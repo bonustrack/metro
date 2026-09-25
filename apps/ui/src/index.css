@@ -517,6 +517,8 @@ textarea:focus-visible {
 }
 
 .scope-item {
+  box-sizing: border-box;
+  text-decoration: none;
   display: flex;
   align-items: center;
   gap: 10px;

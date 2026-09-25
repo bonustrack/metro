@@ -5,6 +5,7 @@ import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { StatusDot } from './StatusDot.js';
+import { opensElsewhere } from './link.js';
 
 const CHECK = 16;
 const ICON = 18;
@@ -32,21 +33,45 @@ interface ScopeItemProps {
   current?: boolean;
   shown?: boolean;
   onHover?: () => void;
+  href?: string;
   leading?: ReactNode;
   icon?: HeroIconName;
   onSelect: () => void;
 }
 
-export function ScopeItem({ label, current = false, shown = false, onHover, leading, icon, onSelect }: ScopeItemProps): ReactNode {
+export function ScopeItem({ label, current = false, shown = false, onHover, href, leading, icon, onSelect }: ScopeItemProps): ReactNode {
   const palette = useKitPalette();
-  return (
-    <button type="button" className={shown ? 'scope-item is-shown' : 'scope-item'} onClick={onSelect} onMouseEnter={onHover} onFocus={onHover}>
+  const body = (
+    <>
       {leading ?? null}
       {icon === undefined ? null : <Icon name={icon} size={ICON} color={palette.sub} />}
       <Text size="md" numberOfLines={1} style={SHRINK}>
         {label}
       </Text>
       <span className="scope-item-end">{current ? <Icon name="check" size={CHECK} color={palette.link} /> : null}</span>
+    </>
+  );
+  const shape = shown ? 'scope-item is-shown' : 'scope-item';
+  if (href !== undefined)
+    return (
+      <a
+        className={shape}
+        href={href}
+        onMouseEnter={onHover}
+        onFocus={onHover}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (opensElsewhere(e)) return;
+          e.preventDefault();
+          onSelect();
+        }}
+      >
+        {body}
+      </a>
+    );
+  return (
+    <button type="button" className={shape} onClick={onSelect} onMouseEnter={onHover} onFocus={onHover}>
+      {body}
     </button>
   );
 }
