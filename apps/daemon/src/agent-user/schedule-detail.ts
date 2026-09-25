@@ -87,7 +87,6 @@ export function scheduleDetail(id: string, user: AgentUser | null, runner: Runne
 
 export function runNow(id: string, user: AgentUser | null, runner: Runner = realRunner): JobDetail {
   const job = findJob(id, user, runner);
-  if (job.runsAs === 'root') throw new ApiError('this job still runs as root; switch it to the agent first', 409);
   if (job.kind === 'timer') runner.run('systemctl', ['start', '--no-block', serviceOf(job.id.slice('timer:'.length), runner)]);
   else {
     if (user === null) throw new ApiError('Claude Code does not run as its own user on this machine', 409);

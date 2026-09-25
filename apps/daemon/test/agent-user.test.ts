@@ -8,7 +8,7 @@ import { moveHome, receiveHomeFile, removeHome, writeHomeText } from '../src/age
 import { viewFiles } from '../src/agent-user/view.ts';
 
 const AGENT: AgentUser = { name: 'agent', uid: 1001, gid: 1001, home: '/home/agent' };
-const host = (over: Partial<UserHost> = {}): UserHost => ({ platform: 'linux', uid: 0, lookup: (name) => (name === 'agent' ? AGENT : null), ...over });
+const host = (over: Partial<UserHost> = {}): UserHost => ({ metro: true, lookup: (name) => (name === 'agent' ? AGENT : null), ...over });
 
 let dir: string;
 
@@ -22,20 +22,19 @@ afterEach(() => {
 });
 
 describe('which user Claude Code runs as', () => {
-  test('always on Linux for a daemon running as root, never elsewhere, and only once the user exists', () => {
+  test('always for a daemon running as the metro user, never elsewhere, and only once the user exists', () => {
     expect(agentUser(host())).toEqual(AGENT);
     forgetAgentUser();
-    expect(agentUserExpected(host({ platform: 'darwin' }))).toBe(false);
-    expect(agentUser(host({ platform: 'darwin' }))).toBeNull();
-    expect(agentUser(host({ uid: 501 }))).toBeNull();
+    expect(agentUserExpected(host({ metro: false }))).toBe(false);
+    expect(agentUser(host({ metro: false }))).toBeNull();
     expect(agentUser(host({ lookup: () => null }))).toBeNull();
   });
 
-  test('a command runs through setpriv, with no process left in between, and a clean environment of its own', () => {
+  test('a command runs through sudo as the agent, with a clean environment of its own', () => {
     expect(asUser(null, 'tmux', ['-V'])).toEqual(['tmux', ['-V']]);
     const [file, args] = asUser(AGENT, 'tmux', ['has-session', '-t', 'metro'], { EXTRA: '1' });
-    expect(file).toBe('setpriv');
-    expect(args.slice(0, 5)).toEqual(['--reuid=1001', '--regid=1001', '--init-groups', 'env', '-i']);
+    expect(file).toBe('sudo');
+    expect(args.slice(0, 6)).toEqual(['-n', '-u', 'agent', '--', 'env', '-i']);
     expect(args).toContain('HOME=/home/agent');
     expect(args).toContain('USER=agent');
     expect(args).toContain('EXTRA=1');

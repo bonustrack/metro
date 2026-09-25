@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { addSecret, readVault, removeSecret, setVaultEnabled, updateSecret } from '../src/vault/store.ts';
 import { proxyConfig, proxyEnvFor } from '../src/vault/config.ts';
-import { applyFirewall, removeFirewall, type FirewallRunner } from '../src/vault/firewall.ts';
 import { archiveName, expectedSum } from '../src/vault/install.ts';
 import { requestOf } from '../src/vault/proxy.ts';
 import { valueFile } from '../src/vault/paths.ts';
@@ -51,18 +50,6 @@ describe('the secrets the agent never sees', () => {
     ]);
     const env = proxyEnvFor('/ca.crt', '/bundle.crt', [s]);
     expect(env).toMatchObject({ HTTPS_PROXY: 'http://127.0.0.1:8421', NO_PROXY: 'localhost,127.0.0.1,::1', NODE_EXTRA_CA_CERTS: '/ca.crt', GITHUB_TOKEN: 'GITHUB_TOKEN' });
-  });
-
-  test("the firewall only touches the agent's own traffic and comes off cleanly", () => {
-    const calls: string[] = [];
-    const runner: FirewallRunner = { run: (file, args) => (calls.push(`${file} ${args.join(' ')}`), args[0] === '-C' ? 1 : 0) };
-    applyFirewall(1001, runner);
-    expect(calls).toContain('iptables -I OUTPUT -m owner --uid-owner 1001 -j METRO_AGENT');
-    expect(calls).toContain('ip6tables -A METRO_AGENT -o lo -j ACCEPT');
-    expect(calls.filter((c) => c.includes('REJECT')).length).toBe(4);
-    calls.length = 0;
-    removeFirewall(1001, runner);
-    expect(calls).toContain('iptables -X METRO_AGENT');
   });
 
   test('the download is checked against its published sum', () => {

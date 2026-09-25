@@ -35,7 +35,7 @@ export default defineConfig({
     ],
   },
   knip: {
-    ignore: ['stage.config.js', 'plugin/**', 'scripts/compat/**', 'scripts/agent-user/**', 'scripts/metro-user/**'],
+    ignore: ['stage.config.js', 'plugin/**', 'scripts/compat/**', 'scripts/metro-user/**'],
   },
   workspaces: {
     'apps/ui': {
@@ -58,7 +58,7 @@ export default defineConfig({
       knip: {
         project: ['src/**/*.ts'],
         entry: ['scripts/*.mjs', 'test/**/*.ts'],
-        ignoreBinaries: ['ps', 'claude'],
+        ignoreBinaries: ['ps', 'claude', 'getent'],
       },
     },
     'apps/daemon': {
@@ -66,7 +66,7 @@ export default defineConfig({
       knip: {
         entry: ['test/**/*.{ts,mjs}'],
         project: ['src/**/*.ts'],
-        ignoreBinaries: ['apt-get', 'du', 'getent', 'install', 'mktemp', 'ps', 'sudo', 'systemctl', 'systemd-run', 'tmux', 'update-ca-certificates', 'visudo'],
+        ignoreBinaries: ['getent', 'mktemp', 'ps'],
       },
     },
     'packages/core': {

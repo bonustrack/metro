@@ -13,8 +13,7 @@ export interface AgentUser {
 }
 
 export interface UserHost {
-  platform: string;
-  uid: number | undefined;
+  metro: boolean;
   lookup: (name: string) => AgentUser | null;
 }
 
@@ -27,13 +26,13 @@ export function lookupUser(name: string): AgentUser | null {
   return Number.isInteger(u) && u > 0 && Number.isInteger(g) && home.startsWith('/') ? { name, uid: u, gid: g, home } : null;
 }
 
-const realHost: UserHost = { platform: process.platform, uid: process.getuid?.(), lookup: lookupUser };
+const realHost = (): UserHost => ({ metro: runningAsMetro(), lookup: lookupUser });
 
-export const agentUserExpected = (host: UserHost = realHost): boolean => host.platform === 'linux' && (host.uid === 0 || runningAsMetro());
+export const agentUserExpected = (host: UserHost = realHost()): boolean => host.metro;
 
 let cached: AgentUser | null = null;
 
-export function agentUser(host: UserHost = realHost): AgentUser | null {
+export function agentUser(host: UserHost = realHost()): AgentUser | null {
   if (!agentUserExpected(host)) return null;
   cached ??= host.lookup(AGENT_NAME);
   return cached;
@@ -68,8 +67,7 @@ export function agentEnv(user: AgentUser, extra: Record<string, string> = {}): R
 export function asUser(user: AgentUser | null, file: string, args: readonly string[], extra: Record<string, string> = {}): [string, string[]] {
   if (user === null) return [file, [...args]];
   const env = Object.entries(agentEnv(user, extra)).map(([k, v]) => `${k}=${v}`);
-  if (runningAsMetro()) return ['sudo', ['-n', '-u', user.name, '--', 'env', '-i', ...env, file, ...args]];
-  return ['setpriv', [`--reuid=${String(user.uid)}`, `--regid=${String(user.gid)}`, '--init-groups', 'env', '-i', ...env, file, ...args]];
+  return ['sudo', ['-n', '-u', user.name, '--', 'env', '-i', ...env, file, ...args]];
 }
 
 export const asAgent = (file: string, args: readonly string[], extra: Record<string, string> = {}): [string, string[]] =>

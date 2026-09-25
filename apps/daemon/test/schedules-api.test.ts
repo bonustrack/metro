@@ -35,12 +35,13 @@ const call = async (method: string, role: 'admin' | 'member', body?: unknown): P
   });
 
 describe('the scheduled jobs of a box', () => {
-  test('admin only; a retry names a job, and needs the agent user', async () => {
+  test('admin only; Run now names a job and only runs a listed one', async () => {
     expect((await call('GET', 'member')).status).toBe(403);
     const listed = await call('GET', 'admin');
     expect(listed.status).toBe(200);
     expect(await listed.json()).toMatchObject({ jobs: expect.any(Array) as unknown as unknown[] });
     expect((await call('POST', 'admin', {})).status).toBe(400);
-    expect((await call('POST', 'admin', { id: 'cron-root:nope' })).status).toBe(409);
+    expect((await call('POST', 'admin', { id: 'timer:nope.timer' })).status).toBe(400);
+    expect((await call('POST', 'admin', { id: 'timer:nope.timer', action: 'run' })).status).toBe(404);
   });
 });

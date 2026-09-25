@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { agentUser, asAgent } from '../../apps/daemon/src/agent-user/user.ts';
 import { readAgentPath } from '../../apps/daemon/src/agent-user/files.ts';
-import { convertRootJobs, listSchedules } from '../../apps/daemon/src/agent-user/schedules.ts';
+import { listSchedules } from '../../apps/daemon/src/agent-user/schedules.ts';
 import { runNow } from '../../apps/daemon/src/agent-user/schedule-detail.ts';
 import { inSessionScope } from '../../apps/daemon/src/claude/memory.ts';
 import { applyFirewall, removeFirewall } from '../../apps/daemon/src/vault/firewall.ts';
@@ -39,13 +39,8 @@ const scoped = inSessionScope(asAgent('sleep', ['30']));
 const child = spawnSync('sh', ['-c', `${[scoped[0], ...scoped[1]].map((a) => `'${a.replace(/'/g, `'\\''`)}'`).join(' ')} & sleep 2; ps -o user= -C sleep; systemctl list-units --type=scope --no-legend 'metro-claude-*' | wc -l`], { encoding: 'utf8' });
 check(`the session starts as the agent in its own memory scope (${child.stdout.trim().replace(/\n/g, ' ')})`, /agent/.test(child.stdout) && /[1-9]\s*$/.test(child.stdout.trim()));
 
-const before = listSchedules(u).map((j) => `${j.kind}:${j.name}:${j.runsAs}`);
-check(`the root timer and cron line show up (${before.join(', ')})`, before.some((b) => b.startsWith('timer:demo:')) && before.some((b) => /^cron-(root|agent):demo\.sh/.test(b)));
-const switched = convertRootJobs(u);
-check(`they switch to the agent through the helper, here or at Metro's own boot (${String(switched)})`, switched === before.filter((b) => b.endsWith(':root')).length);
-const after = listSchedules(u).map((j) => `${j.kind}:${j.name}:${j.runsAs}`);
-check(`and now run as the agent (${after.join(', ')})`, after.includes('timer:demo:agent') && after.some((a) => a.startsWith('cron-agent:demo.sh')));
-check("root's other cron line stays", rootHelper(['root-crontab']).stdout.includes('@reboot /usr/local/bin/keep') && !rootHelper(['root-crontab']).stdout.includes('demo.sh'));
+const jobs = listSchedules(u).map((j) => `${j.kind}:${j.name}:${j.runsAs}`);
+check(`the agent's timer and cron line show up, and nothing of root's (${jobs.join(', ')})`, jobs.includes('timer:demo:agent') && jobs.some((j) => j.startsWith('cron-agent:demo.sh')) && !jobs.some((j) => j.endsWith(':root')));
 const timer = listSchedules(u).find((j) => j.kind === 'timer');
 if (timer !== undefined) runNow(timer.id, u);
 await new Promise((r) => setTimeout(r, 2000));
@@ -57,9 +52,9 @@ check('the helper refuses a privileged ExecStart', rootHelper(['dropin-write', '
 check('the helper refuses a metro unit', rootHelper(['start-job', 'metro.service']).status !== 0);
 check('the helper refuses an unknown action', rootHelper(['sh']).status !== 0);
 
-applyFirewall(u.uid);
+applyFirewall();
 check('the vault firewall goes on through the helper', !out(...asAgent('curl', ['-s', '-m', '5', '-o', '/dev/null', 'https://example.com'])).ok);
-removeFirewall(u.uid);
+removeFirewall();
 check('and comes off', out(...asAgent('curl', ['-s', '-m', '15', '-o', '/dev/null', 'https://example.com'])).ok);
 
 const claudeDirOf = '/home/agent/.claude';

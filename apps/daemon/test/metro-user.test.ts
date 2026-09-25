@@ -1,48 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { metroUnit, moveScript, unitFacts } from '../src/metro-user/move.ts';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { helperScript, sudoersText } from '../src/metro-user/helper-script.ts';
+import { installRootHelper } from '../src/metro-user/install.ts';
 import { runningAsMetro, runningAsRoot } from '../src/metro-user/privilege.ts';
 
-const ROOT_UNIT = [
-  '[Service]',
-  'ExecStart=/usr/bin/node /usr/lib/node_modules/@stage-labs/metro/dist/cli.js serve --owner org_01ABC --port 8430',
-  'Environment=HOME=/root',
-  'Environment=PATH=/root/.bun/bin:/usr/bin',
-  'Environment=METRO_WEBHOOK_PORT=8430',
-  'Environment=METRO_AGENTS_DIR=/root/.metro/agents',
-  'Environment="METRO_NOTE=a b"',
-  '',
-].join('\n');
+const hasVisudo = spawnSync('sh', ['-c', 'command -v visudo'], { stdio: 'ignore' }).status === 0;
 
-describe('moving Metro from root to its own user', () => {
-  test('the old service is read for its serve arguments, its port and its Metro settings, never its root paths', () => {
-    const facts = unitFacts(ROOT_UNIT);
-    expect(facts).toEqual({ serveArgs: ['--owner', 'org_01ABC', '--port', '8430'], env: ['METRO_WEBHOOK_PORT=8430', '"METRO_NOTE=a b"'], port: '8430' });
-    expect(() => unitFacts('[Service]\nExecStart=/usr/bin/other\n')).toThrow(/metro serve/);
-  });
-
-  test('the new service runs as metro, from its own CLI, with no path under /root', () => {
-    const unit = metroUnit('/usr/bin/node', unitFacts(ROOT_UNIT));
-    expect(unit).toContain('User=metro\nGroup=metro\n');
-    expect(unit).toContain('ExecStart=/usr/bin/node /var/lib/metro/.npm-global/lib/node_modules/@stage-labs/metro/dist/cli.js serve --owner org_01ABC --port 8430\n');
-    expect(unit).toContain('Environment=HOME=/var/lib/metro\n');
-    expect(unit).toContain('Environment=NPM_CONFIG_PREFIX=/var/lib/metro/.npm-global\n');
-    expect(unit).toContain('OOMPolicy=continue');
-    expect(unit).not.toContain('/root');
-  });
-
-  test('the move puts everything back when Metro does not come up as metro', () => {
-    const script = moveScript('8430', '@stage-labs/metro@0.1.0-beta.199', '/root/.bun/bin/bun');
-    expect(script).toContain("B='/root/.bun/bin/bun'; case \"$B\" in /root/*) install -m 755 \"$B\" /usr/local/bin/bun");
-    expect(script.indexOf('cannot find $bin')).toBeLessThan(script.indexOf('systemctl stop metro'));
-    expect(script).toContain('http://127.0.0.1:8430/health');
-    expect(script).toContain('chmod 711 /var/lib/metro && chmod 700 "$NEW"');
-    expect(script).toContain("npm install --global --prefix /var/lib/metro/.npm-global @stage-labs/metro@0.1.0-beta.199");
-    expect(script.indexOf('fail "npm install')).toBeLessThan(script.indexOf('systemctl stop metro'));
-    expect(script).toContain('mv "$NEW" "$OLD" && chown -R root:root "$OLD"');
-    expect(script).toContain('install -m 644 "$DIR/metro.service.root"');
-  });
-
+describe('Metro as its own user', () => {
   test('metro may act as the agent, and as root only through the helper', () => {
     const rules = sudoersText('agent');
     expect(rules).toContain('metro ALL=(agent) NOPASSWD: ALL');
@@ -57,6 +24,17 @@ describe('moving Metro from root to its own user', () => {
     expect(helper).toContain('*) die "line not allowed: $line"');
     expect(helper).toContain('case "$1" in metro*) die "not a metro unit";; esac');
     expect(helper).not.toContain('eval');
+  });
+
+  test.skipIf(!hasVisudo)('the install writes the helper and the checked sudo rules from the one source', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'metro-helper-'));
+    const paths = { helper: join(dir, 'lib', 'root-helper'), sudoers: join(dir, 'sudoers') };
+    installRootHelper(paths);
+    expect(readFileSync(paths.helper, 'utf8')).toBe(helperScript());
+    expect(statSync(paths.helper).mode & 0o777).toBe(0o755);
+    expect(readFileSync(paths.sudoers, 'utf8')).toBe(sudoersText('agent'));
+    expect(statSync(paths.sudoers).mode & 0o777).toBe(0o440);
+    expect(existsSync(join(dir, 'lib'))).toBe(true);
   });
 
   test('root and metro are told apart by platform and user', () => {

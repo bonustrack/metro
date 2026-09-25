@@ -1,5 +1,4 @@
 import { spawnSync } from 'node:child_process';
-import { closeSync, openSync, readdirSync, readSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { asUser, type AgentUser } from './user.js';
@@ -76,44 +75,15 @@ function readAsAgent(user: AgentUser, path: string): FilesAnswer {
   const run = spawnSync(file, argv, { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024, timeout: 20_000 });
   if (run.error !== undefined) throw new ApiError(`could not read that path: ${run.error.message}`, 500);
   if (run.status !== 0) throw new ApiError(run.stderr.toString('utf8').trim() || 'the agent cannot read that path', 404);
-  const out = run.stdout;
+  return answerOf(user.home, path, run.stdout);
+}
+
+export function answerOf(root: string, path: string, out: Buffer): FilesAnswer {
   const body = out.subarray(2);
-  return out.subarray(0, 1).toString() === 'D' ? folderAnswer(user.home, path, parseListing(body)) : parseFile(user.home, path, body);
+  return out.subarray(0, 1).toString() === 'D' ? folderAnswer(root, path, parseListing(body)) : parseFile(root, path, body);
 }
 
-function readHead(target: string): Buffer {
-  const fd = openSync(target, 'r');
-  try {
-    const buffer = Buffer.alloc(PREVIEW_BYTES + 1);
-    return buffer.subarray(0, readSync(fd, buffer, 0, buffer.length, 0));
-  } finally {
-    closeSync(fd);
-  }
-}
-
-function readLocal(root: string, path: string): FilesAnswer {
-  const target = join(root, ...segmentsOf(path));
-  let stat;
-  try {
-    stat = statSync(target);
-  } catch {
-    throw new ApiError('no such file or folder', 404);
-  }
-  if (stat.isFile()) return { root, path, kind: 'file', bytes: stat.size, modifiedAt: stat.mtime.toISOString(), ...preview(readHead(target), stat.size) };
-  const entries = readdirSync(target, { withFileTypes: true }).map((entry): FileEntry => {
-    const inner = join(target, entry.name);
-    try {
-      const s = statSync(inner);
-      return { name: entry.name, kind: s.isDirectory() ? 'folder' : s.isFile() ? 'file' : 'other', bytes: s.size, modifiedAt: s.mtime.toISOString() };
-    } catch {
-      return { name: entry.name, kind: 'other', bytes: 0, modifiedAt: '' };
-    }
-  });
-  return folderAnswer(root, path, entries);
-}
-
-export function readAgentPath(user: AgentUser | null, path: string, localRoot?: string): FilesAnswer {
-  if (user !== null) return readAsAgent(user, path);
-  if (localRoot === undefined) throw new ApiError('Claude Code does not run as its own user on this machine, so there is no agent folder to show', 409);
-  return readLocal(localRoot, path);
+export function readAgentPath(user: AgentUser | null, path: string): FilesAnswer {
+  if (user === null) throw new ApiError('Claude Code does not run as its own user on this machine, so there is no agent folder to show', 409);
+  return readAsAgent(user, path);
 }

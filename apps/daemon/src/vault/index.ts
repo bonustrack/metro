@@ -58,12 +58,12 @@ async function turnOn(user: AgentUser, dir: string): Promise<Record<string, stri
   trustSystem(ca);
   memory.browsers = trustBrowsers(user);
   await runProxy(bin, configFile(dir));
-  applyFirewall(user.uid);
+  applyFirewall();
   return proxyEnvFor(TRUSTED_CA, SYSTEM_BUNDLE, secrets);
 }
 
-function turnOff(user: AgentUser): void {
-  removeFirewall(user.uid);
+function turnOff(): void {
+  removeFirewall();
   stopProxy();
   untrustSystem();
 }
@@ -72,7 +72,7 @@ export async function applyVault(user: AgentUser | null = agentUser(), dir = vau
   if (user === null) return { status: vaultStatus(null, dir), envChanged: false };
   const enabled = readVault(dir).enabled;
   try {
-    const env = enabled ? await turnOn(user, dir) : (turnOff(user), {});
+    const env = enabled ? await turnOn(user, dir) : (turnOff(), {});
     memory.problem = null;
     const envChanged = setEnv(env);
     if (envChanged || enabled) exportForJobs(user, env);

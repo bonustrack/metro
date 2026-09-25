@@ -12,7 +12,7 @@ import { claudeDir, listClaudeProjects } from './files.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
 import { inSessionScope } from './memory.js';
-import { runningAsMetro } from '../metro-user/privilege.js';
+import { runningAsRoot } from '../metro-user/privilege.js';
 import { agentExtraEnv, agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
 
 function sessionEnv(): Record<string, string> {
@@ -136,7 +136,10 @@ function credentialReady(deps: SessionDeps): string | null {
 const agentUserMissing = (deps: SessionDeps): boolean =>
   deps.metro === undefined && agentUserExpected() && agentUser() === null;
 
+const ROOT_REFUSED = 'Metro runs as root; reinstall it as the metro user';
+
 export function sessionBlocked(deps: SessionDeps = {}): string | null {
+  if (runningAsRoot()) return ROOT_REFUSED;
   const agents = deps.agents ?? agentsDir();
   if (listAgentFiles(agents).length === 0) return 'no agent on this machine yet';
   if (agentUserMissing(deps))
@@ -176,8 +179,6 @@ function recordStart(deps: SessionDeps, tmux: string, now: number, run: { error?
   confirmChannels(tmux, now + CONFIRM_WAIT_MS);
 }
 
-const spawnCwd = (home: string): string => (runningAsMetro() ? '/' : home);
-
 export function startSession(deps: SessionDeps = {}): SessionStatus {
   const tmux = deps.tmux ?? 'tmux';
   const home = deps.home ?? claudeHome() ?? homedir();
@@ -186,7 +187,7 @@ export function startSession(deps: SessionDeps = {}): SessionStatus {
   const [command = 'metro', ...args] = metroCommand(deps, home);
   const tmuxArgs = ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args];
   const launch = deps.tmux === undefined && !tmuxServerUp(tmux) ? inSessionScope(asAgent(tmux, tmuxArgs)) : asAgent(tmux, tmuxArgs);
-  const run = spawnSync(...launch, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: spawnCwd(home) });
+  const run = spawnSync(...launch, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: '/' });
   recordStart(deps, tmux, now, run);
   if (memory.lastError === null) log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
   return sessionStatus(deps);

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { bodyField, readJsonBody, sessionRoute } from '@metro-labs/http/api-http';
-import { listSchedules, retrySchedule } from './schedules.js';
+import { listSchedules } from './schedules.js';
 import { runNow, scheduleDetail } from './schedule-detail.js';
 import { agentUser } from './user.js';
 
@@ -18,8 +18,8 @@ async function answer(req: IncomingMessage): Promise<unknown> {
   const body = await readJsonBody(req);
   const id = bodyField(body, 'id');
   if (typeof id !== 'string' || id === '') throw new ApiError('id is required', 400);
-  if (bodyField(body, 'action') === 'run') return { job: runNow(id, user) };
-  return { agentUser: user?.name ?? null, jobs: retrySchedule(id, user) };
+  if (bodyField(body, 'action') !== 'run') throw new ApiError('action must be run', 400);
+  return { job: runNow(id, user) };
 }
 
 export function handleSchedulesRequest(req: IncomingMessage, res: ServerResponse): boolean {
