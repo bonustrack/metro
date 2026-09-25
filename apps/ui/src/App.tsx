@@ -6,7 +6,6 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './components/ui.js';
 import { Landing, Login } from './components/Login.js';
 import { AdminArea, isAdminSelection } from './components/AdminArea.js';
-import { Connect } from './components/Connect.js';
 import { LaunchServer } from './components/LaunchServer.js';
 import { BootLoading } from './components/BootLoading.js';
 import { Dashboard } from './components/Dashboard.js';
@@ -197,7 +196,6 @@ function Unlocked({ selection, onLock }: { selection: Selection; onLock: () => v
 
 function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   if (isAdminSelection(selection)) return <AdminArea selection={selection} onLock={onLock} />;
-  if (selection.kind === 'connect') return <Connect />;
   if (selection.kind === 'launch') return <LaunchServer />;
   if (selection.kind === 'members') return <Members onLock={onLock} />;
   if (selection.kind === 'organization') return <Organization onLock={onLock} />;

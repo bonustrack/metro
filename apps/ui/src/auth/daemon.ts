@@ -52,14 +52,6 @@ export function parseDaemonUrl(raw: string): DaemonParse {
 
 const FIRST_SEGMENT = /^#\/([A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?)(?:\/|$)/;
 
-export function segmentOf(base: string): string {
-  try {
-    return new URL(base).host;
-  } catch {
-    return base;
-  }
-}
-
 export function baseFromSegment(segment: string): string {
   const host = segment.replace(/:\d+$/, '');
   return `${LOOPBACK.has(host) ? 'http' : 'https'}://${segment}`;
@@ -70,7 +62,6 @@ export function routedSegment(hash?: string): string | null {
   const segment = FIRST_SEGMENT.exec(current)?.[1];
   return segment === undefined || RESERVED_SEGMENTS.has(segment) ? null : segment;
 }
-
 
 export const looksLikeHost = (segment: string): boolean => /[.:]/.test(segment);
 

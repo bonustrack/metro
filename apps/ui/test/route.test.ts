@@ -50,11 +50,10 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/admin/users')).toEqual({ kind: 'admin-users' });
     expect(routeSelection('#/admin/organizations')).toEqual({ kind: 'admin-organizations' });
     expect(routeHash({ kind: 'admin-agents' })).toBe('#/admin/agents');
-    expect(routeSelection('#/connect')).toEqual({ kind: 'connect' });
+    expect(routeSelection('#/connect')).toEqual({ kind: 'none' });
     expect(routeSelection('#/connect/http%3A%2F%2F127.0.0.1%3A8420')).toEqual({ kind: 'none' });
     expect(routeSelection('#/login')).toEqual({ kind: 'none' });
     expect(routeSelection('#/login?redirect=%2Fhost.example.com')).toEqual({ kind: 'none' });
-    expect(routeHash({ kind: 'connect' })).toBe('#/connect');
   });
 
   test('the root is the server list, and a server id is a first segment like a host', () => {

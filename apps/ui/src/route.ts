@@ -16,7 +16,6 @@ const ADMIN_PATH = /^#?\/admin$/;
 const ADMIN_USERS_PATH = /^#?\/admin\/users$/;
 const ADMIN_ORGANIZATIONS_PATH = /^#?\/admin\/organizations$/;
 const ADMIN_AGENTS_PATH = /^#?\/admin\/agents$/;
-const CONNECT_PATH = /^#?\/connect$/;
 const LAUNCH_PATH = /^#?\/launch$/;
 const MEMBERS_PATH = /^#?\/members$/;
 const ORGANIZATION_PATH = /^#?\/organization$/;
@@ -46,7 +45,6 @@ const EXACT: [RegExp, Selection][] = [
   [ADMIN_USERS_PATH, { kind: 'admin-users' }],
   [ADMIN_ORGANIZATIONS_PATH, { kind: 'admin-organizations' }],
   [ADMIN_AGENTS_PATH, { kind: 'admin-agents' }],
-  [CONNECT_PATH, { kind: 'connect' }],
   [LAUNCH_PATH, { kind: 'launch' }],
   [MEMBERS_PATH, { kind: 'members' }],
   [ORGANIZATION_PATH, { kind: 'organization' }],
@@ -96,7 +94,6 @@ const GLOBAL: Partial<Record<Selection['kind'], string>> = {
 const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   servers: '',
   none: '',
-  connect: 'connect',
   launch: 'launch',
   members: 'members',
   organization: 'organization',

@@ -202,18 +202,6 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
                   window.location.hash = routeHash({ kind: 'launch' });
                 }}
               />
-              <KebabMenu
-                label="More ways to add an agent"
-                size="lg"
-                items={[
-                  {
-                    label: 'Import agent',
-                    onSelect: () => {
-                      window.location.hash = routeHash({ kind: 'connect' });
-                    },
-                  },
-                ]}
-              />
             </Row>
           }
         />

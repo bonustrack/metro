@@ -6,7 +6,6 @@ export type Selection =
   | { kind: 'admin-users' }
   | { kind: 'admin-organizations' }
   | { kind: 'admin-agents' }
-  | { kind: 'connect' }
   | { kind: 'launch' }
   | { kind: 'members' }
   | { kind: 'organization' }
