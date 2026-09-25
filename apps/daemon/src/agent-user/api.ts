@@ -12,6 +12,7 @@ import { listWorkspace, startMove } from './workspace.js';
 const PATH = '/api/agent-user';
 const WORKSPACE = '/api/agent-user/workspace';
 const EXIT_DELAY_MS = 500;
+const NAMES_BODY_MAX = 128 * 1024;
 
 export interface AgentUserApiDeps {
   restart: () => void;
@@ -58,7 +59,7 @@ async function workspaceAnswer(req: IncomingMessage, dir: string): Promise<unkno
   const user = agentUser(dir);
   if (user === null) throw new ApiError('switch Claude Code to its own user first', 409);
   if (req.method === 'GET') return { user: user.name, home: user.home, entries: listWorkspace(user) };
-  const started = startMove(bodyField(await readJsonBody(req), 'names'), user);
+  const started = startMove(bodyField(await readJsonBody(req, NAMES_BODY_MAX), 'names'), user);
   return { started, entries: listWorkspace(user) };
 }
 
