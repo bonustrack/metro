@@ -2,8 +2,6 @@ import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
 import { filled, isRecord } from './read.js';
 
-export const SCHEDULES_SINCE = '0.1.0-beta.192';
-
 export interface ScheduledJob {
   id: string;
   kind: 'timer' | 'cron-root' | 'cron-agent';

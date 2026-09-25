@@ -74,8 +74,8 @@ let agentId = '';
 let key = '';
 
 describe('a local daemon, end to end over http', () => {
-  test('it says it is local and unowned, with the project field old pages read', async () => {
-    expect(await (await call('GET', '/api/mode')).json()).toEqual({ mode: 'local', owner: null, project: 'localdaemon', version: expect.any(String) });
+  test('it says it is local and unowned', async () => {
+    expect(await (await call('GET', '/api/mode')).json()).toEqual({ mode: 'local', owner: null, version: expect.any(String) });
     expect((await call('OPTIONS', '/api/mode')).status).toBe(204);
     expect((await call('POST', '/api/mode')).status).toBe(405);
   });

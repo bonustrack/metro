@@ -24,6 +24,9 @@ let active: Account | null = null;
 
 export const activeAccount = (): Account | null => active;
 
+const HANDOFF_RE = /^#\/auth\/([A-Za-z0-9_-]{16,128})$/;
+
+export const handoffCode = (hash: string): string | null => HANDOFF_RE.exec(hash)?.[1] ?? null;
 
 export function tokenClaims(token: string): Record<string, unknown> | null {
   const body = token.split('.')[1];

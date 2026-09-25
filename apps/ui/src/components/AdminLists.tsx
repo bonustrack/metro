@@ -14,36 +14,62 @@ const AVATAR = 32;
 const ROW_PAD_Y = 10;
 const LIST_WIDTH = 760;
 
-const dateLabel = (iso: string | null): string => (iso === null ? 'unknown' : new Date(iso).toLocaleDateString());
+export const dateLabel = (iso: string | null): string => (iso === null ? 'unknown' : new Date(iso).toLocaleDateString());
 
-function Item({ title, detail, avatar }: { title: string; detail: string; avatar?: ReactNode }): ReactNode {
+interface ItemProps {
+  title: string;
+  detail: string;
+  avatar?: ReactNode;
+  badge?: ReactNode;
+  trailing?: ReactNode;
+}
+
+export function Item({ title, detail, avatar, badge, trailing }: ItemProps): ReactNode {
   const palette = useKitPalette();
+  const heading = (
+    <Text size="md" weight="semibold" numberOfLines={1}>
+      {title}
+    </Text>
+  );
   return (
     <Row align="center" gap={12} padding={{ y: ROW_PAD_Y }} border={{ bottom: { width: 1, color: palette.border } }}>
       {avatar}
       <Col gap={2} style={SHRINK} flex={1}>
-        <Text size="md" weight="semibold" numberOfLines={1}>
-          {title}
-        </Text>
+        {badge === undefined ? (
+          heading
+        ) : (
+          <Row gap={8} align="center">
+            {heading}
+            {badge}
+          </Row>
+        )}
         <Text size="sm" role="secondary" numberOfLines={1}>
           {detail}
         </Text>
       </Col>
+      {trailing}
     </Row>
   );
 }
 
-function Listing<T>({ title, failed, rows, error, render }: { title: string; failed: string; rows: T[] | undefined; error: Error | null; render: (row: T) => ReactNode }): ReactNode {
+interface ListingProps<T> {
+  title: string;
+  failed: string;
+  rows: T[] | undefined;
+  error: Error | null;
+  render: (row: T) => ReactNode;
+}
+
+export function Listing<T>({ title, failed, rows, error, render }: ListingProps<T>): ReactNode {
   return (
     <Col gap={16} width="100%" maxWidth={LIST_WIDTH}>
       <ListHeader title={title} count={rows?.length} />
-      {error !== null ? (
+      {error === null ? null : (
         <Text size="sm" role="danger">
           {queryError(error, failed)}
         </Text>
-      ) : rows === undefined ? null : (
-        <Col>{rows.map(render)}</Col>
       )}
+      {rows === undefined ? null : <Col>{rows.map(render)}</Col>}
     </Col>
   );
 }

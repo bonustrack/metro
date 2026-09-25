@@ -71,8 +71,7 @@ type BoxName =
   | 'schedule'
   | 'sender-cards'
   | 'agent-files'
-  | 'vault'
-  | 'metro-user';
+  | 'vault';
 
 export type BoxKey = BoxName | readonly [BoxName, ...string[]];
 
@@ -95,7 +94,7 @@ function refreshQuietly(client: QueryClient, keys: BoxKey[]): void {
   for (const key of keys) refresh(client, key).catch(() => undefined);
 }
 
-export const stationsKey = (): string[] => boxKey('stations');
+const stationsKey = (): string[] => boxKey('stations');
 
 export function makeQueryClient(onAuthError: () => void): QueryClient {
   return new QueryClient({
@@ -161,9 +160,7 @@ export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
 
 export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, { staleTime: 10_000 });
 
-export const useSchedulesQuery = (enabled: boolean): UseQueryResult<Schedules> =>
-  useBoxQuery('schedules', fetchSchedules, { staleTime: 15_000, enabled, retry: false });
-
+export const useSchedulesQuery = (): UseQueryResult<Schedules> => useBoxQuery('schedules', fetchSchedules, { staleTime: 15_000, retry: false });
 
 export const useClaudeVersionQuery = (): UseQueryResult<ClaudeVersion> =>
   useBoxQuery('claude-version', fetchClaudeVersion, { staleTime: LONG_MS, retry: false });
@@ -188,8 +185,8 @@ export function useConnectionModelsQuery(connection: { id: string; provider: str
   return useBoxQuery(['connection-models', provider, id], () => connectionModels(provider, id), { enabled: id !== '', staleTime: LONG_MS });
 }
 
-export const useApprovalsQuery = (enabled: boolean): UseQueryResult<Approval[]> =>
-  useBoxQuery('approvals', fetchApprovals, { enabled, staleTime: 5_000, refetchInterval: enabled ? 15_000 : false });
+export const useApprovalsQuery = (): UseQueryResult<Approval[]> =>
+  useBoxQuery('approvals', fetchApprovals, { staleTime: 5_000, refetchInterval: 15_000 });
 
 export const useModeQuery = (): UseQueryResult<ModeInfo> => useBoxQuery('mode', fetchMode, { staleTime: 60_000 });
 

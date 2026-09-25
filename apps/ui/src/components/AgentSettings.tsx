@@ -1,8 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
+import { SettingsSection } from './SettingsSection.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { AgentAvatar } from './AgentAvatar.js';
@@ -23,28 +24,11 @@ import { useDocumentTitle } from '../title.js';
 const PAGE_AVATAR = 56;
 const NAME_MAX = 40;
 
-function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <Col gap={12} padding={{ bottom: 20 }} border={{ bottom: { width: 1, color: palette.border } }}>
-      <Col gap={2}>
-        <Text weight="semibold">{title}</Text>
-        {note === undefined ? null : (
-          <Text size="sm" role="secondary">
-            {note}
-          </Text>
-        )}
-      </Col>
-      {children}
-    </Col>
-  );
-}
-
 function AvatarSection({ server }: { server: Server }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const avatar = useAvatarPicker(server);
   return (
-    <Section title="Avatar" note="A PNG, JPEG, WebP or GIF; it is resized to 128 pixels in the browser.">
+    <SettingsSection title="Avatar" note="A PNG, JPEG, WebP or GIF; it is resized to 128 pixels in the browser.">
       <Row align="center" gap={16} wrap>
         <AgentAvatar seed={server.host} src={server.avatar} size={PAGE_AVATAR} />
         <Button size="sm" color="secondary" dark={dark} label={avatar.busy ? 'Saving…' : 'Set avatar'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
@@ -56,7 +40,7 @@ function AvatarSection({ server }: { server: Server }): ReactNode {
         )}
       </Row>
       {avatar.input}
-    </Section>
+    </SettingsSection>
   );
 }
 
@@ -69,9 +53,9 @@ function NameSection({ server }: { server: Server }): ReactNode {
     failure: 'Could not save the name.',
   });
   return (
-    <Section title="Name" note="What the agent is called in your list and in the rail.">
+    <SettingsSection title="Name" note="What the agent is called in your list and in the rail.">
       <SaveField saving={saving} name="agent-name" placeholder={server.host} />
-    </Section>
+    </SettingsSection>
   );
 }
 
@@ -89,9 +73,9 @@ function SlugSection({ server }: { server: Server }): ReactNode {
     failure: 'Could not change the slug.',
   });
   return (
-    <Section title="Slug" note="The agent's part of every address. Lowercase letters, digits and dashes, unique within the organization.">
+    <SettingsSection title="Slug" note="The agent's part of every address. Lowercase letters, digits and dashes, unique within the organization.">
       <SaveField saving={saving} name="agent-slug" placeholder={server.slug ?? ''} />
-    </Section>
+    </SettingsSection>
   );
 }
 
@@ -101,7 +85,7 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
   const [importing, setImporting] = useState(false);
   const portable = { id: agent.id, name };
   return (
-    <Section title="Export and import" note="A .metro file sealed with a passphrase: channels, connectors, skills, memory, sessions and the model setup.">
+    <SettingsSection title="Export and import" note="A .metro file sealed with a passphrase: channels, connectors, skills, memory, sessions and the model setup.">
       <Row gap={8} wrap>
         <Button
           color="secondary"
@@ -134,7 +118,7 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
           setImporting(false);
         }}
       />
-    </Section>
+    </SettingsSection>
   );
 }
 
@@ -152,7 +136,7 @@ function RemoveSection({ server }: { server: Server }): ReactNode {
     },
   );
   return (
-    <Section title="Remove" note="Takes the agent out of your list. The machine keeps running and can be added again by its address.">
+    <SettingsSection title="Remove" note="Takes the agent out of your list. The machine keeps running and can be added again by its address.">
       <Row>
         <Button color="danger" dark={dark} label="Remove agent" onPress={confirming.show} />
       </Row>
@@ -162,7 +146,7 @@ function RemoveSection({ server }: { server: Server }): ReactNode {
         lines={[`${serverLabel(server)} leaves your list and the rail. Nothing on the machine is deleted.`]}
         action="Remove agent"
       />
-    </Section>
+    </SettingsSection>
   );
 }
 

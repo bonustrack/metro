@@ -1,17 +1,13 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { Icon } from '@stage-labs/kit/react-native/icon';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from './ui.js';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Tip } from './Tip.js';
 import { connectorHost, type Connector } from '../api/connectors.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
-import { DeleteConnector } from './DeleteConnector.js';
-import { RenameConnector } from './RenameConnector.js';
+import { ConnectorActions } from './ConnectorActions.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
-import { healthNote, useSignIn } from './connector-signin.js';
+import { healthNote } from './connector-signin.js';
 import { routeHash } from '../route.js';
-
-const CENTER_SELF = { alignSelf: 'center' } as const;
 
 interface ConnectorRowProps {
   project: string;
@@ -20,43 +16,6 @@ interface ConnectorRowProps {
   onChanged: () => void;
   onDelete: (id: string) => Promise<void>;
   onError: (message: string) => void;
-}
-
-type ActionProps = Omit<ConnectorRowProps, 'onOpen'>;
-
-function RowActions({ row, onChanged, onDelete, onError }: ActionProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const [renaming, setRenaming] = useState(false);
-  const { busy, connect, disconnect } = useSignIn(row, onChanged, onError);
-  return (
-    <>
-      {row.signIn === 'disconnected' ? (
-        <Button size="md" color="secondary" style={CENTER_SELF} dark={dark} label="Connect" loading={busy} disabled={busy} onPress={connect} />
-      ) : null}
-      <DeleteConnector
-        connector={row}
-        onDelete={onDelete}
-        extra={[
-          {
-            label: 'Rename',
-            onSelect: () => {
-              setRenaming(true);
-            },
-          },
-          ...(row.signIn === 'connected' ? [{ label: 'Disconnect', danger: true, onSelect: disconnect }] : []),
-        ]}
-      />
-      <RenameConnector
-        key={row.name}
-        connector={row}
-        open={renaming}
-        onClose={() => {
-          setRenaming(false);
-        }}
-        onRenamed={onChanged}
-      />
-    </>
-  );
 }
 
 const WARNING_SIZE = 16;
@@ -70,8 +29,7 @@ function HealthWarning({ note }: { note: string }): ReactNode {
   );
 }
 
-export function ConnectorRow({ onOpen, ...actions }: ConnectorRowProps): ReactNode {
-  const { row, project } = actions;
+export function ConnectorRow({ project, row, onOpen, onChanged, onDelete, onError }: ConnectorRowProps): ReactNode {
   const note = healthNote(row);
   return (
     <ListRow
@@ -84,7 +42,7 @@ export function ConnectorRow({ onOpen, ...actions }: ConnectorRowProps): ReactNo
       onOpen={() => {
         onOpen(row.id);
       }}
-      trailing={<RowActions {...actions} />}
+      trailing={<ConnectorActions connector={row} inRow onDelete={onDelete} onChanged={onChanged} onError={onError} />}
     />
   );
 }

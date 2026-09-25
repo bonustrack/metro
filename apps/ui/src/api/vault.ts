@@ -2,8 +2,6 @@ import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
 import { filled, isRecord } from './read.js';
 
-export const VAULT_SINCE = '0.1.0-beta.197';
-
 export interface VaultSecret {
   id: string;
   name: string;

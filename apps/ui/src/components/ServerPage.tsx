@@ -1,41 +1,26 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
-import { SHRINK } from '../theme.js';
 import { PageTitle } from './PageTitle.js';
+import { InfoRow } from './InfoRow.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
 import { ClaudeSession } from './ClaudeSession.js';
-import { MetroUser } from './MetroUser.js';
 import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js';
 import { serverLabel, type Server } from '../api/servers.js';
 import { diskLabel, systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
 import { whenLabel } from '../api/when.js';
-import { ownerLabel } from '../auth/owner-label.js';
+import { activeAccount } from '../auth/account.js';
 import { useDocumentTitle } from '../title.js';
 
 const FALLBACK = 'Could not read this server.';
 
-function InfoRow({ label, value, href, danger = false }: { label: string; value: string; href?: string; danger?: boolean }): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <Row justify="between" align="center" gap={16} padding={{ y: 10 }} border={{ bottom: { width: 1, color: palette.border } }}>
-      <Text size="sm" role="secondary">
-        {label}
-      </Text>
-      <Text size="sm" numberOfLines={1} style={SHRINK} role={danger ? 'danger' : undefined}>
-        {href === undefined ? (
-          value
-        ) : (
-          <a className="hint-link" href={href} target="_blank" rel="noreferrer">
-            {value}
-          </a>
-        )}
-      </Text>
-    </Row>
-  );
+function ownerLabel(owner: string | null): string {
+  if (owner === null) return 'not set';
+  const account = activeAccount();
+  if (account?.organization === owner) return account.organizationName ?? owner;
+  return owner;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
@@ -106,7 +91,6 @@ export function ServerPage({ project }: { project: string }): ReactNode {
         <DaemonControls />
       </Col>
       <ClaudeSession project={project} />
-      <MetroUser />
       {machine.error !== null ? (
         <Text size="sm" role="danger">
           {queryError(machine.error, FALLBACK)}

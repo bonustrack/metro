@@ -2,8 +2,6 @@ import { accountPath } from './attach.js';
 import { call } from './client.js';
 import { filled, isRecord } from './read.js';
 
-export const SENDER_NAMES_SINCE = '0.1.0-beta.195';
-
 export interface SenderCard {
   id: string;
   name?: string;

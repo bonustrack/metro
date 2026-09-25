@@ -6,9 +6,8 @@ import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
-import { fetchAgentPath, FILES_SINCE, joinPath, pathSegments, type AgentPath, type FileEntry } from '../api/files.js';
-import { queryError, useBoxQuery, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
+import { fetchAgentPath, joinPath, pathSegments, type AgentPath, type FileEntry } from '../api/files.js';
+import { queryError, useBoxQuery } from '../api/queries.js';
 import { sizeLabel, whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -87,19 +86,11 @@ function FilesBody({ project, path, onSelect }: FilesProps): ReactNode {
 
 export function Files({ project, path, onSelect }: FilesProps): ReactNode {
   useDocumentTitle('Files');
-  const mode = useModeQuery();
-  if (mode.data === undefined) return <Loading />;
   return (
     <Col gap={16}>
       <PageTitle>Files</PageTitle>
-      {olderThan(mode.data.version, FILES_SINCE) ? (
-        <Text size="sm" role="secondary">{`Needs metro ${FILES_SINCE}. Update first, from the Server page.`}</Text>
-      ) : (
-        <>
-          <Text size="sm" role="secondary">{INTRO}</Text>
-          <FilesBody project={project} path={path} onSelect={onSelect} />
-        </>
-      )}
+      <Text size="sm" role="secondary">{INTRO}</Text>
+      <FilesBody project={project} path={path} onSelect={onSelect} />
     </Col>
   );
 }

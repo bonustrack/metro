@@ -113,7 +113,6 @@ describe('the address a stopped daemon still answers on', () => {
       expect(await mode.json()).toEqual({
         mode: 'local',
         owner: '0xef8305e140ac520225daf050e2f71d5fbcc543e7',
-        project: 'localdaemon',
         version: '0.1.0-beta.67',
         stopped: true,
       });

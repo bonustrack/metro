@@ -1,9 +1,8 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
-import { SHRINK } from '../theme.js';
 import { PageTitle } from './PageTitle.js';
+import { InfoRow } from './InfoRow.js';
 import { setPolicy, stationLabel } from '../api/attach.js';
 import { stationFields, type AccountRow } from '../api/accounts.js';
 import { type AgentSummary } from '../api/client.js';
@@ -28,22 +27,6 @@ function Section({ title, children }: { title: string; children: ReactNode }): R
       <Text size="lg" weight="semibold">{title}</Text>
       {children}
     </Col>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <Row
-      justify="between"
-      align="center"
-      gap={16}
-      padding={{ y: 12 }}
-      border={{ bottom: { width: 1, color: palette.border } }}
-    >
-      <Text size="sm" role="secondary">{label}</Text>
-      <Text size="sm" numberOfLines={1} style={SHRINK}>{value}</Text>
-    </Row>
   );
 }
 
@@ -249,7 +232,7 @@ export function StationDetail(props: StationDetailProps): ReactNode {
         <Section title="Details">
           <Col>
             {details.map((field) => (
-              <Detail key={field.label} label={field.label} value={field.value} />
+              <InfoRow key={field.label} label={field.label} value={field.value} padY={12} />
             ))}
           </Col>
         </Section>

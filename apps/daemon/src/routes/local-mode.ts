@@ -165,7 +165,7 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
 }
 
 function localModeInfo(): ModeInfo {
-  return { mode: 'local', owner: localOwner(), project: 'localdaemon', version: METRO_VERSION };
+  return { mode: 'local', owner: localOwner(), version: METRO_VERSION };
 }
 
 async function accountCall(

@@ -1,27 +1,19 @@
 import { filled, isRecord } from './read.js';
 import { daemonBase, daemonHost } from '../auth/daemon.js';
 
-export type DaemonMode = 'hosted' | 'local';
-
 export interface ModeInfo {
-  mode: DaemonMode;
+  mode: 'local';
   owner: string | null;
-  project: string | null;
   version: string | null;
   stopped: boolean;
 }
 
-const MODES: DaemonMode[] = ['hosted', 'local'];
-
-
 export function toMode(body: unknown): ModeInfo | null {
   if (!isRecord(body)) return null;
-  const mode = MODES.find((m) => m === body.mode);
-  if (mode === undefined) return null;
+  if (body.mode !== 'local') return null;
   return {
-    mode,
+    mode: 'local',
     owner: filled(body.owner),
-    project: filled(body.project),
     version: filled(body.version),
     stopped: body.stopped === true,
   };

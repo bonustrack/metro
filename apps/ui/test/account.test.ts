@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { accountFrom, tokenExpiring, tokenExpiry } from '../src/auth/account.ts';
-import { handoffCode } from '../src/auth/handoff.ts';
+import { accountFrom, handoffCode, tokenExpiring, tokenExpiry } from '../src/auth/account.ts';
 
 const b64 = (o: unknown): string => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (claims: Record<string, unknown>): string => `${b64({ alg: 'RS256', kid: 'k' })}.${b64(claims)}.sig`;

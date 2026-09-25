@@ -141,8 +141,7 @@ export function ConnectorPage({
           />
           <ConnectorActions
             connector={data}
-            refreshing={busy}
-            onRefresh={recheck}
+            check={{ busy, run: recheck }}
             onDelete={onDelete}
             onChanged={reload}
             onError={setStatus}

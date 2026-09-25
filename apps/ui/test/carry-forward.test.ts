@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { carryForward, type AccountGroup } from '../src/api/accounts.js';
-import { dropAccount, stationsKey } from '../src/api/queries.js';
+import { boxKey, dropAccount } from '../src/api/queries.js';
 import { QueryClient } from '@tanstack/react-query';
 import type { StationsView } from '../src/api/client.js';
 
@@ -45,11 +45,11 @@ describe('a detached account cannot be resurrected by carry-forward', () => {
 
   test('dropAccount removes it from the cache, so the next merge cannot bring it back', () => {
     const client = new QueryClient();
-    client.setQueryData<StationsView>(stationsKey(), view(PREV));
+    client.setQueryData<StationsView>(boxKey('stations'), view(PREV));
 
     dropAccount(client, 'xmtp', 'x0');
 
-    const cached = client.getQueryData<StationsView>(stationsKey());
+    const cached = client.getQueryData<StationsView>(boxKey('stations'));
     const kept = cached?.groups.find((g) => g.station === 'xmtp');
     expect(kept?.rows.map((r) => r.id)).toEqual(['x1', 'tony']);
 
@@ -62,11 +62,11 @@ describe('a detached account cannot be resurrected by carry-forward', () => {
   test('dropping the last row of a station removes the station', () => {
     const client = new QueryClient();
     client.setQueryData<StationsView>(
-      stationsKey(),
+      boxKey('stations'),
       view([{ station: 'telegram-bot', rows: [row('t0')] }]),
     );
     dropAccount(client, 'telegram-bot', 't0');
-    expect(client.getQueryData<StationsView>(stationsKey())?.groups).toEqual([]);
+    expect(client.getQueryData<StationsView>(boxKey('stations'))?.groups).toEqual([]);
   });
 });
 

@@ -2,13 +2,12 @@ import { type ReactNode, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
-import { useHomeProject } from './home-project.js';
+import { ProjectGate } from './ProjectGate.js';
 import { Crumbs, EntryRow, type Crumb } from './FolderBrowser.js';
 import { fileLeaf, memoryTree, type MemoryFolder } from './memory-tree.js';
 import { DeleteMenu } from './DeleteMenu.js';
 import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
-import { PageTitle } from './PageTitle.js';
 import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
 import { deleteMemoryFile, type MemoryFile } from '../api/claude.js';
@@ -114,24 +113,19 @@ const NONE = 'No Claude Code memory on this box yet. It fills in as Claude works
 
 export function Memory({ project, claudeProject, file, onSelect }: MemoryProps): ReactNode {
   useDocumentTitle('Memory');
-  const home = useHomeProject();
-  const picked = claudeProject ?? home.project;
-  if (picked === null)
-    return (
-      <Col gap={16}>
-        <PageTitle>Memory</PageTitle>
-        {home.loading ? <Loading /> : <Text size="sm" role="secondary">{NONE}</Text>}
-      </Col>
-    );
   return (
-    <Col gap={16}>
-      <MemoryTitle claudeProject={picked} />
-      <Crumbs crumbs={memoryCrumbs(project, picked, file ?? '', onSelect)} />
-      {isFile(file) ? (
-        <MemoryFileView claudeProject={picked} file={file} />
-      ) : (
-        <MemoryFolderView project={project} claudeProject={picked} path={file ?? ''} onSelect={onSelect} />
+    <ProjectGate title="Memory" claudeProject={claudeProject} none={NONE}>
+      {(picked) => (
+        <Col gap={16}>
+          <MemoryTitle claudeProject={picked} />
+          <Crumbs crumbs={memoryCrumbs(project, picked, file ?? '', onSelect)} />
+          {isFile(file) ? (
+            <MemoryFileView claudeProject={picked} file={file} />
+          ) : (
+            <MemoryFolderView project={project} claudeProject={picked} path={file ?? ''} onSelect={onSelect} />
+          )}
+        </Col>
       )}
-    </Col>
+    </ProjectGate>
   );
 }

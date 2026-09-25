@@ -5,9 +5,8 @@ import { Button, Input, Text } from './ui.js';
 import { GROW } from '../theme.js';
 import { allowsEveryone, EVERYONE } from '../api/accounts.js';
 import { fetchRecentSenders, lookupSender, setAllowlist, type RecentSender } from '../api/attach.js';
-import { queryError, useBoxQuery, useModeQuery } from '../api/queries.js';
-import { olderThan } from '../api/version.js';
-import { fetchSenderCards, SENDER_NAMES_SINCE, type SenderCard } from '../api/senders.js';
+import { queryError, useBoxQuery } from '../api/queries.js';
+import { fetchSenderCards, type SenderCard } from '../api/senders.js';
 import { SenderRow } from './SenderRow.js';
 
 const SAVE_FAILED = 'Could not save who may reach this agent.';
@@ -15,7 +14,6 @@ const NO_INPUT = { autoComplete: 'off', autoCapitalize: 'none', autoCorrect: fal
 const OPEN = 'Only these senders reach the agent, in groups too. Remove them all and anyone can again.';
 const CLOSED = 'Every message on this station reaches the agent.';
 const EMPTY = 'Nobody listed, so anyone can reach this agent.';
-const APPROVERS_SINCE = '0.1.0-beta.194';
 const NO_CHAT_APPROVALS = new Set(['outlook']);
 const APPROVE_HINT = 'A sender marked Can approve may answer an approval request in this chat with "yes <id>". With nobody marked, requests wait on the agent page.';
 
@@ -220,26 +218,20 @@ interface AllowlistProps {
 }
 
 function useSenderCards(agentId: string, station: string, accountId: string, entries: string[]): SenderCard[] {
-  const mode = useModeQuery();
-  const enabled = mode.data !== undefined && !olderThan(mode.data.version, SENDER_NAMES_SINCE) && entries.length > 0;
   const cards = useBoxQuery(['sender-cards', agentId, station, accountId, entries.join('\n')], () => fetchSenderCards(agentId, station, accountId), {
-    enabled,
+    enabled: entries.length > 0,
     staleTime: 600_000,
   });
   return cards.data ?? [];
 }
 
-function useShownApprovers(station: string, approvers: string[]): string[] | null {
-  const mode = useModeQuery();
-  const shown = mode.data !== undefined && !olderThan(mode.data.version, APPROVERS_SINCE) && !NO_CHAT_APPROVALS.has(station);
-  return shown ? approvers : null;
-}
+const chatApprovers = (station: string, approvers: string[]): string[] | null => (NO_CHAT_APPROVALS.has(station) ? null : approvers);
 
 const isIn = (list: string[], id: string): boolean => list.some((entry) => entry.toLowerCase() === id.toLowerCase());
 
 export function Allowlist({ agentId, station, accountId, allowlist, approvers, onSaved }: AllowlistProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const shownApprovers = useShownApprovers(station, approvers);
+  const shownApprovers = chatApprovers(station, approvers);
   const everyone = allowsEveryone(allowlist);
   const entries = (allowlist ?? []).filter((entry) => entry !== EVERYONE);
   const cards = useSenderCards(agentId, station, accountId, entries);

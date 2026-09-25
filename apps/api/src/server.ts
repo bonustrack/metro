@@ -27,7 +27,7 @@ import { dbUsers } from './db/users.js';
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
-const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, project: null, version: METRO_VERSION });
+const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, version: METRO_VERSION });
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
 const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers };
 const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers };
