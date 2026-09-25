@@ -17,7 +17,7 @@ export async function fetchSenderCards(agentId: string, station: string, account
     const name = filled(raw.name);
     const handle = filled(raw.handle);
     const avatar = filled(raw.avatar);
-    return [{ id: raw.id, ...(name === null ? {} : { name }), ...(handle === null ? {} : { handle }), ...(avatar?.startsWith('https://') === true ? { avatar } : {}) }];
+    return [{ id: raw.id, ...(name === null ? {} : { name }), ...(handle === null ? {} : { handle }), ...(avatar !== null && (avatar.startsWith('https://') || avatar.startsWith('data:image/')) ? { avatar } : {}) }];
   });
 }
 

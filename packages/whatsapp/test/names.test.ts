@@ -36,3 +36,15 @@ describe('names kept on disk', () => {
     expect(book(file).get('1@lid')).toBe('Ada');
   });
 });
+
+describe('names from the contacts WhatsApp syncs', () => {
+  test('a contact is named under its lid and its number', async () => {
+    const { makeNameBook: book, noteContact } = await import('../src/names.ts');
+    const b = book();
+    noteContact(b, { id: '4179@s.whatsapp.net', lid: '1831@lid', notify: 'Jan' });
+    noteContact(b, { id: '9@lid', name: 'Saved Name', notify: 'Self Name' });
+    expect(b.get('1831@lid')).toBe('Jan');
+    expect(b.get('4179@s.whatsapp.net')).toBe('Jan');
+    expect(b.get('9@lid')).toBe('Saved Name');
+  });
+});

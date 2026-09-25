@@ -17,7 +17,7 @@ import type { ProfileChange } from '@metro-labs/core/stations/profile';
 import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';
 import { baileysLogger } from './logger.js';
-import { makeNameBook, nameFiles, phoneOf, type NameBook } from './names.js';
+import { makeNameBook, nameFiles, noteContact, phoneOf, type NameBook } from './names.js';
 import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 import { makeOutbox, type Outbox } from './outbox.js';
@@ -102,7 +102,14 @@ function bindInbound(st: State, sock: WASocket): void {
     }
   });
   sock.ev.on('contacts.upsert', (contacts) => {
-    for (const c of contacts) st.names.note(c.id, c.name ?? c.notify);
+    for (const c of contacts) noteContact(st.names, c);
+  });
+  sock.ev.on('contacts.update', (contacts) => {
+    for (const c of contacts) noteContact(st.names, c);
+  });
+  sock.ev.on('messaging-history.set', ({ contacts, messages }) => {
+    for (const c of contacts) noteContact(st.names, c);
+    for (const m of messages) if (m.key.fromMe !== true) st.names.note(m.key.participant ?? m.key.remoteJid, m.pushName);
   });
   sock.ev.on('messages.reaction', (events: ReactionEvent[]) => {
     if (!st.handlers) return;

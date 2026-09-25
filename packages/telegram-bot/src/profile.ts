@@ -9,7 +9,7 @@ import {
 } from '@metro-labs/core/stations/profile';
 import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import { TrainError } from '@metro-labs/core/train-error';
-import { accountFor, tg } from './accounts.js';
+import { accountFor, accounts, tg } from './accounts.js';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 
 async function setPhoto(accountId: string, avatar: ProfileAvatar): Promise<void> {
@@ -39,6 +39,24 @@ interface TgChat {
   first_name?: unknown;
   last_name?: unknown;
   bio?: unknown;
+  photo?: { small_file_id?: unknown };
+}
+
+const PHOTO_MAX = 64 * 1024;
+
+async function photoData(accountId: string, fileId: unknown): Promise<string | undefined> {
+  if (typeof fileId !== 'string' || fileId === '') return undefined;
+  try {
+    const file = await tg<{ file_path?: string }>(accountId, 'getFile', { file_id: fileId }, 10_000);
+    const acct = accounts.get(accountId);
+    if (acct === undefined || typeof file.file_path !== 'string') return undefined;
+    const res = await fetch(`${acct.fileApi}/${file.file_path}`, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return undefined;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    return bytes.length === 0 || bytes.length > PHOTO_MAX ? undefined : `data:image/jpeg;base64,${bytes.toString('base64')}`;
+  } catch {
+    return undefined;
+  }
 }
 
 const senders = makeProfileCache<SenderProfile>(
@@ -47,11 +65,13 @@ const senders = makeProfileCache<SenderProfile>(
     const chat = await tg<TgChat>(accountId, 'getChat', { chat_id: Number(user) }, 10_000);
     const handle = nonEmpty(chat.username);
     const display = nonEmpty([chat.first_name, chat.last_name].filter((part) => typeof part === 'string').join(' '));
+    const avatar = await photoData(accountId, chat.photo?.small_file_id);
     return {
       id: user,
       ...(handle === undefined ? {} : { name: `@${handle}` }),
       ...(display === undefined ? {} : { display_name: display }),
       ...(nonEmpty(chat.bio) === undefined ? {} : { about: nonEmpty(chat.bio) }),
+      ...(avatar === undefined ? {} : { avatar }),
     };
   },
   { onError: (key, err) => process.stderr.write(`telegram-bot: could not read the profile of ${key}: ${err instanceof Error ? err.message : String(err)}\n`) },

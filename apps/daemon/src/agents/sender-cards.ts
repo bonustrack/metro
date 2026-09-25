@@ -24,6 +24,11 @@ const LOOKUP_MS = 8_000;
 
 const filled = (value: unknown): string | undefined => (typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined);
 
+const AVATAR_DATA_MAX = 100_000;
+
+const shownAvatar = (avatar: string): boolean =>
+  avatar.startsWith('https://') || (avatar.startsWith('data:image/') && avatar.length <= AVATAR_DATA_MAX);
+
 function cardOf(id: string, profile: unknown, seenName: string | undefined): SenderCard {
   const p = isRecord(profile) ? profile : {};
   const display = filled(p.display_name);
@@ -34,7 +39,7 @@ function cardOf(id: string, profile: unknown, seenName: string | undefined): Sen
     id,
     ...(name === undefined ? {} : { name }),
     ...(handle === undefined || handle === name ? {} : { handle }),
-    ...(avatar?.startsWith('https://') === true ? { avatar } : {}),
+    ...(avatar !== undefined && shownAvatar(avatar) ? { avatar } : {}),
   };
 }
 

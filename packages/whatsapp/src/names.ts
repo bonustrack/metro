@@ -56,6 +56,19 @@ export function makeNameBook(file?: string): NameBook {
   };
 }
 
+export interface ContactNames {
+  id?: string | null;
+  lid?: string | null;
+  phoneNumber?: string | null;
+  name?: string | null;
+  notify?: string | null;
+}
+
+export function noteContact(book: NameBook, c: ContactNames): void {
+  const name = c.name ?? c.notify;
+  for (const jid of [c.id, c.lid, c.phoneNumber]) book.note(jid, name);
+}
+
 export const phoneOf = (jid: string | null | undefined): string | undefined => {
   const digits = /^(\d{6,})(?::\d+)?@s\.whatsapp\.net$/.exec(jid ?? '')?.[1];
   return digits === undefined ? undefined : `+${digits}`;
