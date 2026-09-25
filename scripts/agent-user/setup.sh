@@ -15,6 +15,7 @@ echo '{"hasCompletedOnboarding":true}' > /root/.claude.json
 echo '{"name":"metro","plugins":[]}' > /opt/store/marketplace/.claude-plugin/marketplace.json
 echo '{"name":"metro","version":"9.9.9"}' > /opt/store/marketplace/plugin/.claude-plugin/plugin.json
 echo 'root only' > /root/secret.txt
+mkdir -p /root/ws-repo/src /root/tools && echo 'code' > /root/ws-repo/src/a.ts && echo 'x' > /root/tools/run.sh && echo 'k' > /root/.gitconfig
 cat > /usr/local/bin/curl <<'C'
 #!/bin/sh
 echo 'mkdir -p "$HOME/.local/bin"; printf "#!/bin/sh\necho 2.1.999\n" > "$HOME/.local/bin/claude"; chmod +x "$HOME/.local/bin/claude"'

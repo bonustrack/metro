@@ -7,15 +7,17 @@ import { ConfirmDialog, useConfirm } from './DeleteMenu.js';
 import { AGENT_USER_SINCE, switchAgentUser, type AgentUserStatus } from '../api/agent-user.js';
 import { queryError, refresh, useAgentUserQuery, useModeQuery } from '../api/queries.js';
 import { olderThan } from '../api/version.js';
+import { MoveWork } from './MoveWork.js';
 
 const ABOUT = 'Claude Code runs as the user agent instead of root, so it cannot read the channel keys on this machine.';
 
 const ON_LINES = [
-  'Metro creates the user agent, moves Claude Code, its login, sessions and memory to it, and restarts.',
+  'Metro creates the user agent, copies Claude Code, its login, sessions, memory and skills to it, and restarts. Root keeps its copy.',
   'The agent can no longer read the channel keys, install system packages or use systemctl. The Terminal opens the agent\'s shell.',
 ];
 const OFF_LINES = [
-  'Claude Code runs as root again, from the copy of its folder root kept when this was switched on. Newer sessions and memory stay with the user agent.',
+  'Claude Code runs as root again, with the agent\'s current sessions, memory, skills and login. Root\'s older copy is kept beside it, renamed with the date.',
+  'Work moved to the agent stays in /home/agent. Nothing is deleted.',
 ];
 
 function stateText(status: AgentUserStatus): string {
@@ -66,7 +68,10 @@ export function AgentUserSwitch(): ReactNode {
       ) : status.error !== null ? (
         <Text size="sm" role="danger">{queryError(status.error, 'Could not read it.')}</Text>
       ) : status.data === undefined ? null : (
-        <Switch status={status.data} />
+        <Col gap={16}>
+          <Switch status={status.data} />
+          {status.data.active ? <MoveWork /> : null}
+        </Col>
       )}
     </Col>
   );

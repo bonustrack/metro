@@ -2,13 +2,15 @@ import { existsSync, rmSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
-import { bodyField, readJsonBody, sessionRoute } from '@metro-labs/http/api-http';
+import { bodyField, readJsonBody, requireAdmin, sessionRoute } from '@metro-labs/http/api-http';
 import { log } from '@metro-labs/core/log';
 import { writeSecure } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { agentUser, CONFIG_FILE, forgetAgentUser, wantedAgentUser } from './user.js';
+import { listWorkspace, startMove } from './workspace.js';
 
 const PATH = '/api/agent-user';
+const WORKSPACE = '/api/agent-user/workspace';
 const EXIT_DELAY_MS = 500;
 
 export interface AgentUserApiDeps {
@@ -52,8 +54,21 @@ function setWanted(dir: string, enabled: boolean): void {
   forgetAgentUser();
 }
 
+async function workspaceAnswer(req: IncomingMessage, dir: string): Promise<unknown> {
+  const user = agentUser(dir);
+  if (user === null) throw new ApiError('switch Claude Code to its own user first', 409);
+  if (req.method === 'GET') return { user: user.name, home: user.home, entries: listWorkspace(user) };
+  const started = startMove(bodyField(await readJsonBody(req), 'names'), user);
+  return { started, entries: listWorkspace(user) };
+}
+
 export function handleAgentUserRequest(req: IncomingMessage, res: ServerResponse, deps: AgentUserApiDeps): boolean {
-  return sessionRoute(req, res, { methods: { [PATH]: ['GET', 'POST'] }, admin: ['POST'], label: 'agent-user-api' }, async (session) => {
+  const methods = { [PATH]: ['GET', 'POST'], [WORKSPACE]: ['GET', 'POST'] };
+  return sessionRoute(req, res, { methods, admin: ['POST'], label: 'agent-user-api' }, async (session, path) => {
+    if (path === WORKSPACE) {
+      requireAdmin(session);
+      return workspaceAnswer(req, (deps.agents ?? agentsDir)());
+    }
     if (req.method === 'GET') return agentUserStatus(deps);
     const enabled = bodyField(await readJsonBody(req), 'enabled');
     if (typeof enabled !== 'boolean') throw new ApiError('enabled must be true or false', 400);

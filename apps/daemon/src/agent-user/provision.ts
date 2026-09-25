@@ -1,12 +1,12 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { agentsDir } from '../agents/files.js';
 import { copyIntoHome } from './home-fs.js';
-import { agentMarketplaceDir, agentUser, asUser, claudeBin, forgetAgentUser, wantedAgentUser, type AgentUser } from './user.js';
+import { agentMarketplaceDir, agentUser, asUser, claudeBin, forgetAgentUser, lookupUser, wantedAgentUser, type AgentUser } from './user.js';
 import { watchAgentView } from './view.js';
 
 const INSTALL_MS = 10 * 60_000;
@@ -50,6 +50,17 @@ function moveProject(user: AgentUser, from: string): void {
   if (existsSync(old) && absent(next)) run('mv', ['-T', old, next]);
 }
 
+const stamp = (now: Date): string => now.toISOString().replace(/[-:]/g, '').replace(/\..*$/, '').replace('T', '-');
+
+const kindIs = (path: string, want: 'dir' | 'file'): boolean => {
+  try {
+    const st = lstatSync(path);
+    return want === 'dir' ? st.isDirectory() : st.isFile();
+  } catch {
+    return false;
+  }
+};
+
 function migrateClaude(user: AgentUser, dir: string): void {
   const marker = join(dir, MIGRATED);
   if (existsSync(marker)) return;
@@ -58,13 +69,14 @@ function migrateClaude(user: AgentUser, dir: string): void {
   for (const name of ['.claude', '.claude.json']) {
     const from = join(home, name);
     const to = join(user.home, name);
-    if (!existsSync(from) || !absent(to)) continue;
+    if (!existsSync(from)) continue;
+    if (!absent(to)) run('mv', ['-T', to, `${to}.before-root-${stamp(new Date())}`]);
     run('cp', ['-aT', from, to]);
     run('chown', ['-hR', `${user.name}:${String(user.gid)}`, to]);
     copied.push(name);
   }
   if (copied.includes('.claude')) moveProject(user, home);
-  run('touch', [marker]);
+  writeFileSync(marker, `${user.name}\n`, { mode: 0o600 });
   log.info({ user: user.name, copied }, 'agent-user: moved the Claude Code folder and login to the agent user once; root keeps its copy');
 }
 
@@ -113,9 +125,54 @@ function stopRootSession(): void {
   log.info('agent-user: stopped the Claude session root was running; it comes back as the agent user');
 }
 
+function stopAgentSessions(user: AgentUser): void {
+  spawnSync(...asUser(user, 'tmux', ['kill-server']), { stdio: 'ignore' });
+}
+
+function takeBack(user: AgentUser, now: Date): string[] {
+  const home = homedir();
+  const taken: string[] = [];
+  for (const [name, kind] of [['.claude', 'dir'], ['.claude.json', 'file']] as const) {
+    const from = join(user.home, name);
+    if (!kindIs(from, kind)) continue;
+    const to = join(home, name);
+    if (!absent(to)) run('mv', ['-T', to, `${to}.before-agent-${stamp(now)}`]);
+    run('cp', ['-aT', from, to]);
+    run('chown', ['-hR', 'root:root', to]);
+    taken.push(name);
+  }
+  if (taken.includes('.claude')) {
+    const projects = join(home, '.claude', 'projects');
+    const old = join(projects, encodedCwd(user.home));
+    const next = join(projects, encodedCwd(home));
+    if (existsSync(old) && absent(next)) run('mv', ['-T', old, next]);
+  }
+  return taken;
+}
+
+export function returnToRoot(dir = agentsDir(), now = new Date()): string[] | null {
+  const marker = join(dir, MIGRATED);
+  if (process.platform !== 'linux' || process.getuid?.() !== 0 || !existsSync(marker)) return null;
+  const name = readFileSync(marker, 'utf8').trim() || 'agent';
+  const user = lookupUser(name);
+  if (user === null) return null;
+  stopAgentSessions(user);
+  const taken = takeBack(user, now);
+  rmSync(marker);
+  log.info({ user: user.name, taken }, 'agent-user: switched off; the agent\'s Claude folder and login are root\'s again, root\'s older copy is kept beside it');
+  return taken;
+}
+
 export async function provisionAgentUser(dir = agentsDir(), env: NodeJS.ProcessEnv = process.env): Promise<Provisioned> {
   const name = wantedAgentUser(dir);
-  if (name === null) return 'off';
+  if (name === null) {
+    try {
+      returnToRoot(dir);
+    } catch (err) {
+      log.error({ err: errMsg(err) }, 'agent-user: could not bring the Claude folder back to root; the agent user keeps it, nothing was deleted');
+    }
+    return 'off';
+  }
   if (process.platform !== 'linux' || process.getuid?.() !== 0) {
     log.warn({ user: name }, 'agent-user: running Claude Code as its own user needs Linux and a daemon running as root; the Claude session stays stopped');
     return 'unsupported';

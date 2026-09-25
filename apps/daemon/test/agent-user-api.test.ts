@@ -96,3 +96,14 @@ describe('switching Claude Code to its own user from the page', () => {
     expect(restarts).toBe(0);
   });
 });
+
+describe('moving work to the agent user', () => {
+  test('refused until the agent user exists, and admin only', async () => {
+    const get = async (role: 'admin' | 'member'): Promise<Response> =>
+      fetch(`${base}/api/agent-user/workspace`, { headers: { authorization: await auth(OWNER, role) } });
+    expect((await get('member')).status).toBe(403);
+    const res = await get('admin');
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain('its own user first');
+  });
+});

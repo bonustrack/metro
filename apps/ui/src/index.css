@@ -841,3 +841,10 @@ textarea:focus-visible {
 .connector-chip:hover {
   background: var(--metro-surface);
 }
+
+.move-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}

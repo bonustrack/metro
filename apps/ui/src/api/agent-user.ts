@@ -37,3 +37,42 @@ export async function switchAgentUser(enabled: boolean): Promise<void> {
   });
   await awaitRestart();
 }
+
+export const WORKSPACE_SINCE = '0.1.0-beta.187';
+
+export interface WorkspaceEntry {
+  name: string;
+  kind: 'folder' | 'file' | 'link';
+  bytes: number | null;
+  state: 'here' | 'copying' | 'moved' | 'failed';
+  error: string | null;
+}
+
+const STATES = new Set(['here', 'copying', 'moved', 'failed']);
+
+function toEntry(raw: unknown): WorkspaceEntry | null {
+  if (!isRecord(raw) || typeof raw.name !== 'string') return null;
+  const kind = raw.kind === 'file' || raw.kind === 'link' ? raw.kind : 'folder';
+  const state = typeof raw.state === 'string' && STATES.has(raw.state) ? (raw.state as WorkspaceEntry['state']) : 'here';
+  return { name: raw.name, kind, bytes: typeof raw.bytes === 'number' ? raw.bytes : null, state, error: filled(raw.error) };
+}
+
+export function toWorkspace(body: unknown): WorkspaceEntry[] {
+  if (!isRecord(body) || !Array.isArray(body.entries)) throw new Error('Metro returned an unexpected response.');
+  return body.entries.map(toEntry).filter((e): e is WorkspaceEntry => e !== null);
+}
+
+export async function fetchWorkspace(): Promise<WorkspaceEntry[]> {
+  return toWorkspace(await call({ method: 'GET', base: `${daemonBase()}/api/agent-user/workspace` }));
+}
+
+export async function moveWorkspace(names: string[]): Promise<WorkspaceEntry[]> {
+  return toWorkspace(
+    await call({
+      method: 'POST',
+      base: `${daemonBase()}/api/agent-user/workspace`,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ names }),
+    }),
+  );
+}

@@ -21,7 +21,7 @@ export interface UserHost {
   lookup: (name: string) => AgentUser | null;
 }
 
-function lookupUser(name: string): AgentUser | null {
+export function lookupUser(name: string): AgentUser | null {
   const run = spawnSync('getent', ['passwd', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (run.error !== undefined || run.status !== 0) return null;
   const [, , uid = '', gid = '', , home = ''] = run.stdout.trim().split(':');
