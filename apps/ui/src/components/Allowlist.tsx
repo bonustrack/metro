@@ -225,11 +225,13 @@ function useSenderCards(agentId: string, station: string, accountId: string, ent
   return cards.data ?? [];
 }
 
+const chatApprovers = (station: string, approvers: string[]): string[] | null => (NO_CHAT_APPROVALS.has(station) ? null : approvers);
+
 const isIn = (list: string[], id: string): boolean => list.some((entry) => entry.toLowerCase() === id.toLowerCase());
 
 export function Allowlist({ agentId, station, accountId, allowlist, approvers, onSaved }: AllowlistProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const shownApprovers = NO_CHAT_APPROVALS.has(station) ? null : approvers;
+  const shownApprovers = chatApprovers(station, approvers);
   const everyone = allowsEveryone(allowlist);
   const entries = (allowlist ?? []).filter((entry) => entry !== EVERYONE);
   const cards = useSenderCards(agentId, station, accountId, entries);
