@@ -42,6 +42,9 @@ export function gatewayEnv(base: NodeJS.ProcessEnv, agentKey: string | null, por
   };
 }
 
+export const channelEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
+  set(env, 'MCP_PROTOCOL_NEGOTIATION') ? env : { ...env, MCP_PROTOCOL_NEGOTIATION: 'legacy' };
+
 const OWN_CREDENTIALS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'];
 
 export function credentialEnv(env: NodeJS.ProcessEnv, agentKey: string, signedIn: boolean): NodeJS.ProcessEnv {
@@ -150,9 +153,9 @@ export async function launchClaude(extra: string[]): Promise<number> {
   try {
     if ('skip' in decision) {
       process.stderr.write(`metro claude: ${decision.skip}\n`);
-      return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), process.env);
+      return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), channelEnv(process.env));
     }
-    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), gatewayLaunchEnv(decision.key, port));
+    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), channelEnv(gatewayLaunchEnv(decision.key, port)));
   } finally {
     mcp?.cleanup();
   }

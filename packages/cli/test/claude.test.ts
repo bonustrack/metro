@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { agentKey, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, servingDaemon } from '../src/claude.ts';
+import { agentKey, channelEnv, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, servingDaemon } from '../src/claude.ts';
 
 describe('metro claude hands everything to claude untouched', () => {
   test('the channel and permission flags come first, then the user arguments verbatim, so a user flag wins', () => {
@@ -117,5 +117,12 @@ describe('a box with no Anthropic account at all', () => {
     expect(credentialEnv(withKey, 'mk_agent', false)).toBe(withKey);
     const withToken = { ...routed, ANTHROPIC_AUTH_TOKEN: 'their-gateway' };
     expect(credentialEnv(withToken, 'mk_agent', false)).toBe(withToken);
+  });
+});
+
+describe('the MCP protocol metro claude asks for', () => {
+  test('keeps the earlier handshake so the metro channel registers, unless the user chose one', () => {
+    expect(channelEnv({ HOME: '/h' })).toEqual({ HOME: '/h', MCP_PROTOCOL_NEGOTIATION: 'legacy' });
+    expect(channelEnv({ MCP_PROTOCOL_NEGOTIATION: 'auto' })).toEqual({ MCP_PROTOCOL_NEGOTIATION: 'auto' });
   });
 });
