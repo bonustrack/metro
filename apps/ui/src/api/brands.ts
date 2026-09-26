@@ -9,6 +9,7 @@ const BY_HOST: Record<string, string> = {
   'gemini.google.com': 'gemini',
   'aws.amazon.com': 'aws',
   'mail.google.com': 'gmail',
+  'gmailmcp.googleapis.com': 'gmail',
   'drive.google.com': 'googledrive',
 };
 
