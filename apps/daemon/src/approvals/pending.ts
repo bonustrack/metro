@@ -111,13 +111,17 @@ export function forgetPromptsOf(owner: object): void {
   for (const [id, entry] of held) if (entry.owner === owner) held.delete(id);
 }
 
-export function settlePromptsFor(name: string, args: Record<string, unknown>): void {
+export function settlePrompts(toolMatches: (tool: string) => boolean, args: Record<string, unknown>): void {
   for (const [id, entry] of held)
-    if (entry.tool.endsWith(`__${name}`) && previewMatches(entry.preview, args)) {
+    if (toolMatches(entry.tool) && previewMatches(entry.preview, args)) {
       held.delete(id);
-      log.info({ requestId: id, tool: entry.tool }, 'approvals: the call ran, so the prompt was answered in Claude Code');
+      log.info({ requestId: id, tool: entry.tool }, 'approvals: the call reached metro, so Claude Code already closed the prompt');
     }
 }
+
+export const settlePromptsFor = (name: string, args: Record<string, unknown>): void => {
+  settlePrompts((tool) => tool.endsWith(`__${name}`), args);
+};
 
 export async function expirePrompts(now = Date.now(), ttl = APPROVAL_TTL_MS): Promise<number> {
   const overdue = [...held.values()].filter((entry) => now - entry.at >= ttl);

@@ -152,9 +152,9 @@ async function runTool(
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');
 
+  settlePromptsFor(name, a);
   const blocked = policyGate(name, a);
   if (blocked) return blocked;
-  settlePromptsFor(name, a);
 
   return dispatchTool(name, a, identity, hooks);
 }

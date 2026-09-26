@@ -155,8 +155,11 @@ describe('a call that needs approval runs only once the owner approved that exac
     forgetAllPrompts();
     setPolicies('channel', [[TARGET, WRITE_ASK]]);
     const args = { line: LINE, text: 'hello' };
-    ask('aaaaa', args);
+    ask('ccccc', args);
     expect(await run(args)).toStartWith("Needs the owner's approval");
+    expect(await answerPrompt('ccccc', 'allow', 'chat')).toBeUndefined();
+    expect(await run(args)).toStartWith("Needs the owner's approval");
+    ask('aaaaa', args);
     await answerPrompt('aaaaa', 'allow', 'chat');
     expect(await run({ line: LINE, text: 'something else' })).toStartWith("Needs the owner's approval");
     expect(await run(args)).toStartWith('sent');

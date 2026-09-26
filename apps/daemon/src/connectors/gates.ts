@@ -1,7 +1,7 @@
 import type { ToolGroup } from '@metro-labs/core/stations/types';
 import { policyFor, setPolicies, type PolicyTarget, type ToolPolicy } from '../policy/policy.js';
 import { serverKeysOf } from './plugin-sync.js';
-import { NEEDS_APPROVAL, takeGrant } from '../approvals/pending.js';
+import { NEEDS_APPROVAL, settlePrompts, takeGrant } from '../approvals/pending.js';
 
 interface GateRow {
   id: string;
@@ -48,6 +48,7 @@ const promptFor = (connectorId: string, tool: string) => (asked: string): boolea
 export function blockedReason(connectorId: string, tool: string, args: Record<string, unknown> = {}): string | null {
   const gate = gates.find((g) => g.id === connectorId);
   if (gate === undefined) return null;
+  settlePrompts(promptFor(connectorId, tool), args);
   const access = policyFor({ kind: 'connector', id: connectorId }, { name: tool, group: toolGroupOf(gate, tool) });
   if (access === 'deny') return `Blocked by the owner's policy for ${gate.name} (${tool}).`;
   if (access === 'allow' || takeGrant(promptFor(connectorId, tool), args)) return null;

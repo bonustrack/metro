@@ -1,4 +1,4 @@
-import { answerPrompt, holdPrompt } from '../src/approvals/pending.ts';
+import { answerPrompt, holdPrompt, pendingPrompts } from '../src/approvals/pending.ts';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
@@ -114,6 +114,13 @@ describe('a connector carries a tool policy', () => {
     expect(blockedReason(LINEAR, 'list_issues', { team: 'core' })).toBeNull();
     expect(blockedReason(LINEAR, 'list_issues', { team: 'core' })).toStartWith("Needs the owner's approval");
     expect(blockedReason(TWIN, 'delete_issue')).toBeNull();
+  });
+
+  test('a call approved only in the terminal is refused and its dead prompt leaves the page', () => {
+    holdPrompt({ requestId: 'lnrqb', tool: 'mcp__plugin_metro_linear__list_issues', description: '', preview: '{"team":"ops"}', line: undefined, at: Date.now() }, {}, () => Promise.resolve());
+    expect(pendingPrompts().some((p) => p.requestId === 'lnrqb')).toBe(true);
+    expect(blockedReason(LINEAR, 'list_issues', { team: 'ops' })).toStartWith("Needs the owner's approval");
+    expect(pendingPrompts().some((p) => p.requestId === 'lnrqb')).toBe(false);
   });
 
   test('the hook maps Claude Code tool names to the connector and applies its policy', () => {
