@@ -39,7 +39,7 @@ const makeReader = (rpc: string) => createPublicClient({ chain: base, transport:
 export type Reader = ReturnType<typeof makeReader>;
 
 let reader: Reader | null = null;
-const readerFor = (): Reader => (reader ??= makeReader(baseRpc()));
+export const readerFor = (): Reader => (reader ??= makeReader(baseRpc()));
 
 const trimmed = (v: string): string | null => (v.trim() === '' ? null : v.trim());
 

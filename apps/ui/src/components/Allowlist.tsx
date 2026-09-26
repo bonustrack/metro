@@ -39,12 +39,27 @@ const WHERE_TO_FIND: Record<string, string> = {
   xmtp: 'Their inbox id, not their wallet address. Easiest: have them write once, then pick them below.',
 };
 
-const LOOKUP_PLACEHOLDER: Record<string, string> = {
-  whatsapp: 'Phone number, like +41 79 123 45 67',
-};
+interface LookupText {
+  placeholder: string;
+  hint: string;
+  notFound: string;
+  failed: string;
+}
 
-const NOT_FOUND = 'WhatsApp does not know that number, so nobody could write from it.';
-const LOOKUP_FAILED = 'Could not look that number up.';
+const LOOKUP: Record<string, LookupText> = {
+  whatsapp: {
+    placeholder: 'Phone number, like +41 79 123 45 67',
+    hint: 'Find someone by phone number, even if they never wrote here.',
+    notFound: 'WhatsApp does not know that number, so nobody could write from it.',
+    failed: 'Could not look that number up.',
+  },
+  xmtp: {
+    placeholder: 'Wallet address or name, like 0x1234… or alice.base.eth',
+    hint: 'XMTP knows people by inbox id, not by wallet address. Find someone by address or name to add the right id.',
+    notFound: 'That address has no XMTP inbox yet, so nobody could write from it.',
+    failed: 'Could not look that address up.',
+  },
+};
 
 interface LookupProps {
   agentId: string;
@@ -59,8 +74,8 @@ function Lookup({ agentId, station, accountId, busy, onFound, onError }: LookupP
   const dark = useKitScheme() === 'dark';
   const [draft, setDraft] = useState('');
   const [looking, setLooking] = useState(false);
-  const placeholder = LOOKUP_PLACEHOLDER[station];
-  if (placeholder === undefined) return null;
+  const text = LOOKUP[station];
+  if (text === undefined) return null;
   const run = (): void => {
     const query = draft.trim();
     if (query === '' || looking || busy) return;
@@ -69,14 +84,14 @@ function Lookup({ agentId, station, accountId, busy, onFound, onError }: LookupP
     lookupSender(agentId, station, accountId, query)
       .then((result) => {
         if (result.id === null) {
-          onError(NOT_FOUND);
+          onError(text.notFound);
           return;
         }
         setDraft('');
         onFound(result.id);
       })
       .catch((err: unknown) => {
-        onError(queryError(err, LOOKUP_FAILED));
+        onError(queryError(err, text.failed));
       })
       .finally(() => {
         setLooking(false);
@@ -85,13 +100,13 @@ function Lookup({ agentId, station, accountId, busy, onFound, onError }: LookupP
   return (
     <Col gap={8}>
       <Text size="sm" role="secondary">
-        Find someone by phone number, even if they never wrote here.
+        {text.hint}
       </Text>
       <Row gap={8} align="center" wrap>
         <Input
           name="sender-lookup"
           value={draft}
-          placeholder={placeholder}
+          placeholder={text.placeholder}
           disabled={busy || looking}
           dark={dark}
           inputProps={NO_INPUT}

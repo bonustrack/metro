@@ -26,7 +26,7 @@ async function handleResolve(req: IncomingMessage, res: ServerResponse, deps: Lo
   if (stationByName(target.station)?.resolvesSenders !== true)
     throw new ApiError(`metro cannot look a sender up on ${target.station}`, 400);
   const query = lookupQuery(req);
-  if (query === '') throw new ApiError('a number to look up is required', 400);
+  if (query === '') throw new ApiError('something to look up is required', 400);
   sendJson(req, res, 200, await deps.resolveSender(target.station, target.accountId, query));
 }
 

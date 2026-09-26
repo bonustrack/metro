@@ -11,6 +11,7 @@ export const xmtpStation: Station = {
   attachmentMode: 'native',
   profileFields: new Set<ProfileField>(PROFILE_FIELDS),
   readsProfiles: true,
+  resolvesSenders: true,
   claimsName: true,
   sendAttachments: xmtpSendAttachments,
   tools: XMTP_TOOLS,

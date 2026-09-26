@@ -13,6 +13,7 @@ import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize'
 import { TrainError } from '@metro-labs/core/train-error';
 import { claimNameAction, nameAction, setProfile } from './profile.js';
 import { profileAction } from './sender.js';
+import { resolveSenderAction } from './resolve.js';
 import { makeStation, respond, type CallMsg } from '@metro-labs/core/stations/station-runtime';
 
 type Args = Record<string, unknown>;
@@ -180,6 +181,7 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   claim_name: claimNameAction,
   name: nameAction,
   profile: profileAction,
+  resolve_sender: resolveSenderAction,
   send,
   ask,
   react,
