@@ -154,10 +154,6 @@ function capturePane(tmux: string): string {
   return run.error === undefined && run.status === 0 ? run.stdout : '';
 }
 
-const MCP_MISSING = 'no MCP server configured with that name';
-const RELAUNCH_MAX = 3;
-let relaunches = 0;
-
 function noteLaunchLines(pane: string, seen: Set<string>): void {
   for (const line of pane.split('\n').map((l) => l.trim()))
     if (line.startsWith('metro claude:') && !seen.has(line)) {
@@ -166,26 +162,12 @@ function noteLaunchLines(pane: string, seen: Set<string>): void {
     }
 }
 
-function relaunchWithoutMcp(tmux: string): void {
-  if (relaunches >= RELAUNCH_MAX) {
-    log.error('claude-session: Claude Code keeps starting without the metro MCP server, so channel messages cannot reach it; see the metro claude lines above');
-    return;
-  }
-  relaunches += 1;
-  log.warn({ attempt: relaunches }, 'claude-session: Claude Code started without the metro MCP server, so channel messages cannot reach it; restarting the session');
-  spawnSync(...asAgent(tmux, ['kill-session', '-t', SESSION_NAME]), { stdio: 'ignore' });
-}
-
 function confirmChannels(tmux: string, until: number): void {
   const seen = new Set<string>();
   let confirmed = false;
   const tick = (): void => {
     const pane = capturePane(tmux);
     noteLaunchLines(pane, seen);
-    if (pane.includes(MCP_MISSING) && pane.includes('server:metro')) {
-      relaunchWithoutMcp(tmux);
-      return;
-    }
     if (!confirmed && pane.includes(WARNING) && pane.includes('server:metro')) {
       spawnSync(...asAgent(tmux, ['send-keys', '-t', SESSION_NAME, 'Enter']), { stdio: 'ignore' });
       log.info('claude-session: confirmed the development channels dialog for server:metro');
