@@ -135,7 +135,7 @@ function carriedRows(fresh: AccountRow[], before: AccountRow[]): AccountRow[] {
   if (fresh.length === 0) return before;
   return fresh.map((row) => {
     const known = before.find((b) => b.id === row.id);
-    return known === undefined ? row : { ...known, enabled: row.enabled };
+    return known === undefined ? row : { ...row, fields: known.fields };
   });
 }
 

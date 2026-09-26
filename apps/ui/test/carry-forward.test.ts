@@ -112,11 +112,15 @@ describe('a switched-off channel on a station without a train stays listed', () 
     expect(out.find((g) => g.station === 'xmtp')?.rows).toHaveLength(1);
   });
 
-  test('a cached card keeps its handle and takes the switch the box reports now', () => {
+  test('a cached card keeps its handle and takes the switch, allowlist, approvers and policy the box reports now', () => {
     const prev: AccountGroup[] = [{ station: 'telegram', rows: [account('tg1', true, '@ada')] }];
-    const fresh: AccountGroup[] = [{ station: 'telegram', rows: [account('tg1', false)] }];
+    const now = { ...account('tg1', false), allowlist: ['alice'], approvers: ['alice'], policy: { write: 'deny' } };
+    const fresh: AccountGroup[] = [{ station: 'telegram', rows: [now] }];
     const [telegram] = carryForward(fresh, prev, ['telegram']);
     expect(telegram?.rows[0]?.enabled).toBe(false);
+    expect(telegram?.rows[0]?.allowlist).toEqual(['alice']);
+    expect(telegram?.rows[0]?.approvers).toEqual(['alice']);
+    expect(telegram?.rows[0]?.policy).toEqual({ write: 'deny' });
     expect(telegram?.rows[0]?.fields.find((f) => f.label === 'handle')?.value).toBe('@ada');
   });
 
