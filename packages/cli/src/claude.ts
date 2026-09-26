@@ -6,6 +6,7 @@ import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgent, type LocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
 import { localPort, localUrl } from './runtime.js';
+import { keepInSession, takeBackConversation } from './background.js';
 
 const CHANNEL_FLAGS = ['--dangerously-load-development-channels', 'server:metro'];
 const FRESH_PROMPT_FLAGS = ['--system-prompt-snapshot', 'off'];
@@ -143,7 +144,21 @@ function gatewayLaunchEnv(key: string, port: number): NodeJS.ProcessEnv {
   return env;
 }
 
+const continues = (args: string[]): boolean => args.includes('-c') || args.includes('--continue');
+
+async function reclaimConversation(extra: string[]): Promise<void> {
+  if (!continues(extra)) return;
+  try {
+    const note = await takeBackConversation();
+    if (note !== null) process.stderr.write(`metro claude: ${note}\n`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`metro claude: could not check for a Claude Code background session holding the conversation (${message})\n`);
+  }
+}
+
 export async function launchClaude(extra: string[]): Promise<number> {
+  await reclaimConversation(extra);
   const decision = await verdict();
   const port = localPort();
   const mcp = mcpConfigFor(await servedKey(decision), port);
@@ -153,9 +168,9 @@ export async function launchClaude(extra: string[]): Promise<number> {
   try {
     if ('skip' in decision) {
       process.stderr.write(`metro claude: ${decision.skip}\n`);
-      return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), channelEnv(process.env));
+      return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), keepInSession(channelEnv(process.env)));
     }
-    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), channelEnv(gatewayLaunchEnv(decision.key, port)));
+    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), keepInSession(channelEnv(gatewayLaunchEnv(decision.key, port))));
   } finally {
     mcp?.cleanup();
   }
