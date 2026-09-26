@@ -6,7 +6,7 @@ import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { asLine } from '@metro-labs/core/lines';
 import { createMetroMcp } from '../src/mcp/index.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import { setAgentMap, setAllowlistMap, setApproversMap } from '../src/agents/map.ts';
+import { setAgentMap, setAllowlistMap, setApproversMap, setDisabledAccounts } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
 import { promptBody } from '../src/mcp/permission-prompt.ts';
@@ -198,6 +198,18 @@ describe('a Claude Code permission prompt relayed by metro', () => {
       expect(answered('bcdek', 'allow')).toBe(true);
     } finally {
       mcp?.setLiveEvents(true);
+    }
+  });
+
+  test('stays on the page only when the chat it came from no longer receives messages, since no answer could arrive', async () => {
+    setDisabledAccounts(new Set([`telegram-bot/${TG}`]));
+    try {
+      await ask('bcdem', { line: LINE, text: 'switched off' });
+      expect(calls.some((c) => c.action === 'send')).toBe(false);
+      expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'bcdem', line: null })]);
+      expect((await pageCall('POST', '/bcdem', { decision: 'deny' })).status).toBe(200);
+    } finally {
+      setDisabledAccounts(new Set());
     }
   });
 

@@ -2,7 +2,7 @@ import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { z } from 'zod';
 import type { InboundRelay } from '../channels/inbound.js';
 import { holdPrompt, type Behavior } from '../approvals/pending.js';
-import { approversForLine } from '../agents/map.js';
+import { approversForLine, lineReceives } from '../agents/map.js';
 import { metroCall } from './ctx.js';
 import { promptBody } from './permission-prompt.js';
 
@@ -44,6 +44,10 @@ function relayLine(deps: PermissionRelayDeps, requestId: string): string | undef
   }
   if (!deps.inScope(line)) {
     deps.log('permission_request: known line is outside the agent scope, held for the page only', requestId);
+    return undefined;
+  }
+  if (!lineReceives(line)) {
+    deps.log('permission_request: the known chat does not receive messages now, so no answer can arrive; held for the page only', requestId);
     return undefined;
   }
   if (approversForLine(line).length === 0) {
