@@ -3,7 +3,8 @@ import { forgetUsage, noteUsageHeaders } from '../src/gateway/usage.ts';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleModelRequest } from '../src/gateway/model-api.ts';
-import { codexVersion, userAgent } from '../src/gateway/codex.ts';
+import { userAgent } from '../src/gateway/codex.ts';
+import { codexVersion } from '../src/gateway/codex-version.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import { auth, type Who } from './identity-helper.ts';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -41,6 +42,10 @@ beforeAll(async () => {
   issuerBase = `http://127.0.0.1:${String((issuer.address() as AddressInfo).port)}`;
   backend = createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
+    if (req.url === '/codex-latest') {
+      res.end(JSON.stringify({ name: '@openai/codex', version: '0.158.2' }));
+      return;
+    }
     if ((req.url ?? '').includes('/v1/models') && req.headers['x-api-key'] === undefined) {
       res.end(
         JSON.stringify({
@@ -143,6 +148,7 @@ beforeAll(async () => {
     backend.listen(0, '127.0.0.1', r);
   });
   backendBase = `http://127.0.0.1:${String((backend.address() as AddressInfo).port)}`;
+  process.env.METRO_CODEX_REGISTRY = `${backendBase}/codex-latest`;
   server = createServer((req, res) => {
     if (
       handleModelRequest(req, res, {
@@ -502,18 +508,18 @@ describe('picking an OpenRouter model without typing its id', () => {
 });
 
 describe('the Codex client version metro announces', () => {
-  test('is a current one, so the backend offers the models a current client may use, and it can be overridden', async () => {
+  test('is the latest Codex CLI on npm, so the backend offers the newest models, and it can be overridden', async () => {
     seenModelUrls.length = 0;
     stored = { version: 2, route: 'cn-codex', connections: [{ id: 'cn-codex', provider: 'codex', label: 'Codex', model: '', apiKey: '', region: '', zdr: false, gemini: null, codex: { accessToken: 'at-1', refreshToken: 'rt-1', idToken, accountId: 'acct_1', email: null, plan: 'pro', savedAt: new Date().toISOString() } }] };
     await codex('models', 'GET');
-    expect(seenModelUrls.at(-1)).toContain('client_version=0.153.4');
-    expect(codexVersion()).toBe('0.153.4');
+    expect(seenModelUrls.at(-1)).toContain('client_version=0.158.2');
+    expect(codexVersion()).toBe('0.158.2');
     process.env.METRO_CODEX_VERSION = '0.160.0';
     await codex('models', 'GET');
     expect(seenModelUrls.at(-1)).toContain('client_version=0.160.0');
     expect(userAgent()).toContain('codex_cli_rs/0.160.0');
     process.env.METRO_CODEX_VERSION = 'not a version';
-    expect(codexVersion()).toBe('0.153.4');
+    expect(codexVersion()).toBe('0.158.2');
     delete process.env.METRO_CODEX_VERSION;
     stored = { version: 2, route: '', connections: [] };
   });

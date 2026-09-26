@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { arch, platform, release } from 'node:os';
-import { log } from '@metro-labs/core/log';
+import { codexVersion, learnCodexVersion } from './codex-version.js';
 import { refreshTokens, tokensStale, type CodexTokens } from './codex-auth.js';
 import { CodexEventTranslator } from './codex-stream.js';
 import { ToolNames, toResponsesRequest } from './codex-translate.js';
@@ -12,8 +12,6 @@ import { answerWhole, currentOf, errorKind, reach, refreshed, relayTranslated, s
 import { noteUsageHeaders } from './usage.js';
 
 const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
-const CODEX_VERSION = '0.153.4';
-const VERSION_RE = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/;
 const INVALID = [400, 404, 422];
 
 export interface CodexDeps {
@@ -35,14 +33,6 @@ const sourceOf = (deps: CodexDeps): TokenSource<CodexTokens> => ({
 });
 
 const OS_NAMES: Record<string, string> = { darwin: 'Mac OS', linux: 'Linux', win32: 'Windows' };
-
-export function codexVersion(): string {
-  const wanted = process.env.METRO_CODEX_VERSION?.trim() ?? '';
-  if (wanted === '') return CODEX_VERSION;
-  if (VERSION_RE.test(wanted)) return wanted;
-  log.warn({ value: wanted }, 'gateway: METRO_CODEX_VERSION is not a version like 0.153.4; using the built-in one');
-  return CODEX_VERSION;
-}
 
 export const userAgent = (): string => `codex_cli_rs/${codexVersion()} (${OS_NAMES[platform()] ?? platform()} ${release()}; ${arch()}) metro`;
 
@@ -118,7 +108,8 @@ export async function codexMessages(
 }
 
 export async function codexModels(tokens: CodexTokens, deps: Omit<CodexDeps, 'save'>): Promise<string[]> {
-  const res = await (deps.fetchImpl ?? fetch)(`${deps.base ?? CODEX_BASE}/models?client_version=${codexVersion()}`, {
+  const version = await learnCodexVersion();
+  const res = await (deps.fetchImpl ?? fetch)(`${deps.base ?? CODEX_BASE}/models?client_version=${version}`, {
     headers: { ...headersFor(tokens, randomUUID()), accept: 'application/json' },
     redirect: 'manual',
   });
