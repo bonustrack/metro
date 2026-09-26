@@ -9,6 +9,7 @@ import { PROVIDERS, type ModelSettings } from '../api/model.js';
 import { routedConnection } from '../api/providers.js';
 import { tallyLine } from '../api/usage.js';
 import { whenLabel } from '../api/when.js';
+import { useClaudeLoginOf } from '../api/queries.js';
 
 const LOGO = 32;
 
@@ -26,17 +27,17 @@ function Usage({ settings }: { settings: ModelSettings }): ReactNode {
   );
 }
 
-function noteOf(settings: ModelSettings): string {
+function noteOf(settings: ModelSettings, login: string | null): string {
   const conn = routedConnection(settings);
   const served = settings.lastServed;
-  return [conn?.label ?? 'Claude login of the server', served === null ? '' : `Last used ${whenLabel(served.at)}`].filter((x) => x !== '').join(' · ');
+  return [conn?.label ?? 'Claude login of the server', login ?? '', served === null ? '' : `Last used ${whenLabel(served.at)}`].filter((x) => x !== '').join(' · ');
 }
 
 export function CurrentModel({ settings, onChange }: { settings: ModelSettings; onChange: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const conn = routedConnection(settings);
   const name = useModelName(conn);
-  const note = noteOf(settings);
+  const note = noteOf(settings, useClaudeLoginOf(conn));
   return (
     <SettingsGroup title="In use">
       <SettingsSection title={name} note={note} leading={<ProviderLogo provider={PROVIDERS.find((p) => p.id === conn?.provider)} size={LOGO} />}>

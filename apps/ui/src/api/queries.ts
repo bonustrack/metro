@@ -29,6 +29,8 @@ import {
   type SkillListing,
   type MemoryListing,
 } from './claude.js';
+import { fetchClaudeAccount } from './claude.js';
+import type { ConnectionRow } from './model.js';
 import { fetchClaudeSession, fetchClaudeSetup, fetchClaudeVersion, type ClaudeSessionStatus, type ClaudeSetup, type ClaudeVersion } from './claude-box.js';
 import { fetchMode, type ModeInfo } from './mode.js';
 import { fetchUpdate, type UpdateCheck } from './update.js';
@@ -52,6 +54,7 @@ type BoxName =
   | 'machine'
   | 'claude-session'
   | 'claude-setup'
+  | 'claude-account'
   | 'claude-version'
   | 'claude-projects'
   | 'claude-sessions'
@@ -225,6 +228,12 @@ export const useMachineQuery = (): UseQueryResult<Machine> =>
 
 export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
   useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: 10_000 });
+
+export function useClaudeLoginOf(conn: ConnectionRow | undefined): string | null {
+  const own = conn === undefined || (conn.provider === 'anthropic' && !conn.hasKey);
+  const account = useBoxQuery('claude-account', fetchClaudeAccount, { staleTime: 60_000, enabled: own });
+  return own ? (account.data?.account ?? null) : null;
+}
 
 export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, { staleTime: 10_000 });
 

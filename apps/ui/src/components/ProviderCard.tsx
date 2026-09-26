@@ -8,6 +8,7 @@ import { useModelName } from './AgentModel.js';
 import type { MenuItem } from './Dropdown.js';
 import { PROVIDERS, type ConnectionRow, type ModelSettings } from '../api/model.js';
 import { windowLine } from '../api/usage.js';
+import { useClaudeLoginOf } from '../api/queries.js';
 
 const LOGO = 24;
 
@@ -29,7 +30,7 @@ export function ProviderRow({ connection, settings, items, busy, onUse }: Provid
   const dark = useKitScheme() === 'dark';
   const model = useModelName(connection);
   const inUse = settings.route === connection.id;
-  const note = [model, usageLine(settings, connection)].filter((part): part is string => part !== null && part !== '').join(' · ');
+  const note = [useClaudeLoginOf(connection), model, usageLine(settings, connection)].filter((part): part is string => part !== null && part !== '').join(' · ');
   return (
     <SettingsSection title={connection.label} note={note} leading={<ProviderLogo provider={PROVIDERS.find((p) => p.id === connection.provider)} size={LOGO} />}>
       <div className="provider-row-end">
