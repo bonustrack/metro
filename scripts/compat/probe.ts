@@ -96,11 +96,15 @@ await ok('mintTerminalTicket', () => term.mintTerminalTicket('metro'));
 
 await ok('fetchClaudeSession', () => box.fetchClaudeSession());
 await ok('controlClaudeSession autostart', () => box.controlClaudeSession({ autostart: false }));
-await ok('fetchClaudeSetup', () => box.fetchClaudeSetup());
+const setup = await ok('fetchClaudeSetup', () => box.fetchClaudeSetup());
 await ok('setClaudePrivacy', () => box.setClaudePrivacy(true));
 await ok('setClaudePermissionMode', () => box.setClaudePermissionMode('auto'));
 await ok('setClaudeSystemPrompt', () => box.setClaudeSystemPrompt('compat'));
 await ok('setClaudeSystemPrompt clear', () => box.setClaudeSystemPrompt(''));
+if (typeof setup?.liveEvents === 'boolean') {
+  await ok('setClaudeLiveEvents off', () => box.setClaudeLiveEvents(false));
+  await ok('setClaudeLiveEvents on', () => box.setClaudeLiveEvents(true));
+}
 await ok('fetchClaudeVersion', () => box.fetchClaudeVersion());
 await ok('fetchSchedules', () => schedules.fetchSchedules());
 await ok('fetchClaudeAccount', () => claude.fetchClaudeAccount());

@@ -37,6 +37,7 @@ export interface ClaudeSetup {
   privacy: boolean;
   permissionMode: PermissionMode;
   systemPrompt: string;
+  liveEvents: boolean | null;
   worker: boolean;
   skill: boolean;
   privacyApplied: boolean;
@@ -49,6 +50,7 @@ function toClaudeSetup(body: unknown): ClaudeSetup {
     privacy: body.privacy,
     permissionMode: body.permissionMode === 'bypass' ? 'bypass' : 'auto',
     systemPrompt: typeof body.systemPrompt === 'string' ? body.systemPrompt : '',
+    liveEvents: typeof body.liveEvents === 'boolean' ? body.liveEvents : null,
     worker: body.worker === true,
     skill: body.skill === true,
     privacyApplied: body.privacyApplied === true,
@@ -66,6 +68,10 @@ export async function setClaudePrivacy(privacy: boolean): Promise<ClaudeSetup> {
 
 export async function setClaudePermissionMode(permissionMode: PermissionMode): Promise<ClaudeSetup> {
   return toClaudeSetup(await claudeCall('POST', '/setup', { permissionMode }));
+}
+
+export async function setClaudeLiveEvents(liveEvents: boolean): Promise<ClaudeSetup> {
+  return toClaudeSetup(await claudeCall('POST', '/setup', { liveEvents }));
 }
 
 export async function setClaudeSystemPrompt(systemPrompt: string): Promise<ClaudeSetup> {

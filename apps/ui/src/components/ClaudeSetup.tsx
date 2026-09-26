@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
-import { setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } from '../api/claude-box.js';
+import { setClaudeLiveEvents, setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } from '../api/claude-box.js';
 import { queryError, refresh, useClaudeSetupQuery } from '../api/queries.js';
 import { routeHash } from '../route.js';
 import { SystemPromptEditor } from './SystemPrompt.js';
@@ -30,6 +30,24 @@ function useFlip(failure: string): { busy: boolean; error: string | null; run: (
       });
   };
   return { busy, error, run };
+}
+
+function LiveEvents({ on }: { on: boolean }): ReactNode {
+  const live = useFlip('Could not change whether messages arrive.');
+  return (
+    <SettingsSection title="Live messages" note={LIVE_NOTE}>
+      <Choice
+        label="Live messages"
+        value={on ? 'on' : 'off'}
+        options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
+        disabled={live.busy}
+        onChange={(next) => {
+          live.run(() => setClaudeLiveEvents(next === 'on'));
+        }}
+      />
+      {live.error === null ? null : <Text size="sm" role="danger">{live.error}</Text>}
+    </SettingsSection>
+  );
 }
 
 function Behaviour({ setup, project }: { setup: Setup; project: string }): ReactNode {
@@ -62,6 +80,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
         />
         {mode.error === null ? null : <Text size="sm" role="danger">{mode.error}</Text>}
       </SettingsSection>
+      {setup.liveEvents === null ? null : <LiveEvents on={setup.liveEvents} />}
       {setup.skill ? (
         <SettingsSection title="Standing rules" note="What your agent follows on every task, like how it delegates work.">
           <Button
@@ -92,6 +111,7 @@ function SetupRow({ setup }: { setup: Setup }): ReactNode {
 }
 
 const PRIVACY = 'No usage reports leave the server, and conversations are deleted after a week. Messages still reach the model.';
+const LIVE_NOTE = 'On: messages from your channels reach the agent as they arrive. Off: nothing arrives on its own. The agent can still send, react and read past messages, and approvals are answered on metro.box only.';
 const MODE_NOTE = 'Ask first sends risky actions to the chat for a yes. Never ask lets the agent act alone. Changing this restarts the agent.';
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {
