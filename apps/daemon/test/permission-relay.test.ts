@@ -31,6 +31,7 @@ interface TrainCall {
 }
 
 let calls: TrainCall[] = [];
+let mcp: Awaited<ReturnType<typeof createMetroMcp>> | undefined;
 let mcpServer: Server | undefined;
 let mcpUrl = '';
 let page: Daemon | undefined;
@@ -115,10 +116,11 @@ beforeAll(async () => {
   setAgentMap({ [`telegram-bot/${TG}`]: AGENT }, { [AGENT]: 'Andy' });
   setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'] });
   setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
-  const mcp = await createMetroMcp();
-  mcp.startInbound();
+  const handler = await createMetroMcp();
+  mcp = handler;
+  handler.startInbound();
   mcpServer = createServer((req, res) => {
-    mcp.httpHandler(req, res).catch(() => undefined);
+    handler.httpHandler(req, res).catch(() => undefined);
   });
   await new Promise<void>((r) => mcpServer?.listen(0, '127.0.0.1', () => r()));
   mcpUrl = `http://127.0.0.1:${String((mcpServer.address() as AddressInfo).port)}/mcp?token=${TOKEN}`;
@@ -182,6 +184,20 @@ describe('a Claude Code permission prompt relayed by metro', () => {
       expect((await pageCall('POST', '/bcdeh', { decision: 'deny' })).status).toBe(200);
     } finally {
       setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
+    }
+  });
+
+  test('stays on the page only while live messages are off, since no answer from the chat could arrive', async () => {
+    mcp?.setLiveEvents(false);
+    try {
+      await ask('bcdek', { line: LINE, text: 'quiet' });
+      expect(calls.some((c) => c.action === 'send')).toBe(false);
+      expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'bcdek', line: null })]);
+      expect((await pageCall('POST', '/bcdek', { decision: 'allow' })).status).toBe(200);
+      await waitFor(() => answered('bcdek', 'allow'));
+      expect(answered('bcdek', 'allow')).toBe(true);
+    } finally {
+      mcp?.setLiveEvents(true);
     }
   });
 

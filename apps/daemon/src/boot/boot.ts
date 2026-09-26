@@ -27,7 +27,7 @@ import { runningAsRoot } from '../metro-user/privilege.js';
 import { provisionAgentUser } from '../agent-user/provision.js';
 import { applyVault } from '../vault/index.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
-import { tryClaudeSetup } from '../claude/setup.js';
+import { liveEvents, tryClaudeSetup } from '../claude/setup.js';
 import { applyLocalOwner } from './local-owner.js';
 import { installBearerSessions } from '../routes/bearer.js';
 import { ensureLocalAgent, localOwner } from '../agents/file-admin.js';
@@ -96,7 +96,7 @@ async function syncStations(station: StationName): Promise<void> {
   }
 }
 
-function sessionApis(): SessionApis {
+function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
   return localSessionApis({
       syncStations,
       reloadAgents: async () => {
@@ -114,6 +114,7 @@ function sessionApis(): SessionApis {
       capabilities: accountStationCapabilities,
       toolGroups: stationToolGroups,
       prepareAccount,
+      liveEvents: setLiveEvents,
     });
 }
 
@@ -129,10 +130,10 @@ installBearerSessions(agentsDir(), localOwner);
   await materializeFrom(fileSource);
   forgetOrphans(knownAccounts());
   supervisor.start();
-  const metroMcp = await createMetroMcp();
+  const metroMcp = await createMetroMcp({ liveEvents: liveEvents() });
   webhookServer = await startWebhookServer(
     emit,
-    sessionApis(),
+    sessionApis(metroMcp.setLiveEvents),
     metroMcp.httpHandler,
     true,
   );

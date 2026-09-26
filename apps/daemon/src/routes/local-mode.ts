@@ -55,6 +55,7 @@ export interface LocalModeDeps {
   capabilities: AgentApiDeps['capabilities'];
   toolGroups?: AgentApiDeps['toolGroups'];
   prepareAccount: AccountApiDeps['prepareAccount'];
+  liveEvents?: (on: boolean) => void;
 }
 
 function attachSessions(deps: LocalModeDeps): AttachSessions {
@@ -192,7 +193,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     bundleApi: bundleApi(deps),
     connectorApi,
     relayApi,
-    claudeApi: {},
+    claudeApi: { liveEvents: deps.liveEvents },
     updateApi: { restart: deps.restart },
     controlApi: { restart: deps.restart, stop: deps.stop },
     ownerApi: { setOwner: (owner) => setLocalOwner(owner) },

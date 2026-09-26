@@ -68,7 +68,7 @@ describe('the Claude Code setup a metro box gets', () => {
     setPrivacy(false, join(dir, 'agents'));
     expect(ensureClaudeSetup(deps())).toMatchObject({ privacy: false, settings: 'written' });
     expect(settings()).toEqual({ env: { MY_VAR: 'x' }, cleanupPeriodDays: 7 });
-    expect(claudeSetupStatus(deps())).toEqual({ privacy: false, permissionMode: 'auto', systemPrompt: '', guard: 'plugin', worker: true, skill: true, privacyApplied: false, retentionDays: 7 });
+    expect(claudeSetupStatus(deps())).toEqual({ privacy: false, permissionMode: 'auto', systemPrompt: '', liveEvents: true, guard: 'plugin', worker: true, skill: true, privacyApplied: false, retentionDays: 7 });
   });
 
   test('a missing guidance file is reported, not thrown', () => {
@@ -185,5 +185,53 @@ describe('the permission mode of the session', () => {
     expect(existsSync(join(dir, 'agents', 'system-prompt.md'))).toBe(false);
     expect((await call('POST', { systemPrompt: 7 })).status).toBe(400);
     expect((await call('POST', { systemPrompt: 'x'.repeat(64 * 1024 + 1) })).status).toBe(400);
+  });
+});
+
+describe('live messages to the session', () => {
+  let server: Server;
+  let base = '';
+  let told: boolean[] = [];
+  beforeEach(async () => {
+    told = [];
+    server = createServer((req, res) => {
+      const ok = handleClaudeRequest(req, res, {
+        setup: deps(),
+        session: { tmux: join(dir, 'no-tmux-here') },
+        liveEvents: (on) => {
+          told.push(on);
+        },
+      });
+      if (!ok) res.writeHead(404).end();
+    });
+    await new Promise<void>((done) => {
+      server.listen(0, '127.0.0.1', done);
+    });
+    base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+  });
+  afterEach(() => {
+    server.close();
+  });
+  const call = async (method: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}/api/claude/setup`, {
+      method,
+      headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  const state = (): Record<string, unknown> => JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8')) as Record<string, unknown>;
+
+  test('are on until switched off, the switch is kept with the setup and reaches the daemon at once, and a non-boolean is refused', async () => {
+    expect(((await (await call('GET')).json()) as { liveEvents: boolean }).liveEvents).toBe(true);
+    const off = (await (await call('POST', { liveEvents: false })).json()) as { liveEvents: boolean; permissionMode: string };
+    expect(off).toMatchObject({ liveEvents: false, permissionMode: 'auto' });
+    expect(state().liveEvents).toBe(false);
+    expect(told).toEqual([false]);
+    await call('POST', { permissionMode: 'bypass' });
+    expect(((await (await call('GET')).json()) as { liveEvents: boolean }).liveEvents).toBe(false);
+    const on = (await (await call('POST', { liveEvents: true })).json()) as { liveEvents: boolean; permissionMode: string };
+    expect(on).toMatchObject({ liveEvents: true, permissionMode: 'bypass' });
+    expect(told).toEqual([false, true]);
+    expect((await call('POST', { liveEvents: 'off' })).status).toBe(400);
+    expect(told).toEqual([false, true]);
   });
 });

@@ -28,10 +28,15 @@ export interface PermissionRelayDeps {
   mcp: Server;
   relay: InboundRelay;
   inScope: (line: string) => boolean;
+  live: () => boolean;
   log: (...a: unknown[]) => void;
 }
 
 function relayLine(deps: PermissionRelayDeps, requestId: string): string | undefined {
+  if (!deps.live()) {
+    deps.log('permission_request: live events are off, so no chat answer can arrive; held for the page only', requestId);
+    return undefined;
+  }
   const line = deps.relay.knownLine;
   if (!line) {
     deps.log('permission_request: no known line, held for the page only', requestId);

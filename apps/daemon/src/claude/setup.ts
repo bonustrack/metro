@@ -64,6 +64,7 @@ export interface SetupStatus {
   privacy: boolean;
   permissionMode: PermissionMode;
   systemPrompt: string;
+  liveEvents: boolean;
   guard: 'plugin';
   worker: boolean;
   skill: boolean;
@@ -101,6 +102,12 @@ export function permissionMode(agents = agentsDir()): PermissionMode {
 
 export function setPermissionMode(mode: PermissionMode, agents = agentsDir()): void {
   writeState(agents, { permissionMode: mode });
+}
+
+export const liveEvents = (agents = agentsDir()): boolean => readState(agents).liveEvents !== false;
+
+export function setLiveEvents(on: boolean, agents = agentsDir()): void {
+  writeState(agents, { liveEvents: on });
 }
 
 const promptPath = (agents: string): string => join(agents, SYSTEM_PROMPT_FILE);
@@ -213,13 +220,15 @@ export function ensureClaudeSetup(deps: SetupDeps = {}): SetupReport {
 
 export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
   const dir = deps.dir ?? claudeDir();
+  const agents = deps.agents ?? agentsDir();
   const settings = readSettings(join(dir, 'settings.json'));
   const env = settings !== null && isRecord(settings.env) ? settings.env : {};
   const days = settings?.cleanupPeriodDays;
   return {
-    privacy: privacyEnabled(deps.agents ?? agentsDir()),
-    permissionMode: permissionMode(deps.agents ?? agentsDir()),
-    systemPrompt: systemPrompt(deps.agents ?? agentsDir()),
+    privacy: privacyEnabled(agents),
+    permissionMode: permissionMode(agents),
+    systemPrompt: systemPrompt(agents),
+    liveEvents: liveEvents(agents),
     guard: 'plugin',
     worker: existsSync(workerPath(dir)),
     skill: existsSync(skillPath(dir)),

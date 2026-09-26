@@ -87,17 +87,18 @@ async function serveGet(
       session.bindSink(sink);
     },
   });
-  if (served) session.channel.replayMissed();
+  if (served) session.replayMissed();
 }
 
 let activeSlot: SessionSlot | undefined;
 
-export async function createMetroMcp(): Promise<{
+export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
+  setLiveEvents: (on: boolean) => void;
 }> {
   await activeSlot?.close();
-  const slot = new SessionSlot();
+  const slot = new SessionSlot(options.liveEvents);
   activeSlot = slot;
 
   const httpHandler = async (
@@ -130,8 +131,16 @@ export async function createMetroMcp(): Promise<{
 
   const startInbound = (): void => {
     slot.startInbound();
-    channelLog('inbound: bus subscription (bounded replay on reconnect)');
+    channelLog(
+      slot.liveEvents
+        ? 'inbound: bus subscription (bounded replay on reconnect)'
+        : 'inbound: live events are off, nothing is pushed to the session',
+    );
   };
 
-  return { httpHandler, startInbound };
+  const setLiveEvents = (on: boolean): void => {
+    slot.setLive(on);
+  };
+
+  return { httpHandler, startInbound, setLiveEvents };
 }

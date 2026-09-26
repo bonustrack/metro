@@ -111,6 +111,14 @@ tool results included. `cleanupPeriodDays` sweeps them after a week; `history.js
 prompt ever typed, is not swept by anything. Keep the volume encrypted and never sync the
 directory anywhere. `claude project purge <path>` removes one project's traces.
 
+## Live messages
+
+On by default, switchable on the Harness page (`liveEvents` in `claude-setup.json`). Off, the
+daemon stops pushing chat messages into the session at once, with no restart: nothing arrives
+on its own, and messages that come in meanwhile are not delivered later. The agent keeps every
+tool (send, react, read and the rest), and a permission prompt is answered on metro.box only,
+since no answer from a chat can reach it.
+
 ## Check it
 
 - **Harness page**: the Setup block lists the guard, the worker, the rules and the privacy

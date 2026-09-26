@@ -52,6 +52,7 @@ export interface SessionInit {
   scope: Set<string>;
   adopted: boolean;
   ledger: ReplayLedger;
+  live: () => boolean;
   onClosed: (session: McpSession) => void;
 }
 
@@ -63,6 +64,7 @@ export class McpSession {
   readonly server: Server;
   readonly relay: InboundRelay;
   readonly channel: ChannelRelay;
+  readonly live: () => boolean;
   private sink: RawGetSink | undefined;
   private unsubscribe: (() => void) | undefined;
   private closed = false;
@@ -73,6 +75,7 @@ export class McpSession {
   private constructor(init: SessionInit) {
     this.id = init.id;
     this.scope = init.scope;
+    this.live = init.live;
     this.issuedSchema = init.adopted ? undefined : toolSchemaSignature();
     this.onClosed = init.onClosed;
     this.eventStore = new BoundedEventStore();
@@ -114,6 +117,7 @@ export class McpSession {
       mcp: this.server,
       relay: this.relay,
       inScope: (line) => this.inScope(line),
+      live: this.live,
       log: channelLog,
     });
     this.channel = new ChannelRelay({
@@ -149,6 +153,15 @@ export class McpSession {
 
   startChannel(): void {
     this.unsubscribe ??= this.channel.start();
+  }
+
+  stopChannel(): void {
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+  }
+
+  replayMissed(): void {
+    if (this.live()) this.channel.replayMissed();
   }
 
   bindSink(sink: RawGetSink | undefined): void {
@@ -195,8 +208,7 @@ export class McpSession {
     this.onClosed(this);
     forgetPromptsOf(this.server);
     this.dropStream();
-    this.unsubscribe?.();
-    this.unsubscribe = undefined;
+    this.stopChannel();
     await this.server.close().catch(() => undefined);
   }
 }

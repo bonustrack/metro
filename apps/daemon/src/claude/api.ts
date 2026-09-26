@@ -24,7 +24,9 @@ import {
   claudeSetupStatus,
   ensureClaudeSetup,
   isPermissionMode,
+  liveEvents,
   permissionMode,
+  setLiveEvents,
   setPermissionMode,
   setPrivacy,
   setSystemPrompt,
@@ -70,6 +72,7 @@ export interface ClaudeApiDeps {
   session?: SessionDeps;
   setup?: SetupDeps;
   version?: VersionDeps;
+  liveEvents?: (on: boolean) => void;
 }
 
 function projectOf(query: URLSearchParams): string {
@@ -153,6 +156,7 @@ interface SetupChange {
   privacy?: boolean;
   permissionMode?: PermissionMode;
   systemPrompt?: string;
+  liveEvents?: boolean;
 }
 
 function promptChange(raw: unknown): string | undefined {
@@ -162,9 +166,9 @@ function promptChange(raw: unknown): string | undefined {
   return raw;
 }
 
-function privacyChange(raw: unknown): boolean | undefined {
+function flagChange(raw: unknown, name: string): boolean | undefined {
   if (raw === undefined) return undefined;
-  if (typeof raw !== 'boolean') throw new ApiError('privacy must be true or false', 400);
+  if (typeof raw !== 'boolean') throw new ApiError(`${name} must be true or false`, 400);
   return raw;
 }
 
@@ -176,14 +180,16 @@ function modeChange(raw: unknown): PermissionMode | undefined {
 
 function setupChange(body: unknown): SetupChange {
   if (!isRecord(body)) throw new ApiError('a body is required', 400);
-  const privacy = privacyChange(body.privacy);
+  const privacy = flagChange(body.privacy, 'privacy');
   const permissionMode = modeChange(body.permissionMode);
   const systemPrompt = promptChange(body.systemPrompt);
-  if (privacy === undefined && permissionMode === undefined && systemPrompt === undefined) throw new ApiError('nothing to change', 400);
+  const liveEvents = flagChange(body.liveEvents, 'liveEvents');
+  if (privacy === undefined && permissionMode === undefined && systemPrompt === undefined && liveEvents === undefined) throw new ApiError('nothing to change', 400);
   return {
     ...(privacy === undefined ? {} : { privacy }),
     ...(permissionMode === undefined ? {} : { permissionMode }),
     ...(systemPrompt === undefined ? {} : { systemPrompt }),
+    ...(liveEvents === undefined ? {} : { liveEvents }),
   };
 }
 
@@ -200,9 +206,16 @@ function restartsSession(change: SetupChange, agents: string | undefined): boole
   return restart;
 }
 
+function applyLiveEvents(on: boolean, deps: ClaudeApiDeps): void {
+  const agents = deps.setup?.agents;
+  if (on !== liveEvents(agents)) setLiveEvents(on, agents);
+  deps.liveEvents?.(on);
+}
+
 function applySetupChange(change: SetupChange, deps: ClaudeApiDeps): void {
   const setup = deps.setup ?? {};
   if (change.privacy !== undefined) setPrivacy(change.privacy, setup.agents);
+  if (change.liveEvents !== undefined) applyLiveEvents(change.liveEvents, deps);
   if (restartsSession(change, setup.agents) && sessionRunning(deps.session?.tmux ?? 'tmux')) stopSession(deps.session ?? {});
   ensureClaudeSetup(setup);
 }
