@@ -52,11 +52,11 @@ export function authorizationUrl(cfg: WorkosConfig, provider: Provider, redirect
 const str = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
 function tokensOf(body: unknown): Tokens {
-  if (!isRecord(body) || !isRecord(body.user)) throw new WorkosError('WorkOS answered without a user', null, 502);
+  if (!isRecord(body) || !isRecord(body.user)) throw new WorkosError('WorkOS answered without a user', null, 503);
   const accessToken = str(body.access_token);
   const refreshToken = str(body.refresh_token);
   const id = str(body.user.id);
-  if (accessToken === null || refreshToken === null || id === null) throw new WorkosError('WorkOS answered without tokens', null, 502);
+  if (accessToken === null || refreshToken === null || id === null) throw new WorkosError('WorkOS answered without tokens', null, 503);
   const first = str(body.user.first_name);
   const last = str(body.user.last_name);
   const name = [first, last].filter((p) => p !== null).join(' ');
@@ -82,7 +82,7 @@ function pendingSelection(body: Record<string, unknown>): { pending: string; org
 function refusedAuthentication(body: Record<string, unknown>, status: number): WorkosError {
   const code = str(body.code) ?? str(body.error);
   const message = str(body.message) ?? str(body.error_description);
-  return new WorkosError(message ?? `WorkOS answered ${String(status)}`, code, status === 400 || status === 401 ? 401 : 502);
+  return new WorkosError(message ?? `WorkOS answered ${String(status)}`, code, status === 400 || status === 401 ? 401 : 503);
 }
 
 async function authenticate(cfg: WorkosConfig, grant: Record<string, string>, selecting = false): Promise<Tokens> {
@@ -116,6 +116,12 @@ export const exchangeMagicCode = (cfg: WorkosConfig, email: string, code: string
 export const refreshTokens = (cfg: WorkosConfig, refreshToken: string, organization?: string): Promise<Tokens> =>
   authenticate(cfg, { grant_type: 'refresh_token', refresh_token: refreshToken, ...(organization === undefined ? {} : { organization_id: organization }) });
 
+function refusedRequest(answer: unknown, status: number, path: string): WorkosError {
+  const said = isRecord(answer) ? answer : {};
+  const message = str(said.message) ?? str(said.error_description);
+  return new WorkosError(message ?? `WorkOS answered ${String(status)} on ${path}`, str(said.code) ?? str(said.error), status === 422 || status === 400 ? 400 : 503);
+}
+
 async function request(cfg: WorkosConfig, method: string, path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
   const res = await fetch(`${cfg.base}${path}`, {
     method,
@@ -124,10 +130,7 @@ async function request(cfg: WorkosConfig, method: string, path: string, body?: R
     signal: AbortSignal.timeout(FETCH_MS),
   });
   const answer: unknown = await res.json().catch(() => null);
-  if (!res.ok) {
-    const message = isRecord(answer) ? str(answer.message) : null;
-    throw new WorkosError(message ?? `WorkOS answered ${String(res.status)} on ${path}`, isRecord(answer) ? str(answer.code) : null, res.status === 422 || res.status === 400 ? 400 : 502);
-  }
+  if (!res.ok) throw refusedRequest(answer, res.status, path);
   return isRecord(answer) ? answer : {};
 }
 
@@ -270,7 +273,7 @@ export async function listOrganizations(cfg: WorkosConfig): Promise<Organization
 
 export async function createOrganization(cfg: WorkosConfig, name: string): Promise<string> {
   const id = str((await api(cfg, '/organizations', { name })).id);
-  if (id === null) throw new WorkosError('WorkOS created the organization without an id', null, 502);
+  if (id === null) throw new WorkosError('WorkOS created the organization without an id', null, 503);
   rememberOrganizationName(id, name);
   return id;
 }
@@ -297,5 +300,5 @@ export async function revokeSession(cfg: WorkosConfig, sessionId: string): Promi
     body: JSON.stringify({ session_id: sessionId }),
     signal: AbortSignal.timeout(FETCH_MS),
   });
-  if (!res.ok && res.status !== 404) throw new WorkosError(`WorkOS refused the sign-out (${String(res.status)})`, null, 502);
+  if (!res.ok && res.status !== 404) throw new WorkosError(`WorkOS refused the sign-out (${String(res.status)})`, null, 503);
 }

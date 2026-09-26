@@ -63,6 +63,9 @@ describe('signing in with a code sent by email', () => {
     expect(JSON.stringify(await wrong.json())).toContain('not right or has expired');
     expect((await post('/email/verify', { email: 'admin@stage.box', code: 'abc' })).status).toBe(400);
     expect((await post('/email/start', { email: 'not-an-address' })).status).toBe(400);
+    const off = await post('/email/start', { email: 'off@example.com' });
+    expect(off.status).toBe(503);
+    expect(JSON.stringify(await off.json())).toContain('not turned on yet');
     const statuses: number[] = [];
     for (let i = 0; i < 6; i++) statuses.push((await post('/email/start', { email: 'carol@example.com' })).status);
     expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);

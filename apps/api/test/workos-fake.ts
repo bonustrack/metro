@@ -127,6 +127,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
           return send(400, { code: 'invalid_grant', message: 'unknown grant' });
         }
         if (url.pathname === '/user_management/sessions/revoke') return send(200, {});
+        if (url.pathname === '/user_management/magic_auth' && parsed.email === 'off@example.com') return send(400, { error: 'authentication_method_not_allowed', error_description: 'Magic Auth is disabled.' });
         if (url.pathname === '/user_management/magic_auth') return send(201, { id: 'magic_auth_01', email: parsed.email });
         if (url.pathname.startsWith('/user_management/users/') && req.method === 'PUT') {
           const who = USERS.find((u) => u.id === url.pathname.split('/').pop());

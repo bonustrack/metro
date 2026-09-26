@@ -40,7 +40,7 @@ export function LabeledField(props: LabeledFieldProps): ReactNode {
         noFocusBorder
         fontSize={textSize('lg', undefined)}
         fontFamily={FONT_SANS}
-        color={palette.text}
+        color={palette.link}
         placeholderColor={palette.sub}
         onChangeText={props.onChangeText}
         onSubmit={props.onSubmit}

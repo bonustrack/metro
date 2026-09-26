@@ -73,7 +73,8 @@ export async function startEmailCode(req: IncomingMessage, deps: EmailDeps): Pro
     await sendMagicCode(cfg, body.email, body.invitation);
   } catch (err) {
     log.warn({ err: errMsg(err) }, 'auth: WorkOS did not send the email code');
-    throw new ApiError('The code could not be sent. Try again in a minute.', 502);
+    if (err instanceof WorkosError && err.code === 'authentication_method_not_allowed') throw new ApiError('Sign-in by email code is not turned on yet. Use Google, Microsoft or GitHub for now.', 503);
+    throw new ApiError('The code could not be sent. Try again in a minute.', 503);
   }
   log.info({ invited: body.invitation !== undefined }, 'auth: email code sent');
   return { ok: true };
