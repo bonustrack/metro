@@ -89,3 +89,41 @@ describe('a carried-forward station is marked, not passed off as healthy', () =>
     expect(out.find((g) => g.station === 'xmtp')?.stale).toBe(true);
   });
 });
+
+describe('a switched-off channel on a station without a train stays listed', () => {
+  const account = (id: string, enabled: boolean, handle?: string) => ({
+    id,
+    allowlist: null,
+    approvers: [],
+    enabled,
+    policy: {},
+    fields: handle === undefined ? [{ label: 'id', value: id }] : [{ label: 'id', value: id }, { label: 'handle', value: handle }],
+  });
+
+  test('with nothing cached, the known accounts the box reports are listed, still off', () => {
+    const fresh: AccountGroup[] = [
+      { station: 'telegram', rows: [account('tg1', false)] },
+      { station: 'xmtp', rows: [account('x0', true)] },
+    ];
+    const out = carryForward(fresh, [], ['telegram']);
+    const telegram = out.find((g) => g.station === 'telegram');
+    expect(telegram?.rows.map((r) => [r.id, r.enabled])).toEqual([['tg1', false]]);
+    expect(telegram?.stale).toBe(true);
+    expect(out.find((g) => g.station === 'xmtp')?.rows).toHaveLength(1);
+  });
+
+  test('a cached card keeps its handle and takes the switch the box reports now', () => {
+    const prev: AccountGroup[] = [{ station: 'telegram', rows: [account('tg1', true, '@ada')] }];
+    const fresh: AccountGroup[] = [{ station: 'telegram', rows: [account('tg1', false)] }];
+    const [telegram] = carryForward(fresh, prev, ['telegram']);
+    expect(telegram?.rows[0]?.enabled).toBe(false);
+    expect(telegram?.rows[0]?.fields.find((f) => f.label === 'handle')?.value).toBe('@ada');
+  });
+
+  test('an account the box no longer knows is not brought back from the cache', () => {
+    const prev: AccountGroup[] = [{ station: 'telegram', rows: [account('tg1', true), account('gone', true)] }];
+    const fresh: AccountGroup[] = [{ station: 'telegram', rows: [account('tg1', false)] }];
+    const [telegram] = carryForward(fresh, prev, ['telegram']);
+    expect(telegram?.rows.map((r) => r.id)).toEqual(['tg1']);
+  });
+});

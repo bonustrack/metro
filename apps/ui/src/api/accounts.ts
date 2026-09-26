@@ -131,16 +131,30 @@ export function findAccount(
   return flattenAccounts(groups).find((a) => a.row.id === accountId);
 }
 
+function carriedRows(fresh: AccountRow[], before: AccountRow[]): AccountRow[] {
+  if (fresh.length === 0) return before;
+  return fresh.map((row) => {
+    const known = before.find((b) => b.id === row.id);
+    return known === undefined ? row : { ...known, enabled: row.enabled };
+  });
+}
+
 export function carryForward(
   next: AccountGroup[],
   prev: AccountGroup[],
   unavailable: string[],
 ): AccountGroup[] {
   if (unavailable.length === 0) return next;
-  const kept = prev
-    .filter((g) => unavailable.includes(g.station))
-    .filter((g) => g.rows.length > 0)
-    .map((g) => ({ ...g, stale: true }));
   const fresh = next.filter((g) => !unavailable.includes(g.station));
+  const kept = unavailable
+    .map((station) => ({
+      station,
+      rows: carriedRows(
+        next.find((g) => g.station === station)?.rows ?? [],
+        prev.find((g) => g.station === station)?.rows ?? [],
+      ),
+      stale: true,
+    }))
+    .filter((g) => g.rows.length > 0);
   return [...fresh, ...kept].sort((x, y) => x.station.localeCompare(y.station));
 }

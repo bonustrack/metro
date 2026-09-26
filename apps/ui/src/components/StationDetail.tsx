@@ -28,7 +28,7 @@ import { type GroupedTool } from '../api/policy.js';
 const ICON = 32;
 const ENDPOINT_NOTE = 'Whoever holds this URL can post to the agent. Paste it straight into the service, never anywhere public.';
 const RECEIVE_ON = 'The agent gets the messages written here.';
-const RECEIVE_OFF = 'Paused. Messages written here do not reach the agent.';
+const RECEIVE_OFF = 'Off. Messages written here do not reach the agent.';
 const RECEIVE_ONLY = 'This channel only brings messages in. The agent cannot write here.';
 
 type Toggle = (station: string, accountId: string, enabled: boolean) => Promise<void>;
@@ -64,7 +64,7 @@ function Header({ station, project, row }: { station: string; project: string; r
           <Col gap={2} style={SHRINK}>
             <PageTitle>{handle ?? row.id ?? stationLabel(station)}</PageTitle>
             <Text size="sm" role="secondary">
-              {`${stationLabel(station)} · ${row.enabled ? 'Receiving' : 'Paused'}`}
+              {`${stationLabel(station)} · ${row.enabled ? 'Receiving' : 'Not receiving'}`}
             </Text>
           </Col>
         </Row>
@@ -127,7 +127,7 @@ function Receive({ station, id, enabled, onToggle }: { station: string; id: stri
     setError(null);
     onToggle(station, id, next)
       .catch((err: unknown) => {
-        setError(queryError(err, next ? 'Could not turn the channel on.' : 'Could not pause the channel.'));
+        setError(queryError(err, next ? 'Could not turn receiving on.' : 'Could not turn receiving off.'));
       })
       .finally(() => {
         setBusy(false);
