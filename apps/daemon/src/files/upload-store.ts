@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { readdirSync, rmSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ensureSecureDir, readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { grantAllowsPath, issueGrant } from './attach-grant.js';
@@ -16,7 +16,7 @@ const SUFFIXES = ['', '.part', '.meta', '.owner', '.grant'] as const;
 const SWEEP_MS = 60_000;
 
 export const uploadDir = (): string =>
-  process.env.METRO_UPLOAD_DIR ?? join(tmpdir(), 'metro-uploads');
+  process.env.METRO_UPLOAD_DIR ?? join(homedir(), '.metro', 'uploads');
 
 export const newUploadId = (): string =>
   `up_${randomBytes(16).toString('base64url')}`;

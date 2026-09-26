@@ -67,6 +67,7 @@ function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
           key={provider}
           size="lg"
           color="secondary"
+          variant="outline"
           dark={dark}
           label={PROVIDER_LABEL[provider]}
           icon={providerMark(provider, onButton)}
