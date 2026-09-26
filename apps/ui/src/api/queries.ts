@@ -158,6 +158,7 @@ export function useServersQuery(): UseQueryResult<Server[]> {
     staleTime: 30_000,
     initialData: () => cachedServers(org),
     initialDataUpdatedAt: 0,
+    refetchOnMount: true,
   });
 }
 
@@ -191,6 +192,7 @@ export function useOrganizationsQuery(): UseQueryResult<OrganizationRow[]> {
     staleTime: 30_000,
     initialData: () => cachedOrganizations(user),
     initialDataUpdatedAt: 0,
+    refetchOnMount: true,
   });
 }
 
