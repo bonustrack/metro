@@ -1,14 +1,14 @@
 import { type ReactNode, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { SettingsSection } from './SettingsSection.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { enterOrganization } from '../auth/org-route.js';
-import { fetchOrganizations, type OrganizationRow } from '../api/auth.js';
+import { type OrganizationRow } from '../api/auth.js';
 import { moveBoxOwner, moveServer, serverLabel, type Server } from '../api/servers.js';
-import { queryError } from '../api/queries.js';
+import { queryError, useOrganizationsQuery } from '../api/queries.js';
 import { activeAccount } from '../auth/account.js';
 
 function useMove(server: Server): { busy: boolean; error: string | null; run: (to: OrganizationRow) => void } {
@@ -85,7 +85,7 @@ function Targets({ server, rows }: { server: Server; rows: OrganizationRow[] }):
 
 export function MoveSection({ server }: { server: Server }): ReactNode {
   const account = activeAccount();
-  const orgs = useQuery({ queryKey: ['organizations'], queryFn: fetchOrganizations, staleTime: 30_000 });
+  const orgs = useOrganizationsQuery();
   if (account?.role !== 'admin') return null;
   const others = (orgs.data ?? []).filter((o) => o.id !== account.organization && o.role === 'admin');
   return (

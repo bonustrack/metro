@@ -1,3 +1,5 @@
+import { fetchOrganizations, type OrganizationRow } from './auth.js';
+import { activeAccount } from '../auth/account.js';
 import {
   QueryCache,
   QueryClient,
@@ -155,6 +157,39 @@ export function useServersQuery(): UseQueryResult<Server[]> {
     queryFn: async () => keepServers(org, await fetchServers()),
     staleTime: 30_000,
     initialData: () => cachedServers(org),
+    initialDataUpdatedAt: 0,
+  });
+}
+
+const ORGANIZATIONS_CACHE = 'metro.organizations:';
+
+const isOrganizationRow = (v: unknown): v is OrganizationRow => typeof v === 'object' && v !== null && typeof (v as { id?: unknown }).id === 'string';
+
+function cachedOrganizations(user: string): OrganizationRow[] | undefined {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(`${ORGANIZATIONS_CACHE}${user}`) ?? 'null');
+    return Array.isArray(parsed) && parsed.every(isOrganizationRow) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function keepOrganizations(user: string, rows: OrganizationRow[]): OrganizationRow[] {
+  try {
+    window.localStorage.setItem(`${ORGANIZATIONS_CACHE}${user}`, JSON.stringify(rows));
+  } catch {
+    return rows;
+  }
+  return rows;
+}
+
+export function useOrganizationsQuery(): UseQueryResult<OrganizationRow[]> {
+  const user = activeAccount()?.user.id ?? 'none';
+  return useQuery({
+    queryKey: ['organizations', user],
+    queryFn: async () => keepOrganizations(user, await fetchOrganizations()),
+    staleTime: 30_000,
+    initialData: () => cachedOrganizations(user),
     initialDataUpdatedAt: 0,
   });
 }

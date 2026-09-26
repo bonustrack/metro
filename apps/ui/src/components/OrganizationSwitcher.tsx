@@ -1,15 +1,15 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@stage-labs/kit/react-native/icon';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
 import { NameModal } from './NameModal.js';
 import { Face, ScopeColumn, ScopeItem, statusWord } from './scope-parts.js';
-import { createOrganization, fetchOrganizations, type OrganizationRow } from '../api/auth.js';
+import { createOrganization, type OrganizationRow } from '../api/auth.js';
 import { serverLabel, type Server } from '../api/servers.js';
-import { useServersQuery, useServerStatus } from '../api/queries.js';
+import { useOrganizationsQuery, useServersQuery, useServerStatus } from '../api/queries.js';
 import { enterOrganization } from '../auth/org-route.js';
 import { activeAccount } from '../auth/account.js';
 import { currentServer } from '../auth/daemon.js';
@@ -157,7 +157,7 @@ function AgentColumn({ org, current, onClose }: { org: OrganizationRow | undefin
 function Panel({ place, onClose, onCreate }: PanelProps): ReactNode {
   const account = activeAccount();
   const current = account?.organization ?? null;
-  const orgs = useQuery({ queryKey: ['organizations'], queryFn: fetchOrganizations, staleTime: 30_000 });
+  const orgs = useOrganizationsQuery();
   const [shown, setShown] = useState(current);
   const rows = orgs.data ?? [];
   const pick = (run: () => void) => (): void => {
@@ -206,6 +206,7 @@ function Panel({ place, onClose, onCreate }: PanelProps): ReactNode {
 }
 
 export function OrganizationSwitcher(): ReactNode {
+  useOrganizationsQuery();
   const palette = useKitPalette();
   const client = useQueryClient();
   const account = activeAccount();
