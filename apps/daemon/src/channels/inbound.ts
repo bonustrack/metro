@@ -76,6 +76,11 @@ export class InboundRelay {
     return this.lastLine;
   }
 
+  dropPending(): void {
+    for (const e of this.pendingAttachments.values()) clearTimeout(e.timer);
+    this.pendingAttachments.clear();
+  }
+
   noteSent(messageId: string): void {
     if (!messageId) return;
     this.sentIds.add(messageId);

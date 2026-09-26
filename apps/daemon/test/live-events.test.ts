@@ -36,7 +36,7 @@ const say = (text: string): void => {
   } as unknown as MetroEvent);
 };
 
-const toolsList = async (sessionId: string): Promise<{ status: number; body: string }> => {
+const rpc = async (sessionId: string, method: string, params?: Record<string, unknown>): Promise<{ status: number; body: string }> => {
   const res = await fetch(url(), {
     method: 'POST',
     headers: {
@@ -45,7 +45,7 @@ const toolsList = async (sessionId: string): Promise<{ status: number; body: str
       'mcp-protocol-version': '2025-06-18',
       'mcp-session-id': sessionId,
     },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method, ...(params === undefined ? {} : { params }) }),
   });
   return { status: res.status, body: await res.text() };
 };
@@ -80,10 +80,14 @@ describe('live messages switched off for the agent', () => {
     await settle(QUIET_MS);
     expect(stream.raw()).not.toContain(quiet);
 
-    const tools = await toolsList(sessionId);
+    const tools = await rpc(sessionId, 'tools/list');
     expect(tools.status).toBe(200);
     expect(tools.body).toContain('"send"');
     expect(tools.body).toContain('"react"');
+    const accounts = await rpc(sessionId, 'tools/call', { name: 'list_accounts', arguments: {} });
+    expect(accounts.status).toBe(200);
+    expect(accounts.body).toContain(ACCOUNT);
+    expect(accounts.body).not.toContain('"isError":true');
 
     mcp?.setLiveEvents(true);
     const loud = `loud-${randomUUID()}`;
@@ -100,7 +104,8 @@ describe('live messages switched off for the agent', () => {
     await stream.stop();
   }, 30000);
 
-  test('a reconnect or a new session while off replays nothing that arrived meanwhile', async () => {
+  test('a reconnect or a new session while off replays nothing that arrived meanwhile, nor after switching back on', async () => {
+    mcp?.setLiveEvents(false);
     const sessionId = await initSession(url());
     const first = await openGet(url(), sessionId);
     await settle(150);
@@ -130,5 +135,11 @@ describe('live messages switched off for the agent', () => {
     expect(third.raw()).toContain(back);
     expect(third.raw()).not.toContain(gap);
     await third.stop();
+
+    const fourth = await openGet(url(), fresh);
+    await settle(QUIET_MS);
+    expect(fourth.raw()).not.toContain(gap);
+    expect(fourth.raw()).not.toContain(next);
+    await fourth.stop();
   }, 30000);
 });

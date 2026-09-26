@@ -123,7 +123,7 @@ export class McpSession {
     this.channel = new ChannelRelay({
       relay: this.relay,
       log: channelLog,
-      inScope: (line) => this.inScope(line),
+      inScope: (line) => this.live() && this.inScope(line),
       ledger: init.ledger,
     });
   }

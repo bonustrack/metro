@@ -35,6 +35,7 @@ export class SessionSlot {
     channelLog('inbound: live events', on ? 'on' : 'off');
     if (!on) {
       this.session?.stopChannel();
+      this.session?.relay.dropPending();
       return;
     }
     this.ledger.startAt = currentBusSeq();

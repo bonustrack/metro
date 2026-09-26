@@ -308,6 +308,22 @@ describe('the caption is delivered exactly once', () => {
     );
   });
 
+  test('a buffer dropped when live messages go off leaves nothing for the timeout to push', async () => {
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
+
+    jest.useFakeTimers();
+    try {
+      await relay.handleEvent(discordMsg('switched off meanwhile'));
+      relay.dropPending();
+      jest.advanceTimersByTime(ATTACH_TIMEOUT_MS + 1_000);
+    } finally {
+      jest.useRealTimers();
+    }
+    await Bun.sleep(10);
+
+    expect(channelNotifs(notifs)).toEqual([]);
+  });
+
   test('a download that never lands still surfaces the caption at the timeout', async () => {
     const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 
