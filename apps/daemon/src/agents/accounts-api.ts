@@ -228,7 +228,7 @@ async function applied(deps: AccountApiDeps): Promise<boolean> {
     await deps.reloadAgents();
     return true;
   } catch (err) {
-    log.warn({ err: errMsg(err) }, 'account-api: allowlist reload failed, the change lands at the next boot');
+    log.warn({ err: errMsg(err) }, 'account-api: reload failed, the change lands at the next boot');
     return false;
   }
 }
@@ -275,7 +275,7 @@ async function handleEnabled(
     station: target.station,
     accountId: target.accountId,
     enabled,
-    activated: await activate(deps, target.station),
+    activated: await applied(deps),
   });
 }
 

@@ -165,10 +165,7 @@ function writeStations(list: LoadedAgent[]): WrittenStations {
       }
       map[`${a.station}/${a.id}`] = agent.id;
       if (a.allowlist) allow[`${a.station}/${a.id}`] = a.allowlist;
-      if (a.enabled === false) {
-        disabled.add(`${a.station}/${a.id}`);
-        continue;
-      }
+      if (a.enabled === false) disabled.add(`${a.station}/${a.id}`);
       const cur = byStation.get(a.station);
       if (cur) cur.push(a);
       else byStation.set(a.station, [a]);

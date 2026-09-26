@@ -42,6 +42,11 @@ export function setDisabledAccounts(ids: Set<string>): void {
 
 export const accountEnabled = (station: string, accountId: string): boolean => !disabledAccounts.has(mapKey(station, accountId));
 
+export function lineReceives(line: string): boolean {
+  const a = accountFromLine(line);
+  return a === undefined || accountEnabled(a.station, a.accountId);
+}
+
 export function accountFromLine(
   line: string,
 ): { station: string; accountId: string } | undefined {

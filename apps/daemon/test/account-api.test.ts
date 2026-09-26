@@ -1007,18 +1007,20 @@ describe('switching a station account off and on', () => {
     });
   };
 
-  test('the owner disables and enables it, the station reloads each time, and the credentials stay put', async () => {
+  test('the owner switches receiving off and on, only the maps reload, the train keeps running and the credentials stay put', async () => {
     const created = (await (await start('ada@lovelace.dev', 'agent000001', { station: 'telegram-bot', token: 'enabled-bot-token' })).json()) as AttachBody;
     synced = [];
+    reloaded = 0;
     const off = await put('agent000001', 'telegram-bot', created.accountId, { enabled: false });
     expect(off.status).toBe(200);
     expect(await off.json()).toMatchObject({ enabled: false, activated: true, station: 'telegram-bot' });
     const row = rows.find((r) => r.accountId === created.accountId);
     expect(row?.enabled).toBe(false);
     expect(row?.config).toEqual({ token: 'enabled-bot-token' });
-    expect(synced).toEqual(['telegram-bot']);
+    expect(reloaded).toBe(1);
     expect(await (await put('agent000001', 'telegram-bot', created.accountId, { enabled: true })).json()).toMatchObject({ enabled: true });
-    expect(synced).toEqual(['telegram-bot', 'telegram-bot']);
+    expect(reloaded).toBe(2);
+    expect(synced).toEqual([]);
   });
 
   test('anything but a boolean, an unknown account and an unknown agent are refused', async () => {

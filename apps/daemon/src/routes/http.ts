@@ -22,7 +22,7 @@ import {
   type MetroEvent,
 } from '@metro-labs/core/events';
 import type { TrainEvent } from '@metro-labs/core/trains/protocol';
-import { agentForLine, agentIdForLine } from '../agents/map.js';
+import { agentForLine, agentIdForLine, lineReceives } from '../agents/map.js';
 import type { Endpoint } from '@metro-labs/core/endpoints';
 import { findEndpointByWebhookId, listEndpoints, tokenMatches } from '../stations/webhook-endpoints.js';
 import { attachmentEventUrl, handleAttachRequest, webhookPort } from '../files/attach-serve.js';
@@ -107,6 +107,10 @@ type Emit = (entry: MetroEvent) => void;
 export function makeEmit(dedupSeq?: DedupSeq): Emit {
   const tracker = dedupSeq ?? makeDedupSeq();
   return function emit(entry: MetroEvent): void {
+    if (!lineReceives(entry.line)) {
+      log.debug({ line: entry.line }, 'emit: dropped, this channel does not receive messages');
+      return;
+    }
     const seq = tracker.admit(entry);
     if (seq === null) return;
     const enriched: MetroEvent = withAttachmentUrl({
