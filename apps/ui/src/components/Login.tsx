@@ -59,14 +59,14 @@ function providerMark(provider: Provider, onButton: string): ReactNode {
 
 function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const onButton = useKitPalette().bg;
+  const onButton = useKitPalette().text;
   return (
     <Col gap={10}>
       {PROVIDERS.map((provider) => (
         <Button
           key={provider}
           size="lg"
-          color="primary"
+          color="secondary"
           dark={dark}
           label={PROVIDER_LABEL[provider]}
           icon={providerMark(provider, onButton)}

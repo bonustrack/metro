@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Text, Button } from './ui.js';
+import { LabeledField } from './LabeledField.js';
 import { sendEmailCode, verifyEmailCode, type Intent } from '../api/auth.js';
 
 const FULL_WIDTH = { alignSelf: 'stretch' } as const;
@@ -54,13 +55,13 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
   return (
     <Col gap={10}>
       {step.sentTo === null ? (
-        <Input name="email" value={email} placeholder="name@company.com" inputType="email" autoFocus={false} disabled={step.busy} dark={dark} onChangeText={setEmail} onSubmit={send} style={FULL_WIDTH} />
+        <LabeledField label="Email" name="email" value={email} placeholder="e. g. alice@stage.box" inputMode="email" disabled={step.busy} onChangeText={setEmail} onSubmit={send} />
       ) : (
         <>
           <Text size="md" style={CENTER_TEXT}>
             {`We sent a code to ${step.sentTo}. Enter the six digits here.`}
           </Text>
-          <Input name="code" value={code} placeholder="123456" inputType="number" autoFocus disabled={step.busy} dark={dark} onChangeText={setCode} onSubmit={verify} style={FULL_WIDTH} />
+          <LabeledField label="Code" name="code" value={code} placeholder="e. g. 123456" inputMode="numeric" autoFocus disabled={step.busy} onChangeText={setCode} onSubmit={verify} />
         </>
       )}
       <Button
