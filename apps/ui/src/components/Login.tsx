@@ -181,11 +181,11 @@ export function Login(): ReactNode {
         </Text>
       ) : null}
       <Col padding={{ top: BUTTONS_TOP }} gap={OR_GAP}>
-        <ProviderButtons intent={waitlist ? 'waitlist' : 'login'} />
-        <Text size="sm" role="secondary" style={CENTER_TEXT}>
-          or with a code sent to your work email
-        </Text>
         <EmailLogin intent={waitlist ? 'waitlist' : 'login'} />
+        <Text size="sm" role="secondary" style={CENTER_TEXT}>
+          or
+        </Text>
+        <ProviderButtons intent={waitlist ? 'waitlist' : 'login'} />
       </Col>
     </Frame>
   );

@@ -65,9 +65,9 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
       )}
       <Button
         size="lg"
-        color="secondary"
+        color="primary"
         dark={dark}
-        label={step.sentTo === null ? 'Continue with email' : 'Log in'}
+        label={step.sentTo === null ? 'Continue' : 'Log in'}
         loading={step.busy}
         disabled={step.busy}
         style={FULL_WIDTH}
