@@ -57,6 +57,16 @@ describe('signing in with a code sent by email', () => {
     expect((await post('/email/start', { email: 'bob@stage.box', invitation: 'bad token!' })).status).toBe(400);
   });
 
+  test('a pending invitation for the address is accepted at sign-in even without its token', async () => {
+    workos.invitations.push({ id: 'invitation_carol', email: 'bob@stage.box', state: 'pending', role_slug: 'member', organization_id: 'org_01ANDERRA' });
+    const verified = await post('/email/verify', { email: 'bob@stage.box', code: '123456' });
+    const { hash } = (await verified.json()) as { hash: string };
+    expect(hash.startsWith('#/auth/')).toBe(true);
+    expect(workos.invitations.find((i) => i.id === 'invitation_carol')?.state).toBe('accepted');
+    const exchanged = await post('/exchange', { code: hash.slice('#/auth/'.length) });
+    expect(((await exchanged.json()) as { organization: string }).organization).toBe('org_01ANDERRA');
+  });
+
   test('a wrong code, a bad address and too many codes are refused with a sentence', async () => {
     const wrong = await post('/email/verify', { email: 'admin@stage.box', code: '000000' });
     expect(wrong.status).toBe(400);

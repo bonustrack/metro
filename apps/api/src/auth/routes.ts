@@ -13,6 +13,7 @@ import { invitationFrom, startEmailCode, verifyEmailCode } from './email.js';
 import { admit, stillIn, type Intent, type Refusal, mayCreateOrganization } from './operator.js';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import {
+  acceptInvitationsFor,
   addMembership,
   authorizationUrl,
   createOrganization,
@@ -132,7 +133,21 @@ function handoffFor(tokens: Tokens, now: number): string {
   return handoff;
 }
 
-async function admitted(deps: AuthApiDeps, tokens: Tokens, intent: Intent, now: number): Promise<string> {
+async function withInvitations(deps: AuthApiDeps, tokens: Tokens): Promise<Tokens> {
+  const cfg = deps.config();
+  const email = tokens.user.email;
+  if (cfg === null || tokens.organization !== null || email === null) return tokens;
+  const joined = await acceptInvitationsFor(cfg, email).catch((err: unknown) => {
+    log.warn({ err: errMsg(err), user: tokens.user.id }, 'auth: the pending invitations could not be accepted');
+    return null;
+  });
+  if (joined === null) return tokens;
+  log.info({ user: tokens.user.id, organization: joined }, 'auth: a pending invitation was accepted at sign-in');
+  return refreshTokens(cfg, tokens.refreshToken, joined);
+}
+
+async function admitted(deps: AuthApiDeps, signedIn: Tokens, intent: Intent, now: number): Promise<string> {
+  const tokens = await withInvitations(deps, signedIn);
   const verdict = await admit(deps.users, tokens, intent, new Date(now).toISOString());
   if (verdict.kind === 'in') return `#/auth/${handoffFor(tokens, now)}`;
   log.info({ user: tokens.user.id, intent, verdict: verdict.kind }, 'auth: not let in');

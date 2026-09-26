@@ -9,7 +9,7 @@ export interface FakeWorkos {
   codes: Map<string, { organization: string | null }>;
   organizations: string[];
   members: { id: string; user_id: string; role: string }[];
-  invitations: { id: string; email: string; state: string; role_slug: string }[];
+  invitations: { id: string; email: string; state: string; role_slug: string; organization_id?: string }[];
   selection: { on: boolean };
   close: () => Promise<void>;
 }
@@ -84,7 +84,8 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
       return;
     }
     if (req.method === 'GET' && url.pathname === '/user_management/invitations') {
-      send(200, { data: invitations.map((i) => ({ ...i, expires_at: '2026-09-26T00:00:00.000Z' })) });
+      const email = url.searchParams.get('email');
+      send(200, { data: invitations.filter((i) => email === null || i.email === email).map((i) => ({ ...i, expires_at: '2026-09-26T00:00:00.000Z' })) });
       return;
     }
     if (req.method === 'DELETE' && url.pathname.startsWith('/user_management/organization_memberships/')) {
@@ -156,6 +157,11 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
           const made = { id: `invitation_${String(invitations.length + 1)}`, email: String(parsed.email), state: 'pending', role_slug: String(parsed.role_slug) };
           invitations.push(made);
           return send(201, { ...made, expires_at: '2026-09-26T00:00:00.000Z' });
+        }
+        if (url.pathname.endsWith('/accept') && url.pathname.startsWith('/user_management/invitations/')) {
+          const found = invitations.find((i) => i.id === url.pathname.split('/').at(-2));
+          if (found !== undefined) found.state = 'accepted';
+          return send(found === undefined ? 404 : 200, { ...found });
         }
         if (url.pathname.endsWith('/revoke') && url.pathname.startsWith('/user_management/invitations/')) {
           const found = invitations.find((i) => i.id === url.pathname.split('/').at(-2));

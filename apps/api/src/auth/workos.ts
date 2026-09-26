@@ -202,6 +202,20 @@ export async function listInvitations(cfg: WorkosConfig, organization: string): 
     });
 }
 
+export async function acceptInvitationsFor(cfg: WorkosConfig, email: string): Promise<string | null> {
+  const answer = await request(cfg, 'GET', `/user_management/invitations?email=${encodeURIComponent(email)}&${LIST}`);
+  const pending = rows(answer).filter((i) => i.state === 'pending' && str(i.email)?.toLowerCase() === email.toLowerCase());
+  let joined: string | null = null;
+  for (const invitation of pending) {
+    const id = str(invitation.id);
+    const organization = str(invitation.organization_id);
+    if (id === null || organization === null) continue;
+    await api(cfg, `/user_management/invitations/${id}/accept`, {});
+    joined ??= organization;
+  }
+  return joined;
+}
+
 export async function sendInvitation(cfg: WorkosConfig, organization: string, email: string, role: Role, inviter: string): Promise<Invitation> {
   const made = await api(cfg, '/user_management/invitations', { email, organization_id: organization, role_slug: role, inviter_user_id: inviter });
   return { id: str(made.id) ?? '', email, role, expiresAt: str(made.expires_at) };
