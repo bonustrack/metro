@@ -10,6 +10,7 @@ import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { SessionMenu } from './SessionMenu.js';
 import { Transcript } from './Transcript.js';
+import { OtherFolders } from './OtherFolders.js';
 import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
 import { type ClaudeSession } from '../api/claude.js';
@@ -138,6 +139,7 @@ export function Sessions({ project, claudeProject, id, onSelect }: SessionsProps
                 onSelect({ kind: 'sessions', project, claudeProject: picked, id: sid });
               }}
             />
+            <OtherFolders project={project} shown={picked} onSelect={onSelect} />
           </Col>
         ) : (
           <SessionView project={project} claudeProject={picked} id={id} onSelect={onSelect} />
