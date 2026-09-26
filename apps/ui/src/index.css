@@ -300,21 +300,39 @@ body {
   text-decoration: none;
 }
 
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
 .agent-card {
   position: relative;
   display: flex;
-  flex: 1 1 220px;
-  max-width: 300px;
+  min-width: 0;
+  min-height: 176px;
+  border-radius: 8px;
+  transition: background 120ms ease;
 }
 
 .agent-card > div {
-  flex: 1;
-  z-index: auto;
+  pointer-events: none;
+}
+
+.agent-card .card-over {
+  pointer-events: auto;
 }
 
 .agent-card:hover {
   background: var(--metro-surface);
-  border-radius: 8px;
+}
+
+.agent-new {
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--metro-border);
+  text-decoration: none;
 }
 
 .labeled-field {

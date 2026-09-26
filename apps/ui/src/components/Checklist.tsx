@@ -4,6 +4,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
+import { useClaudeSessionQuery, useModelQuery } from '../api/queries.js';
 import { type Selection } from './selection.js';
 
 interface Step {
@@ -50,7 +51,15 @@ function StepRow({ step, onSelect }: { step: Step; onSelect: (selection: Selecti
 }
 
 export function Checklist({ name, project, channels, connectors, onSelect }: ChecklistProps): ReactNode {
+  const model = useModelQuery();
+  const session = useClaudeSessionQuery();
   const steps: Step[] = [
+    {
+      title: 'Choose a model',
+      hint: `Pick the AI behind ${name}: sign Claude Code in, or connect OpenRouter, Codex or Gemini.`,
+      done: session.data?.running === true || (model.data?.route ?? '') !== '',
+      target: { kind: 'model', project },
+    },
     {
       title: 'Connect a channel',
       hint: `Choose where your team writes to ${name}: WhatsApp, Outlook, Telegram…`,

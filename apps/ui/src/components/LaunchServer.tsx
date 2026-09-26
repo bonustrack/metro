@@ -16,7 +16,11 @@ import { launchServer, type Launched, type LaunchOverview } from '../api/launch.
 import { launchRegions, regionName } from '../aws/regions.js';
 import { useDocumentTitle } from '../title.js';
 import { routeHash } from '../route.js';
+import { AgentAvatar } from './AgentAvatar.js';
+import { useImagePicker, type AvatarPicker } from './AvatarPicker.js';
+import { setServerAvatar } from '../api/servers.js';
 
+const PICTURE = 48;
 const CARD_WIDTH = 480;
 const NO_AUTOFILL = { autoComplete: 'off' } as const;
 const HINT =
@@ -72,12 +76,19 @@ function useLaunchForm(): {
   error: string | null;
   done: Launched | null;
   launch: () => void;
+  avatar: string | null;
+  picker: AvatarPicker;
 } {
   const [name, setName] = useState('');
   const [region, setRegion] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Launched | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const picker = useImagePicker((next) => {
+    setAvatar(next);
+    return Promise.resolve();
+  });
   const client = useQueryClient();
   const launch = (): void => {
     if (busy || name.trim() === '' || region.trim() === '') return;
@@ -85,6 +96,10 @@ function useLaunchForm(): {
     setError(null);
     launchServer(name.trim(), region.trim())
       .then(async (launched) => {
+        if (avatar !== null)
+          await setServerAvatar(launched.server.id, avatar).catch((err: unknown) => {
+            setError(queryError(err, 'The agent is launching, but its picture was not saved. Set it again in its settings.'));
+          });
         await refreshServers(client);
         setDone(launched);
       })
@@ -95,7 +110,7 @@ function useLaunchForm(): {
         setBusy(false);
       });
   };
-  return { name, region, setName, setRegion, busy, error, done, launch };
+  return { name, region, setName, setRegion, busy, error, done, launch, avatar, picker };
 }
 
 function LaunchedView({ launched }: { launched: Launched }): ReactNode {
@@ -112,6 +127,19 @@ function LaunchedView({ launched }: { launched: Launched }): ReactNode {
   );
 }
 
+function PictureChoice({ form }: { form: ReturnType<typeof useLaunchForm> }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  return (
+    <Row align="center" gap={12} wrap>
+      {form.picker.input}
+      <AgentAvatar seed={form.name.trim() === '' ? 'new agent' : form.name.trim()} src={form.avatar} size={PICTURE} />
+      <Button size="sm" color="secondary" dark={dark} label={form.avatar === null ? 'Choose a picture' : 'Change'} disabled={form.busy || form.picker.busy} onPress={form.picker.pick} />
+      {form.avatar === null ? null : <Button size="sm" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={form.busy} onPress={form.picker.remove} />}
+      {form.picker.error === null ? null : <Text size="sm" role="danger">{form.picker.error}</Text>}
+    </Row>
+  );
+}
+
 function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const form = useLaunchForm();
@@ -123,6 +151,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
       </Row>
       <Text size="sm" role="secondary">{HINT}</Text>
       <Col gap={10}>
+        <PictureChoice form={form} />
         <Col gap={4}>
           <Text size="sm" role="secondary">Name</Text>
           <Input

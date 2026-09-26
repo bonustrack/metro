@@ -25,9 +25,7 @@ import { AgentAvatar } from './AgentAvatar.js';
 
 const LIST_WIDTH = 880;
 const CARD_AVATAR = 48;
-const CARD_MIN = 220;
-const CARD_MAX = 300;
-const HOW = 'Every agent you open lands here, on every device you sign in from. Open one, or add the address its daemon printed.';
+const HOW = 'Each agent runs on its own server. Open one to manage its channels, memory and settings.';
 
 function StatusText({ server }: { server: Server }): ReactNode {
   const { data } = useServerStatus(server.host);
@@ -84,7 +82,17 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
   const launched = server.instanceId !== null;
   return (
     <div className="agent-card">
-      <Col gap={12} padding={16} minWidth={CARD_MIN} maxWidth={CARD_MAX} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
+      <a
+        className="card-cover"
+        href={href}
+        aria-label={`Open ${serverLabel(server)}`}
+        onClick={(e) => {
+          if (opensElsewhere(e)) return;
+          e.preventDefault();
+          window.location.hash = href;
+        }}
+      />
+      <Col gap={14} padding={16} flex={1} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
         <Row justify="between" align="start" gap={8}>
           <AgentAvatar seed={server.host} src={server.avatar} size={CARD_AVATAR} />
           <div className="card-over">
@@ -94,10 +102,10 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
             />
           </div>
         </Row>
-        <Col gap={2}>
+        <Col gap={2} flex={1}>
           <Row gap={8} align="center">
             <StatusDot host={server.host} />
-            <Text size="md" weight="medium" numberOfLines={1} style={SHRINK}>
+            <Text size="lg" weight="medium" numberOfLines={1} style={SHRINK}>
               {serverLabel(server)}
             </Text>
           </Row>
@@ -112,17 +120,26 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
           </div>
         </Row>
       </Col>
-      <a
-        className="card-cover"
-        href={href}
-        aria-label={`Open ${serverLabel(server)}`}
-        onClick={(e) => {
-          if (opensElsewhere(e)) return;
-          e.preventDefault();
-          window.location.hash = href;
-        }}
-      />
     </div>
+  );
+}
+
+function NewAgentCard(): ReactNode {
+  const href = routeHash({ kind: 'launch' });
+  return (
+    <a
+      className="agent-card agent-new"
+      href={href}
+      onClick={(e) => {
+        if (opensElsewhere(e)) return;
+        e.preventDefault();
+        window.location.hash = href;
+      }}
+    >
+      <Text size="md" weight="medium" role="secondary">
+        + New agent
+      </Text>
+    </a>
   );
 }
 
@@ -140,7 +157,7 @@ function ServerList({ servers, onBootLog }: ListProps): ReactNode {
       </Text>
     );
   return (
-    <Row gap={12} wrap>
+    <div className="agent-grid">
       {servers.map((server) => (
         <AgentCard
           key={server.id}
@@ -155,7 +172,8 @@ function ServerList({ servers, onBootLog }: ListProps): ReactNode {
           }}
         />
       ))}
-    </Row>
+      <NewAgentCard />
+    </div>
   );
 }
 
