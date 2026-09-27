@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { markOnboardingDone, seedChannels } from './onboarding.js';
 import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
-import { anthropicRoute, currentRoute, permissionMode, routeModelEnv, systemPrompt, type PermissionMode } from './route.js';
+import { currentRoute, permissionMode, routeModelEnv, systemPrompt, type PermissionMode } from './route.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgent, type LocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
@@ -46,8 +46,8 @@ export function gatewayEnv(base: NodeJS.ProcessEnv, agentKey: string | null, por
 export const channelEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
   set(env, 'MCP_PROTOCOL_NEGOTIATION') ? env : { ...env, MCP_PROTOCOL_NEGOTIATION: 'legacy' };
 
-export const toolSearchEnv = (env: NodeJS.ProcessEnv, anthropic: boolean): NodeJS.ProcessEnv =>
-  !anthropic || set(env, 'ENABLE_TOOL_SEARCH') ? env : { ...env, ENABLE_TOOL_SEARCH: 'true' };
+export const toolSearchEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
+  set(env, 'ENABLE_TOOL_SEARCH') ? env : { ...env, ENABLE_TOOL_SEARCH: 'true' };
 
 const OWN_CREDENTIALS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'];
 
@@ -137,7 +137,7 @@ function mcpConfigFor(key: string | null, port: number): McpConfigFile | null {
 function gatewayLaunchEnv(key: string, port: number): NodeJS.ProcessEnv {
   process.stderr.write(`metro claude: inference goes through the daemon at http://127.0.0.1:${String(port)}/gateway (the Model page decides where)\n`);
   const pointed = routeModelEnv(gatewayEnv(process.env, key, port), currentRoute());
-  const routed = toolSearchEnv(pointed, anthropicRoute());
+  const routed = toolSearchEnv(pointed);
   if (routed !== pointed) process.stderr.write('metro claude: MCP tool search is on, so connector tools load when Claude needs them instead of all at start\n');
   const env = credentialEnv(routed, key, claudeSignedIn());
   if (env !== routed)

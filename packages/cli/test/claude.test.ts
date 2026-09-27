@@ -128,14 +128,9 @@ describe('the MCP protocol metro claude asks for', () => {
 });
 
 describe('MCP tool search', () => {
-  test('is switched on for the Anthropic route, since the gateway passes it through, unless the user chose a value', () => {
-    expect(toolSearchEnv({ HOME: '/h' }, true)).toEqual({ HOME: '/h', ENABLE_TOOL_SEARCH: 'true' });
+  test('is switched on for every route, since the gateway does the API part of the search for all of them, unless the user chose a value', () => {
+    expect(toolSearchEnv({ HOME: '/h' })).toEqual({ HOME: '/h', ENABLE_TOOL_SEARCH: 'true' });
     const chosen = { ENABLE_TOOL_SEARCH: 'false' };
-    expect(toolSearchEnv(chosen, true)).toBe(chosen);
-  });
-
-  test('is left alone on a route that cannot take it, so Claude Code loads every tool upfront as before', () => {
-    const env = { HOME: '/h' };
-    expect(toolSearchEnv(env, false)).toBe(env);
+    expect(toolSearchEnv(chosen)).toBe(chosen);
   });
 });

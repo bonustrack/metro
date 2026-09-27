@@ -17,26 +17,14 @@ function routeIn(cfg: unknown): string | null {
   return PROVIDERS.has(provider) && model !== '' ? `${provider}:${model}` : null;
 }
 
-function modelConfig(dir: string): unknown {
+export function currentRoute(dir = agentsDir()): string | null {
   const path = join(dir, 'model.json');
   if (!existsSync(path)) return null;
   try {
-    return JSON.parse(readFileSync(path, 'utf8'));
+    return routeIn(JSON.parse(readFileSync(path, 'utf8')));
   } catch {
     return null;
   }
-}
-
-export const currentRoute = (dir = agentsDir()): string | null => routeIn(modelConfig(dir));
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-
-export function anthropicRoute(dir = agentsDir()): boolean {
-  const cfg = modelConfig(dir);
-  if (!isRecord(cfg) || !Array.isArray(cfg.connections)) return true;
-  const connections = cfg.connections.filter(isRecord);
-  const routed = connections.find((c) => c.id === cfg.route) ?? connections[0];
-  return routed === undefined || routed.provider === 'anthropic';
 }
 
 export function routeModelEnv(env: NodeJS.ProcessEnv, route: string | null): NodeJS.ProcessEnv {
