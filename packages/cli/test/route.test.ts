@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { currentRoute, permissionMode, routeModelEnv, systemPrompt } from '../src/route.ts';
+import { anthropicRoute, currentRoute, permissionMode, routeModelEnv, systemPrompt } from '../src/route.ts';
 
 let dir = '';
 
@@ -41,6 +41,27 @@ describe('the model route metro claude tells Claude Code about', () => {
     expect(routeModelEnv({ PATH: '/bin', ANTHROPIC_MODEL: 'mine' }, 'codex:gpt-5.4').ANTHROPIC_MODEL).toBe('mine');
     const env = { PATH: '/bin' };
     expect(routeModelEnv(env, null)).toBe(env);
+  });
+});
+
+describe('whether the Model page routes to Anthropic', () => {
+  test('is true with no connection or the Anthropic one, false for another provider, and follows the daemon to the first connection when the route is gone', () => {
+    const write = (route: string, connections: unknown[]): void => {
+      writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route, connections }));
+    };
+    const sub = { id: 'c1', provider: 'anthropic', model: '' };
+    const or = { id: 'c2', provider: 'openrouter', model: 'openai/gpt-5.2' };
+    expect(anthropicRoute(dir)).toBe(true);
+    write('', []);
+    expect(anthropicRoute(dir)).toBe(true);
+    write('c1', [sub, or]);
+    expect(anthropicRoute(dir)).toBe(true);
+    write('c2', [sub, or]);
+    expect(anthropicRoute(dir)).toBe(false);
+    write('gone', [or, sub]);
+    expect(anthropicRoute(dir)).toBe(false);
+    writeFileSync(join(dir, 'model.json'), '{broken');
+    expect(anthropicRoute(dir)).toBe(true);
   });
 });
 

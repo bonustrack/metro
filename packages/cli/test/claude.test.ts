@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { agentKey, channelEnv, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, servingDaemon } from '../src/claude.ts';
+import { agentKey, channelEnv, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, servingDaemon, toolSearchEnv } from '../src/claude.ts';
 
 describe('metro claude hands everything to claude untouched', () => {
   test('the channel and permission flags come first, then the user arguments verbatim, so a user flag wins', () => {
@@ -124,5 +124,18 @@ describe('the MCP protocol metro claude asks for', () => {
   test('keeps the earlier handshake so the metro channel registers, unless the user chose one', () => {
     expect(channelEnv({ HOME: '/h' })).toEqual({ HOME: '/h', MCP_PROTOCOL_NEGOTIATION: 'legacy' });
     expect(channelEnv({ MCP_PROTOCOL_NEGOTIATION: 'auto' })).toEqual({ MCP_PROTOCOL_NEGOTIATION: 'auto' });
+  });
+});
+
+describe('MCP tool search', () => {
+  test('is switched on for the Anthropic route, since the gateway passes it through, unless the user chose a value', () => {
+    expect(toolSearchEnv({ HOME: '/h' }, true)).toEqual({ HOME: '/h', ENABLE_TOOL_SEARCH: 'true' });
+    const chosen = { ENABLE_TOOL_SEARCH: 'false' };
+    expect(toolSearchEnv(chosen, true)).toBe(chosen);
+  });
+
+  test('is left alone on a route that cannot take it, so Claude Code loads every tool upfront as before', () => {
+    const env = { HOME: '/h' };
+    expect(toolSearchEnv(env, false)).toBe(env);
   });
 });
