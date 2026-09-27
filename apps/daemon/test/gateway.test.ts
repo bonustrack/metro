@@ -709,3 +709,63 @@ describe('what the Model page can show about traffic', () => {
     expect(lastServed()).toBeNull();
   });
 });
+
+describe('MCP tool search', () => {
+  const BETAS = 'interleaved-thinking-2025-05-14,context-management-2025-06-27,claude-code-20250219,advanced-tool-use-2025-11-20';
+  const searched = (model: string): Record<string, unknown> => ({
+    ...message(model),
+    tools: [
+      { name: 'ToolSearch', description: 'Fetches full schema definitions for deferred tools.', input_schema: { type: 'object', properties: { query: { type: 'string' } } } },
+      { name: 'DeferredToolPlaceholder', description: 'Reserved placeholder.', input_schema: { type: 'object', properties: {} }, defer_loading: true },
+      { name: 'mcp__probe__echo', description: 'Echo the text back.', input_schema: { type: 'object', properties: { text: { type: 'string' } } }, defer_loading: true },
+    ],
+    messages: [
+      { role: 'user', content: 'Find the echo tool and say hi with it' },
+      { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_search1', name: 'ToolSearch', input: { query: 'select:mcp__probe__echo' } }] },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_search1', content: [{ type: 'tool_reference', tool_name: 'mcp__probe__echo' }] }] },
+    ],
+  });
+  const flat = (sent: { tools?: Record<string, unknown>[]; messages?: unknown }): void => {
+    expect(sent.tools?.some((t) => 'defer_loading' in t)).toBe(false);
+    expect(sent.tools?.map((t) => t.name)).toContain('mcp__probe__echo');
+    expect(JSON.stringify(sent.messages)).not.toContain('tool_reference');
+    expect(JSON.stringify(sent.messages)).toContain('Tool mcp__probe__echo is loaded: call it directly.');
+  };
+
+  test('the Anthropic route passes the deferred tools, the tool references and the beta through untouched', async () => {
+    await post('/gateway/v1/messages?beta=true', searched('claude-sonnet-5'), { authorization: 'Bearer sk-ant-oat-login', 'anthropic-beta': BETAS });
+    expect(anthropic.seen[0]?.body).toBe(JSON.stringify(searched('claude-sonnet-5')));
+    expect(anthropic.seen[0]?.headers['anthropic-beta']).toBe(BETAS);
+    Object.assign(conn(cfg, 'anthropic'), { apiKey: 'sk-ant-page' });
+    await post('/gateway/v1/messages', searched('claude-opus-5-5'), { 'anthropic-beta': BETAS });
+    expect(anthropic.seen[1]?.headers['anthropic-beta']).toBe(BETAS);
+    expect(JSON.parse(anthropic.seen[1]?.body ?? '{}')).toEqual(searched('claude-opus-5-5'));
+  });
+
+  test('an Anthropic model older than tool references gets every loaded tool upfront instead', async () => {
+    Object.assign(conn(cfg, 'anthropic'), { apiKey: 'sk-ant-page', model: 'claude-opus-4-1-20250805' });
+    await post('/gateway/v1/messages', searched('claude-sonnet-5'), { 'anthropic-beta': BETAS });
+    flat(JSON.parse(anthropic.seen[0]?.body ?? '{}') as Record<string, never>);
+    expect(anthropic.seen[0]?.headers['anthropic-beta']).toBe('interleaved-thinking-2025-05-14,context-management-2025-06-27,claude-code-20250219');
+  });
+
+  test('Bedrock and OpenRouter get the loaded tools as plain tools, and never the Anthropic-only beta', async () => {
+    use(cfg, 'bedrock');
+    await post('/gateway/v1/messages', searched('claude-sonnet-4-6'), { 'anthropic-beta': BETAS });
+    const rock = JSON.parse(bedrock.seen[0]?.body ?? '{}') as Record<string, never>;
+    flat(rock);
+    expect(rock.anthropic_beta).toEqual(['interleaved-thinking-2025-05-14', 'context-management-2025-06-27', 'claude-code-20250219']);
+    use(cfg, 'openrouter');
+    await post('/gateway/v1/messages', searched('claude-sonnet-5'), { 'anthropic-beta': 'advanced-tool-use-2025-11-20' });
+    flat(JSON.parse(openrouter.seen[0]?.body ?? '{}') as Record<string, never>);
+    expect(openrouter.seen[0]?.headers['anthropic-beta']).toBeUndefined();
+  });
+
+  test('Codex reads a found tool as a sentence, since it has no tool references', async () => {
+    use(cfg, 'codex');
+    await post('/gateway/v1/messages', { ...searched('claude-sonnet-5'), stream: true }, { 'anthropic-beta': BETAS });
+    const sent = JSON.parse(codexBackend.seen[0]?.body ?? '{}') as { tools: { name: string }[]; input: unknown[] };
+    expect(sent.tools.map((t) => t.name)).toContain('mcp__probe__echo');
+    expect(JSON.stringify(sent.input)).toContain('Tool mcp__probe__echo is loaded: call it directly.');
+  });
+});

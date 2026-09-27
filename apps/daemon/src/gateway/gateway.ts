@@ -22,6 +22,7 @@ import { OPENROUTER_BASE } from './openrouter.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
+import { fitToolSearch } from './tool-search.js';
 import type { CodexTokens } from './codex-auth.js';
 
 const GATEWAY_PREFIX = '/gateway';
@@ -208,8 +209,9 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
   const cfg = deps.config();
   const raw = await readBody(req);
   const sent = parseJson(raw);
-  const body = shapedFor(req, sent);
-  const route = resolveRoute(requestedModel(body), cfg) ?? passthrough(body);
+  const shaped = shapedFor(req, sent);
+  const route = resolveRoute(requestedModel(shaped), cfg) ?? passthrough(shaped);
+  const body = fitToolSearch(req, shaped, route);
   const conn = route.connection;
   log.info({ route: routeLabel(route), connection: conn.label, path }, 'gateway: routing');
   if (path === MESSAGES) noteServed({ connection: conn.id, provider: conn.provider, model: route.model, at: new Date().toISOString() });
