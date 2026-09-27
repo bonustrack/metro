@@ -37,6 +37,7 @@ import { fetchUpdate, type UpdateCheck } from './update.js';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
 import { fetchMachine, type Machine } from './machine.js';
 import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
+import { fetchSize, jobRunning, type SizeView } from './size.js';
 import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
 import { fetchSchedules, type Schedules } from './schedules.js';
 import { currentOrganization } from '../auth/org-route.js';
@@ -201,6 +202,23 @@ export function useOrganizationsQuery(): UseQueryResult<OrganizationRow[]> {
 
 export function useLaunchOverviewQuery(): UseQueryResult<LaunchOverview> {
   return useQuery({ queryKey: orgKey('launch-overview'), queryFn: () => fetchLaunchOverview(), staleTime: 60_000, retry: false });
+}
+
+const RESIZE_POLL_MS = 3_000;
+const MOVING = ['pending', 'stopping', 'shutting-down'];
+
+const resizePoll = (data: SizeView | null | undefined): number | false =>
+  data?.resizable === true && (jobRunning(data.job) || MOVING.includes(data.state)) ? RESIZE_POLL_MS : false;
+
+export function useSizeQuery(serverId: string): UseQueryResult<SizeView | null> {
+  return useQuery({
+    queryKey: orgKey('size', serverId),
+    queryFn: () => fetchSize(serverId),
+    staleTime: 30_000,
+    refetchOnMount: true,
+    retry: false,
+    refetchInterval: (query) => resizePoll(query.state.data),
+  });
 }
 
 export function useServerStatus(host: string): UseQueryResult<ServerStatus> {

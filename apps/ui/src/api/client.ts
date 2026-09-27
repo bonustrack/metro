@@ -16,6 +16,8 @@ export class AuthError extends Error {
 
 export class StoppedError extends Error {}
 
+export class NotFoundError extends Error {}
+
 export interface AgentSummary {
   id: string;
   name: string;
@@ -58,6 +60,7 @@ async function sendBearer(url: string, init: CallInit, token: string): Promise<R
 function failure(res: Response, body: unknown): Error | null {
   if (res.status === 401) return new AuthError('not authorized', true);
   if (res.status === 503 && isRecord(body) && body.stopped === true) return new StoppedError(errorText(body, res.status));
+  if (res.status === 404) return new NotFoundError(errorText(body, res.status));
   return res.ok ? null : new Error(errorText(body, res.status));
 }
 

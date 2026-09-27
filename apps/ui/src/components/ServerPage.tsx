@@ -7,6 +7,7 @@ import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
 import { ClaudeSession } from './ClaudeSession.js';
+import { ServerSizeSection } from './ServerSize.js';
 import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js';
 import { type Server } from '../api/servers.js';
 import { diskLabel, systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
@@ -57,7 +58,7 @@ function Details({ machine, server }: { machine: Machine | undefined; server: Se
 export function ServerPage({ project }: { project: string }): ReactNode {
   const machine = useMachineQuery();
   const servers = useServersQuery();
-  const server = servers.data?.find((s) => s.id === project);
+  const server = servers.data?.find((s) => s.id === project || s.slug === project);
   useDocumentTitle('Server');
   return (
     <Col gap={32}>
@@ -78,6 +79,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
       ) : (
         <MachineFacts machine={machine.data} />
       )}
+      {server === undefined ? null : <ServerSizeSection serverId={server.id} />}
       <Details machine={machine.data} server={server} />
     </Col>
   );
