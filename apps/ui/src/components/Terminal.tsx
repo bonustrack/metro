@@ -12,6 +12,7 @@ import { daemonBase } from '../auth/daemon.js';
 import { queryError } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
 import { copyOnRelease, keepSelectionLocal } from './terminal-select.js';
+import { KeyBar, useKeyBar } from './TerminalKeys.js';
 
 type Phase = { kind: 'connecting' } | { kind: 'open' } | { kind: 'none' } | { kind: 'closed'; reason: string };
 
@@ -55,6 +56,7 @@ async function open(
   colors: { background: string; foreground: string },
   onPhase: (p: Phase) => void,
   onSessions: (s: string[]) => void,
+  shape: (data: string) => string,
 ): Promise<Live> {
   const status = await availableStatus();
   onSessions(status.sessions);
@@ -85,7 +87,7 @@ async function open(
     onPhase({ kind: 'closed', reason: 'The connection to the daemon failed.' });
   };
   term.onData((data) => {
-    if (socket.readyState === WebSocket.OPEN) socket.send(encoder.encode(data));
+    if (socket.readyState === WebSocket.OPEN) socket.send(encoder.encode(shape(data)));
   });
   term.onResize(() => {
     if (socket.readyState === WebSocket.OPEN) socket.send(resizeMessage(term));
@@ -135,6 +137,8 @@ export function TerminalPage(): ReactNode {
   const palette = useKitPalette();
   const dark = useKitScheme() === 'dark';
   const box = useRef<HTMLDivElement>(null);
+  const keys = useKeyBar();
+  const [term, setTerm] = useState<XTerm | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'connecting' });
   const [session, setSession] = useState<string | null>(null);
   const [sessions, setSessions] = useState<string[]>([]);
@@ -169,19 +173,24 @@ export function TerminalPage(): ReactNode {
     let live: Live | null = null;
     let gone = false;
     setPhase({ kind: 'connecting' });
-    open(node, session, { background: palette.bg, foreground: palette.text }, setPhase, setSessions)
+    open(node, session, { background: palette.bg, foreground: palette.text }, setPhase, setSessions, keys.sticky.shape)
       .then((opened) => {
-        if (gone) close(opened);
-        else live = opened;
+        if (gone) {
+          close(opened);
+          return;
+        }
+        live = opened;
+        setTerm(opened.term);
       })
       .catch((err: unknown) => {
         setPhase({ kind: 'closed', reason: queryError(err, 'Could not open the terminal.') });
       });
     return () => {
       gone = true;
+      setTerm(null);
       if (live !== null) close(live);
     };
-  }, [attempt, session, palette.bg, palette.text]);
+  }, [attempt, session, palette.bg, palette.text, keys.sticky]);
 
   const reconnect = (): void => {
     setSession(null);
@@ -189,8 +198,9 @@ export function TerminalPage(): ReactNode {
   };
 
   return (
-    <div className="terminal-page">
+    <div ref={keys.page} className={keys.touch ? 'terminal-page terminal-touch' : 'terminal-page'}>
       <div ref={box} className="terminal-box" />
+      {keys.touch ? <KeyBar term={term} ctrl={keys.ctrl} sticky={keys.sticky} /> : null}
       <div className="terminal-float">
         {phase.kind === 'closed' ? <Button size="sm" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
         <Dropdown

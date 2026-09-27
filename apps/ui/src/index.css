@@ -741,6 +741,27 @@ textarea:focus-visible {
   background: var(--metro-bg);
 }
 
+.terminal-touch {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--terminal-top, 0px);
+  height: var(--terminal-height, 100dvh);
+  min-height: 0;
+}
+
+.terminal-keys {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 6px;
+  overflow-x: auto;
+  border-top: 1px solid var(--metro-border);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .terminal-box {
   flex: 1 1 auto;
   min-height: 0;

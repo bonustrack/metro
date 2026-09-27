@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { pickSession, SESSION_RE, terminalSocketUrl } from '../src/api/terminal.js';
 import { forcedInit, plainPress } from '../src/components/terminal-select.js';
+import { keySequence, stickyCtrl, withCtrl } from '../src/components/terminal-keys.js';
 
 describe('the terminal socket address', () => {
   test('follows the daemon base, ws on loopback and wss through the funnel, ticket in the path', () => {
@@ -37,5 +38,38 @@ describe('a drag in the terminal selects locally', () => {
   test('the replacement press carries the modifier that forces a local selection on every platform, and the click count', () => {
     const init = forcedInit({ detail: 2, clientX: 10, clientY: 20, screenX: 30, screenY: 40, buttons: 1 } as MouseEvent);
     expect(init).toMatchObject({ altKey: true, shiftKey: true, button: 0, buttons: 1, detail: 2, clientX: 10, clientY: 20, bubbles: true });
+  });
+});
+
+describe('the key bar on phones', () => {
+  test('sends the escape sequences a terminal sends, arrows following the cursor key mode', () => {
+    expect(keySequence('esc', false, false)).toBe('\x1b');
+    expect(keySequence('tab', false, false)).toBe('\t');
+    expect(keySequence('backtab', false, false)).toBe('\x1b[Z');
+    expect(keySequence('up', false, false)).toBe('\x1b[A');
+    expect(keySequence('left', false, true)).toBe('\x1bOD');
+    expect(keySequence('right', true, true)).toBe('\x1b[1;5C');
+    expect(keySequence('esc', true, false)).toBe('\x1b');
+  });
+  test('Ctrl turns the next typed character into its control code', () => {
+    expect(withCtrl('c')).toBe('\x03');
+    expect(withCtrl('C')).toBe('\x03');
+    expect(withCtrl('[')).toBe('\x1b');
+    expect(withCtrl(' ')).toBe('\x00');
+    expect(withCtrl('dx')).toBe('\x04x');
+    expect(withCtrl('1')).toBe('1');
+  });
+  test('Ctrl holds for one key only, and a terminal reply does not use it up', () => {
+    const seen: boolean[] = [];
+    const ctrl = stickyCtrl((armed) => seen.push(armed));
+    expect(ctrl.shape('c')).toBe('c');
+    ctrl.toggle();
+    expect(ctrl.shape('\x1b[?1;2c')).toBe('\x1b[?1;2c');
+    expect(ctrl.shape('c')).toBe('\x03');
+    expect(ctrl.shape('c')).toBe('c');
+    ctrl.toggle();
+    expect(ctrl.take()).toBe(true);
+    expect(ctrl.take()).toBe(false);
+    expect(seen).toEqual([true, false, true, false]);
   });
 });

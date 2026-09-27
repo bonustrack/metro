@@ -1,19 +1,28 @@
 import { useEffect, useState } from 'react';
 
 const NARROW_QUERY = '(max-width: 1011px)';
+const TOUCH_QUERY = '(pointer: coarse)';
 
-export function useIsNarrow(): boolean {
-  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
+function useMedia(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
-    const mq = window.matchMedia(NARROW_QUERY);
+    const mq = window.matchMedia(query);
     const onChange = (): void => {
-      setNarrow(mq.matches);
+      setMatches(mq.matches);
     };
     mq.addEventListener('change', onChange);
     onChange();
     return () => {
       mq.removeEventListener('change', onChange);
     };
-  }, []);
-  return narrow;
+  }, [query]);
+  return matches;
+}
+
+export function useIsNarrow(): boolean {
+  return useMedia(NARROW_QUERY);
+}
+
+export function useIsTouch(): boolean {
+  return useMedia(TOUCH_QUERY);
 }
