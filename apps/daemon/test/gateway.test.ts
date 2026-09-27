@@ -9,6 +9,7 @@ import type { ModelConfig } from '../src/gateway/model-config.ts';
 import { conn, configOf, connectionId, jwt, makeConnection, use } from './model-fixture.ts';
 import type { CodexTokens } from '../src/gateway/codex-auth.ts';
 import type { GeminiTokens } from '../src/gateway/gemini-auth.ts';
+import { afterSearch, firstTurn, secretFunction, TOOL_SEARCH_BETAS } from './tool-search-fixture.ts';
 
 interface Seen {
   url: string;
@@ -711,61 +712,100 @@ describe('what the Model page can show about traffic', () => {
 });
 
 describe('MCP tool search', () => {
-  const BETAS = 'interleaved-thinking-2025-05-14,context-management-2025-06-27,claude-code-20250219,advanced-tool-use-2025-11-20';
-  const searched = (model: string): Record<string, unknown> => ({
-    ...message(model),
-    tools: [
-      { name: 'ToolSearch', description: 'Fetches full schema definitions for deferred tools.', input_schema: { type: 'object', properties: { query: { type: 'string' } } } },
-      { name: 'DeferredToolPlaceholder', description: 'Reserved placeholder.', input_schema: { type: 'object', properties: {} }, defer_loading: true },
-      { name: 'mcp__probe__echo', description: 'Echo the text back.', input_schema: { type: 'object', properties: { text: { type: 'string' } } }, defer_loading: true },
-    ],
-    messages: [
-      { role: 'user', content: 'Find the echo tool and say hi with it' },
-      { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_search1', name: 'ToolSearch', input: { query: 'select:mcp__probe__echo' } }] },
-      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_search1', content: [{ type: 'tool_reference', tool_name: 'mcp__probe__echo' }] }] },
-    ],
-  });
-  const flat = (sent: { tools?: Record<string, unknown>[]; messages?: unknown }): void => {
-    expect(sent.tools?.some((t) => 'defer_loading' in t)).toBe(false);
-    expect(sent.tools?.map((t) => t.name)).toContain('mcp__probe__echo');
-    expect(JSON.stringify(sent.messages)).not.toContain('tool_reference');
-    expect(JSON.stringify(sent.messages)).toContain('Tool mcp__probe__echo is loaded: call it directly.');
+  const FLAT_BETAS = 'claude-code-20250219,interleaved-thinking-2025-05-14,context-management-2025-06-27,effort-2025-11-24';
+  const names = (tools: { name: string }[]): string[] => tools.map((t) => t.name);
+  const searchedByMetro = (sent: { tools?: { name: string }[]; messages?: unknown }): void => {
+    expect(names(sent.tools ?? [])).toEqual(['ToolSearch', 'mcp__probe__pinned', 'mcp__probe__secret_word']);
+    const text = JSON.stringify(sent.messages);
+    expect(text).not.toContain('tool_reference');
+    expect(text).toContain(JSON.stringify(`<functions>\n${secretFunction}\n</functions>`).slice(1, -1));
+    expect(JSON.stringify(sent)).not.toContain('defer_loading');
   };
 
-  test('the Anthropic route passes the deferred tools, the tool references and the beta through untouched', async () => {
-    await post('/gateway/v1/messages?beta=true', searched('claude-sonnet-5'), { authorization: 'Bearer sk-ant-oat-login', 'anthropic-beta': BETAS });
-    expect(anthropic.seen[0]?.body).toBe(JSON.stringify(searched('claude-sonnet-5')));
-    expect(anthropic.seen[0]?.headers['anthropic-beta']).toBe(BETAS);
+  test('the Anthropic route gets the search done by metro like every route, without the tool search beta', async () => {
+    await post('/gateway/v1/messages?beta=true', afterSearch('claude-sonnet-5'), { authorization: 'Bearer sk-ant-oat-login', 'anthropic-beta': `oauth-2025-04-20,${TOOL_SEARCH_BETAS}` });
+    searchedByMetro(JSON.parse(anthropic.seen[0]?.body ?? '{}') as Record<string, never>);
+    expect(anthropic.seen[0]?.headers['anthropic-beta']).toBe(`oauth-2025-04-20,${FLAT_BETAS}`);
+    expect(anthropic.seen[0]?.headers.authorization).toBe('Bearer sk-ant-oat-login');
     Object.assign(conn(cfg, 'anthropic'), { apiKey: 'sk-ant-page' });
-    await post('/gateway/v1/messages', searched('claude-opus-5-5'), { 'anthropic-beta': BETAS });
-    expect(anthropic.seen[1]?.headers['anthropic-beta']).toBe(BETAS);
-    expect(JSON.parse(anthropic.seen[1]?.body ?? '{}')).toEqual(searched('claude-opus-5-5'));
+    await post('/gateway/v1/messages', afterSearch('claude-opus-5-5'), { 'anthropic-beta': TOOL_SEARCH_BETAS });
+    searchedByMetro(JSON.parse(anthropic.seen[1]?.body ?? '{}') as Record<string, never>);
+    expect(anthropic.seen[1]?.headers['anthropic-beta']).toBe(FLAT_BETAS);
   });
 
-  test('an Anthropic model older than tool references gets every loaded tool upfront instead', async () => {
-    Object.assign(conn(cfg, 'anthropic'), { apiKey: 'sk-ant-page', model: 'claude-opus-4-1-20250805' });
-    await post('/gateway/v1/messages', searched('claude-sonnet-5'), { 'anthropic-beta': BETAS });
-    flat(JSON.parse(anthropic.seen[0]?.body ?? '{}') as Record<string, never>);
-    expect(anthropic.seen[0]?.headers['anthropic-beta']).toBe('interleaved-thinking-2025-05-14,context-management-2025-06-27,claude-code-20250219');
-  });
-
-  test('Bedrock and OpenRouter get the loaded tools as plain tools, and never the Anthropic-only beta', async () => {
-    use(cfg, 'bedrock');
-    await post('/gateway/v1/messages', searched('claude-sonnet-4-6'), { 'anthropic-beta': BETAS });
-    const rock = JSON.parse(bedrock.seen[0]?.body ?? '{}') as Record<string, never>;
-    flat(rock);
-    expect(rock.anthropic_beta).toEqual(['interleaved-thinking-2025-05-14', 'context-management-2025-06-27', 'claude-code-20250219']);
+  test('before any search every route sees ToolSearch and the always-loaded tools only', async () => {
+    await post('/gateway/v1/messages', firstTurn('claude-sonnet-5'), { authorization: 'Bearer sk-ant-oat-login', 'anthropic-beta': TOOL_SEARCH_BETAS });
+    expect(names((JSON.parse(anthropic.seen[0]?.body ?? '{}') as { tools: { name: string }[] }).tools)).toEqual(['ToolSearch', 'mcp__probe__pinned']);
     use(cfg, 'openrouter');
-    await post('/gateway/v1/messages', searched('claude-sonnet-5'), { 'anthropic-beta': 'advanced-tool-use-2025-11-20' });
-    flat(JSON.parse(openrouter.seen[0]?.body ?? '{}') as Record<string, never>);
+    await post('/gateway/v1/messages', firstTurn('claude-sonnet-5'), { 'anthropic-beta': TOOL_SEARCH_BETAS });
+    expect(names((JSON.parse(openrouter.seen[0]?.body ?? '{}') as { tools: { name: string }[] }).tools)).toEqual(['ToolSearch', 'mcp__probe__pinned']);
+  });
+
+  test('a request with nothing deferred reaches Anthropic byte for byte', async () => {
+    const raw = JSON.stringify(message('claude-sonnet-5'), null, 1);
+    const res = await fetch(`${base}/gateway/v1/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-metro-key': 'mk_ok', authorization: 'Bearer sk-ant-oat-login' },
+      body: raw,
+    });
+    await res.text();
+    expect(anthropic.seen[0]?.body).toBe(raw);
+  });
+
+  test('a model that refuses what metro shaped is asked again with the search still done by metro', async () => {
+    Object.assign(conn(cfg, 'anthropic'), { apiKey: 'sk-ant-page', model: 'claude-opus-4-1-20250805' });
+    const answer = anthropic.answer;
+    let refused = 0;
+    anthropic.answer = (_req, res) => {
+      refused += 1;
+      if (refused === 1) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end('{"type":"error","error":{"type":"invalid_request_error","message":"effort: max is not supported"}}');
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end('event: message_stop\ndata: {"type":"message_stop"}\n\n');
+    };
+    try {
+      const turn = { ...afterSearch('claude-sonnet-5'), output_config: { effort: 'high' } };
+      const res = await post('/gateway/v1/messages', turn, { 'x-claude-code-agent-id': 'a1', 'anthropic-beta': TOOL_SEARCH_BETAS });
+      expect(res.status).toBe(200);
+      await res.text();
+      expect(anthropic.seen.length).toBe(2);
+      const again = JSON.parse(anthropic.seen[1]?.body ?? '{}') as Record<string, never>;
+      searchedByMetro(again);
+      expect(again.output_config).toEqual({ effort: 'high' });
+      expect(again.model).toBe('claude-opus-4-1-20250805');
+    } finally {
+      anthropic.answer = answer;
+    }
+  });
+
+  test('Bedrock and OpenRouter get the found tool as a plain tool, and never the tool search beta', async () => {
+    use(cfg, 'bedrock');
+    await post('/gateway/v1/messages', afterSearch('claude-sonnet-4-6'), { 'anthropic-beta': TOOL_SEARCH_BETAS });
+    const rock = JSON.parse(bedrock.seen[0]?.body ?? '{}') as Record<string, never>;
+    searchedByMetro(rock);
+    expect(rock.anthropic_beta).toEqual(FLAT_BETAS.split(','));
+    use(cfg, 'openrouter');
+    await post('/gateway/v1/messages', afterSearch('claude-sonnet-5'), { 'anthropic-beta': 'advanced-tool-use-2025-11-20' });
+    searchedByMetro(JSON.parse(openrouter.seen[0]?.body ?? '{}') as Record<string, never>);
     expect(openrouter.seen[0]?.headers['anthropic-beta']).toBeUndefined();
   });
 
-  test('Codex reads a found tool as a sentence, since it has no tool references', async () => {
+  test('Codex gets the found tool as a function and the search result as the <functions> block', async () => {
     use(cfg, 'codex');
-    await post('/gateway/v1/messages', { ...searched('claude-sonnet-5'), stream: true }, { 'anthropic-beta': BETAS });
-    const sent = JSON.parse(codexBackend.seen[0]?.body ?? '{}') as { tools: { name: string }[]; input: unknown[] };
-    expect(sent.tools.map((t) => t.name)).toContain('mcp__probe__echo');
-    expect(JSON.stringify(sent.input)).toContain('Tool mcp__probe__echo is loaded: call it directly.');
+    await post('/gateway/v1/messages', { ...afterSearch('claude-sonnet-5'), stream: true }, { 'anthropic-beta': TOOL_SEARCH_BETAS });
+    const sent = JSON.parse(codexBackend.seen[0]?.body ?? '{}') as { tools: { name: string }[]; input: Record<string, unknown>[] };
+    expect(names(sent.tools)).toEqual(['ToolSearch', 'mcp__probe__pinned', 'mcp__probe__secret_word']);
+    expect(sent.input.find((item) => item.type === 'function_call_output')).toEqual({ type: 'function_call_output', call_id: 'toolu_search1', output: `<functions>\n${secretFunction}\n</functions>` });
+  });
+
+  test('Gemini gets the found tool as a function declaration and the search result as the <functions> block', async () => {
+    use(cfg, 'gemini');
+    await post('/gateway/v1/messages', { ...afterSearch('claude-sonnet-5'), stream: true }, { 'anthropic-beta': TOOL_SEARCH_BETAS });
+    const sent = JSON.parse(geminiBackend.seen[0]?.body ?? '{}') as { request: { tools: { functionDeclarations: { name: string }[] }[]; contents: unknown } };
+    expect(names(sent.request.tools[0]?.functionDeclarations ?? [])).toEqual(['ToolSearch', 'mcp__probe__pinned', 'mcp__probe__secret_word']);
+    expect(JSON.stringify(sent.request.contents)).toContain(JSON.stringify({ functionResponse: { id: 'toolu_search1', name: 'ToolSearch', response: { result: `<functions>\n${secretFunction}\n</functions>` } } }));
   });
 });

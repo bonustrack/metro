@@ -205,13 +205,15 @@ function shapedFor(req: IncomingMessage, sent: Record<string, unknown>): Record<
   return effort === null ? sent : withEffort(sent, effort);
 }
 
+const bytesOf = (raw: Buffer, parsed: Record<string, unknown>, sent: Record<string, unknown>): Buffer => (sent === parsed ? raw : Buffer.from(JSON.stringify(sent)));
+
 async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
   const cfg = deps.config();
   const raw = await readBody(req);
-  const sent = parseJson(raw);
-  const shaped = shapedFor(req, sent);
-  const route = resolveRoute(requestedModel(shaped), cfg) ?? passthrough(shaped);
-  const body = fitToolSearch(req, shaped, route);
+  const parsed = parseJson(raw);
+  const sent = fitToolSearch(req, parsed);
+  const route = resolveRoute(requestedModel(sent), cfg) ?? passthrough(sent);
+  const body = shapedFor(req, sent);
   const conn = route.connection;
   log.info({ route: routeLabel(route), connection: conn.label, path }, 'gateway: routing');
   if (path === MESSAGES) noteServed({ connection: conn.id, provider: conn.provider, model: route.model, at: new Date().toISOString() });
@@ -231,7 +233,7 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
     await toSubscription(req, res, path, body, route, deps);
     return;
   }
-  await toAnthropic(req, res, raw, sent, body, route, deps);
+  await toAnthropic(req, res, bytesOf(raw, parsed, sent), sent, body, route, deps);
 }
 
 function failed(res: ServerResponse, err: unknown): void {
