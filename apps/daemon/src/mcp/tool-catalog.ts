@@ -37,7 +37,11 @@ export interface PublishedTool {
   description: string;
   inputSchema: Record<string, unknown>;
   annotations: ToolAnnotations;
+  _meta?: Record<string, boolean>;
 }
+
+const ALWAYS_LOADED = new Set(['react', 'typing', 'send', 'reply']);
+const ALWAYS_LOAD = { 'anthropic/alwaysLoad': true };
 
 const annotationsOf = (def: ToolDef): ToolAnnotations =>
   toolGroupOf(def.name) === 'read'
@@ -50,6 +54,7 @@ export const listedTools = (): PublishedTool[] =>
     description: def.description,
     inputSchema: def.inputSchema,
     annotations: annotationsOf(def),
+    ...(ALWAYS_LOADED.has(def.name) ? { _meta: ALWAYS_LOAD } : {}),
   }));
 
 const STATION_OF_TOOL = new Map(STATIONS.flatMap((s) => s.tools.map((t) => [t.name, s.name] as const)));

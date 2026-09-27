@@ -28,6 +28,11 @@ describe('tool groups', () => {
       expect(byName.get(name)).toEqual({ readOnlyHint: false, destructiveHint: true });
   });
 
+  test('the tools the orchestrator uses on every message stay loaded when Claude Code defers MCP tools', () => {
+    const loaded = toolList().tools.filter((t) => t._meta?.['anthropic/alwaysLoad'] === true).map((t) => t.name).sort();
+    expect(loaded).toEqual(['react', 'reply', 'send', 'typing']);
+  });
+
   test('a channel lists the tools its station can run, each with its group', () => {
     const station = stationByName('telegram-bot');
     if (station === undefined) throw new Error('no telegram-bot station');
