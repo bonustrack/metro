@@ -10,6 +10,7 @@ export class AwsError extends Error {
   constructor(
     readonly code: string,
     message: string,
+    readonly action = '',
   ) {
     super(message);
     this.name = 'AwsError';
@@ -46,12 +47,12 @@ export async function ec2(
   try {
     res = await fetch(url, { method: 'POST', headers: signed.headers, body });
   } catch {
-    throw new AwsError('Unreachable', `Could not reach EC2 in ${region}.`);
+    throw new AwsError('Unreachable', `Could not reach EC2 in ${region}.`, `ec2:${action}`);
   }
   const xml = parseXml(await res.text());
   if (res.ok) return xml;
   const error = child(child(xml, 'Errors'), 'Error');
-  throw new AwsError(textAt(error, 'Code') || `HTTP${res.status}`, textAt(error, 'Message') || `EC2 answered ${res.status}.`);
+  throw new AwsError(textAt(error, 'Code') || `HTTP${res.status}`, textAt(error, 'Message') || `EC2 answered ${res.status}.`, `ec2:${action}`);
 }
 
 export interface Image {
@@ -148,6 +149,8 @@ export interface InstanceState {
   instanceId: string;
   state: string;
   publicIp: string | null;
+  type: string;
+  architecture: string;
 }
 
 export async function describeInstance(credentials: AwsCredentials, region: string, instanceId: string): Promise<InstanceState> {
@@ -155,7 +158,47 @@ export async function describeInstance(credentials: AwsCredentials, region: stri
   const instance = child(child(child(child(xml, 'reservationSet'), 'item'), 'instancesSet'), 'item');
   if (instance === undefined) throw new AwsError('NotFound', `EC2 no longer lists ${instanceId}.`);
   const publicIp = textAt(instance, 'ipAddress');
-  return { instanceId, state: textAt(instance, 'instanceState', 'name') || 'unknown', publicIp: publicIp === '' ? null : publicIp };
+  return {
+    instanceId,
+    state: textAt(instance, 'instanceState', 'name') || 'unknown',
+    publicIp: publicIp === '' ? null : publicIp,
+    type: textAt(instance, 'instanceType'),
+    architecture: textAt(instance, 'architecture'),
+  };
+}
+
+export async function stopInstance(credentials: AwsCredentials, region: string, instanceId: string): Promise<void> {
+  await ec2(credentials, region, 'StopInstances', { 'InstanceId.1': instanceId });
+}
+
+export async function startInstance(credentials: AwsCredentials, region: string, instanceId: string): Promise<void> {
+  await ec2(credentials, region, 'StartInstances', { 'InstanceId.1': instanceId });
+}
+
+export async function setInstanceType(credentials: AwsCredentials, region: string, instanceId: string, type: string): Promise<void> {
+  await ec2(credentials, region, 'ModifyInstanceAttribute', { InstanceId: instanceId, 'InstanceType.Value': type });
+}
+
+export interface InstanceTypeInfo {
+  type: string;
+  vcpus: number;
+  memoryMib: number;
+  architectures: string[];
+}
+
+const count = (text: string): number => (/^\d+$/.test(text) ? Number(text) : 0);
+
+export async function describeInstanceTypes(credentials: AwsCredentials, region: string, types: string[]): Promise<InstanceTypeInfo[]> {
+  const values = Object.fromEntries(types.map((type, at) => [`Filter.1.Value.${String(at + 1)}`, type]));
+  const xml = await ec2(credentials, region, 'DescribeInstanceTypes', { MaxResults: '100', 'Filter.1.Name': 'instance-type', ...values });
+  return children(child(xml, 'instanceTypeSet'), 'item')
+    .map((item) => ({
+      type: textAt(item, 'instanceType'),
+      vcpus: count(textAt(item, 'vCpuInfo', 'defaultVCpus')),
+      memoryMib: count(textAt(item, 'memoryInfo', 'sizeInMiB')),
+      architectures: children(child(child(item, 'processorInfo'), 'supportedArchitectures'), 'item').map((arch) => arch.text.trim()),
+    }))
+    .filter((info) => info.type !== '');
 }
 
 export interface ConsoleOutput {

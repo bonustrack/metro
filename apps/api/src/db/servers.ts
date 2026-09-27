@@ -175,7 +175,7 @@ export interface ServerLaunch {
   region: string;
 }
 
-export async function launchForOwner(subject: string, rawId: string): Promise<ServerLaunch> {
+export async function instanceForOwner(subject: string, rawId: string): Promise<ServerLaunch | null> {
   const owner = ownerOf(subject);
   const id = idOf(rawId);
   const rows = await getDb()
@@ -184,9 +184,14 @@ export async function launchForOwner(subject: string, rawId: string): Promise<Se
     .where(and(eq(agents.id, id), eq(agents.owner, owner)));
   const row = rows[0];
   if (row === undefined) throw missing();
-  if (row.instanceId === null || row.region === null)
-    throw new ServerListError('metro did not launch that server, so it has no boot log', 400);
+  if (row.instanceId === null || row.region === null) return null;
   return { instanceId: row.instanceId, region: row.region };
+}
+
+export async function launchForOwner(subject: string, rawId: string): Promise<ServerLaunch> {
+  const launch = await instanceForOwner(subject, rawId);
+  if (launch === null) throw new ServerListError('metro did not launch that server, so it has no boot log', 400);
+  return launch;
 }
 
 function renameChanges(body: unknown): { name?: string | null; slug?: string } {

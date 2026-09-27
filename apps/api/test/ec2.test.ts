@@ -1,5 +1,19 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { AwsError, consoleOutput, describeInstance, describeZones, latestUbuntuArm64Image, pickImage, runInstance, runInstanceParams, toBase64 } from '../src/aws/ec2.ts';
+import {
+  AwsError,
+  consoleOutput,
+  describeInstance,
+  describeInstanceTypes,
+  describeZones,
+  latestUbuntuArm64Image,
+  pickImage,
+  runInstance,
+  runInstanceParams,
+  setInstanceType,
+  startInstance,
+  stopInstance,
+  toBase64,
+} from '../src/aws/ec2.ts';
 
 const CREDS = { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' };
 const realFetch = globalThis.fetch;
@@ -91,12 +105,13 @@ describe('EC2 from the browser', () => {
     const err = await latestUbuntuArm64Image(CREDS, 'eu-west-1').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AwsError);
     expect((err as AwsError).code).toBe('AuthFailure');
+    expect((err as AwsError).action).toBe('ec2:DescribeImages');
     expect((err as Error).message).toContain('not able to validate');
   });
 
-  test('DescribeInstances reads the state and the public address', async () => {
-    const seen = stub(200, '<DescribeInstancesResponse xmlns="x"><reservationSet><item><instancesSet><item><instanceId>i-0abc</instanceId><instanceState><code>16</code><name>running</name></instanceState><ipAddress>3.4.5.6</ipAddress></item></instancesSet></item></reservationSet></DescribeInstancesResponse>');
-    expect(await describeInstance(CREDS, 'eu-west-1', 'i-0abc')).toEqual({ instanceId: 'i-0abc', state: 'running', publicIp: '3.4.5.6' });
+  test('DescribeInstances reads the state, the public address, the type and the architecture', async () => {
+    const seen = stub(200, '<DescribeInstancesResponse xmlns="x"><reservationSet><item><instancesSet><item><instanceId>i-0abc</instanceId><instanceType>t4g.medium</instanceType><instanceState><code>16</code><name>running</name></instanceState><ipAddress>3.4.5.6</ipAddress><architecture>arm64</architecture></item></instancesSet></item></reservationSet></DescribeInstancesResponse>');
+    expect(await describeInstance(CREDS, 'eu-west-1', 'i-0abc')).toEqual({ instanceId: 'i-0abc', state: 'running', publicIp: '3.4.5.6', type: 't4g.medium', architecture: 'arm64' });
     expect(seen[0]?.body.get('InstanceId.1')).toBe('i-0abc');
     stub(200, '<DescribeInstancesResponse><reservationSet/></DescribeInstancesResponse>');
     await expect(describeInstance(CREDS, 'eu-west-1', 'i-gone')).rejects.toThrow('no longer lists');
@@ -117,5 +132,33 @@ describe('EC2 from the browser', () => {
     globalThis.fetch = (() => Promise.reject(new Error('boom'))) as typeof fetch;
     const err = await describeInstance(CREDS, 'eu-west-1', 'i-0abc').catch((e: unknown) => e);
     expect((err as AwsError).code).toBe('Unreachable');
+  });
+
+  test('Stop, Start and the type change name the one instance', async () => {
+    const seen = stub(200, '<Response xmlns="x"><return>true</return></Response>');
+    await stopInstance(CREDS, 'eu-central-2', 'i-0abc');
+    await startInstance(CREDS, 'eu-central-2', 'i-0abc');
+    await setInstanceType(CREDS, 'eu-central-2', 'i-0abc', 't4g.large');
+    expect(seen.map((s) => s.body.get('Action'))).toEqual(['StopInstances', 'StartInstances', 'ModifyInstanceAttribute']);
+    expect(seen[0]?.body.get('InstanceId.1')).toBe('i-0abc');
+    expect(seen[1]?.body.get('InstanceId.1')).toBe('i-0abc');
+    expect(seen[2]?.body.get('InstanceId')).toBe('i-0abc');
+    expect(seen[2]?.body.get('InstanceType.Value')).toBe('t4g.large');
+    expect(seen.every((s) => s.url === 'https://ec2.eu-central-2.amazonaws.com/')).toBe(true);
+  });
+
+  test('DescribeInstanceTypes filters by name and reads vCPUs, memory and architectures', async () => {
+    const seen = stub(200, `<DescribeInstanceTypesResponse xmlns="x"><instanceTypeSet>
+      <item><instanceType>t4g.large</instanceType><vCpuInfo><defaultVCpus>2</defaultVCpus></vCpuInfo><memoryInfo><sizeInMiB>8192</sizeInMiB></memoryInfo><processorInfo><supportedArchitectures><item>arm64</item></supportedArchitectures></processorInfo></item>
+      <item><instanceType>t3.large</instanceType><vCpuInfo><defaultVCpus>2</defaultVCpus></vCpuInfo><memoryInfo><sizeInMiB>8192</sizeInMiB></memoryInfo><processorInfo><supportedArchitectures><item>x86_64</item><item>i386</item></supportedArchitectures></processorInfo></item>
+    </instanceTypeSet></DescribeInstanceTypesResponse>`);
+    expect(await describeInstanceTypes(CREDS, 'us-east-1', ['t4g.large', 't3.large', 'x9.huge'])).toEqual([
+      { type: 't4g.large', vcpus: 2, memoryMib: 8192, architectures: ['arm64'] },
+      { type: 't3.large', vcpus: 2, memoryMib: 8192, architectures: ['x86_64', 'i386'] },
+    ]);
+    const body = seen[0]?.body ?? new URLSearchParams();
+    expect(body.get('Action')).toBe('DescribeInstanceTypes');
+    expect(body.get('Filter.1.Name')).toBe('instance-type');
+    expect([body.get('Filter.1.Value.1'), body.get('Filter.1.Value.2'), body.get('Filter.1.Value.3')]).toEqual(['t4g.large', 't3.large', 'x9.huge']);
   });
 });

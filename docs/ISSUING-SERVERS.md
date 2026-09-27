@@ -52,7 +52,7 @@ refused with a 409.
    **Application running outside AWS**. Copy both halves at once: AWS shows the
    secret only at creation, and a user may hold at most two keys.
 
-These seven actions are all a launch and its progress view use.
+These actions are all a launch, its progress view and a resize use.
 
 ```json
 {
@@ -67,16 +67,32 @@ These seven actions are all a launch and its progress view use.
         "ec2:DescribeInstances",
         "ec2:RunInstances",
         "ec2:CreateTags",
-        "ec2:GetConsoleOutput"
+        "ec2:GetConsoleOutput",
+        "ec2:DescribeInstanceTypes",
+        "pricing:GetProducts"
       ],
       "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:StopInstances",
+        "ec2:StartInstances",
+        "ec2:ModifyInstanceAttribute"
+      ],
+      "Resource": "*",
+      "Condition": { "Null": { "aws:ResourceTag/metro": "false" } }
     }
   ]
 }
 ```
 
-It cannot stop or terminate anything, so cleaning up a box is still a job for the
-AWS console.
+It cannot terminate anything, so deleting a box is still a job for the AWS
+console. The second statement is only for a resize, and only on instances with
+a `metro` tag, which every box Metro launches carries: the key cannot stop or
+change anything else in the account. `DescribeInstanceTypes` lists the sizes,
+and `pricing:GetProducts` only shows the price next to each size: without it
+the sizes show no price.
 
 ## The Tailscale key
 
@@ -126,3 +142,23 @@ organization can sign in to it.
 Two launches at once from one organization are refused with a 409 rather than starting
 two instances, and the row is written to your agent list only once EC2 has
 answered with an instance id.
+
+## Changing the size of a box
+
+The Server page of a box Metro launched shows its size (vCPUs, memory, the AWS
+price) and, for an admin of the organization, the other sizes of the same kind
+of processor: `t4g` and `m7g` on ARM, `t3` and `m7i` on x86, from 4 GB up,
+only those AWS offers in the box's region. A resize stops the instance, changes
+its type and starts it again, so the agent is offline for one to two minutes
+and its Claude session restarts. The disk, the Tailscale name and the Funnel
+address stay. The public IP changes, which nothing uses.
+
+If AWS refuses the new size (no capacity in the zone, the account's vCPU quota,
+a type the instance cannot take), metro puts the old type back and starts the
+box again, and the page says why. If even that fails, the page says the box is
+stopped and offers Start. The job lives in the api's memory, so a deploy in
+the middle of one stops it. The page still reads the instance's real state
+from AWS, and a stopped box shows Start.
+
+A box Metro did not launch (added by its address, or hosted elsewhere, such as
+on DigitalOcean) has no instance in this account, and the page says so.

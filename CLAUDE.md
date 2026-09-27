@@ -6,7 +6,7 @@ The story behind these rules, with dates and incidents, is in `docs/HISTORY.md`.
 
 A relay between chat networks (XMTP, Telegram, Discord, WhatsApp, Threema, an Outlook mailbox) and Claude Code, run on the user's own machine ("box") by `metro serve`. One daemon serves MCP over HTTP, a model gateway and an admin API, and supervises one subprocess ("train") per station.
 
-Inbound: network message, station, in-process bus, MCP channel notification. Outbound: agent tool call, station verb, network. `api.metro.box` (`apps/api`, Fly) runs no station: sign-in, the agent list, AWS launches, `/health`. The page `https://metro.box` (`apps/ui`, Netlify) manages one box at a time. **Every daemon is local. There is no hosted mode.**
+Inbound: network message, station, in-process bus, MCP channel notification. Outbound: agent tool call, station verb, network. `api.metro.box` (`apps/api`, Fly) runs no station: sign-in, the agent list, AWS launches and resizes, `/health`. The page `https://metro.box` (`apps/ui`, Netlify) manages one box at a time. **Every daemon is local. There is no hosted mode.**
 
 **One box is one agent.** The daemon creates `~/.metro/agents/agent.json` (`{version: 1, id, name?, key, stations[]}`; an old file's `owner` and `connectors` keys are ignored and dropped at the next save) at first boot. A second agent, or an import of another agent id, is 409. The name a person sees is the box's row on metro.box.
 
@@ -325,6 +325,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 | `/api/auth/*` | none, then bearer | WorkOS login, callback (handoff code in the hash), exchange, refresh, me, logout, organizations, switch, account. |
 | `/api/organization…` | bearer | Members, invitations, rename, slug. Writes are admin. |
 | `/api/servers…` | bearer | The organization's agent list, rename, slug, avatar (checked PNG only), move. |
+| `/api/servers/<id>/size` | bearer, POST admin | A launched box's EC2 state, size and the sizes offered. POST `{type}` resizes it (stop, type, start, the old type back on failure), polled by the page. |
 | `/api/launch…` | bearer | Launch a box on AWS, status, boot log (Tailscale keys redacted). |
 | `/api/admin/*` | bearer, operator email | Users, status, organizations, agents. |
 

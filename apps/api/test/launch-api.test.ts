@@ -38,7 +38,7 @@ const deps: LaunchApiDeps = {
     });
   },
   regions: () => Promise.resolve(['eu-west-1', 'us-east-1']),
-  state: (_c, _r, instanceId) => Promise.resolve({ instanceId, state: 'running', publicIp: null }),
+  state: (_c, _r, instanceId) => Promise.resolve({ instanceId, state: 'running', publicIp: null, type: 't4g.medium', architecture: 'arm64' }),
   boot: () => Promise.resolve({ steps: [], failed: false, finished: true, lines: ['metro setup: done'], at: null }),
   record: (_subject, launch) =>
     Promise.resolve({
