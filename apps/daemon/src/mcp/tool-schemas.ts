@@ -34,8 +34,8 @@ export const COMMON_TOOLS: ToolDef[] = [
     group: 'write',
     description:
       'Send a message (and/or media) to a Metro conversation. Args: line, text?, reply_to?, ' +
-      'subject?, attachments?. The station is derived from the line. Outlook: send to ' +
-      'metro://outlook/<account>/<email address> to start a new email (subject defaults to the ' +
+      'subject?, attachments?. The station is derived from the line. Outlook and Gmail: send to ' +
+      'metro://<outlook|gmail>/<account>/<email address> to start a new email (subject defaults to the ' +
       'first line of text); the result names the new thread line. Each attachment names EXACTLY ONE ' +
       'source, and the choice matters: `upload` (an `upload_id` from `create_upload`, the ' +
       'route for any real file on your own machine, confidential or not, up to 64 MiB); ' +
@@ -59,7 +59,7 @@ export const COMMON_TOOLS: ToolDef[] = [
         },
         subject: {
           type: 'string',
-          description: 'Outlook only: the subject of a new email.',
+          description: 'Outlook and Gmail only: the subject of a new email.',
         },
         attachments: {
           type: 'array',
@@ -158,7 +158,9 @@ export const COMMON_TOOLS: ToolDef[] = [
       "(shapes differ per station), or the daemon's reason if the station does not support " +
       'reads. Outlook: `query` is a Microsoft search over all mail (with `from` folded into it; ' +
       'line, since, until and unread_only then narrow what the search found), and without ' +
-      '`query` every filter is applied by Outlook itself, newest first.',
+      '`query` every filter is applied by Outlook itself, newest first. Gmail: `query` uses ' +
+      'Gmail search syntax (from:, subject:, has:attachment, newer_than:7d...), and the other ' +
+      'filters are added to it.',
     inputSchema: {
       type: 'object',
       properties: {

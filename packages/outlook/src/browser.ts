@@ -1,17 +1,6 @@
-import { createHash, randomBytes } from 'node:crypto';
-import { failureOf, OutlookAuthError, postForm, requireClientId, tenantOf, tokensOf, type FetchLike, type Tokens } from './auth.js';
+import { SignInError, tokensOf, type FetchLike, type Tokens } from '@metro-labs/core/stations/oauth';
+import { failureOf, postLogin, requireClientId, tenantOf } from './auth.js';
 import { loginBase, redirectUri, SCOPES } from './config.js';
-
-export interface Pkce {
-  verifier: string;
-  challenge: string;
-}
-
-export function pkcePair(verifier = randomBytes(32).toString('base64url')): Pkce {
-  return { verifier, challenge: createHash('sha256').update(verifier).digest('base64url') };
-}
-
-export const newState = (): string => randomBytes(24).toString('base64url');
 
 export function authorizeUrl(challenge: string, state: string, loginHint: string | null = null): string {
   const query = new URLSearchParams({
@@ -35,7 +24,7 @@ export interface Redeemed {
 }
 
 export async function redeemCode(code: string, verifier: string, fetchImpl: FetchLike, now = Date.now()): Promise<Redeemed> {
-  const { status, body } = await postForm(
+  const { status, body } = await postLogin(
     'token',
     {
       grant_type: 'authorization_code',
@@ -47,7 +36,7 @@ export async function redeemCode(code: string, verifier: string, fetchImpl: Fetc
     },
     fetchImpl,
   );
-  if (status !== 200) throw new OutlookAuthError(failureOf(body));
-  const tokens = tokensOf(body, now);
+  if (status !== 200) throw new SignInError(failureOf(body));
+  const tokens = tokensOf(body, now, 'Microsoft');
   return { tokens, tenantId: tenantOf(typeof body.id_token === 'string' ? body.id_token : '', tokens.accessToken) };
 }

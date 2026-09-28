@@ -658,6 +658,7 @@ describe('GET /api/agents advertises what can be attached', () => {
       'telegram',
       'whatsapp',
       'outlook',
+      'gmail',
     ]);
   });
 });

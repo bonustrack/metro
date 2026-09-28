@@ -1,16 +1,14 @@
+import { checkAddress, filesOf, isAddress, mailLine, str, subjectOf, threadOfLine, type OutgoingFile } from '@metro-labs/core/stations/mail';
+import { escapeHtml } from '@metro-labs/core/stations/mail-text';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 import { TrainError } from '@metro-labs/core/train-error';
 import { accountOf, type Account } from './accounts.js';
-import { assertSendable, attachFile, filesOf, type OutgoingFile } from './attachments.js';
-import { conversationOfLine, lineOf } from './format.js';
+import { assertSendable, attachFile } from './attachments.js';
 import { graph, graphJson, jsonInit, messagePath, odataQuote, queryOf } from './graph.js';
-import { escapeHtml } from './html.js';
 
 type Args = Record<string, unknown>;
 
 export const EPOCH = '1900-01-01T00:00:00Z';
-
-const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 export async function latestInConversation(acct: Account, conversationId: string): Promise<string> {
   const filter = `receivedDateTime ge ${EPOCH} and conversationId eq ${odataQuote(conversationId)}`;
@@ -43,21 +41,10 @@ async function withFiles(acct: Account, target: string, verb: 'reply' | 'replyAl
   return labels;
 }
 
-const ADDRESS_RE = /^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/;
-const SUBJECT_MAX = 255;
-
-export const isAddress = (target: string): boolean => target.includes('@');
-
-export function subjectOf(subject: string, text: string): string {
-  const chosen = subject !== '' ? subject : (text.split('\n').find((l) => l.trim() !== '') ?? '').trim();
-  if (chosen === '') throw new TrainError('outlook_subject_required', 'a new email needs a subject or some text', { retryable: false });
-  return chosen.length > SUBJECT_MAX ? `${chosen.slice(0, SUBJECT_MAX - 3)}...` : chosen;
-}
-
 async function compose(id: string, acct: Account, to: string, args: Args, text: string, files: OutgoingFile[]): Promise<void> {
-  if (!ADDRESS_RE.test(to)) throw new TrainError('outlook_bad_address', `not an email address: ${to}`, { retryable: false });
+  checkAddress('outlook', to);
   const draft = await graphJson<{ id?: string; conversationId?: string }>(acct, '/me/messages', jsonInit('POST', {
-    subject: subjectOf(str(args.subject), text),
+    subject: subjectOf('outlook', str(args.subject), text),
     body: { contentType: 'Text', content: text },
     toRecipients: [{ emailAddress: { address: to } }],
   }));
@@ -70,7 +57,7 @@ async function compose(id: string, acct: Account, to: string, args: Args, text: 
     await discard(acct, draft.id);
     throw err;
   }
-  const line = draft.conversationId === undefined ? undefined : lineOf(acct.id, draft.conversationId);
+  const line = draft.conversationId === undefined ? undefined : mailLine('outlook', acct.id, draft.conversationId);
   respond(id, { result: { account: acct.id, messageId: draft.id, ...(line === undefined ? {} : { line }), ...(labels.length > 0 ? { attachments: labels } : {}) } });
 }
 
@@ -84,7 +71,7 @@ interface Outgoing {
 
 async function outgoing(args: Args): Promise<Outgoing> {
   const line = str(args.line);
-  const parsed = conversationOfLine(line);
+  const parsed = threadOfLine('outlook', line);
   if (parsed === null) throw new TrainError('outlook_bad_line', `not an outlook line: ${line}`, { retryable: false });
   const acct = accountOf(args);
   const files = filesOf(args.attachments);
@@ -92,7 +79,7 @@ async function outgoing(args: Args): Promise<Outgoing> {
   if (text.trim() === '' && files.length === 0)
     throw new TrainError('outlook_text_required', 'give some text or a file to send', { retryable: false });
   await assertSendable(files);
-  return { target: parsed.conversationId, acct, files, text, replyTo: str(args.replyTo) };
+  return { target: parsed.threadId, acct, files, text, replyTo: str(args.replyTo) };
 }
 
 async function answer(id: string, args: Args, verb: 'reply' | 'replyAll'): Promise<void> {

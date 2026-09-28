@@ -1,58 +1,23 @@
+import { mailFull, mailSummary, MAX_LIMIT, readQueryOf, str, type ReadQuery } from '@metro-labs/core/stations/mail';
 import { respond } from '@metro-labs/core/stations/station-runtime';
-import { TrainError } from '@metro-labs/core/train-error';
 import { accountOf, type Account } from './accounts.js';
 import { listFiles, saveFile } from './attachments.js';
-import { conversationOfLine, fullOf, LIST_FIELDS, MESSAGE_FIELDS, summaryOf, type GraphMessage } from './format.js';
+import { itemOf, LIST_FIELDS, MESSAGE_FIELDS, type GraphMessage } from './format.js';
 import { graph, graphJson, jsonInit, messagePath, odataQuote, queryOf } from './graph.js';
 import { EPOCH } from './outbound.js';
 
 type Args = Record<string, unknown>;
 
-export const DEFAULT_LIMIT = 20;
-export const MAX_LIMIT = 50;
-
-const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
-
-export interface ReadQuery {
-  conversationId: string | null;
-  query: string;
-  from: string;
-  since: string;
-  until: string;
-  before: string;
-  unreadOnly: boolean;
-  limit: number;
-}
-
-function isoOf(raw: string, field: string): string {
-  if (raw === '') return '';
-  const at = Date.parse(raw);
-  if (Number.isNaN(at)) throw new TrainError('outlook_bad_date', `${field} must be a date, for example 2026-09-24 or 2026-09-24T10:00:00Z`, { retryable: false });
-  return new Date(at).toISOString();
-}
-
-export function readQueryOf(args: Args): ReadQuery {
-  const line = str(args.line);
-  const conversation = line === '' ? null : conversationOfLine(line);
-  if (line !== '' && conversation === null) throw new TrainError('outlook_bad_line', `not an outlook line: ${line}`, { retryable: false });
-  const limit = typeof args.limit === 'number' && args.limit > 0 ? Math.min(Math.floor(args.limit), MAX_LIMIT) : DEFAULT_LIMIT;
-  return {
-    conversationId: conversation?.conversationId ?? null,
-    query: str(args.query).replace(/"/g, ''),
-    from: str(args.from).toLowerCase(),
-    since: isoOf(str(args.since), 'since'),
-    until: isoOf(str(args.until), 'until'),
-    before: str(args.before),
-    unreadOnly: args.unreadOnly === true,
-    limit,
-  };
+function outlookQuery(args: Args): ReadQuery {
+  const q = readQueryOf('outlook', args);
+  return { ...q, query: q.query.replace(/"/g, '') };
 }
 
 export function filterOf(q: ReadQuery, beforeAt: string): string {
   const parts = [`receivedDateTime ge ${q.since === '' ? EPOCH : q.since}`];
   const until = [q.until, beforeAt].filter((s) => s !== '').sort()[0];
   if (until !== undefined) parts.push(`receivedDateTime lt ${until}`);
-  if (q.conversationId !== null) parts.push(`conversationId eq ${odataQuote(q.conversationId)}`);
+  if (q.threadId !== null) parts.push(`conversationId eq ${odataQuote(q.threadId)}`);
   if (q.from !== '') parts.push(`from/emailAddress/address eq ${odataQuote(q.from)}`);
   if (q.unreadOnly) parts.push('isRead eq false');
   return parts.join(' and ');
@@ -65,7 +30,7 @@ function inWindow(at: number, q: ReadQuery, beforeAt: string): boolean {
 }
 
 function matches(q: ReadQuery, m: GraphMessage, beforeAt: string): boolean {
-  if (q.conversationId !== null && m.conversationId !== q.conversationId) return false;
+  if (q.threadId !== null && m.conversationId !== q.threadId) return false;
   if (q.unreadOnly && m.isRead === true) return false;
   return inWindow(Date.parse(m.receivedDateTime ?? ''), q, beforeAt);
 }
@@ -91,7 +56,7 @@ async function list(id: string, acct: Account, q: ReadQuery): Promise<void> {
     result: {
       account: acct.id,
       mode: q.query === '' ? 'filter' : 'search',
-      messages: found.map((m) => summaryOf(acct.id, m)),
+      messages: found.map((m) => mailSummary('outlook', acct.id, itemOf(m))),
     },
   });
 }
@@ -105,7 +70,7 @@ async function one(id: string, acct: Account, messageId: string): Promise<void> 
     attachments.push({ name: file.name, mime: file.mime, kind: file.kind, size: saved.bytes, local_path: saved.path });
   }
   if (m.isRead !== true) await graph(acct, messagePath(m.id), jsonInit('PATCH', { isRead: true }));
-  respond(id, { result: { account: acct.id, message: { ...fullOf(acct.id, m), is_read: true, attachments } } });
+  respond(id, { result: { account: acct.id, message: { ...mailFull('outlook', acct.id, itemOf(m)), is_read: true, attachments } } });
 }
 
 export async function read(id: string, args: Args): Promise<void> {
@@ -115,5 +80,5 @@ export async function read(id: string, args: Args): Promise<void> {
     await one(id, acct, messageId);
     return;
   }
-  await list(id, acct, readQueryOf(args));
+  await list(id, acct, outlookQuery(args));
 }

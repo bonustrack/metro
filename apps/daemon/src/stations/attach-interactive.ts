@@ -1,8 +1,8 @@
 import { StationAttachError } from './attach.js';
 import type { DriverHooks, StartedAttach } from './attach-driver.js';
-import { startOutlook } from './attach-outlook.js';
+import { startGmail, startOutlook } from './attach-browser.js';
 
-export const INTERACTIVE_STATIONS = ['telegram', 'whatsapp', 'outlook'] as const;
+export const INTERACTIVE_STATIONS = ['telegram', 'whatsapp', 'outlook', 'gmail'] as const;
 
 export type InteractiveStation = (typeof INTERACTIVE_STATIONS)[number];
 
@@ -128,6 +128,7 @@ export async function startInteractiveAttach(
   hooks: DriverHooks,
 ): Promise<StartedAttach> {
   if (station === 'outlook') return startOutlook(input, hooks);
+  if (station === 'gmail') return startGmail(input, hooks);
   return station === 'telegram'
     ? startTelegramUser(input, hooks)
     : startWhatsapp(input, hooks);

@@ -16,7 +16,7 @@ const NO_INPUT = { autoComplete: 'off', autoCapitalize: 'none', autoCorrect: fal
 const ONLY = 'Only the people below reach the agent, in groups too.';
 const ANYONE = 'Anyone who writes here reaches the agent.';
 const NOBODY = 'Nobody added yet, so anyone can still write. Add the first person below.';
-const NO_CHAT_APPROVALS = new Set(['outlook']);
+const NO_CHAT_APPROVALS = new Set(['outlook', 'gmail']);
 const APPROVE_NOTE = 'An approver can answer the agent’s approval requests right in this chat.';
 
 const PLACEHOLDER: Record<string, string> = {
@@ -26,6 +26,7 @@ const PLACEHOLDER: Record<string, string> = {
   whatsapp: 'WhatsApp id',
   threema: 'Threema ID, like ECHOECHO',
   outlook: 'Email address, or @company.com',
+  gmail: 'Email address, or @company.com',
   xmtp: 'Inbox id',
 };
 
@@ -36,6 +37,7 @@ const WHERE_TO_FIND: Record<string, string> = {
   whatsapp: 'Easiest: look them up by phone number below.',
   threema: 'Easiest: have them write once, then pick them below.',
   outlook: '@company.com lets in everyone at that company. A subdomain needs its own entry.',
+  gmail: '@company.com lets in everyone at that company. A subdomain needs its own entry.',
   xmtp: 'Their inbox id, not their wallet address. Easiest: have them write once, then pick them below.',
 };
 

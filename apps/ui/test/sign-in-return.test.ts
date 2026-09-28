@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { stateOf, toSession } from '../src/api/attach-session.ts';
-import { microsoftReturn, outcomeOf, parsePending, planReturn, type PendingSignIn } from '../src/api/outlook-return.ts';
+import { outcomeOf, parsePending, planReturn, signInReturn, type PendingSignIn } from '../src/api/sign-in-return.ts';
 
 const ENTRY: PendingSignIn = {
   state: 'st-1',
@@ -11,13 +11,18 @@ const ENTRY: PendingSignIn = {
   startedAt: 1_000,
 };
 
-describe('reading what Microsoft sent back', () => {
+describe('reading what Microsoft or Google sent back', () => {
   test('a code with its state', () => {
-    expect(microsoftReturn('?code=abc&state=st-1&session_state=x')).toEqual({ kind: 'code', code: 'abc', state: 'st-1' });
+    expect(signInReturn('?code=abc&state=st-1&session_state=x')).toEqual({ kind: 'code', code: 'abc', state: 'st-1' });
+    expect(signInReturn('?state=st-2&code=4/0Ab&scope=https://www.googleapis.com/auth/gmail.readonly&authuser=0&hd=snapshot.org&prompt=consent')).toEqual({
+      kind: 'code',
+      code: '4/0Ab',
+      state: 'st-2',
+    });
   });
 
   test('an error with its description', () => {
-    expect(microsoftReturn('?error=access_denied&error_description=AADSTS65004%3A+declined&state=st-1')).toEqual({
+    expect(signInReturn('?error=access_denied&error_description=AADSTS65004%3A+declined&state=st-1')).toEqual({
       kind: 'error',
       error: 'access_denied',
       description: 'AADSTS65004: declined',
@@ -26,8 +31,8 @@ describe('reading what Microsoft sent back', () => {
   });
 
   test('an ordinary page load is not a return', () => {
-    expect(microsoftReturn('')).toBeNull();
-    expect(microsoftReturn('?code=abc')).toBeNull();
+    expect(signInReturn('')).toBeNull();
+    expect(signInReturn('?code=abc')).toBeNull();
   });
 });
 
@@ -54,7 +59,7 @@ describe('matching the return with the sign-in that started it', () => {
     });
     expect(planReturn({ kind: 'error', error: 'invalid_request', description: 'AADSTS50011: bad redirect\r\nTrace', state: '' }, [], 0)).toEqual({
       kind: 'refused',
-      message: 'Microsoft refused the sign-in: AADSTS50011: bad redirect',
+      message: 'The sign-in was refused: AADSTS50011: bad redirect',
     });
   });
 
@@ -83,7 +88,7 @@ describe('the attach session on the page', () => {
   });
 
   test('a settled session becomes the outcome the return tab shows', () => {
-    expect(outcomeOf(toSession({ ...base, status: 'done' }), '#/x')).toEqual({ ok: true });
+    expect(outcomeOf(toSession({ ...base, status: 'done' }), '#/x')).toEqual({ ok: true, station: 'outlook' });
     expect(outcomeOf(toSession({ ...base, status: 'failed', error: 'nope' }), '#/x')).toEqual({ ok: false, message: 'nope', backHash: '#/x' });
     expect(outcomeOf(toSession(base), '#/x')).toBeNull();
   });

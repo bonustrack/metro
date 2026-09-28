@@ -6,6 +6,7 @@ export const STATIONS = [
   'whatsapp',
   'threema',
   'outlook',
+  'gmail',
   'webhook',
 ] as const;
 

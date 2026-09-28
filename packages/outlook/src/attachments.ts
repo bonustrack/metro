@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { assertAttachmentSize, kindOf, saveBufferToCache, type SavedAttachment } from '@metro-labs/core/stations/attachments';
+import type { AttachmentMeta, OutgoingFile } from '@metro-labs/core/stations/mail';
 import { TrainError } from '@metro-labs/core/train-error';
 import type { Account } from './accounts.js';
-import type { AttachmentMeta } from './format.js';
 import { graph, graphJson, messagePath } from './graph.js';
 
 export const MAX_FILE_BYTES = 3 * 1024 * 1024;
@@ -52,22 +52,6 @@ export async function saveFile(acct: Account, messageId: string, file: MailFile,
   const data = new Uint8Array(await res.arrayBuffer());
   return saveBufferToCache(data, cacheKey(messageId), index, { mime: file.mime, name: file.name });
 }
-
-export interface OutgoingFile {
-  path: string;
-  mime: string;
-  name: string;
-}
-
-export const filesOf = (raw: unknown): OutgoingFile[] =>
-  (Array.isArray(raw) ? raw : [])
-    .map((a) => (a ?? {}) as Record<string, unknown>)
-    .filter((a) => typeof a.path === 'string' && a.path !== '')
-    .map((a) => ({
-      path: String(a.path),
-      mime: typeof a.mime === 'string' && a.mime !== '' ? a.mime : 'application/octet-stream',
-      name: typeof a.name === 'string' && a.name !== '' ? a.name : 'file',
-    }));
 
 export async function assertSendable(files: OutgoingFile[]): Promise<void> {
   for (const file of files) {

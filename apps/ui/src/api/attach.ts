@@ -31,6 +31,8 @@ export interface StationForm {
   links?: HintLink[];
   interactive: boolean;
   fields: AttachField[];
+  provider?: string;
+  codeFallback?: boolean;
 }
 
 
@@ -138,11 +140,33 @@ export const STATION_FORMS: Record<string, StationForm> = {
     label: 'Outlook',
     hint: 'Connects a Microsoft 365 or Outlook.com mailbox. You sign in with Microsoft in a new tab. The agent reads new mail, searches it and answers in the same thread.',
     interactive: true,
+    provider: 'Microsoft',
+    codeFallback: true,
     fields: [
       {
         key: 'mailbox',
         label: 'Mailbox (optional)',
         placeholder: 'andy@company.com',
+        secret: false,
+        kind: 'text',
+        optional: true,
+        hint: 'Type the mailbox to connect, and Metro refuses any other account.',
+      },
+    ],
+  },
+  gmail: {
+    label: 'Gmail',
+    hint: 'Connects a Gmail or Google Workspace mailbox through your own Google OAuth client. You sign in with Google in a new tab. The agent reads new mail, searches it and answers in the same thread.',
+    links: [{ text: 'How to set up the Google client', href: 'https://github.com/bonustrack/metro/blob/main/docs/GMAIL.md' }],
+    interactive: true,
+    provider: 'Google',
+    fields: [
+      { key: 'clientId', label: 'Client ID', placeholder: '1234-abcd.apps.googleusercontent.com', secret: false, kind: 'text' },
+      { key: 'clientSecret', label: 'Client secret', placeholder: 'GOCSPX-...', secret: true, kind: 'text' },
+      {
+        key: 'mailbox',
+        label: 'Mailbox (optional)',
+        placeholder: 'admin@company.com',
         secret: false,
         kind: 'text',
         optional: true,

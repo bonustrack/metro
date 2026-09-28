@@ -21,6 +21,7 @@ const STATION_SOURCES = [
   ['packages/whatsapp', 'whatsapp'],
   ['packages/threema', 'threema'],
   ['packages/outlook', 'outlook'],
+  ['packages/gmail', 'gmail'],
   ['packages/webhook', 'webhook'],
 ];
 

@@ -31,13 +31,16 @@ const whatsappLink = (id: string): string | null => {
   return number === undefined ? null : `https://wa.me/${number}`;
 };
 
+const mailtoLink = (id: string): string | null => (id.includes('@') && !id.startsWith('@') ? `mailto:${id}` : null);
+
 const LINKS: Record<string, (id: string, handle: string | undefined) => string | null> = {
   'telegram-bot': telegramLink,
   telegram: telegramLink,
   'discord-bot': (id) => (/^\d+$/.test(id) ? `https://discord.com/users/${id}` : null),
   whatsapp: (id, handle) => whatsappLink(id) ?? (handle === undefined ? null : whatsappLink(handle)),
   threema: (id) => (/^[A-Z0-9*]{8}$/i.test(id) ? `https://threema.id/${id.toUpperCase()}` : null),
-  outlook: (id) => (id.includes('@') && !id.startsWith('@') ? `mailto:${id}` : null),
+  outlook: mailtoLink,
+  gmail: mailtoLink,
 };
 
 export const chatLink = (station: string, id: string, handle?: string): string | null => LINKS[station]?.(id, handle) ?? null;

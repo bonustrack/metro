@@ -4,18 +4,19 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { agentsUrl } from '../api/client.js';
 import { stateOf } from '../api/attach-session.js';
-import { rememberSignIn } from '../api/outlook-return.js';
+import { rememberSignIn } from '../api/sign-in-return.js';
 
 interface BrowserSignInProps {
   agentId: string;
   attachId: string;
   authorizeUrl: string;
+  provider: string;
   busy: boolean;
-  onUseCode: () => void;
+  onUseCode: (() => void) | null;
 }
 
 export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
-  const { agentId, attachId, authorizeUrl, busy, onUseCode } = props;
+  const { agentId, attachId, authorizeUrl, provider, busy, onUseCode } = props;
   const dark = useKitScheme() === 'dark';
   const [opened, setOpened] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -34,11 +35,11 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
   };
   return (
     <Col gap={10}>
-      <Button color="primary" dark={dark} onPress={open} disabled={busy} label="Sign in with Microsoft" />
+      <Button color="primary" dark={dark} onPress={open} disabled={busy} label={`Sign in with ${provider}`} />
       {blocked ? (
         <Text size="sm">
           <a className="hint-link" href={authorizeUrl} target="_blank" rel="noreferrer">
-            Open the Microsoft sign-in page
+            Open the {provider} sign-in page
           </a>
         </Text>
       ) : null}
@@ -47,7 +48,9 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
           Waiting for you to sign in.
         </Text>
       ) : null}
-      <Button size="sm" color="secondary" dark={dark} onPress={onUseCode} disabled={busy} loading={busy} label="Use a code instead" />
+      {onUseCode === null ? null : (
+        <Button size="sm" color="secondary" dark={dark} onPress={onUseCode} disabled={busy} loading={busy} label="Use a code instead" />
+      )}
     </Col>
   );
 }

@@ -26,8 +26,8 @@ import { isCurrentOrganization, resolveOrganization, routedOrganization } from '
 import { OrganizationSetup } from './components/OrganizationSetup.js';
 import { Organization } from './components/Organization.js';
 import { daemonBase, daemonHost, looksLikeHost, setCurrentServer, storedServerId } from './auth/daemon.js';
-import { OutlookReturn } from './components/OutlookReturn.js';
-import { microsoftReturn } from './api/outlook-return.js';
+import { SignInReturn } from './components/SignInReturn.js';
+import { signInReturn } from './api/sign-in-return.js';
 import { pendingInvitation, takeInvitationFromUrl } from './auth/invitation.js';
 
 type Phase = 'loading' | 'login' | 'organization' | 'unlocked';
@@ -205,11 +205,11 @@ function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () 
 }
 
 export function App(): ReactNode {
-  const [returned] = useState(() => microsoftReturn(window.location.search));
+  const [returned] = useState(() => signInReturn(window.location.search));
   if (returned === null) return <MetroApp />;
   return (
     <div className="app-root">
-      <OutlookReturn ret={returned} />
+      <SignInReturn ret={returned} />
       <BuildDot />
     </div>
   );

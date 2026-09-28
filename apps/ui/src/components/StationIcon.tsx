@@ -9,6 +9,7 @@ const STATION_SITES: Record<string, string> = {
   whatsapp: 'https://whatsapp.com',
   threema: 'https://threema.ch',
   outlook: 'https://outlook.com',
+  gmail: 'https://mail.google.com',
 };
 
 export interface StationIconProps {

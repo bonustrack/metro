@@ -3,13 +3,14 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
 import { loadAccount } from '../auth/account.js';
 import { pageTitle } from '../title.js';
-import { finishReturn, type MicrosoftReturn, type ReturnOutcome } from '../api/outlook-return.js';
+import { stationLabel } from '../api/attach.js';
+import { finishReturn, type ReturnOutcome, type ReturnedSignIn } from '../api/sign-in-return.js';
 
 const WIDTH = 480;
 
 let running: Promise<ReturnOutcome> | null = null;
 
-function finishOnce(ret: MicrosoftReturn): Promise<ReturnOutcome> {
+function finishOnce(ret: ReturnedSignIn): Promise<ReturnOutcome> {
   if (running === null) {
     loadAccount();
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`);
@@ -18,11 +19,11 @@ function finishOnce(ret: MicrosoftReturn): Promise<ReturnOutcome> {
   return running;
 }
 
-export function OutlookReturn({ ret }: { ret: MicrosoftReturn }): ReactNode {
+export function SignInReturn({ ret }: { ret: ReturnedSignIn }): ReactNode {
   const [outcome, setOutcome] = useState<ReturnOutcome | null>(null);
 
   useEffect(() => {
-    document.title = pageTitle('Outlook');
+    document.title = pageTitle('Sign in');
     finishOnce(ret)
       .then(setOutcome)
       .catch((err: unknown) => {
@@ -34,9 +35,9 @@ export function OutlookReturn({ ret }: { ret: MicrosoftReturn }): ReactNode {
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={12} align="center" width="100%" maxWidth={WIDTH}>
         {outcome === null ? (
-          <Text role="secondary">Finishing the Microsoft sign-in…</Text>
+          <Text role="secondary">Finishing the sign-in…</Text>
         ) : outcome.ok ? (
-          <Text>Outlook is connected. You can close this tab.</Text>
+          <Text>{stationLabel(outcome.station)} is connected. You can close this tab.</Text>
         ) : (
           <>
             <Text role="danger">{outcome.message}</Text>

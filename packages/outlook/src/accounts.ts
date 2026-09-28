@@ -1,10 +1,9 @@
 import { makeAccountStore, resolveAccountId, type Die } from '@metro-labs/core/stations/account-store';
+import { threadOfLine } from '@metro-labs/core/stations/mail';
+import { TokenKeeper, type FetchLike } from '@metro-labs/core/stations/oauth';
 import { TrainError } from '@metro-labs/core/train-error';
-import { refreshTokens, type FetchLike } from './auth.js';
-import { conversationOfLine } from './format.js';
+import { refreshTokens } from './auth.js';
 import { loadState, saveState, type AccountState } from './state.js';
-
-const RENEW_BEFORE_MS = 5 * 60_000;
 
 export interface AccountConfig {
   id: string;
@@ -27,20 +26,23 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
   },
 });
 
+const signedOut = (err: unknown): never => {
+  throw new TrainError('outlook_signed_out', err instanceof Error ? err.message : String(err), { retryable: false });
+};
+
 export class Account {
   readonly email: string;
   readonly state: AccountState;
-  private refreshing: Promise<string> | null = null;
+  private readonly keeper: TokenKeeper;
 
   constructor(
     readonly cfg: AccountConfig,
     private readonly fetchImpl: FetchLike = (input, init) => fetch(input, init),
   ) {
     this.email = cfg.accountEmail.toLowerCase();
-    this.state = loadState(cfg.id, {
-      refreshToken: cfg.refreshToken,
-      accessToken: cfg.accessToken ?? '',
-      expiresAt: cfg.expiresAt ?? 0,
+    this.state = loadState(cfg.id, { refreshToken: cfg.refreshToken, accessToken: cfg.accessToken ?? '', expiresAt: cfg.expiresAt ?? 0 });
+    this.keeper = new TokenKeeper(this.state, (refreshToken) => refreshTokens(refreshToken, this.fetchImpl).catch(signedOut), () => {
+      this.save();
     });
   }
 
@@ -53,24 +55,7 @@ export class Account {
   }
 
   token(force = false): Promise<string> {
-    const fresh = this.state.accessToken !== '' && this.state.expiresAt - RENEW_BEFORE_MS > Date.now();
-    if (fresh && !force) return Promise.resolve(this.state.accessToken);
-    this.refreshing ??= this.renew().finally(() => {
-      this.refreshing = null;
-    });
-    return this.refreshing;
-  }
-
-  private async renew(): Promise<string> {
-    let tokens;
-    try {
-      tokens = await refreshTokens(this.state.refreshToken, this.fetchImpl);
-    } catch (err) {
-      throw new TrainError('outlook_signed_out', err instanceof Error ? err.message : String(err), { retryable: false });
-    }
-    Object.assign(this.state, tokens);
-    this.save();
-    return tokens.accessToken;
+    return this.keeper.token(force);
   }
 
   fetch(input: string, init?: RequestInit): Promise<Response> {
@@ -80,7 +65,7 @@ export class Account {
 
 export const accounts = new Map<string, Account>();
 
-export function accountFor(id: string): Account {
+function accountFor(id: string): Account {
   const acct = accounts.get(id);
   if (!acct) throw new Error(`unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`);
   return acct;
@@ -89,5 +74,5 @@ export function accountFor(id: string): Account {
 export function accountOf(args: { account?: unknown; line?: unknown }): Account {
   const line = typeof args.line === 'string' && args.line !== '' ? args.line : undefined;
   const account = typeof args.account === 'string' && args.account !== '' ? args.account : undefined;
-  return accountFor(resolveAccountId(accounts, { account, line }, (l) => conversationOfLine(l)?.accountId));
+  return accountFor(resolveAccountId(accounts, { account, line }, (l) => threadOfLine('outlook', l)?.accountId));
 }

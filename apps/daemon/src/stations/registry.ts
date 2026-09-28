@@ -8,6 +8,7 @@ import { discordBotStation } from '@metro-labs/discord-bot';
 import { whatsappStation } from '@metro-labs/whatsapp';
 import { threemaStation } from '@metro-labs/threema';
 import { outlookStation } from '@metro-labs/outlook';
+import { gmailStation } from '@metro-labs/gmail';
 import { webhookStation } from '@metro-labs/webhook';
 
 export const STATIONS: readonly Station[] = [
@@ -18,6 +19,7 @@ export const STATIONS: readonly Station[] = [
   whatsappStation,
   threemaStation,
   outlookStation,
+  gmailStation,
   webhookStation,
 ];
 

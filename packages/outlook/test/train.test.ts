@@ -4,13 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Account, accounts } from '../src/accounts.ts';
 import { handleCall } from '../src/actions.ts';
-import { lineOf } from '../src/format.ts';
-import { htmlToText } from '../src/html.ts';
+import { mailLine } from '@metro-labs/core/stations/mail';
+import { htmlToText } from '@metro-labs/core/stations/mail-text';
 import { syncOnce } from '../src/inbound.ts';
 import { capture, fakeFetch, GRAPH, json, useFakeMicrosoft, type Route, type Seen } from './fake.ts';
 
 const SELF = 'andy@anderra.ch';
 const CONV = 'AAQkAD/abc+def=';
+const lineOf = (account: string, id: string): string => mailLine('outlook', account, id);
 const LINE = lineOf('o1', CONV);
 
 const message = (id: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({

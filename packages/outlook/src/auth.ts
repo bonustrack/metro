@@ -1,14 +1,5 @@
+import { postForm, seconds, SignInError, tokensOf, type FetchLike, type OAuthBody, type Tokens } from '@metro-labs/core/stations/oauth';
 import { clientId, loginBase, NOT_SET_UP, SCOPES } from './config.js';
-
-export class OutlookAuthError extends Error {}
-
-export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
-
-export interface Tokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-}
 
 export interface DeviceCode {
   deviceCode: string;
@@ -25,35 +16,21 @@ export type Poll =
   | { kind: 'done'; tokens: Tokens; tenantId: string | null }
   | { kind: 'failed'; message: string };
 
-type Body = Record<string, unknown>;
+type Body = OAuthBody;
 
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
 const CONSENT_CODES = new Set([65001, 90094, 90095]);
 const POLICY_CODES = new Set([530035, 53003]);
 
 const text = (v: unknown): string => (typeof v === 'string' ? v : '');
-const seconds = (v: unknown, fallback: number): number =>
-  typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback;
 
 export function requireClientId(id = clientId()): string {
-  if (id === '') throw new OutlookAuthError(NOT_SET_UP);
+  if (id === '') throw new SignInError(NOT_SET_UP);
   return id;
 }
 
-export async function postForm(path: string, fields: Record<string, string>, fetchImpl: FetchLike): Promise<{ status: number; body: Body }> {
-  let res: Response;
-  try {
-    res = await fetchImpl(`${loginBase()}/oauth2/v2.0/${path}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
-      body: new URLSearchParams(fields).toString(),
-    });
-  } catch (err) {
-    throw new OutlookAuthError(`Metro could not reach Microsoft: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  const raw: unknown = await res.json().catch(() => ({}));
-  return { status: res.status, body: typeof raw === 'object' && raw !== null ? (raw as Body) : {} };
-}
+export const postLogin = (path: string, fields: Record<string, string>, fetchImpl: FetchLike): Promise<{ status: number; body: Body }> =>
+  postForm(`${loginBase()}/oauth2/v2.0/${path}`, fields, fetchImpl, 'Microsoft');
 
 function codesOf(body: Body): number[] {
   const listed = Array.isArray(body.error_codes) ? body.error_codes.filter((c): c is number => typeof c === 'number') : [];
@@ -101,18 +78,11 @@ export function tenantOf(...jwts: string[]): string | null {
   return null;
 }
 
-export function tokensOf(body: Body, now: number, previous?: string): Tokens {
-  const accessToken = text(body.access_token);
-  const refreshToken = text(body.refresh_token) || (previous ?? '');
-  if (accessToken === '' || refreshToken === '') throw new OutlookAuthError('Microsoft answered without the tokens Metro needs.');
-  return { accessToken, refreshToken, expiresAt: now + seconds(body.expires_in, 3600) * 1000 };
-}
-
 export async function requestDeviceCode(fetchImpl: FetchLike = fetch, now = Date.now()): Promise<DeviceCode> {
-  const { status, body } = await postForm('devicecode', { client_id: requireClientId(), scope: SCOPES }, fetchImpl);
+  const { status, body } = await postLogin('devicecode', { client_id: requireClientId(), scope: SCOPES }, fetchImpl);
   const userCode = text(body.user_code);
   const deviceCode = text(body.device_code);
-  if (status !== 200 || userCode === '' || deviceCode === '') throw new OutlookAuthError(failureOf(body));
+  if (status !== 200 || userCode === '' || deviceCode === '') throw new SignInError(failureOf(body));
   return {
     deviceCode,
     userCode,
@@ -124,13 +94,13 @@ export async function requestDeviceCode(fetchImpl: FetchLike = fetch, now = Date
 }
 
 export async function pollDeviceCode(code: DeviceCode, fetchImpl: FetchLike = fetch, now = Date.now()): Promise<Poll> {
-  const { status, body } = await postForm(
+  const { status, body } = await postLogin(
     'token',
     { grant_type: DEVICE_GRANT, client_id: requireClientId(), device_code: code.deviceCode },
     fetchImpl,
   );
   if (status === 200) {
-    const tokens = tokensOf(body, now);
+    const tokens = tokensOf(body, now, 'Microsoft');
     return { kind: 'done', tokens, tenantId: tenantOf(text(body.id_token), tokens.accessToken) };
   }
   const error = text(body.error);
@@ -140,11 +110,11 @@ export async function pollDeviceCode(code: DeviceCode, fetchImpl: FetchLike = fe
 }
 
 export async function refreshTokens(refreshToken: string, fetchImpl: FetchLike = fetch, now = Date.now()): Promise<Tokens> {
-  const { status, body } = await postForm(
+  const { status, body } = await postLogin(
     'token',
     { grant_type: 'refresh_token', client_id: requireClientId(), refresh_token: refreshToken, scope: SCOPES },
     fetchImpl,
   );
-  if (status !== 200) throw new OutlookAuthError(`Microsoft refused to renew this mailbox's sign-in, so connect Outlook again. ${failureOf(body)}`);
-  return tokensOf(body, now, refreshToken);
+  if (status !== 200) throw new SignInError(`Microsoft refused to renew this mailbox's sign-in, so connect Outlook again. ${failureOf(body)}`);
+  return tokensOf(body, now, 'Microsoft', refreshToken);
 }

@@ -91,6 +91,11 @@ const STATION_TARGETS: Record<StationName, StationTarget> = {
     fileEnv: 'OUTLOOK_ACCOUNTS_FILE',
     trainImport: '@metro-labs/outlook/train',
   },
+  gmail: {
+    file: 'gmail-accounts.json',
+    fileEnv: 'GMAIL_ACCOUNTS_FILE',
+    trainImport: '@metro-labs/gmail/train',
+  },
   webhook: {
     file: 'webhook-accounts.json',
     fileEnv: 'WEBHOOK_ACCOUNTS_FILE',

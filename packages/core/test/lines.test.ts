@@ -79,13 +79,15 @@ describe('isLocal', () => {
   });
 });
 
-describe('outlook lines', () => {
+describe('mail lines', () => {
   test('a conversation id with the escaped base64 characters parses', () => {
-    expect(Line.parseOutlook('metro://outlook/o1/AAQkAD%2Fabc%2Bdef_-=')).toEqual({ accountId: 'o1', resource: 'AAQkAD%2Fabc%2Bdef_-=' });
+    expect(Line.parseMail('metro://outlook/o1/AAQkAD%2Fabc%2Bdef_-=', 'outlook')).toEqual({ accountId: 'o1', resource: 'AAQkAD%2Fabc%2Bdef_-=' });
+    expect(Line.parseMail('metro://gmail/g1/18c2f0a9d1e3b4c5', 'gmail')).toEqual({ accountId: 'g1', resource: '18c2f0a9d1e3b4c5' });
   });
   test('a sender line and another station are not conversations', () => {
-    expect(Line.parseOutlook('metro://outlook/o1/user/bea@example.ch')).toBeNull();
-    expect(Line.parseOutlook('metro://threema/o1/ECHOECHO')).toBeNull();
+    expect(Line.parseMail('metro://outlook/o1/user/bea@example.ch', 'outlook')).toBeNull();
+    expect(Line.parseMail('metro://threema/o1/ECHOECHO', 'outlook')).toBeNull();
+    expect(Line.parseMail('metro://outlook/o1/AAQkAD=', 'gmail')).toBeNull();
   });
 });
 

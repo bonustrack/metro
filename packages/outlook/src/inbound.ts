@@ -1,11 +1,12 @@
 import { log } from '@metro-labs/core/log';
+import { mailEnvelope, noteSeen, pollForever } from '@metro-labs/core/stations/mail';
+import type { Screened } from '@metro-labs/core/stations/mail-trust';
 import { emitInbound, reportAttachment } from '@metro-labs/core/stations/train-events';
 import type { Account } from './accounts.js';
 import { listFiles, metaOf, saveFile, type MailFile } from './attachments.js';
-import { addressOf, inboundEnvelope, MESSAGE_FIELDS, type GraphMessage } from './format.js';
+import { addressOf, itemOf, MESSAGE_FIELDS, type GraphMessage } from './format.js';
 import { graphJson, GraphGone } from './graph.js';
-import { noteSeen } from './state.js';
-import { screen, type Screened } from './trust.js';
+import { screen } from './trust.js';
 
 export const POLL_MS = Number(process.env.METRO_OUTLOOK_POLL_MS) || 30_000;
 
@@ -47,7 +48,7 @@ async function deliver(acct: Account, m: GraphMessage): Promise<boolean> {
           return [];
         })
       : [];
-  const env = inboundEnvelope(acct.id, acct.email, m, files.map(metaOf), verdict.verified);
+  const env = mailEnvelope('outlook', acct.id, acct.email, itemOf(m), files.map(metaOf), verdict.verified);
   emitInbound(acct.id, env);
   const at = { station: 'outlook', account: acct.id, line: String(env.line), forId: String(env.id) };
   for (const [index, file] of files.entries())
@@ -80,7 +81,7 @@ export async function syncOnce(acct: Account): Promise<number> {
     state.deltaLink = await walk(acct, state.deltaLink, async (m) => {
       if (!fresh(acct, m, since)) return;
       if (await deliver(acct, m)) count += 1;
-      noteSeen(state, m.id);
+      noteSeen(state.seen, m.id);
     });
   } catch (err) {
     if (!(err instanceof GraphGone)) throw err;
@@ -90,15 +91,6 @@ export async function syncOnce(acct: Account): Promise<number> {
   return count;
 }
 
-export function startPolling(acct: Account, intervalMs = POLL_MS): void {
-  const tick = (): void => {
-    syncOnce(acct)
-      .catch((err: unknown) => {
-        process.stderr.write(`outlook[${acct.id}] mail check failed: ${err instanceof Error ? err.message : String(err)}\n`);
-      })
-      .finally(() => {
-        setTimeout(tick, intervalMs);
-      });
-  };
-  tick();
+export function startPolling(acct: Account): void {
+  pollForever(`outlook[${acct.id}]`, () => syncOnce(acct), POLL_MS);
 }

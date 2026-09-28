@@ -11,7 +11,7 @@ export interface PendingSignIn {
   startedAt: number;
 }
 
-export type MicrosoftReturn =
+export type ReturnedSignIn =
   | { kind: 'code'; code: string; state: string }
   | { kind: 'error'; error: string; description: string; state: string };
 
@@ -77,7 +77,7 @@ function forgetSignIn(state: string): void {
   writePending(readPending().filter((e) => e.state !== state));
 }
 
-export function microsoftReturn(search: string): MicrosoftReturn | null {
+export function signInReturn(search: string): ReturnedSignIn | null {
   const q = new URLSearchParams(search);
   const state = q.get('state') ?? '';
   const code = q.get('code') ?? '';
@@ -90,10 +90,10 @@ export function microsoftReturn(search: string): MicrosoftReturn | null {
 function refusalText(error: string, description: string): string {
   if (error === 'access_denied') return 'The sign-in was declined, so nothing was connected.';
   const first = description.split(/\r?\n/)[0] ?? '';
-  return first === '' ? `Microsoft refused the sign-in (${error}).` : `Microsoft refused the sign-in: ${first}`;
+  return first === '' ? `The sign-in was refused (${error}).` : `The sign-in was refused: ${first}`;
 }
 
-export function planReturn(ret: MicrosoftReturn, entries: PendingSignIn[], now: number): ReturnPlan {
+export function planReturn(ret: ReturnedSignIn, entries: PendingSignIn[], now: number): ReturnPlan {
   const entry = entries.find((e) => e.state === ret.state && now - e.startedAt < TTL_MS);
   if (entry === undefined)
     return ret.kind === 'error' ? { kind: 'refused', message: refusalText(ret.error, ret.description) } : { kind: 'expired' };
@@ -104,10 +104,10 @@ export function planReturn(ret: MicrosoftReturn, entries: PendingSignIn[], now: 
   return { kind: 'post', entry, body };
 }
 
-export type ReturnOutcome = { ok: true } | { ok: false; message: string; backHash: string | null };
+export type ReturnOutcome = { ok: true; station: string } | { ok: false; message: string; backHash: string | null };
 
 export function outcomeOf(session: AttachSession, backHash: string): ReturnOutcome | null {
-  if (session.status === 'done') return { ok: true };
+  if (session.status === 'done') return { ok: true, station: session.station };
   if (session.status === 'failed') return { ok: false, message: session.error ?? 'That sign-in failed.', backHash };
   return null;
 }
@@ -129,7 +129,7 @@ async function settled(entry: PendingSignIn, first: AttachSession): Promise<Retu
   return { ok: false, message: 'Metro did not finish the sign-in in time. Check the Channels page.', backHash: entry.backHash };
 }
 
-export async function finishReturn(ret: MicrosoftReturn, now = Date.now()): Promise<ReturnOutcome> {
+export async function finishReturn(ret: ReturnedSignIn, now = Date.now()): Promise<ReturnOutcome> {
   const plan = planReturn(ret, readPending(), now);
   if (plan.kind === 'expired') return { ok: false, message: EXPIRED, backHash: null };
   if (plan.kind === 'refused') return { ok: false, message: plan.message, backHash: null };

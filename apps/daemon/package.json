@@ -30,6 +30,7 @@
     "@metro-labs/telegram-bot": "workspace:*",
     "@metro-labs/threema": "workspace:*",
     "@metro-labs/outlook": "workspace:*",
+    "@metro-labs/gmail": "workspace:*",
     "@metro-labs/webhook": "workspace:*",
     "@metro-labs/whatsapp": "workspace:*",
     "@metro-labs/xmtp": "workspace:*",

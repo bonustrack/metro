@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { failureOf } from '../src/auth.ts';
-import { authorizeUrl, pkcePair } from '../src/browser.ts';
+import { pkcePair } from '@metro-labs/core/stations/oauth';
+import { authorizeUrl } from '../src/browser.ts';
 import { OutlookBrowserLogin } from '../src/login.ts';
 import { fakeFetch, GRAPH, json, LOGIN, useFakeMicrosoft } from './fake.ts';
 

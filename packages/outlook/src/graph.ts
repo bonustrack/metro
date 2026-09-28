@@ -1,4 +1,4 @@
-import { TrainError } from '@metro-labs/core/train-error';
+import { refusalOf, type MailService } from '@metro-labs/core/stations/mail';
 import type { Account } from './accounts.js';
 import { graphBase } from './config.js';
 
@@ -15,16 +15,11 @@ async function graphMessage(res: Response): Promise<string> {
 
 export class GraphGone extends Error {}
 
+const OUTLOOK: MailService = { station: 'outlook', company: 'Microsoft', product: 'Outlook', api: 'Microsoft Graph', apiCode: 'graph_error' };
+
 async function refusal(res: Response): Promise<Error> {
   const detail = await graphMessage(res);
-  const status = res.status;
-  if (status === 410) return new GraphGone(detail);
-  if (status === 401) return new TrainError('outlook_signed_out', `Microsoft refused this mailbox's sign-in (${detail}); connect Outlook again from the page`, { retryable: false });
-  if (status === 403) return new TrainError('outlook_forbidden', `Microsoft does not let Metro do that on this mailbox (${detail})`, { retryable: false });
-  if (status === 404) return new TrainError('outlook_not_found', `Outlook has no such message or conversation (${detail})`, { retryable: false });
-  if (status === 413) return new TrainError('outlook_too_large', `Outlook refused the size of that request (${detail})`, { retryable: false });
-  if (status === 429) return new TrainError('outlook_throttled', `Microsoft asked Metro to slow down (${detail}); try again in a minute`, { retryable: true });
-  return new TrainError('outlook_graph_error', `Microsoft Graph answered ${String(status)} (${detail})`, { retryable: status >= 500 });
+  return res.status === 410 ? new GraphGone(detail) : refusalOf(OUTLOOK, res.status, detail);
 }
 
 async function send(acct: Account, path: string, init: RequestInit, force: boolean): Promise<Response> {

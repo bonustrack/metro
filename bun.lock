@@ -40,6 +40,7 @@
       "dependencies": {
         "@metro-labs/core": "workspace:*",
         "@metro-labs/discord-bot": "workspace:*",
+        "@metro-labs/gmail": "workspace:*",
         "@metro-labs/http": "workspace:*",
         "@metro-labs/outlook": "workspace:*",
         "@metro-labs/telegram": "workspace:*",
@@ -90,7 +91,7 @@
     },
     "packages/cli": {
       "name": "@stage-labs/metro",
-      "version": "0.1.0-beta.174",
+      "version": "0.1.0-beta.219",
       "bin": {
         "metro": "dist/cli.js",
       },
@@ -123,6 +124,20 @@
       "dependencies": {
         "@metro-labs/core": "workspace:*",
         "discord.js": "^14.26.4",
+      },
+      "devDependencies": {
+        "@stage-labs/config": "0.1.0-beta.2",
+        "eslint": "^10.3.0",
+        "knip": "^6.15.0",
+        "madge": "^8.0.0",
+        "typescript": "^5",
+      },
+    },
+    "packages/gmail": {
+      "name": "@metro-labs/gmail",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metro-labs/core": "workspace:*",
       },
       "devDependencies": {
         "@stage-labs/config": "0.1.0-beta.2",
@@ -715,6 +730,8 @@
     "@metro-labs/daemon": ["@metro-labs/daemon@workspace:apps/daemon"],
 
     "@metro-labs/discord-bot": ["@metro-labs/discord-bot@workspace:packages/discord-bot"],
+
+    "@metro-labs/gmail": ["@metro-labs/gmail@workspace:packages/gmail"],
 
     "@metro-labs/http": ["@metro-labs/http@workspace:packages/http"],
 

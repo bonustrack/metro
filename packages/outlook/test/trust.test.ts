@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { Account } from '../src/accounts.ts';
 import { syncOnce } from '../src/inbound.ts';
-import { automatedByHeaders, automatedBySender, senderVerified, type Header } from '../src/trust.ts';
+import { automatedByHeaders, automatedBySender, type MailHeader as Header } from '@metro-labs/core/stations/mail-trust';
+import { senderVerified } from '../src/trust.ts';
 import { capture, fakeFetch, GRAPH, json, useFakeMicrosoft, type Seen } from './fake.ts';
 
 const h = (name: string, value: string): Header => ({ name, value });

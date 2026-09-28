@@ -16,7 +16,7 @@ import {
   type AttachSession as Session,
   type StepBody as StepInput,
 } from '../api/attach-session.js';
-import { stationLabel, type AttachResult } from '../api/attach.js';
+import { STATION_FORMS, stationLabel, type AttachResult } from '../api/attach.js';
 import { DeviceSignIn } from './DeviceSignIn.js';
 import { BrowserSignIn } from './BrowserSignIn.js';
 
@@ -85,7 +85,7 @@ function CodeEntry({
   );
 }
 
-function MicrosoftStep({
+function BrowserStep({
   agentId,
   session,
   busy,
@@ -102,17 +102,24 @@ function MicrosoftStep({
     ) : (
       <DeviceSignIn code={session.userCode} uri={session.verificationUri} />
     );
+  const form = STATION_FORMS[session.station];
+  const provider = form?.provider ?? stationLabel(session.station);
   return session.authorizeUrl === null ? (
-    <Waiting label="Preparing the Microsoft sign-in." />
+    <Waiting label={`Preparing the ${provider} sign-in.`} />
   ) : (
     <BrowserSignIn
       agentId={agentId}
       attachId={session.attachId}
       authorizeUrl={session.authorizeUrl}
+      provider={provider}
       busy={busy}
-      onUseCode={() => {
-        onSubmit({ mode: 'device' });
-      }}
+      onUseCode={
+        form?.codeFallback === true
+          ? () => {
+              onSubmit({ mode: 'device' });
+            }
+          : null
+      }
     />
   );
 }
@@ -130,7 +137,7 @@ function StepBody({
 }): ReactNode {
   const { step, qr, pairingCode } = session;
   if (step === 'browser' || step === 'device')
-    return <MicrosoftStep agentId={agentId} session={session} busy={busy} onSubmit={onSubmit} />;
+    return <BrowserStep agentId={agentId} session={session} busy={busy} onSubmit={onSubmit} />;
   if (step === 'scan')
     return qr === null ? (
       <Waiting label="Waiting for WhatsApp to hand over a QR code." />
