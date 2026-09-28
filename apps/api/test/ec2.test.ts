@@ -25,7 +25,7 @@ interface Seen {
   body: URLSearchParams;
 }
 
-function stub(status: number, xml: string): Seen[] {
+function stub(status: number, xml: string | string[]): Seen[] {
   const seen: Seen[] = [];
   globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     seen.push({
@@ -34,7 +34,8 @@ function stub(status: number, xml: string): Seen[] {
       headers: { ...(init?.headers as Record<string, string>) },
       body: new URLSearchParams(String(init?.body)),
     });
-    return Promise.resolve(new Response(xml, { status, headers: { 'content-type': 'text/xml' } }));
+    const answer = Array.isArray(xml) ? (xml[seen.length - 1] ?? '') : xml;
+    return Promise.resolve(new Response(answer, { status, headers: { 'content-type': 'text/xml' } }));
   }) as typeof fetch;
   return seen;
 }
@@ -160,5 +161,23 @@ describe('EC2 from the browser', () => {
     expect(body.get('Action')).toBe('DescribeInstanceTypes');
     expect(body.get('Filter.1.Name')).toBe('instance-type');
     expect([body.get('Filter.1.Value.1'), body.get('Filter.1.Value.2'), body.get('Filter.1.Value.3')]).toEqual(['t4g.large', 't3.large', 'x9.huge']);
+  });
+
+  test('DescribeInstanceTypes reads every page, since EC2 filters each page apart and an early one can hold none of the sizes', async () => {
+    const pages = [
+      '<DescribeInstanceTypesResponse><instanceTypeSet/><nextToken>page-2</nextToken></DescribeInstanceTypesResponse>',
+      '<DescribeInstanceTypesResponse><instanceTypeSet><item><instanceType>t4g.medium</instanceType><vCpuInfo><defaultVCpus>2</defaultVCpus></vCpuInfo><memoryInfo><sizeInMiB>4096</sizeInMiB></memoryInfo><processorInfo><supportedArchitectures><item>arm64</item></supportedArchitectures></processorInfo></item></instanceTypeSet><nextToken>page-3</nextToken></DescribeInstanceTypesResponse>',
+      '<DescribeInstanceTypesResponse><instanceTypeSet><item><instanceType>t4g.large</instanceType><vCpuInfo><defaultVCpus>2</defaultVCpus></vCpuInfo><memoryInfo><sizeInMiB>8192</sizeInMiB></memoryInfo><processorInfo><supportedArchitectures><item>arm64</item></supportedArchitectures></processorInfo></item></instanceTypeSet></DescribeInstanceTypesResponse>',
+    ];
+    const seen = stub(200, pages);
+    expect((await describeInstanceTypes(CREDS, 'eu-central-2', ['t4g.medium', 't4g.large'])).map((info) => info.type)).toEqual(['t4g.medium', 't4g.large']);
+    expect(seen.map((s) => s.body.get('NextToken'))).toEqual([null, 'page-2', 'page-3']);
+    expect(seen.every((s) => s.body.get('Filter.1.Value.2') === 't4g.large' && s.body.get('MaxResults') === '100')).toBe(true);
+  });
+
+  test('DescribeInstanceTypes gives up on a list that never ends', async () => {
+    const seen = stub(200, '<DescribeInstanceTypesResponse><instanceTypeSet/><nextToken>again</nextToken></DescribeInstanceTypesResponse>');
+    await expect(describeInstanceTypes(CREDS, 'eu-central-2', ['t4g.large'])).rejects.toMatchObject({ name: 'AwsError', code: 'TooManyPages' });
+    expect(seen.length).toBe(50);
   });
 });

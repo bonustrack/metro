@@ -187,18 +187,27 @@ export interface InstanceTypeInfo {
 }
 
 const count = (text: string): number => (/^\d+$/.test(text) ? Number(text) : 0);
+const TYPE_PAGES_MAX = 50;
+
+const typeInfo = (item: XmlNode): InstanceTypeInfo => ({
+  type: textAt(item, 'instanceType'),
+  vcpus: count(textAt(item, 'vCpuInfo', 'defaultVCpus')),
+  memoryMib: count(textAt(item, 'memoryInfo', 'sizeInMiB')),
+  architectures: children(child(child(item, 'processorInfo'), 'supportedArchitectures'), 'item').map((arch) => arch.text.trim()),
+});
 
 export async function describeInstanceTypes(credentials: AwsCredentials, region: string, types: string[]): Promise<InstanceTypeInfo[]> {
   const values = Object.fromEntries(types.map((type, at) => [`Filter.1.Value.${String(at + 1)}`, type]));
-  const xml = await ec2(credentials, region, 'DescribeInstanceTypes', { MaxResults: '100', 'Filter.1.Name': 'instance-type', ...values });
-  return children(child(xml, 'instanceTypeSet'), 'item')
-    .map((item) => ({
-      type: textAt(item, 'instanceType'),
-      vcpus: count(textAt(item, 'vCpuInfo', 'defaultVCpus')),
-      memoryMib: count(textAt(item, 'memoryInfo', 'sizeInMiB')),
-      architectures: children(child(child(item, 'processorInfo'), 'supportedArchitectures'), 'item').map((arch) => arch.text.trim()),
-    }))
-    .filter((info) => info.type !== '');
+  const params = { MaxResults: '100', 'Filter.1.Name': 'instance-type', ...values };
+  const infos: InstanceTypeInfo[] = [];
+  let token = '';
+  for (let page = 0; page < TYPE_PAGES_MAX; page += 1) {
+    const xml = await ec2(credentials, region, 'DescribeInstanceTypes', token === '' ? params : { ...params, NextToken: token });
+    infos.push(...children(child(xml, 'instanceTypeSet'), 'item').map(typeInfo));
+    token = textAt(xml, 'nextToken');
+    if (token === '') return infos.filter((info) => info.type !== '');
+  }
+  throw new AwsError('TooManyPages', `EC2 listed the instance types of ${region} in more than ${String(TYPE_PAGES_MAX)} pages.`, 'ec2:DescribeInstanceTypes');
 }
 
 export interface ConsoleOutput {
