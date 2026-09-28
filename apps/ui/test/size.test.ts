@@ -18,10 +18,11 @@ describe('what the page shows about a server size', () => {
     const view = toSizeView(ANSWER);
     if (!view.resizable) throw new Error('expected a resizable view');
     expect(view.state).toBe('running');
+    expect(view.region).toBe('us-east-1');
     expect(view.options.map((o) => o.type)).toEqual(['m7g.large']);
     expect(view.job).toEqual({ from: 't4g.medium', to: 'm7g.large', phase: 'stopping', error: null });
     const bare = toSizeView({ resizable: true, type: 't4g.small', current: null, options: 'x', job: { phase: 'dancing' } });
-    expect(bare).toEqual({ resizable: true, state: 'unknown', type: 't4g.small', current: { type: 't4g.small', vcpus: null, memoryMib: null, hourlyUsd: null }, options: [], job: null });
+    expect(bare).toEqual({ resizable: true, region: '', state: 'unknown', type: 't4g.small', current: { type: 't4g.small', vcpus: null, memoryMib: null, hourlyUsd: null }, options: [], job: null });
     expect(toSizeView({ resizable: false, reason: 'not launched by Metro' })).toEqual({ resizable: false, reason: 'not launched by Metro' });
     expect(() => toSizeView(null)).toThrow('unexpected');
   });

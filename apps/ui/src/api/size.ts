@@ -20,7 +20,7 @@ export interface ResizeJob {
 
 export type SizeView =
   | { resizable: false; reason: string }
-  | { resizable: true; state: string; type: string; current: ServerSize; options: ServerSize[]; job: ResizeJob | null };
+  | { resizable: true; region: string; state: string; type: string; current: ServerSize; options: ServerSize[]; job: ResizeJob | null };
 
 const PHASES: ResizePhase[] = ['stopping', 'resizing', 'starting', 'restoring', 'done', 'failed'];
 const HOURS_A_MONTH = 730;
@@ -47,6 +47,7 @@ export function toSizeView(body: unknown): SizeView {
   const type = str(body.type);
   return {
     resizable: true,
+    region: str(body.region),
     state: str(body.state) || 'unknown',
     type,
     current: toSize(body.current) ?? { type, vcpus: null, memoryMib: null, hourlyUsd: null },

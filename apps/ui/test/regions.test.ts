@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { launchRegions, regionName } from '../src/aws/regions.ts';
+import { launchRegions, regionLabel, regionName } from '../src/aws/regions.ts';
 
 describe('the regions a new agent can go to', () => {
   test('Zurich and N. Virginia only, and never one the account has not enabled', () => {
@@ -12,5 +12,10 @@ describe('the regions a new agent can go to', () => {
     expect(regionName('eu-central-2')).toBe('Europe (Zurich)');
     expect(regionName('us-east-1')).toBe('US East (N. Virginia)');
     expect(regionName('zz-new-9')).toBe('zz-new-9');
+  });
+
+  test('a server page shows the human name and the code, or the code alone when unknown', () => {
+    expect(regionLabel('eu-central-2')).toBe('Europe (Zurich) · eu-central-2');
+    expect(regionLabel('zz-new-9')).toBe('zz-new-9');
   });
 });

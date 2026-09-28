@@ -9,3 +9,8 @@ export const launchRegions = (enabled: string[]): string[] =>
   enabled.length === 0 ? LAUNCH_REGIONS : LAUNCH_REGIONS.filter((code) => enabled.includes(code));
 
 export const regionName = (code: string): string => REGION_NAMES[code] ?? code;
+
+export function regionLabel(code: string): string {
+  const name = REGION_NAMES[code];
+  return name === undefined ? code : `${name} · ${code}`;
+}

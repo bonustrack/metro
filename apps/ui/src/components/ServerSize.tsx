@@ -10,6 +10,7 @@ import { FactRow, SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { orgKey, queryError, useSizeQuery } from '../api/queries.js';
 import { jobRunning, monthlyLabel, phaseText, resizeServer, sizeText, stateText, type ResizeJob, type ServerSize, type SizeView } from '../api/size.js';
 import { activeAccount } from '../auth/account.js';
+import { regionLabel } from '../aws/regions.js';
 
 type Resizable = Extract<SizeView, { resizable: true }>;
 
@@ -152,6 +153,7 @@ function ResizableSize({ serverId, view }: { serverId: string; view: Resizable }
     <SettingsGroup title={TITLE}>
       <FactRow label="Current" value={sizeText(view.current)} />
       <FactRow label="In AWS" value={stateText(view.state)} />
+      {view.region === '' ? null : <FactRow label="Region" value={regionLabel(view.region)} />}
       {view.job === null ? null : <JobRow job={view.job} />}
       <Controls view={view} resize={resize} onPick={setPicked} />
       {picked === null ? null : (
