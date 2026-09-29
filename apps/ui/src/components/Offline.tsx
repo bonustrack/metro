@@ -6,6 +6,7 @@ import { PageTitle } from './PageTitle.js';
 import { Pill } from './Pill.js';
 import { AgentPicture } from './AgentOverview.js';
 import { ServerSizeSection } from './ServerSize.js';
+import { DeleteServerSection } from './DeleteServer.js';
 import { useServersQuery } from '../api/queries.js';
 import { currentServer } from '../auth/daemon.js';
 import { serverLabel } from '../api/servers.js';
@@ -44,6 +45,7 @@ export function OfflinePanel({ onRetry }: { onRetry: () => void }): ReactNode {
       </Text>
       <Button size="sm" color="secondary" dark={dark} label="Try again" onPress={onRetry} />
       {server === undefined ? null : <ServerSizeSection serverId={server.id} launchedOnly />}
+      {server === undefined ? null : <DeleteServerSection server={server} />}
     </Col>
   );
 }

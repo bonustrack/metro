@@ -13,6 +13,7 @@ interface ConfirmModalProps {
   confirmWord: string;
   confirmLabel: string;
   busy: boolean;
+  blocked?: boolean;
   error: string | null;
   onClose: () => void;
   onConfirm: () => void;
@@ -22,7 +23,7 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
   const { open, title, lines, confirmWord, confirmLabel } = props;
   const dark = useKitScheme() === 'dark';
   const [typed, setTyped] = useState('');
-  const matches = confirmMatches(typed, confirmWord);
+  const matches = confirmMatches(typed, confirmWord) && props.blocked !== true;
 
   const close = (): void => {
     setTyped('');
