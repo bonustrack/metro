@@ -73,7 +73,7 @@ describe('EC2 from the browser', () => {
 
   test('RunInstances carries the exact machine shape and the user data as base64', async () => {
     const seen = stub(200, '<RunInstancesResponse xmlns="x"><reservationId>r-1</reservationId><instancesSet><item><instanceId>i-0abc</instanceId><instanceState><code>0</code><name>pending</name></instanceState></item></instancesSet></RunInstancesResponse>');
-    const spec = { imageId: 'ami-new', name: 'Andy', node: 'metro-andy', userData: '#!/bin/bash\necho hi ✓\n', clientToken: 'tok-1' };
+    const spec = { imageId: 'ami-new', name: 'Andy', node: 'metro-andy', owner: 'org_01OWNER', agent: 'srv00000001', userData: '#!/bin/bash\necho hi ✓\n', clientToken: 'tok-1' };
     expect(await runInstance(CREDS, 'eu-west-1', spec)).toBe('i-0abc');
     const body = seen[0]?.body ?? new URLSearchParams();
     expect(body.get('Action')).toBe('RunInstances');
@@ -85,8 +85,17 @@ describe('EC2 from the browser', () => {
     expect(body.get('BlockDeviceMapping.1.Ebs.VolumeSize')).toBe('8');
     expect(body.get('BlockDeviceMapping.1.Ebs.VolumeType')).toBe('gp3');
     expect(body.get('MetadataOptions.HttpTokens')).toBe('required');
-    expect(body.get('TagSpecification.1.Tag.1.Value')).toBe('Andy');
-    expect(body.get('TagSpecification.1.Tag.2.Value')).toBe('metro-andy');
+    for (const [at, type] of [['1', 'instance'], ['2', 'volume']] as const) {
+      const tag = (n: number, part: 'Key' | 'Value'): string | null => body.get(`TagSpecification.${at}.Tag.${String(n)}.${part}`);
+      expect(body.get(`TagSpecification.${at}.ResourceType`)).toBe(type);
+      expect([1, 2, 3, 4].map((n) => [tag(n, 'Key'), tag(n, 'Value')])).toEqual([
+        ['Name', 'Andy'],
+        ['metro', 'metro-andy'],
+        ['metro:owner', 'org_01OWNER'],
+        ['metro:agent', 'srv00000001'],
+      ]);
+    }
+    expect(body.get('BlockDeviceMapping.1.Ebs.DeleteOnTermination')).toBe('true');
     expect(Buffer.from(body.get('UserData') ?? '', 'base64').toString('utf8')).toBe(spec.userData);
     expect(runInstanceParams(spec).ImageId).toBe('ami-new');
     expect(runInstanceParams(spec)).not.toHaveProperty('Placement.AvailabilityZone');

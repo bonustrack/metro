@@ -3,9 +3,10 @@ import { launchBox, redactKeys, type LaunchDeps } from '../src/aws/launch.ts';
 import { AwsError } from '../src/aws/ec2.ts';
 import { hostOf, randomNodeName, slugOf } from '../src/aws/names.ts';
 
-function fakeDeps(full: Set<string> = new Set()): { deps: LaunchDeps; calls: string[]; userData: string[] } {
+function fakeDeps(full: Set<string> = new Set()): { deps: LaunchDeps; calls: string[]; userData: string[]; tags: string[] } {
   const calls: string[] = [];
   const userData: string[] = [];
+  const tags: string[] = [];
   let tokens = 0;
   const deps: LaunchDeps = {
     latestImage: (creds, region) => {
@@ -17,6 +18,7 @@ function fakeDeps(full: Set<string> = new Set()): { deps: LaunchDeps; calls: str
         `run ${region} ${spec.imageId} ${spec.name} ${spec.node} ${spec.clientToken}${spec.zone === undefined ? '' : ` ${spec.zone}`}`,
       );
       userData.push(spec.userData);
+      tags.push(`${spec.owner} ${spec.agent}`);
       if (full.has(spec.zone ?? '*'))
         return Promise.reject(new AwsError('InsufficientInstanceCapacity', 'Insufficient capacity.'));
       return Promise.resolve('i-0abc');
@@ -28,13 +30,14 @@ function fakeDeps(full: Set<string> = new Set()): { deps: LaunchDeps; calls: str
     node: () => 'metro-abc123',
     token: () => `tok-${String(++tokens)}`,
   };
-  return { deps, calls, userData };
+  return { deps, calls, userData, tags };
 }
 
 const INPUT = {
   name: 'Andy',
   region: 'eu-west-1',
   owner: 'org_01M2TNE064H99ECTG4X228Y6B6',
+  agent: 'srv00000001',
   tailnet: 'tail17c4f8.ts.net',
   authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
   credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 's' },
@@ -42,8 +45,9 @@ const INPUT = {
 
 describe('metro issuing a box', () => {
   test('resolves the image, runs the instance, and answers the host it will be reachable on', async () => {
-    const { deps, calls, userData } = fakeDeps();
+    const { deps, calls, userData, tags } = fakeDeps();
     const launched = await launchBox(INPUT, deps);
+    expect(tags).toEqual(['org_01M2TNE064H99ECTG4X228Y6B6 srv00000001']);
     expect(launched).toEqual({
       host: 'metro-abc123.tail17c4f8.ts.net',
       node: 'metro-abc123',

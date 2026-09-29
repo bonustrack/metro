@@ -4,7 +4,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import type { SigningKeys } from '@metro-labs/http/workos-token';
 import { requestOwner } from './servers.js';
-import { AGENT_NAME_RE, parseId } from '@metro-labs/core/ids';
+import { AGENT_NAME_RE, newId, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { type ConfigResult, type LaunchConfig } from './launch-config.js';
 import { AwsError, type AwsCredentials, type InstanceState } from './aws/ec2.js';
@@ -117,16 +117,19 @@ async function issue(deps: LaunchApiDeps, subject: string, body: unknown): Promi
   const name = nameOf(body);
   const region = regionOf(body);
   holdDuplicate(deps, subject);
+  const agent = newId();
   try {
     const launched = await deps.launch({
       name,
       region,
       owner: subject,
+      agent,
       tailnet: config.tailnet,
       authKey: config.authKey,
       credentials: config.credentials,
     });
     const server = await deps.record(subject, {
+      id: agent,
       host: launched.host,
       name,
       instanceId: launched.instanceId,

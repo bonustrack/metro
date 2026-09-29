@@ -95,9 +95,33 @@ export interface InstanceSpec {
   imageId: string;
   name: string;
   node: string;
+  owner: string;
+  agent: string;
   userData: string;
   clientToken: string;
   zone?: string;
+}
+
+export const NODE_TAG = 'metro';
+export const OWNER_TAG = 'metro:owner';
+export const AGENT_TAG = 'metro:agent';
+
+function tagSpecification(at: number, type: string, spec: InstanceSpec): Record<string, string> {
+  const tags: [string, string][] = [
+    ['Name', spec.name],
+    [NODE_TAG, spec.node],
+    [OWNER_TAG, spec.owner],
+    [AGENT_TAG, spec.agent],
+  ];
+  const prefix = `TagSpecification.${String(at)}`;
+  const entries: [string, string][] = [
+    [`${prefix}.ResourceType`, type],
+    ...tags.flatMap(([key, value], i): [string, string][] => [
+      [`${prefix}.Tag.${String(i + 1)}.Key`, key],
+      [`${prefix}.Tag.${String(i + 1)}.Value`, value],
+    ]),
+  ];
+  return Object.fromEntries(entries);
 }
 
 export const toBase64 = (text: string): string => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
@@ -116,11 +140,8 @@ export function runInstanceParams(spec: InstanceSpec): Record<string, string> {
     'BlockDeviceMapping.1.Ebs.DeleteOnTermination': 'true',
     'MetadataOptions.HttpTokens': 'required',
     'MetadataOptions.HttpEndpoint': 'enabled',
-    'TagSpecification.1.ResourceType': 'instance',
-    'TagSpecification.1.Tag.1.Key': 'Name',
-    'TagSpecification.1.Tag.1.Value': spec.name,
-    'TagSpecification.1.Tag.2.Key': 'metro',
-    'TagSpecification.1.Tag.2.Value': spec.node,
+    ...tagSpecification(1, 'instance', spec),
+    ...tagSpecification(2, 'volume', spec),
     ...(spec.zone === undefined ? {} : { 'Placement.AvailabilityZone': spec.zone }),
   };
 }

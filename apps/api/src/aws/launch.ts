@@ -22,6 +22,7 @@ export interface LaunchInput {
   name: string;
   region: string;
   owner: string;
+  agent: string;
   tailnet: string;
   authKey: string;
   credentials: AwsCredentials;
@@ -107,7 +108,7 @@ export async function launchBox(input: LaunchInput, deps: LaunchDeps = LIVE): Pr
     metroTag: METRO_TAG,
   });
   const imageId = await deps.latestImage(input.credentials, input.region);
-  const { instanceId, zone } = await place(input, deps, { imageId, name: `metro:${slug}`, node, userData });
+  const { instanceId, zone } = await place(input, deps, { imageId, name: `metro:${slug}`, node, owner: input.owner, agent: input.agent, userData });
   return { host: hostOf(node, input.tailnet), node, instanceId, region: input.region, zone, imageId };
 }
 

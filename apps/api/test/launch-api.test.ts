@@ -22,12 +22,15 @@ const CONFIG: ConfigResult = {
 
 let config: ConfigResult = CONFIG;
 let launched: string[] = [];
+let agents: string[] = [];
+let recorded: string[] = [];
 let now = 1_000_000;
 
 const deps: LaunchApiDeps = {
   config: () => config,
   launch: (input) => {
     launched.push(`${input.name} ${input.region} ${input.owner} ${input.tailnet} ${input.authKey}`);
+    agents.push(input.agent);
     return Promise.resolve({
       host: 'metro-abc123.tail17c4f8.ts.net',
       node: 'metro-abc123',
@@ -40,8 +43,9 @@ const deps: LaunchApiDeps = {
   regions: () => Promise.resolve(['eu-west-1', 'us-east-1']),
   state: (_c, _r, instanceId) => Promise.resolve({ instanceId, state: 'running', publicIp: null, type: 't4g.medium', architecture: 'arm64' }),
   boot: () => Promise.resolve({ steps: [], failed: false, finished: true, lines: ['metro setup: done'], at: null }),
-  record: (_subject, launch) =>
-    Promise.resolve({
+  record: (_subject, launch) => {
+    recorded.push(launch.id);
+    return Promise.resolve({
       id: 'srv00000001',
       host: launch.host,
       name: launch.name,
@@ -49,7 +53,8 @@ const deps: LaunchApiDeps = {
       instanceId: launch.instanceId,
       launchedAt: '2026-09-15T00:00:00.000Z',
       avatar: null,
-    }),
+    });
+  },
   lookup: (subject, id) =>
     subject === TEST_OWNER && id === 'srv00000001'
       ? Promise.resolve({ instanceId: 'i-0abc', region: 'eu-west-1' })
@@ -80,6 +85,8 @@ afterAll(() => {
 beforeEach(() => {
   config = CONFIG;
   launched = [];
+  agents = [];
+  recorded = [];
   now += 10 * 60_000;
   resetLaunchState();
 });
@@ -135,6 +142,13 @@ describe('issuing one', () => {
     });
     expect(launched).toEqual([`Andy us-east-1 ${OWNER} tail17c4f8.ts.net tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop`]);
     expect(launched[0]).not.toContain(WALLET);
+  });
+
+  test('the agent id the instance is tagged with is the id its row is written under', async () => {
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'Andy', region: 'us-east-1' })).status).toBe(200);
+    expect(agents).toHaveLength(1);
+    expect(agents[0]).toMatch(/^[A-Za-z0-9][A-Za-z0-9_-]{10}$/);
+    expect(recorded).toEqual(agents);
   });
 
   test('a missing name or region is refused before AWS is asked', async () => {

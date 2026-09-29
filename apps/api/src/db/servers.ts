@@ -145,6 +145,7 @@ export async function addServerForOwner(subject: string, body: unknown): Promise
 }
 
 export interface LaunchRecord {
+  id: string;
   host: string;
   name: string;
   instanceId: string;
@@ -156,7 +157,7 @@ export async function addLaunchedServer(subject: string, launch: LaunchRecord): 
   const host = parseServerHost(launch.host);
   if (host === null) throw new ServerListError('host is not a server address', 400);
   const next = {
-    id: newId(),
+    id: idOf(launch.id),
     owner,
     host,
     name: parseServerName(launch.name),
@@ -186,6 +187,26 @@ export async function instanceForOwner(subject: string, rawId: string): Promise<
   if (row === undefined) throw missing();
   if (row.instanceId === null || row.region === null) return null;
   return { instanceId: row.instanceId, region: row.region };
+}
+
+export interface DeletionRow {
+  id: string;
+  host: string;
+  name: string | null;
+  instanceId: string | null;
+  region: string | null;
+}
+
+export async function deletionRowForOwner(subject: string, rawId: string): Promise<DeletionRow> {
+  const owner = ownerOf(subject);
+  const id = idOf(rawId);
+  const rows = await getDb()
+    .select({ id: agents.id, host: agents.host, name: agents.name, instanceId: agents.instanceId, region: agents.launchRegion })
+    .from(agents)
+    .where(and(eq(agents.id, id), eq(agents.owner, owner)));
+  const row = rows[0];
+  if (row === undefined) throw missing();
+  return row;
 }
 
 export async function launchForOwner(subject: string, rawId: string): Promise<ServerLaunch> {
