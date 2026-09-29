@@ -4,7 +4,7 @@ import { codexUsageNow, sharedCodexState } from './codex.js';
 import { openrouterKey } from './openrouter.js';
 import { lastServed } from './served.js';
 import { claudeLoginUsage, geminiUsage, keepProbeAnswer, mayProbe, noteUsage, openrouterUsage, probeAnswer, usageOf, type Reported } from './usage.js';
-import { PASSTHROUGH_ID, type Connection, type ModelConfig } from './model-config.js';
+import { PASSTHROUGH_ID, routedConnection, type Connection, type ModelConfig } from './model-config.js';
 import { codexDepsFor, geminiModelsOf } from './model-signin.js';
 import { CREDITS_TTL_MS, type ModelApiDeps, type Store } from './model-store.js';
 
@@ -59,8 +59,10 @@ async function refreshQuota(conn: Connection, deps: ModelApiDeps, store: Store, 
   });
 }
 
-const loginIds = (cfg: ModelConfig): string[] =>
-  cfg.connections.length === 0 ? [PASSTHROUGH_ID] : cfg.connections.filter((c) => c.provider === 'anthropic' && c.apiKey === '').map((c) => c.id);
+const loginIds = (cfg: ModelConfig): string[] => [
+  ...(routedConnection(cfg) === null ? [PASSTHROUGH_ID] : []),
+  ...cfg.connections.filter((c) => c.provider === 'anthropic' && c.apiKey === '').map((c) => c.id),
+];
 
 const olderThan = (seen: Reported | undefined, usage: Reported): boolean => seen === undefined || Date.parse(seen.at) < Date.parse(usage.at);
 

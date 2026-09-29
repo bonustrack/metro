@@ -27,6 +27,15 @@ describe('asking Claude Code for the usage of its own login', () => {
     expect(JSON.parse(sent)).toEqual({ type: 'control_request', request_id: 'metro-usage', request: { subtype: 'get_usage', skip_behaviors: true } });
   });
 
+  test('the answer counts as soon as its line arrives, even if Claude Code is slow to exit', async () => {
+    const file = join(dir, 'slow.jsonl');
+    writeFileSync(file, `${recordedClaudeUsageAnswer}\n`);
+    const before = Date.now();
+    const limits = (await readClaudeUsage({ command: ['sh', '-c', 'cat > /dev/null; cat "$0"; sleep 3', file], timeoutMs: 1500 })) as { seven_day: { utilization: number } };
+    expect(limits.seven_day.utilization).toBe(70);
+    expect(Date.now() - before).toBeLessThan(1000);
+  });
+
   test('a login with no plan limits answers null, a refusal or silence is an error', async () => {
     const none = answering('none', ['{"type":"control_response","response":{"subtype":"success","request_id":"metro-usage","response":{"rate_limits_available":false,"rate_limits":null}}}']);
     expect(await readClaudeUsage({ command: none })).toBeNull();
@@ -39,7 +48,7 @@ describe('asking Claude Code for the usage of its own login', () => {
   });
 
   test('the probe reads no user settings, starts no MCP server and keeps no session', () => {
-    const command = usageProbeCommand();
+    const command = usageProbeCommand() ?? [];
     expect(command).toContain('--setting-sources');
     expect(command[command.indexOf('--setting-sources') + 1]).toBe('project');
     expect(command).toContain('--strict-mcp-config');

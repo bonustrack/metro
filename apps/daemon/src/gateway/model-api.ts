@@ -7,9 +7,10 @@ import { openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
 import { routeOf, syncAvailableModelsQuietly } from '../claude/setup.js';
 import { sessionRunning, stopSession } from '../claude/session.js';
-import { forgetOne } from './usage.js';
+import { forgetOne, forgetReported } from './usage.js';
 import {
   addConnection,
+  connectionOf,
   parseModelConfig,
   readModelConfig,
   removeConnection,
@@ -74,7 +75,9 @@ async function create(req: IncomingMessage, deps: ModelApiDeps, store: Store): P
 }
 
 async function change(req: IncomingMessage, deps: ModelApiDeps, store: Store, id: string): Promise<unknown> {
+  const before = connectionOf(store.read(), id)?.apiKey;
   const next = await withBody(req, (body) => updateConnection(store.read(), id, body));
+  if (connectionOf(next, id)?.apiKey !== before) forgetReported(id);
   return kept(store, next, deps, 'model-api: connection changed', { connection: id });
 }
 

@@ -54,6 +54,11 @@ export const forgetOne = (key: Key): void => {
   probed.delete(key);
 };
 
+export const forgetReported = (key: Key): void => {
+  latest.delete(key);
+  probed.delete(key);
+};
+
 export const forgetUsage = (): void => {
   latest.clear();
   tallies.clear();

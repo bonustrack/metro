@@ -311,6 +311,12 @@ describe('the connections on the page', () => {
 
     await call('GET', OWNER);
     expect(creditsAuth).toHaveLength(1);
+    await conns('PUT', `/${id}`, { label: 'Work' });
+    await call('GET', OWNER);
+    expect(creditsAuth).toHaveLength(1);
+    await conns('PUT', `/${id}`, { apiKey: 'or-key-2' });
+    await call('GET', OWNER);
+    expect(creditsAuth).toEqual(['Bearer or-key', 'Bearer or-key-2']);
     await conns('DELETE', `/${id}`);
     expect(((await (await call('GET', OWNER)).json()) as { usage: Record<string, unknown> }).usage[id]).toBeUndefined();
   });

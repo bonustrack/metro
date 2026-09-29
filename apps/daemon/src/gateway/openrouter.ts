@@ -79,7 +79,10 @@ export async function openrouterKey(apiKey: string, base = OPENROUTER_BASE, fetc
     redirect: 'manual',
     signal: AbortSignal.timeout(KEY_TIMEOUT_MS),
   });
-  if (!res.ok) throw new GatewayError(res.status, 'api_error', `OpenRouter would not describe the stored key (${String(res.status)})`);
+  if (!res.ok) {
+    await res.body?.cancel();
+    throw new GatewayError(res.status, 'api_error', `OpenRouter would not describe the stored key (${String(res.status)})`);
+  }
   const body: unknown = await res.json();
   const data = isRecord(body) && isRecord(body.data) ? body.data : {};
   const spent = nullableAmount(data.usage);

@@ -10,6 +10,7 @@ import { beginLogin as beginGeminiLogin, exchangeCode as exchangeGeminiCode, use
 import { onboard, parseGeminiProject } from './gemini-setup.js';
 import { currentGeminiTokens, listGeminiModels, sharedGeminiState, type GeminiDeps } from './gemini.js';
 import { listCache } from './model-lists.js';
+import { forgetReported } from './usage.js';
 import {
   addConnection,
   connectionOf,
@@ -32,8 +33,9 @@ function connectionToFill(store: Store, req: IncomingMessage, provider: Provider
   return { cfg, id: cfg.connections.at(-1)?.id ?? '' };
 }
 
-const saved = (store: Store, cfg: ModelConfig, note: string, fields: Record<string, unknown>): unknown => {
+const saved = (store: Store, cfg: ModelConfig, note: string, fields: { connection: string } & Record<string, unknown>): unknown => {
   store.write(cfg);
+  forgetReported(fields.connection);
   log.info(fields, note);
   return settingsBody(cfg);
 };
