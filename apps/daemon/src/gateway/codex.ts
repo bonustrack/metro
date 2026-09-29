@@ -10,10 +10,11 @@ import { parseEvent, SseParser, type SseEvent } from './frames.js';
 import type { Connection } from './model-config.js';
 import { listCache } from './model-lists.js';
 import { answerWhole, currentOf, errorKind, reach, refreshed, relayTranslated, sessionHeader, type TokenSource, type TokenState } from './subscription.js';
-import { noteUsageHeaders } from './usage.js';
+import { codexUsageBody, noteUsageHeaders, type Reported } from './usage.js';
 
 const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
 const INVALID = [400, 404, 422];
+const USAGE_TIMEOUT_MS = 10_000;
 
 export interface CodexDeps {
   base?: string;
@@ -110,6 +111,24 @@ export async function codexMessages(
   answerWhole(res, frames + translator.close(), conn.id);
 }
 
+const jsonHeaders = (tokens: CodexTokens): Record<string, string> => ({ ...headersFor(tokens, randomUUID()), accept: 'application/json' });
+
+export const codexUsageUrl = (base = CODEX_BASE): string => `${base.replace(/\/codex\/?$/, '')}/wham/usage`;
+
+export async function codexUsageNow(conn: Connection, deps: CodexDeps, state: CodexState): Promise<Reported | null> {
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const res = await reach(
+    () => currentTokens(conn, deps, state),
+    (tokens) => refreshed(state, conn.id, tokens, sourceOf(deps)),
+    (tokens) => fetchImpl(codexUsageUrl(deps.base), { headers: jsonHeaders(tokens), redirect: 'manual', signal: AbortSignal.timeout(USAGE_TIMEOUT_MS) }),
+  );
+  if (!res.ok) {
+    await res.body?.cancel();
+    throw new GatewayError(res.status, errorKind(res.status, INVALID), `Codex would not report its usage (${String(res.status)})`);
+  }
+  return codexUsageBody(await res.json());
+}
+
 export async function codexModels(tokens: CodexTokens, deps: Omit<CodexDeps, 'save'>): Promise<string[]> {
   const version = await learnCodexVersion();
   const base = deps.base ?? CODEX_BASE;
@@ -118,7 +137,7 @@ export async function codexModels(tokens: CodexTokens, deps: Omit<CodexDeps, 'sa
 
 async function listCodex(tokens: CodexTokens, version: string, base: string, fetchImpl: typeof fetch): Promise<string[]> {
   const res = await fetchImpl(`${base}/models?client_version=${version}`, {
-    headers: { ...headersFor(tokens, randomUUID()), accept: 'application/json' },
+    headers: jsonHeaders(tokens),
     redirect: 'manual',
   });
   if (!res.ok) throw new GatewayError(res.status, errorKind(res.status, INVALID), `Codex would not list models (${String(res.status)})`);

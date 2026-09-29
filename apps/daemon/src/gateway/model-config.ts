@@ -3,7 +3,7 @@ import { newId } from '@metro-labs/core/ids';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { isRecord } from '@metro-labs/core/is-record';
-import type { CodexTokens } from './codex-auth.js';
+import { claimsOf, type CodexTokens } from './codex-auth.js';
 import { tokensFromDisk as geminiTokensFromDisk, type GeminiTokens } from './gemini-auth.js';
 
 export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'gemini'] as const;
@@ -189,6 +189,14 @@ export function resolveRoute(requested: string, cfg: ModelConfig): Route | null 
 export const routeLabel = (route: Route): string =>
   route.connection.provider === 'anthropic' ? route.model : `${route.connection.provider}:${route.model}`;
 
+export const PASSTHROUGH_ID = 'passthrough';
+
+function signedInAs(c: Connection): { account: string | null; plan: string | null } {
+  if (c.codex === null) return { account: c.gemini?.email ?? null, plan: c.gemini?.tier ?? null };
+  const claims = claimsOf(c.codex.idToken);
+  return { account: c.codex.email ?? claims.email, plan: c.codex.plan ?? claims.plan };
+}
+
 function publicConnection(c: Connection): Record<string, unknown> {
   return {
     id: c.id,
@@ -199,8 +207,7 @@ function publicConnection(c: Connection): Record<string, unknown> {
     region: c.region,
     zdr: c.zdr,
     signedIn: c.codex !== null || c.gemini !== null,
-    account: c.codex?.email ?? c.gemini?.email ?? null,
-    plan: c.codex?.plan ?? c.gemini?.tier ?? null,
+    ...signedInAs(c),
   };
 }
 

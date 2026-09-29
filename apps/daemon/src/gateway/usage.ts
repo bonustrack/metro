@@ -1,3 +1,6 @@
+import { isRecord } from '@metro-labs/core/is-record';
+import { stringOf } from '@metro-labs/http/api-http';
+
 type Key = string;
 
 interface UsageWindow {
@@ -22,10 +25,12 @@ export interface ProviderUsage {
   tally: Tally | null;
 }
 
-type Reported = Omit<ProviderUsage, 'tally'>;
+export type Reported = Omit<ProviderUsage, 'tally'>;
 
 const latest = new Map<Key, Reported>();
 const tallies = new Map<Key, Tally>();
+const probed = new Map<Key, number>();
+const answers = new Map<Key, Reported>();
 
 export const noteUsage = (key: Key, usage: Reported): void => {
   latest.set(key, usage);
@@ -46,11 +51,26 @@ export const usageOf = (key: Key): Reported | undefined => latest.get(key);
 export const forgetOne = (key: Key): void => {
   latest.delete(key);
   tallies.delete(key);
+  probed.delete(key);
 };
 
 export const forgetUsage = (): void => {
   latest.clear();
   tallies.clear();
+  probed.clear();
+  answers.clear();
+};
+
+export function mayProbe(key: Key, now: number, every: number): boolean {
+  if (now - (probed.get(key) ?? Number.NEGATIVE_INFINITY) < every) return false;
+  probed.set(key, now);
+  return true;
+}
+
+export const probeAnswer = (key: Key): Reported | undefined => answers.get(key);
+
+export const keepProbeAnswer = (key: Key, usage: Reported): void => {
+  answers.set(key, usage);
 };
 
 export interface Counted {
@@ -198,12 +218,15 @@ function codexWindow(headers: Headers, kind: 'primary' | 'secondary', now: Date)
   return { label: windowLabel(Number.isFinite(minutes) ? minutes : null), used, resetAt, detail: null };
 }
 
-function codexCredits(headers: Headers): UsageWindow | null {
-  if (headers.get('x-codex-credits-has-credits') !== 'true') return null;
-  const balance = Number(headers.get('x-codex-credits-balance') ?? 'none');
+function creditsLeft(hasCredits: boolean, raw: string | null): UsageWindow | null {
+  if (!hasCredits) return null;
+  const balance = Number(raw ?? 'none');
   if (!Number.isFinite(balance)) return null;
   return { label: 'Credits', used: null, resetAt: null, detail: `${balance.toLocaleString('en-US')} left` };
 }
+
+const codexCredits = (headers: Headers): UsageWindow | null =>
+  creditsLeft(headers.get('x-codex-credits-has-credits') === 'true', headers.get('x-codex-credits-balance'));
 
 export function codexUsage(headers: Headers, now = new Date()): Reported | null {
   const windows = [codexWindow(headers, 'primary', now), codexWindow(headers, 'secondary', now), codexCredits(headers)].filter(
@@ -212,6 +235,77 @@ export function codexUsage(headers: Headers, now = new Date()): Reported | null 
   if (windows.length === 0) return null;
   const reached = headers.get('x-codex-rate-limit-reached-type');
   return { windows, note: reached === null || reached === '' ? null : reached.replaceAll('_', ' '), at: now.toISOString() };
+}
+
+const present = (w: UsageWindow | null): w is UsageWindow => w !== null;
+
+const textOf = (raw: unknown): string | null => (typeof raw === 'number' || typeof raw === 'string' ? String(raw) : null);
+
+const numberOf = (raw: unknown): number | null => (typeof raw === 'number' && Number.isFinite(raw) ? raw : null);
+
+const SECONDS_PER_MINUTE = 60;
+
+function codexBodyWindow(raw: unknown, now: Date): UsageWindow | null {
+  if (!isRecord(raw)) return null;
+  const percent = numberOf(raw.used_percent);
+  if (percent === null) return null;
+  const seconds = numberOf(raw.limit_window_seconds);
+  const minutes = seconds === null || seconds <= 0 ? null : Math.ceil(seconds / SECONDS_PER_MINUTE);
+  const resetAt = whenFrom(textOf(raw.reset_at), now) ?? whenFrom(textOf(raw.reset_after_seconds), now, true);
+  return { label: windowLabel(minutes), used: clamp(percent / 100), resetAt, detail: null };
+}
+
+function codexWall(limit: Record<string, unknown>, reached: unknown): string | null {
+  if (limit.limit_reached !== true && limit.allowed !== false) return null;
+  const kind = isRecord(reached) ? stringOf(reached.type) : '';
+  return kind === '' ? 'limit reached' : kind.replaceAll('_', ' ');
+}
+
+export function codexUsageBody(body: unknown, now = new Date()): Reported | null {
+  if (!isRecord(body)) return null;
+  const limit = isRecord(body.rate_limit) ? body.rate_limit : {};
+  const credits = isRecord(body.credits) ? body.credits : {};
+  const windows = [
+    codexBodyWindow(limit.primary_window, now),
+    codexBodyWindow(limit.secondary_window, now),
+    creditsLeft(credits.has_credits === true, textOf(credits.balance)),
+  ].filter(present);
+  return windows.length === 0 ? null : { windows, note: codexWall(limit, body.rate_limit_reached_type), at: now.toISOString() };
+}
+
+const CLAUDE_WINDOWS: [string, string][] = [
+  ['five_hour', '5-hour window'],
+  ['seven_day', 'Weekly'],
+  ['seven_day_sonnet', 'Weekly, Sonnet'],
+  ['seven_day_opus', 'Weekly, Opus'],
+];
+
+function percentWindow(label: string, raw: unknown, now: Date): UsageWindow | null {
+  if (!isRecord(raw)) return null;
+  const percent = numberOf(raw.utilization) ?? numberOf(raw.percent);
+  if (percent === null) return null;
+  return { label, used: clamp(percent / 100), resetAt: whenFrom(textOf(raw.resets_at), now), detail: null };
+}
+
+function scopedName(entry: Record<string, unknown>): string {
+  if (stringOf(entry.display_name) !== '') return stringOf(entry.display_name);
+  if (entry.kind !== 'weekly_scoped' || !isRecord(entry.scope) || !isRecord(entry.scope.model)) return '';
+  return stringOf(entry.scope.model.display_name);
+}
+
+function scopedWindows(limits: Record<string, unknown>, now: Date): (UsageWindow | null)[] {
+  const listed = [limits.model_scoped, limits.limits].flatMap((list): unknown[] => (Array.isArray(list) ? (list as unknown[]) : []));
+  return listed.map((entry) => {
+    const name = isRecord(entry) ? scopedName(entry) : '';
+    return name === '' ? null : percentWindow(`Weekly, ${name}`, entry, now);
+  });
+}
+
+export function claudeLoginUsage(limits: unknown, now = new Date()): Reported | null {
+  if (!isRecord(limits)) return null;
+  const all = [...CLAUDE_WINDOWS.map(([key, label]) => percentWindow(label, limits[key], now)), ...scopedWindows(limits, now)].filter(present);
+  const windows = all.filter((w, index) => all.findIndex((other) => other.label === w.label) === index);
+  return windows.length === 0 ? null : { windows, note: null, at: now.toISOString() };
 }
 
 export function noteUsageHeaders(kind: 'anthropic' | 'codex', key: Key, headers: Headers, now = new Date()): void {
@@ -234,11 +328,16 @@ export function geminiUsage(rows: QuotaRow[], now = new Date()): Reported | null
   return windows.length === 0 ? null : { windows, note: null, at: now.toISOString() };
 }
 
-export function openrouterUsage(total: number, spent: number, now = new Date()): Reported {
-  const used = total > 0 ? clamp(spent / total) : null;
-  return {
-    windows: [{ label: 'Credits', used, resetAt: null, detail: `${dollars(spent)} of ${dollars(total)} used` }],
-    note: null,
-    at: now.toISOString(),
-  };
+export interface KeySpend {
+  limit: number | null;
+  remaining: number | null;
+  spent: number;
 }
+
+function keyWindow(key: KeySpend): UsageWindow {
+  if (key.limit === null || key.limit <= 0) return { label: 'Credits', used: null, resetAt: null, detail: `${dollars(key.spent)} used, no limit on this key` };
+  const spent = key.remaining === null ? key.spent : Math.max(0, key.limit - key.remaining);
+  return { label: 'Credits', used: clamp(spent / key.limit), resetAt: null, detail: `${dollars(spent)} of ${dollars(key.limit)} used` };
+}
+
+export const openrouterUsage = (key: KeySpend, now = new Date()): Reported => ({ windows: [keyWindow(key)], note: null, at: now.toISOString() });

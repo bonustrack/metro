@@ -22,7 +22,7 @@ import {
   withEffort,
   withThinkingFor,
 } from './effort.js';
-import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, setGeminiAuth, writeModelConfig, type Connection, type ModelConfig, type Route } from './model-config.js';
+import { notReady, PASSTHROUGH_ID, readModelConfig, resolveRoute, routeLabel, setCodexAuth, setGeminiAuth, writeModelConfig, type Connection, type ModelConfig, type Route } from './model-config.js';
 import { codexMessages, sharedCodexState } from './codex.js';
 import { geminiMessages, sharedGeminiState } from './gemini.js';
 import { countTokens } from './subscription.js';
@@ -87,7 +87,7 @@ function modelsBody(cfg: ModelConfig): Record<string, unknown> {
   return { data, has_more: false, first_id: data[0]?.id ?? null, last_id: data.at(-1)?.id ?? null };
 }
 
-const PASSTHROUGH: Connection = { id: 'passthrough', provider: 'anthropic', label: 'Claude Code login', model: '', apiKey: '', region: '', zdr: false, codex: null, gemini: null };
+const PASSTHROUGH: Connection = { id: PASSTHROUGH_ID, provider: 'anthropic', label: 'Claude Code login', model: '', apiKey: '', region: '', zdr: false, codex: null, gemini: null };
 
 const passthrough = (body: Record<string, unknown>): Route => ({ connection: PASSTHROUGH, model: requestedModel(body) });
 

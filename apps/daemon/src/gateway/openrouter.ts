@@ -2,9 +2,11 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { GatewayError } from './forward.js';
 import { listCache } from './model-lists.js';
 import { stringOf } from '@metro-labs/http/api-http';
+import type { KeySpend } from './usage.js';
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api';
 const MODELS_MAX = 2000;
+const KEY_TIMEOUT_MS = 10_000;
 
 export interface OpenRouterModel {
   id: string;
@@ -69,27 +71,20 @@ async function listModels(base: string, fetchImpl: typeof fetch): Promise<OpenRo
 export const openrouterModels = (base = OPENROUTER_BASE, fetchImpl: typeof fetch = fetch): Promise<OpenRouterModel[]> =>
   modelLists.get(base, () => listModels(base, fetchImpl));
 
-export interface OpenRouterCredits {
-  total: number;
-  spent: number;
-}
+const nullableAmount = (raw: unknown): number | null => (typeof raw === 'number' && Number.isFinite(raw) ? raw : null);
 
-export async function openrouterCredits(
-  apiKey: string,
-  base = OPENROUTER_BASE,
-  fetchImpl: typeof fetch = fetch,
-): Promise<OpenRouterCredits> {
-  const res = await fetchImpl(`${base}/v1/credits`, {
+export async function openrouterKey(apiKey: string, base = OPENROUTER_BASE, fetchImpl: typeof fetch = fetch): Promise<KeySpend> {
+  const res = await fetchImpl(`${base}/v1/key`, {
     headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` },
     redirect: 'manual',
+    signal: AbortSignal.timeout(KEY_TIMEOUT_MS),
   });
-  if (!res.ok) throw new GatewayError(res.status, 'api_error', `OpenRouter would not report the credits (${String(res.status)})`);
+  if (!res.ok) throw new GatewayError(res.status, 'api_error', `OpenRouter would not describe the stored key (${String(res.status)})`);
   const body: unknown = await res.json();
   const data = isRecord(body) && isRecord(body.data) ? body.data : {};
-  const total = Number(data.total_credits);
-  const spent = Number(data.total_usage);
-  if (!Number.isFinite(total) || !Number.isFinite(spent)) throw new GatewayError(502, 'api_error', 'OpenRouter answered with no credit figures');
-  return { total, spent };
+  const spent = nullableAmount(data.usage);
+  if (spent === null) throw new GatewayError(502, 'api_error', 'OpenRouter answered with no spend for the key');
+  return { limit: nullableAmount(data.limit), remaining: nullableAmount(data.limit_remaining), spent };
 }
 
 async function listZdr(base: string, fetchImpl: typeof fetch): Promise<string[]> {

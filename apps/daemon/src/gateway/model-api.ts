@@ -19,7 +19,8 @@ import {
   type ModelConfig,
 } from './model-config.js';
 import { asApiError, BODY_MAX, connectionFor, settingsBody, type ModelApiDeps, type Route, type Store } from './model-store.js';
-import { CODEX_ROUTES, codexDeviceRoute, GEMINI_ROUTES, refreshUsage } from './model-signin.js';
+import { CODEX_ROUTES, codexDeviceRoute, GEMINI_ROUTES } from './model-signin.js';
+import { refreshUsage } from './usage-refresh.js';
 
 const PATH = '/api/model';
 const CONNECTIONS = '/api/model/connections';

@@ -10,6 +10,7 @@ export const CODEX_ISSUER = 'https://auth.openai.com';
 export const CODEX_REDIRECT = 'http://localhost:1455/auth/callback';
 const SCOPE = 'openid profile email offline_access api.connectors.read api.connectors.invoke';
 const AUTH_CLAIM = 'https://api.openai.com/auth';
+const PROFILE_CLAIM = 'https://api.openai.com/profile';
 const ACCESS_TOKEN_TTL_MS = 55 * 60_000;
 
 export interface CodexTokens {
@@ -76,7 +77,12 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> {
 export function claimsOf(idToken: string): { accountId: string | null; email: string | null; plan: string | null } {
   const payload = decodeJwtPayload(idToken);
   const auth = isRecord(payload[AUTH_CLAIM]) ? payload[AUTH_CLAIM] : {};
-  return { accountId: nonEmpty(auth.chatgpt_account_id), email: nonEmpty(payload.email), plan: nonEmpty(auth.chatgpt_plan_type) };
+  const profile = isRecord(payload[PROFILE_CLAIM]) ? payload[PROFILE_CLAIM] : {};
+  return {
+    accountId: nonEmpty(auth.chatgpt_account_id),
+    email: nonEmpty(payload.email) ?? nonEmpty(profile.email),
+    plan: nonEmpty(auth.chatgpt_plan_type),
+  };
 }
 
 interface TokenResponse {

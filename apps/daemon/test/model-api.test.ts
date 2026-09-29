@@ -13,7 +13,10 @@ import { auth, type Who } from './identity-helper.ts';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { jwt } from './model-fixture.ts';
+import { jwt, makeConnection } from './model-fixture.ts';
+import { usageIn } from '../src/claude/usage-probe.ts';
+import { codexUsageAnswer, recordedClaudeUsageAnswer } from './usage-fixtures.ts';
+import type { ModelApiDeps } from '../src/gateway/model-store.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 
@@ -28,6 +31,9 @@ let stored: ModelConfig;
 let home = '';
 const seenModelUrls: string[] = [];
 const creditsAuth: string[] = [];
+const whamAsked: string[] = [];
+const login: { asked: number; answer: () => Promise<unknown> } = { asked: 0, answer: () => Promise.resolve(null) };
+let modelDeps: ModelApiDeps = {};
 const idToken = jwt({ email: 'less@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_1', chatgpt_plan_type: 'plus' } });
 
 beforeAll(async () => {
@@ -80,9 +86,14 @@ beforeAll(async () => {
       ] }));
       return;
     }
-    if (req.url === '/v1/credits') {
+    if (req.url === '/v1/key') {
       creditsAuth.push(String(req.headers.authorization ?? ''));
-      res.end(JSON.stringify({ data: { total_credits: 50, total_usage: 12.4 } }));
+      res.end(JSON.stringify({ data: { label: 'sk-or-v1-abc...xyz', limit: 50, limit_remaining: 37.5, limit_reset: null, usage: 80, is_free_tier: false } }));
+      return;
+    }
+    if (req.url === '/wham/usage') {
+      whamAsked.push(`${String(req.headers.authorization)} ${String(req.headers['chatgpt-account-id'])}`);
+      res.end(JSON.stringify(codexUsageAnswer));
       return;
     }
     if (req.url === '/token') {
@@ -158,31 +169,33 @@ beforeAll(async () => {
   });
   backendBase = `http://127.0.0.1:${String((backend.address() as AddressInfo).port)}`;
   process.env.METRO_CODEX_REGISTRY = `${backendBase}/codex-latest`;
+  modelDeps = {
+    read: () => stored,
+    write: (cfg) => {
+      stored = cfg;
+    },
+    issuer: issuerBase,
+    codexHome: home,
+    codexBase: backendBase,
+    openrouterBase: backendBase,
+    anthropicBase: backendBase,
+    bedrockControlBase: backendBase,
+    geminiAuthBase: backendBase,
+    geminiTokenBase: backendBase,
+    geminiUserBase: backendBase,
+    geminiBase: backendBase,
+    setup: { dir: join(home, 'claude'), agents: join(home, 'agents') },
+    restartSession: () => {
+      restarts += 1;
+      return true;
+    },
+    claudeUsage: () => {
+      login.asked += 1;
+      return login.answer();
+    },
+  };
   server = createServer((req, res) => {
-    if (
-      handleModelRequest(req, res, {
-        read: () => stored,
-        write: (cfg) => {
-          stored = cfg;
-        },
-        issuer: issuerBase,
-        codexHome: home,
-        codexBase: backendBase,
-        openrouterBase: backendBase,
-        anthropicBase: backendBase,
-        bedrockControlBase: backendBase,
-        geminiAuthBase: backendBase,
-        geminiTokenBase: backendBase,
-        geminiUserBase: backendBase,
-        geminiBase: backendBase,
-        setup: { dir: join(home, 'claude'), agents: join(home, 'agents') },
-        restartSession: () => {
-          restarts += 1;
-          return true;
-        },
-      })
-    )
-      return;
+    if (handleModelRequest(req, res, modelDeps)) return;
     res.writeHead(404).end();
   });
   await new Promise<void>((r) => {
@@ -202,6 +215,10 @@ beforeEach(() => {
   forgetUsage();
   forgetModelLists();
   creditsAuth.length = 0;
+  whamAsked.length = 0;
+  login.asked = 0;
+  login.answer = () => Promise.resolve(null);
+  modelDeps.usageWaitMs = undefined;
   googleForms.length = 0;
   stored = { version: 2, route: '', connections: [] };
   restarts = 0;
@@ -279,7 +296,7 @@ describe('the connections on the page', () => {
     expect((await conns('DELETE', `/${one}`)).status).toBe(400);
   });
 
-  test('the settings carry what each connection last said about its quota, and OpenRouter credits are read once per five minutes', async () => {
+  test('the settings carry what each connection last said about its quota, and an OpenRouter key is described once per five minutes', async () => {
     const quiet = (await (await call('GET', OWNER)).json()) as { usage: Record<string, unknown> };
     expect(quiet.usage).toEqual({});
     expect(creditsAuth).toEqual([]);
@@ -288,7 +305,7 @@ describe('the connections on the page', () => {
     noteUsageHeaders('codex', 'cn-codex', new Headers({ 'x-codex-primary-used-percent': '42', 'x-codex-primary-window-minutes': '300' }));
     const first = (await (await call('GET', OWNER)).json()) as { usage: Record<string, { windows: { label: string; used: number | null; detail: string | null }[] }> };
     expect(first.usage['cn-codex']?.windows).toEqual([{ label: '5-hour window', used: 0.42, resetAt: null, detail: null }]);
-    expect(first.usage[id]?.windows).toEqual([{ label: 'Credits', used: 0.248, resetAt: null, detail: '$12.40 of $50.00 used' }]);
+    expect(first.usage[id]?.windows).toEqual([{ label: 'Credits', used: 0.25, resetAt: null, detail: '$12.50 of $50.00 used' }]);
     expect(creditsAuth).toEqual(['Bearer or-key']);
     expect(JSON.stringify(first)).not.toContain('or-key');
 
@@ -334,6 +351,95 @@ const codex = async (name: string, method: 'GET' | 'POST', body?: unknown): Prom
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+
+type Shown = { connections: Record<string, unknown>[]; usage: Record<string, { windows: { label: string; used: number | null }[] } | undefined> };
+
+const shown = async (): Promise<Shown> => (await (await call('GET', OWNER)).json()) as Shown;
+
+const pause = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+describe('usage asked for before the agent sends anything', () => {
+  test('a Codex connection shows its ChatGPT usage and the account it signed in with, asked once per five minutes', async () => {
+    const started = (await (await codex('login', 'POST')).json()) as { url: string };
+    const state = new URL(started.url).searchParams.get('state') ?? '';
+    await codex('callback', 'POST', { url: `http://localhost:1455/auth/callback?code=the-code&state=${state}` });
+    const id = stored.connections[0]?.id ?? '';
+    const settings = await shown();
+    expect(settings.connections[0]).toMatchObject({ id, account: 'less@example.com', plan: 'plus' });
+    expect(settings.usage[id]?.windows.map((w) => [w.label, w.used])).toEqual([
+      ['5-hour window', 0.07],
+      ['Weekly', 0.03],
+      ['Credits', null],
+    ]);
+    expect(whamAsked).toEqual(['Bearer at-1 acct_1']);
+    expect(JSON.stringify(settings)).not.toContain('at-1');
+    await shown();
+    expect(whamAsked).toHaveLength(1);
+  });
+
+  test('an email only the profile claim of the id token carries is read on the box, without asking anyone', async () => {
+    const idOnly = jwt({ 'https://api.openai.com/profile': { email: 'p@example.com' }, 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_9', chatgpt_plan_type: 'pro' } });
+    const codexTokens = { accessToken: 'at-9', refreshToken: 'rt-9', idToken: idOnly, accountId: 'acct_9', email: null, plan: null, savedAt: new Date().toISOString() };
+    stored = { version: 2, route: 'cn-codex', connections: [makeConnection('codex', { codex: codexTokens })] };
+    expect((await shown()).connections[0]).toMatchObject({ account: 'p@example.com', plan: 'pro' });
+  });
+
+  test('the Claude Code login usage is asked of Claude Code itself, for a box with no connection and for each keyless Anthropic connection', async () => {
+    login.answer = () => Promise.resolve(usageIn(recordedClaudeUsageAnswer));
+    const none = await shown();
+    expect(none.usage.passthrough?.windows.map((w) => [w.label, w.used])).toEqual([
+      ['5-hour window', 0.11],
+      ['Weekly', 0.7],
+      ['Weekly, Fable', 0],
+    ]);
+    expect(login.asked).toBe(1);
+    await shown();
+    expect(login.asked).toBe(1);
+
+    const keyless = await add({ provider: 'anthropic' });
+    const keyed = await add({ provider: 'anthropic', apiKey: 'sk-ant-key' });
+    const both = await shown();
+    expect(both.usage[keyless]?.windows[0]?.label).toBe('5-hour window');
+    expect(both.usage[keyed]).toBeUndefined();
+    expect(login.asked).toBe(1);
+
+    forgetUsage();
+    const again = await shown();
+    expect(again.usage[keyless]?.windows[0]?.label).toBe('5-hour window');
+    expect(again.usage.passthrough).toBeUndefined();
+    expect(login.asked).toBe(2);
+  });
+
+  test('a fresher answer from the gateway is kept, a failed probe waits five minutes, and a slow one never holds the page', async () => {
+    const id = await add({ provider: 'anthropic' });
+    noteUsageHeaders('anthropic', id, new Headers({ 'anthropic-ratelimit-unified-5h-utilization': '0.5' }));
+    expect((await shown()).usage[id]?.windows[0]?.used).toBe(0.5);
+    expect(login.asked).toBe(0);
+
+    forgetUsage();
+    login.answer = () => Promise.reject(new Error('not signed in'));
+    await shown();
+    await shown();
+    expect(login.asked).toBe(1);
+
+    forgetUsage();
+    modelDeps.usageWaitMs = 50;
+    let finish: (limits: unknown) => void = () => undefined;
+    login.answer = () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      });
+    const before = Date.now();
+    expect((await shown()).usage[id]).toBeUndefined();
+    expect(Date.now() - before).toBeLessThan(2000);
+    finish(usageIn(recordedClaudeUsageAnswer));
+    await pause(20);
+    expect((await shown()).usage[id]?.windows[0]?.used).toBe(0.11);
+  });
+});
 
 describe('the model setup as a whole, for the export file', () => {
   test('the owner reads it with its keys and writes it back; anything else is refused', async () => {

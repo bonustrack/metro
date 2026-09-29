@@ -75,6 +75,8 @@ describe('the ChatGPT sign-in the Codex CLI does, done from the page', () => {
     expect(() => parseCallback('http://localhost:1455/auth/callback')).toThrow(/code= and state=/);
     expect(claimsOf(idToken)).toEqual({ accountId: 'acct_1', email: 'less@example.com', plan: 'pro' });
     expect(claimsOf('garbage')).toEqual({ accountId: null, email: null, plan: null });
+    expect(claimsOf(jwt({ 'https://api.openai.com/profile': { email: 'profile@example.com' } })).email).toBe('profile@example.com');
+    expect(claimsOf(jwt({ email: 'top@example.com', 'https://api.openai.com/profile': { email: 'profile@example.com' } })).email).toBe('top@example.com');
     const tokens = tokensFrom({ id_token: idToken, access_token: 'at', refresh_token: 'rt' }, null, new Date('2026-09-07T00:00:00Z'));
     expect(tokens).toMatchObject({ accessToken: 'at', refreshToken: 'rt', accountId: 'acct_1', email: 'less@example.com', plan: 'pro', savedAt: '2026-09-07T00:00:00.000Z' });
     expect(tokensFrom({ access_token: 'at2' }, tokens).refreshToken).toBe('rt');

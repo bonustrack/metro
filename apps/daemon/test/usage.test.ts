@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   anthropicUsage,
+  claudeLoginUsage,
   codexUsage,
+  codexUsageBody,
   forgetUsage,
+  mayProbe,
   noteUsageHeaders,
   openrouterUsage,
   tallyTokens,
@@ -10,6 +13,8 @@ import {
   UsageScanner,
   windowLabel,
 } from '../src/gateway/usage.ts';
+import { usageIn } from '../src/claude/usage-probe.ts';
+import { codexUsageAnswer, recordedClaudeUsageAnswer } from './usage-fixtures.ts';
 
 const NOW = new Date('2026-09-17T10:00:00.000Z');
 const RESET = Math.floor(new Date('2026-09-17T12:30:00.000Z').getTime() / 1000);
@@ -154,13 +159,86 @@ describe('what the page is handed', () => {
     expect(without?.windows.map((w) => w.label)).toEqual(['Usage window']);
   });
 
-  test('OpenRouter credits are one window with the money spelled out', () => {
-    expect(openrouterUsage(50, 12.4, NOW)).toEqual({
-      windows: [{ label: 'Credits', used: 0.248, resetAt: null, detail: '$12.40 of $50.00 used' }],
+  test('an OpenRouter key is one Credits window: spent of its limit, or plain spend when it has none', () => {
+    expect(openrouterUsage({ limit: 50, remaining: 37.5, spent: 80 }, NOW)).toEqual({
+      windows: [{ label: 'Credits', used: 0.25, resetAt: null, detail: '$12.50 of $50.00 used' }],
       note: null,
       at: NOW.toISOString(),
     });
-    expect(openrouterUsage(0, 0, NOW).windows[0]?.used).toBeNull();
+    expect(openrouterUsage({ limit: 50, remaining: null, spent: 10 }, NOW).windows[0]?.detail).toBe('$10.00 of $50.00 used');
+    expect(openrouterUsage({ limit: null, remaining: null, spent: 3.5 }, NOW).windows[0]).toEqual({
+      label: 'Credits',
+      used: null,
+      resetAt: null,
+      detail: '$3.50 used, no limit on this key',
+    });
+  });
+
+  test('a probe runs once per key within its interval, and forgetting the usage lets it run again', () => {
+    expect(mayProbe('cn-1', 0, 1000)).toBe(true);
+    expect(mayProbe('cn-1', 999, 1000)).toBe(false);
+    expect(mayProbe('cn-2', 999, 1000)).toBe(true);
+    expect(mayProbe('cn-1', 1000, 1000)).toBe(true);
+    forgetUsage();
+    expect(mayProbe('cn-1', 1001, 1000)).toBe(true);
+  });
+});
+
+describe('usage asked for before any request', () => {
+  test('the ChatGPT usage endpoint reads like the Codex headers, credits included', () => {
+    expect(codexUsageBody(codexUsageAnswer, NOW)).toEqual({
+      windows: [
+        { label: '5-hour window', used: 0.07, resetAt: '2026-09-29T13:00:00.000Z', detail: null },
+        { label: 'Weekly', used: 0.03, resetAt: '2026-10-05T01:20:00.000Z', detail: null },
+        { label: 'Credits', used: null, resetAt: null, detail: '120 left' },
+      ],
+      note: null,
+      at: NOW.toISOString(),
+    });
+  });
+
+  test('a reached Codex limit is named, a relative reset is anchored to now, and an empty answer reports nothing', () => {
+    const walled = codexUsageBody(
+      {
+        rate_limit: { allowed: false, limit_reached: true, primary_window: { used_percent: 100, limit_window_seconds: 604800, reset_after_seconds: 900 } },
+        rate_limit_reached_type: { type: 'rate_limit_reached' },
+      },
+      NOW,
+    );
+    expect(walled?.windows).toEqual([{ label: 'Weekly', used: 1, resetAt: '2026-09-17T10:15:00.000Z', detail: null }]);
+    expect(walled?.note).toBe('rate limit reached');
+    expect(codexUsageBody({ plan_type: 'plus', rate_limit: null, credits: { has_credits: false, balance: '0' } }, NOW)).toBeNull();
+    expect(codexUsageBody('nope', NOW)).toBeNull();
+  });
+
+  test('the Claude Code login usage, as Claude Code answered it on this box, becomes the same windows as its headers', () => {
+    const usage = claudeLoginUsage(usageIn(recordedClaudeUsageAnswer), NOW);
+    expect(usage).toEqual({
+      windows: [
+        { label: '5-hour window', used: 0.11, resetAt: '2026-09-29T13:49:59.999Z', detail: null },
+        { label: 'Weekly', used: 0.7, resetAt: '2026-09-30T23:59:59.999Z', detail: null },
+        { label: 'Weekly, Fable', used: 0, resetAt: '2026-10-01T00:00:00.000Z', detail: null },
+      ],
+      note: null,
+      at: NOW.toISOString(),
+    });
+  });
+
+  test('the SDK model rows and the Sonnet window are read, a duplicate label is kept once, and no limits mean nothing', () => {
+    const usage = claudeLoginUsage(
+      {
+        seven_day_sonnet: { utilization: 40, resets_at: '2026-09-20T00:00:00Z' },
+        model_scoped: [{ display_name: 'Fable', utilization: 12.5, resets_at: null }],
+        limits: [{ kind: 'weekly_scoped', percent: 12, scope: { model: { display_name: 'Fable' } } }, { kind: 'session', percent: 5 }],
+      },
+      NOW,
+    );
+    expect(usage?.windows).toEqual([
+      { label: 'Weekly, Sonnet', used: 0.4, resetAt: '2026-09-20T00:00:00.000Z', detail: null },
+      { label: 'Weekly, Fable', used: 0.125, resetAt: null, detail: null },
+    ]);
+    expect(claudeLoginUsage(null, NOW)).toBeNull();
+    expect(claudeLoginUsage({ five_hour: null, seven_day: null }, NOW)).toBeNull();
   });
 });
 
