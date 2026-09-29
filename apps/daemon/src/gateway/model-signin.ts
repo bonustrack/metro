@@ -11,6 +11,7 @@ import { onboard, parseGeminiProject } from './gemini-setup.js';
 import { currentGeminiTokens, listGeminiModels, sharedGeminiState, type GeminiDeps } from './gemini.js';
 import { openrouterCredits } from './openrouter.js';
 import { lastServed } from './served.js';
+import { listCache } from './model-lists.js';
 import { geminiUsage, noteUsage, openrouterUsage, usageOf } from './usage.js';
 import {
   addConnection,
@@ -140,12 +141,20 @@ async function connectGemini(req: IncomingMessage, deps: ModelApiDeps, store: St
   return saved(store, setGeminiAuth(cfg, id, full), 'model-api: Gemini connected', { connection: id, tier: onboarded.tier });
 }
 
+const geminiLists = listCache<string>('gemini');
+
+async function geminiIds(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<string[]> {
+  const conn = connectionFor(store.read(), req, 'gemini');
+  const key = `${deps.geminiBase ?? ''}:${conn.id}:${conn.gemini?.email ?? ''}:${conn.gemini?.project ?? ''}`;
+  return geminiLists.get(key, async () => (await geminiModelsOf(conn, deps, store)).map((m) => m.id));
+}
+
 export const GEMINI_ROUTES: Record<string, Route> = {
   login: { method: 'POST', run: (_req, deps) => Promise.resolve(beginGeminiLogin(deps.geminiAuthBase)) },
   code: { method: 'POST', run: connectGemini },
   models: {
     method: 'GET',
-    run: async (req, deps, store) => ({ models: (await geminiModelsOf(connectionFor(store.read(), req, 'gemini'), deps, store).catch(asApiError)).map((m) => m.id) }),
+    run: async (req, deps, store) => ({ models: await geminiIds(req, deps, store).catch(asApiError) }),
   },
 };
 

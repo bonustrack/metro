@@ -9,8 +9,19 @@ import {
   freshAdaptations,
   type Adaptations,
 } from './bedrock.js';
-import { addBeta, anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, watchUpstream } from './forward.js';
-import { BINDING_BETA, cappedEffort, effortToApply, plannedEffort, withBlockBinding, withEffort, withThinkingFor } from './effort.js';
+import { addBeta, anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, upstreamMessage, watchUpstream } from './forward.js';
+import {
+  BINDING_BETA,
+  cappedEffort,
+  effortToApply,
+  forgetLearnedThinking,
+  learnAlwaysThinks,
+  plannedEffort,
+  thinkingOff,
+  withBlockBinding,
+  withEffort,
+  withThinkingFor,
+} from './effort.js';
 import { notReady, readModelConfig, resolveRoute, routeLabel, setCodexAuth, setGeminiAuth, writeModelConfig, type Connection, type ModelConfig, type Route } from './model-config.js';
 import { codexMessages, sharedCodexState } from './codex.js';
 import { geminiMessages, sharedGeminiState } from './gemini.js';
@@ -23,6 +34,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import { fitToolSearch } from './tool-search.js';
+import { refreshLoginModels } from './provider-models.js';
 import type { CodexTokens } from './codex-auth.js';
 
 const GATEWAY_PREFIX = '/gateway';
@@ -49,6 +61,7 @@ export function resetGatewayState(): void {
   forgetUsage();
   learned.fields.clear();
   learned.dropBetas = false;
+  forgetLearnedThinking();
   sharedCodexState.clear();
   sharedGeminiState.clear();
 }
@@ -115,6 +128,20 @@ async function asAnthropicWants(send: Send, base: Record<string, string>, payloa
   return send(asSent, base);
 }
 
+async function refusedThinkingOff(upstream: Response, shaped: Record<string, unknown>, model: string): Promise<boolean> {
+  if (upstream.status !== 400 || !thinkingOff(shaped)) return false;
+  if (!learnAlwaysThinks(model, upstreamMessage(await upstream.clone().text(), ''))) return false;
+  await upstream.body?.cancel();
+  log.info({ model }, 'gateway: this model cannot run with thinking off, so metro leaves that setting out for it from now on');
+  return true;
+}
+
+function listLoginModels(req: IncomingMessage, anthropicBase: string): void {
+  refreshLoginModels(req.headers, anthropicBase).catch((err: unknown) => {
+    log.warn({ err: errMsg(err) }, 'gateway: could not list the models of the Claude Code login');
+  });
+}
+
 async function toAnthropic(
   req: IncomingMessage,
   res: ServerResponse,
@@ -125,7 +152,8 @@ async function toAnthropic(
   deps: GatewayDeps,
 ): Promise<void> {
   const conn = route.connection;
-  const url = `${deps.anthropicBase ?? ANTHROPIC_BASE}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
+  const anthropicBase = deps.anthropicBase ?? ANTHROPIC_BASE;
+  const url = `${anthropicBase}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
   const key = conn.apiKey;
   if (key === '' && standsInFor(req))
     throw new GatewayError(
@@ -134,10 +162,13 @@ async function toAnthropic(
       'Claude Code on this machine has no Anthropic login of its own; choose Bedrock, OpenRouter, Codex or Gemini on the Model page, or sign in on the Claude tab',
     );
   const watch = watchUpstream(res);
+  if (key === '') listLoginModels(req, anthropicBase);
   const base = key === '' ? forwardedHeaders(req) : anthropicHeaders(req, key);
   const send = (payload: Buffer, headers: Record<string, string>): Promise<Response> =>
     fetch(url, { method: 'POST', headers, body: new Uint8Array(payload), signal: watch.signal, redirect: 'manual' });
-  const upstream = await asAnthropicWants(send, base, anthropicPayloads(raw, sent, shaped, route.model), conn.label, route.model);
+  const attempt = (): Promise<Response> => asAnthropicWants(send, base, anthropicPayloads(raw, sent, shaped, route.model), conn.label, route.model);
+  const first = await attempt();
+  const upstream = (await refusedThinkingOff(first, shaped, route.model)) ? await attempt() : first;
   noteRefusal(conn.label, route.model, upstream);
   noteUsageHeaders('anthropic', conn.id, upstream.headers);
   const scanner = new UsageScanner(conn.id);
@@ -176,8 +207,6 @@ async function toOpenRouter(
   noteRefusal(conn.label, route.model, upstream);
   await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner(conn.id) });
 }
-
-const thinkingOff = (body: Record<string, unknown>): boolean => isRecord(body.thinking) && body.thinking.type === 'disabled';
 
 function openrouterBody(body: Record<string, unknown>, model: string, zdr: boolean): Record<string, unknown> {
   const sent: Record<string, unknown> = { ...body, model };

@@ -8,6 +8,7 @@ import { ToolNames, toResponsesRequest } from './codex-translate.js';
 import { GatewayError, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
 import { parseEvent, SseParser, type SseEvent } from './frames.js';
 import type { Connection } from './model-config.js';
+import { listCache } from './model-lists.js';
 import { answerWhole, currentOf, errorKind, reach, refreshed, relayTranslated, sessionHeader, type TokenSource, type TokenState } from './subscription.js';
 import { noteUsageHeaders } from './usage.js';
 
@@ -24,6 +25,8 @@ export interface CodexDeps {
 export type CodexState = TokenState<CodexTokens>;
 
 export const sharedCodexState: CodexState = new Map();
+
+const codexLists = listCache<string>('codex');
 
 const sourceOf = (deps: CodexDeps): TokenSource<CodexTokens> => ({
   label: 'Codex',
@@ -109,7 +112,12 @@ export async function codexMessages(
 
 export async function codexModels(tokens: CodexTokens, deps: Omit<CodexDeps, 'save'>): Promise<string[]> {
   const version = await learnCodexVersion();
-  const res = await (deps.fetchImpl ?? fetch)(`${deps.base ?? CODEX_BASE}/models?client_version=${version}`, {
+  const base = deps.base ?? CODEX_BASE;
+  return codexLists.get(`${base}:${tokens.accountId}:${version}`, () => listCodex(tokens, version, base, deps.fetchImpl ?? fetch));
+}
+
+async function listCodex(tokens: CodexTokens, version: string, base: string, fetchImpl: typeof fetch): Promise<string[]> {
+  const res = await fetchImpl(`${base}/models?client_version=${version}`, {
     headers: { ...headersFor(tokens, randomUUID()), accept: 'application/json' },
     redirect: 'manual',
   });

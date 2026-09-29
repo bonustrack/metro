@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { forgetUsage, noteUsageHeaders } from '../src/gateway/usage.ts';
+import { forgetModelLists } from '../src/gateway/model-lists.ts';
+import { refreshLoginModels } from '../src/gateway/provider-models.ts';
+import { recordedClaudeModels } from './claude-models-fixture.ts';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleModelRequest } from '../src/gateway/model-api.ts';
@@ -46,12 +49,18 @@ beforeAll(async () => {
       res.end(JSON.stringify({ name: '@openai/codex', version: '0.158.2' }));
       return;
     }
+    if ((req.url ?? '').startsWith('/v1/models') && req.headers.authorization === 'Bearer sk-ant-oat-login') {
+      res.end(JSON.stringify(recordedClaudeModels));
+      return;
+    }
     if ((req.url ?? '').includes('/v1/models') && req.headers['x-api-key'] === undefined) {
       res.end(
         JSON.stringify({
           data: [
             { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex', created: 1_760_000_000, pricing: { prompt: '0.00001', completion: '0.00005' } },
-            { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', created: 1_700_000_000, pricing: { prompt: '0', completion: '-1' } },
+            { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', created: 1_700_000_000, pricing: { prompt: '0', completion: '-1' }, supported_parameters: ['tools', 'reasoning'] },
+            { id: 'acme/translator', name: 'No tools', created: 1_770_000_000, supported_parameters: ['temperature'] },
+            { id: 'acme/painter', name: 'Images only', created: 1_770_000_000, architecture: { output_modalities: ['image'] } },
             { name: 'no id' },
             7,
           ],
@@ -191,6 +200,7 @@ afterAll(() => {
 
 beforeEach(() => {
   forgetUsage();
+  forgetModelLists();
   creditsAuth.length = 0;
   googleForms.length = 0;
   stored = { version: 2, route: '', connections: [] };
@@ -489,7 +499,7 @@ describe('the device-code sign-in from the page', () => {
 });
 
 describe('picking an OpenRouter model without typing its id', () => {
-  test('the daemon lists what OpenRouter serves newest first, dropping rows with no id', async () => {
+  test('the daemon lists the chat models OpenRouter serves, newest first, dropping rows with no id, no tools or no text out', async () => {
     const res = await fetch(`${base}/api/model/openrouter/models`, {
       headers: { authorization: await auth(OWNER) },
     });
@@ -546,6 +556,15 @@ describe('picking an Anthropic or Bedrock model without typing its id', () => {
     stored.connections[0] = { ...stored.connections[0]!, apiKey: 'sk-ant' };
     const live = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth(OWNER) } });
     expect(await live.json()).toEqual({ models: [{ id: 'claude-opus-5', name: 'Claude Opus 5' }, { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' }] });
+  });
+
+  test('Anthropic lists the live models of the Claude Code login once a request has carried it, so a new model shows up without a release', async () => {
+    await add({ provider: 'anthropic' });
+    await refreshLoginModels({ authorization: 'Bearer sk-ant-oat-login' }, backendBase);
+    const res = await fetch(`${base}/api/model/anthropic/models`, { headers: { authorization: await auth(OWNER) } });
+    const models = ((await res.json()) as { models: { id: string; name: string }[] }).models;
+    expect(models[0]).toEqual({ id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' });
+    expect(models.map((m) => m.id)).toContain('claude-sonnet-4-5-20250929');
   });
 
   test('Bedrock lists the active Anthropic inference profiles of the region, and says why when it cannot', async () => {

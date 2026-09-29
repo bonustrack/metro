@@ -10,6 +10,8 @@ import { conn, configOf, connectionId, jwt, makeConnection, use } from './model-
 import type { CodexTokens } from '../src/gateway/codex-auth.ts';
 import type { GeminiTokens } from '../src/gateway/gemini-auth.ts';
 import { afterSearch, firstTurn, secretFunction, TOOL_SEARCH_BETAS } from './tool-search-fixture.ts';
+import { refreshLoginModels } from '../src/gateway/provider-models.ts';
+import { recordedClaudeModels } from './claude-models-fixture.ts';
 
 interface Seen {
   url: string;
@@ -95,7 +97,10 @@ const deps: GatewayDeps = {
 
 beforeAll(async () => {
   anthropic = await fake((req, res) => {
-    if (req.body.includes('"stream":true')) sse(res, ['message_start', 'message_stop']);
+    if (req.url.startsWith('/v1/models')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(recordedClaudeModels));
+    } else if (req.body.includes('"stream":true')) sse(res, ['message_start', 'message_stop']);
     else {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ echo: JSON.parse(req.body) as unknown, auth: req.headers.authorization, beta: req.headers['anthropic-beta'], key: req.headers['x-metro-key'] ?? null, apiKey: req.headers['x-api-key'] ?? null }));
@@ -162,6 +167,7 @@ beforeAll(async () => {
   deps.gemini = { base: [geminiBackend.base, geminiBackend.base], tokenBase: googleTokens.base, save: (_id, t) => { savedGemini.push(t); } };
   deps.codex = { base: codexBackend.base, issuer: tokenIssuer.base, save: (_id, t) => { saved.push(t); } };
   deps.anthropicBase = anthropic.base;
+  await refreshLoginModels({ authorization: 'Bearer sk-ant-oat-login' }, anthropic.base);
   deps.bedrockBase = bedrock.base;
   deps.openrouterBase = openrouter.base;
   gateway = createServer((req, res) => {
