@@ -26,11 +26,11 @@ function DeleteDialog({ server, onClose }: { server: Server; onClose: () => void
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready = readyOf(preview.data);
-  const run = (): void => {
+  const run = (typed: string): void => {
     if (ready === null) return;
     setBusy(true);
     setError(null);
-    deleteServer(server.id, ready, ready.name)
+    deleteServer(server.id, ready, typed)
       .then(async () => {
         await refreshServers(client);
         window.location.hash = routeHash({ kind: 'servers' });

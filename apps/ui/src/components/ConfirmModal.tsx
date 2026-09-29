@@ -16,7 +16,7 @@ interface ConfirmModalProps {
   blocked?: boolean;
   error: string | null;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (typed: string) => void;
 }
 
 export function ConfirmModal(props: ConfirmModalProps): ReactNode {
@@ -32,7 +32,7 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
 
   const confirm = (): void => {
     if (!matches || props.busy) return;
-    props.onConfirm();
+    props.onConfirm(typed.trim());
   };
 
   return (
