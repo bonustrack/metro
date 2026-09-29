@@ -73,7 +73,7 @@ describe('EC2 from the browser', () => {
 
   test('RunInstances carries the exact machine shape and the user data as base64', async () => {
     const seen = stub(200, '<RunInstancesResponse xmlns="x"><reservationId>r-1</reservationId><instancesSet><item><instanceId>i-0abc</instanceId><instanceState><code>0</code><name>pending</name></instanceState></item></instancesSet></RunInstancesResponse>');
-    const spec = { imageId: 'ami-new', name: 'Andy', node: 'metro-andy', owner: 'org_01OWNER', agent: 'srv00000001', userData: '#!/bin/bash\necho hi ✓\n', clientToken: 'tok-1' };
+    const spec = { imageId: 'ami-new', name: 'Andy', node: 'metro-andy', agent: 'srv00000001', userData: '#!/bin/bash\necho hi ✓\n', clientToken: 'tok-1' };
     expect(await runInstance(CREDS, 'eu-west-1', spec)).toBe('i-0abc');
     const body = seen[0]?.body ?? new URLSearchParams();
     expect(body.get('Action')).toBe('RunInstances');
@@ -91,8 +91,8 @@ describe('EC2 from the browser', () => {
       expect([1, 2, 3, 4].map((n) => [tag(n, 'Key'), tag(n, 'Value')])).toEqual([
         ['Name', 'Andy'],
         ['metro', 'metro-andy'],
-        ['metro:owner', 'org_01OWNER'],
         ['metro:agent', 'srv00000001'],
+        [null, null],
       ]);
     }
     expect(body.get('BlockDeviceMapping.1.Ebs.DeleteOnTermination')).toBe('true');

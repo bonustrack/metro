@@ -21,7 +21,7 @@ export interface Deletable {
 
 export type DeletionView = { deletable: false; reason: string } | Deletable;
 
-const ENDED = ['gone', 'shutting-down', 'terminated'];
+const ENDED = ['shutting-down', 'terminated'];
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 const deletionUrl = (serverId: string): string => `${builtInDaemon()}/api/servers/${serverId}/deletion`;
 

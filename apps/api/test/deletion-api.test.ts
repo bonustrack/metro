@@ -29,6 +29,7 @@ let config: ConfigResult = CONFIG;
 let account: FakeAccount = fakeAccount();
 let removed: string[] = [];
 let busy = false;
+let hold: Promise<void> | null = null;
 
 const deps: DeletionApiDeps = {
   config: () => config,
@@ -36,9 +37,10 @@ const deps: DeletionApiDeps = {
     const row = ROWS[id];
     return owner === TEST_OWNER && row !== undefined ? Promise.resolve(row) : Promise.reject(new ApiError('no such server', 404));
   },
-  remove: (owner, id) => {
+  remove: async (owner, id) => {
+    if (hold !== null) await hold;
     removed.push(`${owner} ${id}`);
-    return Promise.resolve({ id, host: HOST });
+    return { id, host: HOST };
   },
   resizing: () => busy,
   aws: fakeDeletionAws(account),
@@ -70,6 +72,7 @@ beforeEach(() => {
   deps.aws = fakeDeletionAws(account);
   removed = [];
   busy = false;
+  hold = null;
   resetDeletionState();
 });
 
@@ -163,6 +166,20 @@ describe('deleting', () => {
     expect(removed).toEqual([]);
   });
 
+  test('a second delete while the first is still removing the row is refused', async () => {
+    let release = (): void => undefined;
+    hold = new Promise((resolve) => {
+      release = resolve;
+    });
+    const first = call('POST', pathOf(), CONFIRM);
+    for (let i = 0; i < 50 && writes().length === 0; i += 1) await new Promise((r) => setTimeout(r, 2));
+    expect((await call('POST', pathOf(), CONFIRM)).status).toBe(409);
+    release();
+    expect((await first).status).toBe(200);
+    expect(writes()).toEqual([`TerminateInstances us-east-1 ${BOX}`]);
+    expect(removed).toEqual([`${TEST_OWNER} ${LAUNCHED}`]);
+  });
+
   test('a server that is changing size is not deleted', async () => {
     busy = true;
     expect((await call('POST', pathOf(), CONFIRM)).status).toBe(409);
@@ -179,7 +196,12 @@ describe('deleting', () => {
     expect(removed).toEqual([]);
   });
 
-  test('a server AWS already terminated only leaves the list', async () => {
+  test('a server AWS does not know stays in the list, one AWS already terminated only leaves it', async () => {
+    account.instances = [otherServer()];
+    const unknown = await call('POST', pathOf(), { ...CONFIRM, volumeIds: [] });
+    expect(unknown.status).toBe(409);
+    expect(await errorOf(unknown)).toContain(`AWS does not know the server ${BOX}`);
+    expect(removed).toEqual([]);
     account.instances = [instance({ state: 'terminated', disks: [] }), otherServer()];
     const res = await call('POST', pathOf(), { ...CONFIRM, volumeIds: [] });
     expect(await res.json()).toMatchObject({ deleted: true, terminated: false });

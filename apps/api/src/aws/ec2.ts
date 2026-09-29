@@ -95,7 +95,6 @@ export interface InstanceSpec {
   imageId: string;
   name: string;
   node: string;
-  owner: string;
   agent: string;
   userData: string;
   clientToken: string;
@@ -103,14 +102,12 @@ export interface InstanceSpec {
 }
 
 export const NODE_TAG = 'metro';
-export const OWNER_TAG = 'metro:owner';
 export const AGENT_TAG = 'metro:agent';
 
 function tagSpecification(at: number, type: string, spec: InstanceSpec): Record<string, string> {
   const tags: [string, string][] = [
     ['Name', spec.name],
     [NODE_TAG, spec.node],
-    [OWNER_TAG, spec.owner],
     [AGENT_TAG, spec.agent],
   ];
   const prefix = `TagSpecification.${String(at)}`;

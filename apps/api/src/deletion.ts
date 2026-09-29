@@ -56,7 +56,7 @@ async function resolve(deps: DeletionApiDeps, owner: string, id: string): Promis
   return {
     row,
     target: { credentials: config.config.credentials, region: row.region, instanceId: row.instanceId },
-    owned: { agentId: row.id, owner, host: row.host },
+    owned: { agentId: row.id, host: row.host },
   };
 }
 
@@ -88,11 +88,17 @@ function confirmedOf(body: unknown, row: DeletionRow): Confirmed {
   return { instanceId, volumeIds: volumeIds.map(String) };
 }
 
-async function claimed(key: string, work: () => Promise<Outcome>): Promise<Outcome> {
+async function deleteAll(deps: DeletionApiDeps, owner: string, id: string, resolved: Resolved, confirmed: Confirmed): Promise<Outcome> {
+  const { row, target, owned } = resolved;
+  const key = `${target.region}/${target.instanceId}`;
   if (claims.has(key)) throw new ApiError('this server is already being deleted', 409);
   claims.add(key);
   try {
-    return await work();
+    const outcome = await guarded(() => runDeletion(deps.aws, target, owned, confirmed));
+    log.info({ owner, agent: id, region: target.region, ...outcome }, 'deletion: the server is deleted in AWS');
+    await deps.remove(owner, id);
+    log.info({ owner, agent: id, host: row.host }, 'deletion: the agent left the list');
+    return outcome;
   } finally {
     claims.delete(key);
   }
@@ -102,14 +108,10 @@ async function remove(deps: DeletionApiDeps, session: Session, owner: string, id
   if (session.role !== 'admin') throw new ApiError('deleting a server needs the admin role in your organization', 403);
   const resolved = await resolve(deps, owner, id);
   if (typeof resolved === 'string') throw new ApiError(resolved, 400);
-  const { row, target, owned } = resolved;
-  const confirmed = confirmedOf(body, row);
-  if (deps.resizing(target.region, target.instanceId)) throw new ApiError('this server is changing size. Wait for it to finish', 409);
-  const outcome = await claimed(`${target.region}/${target.instanceId}`, () => guarded(() => runDeletion(deps.aws, target, owned, confirmed)));
-  log.info({ owner, agent: id, region: target.region, ...outcome }, 'deletion: the server is deleted in AWS');
-  await deps.remove(owner, id);
-  log.info({ owner, agent: id, host: row.host }, 'deletion: the agent left the list');
-  return { deleted: true, name: labelOf(row), ...outcome };
+  const confirmed = confirmedOf(body, resolved.row);
+  if (deps.resizing(resolved.target.region, resolved.target.instanceId)) throw new ApiError('this server is changing size. Wait for it to finish', 409);
+  const outcome = await deleteAll(deps, owner, id, resolved, confirmed);
+  return { deleted: true, name: labelOf(resolved.row), ...outcome };
 }
 
 async function route(req: IncomingMessage, res: ServerResponse, deps: DeletionApiDeps, id: string): Promise<void> {

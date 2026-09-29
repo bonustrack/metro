@@ -1,4 +1,4 @@
-import { AGENT_TAG, NODE_TAG, OWNER_TAG } from './ec2.js';
+import { AGENT_TAG, NODE_TAG } from './ec2.js';
 import type { Ec2Target } from './resize.js';
 import { NODE_RE } from './user-data.js';
 import {
@@ -28,7 +28,6 @@ export const LIVE_DELETION: DeletionAws = {
 
 export interface Owned {
   agentId: string;
-  owner: string;
   host: string;
 }
 
@@ -61,7 +60,6 @@ export interface Outcome {
 
 export class DeletionRefused extends Error {}
 
-const GONE = 'gone';
 const ENDING = ['shutting-down', 'terminated'];
 const CHANGED = 'What AWS shows for this server changed since the dialog opened. Nothing was deleted. Open it again.';
 
@@ -69,7 +67,7 @@ const refuse = (why: string): never => {
   throw new DeletionRefused(`${why} Nothing was deleted.`);
 };
 
-export const isGone = (plan: Plan): boolean => plan.state === GONE || ENDING.includes(plan.state);
+export const isGone = (plan: Plan): boolean => ENDING.includes(plan.state);
 
 function sameIds(a: string[], b: string[]): boolean {
   const x = [...a].sort();
@@ -86,14 +84,14 @@ export function nodeOf(host: string): string {
 function checkTags(tags: Tags, owned: Owned, node: string, what: string, nodeRequired: boolean): void {
   const tagged = tags[NODE_TAG];
   if (tagged === undefined ? nodeRequired : tagged !== node) refuse(`${what} is tagged ${NODE_TAG}=${tagged ?? '(none)'}, not ${node}.`);
-  const owner = tags[OWNER_TAG];
-  if (owner !== undefined && owner !== owned.owner) refuse(`${what} is tagged for another organization, ${owner}.`);
   const agent = tags[AGENT_TAG];
   if (agent !== undefined && agent !== owned.agentId) refuse(`${what} is tagged for another agent, ${agent}.`);
 }
 
-function theInstance(found: InstanceFacts[] | null, instanceId: string): InstanceFacts | null {
-  if (found === null) return null;
+function theInstance(found: InstanceFacts[] | null, target: Ec2Target): InstanceFacts {
+  const { instanceId, region } = target;
+  if (found === null)
+    return refuse(`AWS does not know the server ${instanceId} in ${region} with Metro's key. If it was deleted in the AWS console, remove it from your list in its settings.`);
   const [only, ...more] = found;
   if (only?.instanceId !== instanceId || more.length > 0)
     return refuse(`AWS answered with ${found.map((i) => i.instanceId).join(', ') || 'no server'} when asked for ${instanceId}.`);
@@ -120,8 +118,7 @@ async function plannedDisks(aws: DeletionAws, target: Ec2Target, instance: Insta
 export async function planDeletion(aws: DeletionAws, target: Ec2Target, owned: Owned): Promise<Plan> {
   const node = nodeOf(owned.host);
   const base = { instanceId: target.instanceId, region: target.region, node };
-  const instance = theInstance(await aws.instance(target), target.instanceId);
-  if (instance === null) return { ...base, state: GONE, type: '', disks: [] };
+  const instance = theInstance(await aws.instance(target), target);
   checkTags(instance.tags, owned, node, `The server ${target.instanceId}`, true);
   if (ENDING.includes(instance.state)) return { ...base, state: instance.state, type: instance.type, disks: [] };
   return { ...base, state: instance.state, type: instance.type, disks: await plannedDisks(aws, target, instance, owned, node) };

@@ -22,7 +22,7 @@ export const instance = (over: Partial<InstanceFacts> = {}): InstanceFacts => ({
   instanceId: BOX,
   state: 'running',
   type: 't4g.medium',
-  tags: { Name: 'metro:throwaway', metro: NODE, 'metro:owner': 'org_01TESTOWNER000000', 'metro:agent': 'srv00000001' },
+  tags: { Name: 'metro:throwaway', metro: NODE, 'metro:agent': 'srv00000001' },
   disks: [{ device: '/dev/sda1', volumeId: BOX_DISK, deleteOnTermination: true }],
   ...over,
 });
@@ -31,7 +31,7 @@ export const volume = (over: Partial<VolumeFacts> = {}): VolumeFacts => ({
   volumeId: BOX_DISK,
   sizeGib: 8,
   state: 'in-use',
-  tags: { metro: NODE, 'metro:owner': 'org_01TESTOWNER000000', 'metro:agent': 'srv00000001' },
+  tags: { Name: 'metro:throwaway', metro: NODE, 'metro:agent': 'srv00000001' },
   attachedTo: [BOX],
   multiAttach: false,
   ...over,

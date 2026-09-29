@@ -3,7 +3,7 @@ import { DeletionRefused, nodeOf, planDeletion, runDeletion, type Owned } from '
 import { BOX, BOX_DISK, HOST, NODE, OTHER, OTHER_DISK, fakeAccount, fakeDeletionAws, instance, otherServer, volume, type FakeAccount } from './deletion-fake.ts';
 
 const TARGET = { credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' }, region: 'us-east-1', instanceId: BOX };
-const OWNED: Owned = { agentId: 'srv00000001', owner: 'org_01TESTOWNER000000', host: HOST };
+const OWNED: Owned = { agentId: 'srv00000001', host: HOST };
 const CONFIRMED = { instanceId: BOX, volumeIds: [BOX_DISK] };
 
 const run = (account: FakeAccount, confirmed = CONFIRMED, owned = OWNED): Promise<unknown> => runDeletion(fakeDeletionAws(account), TARGET, owned, confirmed);
@@ -50,7 +50,7 @@ describe('a deletion', () => {
     expect(account.volumes.map((v) => v.volumeId)).toEqual([OTHER_DISK]);
   });
 
-  test('a box launched before the owner and agent tags existed is matched by its node tag alone', async () => {
+  test('a box launched before the agent tag existed is matched by its node tag alone', async () => {
     const account = fakeAccount({
       instances: [instance({ tags: { Name: 'metro:old', metro: NODE } }), otherServer()],
       volumes: [volume({ tags: {} })],
@@ -77,12 +77,12 @@ describe('a deletion', () => {
     expect(writes(account)).toEqual([`ModifyInstanceAttribute ${BOX} /dev/sda1 DeleteOnTermination=true`]);
   });
 
-  test('a server AWS no longer lists, or already terminated, is not asked to terminate again', async () => {
-    const gone = fakeAccount({ instances: [otherServer()] });
-    expect(await run(gone, { instanceId: BOX, volumeIds: [] })).toEqual({ terminated: false, instanceId: BOX, volumeIds: [] });
+  test('a server AWS reports terminated or shutting down is not asked to terminate again', async () => {
     const ended = fakeAccount({ instances: [instance({ state: 'terminated', disks: [] }), otherServer()] });
-    expect(await run(ended, { instanceId: BOX, volumeIds: [] })).toMatchObject({ terminated: false });
-    expect([...writes(gone), ...writes(ended)]).toEqual([]);
+    expect(await run(ended, { instanceId: BOX, volumeIds: [] })).toEqual({ terminated: false, instanceId: BOX, volumeIds: [] });
+    const ending = fakeAccount({ instances: [instance({ state: 'shutting-down' }), otherServer()] });
+    expect(await run(ending, { instanceId: BOX, volumeIds: [] })).toMatchObject({ terminated: false });
+    expect([...writes(ended), ...writes(ending)]).toEqual([]);
   });
 });
 
@@ -95,8 +95,10 @@ describe('a deletion refuses, and changes nothing, when', () => {
     await refused(fakeAccount({ instances: [instance({ tags: { Name: 'web' } }), otherServer()] }), 'is tagged metro=(none)');
   });
 
-  test('the instance is tagged for another organization', async () => {
-    await refused(fakeAccount({ instances: [instance({ tags: { metro: NODE, 'metro:owner': 'org_01TESTSTRANGER00' } }), otherServer()] }), 'another organization');
+  test('AWS does not know the instance, which may only be a launch AWS has not caught up with', async () => {
+    const account = fakeAccount({ instances: [otherServer()] });
+    await expect(run(account, { instanceId: BOX, volumeIds: [] })).rejects.toThrow(`AWS does not know the server ${BOX} in us-east-1`);
+    expect(writes(account)).toEqual([]);
   });
 
   test('the instance is tagged for another agent', async () => {
@@ -111,9 +113,8 @@ describe('a deletion refuses, and changes nothing, when', () => {
     await refused(fakeAccount({ volumes: [volume({ attachedTo: [BOX, OTHER], multiAttach: true }), volume({ volumeId: OTHER_DISK })] }), `attached to ${BOX}, ${OTHER}`);
   });
 
-  test('a disk is tagged for another server, organization or agent', async () => {
+  test('a disk is tagged for another server or agent', async () => {
     await refused(fakeAccount({ volumes: [volume({ tags: { metro: 'metro-fa79qt' } })] }), `disk ${BOX_DISK} is tagged metro=metro-fa79qt`);
-    await refused(fakeAccount({ volumes: [volume({ tags: { metro: NODE, 'metro:owner': 'org_01TESTSTRANGER00' } })] }), 'another organization');
     await refused(fakeAccount({ volumes: [volume({ tags: { 'metro:agent': 'srv00000009' } })] }), 'another agent');
   });
 

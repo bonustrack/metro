@@ -160,9 +160,10 @@ not match, before any change:
 - the row is found by its id inside the signed-in organization only, and its
   stored instance id is the only one ever asked for;
 - the instance's `metro` tag must be the node of the row's address, and its
-  `metro:owner` and `metro:agent` tags, when present, must name this
-  organization and this row (boxes launched before 2026-09-29 have only
-  `metro` and `Name`);
+  `metro:agent` tag, when present, must be this row's id (boxes launched
+  before 2026-09-29 have only `metro` and `Name`). The organization is not
+  tagged, since Move to another organization changes it: the row's id, found
+  only inside the signed-in organization, is what binds the two;
 - each disk is asked for by its exact id, must be attached to this instance
   alone, and must not be tagged for another box;
 - the ids must be the ones the dialog showed.
@@ -171,7 +172,10 @@ A disk not set to go with its server is set to by its device, and checked
 again. Then `TerminateInstances` runs with that one id, AWS deletes the disk
 with the instance, and the row leaves the list. Nothing is listed or filtered
 at any step, and no disk is deleted by id. A box AWS already terminated only
-leaves the list.
+leaves the list. A box AWS does not know at all is refused: that is also how a
+box looks in the first seconds after its launch, or when the key belongs to
+another AWS account. If it was deleted in the AWS console, Remove in its
+settings takes it off the list.
 
 The Tailscale machine stays in the tailnet, offline, since Metro holds an auth
 key and not a Tailscale API token. Remove it in the admin console under

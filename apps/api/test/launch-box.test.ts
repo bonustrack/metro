@@ -18,7 +18,7 @@ function fakeDeps(full: Set<string> = new Set()): { deps: LaunchDeps; calls: str
         `run ${region} ${spec.imageId} ${spec.name} ${spec.node} ${spec.clientToken}${spec.zone === undefined ? '' : ` ${spec.zone}`}`,
       );
       userData.push(spec.userData);
-      tags.push(`${spec.owner} ${spec.agent}`);
+      tags.push(spec.agent);
       if (full.has(spec.zone ?? '*'))
         return Promise.reject(new AwsError('InsufficientInstanceCapacity', 'Insufficient capacity.'));
       return Promise.resolve('i-0abc');
@@ -47,7 +47,7 @@ describe('metro issuing a box', () => {
   test('resolves the image, runs the instance, and answers the host it will be reachable on', async () => {
     const { deps, calls, userData, tags } = fakeDeps();
     const launched = await launchBox(INPUT, deps);
-    expect(tags).toEqual(['org_01M2TNE064H99ECTG4X228Y6B6 srv00000001']);
+    expect(tags).toEqual(['srv00000001']);
     expect(launched).toEqual({
       host: 'metro-abc123.tail17c4f8.ts.net',
       node: 'metro-abc123',
