@@ -44,6 +44,7 @@ import {
   readLocalAgentFile,
 } from '../agents/file-admin.js';
 import { readModelConfig } from '../gateway/model-config.js';
+import { resourcesFor } from '../server/resources.js';
 import type { StationName } from '@metro-labs/core/station-names';
 
 export interface LocalModeDeps {
@@ -197,7 +198,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     updateApi: { restart: deps.restart },
     controlApi: { restart: deps.restart, stop: deps.stop },
     ownerApi: { setOwner: (owner) => setLocalOwner(owner) },
-    machineApi: {},
+    machineApi: { resources: resourcesFor },
     modelApi: {},
     gateway: { config: readModelConfig },
     terminalApi: {},

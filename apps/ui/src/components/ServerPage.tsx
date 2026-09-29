@@ -9,6 +9,7 @@ import { DaemonControls } from './DaemonControls.js';
 import { ClaudeSession } from './ClaudeSession.js';
 import { ServerSizeSection } from './ServerSize.js';
 import { DeleteServerSection } from './DeleteServer.js';
+import { ServerResources } from './ServerResources.js';
 import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js';
 import { type Server } from '../api/servers.js';
 import { diskLabel, systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
@@ -80,6 +81,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
       ) : (
         <MachineFacts machine={machine.data} />
       )}
+      <ServerResources />
       {server === undefined ? null : <ServerSizeSection serverId={server.id} />}
       <Details machine={machine.data} server={server} />
       {server === undefined ? null : <DeleteServerSection server={server} />}

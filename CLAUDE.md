@@ -309,7 +309,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 | `/api/connectors…` | bearer | Connectors, OAuth, live tools. `GET /api/connectors/callback` is open (single-use state). |
 | `/api/claude/…` | bearer (writes on login/session/version/setup are admin) | Transcripts, memory, settings, skills, setup, session, version, login. |
 | `/api/model…` | bearer | Route, connections, Codex and Gemini sign-in. Never returns a key. |
-| `GET /api/server` | bearer | Machine facts. |
+| `GET /api/server` | bearer | Machine facts. With `?range=1h\|24h\|7d` it adds `resources`, the Server page's CPU, memory and disk charts: one reading a minute (`server/resources.ts`), kept 7 days in `~/.metro/resources.jsonl`, averaged to 240 points at most. Not a bus journal. A query, not a new route, because an older daemon's monitor answers an unknown `/api/*` path with 401; it ignores the query, and the page then says to update. |
 | `POST /api/stop`, `/api/restart`, `/api/update` | bearer, admin | Exit 76 or 75 after answering; 400 if not started by `metro serve`. |
 | `POST /api/owner` | bearer, admin | Hand the box to another organization. |
 | `/api/terminal`, `POST /api/terminal/tickets`, `ws /api/terminal/<ticket>` | bearer, admin, then a one-time ticket in the path | tmux in a Bun PTY. Ticket in the path because Funnel strips query strings on upgrade. |

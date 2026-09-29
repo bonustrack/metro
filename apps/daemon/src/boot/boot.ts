@@ -50,6 +50,7 @@ import { materializeFrom, reloadFrom } from '../stations/materialize.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import { startUploadReaper } from '../files/upload-store.js';
 import { startAttachReaper } from '../files/attach-reaper.js';
+import { startResourceSampler } from '../server/resources.js';
 
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -142,6 +143,7 @@ installBearerSessions(agentsDir(), localOwner);
   syncPluginServers(readLocalConnectors());
   startUploadReaper();
   startAttachReaper();
+  startResourceSampler();
   announceLocalEndpoint();
   tunnel?.start();
   log.info(
