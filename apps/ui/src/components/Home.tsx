@@ -9,6 +9,7 @@ import { AgentPicture, ChannelCards, ConnectorIcons, StatusLine } from './AgentO
 import { Checklist } from './Checklist.js';
 import { AgentRoute } from './AgentModel.js';
 import { Approvals } from './Approvals.js';
+import { LatestUsageLine } from './LatestUsage.js';
 import { flattenAccounts, type AccountGroup } from '../api/accounts.js';
 import { queryError, useConnectorsQuery, useServersQuery, useStationsQuery } from '../api/queries.js';
 import { currentServer } from '../auth/daemon.js';
@@ -99,6 +100,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
           <Col gap={6} flex={1} minWidth={0}>
             <PageTitle>{name}</PageTitle>
             <StatusLine host={here?.host ?? null} project={project} onSelect={onSelect} />
+            {server === undefined ? null : <LatestUsageLine serverId={server.id} />}
           </Col>
         </Row>
         <MetroVersion quiet />

@@ -37,6 +37,7 @@ import { fetchUpdate, type UpdateCheck } from './update.js';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
 import { fetchMachine, type Machine } from './machine.js';
 import { fetchUsage, type ResourceRange, type Usage } from './resources.js';
+import { fetchLatestUsage, type LatestUsage } from './latest-usage.js';
 import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
 import { fetchSize, jobRunning, type SizeView } from './size.js';
 import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
@@ -247,6 +248,9 @@ export const useMachineQuery = (): UseQueryResult<Machine> =>
 
 export const useUsageQuery = (serverId: string, range: ResourceRange): UseQueryResult<Usage | null> =>
   useQuery({ queryKey: orgKey('usage', serverId, range), queryFn: () => fetchUsage(serverId, range), staleTime: 30_000, refetchInterval: 60_000, retry: false });
+
+export const useLatestUsageQuery = (): UseQueryResult<Record<string, LatestUsage>> =>
+  useQuery({ queryKey: orgKey('latest-usage'), queryFn: fetchLatestUsage, staleTime: 60_000, refetchInterval: 60_000, retry: false });
 
 export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
   useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: 10_000 });

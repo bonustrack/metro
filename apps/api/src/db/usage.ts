@@ -50,6 +50,19 @@ export async function usageRowForOwner(subject: string, rawId: string): Promise<
   return { host: row.host, link: linkOf(row) };
 }
 
+export interface LinkedRow {
+  id: string;
+  link: MetricsLink | null;
+}
+
+export async function usageRowsForOwner(subject: string): Promise<LinkedRow[]> {
+  const rows = await getDb()
+    .select({ id: agents.id, ...usageColumns })
+    .from(agents)
+    .where(eq(agents.owner, ownerOf(subject)));
+  return rows.map((row) => ({ id: row.id, link: linkOf(row) }));
+}
+
 export async function setMetricsLink(rawId: string, link: MetricsLink | null): Promise<void> {
   const changed = await getDb()
     .update(agents)

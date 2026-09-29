@@ -22,6 +22,7 @@ import { useDocumentTitle } from '../title.js';
 import { useBootingState } from '../aws/use-launch.js';
 import { BootLog } from './BootLog.js';
 import { AgentAvatar } from './AgentAvatar.js';
+import { LatestUsageLine } from './LatestUsage.js';
 
 const LIST_WIDTH = 880;
 const CARD_AVATAR = 48;
@@ -112,6 +113,7 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
           <Text size="sm" role="secondary" numberOfLines={1}>
             {server.host}
           </Text>
+          <LatestUsageLine serverId={server.id} />
         </Col>
         <Row gap={8} align="center" wrap>
           <StatusText server={server} />

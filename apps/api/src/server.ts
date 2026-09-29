@@ -31,7 +31,8 @@ import { handleSizeApiRequest, resizing, type SizeApiDeps } from './size.js';
 import { handleDeletionApiRequest, type DeletionApiDeps } from './deletion.js';
 import { handleServersApiRequest, type ServersApiDeps } from './servers.js';
 import { handleUsageApiRequest, LIVE_METRICS, type MetricsCore, type UsageApiDeps } from './usage.js';
-import { setMetricsLink, usageRowForOwner } from './db/usage.js';
+import { handleLatestApiRequest, type LatestApiDeps } from './usage-latest.js';
+import { setMetricsLink, usageRowForOwner, usageRowsForOwner } from './db/usage.js';
 import { dbSlugs } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
 
@@ -50,6 +51,7 @@ const adminApi: AdminApiDeps = {
   metrics: { ...metricsCore, save: setMetricsLink },
 };
 const usageApi: UsageApiDeps = { ...metricsCore, lookup: usageRowForOwner, keys };
+const latestApi: LatestApiDeps = { ...metricsCore, rows: usageRowsForOwner, keys };
 const serversApi: ServersApiDeps = {
   list: listServersForOwner,
   add: addServerForOwner,
@@ -99,6 +101,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleSizeApiRequest(req, res, sizeApi),
   (req, res) => handleDeletionApiRequest(req, res, deletionApi),
   (req, res) => handleUsageApiRequest(req, res, usageApi),
+  (req, res) => handleLatestApiRequest(req, res, latestApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
   (req, res) => handleLaunchApiRequest(req, res, launchApi),
 ];

@@ -68,7 +68,7 @@ function explain(err: unknown, link: MetricsLink): string {
   return `AWS refused ${err.action || 'a call'}. Add it to ${where}.`;
 }
 
-async function credentialsFor(core: MetricsCore, base: AwsCredentials, link: MetricsLink): Promise<AwsCredentials> {
+export async function credentialsFor(core: MetricsCore, base: AwsCredentials, link: MetricsLink): Promise<AwsCredentials> {
   if (link.roleArn === null) return base;
   const cached = roles.get(link.roleArn);
   if (cached !== undefined && cached.expiresAt - ROLE_MARGIN_MS > core.now()) return cached;
