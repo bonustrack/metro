@@ -5,7 +5,7 @@ import { Button } from './ui.js';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { orgKey, queryError, refreshServers } from '../api/queries.js';
-import { deleteServer, deletionLines, fetchDeletion, type Deletable, type DeletionView } from '../api/deletion.js';
+import { deleteServer, deletionLines, fetchDeletion, type Deletable, type DeletionScope, type DeletionView } from '../api/deletion.js';
 import { serverLabel, type Server } from '../api/servers.js';
 import { activeAccount } from '../auth/account.js';
 import { routeHash } from '../route.js';
@@ -20,9 +20,17 @@ const linesOf = (view: DeletionView | undefined): string[] => {
   return view.deletable ? deletionLines(view) : [view.reason];
 };
 
-function DeleteDialog({ server, onClose }: { server: Server; onClose: () => void }): ReactNode {
-  const client = useQueryClient();
-  const preview = useQuery({ queryKey: orgKey('deletion', server.id), queryFn: () => fetchDeletion(server.id), staleTime: 0, gcTime: 0, retry: false });
+interface DeleteDialogProps {
+  id: string;
+  label: string;
+  scope: DeletionScope;
+  onDeleted: () => Promise<void>;
+  onClose: () => void;
+}
+
+export function DeleteDialog({ id, label, scope, onDeleted, onClose }: DeleteDialogProps): ReactNode {
+  const key = scope === 'admin' ? ['admin', 'deletion', id] : orgKey('deletion', id);
+  const preview = useQuery({ queryKey: key, queryFn: () => fetchDeletion(id, scope), staleTime: 0, gcTime: 0, retry: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready = readyOf(preview.data);
@@ -30,11 +38,8 @@ function DeleteDialog({ server, onClose }: { server: Server; onClose: () => void
     if (ready === null) return;
     setBusy(true);
     setError(null);
-    deleteServer(server.id, ready, typed)
-      .then(async () => {
-        await refreshServers(client);
-        window.location.hash = routeHash({ kind: 'servers' });
-      })
+    deleteServer(id, ready, typed, scope)
+      .then(onDeleted)
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not delete the server.'));
         setBusy(false);
@@ -44,9 +49,9 @@ function DeleteDialog({ server, onClose }: { server: Server; onClose: () => void
   return (
     <ConfirmModal
       open
-      title={`Delete ${serverLabel(server)}?`}
+      title={`Delete ${label}?`}
       lines={readError === null ? linesOf(preview.data) : []}
-      confirmWord={ready?.name ?? serverLabel(server)}
+      confirmWord={ready?.name ?? label}
       confirmLabel="Delete server"
       busy={busy}
       blocked={ready === null}
@@ -61,6 +66,7 @@ function DeleteDialog({ server, onClose }: { server: Server; onClose: () => void
 
 export function DeleteServerSection({ server }: { server: Server }): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const client = useQueryClient();
   const [open, setOpen] = useState(false);
   if (server.instanceId === null || activeAccount()?.role !== 'admin') return null;
   return (
@@ -77,7 +83,13 @@ export function DeleteServerSection({ server }: { server: Server }): ReactNode {
         />
         {open ? (
           <DeleteDialog
-            server={server}
+            id={server.id}
+            label={serverLabel(server)}
+            scope="organization"
+            onDeleted={async () => {
+              await refreshServers(client);
+              window.location.hash = routeHash({ kind: 'servers' });
+            }}
             onClose={() => {
               setOpen(false);
             }}

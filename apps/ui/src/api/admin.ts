@@ -36,6 +36,7 @@ export interface AgentRow {
   slug: string | null;
   addedAt: string | null;
   avatar: string | null;
+  instanceId: string | null;
 }
 
 const adminUrl = (path: string): string => `${builtInDaemon()}/api/admin${path}`;
@@ -98,7 +99,19 @@ export async function fetchAllOrganizations(): Promise<OrganizationSummary[]> {
 export async function fetchAllAgents(): Promise<AgentRow[]> {
   return rows(await call('/agents'), 'agents').flatMap((a) =>
     typeof a.id === 'string' && typeof a.owner === 'string' && typeof a.host === 'string'
-      ? [{ id: a.id, owner: a.owner, organizationName: optional(a.organizationName), host: a.host, name: optional(a.name), slug: optional(a.slug), addedAt: optional(a.addedAt), avatar: optional(a.avatar) }]
+      ? [
+          {
+            id: a.id,
+            owner: a.owner,
+            organizationName: optional(a.organizationName),
+            host: a.host,
+            name: optional(a.name),
+            slug: optional(a.slug),
+            addedAt: optional(a.addedAt),
+            avatar: optional(a.avatar),
+            instanceId: optional(a.instanceId),
+          },
+        ]
       : [],
   );
 }

@@ -37,6 +37,17 @@ describe('what the delete dialog shows', () => {
     ]);
   });
 
+  test('the operator dialog names the organization the server belongs to', () => {
+    const owned = toDeletionView({ ...ANSWER, owner: 'org_01CLIENT00000000', organizationName: 'Anderra' });
+    if (!owned.deletable) throw new Error('expected a deletable view');
+    expect(view().owner).toBeNull();
+    expect(owned.owner).toEqual({ id: 'org_01CLIENT00000000', name: 'Anderra' });
+    const lines = deletionLines(owned);
+    expect(lines[0]).toBe('It belongs to the organization Anderra (org_01CLIENT00000000).');
+    expect(lines).toContain('throwaway-47 leaves the agent list of that organization. This cannot be undone.');
+    expect(deletionLines({ ...owned, owner: { id: 'org_01CLIENT00000000', name: null } })[0]).toBe('It belongs to the organization org_01CLIENT00000000.');
+  });
+
   test('a server AWS already deleted only leaves the list', () => {
     expect(deletionLines({ ...view(), state: 'terminated', volumes: [] })[0]).toBe('AWS has already deleted the server i-0b0c0000000000001. throwaway-47 only leaves your agent list.');
   });
