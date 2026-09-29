@@ -166,16 +166,28 @@ not match, before any change:
   only inside the signed-in organization, is what binds the two;
 - each disk is asked for by its exact id, must be attached to this instance
   alone, and must not be tagged for another box;
-- the ids must be the ones the dialog showed.
+- the ids, and the state of the instance, must be the ones the dialog showed.
 
 A disk not set to go with its server is set to by its device, and checked
 again. Then `TerminateInstances` runs with that one id, AWS deletes the disk
 with the instance, and the row leaves the list. Nothing is listed or filtered
-at any step, and no disk is deleted by id. A box AWS already terminated only
-leaves the list. A box AWS does not know at all is refused: that is also how a
-box looks in the first seconds after its launch, or when the key belongs to
-another AWS account. If it was deleted in the AWS console, Remove in its
-settings takes it off the list.
+at any step, and no disk is deleted by id.
+
+A box that is no longer on AWS only leaves the list. That is a box AWS reports
+terminated, or one AWS does not know at all (`InvalidInstanceID.NotFound`). The
+dialog says "Server not found on AWS, only the agent entry will be removed",
+the name is still typed, and nothing is written to AWS. The confirm asks AWS
+again and refuses if the instance came back or its state changed. Some cases
+are still refused, and the row stays:
+
+- AWS does not know the box and its row is less than 10 minutes old. EC2
+  answers NotFound for a few seconds after a launch. Try again later.
+- AWS is still shutting the box down. Try again in a few minutes.
+- AWS answers with any other error: the key is refused, the call is
+  throttled, or EC2 cannot be reached.
+
+AWS also answers NotFound when the key belongs to another AWS account, so the
+dialog names the instance id and its region.
 
 The Tailscale machine stays in the tailnet, offline, since Metro holds an auth
 key and not a Tailscale API token. Remove it in the admin console under
@@ -185,7 +197,9 @@ The Metro operator (the `admin@stage.box` account, not an organization's
 admin) can also delete a box of any organization from Admin, Agents. The same
 dialog names the organization the box belongs to. The api finds the row by its
 id in every organization, then runs exactly the same checks, and logs who
-deleted which box for which organization.
+deleted which box for which organization. An agent Metro did not launch also
+has Delete there. It only removes the agent entry, and its machine keeps
+running.
 
 ## Changing the size of a box
 

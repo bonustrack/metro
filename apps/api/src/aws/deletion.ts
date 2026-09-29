@@ -1,4 +1,4 @@
-import { AGENT_TAG, NODE_TAG } from './ec2.js';
+import { AGENT_TAG, AwsError, NODE_TAG } from './ec2.js';
 import type { Ec2Target } from './resize.js';
 import { NODE_RE } from './user-data.js';
 import {
@@ -13,7 +13,7 @@ import {
 } from './teardown.js';
 
 export interface DeletionAws {
-  instance: (target: Ec2Target) => Promise<InstanceFacts[] | null>;
+  instance: (target: Ec2Target) => Promise<InstanceFacts[]>;
   volumes: (target: Ec2Target, volumeIds: string[]) => Promise<VolumeFacts[]>;
   deleteWithServer: (target: Ec2Target, device: string) => Promise<void>;
   terminate: (target: Ec2Target) => Promise<string[]>;
@@ -29,6 +29,7 @@ export const LIVE_DELETION: DeletionAws = {
 export interface Owned {
   agentId: string;
   host: string;
+  addedAt: string;
 }
 
 export interface PlannedDisk {
@@ -49,6 +50,7 @@ export interface Plan {
 
 export interface Confirmed {
   instanceId: string;
+  state: string;
   volumeIds: string[];
 }
 
@@ -60,14 +62,20 @@ export interface Outcome {
 
 export class DeletionRefused extends Error {}
 
-const ENDING = ['shutting-down', 'terminated'];
+const NOT_FOUND = 'not-found';
+const NOT_LAUNCHED = 'not-launched';
+const ENTRY_ONLY = [NOT_FOUND, NOT_LAUNCHED, 'terminated'];
+const NOT_LAUNCHED_PLAN: Plan = { instanceId: '', region: '', node: '', state: NOT_LAUNCHED, type: '', disks: [] };
+const JUST_LAUNCHED_MS = 10 * 60_000;
 const CHANGED = 'What AWS shows for this server changed since the dialog opened. Nothing was deleted. Open it again.';
 
 const refuse = (why: string): never => {
   throw new DeletionRefused(`${why} Nothing was deleted.`);
 };
 
-export const isGone = (plan: Plan): boolean => ENDING.includes(plan.state);
+export const isEntryOnly = (plan: Plan): boolean => ENTRY_ONLY.includes(plan.state);
+
+const justLaunched = (addedAt: string): boolean => !(Date.now() - Date.parse(addedAt) >= JUST_LAUNCHED_MS);
 
 function sameIds(a: string[], b: string[]): boolean {
   const x = [...a].sort();
@@ -88,10 +96,17 @@ function checkTags(tags: Tags, owned: Owned, node: string, what: string, nodeReq
   if (agent !== undefined && agent !== owned.agentId) refuse(`${what} is tagged for another agent, ${agent}.`);
 }
 
-function theInstance(found: InstanceFacts[] | null, target: Ec2Target): InstanceFacts {
-  const { instanceId, region } = target;
-  if (found === null)
-    return refuse(`AWS does not know the server ${instanceId} in ${region} with Metro's key. If it was deleted in the AWS console, remove it from your list in its settings.`);
+async function described(aws: DeletionAws, target: Ec2Target): Promise<InstanceFacts[] | null> {
+  try {
+    return await aws.instance(target);
+  } catch (err) {
+    if (err instanceof AwsError && err.code === 'InvalidInstanceID.NotFound') return null;
+    throw err;
+  }
+}
+
+function theInstance(found: InstanceFacts[], target: Ec2Target): InstanceFacts {
+  const { instanceId } = target;
   const [only, ...more] = found;
   if (only?.instanceId !== instanceId || more.length > 0)
     return refuse(`AWS answered with ${found.map((i) => i.instanceId).join(', ') || 'no server'} when asked for ${instanceId}.`);
@@ -115,17 +130,25 @@ async function plannedDisks(aws: DeletionAws, target: Ec2Target, instance: Insta
   return instance.disks.map((disk) => plannedDisk(disk, volumes, owned, node, target.instanceId));
 }
 
-export async function planDeletion(aws: DeletionAws, target: Ec2Target, owned: Owned): Promise<Plan> {
+export async function planDeletion(aws: DeletionAws, target: Ec2Target | null, owned: Owned): Promise<Plan> {
+  if (target === null) return NOT_LAUNCHED_PLAN;
   const node = nodeOf(owned.host);
   const base = { instanceId: target.instanceId, region: target.region, node };
-  const instance = theInstance(await aws.instance(target), target);
+  const found = await described(aws, target);
+  if (found === null) {
+    if (justLaunched(owned.addedAt)) refuse(`The server ${target.instanceId} was just launched, try again in a few minutes.`);
+    return { ...base, state: NOT_FOUND, type: '', disks: [] };
+  }
+  const instance = theInstance(found, target);
   checkTags(instance.tags, owned, node, `The server ${target.instanceId}`, true);
-  if (ENDING.includes(instance.state)) return { ...base, state: instance.state, type: instance.type, disks: [] };
+  if (instance.state === 'shutting-down') refuse(`AWS is still shutting down the server ${target.instanceId}, try again in a few minutes.`);
+  if (instance.state === 'terminated') return { ...base, state: instance.state, type: instance.type, disks: [] };
   return { ...base, state: instance.state, type: instance.type, disks: await plannedDisks(aws, target, instance, owned, node) };
 }
 
 function checkConfirmed(plan: Plan, confirmed: Confirmed): void {
-  if (confirmed.instanceId !== plan.instanceId || !sameIds(confirmed.volumeIds, plan.disks.map((d) => d.volumeId))) throw new DeletionRefused(CHANGED);
+  const sameDisks = sameIds(confirmed.volumeIds, plan.disks.map((d) => d.volumeId));
+  if (confirmed.instanceId !== plan.instanceId || confirmed.state !== plan.state || !sameDisks) throw new DeletionRefused(CHANGED);
 }
 
 async function deleteDisksWithServer(aws: DeletionAws, target: Ec2Target, owned: Owned, plan: Plan, confirmed: Confirmed): Promise<void> {
@@ -138,11 +161,11 @@ async function deleteDisksWithServer(aws: DeletionAws, target: Ec2Target, owned:
   if (still.length > 0) refuse(`AWS would still keep the disk ${still.map((d) => d.volumeId).join(', ')} after the server is deleted.`);
 }
 
-export async function runDeletion(aws: DeletionAws, target: Ec2Target, owned: Owned, confirmed: Confirmed): Promise<Outcome> {
+export async function runDeletion(aws: DeletionAws, target: Ec2Target | null, owned: Owned, confirmed: Confirmed): Promise<Outcome> {
   const plan = await planDeletion(aws, target, owned);
   checkConfirmed(plan, confirmed);
   const outcome = { instanceId: plan.instanceId, volumeIds: plan.disks.map((d) => d.volumeId) };
-  if (isGone(plan)) return { ...outcome, terminated: false };
+  if (target === null || isEntryOnly(plan)) return { ...outcome, terminated: false };
   await deleteDisksWithServer(aws, target, owned, plan, confirmed);
   const terminating = await aws.terminate(target);
   if (terminating.length !== 1 || terminating[0] !== target.instanceId)

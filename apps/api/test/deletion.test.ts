@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { DeletionRefused, nodeOf, planDeletion, runDeletion, type Owned } from '../src/aws/deletion.ts';
+import { AwsError } from '../src/aws/ec2.ts';
 import { BOX, BOX_DISK, HOST, NODE, OTHER, OTHER_DISK, fakeAccount, fakeDeletionAws, instance, otherServer, volume, type FakeAccount } from './deletion-fake.ts';
 
 const TARGET = { credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' }, region: 'us-east-1', instanceId: BOX };
-const OWNED: Owned = { agentId: 'srv00000001', host: HOST };
-const CONFIRMED = { instanceId: BOX, volumeIds: [BOX_DISK] };
+const OWNED: Owned = { agentId: 'srv00000001', host: HOST, addedAt: '2026-09-01T10:00:00.000Z' };
+const CONFIRMED = { instanceId: BOX, state: 'running', volumeIds: [BOX_DISK] };
+const ago = (minutes: number): string => new Date(Date.now() - minutes * 60_000).toISOString();
 
 const run = (account: FakeAccount, confirmed = CONFIRMED, owned = OWNED): Promise<unknown> => runDeletion(fakeDeletionAws(account), TARGET, owned, confirmed);
 
@@ -77,12 +79,29 @@ describe('a deletion', () => {
     expect(writes(account)).toEqual([`ModifyInstanceAttribute ${BOX} /dev/sda1 DeleteOnTermination=true`]);
   });
 
-  test('a server AWS reports terminated or shutting down is not asked to terminate again', async () => {
+  test('a server AWS reports terminated is not asked to terminate again, even one launched a minute ago', async () => {
     const ended = fakeAccount({ instances: [instance({ state: 'terminated', disks: [] }), otherServer()] });
-    expect(await run(ended, { instanceId: BOX, volumeIds: [] })).toEqual({ terminated: false, instanceId: BOX, volumeIds: [] });
-    const ending = fakeAccount({ instances: [instance({ state: 'shutting-down' }), otherServer()] });
-    expect(await run(ending, { instanceId: BOX, volumeIds: [] })).toMatchObject({ terminated: false });
-    expect([...writes(ended), ...writes(ending)]).toEqual([]);
+    expect(await run(ended, { instanceId: BOX, state: 'terminated', volumeIds: [] })).toEqual({ terminated: false, instanceId: BOX, volumeIds: [] });
+    const young = fakeAccount({ instances: [instance({ state: 'terminated', disks: [] }), otherServer()] });
+    expect(await run(young, { instanceId: BOX, state: 'terminated', volumeIds: [] }, { ...OWNED, addedAt: ago(1) })).toMatchObject({ terminated: false });
+    expect([...writes(ended), ...writes(young)]).toEqual([]);
+  });
+
+  test('a server AWS does not know, on a row older than 10 minutes, is not on AWS: nothing is written there', async () => {
+    const account = fakeAccount({ instances: [otherServer()] });
+    const plan = await planDeletion(fakeDeletionAws(account), TARGET, { ...OWNED, addedAt: ago(11) });
+    expect(plan).toEqual({ instanceId: BOX, region: 'us-east-1', node: NODE, state: 'not-found', type: '', disks: [] });
+    expect(await run(account, { instanceId: BOX, state: 'not-found', volumeIds: [] })).toEqual({ terminated: false, instanceId: BOX, volumeIds: [] });
+    expect(writes(account)).toEqual([]);
+  });
+
+  test('a row with no instance id is never looked up in AWS', async () => {
+    const account = fakeAccount();
+    const aws = fakeDeletionAws(account);
+    expect(await planDeletion(aws, null, OWNED)).toMatchObject({ instanceId: '', state: 'not-launched', disks: [] });
+    expect(await runDeletion(aws, null, OWNED, { instanceId: '', state: 'not-launched', volumeIds: [] })).toEqual({ terminated: false, instanceId: '', volumeIds: [] });
+    await expect(runDeletion(aws, null, OWNED, { instanceId: BOX, state: 'not-launched', volumeIds: [] })).rejects.toThrow('changed since the dialog opened');
+    expect(account.calls).toEqual([]);
   });
 });
 
@@ -95,10 +114,28 @@ describe('a deletion refuses, and changes nothing, when', () => {
     await refused(fakeAccount({ instances: [instance({ tags: { Name: 'web' } }), otherServer()] }), 'is tagged metro=(none)');
   });
 
-  test('AWS does not know the instance, which may only be a launch AWS has not caught up with', async () => {
-    const account = fakeAccount({ instances: [otherServer()] });
-    await expect(run(account, { instanceId: BOX, volumeIds: [] })).rejects.toThrow(`AWS does not know the server ${BOX} in us-east-1`);
+  test('AWS does not know an instance whose row is under 10 minutes old, which may only be a launch AWS has not caught up with', async () => {
+    for (const addedAt of [ago(0), ago(9.9), 'not a date']) {
+      const account = fakeAccount({ instances: [otherServer()] });
+      await expect(run(account, { instanceId: BOX, state: 'not-found', volumeIds: [] }, { ...OWNED, addedAt })).rejects.toThrow(`The server ${BOX} was just launched, try again in a few minutes.`);
+      expect(writes(account)).toEqual([]);
+    }
+  });
+
+  test('AWS is still shutting the instance down', async () => {
+    const account = fakeAccount({ instances: [instance({ state: 'shutting-down' }), otherServer()] });
+    await expect(run(account, { instanceId: BOX, state: 'shutting-down', volumeIds: [] })).rejects.toThrow(`AWS is still shutting down the server ${BOX}, try again in a few minutes.`);
     expect(writes(account)).toEqual([]);
+  });
+
+  test('AWS refuses to describe the instance for any other reason: the error goes up as it is', async () => {
+    for (const code of ['RequestLimitExceeded', 'UnauthorizedOperation', 'AuthFailure', 'Unreachable', 'InvalidInstanceID.Malformed']) {
+      const account = fakeAccount({ describeFails: new AwsError(code, 'no', 'ec2:DescribeInstances') });
+      const err = await run(account).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AwsError);
+      expect((err as AwsError).code).toBe(code);
+      expect(writes(account)).toEqual([]);
+    }
   });
 
   test('the instance is tagged for another agent', async () => {
@@ -120,14 +157,17 @@ describe('a deletion refuses, and changes nothing, when', () => {
 
   test('AWS describes other disks than the ones attached', async () => {
     const account = fakeAccount({ instances: [instance({ disks: [{ device: '/dev/sda1', volumeId: OTHER_DISK, deleteOnTermination: true }] }), otherServer()] });
-    await refused(account, `attached to ${OTHER}, not only to ${BOX}`, { instanceId: BOX, volumeIds: [OTHER_DISK] });
+    await refused(account, `attached to ${OTHER}, not only to ${BOX}`, { ...CONFIRMED, volumeIds: [OTHER_DISK] });
     await refused(fakeAccount({ volumes: [] }), `described the disks (none) when asked for ${BOX_DISK}`);
   });
 
-  test('the ids the dialog showed are not the ones AWS shows now', async () => {
-    await refused(fakeAccount(), 'changed since the dialog opened', { instanceId: BOX, volumeIds: [BOX_DISK, OTHER_DISK] });
-    await refused(fakeAccount(), 'changed since the dialog opened', { instanceId: BOX, volumeIds: [] });
-    await refused(fakeAccount(), 'changed since the dialog opened', { instanceId: OTHER, volumeIds: [BOX_DISK] });
+  test('the ids or the state the dialog showed are not the ones AWS shows now', async () => {
+    await refused(fakeAccount(), 'changed since the dialog opened', { ...CONFIRMED, volumeIds: [BOX_DISK, OTHER_DISK] });
+    await refused(fakeAccount(), 'changed since the dialog opened', { ...CONFIRMED, volumeIds: [] });
+    await refused(fakeAccount(), 'changed since the dialog opened', { ...CONFIRMED, instanceId: OTHER });
+    await refused(fakeAccount(), 'changed since the dialog opened', { ...CONFIRMED, state: 'stopped' });
+    await refused(fakeAccount(), 'changed since the dialog opened', { instanceId: BOX, state: 'not-found', volumeIds: [] });
+    await refused(fakeAccount(), 'changed since the dialog opened', { instanceId: BOX, state: 'terminated', volumeIds: [] });
   });
 });
 

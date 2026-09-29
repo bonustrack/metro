@@ -1,6 +1,7 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { SigningKeys } from '@metro-labs/http/workos-token';
 import { handleDeletionApiRequest, resetDeletionState, type DeletionApiDeps } from '../src/deletion.js';
@@ -9,6 +10,7 @@ import type { ConfigResult } from '../src/launch-config.js';
 import type { DeletionRow } from '../src/db/servers.js';
 import { auth, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { BOX, BOX_DISK, HOST, OTHER, fakeAccount, fakeDeletionAws, instance, otherServer, type FakeAccount } from './deletion-fake.ts';
+import { CHANGED_SINCE_DIALOG, ENTRY_ONLY, LONG_AGO, STILL_REFUSED, confirmOf } from './deletion-cases.ts';
 
 const CONFIG: ConfigResult = {
   ok: true,
@@ -20,11 +22,10 @@ const CONFIG: ConfigResult = {
 };
 const LAUNCHED = 'srv00000001';
 const HAND_ADDED = 'srv00000002';
-const ROWS: Record<string, DeletionRow> = {
-  [LAUNCHED]: { id: LAUNCHED, owner: TEST_OWNER, host: HOST, name: 'throwaway-47', instanceId: BOX, region: 'us-east-1' },
-  [HAND_ADDED]: { id: HAND_ADDED, owner: TEST_OWNER, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', instanceId: null, region: null },
-};
+const launched = (): DeletionRow => ({ id: LAUNCHED, owner: TEST_OWNER, host: HOST, name: 'throwaway-47', addedAt: LONG_AGO, instanceId: BOX, region: 'us-east-1' });
+const handAdded = (): DeletionRow => ({ id: HAND_ADDED, owner: TEST_OWNER, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', addedAt: LONG_AGO, instanceId: null, region: null });
 
+let rows: Record<string, DeletionRow> = {};
 let config: ConfigResult = CONFIG;
 let account: FakeAccount = fakeAccount();
 let removed: string[] = [];
@@ -34,7 +35,7 @@ let hold: Promise<void> | null = null;
 const deps: DeletionApiDeps = {
   config: () => config,
   lookup: (owner, id) => {
-    const row = ROWS[id];
+    const row = rows[id];
     return owner === TEST_OWNER && row !== undefined ? Promise.resolve(row) : Promise.reject(new ApiError('no such server', 404));
   },
   remove: async (owner, id) => {
@@ -67,6 +68,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  rows = { [LAUNCHED]: launched(), [HAND_ADDED]: handAdded() };
   config = CONFIG;
   account = fakeAccount();
   deps.aws = fakeDeletionAws(account);
@@ -84,7 +86,7 @@ const call = async (method: string, path: string, body?: unknown, role: 'admin' 
   });
 
 const pathOf = (id = LAUNCHED): string => `/api/servers/${id}/deletion`;
-const CONFIRM = { name: 'throwaway-47', instanceId: BOX, volumeIds: [BOX_DISK] };
+const CONFIRM = { name: 'throwaway-47', instanceId: BOX, state: 'running', volumeIds: [BOX_DISK] };
 const writes = (): string[] => account.calls.filter((c) => !c.startsWith('Describe'));
 const errorOf = async (res: Response): Promise<string> => ((await res.json()) as { error: string }).error;
 
@@ -98,6 +100,7 @@ describe('what the dialog shows', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       deletable: true,
+      entryOnly: false,
       name: 'throwaway-47',
       host: HOST,
       node: 'metro-thrw01',
@@ -110,11 +113,12 @@ describe('what the dialog shows', () => {
     expect(account.calls).toEqual([`DescribeInstances us-east-1 ${BOX}`, `DescribeVolumes us-east-1 ${BOX_DISK}`]);
   });
 
-  test('a server Metro did not launch, or a deployment without AWS, deletes nothing', async () => {
-    expect(await (await call('GET', pathOf(HAND_ADDED))).json()).toEqual({ deletable: false, reason: expect.stringContaining('did not launch this server') as unknown as string });
+  test('a deployment without AWS deletes nothing', async () => {
     config = { ok: false, missing: ['METRO_AWS_ACCESS_KEY_ID'] };
     expect(await (await call('GET', pathOf())).json()).toEqual({ deletable: false, reason: expect.stringContaining('no AWS account') as unknown as string });
+    expect((await call('POST', pathOf(), CONFIRM)).status).toBe(400);
     expect(account.calls).toEqual([]);
+    expect(removed).toEqual([]);
   });
 });
 
@@ -145,7 +149,7 @@ describe('deleting', () => {
   test('the wrong name, or no ids, is refused before AWS is asked', async () => {
     expect(await errorOf(await call('POST', pathOf(), { ...CONFIRM, name: 'Lisa' }))).toBe('type the name of the server, throwaway-47, to delete it');
     expect((await call('POST', pathOf(), { name: 'throwaway-47' })).status).toBe(400);
-    expect((await call('POST', pathOf(HAND_ADDED), { ...CONFIRM, name: 'Tony' })).status).toBe(400);
+    expect(await errorOf(await call('POST', pathOf(), { ...CONFIRM, state: undefined }))).toBe('send the server id, its state and the disk ids the dialog showed');
     expect(account.calls).toEqual([]);
     expect(removed).toEqual([]);
   });
@@ -196,20 +200,65 @@ describe('deleting', () => {
     expect(removed).toEqual([]);
   });
 
-  test('a server AWS does not know stays in the list, one AWS already terminated only leaves it', async () => {
-    account.instances = [otherServer()];
-    const unknown = await call('POST', pathOf(), { ...CONFIRM, volumeIds: [] });
-    expect(unknown.status).toBe(409);
-    expect(await errorOf(unknown)).toContain(`AWS does not know the server ${BOX}`);
-    expect(removed).toEqual([]);
-    account.instances = [instance({ state: 'terminated', disks: [] }), otherServer()];
-    const res = await call('POST', pathOf(), { ...CONFIRM, volumeIds: [] });
-    expect(await res.json()).toMatchObject({ deleted: true, terminated: false });
-    expect(writes()).toEqual([]);
-    expect(removed).toEqual([`${TEST_OWNER} ${LAUNCHED}`]);
-  });
-
   test('an unknown method is a 405', async () => {
     expect((await call('DELETE', pathOf())).status).toBe(405);
   });
+});
+
+describe('a server that is not on AWS: only its entry goes', () => {
+  for (const c of ENTRY_ONLY)
+    test(`${c.when}: the dialog says so, and the confirm writes nothing to AWS`, async () => {
+      c.aws(account);
+      const view = await (await call('GET', pathOf())).json();
+      expect(view).toMatchObject({ deletable: true, entryOnly: true, instanceId: BOX, state: c.state, volumes: [] });
+      const info = spyOn(log, 'info');
+      try {
+        const res = await call('POST', pathOf(), confirmOf(view));
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ deleted: true, name: 'throwaway-47', terminated: false, instanceId: BOX, volumeIds: [] });
+        const who = { by: 'user_01ABC', owner: TEST_OWNER, agent: LAUNCHED, host: HOST };
+        expect(info).toHaveBeenCalledWith({ ...who, instanceId: BOX, state: c.state }, 'deletion: entry only, nothing is deleted in AWS');
+      } finally {
+        info.mockRestore();
+      }
+      expect(writes()).toEqual([]);
+      expect(removed).toEqual([`${TEST_OWNER} ${LAUNCHED}`]);
+    });
+
+  test('a row with no instance id is removed without asking AWS, even on a deployment without AWS', async () => {
+    config = { ok: false, missing: ['METRO_AWS_ACCESS_KEY_ID'] };
+    const view = await (await call('GET', pathOf(HAND_ADDED))).json();
+    expect(view).toMatchObject({ deletable: true, entryOnly: true, name: 'Tony', instanceId: '', state: 'not-launched', volumes: [] });
+    expect((await call('POST', pathOf(HAND_ADDED), confirmOf(view))).status).toBe(200);
+    expect(account.calls).toEqual([]);
+    expect(removed).toEqual([`${TEST_OWNER} ${HAND_ADDED}`]);
+  });
+
+  for (const r of STILL_REFUSED)
+    test(`${r.when}: refused, nothing written, the row stays`, async () => {
+      if (r.addedAt !== undefined) rows[LAUNCHED] = { ...launched(), addedAt: r.addedAt };
+      r.aws(account);
+      const view = await call('GET', pathOf());
+      expect(view.status).toBe(r.status);
+      expect(await errorOf(view)).toContain(r.error);
+      for (const body of [CONFIRM, { ...CONFIRM, state: 'not-found', volumeIds: [] }]) {
+        const res = await call('POST', pathOf(), body);
+        expect(res.status).toBe(r.status);
+        expect(await errorOf(res)).toContain(r.error);
+      }
+      expect(writes()).toEqual([]);
+      expect(removed).toEqual([]);
+    });
+
+  for (const c of CHANGED_SINCE_DIALOG)
+    test(`${c.when} between the dialog and the confirm: refused`, async () => {
+      c.before(account);
+      const view = await (await call('GET', pathOf())).json();
+      c.after(account);
+      const res = await call('POST', pathOf(), confirmOf(view));
+      expect(res.status).toBe(409);
+      expect(await errorOf(res)).toContain('changed since the dialog opened');
+      expect(writes()).toEqual([]);
+      expect(removed).toEqual([]);
+    });
 });

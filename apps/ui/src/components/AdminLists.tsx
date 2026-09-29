@@ -114,7 +114,7 @@ export function AdminAgents(): ReactNode {
             title={a.name ?? a.slug ?? a.host}
             detail={`${a.host} · ${a.organizationName ?? a.owner} · added ${dateLabel(a.addedAt)}`}
             avatar={<AgentAvatar seed={a.host} src={a.avatar} size={AVATAR} />}
-            trailing={a.instanceId === null ? undefined : <DeleteButton onPress={() => { setDeleting(a); }} />}
+            trailing={<DeleteButton onPress={() => { setDeleting(a); }} />}
           />
         )}
       />

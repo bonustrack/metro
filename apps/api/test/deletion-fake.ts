@@ -9,6 +9,7 @@ export interface FakeAccount {
   keepDisks: boolean;
   answerFor: string | null;
   refuse: AwsError | null;
+  describeFails: Error | null;
 }
 
 export const BOX = 'i-0b0c0000000000001';
@@ -53,6 +54,7 @@ export const fakeAccount = (over: Partial<FakeAccount> = {}): FakeAccount => ({
   keepDisks: false,
   answerFor: null,
   refuse: null,
+  describeFails: null,
   ...over,
 });
 
@@ -63,9 +65,11 @@ export function fakeDeletionAws(account: FakeAccount): DeletionAws {
   return {
     instance: (target) => {
       account.calls.push(`DescribeInstances ${target.region} ${target.instanceId}`);
+      if (account.describeFails !== null) return Promise.reject(account.describeFails);
       const asked = account.answerFor ?? target.instanceId;
       const found = account.instances.filter((i) => i.instanceId === asked);
-      return Promise.resolve(found.length === 0 ? null : copy(found));
+      if (found.length === 0) return Promise.reject(new AwsError('InvalidInstanceID.NotFound', `The instance ID '${asked}' does not exist`, 'ec2:DescribeInstances'));
+      return Promise.resolve(copy(found));
     },
     volumes: (target, ids) => {
       account.calls.push(`DescribeVolumes ${target.region} ${ids.join(',')}`);

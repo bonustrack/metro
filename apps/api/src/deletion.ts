@@ -8,13 +8,12 @@ import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/
 import type { ConfigResult } from './launch-config.js';
 import type { DeletionRow } from './db/servers.js';
 import type { Ec2Target } from './aws/resize.js';
-import { DeletionRefused, planDeletion, runDeletion, type Confirmed, type DeletionAws, type Outcome, type Owned, type Plan } from './aws/deletion.js';
+import { DeletionRefused, isEntryOnly, planDeletion, runDeletion, type Confirmed, type DeletionAws, type Outcome, type Owned, type Plan } from './aws/deletion.js';
 import { fromAws } from './size.js';
 
 const PATH_RE = /^\/api\/servers\/([^/]+)\/deletion\/?$/;
 const OFF = 'This Metro deployment has no AWS account, so it cannot delete a server.';
-const NOT_LAUNCHED =
-  'Metro did not launch this server on AWS, so it cannot delete it. Remove it from your list in its settings, and delete the machine where it is hosted.';
+const NO_REGION = 'Metro has no AWS region for this server, so it cannot check it on AWS.';
 
 export interface DeletionCore {
   config: () => ConfigResult;
@@ -30,7 +29,7 @@ export interface DeletionApiDeps extends DeletionCore {
 
 interface Resolved {
   row: DeletionRow;
-  target: Ec2Target;
+  target: Ec2Target | null;
   owned: Owned;
 }
 
@@ -52,18 +51,17 @@ async function guarded<T>(work: () => Promise<T>): Promise<T> {
 }
 
 function resolve(deps: DeletionCore, row: DeletionRow): Resolved | string {
+  const owned = { agentId: row.id, host: row.host, addedAt: row.addedAt };
+  if (row.instanceId === null) return { row, target: null, owned };
   const config = deps.config();
   if (!config.ok) return OFF;
-  if (row.instanceId === null || row.region === null) return NOT_LAUNCHED;
-  return {
-    row,
-    target: { credentials: config.config.credentials, region: row.region, instanceId: row.instanceId },
-    owned: { agentId: row.id, host: row.host },
-  };
+  if (row.region === null) return NO_REGION;
+  return { row, target: { credentials: config.config.credentials, region: row.region, instanceId: row.instanceId }, owned };
 }
 
 const viewOf = (row: DeletionRow, plan: Plan): Record<string, unknown> => ({
   deletable: true,
+  entryOnly: isEntryOnly(plan),
   name: labelOf(row),
   host: row.host,
   node: plan.node,
@@ -84,35 +82,37 @@ function confirmedOf(body: unknown, row: DeletionRow): Confirmed {
   const fields: Record<string, unknown> = isRecord(body) ? body : {};
   const typed = typeof fields.name === 'string' ? fields.name.trim() : '';
   if (typed !== labelOf(row)) throw new ApiError(`type the name of the server, ${labelOf(row)}, to delete it`, 400);
-  const { instanceId, volumeIds } = fields;
-  if (typeof instanceId !== 'string' || instanceId === '' || !Array.isArray(volumeIds) || !volumeIds.every((v) => typeof v === 'string'))
-    throw new ApiError('send the server and disk ids the dialog showed', 400);
-  return { instanceId, volumeIds: volumeIds.map(String) };
+  const { instanceId, state, volumeIds } = fields;
+  if (typeof instanceId !== 'string' || typeof state !== 'string' || state === '' || !Array.isArray(volumeIds) || !volumeIds.every((v) => typeof v === 'string'))
+    throw new ApiError('send the server id, its state and the disk ids the dialog showed', 400);
+  return { instanceId, state, volumeIds: volumeIds.map(String) };
 }
 
-async function deleteAll(deps: DeletionCore, resolved: Resolved, confirmed: Confirmed): Promise<Outcome> {
+async function deleteAll(deps: DeletionCore, resolved: Resolved, confirmed: Confirmed, by: string): Promise<Outcome> {
   const { row, target, owned } = resolved;
   const { owner, id } = row;
-  const key = `${target.region}/${target.instanceId}`;
+  const key = target === null ? id : `${target.region}/${target.instanceId}`;
   if (claims.has(key)) throw new ApiError('this server is already being deleted', 409);
   claims.add(key);
   try {
     const outcome = await guarded(() => runDeletion(deps.aws, target, owned, confirmed));
-    log.info({ owner, agent: id, region: target.region, ...outcome }, 'deletion: the server is deleted in AWS');
+    if (outcome.terminated) log.info({ by, owner, agent: id, region: row.region, ...outcome }, 'deletion: the server is deleted in AWS');
+    else log.info({ by, owner, agent: id, host: row.host, instanceId: row.instanceId, state: confirmed.state }, 'deletion: entry only, nothing is deleted in AWS');
     await deps.remove(owner, id);
-    log.info({ owner, agent: id, host: row.host }, 'deletion: the agent left the list');
+    log.info({ by, owner, agent: id, host: row.host }, 'deletion: the agent left the list');
     return outcome;
   } finally {
     claims.delete(key);
   }
 }
 
-export async function confirmDeletion(deps: DeletionCore, row: DeletionRow, body: unknown): Promise<Record<string, unknown>> {
+export async function confirmDeletion(deps: DeletionCore, row: DeletionRow, body: unknown, by: string): Promise<Record<string, unknown>> {
   const resolved = resolve(deps, row);
   if (typeof resolved === 'string') throw new ApiError(resolved, 400);
   const confirmed = confirmedOf(body, row);
-  if (deps.resizing(resolved.target.region, resolved.target.instanceId)) throw new ApiError('this server is changing size. Wait for it to finish', 409);
-  const outcome = await deleteAll(deps, resolved, confirmed);
+  const { target } = resolved;
+  if (target !== null && deps.resizing(target.region, target.instanceId)) throw new ApiError('this server is changing size. Wait for it to finish', 409);
+  const outcome = await deleteAll(deps, resolved, confirmed, by);
   return { deleted: true, name: labelOf(row), ...outcome };
 }
 
@@ -122,7 +122,7 @@ export function noteRefusal(id: string, err: unknown): void {
 
 async function remove(deps: DeletionApiDeps, session: Session, owner: string, id: string, body: unknown): Promise<unknown> {
   if (session.role !== 'admin') throw new ApiError('deleting a server needs the admin role in your organization', 403);
-  return confirmDeletion(deps, await deps.lookup(owner, id), body);
+  return confirmDeletion(deps, await deps.lookup(owner, id), body, session.userId);
 }
 
 async function route(req: IncomingMessage, res: ServerResponse, deps: DeletionApiDeps, id: string): Promise<void> {

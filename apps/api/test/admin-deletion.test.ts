@@ -14,6 +14,7 @@ import { memorySlugs } from './slug-fake.ts';
 import { memoryUsers } from './users-fake.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 import { BOX, BOX_DISK, HOST, OTHER, OTHER_DISK, fakeAccount, fakeDeletionAws, instance, otherDisk, otherServer, volume, type FakeAccount } from './deletion-fake.ts';
+import { CHANGED_SINCE_DIALOG, ENTRY_ONLY, LONG_AGO, STILL_REFUSED, confirmOf } from './deletion-cases.ts';
 
 const OPERATOR_ORG = 'org_01STAGELABS00000';
 const CLIENT_ORG = 'org_01CLIENT00000000';
@@ -29,8 +30,8 @@ const CONFIG: ConfigResult = {
     authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
   },
 };
-const launched = (): DeletionRow => ({ id: LAUNCHED, owner: CLIENT_ORG, host: HOST, name: 'throwaway-50', instanceId: BOX, region: 'us-east-1' });
-const handAdded = (): DeletionRow => ({ id: HAND_ADDED, owner: CLIENT_ORG, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', instanceId: null, region: null });
+const launched = (): DeletionRow => ({ id: LAUNCHED, owner: CLIENT_ORG, host: HOST, name: 'throwaway-50', addedAt: LONG_AGO, instanceId: BOX, region: 'us-east-1' });
+const handAdded = (): DeletionRow => ({ id: HAND_ADDED, owner: CLIENT_ORG, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', addedAt: LONG_AGO, instanceId: null, region: null });
 
 let workos: FakeWorkos;
 let server: Server;
@@ -109,7 +110,7 @@ const call = (method: string, id: string, bearer?: string, body?: unknown): Prom
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
-const CONFIRM = { name: 'throwaway-50', instanceId: BOX, volumeIds: [BOX_DISK] };
+const CONFIRM = { name: 'throwaway-50', instanceId: BOX, state: 'running', volumeIds: [BOX_DISK] };
 const writes = (): string[] => account.calls.filter((c) => !c.startsWith('Describe'));
 const terminated = (): string[] => account.calls.filter((c) => c.startsWith('TerminateInstances'));
 const errorOf = async (res: Response): Promise<string> => ((await res.json()) as { error: string }).error;
@@ -152,6 +153,7 @@ describe('the platform admin', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       deletable: true,
+      entryOnly: false,
       name: 'throwaway-50',
       host: HOST,
       node: 'metro-thrw01',
@@ -213,20 +215,21 @@ interface Refusal {
 
 const REFUSALS: Refusal[] = [
   { when: 'the typed name is not the server name', status: 400, error: 'type the name of the server, throwaway-50, to delete it', body: { ...CONFIRM, name: 'Tony' } },
-  { when: 'the dialog ids are missing', status: 400, error: 'send the server and disk ids the dialog showed', body: { name: 'throwaway-50' } },
-  { when: 'Metro did not launch the server', status: 400, error: 'did not launch this server', id: HAND_ADDED, body: { ...CONFIRM, name: 'Tony' } },
+  { when: 'the dialog ids are missing', status: 400, error: 'send the server id, its state and the disk ids the dialog showed', body: { name: 'throwaway-50' } },
+  { when: 'the dialog state is missing', status: 400, error: 'send the server id, its state and the disk ids the dialog showed', body: { ...CONFIRM, state: '' } },
+  { when: 'a row with no instance id is sent the ids of a server', status: 409, error: 'changed since the dialog opened', id: HAND_ADDED, body: { ...CONFIRM, name: 'Tony' } },
   { when: 'the deployment has no AWS account', status: 400, error: 'no AWS account', setup: () => (config = { ok: false, missing: ['METRO_AWS_ACCESS_KEY_ID'] }) },
   { when: 'the row address is not one Metro gives', status: 409, error: 'is not an address Metro gives', setup: () => (rows[LAUNCHED] = { ...launched(), host: 'tony.example.com' }) },
   { when: 'the instance carries another node tag', status: 409, error: 'is tagged metro=metro-fa79qt', setup: () => (account.instances = [instance({ tags: { metro: 'metro-fa79qt' } }), otherServer()]) },
   { when: 'the instance carries no metro tag', status: 409, error: 'is tagged metro=(none)', setup: () => (account.instances = [instance({ tags: {} }), otherServer()]) },
   { when: 'the instance is tagged for another agent', status: 409, error: 'tagged for another agent, srv00000009', setup: () => (account.instances = [instance({ tags: { metro: 'metro-thrw01', 'metro:agent': 'srv00000009' } }), otherServer()]) },
   { when: 'AWS answers with another instance', status: 409, error: `AWS answered with ${OTHER}`, setup: () => (account.answerFor = OTHER) },
-  { when: 'AWS does not know the instance', status: 409, error: `AWS does not know the server ${BOX}`, setup: () => (account.instances = [otherServer()]) },
   { when: 'a disk is also attached to another server', status: 409, error: `attached to ${BOX}, ${OTHER}`, setup: () => (account.volumes = [volume({ attachedTo: [BOX, OTHER] }), otherDisk()]) },
   { when: 'a disk is tagged for another server', status: 409, error: `The disk ${BOX_DISK} is tagged metro=metro-fa79qt`, setup: () => (account.volumes = [volume({ tags: { metro: 'metro-fa79qt' } }), otherDisk()]) },
   { when: 'AWS describes other disks than the ones attached', status: 409, error: 'AWS described the disks', setup: () => (account.volumes = [otherDisk()]) },
   { when: 'the ids differ from what the dialog showed', status: 409, error: 'changed since the dialog opened', body: { ...CONFIRM, volumeIds: [BOX_DISK, OTHER_DISK] } },
   { when: 'the instance id differs from what the dialog showed', status: 409, error: 'changed since the dialog opened', body: { ...CONFIRM, instanceId: OTHER } },
+  { when: 'the state differs from what the dialog showed', status: 409, error: 'changed since the dialog opened', body: { ...CONFIRM, state: 'not-found', volumeIds: [] } },
   { when: 'the server is changing size', status: 409, error: 'this server is changing size', setup: () => (busy = true) },
   {
     when: 'AWS still keeps the disk after it was set to go with the server',
@@ -266,4 +269,62 @@ describe('every #47 refusal still holds on the admin path: nothing is terminated
     expect(terminated()).toEqual([`TerminateInstances us-east-1 ${BOX}`]);
     expect(removed).toEqual([`${CLIENT_ORG} ${LAUNCHED}`]);
   });
+});
+
+describe('a server that is not on AWS: the platform admin removes only its entry', () => {
+  for (const c of ENTRY_ONLY)
+    test(`${c.when}: the dialog says so, and the confirm writes nothing to AWS, logged as entry only`, async () => {
+      c.aws(account);
+      const view = await (await call('GET', LAUNCHED, asOperator())).json();
+      expect(view).toMatchObject({ deletable: true, entryOnly: true, instanceId: BOX, state: c.state, volumes: [], owner: CLIENT_ORG });
+      const info = spyOn(log, 'info');
+      try {
+        const res = await call('POST', LAUNCHED, asOperator(), confirmOf(view));
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ deleted: true, name: 'throwaway-50', terminated: false, instanceId: BOX, volumeIds: [] });
+        const who = { by: OPERATOR, owner: CLIENT_ORG, agent: LAUNCHED, host: HOST };
+        expect(info).toHaveBeenCalledWith({ ...who, instanceId: BOX, state: c.state }, 'deletion: entry only, nothing is deleted in AWS');
+        expect(info).toHaveBeenCalledWith({ ...who, instanceId: BOX, volumeIds: [], terminated: false }, 'admin: agent entry removed for its organization, entry only');
+      } finally {
+        info.mockRestore();
+      }
+      expect(writes()).toEqual([]);
+      expect(removed).toEqual([`${CLIENT_ORG} ${LAUNCHED}`]);
+    });
+
+  test('a row with no instance id is removed without asking AWS', async () => {
+    const view = await (await call('GET', HAND_ADDED, asOperator())).json();
+    expect(view).toMatchObject({ deletable: true, entryOnly: true, name: 'Tony', instanceId: '', state: 'not-launched', owner: CLIENT_ORG });
+    expect((await call('POST', HAND_ADDED, asOperator(), confirmOf(view))).status).toBe(200);
+    expect(account.calls).toEqual([]);
+    expect(removed).toEqual([`${CLIENT_ORG} ${HAND_ADDED}`]);
+  });
+
+  for (const r of STILL_REFUSED)
+    test(`${r.when}: refused, nothing written, the row stays`, async () => {
+      if (r.addedAt !== undefined) rows[LAUNCHED] = { ...launched(), addedAt: r.addedAt };
+      r.aws(account);
+      const view = await call('GET', LAUNCHED, asOperator());
+      expect(view.status).toBe(r.status);
+      expect(await errorOf(view)).toContain(r.error);
+      for (const body of [CONFIRM, { ...CONFIRM, state: 'not-found', volumeIds: [] }]) {
+        const res = await call('POST', LAUNCHED, asOperator(), body);
+        expect(res.status).toBe(r.status);
+        expect(await errorOf(res)).toContain(r.error);
+      }
+      expect(writes()).toEqual([]);
+      expect(removed).toEqual([]);
+    });
+
+  for (const c of CHANGED_SINCE_DIALOG)
+    test(`${c.when} between the dialog and the confirm: refused`, async () => {
+      c.before(account);
+      const view = await (await call('GET', LAUNCHED, asOperator())).json();
+      c.after(account);
+      const res = await call('POST', LAUNCHED, asOperator(), confirmOf(view));
+      expect(res.status).toBe(409);
+      expect(await errorOf(res)).toContain('changed since the dialog opened');
+      expect(writes()).toEqual([]);
+      expect(removed).toEqual([]);
+    });
 });

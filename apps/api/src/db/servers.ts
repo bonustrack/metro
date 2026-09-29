@@ -195,6 +195,7 @@ export interface DeletionRow {
   owner: string;
   host: string;
   name: string | null;
+  addedAt: string;
   instanceId: string | null;
   region: string | null;
 }
@@ -202,7 +203,7 @@ export interface DeletionRow {
 async function deletionRow(id: string, owner: string | null): Promise<DeletionRow> {
   const byId = eq(agents.id, id);
   const rows = await getDb()
-    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, instanceId: agents.instanceId, region: agents.launchRegion })
+    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, addedAt: agents.addedAt, instanceId: agents.instanceId, region: agents.launchRegion })
     .from(agents)
     .where(owner === null ? byId : and(byId, eq(agents.owner, owner)));
   const row = rows[0];

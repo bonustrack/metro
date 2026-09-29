@@ -52,7 +52,7 @@ export function DeleteDialog({ id, label, scope, onDeleted, onClose }: DeleteDia
       title={`Delete ${label}?`}
       lines={readError === null ? linesOf(preview.data) : []}
       confirmWord={ready?.name ?? label}
-      confirmLabel="Delete server"
+      confirmLabel={ready?.entryOnly === true ? 'Remove agent' : 'Delete server'}
       busy={busy}
       blocked={ready === null}
       error={error ?? readError}

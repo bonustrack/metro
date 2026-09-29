@@ -92,8 +92,9 @@ async function serverDeletion(req: IncomingMessage, deps: AdminApiDeps, session:
     const who = { by: session.userId, owner: row.owner, agent: row.id, host: row.host };
     const body = await readJsonBody(req);
     log.info(who, 'admin: deleting a server for its organization');
-    const done = await confirmDeletion(deps.deletion, row, body);
-    log.info({ ...who, instanceId: done.instanceId, volumeIds: done.volumeIds, terminated: done.terminated }, 'admin: server deleted for its organization');
+    const done = await confirmDeletion(deps.deletion, row, body, session.userId);
+    const what = done.terminated === true ? 'admin: server deleted for its organization' : 'admin: agent entry removed for its organization, entry only';
+    log.info({ ...who, instanceId: done.instanceId, volumeIds: done.volumeIds, terminated: done.terminated }, what);
     return done;
   } catch (err) {
     noteRefusal(id, err);

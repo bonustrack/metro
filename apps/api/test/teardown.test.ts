@@ -48,11 +48,17 @@ describe('the EC2 calls of a deletion name exact ids and never a filter', () => 
     expect(fields(seen[0])).toEqual({ Action: 'DescribeInstances', Version: '2016-11-15', 'InstanceId.1': BOX });
   });
 
-  test('an instance AWS no longer knows is null, other refusals stay errors', async () => {
-    stub(400, '<Response><Errors><Error><Code>InvalidInstanceID.NotFound</Code><Message>gone</Message></Error></Errors></Response>');
-    expect(await describeInstanceFacts(CREDS, 'us-east-1', BOX)).toBeNull();
-    stub(403, '<Response><Errors><Error><Code>UnauthorizedOperation</Code><Message>no</Message></Error></Errors></Response>');
-    await expect(describeInstanceFacts(CREDS, 'us-east-1', BOX)).rejects.toBeInstanceOf(AwsError);
+  test('every refusal, NotFound included, is an AwsError that carries the code AWS sent', async () => {
+    for (const [status, code] of [
+      [400, 'InvalidInstanceID.NotFound'],
+      [403, 'UnauthorizedOperation'],
+      [503, 'RequestLimitExceeded'],
+    ] as const) {
+      stub(status, `<Response><Errors><Error><Code>${code}</Code><Message>no</Message></Error></Errors></Response>`);
+      const err = await describeInstanceFacts(CREDS, 'us-east-1', BOX).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AwsError);
+      expect((err as AwsError).code).toBe(code);
+    }
   });
 
   test('DescribeVolumes asks for the exact volume ids and reads size, attachments and tags', async () => {

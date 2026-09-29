@@ -53,15 +53,9 @@ const instanceOf = (item: XmlNode): InstanceFacts => ({
     .map(diskOf),
 });
 
-export async function describeInstanceFacts(credentials: AwsCredentials, region: string, instanceId: string): Promise<InstanceFacts[] | null> {
-  const id = checked(instanceId, INSTANCE_ID_RE, 'The server');
-  try {
-    const xml = await ec2(credentials, region, 'DescribeInstances', { 'InstanceId.1': id });
-    return children(child(xml, 'reservationSet'), 'item').flatMap((reservation) => children(child(reservation, 'instancesSet'), 'item').map(instanceOf));
-  } catch (err) {
-    if (err instanceof AwsError && err.code === 'InvalidInstanceID.NotFound') return null;
-    throw err;
-  }
+export async function describeInstanceFacts(credentials: AwsCredentials, region: string, instanceId: string): Promise<InstanceFacts[]> {
+  const xml = await ec2(credentials, region, 'DescribeInstances', { 'InstanceId.1': checked(instanceId, INSTANCE_ID_RE, 'The server') });
+  return children(child(xml, 'reservationSet'), 'item').flatMap((reservation) => children(child(reservation, 'instancesSet'), 'item').map(instanceOf));
 }
 
 const volumeOf = (item: XmlNode): VolumeFacts => ({
