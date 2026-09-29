@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Text } from './ui.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { PROVIDERS, type ConnectionRow, type ModelSettings } from '../api/model.js';
-import { DEFAULT_MODEL, routedConnection } from '../api/providers.js';
+import { DEFAULT_MODEL, routedConnection, routedUsage } from '../api/providers.js';
 import { queryError, useConnectionModelsQuery, useModelQuery } from '../api/queries.js';
 import { routeHash } from '../route.js';
 import { opensElsewhere } from './link.js';
@@ -24,8 +24,7 @@ export function useModelName(conn: ConnectionRow | undefined): string {
 function Card({ settings, href, onOpen }: { settings: ModelSettings; href: string; onOpen: () => void }): ReactNode {
   const conn = routedConnection(settings);
   const name = useModelName(conn);
-  const usage = conn === undefined ? undefined : settings.usage[conn.id];
-  const low = usage?.windows.find((window) => window.used !== null && window.used >= LOW);
+  const low = routedUsage(settings)?.windows.find((window) => window.used !== null && window.used >= LOW);
   return (
     <a
       className="model-card"

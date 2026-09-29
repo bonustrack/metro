@@ -7,6 +7,10 @@ export const DEFAULT_MODEL = 'The model Claude Code asks for';
 
 export const routedConnection = (s: ModelSettings): ConnectionRow | undefined => s.connections.find((c) => c.id === s.route);
 
+const PASSTHROUGH_ID = 'passthrough';
+
+export const routedUsage = (s: ModelSettings): ModelSettings['usage'][string] | undefined => s.usage[routedConnection(s)?.id ?? PASSTHROUGH_ID];
+
 const KEY_PROVIDERS: Provider[] = ['anthropic', 'bedrock', 'openrouter'];
 
 export const usesKey = (p: Provider): boolean => KEY_PROVIDERS.includes(p);

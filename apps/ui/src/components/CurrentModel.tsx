@@ -6,16 +6,15 @@ import { UsageRow } from './ModelUsage.js';
 import { useModelName } from './AgentModel.js';
 import { FactRow, SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { PROVIDERS, type ModelSettings } from '../api/model.js';
-import { routedConnection } from '../api/providers.js';
+import { routedConnection, routedUsage } from '../api/providers.js';
 import { tallyLine } from '../api/usage.js';
 import { whenLabel } from '../api/when.js';
-import { useClaudeLoginOf } from '../api/queries.js';
+import { useAccountOf } from '../api/queries.js';
 
 const LOGO = 32;
 
 function Usage({ settings }: { settings: ModelSettings }): ReactNode {
-  const conn = routedConnection(settings);
-  const usage = conn === undefined ? undefined : settings.usage[conn.id];
+  const usage = routedUsage(settings);
   if (usage === undefined) return null;
   return (
     <>
@@ -37,7 +36,7 @@ export function CurrentModel({ settings, onChange }: { settings: ModelSettings; 
   const dark = useKitScheme() === 'dark';
   const conn = routedConnection(settings);
   const name = useModelName(conn);
-  const note = noteOf(settings, useClaudeLoginOf(conn));
+  const note = noteOf(settings, useAccountOf(conn));
   return (
     <SettingsGroup title="In use">
       <SettingsSection title={name} note={note} leading={<ProviderLogo provider={PROVIDERS.find((p) => p.id === conn?.provider)} size={LOGO} />}>

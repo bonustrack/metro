@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { toModelSettings, type ConnectionRow } from '../src/api/model.js';
-import { connectionDetail, DEFAULT_MODEL, modelLabel, pickRows, routedConnection, typedRow, usesKey } from '../src/api/providers.js';
+import { connectionDetail, DEFAULT_MODEL, modelLabel, pickRows, routedConnection, routedUsage, typedRow, usesKey } from '../src/api/providers.js';
 
 const row = (over: Partial<ConnectionRow> & { id: string; provider: ConnectionRow['provider'] }): ConnectionRow => ({
   label: over.provider,
@@ -23,6 +23,18 @@ const settings = toModelSettings({
     { id: 'cn-bed', provider: 'bedrock', label: 'AWS', region: 'eu-central-1', hasKey: true },
     { id: 'cn-cdx', provider: 'codex', label: 'ChatGPT', model: 'gpt-5.4', signedIn: true, account: 'less@x', plan: 'plus' },
   ],
+});
+
+describe('the usage shown for the model in use', () => {
+  test('a routed connection shows its own usage, and a box with no connection shows its Claude Code login', () => {
+    const window = { label: 'Weekly', used: 0.03, resetAt: null, detail: null };
+    const usage = { 'cn-or': { windows: [window], note: null, at: '2026-09-29T13:00:00Z' }, passthrough: { windows: [{ ...window, used: 0.7 }], note: null, at: '2026-09-29T13:00:00Z' } };
+    const routed = toModelSettings({ ...settings, usage });
+    expect(routedUsage(routed)?.windows[0]?.used).toBe(0.03);
+    const bare = toModelSettings({ route: '', ready: true, connections: [], usage });
+    expect(routedUsage(bare)?.windows[0]?.used).toBe(0.7);
+    expect(routedUsage(toModelSettings({ route: '', ready: true, connections: [] }))).toBeUndefined();
+  });
 });
 
 describe('what a connection card says', () => {

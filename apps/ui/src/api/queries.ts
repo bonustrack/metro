@@ -247,10 +247,15 @@ export const useMachineQuery = (): UseQueryResult<Machine> =>
 export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
   useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: 10_000 });
 
-export function useClaudeLoginOf(conn: ConnectionRow | undefined): string | null {
+function useClaudeLoginOf(conn: ConnectionRow | undefined): string | null {
   const own = conn === undefined || (conn.provider === 'anthropic' && !conn.hasKey);
   const account = useBoxQuery('claude-account', fetchClaudeAccount, { staleTime: 60_000, enabled: own });
   return own ? (account.data?.account ?? null) : null;
+}
+
+export function useAccountOf(conn: ConnectionRow | undefined): string | null {
+  const login = useClaudeLoginOf(conn);
+  return login ?? conn?.account ?? null;
 }
 
 export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, { staleTime: 10_000 });
