@@ -52,7 +52,8 @@ refused with a 409.
    **Application running outside AWS**. Copy both halves at once: AWS shows the
    secret only at creation, and a user may hold at most two keys.
 
-These actions are all a launch, its progress view, a resize and a delete use.
+These actions are all a launch, its progress view, a resize, a delete and the
+Usage charts use.
 
 ```json
 {
@@ -70,7 +71,9 @@ These actions are all a launch, its progress view, a resize and a delete use.
         "ec2:CreateTags",
         "ec2:GetConsoleOutput",
         "ec2:DescribeInstanceTypes",
-        "pricing:GetProducts"
+        "pricing:GetProducts",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:ListMetrics"
       ],
       "Resource": "*"
     },
@@ -80,10 +83,22 @@ These actions are all a launch, its progress view, a resize and a delete use.
         "ec2:StopInstances",
         "ec2:StartInstances",
         "ec2:ModifyInstanceAttribute",
-        "ec2:TerminateInstances"
+        "ec2:TerminateInstances",
+        "ec2:AssociateIamInstanceProfile"
       ],
       "Resource": "*",
       "Condition": { "Null": { "aws:ResourceTag/metro": "false" } }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::*:role/metro-box",
+      "Condition": { "StringEquals": { "iam:PassedToService": "ec2.amazonaws.com" } }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::*:role/metro-cloudwatch-read"
     }
   ]
 }
@@ -96,7 +111,10 @@ a box's disk goes with it through `DeleteOnTermination`. Before 2026-09-29 the
 policy had neither `DescribeVolumes` nor `TerminateInstances`, and the Delete
 dialog then names the missing one. `DescribeInstanceTypes` lists the sizes,
 and `pricing:GetProducts` only shows the price next to each size: without it
-the sizes show no price.
+the sizes show no price. The last two statements and the `cloudwatch` actions
+are for the Usage charts, below: `iam:PassRole` lets a launch and
+`AssociateIamInstanceProfile` give a box the `metro-box` role and no other, and
+`sts:AssumeRole` reads the charts of a box in another AWS account.
 
 ## The Tailscale key
 
@@ -146,6 +164,94 @@ organization can sign in to it.
 Two launches at once from one organization are refused with a 409 rather than starting
 two instances, and the row is written to your agent list only once EC2 has
 answered with an instance id.
+
+## Usage charts (CloudWatch)
+
+The Server page's Usage section reads AWS CloudWatch through api.metro.box, so
+the charts keep working while a box is down and show gaps where there is no
+data. CPU, CPU credits (burstable sizes only) and the status checks come from
+EC2's own metrics (`AWS/EC2`, every 5 minutes, free). Memory and disk come from
+the box: from beta.224 the Metro daemon sends `mem_used_percent` and
+`disk_used_percent` of `/` once a minute to the `CWAgent` namespace, the names
+the CloudWatch agent uses, so a box that runs the official agent instead shows
+the same charts. The daemon runs as the `metro` user and cannot install a
+package, which is why it sends the two readings itself. It signs with the
+instance's role, read from the instance metadata. With no role, or off EC2, it
+sends nothing and logs it once. A box hosted elsewhere, such as on DigitalOcean,
+has no charts, and the page says so.
+
+Two custom metrics and one write a minute cost roughly $1 a month per box at
+CloudWatch's list prices, less inside its free tier. An open Usage section
+reads five metrics a minute.
+
+**The `metro-box` role**, once per AWS account, for the instances:
+
+1. [Create role](https://console.aws.amazon.com/iam/home#/roles/create):
+   trusted entity **AWS service**, use case **EC2**, Next. Attach nothing, Next.
+   Name it `metro-box`, then Create role. The console also makes the instance
+   profile of the same name.
+2. Open the role, **Add permissions**, **Create inline policy**, JSON, paste
+   this, and name it `metro-box-metrics`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "cloudwatch:PutMetricData",
+      "Resource": "*",
+      "Condition": { "StringEquals": { "cloudwatch:namespace": "CWAgent" } }
+    }
+  ]
+}
+```
+
+A launch gives the new instance this role. If the role does not exist yet, or
+the key may not pass it, the server starts without it and the api logs it. A box
+Metro launched gets the role the first time its Usage section finds no memory
+reading (`AssociateIamInstanceProfile`, only on an instance whose `metro` tag is
+the box's node). Any other instance gets it in the EC2 console: select it,
+Actions, Security, Modify IAM role, `metro-box`, Update IAM role. The daemon
+then sends within a minute, once the box runs beta.224 or later.
+
+The role is readable by anything on the box, the agent included, through the
+instance metadata. It can only write metrics into `CWAgent`, but under any name
+and any instance id: an agent on one box could write false memory or disk
+readings for another box in the same account, or add custom metrics that AWS
+bills (about $0.30 each a month). The charts are for reading only, so nothing
+acts on them. The CloudWatch agent's own `CloudWatchAgentServerPolicy` reaches
+further than this.
+
+**A box in another AWS account.** In that account:
+
+1. Make the `metro-box` role as above, and give it to each instance.
+2. [Create role](https://console.aws.amazon.com/iam/home#/roles/create):
+   trusted entity **AWS account**, **Another AWS account**, the account id of
+   Metro's AWS key, Next. Attach nothing, Next. Name it
+   `metro-cloudwatch-read`, then Create role.
+3. Open it, **Add permissions**, **Create inline policy**, JSON:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["cloudwatch:GetMetricData", "cloudwatch:ListMetrics"],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+4. Copy the role's ARN. In metro.box, Admin, Agents, press **Charts** on the
+   agent and give its instance id, region and that ARN. The api takes the role
+   (`sts:AssumeRole`, 15 minutes, kept until it expires) and reads the charts
+   with it, and refuses to save a link it cannot read, or one with no CPU
+   reading in the last 24 hours (a wrong id or region). Only the operator sets
+   a link. A box Metro launched needs none. A link can also point a box added
+   by address at its instance in Metro's own account, with no ARN.
 
 ## Deleting a box
 

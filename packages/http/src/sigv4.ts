@@ -39,6 +39,7 @@ export interface SignInput {
   service: string;
   accessKeyId: string;
   secretAccessKey: string;
+  sessionToken?: string;
   date?: Date;
 }
 
@@ -54,6 +55,7 @@ function canonicalHeaders(input: SignInput, url: URL, date: string): Record<stri
   for (const [key, value] of Object.entries(input.headers)) out[key.toLowerCase()] = value.trim().replace(/\s+/g, ' ');
   out.host = url.host;
   out['x-amz-date'] = date;
+  if (input.sessionToken !== undefined) out['x-amz-security-token'] = input.sessionToken;
   return out;
 }
 

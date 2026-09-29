@@ -1,6 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { AwsError, type AwsCredentials } from './ec2.js';
-import { signV4 } from './sigv4.js';
+import { signV4 } from '@metro-labs/http/sigv4';
 
 const PRICING_REGION = 'us-east-1';
 const PRICING_URL = `https://api.pricing.${PRICING_REGION}.amazonaws.com/`;

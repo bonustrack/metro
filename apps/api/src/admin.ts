@@ -9,14 +9,21 @@ import { listOrganizations, organizationName, type WorkosConfig } from './auth/w
 import type { AgentSummary, DeletionRow } from './db/servers.js';
 import { confirmDeletion, deletionView, noteRefusal, type DeletionCore } from './deletion.js';
 import type { SlugStore } from './slug.js';
+import type { MetricsLink } from './db/usage.js';
+import { parseLink, usageOf, type MetricsCore } from './usage.js';
 import { isUserStatus, type UserStore } from './users.js';
 
 const PREFIX = '/api/admin';
 const STATUS_RE = /^\/users\/([A-Za-z0-9_]+)\/status$/;
 const DELETION_RE = /^\/servers\/([^/]+)\/deletion$/;
+const METRICS_RE = /^\/servers\/([^/]+)\/metrics$/;
 
 export interface AdminDeletionDeps extends DeletionCore {
   lookup: (id: string) => Promise<DeletionRow>;
+}
+
+export interface AdminMetricsDeps extends MetricsCore {
+  save: (id: string, link: MetricsLink | null) => Promise<void>;
 }
 
 export interface AdminApiDeps {
@@ -26,6 +33,7 @@ export interface AdminApiDeps {
   slugs: SlugStore;
   agents: () => Promise<AgentSummary[]>;
   deletion: AdminDeletionDeps;
+  metrics: AdminMetricsDeps;
 }
 
 async function operator(req: IncomingMessage, deps: AdminApiDeps): Promise<Session> {
@@ -102,17 +110,37 @@ async function serverDeletion(req: IncomingMessage, deps: AdminApiDeps, session:
   }
 }
 
+async function saveMetricsLink(req: IncomingMessage, deps: AdminApiDeps, session: Session, id: string): Promise<unknown> {
+  const link = parseLink(await readJsonBody(req));
+  if (link !== null) {
+    const { usage } = await usageOf(deps.metrics, link, '24h');
+    if (usage.cpu.points.length === 0)
+      throw new ApiError(`CloudWatch has no CPU readings for ${link.instanceId} in ${link.region} in the last 24 hours. Check the instance id and the region, and that the server runs.`, 400);
+  }
+  await deps.metrics.save(id, link);
+  log.info({ by: session.userId, agent: id, link }, 'admin: CloudWatch link saved');
+  return { ok: true, link };
+}
+
 const LISTS = new Map<string, (deps: AdminApiDeps) => Promise<unknown>>([
   ['/users', listUsers],
   ['/organizations', organizations],
   ['/agents', agentsList],
 ]);
 
+type ById = (req: IncomingMessage, deps: AdminApiDeps, session: Session, id: string) => Promise<unknown>;
+
+const BY_ID: [RegExp, string[], ById][] = [
+  [STATUS_RE, ['POST'], setStatus],
+  [DELETION_RE, ['GET', 'POST'], serverDeletion],
+  [METRICS_RE, ['PUT'], saveMetricsLink],
+];
+
 async function byId(req: IncomingMessage, deps: AdminApiDeps, session: Session, path: string, method: string): Promise<{ body: unknown } | null> {
-  const status = STATUS_RE.exec(path);
-  if (status !== null && method === 'POST') return { body: await setStatus(req, deps, session, status[1] ?? '') };
-  const deletion = DELETION_RE.exec(path);
-  if (deletion !== null && (method === 'GET' || method === 'POST')) return { body: await serverDeletion(req, deps, session, deletion[1] ?? '') };
+  for (const [re, methods, handle] of BY_ID) {
+    const match = re.exec(path);
+    if (match !== null && methods.includes(method)) return { body: await handle(req, deps, session, match[1] ?? '') };
+  }
   return null;
 }
 

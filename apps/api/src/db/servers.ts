@@ -13,14 +13,14 @@ import { userOrganizations, type WorkosConfig } from '../auth/workos.js';
 
 class ServerListError extends ApiError {}
 
-const missing = (): ServerListError => new ServerListError('no such server', 404);
+export const missing = (): ServerListError => new ServerListError('no such server', 404);
 
-function ownerOf(subject: string): string {
+export function ownerOf(subject: string): string {
   if (!isOrganizationId(subject)) throw new ServerListError('the agent list belongs to an organization; sign in first', 403);
   return subject;
 }
 
-function idOf(raw: string): string {
+export function idOf(raw: string): string {
   const id = parseId(raw);
   if (id === null) throw missing();
   return id;
@@ -110,11 +110,26 @@ export interface AgentSummary {
   addedAt: string;
   avatar: string | null;
   instanceId: string | null;
+  metricsInstanceId: string | null;
+  metricsRegion: string | null;
+  metricsRoleArn: string | null;
 }
 
 export async function listAllServers(): Promise<AgentSummary[]> {
   const rows = await getDb()
-    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, slug: agents.slug, addedAt: agents.addedAt, avatar: agents.avatar, instanceId: agents.instanceId })
+    .select({
+      id: agents.id,
+      owner: agents.owner,
+      host: agents.host,
+      name: agents.name,
+      slug: agents.slug,
+      addedAt: agents.addedAt,
+      avatar: agents.avatar,
+      instanceId: agents.instanceId,
+      metricsInstanceId: agents.metricsInstanceId,
+      metricsRegion: agents.metricsRegion,
+      metricsRoleArn: agents.metricsRoleArn,
+    })
     .from(agents)
     .orderBy(desc(agents.addedAt));
   return rows.map((r) => ({ ...r, avatar: r.avatar?.startsWith('data:image/png;base64,') === true ? r.avatar : null }));

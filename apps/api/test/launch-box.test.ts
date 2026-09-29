@@ -89,6 +89,26 @@ describe('metro issuing a box', () => {
     expect(calls.filter((c) => c.startsWith('zones'))).toEqual([]);
   });
 
+  test('a new server asks for the metro-box role, and starts without it when AWS refuses the role', async () => {
+    const { deps } = fakeDeps();
+    const roles: string[] = [];
+    const run = deps.run;
+    deps.run = (creds, region, spec) => {
+      roles.push(`${spec.role ?? 'none'} ${spec.clientToken}`);
+      if (spec.role !== undefined) return Promise.reject(new AwsError('InvalidParameterValue', 'Value (metro-box) for parameter iamInstanceProfile.name is invalid. Invalid IAM Instance Profile name'));
+      return run(creds, region, spec);
+    };
+    expect((await launchBox(INPUT, deps)).instanceId).toBe('i-0abc');
+    expect(roles).toEqual(['metro-box tok-1', 'none tok-2']);
+    roles.length = 0;
+    deps.run = (_creds, _region, spec) => {
+      roles.push(spec.role ?? 'none');
+      return Promise.reject(new AwsError('InvalidParameterValue', 'The image is not valid.'));
+    };
+    await expect(launchBox(INPUT, deps)).rejects.toThrow('The image is not valid.');
+    expect(roles).toEqual(['metro-box']);
+  });
+
   test('a name, key or owner the script cannot carry is refused before AWS is asked', async () => {
     for (const [over, reason] of [
       [{ name: '***' }, 'name'],

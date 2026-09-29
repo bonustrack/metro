@@ -25,6 +25,7 @@ export const instance = (over: Partial<InstanceFacts> = {}): InstanceFacts => ({
   type: 't4g.medium',
   tags: { Name: 'metro:throwaway', metro: NODE, 'metro:agent': 'srv00000001' },
   disks: [{ device: '/dev/sda1', volumeId: BOX_DISK, deleteOnTermination: true }],
+  profile: null,
   ...over,
 });
 

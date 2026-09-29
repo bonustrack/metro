@@ -43,6 +43,7 @@ describe('the EC2 calls of a deletion name exact ids and never a filter', () => 
         type: 't4g.medium',
         tags: { Name: 'metro:throwaway', metro: 'metro-thrw01' },
         disks: [{ device: '/dev/sda1', volumeId: DISK, deleteOnTermination: true }],
+        profile: null,
       },
     ]);
     expect(fields(seen[0])).toEqual({ Action: 'DescribeInstances', Version: '2016-11-15', 'InstanceId.1': BOX });

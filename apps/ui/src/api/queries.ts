@@ -36,7 +36,7 @@ import { fetchMode, type ModeInfo } from './mode.js';
 import { fetchUpdate, type UpdateCheck } from './update.js';
 import { fetchServers, probeServer, type Server, type ServerStatus } from './servers.js';
 import { fetchMachine, type Machine } from './machine.js';
-import { fetchResources, type ResourceRange, type Resources } from './resources.js';
+import { fetchUsage, type ResourceRange, type Usage } from './resources.js';
 import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
 import { fetchSize, jobRunning, type SizeView } from './size.js';
 import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
@@ -54,7 +54,6 @@ type BoxName =
   | 'update'
   | 'approvals'
   | 'machine'
-  | 'resources'
   | 'claude-session'
   | 'claude-setup'
   | 'claude-account'
@@ -246,8 +245,8 @@ export const useUpdateQuery = (): UseQueryResult<UpdateCheck> => useBoxQuery('up
 export const useMachineQuery = (): UseQueryResult<Machine> =>
   useBoxQuery('machine', fetchMachine, { staleTime: 30_000, refetchInterval: 60_000 });
 
-export const useResourcesQuery = (range: ResourceRange): UseQueryResult<Resources | null> =>
-  useBoxQuery(['resources', range], () => fetchResources(range), { staleTime: 30_000, refetchInterval: 60_000 });
+export const useUsageQuery = (serverId: string, range: ResourceRange): UseQueryResult<Usage | null> =>
+  useQuery({ queryKey: orgKey('usage', serverId, range), queryFn: () => fetchUsage(serverId, range), staleTime: 30_000, refetchInterval: 60_000, retry: false });
 
 export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
   useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: 10_000 });

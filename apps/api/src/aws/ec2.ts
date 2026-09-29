@@ -1,9 +1,10 @@
-import { signV4 } from './sigv4.js';
+import { signV4 } from '@metro-labs/http/sigv4';
 import { child, children, parseXml, textAt, type XmlNode } from './xml.js';
 
 export interface AwsCredentials {
   accessKeyId: string;
   secretAccessKey: string;
+  sessionToken?: string;
 }
 
 export class AwsError extends Error {
@@ -24,36 +25,42 @@ const CANONICAL = '099720109477';
 const UBUNTU_NAME = 'ubuntu/images/hvm-ssd*/ubuntu-noble-24.04-arm64-server-*';
 const CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=utf-8';
 
-const ec2Endpoint = (region: string): string => `https://ec2.${region}.amazonaws.com/`;
+export interface QueryService {
+  host: string;
+  region: string;
+  signingName: string;
+  iamPrefix: string;
+  version: string;
+  label: string;
+}
 
-export async function ec2(
-  credentials: AwsCredentials,
-  region: string,
-  action: string,
-  params: Record<string, string>,
-): Promise<XmlNode> {
-  const url = ec2Endpoint(region);
-  const body = new URLSearchParams({ Action: action, Version: EC2_VERSION, ...params }).toString();
+export async function awsQuery(credentials: AwsCredentials, service: QueryService, action: string, params: Record<string, string>): Promise<XmlNode> {
+  const url = `https://${service.host}/`;
+  const body = new URLSearchParams({ Action: action, Version: service.version, ...params }).toString();
   const signed = await signV4({
     method: 'POST',
     url,
     headers: { 'content-type': CONTENT_TYPE },
     body,
-    region,
-    service: 'ec2',
+    region: service.region,
+    service: service.signingName,
     ...credentials,
   });
+  const iamAction = `${service.iamPrefix}:${action}`;
   let res: Response;
   try {
     res = await fetch(url, { method: 'POST', headers: signed.headers, body });
   } catch {
-    throw new AwsError('Unreachable', `Could not reach EC2 in ${region}.`, `ec2:${action}`);
+    throw new AwsError('Unreachable', `Could not reach ${service.label}.`, iamAction);
   }
   const xml = parseXml(await res.text());
   if (res.ok) return xml;
-  const error = child(child(xml, 'Errors'), 'Error');
-  throw new AwsError(textAt(error, 'Code') || `HTTP${res.status}`, textAt(error, 'Message') || `EC2 answered ${res.status}.`, `ec2:${action}`);
+  const error = child(child(xml, 'Errors'), 'Error') ?? child(xml, 'Error');
+  throw new AwsError(textAt(error, 'Code') || `HTTP${res.status}`, textAt(error, 'Message') || `${service.label} answered ${String(res.status)}.`, iamAction);
 }
+
+export const ec2 = (credentials: AwsCredentials, region: string, action: string, params: Record<string, string>): Promise<XmlNode> =>
+  awsQuery(credentials, { host: `ec2.${region}.amazonaws.com`, region, signingName: 'ec2', iamPrefix: 'ec2', version: EC2_VERSION, label: `EC2 in ${region}` }, action, params);
 
 export interface Image {
   imageId: string;
@@ -99,9 +106,11 @@ export interface InstanceSpec {
   userData: string;
   clientToken: string;
   zone?: string;
+  role?: string;
 }
 
 export const NODE_TAG = 'metro';
+export const BOX_ROLE = 'metro-box';
 export const AGENT_TAG = 'metro:agent';
 
 function tagSpecification(at: number, type: string, spec: InstanceSpec): Record<string, string> {
@@ -140,6 +149,7 @@ export function runInstanceParams(spec: InstanceSpec): Record<string, string> {
     ...tagSpecification(1, 'instance', spec),
     ...tagSpecification(2, 'volume', spec),
     ...(spec.zone === undefined ? {} : { 'Placement.AvailabilityZone': spec.zone }),
+    ...(spec.role === undefined ? {} : { 'IamInstanceProfile.Name': spec.role }),
   };
 }
 
@@ -183,6 +193,10 @@ export async function describeInstance(credentials: AwsCredentials, region: stri
     type: textAt(instance, 'instanceType'),
     architecture: textAt(instance, 'architecture'),
   };
+}
+
+export async function associateProfile(credentials: AwsCredentials, region: string, instanceId: string, profile: string): Promise<void> {
+  await ec2(credentials, region, 'AssociateIamInstanceProfile', { InstanceId: instanceId, 'IamInstanceProfile.Name': profile });
 }
 
 export async function stopInstance(credentials: AwsCredentials, region: string, instanceId: string): Promise<void> {

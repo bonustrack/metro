@@ -18,6 +18,7 @@ export interface InstanceFacts {
   type: string;
   tags: Tags;
   disks: Disk[];
+  profile: string | null;
 }
 
 export interface VolumeFacts {
@@ -51,6 +52,7 @@ const instanceOf = (item: XmlNode): InstanceFacts => ({
   disks: children(child(item, 'blockDeviceMapping'), 'item')
     .filter((item) => child(item, 'ebs') !== undefined)
     .map(diskOf),
+  profile: textAt(item, 'iamInstanceProfile', 'arn') || null,
 });
 
 export async function describeInstanceFacts(credentials: AwsCredentials, region: string, instanceId: string): Promise<InstanceFacts[]> {

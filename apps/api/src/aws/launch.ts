@@ -1,5 +1,7 @@
+import { errMsg, log } from '@metro-labs/core/log';
 import {
   AwsError,
+  BOX_ROLE,
   consoleOutput,
   describeInstance,
   describeZones,
@@ -57,6 +59,19 @@ export class LaunchError extends Error {}
 
 const noCapacity = (err: unknown): boolean => err instanceof AwsError && err.code === NO_CAPACITY;
 
+const roleRefused = (err: unknown): boolean =>
+  err instanceof AwsError && (err.code === 'UnauthorizedOperation' || /iaminstanceprofile/i.test(err.message));
+
+async function run(input: LaunchInput, deps: LaunchDeps, spec: InstanceSpec): Promise<string> {
+  try {
+    return await deps.run(input.credentials, input.region, spec);
+  } catch (err) {
+    if (spec.role === undefined || !roleRefused(err)) throw err;
+    log.warn({ region: input.region, role: spec.role, err: errMsg(err) }, 'launch: AWS refused the role, the server starts without it');
+    return deps.run(input.credentials, input.region, { ...spec, role: undefined, clientToken: deps.token() });
+  }
+}
+
 type Spec = Omit<InstanceSpec, 'clientToken' | 'zone'>;
 
 interface Placed {
@@ -77,7 +92,7 @@ async function tryZones(
       `AWS has no ${INSTANCE_TYPE} capacity in ${input.region} right now, in any of its zones (${all.join(', ')}). Try again in a few minutes, or pick another region.`,
     );
   try {
-    const instanceId = await deps.run(input.credentials, input.region, { ...spec, zone, clientToken: deps.token() });
+    const instanceId = await run(input, deps, { ...spec, zone, clientToken: deps.token() });
     return { instanceId, zone };
   } catch (err) {
     if (!noCapacity(err)) throw err;
@@ -87,7 +102,7 @@ async function tryZones(
 
 async function place(input: LaunchInput, deps: LaunchDeps, spec: Spec): Promise<Placed> {
   try {
-    const instanceId = await deps.run(input.credentials, input.region, { ...spec, clientToken: deps.token() });
+    const instanceId = await run(input, deps, { ...spec, clientToken: deps.token() });
     return { instanceId, zone: null };
   } catch (err) {
     if (!noCapacity(err)) throw err;
@@ -108,7 +123,7 @@ export async function launchBox(input: LaunchInput, deps: LaunchDeps = LIVE): Pr
     metroTag: METRO_TAG,
   });
   const imageId = await deps.latestImage(input.credentials, input.region);
-  const { instanceId, zone } = await place(input, deps, { imageId, name: `metro:${slug}`, node, agent: input.agent, userData });
+  const { instanceId, zone } = await place(input, deps, { imageId, name: `metro:${slug}`, node, agent: input.agent, userData, role: BOX_ROLE });
   return { host: hostOf(node, input.tailnet), node, instanceId, region: input.region, zone, imageId };
 }
 

@@ -6,6 +6,7 @@ import { Button, Text } from './ui.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { ListHeader } from './ListHeader.js';
 import { DeleteDialog } from './DeleteServer.js';
+import { CloudWatchLinkDialog } from './CloudWatchLink.js';
 import { fetchAllAgents, fetchAllOrganizations, type AgentRow } from '../api/admin.js';
 import { queryError, refreshServers } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
@@ -91,15 +92,21 @@ export function AdminOrganizations(): ReactNode {
 
 const AGENTS_KEY = ['admin', 'agents'];
 
-function DeleteButton({ onPress }: { onPress: () => void }): ReactNode {
+function RowActions({ agent, onCharts, onDelete }: { agent: AgentRow; onCharts: () => void; onDelete: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  return <Button size="sm" color="danger" dark={dark} label="Delete" onPress={onPress} />;
+  return (
+    <Row gap={8} align="center">
+      <Button size="sm" color="secondary" dark={dark} label={agent.metrics === null ? 'Charts' : 'Charts: linked'} onPress={onCharts} />
+      <Button size="sm" color="danger" dark={dark} label="Delete" onPress={onDelete} />
+    </Row>
+  );
 }
 
 export function AdminAgents(): ReactNode {
   useDocumentTitle('Agents');
   const client = useQueryClient();
   const [deleting, setDeleting] = useState<AgentRow | null>(null);
+  const [linking, setLinking] = useState<AgentRow | null>(null);
   const { data, error } = useQuery({ queryKey: AGENTS_KEY, queryFn: fetchAllAgents, staleTime: 15_000, retry: false });
   return (
     <>
@@ -114,10 +121,32 @@ export function AdminAgents(): ReactNode {
             title={a.name ?? a.slug ?? a.host}
             detail={`${a.host} · ${a.organizationName ?? a.owner} · added ${dateLabel(a.addedAt)}`}
             avatar={<AgentAvatar seed={a.host} src={a.avatar} size={AVATAR} />}
-            trailing={<DeleteButton onPress={() => { setDeleting(a); }} />}
+            trailing={
+              <RowActions
+                agent={a}
+                onCharts={() => {
+                  setLinking(a);
+                }}
+                onDelete={() => {
+                  setDeleting(a);
+                }}
+              />
+            }
           />
         )}
       />
+      {linking === null ? null : (
+        <CloudWatchLinkDialog
+          agent={linking}
+          onSaved={async () => {
+            await client.invalidateQueries({ queryKey: AGENTS_KEY });
+            setLinking(null);
+          }}
+          onClose={() => {
+            setLinking(null);
+          }}
+        />
+      )}
       {deleting === null ? null : (
         <DeleteDialog
           id={deleting.id}

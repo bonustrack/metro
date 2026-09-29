@@ -81,7 +81,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
       ) : (
         <MachineFacts machine={machine.data} />
       )}
-      <ServerResources />
+      {server === undefined ? null : <ServerResources serverId={server.id} />}
       {server === undefined ? null : <ServerSizeSection serverId={server.id} />}
       <Details machine={machine.data} server={server} />
       {server === undefined ? null : <DeleteServerSection server={server} />}

@@ -5,10 +5,10 @@ import { Choice } from './Choice.js';
 import { Loading } from './Loading.js';
 import { ResourceChart } from './ResourceChart.js';
 import { SettingsGroup } from './SettingsSection.js';
-import { queryError, useResourcesQuery } from '../api/queries.js';
-import { bytesOfLabel, percentLabel, RANGE_MS, RESOURCE_RANGES, type Resources, type ResourceRange } from '../api/resources.js';
+import { queryError, useUsageQuery } from '../api/queries.js';
+import { creditsLabel, healthOf, percentLabel, RESOURCE_RANGES, type ResourceRange, type Series, type UsageCharts } from '../api/resources.js';
 
-const WARN = 0.9;
+const WARN = 90;
 
 function Note({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
   return (
@@ -18,50 +18,44 @@ function Note({ text, danger = false }: { text: string; danger?: boolean }): Rea
   );
 }
 
-function Charts({ data, range }: { data: Resources; range: ResourceRange }): ReactNode {
-  const last = data.samples.at(-1);
-  if (last === undefined) return <Note text="No readings yet. Metro takes one every minute." />;
-  const to = Date.now();
-  const common = { range, from: to - RANGE_MS[range], to, stepMs: data.stepMs };
-  const series = (pick: (s: Resources['samples'][number]) => number): { at: number; value: number }[] => data.samples.map((s) => ({ at: s.at, value: pick(s) }));
+const nearlyFull = (series: Series): boolean => (series.points.at(-1)?.value ?? 0) >= WARN;
+
+function Charts({ usage, range }: { usage: UsageCharts; range: ResourceRange }): ReactNode {
+  const health = healthOf(usage, range);
+  const common = { range, from: usage.from, to: usage.to };
+  const chart = (title: string, series: Series, max: number, label: (value: number) => string, danger = false): ReactNode => (
+    <ResourceChart {...common} title={title} points={series.points} stepMs={series.stepMs} max={max} label={label} danger={danger} />
+  );
+  const credits = usage.credits.points;
   return (
     <Col gap={24}>
-      <ResourceChart {...common} title="CPU" points={series((s) => s.cpu)} max={100} label={percentLabel} />
-      <ResourceChart
-        {...common}
-        title="Memory"
-        points={series((s) => s.memUsed)}
-        max={last.memTotal}
-        label={(v) => bytesOfLabel(v, last.memTotal)}
-        danger={last.memUsed >= WARN * last.memTotal}
-      />
-      <ResourceChart
-        {...common}
-        title="Disk"
-        points={series((s) => s.diskUsed)}
-        max={last.diskTotal}
-        label={(v) => bytesOfLabel(v, last.diskTotal)}
-        danger={last.diskUsed >= WARN * last.diskTotal}
-      />
+      <Note text={health.text} danger={health.danger} />
+      {chart('CPU', usage.cpu, 100, percentLabel)}
+      {credits.length === 0 ? null : chart('CPU credits', usage.credits, Math.max(1, ...credits.map((p) => p.value)), creditsLabel)}
+      {chart('Memory', usage.memory, 100, percentLabel, nearlyFull(usage.memory))}
+      {chart('Disk', usage.disk, 100, percentLabel, nearlyFull(usage.disk))}
+      {usage.note === null ? null : <Note text={usage.note} />}
     </Col>
   );
 }
 
-function Body({ range }: { range: ResourceRange }): ReactNode {
-  const query = useResourcesQuery(range);
-  if (query.error !== null) return <Note text={queryError(query.error, 'Could not read the usage of this server.')} danger />;
-  if (query.data === undefined) return <Loading />;
-  if (query.data === null) return <Note text="Update Metro on this server to see its CPU, memory and disk charts." />;
-  return <Charts data={query.data} range={range} />;
-}
-
-export function ServerResources(): ReactNode {
+export function ServerResources({ serverId }: { serverId: string }): ReactNode {
   const [range, setRange] = useState<ResourceRange>('1h');
+  const query = useUsageQuery(serverId, range);
+  const data = query.data;
+  if (data === null) return null;
+  const body =
+    data === undefined ? (
+      query.error === null ? <Loading /> : <Note text={queryError(query.error, 'Could not read the usage of this server.')} danger />
+    ) : data.available ? (
+      <Charts usage={data} range={range} />
+    ) : (
+      <Note text={data.reason} />
+    );
+  const choice = data?.available === false ? undefined : <Choice label="Time range" value={range} options={RESOURCE_RANGES} onChange={setRange} />;
   return (
-    <SettingsGroup title="Usage" action={<Choice label="Time range" value={range} options={RESOURCE_RANGES} onChange={setRange} />}>
-      <div className="settings-pad">
-        <Body range={range} />
-      </div>
+    <SettingsGroup title="Usage" action={choice}>
+      <div className="settings-pad">{body}</div>
     </SettingsGroup>
   );
 }

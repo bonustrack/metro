@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { amzDate, sha256Hex, signV4 } from '../src/aws/sigv4.ts';
+import { amzDate, sha256Hex, signV4 } from '../src/sigv4.ts';
 
 const EXAMPLE = {
   method: 'GET',
@@ -41,6 +41,13 @@ describe('SigV4 in the browser', () => {
     const two = await signV4({ ...EXAMPLE, method: 'POST', url: 'https://ec2.eu-west-1.amazonaws.com/', body: 'Action=RunInstances' });
     expect(one.signature).not.toBe(two.signature);
     expect(one.canonicalRequest.split('\n')[1]).toBe('/');
+  });
+
+  test('temporary credentials sign and send their session token', async () => {
+    const signed = await signV4({ ...EXAMPLE, sessionToken: 'token-from-a-role' });
+    expect(signed.headers['x-amz-security-token']).toBe('token-from-a-role');
+    expect(signed.headers.authorization).toContain('SignedHeaders=content-type;host;x-amz-date;x-amz-security-token,');
+    expect((await signV4(EXAMPLE)).headers).not.toHaveProperty('x-amz-security-token');
   });
 
   test('the date is the compact ISO form', () => {

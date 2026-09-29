@@ -30,6 +30,8 @@ import { handleLaunchApiRequest, type LaunchApiDeps } from './launch.js';
 import { handleSizeApiRequest, resizing, type SizeApiDeps } from './size.js';
 import { handleDeletionApiRequest, type DeletionApiDeps } from './deletion.js';
 import { handleServersApiRequest, type ServersApiDeps } from './servers.js';
+import { handleUsageApiRequest, LIVE_METRICS, type MetricsCore, type UsageApiDeps } from './usage.js';
+import { setMetricsLink, usageRowForOwner } from './db/usage.js';
 import { dbSlugs } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
 
@@ -40,7 +42,14 @@ const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, version: METRO_VERS
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
 const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers, agentsOf: listServersForOwner };
 const deletionCore = { config: () => readLaunchConfig(), resizing, aws: LIVE_DELETION };
-const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers, deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow } };
+const metricsCore: MetricsCore = { config: () => readLaunchConfig(), aws: LIVE_METRICS, now: () => Date.now() };
+const adminApi: AdminApiDeps = {
+  ...authApi,
+  agents: listAllServers,
+  deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow },
+  metrics: { ...metricsCore, save: setMetricsLink },
+};
+const usageApi: UsageApiDeps = { ...metricsCore, lookup: usageRowForOwner, keys };
 const serversApi: ServersApiDeps = {
   list: listServersForOwner,
   add: addServerForOwner,
@@ -81,16 +90,21 @@ function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
   return true;
 }
 
+const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
+  handleHealth,
+  (req, res) => handleModeRequest(req, res, mode),
+  (req, res) => handleAuthApiRequest(req, res, authApi),
+  (req, res) => handleMembersApiRequest(req, res, authApi),
+  (req, res) => handleAdminApiRequest(req, res, adminApi),
+  (req, res) => handleSizeApiRequest(req, res, sizeApi),
+  (req, res) => handleDeletionApiRequest(req, res, deletionApi),
+  (req, res) => handleUsageApiRequest(req, res, usageApi),
+  (req, res) => handleServersApiRequest(req, res, serversApi),
+  (req, res) => handleLaunchApiRequest(req, res, launchApi),
+];
+
 export function handleApiRequest(req: IncomingMessage, res: ServerResponse): void {
-  if (handleHealth(req, res)) return;
-  if (handleModeRequest(req, res, mode)) return;
-  if (handleAuthApiRequest(req, res, authApi)) return;
-  if (handleMembersApiRequest(req, res, authApi)) return;
-  if (handleAdminApiRequest(req, res, adminApi)) return;
-  if (handleSizeApiRequest(req, res, sizeApi)) return;
-  if (handleDeletionApiRequest(req, res, deletionApi)) return;
-  if (handleServersApiRequest(req, res, serversApi)) return;
-  if (handleLaunchApiRequest(req, res, launchApi)) return;
+  if (HANDLERS.some((handle) => handle(req, res))) return;
   res.writeHead(404).end();
 }
 

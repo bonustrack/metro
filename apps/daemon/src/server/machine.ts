@@ -13,7 +13,6 @@ const PATH = '/api/server';
 
 export interface MachineApiDeps {
   startedAt?: string;
-  resources?: (range: string) => unknown;
 }
 
 const bootedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
@@ -24,7 +23,7 @@ interface Disk {
   freeBytes: number;
 }
 
-export async function diskInfo(path = homedir()): Promise<Disk | null> {
+async function diskInfo(path = homedir()): Promise<Disk | null> {
   try {
     const s = await statfs(path);
     return { path, totalBytes: s.bsize * s.blocks, freeBytes: s.bsize * s.bavail };
@@ -55,9 +54,5 @@ export async function machineInfo(startedAt = bootedAt): Promise<Record<string, 
 }
 
 export function handleMachineRequest(req: IncomingMessage, res: ServerResponse, deps: MachineApiDeps): boolean {
-  return sessionRoute(req, res, { methods: { [PATH]: ['GET'] }, admin: false, label: 'machine-api' }, async () => {
-    const info = await machineInfo(deps.startedAt);
-    const range = new URL(req.url ?? '', 'http://localhost').searchParams.get('range');
-    return range === null || deps.resources === undefined ? info : { ...info, resources: deps.resources(range) };
-  });
+  return sessionRoute(req, res, { methods: { [PATH]: ['GET'] }, admin: false, label: 'machine-api' }, () => machineInfo(deps.startedAt));
 }

@@ -8,7 +8,6 @@ import * as claude from '../../apps/ui/src/api/claude.ts';
 import * as client from '../../apps/ui/src/api/client.ts';
 import * as conn from '../../apps/ui/src/api/connectors.ts';
 import * as machine from '../../apps/ui/src/api/machine.ts';
-import * as resources from '../../apps/ui/src/api/resources.ts';
 import * as mode from '../../apps/ui/src/api/mode.ts';
 import * as model from '../../apps/ui/src/api/model.ts';
 import * as term from '../../apps/ui/src/api/terminal.ts';
@@ -92,7 +91,6 @@ await ok('fetchStations', async () => {
   if (view.agent?.id !== agent) throw new Error(`the agent list names ${view.agent?.id ?? 'no agent'}, not ${agent}`);
 });
 await ok('fetchMachine', () => machine.fetchMachine());
-await ok('fetchResources', () => resources.fetchResources('24h'));
 await ok('terminalStatus', () => term.terminalStatus());
 await ok('mintTerminalTicket', () => term.mintTerminalTicket('metro'));
 
