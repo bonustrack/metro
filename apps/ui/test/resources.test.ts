@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { creditsLabel, healthOf, nearest, percentLabel, segments, toUsage, type UsageCharts } from '../src/api/resources.js';
+import { creditsLabel, healthOf, nearest, percentLabel, restartLabel, segments, toUsage, type UsageCharts } from '../src/api/resources.js';
 
 const MIN = 60_000;
 const TO = 1_790_000_000_000;
@@ -14,6 +14,7 @@ const charts = (over: Partial<UsageCharts> = {}): UsageCharts => ({
   status: { stepMs: 5 * MIN, points: [{ at: TO - 10 * MIN, value: 0 }] },
   memory: { stepMs: MIN, points: [] },
   disk: { stepMs: MIN, points: [] },
+  restarts: [],
   note: null,
   ...over,
 });
@@ -37,6 +38,17 @@ describe('the usage charts on the Server page', () => {
       reason: 'A server hosted elsewhere, such as on DigitalOcean, has no charts.',
     });
     expect(() => toUsage(null)).toThrow('unexpected');
+  });
+
+  test('restarts are read with their kind, and an api without them gives none', () => {
+    const read = toUsage({ available: true, restarts: [{ at: 5, kind: 'metro' }, { at: 2, kind: 'server' }, { at: 3, kind: 'claude' }, { at: 'x', kind: 'metro' }] });
+    expect(read.available && read.restarts).toEqual([
+      { at: 5, kind: 'metro' },
+      { at: 2, kind: 'server' },
+    ]);
+    expect(read.available && read.restarts.map(restartLabel)).toEqual(['Metro restarted', 'Server restarted']);
+    const old = toUsage({ available: true, cpu: { stepMs: 300_000, points: [] } });
+    expect(old.available && old.restarts).toEqual([]);
   });
 
   test('a gap longer than two steps breaks the line', () => {

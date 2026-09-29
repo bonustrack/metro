@@ -35,6 +35,7 @@ interface Cloud {
   keys: string[];
   metrics: Metric[];
   instance: InstanceFacts | null;
+  starts: Record<string, Point[]>;
   refuse: Partial<Record<'data' | 'assume' | 'associate', AwsError>>;
 }
 
@@ -69,7 +70,8 @@ const aws: MetricsAws = {
   data: (credentials, _region, queries) => {
     note(`data ${queries.map((q) => `${q.id}/${String(q.periodSeconds)}`).join(' ')}`, credentials);
     const at = (m: number): Point => ({ at: NOW - m * 60_000, value: m });
-    return refused('data') ?? Promise.resolve(new Map(queries.map((q) => [q.id, q.id === 'status' ? [] : [at(20), at(10)]])));
+    const points = (id: string): Point[] => cloud.starts[id] ?? (id === 'status' ? [] : [at(20), at(10)]);
+    return refused('data') ?? Promise.resolve(new Map(queries.map((q) => [q.id, points(q.id)])));
   },
   assume: (credentials, roleArn) => {
     note(`assume ${roleArn}`, credentials);
@@ -117,7 +119,7 @@ afterAll(() => {
 
 beforeEach(() => {
   config = CONFIG;
-  cloud = { calls: [], keys: [], metrics: AGENT, instance: instance(), refuse: {} };
+  cloud = { calls: [], keys: [], metrics: AGENT, instance: instance(), starts: {}, refuse: {} };
   resetUsageState();
 });
 
@@ -149,20 +151,36 @@ describe('the usage charts of a server', () => {
     expect(answer.from).toBe(Date.parse('2026-09-29T09:10:00Z'));
     expect(answer.cpu).toEqual({ stepMs: 300_000, points: [{ at: NOW - 1_200_000, value: 20 }, { at: NOW - 600_000, value: 10 }] });
     expect((answer.memory as { stepMs: number }).stepMs).toBe(60_000);
-    expect(cloud.calls).toEqual(['list us-east-1', 'data cpu/300 credits/300 status/300 memory/60 disk/60']);
+    expect(cloud.calls).toEqual(['list us-east-1', 'data cpu/300 credits/300 status/300 memory/60 disk/60 server/60 metro/60']);
     expect(new Set(cloud.keys)).toEqual(new Set(['AKIAMETRO']));
+  });
+
+  test('restarts come from the start the daemon sends, dated by its value, in the range only, a repeat counted once', async () => {
+    const sec = (iso: string): number => Date.parse(iso) / 1000;
+    const start = (iso: string): Point => ({ at: Date.parse(iso), value: sec(iso) });
+    cloud.starts = {
+      server: [start('2026-09-29T08:00:00Z'), start('2026-09-29T09:30:00Z'), { at: Date.parse('2026-09-29T09:32:00Z'), value: sec('2026-09-29T09:30:01Z') }],
+      metro: [start('2026-09-29T09:50:00Z'), start('2026-09-29T09:50:00Z')],
+    };
+    const answer = await body(await get(LAUNCHED));
+    expect(answer.restarts).toEqual([
+      { at: Date.parse('2026-09-29T09:30:00Z'), kind: 'server' },
+      { at: Date.parse('2026-09-29T09:50:00Z'), kind: 'metro' },
+    ]);
+    cloud.starts = {};
+    expect((await body(await get(LAUNCHED))).restarts).toEqual([]);
   });
 
   test('longer ranges use longer periods', async () => {
     await get(LAUNCHED, '7d');
-    expect(cloud.calls.at(-1)).toBe('data cpu/3600 credits/3600 status/3600 memory/3600 disk/3600');
+    expect(cloud.calls.at(-1)).toBe('data cpu/3600 credits/3600 status/3600 memory/3600 disk/3600 server/60 metro/60');
   });
 
   test('with no agent readings, a launched server gets the metro-box role once, and the page says so', async () => {
     cloud.metrics = [];
     const first = await body(await get(LAUNCHED));
     expect(first.note).toContain('Metro gave this server the metro-box role');
-    expect(cloud.calls).toEqual(['list us-east-1', 'data cpu/300 credits/300 status/300', 'describe i-0abc', 'associate i-0abc metro-box']);
+    expect(cloud.calls).toEqual(['list us-east-1', 'data cpu/300 credits/300 status/300 server/60 metro/60', 'describe i-0abc', 'associate i-0abc metro-box']);
     cloud.calls = [];
     expect((await body(await get(LAUNCHED))).note).toContain('Metro gave this server');
     expect(cloud.calls).not.toContain('describe i-0abc');
@@ -202,7 +220,7 @@ describe('the usage charts of a server', () => {
     const answer = await body(await get(ELSEWHERE));
     expect(answer).toMatchObject({ available: true, instanceId: 'i-0def', region: 'eu-central-2' });
     expect(answer.note).toContain('in its own AWS account');
-    expect(cloud.calls).toEqual([`assume ${ROLE}`, 'list eu-central-2', 'data cpu/300 credits/300 status/300']);
+    expect(cloud.calls).toEqual([`assume ${ROLE}`, 'list eu-central-2', 'data cpu/300 credits/300 status/300 server/60 metro/60']);
     expect(cloud.keys).toEqual(['AKIAMETRO', 'ASIATEMP', 'ASIATEMP']);
     cloud.calls = [];
     await get(ELSEWHERE);

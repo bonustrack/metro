@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { diskPercent, memoryPercent, publishOnce, readingParams, type PublisherDeps } from '../src/server/cloudwatch.js';
+import { diskPercent, memoryPercent, publishOnce, readingParams, startedOf, type PublisherDeps } from '../src/server/cloudwatch.js';
 
 const MEMINFO = 'MemTotal:       16000000 kB\nMemFree:         1000000 kB\nMemAvailable:   12000000 kB\nBuffers:          100 kB\n';
 const KEYS = JSON.stringify({ Code: 'Success', AccessKeyId: 'ASIABOX', SecretAccessKey: 'secret', Token: 'session-token', Expiration: '2026-09-29T16:00:00Z' });
@@ -69,6 +69,24 @@ describe('memory and disk sent to CloudWatch', () => {
       'MetricData.member.2.Dimensions.member.1.Value': 'i-1',
       'MetricData.member.2.Dimensions.member.2.Name': 'path',
       'MetricData.member.2.Dimensions.member.2.Value': '/',
+    });
+  });
+
+  test('a start goes out once with the readings: a server boot when the server is up for under 5 minutes, else a Metro restart', async () => {
+    const now = Date.parse('2026-09-29T10:00:00Z');
+    expect(startedOf(now, 20, 45)).toEqual({ name: 'server_booted', at: now / 1000 - 45 });
+    expect(startedOf(now, 20, 86_400)).toEqual({ name: 'metro_started', at: now / 1000 - 20 });
+    const { deps, sent } = fakeBox();
+    const started = startedOf(now, 20, 86_400);
+    expect(await publishOnce(deps, started)).toContain('sending memory and disk');
+    const params = Object.fromEntries(new URLSearchParams(sent.at(-1)?.body));
+    expect(params).toEqual(readingParams('i-0f465180565bf277a', { memory: 25, disk: 72.06 }, started));
+    expect(params).toMatchObject({
+      'MetricData.member.3.MetricName': 'metro_started',
+      'MetricData.member.3.Unit': 'Seconds',
+      'MetricData.member.3.Value': `${String(now / 1000 - 20)}.00`,
+      'MetricData.member.3.Dimensions.member.1.Name': 'InstanceId',
+      'MetricData.member.3.Dimensions.member.1.Value': 'i-0f465180565bf277a',
     });
   });
 

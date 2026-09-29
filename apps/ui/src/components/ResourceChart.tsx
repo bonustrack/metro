@@ -2,11 +2,15 @@ import { type PointerEvent, type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
-import { nearest, segments, timeLabel, type Point, type ResourceRange } from '../api/resources.js';
+import { nearest, restartLabel, segments, timeLabel, type Point, type ResourceRange, type Restart } from '../api/resources.js';
 
 const WIDTH = 600;
 const HEIGHT = 72;
 const SVG_STYLE = { display: 'block', width: '100%', height: HEIGHT } as const;
+const RESTART_HIT = 0.02;
+
+type Hover = Point | Restart;
+const isRestart = (hover: Hover): hover is Restart => 'kind' in hover;
 
 interface ResourceChartProps {
   title: string;
@@ -16,6 +20,7 @@ interface ResourceChartProps {
   from: number;
   to: number;
   stepMs: number;
+  restarts: Restart[];
   label: (value: number) => string;
   danger?: boolean;
 }
@@ -44,16 +49,22 @@ function paths(segment: Point[], scale: Scale): { line: string; area: string } {
   return { line, area: `${line}L${scale.x(last).toFixed(1)},${String(HEIGHT)}L${scale.x(first).toFixed(1)},${String(HEIGHT)}Z` };
 }
 
-export function ResourceChart({ title, points, max, range, from, to, stepMs, label, danger = false }: ResourceChartProps): ReactNode {
+function readingOf(hover: Hover | undefined, latest: Point | undefined, label: (value: number) => string, range: ResourceRange): string {
+  if (hover !== undefined) return `${isRestart(hover) ? restartLabel(hover) : label(hover.value)} at ${timeLabel(hover.at, range)}`;
+  return latest === undefined ? 'No data' : label(latest.value);
+}
+
+export function ResourceChart({ title, points, max, range, from, to, stepMs, restarts, label, danger = false }: ResourceChartProps): ReactNode {
   const palette = useKitPalette();
-  const [hover, setHover] = useState<Point | undefined>(undefined);
+  const [hover, setHover] = useState<Hover | undefined>(undefined);
   const scale = scaleOf(from, to, max);
-  const latest = points.at(-1);
-  const shown = hover ?? latest;
-  const reading = shown === undefined ? 'No data' : `${label(shown.value)}${hover === undefined ? '' : ` at ${timeLabel(hover.at, range)}`}`;
+  const reading = readingOf(hover, points.at(-1), label, range);
+  const markColor = (restart: Restart): string => (restart.kind === 'server' ? palette.danger : palette.sub);
   const onMove = (e: PointerEvent<SVGSVGElement>): void => {
     const box = e.currentTarget.getBoundingClientRect();
-    setHover(nearest(points, from + ((e.clientX - box.left) / Math.max(1, box.width)) * (to - from)));
+    const at = from + ((e.clientX - box.left) / Math.max(1, box.width)) * (to - from);
+    const restart = nearest(restarts, at);
+    setHover(restart !== undefined && Math.abs(restart.at - at) <= RESTART_HIT * (to - from) ? restart : nearest(points, at));
   };
   return (
     <Col gap={6}>
@@ -87,7 +98,12 @@ export function ResourceChart({ title, points, max, range, from, to, stepMs, lab
             </g>
           );
         })}
-        {hover === undefined ? null : <line x1={scale.x(hover.at)} x2={scale.x(hover.at)} y1={0} y2={HEIGHT} stroke={palette.sub} vectorEffect="non-scaling-stroke" />}
+        {restarts.map((r) => (
+          <line key={`${r.kind}${String(r.at)}`} x1={scale.x(r.at)} x2={scale.x(r.at)} y1={0} y2={HEIGHT} stroke={markColor(r)} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+        ))}
+        {hover === undefined ? null : (
+          <line x1={scale.x(hover.at)} x2={scale.x(hover.at)} y1={0} y2={HEIGHT} stroke={isRestart(hover) ? markColor(hover) : palette.sub} vectorEffect="non-scaling-stroke" />
+        )}
       </svg>
       <Row justify="between">
         <Text size="xs" role="secondary">

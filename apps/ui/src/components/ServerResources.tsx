@@ -22,7 +22,7 @@ const nearlyFull = (series: Series): boolean => (series.points.at(-1)?.value ?? 
 
 function Charts({ usage, range }: { usage: UsageCharts; range: ResourceRange }): ReactNode {
   const health = healthOf(usage, range);
-  const common = { range, from: usage.from, to: usage.to };
+  const common = { range, from: usage.from, to: usage.to, restarts: usage.restarts };
   const chart = (title: string, series: Series, max: number, label: (value: number) => string, danger = false): ReactNode => (
     <ResourceChart {...common} title={title} points={series.points} stepMs={series.stepMs} max={max} label={label} danger={danger} />
   );
@@ -34,6 +34,7 @@ function Charts({ usage, range }: { usage: UsageCharts; range: ResourceRange }):
       {credits.length === 0 ? null : chart('CPU credits', usage.credits, Math.max(1, ...credits.map((p) => p.value)), creditsLabel)}
       {chart('Memory', usage.memory, 100, percentLabel, nearlyFull(usage.memory))}
       {chart('Disk', usage.disk, 100, percentLabel, nearlyFull(usage.disk))}
+      {usage.restarts.length === 0 ? null : <Note text="Dashed lines are restarts: red for the server, grey for Metro. Point at one for the time." />}
       {usage.note === null ? null : <Note text={usage.note} />}
     </Col>
   );

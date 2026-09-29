@@ -180,9 +180,19 @@ instance's role, read from the instance metadata. With no role, or off EC2, it
 sends nothing and logs it once. A box hosted elsewhere, such as on DigitalOcean,
 has no charts, and the page says so.
 
+Restarts show as dashed lines across every chart: red when the server
+restarted, grey when only Metro did. From beta.225, when the daemon starts it
+adds one more reading to its first send: `server_booted` if the server has been
+up for less than 5 minutes (a reboot, a stop and start, a resize), else
+`metro_started` (an Update, a Restart, a crash). The value is the time of the
+start in seconds since 1970, so the api places the line to the second in every
+range. It goes out once per start, in the same write, under the same role, so
+it needs no new permission and costs almost nothing. A restart of the Claude
+session alone is not a restart here.
+
 Two custom metrics and one write a minute cost roughly $1 a month per box at
 CloudWatch's list prices, less inside its free tier. An open Usage section
-reads five metrics a minute.
+reads seven metrics a minute.
 
 **The `metro-box` role**, once per AWS account, for the instances:
 

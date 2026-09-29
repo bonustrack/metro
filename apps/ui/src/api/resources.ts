@@ -20,6 +20,11 @@ export interface Series {
   points: Point[];
 }
 
+export interface Restart {
+  at: number;
+  kind: 'server' | 'metro';
+}
+
 export interface UsageCharts {
   available: true;
   region: string;
@@ -30,6 +35,7 @@ export interface UsageCharts {
   status: Series;
   memory: Series;
   disk: Series;
+  restarts: Restart[];
   note: string | null;
 }
 
@@ -47,6 +53,9 @@ function toSeries(value: unknown): Series {
   return { stepMs, points: points.sort((a, b) => a.at - b.at) };
 }
 
+const toRestart = (value: unknown): Restart | null =>
+  isRecord(value) && typeof value.at === 'number' && Number.isFinite(value.at) && (value.kind === 'server' || value.kind === 'metro') ? { at: value.at, kind: value.kind } : null;
+
 const time = (value: unknown, fallback: number): number => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
 
 export function toUsage(body: unknown, now = Date.now()): Usage {
@@ -63,6 +72,7 @@ export function toUsage(body: unknown, now = Date.now()): Usage {
     status: toSeries(body.status),
     memory: toSeries(body.memory),
     disk: toSeries(body.disk),
+    restarts: Array.isArray(body.restarts) ? body.restarts.flatMap((r) => toRestart(r) ?? []) : [],
     note: filled(body.note),
   };
 }
@@ -88,11 +98,13 @@ export function segments(points: Point[], stepMs: number): Point[][] {
   return out;
 }
 
-export function nearest(points: Point[], at: number): Point | undefined {
-  let best: Point | undefined;
-  for (const point of points) if (best === undefined || Math.abs(point.at - at) < Math.abs(best.at - at)) best = point;
+export function nearest<T extends { at: number }>(items: T[], at: number): T | undefined {
+  let best: T | undefined;
+  for (const item of items) if (best === undefined || Math.abs(item.at - at) < Math.abs(best.at - at)) best = item;
   return best;
 }
+
+export const restartLabel = (restart: Restart): string => (restart.kind === 'server' ? 'Server restarted' : 'Metro restarted');
 
 export const percentLabel = (value: number): string => `${String(Math.round(value))}%`;
 

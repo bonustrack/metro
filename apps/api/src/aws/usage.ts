@@ -17,6 +17,17 @@ const PERIODS: Record<UsageRange, Periods> = {
 };
 
 export const AGENT_NAMESPACE = 'CWAgent';
+const STARTS_SECONDS = 60;
+const SAME_RESTART_MS = 60_000;
+const STARTS = [
+  ['server', 'server_booted'],
+  ['metro', 'metro_started'],
+] as const;
+
+export interface Restart {
+  at: number;
+  kind: (typeof STARTS)[number][0];
+}
 
 export interface Series {
   stepMs: number;
@@ -31,6 +42,7 @@ export interface Usage {
   status: Series;
   memory: Series;
   disk: Series;
+  restarts: Restart[];
   agent: boolean;
 }
 
@@ -49,6 +61,16 @@ const fewestDimensions = (a: Metric, b: Metric): number => a.dimensions.length -
 export function agentMetric(metrics: Metric[], name: string, path?: string): Metric | undefined {
   const onPath = (m: Metric): boolean => path === undefined || m.dimensions.some((d) => d.name === 'path' && d.value === path);
   return metrics.filter((m) => m.namespace === AGENT_NAMESPACE && m.name === name && onPath(m)).sort(fewestDimensions)[0];
+}
+
+export function restartsOf(data: Map<string, Point[]>, from: number, to: number): Restart[] {
+  const all = STARTS.flatMap(([kind]) => (data.get(kind) ?? []).map((p): Restart => ({ at: p.value * 1000, kind })))
+    .filter((r) => r.at >= from && r.at <= to)
+    .sort((a, b) => a.at - b.at);
+  return all.filter((r, i) => {
+    const prev = all[i - 1];
+    return prev?.kind !== r.kind || r.at - prev.at > SAME_RESTART_MS;
+  });
 }
 
 export function usageWindow(range: UsageRange, now: number): { from: number; to: number } {
@@ -77,6 +99,7 @@ export async function readUsage(aws: UsageAws, credentials: AwsCredentials, targ
     ec2('credits', 'CPUCreditBalance', 'Average'),
     ec2('status', 'StatusCheckFailed', 'Maximum'),
     ...agent.flatMap(([id, metric]): MetricQuery[] => (metric === undefined ? [] : [{ id, metric, periodSeconds: periods.agentSeconds, stat: 'Average' }])),
+    ...STARTS.map(([id, name]): MetricQuery => ({ id, metric: { namespace: AGENT_NAMESPACE, name, dimensions: byInstance }, periodSeconds: STARTS_SECONDS, stat: 'Maximum' })),
   ];
   const data = await aws.data(credentials, target.region, queries, from, to);
   const series = (id: string, seconds: number): Series => ({ stepMs: seconds * 1000, points: data.get(id) ?? [] });
@@ -88,6 +111,7 @@ export async function readUsage(aws: UsageAws, credentials: AwsCredentials, targ
     status: series('status', periods.ec2Seconds),
     memory: series('memory', periods.agentSeconds),
     disk: series('disk', periods.agentSeconds),
+    restarts: restartsOf(data, from, to),
     agent: agent.some(([, metric]) => metric !== undefined),
   };
 }
