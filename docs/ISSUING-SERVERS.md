@@ -52,7 +52,7 @@ refused with a 409.
    **Application running outside AWS**. Copy both halves at once: AWS shows the
    secret only at creation, and a user may hold at most two keys.
 
-These actions are all a launch, its progress view and a resize use.
+These actions are all a launch, its progress view, a resize and a delete use.
 
 ```json
 {
@@ -65,6 +65,7 @@ These actions are all a launch, its progress view and a resize use.
         "ec2:DescribeAvailabilityZones",
         "ec2:DescribeImages",
         "ec2:DescribeInstances",
+        "ec2:DescribeVolumes",
         "ec2:RunInstances",
         "ec2:CreateTags",
         "ec2:GetConsoleOutput",
@@ -78,7 +79,8 @@ These actions are all a launch, its progress view and a resize use.
       "Action": [
         "ec2:StopInstances",
         "ec2:StartInstances",
-        "ec2:ModifyInstanceAttribute"
+        "ec2:ModifyInstanceAttribute",
+        "ec2:TerminateInstances"
       ],
       "Resource": "*",
       "Condition": { "Null": { "aws:ResourceTag/metro": "false" } }
@@ -87,10 +89,12 @@ These actions are all a launch, its progress view and a resize use.
 }
 ```
 
-It cannot terminate anything, so deleting a box is still a job for the AWS
-console. The second statement is only for a resize, and only on instances with
-a `metro` tag, which every box Metro launches carries: the key cannot stop or
-change anything else in the account. `DescribeInstanceTypes` lists the sizes,
+The second statement is only for a resize and a delete, and only on instances
+with a `metro` tag, which every box Metro launches carries: the key cannot stop,
+change or terminate anything else in the account. It holds no `DeleteVolume`:
+a box's disk goes with it through `DeleteOnTermination`. Before 2026-09-29 the
+policy had neither `DescribeVolumes` nor `TerminateInstances`, and the Delete
+dialog then names the missing one. `DescribeInstanceTypes` lists the sizes,
 and `pricing:GetProducts` only shows the price next to each size: without it
 the sizes show no price.
 
@@ -142,6 +146,36 @@ organization can sign in to it.
 Two launches at once from one organization are refused with a 409 rather than starting
 two instances, and the row is written to your agent list only once EC2 has
 answered with an instance id.
+
+## Deleting a box
+
+The Server page of a box Metro launched has a Delete button, for an admin of
+the organization. The dialog reads AWS first and lists exactly what goes: the
+instance id and type, and each disk attached to it with its id and size. It
+asks for the agent's name to be typed, and sends those ids back with it.
+
+The api then checks everything again and refuses at the first thing that does
+not match, before any change:
+
+- the row is found by its id inside the signed-in organization only, and its
+  stored instance id is the only one ever asked for;
+- the instance's `metro` tag must be the node of the row's address, and its
+  `metro:owner` and `metro:agent` tags, when present, must name this
+  organization and this row (boxes launched before 2026-09-29 have only
+  `metro` and `Name`);
+- each disk is asked for by its exact id, must be attached to this instance
+  alone, and must not be tagged for another box;
+- the ids must be the ones the dialog showed.
+
+A disk not set to go with its server is set to by its device, and checked
+again. Then `TerminateInstances` runs with that one id, AWS deletes the disk
+with the instance, and the row leaves the list. Nothing is listed or filtered
+at any step, and no disk is deleted by id. A box AWS already terminated only
+leaves the list.
+
+The Tailscale machine stays in the tailnet, offline, since Metro holds an auth
+key and not a Tailscale API token. Remove it in the admin console under
+Machines. No DNS record exists for a box, so there is none to remove.
 
 ## Changing the size of a box
 

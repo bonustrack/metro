@@ -11,6 +11,7 @@ import {
   addLaunchedServer,
   addServerForOwner,
   deleteServerForOwner,
+  deletionRowForOwner,
   instanceForOwner,
   launchForOwner,
   listAllServers,
@@ -22,8 +23,10 @@ import { bootView, instanceStateOf, launchBox } from './aws/launch.js';
 import { describeInstanceTypes, describeRegions } from './aws/ec2.js';
 import { hourlyPrice } from './aws/pricing.js';
 import { LIVE_RESIZE } from './aws/resize.js';
+import { LIVE_DELETION } from './aws/deletion.js';
 import { handleLaunchApiRequest, type LaunchApiDeps } from './launch.js';
-import { handleSizeApiRequest, type SizeApiDeps } from './size.js';
+import { handleSizeApiRequest, resizing, type SizeApiDeps } from './size.js';
+import { handleDeletionApiRequest, type DeletionApiDeps } from './deletion.js';
 import { handleServersApiRequest, type ServersApiDeps } from './servers.js';
 import { dbSlugs } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
@@ -64,6 +67,15 @@ const sizeApi: SizeApiDeps = {
   keys,
 };
 
+const deletionApi: DeletionApiDeps = {
+  config: () => readLaunchConfig(),
+  lookup: deletionRowForOwner,
+  remove: deleteServerForOwner,
+  resizing,
+  aws: LIVE_DELETION,
+  keys,
+};
+
 function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
   const path = (req.url ?? '').split('?')[0];
   if (path !== '/health' && path !== '/healthz') return false;
@@ -80,6 +92,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse): voi
   if (handleMembersApiRequest(req, res, authApi)) return;
   if (handleAdminApiRequest(req, res, adminApi)) return;
   if (handleSizeApiRequest(req, res, sizeApi)) return;
+  if (handleDeletionApiRequest(req, res, deletionApi)) return;
   if (handleServersApiRequest(req, res, serversApi)) return;
   if (handleLaunchApiRequest(req, res, launchApi)) return;
   res.writeHead(404).end();

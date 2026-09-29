@@ -1,4 +1,4 @@
-const NODE_RE = /^metro-[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
+export const NODE_RE = /^metro-[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 const HOSTNAME_RE = /^[a-z0-9](?:[a-z0-9-]{0,62})$/;
 const OWNER_RE = /^org_[A-Za-z0-9]{10,64}$/;
 export const AUTH_KEY_RE = /^tskey-auth-[A-Za-z0-9_-]{8,200}$/;

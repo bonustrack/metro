@@ -6,7 +6,7 @@ The story behind these rules, with dates and incidents, is in `docs/HISTORY.md`.
 
 A relay between chat networks (XMTP, Telegram, Discord, WhatsApp, Threema, an Outlook or Gmail mailbox) and Claude Code, run on the user's own machine ("box") by `metro serve`. One daemon serves MCP over HTTP, a model gateway and an admin API, and supervises one subprocess ("train") per station.
 
-Inbound: network message, station, in-process bus, MCP channel notification. Outbound: agent tool call, station verb, network. `api.metro.box` (`apps/api`, Fly) runs no station: sign-in, the agent list, AWS launches and resizes, `/health`. The page `https://metro.box` (`apps/ui`, Netlify) manages one box at a time. **Every daemon is local. There is no hosted mode.**
+Inbound: network message, station, in-process bus, MCP channel notification. Outbound: agent tool call, station verb, network. `api.metro.box` (`apps/api`, Fly) runs no station: sign-in, the agent list, AWS launches, resizes and deletions, `/health`. The page `https://metro.box` (`apps/ui`, Netlify) manages one box at a time. **Every daemon is local. There is no hosted mode.**
 
 **One box is one agent.** The daemon creates `~/.metro/agents/agent.json` (`{version: 1, id, name?, key, stations[]}`; an old file's `owner` and `connectors` keys are ignored and dropped at the next save) at first boot. A second agent, or an import of another agent id, is 409. The name a person sees is the box's row on metro.box.
 
@@ -330,6 +330,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 | `/api/organization…` | bearer | Members, invitations, rename, slug. Writes are admin. |
 | `/api/servers…` | bearer | The organization's agent list, rename, slug, avatar (checked PNG only), move. |
 | `/api/servers/<id>/size` | bearer, POST admin | A launched box's EC2 state, size and the sizes offered. POST `{type}` resizes it (stop, type, start, the old type back on failure), polled by the page. |
+| `/api/servers/<id>/deletion` | bearer, POST admin | What deleting a launched box removes: its instance id and each attached disk with its size. POST `{name, instanceId, volumeIds}` deletes it (see Deploy and operations). |
 | `/api/launch…` | bearer | Launch a box on AWS, status, boot log (Tailscale keys redacted). |
 | `/api/admin/*` | bearer, operator email | Users, status, organizations, agents. |
 
@@ -366,6 +367,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 - Boxes run `metro serve` under systemd (`metro service install`). `systemctl stop metro` keeps it stopped; `metro stop` alone is restarted by the service. The unit runs as `User=metro` (see Three users on every box); SSH in as root and look in `/var/lib/metro/.metro`.
 - **One public address per box: Tailscale Funnel** (`net/tunnel.ts`). The node name `metro-<6 chars>` lives in `<agents dir>/.node`; a pre-written valid name is kept. An existing Funnel that answers with this owner is adopted and watched.
 - After a deploy or daemon update, **tell the user to reconnect `/mcp`**, and after a connector change, to run `/reload-plugins --force`.
+- **Deleting a box never lists, filters or guesses** (`apps/api/src/aws/deletion.ts`). It reads the stored instance id of the row the organization owns, asks EC2 for that one id, refuses unless the instance's `metro` tag is the node of the row's address and any `metro:owner` / `metro:agent` tag names this organization and row (boxes launched before 2026-09-29 carry only `metro` and `Name`), asks for exactly the volume ids attached to it and refuses a disk attached elsewhere or tagged for another box, then compares both with the ids the dialog showed. Disks go through `DeleteOnTermination` (set on the exact device first when off, then checked again), so there is no `DeleteVolume` call at all. Only then `TerminateInstances` with that one id, and the row is removed last. The Tailscale machine stays: the api holds an auth key, not an API token, and the page says so.
 - **Moving a box to another AWS region:** stop the instance, image the stopped disk, `copy-image`, `run-instances` with the same type and tags and no user data, then wait for `/api/mode` on the same Funnel address. **Keep the old instance stopped until terminated** (single writer). Then fix the `agents` row's `instance_id` and `launch_region` from inside the Fly machine.
 
 ## Removed: do not resurrect

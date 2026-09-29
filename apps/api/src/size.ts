@@ -34,9 +34,14 @@ export function resetSizeState(): void {
   claims.clear();
 }
 
-const keyOf = (target: Ec2Target): string => `${target.region}/${target.instanceId}`;
+const keyOf = (target: Pick<Ec2Target, 'region' | 'instanceId'>): string => `${target.region}/${target.instanceId}`;
 
-async function fromAws<T>(work: () => Promise<T>, type = ''): Promise<T> {
+export const resizing = (region: string, instanceId: string): boolean => {
+  const key = keyOf({ region, instanceId });
+  return claims.has(key) || jobRunning(jobs.get(key));
+};
+
+export async function fromAws<T>(work: () => Promise<T>, type = ''): Promise<T> {
   try {
     return await work();
   } catch (err) {
