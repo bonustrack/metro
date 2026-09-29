@@ -1,9 +1,11 @@
 import { type ReactNode } from 'react';
 import { Text } from './ui.js';
 import { ProviderLogo } from './ProviderLogo.js';
+import { UsageLine, UsageUpdateHint } from './ModelUsage.js';
 import { PROVIDERS, type ConnectionRow, type ModelSettings } from '../api/model.js';
 import { DEFAULT_MODEL, routedConnection, routedUsage } from '../api/providers.js';
-import { queryError, useConnectionModelsQuery, useModelQuery } from '../api/queries.js';
+import { queryError, useAccountOf, useConnectionModelsQuery, useModelQuery } from '../api/queries.js';
+import { tallyLine } from '../api/usage.js';
 import { routeHash } from '../route.js';
 import { opensElsewhere } from './link.js';
 import { type Selection } from './selection.js';
@@ -21,10 +23,29 @@ export function useModelName(conn: ConnectionRow | undefined): string {
   return cut === -1 ? found.name : found.name.slice(cut + 2);
 }
 
+function CardUsage({ usage }: { usage: ModelSettings['usage'][string] | undefined }): ReactNode {
+  if (usage === undefined) return <UsageUpdateHint />;
+  if (usage.windows.length === 0)
+    return usage.tally === null ? null : (
+      <Text size="sm" role="secondary">
+        {tallyLine(usage.tally)}
+      </Text>
+    );
+  return (
+    <span className="model-card-usage">
+      {usage.windows.map((window) => (
+        <UsageLine key={window.label} window={window} />
+      ))}
+    </span>
+  );
+}
+
 function Card({ settings, href, onOpen }: { settings: ModelSettings; href: string; onOpen: () => void }): ReactNode {
   const conn = routedConnection(settings);
   const name = useModelName(conn);
-  const low = routedUsage(settings)?.windows.find((window) => window.used !== null && window.used >= LOW);
+  const account = useAccountOf(conn);
+  const usage = routedUsage(settings);
+  const low = usage?.windows.find((window) => window.used !== null && window.used >= LOW);
   return (
     <a
       className="model-card"
@@ -40,9 +61,10 @@ function Card({ settings, href, onOpen }: { settings: ModelSettings; href: strin
         <Text size="md" weight="medium" numberOfLines={1}>
           {name}
         </Text>
-        <Text size="sm" role="secondary" numberOfLines={1}>
-          {conn?.label ?? 'Your Claude Code login'}
+        <Text size="sm" role="secondary">
+          {[conn?.label ?? 'Your Claude Code login', account].filter((part): part is string => part !== null).join(' · ')}
         </Text>
+        <CardUsage usage={usage} />
         {settings.reason !== null ? (
           <Text size="sm" role="danger">
             {settings.reason}

@@ -2,7 +2,9 @@ import type { ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Text } from './ui.js';
 import { SettingsSection } from './SettingsSection.js';
-import { windowLine, type UsageWindow } from '../api/usage.js';
+import { useModeQuery } from '../api/queries.js';
+import { USAGE_SINCE, windowLine, type UsageWindow } from '../api/usage.js';
+import { olderThan } from '../api/version.js';
 
 const HIGH = 0.8;
 
@@ -15,19 +17,52 @@ function Meter({ used, warn }: { used: number; warn: boolean }): ReactNode {
   );
 }
 
+function UsageBar({ used }: { used: number | null }): ReactNode {
+  if (used === null) return null;
+  const warn = used >= HIGH;
+  return (
+    <Row gap={10} align="center">
+      <Meter used={used} warn={warn} />
+      <Text size="sm" role={warn ? 'danger' : 'secondary'}>
+        {`${String(Math.round(used * 100))}%`}
+      </Text>
+    </Row>
+  );
+}
+
 export function UsageRow({ window }: { window: UsageWindow }): ReactNode {
-  const warn = window.used !== null && window.used >= HIGH;
   const note = windowLine({ ...window, used: null });
   return (
     <SettingsSection title={window.label} note={note === '' ? undefined : note} compact>
-      {window.used === null ? null : (
-        <Row gap={10} align="center">
-          <Meter used={window.used} warn={warn} />
-          <Text size="sm" role={warn ? 'danger' : 'secondary'}>
-            {`${String(Math.round(window.used * 100))}%`}
-          </Text>
-        </Row>
-      )}
+      <UsageBar used={window.used} />
     </SettingsSection>
   );
+}
+
+export function UsageLine({ window }: { window: UsageWindow }): ReactNode {
+  const note = windowLine({ ...window, used: null });
+  return (
+    <span className="usage-line">
+      <Text size="sm" role="secondary">
+        {window.label}
+      </Text>
+      <UsageBar used={window.used} />
+      {note === '' ? null : (
+        <Text size="sm" role="secondary">
+          {note}
+        </Text>
+      )}
+    </span>
+  );
+}
+
+export function UsageUpdateHint({ pad = false }: { pad?: boolean }): ReactNode {
+  const mode = useModeQuery();
+  if (!olderThan(mode.data?.version ?? null, USAGE_SINCE)) return null;
+  const hint = (
+    <Text size="sm" role="secondary">
+      Update Metro to see the usage.
+    </Text>
+  );
+  return pad ? <div className="settings-pad">{hint}</div> : hint;
 }

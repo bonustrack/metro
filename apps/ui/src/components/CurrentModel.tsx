@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text, Button } from './ui.js';
 import { ProviderLogo } from './ProviderLogo.js';
-import { UsageRow } from './ModelUsage.js';
+import { UsageRow, UsageUpdateHint } from './ModelUsage.js';
 import { useModelName } from './AgentModel.js';
 import { FactRow, SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { PROVIDERS, type ModelSettings } from '../api/model.js';
@@ -15,7 +15,7 @@ const LOGO = 32;
 
 function Usage({ settings }: { settings: ModelSettings }): ReactNode {
   const usage = routedUsage(settings);
-  if (usage === undefined) return null;
+  if (usage === undefined) return <UsageUpdateHint pad />;
   return (
     <>
       {usage.windows.map((window) => (

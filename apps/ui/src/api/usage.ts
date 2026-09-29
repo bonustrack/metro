@@ -1,5 +1,6 @@
 import { filled, isRecord } from './read.js';
 
+export const USAGE_SINCE = '0.1.0-beta.222';
 
 export interface UsageWindow {
   label: string;
