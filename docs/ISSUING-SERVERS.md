@@ -181,6 +181,12 @@ The Tailscale machine stays in the tailnet, offline, since Metro holds an auth
 key and not a Tailscale API token. Remove it in the admin console under
 Machines. No DNS record exists for a box, so there is none to remove.
 
+The Metro operator (the `admin@stage.box` account, not an organization's
+admin) can also delete a box of any organization from Admin, Agents. The same
+dialog names the organization the box belongs to. The api finds the row by its
+id in every organization, then runs exactly the same checks, and logs who
+deleted which box for which organization.
+
 ## Changing the size of a box
 
 The Server page of a box Metro launched shows its size (vCPUs, memory, the AWS

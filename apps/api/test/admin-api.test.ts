@@ -8,6 +8,7 @@ import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
 import { memoryUsers } from './users-fake.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
+import { fakeAccount, fakeDeletionAws } from './deletion-fake.ts';
 
 let workos: FakeWorkos;
 let server: Server;
@@ -24,7 +25,14 @@ beforeAll(async () => {
     keys: new SigningKeys(workos.issuer.url),
     slugs: memorySlugs(),
     users: memoryUsers(),
-    agents: () => Promise.resolve([{ id: 'aB3-_xYz9Qw', owner: ORG, host: 'tony.example.ts.net', name: 'Tony', slug: 'tony', addedAt: '2026-09-10T00:00:00.000Z', avatar: null }]),
+    agents: () => Promise.resolve([{ id: 'aB3-_xYz9Qw', owner: ORG, host: 'tony.example.ts.net', name: 'Tony', slug: 'tony', addedAt: '2026-09-10T00:00:00.000Z', avatar: null, instanceId: null }]),
+    deletion: {
+      config: () => ({ ok: false, missing: [] }),
+      lookup: () => Promise.reject(new Error('not used here')),
+      remove: () => Promise.resolve(null),
+      resizing: () => false,
+      aws: fakeDeletionAws(fakeAccount()),
+    },
   };
   await deps.users.noteLogin({ id: 'user_01ABC', email: 'admin@stage.box', name: 'Stage Labs', picture: null, createdAt: '2026-09-01T10:00:00.000Z' }, '2026-09-19T10:00:00.000Z');
   await deps.users.setStatus('user_01ABC', 'approved');
@@ -82,6 +90,6 @@ describe('the operator pages', () => {
     const orgs = (await (await call('GET', '/api/admin/organizations', token('user_01ABC'))).json()) as { organizations: Record<string, unknown>[] };
     expect(orgs.organizations).toEqual([{ id: ORG, name: 'Stage Labs', createdAt: '2026-09-10T00:00:00.000Z', slug: 'stage-labs' }]);
     const agents = (await (await call('GET', '/api/admin/agents', token('user_01ABC'))).json()) as { agents: Record<string, unknown>[] };
-    expect(agents.agents).toEqual([{ id: 'aB3-_xYz9Qw', owner: ORG, host: 'tony.example.ts.net', name: 'Tony', slug: 'tony', addedAt: '2026-09-10T00:00:00.000Z', avatar: null, organizationName: 'Stage Labs' }]);
+    expect(agents.agents).toEqual([{ id: 'aB3-_xYz9Qw', owner: ORG, host: 'tony.example.ts.net', name: 'Tony', slug: 'tony', addedAt: '2026-09-10T00:00:00.000Z', avatar: null, instanceId: null, organizationName: 'Stage Labs' }]);
   });
 });

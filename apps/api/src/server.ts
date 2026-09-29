@@ -11,6 +11,8 @@ import {
   addLaunchedServer,
   addServerForOwner,
   deleteServerForOwner,
+  deleteServerRow,
+  deletionRowById,
   deletionRowForOwner,
   instanceForOwner,
   launchForOwner,
@@ -37,7 +39,8 @@ const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, version: METRO_VERSION });
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
 const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers, agentsOf: listServersForOwner };
-const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers };
+const deletionCore = { config: () => readLaunchConfig(), resizing, aws: LIVE_DELETION };
+const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers, deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow } };
 const serversApi: ServersApiDeps = {
   list: listServersForOwner,
   add: addServerForOwner,
@@ -67,14 +70,7 @@ const sizeApi: SizeApiDeps = {
   keys,
 };
 
-const deletionApi: DeletionApiDeps = {
-  config: () => readLaunchConfig(),
-  lookup: deletionRowForOwner,
-  remove: deleteServerForOwner,
-  resizing,
-  aws: LIVE_DELETION,
-  keys,
-};
+const deletionApi: DeletionApiDeps = { ...deletionCore, lookup: deletionRowForOwner, remove: deleteServerForOwner, keys };
 
 function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
   const path = (req.url ?? '').split('?')[0];

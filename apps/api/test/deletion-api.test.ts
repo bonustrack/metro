@@ -21,8 +21,8 @@ const CONFIG: ConfigResult = {
 const LAUNCHED = 'srv00000001';
 const HAND_ADDED = 'srv00000002';
 const ROWS: Record<string, DeletionRow> = {
-  [LAUNCHED]: { id: LAUNCHED, host: HOST, name: 'throwaway-47', instanceId: BOX, region: 'us-east-1' },
-  [HAND_ADDED]: { id: HAND_ADDED, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', instanceId: null, region: null },
+  [LAUNCHED]: { id: LAUNCHED, owner: TEST_OWNER, host: HOST, name: 'throwaway-47', instanceId: BOX, region: 'us-east-1' },
+  [HAND_ADDED]: { id: HAND_ADDED, owner: TEST_OWNER, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', instanceId: null, region: null },
 };
 
 let config: ConfigResult = CONFIG;

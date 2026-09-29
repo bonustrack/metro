@@ -5,13 +5,19 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import { isOperatorEmail } from './auth/operator.js';
-import { listOrganizations, type WorkosConfig } from './auth/workos.js';
-import type { AgentSummary } from './db/servers.js';
+import { listOrganizations, organizationName, type WorkosConfig } from './auth/workos.js';
+import type { AgentSummary, DeletionRow } from './db/servers.js';
+import { confirmDeletion, deletionView, noteRefusal, type DeletionCore } from './deletion.js';
 import type { SlugStore } from './slug.js';
 import { isUserStatus, type UserStore } from './users.js';
 
 const PREFIX = '/api/admin';
 const STATUS_RE = /^\/users\/([A-Za-z0-9_]+)\/status$/;
+const DELETION_RE = /^\/servers\/([^/]+)\/deletion$/;
+
+export interface AdminDeletionDeps extends DeletionCore {
+  lookup: (id: string) => Promise<DeletionRow>;
+}
 
 export interface AdminApiDeps {
   config: () => WorkosConfig | null;
@@ -19,6 +25,7 @@ export interface AdminApiDeps {
   users: UserStore;
   slugs: SlugStore;
   agents: () => Promise<AgentSummary[]>;
+  deletion: AdminDeletionDeps;
 }
 
 async function operator(req: IncomingMessage, deps: AdminApiDeps): Promise<Session> {
@@ -72,19 +79,54 @@ async function agentsList(deps: AdminApiDeps): Promise<unknown> {
   return { agents: rows.map((a) => ({ ...a, organizationName: orgs.get(a.owner) ?? null })) };
 }
 
+async function ownerView(deps: AdminApiDeps, row: DeletionRow): Promise<unknown> {
+  const cfg = deps.config();
+  const name = cfg === null ? null : await organizationName(cfg, row.owner);
+  return { ...(await deletionView(deps.deletion, row)), owner: row.owner, organizationName: name };
+}
+
+async function serverDeletion(req: IncomingMessage, deps: AdminApiDeps, session: Session, id: string): Promise<unknown> {
+  try {
+    const row = await deps.deletion.lookup(id);
+    if (req.method === 'GET') return await ownerView(deps, row);
+    const who = { by: session.userId, owner: row.owner, agent: row.id, host: row.host };
+    const body = await readJsonBody(req);
+    log.info(who, 'admin: deleting a server for its organization');
+    const done = await confirmDeletion(deps.deletion, row, body);
+    log.info({ ...who, instanceId: done.instanceId, volumeIds: done.volumeIds, terminated: done.terminated }, 'admin: server deleted for its organization');
+    return done;
+  } catch (err) {
+    noteRefusal(id, err);
+    throw err;
+  }
+}
+
+const LISTS = new Map<string, (deps: AdminApiDeps) => Promise<unknown>>([
+  ['/users', listUsers],
+  ['/organizations', organizations],
+  ['/agents', agentsList],
+]);
+
+async function byId(req: IncomingMessage, deps: AdminApiDeps, session: Session, path: string, method: string): Promise<{ body: unknown } | null> {
+  const status = STATUS_RE.exec(path);
+  if (status !== null && method === 'POST') return { body: await setStatus(req, deps, session, status[1] ?? '') };
+  const deletion = DELETION_RE.exec(path);
+  if (deletion !== null && (method === 'GET' || method === 'POST')) return { body: await serverDeletion(req, deps, session, deletion[1] ?? '') };
+  return null;
+}
+
 async function answer(req: IncomingMessage, res: ServerResponse, deps: AdminApiDeps, path: string): Promise<void> {
   const session = await operator(req, deps);
   const method = req.method ?? 'GET';
-  const status = STATUS_RE.exec(path);
-  if (status !== null && method === 'POST') {
-    sendJson(req, res, 200, await setStatus(req, deps, session, status[1] ?? ''));
+  const routed = await byId(req, deps, session, path, method);
+  if (routed !== null) {
+    sendJson(req, res, 200, routed.body);
     return;
   }
   if (method !== 'GET') throw new ApiError('method not allowed', 405);
-  if (path === '/users') sendJson(req, res, 200, await listUsers(deps));
-  else if (path === '/organizations') sendJson(req, res, 200, await organizations(deps));
-  else if (path === '/agents') sendJson(req, res, 200, await agentsList(deps));
-  else throw new ApiError('not found', 404);
+  const list = LISTS.get(path);
+  if (list === undefined) throw new ApiError('not found', 404);
+  sendJson(req, res, 200, await list(deps));
 }
 
 export function handleAdminApiRequest(req: IncomingMessage, res: ServerResponse, deps: AdminApiDeps): boolean {

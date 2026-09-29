@@ -109,11 +109,12 @@ export interface AgentSummary {
   slug: string | null;
   addedAt: string;
   avatar: string | null;
+  instanceId: string | null;
 }
 
 export async function listAllServers(): Promise<AgentSummary[]> {
   const rows = await getDb()
-    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, slug: agents.slug, addedAt: agents.addedAt, avatar: agents.avatar })
+    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, slug: agents.slug, addedAt: agents.addedAt, avatar: agents.avatar, instanceId: agents.instanceId })
     .from(agents)
     .orderBy(desc(agents.addedAt));
   return rows.map((r) => ({ ...r, avatar: r.avatar?.startsWith('data:image/png;base64,') === true ? r.avatar : null }));
@@ -191,22 +192,31 @@ export async function instanceForOwner(subject: string, rawId: string): Promise<
 
 export interface DeletionRow {
   id: string;
+  owner: string;
   host: string;
   name: string | null;
   instanceId: string | null;
   region: string | null;
 }
 
-export async function deletionRowForOwner(subject: string, rawId: string): Promise<DeletionRow> {
-  const owner = ownerOf(subject);
-  const id = idOf(rawId);
+async function deletionRow(id: string, owner: string | null): Promise<DeletionRow> {
+  const byId = eq(agents.id, id);
   const rows = await getDb()
-    .select({ id: agents.id, host: agents.host, name: agents.name, instanceId: agents.instanceId, region: agents.launchRegion })
+    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, instanceId: agents.instanceId, region: agents.launchRegion })
     .from(agents)
-    .where(and(eq(agents.id, id), eq(agents.owner, owner)));
+    .where(owner === null ? byId : and(byId, eq(agents.owner, owner)));
   const row = rows[0];
   if (row === undefined) throw missing();
   return row;
+}
+
+export async function deletionRowForOwner(subject: string, rawId: string): Promise<DeletionRow> {
+  const owner = ownerOf(subject);
+  return deletionRow(idOf(rawId), owner);
+}
+
+export async function deletionRowById(rawId: string): Promise<DeletionRow> {
+  return deletionRow(idOf(rawId), null);
 }
 
 export async function launchForOwner(subject: string, rawId: string): Promise<ServerLaunch> {
@@ -291,8 +301,10 @@ export async function moveServerForOwner(session: Session, rawId: string, body: 
 }
 
 export async function deleteServerForOwner(subject: string, rawId: string): Promise<{ id: string; host: string }> {
-  const owner = ownerOf(subject);
-  const id = idOf(rawId);
+  return deleteServerRow(ownerOf(subject), idOf(rawId));
+}
+
+export async function deleteServerRow(owner: string, id: string): Promise<{ id: string; host: string }> {
   const gone = await getDb()
     .delete(agents)
     .where(and(eq(agents.id, id), eq(agents.owner, owner)))

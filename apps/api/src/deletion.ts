@@ -16,12 +16,15 @@ const OFF = 'This Metro deployment has no AWS account, so it cannot delete a ser
 const NOT_LAUNCHED =
   'Metro did not launch this server on AWS, so it cannot delete it. Remove it from your list in its settings, and delete the machine where it is hosted.';
 
-export interface DeletionApiDeps {
+export interface DeletionCore {
   config: () => ConfigResult;
-  lookup: (owner: string, id: string) => Promise<DeletionRow>;
   remove: (owner: string, id: string) => Promise<unknown>;
   resizing: (region: string, instanceId: string) => boolean;
   aws: DeletionAws;
+}
+
+export interface DeletionApiDeps extends DeletionCore {
+  lookup: (owner: string, id: string) => Promise<DeletionRow>;
   keys: SigningKeys;
 }
 
@@ -48,8 +51,7 @@ async function guarded<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-async function resolve(deps: DeletionApiDeps, owner: string, id: string): Promise<Resolved | string> {
-  const row = await deps.lookup(owner, id);
+function resolve(deps: DeletionCore, row: DeletionRow): Resolved | string {
   const config = deps.config();
   if (!config.ok) return OFF;
   if (row.instanceId === null || row.region === null) return NOT_LAUNCHED;
@@ -60,7 +62,7 @@ async function resolve(deps: DeletionApiDeps, owner: string, id: string): Promis
   };
 }
 
-const viewOf = (row: DeletionRow, plan: Plan): unknown => ({
+const viewOf = (row: DeletionRow, plan: Plan): Record<string, unknown> => ({
   deletable: true,
   name: labelOf(row),
   host: row.host,
@@ -72,8 +74,8 @@ const viewOf = (row: DeletionRow, plan: Plan): unknown => ({
   volumes: plan.disks.map((d) => ({ volumeId: d.volumeId, sizeGib: d.sizeGib })),
 });
 
-async function overview(deps: DeletionApiDeps, owner: string, id: string): Promise<unknown> {
-  const resolved = await resolve(deps, owner, id);
+export async function deletionView(deps: DeletionCore, row: DeletionRow): Promise<Record<string, unknown>> {
+  const resolved = resolve(deps, row);
   if (typeof resolved === 'string') return { deletable: false, reason: resolved };
   return viewOf(resolved.row, await guarded(() => planDeletion(deps.aws, resolved.target, resolved.owned)));
 }
@@ -88,8 +90,9 @@ function confirmedOf(body: unknown, row: DeletionRow): Confirmed {
   return { instanceId, volumeIds: volumeIds.map(String) };
 }
 
-async function deleteAll(deps: DeletionApiDeps, owner: string, id: string, resolved: Resolved, confirmed: Confirmed): Promise<Outcome> {
+async function deleteAll(deps: DeletionCore, resolved: Resolved, confirmed: Confirmed): Promise<Outcome> {
   const { row, target, owned } = resolved;
+  const { owner, id } = row;
   const key = `${target.region}/${target.instanceId}`;
   if (claims.has(key)) throw new ApiError('this server is already being deleted', 409);
   claims.add(key);
@@ -104,14 +107,22 @@ async function deleteAll(deps: DeletionApiDeps, owner: string, id: string, resol
   }
 }
 
+export async function confirmDeletion(deps: DeletionCore, row: DeletionRow, body: unknown): Promise<Record<string, unknown>> {
+  const resolved = resolve(deps, row);
+  if (typeof resolved === 'string') throw new ApiError(resolved, 400);
+  const confirmed = confirmedOf(body, row);
+  if (deps.resizing(resolved.target.region, resolved.target.instanceId)) throw new ApiError('this server is changing size. Wait for it to finish', 409);
+  const outcome = await deleteAll(deps, resolved, confirmed);
+  return { deleted: true, name: labelOf(row), ...outcome };
+}
+
+export function noteRefusal(id: string, err: unknown): void {
+  if (err instanceof ApiError && err.status === 409) log.warn({ agent: id, why: err.message }, 'deletion: refused');
+}
+
 async function remove(deps: DeletionApiDeps, session: Session, owner: string, id: string, body: unknown): Promise<unknown> {
   if (session.role !== 'admin') throw new ApiError('deleting a server needs the admin role in your organization', 403);
-  const resolved = await resolve(deps, owner, id);
-  if (typeof resolved === 'string') throw new ApiError(resolved, 400);
-  const confirmed = confirmedOf(body, resolved.row);
-  if (deps.resizing(resolved.target.region, resolved.target.instanceId)) throw new ApiError('this server is changing size. Wait for it to finish', 409);
-  const outcome = await deleteAll(deps, owner, id, resolved, confirmed);
-  return { deleted: true, name: labelOf(resolved.row), ...outcome };
+  return confirmDeletion(deps, await deps.lookup(owner, id), body);
 }
 
 async function route(req: IncomingMessage, res: ServerResponse, deps: DeletionApiDeps, id: string): Promise<void> {
@@ -122,10 +133,10 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: DeletionAp
       sendJson(req, res, 401, { error: 'unauthorized' });
       return;
     }
-    const body = req.method === 'GET' ? await overview(deps, owner, id) : await remove(deps, session, owner, id, await readJsonBody(req));
+    const body = req.method === 'GET' ? await deletionView(deps, await deps.lookup(owner, id)) : await remove(deps, session, owner, id, await readJsonBody(req));
     sendJson(req, res, 200, body);
   } catch (err) {
-    if (err instanceof ApiError && err.status === 409) log.warn({ agent: id, why: err.message }, 'deletion: refused');
+    noteRefusal(id, err);
     apiFailure(req, res, err, 'deletion-api');
   }
 }
