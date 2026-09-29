@@ -110,26 +110,11 @@ export interface AgentSummary {
   addedAt: string;
   avatar: string | null;
   instanceId: string | null;
-  metricsInstanceId: string | null;
-  metricsRegion: string | null;
-  metricsRoleArn: string | null;
 }
 
 export async function listAllServers(): Promise<AgentSummary[]> {
   const rows = await getDb()
-    .select({
-      id: agents.id,
-      owner: agents.owner,
-      host: agents.host,
-      name: agents.name,
-      slug: agents.slug,
-      addedAt: agents.addedAt,
-      avatar: agents.avatar,
-      instanceId: agents.instanceId,
-      metricsInstanceId: agents.metricsInstanceId,
-      metricsRegion: agents.metricsRegion,
-      metricsRoleArn: agents.metricsRoleArn,
-    })
+    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, slug: agents.slug, addedAt: agents.addedAt, avatar: agents.avatar, instanceId: agents.instanceId })
     .from(agents)
     .orderBy(desc(agents.addedAt));
   return rows.map((r) => ({ ...r, avatar: r.avatar?.startsWith('data:image/png;base64,') === true ? r.avatar : null }));

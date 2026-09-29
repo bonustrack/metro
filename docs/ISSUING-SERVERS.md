@@ -94,11 +94,6 @@ Usage charts use.
       "Action": "iam:PassRole",
       "Resource": "arn:aws:iam::*:role/metro-box",
       "Condition": { "StringEquals": { "iam:PassedToService": "ec2.amazonaws.com" } }
-    },
-    {
-      "Effect": "Allow",
-      "Action": "sts:AssumeRole",
-      "Resource": "arn:aws:iam::*:role/metro-cloudwatch-read"
     }
   ]
 }
@@ -111,10 +106,12 @@ a box's disk goes with it through `DeleteOnTermination`. Before 2026-09-29 the
 policy had neither `DescribeVolumes` nor `TerminateInstances`, and the Delete
 dialog then names the missing one. `DescribeInstanceTypes` lists the sizes,
 and `pricing:GetProducts` only shows the price next to each size: without it
-the sizes show no price. The last two statements and the `cloudwatch` actions
-are for the Usage charts, below: `iam:PassRole` lets a launch and
-`AssociateIamInstanceProfile` give a box the `metro-box` role and no other, and
-`sts:AssumeRole` reads the charts of a box in another AWS account.
+the sizes show no price. The last statement and the `cloudwatch` actions are
+for the Usage charts, below: `iam:PassRole` lets a launch and
+`AssociateIamInstanceProfile` give a box the `metro-box` role and no other. A
+policy copied on 2026-09-29 may also hold `sts:AssumeRole` on
+`role/metro-cloudwatch-read`, for the charts of a box in another AWS account.
+Metro no longer reads those, so that statement can go.
 
 ## The Tailscale key
 
@@ -177,8 +174,9 @@ the CloudWatch agent uses, so a box that runs the official agent instead shows
 the same charts. The daemon runs as the `metro` user and cannot install a
 package, which is why it sends the two readings itself. It signs with the
 instance's role, read from the instance metadata. With no role, or off EC2, it
-sends nothing and logs it once. A box hosted elsewhere, such as on DigitalOcean,
-has no charts, and the page says so.
+sends nothing and logs it once. Only a box Metro launched in its own AWS account
+has charts. Any other box (in another AWS account, added by its address, or
+hosted elsewhere, such as on DigitalOcean) has none yet, and the page says so.
 
 Restarts show as dashed lines across every chart: red when the server
 restarted, grey when only Metro did. From beta.225, when the daemon starts it
@@ -194,7 +192,7 @@ Two custom metrics and one write a minute cost roughly $1 a month per box at
 CloudWatch's list prices, less inside its free tier. An open Usage section
 reads seven metrics a minute.
 
-**The `metro-box` role**, once per AWS account, for the instances:
+**The `metro-box` role**, once in Metro's AWS account, for the instances:
 
 1. [Create role](https://console.aws.amazon.com/iam/home#/roles/create):
    trusted entity **AWS service**, use case **EC2**, Next. Attach nothing, Next.
@@ -232,36 +230,6 @@ readings for another box in the same account, or add custom metrics that AWS
 bills (about $0.30 each a month). The charts are for reading only, so nothing
 acts on them. The CloudWatch agent's own `CloudWatchAgentServerPolicy` reaches
 further than this.
-
-**A box in another AWS account.** In that account:
-
-1. Make the `metro-box` role as above, and give it to each instance.
-2. [Create role](https://console.aws.amazon.com/iam/home#/roles/create):
-   trusted entity **AWS account**, **Another AWS account**, the account id of
-   Metro's AWS key, Next. Attach nothing, Next. Name it
-   `metro-cloudwatch-read`, then Create role.
-3. Open it, **Add permissions**, **Create inline policy**, JSON:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["cloudwatch:GetMetricData", "cloudwatch:ListMetrics"],
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-4. Copy the role's ARN. In metro.box, Admin, Agents, press **Charts** on the
-   agent and give its instance id, region and that ARN. The api takes the role
-   (`sts:AssumeRole`, 15 minutes, kept until it expires) and reads the charts
-   with it, and refuses to save a link it cannot read, or one with no CPU
-   reading in the last 24 hours (a wrong id or region). Only the operator sets
-   a link. A box Metro launched needs none. A link can also point a box added
-   by address at its instance in Metro's own account, with no ARN.
 
 ## Deleting a box
 

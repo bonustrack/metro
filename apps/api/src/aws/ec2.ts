@@ -4,7 +4,6 @@ import { child, children, parseXml, textAt, type XmlNode } from './xml.js';
 export interface AwsCredentials {
   accessKeyId: string;
   secretAccessKey: string;
-  sessionToken?: string;
 }
 
 export class AwsError extends Error {

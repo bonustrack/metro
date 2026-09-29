@@ -70,18 +70,6 @@ beforeAll(async () => {
       resizing: () => busy,
       aws: fakeDeletionAws(account),
     },
-    metrics: {
-      config: () => config,
-      aws: {
-        list: () => Promise.reject(new Error('not used here')),
-        data: () => Promise.reject(new Error('not used here')),
-        assume: () => Promise.reject(new Error('not used here')),
-        describe: () => Promise.reject(new Error('not used here')),
-        associate: () => Promise.reject(new Error('not used here')),
-      },
-      now: () => Date.now(),
-      save: () => Promise.reject(new Error('not used here')),
-    },
   };
   await deps.users.noteLogin({ id: OPERATOR, email: 'admin@stage.box', name: 'Stage Labs', picture: null, createdAt: '2026-09-01T10:00:00.000Z' }, '2026-09-29T10:00:00.000Z');
   await deps.users.noteLogin({ id: CLIENT_ADMIN, email: 'bob@client.example', name: 'Bob', picture: null, createdAt: '2026-09-02T10:00:00.000Z' }, '2026-09-29T10:00:00.000Z');

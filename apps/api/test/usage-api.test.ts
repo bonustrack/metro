@@ -16,13 +16,10 @@ const CONFIG: ConfigResult = {
   config: { credentials: { accessKeyId: 'AKIAMETRO', secretAccessKey: 's' }, tailnet: 'tail17c4f8.ts.net', authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop' },
 };
 const NOW = Date.parse('2026-09-29T10:07:00Z');
-const ROLE = 'arn:aws:iam::123456789012:role/metro-cloudwatch-read';
 const LAUNCHED = 'srv00000001';
-const ELSEWHERE = 'srv00000002';
 const HAND_ADDED = 'srv00000003';
 const ROWS: Record<string, UsageRow> = {
-  [LAUNCHED]: { host: 'metro-thrw01.tail17c4f8.ts.net', link: { instanceId: 'i-0abc', region: 'us-east-1', roleArn: null } },
-  [ELSEWHERE]: { host: 'metro-8m4meq.tail17c4f8.ts.net', link: { instanceId: 'i-0def', region: 'eu-central-2', roleArn: ROLE } },
+  [LAUNCHED]: { host: 'metro-thrw01.tail17c4f8.ts.net', link: { instanceId: 'i-0abc', region: 'us-east-1' } },
   [HAND_ADDED]: { host: 'metro-6vfdky.tail17c4f8.ts.net', link: null },
 };
 const AGENT: Metric[] = [
@@ -36,7 +33,7 @@ interface Cloud {
   metrics: Metric[];
   instance: InstanceFacts | null;
   starts: Record<string, Point[]>;
-  refuse: Partial<Record<'data' | 'assume' | 'associate', AwsError>>;
+  refuse: Partial<Record<'data' | 'associate', AwsError>>;
 }
 
 let cloud: Cloud;
@@ -72,10 +69,6 @@ const aws: MetricsAws = {
     const at = (m: number): Point => ({ at: NOW - m * 60_000, value: m });
     const points = (id: string): Point[] => cloud.starts[id] ?? (id === 'status' ? [] : [at(20), at(10)]);
     return refused('data') ?? Promise.resolve(new Map(queries.map((q) => [q.id, points(q.id)])));
-  },
-  assume: (credentials, roleArn) => {
-    note(`assume ${roleArn}`, credentials);
-    return refused('assume') ?? Promise.resolve({ accessKeyId: 'ASIATEMP', secretAccessKey: 's2', sessionToken: 't', expiresAt: NOW + 900_000 });
   },
   describe: (credentials, _region, instanceId) => {
     note(`describe ${instanceId}`, credentials);
@@ -136,9 +129,10 @@ describe('the usage charts of a server', () => {
     expect(cloud.calls).toEqual([]);
   });
 
-  test('a server with no AWS instance, like a DigitalOcean box, has no charts and AWS is never asked', async () => {
+  test('a server with no instance Metro launched, in another AWS account or on DigitalOcean, has no charts yet and AWS is never asked', async () => {
     const answer = await body(await get(HAND_ADDED));
-    expect(answer).toEqual({ available: false, reason: expect.stringContaining('DigitalOcean') as unknown as string });
+    expect(answer).toEqual({ available: false, reason: expect.stringContaining('Charts are not available for this server yet.') as unknown as string });
+    expect(answer.reason).toContain('DigitalOcean');
     config = { ok: false, missing: ['METRO_AWS_ACCESS_KEY_ID'] };
     expect(await body(await get(LAUNCHED))).toEqual({ available: false, reason: expect.stringContaining('no AWS account') as unknown as string });
     expect(cloud.calls).toEqual([]);
@@ -215,23 +209,7 @@ describe('the usage charts of a server', () => {
     expect(answer.note).toContain('AWS refused ec2:AssociateIamInstanceProfile. Add it to the policy of the IAM user metro.');
   });
 
-  test('a server in another AWS account is read through its role, and Metro never touches the instance', async () => {
-    cloud.metrics = [];
-    const answer = await body(await get(ELSEWHERE));
-    expect(answer).toMatchObject({ available: true, instanceId: 'i-0def', region: 'eu-central-2' });
-    expect(answer.note).toContain('in its own AWS account');
-    expect(cloud.calls).toEqual([`assume ${ROLE}`, 'list eu-central-2', 'data cpu/300 credits/300 status/300 server/60 metro/60']);
-    expect(cloud.keys).toEqual(['AKIAMETRO', 'ASIATEMP', 'ASIATEMP']);
-    cloud.calls = [];
-    await get(ELSEWHERE);
-    expect(cloud.calls[0]).toBe('list eu-central-2');
-  });
-
-  test('a role Metro cannot take, and a CloudWatch refusal, are 502 with the reason', async () => {
-    cloud.refuse.assume = new AwsError('AccessDenied', 'User metro is not authorized to perform sts:AssumeRole', 'sts:AssumeRole');
-    const res = await get(ELSEWHERE);
-    expect(res.status).toBe(502);
-    expect((await body(res)).error).toContain(`Metro could not take the role ${ROLE}`);
+  test('a CloudWatch refusal is 502 with the reason', async () => {
     cloud.refuse.data = new AwsError('AccessDenied', 'no', 'cloudwatch:GetMetricData');
     const refusedData = await get(LAUNCHED);
     expect(refusedData.status).toBe(502);

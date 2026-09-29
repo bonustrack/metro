@@ -32,7 +32,7 @@ import { handleDeletionApiRequest, type DeletionApiDeps } from './deletion.js';
 import { handleServersApiRequest, type ServersApiDeps } from './servers.js';
 import { handleUsageApiRequest, LIVE_METRICS, type MetricsCore, type UsageApiDeps } from './usage.js';
 import { handleLatestApiRequest, type LatestApiDeps } from './usage-latest.js';
-import { setMetricsLink, usageRowForOwner, usageRowsForOwner } from './db/usage.js';
+import { usageRowForOwner, usageRowsForOwner } from './db/usage.js';
 import { dbSlugs } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
 
@@ -44,12 +44,7 @@ const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
 const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers, agentsOf: listServersForOwner };
 const deletionCore = { config: () => readLaunchConfig(), resizing, aws: LIVE_DELETION };
 const metricsCore: MetricsCore = { config: () => readLaunchConfig(), aws: LIVE_METRICS, now: () => Date.now() };
-const adminApi: AdminApiDeps = {
-  ...authApi,
-  agents: listAllServers,
-  deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow },
-  metrics: { ...metricsCore, save: setMetricsLink },
-};
+const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers, deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow } };
 const usageApi: UsageApiDeps = { ...metricsCore, lookup: usageRowForOwner, keys };
 const latestApi: LatestApiDeps = { ...metricsCore, rows: usageRowsForOwner, keys };
 const serversApi: ServersApiDeps = {

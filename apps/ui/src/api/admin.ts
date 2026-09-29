@@ -37,21 +37,10 @@ export interface AgentRow {
   addedAt: string | null;
   avatar: string | null;
   instanceId: string | null;
-  metrics: MetricsLink | null;
-}
-
-export interface MetricsLink {
-  instanceId: string;
-  region: string;
-  roleArn: string;
 }
 
 const adminUrl = (path: string): string => `${builtInDaemon()}/api/admin${path}`;
 const optional = (v: unknown): string | null => (typeof v === 'string' ? v : null);
-const metricsOf = (a: Record<string, unknown>): MetricsLink | null =>
-  typeof a.metricsInstanceId === 'string' && typeof a.metricsRegion === 'string'
-    ? { instanceId: a.metricsInstanceId, region: a.metricsRegion, roleArn: optional(a.metricsRoleArn) ?? '' }
-    : null;
 const status = (v: unknown): UserStatus | null => (v === 'approved' || v === 'waitlist' || v === 'rejected' ? v : null);
 
 async function call(path: string, method = 'GET', body?: unknown): Promise<Record<string, unknown>> {
@@ -121,13 +110,8 @@ export async function fetchAllAgents(): Promise<AgentRow[]> {
             addedAt: optional(a.addedAt),
             avatar: optional(a.avatar),
             instanceId: optional(a.instanceId),
-            metrics: metricsOf(a),
           },
         ]
       : [],
   );
-}
-
-export async function setMetricsLink(id: string, link: MetricsLink): Promise<void> {
-  await call(`/servers/${encodeURIComponent(id)}/metrics`, 'PUT', link);
 }

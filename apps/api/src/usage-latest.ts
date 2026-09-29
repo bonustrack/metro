@@ -3,9 +3,9 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { apiFailure, cors, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
 import type { AwsCredentials } from './aws/ec2.js';
-import type { LinkedRow, MetricsLink } from './db/usage.js';
+import type { LinkedRow } from './db/usage.js';
 import { readLatest, type Latest } from './aws/latest.js';
-import { credentialsFor, type MetricsCore } from './usage.js';
+import type { MetricsCore } from './usage.js';
 
 const PATH_RE = /^\/api\/servers\/usage\/?$/;
 const CACHE_MS = 60_000;
@@ -26,7 +26,7 @@ export function resetLatestCache(): void {
 const NONE: Latest = { cpu: null, memory: null, disk: null };
 
 interface Group {
-  link: MetricsLink;
+  region: string;
   rows: { id: string; instanceId: string }[];
 }
 
@@ -34,21 +34,19 @@ function groupsOf(rows: LinkedRow[]): Group[] {
   const groups = new Map<string, Group>();
   for (const { id, link } of rows) {
     if (link === null) continue;
-    const key = `${link.roleArn ?? ''} ${link.region}`;
-    const group = groups.get(key) ?? { link, rows: [] };
+    const group = groups.get(link.region) ?? { region: link.region, rows: [] };
     group.rows.push({ id, instanceId: link.instanceId });
-    groups.set(key, group);
+    groups.set(link.region, group);
   }
   return [...groups.values()];
 }
 
-async function readGroup(core: MetricsCore, base: AwsCredentials, group: Group): Promise<[string, Latest][]> {
+async function readGroup(core: MetricsCore, credentials: AwsCredentials, group: Group): Promise<[string, Latest][]> {
   try {
-    const credentials = await credentialsFor(core, base, group.link);
-    const found = await readLatest(core.aws, credentials, group.link.region, group.rows.map((r) => r.instanceId), core.now());
+    const found = await readLatest(core.aws, credentials, group.region, group.rows.map((r) => r.instanceId), core.now());
     return group.rows.map((r) => [r.id, found.get(r.instanceId) ?? NONE]);
   } catch (err) {
-    log.warn({ region: group.link.region, role: group.link.roleArn, servers: group.rows.length, err: errMsg(err) }, 'usage: could not read the latest usage');
+    log.warn({ region: group.region, servers: group.rows.length, err: errMsg(err) }, 'usage: could not read the latest usage');
     return group.rows.map((r) => [r.id, NONE]);
   }
 }

@@ -15,15 +15,14 @@ const CONFIG: ConfigResult = {
   config: { credentials: { accessKeyId: 'AKIAMETRO', secretAccessKey: 's' }, tailnet: 'tail17c4f8.ts.net', authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop' },
 };
 const START = Date.parse('2026-09-29T10:07:00Z');
-const ROLE = 'arn:aws:iam::123456789012:role/metro-cloudwatch-read';
 const ROWS: Record<string, LinkedRow[]> = {
   [TEST_OWNER]: [
-    { id: 'srv00000001', link: { instanceId: 'i-0abc', region: 'us-east-1', roleArn: null } },
-    { id: 'srv00000002', link: { instanceId: 'i-0bcd', region: 'us-east-1', roleArn: null } },
-    { id: 'srv00000003', link: { instanceId: 'i-0def', region: 'eu-central-2', roleArn: ROLE } },
+    { id: 'srv00000001', link: { instanceId: 'i-0abc', region: 'us-east-1' } },
+    { id: 'srv00000002', link: { instanceId: 'i-0bcd', region: 'us-east-1' } },
+    { id: 'srv00000003', link: { instanceId: 'i-0def', region: 'eu-central-2' } },
     { id: 'srv00000004', link: null },
   ],
-  [TEST_STRANGER]: [{ id: 'srv00000009', link: { instanceId: 'i-0fff', region: 'us-east-1', roleArn: null } }],
+  [TEST_STRANGER]: [{ id: 'srv00000009', link: { instanceId: 'i-0fff', region: 'us-east-1' } }],
 };
 const agentMetrics = (instanceId: string): Metric[] => [
   { namespace: 'CWAgent', name: 'mem_used_percent', dimensions: [{ name: 'InstanceId', value: instanceId }] },
@@ -49,10 +48,6 @@ const aws: MetricsAws = {
     if (refuseIn === region) return Promise.reject(new AwsError('AccessDenied', 'no', 'cloudwatch:GetMetricData'));
     const points = (value: number): Point[] => [{ at: now - 600_000, value: 99 }, { at: now - 60_000, value }];
     return Promise.resolve(new Map(queries.map((q) => [q.id, points(READINGS[q.id.slice(0, 1)] ?? 0)])));
-  },
-  assume: (credentials, roleArn) => {
-    calls.push(`assume ${roleArn} ${credentials.accessKeyId}`);
-    return Promise.resolve({ accessKeyId: 'ASIATEMP', secretAccessKey: 's2', sessionToken: 't', expiresAt: now + 900_000 });
   },
   describe: () => Promise.reject(new Error('the summary never describes an instance')),
   associate: () => Promise.reject(new Error('the summary never gives a role')),
@@ -117,8 +112,7 @@ describe('the latest usage of every server, for the agent list', () => {
       srv00000003: { cpu: 3.2, memory: 24.4, disk: 61 },
     });
     expect(calls.sort()).toEqual([
-      `assume ${ROLE} AKIAMETRO`,
-      'data eu-central-2 ASIATEMP c0/300 m0/60 d0/60',
+      'data eu-central-2 AKIAMETRO c0/300 m0/60 d0/60',
       'data us-east-1 AKIAMETRO c0/300 m0/60 d0/60 c1/300',
       'list eu-central-2 CWAgent 0',
       'list us-east-1 CWAgent 0',

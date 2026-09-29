@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { assumeRole, getMetricData, listMetrics } from '../src/aws/cloudwatch.ts';
+import { getMetricData, listMetrics } from '../src/aws/cloudwatch.ts';
 import { associateProfile, AwsError, runInstanceParams } from '../src/aws/ec2.ts';
 
 const CREDS = { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' };
@@ -84,22 +84,6 @@ describe('CloudWatch through its query API', () => {
     const err = await listMetrics(CREDS, 'us-east-1', 'CWAgent', []).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AwsError);
     expect(err).toMatchObject({ code: 'AccessDenied', action: 'cloudwatch:ListMetrics', message: 'not allowed' });
-  });
-
-  test('AssumeRole answers temporary keys, and a call made with them carries the session token', async () => {
-    const seen = stub(
-      200,
-      '<AssumeRoleResponse><AssumeRoleResult><Credentials><AccessKeyId>ASIATEMP</AccessKeyId><SecretAccessKey>s2</SecretAccessKey><SessionToken>tok</SessionToken><Expiration>2026-09-29T11:00:00Z</Expiration></Credentials></AssumeRoleResult></AssumeRoleResponse>',
-    );
-    const role = await assumeRole(CREDS, 'arn:aws:iam::123456789012:role/metro-cloudwatch-read');
-    expect(role).toEqual({ accessKeyId: 'ASIATEMP', secretAccessKey: 's2', sessionToken: 'tok', expiresAt: Date.parse('2026-09-29T11:00:00Z') });
-    expect(seen[0]?.url).toBe('https://sts.us-east-1.amazonaws.com/');
-    expect(seen[0]?.body.get('RoleArn')).toBe('arn:aws:iam::123456789012:role/metro-cloudwatch-read');
-    const next = stub(200, LIST);
-    await listMetrics(role, 'us-east-1', 'CWAgent', []);
-    expect(next[0]?.headers['x-amz-security-token']).toBe('tok');
-    stub(200, '<AssumeRoleResponse><AssumeRoleResult/></AssumeRoleResponse>');
-    await expect(assumeRole(CREDS, 'arn:aws:iam::123456789012:role/x')).rejects.toThrow('without credentials');
   });
 
   test('a new server asks for the metro-box role, and an existing one gets it by name', async () => {

@@ -1,9 +1,8 @@
-import { awsQuery, AwsError, type AwsCredentials, type QueryService } from './ec2.js';
+import { awsQuery, type AwsCredentials, type QueryService } from './ec2.js';
 import { child, children, textAt, type XmlNode } from './xml.js';
 
 const CLOUDWATCH_VERSION = '2010-08-01';
 const LIST_PAGES_MAX = 10;
-const ROLE_SECONDS = 900;
 
 const cloudwatch = (region: string): QueryService => ({
   host: `monitoring.${region}.amazonaws.com`,
@@ -13,8 +12,6 @@ const cloudwatch = (region: string): QueryService => ({
   version: CLOUDWATCH_VERSION,
   label: `CloudWatch in ${region}`,
 });
-
-const STS: QueryService = { host: 'sts.us-east-1.amazonaws.com', region: 'us-east-1', signingName: 'sts', iamPrefix: 'sts', version: '2011-06-15', label: 'AWS STS' };
 
 export interface Dimension {
   name: string;
@@ -99,22 +96,4 @@ export async function getMetricData(credentials: AwsCredentials, region: string,
   const xml = await awsQuery(credentials, cloudwatch(region), 'GetMetricData', params);
   const results = children(child(child(xml, 'GetMetricDataResult'), 'MetricDataResults'), 'member');
   return new Map(results.map((r) => [textAt(r, 'Id'), pointsOf(r)]));
-}
-
-export interface RoleCredentials extends AwsCredentials {
-  expiresAt: number;
-}
-
-export async function assumeRole(credentials: AwsCredentials, roleArn: string): Promise<RoleCredentials> {
-  const xml = await awsQuery(credentials, STS, 'AssumeRole', { RoleArn: roleArn, RoleSessionName: 'metro-usage', DurationSeconds: String(ROLE_SECONDS) });
-  const found = child(child(xml, 'AssumeRoleResult'), 'Credentials');
-  const role = {
-    accessKeyId: textAt(found, 'AccessKeyId'),
-    secretAccessKey: textAt(found, 'SecretAccessKey'),
-    sessionToken: textAt(found, 'SessionToken'),
-    expiresAt: Date.parse(textAt(found, 'Expiration')),
-  };
-  if (role.accessKeyId === '' || role.secretAccessKey === '' || role.sessionToken === '' || !Number.isFinite(role.expiresAt))
-    throw new AwsError('NoCredentials', `AWS STS answered without credentials for ${roleArn}.`, 'sts:AssumeRole');
-  return role;
 }

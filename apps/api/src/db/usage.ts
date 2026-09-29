@@ -6,7 +6,6 @@ import { idOf, missing, ownerOf } from './servers.js';
 export interface MetricsLink {
   instanceId: string;
   region: string;
-  roleArn: string | null;
 }
 
 export interface UsageRow {
@@ -18,26 +17,16 @@ const usageColumns = {
   host: agents.host,
   instanceId: agents.instanceId,
   launchRegion: agents.launchRegion,
-  metricsInstanceId: agents.metricsInstanceId,
-  metricsRegion: agents.metricsRegion,
-  metricsRoleArn: agents.metricsRoleArn,
 };
 
 interface Stored {
   host: string;
   instanceId: string | null;
   launchRegion: string | null;
-  metricsInstanceId: string | null;
-  metricsRegion: string | null;
-  metricsRoleArn: string | null;
 }
 
-function linkOf(row: Stored): MetricsLink | null {
-  if (row.metricsInstanceId !== null && row.metricsRegion !== null)
-    return { instanceId: row.metricsInstanceId, region: row.metricsRegion, roleArn: row.metricsRoleArn };
-  if (row.instanceId !== null && row.launchRegion !== null) return { instanceId: row.instanceId, region: row.launchRegion, roleArn: null };
-  return null;
-}
+const linkOf = (row: Stored): MetricsLink | null =>
+  row.instanceId !== null && row.launchRegion !== null ? { instanceId: row.instanceId, region: row.launchRegion } : null;
 
 export async function usageRowForOwner(subject: string, rawId: string): Promise<UsageRow> {
   const owner = ownerOf(subject);
@@ -61,13 +50,4 @@ export async function usageRowsForOwner(subject: string): Promise<LinkedRow[]> {
     .from(agents)
     .where(eq(agents.owner, ownerOf(subject)));
   return rows.map((row) => ({ id: row.id, link: linkOf(row) }));
-}
-
-export async function setMetricsLink(rawId: string, link: MetricsLink | null): Promise<void> {
-  const changed = await getDb()
-    .update(agents)
-    .set({ metricsInstanceId: link?.instanceId ?? null, metricsRegion: link?.region ?? null, metricsRoleArn: link?.roleArn ?? null })
-    .where(eq(agents.id, idOf(rawId)))
-    .returning({ id: agents.id });
-  if (changed.length === 0) throw missing();
 }
