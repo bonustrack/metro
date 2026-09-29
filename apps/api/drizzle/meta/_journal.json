@@ -15,6 +15,13 @@
       "when": 1790717250726,
       "tag": "0001_cloudwatch_link",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790722953328,
+      "tag": "0002_drop_cloudwatch_link",
+      "breakpoints": true
     }
   ]
 }
