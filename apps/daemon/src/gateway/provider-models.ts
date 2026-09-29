@@ -5,9 +5,10 @@ import type { Connection } from './model-config.js';
 import { fingerprint, listCache } from './model-lists.js';
 import { stringOf } from '@metro-labs/http/api-http';
 
-const ANTHROPIC_API = 'https://api.anthropic.com';
+export const ANTHROPIC_API = 'https://api.anthropic.com';
 const ANTHROPIC_VERSION = '2023-06-01';
 const LIST_MAX = 1000;
+const LIST_TIMEOUT_MS = 10_000;
 const OAUTH_BETA = 'oauth-2025-04-20';
 const BEARER = 'Bearer ';
 
@@ -47,6 +48,7 @@ async function listClaude(auth: Record<string, string>, what: string, base: stri
   const res = await fetchImpl(`${base}/v1/models?limit=${String(LIST_MAX)}`, {
     headers: { ...auth, 'anthropic-version': ANTHROPIC_VERSION, accept: 'application/json' },
     redirect: 'manual',
+    signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
   });
   if (!res.ok) throw new GatewayError(res.status, 'api_error', `Anthropic would not list its models with ${what} (${String(res.status)})`);
   const body: unknown = await res.json();
@@ -94,6 +96,7 @@ async function listBedrock(settings: Connection, base: string, fetchImpl: typeof
   const res = await fetchImpl(`${base}/inference-profiles?maxResults=${String(LIST_MAX)}`, {
     headers: { authorization: `Bearer ${settings.apiKey}`, accept: 'application/json' },
     redirect: 'manual',
+    signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
   });
   if (!res.ok)
     throw new GatewayError(

@@ -7,7 +7,7 @@ import { anthropicModels } from '../src/gateway/provider-models.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import { configOf, makeConnection } from './model-fixture.ts';
 import { recordedClaudeModels, THINKING_OFF_REFUSAL } from './claude-models-fixture.ts';
-import { waitFor } from './wait.ts';
+import { settle, waitFor } from './wait.ts';
 
 const LOGIN = 'Bearer sk-ant-oat-login';
 
@@ -97,14 +97,21 @@ const keyless = makeConnection('anthropic');
 const ids = async (): Promise<string[]> => (await anthropicModels(keyless, anthropicBase)).map((m) => m.id);
 const listings = (): Seen[] => seen.filter((s) => s.method === 'GET');
 
+async function until(check: () => Promise<boolean>, ms = 5000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    if (await check()) return;
+    await settle(25);
+  }
+}
+
 describe('the Anthropic model list without an API key', () => {
   test('is the built-in list until a Claude Code request carries the login, then the live list of that login, newest first', async () => {
     const known = await ids();
     expect(known[0]).toBe('claude-sonnet-5-5');
     expect(seen).toEqual([]);
     expect((await post(turn())).status).toBe(200);
-    await waitFor(() => listings().length === 1);
-    await waitFor(() => false, 50);
+    await until(async () => (await ids()).length === recordedClaudeModels.data.length);
     const live = await anthropicModels(keyless, anthropicBase);
     expect(live[0]).toEqual({ id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' });
     expect(live.map((m) => m.id)).toEqual(recordedClaudeModels.data.map((m) => m.id));
@@ -185,6 +192,12 @@ describe('a model that cannot run with thinking off', () => {
     expect((await post(chore)).status).toBe(200);
     expect(seen.length).toBe(1);
     expect(seen[0]?.body).not.toHaveProperty('thinking');
+  });
+
+  test('two requests racing on a model not learned yet both get through', async () => {
+    const chore = turn({ thinking: { type: 'disabled' } });
+    const answers = await Promise.all([post(chore), post(chore), post(chore)]);
+    expect(answers.map((r) => r.status)).toEqual([200, 200, 200]);
   });
 
   test('any other refusal reaches Claude Code as it came, and teaches nothing', async () => {

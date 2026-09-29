@@ -34,11 +34,10 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import { fitToolSearch } from './tool-search.js';
-import { refreshLoginModels } from './provider-models.js';
+import { ANTHROPIC_API, refreshLoginModels } from './provider-models.js';
 import type { CodexTokens } from './codex-auth.js';
 
 const GATEWAY_PREFIX = '/gateway';
-const ANTHROPIC_BASE = 'https://api.anthropic.com';
 const MESSAGES = '/v1/messages';
 const COUNT = '/v1/messages/count_tokens';
 const MODELS = '/v1/models';
@@ -110,8 +109,9 @@ interface Payloads {
 }
 
 function anthropicPayloads(raw: Buffer, sent: Record<string, unknown>, shaped: Record<string, unknown>, model: string): Payloads {
-  const rewrite = typeof sent.model === 'string' && sent.model !== model;
-  const asSent = rewrite ? Buffer.from(JSON.stringify({ ...sent, model })) : raw;
+  const runnable = withThinkingFor(sent, model);
+  const rewrite = runnable !== sent || (typeof sent.model === 'string' && sent.model !== model);
+  const asSent = rewrite ? Buffer.from(JSON.stringify({ ...runnable, model })) : raw;
   const bound = withBlockBinding(withThinkingFor(shaped, model));
   if (bound === sent) return { metro: asSent, asSent: null, bound: false };
   return { metro: Buffer.from(JSON.stringify(rewrite ? { ...bound, model } : bound)), asSent, bound: bound !== shaped };
@@ -152,7 +152,7 @@ async function toAnthropic(
   deps: GatewayDeps,
 ): Promise<void> {
   const conn = route.connection;
-  const anthropicBase = deps.anthropicBase ?? ANTHROPIC_BASE;
+  const anthropicBase = deps.anthropicBase ?? ANTHROPIC_API;
   const url = `${anthropicBase}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
   const key = conn.apiKey;
   if (key === '' && standsInFor(req))

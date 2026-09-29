@@ -77,7 +77,7 @@ export function withThinkingFor(body: Body, model: string): Body {
 }
 
 export function learnAlwaysThinks(model: string, refusal: string): boolean {
-  if (alwaysThinks(model) || !refusal.includes(REFUSES_THINKING_OFF)) return false;
+  if (!refusal.includes(REFUSES_THINKING_OFF)) return false;
   thinkingAlwaysOn.add(model);
   return true;
 }
