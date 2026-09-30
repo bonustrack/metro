@@ -1,13 +1,18 @@
-import { ReactionAction, ReactionSchema, type Conversation } from '@xmtp/node-sdk';
+import {
+  GroupMessageKind,
+  ReactionAction,
+  ReactionSchema,
+  type Conversation,
+} from '@xmtp/node-sdk';
 import type { Reply } from '@xmtp/node-bindings';
 import {
   AttachmentCodec,
   type Attachment,
 } from '@xmtp/content-type-remote-attachment';
-import { convOf } from './accounts.js';
+import { convOf, type Account } from './accounts.js';
 import { resolveMsgId } from './wire.js';
 import { emitOutbound } from './emit.js';
-import { PollCodec, buildPollContent } from './codecs.js';
+import { PollCodec, buildPollContent, encodeDeleteMessage } from './codecs.js';
 import { convHandlers } from './actions-conv.js';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import { TrainError } from '@metro-labs/core/train-error';
@@ -106,6 +111,28 @@ async function reply(id: string, args: Args): Promise<void> {
   respond(id, { result: { messageId: sentId } });
 }
 
+const UNDELETABLE = new Set(['deleteMessage', 'deletedMessage']);
+
+function assertDeletable(acct: Account, conv: Conversation, messageId: string): void {
+  const msg = acct.client.conversations.getMessageById(messageId);
+  if (msg?.conversationId !== conv.id)
+    throw new TrainError('NOT_FOUND', `message ${messageId} is not in this conversation`);
+  if (msg.senderInboxId !== acct.inboxId)
+    throw badArgs(`message ${messageId} was not sent by this account; only your own messages can be deleted`);
+  if (msg.kind !== GroupMessageKind.Application || UNDELETABLE.has(msg.contentType?.typeId ?? ''))
+    throw badArgs(`message ${messageId} cannot be deleted`);
+}
+
+async function remove(id: string, args: Args): Promise<void> {
+  const { line, messageId } = args as { line: string; messageId: string };
+  const { acct, conv } = await convOf(line);
+  if (!conv) throw noConv(line);
+  const target = resolveMsgId(messageId);
+  assertDeletable(acct, conv, target);
+  const sentId = await conv.send(encodeDeleteMessage(target), { shouldPush: false });
+  respond(id, { result: { messageId: sentId } });
+}
+
 async function sendAttachment(id: string, args: Args): Promise<void> {
   const { line, name, mime, dataB64 } = args as {
     line: string;
@@ -186,6 +213,7 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   ask,
   react,
   reply,
+  delete: remove,
   sendAttachment,
   sendImage,
   ...convHandlers,

@@ -22,18 +22,18 @@ describe('a message verb the line station does not declare', () => {
     expect(calls).toEqual([]);
   });
 
-  test('edit and delete on an xmtp line are refused before any train call', async () => {
+  test('edit on an xmtp line is refused before any train call', async () => {
     const edit = await dispatchMessageTool('edit', { line: 'metro://xmtp/x0/0xabc', message_id: 'm0', text: 'hi' });
     expect(edit.isError).toBe(true);
-    expect(text(edit)).toBe('xmtp does not support edit; it supports send, reply, react, unreact, read.');
-    const del = await dispatchMessageTool('delete', { line: 'metro://xmtp/x0/0xabc', message_id: 'm0' });
-    expect(text(del)).toContain('xmtp does not support delete');
+    expect(text(edit)).toBe('xmtp does not support edit; it supports send, reply, react, unreact, delete, read.');
     expect(calls).toEqual([]);
   });
 
   test('a declared verb still reaches the train', async () => {
     const res = await dispatchMessageTool('edit', { line: 'metro://telegram-bot/t0/-100123', message_id: 'm0', text: 'hi' });
     expect(res.isError).toBeUndefined();
-    expect(calls).toEqual(['telegram-bot:edit']);
+    const del = await dispatchMessageTool('delete', { line: 'metro://xmtp/x0/0xabc', message_id: 'm0' });
+    expect(del.isError).toBeUndefined();
+    expect(calls).toEqual(['telegram-bot:edit', 'xmtp:delete']);
   });
 });

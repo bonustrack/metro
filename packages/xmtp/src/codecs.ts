@@ -164,6 +164,33 @@ export const SignatureReferenceCodec =
     c.signature ? `[Signature] ${c.signature}` : '[Signature]',
   );
 
+const ContentTypeDeleteMessage: ContentTypeId = {
+  authorityId: 'xmtp.org',
+  typeId: 'deleteMessage',
+  versionMajor: 1,
+  versionMinor: 0,
+};
+
+const varint = (value: number): number[] => {
+  const out: number[] = [];
+  let rest = value;
+  while (rest > 0x7f) {
+    out.push((rest & 0x7f) | 0x80);
+    rest = Math.floor(rest / 0x80);
+  }
+  out.push(rest);
+  return out;
+};
+
+export function encodeDeleteMessage(messageId: string): EncodedContent {
+  const id = new TextEncoder().encode(messageId);
+  return {
+    type: ContentTypeDeleteMessage,
+    parameters: {},
+    content: new Uint8Array([0x0a, ...varint(id.length), ...id]),
+  };
+}
+
 export const CODECS = (): ContentCodec[] => [
   new PollCodec(),
   new SignatureRequestCodec(),
