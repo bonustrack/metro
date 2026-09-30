@@ -11,6 +11,7 @@ import { createOrganization, type OrganizationRow } from '../api/auth.js';
 import { serverLabel, type Server } from '../api/servers.js';
 import { useOrganizationsQuery, useServersQuery, useServerStatus } from '../api/queries.js';
 import { enterOrganization } from '../auth/org-route.js';
+import { namedSegment } from '../auth/org-segment.js';
 import { activeAccount } from '../auth/account.js';
 import { currentServer } from '../auth/daemon.js';
 import { currentSelection, routeHash } from '../route.js';
@@ -105,7 +106,7 @@ interface Listed {
   avatar: string | null;
 }
 
-const orgHash = (org: OrganizationRow, page = ''): string => `#/${org.slug ?? org.id}${page}`;
+const orgHash = (org: OrganizationRow, page = ''): string => `#/${namedSegment(org.id, org.slug)}${page}`;
 
 function useColumn(org: OrganizationRow | undefined, current: string | null, onClose: () => void): { mine: boolean; list: Listed[] | null; enter: (page: string) => () => void; pick: (agent: Listed) => () => void; hrefOf: (agent: Listed) => string; allHref: string; allAgents: () => void } {
   const client = useQueryClient();
@@ -118,14 +119,14 @@ function useColumn(org: OrganizationRow | undefined, current: string | null, onC
   };
   const pick = (agent: Listed) => (): void => {
     if (!mine) {
-      enter(`/${agent.slug ?? agent.id}`)();
+      enter(`/${namedSegment(agent.id, agent.slug)}`)();
       return;
     }
     onClose();
     go(sameViewOn(currentSelection(), agent.id));
   };
   const hrefOf = (agent: Listed): string =>
-    mine || org === undefined ? routeHash(sameViewOn(currentSelection(), agent.id)) : orgHash(org, `/${agent.slug ?? agent.id}`);
+    mine || org === undefined ? routeHash(sameViewOn(currentSelection(), agent.id)) : orgHash(org, `/${namedSegment(agent.id, agent.slug)}`);
   const allHref = mine || org === undefined ? routeHash({ kind: 'servers' }) : orgHash(org);
   const allAgents = mine
     ? (): void => {

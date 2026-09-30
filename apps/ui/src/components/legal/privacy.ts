@@ -10,7 +10,7 @@ This policy describes the Metro website, account management services and softwar
 
 Metro uses WorkOS for sign-in and organization membership. Account management stores information such as your user identifier, email, profile name and avatar, account status, organization identifiers and slugs, and agent names, addresses and launch details. This information supports sign-in, access control, the agent list and server management.
 
-The browser stores sign-in tokens, preferences and cached agent lists in local storage. It uses session storage for temporary sign-in and connection state. Metro's application does not use cookies for its own sign-in. Identity providers may use cookies on their own sites.
+The browser stores sign-in tokens, preferences, cached agent lists and pending Gmail or Outlook connection state in local storage. Pending connection state can remain there after the browser closes, until a later connection operation removes or replaces it. It uses session storage for sign-in redirects and invitation state. Metro's application does not use cookies for its own sign-in. Identity providers may use cookies on their own sites.
 
 Hosting, identity and infrastructure services process information needed to serve the website, authenticate users and run machines. Operational logs and server metrics may include errors, service activity and resource usage. On the agent's machine, service logs can also contain message content and sender or recipient details.
 
@@ -50,7 +50,7 @@ You and your organization control the files, transcripts, memory, backups and ru
 
 ## Access and security
 
-Metro requires authenticated organization access for its administration APIs and applies configured tool policies to supported channel and connector calls. In the standard Linux installation, channel and connector credentials are stored under the daemon's system account, separate from the agent's account. Protect the machine itself, limit organization membership and keep the software updated. Protect exports and attachment links as sensitive data. These controls do not guarantee that every integration or action is safe.
+Metro requires authenticated organization access to account management and the running daemon's administration APIs. The stopped-machine service can be started without that authentication. Metro applies configured tool policies to supported channel and connector calls. In the standard Linux installation, channel and connector credentials are stored under the daemon's system account, separate from the agent's account. Protect the machine itself, limit organization membership and keep the software updated. Protect exports and attachment links as sensitive data. These controls do not guarantee that every integration or action is safe.
 
 ## Retention and limits
 

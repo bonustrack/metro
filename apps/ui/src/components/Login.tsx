@@ -89,7 +89,7 @@ function Footer(): ReactNode {
       <Text size="md" role="secondary">
         {COPYRIGHT}
       </Text>
-      <LegalLinks />
+      <LegalLinks newTab />
     </Row>
   );
 }

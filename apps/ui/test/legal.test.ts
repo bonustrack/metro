@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { routeHash, routeSelection } from '../src/route.js';
-import { clearAccount } from '../src/auth/account.js';
+import { clearAccount, storeAccount } from '../src/auth/account.js';
+import { forgetAgents, rememberAgents } from '../src/auth/agent-route.js';
 import { noteRoutedOrganization, routedOrganization } from '../src/auth/org-route.js';
-import { isOrganizationSlug } from '../src/auth/org-segment.js';
+import { isOrganizationSlug, namedSegment } from '../src/auth/org-segment.js';
 import { routedSegment } from '../src/auth/daemon.js';
 import { installTestAccount } from './account-fixture.js';
 import { LEGAL_PAGES } from '../src/components/legal/content.js';
@@ -12,6 +13,7 @@ const KINDS = ['terms-of-use', 'privacy-policy'] as const;
 
 afterEach(() => {
   clearAccount();
+  forgetAgents();
   noteRoutedOrganization(null);
 });
 
@@ -35,9 +37,33 @@ describe('public legal pages', () => {
     for (const kind of KINDS) expect(routeHash({ kind })).toBe(`#/${kind}`);
   });
 
+  test('existing organizations and agents with legal slugs remain reachable by ID', () => {
+    for (const slug of KINDS) {
+      const account = installTestAccount();
+      storeAccount({ ...account, organizationSlug: slug });
+      rememberAgents([{ id: 'aB3-_xYz9Qw', slug }]);
+      expect(namedSegment('org_01OTHEROWNER000', slug)).toBe('org_01OTHEROWNER000');
+      expect(routeHash({ kind: 'servers' })).toBe(`#/${account.organization}`);
+      const selection = { kind: 'server', project: 'aB3-_xYz9Qw' } as const;
+      const hash = routeHash(selection);
+      expect(hash).toBe(`#/${account.organization}/aB3-_xYz9Qw/server`);
+      expect(routeSelection(hash)).toEqual(selection);
+      noteRoutedOrganization(null);
+    }
+  });
+
+  test('login footer opens legal pages separately to preserve an active email-code form', () => {
+    const login = readFileSync(new URL('../src/components/Login.tsx', import.meta.url), 'utf8');
+    expect(login).toContain('<LegalLinks newTab />');
+  });
+
   test('legal pages render before the account boot and do not depend on private APIs', () => {
     const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
-    expect(app.indexOf('return <LegalPage')).toBeLessThan(app.indexOf('return <MetroApp'));
+    const legal = app.indexOf('return <LegalPage');
+    const metro = app.indexOf('return <MetroApp');
+    expect(legal).toBeGreaterThan(-1);
+    expect(metro).toBeGreaterThan(-1);
+    expect(legal).toBeLessThan(metro);
     const page = readFileSync(new URL('../src/components/legal/LegalPage.tsx', import.meta.url), 'utf8');
     expect(page).not.toMatch(/from ['"][^'"]*(?:auth|api)\//);
   });

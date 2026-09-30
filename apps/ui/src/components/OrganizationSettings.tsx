@@ -45,7 +45,7 @@ function useSlug(account: Account): Saving {
 function SlugRow({ account }: { account: Account }): ReactNode {
   const slug = useSlug(account);
   const admin = account.role === 'admin';
-  const note = admin ? `Used in every link: metro.box/#/${account.organizationSlug ?? '…'}. Lowercase letters, digits and dashes.` : 'Only an admin can change it.';
+  const note = admin ? `Used in every link: metro.box/${routeHash({ kind: 'servers' })}. Lowercase letters, digits and dashes.` : 'Only an admin can change it.';
   return (
     <SettingsSection title="Web address" note={note}>
       <SaveField saving={slug} name="slug" label="Web address" editable={admin} />

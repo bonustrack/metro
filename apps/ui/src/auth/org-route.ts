@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { fetchOrganizations, switchOrganization } from '../api/auth.js';
 import { fetchServers } from '../api/servers.js';
 import { activeAccount, type Account } from './account.js';
-import { isOrganizationId } from './org-segment.js';
+import { isOrganizationId, namedSegment } from './org-segment.js';
 
 export { isOrganizationId, isOrganizationSlug, splitOrganization } from './org-segment.js';
 
@@ -16,7 +16,10 @@ export const routedOrganization = (): string | null => routed;
 
 export const currentOrganization = (): string | null => activeAccount()?.organization ?? null;
 
-const names = (account: Account | null): string | null => account?.organizationSlug ?? account?.organization ?? null;
+const names = (account: Account | null): string | null => {
+  const organization = account?.organization ?? null;
+  return organization === null ? null : namedSegment(organization, account?.organizationSlug ?? null);
+};
 
 export const isCurrentOrganization = (segment: string, account: Account | null = activeAccount()): boolean =>
   account !== null && (segment === account.organization || segment === account.organizationSlug);

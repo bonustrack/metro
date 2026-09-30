@@ -2,6 +2,9 @@ const ORG_RE = /^org_[A-Za-z0-9]{10,64}$/;
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
 export const RESERVED_SEGMENTS: ReadonlySet<string> = new Set(['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'waitlist', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new', 'connector', 'connectors', 'terms-of-use', 'privacy-policy']);
 
+export const namedSegment = (id: string, slug: string | null): string =>
+  slug === null || RESERVED_SEGMENTS.has(slug) ? id : slug;
+
 export const isOrganizationId = (segment: string): boolean => ORG_RE.test(segment);
 
 export const isOrganizationSlug = (segment: string): boolean => SLUG_RE.test(segment) && !RESERVED_SEGMENTS.has(segment);

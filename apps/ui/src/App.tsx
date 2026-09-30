@@ -25,6 +25,7 @@ import { pageTitle } from './title.js';
 import { activeAccount, handoffCode, loadAccount } from './auth/account.js';
 import { exchangeHandoff, logoutAccount, refreshAccount, switchOrganization } from './api/auth.js';
 import { isCurrentOrganization, resolveOrganization, routedOrganization } from './auth/org-route.js';
+import { namedSegment } from './auth/org-segment.js';
 import { OrganizationSetup } from './components/OrganizationSetup.js';
 import { Organization } from './components/Organization.js';
 import { daemonBase, daemonHost, looksLikeHost, setCurrentServer, storedServerId } from './auth/daemon.js';
@@ -98,7 +99,7 @@ function HostRedirect({ host }: { host: string }): ReactNode {
     addServer(host.toLowerCase())
       .then(async (server) => {
         await refreshServers(client);
-        window.location.replace(`${window.location.pathname}${window.location.hash.replace(host, server.slug ?? server.id)}`);
+        window.location.replace(`${window.location.pathname}${window.location.hash.replace(host, namedSegment(server.id, server.slug))}`);
       })
       .catch((err: unknown) => {
         setFailed(err instanceof Error ? err.message : 'Could not keep this server.');
