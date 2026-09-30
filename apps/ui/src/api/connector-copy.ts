@@ -33,6 +33,7 @@ export async function connectorTransfer(base: string, path: 'prepare' | 'export'
   if (!res.ok) {
     if (res.status === 404) throw new Error('Both agents need a Metro version that supports connector copy.');
     if (res.status === 401 || res.status === 403) throw new Error('You must be signed in as an admin of both organizations.');
+    if (res.status === 409) throw new Error('A selected connector no longer exists. Refresh the list and choose again.');
     if (res.status === 410) throw new Error('The copy expired. Start again.');
     throw new Error(`Connector copy failed (${String(res.status)}). Retry safely; existing connectors are skipped.`);
   }

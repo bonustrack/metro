@@ -355,6 +355,13 @@ export function refreshConnectors(client: QueryClient, id?: string): void {
   refreshQuietly(client, id === undefined ? ['connectors', 'stations'] : ['connectors', 'stations', ['connector', id]]);
 }
 
+export function resetDestinationConnectors(client: QueryClient, base: string): void {
+  for (const key of ['connectors', 'stations']) {
+    client.removeQueries({ queryKey: [key, base], type: 'inactive' });
+    client.invalidateQueries({ queryKey: [key, base], refetchType: 'active' }).catch(() => undefined);
+  }
+}
+
 function withoutAccount(groups: AccountGroup[], station: string, accountId: string): AccountGroup[] {
   return groups
     .map((g) => (g.station === station ? { station: g.station, rows: g.rows.filter((r) => r.id !== accountId) } : g))

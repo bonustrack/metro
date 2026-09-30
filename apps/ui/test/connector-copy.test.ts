@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { copyConnectors, type CopyTarget } from '../src/api/connector-copy.ts';
 import { refreshAccount } from '../src/api/auth.ts';
 import { activeAccount, clearAccount, storeAccount } from '../src/auth/account.ts';
@@ -64,7 +64,10 @@ describe('the single and bulk connector copy client', () => {
     expect(exported?.body).toEqual({ confirmed: true, ids: ['conn0000001'], publicKey: 'destination-public-key-fixture' });
     expect(receive?.body).toEqual({ confirmed: true, ticket: 'ticket-fixture', envelope: { key: 'source-public-key-fixture', iv: 'iv-fixture', tag: 'tag-fixture', data: 'encrypted-fixture' } });
     expect(calls.filter((row) => row.url.includes('/transfer/')).map((row) => row.init.redirect)).toEqual(['manual', 'manual', 'manual']);
-    expect(calls.filter((row) => row.url.endsWith('/switch')).map((row) => row.body)).toEqual([
+    const switches = calls.filter((row) => row.url.endsWith('/switch'));
+    expect(switches.map((row) => row.init.redirect)).toEqual(['manual', 'manual']);
+    for (const row of switches) expect(row.init.signal).toBeInstanceOf(AbortSignal);
+    expect(switches.map((row) => row.body)).toEqual([
       { organization: TARGET, refreshToken: 'rt_test' }, { organization: SOURCE, refreshToken: 'rt_destination_rotated' },
     ]);
     expect(activeAccount()).toEqual({ ...original, refreshToken: 'rt_source_restored' });
@@ -72,6 +75,102 @@ describe('the single and bulk connector copy client', () => {
     expect(calls.at(-1)?.body).toEqual({ refreshToken: 'rt_source_restored' });
     expect(activeAccount()?.organization).toBe(SOURCE);
     expect(activeAccount()?.refreshToken).toBe('rt_source_rotated');
+  });
+
+  test('copy waits for a held account refresh before consuming its rotated token', async () => {
+    const serve = globalThis.fetch;
+    const source = activeAccount();
+    const used = new Set<string>();
+    let release = (_response: Response): void => undefined;
+    const response = new Promise<Response>((resolve) => { release = resolve; });
+    globalThis.fetch = ((url: string, init: RequestInit = {}) => {
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      if (url.endsWith('/refresh')) {
+        calls.push({ url, init, body });
+        used.add(String(body.refreshToken));
+        return response;
+      }
+      if (url.endsWith('/switch')) {
+        if (used.has(String(body.refreshToken))) return Promise.resolve(Response.json({}, { status: 401 }));
+        used.add(String(body.refreshToken));
+      }
+      return serve(url, init);
+    }) as unknown as typeof fetch;
+    const finished = Promise.allSettled([refreshAccount(), copyConnectors(target, null, true)]);
+    for (let i = 0; i < 12; i += 1) await Promise.resolve();
+    const earlySwitches = calls.filter((row) => row.url.endsWith('/switch')).length;
+    release(Response.json({ accessToken: testToken({ org_id: SOURCE }), refreshToken: 'rt_source_rotated', organization: SOURCE, user: source?.user }));
+    const outcomes = await finished;
+    expect(earlySwitches).toBe(0);
+    expect(outcomes.map((row) => row.status)).toEqual(['fulfilled', 'fulfilled']);
+    expect(calls.find((row) => row.url.endsWith('/switch'))?.body.refreshToken).toBe('rt_source_rotated');
+  });
+
+  test('concurrent copies serialize single-use refresh tokens and retain the final source session', async () => {
+    const serve = globalThis.fetch;
+    const source = activeAccount();
+    const used = new Set<string>();
+    let sequence = 0;
+    globalThis.fetch = ((url: string, init: RequestInit = {}) => {
+      if (!url.endsWith('/switch')) return serve(url, init);
+      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      calls.push({ url, init, body });
+      const token = String(body.refreshToken);
+      if (used.has(token)) return Promise.resolve(Response.json({}, { status: 401 }));
+      used.add(token);
+      sequence += 1;
+      return Promise.resolve(Response.json({ accessToken: testToken({ org_id: body.organization, sid: `copy_${String(sequence)}` }), refreshToken: `rt_copy_${String(sequence)}`, organization: body.organization, user: source?.user }));
+    }) as unknown as typeof fetch;
+    const results = await Promise.all([copyConnectors(target, null, true), copyConnectors(target, ['conn0000001'], true)]);
+    expect(results).toHaveLength(2);
+    expect(calls.filter((row) => row.url.endsWith('/switch') && row.body.organization === TARGET).map((row) => row.body.refreshToken)).toEqual(['rt_test', 'rt_copy_2']);
+    expect(activeAccount()?.organization).toBe(SOURCE);
+    expect(activeAccount()?.refreshToken).toBe('rt_copy_4');
+    expect(calls.filter((row) => row.url.endsWith('/receive'))).toHaveLength(2);
+  });
+
+  test('a stalled restoration expires, releases refresh callers and stops before preparing a transfer', async () => {
+    const serve = globalThis.fetch;
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeout = spyOn(AbortSignal, 'timeout').mockImplementation((ms) => realTimeout(ms === 30_000 ? 20 : ms));
+    let started = (): void => undefined;
+    const restoring = new Promise<void>((resolve) => { started = resolve; });
+    globalThis.fetch = ((url: string, init: RequestInit = {}) => {
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      if (url.endsWith('/switch') && body.organization === SOURCE) {
+        started();
+        const signal = init.signal;
+        if (signal instanceof AbortSignal) return new Promise<Response>((_resolve, reject) => {
+          signal.addEventListener('abort', () => { reject(new Error('fixture deadline')); }, { once: true });
+        });
+      }
+      return serve(url, init);
+    }) as unknown as typeof fetch;
+    try {
+      const copy = copyConnectors(target, null, true);
+      await restoring;
+      const refreshed = refreshAccount();
+      await Promise.all([
+        expect(copy).rejects.toThrow('Sign in again'),
+        expect(refreshed).rejects.toThrow('Sign in again'),
+      ]);
+      expect(activeAccount()).toBeNull();
+      expect(calls.some((row) => row.url.includes('/transfer/'))).toBe(false);
+      installTestAccount({ org_id: SOURCE });
+      expect((await refreshAccount())?.refreshToken).toBe('rt_source_rotated');
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
+  test('a stale selection asks for a fresh choice while an unsupported endpoint asks for an upgrade', async () => {
+    failedPath = '/export';
+    failureStatus = 409;
+    await expect(copyConnectors(target, ['conn0000001'], true)).rejects.toThrow('Refresh the list and choose again');
+    expect(calls.some((row) => row.url.endsWith('/receive'))).toBe(false);
+    failedPath = '/prepare';
+    failureStatus = 404;
+    await expect(copyConnectors(target, null, true)).rejects.toThrow('version that supports connector copy');
   });
 
   test('copy all is a live source snapshot, and same-organization copy needs no account switch', async () => {

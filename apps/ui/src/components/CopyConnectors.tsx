@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -6,7 +7,7 @@ import { Modal } from '@stage-labs/kit/react-native/modal';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { activeAccount } from '../auth/account.js';
 import { baseFromSegment, daemonBase } from '../auth/daemon.js';
-import { queryError, useOrganizationsQuery } from '../api/queries.js';
+import { queryError, resetDestinationConnectors, useOrganizationsQuery } from '../api/queries.js';
 import { copyConnectors, type CopyTarget, type CopyResult } from '../api/connector-copy.js';
 import type { Connector, ConnectorsView } from '../api/connectors.js';
 import type { OrganizationRow } from '../api/auth.js';
@@ -17,11 +18,11 @@ function CopyReport({ results, connectors }: { results: CopyResult[]; connectors
   const names = new Map(connectors.map((row) => [row.id, row.name]));
   const copied = results.filter((row) => row.status === 'copied').length;
   return <Col gap={8}>
-    <Text size="md">{`${String(copied)} copied. The source is unchanged.`}</Text>
+    <Text size="md">{`${String(copied)} copied. Source settings were not changed by this copy.`}</Text>
     {results.map((row, index) => <Text key={`${row.sourceId ?? ''}:${String(index)}`} size="md" role={row.status === 'invalid' ? 'danger' : 'secondary'}>
       {`${names.get(row.sourceId ?? '') ?? 'Connector'}: ${row.status === 'skipped' ? 'skipped, that name already exists on the destination' : row.status === 'invalid' ? 'not copied, invalid settings' : 'copied'}`}
     </Text>)}
-    <Text size="md" role="secondary">Reload plugins on the destination to make new connector tools available. Some services may require reconnecting a copied login.</Text>
+    <Text size="md" role="secondary">Reload plugins on the destination to make new connector tools available. Some services rotate login tokens, so either agent may need to reconnect for independent logins.</Text>
   </Col>;
 }
 
@@ -34,6 +35,7 @@ function copyTargets(rows: OrganizationRow[], source: string): CopyTarget[] {
 }
 
 function useCopy(connectors: Connector[], all: boolean) {
+  const client = useQueryClient();
   const [target, setTarget] = useState<CopyTarget | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +46,10 @@ function useCopy(connectors: Connector[], all: boolean) {
     setError(null);
     copyConnectors(target, all ? null : connectors.map((row) => row.id), true).then(setResults).catch((err: unknown) => {
       setError(queryError(err, 'Could not copy connectors.'));
-    }).finally(() => { setBusy(false); });
+    }).finally(() => {
+      resetDestinationConnectors(client, baseFromSegment(target.host));
+      setBusy(false);
+    });
   };
   return { target, setTarget, busy, error, results, run };
 }
@@ -81,7 +86,7 @@ function CopyConfirmation({ title, state, onClose }: { title: string; state: Ret
   if (state.target === null) return null;
   const target = state.target;
   return <ConfirmModal open={state.results === null} title={`${title} to ${target.name}?`}
-    lines={[`Saved logins and client secrets will be copied to ${target.name} in ${target.organizationName}. Members of that organization will be able to use them.`, 'The source is unchanged. Existing destination connectors with the same name are skipped, never overwritten.']}
+    lines={[`Saved logins and client secrets will be copied to ${target.name} in ${target.organizationName}. Members of that organization will be able to use them.`, 'Some services rotate login tokens. A copied login can sign the source or destination out. Reconnect each agent separately to keep independent logins.', 'Source settings are not changed by this copy. Existing destination connectors with the same name are skipped, never overwritten.']}
     confirmWord="copy" confirmLabel="Copy with saved logins" busy={state.busy} error={state.error} onClose={onClose} onConfirm={state.run} />;
 }
 

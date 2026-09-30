@@ -198,7 +198,7 @@ describe('complete connector copy between separately owned daemons', () => {
 
   test('rejects a deleted selection and oversized bodies without leaking supplied keys', async () => {
     const target = await (await request(destinationBase, 'prepare', { confirmed: true })).json() as { publicKey: string };
-    expect((await request(sourceBase, 'export', { confirmed: true, ids: ['missing0001'], publicKey: target.publicKey })).status).toBe(404);
+    expect((await request(sourceBase, 'export', { confirmed: true, ids: ['missing0001'], publicKey: target.publicKey })).status).toBe(409);
     const res = await request(sourceBase, 'export', { confirmed: true, ids: null, publicKey: 'harmless-secret-invalid-key' });
     expect((await res.text())).not.toContain('harmless-secret-invalid-key');
     expect(res.ok).toBe(false);

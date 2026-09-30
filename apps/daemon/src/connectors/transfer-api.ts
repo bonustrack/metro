@@ -55,7 +55,7 @@ export class ConnectorTransfers {
     const all = this.deps.read();
     const rows = ids === null ? all : all.filter((row) => ids.includes(row.id));
     const expected = ids?.length ?? rows.length;
-    if (rows.length !== expected) throw new ApiError('a selected connector no longer exists', 404);
+    if (rows.length !== expected) throw new ApiError('a selected connector no longer exists', 409);
     if (rows.length > 500) throw new ApiError('copy at most 500 connectors at once', 413);
     try {
       return sealTransfer({ version: 1, connectors: rows }, body.publicKey);
