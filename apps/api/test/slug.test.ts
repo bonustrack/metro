@@ -20,6 +20,10 @@ describe('organization slugs', () => {
     expect(() => parseSlug('abc-')).toThrow();
     expect(() => parseSlug('a b')).toThrow();
     expect(() => parseSlug('members')).toThrow();
+    for (const page of ['terms-of-use', 'privacy-policy']) {
+      expect(() => parseSlug(page)).toThrow('reserved');
+      expect(slugify(page)).toBe(`${page}-1`);
+    }
     expect(() => parseSlug('org_01ABCDEFGHIJK')).toThrow();
   });
 

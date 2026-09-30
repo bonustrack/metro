@@ -2,6 +2,8 @@ export type Selection =
   | { kind: 'none' }
   | { kind: 'servers' }
   | { kind: 'settings' }
+  | { kind: 'terms-of-use' }
+  | { kind: 'privacy-policy' }
   | { kind: 'admin' }
   | { kind: 'admin-users' }
   | { kind: 'admin-organizations' }
