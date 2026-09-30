@@ -1,7 +1,7 @@
-import { accountForCall, convOf, lineOf } from './accounts.js';
+import { accountForCall, convOf, lineOf, parseLine } from './accounts.js';
 import { respond } from '@metro-labs/core/stations/station-runtime';
-import { warmGroupName } from './conv-helpers.js';
-import { mergeAppData, readAppData, type GroupLike } from './labels.js';
+import { ethIdentifiers, warmGroupName } from './conv-helpers.js';
+import { mergeAppData, normalizeAssigned, readAppDataObject, type GroupLike } from './labels.js';
 import { TrainError } from '@metro-labs/core/train-error';
 
 type Args = Record<string, unknown>;
@@ -50,7 +50,7 @@ async function applyMergedAppData(
     await group.updateAppData(res.blob);
     return res.merged;
   }
-  return readAppData(group.appData);
+  return readAppDataObject(group.appData);
 }
 
 async function applyChannelMeta(
@@ -73,7 +73,19 @@ async function applyChannelMeta(
       `${verb} target is not a group (no updateAppData)`,
     );
   }
-  await group.sync?.().catch(() => undefined);
+  await conv.sync();
+  if (appData) mergeAppData(group.appData, appData);
+  else readAppDataObject(group.appData);
+  if (appData && Object.hasOwn(appData, 'assigned')) {
+    const assigned = normalizeAssigned(appData.assigned);
+    const inboxIds = await Promise.all(
+      ethIdentifiers(assigned).map((identifier) => acct.client.fetchInboxIdByIdentifier(identifier)),
+    );
+    const members = new Set((await conv.members()).map((member) => member.inboxId));
+    if (inboxIds.some((inboxId) => !inboxId || !members.has(inboxId))) {
+      throw new TrainError('INVALID_ARGS', 'Assignees must be current channel members');
+    }
+  }
 
   await applyNameAndDescription(group, name, description);
   const merged = await applyMergedAppData(
@@ -95,24 +107,38 @@ function metaFields(merged: Record<string, unknown>): {
   labels: string[];
   github: string | undefined;
   preview: string | undefined;
+  assigned: unknown;
 } {
   return {
     labels: Array.isArray(merged.labels) ? (merged.labels as string[]) : [],
     github: typeof merged.github === 'string' ? merged.github : undefined,
     preview: typeof merged.preview === 'string' ? merged.preview : undefined,
+    assigned: Object.hasOwn(merged, 'assigned') ? merged.assigned : [],
   };
 }
 
+const metadataWrites = new Map<string, Promise<Record<string, unknown>>>();
+
 export async function updateChannelMeta(id: string, args: Args): Promise<void> {
   const line = resolveLine(args, 'updateChannelMeta');
+  const parsed = parseLine(line);
+  if (!parsed) throw new TrainError('INVALID_ARGS', `bad xmtp line: ${line}`);
+  const key = lineOf(parsed.accountId, parsed.convId);
   const { name, description, appData } = args as {
     name?: string;
     description?: string;
     appData?: Record<string, unknown>;
   };
-  const result = await applyChannelMeta(
-    { line, name, description, appData },
-    'updateChannelMeta',
-  );
-  respond(id, { result });
+  if (name !== undefined && typeof name !== 'string') {
+    throw new TrainError('INVALID_ARGS', 'name must be a string');
+  }
+  const task = () => applyChannelMeta({ line, name, description, appData }, 'updateChannelMeta');
+  const previous = metadataWrites.get(key);
+  const pending = previous ? previous.then(task, task) : task();
+  metadataWrites.set(key, pending);
+  try {
+    respond(id, { result: await pending });
+  } finally {
+    if (metadataWrites.get(key) === pending) metadataWrites.delete(key);
+  }
 }

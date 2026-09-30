@@ -115,7 +115,9 @@ export const XMTP_TOOLS: StationTool[] = [
     description:
       "Read an XMTP channel's current metadata + membership. Args: line (required). Returns " +
       '{line, id, account, version (dm|group), name, memberCount, labels, github, preview, ' +
-      'members:[{inboxId, address}]}. xmtp-only (daemon `groupInfo`). Use before ' +
+      'assigned, appData (stored JSON object), rawAppData (stored JSON string), ' +
+      'members:[{inboxId, address}]}. Syncs first and fails if metadata cannot be read. ' +
+      'xmtp-only (daemon `groupInfo`). Use before ' +
       'set_channel_metadata/add_members to see current state.',
     inputSchema: {
       type: 'object',
@@ -167,17 +169,36 @@ export const XMTP_TOOLS: StationTool[] = [
     group: 'write',
     description:
       "Update an existing channel's metadata. Args: line (required, the metro:// line), and " +
-      'any of labels? (string[]), github? (url), preview? (url), name? (string). All provided ' +
-      'fields go in one updateChannelMeta call: the name first, then the labels and links ' +
-      'merged into the group appData. xmtp-only ' +
-      '(channel metadata lives on xmtp groups). Returns the updated channel info.',
+      'any of metadata? (JSON object), github? (url), preview? (url), name? (string). ' +
+      'metadata is a shallow appData patch: omitted keys are preserved, supplied nested ' +
+      'values replace that key, and null deletes custom keys. v is reserved. Put labels ' +
+      'and assigned inside metadata. assigned replaces the array with normalized lowercase ' +
+      'Ethereum addresses of current members. Read group_info and union existing IDs to ' +
+      'add assignees. labels remains a legacy top-level alias. Duplicate top-level/metadata ' +
+      'label/link aliases are refused. All fields use one updateChannelMeta call. xmtp-only. ' +
+      'Returns updated metadata. Reread group_info to verify persistence.',
     inputSchema: {
       type: 'object',
       properties: {
         line: lineProp,
+        metadata: {
+          type: 'object',
+          description: 'Shallow JSON appData patch. Omitted keys stay unchanged. v is reserved.',
+          properties: {
+            labels: { type: 'array', items: { type: 'string' } },
+            assigned: {
+              type: 'array',
+              description: 'Replacement assignee list. Current member Ethereum addresses only. [] clears.',
+              items: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
+            },
+            github: { type: 'string' },
+            preview: { type: 'string' },
+          },
+          additionalProperties: true,
+        },
         labels: {
           type: 'array',
-          description: 'Status labels to set.',
+          description: 'Legacy alias. Prefer metadata.labels.',
           items: { type: 'string' },
         },
         github: {

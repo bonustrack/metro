@@ -82,6 +82,48 @@ describe('set_channel_metadata routes through one updateChannelMeta call', () =>
     });
   });
 
+  test('metadata patch and native fields use one call', async () => {
+    const { ctx, calls } = fakeCtx();
+    const metadata = { labels: ['In progress'], assigned: ['0x' + 'a'.repeat(40)], custom: { open: true } };
+    await setChannelMetadata({ line: 'metro://xmtp/tony/g1', metadata, name: 'feat: thing' }, ctx);
+    expect(calls).toEqual([{ action: 'updateChannelMeta', args: {
+      line: 'metro://xmtp/tony/g1', appData: metadata, name: 'feat: thing',
+    } }]);
+  });
+
+  test('assigned-only metadata and empty assigned list are forwarded', async () => {
+    for (const assigned of [['0x' + 'a'.repeat(40)], []]) {
+      const { ctx, calls } = fakeCtx();
+      await setChannelMetadata({ line: 'metro://xmtp/tony/g1', metadata: { assigned } }, ctx);
+      expect(calls).toEqual([{ action: 'updateChannelMeta', args: {
+        line: 'metro://xmtp/tony/g1', appData: { assigned },
+      } }]);
+    }
+  });
+
+  test('invalid native names never dispatch otherwise valid metadata', async () => {
+    const { ctx, calls } = fakeCtx();
+    const result = await setChannelMetadata({ line: 'metro://xmtp/tony/g1', name: 42, metadata: { assigned: [] } }, ctx);
+    expect(result).toEqual({ error: 'set_channel_metadata name must be a string' });
+    expect(calls).toHaveLength(0);
+  });
+
+  test('duplicate legacy and metadata fields are refused', async () => {
+    const { ctx, calls } = fakeCtx();
+    await expect(setChannelMetadata({
+      line: 'metro://xmtp/tony/g1', labels: ['old'], metadata: { labels: ['new'] },
+    }, ctx)).rejects.toThrow('Specify labels only once, inside metadata or at the top level');
+    expect(calls).toHaveLength(0);
+  });
+
+  test.each([null, [], 'text', { v: 2 }, { assigned: ['worker-id'] }, { labels: [4] }, { github: 'https://example.com' }])(
+    'invalid metadata never dispatches: %j', async (metadata) => {
+      const { ctx, calls } = fakeCtx();
+      await expect(setChannelMetadata({ line: 'metro://xmtp/tony/g1', metadata }, ctx)).rejects.toThrow();
+      expect(calls).toHaveLength(0);
+    },
+  );
+
   test('no fields → error, no call', async () => {
     const { ctx, calls } = fakeCtx();
     const res = (await setChannelMetadata(

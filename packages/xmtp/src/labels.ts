@@ -1,3 +1,5 @@
+import { TrainError } from '@metro-labs/core/train-error';
+
 export interface GroupLike {
   id: string;
   appData?: string;
@@ -10,6 +12,7 @@ export interface GroupLike {
 
 const MAX_LABELS = 16;
 const MAX_LABEL_LEN = 24;
+const MAX_APP_DATA_BYTES = 8192;
 
 function cleanLabels(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -27,18 +30,40 @@ function cleanLabels(raw: unknown): string[] {
   return out;
 }
 
-function parseAppDataObject(
+export function readAppDataObject(
   existingAppData: string | undefined,
 ): Record<string, unknown> {
   if (!existingAppData?.trim()) return {};
-  try {
-    const p: unknown = JSON.parse(existingAppData);
-    if (p && typeof p === 'object' && !Array.isArray(p))
-      return p as Record<string, unknown>;
-  } catch {
-    return {};
+  const parsed: unknown = JSON.parse(existingAppData);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new TrainError('INVALID_ARGS', 'Channel appData must be a JSON object');
   }
-  return {};
+  return parsed as Record<string, unknown>;
+}
+
+export function normalizeAssigned(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    throw new TrainError('INVALID_ARGS', 'assigned must be an array of Ethereum addresses');
+  }
+  const addresses: string[] = [];
+  for (const address of value) {
+    if (typeof address !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(address.trim())) {
+      throw new TrainError('INVALID_ARGS', 'assigned must contain valid Ethereum addresses');
+    }
+    addresses.push(address.trim().toLowerCase());
+  }
+  return [...new Set(addresses)];
+}
+
+export function metadataPatch(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TrainError('INVALID_ARGS', 'metadata must be a JSON object');
+  }
+  const patch = value as Record<string, unknown>;
+  if (Object.hasOwn(patch, 'v')) {
+    throw new TrainError('INVALID_ARGS', 'metadata cannot change the reserved v field');
+  }
+  return patch;
 }
 
 function trimmedString(v: unknown): string | undefined {
@@ -65,13 +90,24 @@ export function readAppData(appData: string | undefined): {
   }
 }
 
+function checkedLabels(value: unknown): string[] {
+  if (!Array.isArray(value) || value.some((label: unknown) => typeof label !== 'string')) {
+    throw new TrainError('INVALID_ARGS', 'labels must be an array of strings');
+  }
+  return cleanLabels(value);
+}
+
 function applyMergeKey(
   merged: Record<string, unknown>,
   k: string,
   v: unknown,
 ): void {
   if (k === 'labels') {
-    merged.labels = cleanLabels(v);
+    merged.labels = checkedLabels(v);
+    return;
+  }
+  if (k === 'assigned') {
+    merged.assigned = normalizeAssigned(v);
     return;
   }
   if (k === 'github') {
@@ -87,19 +123,25 @@ function applyMergeKey(
     return;
   }
   if (v === undefined || v === null) Reflect.deleteProperty(merged, k);
-  else merged[k] = v;
+  else Object.defineProperty(merged, k, { value: v, enumerable: true, configurable: true, writable: true });
 }
 
 export function mergeAppData(
   existingAppData: string | undefined,
   patch: Record<string, unknown>,
 ): { blob: string; merged: Record<string, unknown> } {
-  const merged: Record<string, unknown> = {
-    ...parseAppDataObject(existingAppData),
-    v: 1,
-  };
-  for (const [k, v] of Object.entries(patch)) applyMergeKey(merged, k, v);
-  return { blob: JSON.stringify(merged), merged };
+  const current = readAppDataObject(existingAppData);
+  const checked = metadataPatch(patch);
+  if (Object.hasOwn(checked, 'assigned') && Object.hasOwn(current, 'assigned')) {
+    normalizeAssigned(current.assigned);
+  }
+  const merged: Record<string, unknown> = { v: 1, ...current };
+  for (const [k, v] of Object.entries(checked)) applyMergeKey(merged, k, v);
+  const blob = JSON.stringify(merged);
+  if (Buffer.byteLength(blob, 'utf8') > MAX_APP_DATA_BYTES) {
+    throw new TrainError('INVALID_ARGS', `Channel appData exceeds ${MAX_APP_DATA_BYTES} bytes`);
+  }
+  return { blob, merged };
 }
 
 export function normalizeGithubUrl(url: unknown): string {

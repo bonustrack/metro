@@ -3,7 +3,7 @@ import { convOf, type Account } from './accounts.js';
 import { inboxEthCache, cacheInboxEth } from './wire.js';
 import { TrainError } from '@metro-labs/core/train-error';
 import type { MemberList, MetroMember } from '@metro-labs/core/stations/types';
-import { readAppData, type GroupLike } from './labels.js';
+import { readAppData, readAppDataObject, type GroupLike } from './labels.js';
 
 export { parseMemberArgs, resolveMembers } from './member-args.js';
 
@@ -78,6 +78,9 @@ export async function buildGroupInfo(
   acct: Account,
   conv: Conv,
 ): Promise<Record<string, unknown>> {
+  await conv.sync();
+  const rawAppData = (conv as unknown as GroupLike).appData ?? '';
+  const appData = readAppDataObject(rawAppData);
   const inboxIds = (await conv.members()).map((m) => m.inboxId);
   const addresses = await resolveAddresses(acct, inboxIds);
   const isDm =
@@ -86,9 +89,7 @@ export async function buildGroupInfo(
   const gn = (conv as unknown as { name?: string | (() => Promise<string>) })
     .name;
   const resolvedName = typeof gn === 'function' ? await gn() : (gn ?? '');
-  const { labels, github, preview } = readAppData(
-    (conv as unknown as GroupLike).appData,
-  );
+  const { labels, github, preview } = readAppData(rawAppData);
   return {
     line,
     id: conv.id,
@@ -99,6 +100,9 @@ export async function buildGroupInfo(
     labels,
     github,
     preview,
+    assigned: Object.hasOwn(appData, 'assigned') ? appData.assigned : [],
+    appData,
+    rawAppData,
     members: inboxIds.map((iid) => ({
       inboxId: iid,
       address: addresses[iid] ?? null,

@@ -1,5 +1,6 @@
 import type { CanonicalAttachment, ToolContext } from '@metro-labs/core/stations/types';
 import { TrainError } from '@metro-labs/core/train-error';
+import { metadataPatch, mergeAppData } from './labels.js';
 import {
   guessMime,
   isImageMime,
@@ -9,24 +10,34 @@ import {
 
 export const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
+function channelAppData(a: Record<string, unknown>): Record<string, unknown> {
+  const appData = a.metadata === undefined ? {} : { ...metadataPatch(a.metadata) };
+  for (const key of ['labels', 'github', 'preview']) {
+    if (!Object.hasOwn(a, key)) continue;
+    if (Object.hasOwn(appData, key)) {
+      throw new TrainError('INVALID_ARGS', `Specify ${key} only once, inside metadata or at the top level`);
+    }
+    appData[key] = a[key];
+  }
+  mergeAppData(undefined, appData);
+  return appData;
+}
+
 export async function setChannelMetadata(
   a: Record<string, unknown>,
   ctx: ToolContext,
 ) {
   const line = str(a.line);
   if (!line) return ctx.err('set_channel_metadata requires `line`');
-  const labels = a.labels as unknown[] | undefined;
-  const github = a.github as string | undefined;
-  const preview = a.preview as string | undefined;
-  const metaName = a.name as string | undefined;
-  const appData: Record<string, unknown> = {};
-  if (Array.isArray(labels)) appData.labels = labels.map(String);
-  if (typeof github === 'string') appData.github = github;
-  if (typeof preview === 'string') appData.preview = preview;
+  if (Object.hasOwn(a, 'name') && typeof a.name !== 'string') {
+    return ctx.err('set_channel_metadata name must be a string');
+  }
+  const appData = channelAppData(a);
+  const metaName = a.name;
   const hasName = typeof metaName === 'string' && metaName.length > 0;
   if (!hasName && Object.keys(appData).length === 0)
     return ctx.err(
-      'set_channel_metadata requires at least one of `labels`, `github`, `preview`, `name`',
+      'set_channel_metadata requires at least one of `metadata`, `github`, `preview`, `name`, `labels`',
     );
   const callArgs: Record<string, unknown> = { line, appData };
   if (hasName) callArgs.name = metaName;
