@@ -78,7 +78,7 @@ export function Checklist({ name, project, channels, connectors, onSelect }: Che
   return (
     <section className="checklist" aria-label="Setup">
       <div className="checklist-head">
-        <Text size="xl" weight="medium">
+        <Text size="2xl" weight="semibold">
           {`Get ${name} ready`}
         </Text>
         <Text size="md" role="secondary">

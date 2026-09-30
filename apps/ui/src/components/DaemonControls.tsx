@@ -64,7 +64,7 @@ export function DaemonControls(): ReactNode {
     <>
       <SettingsSection title="Restart" note={note ?? RESTART_NOTE}>
         <Button
-          size="sm"
+          size="md"
           color="secondary"
           dark={dark}
           label={phase === 'restarting' ? 'Restarting…' : 'Restart'}
@@ -79,7 +79,7 @@ export function DaemonControls(): ReactNode {
       </SettingsSection>
       <SettingsSection title="Stop" note={STOP_NOTE}>
         <Button
-          size="sm"
+          size="md"
           color="danger"
           dark={dark}
           label="Stop"

@@ -76,8 +76,8 @@ export function BootLog({ server, onClose }: { server: Server | null; onClose: (
           </div>
         )}
         <Row justify="end" gap={10}>
-          <Button size="sm" color="secondary" dark={dark} label="Refresh" loading={busy} disabled={busy} onPress={refresh} />
-          <Button size="sm" color="primary" dark={dark} label="Close" onPress={onClose} />
+          <Button size="md" color="secondary" dark={dark} label="Refresh" loading={busy} disabled={busy} onPress={refresh} />
+          <Button size="md" color="primary" dark={dark} label="Close" onPress={onClose} />
         </Row>
       </Col>
     </Modal>

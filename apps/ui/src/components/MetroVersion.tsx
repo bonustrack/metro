@@ -92,7 +92,7 @@ export function MetroVersion({ quiet = false }: { quiet?: boolean }): ReactNode 
   const dark = useKitScheme() === 'dark';
   const u = useMetroUpdate();
   if (u.version === null) return null;
-  const button = u.newer && u.idle ? <Button size="sm" color="primary" dark={dark} label="Update" onPress={u.update} /> : null;
+  const button = u.newer && u.idle ? <Button size="md" color="primary" dark={dark} label="Update" onPress={u.update} /> : null;
   if (quiet) return <UpdateNotice u={u} button={button} />;
   return (
     <SettingsSection title="Version" note={versionNote(u, u.version)}>

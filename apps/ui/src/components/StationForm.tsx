@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import {
@@ -78,14 +78,14 @@ export function StationForm(props: StationFormProps): ReactNode {
   return (
     <Col gap={14}>
       <Col gap={2}>
-        <Text size="xl" weight="medium">{stationLabel(station)}</Text>
+        <Text size="2xl" weight="semibold">{stationLabel(station)}</Text>
         <LinkedText text={form.hint} links={form.links ?? []} />
       </Col>
       <Col gap={10}>
         {form.fields.map((field) => (
           <Col key={field.key} gap={4}>
-            <Text size="md" role="secondary">{field.label}</Text>
-            <Input
+            <FormField
+              label={field.label}
               name={`attach-${field.key}`}
               value={values[field.key] ?? ''}
               placeholder={field.placeholder}
@@ -111,7 +111,7 @@ export function StationForm(props: StationFormProps): ReactNode {
           disabled={busy}
           label="Back"
         />
-        <Button
+        <Button size="lg"
           color="primary"
           dark={dark}
           onPress={submit}

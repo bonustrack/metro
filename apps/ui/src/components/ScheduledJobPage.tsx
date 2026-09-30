@@ -67,7 +67,7 @@ function Actions({ job }: { job: JobDetail }): ReactNode {
   return (
     <Col gap={8}>
       <Row gap={10}>
-        <Button size="sm" color="secondary" dark={dark} label="Run now" disabled={busy} onPress={() => { run(() => runSchedule(job.id), 'Could not start that job.'); }} />
+        <Button size="md" color="secondary" dark={dark} label="Run now" disabled={busy} onPress={() => { run(() => runSchedule(job.id), 'Could not start that job.'); }} />
       </Row>
       {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </Col>

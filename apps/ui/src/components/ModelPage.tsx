@@ -57,7 +57,7 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
   return (
     <Col gap={32}>
       <CurrentModel settings={settings} onChange={() => { setPicking(true); }} />
-      <SettingsGroup title="Providers" action={<Button size="sm" dark={dark} label="Add provider" onPress={() => { setConnecting(true); }} />}>
+      <SettingsGroup title="Providers" action={<Button size="md" dark={dark} label="Add provider" onPress={() => { setConnecting(true); }} />}>
         {settings.connections.length === 0 ? (
           <div className="settings-row">
             <Text size="md" role="secondary">{NONE_YET}</Text>

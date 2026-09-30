@@ -43,8 +43,8 @@ function PendingRow({ approval }: { approval: Approval }): ReactNode {
           </Text>
         </Col>
         <Row gap={8} align="center">
-          <Button size="sm" color="secondary" dark={dark} disabled={busy} label="Reject" onPress={() => { answer('deny'); }} />
-          <Button size="sm" dark={dark} disabled={busy} label="Approve" onPress={() => { answer('allow'); }} />
+          <Button size="md" color="secondary" dark={dark} disabled={busy} label="Reject" onPress={() => { answer('deny'); }} />
+          <Button size="md" dark={dark} disabled={busy} label="Approve" onPress={() => { answer('allow'); }} />
         </Row>
       </Row>
       {error === null ? null : <Text size="md" role="danger">{error}</Text>}

@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { KitThemeProvider, type KitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { semanticPalette } from '@stage-labs/kit/tokens';
+import { FONT_SIZE, semanticPalette } from '@stage-labs/kit/tokens';
 import { withAlpha } from '@stage-labs/kit/badge';
 import { DROPDOWN_MENU } from '@stage-labs/kit/react-native/menu';
 import { FONT_HEAD, FONT_SANS } from './theme.js';
@@ -82,12 +82,14 @@ function applyCanvas(scheme: Scheme, palette: KitPalette): void {
     '--metro-border': palette.border,
     '--metro-hover': withAlpha(palette.link, DROPDOWN_MENU.hoverAlpha),
     '--metro-surface': palette.inputBg,
+    '--metro-toolbar': palette.toolbarBg,
     '--metro-danger': palette.danger,
     '--metro-success': palette.success,
     '--metro-font-sans': FONT_SANS,
     '--metro-font-head': FONT_HEAD,
   };
   for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
+  for (const [name, size] of Object.entries(FONT_SIZE)) root.style.setProperty(`--kit-font-${name}`, `${size}px`);
 }
 
 interface ThemeModeValue {

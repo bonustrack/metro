@@ -4,7 +4,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { MetroLogo } from './MetroLogo.js';
@@ -39,7 +39,7 @@ function RegionChoice({ regions, value, disabled, onPick }: { regions: string[];
         {regions.map((code) => (
           <Button
             key={code}
-            size="sm"
+            size="md"
             dark={dark}
             color={value === code ? 'primary' : 'secondary'}
             label={regionName(code)}
@@ -135,8 +135,8 @@ function PictureChoice({ form }: { form: ReturnType<typeof useLaunchForm> }): Re
     <Row align="center" gap={12} wrap>
       {form.picker.input}
       <AgentAvatar seed={form.name.trim() === '' ? 'new agent' : form.name.trim()} src={form.avatar} size={PICTURE} />
-      <Button size="sm" color="secondary" dark={dark} label={form.avatar === null ? 'Choose a picture' : 'Change'} disabled={form.busy || form.picker.busy} onPress={form.picker.pick} />
-      {form.avatar === null ? null : <Button size="sm" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={form.busy} onPress={form.picker.remove} />}
+      <Button size="md" color="secondary" dark={dark} label={form.avatar === null ? 'Choose a picture' : 'Change'} disabled={form.busy || form.picker.busy} onPress={form.picker.pick} />
+      {form.avatar === null ? null : <Button size="md" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={form.busy} onPress={form.picker.remove} />}
       {form.picker.error === null ? null : <Text size="md" role="danger">{form.picker.error}</Text>}
     </Row>
   );
@@ -155,8 +155,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
       <Col gap={10}>
         <PictureChoice form={form} />
         <Col gap={4}>
-          <Text size="md" role="secondary">Name</Text>
-          <Input
+          <FormField label="Name"
             name="launch-name"
             value={form.name}
             placeholder="andy"
@@ -175,7 +174,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
         <Text size="md" role="secondary">
           <a className="hint-link" href={routeHash({ kind: 'servers' })}>Back to your agents</a>
         </Text>
-        <Button
+        <Button size="lg"
           color="primary"
           dark={dark}
           loading={form.busy}

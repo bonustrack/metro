@@ -21,8 +21,8 @@ function Picture({ account, onChanged }: { account: Account; onChanged: () => vo
   return (
     <Row align="center" gap={16} wrap>
       <AgentAvatar seed={account.user.id} src={account.user.picture} size={PAGE_AVATAR} />
-      <Button size="sm" color="secondary" dark={dark} label={picker.busy ? 'Saving…' : 'Set picture'} loading={picker.busy} disabled={picker.busy} onPress={picker.pick} />
-      {account.user.picture === null ? null : <Button size="sm" color="secondary" dark={dark} label="Remove picture" disabled={picker.busy} onPress={picker.remove} />}
+      <Button size="md" color="secondary" dark={dark} label={picker.busy ? 'Saving…' : 'Set picture'} loading={picker.busy} disabled={picker.busy} onPress={picker.pick} />
+      {account.user.picture === null ? null : <Button size="md" color="secondary" dark={dark} label="Remove picture" disabled={picker.busy} onPress={picker.remove} />}
       {picker.error === null ? null : (
         <Text size="md" role="danger">
           {picker.error}
@@ -46,7 +46,7 @@ function Name({ account, onChanged }: { account: Account; onChanged: () => void 
   });
   return (
     <Col gap={8}>
-      <SaveField saving={saving} name="account-name" placeholder={account.user.email ?? ''} />
+      <SaveField saving={saving} name="account-name" label="Name" placeholder={account.user.email ?? ''} />
     </Col>
   );
 }

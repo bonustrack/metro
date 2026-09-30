@@ -29,7 +29,7 @@ export function Settings(): ReactNode {
             {THEME_MODES.map((m) => (
               <Button
                 key={m.mode}
-                size="sm"
+                size="md"
                 dark={dark}
                 color={m.mode === mode ? 'primary' : 'secondary'}
                 label={m.label}

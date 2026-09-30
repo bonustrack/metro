@@ -4,7 +4,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { PageTitle } from './PageTitle.js';
 import { Badge } from '@stage-labs/kit/react-native/badge';
@@ -124,7 +124,7 @@ function Invite({ onError }: { onError: (text: string) => void }): ReactNode {
     <SettingsGroup title="Invite someone" note={sent === null ? undefined : `An invitation went to ${sent}.`}>
       <div className="settings-pad">
         <Row gap={10} align="center" wrap>
-          <Input name="email" value={email} dark={dark} placeholder="name@company.com" disabled={busy} onChangeText={setEmail} style={GROW} inputProps={NO_ASSIST} />
+          <FormField label="Email address" name="email" value={email} dark={dark} placeholder="name@company.com" disabled={busy} onChangeText={setEmail} style={GROW} inputProps={NO_ASSIST} />
           <Choice<Role>
             label="Role"
             value={role}
@@ -134,7 +134,7 @@ function Invite({ onError }: { onError: (text: string) => void }): ReactNode {
             ]}
             onChange={setRole}
           />
-          <Button size="sm" color="primary" dark={dark} label={busy ? 'Sending…' : 'Invite'} loading={busy} disabled={busy || email.trim() === ''} onPress={send} />
+          <Button size="lg" color="primary" dark={dark} label={busy ? 'Sending…' : 'Invite'} loading={busy} disabled={busy || email.trim() === ''} onPress={send} />
         </Row>
       </div>
     </SettingsGroup>

@@ -10,7 +10,7 @@ import { type Selection } from './selection.js';
 export const NAV_ROW_BOX = {
   align: 'center',
   gap: 14,
-  minHeight: 44,
+  minHeight: 48,
   padding: { x: 18 },
 } as const;
 export const NAV_ICON_SIZE = 24;
@@ -46,7 +46,7 @@ export function NavRow({
   const body = (
     <Row {...NAV_ROW_BOX}>
       {icon === undefined ? null : <NavIcon name={icon} color={selected ? palette.link : palette.sub} />}
-      <Text size="xl" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
+      <Text size="2xl" role={selected ? 'link' : 'secondary'} weight={selected ? 'semibold' : 'normal'} numberOfLines={1}>
         {label}
       </Text>
     </Row>

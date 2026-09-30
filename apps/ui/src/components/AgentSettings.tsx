@@ -32,8 +32,8 @@ function AvatarSection({ server }: { server: Server }): ReactNode {
     <SettingsSection title="Picture" note="Shown in your agent list. PNG, JPEG, WebP or GIF.">
       <Row align="center" gap={12} wrap>
         <AgentAvatar seed={server.host} src={server.avatar} size={PAGE_AVATAR} />
-        <Button size="sm" color="secondary" dark={dark} label={avatar.busy ? 'Saving…' : 'Change'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
-        {server.avatar === null ? null : <Button size="sm" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={avatar.busy} onPress={avatar.remove} />}
+        <Button size="md" color="secondary" dark={dark} label={avatar.busy ? 'Saving…' : 'Change'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
+        {server.avatar === null ? null : <Button size="md" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={avatar.busy} onPress={avatar.remove} />}
         {avatar.error === null ? null : (
           <Text size="md" role="danger">
             {avatar.error}
@@ -55,7 +55,7 @@ function NameSection({ server }: { server: Server }): ReactNode {
   });
   return (
     <SettingsSection title="Name" note="What your team calls this agent.">
-      <SaveField saving={saving} name="agent-name" placeholder={server.host} />
+      <SaveField saving={saving} name="agent-name" label="Name" placeholder={server.host} />
     </SettingsSection>
   );
 }
@@ -75,7 +75,7 @@ function SlugSection({ server }: { server: Server }): ReactNode {
   });
   return (
     <SettingsSection title="Web address" note="Used in this agent’s links. Lowercase letters, digits and dashes.">
-      <SaveField saving={saving} name="agent-slug" placeholder={server.slug ?? ''} />
+      <SaveField saving={saving} name="agent-slug" label="Web address" placeholder={server.slug ?? ''} />
     </SettingsSection>
   );
 }
@@ -89,7 +89,7 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
     <>
     <SettingsSection title="Download a backup" note="Channels, connectors, skills, memory and model, in one file locked with a passphrase.">
         <Button
-          size="sm"
+          size="md"
           color="secondary"
           dark={dark}
           label="Download"
@@ -100,7 +100,7 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
     </SettingsSection>
     <SettingsSection title="Restore from a backup" note="Adds what the file contains to this agent. Nothing else is deleted.">
         <Button
-          size="sm"
+          size="md"
           color="secondary"
           dark={dark}
           label="Restore"
@@ -142,7 +142,7 @@ function RemoveSection({ server }: { server: Server }): ReactNode {
   );
   return (
     <SettingsSection title="Remove this agent" note="Takes it out of your list. The server keeps running and nothing on it is deleted.">
-      <Button size="sm" color="danger" dark={dark} label="Remove" onPress={confirming.show} />
+      <Button size="md" color="danger" dark={dark} label="Remove" onPress={confirming.show} />
       <ConfirmDialog
         confirming={confirming}
         title="Remove this agent?"

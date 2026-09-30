@@ -97,7 +97,7 @@ function StartRow({ view, resize }: { view: Resizable; resize: Resize }): ReactN
   return (
     <SettingsSection title="Start" note={STOPPED_NOTE}>
       <Button
-        size="sm"
+        size="md"
         color="primary"
         dark={dark}
         label={resize.busy ? 'Starting…' : 'Start'}

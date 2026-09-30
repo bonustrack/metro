@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { accountName, claimAccountName } from '../api/attach.js';
@@ -42,13 +42,13 @@ function ClaimName({ agentId, station, accountId }: { agentId: string; station: 
         {NO_NAME}
       </Text>
       <Row gap={8} align="center">
-        <Input name="stage-name" value={label} placeholder="lisa-mci" dark={dark} onChangeText={setLabel} style={GROW} />
+        <FormField label="Stage name" name="stage-name" value={label} placeholder="lisa-mci" dark={dark} onChangeText={setLabel} style={GROW} />
         <Text size="md" role="secondary">
           {SUFFIX}
         </Text>
       </Row>
       <Row>
-        <Button size="sm" dark={dark} label={busy ? 'Claiming…' : 'Claim'} loading={busy} disabled={busy || label.trim().length < 6} onPress={claim} />
+        <Button size="lg" dark={dark} label={busy ? 'Claiming…' : 'Claim'} loading={busy} disabled={busy || label.trim().length < 6} onPress={claim} />
       </Row>
       {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </Col>

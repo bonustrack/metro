@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { setClaudeSystemPrompt, type ClaudeSetup as Setup } from '../api/claude-box.js';
 import { queryError, refresh } from '../api/queries.js';
@@ -37,9 +37,8 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   };
   return (
     <Col gap={10}>
-      <Text size="lg" weight="medium">System prompt</Text>
       <Text size="md" role="secondary">{NOTE}</Text>
-      <Input
+      <FormField label="System prompt"
         name="system-prompt"
         value={draft}
         dark={dark}
@@ -50,10 +49,10 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
         inputProps={NO_ASSIST}
       />
       <Row gap={10} align="center" wrap>
-        <Button size="sm" color="primary" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !changed} onPress={save} />
+        <Button size="lg" color="primary" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !changed} onPress={save} />
         {changed && !busy ? (
           <Button
-            size="sm"
+            size="md"
             color="secondary"
             dark={dark}
             label="Revert"

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { Loading } from './Loading.js';
@@ -46,7 +46,7 @@ function Actions({ busy, changed, note, failure, onSave, onRevert }: ActionsProp
   const dark = useKitScheme() === 'dark';
   return (
     <Row gap={12} align="center" wrap>
-      <Button dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !changed} onPress={onSave} />
+      <Button size="lg" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !changed} onPress={onSave} />
       <Button size="md" color="secondary" dark={dark} label="Revert" disabled={busy || !changed} onPress={onRevert} />
       {note === null ? null : <Text size="md" role="secondary">{note}</Text>}
       {failure === null ? null : <Text size="md" role="danger">{failure}</Text>}
@@ -128,7 +128,7 @@ export function SkillPage({ project, id, onBack }: SkillPageProps): ReactNode {
       ) : (
         <Col gap={16}>
           <Head skill={data} />
-          <Input
+          <FormField label="Skill contents"
             name="skill"
             value={edit.shown}
             dark={dark}

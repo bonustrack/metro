@@ -33,7 +33,7 @@ export function CopyRow({ title, note, value, secret = false }: CopyRowProps): R
       <Row gap={8} align="center">
         {secret ? (
           <Button
-            size="sm"
+            size="md"
             color="secondary"
             variant="ghost"
             dark={dark}
@@ -43,7 +43,7 @@ export function CopyRow({ title, note, value, secret = false }: CopyRowProps): R
             }}
           />
         ) : null}
-        <Button size="sm" color="secondary" dark={dark} label={copied ? 'Copied' : 'Copy'} onPress={copy} />
+        <Button size="md" color="secondary" dark={dark} label={copied ? 'Copied' : 'Copy'} onPress={copy} />
       </Row>
       {shown ? (
         <Text size="md" role="secondary" numberOfLines={1} selectable>

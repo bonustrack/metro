@@ -47,9 +47,9 @@ function Rows({ status, project }: { status: ClaudeSessionStatus; project: strin
     <>
       <SettingsSection title="Status" note={statusLine(status)}>
         {status.running ? (
-          <Button size="sm" color="secondary" dark={dark} label="Stop" disabled={busy} onPress={() => { send({ action: 'stop' }); }} />
+          <Button size="md" color="secondary" dark={dark} label="Stop" disabled={busy} onPress={() => { send({ action: 'stop' }); }} />
         ) : (
-          <Button size="sm" color="secondary" dark={dark} label="Start" disabled={busy || status.blocked !== null} onPress={() => { send({ action: 'start' }); }} />
+          <Button size="md" color="secondary" dark={dark} label="Start" disabled={busy || status.blocked !== null} onPress={() => { send({ action: 'start' }); }} />
         )}
         {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </SettingsSection>
@@ -67,7 +67,7 @@ function Rows({ status, project }: { status: ClaudeSessionStatus; project: strin
       {status.running ? (
         <SettingsSection title="Terminal" note={TERMINAL}>
           <Button
-            size="sm"
+            size="md"
             color="secondary"
             dark={dark}
             label="Open"

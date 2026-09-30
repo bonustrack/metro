@@ -48,7 +48,7 @@ function SlugRow({ account }: { account: Account }): ReactNode {
   const note = admin ? `Used in every link: metro.box/#/${account.organizationSlug ?? '…'}. Lowercase letters, digits and dashes.` : 'Only an admin can change it.';
   return (
     <SettingsSection title="Web address" note={note}>
-      <SaveField saving={slug} name="slug" editable={admin} />
+      <SaveField saving={slug} name="slug" label="Web address" editable={admin} />
     </SettingsSection>
   );
 }
@@ -58,7 +58,7 @@ function NameRow({ account }: { account: Account }): ReactNode {
   const admin = account.role === 'admin';
   return (
     <SettingsSection title="Name" note={admin ? 'What every member sees, and what invitations say.' : 'Only an admin can rename it.'}>
-      <SaveField saving={rename} name="organization" editable={admin} />
+      <SaveField saving={rename} name="organization" label="Name" editable={admin} />
     </SettingsSection>
   );
 }

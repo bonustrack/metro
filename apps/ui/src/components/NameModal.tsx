@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { Modal } from '@stage-labs/kit/react-native/modal';
@@ -60,7 +60,7 @@ export function NameModal({
   return (
     <Modal title={title} open={open} onClose={close}>
       <Col gap={14}>
-        <Input
+        <FormField label="Name"
           name="name"
           value={name}
           placeholder={placeholder}
@@ -83,7 +83,7 @@ export function NameModal({
             onPress={close}
             label="Cancel"
           />
-          <Button
+          <Button size="lg"
             color="primary"
             dark={dark}
             onPress={submit}

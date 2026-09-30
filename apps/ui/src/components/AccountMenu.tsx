@@ -40,7 +40,7 @@ export function AccountMenu({ onLock }: { onLock: () => void }): ReactNode {
   return (
     <Dropdown className="account-trigger" label="Account menu" align="start" items={items}>
       <AgentAvatar seed={account?.user.id ?? 'account'} src={account?.user.picture ?? null} size={AVATAR} />
-      <Text size="lg" numberOfLines={1} style={SHRINK}>
+      <Text size="2xl" numberOfLines={1} style={SHRINK}>
         {name}
       </Text>
       <Icon name="dotsHorizontal" size={MORE} color={palette.sub} />

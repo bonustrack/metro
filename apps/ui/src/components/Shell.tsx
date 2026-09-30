@@ -2,13 +2,6 @@ import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { TopBar } from './TopBar.js';
 
-const PAGE = {
-  width: '100%',
-  paddingHorizontal: 18,
-  paddingTop: 24,
-  paddingBottom: 64,
-} as const;
-
 interface ShellProps {
   narrow: boolean;
   menuOpen: boolean;
@@ -35,9 +28,9 @@ export function Shell({
       ) : null}
       <div className="app-main">
         {narrow ? <TopBar onOpenMenu={onOpenMenu} /> : null}
-        <Col gap={24} style={PAGE}>
-          {children}
-        </Col>
+        <div className="page-content">
+          <Col gap={24}>{children}</Col>
+        </div>
       </div>
       {narrow && menuOpen ? (
         <button

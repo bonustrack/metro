@@ -50,7 +50,7 @@ function DeviceFlow({ label, id }: { label: string; id: string }): ReactNode {
   return (
     <Col gap={10}>
       <SignInLink link={link} label={SIGN_IN_LINK}>
-        <Button size="sm" dark={dark} label={label} loading={starting} disabled={starting || login !== null} onPress={connect} />
+        <Button size="md" dark={dark} label={label} loading={starting} disabled={starting || login !== null} onPress={connect} />
       </SignInLink>
       {login !== null ? (
         <Col gap={4}>
@@ -72,7 +72,7 @@ function RedirectFlow({ label, id }: { label: string; id: string }): ReactNode {
   return (
     <Col gap={10}>
       <SignInLink link={link} label={SIGN_IN_LINK}>
-        <Button size="sm" color="secondary" dark={dark} label={label} loading={starting} disabled={starting} onPress={connect} />
+        <Button size="md" color="secondary" dark={dark} label={label} loading={starting} disabled={starting} onPress={connect} />
       </SignInLink>
       {started === null ? null : <PasteAddress hint={PASTE_HINT} name="codex-callback" placeholder="http://localhost:1455/auth/callback?code=…&state=…" finish={(pasted) => finishCodexLogin(pasted, id)} />}
       {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
@@ -94,7 +94,7 @@ function NotConnected({ id }: { id: string }): ReactNode {
       </Text>
       <RedirectFlow label="Sign in through a browser redirect" id={id} />
       <Row gap={8} wrap>
-        <Button size="sm" color="secondary" dark={dark} label="Use the Codex CLI login on this machine" disabled={busy} onPress={() => { run(() => codexImport(id), 'Could not read the Codex CLI login.'); }} />
+        <Button size="md" color="secondary" dark={dark} label="Use the Codex CLI login on this machine" disabled={busy} onPress={() => { run(() => codexImport(id), 'Could not read the Codex CLI login.'); }} />
       </Row>
       {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>

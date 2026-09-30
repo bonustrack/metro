@@ -13,12 +13,14 @@ export function ListHeader({ title, count, action }: { title: string; count?: nu
       </Row>
     );
   return (
-    <Row justify="between" align="center" gap={12} wrap>
-      <Row gap={10} align="center">
-        <PageTitle>{title}</PageTitle>
-        {count === undefined ? null : <CountBadge count={count} beside="title" />}
+    <header className="page-header">
+      <Row justify="between" align="center" gap={12} wrap>
+        <Row gap={10} align="center">
+          <PageTitle>{title}</PageTitle>
+          {count === undefined ? null : <CountBadge count={count} beside="title" />}
+        </Row>
+        {action}
       </Row>
-      {action}
-    </Row>
+    </header>
   );
 }

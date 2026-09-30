@@ -34,7 +34,7 @@ export function ProviderRow({ connection, settings, items, busy, onUse }: Provid
   return (
     <SettingsSection title={connection.label} note={note} leading={<ProviderLogo provider={PROVIDERS.find((p) => p.id === connection.provider)} size={LOGO} />}>
       <div className="provider-row-end">
-        {inUse ? <span className="tag">In use</span> : <Button size="sm" color="secondary" dark={dark} label="Use" disabled={busy} onPress={onUse} />}
+        {inUse ? <span className="tag">In use</span> : <Button size="md" color="secondary" dark={dark} label="Use" disabled={busy} onPress={onUse} />}
         <KebabMenu label={`${connection.label} menu`} items={items} />
       </div>
     </SettingsSection>

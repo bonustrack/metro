@@ -58,7 +58,7 @@ function Card({ settings, href, onOpen }: { settings: ModelSettings; href: strin
     >
       <ProviderLogo provider={PROVIDERS.find((p) => p.id === conn?.provider)} size={LOGO_SIZE} />
       <span className="model-card-text">
-        <Text size="lg" weight="medium" numberOfLines={1}>
+        <Text size="2xl" weight="semibold" numberOfLines={1}>
           {name}
         </Text>
         <Text size="md" role="secondary">

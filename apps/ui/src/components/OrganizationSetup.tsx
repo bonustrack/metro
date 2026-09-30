@@ -3,7 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { MetroLogo } from './MetroLogo.js';
 import { PageTitle } from './PageTitle.js';
@@ -49,9 +49,9 @@ export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLo
         <Text size="md" role="secondary">
           {WHAT}
         </Text>
-        <Input name="organization" value={name} dark={dark} placeholder="Stage Labs" disabled={busy} onChangeText={setName} />
+        <FormField label="Organization name" name="organization" value={name} dark={dark} placeholder="Stage Labs" disabled={busy} onChangeText={setName} />
         <Row gap={10} align="center" wrap>
-          <Button color="primary" dark={dark} label={busy ? 'Creating…' : 'Create'} loading={busy} disabled={busy || !valid} onPress={create} />
+          <Button size="lg" color="primary" dark={dark} label={busy ? 'Creating…' : 'Create'} loading={busy} disabled={busy || !valid} onPress={create} />
           <Button color="secondary" dark={dark} label="Sign out" disabled={busy} onPress={onLock} />
         </Row>
         {error === null ? null : (

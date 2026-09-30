@@ -41,7 +41,7 @@ export function CurrentModel({ settings, onChange }: { settings: ModelSettings; 
   return (
     <SettingsGroup title="In use">
       <SettingsSection title={name} note={note} leading={<ProviderLogo provider={PROVIDERS.find((p) => p.id === conn?.provider)} size={LOGO} />}>
-        {settings.connections.length === 0 ? null : <Button size="sm" color="primary" dark={dark} label="Change model" onPress={onChange} />}
+        {settings.connections.length === 0 ? null : <Button size="md" color="primary" dark={dark} label="Change model" onPress={onChange} />}
       </SettingsSection>
       {settings.reason === null ? null : (
         <div className="settings-pad">

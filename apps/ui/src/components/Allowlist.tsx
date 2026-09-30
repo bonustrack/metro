@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { Choice } from './Choice.js';
@@ -107,7 +107,8 @@ function Lookup({ agentId, station, accountId, busy, onFound, onError }: LookupP
         {text.hint}
       </Text>
       <Row gap={8} align="center" wrap>
-        <Input
+        <FormField
+          label="Find a sender"
           name="sender-lookup"
           value={draft}
           placeholder={text.placeholder}
@@ -119,7 +120,7 @@ function Lookup({ agentId, station, accountId, busy, onFound, onError }: LookupP
           style={GROW}
         />
         <Button
-          size="sm"
+          size="md"
           color="secondary"
           dark={dark}
           disabled={busy || looking || draft.trim() === ''}
@@ -156,7 +157,7 @@ function Suggestions({ senders, busy, onAdd }: { senders: RecentSender[]; busy: 
         {senders.map((sender) => (
           <Button
             key={sender.id}
-            size="sm"
+            size="md"
             color="secondary"
             dark={dark}
             disabled={busy}
@@ -183,7 +184,8 @@ function AddPerson({ agentId, station, accountId, seen, entries, busy, onAdd, on
       <Col gap={16}>
         <Col gap={8}>
           <Row gap={8} align="center" wrap>
-            <Input
+            <FormField
+              label="Sender ID"
               name="sender"
               value={draft}
               placeholder={PLACEHOLDER[station] ?? 'Sender id'}
@@ -194,7 +196,7 @@ function AddPerson({ agentId, station, accountId, seen, entries, busy, onAdd, on
               onSubmit={submit}
               style={GROW}
             />
-            <Button size="sm" color="secondary" dark={dark} disabled={busy !== null || draft.trim() === ''} label="Add" onPress={submit} />
+            <Button size="md" color="secondary" dark={dark} disabled={busy !== null || draft.trim() === ''} label="Add" onPress={submit} />
           </Row>
           {WHERE_TO_FIND[station] === undefined ? null : <Text size="md" role="secondary">{WHERE_TO_FIND[station]}</Text>}
         </Col>

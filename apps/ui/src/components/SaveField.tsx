@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { queryError } from '../api/queries.js';
 
@@ -55,16 +55,19 @@ export function useSave({ initial, clean = trimmed, valid, run, failure }: SaveJ
 interface SaveFieldProps {
   saving: Saving;
   name: string;
+  label: string;
   placeholder?: string;
   editable?: boolean;
 }
 
-export function SaveField({ saving, name, placeholder, editable = true }: SaveFieldProps): ReactNode {
+export function SaveField({ saving, name, label, placeholder, editable = true }: SaveFieldProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <>
       <Row gap={8} align="center" wrap>
-        <Input
+        <FormField
+          label={label}
+          labelHidden
           name={name}
           value={saving.value}
           placeholder={placeholder}
@@ -73,7 +76,7 @@ export function SaveField({ saving, name, placeholder, editable = true }: SaveFi
           onChangeText={saving.setValue}
         />
         {editable && (saving.ready || saving.busy) ? (
-          <Button color="primary" dark={dark} label={saving.busy ? 'Saving…' : 'Save'} loading={saving.busy} disabled={saving.busy} onPress={saving.save} />
+          <Button size="lg" color="primary" dark={dark} label={saving.busy ? 'Saving…' : 'Save'} loading={saving.busy} disabled={saving.busy} onPress={saving.save} />
         ) : null}
       </Row>
       {saving.error !== null ? <Text size="md" role="danger">{saving.error}</Text> : saving.saved ? <Text size="md" role="secondary">Saved.</Text> : null}

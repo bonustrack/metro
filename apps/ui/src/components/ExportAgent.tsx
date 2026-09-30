@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Modal } from '@stage-labs/kit/react-native/modal';
 import { checkPassphrase } from '../export/passphrase.js';
@@ -96,7 +96,7 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
           {SECTIONS.map((section) => (
             <Button
               key={section}
-              size="sm"
+              size="md"
               color={picked.has(section) ? 'primary' : 'secondary'}
               dark={dark}
               disabled={busy}
@@ -107,13 +107,13 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
             />
           ))}
         </Row>
-        <Input name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase for this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
+        <FormField label="Passphrase" name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase for this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
         <Text size="md" role="secondary">{NOTE}</Text>
         {done === null ? null : <Text size="lg">{`Saved: ${done}`}</Text>}
         {error === null ? null : <Text size="md" role="danger">{error}</Text>}
         <Row justify="end" gap={8}>
           <Button color="secondary" dark={dark} disabled={busy} onPress={close} label={done === null ? 'Cancel' : 'Done'} />
-          <Button
+          <Button size="lg"
             color="primary"
             dark={dark}
             disabled={busy || picked.size === 0}

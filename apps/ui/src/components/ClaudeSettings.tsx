@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
@@ -43,7 +43,7 @@ function FilePicker({ files, chosen, onPick }: { files: ClaudeSettingsFile[]; ch
       {files.map((file) => (
         <Button
           key={file.id}
-          size="sm"
+          size="md"
           dark={dark}
           color={file.id === chosen ? 'primary' : 'secondary'}
           label={file.scope === 'user' ? 'This machine' : `${file.label.split('/').pop() ?? file.label}${file.scope === 'local' ? ' (local)' : ''}`}
@@ -92,7 +92,7 @@ function Actions({ busy, ready, changed, note, error, onSave, onFormat, onRevert
   const dark = useKitScheme() === 'dark';
   return (
     <Row gap={12} align="center" wrap>
-      <Button dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !ready || !changed} onPress={onSave} />
+      <Button size="lg" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !ready || !changed} onPress={onSave} />
       <Button size="md" color="secondary" dark={dark} label="Format" disabled={busy || !ready} onPress={onFormat} />
       <Button size="md" color="secondary" dark={dark} label="Revert" disabled={busy || !changed} onPress={onRevert} />
       {note === null ? null : (
@@ -136,7 +136,7 @@ function Editor({ file, draft, onEdit, onSaved }: EditorProps): ReactNode {
   };
   return (
     <Col gap={12}>
-      <Input
+      <FormField label="Settings JSON"
         name="claude-settings"
         value={shown}
         dark={dark}
