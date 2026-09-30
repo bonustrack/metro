@@ -7,6 +7,7 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Login } from './components/Login.js';
 import { Landing } from './components/landing/Landing.js';
+import { LegalPage } from './components/legal/LegalPage.js';
 import { AdminArea, isAdminSelection } from './components/AdminArea.js';
 import { LaunchServer } from './components/LaunchServer.js';
 import { BootLoading } from './components/BootLoading.js';
@@ -207,7 +208,10 @@ function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () 
 
 export function App(): ReactNode {
   const [returned] = useState(() => signInReturn(window.location.search));
-  if (returned === null) return <MetroApp />;
+  const [selection, setSelection] = useState<Selection>(currentSelection);
+  useEffect(() => subscribeRoute(setSelection), []);
+  if (selection.kind === 'terms-of-use' || selection.kind === 'privacy-policy') return <LegalPage kind={selection.kind} />;
+  if (returned === null) return <MetroApp selection={selection} />;
   return (
     <div className="app-root">
       <SignInReturn ret={returned} />
@@ -216,11 +220,9 @@ export function App(): ReactNode {
   );
 }
 
-function MetroApp(): ReactNode {
+function MetroApp({ selection }: { selection: Selection }): ReactNode {
   useState(takeInvitationFromUrl);
   const [phase, setPhase] = useState<Phase>('loading');
-  const [selection, setSelection] = useState<Selection>(currentSelection);
-  useEffect(() => subscribeRoute(setSelection), []);
 
   useEffect(() => {
     boot()

@@ -4,6 +4,7 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { MetroLogo } from './MetroLogo.js';
+import { LegalLinks } from './LegalLinks.js';
 import { EmailLogin } from './EmailLogin.js';
 import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
@@ -88,12 +89,7 @@ function Footer(): ReactNode {
       <Text size="md" role="secondary">
         {COPYRIGHT}
       </Text>
-      <Text size="md" role="secondary">
-        Terms
-      </Text>
-      <Text size="md" role="secondary">
-        Privacy
-      </Text>
+      <LegalLinks />
     </Row>
   );
 }

@@ -41,6 +41,8 @@ const FILES_PATH = new RegExp(`^#?/(${HOST})/files(?:/(.*))?$`);
 const EXACT: [RegExp, Selection][] = [
   [SERVERS_PATH, { kind: 'servers' }],
   [SETTINGS_PATH, { kind: 'settings' }],
+  [/^#?\/terms-of-use\/?$/, { kind: 'terms-of-use' }],
+  [/^#?\/privacy-policy\/?$/, { kind: 'privacy-policy' }],
   [ADMIN_PATH, { kind: 'admin' }],
   [ADMIN_USERS_PATH, { kind: 'admin-users' }],
   [ADMIN_ORGANIZATIONS_PATH, { kind: 'admin-organizations' }],
@@ -85,6 +87,8 @@ function pathSegmentsOf(raw: string): string {
 
 const GLOBAL: Partial<Record<Selection['kind'], string>> = {
   settings: '#/settings',
+  'terms-of-use': '#/terms-of-use',
+  'privacy-policy': '#/privacy-policy',
   admin: '#/admin',
   'admin-users': '#/admin/users',
   'admin-organizations': '#/admin/organizations',

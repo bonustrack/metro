@@ -4,6 +4,7 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { MetroLogo } from '../MetroLogo.js';
+import { LegalLinks } from '../LegalLinks.js';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
 import { THEME_MODES, useThemeMode, type ThemeMode } from '../../theme-mode.js';
 import { FONT_SANS } from '../../theme.js';
@@ -183,12 +184,7 @@ function Footer(): ReactNode {
           </Text>
         </div>
         <div className="lp-footer-links">
-          <Text size="md" role="secondary">
-            Terms
-          </Text>
-          <Text size="md" role="secondary">
-            Privacy
-          </Text>
+          <LegalLinks />
           <ThemeSwitch />
         </div>
       </div>
