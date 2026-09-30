@@ -9,21 +9,18 @@ import { Text as KitText, type TextProps } from '@stage-labs/kit/react-native/te
 import { Input as KitInput, type InputProps } from '@stage-labs/kit/react-native/input';
 import {
   FONT_SANS,
+  SMALL_FONT_SIZE,
   TEXT_FONT,
   textSize,
   typeSize,
 } from '../theme.js';
 
 const BUTTON_FONT_SIZE: Record<ButtonSize, number> = {
-  '3xs': FONT_SIZE['3xs'],
-  '2xs': FONT_SIZE['2xs'],
-  xs: FONT_SIZE['2xs'],
+  xs: SMALL_FONT_SIZE['2xs'],
   sm: FONT_SIZE.xs,
   md: FONT_SIZE.sm,
   lg: FONT_SIZE.md,
   xl: FONT_SIZE.md,
-  '2xl': FONT_SIZE.lg,
-  '3xl': FONT_SIZE['2xl'],
 };
 
 export function Text({ style, ...props }: TextProps): ReactElement {

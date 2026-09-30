@@ -15,6 +15,8 @@ export const TEXT_FONT: Record<TextWeight, string> = {
   bold: FONT_HEAD,
 };
 
+export const SMALL_FONT_SIZE = { '3xs': 11, '2xs': 12 } as const;
+
 export const TYPE_SCALE = 1.2;
 
 export function typeSize(px: number): number {

@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
+import { Icon, type IconName } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { SHRINK } from '../theme.js';
@@ -35,7 +35,7 @@ interface ScopeItemProps {
   onHover?: () => void;
   href?: string;
   leading?: ReactNode;
-  icon?: HeroIconName;
+  icon?: IconName;
   onSelect: () => void;
 }
 

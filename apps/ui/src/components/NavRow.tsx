@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
-import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
+import { Icon, type IconName } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { opensElsewhere } from './link.js';
@@ -17,7 +17,7 @@ export const NAV_ICON_SIZE = 20;
 
 export const NAV_GAP = 6;
 
-function NavIcon({ name, color }: { name: HeroIconName; color: string }): ReactNode {
+function NavIcon({ name, color }: { name: IconName; color: string }): ReactNode {
   return (
     <Row width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} align="center" justify="center">
       <Icon name={name} size={NAV_ICON_SIZE} color={color} />
@@ -27,7 +27,7 @@ function NavIcon({ name, color }: { name: HeroIconName; color: string }): ReactN
 
 interface NavRowProps {
   label: string;
-  icon?: HeroIconName;
+  icon?: IconName;
   selected: boolean;
   target: Selection;
   onSelect: (selection: Selection) => void;

@@ -38,7 +38,6 @@ export function LabeledField(props: LabeledFieldProps): ReactNode {
         paddingY={0}
         minHeight={0}
         radius={0}
-        noFocusBorder
         fontSize={textSize('lg', undefined)}
         fontFamily={FONT_SANS}
         color={palette.link}

@@ -1,12 +1,12 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
+import { Icon, type IconName } from './Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from './ui.js';
 
 export interface MenuItem {
   label: string;
-  icon?: HeroIconName;
+  icon?: IconName;
   leading?: ReactNode;
   trailing?: ReactNode;
   separated?: boolean;

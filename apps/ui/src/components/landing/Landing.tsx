@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
+import { Icon, type IconName } from '../Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button, Text } from '../ui.js';
 import { MetroLogo } from '../MetroLogo.js';
@@ -144,7 +144,7 @@ function Closing(): ReactNode {
   );
 }
 
-const THEME_ICON: Record<ThemeMode, HeroIconName> = { system: 'desktop', light: 'sun', dark: 'moon' };
+const THEME_ICON: Record<ThemeMode, IconName> = { system: 'desktop', light: 'sun', dark: 'moon' };
 
 function ThemeSwitch(): ReactNode {
   const { mode, setMode } = useThemeMode();
