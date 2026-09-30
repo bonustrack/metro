@@ -1,5 +1,7 @@
 import { storeAccount } from '../../apps/ui/src/auth/account.ts';
-import { setCurrentServer } from '../../apps/ui/src/auth/daemon.ts';
+import { baseFromSegment, setCurrentServer } from '../../apps/ui/src/auth/daemon.ts';
+import { connectorTransfer } from '../../apps/ui/src/api/connector-copy.ts';
+import { isRecord } from '../../apps/ui/src/api/read.ts';
 import * as attach from '../../apps/ui/src/api/attach.ts';
 import * as session from '../../apps/ui/src/api/attach-session.ts';
 import * as bundle from '../../apps/ui/src/api/bundle.ts';
@@ -169,6 +171,21 @@ const everything = new Set<Section>(['channels', 'connectors', 'skills', 'memory
 const gathered = await ok('gatherPayload', () => transfer.gatherPayload({ id: agent, name: '' }, everything, new Date().toISOString()));
 if (gathered !== undefined)
   await ok('applyPayload', () => transfer.applyPayload(gathered.payload, everything, 'overwrite', { id: agent, name: '' }));
+
+await ok('connector copy or explicit upgrade notice', async () => {
+  const base = baseFromSegment(host);
+  let prepared: unknown;
+  try {
+    prepared = await connectorTransfer(base, 'prepare', token, { confirmed: true });
+  } catch (err) {
+    if (message(err) === 'Both agents need a Metro version that supports connector copy.') return;
+    throw err;
+  }
+  if (!isRecord(prepared) || typeof prepared.ticket !== 'string' || typeof prepared.publicKey !== 'string') throw new Error('invalid copy preparation');
+  const envelope = await connectorTransfer(base, 'export', token, { confirmed: true, ids: [connector], publicKey: prepared.publicKey });
+  const received = await connectorTransfer(base, 'receive', token, { confirmed: true, ticket: prepared.ticket, envelope });
+  if (!isRecord(received) || !Array.isArray(received.results) || !received.results.every((row: unknown) => isRecord(row) && row.status === 'skipped')) throw new Error('same-agent fixture copy should skip the existing name');
+});
 
 await ok('deleteConnector', () => conn.deleteConnector(connector));
 await ok('dropConnection', () => model.dropConnection(cid));

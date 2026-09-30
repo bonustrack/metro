@@ -13,13 +13,14 @@ function errorText(body: unknown, status: number): string {
   return isRecord(body) && typeof body.error === 'string' ? body.error : `Metro returned ${String(status)}.`;
 }
 
-async function post(path: string, body: unknown, bearer?: string): Promise<unknown> {
+async function post(path: string, body: unknown, bearer?: string, controls?: Pick<RequestInit, 'redirect' | 'signal'>): Promise<unknown> {
   let res: Response;
   try {
     res = await fetch(authUrl(path), {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...(bearer === undefined ? {} : { authorization: `Bearer ${bearer}` }) },
       body: JSON.stringify(body),
+      ...controls,
     });
   } catch {
     throw new Error('Failed to reach Metro.');
@@ -143,6 +144,54 @@ export async function switchOrganization(organization: string): Promise<Account>
   const next = accountFrom(await post('/switch', { organization, refreshToken: activeAccount()?.refreshToken ?? current.refreshToken }, bearer));
   storeAccount(next);
   return next;
+}
+
+function copySwitch(organization: string | null, refreshToken: string, bearer: string): Promise<unknown> {
+  return post('/switch', { organization, refreshToken }, bearer, { redirect: 'manual', signal: AbortSignal.timeout(30_000) });
+}
+
+async function waitForRefresh(): Promise<void> {
+  while (refreshing !== null) await refreshing;
+}
+
+async function restoreCopyAccount(current: Account, bearer: string, destination: Account): Promise<Account> {
+  const unchanged = (): boolean => activeAccount()?.refreshToken === current.refreshToken;
+  if (destination.user.id !== current.user.id || !unchanged()) throw new Error('Your account changed, try again.');
+  try {
+    const restored = accountFrom(await copySwitch(current.organization, destination.refreshToken, bearer));
+    if (restored.user.id !== current.user.id || restored.organization !== current.organization || !unchanged()) throw unexpected();
+    storeAccount(restored);
+    return restored;
+  } catch {
+    if (unchanged()) clearAccount();
+    throw new Error('Could not restore your source session. Sign in again before copying.');
+  }
+}
+
+async function copyOrganizationToken(organization: string): Promise<string> {
+  await waitForRefresh();
+  const bearer = await accessToken();
+  await waitForRefresh();
+  const current = activeAccount();
+  if (current === null || bearer === null) throw new Error('Log in first.');
+  if (current.organization === organization) return current.accessToken;
+  const switching = copySwitch(organization, current.refreshToken, current.accessToken).then(accountFrom);
+  refreshing = switching.then((next) => restoreCopyAccount(current, current.accessToken, next)).catch(() => {
+    if (activeAccount()?.refreshToken === current.refreshToken) clearAccount();
+    throw new Error('Could not prepare your copy session. Sign in again before copying.');
+  }).finally(() => { refreshing = null; });
+  await refreshing;
+  const next = await switching;
+  if (next.organization !== organization || next.role !== 'admin') throw new Error('You must be an admin of the destination organization.');
+  return next.accessToken;
+}
+
+let copying: Promise<void> = Promise.resolve();
+
+export function organizationAccessToken(organization: string): Promise<string> {
+  const pending = copying.then(() => copyOrganizationToken(organization));
+  copying = pending.then(() => undefined, () => undefined);
+  return pending;
 }
 
 export async function updateAccount(changes: { name?: string; avatar?: string | null }): Promise<Account | null> {

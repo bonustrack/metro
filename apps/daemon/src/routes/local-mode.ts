@@ -11,6 +11,8 @@ import type { ModeInfo } from '@metro-labs/http/mode-api';
 import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from '../agents/bundle.js';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import type { ConnectorApiDeps } from '../connectors/api.js';
+import { ConnectorTransfers } from '../connectors/transfer-api.js';
+import { copyConnectorRows } from '../connectors/transfer-store.js';
 import { authenticate } from '../mcp/request-identity.js';
 import type { RelayApiDeps } from '../connectors/relay.js';
 import {
@@ -192,6 +194,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     agentApi: agentApi(deps),
     bundleApi: bundleApi(deps),
     connectorApi,
+    connectorTransfers: new ConnectorTransfers({ read: readLocalConnectors, copy: copyConnectorRows }),
     relayApi,
     claudeApi: { liveEvents: deps.liveEvents },
     updateApi: { restart: deps.restart },

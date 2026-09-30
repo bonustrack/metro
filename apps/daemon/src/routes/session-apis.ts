@@ -7,6 +7,7 @@ import {
   type ConnectorApiDeps,
 } from '../connectors/api.js';
 import type { RelayApiDeps } from '../connectors/relay.js';
+import type { ConnectorTransfers } from '../connectors/transfer-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from '../claude/api.js';
 import type { ModeInfo } from '@metro-labs/http/mode-api';
 import { handleBundleRequest, type BundleApiDeps } from '../agents/bundle.js';
@@ -33,6 +34,7 @@ export interface SessionApis {
   terminalApi?: TerminalApiDeps;
   claudeApi?: ClaudeApiDeps;
   connectorApi?: ConnectorApiDeps;
+  connectorTransfers?: ConnectorTransfers;
   relayApi?: RelayApiDeps;
   mode?: () => ModeInfo;
 }
@@ -48,6 +50,7 @@ export function handleSessionApis(
   const routes: (() => boolean)[] = [
     () => handleSessionApiRequest(req, res),
     () => handleApprovalsRequest(req, res),
+    ...when(apis.connectorTransfers, (d) => d.handle(req, res)),
     ...when(apis.connectorApi, (d) => handleConnectorApiRequest(req, res, d)),
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
