@@ -88,7 +88,6 @@ body {
 .page-content {
   box-sizing: border-box;
   width: 100%;
-  max-width: 1040px;
   padding: 18px 18px 64px;
 }
 
