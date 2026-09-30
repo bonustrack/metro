@@ -13,7 +13,7 @@
     "test": "tsc --noEmit && bun test test/"
   },
   "dependencies": {
-    "@stage-labs/kit": "0.1.0-beta.0",
+    "@stage-labs/kit": "0.1.0-beta.1",
     "@tanstack/react-query": "^5.101.4",
     "@xterm/addon-clipboard": "^0.2.0",
     "@xterm/addon-fit": "^0.11.0",
