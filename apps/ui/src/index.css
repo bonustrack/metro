@@ -602,7 +602,7 @@ textarea:focus-visible {
 .kebab-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 110;
+  z-index: 10000;
 }
 
 .kebab-menu {
