@@ -145,6 +145,36 @@ export async function switchOrganization(organization: string): Promise<Account>
   return next;
 }
 
+async function restoreCopyAccount(current: Account, bearer: string, destination: Account): Promise<Account> {
+  const unchanged = (): boolean => activeAccount()?.refreshToken === current.refreshToken;
+  if (destination.user.id !== current.user.id || !unchanged()) throw new Error('Your account changed, try again.');
+  try {
+    const restored = accountFrom(await post('/switch', { organization: current.organization, refreshToken: destination.refreshToken }, bearer));
+    if (restored.user.id !== current.user.id || restored.organization !== current.organization || !unchanged()) throw unexpected();
+    storeAccount(restored);
+    return restored;
+  } catch {
+    if (unchanged()) clearAccount();
+    throw new Error('Could not restore your source session. Sign in again before copying.');
+  }
+}
+
+export async function organizationAccessToken(organization: string): Promise<string> {
+  if (refreshing !== null) await refreshing;
+  const bearer = await accessToken();
+  const current = activeAccount();
+  if (current === null || bearer === null) throw new Error('Log in first.');
+  if (current.organization === organization) return bearer;
+  const switching = post('/switch', { organization, refreshToken: current.refreshToken }, bearer).then(accountFrom);
+  refreshing = switching.then((next) => restoreCopyAccount(current, bearer, next)).finally(() => {
+    refreshing = null;
+  });
+  await refreshing;
+  const next = await switching;
+  if (next.organization !== organization || next.role !== 'admin') throw new Error('You must be an admin of the destination organization.');
+  return next.accessToken;
+}
+
 export async function updateAccount(changes: { name?: string; avatar?: string | null }): Promise<Account | null> {
   const current = activeAccount();
   if (current === null) throw new Error('Log in first.');

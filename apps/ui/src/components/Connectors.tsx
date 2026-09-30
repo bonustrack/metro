@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -21,6 +21,7 @@ import {
   useConnectorsQuery,
 } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
+import { CopyAllConnectors } from './CopyConnectors.js';
 
 
 const FALLBACK = 'Could not load your connectors.';
@@ -90,6 +91,8 @@ export function Connectors({
         title="Connectors"
         count={data?.connectors.length}
         action={
+          <Row gap={8}>
+          <CopyAllConnectors data={data} />
           <Button
             color="primary"
             dark={dark}
@@ -98,6 +101,7 @@ export function Connectors({
               setAdding(true);
             }}
           />
+          </Row>
         }
       />
 

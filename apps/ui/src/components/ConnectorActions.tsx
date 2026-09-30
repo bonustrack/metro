@@ -7,6 +7,8 @@ import { useSignIn } from './connector-signin.js';
 import { type MenuItem } from './Dropdown.js';
 import { DeleteMenu } from './DeleteMenu.js';
 import { NameModal } from './NameModal.js';
+import { CopyConnectors } from './CopyConnectors.js';
+import { activeAccount } from '../auth/account.js';
 
 const CENTER_SELF = { alignSelf: 'center' } as const;
 
@@ -42,6 +44,7 @@ function SignInButton({ connector, inRow, busy, connect, disconnect }: { connect
 
 export function ConnectorActions({ connector, inRow = false, check, onDelete, onChanged, onError }: ConnectorActionsProps): ReactNode {
   const [renaming, setRenaming] = useState(false);
+  const [copying, setCopying] = useState(false);
   const { busy, connect, disconnect } = useSignIn(connector, onChanged, onError);
   const items: MenuItem[] = [
     {
@@ -50,6 +53,7 @@ export function ConnectorActions({ connector, inRow = false, check, onDelete, on
         setRenaming(true);
       },
     },
+    ...(activeAccount()?.role === 'admin' ? [{ label: 'Copy to agent', onSelect: () => { setCopying(true); } }] : []),
     ...(check === undefined ? [] : [{ label: check.busy ? 'Checking…' : 'Check', onSelect: check.run }]),
     ...(connector.signIn === 'connected' ? [{ label: 'Disconnect', danger: true, onSelect: disconnect }] : []),
   ];
@@ -66,6 +70,7 @@ export function ConnectorActions({ connector, inRow = false, check, onDelete, on
         failure="Could not remove the connector."
         run={() => onDelete(connector.id)}
       />
+      {copying ? <CopyConnectors connectors={[connector]} onClose={() => { setCopying(false); }} /> : null}
       <NameModal
         key={connector.name}
         title="Rename connector"
