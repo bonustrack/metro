@@ -31,7 +31,7 @@ import { IconShieldCheck } from '@central-icons-react-native/round-outlined-radi
 import { IconSparklesThree } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSparklesThree';
 import { IconSquarePlus } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSquarePlus';
 import { IconSun } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSun';
-import { Glyph } from '@stage-labs/kit/react-native/glyph';
+import { Glyph, type CentralIcon } from '@stage-labs/kit/react-native/glyph';
 
 const ICONS = {
   arrowDown: IconArrowDown,
@@ -74,6 +74,10 @@ interface IconProps {
   name: IconName;
   size: number;
   color: string;
+}
+
+export function iconOf(name: IconName): CentralIcon {
+  return ICONS[name];
 }
 
 export function Icon({ name, size, color }: IconProps): ReactElement {

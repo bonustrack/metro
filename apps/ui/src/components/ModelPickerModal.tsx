@@ -3,8 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Icon } from './Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Input } from './ui.js';
-import { Modal } from './Modal.js';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { ProviderLogo } from './ProviderLogo.js';
 import { priceLabel, PROVIDERS, saveConnection, chooseConnection, type ConnectionRow, type ModelOption, type ModelSettings } from '../api/model.js';
 import { pickRows, typedRow, type PickRow } from '../api/providers.js';
@@ -51,7 +52,7 @@ function RowButton({ row, onPick }: { row: PickRow; onPick: (row: PickRow) => vo
 function Groups({ rows, typed, connections, busy, onPick }: { rows: PickRow[]; typed: PickRow | null; connections: ConnectionRow[]; busy: boolean; onPick: (row: PickRow) => void }): ReactNode {
   if (rows.length === 0 && typed === null)
     return (
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         No model matches your search.
       </Text>
     );
@@ -123,11 +124,11 @@ export function ModelPickerModal({ open, settings, scope, onClose }: { open: boo
     <Modal title={titleOf(scope)} open={open} onClose={onClose}>
       <Col gap={12}>
         <Input name="model-search" value={query} placeholder="Search models" dark={dark} onChangeText={setQuery} style={GROW} inputProps={{ autoFocus: true, autoCapitalize: 'none', autoComplete: 'off', autoCorrect: false, spellCheck: false }} />
-        {lists.loading && rows.length === 0 ? <Text size="sm" role="secondary">Loading models…</Text> : null}
+        {lists.loading && rows.length === 0 ? <Text size="md" role="secondary">Loading models…</Text> : null}
         {lists.errors.map((e) => (
-          <Text key={e} size="sm" role="danger">{e}</Text>
+          <Text key={e} size="md" role="danger">{e}</Text>
         ))}
-        {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
         <Groups rows={rows} typed={typed} connections={settings.connections} busy={busy} onPick={pick} />
       </Col>
     </Modal>

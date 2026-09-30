@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
 import { Loading } from './Loading.js';
 import { ResourceChart } from './ResourceChart.js';
@@ -12,7 +12,7 @@ const WARN = 90;
 
 function Note({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
   return (
-    <Text size="sm" role={danger ? 'danger' : 'secondary'}>
+    <Text size="md" role={danger ? 'danger' : 'secondary'}>
       {text}
     </Text>
   );

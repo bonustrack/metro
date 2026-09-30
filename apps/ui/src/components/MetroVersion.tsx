@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SettingsSection } from './SettingsSection.js';
 import { queryError, useModeQuery, useUpdateQuery } from '../api/queries.js';
 import { fetchMode } from '../api/mode.js';
@@ -81,7 +82,7 @@ function UpdateNotice({ u, button }: { u: MetroUpdate; button: ReactNode }): Rea
   if (u.status === null && u.error === null && !u.newer) return null;
   return (
     <div className="update-notice">
-      <Text size="sm">{u.status ?? u.error ?? 'A new version of Metro is ready.'}</Text>
+      <Text size="md">{u.status ?? u.error ?? 'A new version of Metro is ready.'}</Text>
       {button}
     </div>
   );
@@ -96,7 +97,7 @@ export function MetroVersion({ quiet = false }: { quiet?: boolean }): ReactNode 
   return (
     <SettingsSection title="Version" note={versionNote(u, u.version)}>
       {button}
-      {u.error === null ? null : <Text size="sm" role="danger">{u.error}</Text>}
+      {u.error === null ? null : <Text size="md" role="danger">{u.error}</Text>}
     </SettingsSection>
   );
 }

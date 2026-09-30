@@ -1,8 +1,9 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
-import { Modal } from './Modal.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { fetchBootView, type BootView } from '../api/launch.js';
 import { whenLabel } from '../api/when.js';
 import type { Server } from '../api/servers.js';
@@ -61,11 +62,11 @@ export function BootLog({ server, onClose }: { server: Server | null; onClose: (
   return (
     <Modal title={server === null ? 'Boot log' : `Boot log of ${serverLabel(server)}`} open={server !== null} onClose={onClose}>
       <Col gap={12}>
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {view === null ? 'Reading the instance console from AWS…' : summary(view)}
         </Text>
         {error === null ? null : (
-          <Text size="sm" role="danger">{error}</Text>
+          <Text size="md" role="danger">{error}</Text>
         )}
         {view === null ? null : (
           <div className="boot-log">

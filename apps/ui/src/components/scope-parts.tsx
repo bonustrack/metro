@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SHRINK } from '../theme.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { StatusDot } from './StatusDot.js';
@@ -45,7 +45,7 @@ export function ScopeItem({ label, current = false, shown = false, onHover, href
     <>
       {leading ?? null}
       {icon === undefined ? null : <Icon name={icon} size={ICON} color={palette.sub} />}
-      <Text size="md" numberOfLines={1} style={SHRINK}>
+      <Text size="lg" numberOfLines={1} style={SHRINK}>
         {label}
       </Text>
       <span className="scope-item-end">{current ? <Icon name="check" size={CHECK} color={palette.link} /> : null}</span>

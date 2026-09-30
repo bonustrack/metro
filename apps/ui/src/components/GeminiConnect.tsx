@@ -1,7 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../theme.js';
 import { beginGeminiLogin, finishGeminiLogin, type ConnectionRow } from '../api/model.js';
@@ -21,7 +23,7 @@ function SignInFlow({ label, color, id }: { label: string; color: 'primary' | 's
       <Col gap={6} maxWidth={FIELD_WIDTH}>
         <FieldLabel>Google Cloud project (optional)</FieldLabel>
         <Input name="gemini-project" value={project} placeholder="my-project-123456" dark={dark} onChangeText={setProject} style={GROW} />
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {PROJECT_HINT}
         </Text>
       </Col>
@@ -36,7 +38,7 @@ function SignInFlow({ label, color, id }: { label: string; color: 'primary' | 's
           finish={(code) => finishGeminiLogin(code, started.state, project.trim(), id)}
         />
       )}
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -51,7 +53,7 @@ export function GeminiConnect({ gemini }: { gemini: ConnectionRow | null }): Rea
         </SignedInAs>
       ) : (
         <Col gap={10}>
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             Not connected. {WHICH_ACCOUNT}
           </Text>
           <SignInFlow label="Connect Google" color="primary" id={gemini?.id ?? ''} />

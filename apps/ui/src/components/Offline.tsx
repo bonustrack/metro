@@ -1,9 +1,10 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { PageTitle } from './PageTitle.js';
-import { Pill } from './Pill.js';
+import { Badge } from '@stage-labs/kit/react-native/badge';
 import { AgentPicture } from './AgentOverview.js';
 import { ServerSizeSection } from './ServerSize.js';
 import { ServerResources } from './ServerResources.js';
@@ -32,16 +33,16 @@ export function OfflinePanel({ onRetry }: { onRetry: () => void }): ReactNode {
         <Col gap={4} flex={1} minWidth={0}>
           <PageTitle>{name}</PageTitle>
           <Row gap={8} align="center" wrap>
-            <Pill label="Offline" />
+            <Badge label="Offline" color="secondary" variant="soft" pill />
             {here === null ? null : (
-              <Text size="sm" role="secondary" numberOfLines={1}>
+              <Text size="md" role="secondary" numberOfLines={1}>
                 {here.host}
               </Text>
             )}
           </Row>
         </Col>
       </Row>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {WHY}
       </Text>
       <Button size="sm" color="secondary" dark={dark} label="Try again" onPress={onRetry} />

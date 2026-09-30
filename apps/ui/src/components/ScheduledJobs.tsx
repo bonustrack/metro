@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { ListRow } from './ListRow.js';
 import { routeHash } from '../route.js';
 import { type ScheduledJob } from '../api/schedules.js';
@@ -27,15 +27,15 @@ export function ScheduledJobs({ project, onOpen }: { project: string; onOpen: (i
   return (
     <Col gap={32}>
       <PageTitle>Scheduled tasks</PageTitle>
-      <Text size="sm" role="secondary">{ABOUT}</Text>
+      <Text size="md" role="secondary">{ABOUT}</Text>
       {schedules.error !== null ? (
-        <Text size="sm" role="danger">{queryError(schedules.error, 'Could not read the scheduled tasks.')}</Text>
+        <Text size="md" role="danger">{queryError(schedules.error, 'Could not read the scheduled tasks.')}</Text>
       ) : schedules.data === undefined ? (
-        <Text size="sm" role="secondary">Reading the scheduled tasks…</Text>
+        <Text size="md" role="secondary">Reading the scheduled tasks…</Text>
       ) : schedules.data.jobs.length === 0 ? (
         <SettingsGroup>
           <div className="settings-pad">
-            <Text size="sm" role="secondary">{EMPTY}</Text>
+            <Text size="md" role="secondary">{EMPTY}</Text>
           </div>
         </SettingsGroup>
       ) : (

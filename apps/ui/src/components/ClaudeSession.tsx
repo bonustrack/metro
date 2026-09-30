@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
 import { SettingsSection } from './SettingsSection.js';
 import { controlClaudeSession, type ClaudeSessionStatus } from '../api/claude-box.js';
@@ -50,7 +51,7 @@ function Rows({ status, project }: { status: ClaudeSessionStatus; project: strin
         ) : (
           <Button size="sm" color="secondary" dark={dark} label="Start" disabled={busy || status.blocked !== null} onPress={() => { send({ action: 'start' }); }} />
         )}
-        {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </SettingsSection>
       <SettingsSection title="Start by itself" note={AUTOSTART}>
         <Choice

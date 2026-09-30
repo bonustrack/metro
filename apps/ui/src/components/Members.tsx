@@ -3,9 +3,11 @@ import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-q
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { PageTitle } from './PageTitle.js';
-import { Pill } from './Pill.js';
+import { Badge } from '@stage-labs/kit/react-native/badge';
 import { KebabMenu } from './KebabMenu.js';
 import { Loading } from './Loading.js';
 import { Frame } from './Frame.js';
@@ -58,16 +60,16 @@ function MemberRow({ member, org, last, onError }: { member: Member; org: Organi
     <Row align="center" gap={12} padding={{ x: 14, y: 12 }} border={last ? undefined : { bottom: { width: 1, color: palette.border } }}>
       <AgentAvatar seed={member.userId} src={member.picture} size={AVATAR} />
       <Col style={GROW}>
-        <Text size="md" weight="medium" numberOfLines={1}>
+        <Text size="lg" weight="medium" numberOfLines={1}>
           {memberLabel(member, self)}
         </Text>
         {member.name === null || member.email === null ? null : (
-          <Text size="sm" role="secondary" numberOfLines={1} style={SHRINK}>
+          <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>
             {member.email}
           </Text>
         )}
       </Col>
-      <Pill label={member.role === 'admin' ? 'Admin' : 'Member'} variant={member.role === 'admin' ? 'primary' : 'default'} />
+      <Badge label={member.role === 'admin' ? 'Admin' : 'Member'} color={member.role === 'admin' ? 'info' : 'secondary'} variant="soft" pill />
       {org.role === 'admin' ? <KebabMenu label={`Actions for ${member.email ?? member.userId}`} items={memberActions(member, self, run)} /> : null}
     </Row>
   );
@@ -86,8 +88,8 @@ function InvitationRow({ invitation, org, last, onError }: { invitation: Invitat
   return (
     <Row align="center" gap={12} padding={{ x: 14, y: 12 }} border={last ? undefined : { bottom: { width: 1, color: palette.border } }}>
       <Col style={GROW}>
-        <Text size="md" numberOfLines={1}>{invitation.email}</Text>
-        <Text size="sm" role="secondary">Invited{invitation.role === null ? '' : ` as ${invitation.role}`}, not accepted yet</Text>
+        <Text size="lg" numberOfLines={1}>{invitation.email}</Text>
+        <Text size="md" role="secondary">Invited{invitation.role === null ? '' : ` as ${invitation.role}`}, not accepted yet</Text>
       </Col>
       {org.role === 'admin' ? <KebabMenu label={`Actions for the invitation of ${invitation.email}`} items={[{ label: 'Revoke', danger: true, onSelect: revoke }]} /> : null}
     </Row>
@@ -144,7 +146,7 @@ function Body(): ReactNode {
   const { data, error, isPending } = useOrganizationQuery();
   const [failed, setFailed] = useState<string | null>(null);
   if (isPending) return <Loading />;
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the organization.')}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the organization.')}</Text>;
   const side = { width: 1, color: palette.border };
   return (
     <Col gap={20}>
@@ -156,7 +158,7 @@ function Body(): ReactNode {
           <InvitationRow key={inv.id} invitation={inv} org={data} last={i === data.invitations.length - 1} onError={setFailed} />
         ))}
       </Col>
-      {failed === null ? null : <Text size="sm" role="danger">{failed}</Text>}
+      {failed === null ? null : <Text size="md" role="danger">{failed}</Text>}
       {data.role === 'admin' ? <Invite onError={setFailed} /> : null}
     </Col>
   );
@@ -179,7 +181,7 @@ export function Members({ onLock }: { onLock: () => void }): ReactNode {
     >
       <Col gap={20} width="100%">
         <PageTitle>Members</PageTitle>
-        <Text size="sm" role="secondary">{HOW}</Text>
+        <Text size="md" role="secondary">{HOW}</Text>
         <Body />
       </Col>
     </Frame>

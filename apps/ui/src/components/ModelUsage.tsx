@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SettingsSection } from './SettingsSection.js';
 import { useModeQuery } from '../api/queries.js';
 import { USAGE_SINCE, windowLine, type UsageWindow } from '../api/usage.js';
@@ -23,7 +23,7 @@ function UsageBar({ used }: { used: number | null }): ReactNode {
   return (
     <Row gap={10} align="center">
       <Meter used={used} warn={warn} />
-      <Text size="sm" role={warn ? 'danger' : 'secondary'}>
+      <Text size="md" role={warn ? 'danger' : 'secondary'}>
         {`${String(Math.round(used * 100))}%`}
       </Text>
     </Row>
@@ -43,12 +43,12 @@ export function UsageLine({ window }: { window: UsageWindow }): ReactNode {
   const note = windowLine({ ...window, used: null });
   return (
     <span className="usage-line">
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {window.label}
       </Text>
       <UsageBar used={window.used} />
       {note === '' ? null : (
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {note}
         </Text>
       )}
@@ -60,7 +60,7 @@ export function UsageUpdateHint({ pad = false }: { pad?: boolean }): ReactNode {
   const mode = useModeQuery();
   if (!olderThan(mode.data?.version ?? null, USAGE_SINCE)) return null;
   const hint = (
-    <Text size="sm" role="secondary">
+    <Text size="md" role="secondary">
       Update Metro to see the usage.
     </Text>
   );

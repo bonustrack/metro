@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { ProviderRow } from './ProviderCard.js';
@@ -59,7 +60,7 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
       <SettingsGroup title="Providers" action={<Button size="sm" dark={dark} label="Add provider" onPress={() => { setConnecting(true); }} />}>
         {settings.connections.length === 0 ? (
           <div className="settings-row">
-            <Text size="sm" role="secondary">{NONE_YET}</Text>
+            <Text size="md" role="secondary">{NONE_YET}</Text>
           </div>
         ) : (
           settings.connections.map((c) => (
@@ -76,7 +77,7 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
           ))
         )}
       </SettingsGroup>
-      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       <ModelPickerModal open={picking} settings={settings} onClose={() => { setPicking(false); }} />
       <ModelPickerModal open={scope !== null} settings={settings} scope={scope ?? undefined} onClose={() => { setScope(null); }} />
       <ConnectProviderModal
@@ -99,12 +100,12 @@ export function ModelPage(): ReactNode {
     <Col gap={32}>
       <Col gap={8}>
         <PageTitle>Model</PageTitle>
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {HOW}
         </Text>
       </Col>
       {model.error !== null ? (
-        <Text size="sm" role="danger">
+        <Text size="md" role="danger">
           {queryError(model.error, 'Could not read the model settings.')}
         </Text>
       ) : model.data === undefined ? (

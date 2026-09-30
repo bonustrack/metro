@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Text } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SHRINK } from '../theme.js';
 import { PageTitle } from './PageTitle.js';
 import { setPolicy, stationLabel } from '../api/attach.js';
@@ -63,7 +64,7 @@ function Header({ station, project, row }: { station: string; project: string; r
           <StationIcon station={station} size={ICON} />
           <Col gap={2} style={SHRINK}>
             <PageTitle>{handle ?? row.id ?? stationLabel(station)}</PageTitle>
-            <Text size="sm" role="secondary">
+            <Text size="md" role="secondary">
               {`${stationLabel(station)} · ${row.enabled ? 'Receiving' : 'Not receiving'}`}
             </Text>
           </Col>
@@ -147,7 +148,7 @@ function Receive({ station, id, enabled, onToggle }: { station: string; id: stri
           flip(value === 'on');
         }}
       />
-      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </SettingsSection>
   );
 }
@@ -187,7 +188,7 @@ function Abilities({ station, row, agent, verbs, tools, onSaved }: { station: st
     return (
       <SettingsGroup title={title}>
         <div className="settings-pad">
-          <Text size="sm" role="secondary">{RECEIVE_ONLY}</Text>
+          <Text size="md" role="secondary">{RECEIVE_ONLY}</Text>
         </div>
       </SettingsGroup>
     );

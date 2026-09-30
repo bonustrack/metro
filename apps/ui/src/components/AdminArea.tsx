@@ -18,8 +18,8 @@ export const isAdminSelection = (s: Selection): s is AdminSelection => ADMIN_KIN
 function AdminSidebar({ selection, onSelect }: { selection: AdminSelection; onSelect: (next: Selection) => void }): ReactNode {
   return (
     <Col flex={1} minHeight={0}>
-      <Col gap={NAV_GAP} padding={{ x: 20, top: 16 }}>
-        <Row padding={{ bottom: 2 }}>
+      <Col gap={NAV_GAP} padding={{ top: 12 }}>
+        <Row padding={{ x: 18, bottom: 6 }}>
           <FieldLabel>Admin</FieldLabel>
         </Row>
         <NavRow label="Overview" icon="chartBar" selected={selection.kind === 'admin'} target={{ kind: 'admin' }} onSelect={onSelect} />

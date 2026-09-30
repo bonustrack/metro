@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Icon } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
 import { useClaudeSessionQuery, useModelQuery } from '../api/queries.js';
@@ -38,10 +38,10 @@ function StepRow({ step, onSelect }: { step: Step; onSelect: (selection: Selecti
         {step.done ? <Icon name="check" size={14} color={palette.bg} /> : null}
       </span>
       <span className="check-text">
-        <Text size="md" weight="medium">
+        <Text size="lg" weight="medium">
           {step.title}
         </Text>
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {step.hint}
         </Text>
       </span>
@@ -78,10 +78,10 @@ export function Checklist({ name, project, channels, connectors, onSelect }: Che
   return (
     <section className="checklist" aria-label="Setup">
       <div className="checklist-head">
-        <Text size="lg" weight="medium">
+        <Text size="xl" weight="medium">
           {`Get ${name} ready`}
         </Text>
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {`${String(steps.length - left)} of ${String(steps.length)} done`}
         </Text>
       </div>

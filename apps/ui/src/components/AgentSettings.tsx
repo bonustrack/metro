@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
@@ -34,7 +35,7 @@ function AvatarSection({ server }: { server: Server }): ReactNode {
         <Button size="sm" color="secondary" dark={dark} label={avatar.busy ? 'Saving…' : 'Change'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
         {server.avatar === null ? null : <Button size="sm" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={avatar.busy} onPress={avatar.remove} />}
         {avatar.error === null ? null : (
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {avatar.error}
           </Text>
         )}

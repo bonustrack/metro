@@ -1,7 +1,7 @@
 import { type PointerEvent, type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { nearest, restartLabel, segments, timeLabel, type Point, type ResourceRange, type Restart } from '../api/resources.js';
 
 const WIDTH = 600;
@@ -69,10 +69,10 @@ export function ResourceChart({ title, points, max, range, from, to, stepMs, res
   return (
     <Col gap={6}>
       <Row justify="between" align="center">
-        <Text size="sm" weight="semibold">
+        <Text size="md" weight="semibold">
           {title}
         </Text>
-        <Text size="sm" role={danger && hover === undefined ? 'danger' : 'secondary'}>
+        <Text size="md" role={danger && hover === undefined ? 'danger' : 'secondary'}>
           {reading}
         </Text>
       </Row>
@@ -106,10 +106,10 @@ export function ResourceChart({ title, points, max, range, from, to, stepMs, res
         )}
       </svg>
       <Row justify="between">
-        <Text size="xs" role="secondary">
+        <Text size="sm" role="secondary">
           {timeLabel(from, range)}
         </Text>
-        <Text size="xs" role="secondary">
+        <Text size="sm" role="secondary">
           {timeLabel(to, range)}
         </Text>
       </Row>

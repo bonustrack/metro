@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Icon } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { opensElsewhere } from './link.js';
 
@@ -18,9 +18,9 @@ export function Crumbs({ crumbs }: { crumbs: Crumb[] }): ReactNode {
     <Row gap={6} align="center" wrap>
       {crumbs.map((crumb, at) => (
         <Fragment key={`${String(at)}:${crumb.label}`}>
-          {at === 0 ? null : <Text size="md" role="secondary">/</Text>}
+          {at === 0 ? null : <Text size="lg" role="secondary">/</Text>}
           {at === crumbs.length - 1 ? (
-            <Text size="md" weight="medium">{crumb.label}</Text>
+            <Text size="lg" weight="medium">{crumb.label}</Text>
           ) : (
             <a
               className="crumb-link"
@@ -31,7 +31,7 @@ export function Crumbs({ crumbs }: { crumbs: Crumb[] }): ReactNode {
                 crumb.onPress();
               }}
             >
-              <Text size="md" role="secondary">{crumb.label}</Text>
+              <Text size="lg" role="secondary">{crumb.label}</Text>
             </a>
           )}
         </Fragment>

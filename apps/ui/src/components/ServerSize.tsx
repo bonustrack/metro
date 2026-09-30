@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { Spinner } from './Spinner.js';
 import { Loading } from './Loading.js';
 import { Dropdown } from './Dropdown.js';
@@ -71,7 +72,7 @@ function Notice({ text, danger = false }: { text: string; danger?: boolean }): R
   return (
     <SettingsGroup title={TITLE}>
       <div className="settings-pad">
-        <Text size="sm" role={danger ? 'danger' : 'secondary'}>
+        <Text size="md" role={danger ? 'danger' : 'secondary'}>
           {text}
         </Text>
       </div>
@@ -84,7 +85,7 @@ function JobRow({ job }: { job: ResizeJob }): ReactNode {
   const running = jobRunning(job);
   return (
     <SettingsSection title={running ? 'Resizing' : 'Last resize'} leading={running ? <Spinner size={16} color={palette.link} /> : undefined}>
-      <Text size="sm" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
+      <Text size="md" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
         {phaseText(job)}
       </Text>
     </SettingsSection>
@@ -106,7 +107,7 @@ function StartRow({ view, resize }: { view: Resizable; resize: Resize }): ReactN
         }}
       />
       {resize.error === null ? null : (
-        <Text size="sm" role="danger">
+        <Text size="md" role="danger">
           {resize.error}
         </Text>
       )}

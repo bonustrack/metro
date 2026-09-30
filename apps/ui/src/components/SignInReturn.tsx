@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { loadAccount } from '../auth/account.js';
 import { pageTitle } from '../title.js';
 import { stationLabel } from '../api/attach.js';
@@ -35,13 +35,13 @@ export function SignInReturn({ ret }: { ret: ReturnedSignIn }): ReactNode {
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={12} align="center" width="100%" maxWidth={WIDTH}>
         {outcome === null ? (
-          <Text role="secondary">Finishing the sign-in…</Text>
+          <Text size="lg" role="secondary">Finishing the sign-in…</Text>
         ) : outcome.ok ? (
-          <Text>{stationLabel(outcome.station)} is connected. You can close this tab.</Text>
+          <Text size="lg">{stationLabel(outcome.station)} is connected. You can close this tab.</Text>
         ) : (
           <>
-            <Text role="danger">{outcome.message}</Text>
-            <Text size="sm">
+            <Text size="lg" role="danger">{outcome.message}</Text>
+            <Text size="md">
               <a className="hint-link" href={`/${outcome.backHash ?? '#/'}`}>
                 Try again
               </a>

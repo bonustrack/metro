@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 
 const MASK = '•'.repeat(5);
@@ -68,7 +69,7 @@ export function CopyBlock({
           {actions}
         </Row>
       </Row>
-      <Text size="sm" selectable={!masked}>
+      <Text size="md" selectable={!masked}>
         {masked ? display(value, hide) : value}
       </Text>
     </Col>

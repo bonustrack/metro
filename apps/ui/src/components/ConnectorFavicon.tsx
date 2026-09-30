@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { faviconUrl } from '../api/favicon.js';
 import { brandSrc } from '../api/brands.js';
 
@@ -39,7 +39,7 @@ export function ConnectorFavicon({
   if (blank)
     return (
       <div style={tile}>
-        <Text size={size >= 28 ? 'sm' : 'xs'} weight="semibold" role="secondary">
+        <Text size={size >= 28 ? 'md' : 'sm'} weight="semibold" role="secondary">
           {(name.trim()[0] ?? '?').toUpperCase()}
         </Text>
       </div>

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { useHomeProject } from './home-project.js';
@@ -19,7 +19,7 @@ export function ProjectGate({ title, claudeProject, none, children }: ProjectGat
   return (
     <Col gap={16}>
       <PageTitle>{title}</PageTitle>
-      {home.loading ? <Loading /> : <Text size="sm" role="secondary">{none}</Text>}
+      {home.loading ? <Loading /> : <Text size="md" role="secondary">{none}</Text>}
     </Col>
   );
 }

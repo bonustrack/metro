@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { ConfirmModal } from './ConfirmModal.js';
 import { SettingsSection } from './SettingsSection.js';
 import { awaitRestart, awaitStopped, restartDaemon, stopDaemon } from '../api/control.js';
@@ -71,7 +72,7 @@ export function DaemonControls(): ReactNode {
           onPress={restart}
         />
         {error !== null && !confirming ? (
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         ) : null}

@@ -1,7 +1,7 @@
 import { type ReactElement, type ReactNode } from 'react';
 import { Path, Svg } from 'react-native-svg';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { opensElsewhere } from './link.js';
 
 function BackIcon({ size, color }: { size: number; color: string }): ReactElement {
@@ -37,7 +37,7 @@ export function BackLink({ label, href, onPress }: BackLinkProps): ReactNode {
       }}
     >
       <BackIcon size={16} color={palette.sub} />
-      <Text size="md" role="secondary" numberOfLines={1}>
+      <Text size="lg" role="secondary" numberOfLines={1}>
         {label}
       </Text>
     </a>

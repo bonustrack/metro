@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SettingsSection } from './SettingsSection.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { enterOrganization } from '../auth/org-route.js';
@@ -35,7 +36,7 @@ function Targets({ server, rows }: { server: Server; rows: OrganizationRow[] }):
   const move = useMove(server);
   if (rows.length === 0)
     return (
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         You are an admin of no other organization.
       </Text>
     );
@@ -57,7 +58,7 @@ function Targets({ server, rows }: { server: Server; rows: OrganizationRow[] }):
         ))}
       </Row>
       {move.error === null ? null : (
-        <Text size="sm" role="danger">
+        <Text size="md" role="danger">
           {move.error}
         </Text>
       )}

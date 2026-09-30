@@ -1,5 +1,5 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
-import { Text } from '../ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { FACTS } from './content.js';
 
 const STATEMENT = 'Other AI tools read your data in their cloud. Your agent runs on its own server. Nothing passes through us.';
@@ -54,7 +54,7 @@ export function Manifesto(): ReactNode {
         {FACTS.map((fact) => (
           <div key={fact.value} className="lp-fact">
             <span className="lp-fact-value">{fact.value}</span>
-            <Text size="sm" role="secondary">
+            <Text size="md" role="secondary">
               {fact.label}
             </Text>
           </div>

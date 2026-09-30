@@ -1,8 +1,9 @@
 import { type ReactNode } from 'react';
 import { TextField } from '@stage-labs/kit/react-native/text-field';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
-import { FONT_SANS, textSize } from '../theme.js';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { FONT_SIZE } from '@stage-labs/kit/tokens';
+import { FONT_SANS } from '../theme.js';
 
 interface LabeledFieldProps {
   label: string;
@@ -20,7 +21,7 @@ export function LabeledField(props: LabeledFieldProps): ReactNode {
   const palette = useKitPalette();
   return (
     <label className="labeled-field">
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {props.label}
       </Text>
       <TextField
@@ -38,7 +39,7 @@ export function LabeledField(props: LabeledFieldProps): ReactNode {
         paddingY={0}
         minHeight={0}
         radius={0}
-        fontSize={textSize('lg', undefined)}
+        fontSize={FONT_SIZE.xl}
         fontFamily={FONT_SANS}
         color={palette.link}
         placeholderColor={palette.sub}

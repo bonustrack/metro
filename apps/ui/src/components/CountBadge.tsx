@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { Pill } from './Pill.js';
+import { Row } from '@stage-labs/kit/react-native/box';
+import { Badge } from '@stage-labs/kit/react-native/badge';
 
 const OPTICAL_NUDGE = 2;
 
@@ -10,6 +11,8 @@ interface CountBadgeProps {
 
 export function CountBadge({ count, beside = 'heading' }: CountBadgeProps): ReactNode {
   return (
-    <Pill label={String(count)} nudge={beside === 'title' ? OPTICAL_NUDGE : 0} />
+    <Row margin={{ top: beside === 'title' ? OPTICAL_NUDGE : 0 }}>
+      <Badge label={String(count)} color="secondary" variant="soft" pill />
+    </Row>
   );
 }

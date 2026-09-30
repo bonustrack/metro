@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Icon } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SHRINK } from '../theme.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { Dropdown, type MenuItem } from './Dropdown.js';
@@ -40,7 +40,7 @@ export function AccountMenu({ onLock }: { onLock: () => void }): ReactNode {
   return (
     <Dropdown className="account-trigger" label="Account menu" align="start" items={items}>
       <AgentAvatar seed={account?.user.id ?? 'account'} src={account?.user.picture ?? null} size={AVATAR} />
-      <Text size="md" numberOfLines={1} style={SHRINK}>
+      <Text size="lg" numberOfLines={1} style={SHRINK}>
         {name}
       </Text>
       <Icon name="dotsHorizontal" size={MORE} color={palette.sub} />

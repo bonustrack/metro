@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Text } from '../ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { useReveal } from './reveal.js';
 
 export function Eyebrow({ children }: { children: ReactNode }): ReactNode {
@@ -26,7 +26,7 @@ export function Section({ id, index, eyebrow, title, body, children }: SectionPr
         </Eyebrow>
         <h2 className="lp-h2">{title}</h2>
         {body === undefined ? null : (
-          <Text size="xl" role="secondary">
+          <Text size="2xl" role="secondary">
             {body}
           </Text>
         )}

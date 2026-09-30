@@ -2,7 +2,9 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { MetroLogo } from './MetroLogo.js';
 import { PageTitle } from './PageTitle.js';
 import { createOrganization } from '../api/auth.js';
@@ -44,7 +46,7 @@ export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLo
         <Row justify="center">
           <PageTitle>Name your organization</PageTitle>
         </Row>
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {WHAT}
         </Text>
         <Input name="organization" value={name} dark={dark} placeholder="Stage Labs" disabled={busy} onChangeText={setName} />
@@ -53,7 +55,7 @@ export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLo
           <Button color="secondary" dark={dark} label="Sign out" disabled={busy} onPress={onLock} />
         </Row>
         {error === null ? null : (
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         )}

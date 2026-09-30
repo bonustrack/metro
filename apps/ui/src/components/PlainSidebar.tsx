@@ -11,7 +11,7 @@ interface PlainSidebarProps {
 export function PlainSidebar({ selection, onSelect }: PlainSidebarProps): ReactNode {
   return (
     <Col flex={1} minHeight={0}>
-      <Col gap={NAV_GAP} padding={{ x: 20, top: 16 }}>
+      <Col gap={NAV_GAP} padding={{ top: 12 }}>
         <NavRow label="Agents" icon="server" selected={selection.kind === 'servers'} target={{ kind: 'servers' }} onSelect={onSelect} />
         <NavRow label="Members" icon="users" selected={selection.kind === 'members'} target={{ kind: 'members' }} onSelect={onSelect} />
         <NavRow label="Organization" icon="officeBuilding" selected={selection.kind === 'organization'} target={{ kind: 'organization' }} onSelect={onSelect} />

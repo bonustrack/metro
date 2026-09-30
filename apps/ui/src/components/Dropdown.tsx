@@ -1,14 +1,14 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Icon, type IconName } from './Icon.js';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from './ui.js';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '@stage-labs/kit/react-native/menu';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { iconOf, type IconName } from './Icon.js';
 
 export interface MenuItem {
   label: string;
   icon?: IconName;
-  leading?: ReactNode;
-  trailing?: ReactNode;
+  selected?: boolean;
   separated?: boolean;
   danger?: boolean;
   onSelect: () => void;
@@ -20,13 +20,8 @@ interface TriggerButton {
   size?: 'sm' | 'md';
 }
 
-const ITEM_ICON_SIZE = 20;
 const MENU_GAP = 8;
 const EDGE = 8;
-const ROW_TEXT = { fontSize: 17, lineHeight: '24px' } as const;
-const SEPARATOR_ALPHA = '33';
-
-const withAlpha = (color: string): string => (/^#[0-9a-fA-F]{6}$/.test(color) ? `${color}${SEPARATOR_ALPHA}` : color);
 
 interface Placement {
   top?: number;
@@ -65,6 +60,34 @@ function placement(box: DOMRect, align: 'start' | 'end'): Placement {
   };
 }
 
+function Menu({ items, at, onClose }: { items: MenuItem[]; at: Placement; onClose: () => void }): ReactNode {
+  const { maxHeight, minWidth, ...edges } = at;
+  const width = minWidth === undefined ? undefined : { minWidth };
+  return (
+    <div className="kebab-backdrop" onClick={onClose}>
+      <div className="kebab-menu" role="menu" style={edges}>
+        <DropdownMenu maxHeight={maxHeight} style={width}>
+          {items.map((item, index) => (
+            <Fragment key={item.label}>
+              {(item.danger === true || item.separated === true) && index > 0 ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem
+                label={item.label}
+                iconName={item.icon === undefined ? undefined : iconOf(item.icon)}
+                danger={item.danger}
+                selected={item.selected}
+                onPress={() => {
+                  onClose();
+                  item.onSelect();
+                }}
+              />
+            </Fragment>
+          ))}
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
 export function Dropdown({
   items,
   label,
@@ -74,7 +97,6 @@ export function Dropdown({
   button,
   children,
 }: DropdownProps): ReactNode {
-  const palette = useKitPalette();
   const dark = useKitScheme() === 'dark';
   const trigger = useRef<HTMLElement | null>(null);
   const setTrigger = (el: HTMLElement | null): void => {
@@ -87,9 +109,6 @@ export function Dropdown({
     if (box === undefined) return;
     setAt({ ...placement(box, align), ...(matchWidth ? { minWidth: box.width } : {}) });
   };
-
-  const menuStyle = at ?? undefined;
-  const separator = { background: withAlpha(palette.text) };
 
   return (
     <>
@@ -117,45 +136,13 @@ export function Dropdown({
       )}
       {at !== null
         ? createPortal(
-            <div
-              className="kebab-backdrop"
-              onClick={() => {
+            <Menu
+              items={items}
+              at={at}
+              onClose={() => {
                 setAt(null);
               }}
-            >
-              <div
-                className="kebab-menu"
-                role="menu"
-                style={menuStyle}
-              >
-                {items.map((item, at) => (
-                  <div key={item.label} className="kebab-row">
-                    {(item.danger === true || item.separated === true) && at > 0 ? <div className="kebab-separator" style={separator} /> : null}
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={item.danger === true ? 'kebab-item kebab-danger' : 'kebab-item'}
-                      style={ROW_TEXT}
-                      onClick={() => {
-                        setAt(null);
-                        item.onSelect();
-                      }}
-                    >
-                      {item.leading ?? null}
-                      {item.icon === undefined ? null : (
-                        <Icon
-                          name={item.icon}
-                          size={ITEM_ICON_SIZE}
-                          color={item.danger === true ? palette.danger : palette.link}
-                        />
-                      )}
-                      <span className="kebab-label">{item.label}</span>
-                      {item.trailing ?? null}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>,
+            />,
             document.body,
           )
         : null}

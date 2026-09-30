@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { setClaudeLiveEvents, setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } from '../api/claude-box.js';
 import { queryError, refresh, useClaudeSetupQuery } from '../api/queries.js';
 import { routeHash } from '../route.js';
@@ -45,7 +46,7 @@ function LiveEvents({ on }: { on: boolean }): ReactNode {
           live.run(() => setClaudeLiveEvents(next === 'on'));
         }}
       />
-      {live.error === null ? null : <Text size="sm" role="danger">{live.error}</Text>}
+      {live.error === null ? null : <Text size="md" role="danger">{live.error}</Text>}
     </SettingsSection>
   );
 }
@@ -66,7 +67,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
             privacy.run(() => setClaudePrivacy(next === 'on'));
           }}
         />
-        {privacy.error === null ? null : <Text size="sm" role="danger">{privacy.error}</Text>}
+        {privacy.error === null ? null : <Text size="md" role="danger">{privacy.error}</Text>}
       </SettingsSection>
       <SettingsSection title="Approvals" note={MODE_NOTE}>
         <Choice
@@ -78,7 +79,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
             mode.run(() => setClaudePermissionMode(next));
           }}
         />
-        {mode.error === null ? null : <Text size="sm" role="danger">{mode.error}</Text>}
+        {mode.error === null ? null : <Text size="md" role="danger">{mode.error}</Text>}
       </SettingsSection>
       {setup.liveEvents === null ? null : <LiveEvents on={setup.liveEvents} />}
       {setup.skill ? (
@@ -116,7 +117,7 @@ const MODE_NOTE = 'Ask first sends risky actions to the chat for a yes. Never as
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {
   const setup = useClaudeSetupQuery();
-  if (setup.error !== null) return <Text size="sm" role="danger">{queryError(setup.error, 'Could not read the setup.')}</Text>;
+  if (setup.error !== null) return <Text size="md" role="danger">{queryError(setup.error, 'Could not read the setup.')}</Text>;
   if (setup.data === undefined) return null;
   return (
     <>

@@ -6,7 +6,7 @@ import { SECTIONS } from './sections.js';
 import { type Selection } from './selection.js';
 
 const SCROLL = { flex: 1 } as const;
-const SCROLL_CONTENT = { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 } as const;
+const SCROLL_CONTENT = { paddingTop: 12, paddingBottom: 24 } as const;
 
 interface AgentSidebarProps {
   project: string;

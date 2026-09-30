@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SaveField, useSave } from './SaveField.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { useImagePicker } from './AvatarPicker.js';
@@ -23,7 +24,7 @@ function Picture({ account, onChanged }: { account: Account; onChanged: () => vo
       <Button size="sm" color="secondary" dark={dark} label={picker.busy ? 'Saving…' : 'Set picture'} loading={picker.busy} disabled={picker.busy} onPress={picker.pick} />
       {account.user.picture === null ? null : <Button size="sm" color="secondary" dark={dark} label="Remove picture" disabled={picker.busy} onPress={picker.remove} />}
       {picker.error === null ? null : (
-        <Text size="sm" role="danger">
+        <Text size="md" role="danger">
           {picker.error}
         </Text>
       )}
@@ -60,8 +61,8 @@ export function AccountSettings(): ReactNode {
   return (
     <Col gap={12}>
       <Col gap={2}>
-        <Text size="lg" weight="medium">Account</Text>
-        <Text size="sm" role="secondary">
+        <Text size="xl" weight="medium">Account</Text>
+        <Text size="md" role="secondary">
           {account.user.email ?? ''}
         </Text>
       </Col>

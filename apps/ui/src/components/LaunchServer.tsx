@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { MetroLogo } from './MetroLogo.js';
 import { PageTitle } from './PageTitle.js';
@@ -32,7 +34,7 @@ function RegionChoice({ regions, value, disabled, onPick }: { regions: string[];
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={6}>
-      <Text size="sm" role="secondary">Region</Text>
+      <Text size="md" role="secondary">Region</Text>
       <Row gap={8} wrap>
         {regions.map((code) => (
           <Button
@@ -56,10 +58,10 @@ function Off(): ReactNode {
   const organization = activeAccount()?.organization ?? null;
   return (
     <Col gap={12}>
-      <Text size="sm" role="secondary">{OFF}</Text>
+      <Text size="md" role="secondary">{OFF}</Text>
       {organization === null ? null : (
         <Col gap={8}>
-          <Text size="sm" role="secondary">{OFF_IDENTITY}</Text>
+          <Text size="md" role="secondary">{OFF_IDENTITY}</Text>
           <CopyBlock label="your organization" value={organization} />
         </Col>
       )}
@@ -119,7 +121,7 @@ function LaunchedView({ launched }: { launched: Launched }): ReactNode {
       <Row justify="center">
         <PageTitle>{`Launching ${launched.server.name ?? launched.host}`}</PageTitle>
       </Row>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {`It installs everything on first boot, joins the tailnet as ${launched.node}, and is already in your agent list. Open it once it is live to create the agent.`}
       </Text>
       <LaunchProgress launched={launched} />
@@ -135,7 +137,7 @@ function PictureChoice({ form }: { form: ReturnType<typeof useLaunchForm> }): Re
       <AgentAvatar seed={form.name.trim() === '' ? 'new agent' : form.name.trim()} src={form.avatar} size={PICTURE} />
       <Button size="sm" color="secondary" dark={dark} label={form.avatar === null ? 'Choose a picture' : 'Change'} disabled={form.busy || form.picker.busy} onPress={form.picker.pick} />
       {form.avatar === null ? null : <Button size="sm" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={form.busy} onPress={form.picker.remove} />}
-      {form.picker.error === null ? null : <Text size="sm" role="danger">{form.picker.error}</Text>}
+      {form.picker.error === null ? null : <Text size="md" role="danger">{form.picker.error}</Text>}
     </Row>
   );
 }
@@ -149,11 +151,11 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
       <Row justify="center">
         <PageTitle>Have Metro issue an agent</PageTitle>
       </Row>
-      <Text size="sm" role="secondary">{HINT}</Text>
+      <Text size="md" role="secondary">{HINT}</Text>
       <Col gap={10}>
         <PictureChoice form={form} />
         <Col gap={4}>
-          <Text size="sm" role="secondary">Name</Text>
+          <Text size="md" role="secondary">Name</Text>
           <Input
             name="launch-name"
             value={form.name}
@@ -168,9 +170,9 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
         </Col>
         <RegionChoice regions={launchRegions(overview.regions)} value={form.region} disabled={form.busy} onPick={form.setRegion} />
       </Col>
-      {form.error === null ? null : <Text size="sm" role="danger">{form.error}</Text>}
+      {form.error === null ? null : <Text size="md" role="danger">{form.error}</Text>}
       <Row justify="between" align="center" gap={12} wrap>
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           <a className="hint-link" href={routeHash({ kind: 'servers' })}>Back to your agents</a>
         </Text>
         <Button
@@ -188,7 +190,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
 
 function Body(): ReactNode {
   const { data, error } = useLaunchOverviewQuery();
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, OFF)}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, OFF)}</Text>;
   if (data === undefined) return <Loading />;
   if (!data.enabled) return <Off />;
   return <LaunchForm overview={data} />;

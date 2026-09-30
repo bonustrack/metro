@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { Icon } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
 import { Dropdown, type MenuItem } from './Dropdown.js';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
@@ -22,7 +22,6 @@ import {
 import { queryError } from '../api/queries.js';
 
 const SAVE_FAILED = 'Could not save the permissions.';
-const CHECK = 16;
 const CHEVRON = 14;
 const GROUPS: readonly ToolGroup[] = ['read', 'write'];
 const GROUP_NOTE: Record<ToolGroup, string> = {
@@ -43,11 +42,10 @@ function ToolRow({ tool, title, policy, busy, onSave }: { tool: GroupedTool; tit
   const palette = useKitPalette();
   const override = toolOverride(policy, tool.name);
   const inherited = groupAccess(policy, tool.group);
-  const check = <Icon name="check" size={CHECK} color={palette.link} />;
   const items: MenuItem[] = [
     {
       label: `Same as ${GROUP_LABEL[tool.group]} (${ACCESS_LABEL[inherited]})`,
-      ...(override === undefined ? { trailing: check } : {}),
+      selected: override === undefined,
       onSelect: () => {
         if (!busy) onSave(withTool(policy, tool.name, undefined));
       },
@@ -55,7 +53,7 @@ function ToolRow({ tool, title, policy, busy, onSave }: { tool: GroupedTool; tit
     ...ACCESS_CHOICES.map((access, at) => ({
       label: ACCESS_LABEL[access],
       ...(at === 0 ? { separated: true } : {}),
-      ...(override === access ? { trailing: check } : {}),
+      selected: override === access,
       onSelect: () => {
         if (!busy) onSave(withTool(policy, tool.name, access));
       },
@@ -64,7 +62,7 @@ function ToolRow({ tool, title, policy, busy, onSave }: { tool: GroupedTool; tit
   const name = title === undefined || title === '' || title === tool.name ? toolLabel(tool.name) : title;
   return (
     <div className="settings-row is-compact is-sub">
-      <Text size="sm" numberOfLines={1}>
+      <Text size="md" numberOfLines={1}>
         {name}
       </Text>
       <Dropdown items={items} label={`Permission for ${name}`} className={override === undefined ? 'tool-access' : 'tool-access is-set'} align="end">
@@ -121,7 +119,7 @@ export function Permissions({ title, policy, tools, store, onSaved, titles }: Pe
       })}
       {error === null ? null : (
         <div className="settings-pad">
-          <Text size="sm" role="danger">{error}</Text>
+          <Text size="md" role="danger">{error}</Text>
         </div>
       )}
     </SettingsGroup>

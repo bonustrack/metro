@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Text } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { AgentAvatar } from './AgentAvatar.js';
 import { ListHeader } from './ListHeader.js';
 import { DeleteDialog } from './DeleteServer.js';
@@ -28,7 +29,7 @@ interface ItemProps {
 export function Item({ title, detail, avatar, badge, trailing }: ItemProps): ReactNode {
   const palette = useKitPalette();
   const heading = (
-    <Text size="md" weight="medium" numberOfLines={1}>
+    <Text size="lg" weight="medium" numberOfLines={1}>
       {title}
     </Text>
   );
@@ -44,7 +45,7 @@ export function Item({ title, detail, avatar, badge, trailing }: ItemProps): Rea
             {badge}
           </Row>
         )}
-        <Text size="sm" role="secondary" numberOfLines={1}>
+        <Text size="md" role="secondary" numberOfLines={1}>
           {detail}
         </Text>
       </Col>
@@ -66,7 +67,7 @@ export function Listing<T>({ title, failed, rows, error, render }: ListingProps<
     <Col gap={16} width="100%" maxWidth={LIST_WIDTH}>
       <ListHeader title={title} count={rows?.length} />
       {error === null ? null : (
-        <Text size="sm" role="danger">
+        <Text size="md" role="danger">
           {queryError(error, failed)}
         </Text>
       )}

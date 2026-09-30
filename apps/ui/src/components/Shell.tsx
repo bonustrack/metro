@@ -4,7 +4,7 @@ import { TopBar } from './TopBar.js';
 
 const PAGE = {
   width: '100%',
-  paddingHorizontal: 32,
+  paddingHorizontal: 18,
   paddingTop: 24,
   paddingBottom: 64,
 } as const;

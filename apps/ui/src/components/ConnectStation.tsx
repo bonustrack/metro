@@ -1,11 +1,11 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { offeredStations, type AttachResult } from '../api/attach.js';
 import { type AttachSession as Session } from '../api/attach-session.js';
 import { AttachedAccount } from './AttachedAccount.js';
 import { AttachSession } from './AttachSession.js';
-import { Modal } from './Modal.js';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { StationForm } from './StationForm.js';
 import { StationPicker } from './StationPicker.js';
 
@@ -48,7 +48,7 @@ export function ConnectStation(props: ConnectStationProps): ReactNode {
     <Modal title="Connect channel" open={open} onClose={close}>
       {step.kind === 'pick' ? (
         <Col gap={12}>
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             {known.length === 0
               ? 'This Metro daemon offers no channel you can connect.'
               : 'Pick where this agent should be reachable.'}

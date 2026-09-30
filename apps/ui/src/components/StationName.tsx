@@ -2,7 +2,9 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Input, Text } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { accountName, claimAccountName } from '../api/attach.js';
 import { boxKey, queryError, useBoxQuery } from '../api/queries.js';
@@ -36,31 +38,31 @@ function ClaimName({ agentId, station, accountId }: { agentId: string; station: 
   };
   return (
     <Col gap={8} maxWidth={FIELD_WIDTH}>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {NO_NAME}
       </Text>
       <Row gap={8} align="center">
         <Input name="stage-name" value={label} placeholder="lisa-mci" dark={dark} onChangeText={setLabel} style={GROW} />
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {SUFFIX}
         </Text>
       </Row>
       <Row>
         <Button size="sm" dark={dark} label={busy ? 'Claiming…' : 'Claim'} loading={busy} disabled={busy || label.trim().length < 6} onPress={claim} />
       </Row>
-      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </Col>
   );
 }
 
 export function StationName({ agentId, station, accountId }: { agentId: string; station: string; accountId: string }): ReactNode {
   const { data, error } = useBoxQuery(['account-name', station, accountId], () => accountName(agentId, station, accountId), { staleTime: 60_000 });
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the name.')}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the name.')}</Text>;
   if (data === undefined) return null;
-  if (data.name !== null) return <Text size="sm">{data.name}</Text>;
+  if (data.name !== null) return <Text size="md">{data.name}</Text>;
   if (!data.canClaim)
     return (
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {OLD_ACCOUNT}
       </Text>
     );

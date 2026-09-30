@@ -2,10 +2,10 @@ import { type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
 import { AgentAvatar } from './AgentAvatar.js';
 import { dateLabel, Item, Listing } from './AdminLists.js';
-import { Pill } from './Pill.js';
+import { Badge } from '@stage-labs/kit/react-native/badge';
 import { fetchUsers, setUserStatus, type UserRow, type UserStatus } from '../api/admin.js';
 import { whenLabel } from '../api/when.js';
 import { useDocumentTitle } from '../title.js';
@@ -33,7 +33,7 @@ function UserItem({ user, busy, onSet }: { user: UserRow; busy: boolean; onSet: 
       title={user.name ?? user.email ?? user.id}
       detail={detail}
       avatar={<AgentAvatar seed={user.id} src={user.picture} size={AVATAR} />}
-      badge={user.status === null ? <Pill label="Not on the waitlist" /> : <Pill label={STATUS_LABEL[user.status]} variant={user.status === 'approved' ? 'primary' : 'default'} />}
+      badge={user.status === null ? <Badge label="Not on the waitlist" color="secondary" variant="soft" pill /> : <Badge label={STATUS_LABEL[user.status]} color={user.status === 'approved' ? 'success' : 'secondary'} variant="soft" pill />}
       trailing={<Actions user={user} busy={busy} onSet={onSet} />}
     />
   );

@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { StationIcon } from './StationIcon.js';
@@ -49,7 +49,7 @@ export function StatusLine({ host, project, onSelect }: { host: string | null; p
   const body = (
     <span className="status-line">
       <span className={`status-line-dot is-${tone}`} aria-hidden="true" />
-      <Text size="md" role={tone === 'bad' ? 'danger' : 'secondary'}>
+      <Text size="lg" role={tone === 'bad' ? 'danger' : 'secondary'}>
         {text}
       </Text>
     </span>
@@ -75,7 +75,7 @@ export function ChannelCards({ groups, project, onSelect }: { groups: AccountGro
   const accounts = flattenAccounts(groups).filter((a) => a.row.id !== null);
   if (accounts.length === 0)
     return (
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         No channel yet.
       </Text>
     );
@@ -112,7 +112,7 @@ export function ChannelCards({ groups, project, onSelect }: { groups: AccountGro
 export function ConnectorIcons({ connectors, project, onSelect }: { connectors: Connector[]; project: string; onSelect: (s: Selection) => void }): ReactNode {
   if (connectors.length === 0)
     return (
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         No connector yet.
       </Text>
     );
@@ -132,7 +132,7 @@ export function ConnectorIcons({ connectors, project, onSelect }: { connectors: 
             }}
           >
             <ConnectorFavicon name={c.name} url={c.url} size={CONNECTOR_ICON} />
-            <Text size="sm" numberOfLines={1}>
+            <Text size="md" numberOfLines={1}>
               {c.name}
             </Text>
           </a>

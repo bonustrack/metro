@@ -3,10 +3,11 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { useQueryClient } from '@tanstack/react-query';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SHRINK } from '../theme.js';
 import { ListHeader } from './ListHeader.js';
-import { Pill } from './Pill.js';
+import { Badge } from '@stage-labs/kit/react-native/badge';
 import { KebabMenu } from './KebabMenu.js';
 import { Loading } from './Loading.js';
 import { Frame } from './Frame.js';
@@ -31,10 +32,10 @@ const HOW = 'Each agent runs on its own server. Open one to manage its channels,
 function StatusText({ server }: { server: Server }): ReactNode {
   const { data } = useServerStatus(server.host);
   const booting = useBootingState(server, data?.state === 'offline');
-  if (data === undefined) return <Pill label="Checking" />;
-  if (data.state === 'offline') return <Pill label={booting === null ? 'Offline' : `Booting · ${booting}`} />;
-  if (data.state === 'stopped') return <Pill label="Stopped" />;
-  return <Pill label={data.version === null ? 'Live' : `Live · ${data.version}`} variant="primary" />;
+  if (data === undefined) return <Badge label="Checking" color="secondary" variant="soft" pill />;
+  if (data.state === 'offline') return <Badge label={booting === null ? 'Offline' : `Booting · ${booting}`} color="secondary" variant="soft" pill />;
+  if (data.state === 'stopped') return <Badge label="Stopped" color="secondary" variant="soft" pill />;
+  return <Badge label={data.version === null ? 'Live' : `Live · ${data.version}`} color="success" variant="soft" pill />;
 }
 
 function StartButton({ host }: { host: string }): ReactNode {
@@ -61,7 +62,7 @@ function StartButton({ host }: { host: string }): ReactNode {
   return (
     <Row gap={8} align="center">
       {error !== null ? (
-        <Text size="sm" role="danger" numberOfLines={1}>
+        <Text size="md" role="danger" numberOfLines={1}>
           {error}
         </Text>
       ) : null}
@@ -106,11 +107,11 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
         <Col gap={2} flex={1}>
           <Row gap={8} align="center">
             <StatusDot host={server.host} />
-            <Text size="lg" weight="medium" numberOfLines={1} style={SHRINK}>
+            <Text size="xl" weight="medium" numberOfLines={1} style={SHRINK}>
               {serverLabel(server)}
             </Text>
           </Row>
-          <Text size="sm" role="secondary" numberOfLines={1}>
+          <Text size="md" role="secondary" numberOfLines={1}>
             {server.host}
           </Text>
           <LatestUsageLine serverId={server.id} />
@@ -138,7 +139,7 @@ function NewAgentCard(): ReactNode {
         window.location.hash = href;
       }}
     >
-      <Text size="md" weight="medium" role="secondary">
+      <Text size="lg" weight="medium" role="secondary">
         + New agent
       </Text>
     </a>
@@ -154,7 +155,7 @@ function ServerList({ servers, onBootLog }: ListProps): ReactNode {
   const client = useQueryClient();
   if (servers.length === 0)
     return (
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         No agents yet. Add the address your daemon printed at start-up.
       </Text>
     );
@@ -184,7 +185,7 @@ function Body({ onBootLog }: { onBootLog: (s: Server) => void }): ReactNode {
   if (isPending) return <Loading />;
   if (error !== null)
     return (
-      <Text size="sm" role="danger">
+      <Text size="md" role="danger">
         {queryError(error, 'Could not list your agents.')}
       </Text>
     );
@@ -225,7 +226,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
           }
         />
         <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             {HOW}
           </Text>
           <Body onBootLog={setLogOf} />

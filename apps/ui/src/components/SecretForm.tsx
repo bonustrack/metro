@@ -1,7 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Input, Text } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { changeVault, envNameOf, hostsOf, type Vault, type VaultSecret } from '../api/vault.js';
 import { queryError } from '../api/queries.js';
@@ -20,7 +22,7 @@ function Field({ label, name, value, placeholder, secret = false, busy, onChange
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={4}>
-      <Text size="sm" role="secondary">{label}</Text>
+      <Text size="md" role="secondary">{label}</Text>
       <Input name={name} value={value} placeholder={placeholder} inputType={secret ? 'password' : 'text'} disabled={busy} dark={dark} onChangeText={onChange} style={GROW} />
     </Col>
   );
@@ -74,7 +76,7 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
   };
   return (
     <Col gap={12}>
-      <Text size="lg" weight="medium">{editing === null ? 'Add a secret' : `Edit ${editing.name}`}</Text>
+      <Text size="xl" weight="medium">{editing === null ? 'Add a secret' : `Edit ${editing.name}`}</Text>
       <Field label="Name" name="secret-name" value={name} placeholder="OpenAI" busy={busy} onChange={edit('name')} />
       {editing === null ? (
         <Field label="Variable the agent sees" name="secret-env" value={variable} placeholder="OPENAI_API_KEY" busy={busy} onChange={edit('env')} />
@@ -93,7 +95,7 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
         <Button size="sm" dark={dark} disabled={busy || !complete(editing, draft)} label={busy ? 'Saving…' : 'Save'} onPress={save} />
         <Button size="sm" color="secondary" dark={dark} disabled={busy} label="Cancel" onPress={onCancel} />
       </Row>
-      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </Col>
   );
 }

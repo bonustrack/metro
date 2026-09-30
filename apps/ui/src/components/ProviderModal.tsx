@@ -2,9 +2,11 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
-import { Modal } from './Modal.js';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { CodexConnect } from './CodexConnect.js';
 import { GeminiConnect } from './GeminiConnect.js';
 import { ClaudeLoginCard } from './ClaudeLogin.js';
@@ -23,7 +25,7 @@ export interface Editing {
 
 function KeyLink({ url, label }: { url: string; label: string }): ReactNode {
   return (
-    <Text size="sm" role="secondary">
+    <Text size="md" role="secondary">
       <a className="hint-link" href={url} target="_blank" rel="noreferrer">
         {label}
       </a>
@@ -54,7 +56,7 @@ function Extras({ provider, draft, setDraft }: { provider: Provider; draft: Draf
     return (
       <Col gap={6}>
         <KeyLink url={ANTHROPIC_KEYS_URL} label="Get a key from the Anthropic Console" />
-        <Text size="sm" role="secondary">{ANTHROPIC_KEY_NOTE}</Text>
+        <Text size="md" role="secondary">{ANTHROPIC_KEY_NOTE}</Text>
       </Col>
     );
   if (provider === 'bedrock')
@@ -68,7 +70,7 @@ function Extras({ provider, draft, setDraft }: { provider: Provider; draft: Draf
     <Col gap={6}>
       <KeyLink url={OPENROUTER_KEYS_URL} label="Get a key from OpenRouter" />
       <Button size="sm" color={draft.zdr ? 'primary' : 'secondary'} dark={dark} label={draft.zdr ? 'Zero data retention: on' : 'Zero data retention: off'} onPress={() => { setDraft((d) => ({ ...d, zdr: !d.zdr })); }} />
-      <Text size="sm" role="secondary">{ZDR_NOTE}</Text>
+      <Text size="md" role="secondary">{ZDR_NOTE}</Text>
     </Col>
   );
 }
@@ -108,7 +110,7 @@ function KeyForm({ editing, onDone }: { editing: Editing; onDone: () => void }):
       <Extras provider={editing.provider} draft={draft} setDraft={setDraft} />
       <Row gap={12} align="center" wrap>
         <Button dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy} onPress={save} />
-        {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </Row>
     </Col>
   );
@@ -139,9 +141,9 @@ export function ProviderModal({ editing, onClose }: { editing: Editing | null; o
   return (
     <Modal title={title} open onClose={onClose}>
       <Col gap={16}>
-        <Text size="sm" role="secondary">{info?.blurb ?? ''}</Text>
+        <Text size="md" role="secondary">{info?.blurb ?? ''}</Text>
         {usesKey(editing.provider) || editing.connection === null ? null : (
-          <Text size="sm" role="secondary">Signing in again replaces this connection&apos;s credential.</Text>
+          <Text size="md" role="secondary">Signing in again replaces this connection&apos;s credential.</Text>
         )}
         <Body editing={editing} onDone={onClose} />
       </Col>

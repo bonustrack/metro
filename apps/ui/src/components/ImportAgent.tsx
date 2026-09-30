@@ -2,8 +2,10 @@ import { type ReactNode, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
-import { Modal } from './Modal.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { countOf, openMetroFile, parseMetroFile, SECTION_LABELS, sectionsIn, type Payload, type Section } from '../export/pack.js';
 import { applyPayload, type Applied, type Mode } from '../export/transfer.js';
 
@@ -44,7 +46,7 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
   const from = payload.agent.name === '' ? 'an agent' : payload.agent.name;
   return (
     <Col gap={12}>
-      <Text size="md">{`From ${from}`}</Text>
+      <Text size="lg">{`From ${from}`}</Text>
       <Row gap={8} wrap>
         {sectionsIn(payload).map((section) => (
           <Button
@@ -82,7 +84,7 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
           }}
         />
       </Row>
-      <Text size="sm" role={mode === 'overwrite' ? 'danger' : 'secondary'}>
+      <Text size="md" role={mode === 'overwrite' ? 'danger' : 'secondary'}>
         {mode === 'overwrite' ? OVERWRITE : APPEND}
       </Text>
     </Col>
@@ -276,7 +278,7 @@ export function ImportAgent({ open, onClose, agent }: ImportAgentProps): ReactNo
   return (
     <Modal title="Import agent" open={open} onClose={close}>
       <Col gap={14}>
-        <Text size="sm" role="secondary">{HOW}</Text>
+        <Text size="md" role="secondary">{HOW}</Text>
         {state.payload === null && state.pending === null ? <Chooser busy={state.busy} onPick={state.chosen} /> : null}
         {state.payload === null && state.pending !== null ? <Unlock busy={state.busy} onOpen={state.open} /> : null}
         {ready && state.payload !== null ? (
@@ -289,8 +291,8 @@ export function ImportAgent({ open, onClose, agent }: ImportAgentProps): ReactNo
             onMode={state.setMode}
           />
         ) : null}
-        {state.done === null ? null : <Text size="md">{`Imported ${landed(state.done)}.`}</Text>}
-        {state.error === null ? null : <Text size="sm" role="danger">{state.error}</Text>}
+        {state.done === null ? null : <Text size="lg">{`Imported ${landed(state.done)}.`}</Text>}
+        {state.error === null ? null : <Text size="md" role="danger">{state.error}</Text>}
         <Footer state={state} close={close} ready={ready} />
       </Col>
     </Modal>

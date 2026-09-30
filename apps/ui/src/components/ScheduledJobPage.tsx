@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { BackLink } from './BackLink.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
@@ -18,9 +19,9 @@ function Field({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <Row gap={12} align="start">
       <Row width={120}>
-        <Text size="sm" role="secondary">{label}</Text>
+        <Text size="md" role="secondary">{label}</Text>
       </Row>
-      <Text size="sm">{value}</Text>
+      <Text size="md">{value}</Text>
     </Row>
   );
 }
@@ -68,7 +69,7 @@ function Actions({ job }: { job: JobDetail }): ReactNode {
       <Row gap={10}>
         <Button size="sm" color="secondary" dark={dark} label="Run now" disabled={busy} onPress={() => { run(() => runSchedule(job.id), 'Could not start that job.'); }} />
       </Row>
-      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </Col>
   );
 }
@@ -77,10 +78,10 @@ function Block({ title, note, text, empty }: { title: string; note: string | nul
   return (
     <Col gap={6}>
       <Row gap={10} align="center">
-        <Text size="lg" weight="medium">{title}</Text>
-        {note === null ? null : <Text size="sm" role="secondary">{note}</Text>}
+        <Text size="xl" weight="medium">{title}</Text>
+        {note === null ? null : <Text size="md" role="secondary">{note}</Text>}
       </Row>
-      {text.trim() === '' ? <Text size="sm" role="secondary">{empty}</Text> : <pre className="job-block">{text}</pre>}
+      {text.trim() === '' ? <Text size="md" role="secondary">{empty}</Text> : <pre className="job-block">{text}</pre>}
     </Col>
   );
 }
@@ -92,7 +93,7 @@ export function ScheduledJobPage({ project, id, onBack }: { project: string; id:
     <Col gap={16}>
       <BackLink label="Scheduled" href={routeHash({ kind: 'scheduled', project })} onPress={onBack} />
       {detail.error !== null ? (
-        <Text size="sm" role="danger">{queryError(detail.error, 'Could not read that job.')}</Text>
+        <Text size="md" role="danger">{queryError(detail.error, 'Could not read that job.')}</Text>
       ) : detail.data === undefined ? (
         <Loading />
       ) : (

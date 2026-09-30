@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { ProviderLogo } from './ProviderLogo.js';
 import { UsageLine, UsageUpdateHint } from './ModelUsage.js';
 import { PROVIDERS, type ConnectionRow, type ModelSettings } from '../api/model.js';
@@ -27,7 +27,7 @@ function CardUsage({ usage }: { usage: ModelSettings['usage'][string] | undefine
   if (usage === undefined) return <UsageUpdateHint />;
   if (usage.windows.length === 0)
     return usage.tally === null ? null : (
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {tallyLine(usage.tally)}
       </Text>
     );
@@ -58,19 +58,19 @@ function Card({ settings, href, onOpen }: { settings: ModelSettings; href: strin
     >
       <ProviderLogo provider={PROVIDERS.find((p) => p.id === conn?.provider)} size={LOGO_SIZE} />
       <span className="model-card-text">
-        <Text size="md" weight="medium" numberOfLines={1}>
+        <Text size="lg" weight="medium" numberOfLines={1}>
           {name}
         </Text>
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {[conn?.label ?? 'Your Claude Code login', account].filter((part): part is string => part !== null).join(' · ')}
         </Text>
         <CardUsage usage={usage} />
         {settings.reason !== null ? (
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {settings.reason}
           </Text>
         ) : low === undefined ? null : (
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {`${low.label} almost used up (${String(Math.round((low.used ?? 0) * 100))}%). Top up or switch model.`}
           </Text>
         )}
@@ -85,7 +85,7 @@ export function AgentRoute({ project, onSelect }: { project: string; onSelect: (
   const target: Selection = { kind: 'model', project };
   if (model.error !== null)
     return (
-      <Text size="sm" role="danger">
+      <Text size="md" role="danger">
         {queryError(model.error, 'Could not read the model settings.')}
       </Text>
     );

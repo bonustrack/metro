@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { awaitLive, startDaemon } from '../api/control.js';
 import { queryError } from '../api/queries.js';
 import { daemonBase, daemonHost } from '../auth/daemon.js';
@@ -37,7 +38,7 @@ export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNo
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={16} align="center" width="100%" maxWidth={NOTICE_WIDTH}>
-        <Text role="secondary">
+        <Text size="lg" role="secondary">
           metro is stopped on {daemonHost(daemonBase())}. metro serve is still holding the address, so it can start from here.
         </Text>
         <Button
@@ -49,11 +50,11 @@ export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNo
           style={CENTER_SELF}
         />
         {error !== null ? (
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         ) : null}
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           <a className="hint-link" href={routeHash({ kind: 'servers' })}>
             All agents
           </a>

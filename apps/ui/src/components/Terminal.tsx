@@ -4,7 +4,8 @@ import { FitAddon } from '@xterm/addon-fit';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
 import '@xterm/xterm/css/xterm.css';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { Dropdown, type MenuItem } from './Dropdown.js';
 import { NameModal } from './NameModal.js';
 import { mintTerminalTicket, pickSession, rememberSession, SESSION_RE, terminalSocketUrl, terminalStatus, type TerminalStatus } from '../api/terminal.js';
@@ -125,7 +126,7 @@ function TerminalNote({ phase, dark, onNew }: { phase: Phase; dark: boolean; onN
   const text = phase.kind === 'closed' ? phase.reason : phase.kind === 'none' ? NONE : 'Connecting…';
   return (
     <div className="terminal-note">
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {text}
       </Text>
       {phase.kind === 'none' ? <Button size="sm" dark={dark} label="New session" onPress={onNew} /> : null}

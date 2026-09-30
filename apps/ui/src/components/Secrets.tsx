@@ -3,7 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Icon } from './Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Text } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { DeleteMenu } from './DeleteMenu.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { Loading } from './Loading.js';
@@ -56,9 +57,9 @@ function Switch({ vault, onChanged }: { vault: Vault; onChanged: (v: Vault) => v
         disabled={busy}
         onChange={flip}
       />
-      {vault.problem === null ? null : <Text size="sm" role="danger">{vault.problem}</Text>}
-      {vault.enabled && vault.browsers !== null ? <Text size="sm" role="secondary">{vault.browsers}</Text> : null}
-      {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+      {vault.problem === null ? null : <Text size="md" role="danger">{vault.problem}</Text>}
+      {vault.enabled && vault.browsers !== null ? <Text size="md" role="secondary">{vault.browsers}</Text> : null}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </SettingsSection>
   );
 }
@@ -95,7 +96,7 @@ function Recent({ vault }: { vault: Vault }): ReactNode {
       <div className="settings-pad">
       <Col gap={4}>
         {vault.recent.slice(0, 40).map((r, at) => (
-          <Text key={`${String(at)}:${r.at}`} size="sm" role={r.swapped.length > 0 ? 'default' : 'secondary'} numberOfLines={1}>
+          <Text key={`${String(at)}:${r.at}`} size="md" role={r.swapped.length > 0 ? 'default' : 'secondary'} numberOfLines={1}>
             {`${whenLabel(r.at)} · ${r.method} ${r.host}${r.path} · ${r.status === null ? '…' : String(r.status)}${r.swapped.length > 0 ? ` · used ${r.swapped.map(envOf).join(', ')}` : ''}`}
           </Text>
         ))}
@@ -124,7 +125,7 @@ function SecretList({ vault, set }: { vault: Vault; set: (v: Vault) => void }): 
       )}
       {vault.secrets.length === 0 && form === null ? (
         <div className="settings-pad">
-          <Text size="sm" role="secondary">No secret yet. Add one, then turn protection on.</Text>
+          <Text size="md" role="secondary">No secret yet. Add one, then turn protection on.</Text>
         </div>
       ) : null}
       {vault.secrets.map((s) => (
@@ -136,7 +137,7 @@ function SecretList({ vault, set }: { vault: Vault; set: (v: Vault) => void }): 
 
 function SecretsBody(): ReactNode {
   const { vault, error, set } = useVault();
-  if (error !== null && error !== undefined) return <Text size="sm" role="danger">{queryError(error, 'Could not read the vault.')}</Text>;
+  if (error !== null && error !== undefined) return <Text size="md" role="danger">{queryError(error, 'Could not read the vault.')}</Text>;
   if (vault === undefined) return <Loading />;
   if (!vault.available) return <EmptyCard text="Secrets need a Linux server where the agent runs as its own user." />;
   return (
@@ -155,7 +156,7 @@ export function Secrets(): ReactNode {
   return (
     <Col gap={32}>
       <PageTitle>Secrets</PageTitle>
-      <Text size="sm" role="secondary">{INTRO}</Text>
+      <Text size="md" role="secondary">{INTRO}</Text>
       <SecretsBody />
     </Col>
   );

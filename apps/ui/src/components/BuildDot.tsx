@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Box, Col } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { currentBuild, type BuildInfo } from '../build.js';
 
 const DOT = 8;
@@ -21,11 +21,11 @@ function Card({ build }: { build: BuildInfo }): ReactNode {
         surface="raised"
         border={{ top: side, right: side, bottom: side, left: side }}
       >
-        <Text size="sm" weight="medium">
+        <Text size="md" weight="medium">
           {head}
         </Text>
         {build.time === '' ? null : (
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             {build.time}
           </Text>
         )}
