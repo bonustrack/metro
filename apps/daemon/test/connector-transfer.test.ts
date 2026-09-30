@@ -10,6 +10,7 @@ import { log } from '@metro-labs/core/log';
 import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
 import { bearerSessionsFor } from '../src/routes/bearer.ts';
 import { handleSessionApis } from '../src/routes/session-apis.ts';
+import { localSessionApis } from '../src/routes/local-mode.ts';
 import { ConnectorTransfers } from '../src/connectors/transfer-api.ts';
 import { copyConnectorRows } from '../src/connectors/transfer-store.ts';
 import { localImportConnectors, readLocalConnectors } from '../src/connectors/store.ts';
@@ -89,6 +90,24 @@ async function exportCopy(ids: string[] | null = null): Promise<{ ticket: string
 }
 
 describe('complete connector copy between separately owned daemons', () => {
+  test('the production daemon mounts transfer routes before the ordinary connector router', async () => {
+    const apis = localSessionApis({
+      syncStations: () => Promise.resolve(), reloadAgents: () => Promise.resolve(), restart: () => undefined, stop: () => undefined,
+      gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }), capabilities: () => ({}), prepareAccount: () => Promise.reject(new Error('unused')),
+    });
+    const sessions = bearerSessionsFor(() => SOURCE, new SigningKeys(issuer.url));
+    const server = createServer((req, res) => {
+      setBearerSessions(sessions);
+      if (!handleSessionApis(req, res, apis)) res.writeHead(404).end();
+    });
+    const port = randomInt(10000, 30000);
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
+    servers.push(server);
+    const base = `http://127.0.0.1:${String(port)}`;
+    expect((await request(base, 'prepare', { confirmed: true }, SOURCE)).status).toBe(200);
+    expect((await request(base, 'prepare', { confirmed: true }, SOURCE, 'member')).status).toBe(403);
+  });
+
   test('copies all saved credentials and settings with fresh ids, leaves the source byte-identical and rejects replay', async () => {
     const original = readFileSync(join(sourceDir, 'connectors.json'), 'utf8');
     const transfer = await exportCopy();
