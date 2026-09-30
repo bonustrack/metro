@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Text } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { Loading } from './Loading.js';
 import { ListHeader } from './ListHeader.js';
 import { NameModal } from './NameModal.js';
@@ -54,7 +55,7 @@ interface ListingProps {
 }
 
 function Listing({ error, data, project, onOpen }: ListingProps): ReactNode {
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
   if (data === undefined) return <Loading />;
   if (data.skills.length === 0) return <EmptyCard text="No skill yet. A skill teaches your agent how to do a task your way." />;
   return (

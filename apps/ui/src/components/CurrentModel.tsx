@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { ProviderLogo } from './ProviderLogo.js';
 import { UsageRow, UsageUpdateHint } from './ModelUsage.js';
 import { useModelName } from './AgentModel.js';
@@ -44,7 +45,7 @@ export function CurrentModel({ settings, onChange }: { settings: ModelSettings; 
       </SettingsSection>
       {settings.reason === null ? null : (
         <div className="settings-pad">
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {settings.reason}
           </Text>
         </div>

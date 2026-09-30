@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import type { UserRow } from '../api/admin.js';
 
 const DAYS = 30;
@@ -37,10 +37,10 @@ export function SignupChart({ users }: { users: UserRow[] }): ReactNode {
   return (
     <Col gap={6} padding={{ bottom: 8 }}>
       <Row justify="between" align="center">
-        <Text size="sm" weight="semibold">
+        <Text size="md" weight="semibold">
           Sign-ups, last {String(DAYS)} days
         </Text>
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {String(total)} new
         </Text>
       </Row>
@@ -51,10 +51,10 @@ export function SignupChart({ users }: { users: UserRow[] }): ReactNode {
         })}
       </svg>
       <Row justify="between">
-        <Text size="xs" role="secondary">
+        <Text size="sm" role="secondary">
           {from}
         </Text>
-        <Text size="xs" role="secondary">
+        <Text size="sm" role="secondary">
           {to}
         </Text>
       </Row>

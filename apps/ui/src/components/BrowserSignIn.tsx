@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { agentsUrl } from '../api/client.js';
 import { stateOf } from '../api/attach-session.js';
 import { rememberSignIn } from '../api/sign-in-return.js';
@@ -37,14 +38,14 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
     <Col gap={10}>
       <Button color="primary" dark={dark} onPress={open} disabled={busy} label={`Sign in with ${provider}`} />
       {blocked ? (
-        <Text size="sm">
+        <Text size="md">
           <a className="hint-link" href={authorizeUrl} target="_blank" rel="noreferrer">
             Open the {provider} sign-in page
           </a>
         </Text>
       ) : null}
       {opened ? (
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           Waiting for you to sign in.
         </Text>
       ) : null}

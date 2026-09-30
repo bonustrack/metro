@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react';
 import { Icon, type IconName } from '../Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Text } from '../ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { MetroLogo } from '../MetroLogo.js';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
 import { THEME_MODES, useThemeMode, type ThemeMode } from '../../theme-mode.js';
@@ -66,14 +67,14 @@ function Trust(): ReactNode {
   const palette = useKitPalette();
   return (
     <div className="lp-trust">
-      <Text size="xl" role="secondary">
+      <Text size="2xl" role="secondary">
         Works where your team already talks
       </Text>
       <div className="lp-trust-row">
         {TRUST.map((item) => (
           <span key={item.name} className="lp-trust-item">
             <ConnectorFavicon name={item.name} url={item.url} size={28} />
-            <Text size="xl" weight="medium" color={palette.link}>
+            <Text size="2xl" weight="medium" color={palette.link}>
               {item.name}
             </Text>
           </span>
@@ -177,15 +178,15 @@ function Footer(): ReactNode {
       <div className="lp-footer-inner">
         <div className="lp-footer-brand">
           <Wordmark />
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             {COPYRIGHT}
           </Text>
         </div>
         <div className="lp-footer-links">
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             Terms
           </Text>
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             Privacy
           </Text>
           <ThemeSwitch />

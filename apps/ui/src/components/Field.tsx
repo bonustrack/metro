@@ -1,13 +1,13 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 
 export function Field({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <Col gap={2} minWidth={140} maxWidth={360}>
       <FieldLabel>{label}</FieldLabel>
-      <Text size="sm">{value}</Text>
+      <Text size="md">{value}</Text>
     </Col>
   );
 }

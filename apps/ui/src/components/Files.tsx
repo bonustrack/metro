@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { Crumbs, EntryRow, type Crumb } from './FolderBrowser.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
@@ -37,7 +37,7 @@ const detailOf = (entry: FileEntry): string => {
 };
 
 function FolderList({ project, answer, onSelect }: { project: string; answer: Extract<AgentPath, { kind: 'folder' }>; onSelect: (s: Selection) => void }): ReactNode {
-  if (answer.entries.length === 0) return <Text size="sm" role="secondary">{EMPTY}</Text>;
+  if (answer.entries.length === 0) return <Text size="md" role="secondary">{EMPTY}</Text>;
   return (
     <SettingsGroup>
       {answer.entries.map((entry) => {
@@ -55,7 +55,7 @@ function FolderList({ project, answer, onSelect }: { project: string; answer: Ex
       })}
       {answer.more ? (
         <div className="settings-pad">
-          <Text size="sm" role="secondary">Only the first 2,000 entries are shown.</Text>
+          <Text size="md" role="secondary">Only the first 2,000 entries are shown.</Text>
         </div>
       ) : null}
     </SettingsGroup>
@@ -66,20 +66,20 @@ function FileView({ answer }: { answer: Extract<AgentPath, { kind: 'file' }> }):
   const facts = `${sizeLabel(answer.bytes)}${answer.modifiedAt === '' ? '' : ` · changed ${whenLabel(answer.modifiedAt)}`}`;
   return (
     <Col gap={12}>
-      <Text size="sm" role="secondary">{facts}</Text>
+      <Text size="md" role="secondary">{facts}</Text>
       {answer.text === null ? (
-        <Text size="sm" role="secondary">This file is not text, so it cannot be shown here.</Text>
+        <Text size="md" role="secondary">This file is not text, so it cannot be shown here.</Text>
       ) : (
         <pre className="job-block file-block">{answer.text}</pre>
       )}
-      {answer.truncated ? <Text size="sm" role="secondary">Only the first 256 KB are shown.</Text> : null}
+      {answer.truncated ? <Text size="md" role="secondary">Only the first 256 KB are shown.</Text> : null}
     </Col>
   );
 }
 
 function FilesBody({ project, path, onSelect }: FilesProps): ReactNode {
   const query = useBoxQuery(['agent-files', path], () => fetchAgentPath(path), { staleTime: 5_000, retry: false });
-  if (query.error !== null) return <Text size="sm" role="danger">{queryError(query.error, 'Could not read that path.')}</Text>;
+  if (query.error !== null) return <Text size="md" role="danger">{queryError(query.error, 'Could not read that path.')}</Text>;
   if (query.data === undefined) return <Loading />;
   return (
     <Col gap={16}>
@@ -94,7 +94,7 @@ export function Files({ project, path, onSelect }: FilesProps): ReactNode {
   return (
     <Col gap={16}>
       <PageTitle>Files</PageTitle>
-      <Text size="sm" role="secondary">{INTRO}</Text>
+      <Text size="md" role="secondary">{INTRO}</Text>
       <FilesBody project={project} path={path} onSelect={onSelect} />
     </Col>
   );

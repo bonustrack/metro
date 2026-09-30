@@ -44,9 +44,9 @@ It is deployed to https://metro.box on Netlify.
 
 ## Design rules
 
-- Import `Text`, `Button` and `Input` from `src/components/ui.tsx`, never from the kit
-  directly, so the font and the size scale apply.
-- `TYPE_SCALE` in `src/theme.ts` is the one knob for text size.
+- Use the kit components directly, at the kit sizes, like Stage: `Text`, `Button`,
+  `Input`, `Modal`, `Tabs`, `Badge`, `Tooltip`, and `DropdownMenu` from
+  `@stage-labs/kit/react-native/menu`. There is no wrapper and no type scale.
 - Every colour comes from the kit palette through `theme-mode.tsx`. Do not write colours by
   hand.
 - Inline style objects in JSX are a lint error. Use the kit's `Box` props, or a named

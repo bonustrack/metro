@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { type HintLink } from '../api/attach.js';
 
 function escape(value: string): string {
@@ -13,13 +13,13 @@ export function LinkedText({
   text: string;
   links: HintLink[];
 }): ReactNode {
-  if (links.length === 0) return <Text size="sm" role="secondary">{text}</Text>;
+  if (links.length === 0) return <Text size="md" role="secondary">{text}</Text>;
 
   const pattern = new RegExp(`(${links.map((l) => escape(l.text)).join('|')})`, 'g');
   const parts = text.split(pattern);
 
   return (
-    <Text size="sm" role="secondary">
+    <Text size="md" role="secondary">
       {parts.map((part, index) => {
         const link = links.find((l) => l.text === part);
         if (link === undefined) return part;

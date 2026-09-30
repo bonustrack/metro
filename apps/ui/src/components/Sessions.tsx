@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { BackLink } from './BackLink.js';
 import { ProjectGate } from './ProjectGate.js';
 import { ListRow } from './ListRow.js';
@@ -52,7 +52,7 @@ function SessionList({
   onOpen: (id: string) => void;
 }): ReactNode {
   const { data, error } = useClaudeSessionsQuery(claudeProject);
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
   if (data === undefined) return <Loading />;
   if (data.length === 0) return <EmptyCard text="No conversation yet." />;
   return (

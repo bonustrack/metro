@@ -1,7 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { queryError } from '../api/queries.js';
 
 export interface Saving {
@@ -74,7 +76,7 @@ export function SaveField({ saving, name, placeholder, editable = true }: SaveFi
           <Button color="primary" dark={dark} label={saving.busy ? 'Saving…' : 'Save'} loading={saving.busy} disabled={saving.busy} onPress={saving.save} />
         ) : null}
       </Row>
-      {saving.error !== null ? <Text size="sm" role="danger">{saving.error}</Text> : saving.saved ? <Text size="sm" role="secondary">Saved.</Text> : null}
+      {saving.error !== null ? <Text size="md" role="danger">{saving.error}</Text> : saving.saved ? <Text size="md" role="secondary">Saved.</Text> : null}
     </>
   );
 }

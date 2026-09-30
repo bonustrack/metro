@@ -2,7 +2,9 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { setClaudeSystemPrompt, type ClaudeSetup as Setup } from '../api/claude-box.js';
 import { queryError, refresh } from '../api/queries.js';
 import { GROW } from '../theme.js';
@@ -35,8 +37,8 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   };
   return (
     <Col gap={10}>
-      <Text size="md" weight="medium">System prompt</Text>
-      <Text size="sm" role="secondary">{NOTE}</Text>
+      <Text size="lg" weight="medium">System prompt</Text>
+      <Text size="md" role="secondary">{NOTE}</Text>
       <Input
         name="system-prompt"
         value={draft}
@@ -60,7 +62,7 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
             }}
           />
         ) : null}
-        {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </Row>
     </Col>
   );

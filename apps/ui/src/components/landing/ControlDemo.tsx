@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { Icon } from '../Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from '../ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
 
 type Mode = 'allow' | 'ask' | 'block';
@@ -95,10 +95,10 @@ export function ControlDemo(): ReactNode {
         <div className="lp-rules-head">
           <ConnectorFavicon name="Outlook" url="https://outlook.com" size={28} />
           <span className="lp-rules-title">
-            <Text size="lg" weight="semibold">
+            <Text size="xl" weight="semibold">
               Outlook
             </Text>
-            <Text size="sm" role="secondary">
+            <Text size="md" role="secondary">
               finance@yourcompany.ch
             </Text>
           </span>
@@ -112,10 +112,10 @@ export function ControlDemo(): ReactNode {
             }}
           >
             <span className="lp-rule-name">
-              <Text size="md" weight="medium">
+              <Text size="lg" weight="medium">
                 {r.tool}
               </Text>
-              <Text size="xs" role="secondary">
+              <Text size="sm" role="secondary">
                 {r.group}
               </Text>
             </span>
@@ -135,7 +135,7 @@ export function ControlDemo(): ReactNode {
           <span className="lp-outcome-icon">
             <Icon name={MODE_ICON[mode]} size={22} color={palette.link} />
           </span>
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             {`${rule.tool} · ${MODES.find((m) => m.value === mode)?.label ?? ''}`}
           </Text>
           <p className="lp-outcome-text">{rule.outcome[mode]}</p>

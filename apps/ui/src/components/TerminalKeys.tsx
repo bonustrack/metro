@@ -2,7 +2,7 @@ import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'rea
 import type { Terminal as XTerm } from '@xterm/xterm';
 import { Icon, type IconName } from './Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
 import { useIsTouch } from '../media.js';
 import { keySequence, stickyCtrl, type BarKey, type StickyCtrl } from './terminal-keys.js';
 

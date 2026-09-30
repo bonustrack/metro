@@ -2,7 +2,9 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
 import { colors } from '@stage-labs/kit/tokens';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 
 const CODE_INPUT = { flexGrow: 1, minWidth: 200 } as const;
 
@@ -32,7 +34,7 @@ interface AttachSessionProps {
 
 function Waiting({ label }: { label: string }): ReactNode {
   return (
-    <Text size="sm" role="secondary">
+    <Text size="md" role="secondary">
       {label}
     </Text>
   );
@@ -40,7 +42,7 @@ function Waiting({ label }: { label: string }): ReactNode {
 
 function PairingCode({ code }: { code: string }): ReactNode {
   return (
-    <Text size="2xl" weight="semibold" selectable>
+    <Text size="3xl" weight="semibold" selectable>
       {code}
     </Text>
   );
@@ -232,26 +234,26 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
   return (
     <Col gap={14}>
         <Col gap={4}>
-          <Text size="lg" weight="medium">
+          <Text size="xl" weight="medium">
             Connecting {stationLabel(session.station)}
           </Text>
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             {session.prompt}
           </Text>
         </Col>
         <StepBody agentId={agentId} session={session} busy={busy} onSubmit={submit} />
         {session.status === 'failed' ? (
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {session.error ?? 'That sign-in failed.'}
           </Text>
         ) : null}
         {error !== null ? (
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         ) : null}
         <Row justify="between" align="center" gap={12} wrap>
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             Nothing is stored until the sign-in completes. Metro drops an
             unfinished sign-in after a few minutes.
           </Text>

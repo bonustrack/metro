@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
 import { stationLabel } from '../api/attach.js';
 import { StationIcon } from './StationIcon.js';
 

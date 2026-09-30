@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Text } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SettingsSection } from './SettingsSection.js';
 
 const MASK = '•'.repeat(12);
@@ -45,11 +46,11 @@ export function CopyRow({ title, note, value, secret = false }: CopyRowProps): R
         <Button size="sm" color="secondary" dark={dark} label={copied ? 'Copied' : 'Copy'} onPress={copy} />
       </Row>
       {shown ? (
-        <Text size="sm" role="secondary" numberOfLines={1} selectable>
+        <Text size="md" role="secondary" numberOfLines={1} selectable>
           {value}
         </Text>
       ) : (
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {MASK}
         </Text>
       )}

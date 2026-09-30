@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { stationLabel, type AttachResult } from '../api/attach.js';
 import { CopyBlock } from './CopyBlock.js';
 import { Field } from './Field.js';
@@ -34,10 +35,10 @@ export function AttachedAccount({
   return (
     <Col gap={14}>
         <Col gap={4}>
-          <Text size="lg" weight="medium">
+          <Text size="xl" weight="medium">
             {stationLabel(result.station)} attached
           </Text>
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             {activationNote(result)}
           </Text>
         </Col>
@@ -50,7 +51,7 @@ export function AttachedAccount({
         {endpoint === undefined ? null : (
           <Col gap={8}>
             <CopyBlock label="post events here" value={endpoint} secret />
-            <Text size="sm" role="secondary">
+            <Text size="md" role="secondary">
               The whole URL is the credential. Paste it into the provider as the
               webhook URL — no secret or signature header to configure.
             </Text>
@@ -59,7 +60,7 @@ export function AttachedAccount({
         {callback === undefined ? null : (
           <Col gap={8}>
             <CopyBlock label="threema delivers here" value={callback} secret />
-            <Text size="sm" role="secondary">
+            <Text size="md" role="secondary">
               {CALLBACK_NOTE}
             </Text>
           </Col>
@@ -67,7 +68,7 @@ export function AttachedAccount({
         {secret !== null ? (
           <Col gap={8}>
             <CopyBlock label={secret.label} value={secret.value} secret />
-            <Text size="sm" role="danger">
+            <Text size="md" role="danger">
               {secret.note} Copy it somewhere safe before you close this.
             </Text>
           </Col>

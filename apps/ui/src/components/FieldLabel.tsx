@@ -1,16 +1,14 @@
 import { type ReactNode } from 'react';
-import { Text } from './ui.js';
-import { SMALL_FONT_SIZE, typeSize } from '../theme.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 
 const LABEL_STYLE = {
   textTransform: 'uppercase',
-  letterSpacing: 1.2,
-  fontSize: typeSize(SMALL_FONT_SIZE['2xs']),
+  letterSpacing: 1,
 } as const;
 
 export function FieldLabel({ children }: { children: string }): ReactNode {
   return (
-    <Text role="secondary" style={LABEL_STYLE}>
+    <Text size="xs" role="secondary" style={LABEL_STYLE}>
       {children}
     </Text>
   );

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { PageTitle } from './PageTitle.js';
 import { FactRow, SettingsGroup } from './SettingsSection.js';
 import { Loading } from './Loading.js';
@@ -73,7 +73,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
         <ClaudeSession project={project} />
       </SettingsGroup>
       {machine.error !== null ? (
-        <Text size="sm" role="danger">
+        <Text size="md" role="danger">
           {queryError(machine.error, FALLBACK)}
         </Text>
       ) : machine.data === undefined ? (

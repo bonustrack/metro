@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
-import { Modal } from './Modal.js';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { ProviderLogo } from './ProviderLogo.js';
 import { PROVIDERS, type Provider } from '../api/model.js';
 import { SHRINK } from '../theme.js';
@@ -23,8 +23,8 @@ export function ConnectProviderModal({ open, onPick, onClose }: ConnectProps): R
             <Row gap={12} align="center">
               <ProviderLogo provider={p} size={LOGO} />
               <Col gap={2} style={SHRINK}>
-                <Text size="md" weight="medium">{p.label}</Text>
-                <Text size="sm" role="secondary">{p.blurb}</Text>
+                <Text size="lg" weight="medium">{p.label}</Text>
+                <Text size="md" role="secondary">{p.blurb}</Text>
               </Col>
             </Row>
           </button>

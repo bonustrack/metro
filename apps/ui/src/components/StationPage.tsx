@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { findAccount, stationFields } from '../api/accounts.js';
 import { detachAccount, setAccountEnabled } from '../api/attach.js';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
@@ -45,12 +45,12 @@ export function StationPage({
   useDocumentTitle(titleOf(found, accountId));
 
   if (error !== null)
-    return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
+    return <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
 
   if (found === undefined)
     return (
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         This channel is not connected to the agent anymore.
       </Text>
     );

@@ -67,20 +67,20 @@
 
 .lp-demo-count {
   color: var(--metro-sub);
-  font-size: calc(13px * var(--metro-type-scale, 1));
+  font-size: calc(13px * 1.2);
 }
 
 .lp-demo-title {
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: calc(24px * var(--metro-type-scale, 1));
+  font-size: calc(24px * 1.2);
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
 
 .lp-demo-body {
   color: var(--metro-text);
-  font-size: calc(15px * var(--metro-type-scale, 1));
+  font-size: calc(15px * 1.2);
   line-height: 1.5;
 }
 

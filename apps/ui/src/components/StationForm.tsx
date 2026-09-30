@@ -1,7 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import {
   startAttach,
@@ -76,13 +78,13 @@ export function StationForm(props: StationFormProps): ReactNode {
   return (
     <Col gap={14}>
       <Col gap={2}>
-        <Text size="lg" weight="medium">{stationLabel(station)}</Text>
+        <Text size="xl" weight="medium">{stationLabel(station)}</Text>
         <LinkedText text={form.hint} links={form.links ?? []} />
       </Col>
       <Col gap={10}>
         {form.fields.map((field) => (
           <Col key={field.key} gap={4}>
-            <Text size="sm" role="secondary">{field.label}</Text>
+            <Text size="md" role="secondary">{field.label}</Text>
             <Input
               name={`attach-${field.key}`}
               value={values[field.key] ?? ''}
@@ -96,11 +98,11 @@ export function StationForm(props: StationFormProps): ReactNode {
               onSubmit={submit}
               style={GROW}
             />
-            {field.hint === undefined ? null : <Text size="sm" role="secondary">{field.hint}</Text>}
+            {field.hint === undefined ? null : <Text size="md" role="secondary">{field.hint}</Text>}
           </Col>
         ))}
       </Col>
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
       <Row justify="between" align="center" gap={12} wrap>
         <Button
           color="secondary"

@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { LabeledField } from './LabeledField.js';
 import { sendEmailCode, verifyEmailCode, type Intent } from '../api/auth.js';
 
@@ -58,7 +59,7 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
         <LabeledField label="Email" name="email" value={email} placeholder="e. g. alice@stage.box" inputMode="email" disabled={step.busy} onChangeText={setEmail} onSubmit={send} />
       ) : (
         <>
-          <Text size="md" style={CENTER_TEXT}>
+          <Text size="lg" style={CENTER_TEXT}>
             {`We sent a code to ${step.sentTo}. Enter the six digits here.`}
           </Text>
           <LabeledField label="Code" name="code" value={code} placeholder="e. g. 123456" inputMode="numeric" autoFocus disabled={step.busy} onChangeText={setCode} onSubmit={verify} />
@@ -90,7 +91,7 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
         </Row>
       )}
       {step.error === null ? null : (
-        <Text size="md" role="danger" style={CENTER_TEXT}>
+        <Text size="lg" role="danger" style={CENTER_TEXT}>
           {step.error}
         </Text>
       )}

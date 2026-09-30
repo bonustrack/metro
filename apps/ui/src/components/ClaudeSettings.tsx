@@ -2,7 +2,9 @@ import { type ReactNode, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
@@ -58,10 +60,10 @@ function FileNote({ file }: { file: ClaudeSettingsFile }): ReactNode {
   return (
     <Col gap={2}>
       <FieldLabel>{scopeLabel(file)}</FieldLabel>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {file.path}
       </Text>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {file.modifiedAt === null ? 'No file yet. Saving writes one.' : `Last changed ${whenLabel(file.modifiedAt)}.`}
       </Text>
     </Col>
@@ -94,12 +96,12 @@ function Actions({ busy, ready, changed, note, error, onSave, onFormat, onRevert
       <Button size="md" color="secondary" dark={dark} label="Format" disabled={busy || !ready} onPress={onFormat} />
       <Button size="md" color="secondary" dark={dark} label="Revert" disabled={busy || !changed} onPress={onRevert} />
       {note === null ? null : (
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {note}
         </Text>
       )}
       {error === null ? null : (
-        <Text size="sm" role="danger">
+        <Text size="md" role="danger">
           {error}
         </Text>
       )}
@@ -144,7 +146,7 @@ function Editor({ file, draft, onEdit, onSaved }: EditorProps): ReactNode {
         inputProps={{ multiline: true, autoCapitalize: 'none', autoCorrect: false, spellCheck: false }}
       />
       {broken === null ? null : (
-        <Text size="sm" role="danger">
+        <Text size="md" role="danger">
           {broken}
         </Text>
       )}
@@ -184,20 +186,20 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
         </SettingsSection>
       </SettingsGroup>
       {settings.error !== null ? (
-        <Text size="sm" role="danger">
+        <Text size="md" role="danger">
           {queryError(settings.error, 'Could not read the settings files.')}
         </Text>
       ) : settings.data === undefined ? (
         <Loading />
       ) : file === undefined ? (
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           Claude Code has left no settings file on this machine.
         </Text>
       ) : (
         <Col gap={16}>
           <Col gap={2}>
-            <Text size="lg" weight="medium">Advanced</Text>
-            <Text size="sm" role="secondary">{WHAT}</Text>
+            <Text size="xl" weight="medium">Advanced</Text>
+            <Text size="md" role="secondary">{WHAT}</Text>
           </Col>
           <FilePicker
             files={files}
@@ -209,7 +211,7 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
           />
           <FileNote file={file} />
           {file.editable ? null : (
-            <Text size="sm" role="danger">
+            <Text size="md" role="danger">
               That file is too large to edit here.
             </Text>
           )}

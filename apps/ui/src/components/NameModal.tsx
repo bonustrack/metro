@@ -1,9 +1,11 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
-import { Modal } from './Modal.js';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { queryError } from '../api/queries.js';
 
 interface NameModalProps {
@@ -69,7 +71,7 @@ export function NameModal({
           style={GROW}
         />
         {error === null ? null : (
-          <Text size="sm" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         )}

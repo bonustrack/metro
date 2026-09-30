@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
-import { Text } from '../ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { WhatsAppPhone, type WaMessage } from './WhatsAppPhone.js';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
 
@@ -115,12 +115,12 @@ function Caption({ stop, onPick }: { stop: number; onPick: (stop: number) => voi
           {shown.marks.map((mark) => (
             <span key={mark.name} className="lp-acc-mark">
               <ConnectorFavicon name={mark.name} url={mark.url} size={16} />
-              <Text size="xs">{mark.name}</Text>
+              <Text size="sm">{mark.name}</Text>
             </span>
           ))}
           {shown.note === undefined ? null : (
             <span className="lp-acc-mark">
-              <Text size="xs">{shown.note}</Text>
+              <Text size="sm">{shown.note}</Text>
             </span>
           )}
         </span>

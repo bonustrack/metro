@@ -2,7 +2,9 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button, Input, Text } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
@@ -22,11 +24,11 @@ function Head({ skill }: { skill: ClaudeSkill }): ReactNode {
     <Col gap={16}>
       <Col gap={8}>
         <PageTitle>{skill.title}</PageTitle>
-        <Text size="sm" role="secondary">
+        <Text size="md" role="secondary">
           {[skill.description, skill.updatedAt === null ? '' : `Changed ${whenLabel(skill.updatedAt)}.`].filter((part) => part !== '').join(' ')}
         </Text>
       </Col>
-      {skill.editable ? null : <Text size="sm" role="danger">That skill is too large to edit here.</Text>}
+      {skill.editable ? null : <Text size="md" role="danger">That skill is too large to edit here.</Text>}
     </Col>
   );
 }
@@ -46,8 +48,8 @@ function Actions({ busy, changed, note, failure, onSave, onRevert }: ActionsProp
     <Row gap={12} align="center" wrap>
       <Button dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !changed} onPress={onSave} />
       <Button size="md" color="secondary" dark={dark} label="Revert" disabled={busy || !changed} onPress={onRevert} />
-      {note === null ? null : <Text size="sm" role="secondary">{note}</Text>}
-      {failure === null ? null : <Text size="sm" role="danger">{failure}</Text>}
+      {note === null ? null : <Text size="md" role="secondary">{note}</Text>}
+      {failure === null ? null : <Text size="md" role="danger">{failure}</Text>}
     </Row>
   );
 }
@@ -120,7 +122,7 @@ export function SkillPage({ project, id, onBack }: SkillPageProps): ReactNode {
     <Col gap={20}>
       <BackLink label="Skills" href={routeHash({ kind: 'skills', project })} onPress={onBack} />
       {error !== null ? (
-        <Text size="sm" role="danger">{queryError(error, 'Could not read that skill.')}</Text>
+        <Text size="md" role="danger">{queryError(error, 'Could not read that skill.')}</Text>
       ) : data === undefined ? (
         <Loading />
       ) : (

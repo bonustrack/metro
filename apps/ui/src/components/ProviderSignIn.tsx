@@ -1,7 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { type ConnectionRow } from '../api/model.js';
 import { useModelAction } from './sign-in-tab.js';
@@ -21,7 +23,7 @@ export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressPr
   const [pasted, setPasted] = useState('');
   return (
     <Col gap={6} maxWidth={FIELD_WIDTH}>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {hint}
       </Text>
       <Input name={name} value={pasted} placeholder={placeholder} dark={dark} onChangeText={setPasted} style={GROW} />
@@ -37,7 +39,7 @@ export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressPr
           }}
         />
       </Row>
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -45,7 +47,7 @@ export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressPr
 export function SignedInAs({ connection, children }: { connection: ConnectionRow; children: ReactNode }): ReactNode {
   return (
     <Col gap={10}>
-      <Text size="sm">
+      <Text size="md">
         Signed in{connection.account === null ? '' : ` as ${connection.account}`}
         {connection.plan === null ? '' : ` (${connection.plan})`}
       </Text>
@@ -59,7 +61,7 @@ export function SignInLink({ link, label, children }: { link: string | null; lab
     <Row gap={8} wrap align="center">
       {children}
       {link !== null ? (
-        <Text size="sm">
+        <Text size="md">
           <a className="hint-link" href={link} target="_blank" rel="noreferrer">
             {label}
           </a>

@@ -1,8 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
-import { Modal } from './Modal.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { checkPassphrase } from '../export/passphrase.js';
 import { countOf, digest, fileName, packFile, SECTION_LABELS, SECTIONS, type Section } from '../export/pack.js';
 import { useServersQuery } from '../api/queries.js';
@@ -89,7 +91,7 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
   return (
     <Modal title="Export agent" open={open} onClose={close}>
       <Col gap={14}>
-        <Text size="sm" role="secondary">{HOW}</Text>
+        <Text size="md" role="secondary">{HOW}</Text>
         <Row gap={8} wrap>
           {SECTIONS.map((section) => (
             <Button
@@ -106,9 +108,9 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
           ))}
         </Row>
         <Input name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase for this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
-        <Text size="sm" role="secondary">{NOTE}</Text>
-        {done === null ? null : <Text size="md">{`Saved: ${done}`}</Text>}
-        {error === null ? null : <Text size="sm" role="danger">{error}</Text>}
+        <Text size="md" role="secondary">{NOTE}</Text>
+        {done === null ? null : <Text size="lg">{`Saved: ${done}`}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
         <Row justify="end" gap={8}>
           <Button color="secondary" dark={dark} disabled={busy} onPress={close} label={done === null ? 'Cancel' : 'Done'} />
           <Button

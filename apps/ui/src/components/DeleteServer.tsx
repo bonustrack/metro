@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { orgKey, queryError, refreshServers } from '../api/queries.js';

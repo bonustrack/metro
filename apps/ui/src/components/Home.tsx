@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { CountBadge } from './CountBadge.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
@@ -23,7 +23,7 @@ const FALLBACK = 'Could not read this machine.';
 function SectionHead({ label, count }: { label: string; count: number }): ReactNode {
   return (
     <Row gap={8} align="center">
-      <Text size="lg" weight="medium">{label}</Text>
+      <Text size="xl" weight="medium">{label}</Text>
       <CountBadge count={count} />
     </Row>
   );
@@ -33,7 +33,7 @@ function NoAgent(): ReactNode {
   return (
     <Col gap={16}>
       <PageTitle>This box</PageTitle>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         Setting up this box… the daemon creates its agent at start, this fills in within seconds.
       </Text>
     </Col>
@@ -89,7 +89,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
   const agent = data?.agent;
   const name = useBoxName(agent);
   useDocumentTitle(name);
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
   if (agent === undefined) return <NoAgent />;
   return (

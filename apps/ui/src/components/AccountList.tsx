@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { EmptyCard, SettingsGroup } from './SettingsSection.js';
 import { stationLabel } from '../api/attach.js';
 import { flattenAccounts, stationFields, type AccountGroup, type AccountRow } from '../api/accounts.js';
@@ -8,7 +8,7 @@ import { ChatIcon } from './ChatIcon.js';
 import { DetachAccount } from './DetachAccount.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { StationIcon } from './StationIcon.js';
-import { Pill } from './Pill.js';
+import { Badge } from '@stage-labs/kit/react-native/badge';
 import { routeHash } from '../route.js';
 
 export type DetachHandler = (station: string, accountId: string) => Promise<void>;
@@ -27,9 +27,9 @@ interface StationRowProps {
 function Extra({ enabled, stale }: { enabled: boolean; stale: boolean }): ReactNode {
   return (
     <>
-      {enabled ? null : <Pill label="Not receiving" />}
+      {enabled ? null : <Badge label="Not receiving" color="secondary" variant="soft" pill />}
       {stale && enabled ? (
-        <Text size="sm" role="danger" numberOfLines={1}>
+        <Text size="md" role="danger" numberOfLines={1}>
           not responding
         </Text>
       ) : null}

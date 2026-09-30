@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { ListHeader } from './ListHeader.js';
 import { AccountList } from './AccountList.js';
 import { ConnectStation } from './ConnectStation.js';
@@ -24,10 +25,10 @@ export function Stations({ project, onOpen }: StationsProps): ReactNode {
   const { data, error } = useStationsQuery();
   const [connecting, setConnecting] = useState(false);
   useDocumentTitle('Channels');
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
   const agent = data.agent;
-  if (agent === undefined) return <Text size="sm" role="secondary">Create the agent first, from the first page.</Text>;
+  if (agent === undefined) return <Text size="md" role="secondary">Create the agent first, from the first page.</Text>;
   const mine = data.groups;
   return (
     <Col gap={16}>

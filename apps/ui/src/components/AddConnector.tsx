@@ -1,7 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import {
   connectorCallbackUrl,
@@ -10,7 +12,7 @@ import {
   type NewConnector,
 } from '../api/connectors.js';
 import { useMachineQuery } from '../api/queries.js';
-import { Modal } from './Modal.js';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 
 type FieldKey = keyof NewConnector;
 
@@ -76,7 +78,7 @@ function FormField(props: FormFieldProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={4}>
-      <Text size="sm" role="secondary">{props.label}</Text>
+      <Text size="md" role="secondary">{props.label}</Text>
       <Input
         name={props.name}
         value={props.value}
@@ -160,18 +162,18 @@ function ConnectorForm({
 
   return (
     <Col gap={14}>
-      <Text size="sm" role="secondary">{HINT}</Text>
+      <Text size="md" role="secondary">{HINT}</Text>
       <Col gap={10}>
         <Fields specs={FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
       </Col>
       <Col gap={10}>
-        <Text size="sm" role="secondary">{APP_HINT}</Text>
+        <Text size="md" role="secondary">{APP_HINT}</Text>
         {machine === undefined ? null : (
-          <Text size="sm">{connectorCallbackUrl(machine)}</Text>
+          <Text size="md">{connectorCallbackUrl(machine)}</Text>
         )}
         <Fields specs={APP_FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
       </Col>
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
       <Row justify="between" align="center" gap={12} wrap>
         <Button
           color="secondary"

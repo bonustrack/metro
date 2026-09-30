@@ -53,10 +53,10 @@ describe('self-hosted Calibre', () => {
     expect(theme).toContain('Calibre-Semibold');
   });
 
-  test('every fixed CSS text size goes through the type scale', () => {
-    const fixed = [...css.matchAll(/font-size: (\d+)px;/g)];
-    expect(fixed).toEqual([]);
-    expect(css).toContain('var(--metro-type-scale, 1)');
+  test('the page uses the kit text sizes, with no type scale of its own', () => {
+    const theme = readFileSync(join(uiRoot, 'src/theme.ts'), 'utf8');
+    expect(css).not.toContain('--metro-type-scale');
+    expect(theme).not.toContain('TYPE_SCALE');
   });
 
   test('the primary weight is preloaded with a crossorigin font hint', () => {

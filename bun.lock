@@ -76,6 +76,7 @@
         "react": "19.1.0",
         "react-dom": "19.1.0",
         "react-markdown": "^10.1.0",
+        "react-native-safe-area-context": "5.8.0",
         "react-native-svg": "15.15.5",
         "react-native-web": "^0.21.2",
         "remark-gfm": "^4.0.1",

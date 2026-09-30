@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
 import { renameConnector, type Connector } from '../api/connectors.js';
 import { useSignIn } from './connector-signin.js';
 import { type MenuItem } from './Dropdown.js';

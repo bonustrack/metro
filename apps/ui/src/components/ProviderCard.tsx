@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
 import { KebabMenu } from './KebabMenu.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { SettingsSection } from './SettingsSection.js';

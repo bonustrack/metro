@@ -2,7 +2,8 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
 import { StationIcon } from './StationIcon.js';
@@ -25,7 +26,7 @@ function BlockView({ block }: { block: Block }): ReactNode {
   if (block.kind === 'text') {
     const message = parseChannelMessage(block.text);
     const text = message === null ? block.text : message.text;
-    if (text.trim() === '') return <Text size="sm" role="secondary">(no text)</Text>;
+    if (text.trim() === '') return <Text size="md" role="secondary">(no text)</Text>;
     return <MarkdownBlock text={text} />;
   }
   if (block.kind === 'tool_use')
@@ -45,7 +46,7 @@ function BlockView({ block }: { block: Block }): ReactNode {
       </details>
     );
   return (
-    <Text size="sm" role="secondary">
+    <Text size="md" role="secondary">
       {block.kind === 'thinking' ? 'thinking…' : '(image)'}
     </Text>
   );
@@ -74,7 +75,7 @@ function Entry({ entry }: { entry: TranscriptEntry }): ReactNode {
       <Col gap={4} maxWidth={BUBBLE_WIDTH}>
         <Row align="center" gap={6}>
           {sender.station === null ? null : <StationIcon station={sender.station} size={SENDER_ICON} />}
-          <Text size="sm" role="secondary" numberOfLines={1}>
+          <Text size="md" role="secondary" numberOfLines={1}>
             {sender.label}
             {when}
           </Text>
@@ -164,7 +165,7 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
       });
   };
 
-  if (error !== null) return <Text size="sm" role="danger">{error}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{error}</Text>;
   if (entries === null) return <Loading />;
   return (
     <div className="transcript">
@@ -182,12 +183,12 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
           </Row>
         ) : null}
         {entries.length === 0 ? (
-          <Text size="sm" role="secondary">Nothing in this session yet.</Text>
+          <Text size="md" role="secondary">Nothing in this session yet.</Text>
         ) : (
           entries.map((e) => <Entry key={e.uuid} entry={e} />)
         )}
         <Row justify="center" padding={{ top: 8 }}>
-          <Text size="sm" role="secondary">
+          <Text size="md" role="secondary">
             {String(total)} turn{total === 1 ? '' : 's'} · updates every few seconds while the session runs
           </Text>
         </Row>

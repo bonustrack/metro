@@ -2,20 +2,20 @@ import { type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Icon, type IconName } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { opensElsewhere } from './link.js';
 import { routeHash } from '../route.js';
 import { type Selection } from './selection.js';
 
 export const NAV_ROW_BOX = {
   align: 'center',
-  gap: 10,
-  padding: { x: 12, y: 4 },
-  margin: { x: -12 },
+  gap: 14,
+  minHeight: 44,
+  padding: { x: 18 },
 } as const;
-export const NAV_ICON_SIZE = 20;
+export const NAV_ICON_SIZE = 24;
 
-export const NAV_GAP = 6;
+export const NAV_GAP = 0;
 
 function NavIcon({ name, color }: { name: IconName; color: string }): ReactNode {
   return (
@@ -46,20 +46,20 @@ export function NavRow({
   const body = (
     <Row {...NAV_ROW_BOX}>
       {icon === undefined ? null : <NavIcon name={icon} color={selected ? palette.link : palette.sub} />}
-      <Text size="lg" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
+      <Text size="xl" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
         {label}
       </Text>
     </Row>
   );
   if (disabled)
     return (
-      <span className="nav-link nav-link-off" aria-disabled="true" title={`${label} is unavailable while this agent is offline`}>
+      <span className="nav-link nav-row nav-link-off" aria-disabled="true" title={`${label} is unavailable while this agent is offline`}>
         {body}
       </span>
     );
   return (
     <a
-      className="nav-link"
+      className={selected ? 'nav-link nav-row is-current' : 'nav-link nav-row'}
       href={routeHash(target)}
       onClick={(e) => {
         if (opensElsewhere(e)) return;

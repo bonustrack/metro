@@ -1,7 +1,8 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { MetroLogo } from './MetroLogo.js';
 import { EmailLogin } from './EmailLogin.js';
 import { GoogleMark } from './GoogleMark.js';
@@ -84,13 +85,13 @@ function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
 function Footer(): ReactNode {
   return (
     <Row justify="center" gap={16}>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         {COPYRIGHT}
       </Text>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         Terms
       </Text>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         Privacy
       </Text>
     </Row>
@@ -126,7 +127,7 @@ function Frame({ title, children }: { title: ReactNode; children: ReactNode }): 
                 title
               )}
             </Row>
-            <Text size="xl" style={CENTER_TEXT}>
+            <Text size="2xl" style={CENTER_TEXT}>
               {ABOUT}
             </Text>
           </Col>
@@ -143,7 +144,7 @@ function DaemonHint(): ReactNode {
   if (heading === null) return null;
   return (
     <Row justify="center">
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         then on to {daemonHost(heading)}
       </Text>
     </Row>
@@ -158,7 +159,7 @@ export function Login(): ReactNode {
   if (waitlist && outcome.joined)
     return (
       <Frame title={WAITLIST_TITLE}>
-        <Text size="md" style={CENTER_TEXT}>
+        <Text size="lg" style={CENTER_TEXT}>
           {JOINED}
         </Text>
       </Frame>
@@ -167,23 +168,23 @@ export function Login(): ReactNode {
     <Frame title={waitlist ? WAITLIST_TITLE : 'Log in'}>
       <DaemonHint />
       {failed === null ? null : (
-        <Text size="xl" role="danger" style={CENTER_TEXT}>
+        <Text size="2xl" role="danger" style={CENTER_TEXT}>
           {failed}
         </Text>
       )}
       {pendingInvitation() !== null && !outcome.invited ? (
-        <Text size="xl" style={CENTER_TEXT}>
+        <Text size="2xl" style={CENTER_TEXT}>
           {INVITATION}
         </Text>
       ) : null}
       {outcome.invited ? (
-        <Text size="xl" style={CENTER_TEXT}>
+        <Text size="2xl" style={CENTER_TEXT}>
           {INVITED}
         </Text>
       ) : null}
       <Col padding={{ top: BUTTONS_TOP }} gap={OR_GAP}>
         <EmailLogin intent={waitlist ? 'waitlist' : 'login'} />
-        <Text size="sm" role="secondary" style={CENTER_TEXT}>
+        <Text size="md" role="secondary" style={CENTER_TEXT}>
           or
         </Text>
         <ProviderButtons intent={waitlist ? 'waitlist' : 'login'} />

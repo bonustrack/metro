@@ -2,7 +2,8 @@ import { type ReactNode, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 import { beginCodexDevice, beginCodexLogin, codexImport, finishCodexLogin, pollCodexDevice, type ConnectionRow, type DeviceLogin } from '../api/model.js';
 import { queryError, refresh } from '../api/queries.js';
@@ -53,14 +54,14 @@ function DeviceFlow({ label, id }: { label: string; id: string }): ReactNode {
       </SignInLink>
       {login !== null ? (
         <Col gap={4}>
-          <Text size="sm">Enter this code on the ChatGPT page that opened:</Text>
-          <Text>{login.userCode}</Text>
-          <Text size="sm" role="secondary">
+          <Text size="md">Enter this code on the ChatGPT page that opened:</Text>
+          <Text size="lg">{login.userCode}</Text>
+          <Text size="md" role="secondary">
             Waiting for ChatGPT to confirm. This page finishes on its own.
           </Text>
         </Col>
       ) : null}
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -74,7 +75,7 @@ function RedirectFlow({ label, id }: { label: string; id: string }): ReactNode {
         <Button size="sm" color="secondary" dark={dark} label={label} loading={starting} disabled={starting} onPress={connect} />
       </SignInLink>
       {started === null ? null : <PasteAddress hint={PASTE_HINT} name="codex-callback" placeholder="http://localhost:1455/auth/callback?code=…&state=…" finish={(pasted) => finishCodexLogin(pasted, id)} />}
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -84,18 +85,18 @@ function NotConnected({ id }: { id: string }): ReactNode {
   const { busy, error, run } = useModelAction();
   return (
     <Col gap={10}>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         Not connected.
       </Text>
       <DeviceFlow label="Connect ChatGPT" id={id} />
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         Other ways in:
       </Text>
       <RedirectFlow label="Sign in through a browser redirect" id={id} />
       <Row gap={8} wrap>
         <Button size="sm" color="secondary" dark={dark} label="Use the Codex CLI login on this machine" disabled={busy} onPress={() => { run(() => codexImport(id), 'Could not read the Codex CLI login.'); }} />
       </Row>
-      {error !== null ? <Text size="sm" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>
   );
 }

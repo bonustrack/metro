@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { ChatIcon } from './ChatIcon.js';
 import { KebabMenu } from './KebabMenu.js';
 import { type MenuItem } from './Dropdown.js';
@@ -58,13 +58,13 @@ export function SenderRow({ station, id, name, handle, avatar, busy, approves, o
         <AgentAvatar seed={id} src={avatar} size={AVATAR} />
         <Col gap={2} style={SHRINK}>
           <Row gap={8} align="center">
-            <Text size="md" weight="medium" numberOfLines={1} style={SHRINK}>
+            <Text size="lg" weight="medium" numberOfLines={1} style={SHRINK}>
               {title}
             </Text>
             {approves === true ? <span className="tag">Approver</span> : null}
           </Row>
           {subtitle === '' ? null : (
-            <Text size="sm" role="secondary" numberOfLines={1}>
+            <Text size="md" role="secondary" numberOfLines={1}>
               {subtitle}
             </Text>
           )}

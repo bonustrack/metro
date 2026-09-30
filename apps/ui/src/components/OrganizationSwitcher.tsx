@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from './ui.js';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SHRINK } from '../theme.js';
 import { NameModal } from './NameModal.js';
 import { Face, ScopeColumn, ScopeItem, statusWord } from './scope-parts.js';
@@ -39,10 +39,10 @@ function AgentFace({ server, org }: { server: Server; org: string }): ReactNode 
     <>
       <Face server={server} size={AVATAR} />
       <span className="agent-trigger-text">
-        <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
+        <Text size="lg" weight="semibold" numberOfLines={1} style={SHRINK}>
           {serverLabel(server)}
         </Text>
-        <Text size="sm" role="secondary" numberOfLines={1}>
+        <Text size="md" role="secondary" numberOfLines={1}>
           {`${org} · ${statusWord(data?.state)}`}
         </Text>
       </span>
@@ -53,10 +53,10 @@ function AgentFace({ server, org }: { server: Server; org: string }): ReactNode 
 function OrgFace({ org }: { org: string }): ReactNode {
   return (
     <span className="agent-trigger-text">
-      <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
+      <Text size="lg" weight="semibold" numberOfLines={1} style={SHRINK}>
         {org}
       </Text>
-      <Text size="sm" role="secondary" numberOfLines={1}>
+      <Text size="md" role="secondary" numberOfLines={1}>
         All agents
       </Text>
     </span>

@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Text } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { SHRINK } from '../theme.js';
 import { PageTitle } from './PageTitle.js';
 import { connectorHost, renameConnector, verifyConnector, type Connector } from '../api/connectors.js';
@@ -43,7 +44,7 @@ function Header({ connector, project, onBack, onChanged, onError }: { connector:
           <ConnectorFavicon name={connector.name} url={connector.url} size={ICON} />
           <Col gap={2} style={SHRINK}>
             <PageTitle>{connector.name}</PageTitle>
-            <Text size="sm" role={status.bad ? 'danger' : 'secondary'} numberOfLines={1}>
+            <Text size="md" role={status.bad ? 'danger' : 'secondary'} numberOfLines={1}>
               {`${connectorHost(connector.url)} · ${status.text}`}
             </Text>
           </Col>
@@ -166,12 +167,12 @@ export function ConnectorPage({ project, id, onDelete, onBack }: ConnectorPagePr
     setFailure(null);
     refreshConnectors(client, id);
   };
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
   return (
     <Col gap={32}>
       <Header connector={data} project={project} onBack={onBack} onChanged={reload} onError={setFailure} />
-      {failure === null ? null : <Text size="sm" role="danger">{failure}</Text>}
+      {failure === null ? null : <Text size="md" role="danger">{failure}</Text>}
       <ConnectorPermissions connector={data} title={`What ${name} may do`} />
       <Connection connector={data} onChanged={reload} />
       <Manage connector={data} onDelete={onDelete} onChanged={reload} onError={setFailure} />

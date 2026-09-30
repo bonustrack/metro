@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { PageTitle } from './PageTitle.js';
 import { THEME_MODES, useThemeMode } from '../theme-mode.js';
 import { useDocumentTitle } from '../title.js';
@@ -19,8 +20,8 @@ export function Settings(): ReactNode {
       <AccountSettings />
       <Col gap={12}>
           <Col gap={2}>
-            <Text size="lg" weight="medium">Appearance</Text>
-            <Text size="sm" role="secondary">
+            <Text size="xl" weight="medium">Appearance</Text>
+            <Text size="md" role="secondary">
               System follows your device setting and changes with it.
             </Text>
           </Col>

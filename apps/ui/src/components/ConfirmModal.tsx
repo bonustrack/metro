@@ -1,9 +1,11 @@
 import { useState, type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button, Input } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Input } from '@stage-labs/kit/react-native/input';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
-import { Modal } from './Modal.js';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { confirmMatches, confirmPrompt } from './confirm.js';
 
 interface ConfirmModalProps {
@@ -39,10 +41,10 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
     <Modal title={title} open={open} onClose={close}>
       <Col gap={14}>
         {lines.map((line) => (
-          <Text key={line} size="sm" role="secondary">{line}</Text>
+          <Text key={line} size="md" role="secondary">{line}</Text>
         ))}
         <Col gap={4}>
-          <Text size="sm" role="secondary">{confirmPrompt(confirmWord)}</Text>
+          <Text size="md" role="secondary">{confirmPrompt(confirmWord)}</Text>
           <Input
             name="confirm-word"
             value={typed}
@@ -55,7 +57,7 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
           />
         </Col>
         {props.error !== null ? (
-          <Text size="sm" role="danger">{props.error}</Text>
+          <Text size="md" role="danger">{props.error}</Text>
         ) : null}
         <Row justify="between" align="center" gap={12} wrap>
           <Button color="secondary" dark={dark} disabled={props.busy} onPress={close} label="Cancel" />

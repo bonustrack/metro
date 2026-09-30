@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { signInPage } from '../api/attach-session.js';
 
 export function DeviceSignIn({ code, uri }: { code: string; uri: string | null }): ReactNode {
@@ -21,17 +22,17 @@ export function DeviceSignIn({ code, uri }: { code: string; uri: string | null }
   return (
     <Col gap={10}>
       <Row gap={12} align="center" wrap>
-        <Text size="3xl" weight="semibold" selectable>
+        <Text size="4xl" weight="semibold" selectable>
           {code}
         </Text>
         <Button size="sm" color="secondary" dark={dark} onPress={copy} label={copied ? 'Copied' : 'Copy code'} />
       </Row>
-      <Text size="sm">
+      <Text size="md">
         <a className="hint-link" href={page} target="_blank" rel="noreferrer">
           Open {page.replace(/^https:\/\//, '')}
         </a>
       </Text>
-      <Text size="sm" role="secondary">
+      <Text size="md" role="secondary">
         Waiting for you to sign in.
       </Text>
     </Col>

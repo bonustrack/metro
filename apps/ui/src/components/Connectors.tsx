@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Text, Button } from './ui.js';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { EmptyCard, SettingsGroup } from './SettingsSection.js';
 import { ListHeader } from './ListHeader.js';
 import {
@@ -101,13 +102,13 @@ export function Connectors({
       />
 
       {returned === null ? null : (
-        <Text size="sm" role="danger">{`Sign-in did not finish: ${returned}`}</Text>
+        <Text size="md" role="danger">{`Sign-in did not finish: ${returned}`}</Text>
       )}
       {error === null ? null : (
-        <Text size="sm" role="danger">{queryError(error, FALLBACK)}</Text>
+        <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>
       )}
       {failed === null ? null : (
-        <Text size="sm" role="danger">{failed}</Text>
+        <Text size="md" role="danger">{failed}</Text>
       )}
       {data === undefined && error === null ? <Loading /> : null}
       {data === undefined ? null : (
