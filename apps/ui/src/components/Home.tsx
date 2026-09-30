@@ -23,7 +23,7 @@ const FALLBACK = 'Could not read this machine.';
 function SectionHead({ label, count }: { label: string; count: number }): ReactNode {
   return (
     <Row gap={8} align="center">
-      <Text size="xl" weight="medium">{label}</Text>
+      <Text size="2xl" weight="semibold">{label}</Text>
       <CountBadge count={count} />
     </Row>
   );

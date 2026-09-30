@@ -40,10 +40,8 @@ body {
 
 .app-sidebar,
 .app-drawer {
-  background: var(--metro-bg);
-}
-
-.app-drawer {
+  box-sizing: border-box;
+  background: var(--metro-toolbar);
   border-right: 1px solid var(--metro-border);
 }
 
@@ -85,6 +83,25 @@ body {
   flex-direction: column;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.page-content {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1040px;
+  padding: 18px 18px 64px;
+}
+
+.page-header {
+  min-height: 52px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--metro-border);
+}
+
+@media (max-width: 720px) {
+  .page-content {
+    padding-top: 12px;
+  }
 }
 
 .build-dot {
@@ -132,8 +149,8 @@ body {
 .markdown {
   color: var(--metro-text);
   font-family: var(--metro-font-sans);
-  font-size: 21px;
-  line-height: 1.6;
+  font-size: var(--kit-font-3xl);
+  line-height: 23px;
   overflow-wrap: break-word;
 }
 
@@ -150,12 +167,12 @@ body {
   margin: 1.6em 0 0.6em;
 }
 
-.markdown h1 { font-size: 34px; }
-.markdown h2 { font-size: 29px; }
-.markdown h3 { font-size: 26px; }
+.markdown h1 { font-size: var(--kit-font-6xl); }
+.markdown h2 { font-size: var(--kit-font-5xl); }
+.markdown h3 { font-size: var(--kit-font-4xl); }
 .markdown h4,
 .markdown h5,
-.markdown h6 { font-size: 23px; }
+.markdown h6 { font-size: var(--kit-font-3xl); }
 .markdown > :first-child { margin-top: 0; }
 
 .markdown p,
@@ -173,7 +190,7 @@ body {
 
 .markdown code {
   font-family: var(--metro-font-sans);
-  font-size: 0.875em;
+  font-size: var(--kit-font-sm);
   background: var(--metro-surface);
   border-radius: 4px;
   padding: 0.15em 0.4em;
@@ -189,7 +206,7 @@ body {
 .markdown pre code {
   background: none;
   padding: 0;
-  font-size: 16px;
+  font-size: var(--kit-font-sm);
   line-height: 1.55;
 }
 
@@ -331,19 +348,43 @@ body {
   text-decoration: none;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.form-field,
 .labeled-field {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
   gap: 2px;
-  padding: 12px 16px;
-  border-radius: 6px;
+  padding: 8px 16px 12px;
+  border-radius: 4px;
   background: var(--metro-border);
   cursor: text;
 }
 
+.form-field input,
+.form-field textarea,
 .labeled-field input {
   outline: none;
   width: 100%;
+}
+
+.form-field:focus-within,
+.labeled-field:focus-within {
+  outline: 1px solid var(--metro-sub);
+  outline-offset: 2px;
 }
 
 .login-page {
@@ -420,7 +461,8 @@ textarea:focus-visible {
 }
 
 .side-top {
-  padding: 18px 18px 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--metro-border);
 }
 
 .side-main {
@@ -432,6 +474,7 @@ textarea:focus-visible {
 
 .side-bottom {
   padding: 12px 18px 16px;
+  border-top: 1px solid var(--metro-border);
 }
 
 .org-trigger,
@@ -528,9 +571,7 @@ textarea:focus-visible {
   padding: 6px 16px 8px;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
+  font-size: var(--kit-font-lg);
 }
 
 .scope-footer {
@@ -552,7 +593,8 @@ textarea:focus-visible {
   gap: 10px;
   width: 100%;
   min-width: 0;
-  padding: 7px 16px;
+  min-height: 48px;
+  padding: 9px 16px;
   border: 0;
   background: transparent;
   color: var(--metro-heading);
@@ -573,7 +615,7 @@ textarea:focus-visible {
   padding: 7px 16px;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: 15px;
+  font-size: var(--kit-font-md);
 }
 
 .scope-item-end {
@@ -650,8 +692,8 @@ textarea:focus-visible {
 .transcript .tool-call summary,
 .transcript .tool-call pre {
   font-family: var(--metro-font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--kit-font-3xl);
+  line-height: 23px;
   color: var(--metro-text);
 }
 .markdown-compact p {
@@ -662,14 +704,21 @@ textarea:focus-visible {
 }
 .markdown-compact pre,
 .markdown-compact code {
-  font-size: 13px;
+  font-size: var(--kit-font-sm);
 }
-.markdown-compact h1 { font-size: 22px; }
-.markdown-compact h2 { font-size: 18px; }
-.markdown-compact h3 { font-size: 16px; }
+.markdown-compact h1 { font-size: var(--kit-font-5xl); }
+.markdown-compact h2 { font-size: var(--kit-font-4xl); }
+.markdown-compact h3 { font-size: var(--kit-font-3xl); }
 .markdown-compact h4,
 .markdown-compact h5,
-.markdown-compact h6 { font-size: 15px; }
+.markdown-compact h6 { font-size: var(--kit-font-2xl); }
+.transcript .tool-call,
+.transcript .tool-call summary,
+.transcript .tool-call pre {
+  font-size: var(--kit-font-md);
+  line-height: 1.5;
+}
+
 .tool-call {
   border: 1px solid var(--metro-border);
   border-radius: 8px;
@@ -770,7 +819,7 @@ textarea:focus-visible {
   background: transparent;
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: 14px;
+  font-size: var(--kit-font-2xl);
   text-align: left;
   cursor: pointer;
 }
@@ -781,7 +830,7 @@ textarea:focus-visible {
 
 .model-match-name {
   color: var(--metro-sub);
-  font-size: 13px;
+  font-size: var(--kit-font-md);
 }
 
 .login-output {
@@ -793,14 +842,14 @@ textarea:focus-visible {
   background: var(--metro-surface);
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: 12px;
+  font-size: var(--kit-font-md);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .boot-log {
   font-family: var(--metro-font-sans);
-  font-size: 13px;
+  font-size: var(--kit-font-md);
   line-height: 1.45;
   color: var(--metro-text);
   background: var(--metro-surface);
@@ -902,7 +951,7 @@ textarea:focus-visible {
   background: var(--metro-surface);
   color: var(--metro-text);
   font-family: var(--metro-font-sans);
-  font-size: 13px;
+  font-size: var(--kit-font-md);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -963,7 +1012,7 @@ textarea:focus-visible {
   align-items: baseline;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 20px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--metro-border);
 }
 
@@ -971,7 +1020,7 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 20px;
+  padding: 14px 16px;
   text-decoration: none;
   transition: background 150ms ease;
 }
@@ -1029,15 +1078,15 @@ textarea:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 18px 20px;
+  padding: 14px 16px;
 }
 
 .settings-row.is-compact {
-  padding: 12px 20px;
+  padding: 14px 16px;
 }
 
 .settings-row.is-sub {
-  padding: 8px 20px;
+  padding: 10px 16px;
 }
 
 .settings-card > .settings-row.is-sub {
@@ -1056,6 +1105,10 @@ textarea:focus-visible {
   min-width: 0;
 }
 
+.settings-row-control > .form-field {
+  min-width: min(280px, 100%);
+}
+
 .settings-row-control {
   display: flex;
   flex-direction: column;
@@ -1070,8 +1123,11 @@ textarea:focus-visible {
     flex-direction: column;
     align-items: stretch;
   }
+  .settings-row-text {
+    flex-basis: auto;
+  }
   .settings-row-control {
-    align-items: flex-start;
+    align-items: stretch;
   }
 }
 
@@ -1085,7 +1141,7 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 20px;
+  padding: 14px 16px;
   border: 1px solid var(--metro-border);
   border-radius: 8px;
   text-decoration: none;
@@ -1124,7 +1180,7 @@ textarea:focus-visible {
 .model-card-action {
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: 14px;
+  font-size: var(--kit-font-md);
   flex: none;
 }
 
@@ -1166,7 +1222,7 @@ textarea:focus-visible {
   background: var(--metro-surface);
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: 13px;
+  font-size: var(--kit-font-xs);
   white-space: nowrap;
 }
 
@@ -1181,7 +1237,7 @@ textarea:focus-visible {
   background: transparent;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: 15px;
+  font-size: var(--kit-font-md);
   cursor: pointer;
 }
 
@@ -1256,7 +1312,7 @@ textarea:focus-visible {
   background: var(--metro-bg);
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: 13px;
+  font-size: var(--kit-font-md);
 }
 
 .pick-row {
@@ -1265,9 +1321,11 @@ textarea:focus-visible {
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  box-sizing: border-box;
+  min-height: 67px;
+  padding: 9px 16px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 4px;
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -1294,21 +1352,21 @@ textarea:focus-visible {
 
 .pick-row-name {
   color: var(--metro-heading);
-  font-family: var(--metro-font-sans);
-  font-size: 15px;
+  font-family: var(--metro-font-head);
+  font-size: var(--kit-font-2xl);
 }
 
 .pick-row-detail {
   overflow: hidden;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: 13px;
+  font-size: var(--kit-font-md);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .settings-pad {
-  padding: 20px;
+  padding: 16px;
 }
 
 .choice {
@@ -1327,7 +1385,7 @@ textarea:focus-visible {
   background: transparent;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: 14px;
+  font-size: var(--kit-font-md);
   white-space: nowrap;
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease;

@@ -46,7 +46,7 @@ function Targets({ server, rows }: { server: Server; rows: OrganizationRow[] }):
         {rows.map((row) => (
           <Button
             key={row.id}
-            size="sm"
+            size="md"
             color="secondary"
             dark={dark}
             label={`Move to ${row.name ?? row.id}`}

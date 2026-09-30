@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { FONT_SIZE } from '@stage-labs/kit/tokens';
 
 const uiRoot = join(import.meta.dir, '..');
 const css = readFileSync(join(uiRoot, 'src/index.css'), 'utf8');
@@ -57,6 +58,21 @@ describe('self-hosted Calibre', () => {
     const theme = readFileSync(join(uiRoot, 'src/theme.ts'), 'utf8');
     expect(css).not.toContain('--metro-type-scale');
     expect(theme).not.toContain('TYPE_SCALE');
+  });
+
+  test('reading text uses exported kit tokens, not a second CSS size table', () => {
+    for (const token of css.matchAll(/var\(--kit-font-([\w]+)\)/g))
+      expect(Object.keys(FONT_SIZE)).toContain(token[1]);
+    const mode = readFileSync(join(uiRoot, 'src/theme-mode.tsx'), 'utf8');
+    expect(mode).toContain('Object.entries(FONT_SIZE)');
+  });
+
+  test('form values and labels match Stage FormField roles', () => {
+    const field = readFileSync(join(uiRoot, 'src/components/FormField.tsx'), 'utf8');
+    expect(field).toContain("FONT_SIZE['2xl']");
+    expect(field).toContain('size="lg"');
+    expect(FONT_SIZE['2xl']).toBe(18);
+    expect(FONT_SIZE.lg).toBe(16);
   });
 
   test('the primary weight is preloaded with a crossorigin font hint', () => {

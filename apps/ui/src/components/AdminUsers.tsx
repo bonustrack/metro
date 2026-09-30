@@ -20,8 +20,8 @@ function Actions({ user, busy, onSet }: { user: UserRow; busy: boolean; onSet: (
   if (user.operator) return null;
   return (
     <Row gap={8}>
-      {user.status === 'approved' ? null : <Button size="sm" color="primary" dark={dark} label="Approve" disabled={busy} onPress={() => { onSet('approved'); }} />}
-      {user.status === 'rejected' ? null : <Button size="sm" color="secondary" dark={dark} label="Reject" disabled={busy} onPress={() => { onSet('rejected'); }} />}
+      {user.status === 'approved' ? null : <Button size="md" color="primary" dark={dark} label="Approve" disabled={busy} onPress={() => { onSet('approved'); }} />}
+      {user.status === 'rejected' ? null : <Button size="md" color="secondary" dark={dark} label="Reject" disabled={busy} onPress={() => { onSet('rejected'); }} />}
     </Row>
   );
 }

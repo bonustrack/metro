@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Modal } from '@stage-labs/kit/react-native/modal';
 import { countOf, openMetroFile, parseMetroFile, SECTION_LABELS, sectionsIn, type Payload, type Section } from '../export/pack.js';
@@ -51,7 +51,7 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
         {sectionsIn(payload).map((section) => (
           <Button
             key={section}
-            size="sm"
+            size="md"
             color={picked.has(section) ? 'primary' : 'secondary'}
             dark={dark}
             disabled={busy}
@@ -64,7 +64,7 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
       </Row>
       <Row gap={8} wrap>
         <Button
-          size="sm"
+          size="md"
           color={mode === 'append' ? 'primary' : 'secondary'}
           dark={dark}
           disabled={busy}
@@ -74,7 +74,7 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
           }}
         />
         <Button
-          size="sm"
+          size="md"
           color={mode === 'overwrite' ? 'danger' : 'secondary'}
           dark={dark}
           disabled={busy}
@@ -198,9 +198,9 @@ function Unlock({ busy, onOpen }: { busy: boolean; onOpen: (passphrase: string) 
   const [passphrase, setPassphrase] = useState('');
   return (
     <Col gap={10}>
-      <Input name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase of this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
+      <FormField label="Passphrase" name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase of this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
       <Row gap={8}>
-        <Button
+        <Button size="lg"
           color="primary"
           dark={dark}
           disabled={busy || passphrase === ''}
@@ -229,7 +229,7 @@ function Chooser({ busy, onPick }: { busy: boolean; onPick: (file: File | undefi
         }}
       />
       <Row gap={8}>
-        <Button
+        <Button size="lg"
           color="primary"
           dark={dark}
           disabled={busy}

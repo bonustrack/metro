@@ -73,7 +73,7 @@ export function DeleteServerSection({ server }: { server: Server }): ReactNode {
     <SettingsGroup title="Danger zone">
       <SettingsSection title="Delete this server" note={NOTE}>
         <Button
-          size="sm"
+          size="md"
           color="danger"
           dark={dark}
           label="Delete"

@@ -71,7 +71,7 @@ function Header({ station, project, row }: { station: string; project: string; r
         </Row>
         {url === undefined ? null : (
           <Button
-            size="sm"
+            size="md"
             color="secondary"
             dark={dark}
             label={`Open in ${stationLabel(station)}`}
@@ -164,7 +164,7 @@ function Remove({ station, id, project, onDetach }: { station: string; id: strin
   );
   return (
     <SettingsSection title="Delete channel" note="Removes it from the agent, with the keys Metro keeps for it.">
-      <Button size="sm" color="danger" dark={dark} label="Delete" onPress={confirming.show} />
+      <Button size="md" color="danger" dark={dark} label="Delete" onPress={confirming.show} />
       <ConfirmDialog confirming={confirming} title="Delete channel" lines={detachLines(station)} action="Delete channel" word={id} />
     </SettingsSection>
   );

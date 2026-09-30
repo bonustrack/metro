@@ -5,7 +5,7 @@ import { useTabbed } from './tabbed.js';
 export function PageTitle({ children }: { children: string }): ReactNode {
   if (useTabbed()) return null;
   return (
-    <Text size="5xl" weight="medium">
+    <Text accessibilityRole="header" size="5xl" weight="semibold">
       {children}
     </Text>
   );

@@ -85,7 +85,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
       {setup.skill ? (
         <SettingsSection title="Standing rules" note="What your agent follows on every task, like how it delegates work.">
           <Button
-            size="sm"
+            size="md"
             color="secondary"
             dark={dark}
             label="Edit"

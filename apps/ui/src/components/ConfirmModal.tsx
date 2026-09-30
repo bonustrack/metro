@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { Modal } from '@stage-labs/kit/react-native/modal';
@@ -44,8 +44,7 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
           <Text key={line} size="md" role="secondary">{line}</Text>
         ))}
         <Col gap={4}>
-          <Text size="md" role="secondary">{confirmPrompt(confirmWord)}</Text>
-          <Input
+          <FormField label={confirmPrompt(confirmWord)}
             name="confirm-word"
             value={typed}
             placeholder={confirmWord}

@@ -50,7 +50,7 @@ export function CopyBlock({
         <Row gap={6} align="center">
           {secret ? (
             <Button
-              size="sm"
+              size="md"
               color="secondary"
               dark={dark}
               onPress={() => {
@@ -60,7 +60,7 @@ export function CopyBlock({
             />
           ) : null}
           <Button
-            size="sm"
+            size="md"
             color="secondary"
             dark={dark}
             onPress={copy}

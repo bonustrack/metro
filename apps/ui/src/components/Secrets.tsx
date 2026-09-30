@@ -116,7 +116,7 @@ function SecretList({ vault, set }: { vault: Vault; set: (v: Vault) => void }): 
   return (
     <SettingsGroup
       title="Secrets"
-      action={form === null ? <Button size="sm" color="secondary" dark={dark} label="Add secret" onPress={() => { setForm('new'); }} /> : undefined}
+      action={form === null ? <Button size="md" color="secondary" dark={dark} label="Add secret" onPress={() => { setForm('new'); }} /> : undefined}
     >
       {form === null ? null : (
         <div className="settings-pad">

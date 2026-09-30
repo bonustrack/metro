@@ -26,7 +26,7 @@ import { AgentAvatar } from './AgentAvatar.js';
 import { LatestUsageLine } from './LatestUsage.js';
 
 const LIST_WIDTH = 880;
-const CARD_AVATAR = 48;
+const CARD_AVATAR = 44;
 const HOW = 'Each agent runs on its own server. Open one to manage its channels, memory and settings.';
 
 function StatusText({ server }: { server: Server }): ReactNode {
@@ -66,7 +66,7 @@ function StartButton({ host }: { host: string }): ReactNode {
           {error}
         </Text>
       ) : null}
-      <Button size="sm" color="secondary" dark={dark} label={busy ? 'Starting…' : 'Start'} loading={busy} disabled={busy} onPress={start} />
+      <Button size="md" color="secondary" dark={dark} label={busy ? 'Starting…' : 'Start'} loading={busy} disabled={busy} onPress={start} />
     </Row>
   );
 }
@@ -107,7 +107,7 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
         <Col gap={2} flex={1}>
           <Row gap={8} align="center">
             <StatusDot host={server.host} />
-            <Text size="xl" weight="medium" numberOfLines={1} style={SHRINK}>
+            <Text size="2xl" weight="semibold" numberOfLines={1} style={SHRINK}>
               {serverLabel(server)}
             </Text>
           </Row>

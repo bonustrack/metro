@@ -173,7 +173,7 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
         {from > 0 ? (
           <Row justify="center" padding={{ bottom: 8 }}>
             <Button
-              size="sm"
+              size="md"
               color="secondary"
               dark={dark}
               loading={busy}

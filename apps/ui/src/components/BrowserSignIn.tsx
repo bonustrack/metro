@@ -50,7 +50,7 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
         </Text>
       ) : null}
       {onUseCode === null ? null : (
-        <Button size="sm" color="secondary" dark={dark} onPress={onUseCode} disabled={busy} loading={busy} label="Use a code instead" />
+        <Button size="md" color="secondary" dark={dark} onPress={onUseCode} disabled={busy} loading={busy} label="Use a code instead" />
       )}
     </Col>
   );

@@ -94,7 +94,7 @@ const AGENTS_KEY = ['admin', 'agents'];
 
 function DeleteButton({ onPress }: { onPress: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  return <Button size="sm" color="danger" dark={dark} label="Delete" onPress={onPress} />;
+  return <Button size="md" color="danger" dark={dark} label="Delete" onPress={onPress} />;
 }
 
 export function AdminAgents(): ReactNode {

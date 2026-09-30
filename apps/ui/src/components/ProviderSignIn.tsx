@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../theme.js';
 import { type ConnectionRow } from '../api/model.js';
@@ -26,10 +26,10 @@ export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressPr
       <Text size="md" role="secondary">
         {hint}
       </Text>
-      <Input name={name} value={pasted} placeholder={placeholder} dark={dark} onChangeText={setPasted} style={GROW} />
+      <FormField label="Sign-in address" name={name} value={pasted} placeholder={placeholder} dark={dark} onChangeText={setPasted} style={GROW} />
       <Row gap={8}>
         <Button
-          size="sm"
+          size="lg"
           dark={dark}
           label={busy ? 'Finishing…' : 'Finish sign-in'}
           loading={busy}

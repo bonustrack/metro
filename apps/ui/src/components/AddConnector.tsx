@@ -2,9 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { GROW } from '../theme.js';
 import {
   connectorCallbackUrl,
   createConnector,
@@ -63,37 +62,6 @@ function trimmed(values: NewConnector): NewConnector {
   };
 }
 
-interface FormFieldProps {
-  label: string;
-  name: string;
-  value: string;
-  placeholder: string;
-  secret?: boolean;
-  busy: boolean;
-  onChange: (value: string) => void;
-  onSubmit: () => void;
-}
-
-function FormField(props: FormFieldProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return (
-    <Col gap={4}>
-      <Text size="md" role="secondary">{props.label}</Text>
-      <Input
-        name={props.name}
-        value={props.value}
-        placeholder={props.placeholder}
-        inputType={props.secret === true ? 'password' : 'text'}
-        disabled={props.busy}
-        dark={dark}
-        onChangeText={props.onChange}
-        onSubmit={props.onSubmit}
-        style={GROW}
-      />
-    </Col>
-  );
-}
-
 interface FieldsProps {
   specs: FieldSpec[];
   values: NewConnector;
@@ -103,6 +71,7 @@ interface FieldsProps {
 }
 
 function Fields({ specs, values, busy, onChange, onSubmit }: FieldsProps): ReactNode {
+  const dark = useKitScheme() === 'dark';
   return specs.map((spec) => (
     <FormField
       key={spec.key}
@@ -110,9 +79,10 @@ function Fields({ specs, values, busy, onChange, onSubmit }: FieldsProps): React
       name={`connector-${spec.key}`}
       value={values[spec.key]}
       placeholder={spec.placeholder}
-      secret={spec.secret === true}
-      busy={busy}
-      onChange={onChange(spec.key)}
+      inputType={spec.secret === true ? 'password' : 'text'}
+      disabled={busy}
+      dark={dark}
+      onChangeText={onChange(spec.key)}
       onSubmit={onSubmit}
     />
   ));
@@ -182,7 +152,7 @@ function ConnectorForm({
           disabled={busy}
           label="Cancel"
         />
-        <Button
+        <Button size="lg"
           color="primary"
           dark={dark}
           onPress={submit}

@@ -14,7 +14,7 @@ function Status({ phase, check, onUpdate }: { phase: Phase; check: Version; onUp
   if (phase.kind === 'updating') return <Text size="md" role="secondary">{`Updating to ${phase.to}…`}</Text>;
   if (phase.kind === 'done')
     return <Text size="md" role="secondary">{phase.restarted ? `Updated to ${phase.to}. The session restarts on the new build.` : `Updated to ${phase.to}.`}</Text>;
-  if (check.newer && check.latest !== null) return <Button size="sm" color="secondary" dark={dark} label={`Update to ${check.latest}`} onPress={onUpdate} />;
+  if (check.newer && check.latest !== null) return <Button size="md" color="secondary" dark={dark} label={`Update to ${check.latest}`} onPress={onUpdate} />;
   if (check.installed !== null && check.latest !== null) return <Text size="md" role="secondary">Up to date</Text>;
   return null;
 }

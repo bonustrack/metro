@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Icon } from './Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Modal } from '@stage-labs/kit/react-native/modal';
 import { ProviderLogo } from './ProviderLogo.js';
@@ -123,7 +123,7 @@ export function ModelPickerModal({ open, settings, scope, onClose }: { open: boo
   return (
     <Modal title={titleOf(scope)} open={open} onClose={onClose}>
       <Col gap={12}>
-        <Input name="model-search" value={query} placeholder="Search models" dark={dark} onChangeText={setQuery} style={GROW} inputProps={{ autoFocus: true, autoCapitalize: 'none', autoComplete: 'off', autoCorrect: false, spellCheck: false }} />
+        <FormField label="Search models" name="model-search" value={query} placeholder="Search models" dark={dark} onChangeText={setQuery} style={GROW} inputProps={{ autoFocus: true, autoCapitalize: 'none', autoComplete: 'off', autoCorrect: false, spellCheck: false }} />
         {lists.loading && rows.length === 0 ? <Text size="md" role="secondary">Loading models…</Text> : null}
         {lists.errors.map((e) => (
           <Text key={e} size="md" role="danger">{e}</Text>

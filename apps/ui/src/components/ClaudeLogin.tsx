@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../theme.js';
@@ -52,7 +52,7 @@ function Waiting({ login, onCode }: { login: ClaudeLogin; onCode: (code: string)
       <Text size="md" role="secondary">
         Finish it in that tab. If it asks you to paste a code back, put it here.
       </Text>
-      <Input
+      <FormField label="Sign-in code"
         name="claude-login-code"
         value={code}
         placeholder="the code the sign-in gives you"
@@ -63,7 +63,7 @@ function Waiting({ login, onCode }: { login: ClaudeLogin; onCode: (code: string)
       />
       <Row gap={8} wrap>
         <Button
-          size="sm"
+          size="lg"
           dark={dark}
           label="Send it"
           disabled={code.trim() === ''}
@@ -147,7 +147,7 @@ export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNo
       {login === null ? (
         <Row gap={8} wrap>
           <Button
-            size="sm"
+            size="md"
             color="secondary"
             dark={dark}
             label={account?.signedIn === true ? 'Sign in again' : 'Sign in with a Claude subscription'}
@@ -160,7 +160,7 @@ export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNo
         <Col gap={8}>
           <Waiting login={login} onCode={send} />
           <Row gap={8} wrap>
-            <Button size="sm" color="secondary" dark={dark} label="Cancel" onPress={stop} />
+            <Button size="md" color="secondary" dark={dark} label="Cancel" onPress={stop} />
           </Row>
         </Col>
       )}

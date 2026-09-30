@@ -25,7 +25,7 @@ export function DeviceSignIn({ code, uri }: { code: string; uri: string | null }
         <Text size="4xl" weight="semibold" selectable>
           {code}
         </Text>
-        <Button size="sm" color="secondary" dark={dark} onPress={copy} label={copied ? 'Copied' : 'Copy code'} />
+        <Button size="md" color="secondary" dark={dark} onPress={copy} label={copied ? 'Copied' : 'Copy code'} />
       </Row>
       <Text size="md">
         <a className="hint-link" href={page} target="_blank" rel="noreferrer">

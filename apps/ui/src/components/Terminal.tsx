@@ -129,7 +129,7 @@ function TerminalNote({ phase, dark, onNew }: { phase: Phase; dark: boolean; onN
       <Text size="md" role="secondary">
         {text}
       </Text>
-      {phase.kind === 'none' ? <Button size="sm" dark={dark} label="New session" onPress={onNew} /> : null}
+      {phase.kind === 'none' ? <Button size="md" dark={dark} label="New session" onPress={onNew} /> : null}
     </div>
   );
 }
@@ -203,7 +203,7 @@ export function TerminalPage(): ReactNode {
       <div ref={box} className="terminal-box" />
       {keys.touch ? <KeyBar term={term} ctrl={keys.ctrl} sticky={keys.sticky} /> : null}
       <div className="terminal-float">
-        {phase.kind === 'closed' ? <Button size="sm" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
+        {phase.kind === 'closed' ? <Button size="md" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
         <Dropdown
           className="terminal-session"
           label="tmux session"

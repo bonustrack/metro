@@ -49,7 +49,7 @@ function Header({ connector, project, onBack, onChanged, onError }: { connector:
             </Text>
           </Col>
         </Row>
-        {connector.signIn === 'disconnected' ? <Button size="sm" color="primary" dark={dark} label="Connect" loading={busy} disabled={busy} onPress={connect} /> : null}
+        {connector.signIn === 'disconnected' ? <Button size="md" color="primary" dark={dark} label="Connect" loading={busy} disabled={busy} onPress={connect} /> : null}
       </Row>
     </Col>
   );
@@ -98,7 +98,7 @@ function Connection({ connector, onChanged }: { connector: Connector; onChanged:
   return (
     <SettingsGroup title="Connection">
       <SettingsSection title="Check the connection" note={note ?? 'Asks the service if it answers.'}>
-        <Button size="sm" color="secondary" dark={dark} label={busy ? 'Checking…' : 'Check now'} disabled={busy} onPress={check} />
+        <Button size="md" color="secondary" dark={dark} label={busy ? 'Checking…' : 'Check now'} disabled={busy} onPress={check} />
       </SettingsSection>
       <Facts connector={connector} />
     </SettingsGroup>
@@ -113,15 +113,15 @@ function Manage({ connector, onDelete, onChanged, onError }: { connector: Connec
   return (
     <SettingsGroup title="Manage">
       <SettingsSection title="Name" note={`The agent sees its tools under “${connector.name}”.`}>
-        <Button size="sm" color="secondary" dark={dark} label="Rename" onPress={() => { setRenaming(true); }} />
+        <Button size="md" color="secondary" dark={dark} label="Rename" onPress={() => { setRenaming(true); }} />
       </SettingsSection>
       {connector.signIn === 'connected' ? (
         <SettingsSection title="Sign out" note="The agent loses access until you connect again.">
-          <Button size="sm" color="secondary" dark={dark} label="Sign out" loading={busy} disabled={busy} onPress={disconnect} />
+          <Button size="md" color="secondary" dark={dark} label="Sign out" loading={busy} disabled={busy} onPress={disconnect} />
         </SettingsSection>
       ) : null}
       <SettingsSection title="Remove connector" note="Removes it and its sign-in from this agent.">
-        <Button size="sm" color="danger" dark={dark} label="Remove" onPress={confirming.show} />
+        <Button size="md" color="danger" dark={dark} label="Remove" onPress={confirming.show} />
       </SettingsSection>
       <ConfirmDialog
         confirming={confirming}

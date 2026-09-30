@@ -3,9 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { FieldLabel } from './FieldLabel.js';
 import { Modal } from '@stage-labs/kit/react-native/modal';
 import { CodexConnect } from './CodexConnect.js';
 import { GeminiConnect } from './GeminiConnect.js';
@@ -62,14 +61,13 @@ function Extras({ provider, draft, setDraft }: { provider: Provider; draft: Draf
   if (provider === 'bedrock')
     return (
       <Col gap={4}>
-        <FieldLabel>Region</FieldLabel>
-        <Input name="region" value={draft.region} placeholder="eu-central-1" dark={dark} onChangeText={(region) => { setDraft((d) => ({ ...d, region })); }} style={GROW} />
+        <FormField label="Region" name="region" value={draft.region} placeholder="eu-central-1" dark={dark} onChangeText={(region) => { setDraft((d) => ({ ...d, region })); }} style={GROW} />
       </Col>
     );
   return (
     <Col gap={6}>
       <KeyLink url={OPENROUTER_KEYS_URL} label="Get a key from OpenRouter" />
-      <Button size="sm" color={draft.zdr ? 'primary' : 'secondary'} dark={dark} label={draft.zdr ? 'Zero data retention: on' : 'Zero data retention: off'} onPress={() => { setDraft((d) => ({ ...d, zdr: !d.zdr })); }} />
+      <Button size="md" color={draft.zdr ? 'primary' : 'secondary'} dark={dark} label={draft.zdr ? 'Zero data retention: on' : 'Zero data retention: off'} onPress={() => { setDraft((d) => ({ ...d, zdr: !d.zdr })); }} />
       <Text size="md" role="secondary">{ZDR_NOTE}</Text>
     </Col>
   );
@@ -100,16 +98,14 @@ function KeyForm({ editing, onDone }: { editing: Editing; onDone: () => void }):
   return (
     <Col gap={12}>
       <Col gap={4}>
-        <FieldLabel>Name</FieldLabel>
-        <Input name="label" value={draft.label} placeholder={providerLabel(editing.provider)} dark={dark} onChangeText={(label) => { setDraft((d) => ({ ...d, label })); }} style={GROW} />
+        <FormField label="Name" name="label" value={draft.label} placeholder={providerLabel(editing.provider)} dark={dark} onChangeText={(label) => { setDraft((d) => ({ ...d, label })); }} style={GROW} />
       </Col>
       <Col gap={4}>
-        <FieldLabel>API key</FieldLabel>
-        <Input name="api-key" inputType="password" value={draft.key} placeholder={row?.hasKey === true ? 'stored on the daemon, paste to replace' : 'paste the key'} dark={dark} onChangeText={(key) => { setDraft((d) => ({ ...d, key })); }} style={GROW} inputProps={{ autoComplete: 'off' }} />
+        <FormField label="API key" name="api-key" inputType="password" value={draft.key} placeholder={row?.hasKey === true ? 'stored on the daemon, paste to replace' : 'paste the key'} dark={dark} onChangeText={(key) => { setDraft((d) => ({ ...d, key })); }} style={GROW} inputProps={{ autoComplete: 'off' }} />
       </Col>
       <Extras provider={editing.provider} draft={draft} setDraft={setDraft} />
       <Row gap={12} align="center" wrap>
-        <Button dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy} onPress={save} />
+        <Button size="lg" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy} onPress={save} />
         {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </Row>
     </Col>

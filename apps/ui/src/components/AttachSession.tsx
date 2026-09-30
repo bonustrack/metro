@@ -3,7 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
 import { colors } from '@stage-labs/kit/tokens';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 
 const CODE_INPUT = { flexGrow: 1, minWidth: 200 } as const;
@@ -64,7 +64,7 @@ function CodeEntry({
   };
   return (
     <Row gap={10} align="center" wrap>
-      <Input
+      <FormField label={step === 'code' ? 'Sign-in code' : '2FA password'}
         name={`attach-${step}`}
         value={value}
         placeholder={step === 'code' ? '12345' : 'your 2FA password'}
@@ -75,7 +75,7 @@ function CodeEntry({
         onSubmit={send}
         style={CODE_INPUT}
       />
-      <Button
+      <Button size="lg"
         color="primary"
         dark={dark}
         onPress={send}
@@ -258,7 +258,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
             unfinished sign-in after a few minutes.
           </Text>
           <Button
-            size="sm"
+            size="md"
             color="secondary"
             dark={dark}
             onPress={stop}

@@ -11,7 +11,7 @@ export function SettingsGroup({ title, note, action, children }: { title?: strin
     <section className="settings-group">
       {title === undefined ? null : (
         <div className="settings-group-head">
-          <Text size="xl" weight="medium">
+          <Text size="2xl" weight="semibold">
             {title}
           </Text>
           {action}

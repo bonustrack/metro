@@ -77,9 +77,9 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
       />
       {step.sentTo === null ? null : (
         <Row justify="center" gap={16}>
-          <Button size="sm" color="secondary" variant="ghost" dark={dark} label="Send a new code" disabled={step.busy} onPress={send} />
+          <Button size="md" color="secondary" variant="ghost" dark={dark} label="Send a new code" disabled={step.busy} onPress={send} />
           <Button
-            size="sm"
+            size="md"
             color="secondary" variant="ghost"
             dark={dark}
             label="Use another email"

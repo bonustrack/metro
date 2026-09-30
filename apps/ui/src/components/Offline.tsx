@@ -45,7 +45,7 @@ export function OfflinePanel({ onRetry }: { onRetry: () => void }): ReactNode {
       <Text size="md" role="secondary">
         {WHY}
       </Text>
-      <Button size="sm" color="secondary" dark={dark} label="Try again" onPress={onRetry} />
+      <Button size="md" color="secondary" dark={dark} label="Try again" onPress={onRetry} />
       {server === undefined ? null : <ServerResources serverId={server.id} />}
       {server === undefined ? null : <ServerSizeSection serverId={server.id} launchedOnly />}
       {server === undefined ? null : <DeleteServerSection server={server} />}
