@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Icon } from '@stage-labs/kit/react-native/icon';
+import { Icon } from '../Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '../ui.js';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';

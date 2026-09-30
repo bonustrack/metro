@@ -1,4 +1,4 @@
-import { type HeroIconName } from '@stage-labs/kit/react-native/icon';
+import { type IconName } from './Icon.js';
 import { type Selection } from './selection.js';
 
 type Kind = Selection['kind'];
@@ -13,7 +13,7 @@ export interface SectionTab {
 export interface Section {
   id: string;
   label: string;
-  icon: HeroIconName;
+  icon: IconName;
   kinds: Kind[];
   target: (project: string) => Selection;
   tabs?: SectionTab[];

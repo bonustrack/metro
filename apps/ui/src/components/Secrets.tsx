@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Icon } from '@stage-labs/kit/react-native/icon';
+import { Icon } from './Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button, Text } from './ui.js';
 import { DeleteMenu } from './DeleteMenu.js';

@@ -1,6 +1,6 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
 import type { Terminal as XTerm } from '@xterm/xterm';
-import { Icon, type HeroIconName } from '@stage-labs/kit/react-native/icon';
+import { Icon, type IconName } from './Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from './ui.js';
 import { useIsTouch } from '../media.js';
@@ -12,7 +12,7 @@ interface Key {
 }
 
 interface Arrow extends Key {
-  icon: HeroIconName;
+  icon: IconName;
 }
 
 const KEYS: Key[] = [

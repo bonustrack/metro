@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
-import { Icon } from '@stage-labs/kit/react-native/icon';
+import { Icon } from './Icon.js';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from './ui.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
