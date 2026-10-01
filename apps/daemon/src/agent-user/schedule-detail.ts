@@ -29,8 +29,8 @@ function textFile(path: string): string | null {
 }
 
 export function scriptOf(command: string): { path: string; text: string } | null {
-  const words = command.split(/\s+/).filter((w) => w.startsWith('/') && !w.includes('>'));
-  for (const path of words.slice(0, 3)) {
+  const words = command.split(/\s+/).filter((w) => w.startsWith('/') && !w.includes('>')).slice(0, 3);
+  for (const path of [...words.filter((w) => w.endsWith('.md')), ...words]) {
     const text = textFile(path);
     if (text !== null) return { path, text };
   }

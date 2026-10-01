@@ -166,7 +166,7 @@ const PRIOR_STAGE: ReadonlySet<string> = new Set([
   'e3b8f9bbdb205311bc643aaf91d9d903a91204fd5b55ca949b85cdfa6fd00136',
   '08a30f5cd5cf8013ab70c1fa9e1109018c0337552296a8efe5c0cf543b284991',
 ]);
-const PRIOR_MEMORY: ReadonlySet<string> = new Set();
+const PRIOR_MEMORY: ReadonlySet<string> = new Set(['08795399635c8cdec2b50cb4e336f89ae880f3997ae52560ef647a9cdc8f1b08']);
 
 interface ShippedSkill {
   name: string;

@@ -31,7 +31,7 @@ const paths = (): MemoryPaths => ({
 });
 
 describe('where the memory routine looks', () => {
-  test("is Claude Code's auto-memory folder of the home folder, or the autoMemoryDirectory its settings name", () => {
+  test("is Claude Code's auto-memory folder of the home folder, or the autoMemoryDirectory its settings name, and follows the skill file the job names", () => {
     const home = join(dir, 'home');
     mkdirSync(join(home, '.claude'), { recursive: true });
     const found = memoryPaths({ HOME: home });
@@ -41,6 +41,8 @@ describe('where the memory routine looks', () => {
     writeFileSync(join(home, '.claude', 'settings.json'), JSON.stringify({ autoMemoryDirectory: '~/notes' }));
     expect(memoryPaths({ HOME: home }).memory).toBe(join(home, 'notes'));
     expect(memoryPaths({ HOME: home, CLAUDE_CONFIG_DIR: join(dir, 'cfg') }).skill).toBe(join(dir, 'cfg', 'skills', 'memory', 'SKILL.md'));
+    expect(memoryPaths({ HOME: home }, '/home/agent/MEMORY.md').skill).toBe('/home/agent/MEMORY.md');
+    expect(memoryPaths({ HOME: home }, ' ').skill).toBe(join(home, '.claude', 'skills', 'memory', 'SKILL.md'));
   });
 
   test('reads only transcripts changed since the last run, newest first, and never the memory folder', () => {

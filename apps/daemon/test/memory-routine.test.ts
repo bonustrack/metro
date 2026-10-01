@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Runner } from '../src/agent-user/schedules.ts';
 import type { AgentUser } from '../src/agent-user/user.ts';
-import { cronLine, ensureMemoryJob, launcherPath, memoryJobStatus } from '../src/claude/memory-routine.ts';
+import { cronLine, ensureMemoryJob, launcherPath, memoryJobStatus, skillPath } from '../src/claude/memory-routine.ts';
 
 const CLI = '/var/lib/metro/.npm-global/lib/node_modules/@stage-labs/metro/dist/cli.js';
 
@@ -41,19 +41,20 @@ function cron(initial: string, timers: unknown[] = [], unreadable = false): Runn
   };
 }
 
-const deps = (runner: Runner): Parameters<typeof ensureMemoryJob>[1] => ({ user, runner, cli: CLI, port: '8420', seed: 'box-1' });
+const deps = (runner: Runner): Parameters<typeof ensureMemoryJob>[1] => ({ user, runner, cli: CLI, port: '8420' });
 
 describe('the daily memory job on a box', () => {
-  test('is added once at the end of the crontab, after the vault block and the jobs already there, with its launcher', () => {
+  test('is added once at the end of the crontab, at 00:00 and 12:00, after the vault block and the jobs already there, with its launcher and the memory skill', () => {
     const runner = cron('# metro vault: begin\nHTTPS_PROXY=http://p\n# metro vault: end\n*/5 * * * * /home/agent/check.sh\n');
     expect(ensureMemoryJob(true, deps(runner))).toEqual({ state: 'scheduled', job: null });
-    const line = cronLine(user, 'box-1');
-    expect(line).toMatch(new RegExp(`^\\d{1,2} 0 \\* \\* \\* ${launcherPath(user)} >> ${home}/\\.metro/memory-routine\\.log 2>&1$`));
+    const line = cronLine(user);
+    expect(line).toBe(`0 0,12 * * * ${launcherPath(user)} ${home}/.claude/skills/memory/SKILL.md >> ${home}/.metro/memory-routine.log 2>&1`);
+    expect(skillPath(user)).toBe(`${home}/.claude/skills/memory/SKILL.md`);
     expect(runner.tab()).toBe(
       `# metro vault: begin\nHTTPS_PROXY=http://p\n# metro vault: end\n*/5 * * * * /home/agent/check.sh\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`,
     );
     const launcher = readFileSync(launcherPath(user), 'utf8');
-    expect(launcher).toContain(`exec node '${CLI}' memory`);
+    expect(launcher).toContain(`exec node '${CLI}' memory "$@"`);
     expect(launcher).toContain("METRO_WEBHOOK_PORT='8420'");
     expect(launcher).toContain(`PATH='${home}/.local/bin:`);
     expect(statSync(launcherPath(user)).mode & 0o777).toBe(0o755);
@@ -69,17 +70,19 @@ describe('the daily memory job on a box', () => {
     expect(runner.tab()).toBe('0 3 * * * /home/agent/backup.sh\n');
   });
 
-  test("is not added beside the agent's own memory job, in its crontab or as a timer, so memory is never kept twice", () => {
-    const own = cron('0 0,12 * * * /home/agent/bin/memory-upkeep >> /home/agent/logs/memory-upkeep.log 2>&1\n');
-    expect(ensureMemoryJob(true, deps(own))).toEqual({ state: 'own', job: 'memory-upkeep' });
-    expect(own.writes()).toBe(0);
-    expect(existsSync(launcherPath(user))).toBe(false);
-    const before = cron('');
-    ensureMemoryJob(true, deps(before));
-    const added = `${before.tab()}5 1 * * * /home/agent/bin/memory-upkeep\n`;
-    const later = cron(added);
-    expect(ensureMemoryJob(true, deps(later))).toEqual({ state: 'own', job: 'memory-upkeep' });
-    expect(later.tab()).toBe('5 1 * * * /home/agent/bin/memory-upkeep\n');
+  test("replaces the agent's own memory cron jobs, kept as comments, so there is one memory job and it has one name", () => {
+    const upkeep = '0 0,12 * * * /home/agent/bin/memory-upkeep >> /home/agent/logs/memory-upkeep.log 2>&1';
+    const own = cron(`*/5 * * * * /home/agent/check.sh /home/agent/memory\n${upkeep}\n`);
+    expect(ensureMemoryJob(true, deps(own))).toEqual({ state: 'scheduled', job: null });
+    const line = cronLine(user);
+    const migrated = `*/5 * * * * /home/agent/check.sh /home/agent/memory\n# replaced by memory-routine: ${upkeep}\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`;
+    expect(own.tab()).toBe(migrated);
+    expect(existsSync(launcherPath(user))).toBe(true);
+    ensureMemoryJob(true, deps(own));
+    expect(own.writes()).toBe(1);
+    const older = cron(`# metro memory routine: begin\n17 0 * * * ${launcherPath(user)} >> ${home}/.metro/memory-routine.log 2>&1\n# metro memory routine: end\n5 1 * * * /home/agent/bin/memory-daily.sh\n`);
+    ensureMemoryJob(true, deps(older));
+    expect(older.tab()).toBe(`# replaced by memory-routine: 5 1 * * * /home/agent/bin/memory-daily.sh\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`);
   });
 
   test('a crontab that cannot be read is never rewritten', () => {
@@ -90,7 +93,7 @@ describe('the daily memory job on a box', () => {
   });
 
   test('broken markers never take the lines around them, and the job is never there twice', () => {
-    const line = cronLine(user, 'box-1');
+    const line = cronLine(user);
     const noEnd = cron(`# metro memory routine: begin\n${line}\n15 * * * * /home/agent/own.sh\n`);
     ensureMemoryJob(true, deps(noEnd));
     ensureMemoryJob(true, deps(noEnd));
@@ -100,7 +103,7 @@ describe('the daily memory job on a box', () => {
     expect(endFirst.tab()).toBe(`0 3 * * * /home/agent/backup.sh\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`);
   });
 
-  test("an agent timer with memory in its name is the agent's own job too", () => {
+  test("an agent timer with memory in its name stays the agent's own job, since metro cannot switch a timer off, and gets no second job", () => {
     const runner = cron('', [{ unit: 'memory-daily.timer', activates: 'memory-daily.service' }]);
     const real = runner.run;
     runner.run = (file, args, input) => {

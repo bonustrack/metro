@@ -139,7 +139,7 @@ function SetupRow({ setup }: { setup: Setup }): ReactNode {
 
 const PRIVACY = 'No usage reports leave the server, and conversations are deleted after a week. Messages still reach the model.';
 const LIVE_NOTE = 'On: messages from your channels reach the agent as they arrive. Off: nothing arrives on its own. The agent can still send, react and read past messages, and approvals are answered on metro.box only.';
-const MEMORY_NOTE = 'Once a day, after a day with activity, the agent files what happened into its memory: people, facts, decisions, work, and daily and weekly notes.';
+const MEMORY_NOTE = 'Twice a day, at 00:00 and 12:00 UTC, when there was activity, the agent files what happened into its memory: people, facts, decisions, work, and daily and weekly notes, following the memory skill (MEMORY.md).';
 const MODE_NOTE = 'Ask first sends risky actions to the chat for a yes. Never ask lets the agent act alone. Changing this restarts the agent.';
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {

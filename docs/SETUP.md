@@ -95,15 +95,16 @@ and `workstreams/completed`, under Claude Code's own memory folder
 (`~/.claude/projects/-home-agent/memory/` on a box), with `MEMORY.md` as the index. It also sets
 the note format (frontmatter, one subject per file, dated bullets, `[[links]]`), the rules (no
 secrets, nothing from WhatsApp or Telegram feeds, never delete or rewrite a note, the owner's own
-rules win, an index under 200 lines) and the daily routine. Edits stick the same way.
+rules win, an index under 200 lines) and the routine. Edits stick the same way.
 
-Once a day, at a minute between 00:00 and 00:59 that depends on the machine, the agent's
-crontab runs `~/.metro/bin/memory-routine`, a launcher the daemon writes, which runs
-`metro memory`. That command checks the Claude Code transcripts. When none changed since its
+Twice a day, at 00:00 and 12:00, the agent's crontab runs `~/.metro/bin/memory-routine
+~/.claude/skills/memory/SKILL.md`, a launcher the daemon writes, which runs `metro memory` with
+that skill file (the shipped `MEMORY.md`). The job is always named `memory-routine`, and the
+Scheduled page shows the skill as its script. That command checks the Claude Code transcripts. When none changed since its
 last successful run, it stops and uses no tokens. Otherwise it creates the ten folders when
 they are missing and runs Claude Code once, headless (`claude -p`), on the box's model route,
 with the box's system prompt. Claude Code reads the skill and files the day into memory, then
-writes the daily note and, when it is missing, last week's weekly note. That run has no metro
+writes or adds to the daily note and, when it is missing, last week's weekly note. That run has no metro
 MCP server and no plugin, so it never takes the chat session's place. It saves no transcript.
 Its tools are Read, Glob and Grep, plus Write and Edit inside the memory folder only
 (`--permission-mode dontAsk`): no shell, no network, no subagents. After a good run, the routine
@@ -114,9 +115,11 @@ to `~/.metro/memory-routine.log`, which the Scheduled page shows, with Run now. 
 box's own clock, which is UTC on a box Metro launched.
 
 The switch is **Daily memory** on the Harness page (`memoryRoutine` in `claude-setup.json`, on
-unless switched off). Off removes the cron line. A box whose agent already has its own memory
-job, a cron line or a timer with `memory` in its name or command, keeps that job, and the
-default one is not added, so memory is never kept twice. The Harness page names that job.
+unless switched off). Off removes the cron line. A box keeps one memory job: an agent cron job
+with `memory` in its name, like an older `memory-upkeep`, is replaced by `memory-routine` and
+stays in the crontab as a `# replaced by memory-routine: ` comment. A timer with `memory` in its
+name or command cannot be switched off by Metro, so it is kept and the default job is not
+added, and the Harness page names that timer.
 
 ## Privacy and data retention
 

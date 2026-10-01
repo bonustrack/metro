@@ -62,13 +62,13 @@ function customDir(claude: string, home: string): string | undefined {
   }
 }
 
-export function memoryPaths(env: NodeJS.ProcessEnv = process.env): MemoryPaths {
+export function memoryPaths(env: NodeJS.ProcessEnv = process.env, skill?: string): MemoryPaths {
   const home = given(env.HOME) ?? homedir();
   const claude = claudeDir(env);
   return {
     claude,
     memory: customDir(claude, home) ?? join(projectDir(claude, realHome(home)), 'memory'),
-    skill: join(claude, 'skills', 'memory', 'SKILL.md'),
+    skill: given(skill) ?? join(claude, 'skills', 'memory', 'SKILL.md'),
     state: join(home, '.metro', 'memory-routine.json'),
     lock: join(home, '.metro', 'memory-routine.lock'),
   };

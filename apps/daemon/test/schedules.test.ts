@@ -53,12 +53,15 @@ describe('scheduled jobs on a box', () => {
     expect(logFileOf('/usr/local/bin/warm')).toBeNull();
   });
 
-  test("the job's script is shown, text only, never its log or a binary", () => {
+  test("the job's script is shown, the Markdown file it follows first, text only, never its log or a binary", () => {
     const dir = mkdtempSync(join(tmpdir(), 'metro-script-'));
     writeFileSync(join(dir, 'refresh.sh'), '#!/bin/sh\nclaude -p "refresh the memory"\n');
     writeFileSync(join(dir, 'blob'), Buffer.from([0x7f, 0x45, 0x00, 0x01]));
     expect(scriptOf(`/bin/sh ${dir}/refresh.sh >> ${dir}/x.log 2>&1`)?.text).toContain('claude -p "refresh the memory"');
     expect(scriptOf(`${dir}/refresh.sh`)?.path).toBe(`${dir}/refresh.sh`);
+    writeFileSync(join(dir, 'MEMORY.md'), '# Memory\n');
+    expect(scriptOf(`${dir}/refresh.sh ${dir}/MEMORY.md >> ${dir}/x.log 2>&1`)?.path).toBe(`${dir}/MEMORY.md`);
+    expect(scriptOf(`${dir}/refresh.sh ${dir}/missing.md`)?.path).toBe(`${dir}/refresh.sh`);
     expect(scriptOf(`${dir}/blob`)).toBeNull();
     expect(scriptOf('/nope/missing.sh')).toBeNull();
   });

@@ -3,7 +3,7 @@ name: memory
 description: How this agent keeps its long-term memory in the Instinct layout (people, organizations, facts, preferences, decisions, conversation digests, daily and weekly timelines, active and completed work), the note format and rules, and the daily routine that files each day into it. Use when saving or looking something up in memory, and when the daily memory routine runs.
 ---
 
-Your memory is a folder of Markdown notes, found with grep and links, not a database. The layout follows Instinct (https://supermemory.ai/blog/reverse-engineering-instinct-memory/). Once a day a scheduled run (the `memory-routine` job on the Scheduled page) reads this skill and files the day into it. You can use the same rules any time you save something.
+Your memory is a folder of Markdown notes, found with grep and links, not a database. The layout follows Instinct (https://supermemory.ai/blog/reverse-engineering-instinct-memory/). Twice a day, at 00:00 and 12:00 UTC, a scheduled run (the `memory-routine` job on the Scheduled page) reads this skill and files what happened into it. You can use the same rules any time you save something.
 
 **Where it is.** The auto-memory directory of your Claude Code home folder: `~/.claude/projects/<home folder, with every character that is not a letter or digit turned into ->/memory/` (for `/home/agent` that is `~/.claude/projects/-home-agent/memory/`), or the `autoMemoryDirectory` set in `~/.claude/settings.json`. The daily run names it in its prompt.
 
@@ -72,7 +72,7 @@ The scheduled run has no chat tools, no shell, no network and no subagents. It c
    - Work goes into `workstreams/active/`. When it finished, only set its `status` in place (see Rules).
    - Each chat line gets a digest in `comms/phone/`.
    - Turn passing anecdotes into general traits. Drop trivia.
-4. Write `timeline/daily/YYYY-MM-DD.md` for each UTC day with activity since the last run: what happened, with links. Things that need the owner go as one line each under a `## Needs <owner's name>` heading, since this run cannot message anyone.
+4. Write `timeline/daily/YYYY-MM-DD.md` for each UTC day with activity since the last run: what happened, with links. A note an earlier run already wrote gets added to. Things that need the owner go as one line each under a `## Needs <owner's name>` heading, since this run cannot message anyone.
 5. If the prompt names a previous ISO week whose `timeline/weekly/YYYY-Www.md` does not exist yet, and there are daily notes for that week, write it from those daily notes.
 6. Tidy up. Merge duplicates into one note, and keep the other slug in its `aliases`. Cut the other note down to its frontmatter and one line: `Merged into [[slug]].` Fix broken `[[links]]` and update `MEMORY.md`.
 7. End with at most three lines on what changed.
