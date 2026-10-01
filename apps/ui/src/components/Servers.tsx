@@ -153,30 +153,47 @@ interface ListProps {
 
 function ServerList({ servers, onBootLog }: ListProps): ReactNode {
   const client = useQueryClient();
+  const [failed, setFailed] = useState<string | null>(null);
   if (servers.length === 0)
     return (
       <Text size="md" role="secondary">
         No agents yet. Add the address your daemon printed at start-up.
       </Text>
     );
+  const remove = (server: Server): void => {
+    setFailed(null);
+    removeServer(server.id)
+      .catch((err: unknown) => {
+        setFailed(`Could not remove ${serverLabel(server)}: ${queryError(err, 'Metro did not answer.')}`);
+      })
+      .then(() => refreshServers(client))
+      .catch((err: unknown) => {
+        setFailed(queryError(err, 'Could not list your agents.'));
+      });
+  };
   return (
-    <div className="agent-grid">
-      {servers.map((server) => (
-        <AgentCard
-          key={server.id}
-          server={server}
-          onBootLog={() => {
-            onBootLog(server);
-          }}
-          onRemove={() => {
-            removeServer(server.id)
-              .then(() => refreshServers(client))
-              .catch(() => undefined);
-          }}
-        />
-      ))}
-      <NewAgentCard />
-    </div>
+    <>
+      {failed === null ? null : (
+        <Text size="md" role="danger">
+          {failed}
+        </Text>
+      )}
+      <div className="agent-grid">
+        {servers.map((server) => (
+          <AgentCard
+            key={server.id}
+            server={server}
+            onBootLog={() => {
+              onBootLog(server);
+            }}
+            onRemove={() => {
+              remove(server);
+            }}
+          />
+        ))}
+        <NewAgentCard />
+      </div>
+    </>
   );
 }
 
