@@ -26,14 +26,19 @@ const charsOf = (msg: Record<string, unknown>): number => {
   return isRecord(alignment) && Array.isArray(alignment.chars) ? alignment.chars.length : 0;
 };
 
+const MAX_REASON = 300;
+
 export class Utterance {
   private readonly ws: WebSocket;
   private readonly outbox: string[] = [];
   private listener: Voiced | null = null;
   private carry = 0;
   private closed = false;
+  private aborted = false;
+  private voiced = false;
+  private refusal: string | null = null;
 
-  constructor(apiKey: string, voiceId: string) {
+  constructor(apiKey: string, voiceId: string, failed: (reason: string) => void) {
     this.ws = new WebSocket(ttsUrl(voiceId), { headers: { 'xi-api-key': apiKey } });
     this.ws.on('open', () => {
       this.ws.send(JSON.stringify({ text: ' ' }));
@@ -43,12 +48,15 @@ export class Utterance {
       this.onMessage(wsText(data));
     });
     this.ws.on('error', (err) => {
+      this.refusal ??= errMsg(err);
       log.warn({ err: errMsg(err) }, 'voice: text to speech connection error');
     });
-    this.ws.on('close', () => {
+    this.ws.on('close', (code, why) => {
       this.closed = true;
       this.listener?.done();
       this.listener = null;
+      const reason = this.refusal ?? (code === 1000 ? null : (why.toString() || `closed (${String(code)})`));
+      if (!this.aborted && !this.voiced && reason !== null) failed(reason.slice(0, MAX_REASON));
     });
   }
 
@@ -69,6 +77,7 @@ export class Utterance {
   }
 
   abort(): void {
+    this.aborted = true;
     this.listener = null;
     this.ws.terminate();
   }
@@ -82,10 +91,14 @@ export class Utterance {
   private onMessage(raw: string): void {
     const msg = parsed(raw);
     if (typeof msg.audio === 'string' && msg.audio !== '') {
+      this.voiced = true;
       const pcm = pcmOf(Buffer.from(msg.audio, 'base64'));
       const up = upsample2(pcm, this.carry);
       this.carry = pcm.at(-1) ?? this.carry;
       this.listener?.audio(up, charsOf(msg));
-    } else if (msg.isFinal !== true) log.warn({ msg: raw.slice(0, 300) }, 'voice: text to speech said');
+    } else if (msg.isFinal !== true) {
+      if (typeof msg.message === 'string' && msg.message !== '') this.refusal ??= msg.message;
+      log.warn({ msg: raw.slice(0, MAX_REASON) }, 'voice: text to speech said');
+    }
   }
 }

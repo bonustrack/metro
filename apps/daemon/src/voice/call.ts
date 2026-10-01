@@ -111,6 +111,7 @@ export class Call {
       },
     });
     const sdp = await this.peer.answer(offer);
+    if (this.over) return;
     await this.signal({ kind: 'answer', callId: this.start.callId, from: this.selfPeer, to, sdp });
   }
 
@@ -147,8 +148,9 @@ export class Call {
     this.peer?.close();
     const notes = await this.talk.finish();
     const minutes = Math.max(1, Math.round((Date.now() - this.startedAt) / 60_000));
-    if (notes !== null) await trainCall('send', { line: this.start.line, text: `Call notes (${String(minutes)} min):\n${notes}` });
-    else if (!reason.startsWith('the caller') && reason !== 'no offer arrived')
-      await trainCall('send', { line: this.start.line, text: `The voice call ended: ${reason}.` });
+    const timing = this.talk.replyTime === null ? '' : `\n${this.talk.replyTime}`;
+    const failure = reason.startsWith('the caller') || reason === 'no offer arrived' ? null : `The voice call ended: ${reason}.`;
+    const text = [failure, notes === null ? null : `Call notes (${String(minutes)} min):\n${notes}${timing}`].filter((part) => part !== null).join('\n\n');
+    if (text !== '') await trainCall('send', { line: this.start.line, text });
   }
 }
