@@ -23,6 +23,7 @@ const SILENT_TYPES = new Set([
   'walletSendCalls',
   'groupUpdated',
   'group_updated',
+  'deleteRequest',
 ]);
 
 async function bootSync(acct: Account): Promise<void> {

@@ -1,4 +1,4 @@
-import { IdentifierKind } from '@xmtp/node-sdk';
+import { IdentifierKind, type DecodedMessage } from '@xmtp/node-sdk';
 import { accountForCall, convOf, lineOf, parseLine } from './accounts.js';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 import { resolveMsgId } from './wire.js';
@@ -14,6 +14,7 @@ import {
   groupRemoveMembers,
 } from './group.js';
 import { updateChannelMeta } from './actions-meta.js';
+import { deletedByRequests, isDeleteRequest, superAdminCheck } from './delete-requests.js';
 
 type Args = Record<string, unknown>;
 type Handler = (id: string, args: Args) => Promise<void>;
@@ -42,6 +43,17 @@ function upTo<T extends { id: string }>(all: T[], before: string | undefined): T
   return all.slice(0, at);
 }
 
+function textOf(m: DecodedMessage): string {
+  try {
+    const cc: unknown = m.content;
+    return typeof cc === 'string' ? cc : `[${m.contentType?.typeId ?? 'unknown'}]`;
+  } catch {
+    return `[${m.contentType?.typeId ?? 'unknown'}]`;
+  }
+}
+
+const DELETED = { text: '[deletedMessage]', contentType: 'deletedMessage' };
+
 async function read(id: string, args: Args): Promise<void> {
   const { line, limit, before } = args as { line: string; limit?: number; before?: string };
   const { conv } = await convOf(line);
@@ -50,28 +62,18 @@ async function read(id: string, args: Args): Promise<void> {
   const lim = Math.min(Math.max(1, limit ?? 20), 200);
   await conv.sync().catch(() => undefined);
   const all = await conv.messages();
-  const slice = upTo(all, before).slice(-lim);
+  const deleted = deletedByRequests(all, superAdminCheck(conv));
+  const slice = upTo(all.filter((m) => !isDeleteRequest(m)), before).slice(-lim);
   const parsed = parseLine(line);
   if (!parsed)
     throw new TrainError('NOT_FOUND', `could not parse line ${line}`);
   const acctId = parsed.accountId;
-  const messages = slice.map((m) => {
-    let text = '';
-    try {
-      const cc: unknown = m.content;
-      text =
-        typeof cc === 'string' ? cc : `[${m.contentType?.typeId ?? 'unknown'}]`;
-    } catch {
-      text = `[${m.contentType?.typeId ?? 'unknown'}]`;
-    }
-    return {
-      id: m.id,
-      ts: new Date(Number(m.sentAtNs / 1_000_000n)).toISOString(),
-      from: `metro://xmtp/${acctId}/user/${m.senderInboxId}`,
-      text,
-      contentType: m.contentType?.typeId ?? 'unknown',
-    };
-  });
+  const messages = slice.map((m) => ({
+    id: m.id,
+    ts: new Date(Number(m.sentAtNs / 1_000_000n)).toISOString(),
+    from: `metro://xmtp/${acctId}/user/${m.senderInboxId}`,
+    ...(deleted.has(m.id) ? DELETED : { text: textOf(m), contentType: m.contentType?.typeId ?? 'unknown' }),
+  }));
   respond(id, { result: { line, count: messages.length, messages } });
 }
 

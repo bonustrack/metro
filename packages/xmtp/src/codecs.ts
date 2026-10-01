@@ -200,6 +200,14 @@ export const frameActionText = (c: FrameActionContent): string => {
 };
 const FrameActionCodec = makeJsonCodec<FrameActionContent>(ContentTypeFrameAction, frameActionText);
 
+export const ContentTypeDeleteRequest: ContentTypeId = {
+  authorityId: 'stage.box',
+  typeId: 'deleteRequest',
+  versionMajor: 1,
+  versionMinor: 0,
+};
+const DeleteRequestCodec = makeJsonCodec<{ messageId: string }>(ContentTypeDeleteRequest, () => 'Message deleted');
+
 const ContentTypeDeleteMessage: ContentTypeId = {
   authorityId: 'xmtp.org',
   typeId: 'deleteMessage',
@@ -233,4 +241,5 @@ export const CODECS = (): ContentCodec[] => [
   new SignatureReferenceCodec(),
   new FrameCodec(),
   new FrameActionCodec(),
+  new DeleteRequestCodec(),
 ];
