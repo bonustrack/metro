@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { BuildDot } from './components/BuildDot.js';
-import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { type QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
@@ -18,13 +18,14 @@ import { selectionProject, type Selection } from './components/selection.js';
 import { makeQueryClient, refreshServers, useServersQuery, useSessionQuery } from './api/queries.js';
 import { AuthError, StoppedError } from './api/client.js';
 import { StoppedNotice } from './components/StoppedNotice.js';
-import { addServer } from './api/servers.js';
+import { addServer, probeServer } from './api/servers.js';
 import { atLanding, atLogin, atWaitlist, goToLanding, goToLogin, leaveLogin } from './auth/login-route.js';
 import { currentSelection, routeHash, subscribeRoute } from './route.js';
 import { pageTitle } from './title.js';
 import { activeAccount, handoffCode, loadAccount } from './auth/account.js';
-import { exchangeHandoff, logoutAccount, refreshAccount, switchOrganization } from './api/auth.js';
-import { isCurrentOrganization, resolveOrganization, routedOrganization } from './auth/org-route.js';
+import { exchangeHandoff, fetchOrganizations, logoutAccount, refreshAccount, switchOrganization } from './api/auth.js';
+import { currentOrganization, isCurrentOrganization, resolveOrganization, routedOrganization } from './auth/org-route.js';
+import { hostHash, hostTarget } from './auth/host-link.js';
 import { namedSegment } from './auth/org-segment.js';
 import { OrganizationSetup } from './components/OrganizationSetup.js';
 import { Organization } from './components/Organization.js';
@@ -92,14 +93,24 @@ function Gate({ onLock }: { onLock: () => void }): ReactNode {
   return <Dashboard onLock={onLock} />;
 }
 
+async function openHost(host: string, client: QueryClient): Promise<string> {
+  const [organizations, status] = await Promise.all([fetchOrganizations(), probeServer(host)]);
+  const target = hostTarget(organizations, host, status.owner, currentOrganization());
+  if (target.kind === 'foreign') throw new Error('it belongs to an organization you are not a member of');
+  if (target.kind === 'listed') return hostHash(window.location.hash, `${target.organization}/${target.agent}`);
+  if (target.organization !== null && target.organization !== currentOrganization()) await switchOrganization(target.organization);
+  const server = await addServer(host.toLowerCase());
+  await refreshServers(client);
+  return hostHash(window.location.hash, namedSegment(server.id, server.slug));
+}
+
 function HostRedirect({ host }: { host: string }): ReactNode {
   const client = useQueryClient();
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => {
-    addServer(host.toLowerCase())
-      .then(async (server) => {
-        await refreshServers(client);
-        window.location.replace(`${window.location.pathname}${window.location.hash.replace(host, namedSegment(server.id, server.slug))}`);
+    openHost(host, client)
+      .then((hash) => {
+        window.location.replace(`${window.location.pathname}${hash}`);
       })
       .catch((err: unknown) => {
         setFailed(err instanceof Error ? err.message : 'Could not keep this server.');
