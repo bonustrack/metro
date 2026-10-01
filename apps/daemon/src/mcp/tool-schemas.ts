@@ -70,10 +70,11 @@ export const COMMON_TOOLS: ToolDef[] = [
         frame: {
           type: 'object',
           description:
-            'Stage (XMTP) only: a frame, a small interactive view that Stage shows as a card (title and ' +
-            'description) and opens full screen. `widget` is OpenAI ChatKit widget JSON (a Card, ListView ' +
+            'Stage (XMTP) only: a frame, a small interactive view. Stage shows it in the chat at image size ' +
+            '(400 x 400 at most, its start screen, clipped with a fade) and opens it full screen on a tap; its ' +
+            'buttons work only there. `widget` is OpenAI ChatKit widget JSON (a Card, ListView ' +
             'or Basic root, 64K characters at most); a missing `title` or `description` is taken from the ' +
-            'widget. Or give `screens` instead of `widget` for several screens in one frame. A tap comes back ' +
+            'widget. Or give `screens` instead of `widget` for several screens in one frame. A tap there comes back ' +
             'to you as a reply to the frame: "Frame action: <type> <payload ' +
             "JSON>\". It is sent after the text, and the message_id returned is the frame's. The stage " +
             'skill lists the widget nodes, with an example.',
