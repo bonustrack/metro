@@ -45,6 +45,7 @@ export interface Account {
   cfg: AccountConfig;
   keys: KeyPair;
   publicKeys: Map<string, Uint8Array>;
+  requestedRosters: Set<string>;
   groups: GroupStore;
 }
 
@@ -55,7 +56,7 @@ export const accounts = new Map<string, Account>();
 export function bootAccount(cfg: AccountConfig): Account {
   const key = parsePrivateKey(cfg.privateKey);
   if (key === null) throw new Error(`account '${cfg.id}' has no usable private key`);
-  return { cfg, keys: keyPairFrom(key), publicKeys: new Map(), groups: new GroupStore(cfg.id, cfg.gatewayId) };
+  return { cfg, keys: keyPairFrom(key), publicKeys: new Map(), requestedRosters: new Set(), groups: new GroupStore(cfg.id, cfg.gatewayId) };
 }
 
 export function accountFor(id: string): Account {
