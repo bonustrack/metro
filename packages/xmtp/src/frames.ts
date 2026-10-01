@@ -48,29 +48,33 @@ export function frameSummary(widget: Node): { title?: string; description?: stri
 
 function clip(value: unknown, max: number, name: string): string | undefined {
   if (value === undefined) return undefined;
-  if (typeof value !== 'string') throw bad(`send_frame ${name} must be a string`);
+  if (typeof value !== 'string') throw bad(`frame ${name} must be a string`);
   const out = value.trim().slice(0, max);
   return out === '' ? undefined : out;
 }
 
-function parseWidget(raw: unknown): Node {
-  let widget = raw;
-  if (typeof raw === 'string') {
-    try {
-      widget = JSON.parse(raw);
-    } catch {
-      throw bad('send_frame widget is not valid JSON');
-    }
+function parseJson(raw: unknown, name: string): unknown {
+  if (typeof raw !== 'string') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw bad(`${name} is not valid JSON`);
   }
+}
+
+function parseWidget(raw: unknown): Node {
+  const widget = parseJson(raw, 'frame widget');
   if (!isNode(widget) || typeof widget.type !== 'string' || widget.type === '')
-    throw bad('send_frame widget must be a ChatKit widget object with a `type` (Card, ListView or Basic)');
+    throw bad('frame widget must be a ChatKit widget object with a `type` (Card, ListView or Basic)');
   const chars = JSON.stringify(widget).length;
   if (chars > FRAME_MAX_CHARS)
-    throw bad(`send_frame widget is ${chars} characters; the limit is ${FRAME_MAX_CHARS}`);
+    throw bad(`frame widget is ${chars} characters; the limit is ${FRAME_MAX_CHARS}`);
   return widget;
 }
 
-export function buildFrameContent(args: Record<string, unknown>): { frame: FrameContent; title: string } {
+export function buildFrameContent(raw: unknown): { frame: FrameContent; title: string } {
+  const args = parseJson(raw, 'frame');
+  if (!isNode(args)) throw bad('frame must be an object: {widget, title?, description?}');
   const widget = parseWidget(args.widget);
   const derived = frameSummary(widget);
   const title = clip(args.title, MAX_TITLE, 'title') ?? derived.title?.slice(0, MAX_TITLE);

@@ -112,6 +112,7 @@ export interface Station {
   readsProfiles?: boolean;
   readFilters?: ReadonlySet<ReadFilter>;
   approvals?: boolean;
+  sendsFrames?: boolean;
   attachmentMode: AttachmentMode;
   forget?: (accountId: string) => void;
   forgetExcept?: (keptAccountIds: readonly string[]) => void;

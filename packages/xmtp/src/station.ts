@@ -13,6 +13,7 @@ export const xmtpStation: Station = {
   readsProfiles: true,
   resolvesSenders: true,
   claimsName: true,
+  sendsFrames: true,
   sendAttachments: xmtpSendAttachments,
   tools: XMTP_TOOLS,
 };

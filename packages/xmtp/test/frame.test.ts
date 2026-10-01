@@ -44,8 +44,13 @@ describe('frame content', () => {
     expect(frame.description).toHaveLength(1000);
   });
 
-  test('a widget given as a JSON string is parsed', () => {
+  test('a widget or a whole frame given as a JSON string is parsed', () => {
     expect(buildFrameContent({ widget: JSON.stringify(widget) }).frame.widget).toEqual(widget);
+    expect(buildFrameContent(JSON.stringify({ widget, title: 'Report' })).frame).toMatchObject({ title: 'Report', widget });
+  });
+
+  test('refuses a frame that is not an object', () => {
+    expect(() => buildFrameContent(['x'])).toThrow(/frame must be an object/);
   });
 
   test('a frame with no text has no title and reads as Frame', () => {
@@ -57,7 +62,7 @@ describe('frame content', () => {
     ['an array', [widget]],
     ['bad JSON', '{"type":'],
   ])('refuses a widget with %s', (_, bad) => {
-    expect(() => buildFrameContent({ widget: bad })).toThrow(/send_frame widget/);
+    expect(() => buildFrameContent({ widget: bad })).toThrow(/frame widget/);
   });
 
   test('refuses a widget over the size limit', () => {
@@ -92,31 +97,49 @@ describe('frame envelopes', () => {
   });
 });
 
-describe('send_frame', () => {
+describe('send with a frame', () => {
   let out: string[] = [];
+  let sent: unknown[] = [];
   let restore = (): void => {};
 
   beforeEach(() => {
     out = [];
+    sent = [];
     const spy = spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
       out.push(String(chunk));
       return true;
     });
     restore = () => spy.mockRestore();
+    const group = {
+      id: 'group1',
+      sendText: async (text: string) => { sent.push(text); return 'text-msg-id'; },
+      send: async (content: unknown) => { sent.push(content); return 'frame-msg-id'; },
+    };
+    const client = { inboxId: 'self', conversations: { getConversationById: async () => group } };
+    accounts.set(accountId, { cfg: { id: accountId }, client, inboxId: 'self' } as unknown as Account);
   });
   afterEach(() => {
     restore();
     accounts.delete(accountId);
   });
 
+  const call = async (args: Record<string, unknown>): Promise<{ result?: unknown; error?: string }> => {
+    await handleCall({ op: 'call', id: 'f', action: 'send', args: { line, ...args } });
+    return out.map((l) => JSON.parse(l) as { op: string; result?: unknown; error?: string }).find((e) => e.op === 'response') ?? {};
+  };
+
   test('sends the frame content type and answers with its id', async () => {
-    const sent: unknown[] = [];
-    const group = { id: 'group1', send: async (content: unknown) => { sent.push(content); return 'frame-msg-id'; } };
-    const client = { inboxId: 'self', conversations: { getConversationById: async () => group } };
-    accounts.set(accountId, { cfg: { id: accountId }, client, inboxId: 'self' } as unknown as Account);
-    await handleCall({ op: 'call', id: 'f', action: 'sendFrame', args: { line, widget, title: 'Report' } });
-    const response = out.map((l) => JSON.parse(l) as { op: string; result?: unknown }).find((e) => e.op === 'response');
-    expect(response?.result).toEqual({ messageId: 'frame-msg-id', title: 'Report' });
+    expect((await call({ frame: { widget, title: 'Report' } })).result).toEqual({ messageId: 'frame-msg-id' });
     expect(sent).toEqual([new FrameCodec().encode({ title: 'Report', description: 'Sales up 12%', widget })]);
+  });
+
+  test('sends the text first, then the frame, and answers with the frame id', async () => {
+    expect((await call({ text: 'Here it is', frame: { widget } })).result).toEqual({ messageId: 'frame-msg-id' });
+    expect(sent).toEqual(['Here it is', new FrameCodec().encode({ title: 'Weekly report', description: 'Sales up 12%', widget })]);
+  });
+
+  test('a bad frame sends nothing, not even the text', async () => {
+    expect((await call({ text: 'Here it is', frame: { widget: { children: [] } } })).error).toMatch(/frame widget must be/);
+    expect(sent).toEqual([]);
   });
 });

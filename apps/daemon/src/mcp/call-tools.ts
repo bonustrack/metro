@@ -60,6 +60,21 @@ function assertDelivered(
     );
 }
 
+const frameOf = (m: MessageArgs): Record<string, unknown> =>
+  m.a.frame === undefined ? {} : { frame: m.a.frame };
+
+const sentLabels = (m: MessageArgs, text: string | undefined): string[] => [
+  ...(text ? ['text'] : []),
+  ...(m.a.frame === undefined ? [] : ['frame']),
+];
+
+function nativeBody(m: MessageArgs, text: string | undefined, replyTo: string | undefined): Record<string, unknown> {
+  const body: Record<string, unknown> = { line: m.line, ...frameOf(m) };
+  if (text) body.text = text;
+  if (text && replyTo) body.replyTo = replyTo;
+  return body;
+}
+
 async function sendNative(
   m: MessageArgs,
   text: string | undefined,
@@ -67,16 +82,9 @@ async function sendNative(
   atts: ResolvedAttachment[],
 ): Promise<Sent> {
   const { line, ctx, station } = m;
-  const labels: string[] = [];
+  const labels = sentLabels(m, text);
   let messageId: string | undefined;
-  if (text) {
-    const response = await ctx.call(
-      'send',
-      replyTo ? { line, text, replyTo } : { line, text },
-    );
-    messageId = messageIdOf(response);
-    labels.push('text');
-  }
+  if (labels.length) messageId = messageIdOf(await ctx.call('send', nativeBody(m, text, replyTo)));
   if (!atts.length) return { labels, messageId };
   const delivered = station.sendAttachments
     ? await station.sendAttachments(line, atts, ctx)
@@ -93,7 +101,7 @@ async function sendForwarded(
   atts: ResolvedAttachment[],
 ): Promise<Sent> {
   const { line, ctx, station } = m;
-  const args: Record<string, unknown> = { line };
+  const args: Record<string, unknown> = { line, ...frameOf(m) };
   if (text) args.text = text;
   if (typeof m.a.subject === 'string' && m.a.subject.trim() !== '') args.subject = m.a.subject;
   if (replyTo) args.replyTo = replyTo;
@@ -101,8 +109,7 @@ async function sendForwarded(
   const response = await ctx.call('send', args);
   const messageId = messageIdOf(response);
   const thread = threadOf(response, line);
-  const labels: string[] = [];
-  if (text) labels.push('text');
+  const labels = sentLabels(m, text);
   if (atts.length) {
     const delivered = deliveredLabels(response);
     assertDelivered(station, delivered, atts);
@@ -116,6 +123,16 @@ const unsupported = (station: Station, atts: CanonicalAttachment[]): string =>
     .map((a) => kindOf(a.mime ?? '', a.path ?? a.url ?? a.name ?? ''))
     .join(', ')}); send a link in \`text\` instead`;
 
+const NOTHING_TO_SEND = 'send requires `text`, `attachments` or `frame`';
+
+function refusal(m: MessageArgs, text: string | undefined, requested: CanonicalAttachment[]): string | undefined {
+  if (!text && !requested.length && m.a.frame === undefined) return NOTHING_TO_SEND;
+  if (m.a.frame !== undefined && m.station.sendsFrames !== true)
+    return `${m.station.name} cannot send a frame; frames are Stage (XMTP) only`;
+  if (requested.length && m.station.attachmentMode === 'none') return unsupported(m.station, requested);
+  return undefined;
+}
+
 function noteSent(m: MessageArgs, messageId: string | undefined): void {
   if (messageId !== undefined) m.onSent?.(messageId);
 }
@@ -124,10 +141,8 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
   const text = m.a.text as string | undefined;
   const replyTo = m.a.reply_to as string | undefined;
   const requested = (m.a.attachments as CanonicalAttachment[] | undefined) ?? [];
-  if (!text && !requested.length)
-    return errResult('send requires `text` or `attachments`');
-  if (requested.length && m.station.attachmentMode === 'none')
-    return errResult(unsupported(m.station, requested));
+  const refused = refusal(m, text, requested);
+  if (refused !== undefined) return errResult(refused);
   const atts = await resolveAttachments(requested, {
     allowed: allowedAgents(currentIdentity()),
   });
@@ -138,8 +153,7 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
     const sent = native
       ? await sendNative(m, text, replyTo, atts)
       : await sendForwarded(m, text, replyTo, atts);
-    if (!sent.labels.length)
-      return errResult('send requires `text` or `attachments`');
+    if (!sent.labels.length) return errResult(NOTHING_TO_SEND);
     noteSent(m, sent.messageId);
     const done = withId(`sent: ${sent.labels.join(', ')}`, sent.messageId);
     return ok(sent.thread === undefined ? done : `${done} — new thread line: ${sent.thread}`);

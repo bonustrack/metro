@@ -31,10 +31,18 @@ const badArgs = (message: string): TrainError =>
 
 async function send(id: string, args: Args): Promise<void> {
   const { line, text } = args as { line: string; text: string };
+  const built = args.frame === undefined ? undefined : buildFrameContent(args.frame);
   const { acct, conv } = await convOf(line);
   if (!conv) throw noConv(line);
-  const messageId = await conv.sendText(text);
-  emitOutbound(acct.cfg.id, line, messageId, text);
+  let messageId: string | undefined;
+  if (text || !built) {
+    messageId = await conv.sendText(text);
+    emitOutbound(acct.cfg.id, line, messageId, text);
+  }
+  if (built) {
+    messageId = await conv.send(new FrameCodec().encode(built.frame));
+    emitOutbound(acct.cfg.id, line, messageId, `Frame: ${built.title}`);
+  }
   respond(id, { result: { messageId } });
 }
 
@@ -47,16 +55,6 @@ async function ask(id: string, args: Args): Promise<void> {
   const sentId = await conv.send(new PollCodec().encode(poll));
   emitOutbound(acct.cfg.id, line, sentId, `📊 Poll: ${title}`);
   respond(id, { result: { messageId: sentId, pollId: mintedId } });
-}
-
-async function sendFrame(id: string, args: Args): Promise<void> {
-  const { line } = args as { line: string };
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
-  const { frame, title } = buildFrameContent(args);
-  const sentId = await conv.send(new FrameCodec().encode(frame));
-  emitOutbound(acct.cfg.id, line, sentId, `Frame: ${title}`);
-  respond(id, { result: { messageId: sentId, title } });
 }
 
 async function referenceInboxOf(conv: Conversation, xmtpMsgId: string): Promise<string> {
@@ -222,7 +220,6 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   resolve_sender: resolveSenderAction,
   send,
   ask,
-  sendFrame,
   react,
   reply,
   delete: remove,

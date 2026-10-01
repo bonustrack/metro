@@ -34,7 +34,7 @@ export const COMMON_TOOLS: ToolDef[] = [
     group: 'write',
     description:
       'Send a message (and/or media) to a Metro conversation. Args: line, text?, reply_to?, ' +
-      'subject?, attachments?. The station is derived from the line. Outlook and Gmail: send to ' +
+      'subject?, attachments?, frame?. The station is derived from the line. Outlook and Gmail: send to ' +
       'metro://<outlook|gmail>/<account>/<email address> to start a new email (subject defaults to the ' +
       'first line of text); the result names the new thread line. Each attachment names EXACTLY ONE ' +
       'source, and the choice matters: `upload` (an `upload_id` from `create_upload`, the ' +
@@ -42,7 +42,8 @@ export const COMMON_TOOLS: ToolDef[] = [
       '`data` (base64 inline -- TINY FILES ONLY, a few KB, because the base64 has to be ' +
       'written out verbatim in the call and longer than that it corrupts); `url` (the daemon ' +
       'fetches it, so the file must already be public); `path` (resolved on the DAEMON host, ' +
-      'which is not your machine). At least one of text/attachments is required. ' +
+      'which is not your machine). Stage (XMTP) only: `frame` posts an interactive view. At least one ' +
+      'of text/attachments/frame is required. ' +
       'The success line names each attachment the station actually delivered; a station that ' +
       'cannot carry a file errors instead of reporting success.',
     inputSchema: {
@@ -65,6 +66,28 @@ export const COMMON_TOOLS: ToolDef[] = [
           type: 'array',
           description: 'Optional files to attach.',
           items: attachmentItem,
+        },
+        frame: {
+          type: 'object',
+          description:
+            'Stage (XMTP) only: a frame, a small interactive view that Stage shows as a card (title and ' +
+            'description) and opens full screen. `widget` is OpenAI ChatKit widget JSON (a Card, ListView ' +
+            'or Basic root, 64K characters at most); a missing `title` or `description` is taken from the ' +
+            'widget. A tap comes back to you as a reply to the frame: "Frame action: <type> <payload ' +
+            "JSON>\". It is sent after the text, and the message_id returned is the frame's. The stage " +
+            'skill lists the widget nodes, with an example.',
+          properties: {
+            widget: {
+              type: 'object',
+              description:
+                'ChatKit widget JSON, e.g. {"type":"Card","children":[{"type":"Title","value":"Deploy?"},' +
+                '{"type":"Button","label":"Ship it","onClickAction":{"type":"deploy","payload":{"env":"prod"}}}]}.',
+              additionalProperties: true,
+            },
+            title: { type: 'string', description: 'Card title in the chat (200 characters at most).' },
+            description: { type: 'string', description: 'Card description in the chat (1000 characters at most).' },
+          },
+          required: ['widget'],
         },
       },
       required: ['line'],

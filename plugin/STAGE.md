@@ -42,11 +42,11 @@ Move it from Backlog or To-do to In progress, then In review, then Done. Use Blo
 - File: `create_upload {"name": "report.pdf"}`, run the `curl` line it returns in a shell, then `send {"line": "…", "attachments": [{"upload": "<upload_id>"}]}`. Files that are not images are refused over about 190 KiB.
 
 **Frames.** A frame is a small interactive view: a report, a choice, a form. Stage shows it in the chat as a card with a title and a description, and opens it full screen on a tap.
-- Send: `send_frame {"line": "…", "title": "Deploy", "description": "Version 2.4 is ready", "widget": {…}}`. `title` and `description` are optional: they come from the first `Title` and text in the widget when missing.
+- Send: `send {"line": "…", "frame": {"title": "Deploy", "description": "Version 2.4 is ready", "widget": {…}}}`. A frame goes with `send`, like a file: there is no separate tool. `title` and `description` are optional: they come from the first `Title` and text in the widget when missing. With `text` as well, the text goes first, and the `message_id` you get back is the frame's.
 - `widget` is OpenAI ChatKit widget JSON, with ChatKit's names and props (https://openai.github.io/chatkit-js/): a `Card`, `ListView` or `Basic` root, with `Row`, `Col`, `Box`, `Text`, `Title`, `Caption`, `Markdown`, `Badge`, `Icon`, `Image`, `Button`, `Divider`, `Spacer`, `Form`, `Input`, `Textarea`, `Select`, `DatePicker`, `Checkbox`, `RadioGroup` and `Table`. Images must be `https://`. Number spacing is in steps of 4px. At most 64K characters, 16 levels deep and 500 nodes. Stage shows a small notice for anything it does not know.
-- Example:
+- Example, the arguments of one `send`:
   ```json
-  {"type": "Card", "children": [
+  {"line": "…", "frame": {"widget": {"type": "Card", "children": [
     {"type": "Title", "value": "Deploy version 2.4?"},
     {"type": "Text", "value": "3 fixes, no migration.", "color": "secondary"},
     {"type": "Input", "name": "note", "placeholder": "Note (optional)"},
@@ -54,6 +54,6 @@ Move it from Backlog or To-do to In progress, then In review, then Done. Use Blo
       {"type": "Button", "label": "Deploy", "onClickAction": {"type": "deploy", "payload": {"version": "2.4"}}},
       {"type": "Button", "label": "Not now", "color": "secondary", "onClickAction": {"type": "deploy.cancel"}}
     ]}
-  ]}
+  ]}}}
   ```
 - A tap comes back to you as a reply to the frame: `Frame action: deploy {"version":"2.4","note":"…"} (tapped "Deploy")`. The values of the fields (`Input`, `Select`, `Checkbox`, …) are added to the payload by their `name`. `Button.onClickAction`, `ListViewItem.onClickAction`, a `Card` `confirm`/`cancel` (`{"label", "action"}`) and a `Form` `onSubmitAction` send one. Answer it like any message.
