@@ -15,6 +15,7 @@ import {
 } from './group.js';
 import { updateChannelMeta } from './actions-meta.js';
 import { deletedByRequests, isDeleteRequest, superAdminCheck } from './delete-requests.js';
+import { isCallSignal } from './codecs.js';
 
 type Args = Record<string, unknown>;
 type Handler = (id: string, args: Args) => Promise<void>;
@@ -63,7 +64,7 @@ async function read(id: string, args: Args): Promise<void> {
   await conv.sync().catch(() => undefined);
   const all = await conv.messages();
   const deleted = deletedByRequests(all, superAdminCheck(conv));
-  const slice = upTo(all.filter((m) => !isDeleteRequest(m)), before).slice(-lim);
+  const slice = upTo(all.filter((m) => !isDeleteRequest(m) && !isCallSignal(m)), before).slice(-lim);
   const parsed = parseLine(line);
   if (!parsed)
     throw new TrainError('NOT_FOUND', `could not parse line ${line}`);

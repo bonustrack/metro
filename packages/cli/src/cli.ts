@@ -8,6 +8,7 @@ import { update } from './update.js';
 import { serve } from './serve.js';
 import { service, serviceStopHint } from './service.js';
 import { currentVersion } from './version.js';
+import { voiceSession } from './voice.js';
 
 const USAGE = `metro: run your agent on this machine
 
@@ -38,6 +39,11 @@ const USAGE = `metro: run your agent on this machine
                   the last run, Claude Code reads the memory skill (or the file given) and
                   files them into its memory, with no metro tools and writes only inside
                   the memory folder
+  metro voice --model <model>
+                  the agent's side of a voice call, which the daemon starts when a call
+                  comes in: Claude Code reads the call's words as stream-json on stdin and
+                  streams its replies on stdout, with the agent's memory, skills and tools
+                  but no metro channel
   metro update    update to the newest published version (--check only reports)
   metro version   print this CLI's version
 
@@ -74,6 +80,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   tail: () => tailEvents(process.argv.slice(3)),
   claude: () => launchClaude(process.argv.slice(3)),
   memory: () => memoryRoutine(memoryPaths(process.env, process.argv[3])),
+  voice: () => voiceSession(process.argv.slice(3)),
   update: () => update(process.argv.slice(3)),
   version: async () => {
     process.stdout.write(`${currentVersion()}\n`);

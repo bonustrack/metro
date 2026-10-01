@@ -16,6 +16,7 @@ import * as term from '../../apps/ui/src/api/terminal.ts';
 import type { Section } from '../../apps/ui/src/export/pack.ts';
 import * as transfer from '../../apps/ui/src/export/transfer.ts';
 import * as schedules from '../../apps/ui/src/api/schedules.ts';
+import * as voice from '../../apps/ui/src/api/voice.ts';
 
 const need = (name: string): string => {
   const v = process.env[name];
@@ -197,6 +198,12 @@ if (skill !== undefined) await ok('deleteClaudeSkill', () => claude.deleteClaude
 await ok('deleteMemoryFile', () => claude.deleteMemoryFile(project, 'compat.md'));
 await ok('deleteClaudeSession', () => claude.deleteClaudeSession(project, sid));
 await ok('detachAccount', () => attach.detachAccount(agent, 'threema', account));
+
+const hasVoice = (await fetch(`http://${host}/api/voice`, { method: 'DELETE' })).status === 405;
+if (hasVoice) {
+  await ok('fetchVoice', () => voice.fetchVoice());
+  await ok('saveVoice', () => voice.saveVoice({ apiKey: 'compat-key', voiceId: 'compat', model: 'anthropic:claude-sonnet-5-5', enabled: false }));
+}
 
 await mcp.stop(true);
 console.log(failed === 0 ? 'compat: every call passed' : `compat: ${String(failed)} call(s) failed`);

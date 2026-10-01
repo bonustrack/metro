@@ -10,7 +10,7 @@ import { keepInSession, takeBackConversation } from './background.js';
 
 const CHANNEL_FLAGS = ['--dangerously-load-development-channels', 'server:metro'];
 const FRESH_PROMPT_FLAGS = ['--system-prompt-snapshot', 'off'];
-const PERMISSION_MODE_FLAG: Record<PermissionMode, string> = { auto: 'auto', bypass: 'bypassPermissions' };
+export const PERMISSION_MODE_FLAG: Record<PermissionMode, string> = { auto: 'auto', bypass: 'bypassPermissions' };
 const KEY_HEADER = 'x-metro-key';
 const PROBE_MS = 3_000;
 const AUTH_STATUS_MS = 20_000;

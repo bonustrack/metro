@@ -9,7 +9,7 @@ import {
 } from './attachments.js';
 import { reportAttachment } from '@metro-labs/core/stations/train-events';
 import { sentByMe } from './wire.js';
-import { frameActionText, frameFallback, type FrameContent } from './codecs.js';
+import { CALL_TYPES, frameActionText, frameFallback, type FrameContent } from './codecs.js';
 import { asFrameAction } from './frames.js';
 
 export interface EnvelopeCtx {
@@ -336,6 +336,7 @@ export function typedEnvelope(
   if (typeId === 'reaction') return reactionPayload(base, c as Reaction);
   if (typeId === 'reply') return replyPayload(base, typeId, c as Reply);
   if (typeId === 'poll') return pollPayload(base, typeId, c);
+  if (typeId !== undefined && CALL_TYPES.has(typeId)) return { ...base, payload: { contentType: typeId, call: c } };
   return (
     attachmentEnvelope(base, typeId ?? '', c, ctx) ??
     refEnvelope(base, typeId, c) ??

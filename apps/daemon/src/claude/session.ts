@@ -110,13 +110,17 @@ export function hasConversation(home: string, dir = claudeDir()): boolean {
   );
 }
 
-function metroCommand(deps: SessionDeps, home: string): string[] {
+export function metroCli(args: string[], fixed?: string[]): string[] {
   const bin = process.env.METRO_CLI_BIN?.trim() ?? '';
   const runtime = agentUser() === null ? process.execPath : 'node';
-  const base = deps.metro ?? (bin === '' ? ['metro', 'claude'] : [runtime, bin, 'claude']);
-  const continues = (deps.continues ?? hasConversation)(home);
+  const base = fixed ?? (bin === '' ? ['metro', ...args] : [runtime, bin, ...args]);
   const env = Object.entries(sessionEnv()).map(([k, v]) => `${k}=${v}`);
-  const command = env.length === 0 || deps.metro !== undefined ? base : ['env', ...env, ...base];
+  return env.length === 0 || fixed !== undefined ? base : ['env', ...env, ...base];
+}
+
+function metroCommand(deps: SessionDeps, home: string): string[] {
+  const command = metroCli(['claude'], deps.metro);
+  const continues = (deps.continues ?? hasConversation)(home);
   return continues ? [...command, '-c'] : command;
 }
 

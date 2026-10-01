@@ -22,6 +22,7 @@ import { IconHand5Finger } from '@central-icons-react-native/round-outlined-radi
 import { IconHome } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconHome';
 import { IconImac } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconImac';
 import { IconKey2 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconKey2';
+import { IconMicrophone } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconMicrophone';
 import { IconMoon } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconMoon';
 import { IconPeople } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPeople';
 import { IconPlusLarge } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPlusLarge';
@@ -54,6 +55,7 @@ const ICONS = {
   hand: IconHand5Finger,
   home: IconHome,
   key: IconKey2,
+  microphone: IconMicrophone,
   moon: IconMoon,
   officeBuilding: IconBuildings,
   plus: IconPlusLarge,

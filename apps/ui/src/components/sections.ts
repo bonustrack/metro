@@ -39,6 +39,7 @@ export const SECTIONS: Section[] = [
   { id: 'channels', label: 'Channels', icon: 'chat', kinds: ['stations', 'station'], target: (project) => ({ kind: 'stations', project }) },
   { id: 'connectors', label: 'Connectors', icon: 'viewGridAdd', kinds: ['connectors', 'connector'], target: (project) => ({ kind: 'connectors', project }) },
   { id: 'model', label: 'Model', icon: 'chip', kinds: ['model'], target: (project) => ({ kind: 'model', project }) },
+  { id: 'voice', label: 'Voice', icon: 'microphone', kinds: ['voice'], target: (project) => ({ kind: 'voice', project }) },
   { id: 'skills', label: 'Skills', icon: 'sparkles', kinds: ['skills', 'skill'], target: (project) => ({ kind: 'skills', project }) },
   {
     id: 'memory',

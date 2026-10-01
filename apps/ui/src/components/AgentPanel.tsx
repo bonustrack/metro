@@ -19,6 +19,7 @@ import { ScheduledJobs } from './ScheduledJobs.js';
 import { ScheduledJobPage } from './ScheduledJobPage.js';
 import { Files } from './Files.js';
 import { Secrets } from './Secrets.js';
+import { VoicePage } from './VoicePage.js';
 import { SectionTabs } from './SectionTabs.js';
 import { sectionOf } from './sections.js';
 import { Tabbed } from './tabbed.js';
@@ -104,6 +105,7 @@ function ScopedPanel({ project, selection, onSelect }: ScopedProps): ReactNode {
   if (selection.kind === 'server') return <ServerPage project={project} />;
   if (selection.kind === 'agent-settings') return <AgentSettings />;
   if (selection.kind === 'model') return <ModelPage />;
+  if (selection.kind === 'voice') return <VoicePage />;
   if (selection.kind === 'stations')
     return (
       <Stations

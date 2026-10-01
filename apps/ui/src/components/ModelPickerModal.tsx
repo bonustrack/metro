@@ -78,16 +78,20 @@ function Groups({ rows, typed, connections, busy, onPick }: { rows: PickRow[]; t
   );
 }
 
-function usePick(scope: ConnectionRow | undefined, onClose: () => void): { busy: boolean; error: string | null; pick: (row: PickRow) => void } {
+type OnPick = (row: PickRow) => Promise<unknown>;
+
+function usePick(scope: ConnectionRow | undefined, onClose: () => void, onPick?: OnPick): { busy: boolean; error: string | null; pick: (row: PickRow) => void } {
   const client = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const routeTo: OnPick = (row) =>
+    saveConnection(row.connection, { model: row.id })
+      .then(() => (scope === undefined ? chooseConnection(row.connection) : undefined))
+      .then(() => refresh(client, 'model'));
   const pick = (row: PickRow): void => {
     setBusy(true);
     setError(null);
-    saveConnection(row.connection, { model: row.id })
-      .then(() => (scope === undefined ? chooseConnection(row.connection) : undefined))
-      .then(() => refresh(client, 'model'))
+    (onPick ?? routeTo)(row)
       .then(onClose)
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not change the model.'));
@@ -104,24 +108,37 @@ function chipOf(settings: ModelSettings, scope: ConnectionRow | undefined): stri
   return settings.route !== '' ? settings.route : (settings.connections[0]?.id ?? 'all');
 }
 
-const titleOf = (scope: ConnectionRow | undefined): string => (scope === undefined ? 'Choose a model' : `Model for ${scope.label}`);
+const titleOf = (scope: ConnectionRow | undefined, title: string | undefined): string =>
+  title ?? (scope === undefined ? 'Choose a model' : `Model for ${scope.label}`);
 
-const scopedRows = (rows: PickRow[], scope: ConnectionRow | undefined): PickRow[] =>
-  scope === undefined ? rows : rows.map((row) => ({ ...row, current: row.id === scope.model }));
+function scopedRows(rows: PickRow[], scope: ConnectionRow | undefined, isCurrent: ((row: PickRow) => boolean) | undefined): PickRow[] {
+  if (isCurrent !== undefined) return rows.map((row) => ({ ...row, current: isCurrent(row) }));
+  return scope === undefined ? rows : rows.map((row) => ({ ...row, current: row.id === scope.model }));
+}
 
-export function ModelPickerModal({ open, settings, scope, onClose }: { open: boolean; settings: ModelSettings; scope?: ConnectionRow; onClose: () => void }): ReactNode {
+interface PickerProps {
+  open: boolean;
+  settings: ModelSettings;
+  scope?: ConnectionRow;
+  title?: string;
+  isCurrent?: (row: PickRow) => boolean;
+  onPick?: OnPick;
+  onClose: () => void;
+}
+
+export function ModelPickerModal({ open, settings, scope, title, isCurrent, onPick, onClose }: PickerProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [query, setQuery] = useState('');
   const chip = scope?.id ?? 'all';
-  const { busy, error, pick } = usePick(scope, onClose);
+  const { busy, error, pick } = usePick(scope, onClose, onPick);
   const lists = useLists(settings.connections, open);
   const anyZdr = settings.connections.some((c) => c.provider === 'openrouter' && c.zdr);
   const zdr = useOpenRouterZdrQuery(open && anyZdr);
   const input = { models: lists.models, connections: settings.connections, chip, query, route: settings.route, zdr: anyZdr ? (zdr.data ?? null) : null };
-  const rows = scopedRows(pickRows(input), scope);
+  const rows = scopedRows(pickRows(input), scope, isCurrent);
   const typed = typedRow({ ...input, chip: chipOf(settings, scope) });
   return (
-    <Modal title={titleOf(scope)} open={open} onClose={onClose}>
+    <Modal title={titleOf(scope, title)} open={open} onClose={onClose}>
       <Col gap={12}>
         <FormField label="Search models" name="model-search" value={query} placeholder="Search models" dark={dark} onChangeText={setQuery} style={GROW} inputProps={{ autoFocus: true, autoCapitalize: 'none', autoComplete: 'off', autoCorrect: false, spellCheck: false }} />
         {lists.loading && rows.length === 0 ? <Text size="md" role="secondary">Loading models…</Text> : null}

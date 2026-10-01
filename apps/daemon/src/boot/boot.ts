@@ -52,6 +52,7 @@ import type { StationName } from '@metro-labs/core/station-names';
 import { startUploadReaper } from '../files/upload-store.js';
 import { startAttachReaper } from '../files/attach-reaper.js';
 import { startCloudWatchPublisher } from '../server/cloudwatch.js';
+import { isCallEvent, onCallEvent } from '../voice/calls.js';
 
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -67,6 +68,10 @@ const supervisor = new TrainSupervisor();
 const emit = makeEmit();
 
 supervisor.onTrainEvent((env, train) => {
+  if (isCallEvent(env)) {
+    onCallEvent(env);
+    return;
+  }
   const entry = trainEventToMetroEvent(env, train);
   if (entry) emit(entry);
 });

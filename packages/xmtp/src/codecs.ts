@@ -11,17 +11,19 @@ const dec = (e: EncodedContent): unknown =>
 
 const makeJsonCodec = <T>(
   contentType: ContentTypeId,
-  fallbackFn: (c: T) => string,
+  fallbackFn: (c: T) => string | undefined,
+  push = true,
 ) =>
   class {
     get contentType() {
       return contentType;
     }
     encode(c: T): EncodedContent {
+      const fallback = fallbackFn(c);
       return {
         type: contentType,
         parameters: {},
-        fallback: fallbackFn(c),
+        ...(fallback === undefined ? {} : { fallback }),
         content: enc(c),
       };
     }
@@ -32,7 +34,7 @@ const makeJsonCodec = <T>(
       return fallbackFn(c);
     }
     shouldPush() {
-      return true;
+      return push;
     }
   };
 
@@ -235,6 +237,20 @@ export function encodeDeleteMessage(messageId: string): EncodedContent {
   };
 }
 
+export const CALL_TYPES = new Set(['callInvite', 'callSignal']);
+const callContentType = (typeId: string): ContentTypeId => ({
+  authorityId: 'stage.box',
+  typeId,
+  versionMajor: 1,
+  versionMinor: 0,
+});
+const CallInviteCodec = makeJsonCodec<{ video?: unknown }>(callContentType('callInvite'), (c) =>
+  c.video === true ? '📞 Video call' : '📞 Voice call',
+);
+export const isCallSignal = (m: { contentType?: ContentTypeId }): boolean =>
+  m.contentType?.authorityId === 'stage.box' && m.contentType.typeId === 'callSignal';
+export const CallSignalCodec = makeJsonCodec<Record<string, unknown>>(callContentType('callSignal'), () => undefined, false);
+
 export const CODECS = (): ContentCodec[] => [
   new PollCodec(),
   new SignatureRequestCodec(),
@@ -242,4 +258,6 @@ export const CODECS = (): ContentCodec[] => [
   new FrameCodec(),
   new FrameActionCodec(),
   new DeleteRequestCodec(),
+  new CallInviteCodec(),
+  new CallSignalCodec(),
 ];

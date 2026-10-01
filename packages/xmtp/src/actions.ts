@@ -12,7 +12,7 @@ import {
 import { convOf, type Account } from './accounts.js';
 import { resolveMsgId } from './wire.js';
 import { emitOutbound } from './emit.js';
-import { FrameCodec, PollCodec, buildPollContent, encodeDeleteMessage } from './codecs.js';
+import { CallSignalCodec, FrameCodec, PollCodec, buildPollContent, encodeDeleteMessage } from './codecs.js';
 import { buildFrameContent } from './frames.js';
 import { convHandlers } from './actions-conv.js';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
@@ -142,6 +142,15 @@ async function remove(id: string, args: Args): Promise<void> {
   respond(id, { result: { messageId: sentId } });
 }
 
+async function callSignal(id: string, args: Args): Promise<void> {
+  const { line, signal } = args as { line: string; signal?: unknown };
+  if (typeof signal !== 'object' || signal === null) throw badArgs('callSignal requires a signal object');
+  const { conv } = await convOf(line);
+  if (!conv) throw noConv(line);
+  const messageId = await conv.send(new CallSignalCodec().encode(signal as Record<string, unknown>), { shouldPush: false });
+  respond(id, { result: { messageId } });
+}
+
 async function sendAttachment(id: string, args: Args): Promise<void> {
   const { line, name, mime, dataB64 } = args as {
     line: string;
@@ -223,6 +232,7 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   react,
   reply,
   delete: remove,
+  callSignal,
   sendAttachment,
   sendImage,
   ...convHandlers,

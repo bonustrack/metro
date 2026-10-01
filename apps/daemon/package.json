@@ -35,6 +35,8 @@
     "@metro-labs/whatsapp": "workspace:*",
     "@metro-labs/xmtp": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "opusscript": "^0.1.1",
+    "werift": "^0.24.4",
     "ws": "^8.18.0",
     "zod": "^3.23.8"
   },
