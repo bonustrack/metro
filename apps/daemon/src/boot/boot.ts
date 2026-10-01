@@ -27,7 +27,8 @@ import { runningAsRoot } from '../metro-user/privilege.js';
 import { provisionAgentUser } from '../agent-user/provision.js';
 import { applyVault } from '../vault/index.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
-import { liveEvents, tryClaudeSetup } from '../claude/setup.js';
+import { liveEvents, memoryRoutine, tryClaudeSetup } from '../claude/setup.js';
+import { tryMemoryJob } from '../claude/memory-routine.js';
 import { applyLocalOwner } from './local-owner.js';
 import { installBearerSessions } from '../routes/bearer.js';
 import { ensureLocalAgent, localOwner } from '../agents/file-admin.js';
@@ -177,6 +178,7 @@ async function startClaude(): Promise<void> {
       log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');
     });
   tryClaudeSetup();
+  tryMemoryJob(memoryRoutine());
   watchSession();
 }
 

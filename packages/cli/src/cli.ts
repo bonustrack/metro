@@ -3,6 +3,7 @@ import { whoisAuthorized } from './api.js';
 import { stopAll } from './control.js';
 import { tailEvents } from './tail.js';
 import { launchClaude } from './claude.js';
+import { memoryRoutine } from './memory.js';
 import { update } from './update.js';
 import { serve } from './serve.js';
 import { service, serviceStopHint } from './service.js';
@@ -32,6 +33,9 @@ const USAGE = `metro: run your agent on this machine
                   open Claude Code with the metro channel and the metro MCP server, its
                   inference routed through the daemon's model gateway (the Model page);
                   every argument is passed through the same
+  metro memory    run the daily memory routine once: when Claude Code transcripts changed
+                  since the last run, Claude Code reads the memory skill and files them into
+                  its memory, with no metro tools and writes only inside the memory folder
   metro update    update to the newest published version (--check only reports)
   metro version   print this CLI's version
 
@@ -67,6 +71,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   stop: stopDaemon,
   tail: () => tailEvents(process.argv.slice(3)),
   claude: () => launchClaude(process.argv.slice(3)),
+  memory: () => memoryRoutine(),
   update: () => update(process.argv.slice(3)),
   version: async () => {
     process.stdout.write(`${currentVersion()}\n`);

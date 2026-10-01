@@ -113,7 +113,7 @@ export function parseCronLine(line: string): CronLine | null {
 
 const lineId = (kind: JobKind, line: string): string => `${kind}:${createHash('sha256').update(line.trim()).digest('hex').slice(0, 16)}`;
 
-function crontabOf(runner: Runner, user: string): string[] {
+export function crontabOf(runner: Runner, user: string): string[] {
   const out = runner.run('crontab', ['-l', '-u', user]);
   return out.status === 0 ? out.stdout.split('\n') : [];
 }

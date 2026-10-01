@@ -99,12 +99,15 @@ async function verdict(): Promise<Verdict> {
   return { skip: 'the daemon is not serving here (stopped, or not running), so Claude Code talks to Anthropic directly' };
 }
 
-function runClaude(args: string[], env: NodeJS.ProcessEnv): Promise<number> {
+export function runClaude(args: string[], env: NodeJS.ProcessEnv, headless?: { timeoutMs: number }): Promise<number> {
   return new Promise((resolve, reject) => {
     const leaveToChild = (): undefined => undefined;
     process.on('SIGINT', leaveToChild);
     process.on('SIGTERM', leaveToChild);
-    const child = spawn('claude', args, { stdio: 'inherit', env });
+    const child = spawn('claude', args, { stdio: [headless === undefined ? 'inherit' : 'ignore', 'inherit', 'inherit'], env });
+    const timer = headless === undefined ? undefined : setTimeout(() => {
+      child.kill('SIGTERM');
+    }, headless.timeoutMs);
     child.on('error', (err: NodeJS.ErrnoException) => {
       reject(
         new Error(
@@ -115,6 +118,7 @@ function runClaude(args: string[], env: NodeJS.ProcessEnv): Promise<number> {
       );
     });
     child.on('exit', (code) => {
+      clearTimeout(timer);
       resolve(code ?? 1);
     });
   });
@@ -149,6 +153,16 @@ function gatewayLaunchEnv(key: string, port: number): NodeJS.ProcessEnv {
   return env;
 }
 
+function inferenceEnv(decision: Verdict, port: number): NodeJS.ProcessEnv {
+  if ('key' in decision) return gatewayLaunchEnv(decision.key, port);
+  process.stderr.write(`metro claude: ${decision.skip}\n`);
+  return process.env;
+}
+
+export async function headlessEnv(): Promise<NodeJS.ProcessEnv> {
+  return keepInSession(inferenceEnv(await verdict(), localPort()));
+}
+
 const continues = (args: string[]): boolean => args.includes('-c') || args.includes('--continue');
 
 async function reclaimConversation(extra: string[]): Promise<void> {
@@ -171,11 +185,7 @@ export async function launchClaude(extra: string[]): Promise<number> {
   const prompt = systemPrompt();
   if (prompt !== null) process.stderr.write('metro claude: the system prompt from the Harness page is appended to this session\n');
   try {
-    if ('skip' in decision) {
-      process.stderr.write(`metro claude: ${decision.skip}\n`);
-      return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), keepInSession(channelEnv(process.env)));
-    }
-    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), keepInSession(channelEnv(gatewayLaunchEnv(decision.key, port))));
+    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), keepInSession(channelEnv(inferenceEnv(decision, port))));
   } finally {
     mcp?.cleanup();
   }

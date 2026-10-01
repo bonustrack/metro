@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { setClaudeLiveEvents, setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } from '../api/claude-box.js';
+import { setClaudeLiveEvents, setClaudeMemoryRoutine, setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup, type MemoryJob } from '../api/claude-box.js';
 import { queryError, refresh, useClaudeSetupQuery } from '../api/queries.js';
 import { routeHash } from '../route.js';
 import { SystemPromptEditor } from './SystemPrompt.js';
@@ -11,7 +11,7 @@ import { Choice } from './Choice.js';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 
 function missingOf(setup: Setup): string[] {
-  return [setup.worker ? '' : 'worker', setup.skill ? '' : 'standing rules', setup.stage ? '' : 'Stage skill', setup.privacyApplied || !setup.privacy ? '' : 'privacy settings'].filter((x) => x !== '');
+  return [setup.worker ? '' : 'worker', setup.skill ? '' : 'standing rules', setup.stage ? '' : 'Stage skill', setup.memory ? '' : 'memory skill', setup.privacyApplied || !setup.privacy ? '' : 'privacy settings'].filter((x) => x !== '');
 }
 
 function useFlip(failure: string): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>) => void } {
@@ -51,6 +51,30 @@ function LiveEvents({ on }: { on: boolean }): ReactNode {
   );
 }
 
+function memoryNote(job: MemoryJob | null): string {
+  if (job?.state === 'own') return `${MEMORY_NOTE} Your agent's own job ${job.job ?? ''} keeps its memory, so this one does not run.`;
+  if (job?.state === 'unavailable') return `${MEMORY_NOTE} It starts once Metro runs as its own user on this server.`;
+  return MEMORY_NOTE;
+}
+
+function MemoryRoutine({ on, job }: { on: boolean; job: MemoryJob | null }): ReactNode {
+  const memory = useFlip('Could not change the daily memory routine.');
+  return (
+    <SettingsSection title="Daily memory" note={memoryNote(job)}>
+      <Choice
+        label="Daily memory"
+        value={on ? 'on' : 'off'}
+        options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
+        disabled={memory.busy}
+        onChange={(next) => {
+          memory.run(() => setClaudeMemoryRoutine(next === 'on'));
+        }}
+      />
+      {memory.error === null ? null : <Text size="md" role="danger">{memory.error}</Text>}
+    </SettingsSection>
+  );
+}
+
 function Behaviour({ setup, project }: { setup: Setup; project: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const privacy = useFlip('Could not change the privacy setting.');
@@ -82,6 +106,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
         {mode.error === null ? null : <Text size="md" role="danger">{mode.error}</Text>}
       </SettingsSection>
       {setup.liveEvents === null ? null : <LiveEvents on={setup.liveEvents} />}
+      {setup.memoryRoutine === null ? null : <MemoryRoutine on={setup.memoryRoutine} job={setup.memoryJob} />}
       {setup.skill ? (
         <SettingsSection title="Standing rules" note="What your agent follows on every task, like how it delegates work.">
           <Button
@@ -113,6 +138,7 @@ function SetupRow({ setup }: { setup: Setup }): ReactNode {
 
 const PRIVACY = 'No usage reports leave the server, and conversations are deleted after a week. Messages still reach the model.';
 const LIVE_NOTE = 'On: messages from your channels reach the agent as they arrive. Off: nothing arrives on its own. The agent can still send, react and read past messages, and approvals are answered on metro.box only.';
+const MEMORY_NOTE = 'Once a day, after a day with activity, the agent files what happened into its memory: people, facts, decisions, work, and daily and weekly notes. It runs as memory-routine on the Scheduled page.';
 const MODE_NOTE = 'Ask first sends risky actions to the chat for a yes. Never ask lets the agent act alone. Changing this restarts the agent.';
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {

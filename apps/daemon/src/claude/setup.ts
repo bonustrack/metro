@@ -9,6 +9,7 @@ import { readJson, writeAtomic, writeJson } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { moveHome, removeHome, writeHomeText } from '../agent-user/home-fs.js';
 import { claudeDir } from './files.js';
+import { memoryJobStatus, type MemoryJob } from './memory-routine.js';
 import { stagedMarketplaceDir } from './plugin-install.js';
 import { readModelConfig, routedConnection, type ModelConfig } from '../gateway/model-config.js';
 
@@ -60,6 +61,7 @@ export interface SetupReport {
   worker: Placed;
   skill: Placed;
   stage: Placed;
+  memory: Placed;
   settings: SettingsOutcome;
 }
 
@@ -68,10 +70,13 @@ export interface SetupStatus {
   permissionMode: PermissionMode;
   systemPrompt: string;
   liveEvents: boolean;
+  memoryRoutine: boolean;
+  memoryJob: MemoryJob;
   guard: 'plugin';
   worker: boolean;
   skill: boolean;
   stage: boolean;
+  memory: boolean;
   privacyApplied: boolean;
   retentionDays: number | null;
 }
@@ -114,6 +119,12 @@ export function setLiveEvents(on: boolean, agents = agentsDir()): void {
   writeState(agents, { liveEvents: on });
 }
 
+export const memoryRoutine = (agents = agentsDir()): boolean => readState(agents).memoryRoutine !== false;
+
+export function setMemoryRoutine(on: boolean, agents = agentsDir()): void {
+  writeState(agents, { memoryRoutine: on });
+}
+
 const promptPath = (agents: string): string => join(agents, SYSTEM_PROMPT_FILE);
 
 export function systemPrompt(agents = agentsDir()): string {
@@ -150,6 +161,7 @@ const PRIOR_METRO: ReadonlySet<string> = new Set([
   'b910597d24f31fa479b130a2545f94dd23684d802d99e36b637fc57c818a33be',
 ]);
 const PRIOR_STAGE: ReadonlySet<string> = new Set(['dd7d30474765de3865ddc87c1cf3220161ded09502027cdff18597e5df0aab43']);
+const PRIOR_MEMORY: ReadonlySet<string> = new Set();
 
 interface ShippedSkill {
   name: string;
@@ -159,6 +171,7 @@ interface ShippedSkill {
 
 const METRO_SKILL: ShippedSkill = { name: RULES_SKILL, file: RULES_FILE, prior: PRIOR_METRO };
 const STAGE_SKILL: ShippedSkill = { name: 'stage', file: 'STAGE.md', prior: PRIOR_STAGE };
+const MEMORY_SKILL: ShippedSkill = { name: 'memory', file: 'MEMORY.md', prior: PRIOR_MEMORY };
 
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex');
 
@@ -255,10 +268,11 @@ export function ensureClaudeSetup(deps: SetupDeps = {}): SetupReport {
     worker: placeFile(workerPath(dir), WORKER_AGENT, PRIOR_WORKER),
     skill: placeSkill(dir, plugin, METRO_SKILL),
     stage: placeSkill(dir, plugin, STAGE_SKILL),
+    memory: placeSkill(dir, plugin, MEMORY_SKILL),
     settings: applyPrivacy(dir, privacy),
   };
   syncAvailableModelsQuietly({ ...deps, dir, agents });
-  if (written(report.worker) || written(report.skill) || written(report.stage) || report.settings === 'written')
+  if ([report.worker, report.skill, report.stage, report.memory].some(written) || report.settings === 'written')
     log.info(report, 'claude-setup: applied the Claude Code setup for a metro box');
   if (report.settings === 'unreadable') log.warn({ path: join(dir, 'settings.json') }, 'claude-setup: settings.json is not valid JSON, so the privacy settings were not written');
   return report;
@@ -275,10 +289,13 @@ export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
     permissionMode: permissionMode(agents),
     systemPrompt: systemPrompt(agents),
     liveEvents: liveEvents(agents),
+    memoryRoutine: memoryRoutine(agents),
+    memoryJob: memoryJobStatus(),
     guard: 'plugin',
     worker: existsSync(workerPath(dir)),
     skill: existsSync(skillPath(dir, METRO_SKILL.name)),
     stage: existsSync(skillPath(dir, STAGE_SKILL.name)),
+    memory: existsSync(skillPath(dir, MEMORY_SKILL.name)),
     privacyApplied: Object.keys(PRIVACY_ENV).every((key) => env[key] === '1'),
     retentionDays: typeof days === 'number' ? days : null,
   };

@@ -12,6 +12,8 @@ and this page explains what they apply, how to check it, and what it costs.
 | Standing rules loaded at session start | the metro plugin (`bin/session-start.mjs`) | read from the `metro` skill |
 | The `metro` skill | the daemon, at boot, from `plugin/METRO.md` | `~/.claude/skills/metro/SKILL.md`, editable on the Skills page |
 | The `stage` skill | the daemon, at boot, from `plugin/STAGE.md` | `~/.claude/skills/stage/SKILL.md`, editable on the Skills page |
+| The `memory` skill | the daemon, at boot, from `plugin/MEMORY.md` | `~/.claude/skills/memory/SKILL.md`, editable on the Skills page |
+| The daily memory routine | the daemon, at boot, switchable on the Harness page | the agent's crontab, shown as `memory-routine` on the Scheduled page |
 | The `worker` subagent | the daemon, at boot | `~/.claude/agents/worker.md` |
 | Privacy settings and transcript retention | the daemon, at boot, switchable on the Harness page | `~/.claude/settings.json` |
 | The metro MCP server, Channels, the model route | `metro claude`, at every launch | the session only |
@@ -82,6 +84,36 @@ the metro tools: create a channel, rename it, add or remove members, set labels 
 assignees, and send, reply, react, delete and read messages. It is written on every box, but it
 only works when the agent has an XMTP account, and it says so. It is not loaded at session
 start: Claude Code offers it like any other skill. Edits stick the same way.
+
+### The memory skill and the daily memory routine
+
+`~/.claude/skills/memory/SKILL.md` describes how the agent keeps its long-term memory, in the
+layout of Instinct (https://supermemory.ai/blog/reverse-engineering-instinct-memory/):
+`entities/people`, `entities/orgs`, `knowledge/facts`, `knowledge/preferences`,
+`knowledge/decisions`, `comms/phone`, `timeline/daily`, `timeline/weekly`, `workstreams/active`
+and `workstreams/completed`, under Claude Code's own memory folder
+(`~/.claude/projects/-home-agent/memory/` on a box), with `MEMORY.md` as the index. It also sets
+the note format (frontmatter, one subject per file, dated bullets, `[[links]]`), the rules (no
+secrets, nothing from WhatsApp or Telegram feeds, never delete or rewrite a note, the owner's own
+rules win, an index under 200 lines) and the daily routine. Edits stick the same way.
+
+Once a day, at a minute between 00:00 and 00:59 that depends on the machine, the agent's
+crontab runs `~/.metro/bin/memory-routine`, a launcher the daemon writes, which runs
+`metro memory`. That command checks the Claude Code transcripts. When none changed since its
+last successful run, it stops and uses no tokens. Otherwise it creates the ten folders when
+they are missing and runs Claude Code once, headless (`claude -p`), on the box's model route,
+with the box's system prompt. Claude Code reads the skill and files the day into memory, then
+writes the daily note and, when it is missing, last week's weekly note. That run has no metro
+MCP server and no plugin, so it never takes the chat session's place. It saves no transcript.
+Its tools are Read, Glob and Grep, writes inside the memory folder, and `mv` and `mkdir`
+(`--permission-mode dontAsk`): no network, no subagents. A lock keeps one run at a time, and
+it stops after 50 minutes. Its output goes to `~/.metro/memory-routine.log`, which the
+Scheduled page shows, with Run now.
+
+The switch is **Daily memory** on the Harness page (`memoryRoutine` in `claude-setup.json`, on
+unless switched off). Off removes the cron line. A box whose agent already has its own memory
+job, a cron line or a timer with `memory` in its name or command, keeps that job, and the
+default one is not added, so memory is never kept twice. The Harness page names that job.
 
 ## Privacy and data retention
 

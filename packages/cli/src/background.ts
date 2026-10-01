@@ -17,7 +17,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 export const keepInSession = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
   given(env[AGENT_VIEW_OFF]) === undefined ? { ...env, [AGENT_VIEW_OFF]: '1' } : env;
 
-const claudeDir = (env: NodeJS.ProcessEnv = process.env): string =>
+export const claudeDir = (env: NodeJS.ProcessEnv = process.env): string =>
   given(env.CLAUDE_CONFIG_DIR) ?? join(given(env.HOME) ?? homedir(), '.claude');
 
 export const projectDir = (dir: string, cwd: string): string => join(dir, 'projects', cwd.replace(/[^A-Za-z0-9]/g, '-'));

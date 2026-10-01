@@ -107,6 +107,10 @@ if (typeof setup?.liveEvents === 'boolean') {
   await ok('setClaudeLiveEvents off', () => box.setClaudeLiveEvents(false));
   await ok('setClaudeLiveEvents on', () => box.setClaudeLiveEvents(true));
 }
+if (typeof setup?.memoryRoutine === 'boolean') {
+  await ok('setClaudeMemoryRoutine off', () => box.setClaudeMemoryRoutine(false));
+  await ok('setClaudeMemoryRoutine on', () => box.setClaudeMemoryRoutine(true));
+}
 await ok('fetchClaudeVersion', () => box.fetchClaudeVersion());
 await ok('fetchSchedules', () => schedules.fetchSchedules());
 await ok('fetchClaudeAccount', () => claude.fetchClaudeAccount());

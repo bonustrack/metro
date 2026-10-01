@@ -50,6 +50,8 @@ export function setAgentExtraEnv(env: Record<string, string>): void {
 
 export const agentExtraEnv = (): Record<string, string> => ({ ...extraEnv });
 
+export const agentPath = (user: AgentUser): string => AGENT_PATH.map((p) => (p.startsWith('/') ? p : join(user.home, p))).join(':');
+
 function agentEnv(user: AgentUser, extra: Record<string, string> = {}): Record<string, string> {
   return {
     HOME: user.home,
@@ -58,7 +60,7 @@ function agentEnv(user: AgentUser, extra: Record<string, string> = {}): Record<s
     SHELL: '/bin/bash',
     LANG: process.env.LANG ?? 'C.UTF-8',
     TERM: process.env.TERM ?? 'xterm-256color',
-    PATH: AGENT_PATH.map((p) => (p.startsWith('/') ? p : join(user.home, p))).join(':'),
+    PATH: agentPath(user),
     ...extraEnv,
     ...extra,
   };

@@ -35,19 +35,23 @@ afterEach(() => {
 });
 
 describe('the Claude Code setup a metro box gets', () => {
-  test('writes the worker agent, the metro and stage skills and the privacy settings once, and leaves them alone after', () => {
+  test('writes the worker agent, the metro, stage and memory skills and the privacy settings once, and leaves them alone after', () => {
     const first = ensureClaudeSetup(deps());
-    expect(first).toEqual({ privacy: true, guard: 'plugin', worker: 'written', skill: 'written', stage: 'written', settings: 'written' });
+    expect(first).toEqual({ privacy: true, guard: 'plugin', worker: 'written', skill: 'written', stage: 'written', memory: 'written', settings: 'written' });
     expect(readFileSync(join(dir, 'claude', 'agents', 'worker.md'), 'utf8')).toContain('name: worker');
     expect(readFileSync(skill('metro'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'METRO.md'), 'utf8'));
     expect(readFileSync(skill('metro'), 'utf8')).toContain('name: metro\n');
     expect(readFileSync(skill('stage'), 'utf8')).toContain('name: stage\n');
+    expect(readFileSync(skill('memory'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'MEMORY.md'), 'utf8'));
+    expect(readFileSync(skill('memory'), 'utf8')).toContain('name: memory\n');
     expect(settings()).toEqual({ env: PRIVACY_ENV, cleanupPeriodDays: RETENTION_DAYS });
     writeFileSync(skill('metro'), 'edited by hand');
     writeFileSync(skill('stage'), 'stage edited by hand');
-    expect(ensureClaudeSetup(deps())).toEqual({ privacy: true, guard: 'plugin', worker: 'present', skill: 'present', stage: 'present', settings: 'unchanged' });
+    writeFileSync(skill('memory'), 'memory edited by hand');
+    expect(ensureClaudeSetup(deps())).toEqual({ privacy: true, guard: 'plugin', worker: 'present', skill: 'present', stage: 'present', memory: 'present', settings: 'unchanged' });
     expect(readFileSync(skill('metro'), 'utf8')).toBe('edited by hand');
     expect(readFileSync(skill('stage'), 'utf8')).toBe('stage edited by hand');
+    expect(readFileSync(skill('memory'), 'utf8')).toBe('memory edited by hand');
   });
 
   test('the old metro-orchestrator skill becomes metro: a copy metro shipped gets the new rules, an edited one keeps its edits', () => {
@@ -102,12 +106,26 @@ describe('the Claude Code setup a metro box gets', () => {
     setPrivacy(false, join(dir, 'agents'));
     expect(ensureClaudeSetup(deps())).toMatchObject({ privacy: false, settings: 'written' });
     expect(settings()).toEqual({ env: { MY_VAR: 'x' }, cleanupPeriodDays: 7 });
-    expect(claudeSetupStatus(deps())).toEqual({ privacy: false, permissionMode: 'auto', systemPrompt: '', liveEvents: true, guard: 'plugin', worker: true, skill: true, stage: true, privacyApplied: false, retentionDays: 7 });
+    expect(claudeSetupStatus(deps())).toEqual({
+      privacy: false,
+      permissionMode: 'auto',
+      systemPrompt: '',
+      liveEvents: true,
+      memoryRoutine: true,
+      memoryJob: expect.any(Object),
+      guard: 'plugin',
+      worker: true,
+      skill: true,
+      stage: true,
+      memory: true,
+      privacyApplied: false,
+      retentionDays: 7,
+    });
   });
 
   test('missing skill sources are reported, not thrown', () => {
     const report = ensureClaudeSetup({ ...deps(), plugin: join(dir, 'nowhere') });
-    expect(report).toMatchObject({ skill: 'missing', stage: 'missing' });
+    expect(report).toMatchObject({ skill: 'missing', stage: 'missing', memory: 'missing' });
     expect(existsSync(join(dir, 'claude', 'skills'))).toBe(false);
   });
 });
@@ -266,6 +284,52 @@ describe('live messages to the session', () => {
     expect(on).toMatchObject({ liveEvents: true, permissionMode: 'bypass' });
     expect(told).toEqual([false, true]);
     expect((await call('POST', { liveEvents: 'off' })).status).toBe(400);
+    expect(told).toEqual([false, true]);
+  });
+});
+
+describe('the daily memory routine switch', () => {
+  let server: Server;
+  let base = '';
+  let told: boolean[] = [];
+  beforeEach(async () => {
+    told = [];
+    server = createServer((req, res) => {
+      const ok = handleClaudeRequest(req, res, {
+        setup: deps(),
+        session: { tmux: join(dir, 'no-tmux-here') },
+        memoryJob: (on) => {
+          told.push(on);
+        },
+      });
+      if (!ok) res.writeHead(404).end();
+    });
+    await new Promise<void>((done) => {
+      server.listen(0, '127.0.0.1', done);
+    });
+    base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+  });
+  afterEach(() => {
+    server.close();
+  });
+  const call = async (method: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}/api/claude/setup`, {
+      method,
+      headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  const state = (): Record<string, unknown> => JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8')) as Record<string, unknown>;
+
+  test('is on until switched off, is kept with the setup, sets the job up again at once, and a non-boolean is refused', async () => {
+    expect(((await (await call('GET')).json()) as { memoryRoutine: boolean }).memoryRoutine).toBe(true);
+    const off = (await (await call('POST', { memoryRoutine: false })).json()) as { memoryRoutine: boolean; liveEvents: boolean };
+    expect(off).toMatchObject({ memoryRoutine: false, liveEvents: true });
+    expect(state().memoryRoutine).toBe(false);
+    expect(told).toEqual([false]);
+    const on = (await (await call('POST', { memoryRoutine: true })).json()) as { memoryRoutine: boolean };
+    expect(on.memoryRoutine).toBe(true);
+    expect(told).toEqual([false, true]);
+    expect((await call('POST', { memoryRoutine: 'off' })).status).toBe(400);
     expect(told).toEqual([false, true]);
   });
 });

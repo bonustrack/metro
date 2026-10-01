@@ -27,6 +27,7 @@ import {
   liveEvents,
   permissionMode,
   setLiveEvents,
+  setMemoryRoutine,
   setPermissionMode,
   setPrivacy,
   setSystemPrompt,
@@ -45,6 +46,7 @@ import {
   type SessionDeps,
 } from './session.js';
 import { claudeVersion, updateClaude, type VersionDeps } from './version.js';
+import { tryMemoryJob } from './memory-routine.js';
 import { receiveSessionFile, sessionFilePath } from './session-files.js';
 import { createReadStream } from '../agent-user/agent-fs.js';
 import { pipeline } from 'node:stream/promises';
@@ -73,6 +75,7 @@ export interface ClaudeApiDeps {
   setup?: SetupDeps;
   version?: VersionDeps;
   liveEvents?: (on: boolean) => void;
+  memoryJob?: (on: boolean) => void;
 }
 
 function projectOf(query: URLSearchParams): string {
@@ -157,6 +160,7 @@ interface SetupChange {
   permissionMode?: PermissionMode;
   systemPrompt?: string;
   liveEvents?: boolean;
+  memoryRoutine?: boolean;
 }
 
 function promptChange(raw: unknown): string | undefined {
@@ -184,12 +188,14 @@ function setupChange(body: unknown): SetupChange {
   const permissionMode = modeChange(body.permissionMode);
   const systemPrompt = promptChange(body.systemPrompt);
   const liveEvents = flagChange(body.liveEvents, 'liveEvents');
-  if (privacy === undefined && permissionMode === undefined && systemPrompt === undefined && liveEvents === undefined) throw new ApiError('nothing to change', 400);
+  const memoryRoutine = flagChange(body.memoryRoutine, 'memoryRoutine');
+  if ([privacy, permissionMode, systemPrompt, liveEvents, memoryRoutine].every((v) => v === undefined)) throw new ApiError('nothing to change', 400);
   return {
     ...(privacy === undefined ? {} : { privacy }),
     ...(permissionMode === undefined ? {} : { permissionMode }),
     ...(systemPrompt === undefined ? {} : { systemPrompt }),
     ...(liveEvents === undefined ? {} : { liveEvents }),
+    ...(memoryRoutine === undefined ? {} : { memoryRoutine }),
   };
 }
 
@@ -212,10 +218,16 @@ function applyLiveEvents(on: boolean, deps: ClaudeApiDeps): void {
   deps.liveEvents?.(on);
 }
 
+function applyMemoryRoutine(on: boolean, deps: ClaudeApiDeps): void {
+  setMemoryRoutine(on, deps.setup?.agents);
+  (deps.memoryJob ?? tryMemoryJob)(on);
+}
+
 function applySetupChange(change: SetupChange, deps: ClaudeApiDeps): void {
   const setup = deps.setup ?? {};
   if (change.privacy !== undefined) setPrivacy(change.privacy, setup.agents);
   if (change.liveEvents !== undefined) applyLiveEvents(change.liveEvents, deps);
+  if (change.memoryRoutine !== undefined) applyMemoryRoutine(change.memoryRoutine, deps);
   if (restartsSession(change, setup.agents) && sessionRunning(deps.session?.tmux ?? 'tmux')) stopSession(deps.session ?? {});
   ensureClaudeSetup(setup);
 }
