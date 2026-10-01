@@ -117,9 +117,10 @@ box's own clock, which is UTC on a box Metro launched.
 The switch is **Daily memory** on the Harness page (`memoryRoutine` in `claude-setup.json`, on
 unless switched off). Off removes the cron line. A box keeps one memory job: an agent cron job
 with `memory` in its name, like an older `memory-upkeep`, is replaced by `memory-routine` and
-stays in the crontab as a `# replaced by memory-routine: ` comment. A timer with `memory` in its
-name or command cannot be switched off by Metro, so it is kept and the default job is not
-added, and the Harness page names that timer.
+stays in the crontab as a `# replaced by memory-routine: ` comment, which Off turns back into
+the job. A cron line with `memory` only further in its command (run through a shell, a lock or
+`claude -p`) and a timer with `memory` in its name or command are kept instead, and the default
+job is not added, so memory is never kept twice. The Harness page names that job.
 
 ## Privacy and data retention
 

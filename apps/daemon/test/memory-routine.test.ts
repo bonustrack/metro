@@ -72,10 +72,10 @@ describe('the daily memory job on a box', () => {
 
   test("replaces the agent's own memory cron jobs, kept as comments, so there is one memory job and it has one name", () => {
     const upkeep = '0 0,12 * * * /home/agent/bin/memory-upkeep >> /home/agent/logs/memory-upkeep.log 2>&1';
-    const own = cron(`*/5 * * * * /home/agent/check.sh /home/agent/memory\n${upkeep}\n`);
+    const own = cron(`*/5 * * * * /home/agent/check.sh\n${upkeep}\n`);
     expect(ensureMemoryJob(true, deps(own))).toEqual({ state: 'scheduled', job: null });
     const line = cronLine(user);
-    const migrated = `*/5 * * * * /home/agent/check.sh /home/agent/memory\n# replaced by memory-routine: ${upkeep}\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`;
+    const migrated = `*/5 * * * * /home/agent/check.sh\n# replaced by memory-routine: ${upkeep}\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`;
     expect(own.tab()).toBe(migrated);
     expect(existsSync(launcherPath(user))).toBe(true);
     ensureMemoryJob(true, deps(own));
@@ -83,6 +83,16 @@ describe('the daily memory job on a box', () => {
     const older = cron(`# metro memory routine: begin\n17 0 * * * ${launcherPath(user)} >> ${home}/.metro/memory-routine.log 2>&1\n# metro memory routine: end\n5 1 * * * /home/agent/bin/memory-daily.sh\n`);
     ensureMemoryJob(true, deps(older));
     expect(older.tab()).toBe(`# replaced by memory-routine: 5 1 * * * /home/agent/bin/memory-daily.sh\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`);
+    expect(ensureMemoryJob(false, deps(own))).toEqual({ state: 'off', job: null });
+    expect(own.tab()).toBe(`*/5 * * * * /home/agent/check.sh\n${upkeep}\n`);
+  });
+
+  test('is not added beside a memory job it cannot name, run through a shell, a lock or claude -p, so memory is never kept twice', () => {
+    for (const job of ['0 1 * * * /bin/bash /home/agent/bin/memory-upkeep.sh', '0 1 * * * cd /home/agent && claude -p "update memory"']) {
+      const runner = cron(`${job}\n`);
+      expect(ensureMemoryJob(true, deps(runner)).state).toBe('own');
+      expect(runner.writes()).toBe(0);
+    }
   });
 
   test('a crontab that cannot be read is never rewritten', () => {

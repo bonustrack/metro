@@ -51,13 +51,28 @@ export const cronLine = (user: AgentUser): string => `${SCHEDULE} ${launcherPath
 
 const commandName = (command: string): string => command.split(/\s+/)[0]?.split('/').pop() ?? 'cron';
 
-function replaces(user: AgentUser, line: string): boolean {
+const ownCommand = (user: AgentUser, line: string): string | null => {
   const parsed = parseCronLine(line);
-  return parsed !== null && !parsed.command.includes(launcherPath(user)) && OWN_JOB.test(commandName(parsed.command));
+  return parsed === null || parsed.command.includes(launcherPath(user)) || !OWN_JOB.test(parsed.command) ? null : parsed.command;
+};
+
+const replaces = (user: AgentUser, line: string): boolean => OWN_JOB.test(commandName(ownCommand(user, line) ?? ''));
+
+function ownJob(user: AgentUser, runner: Runner, lines: string[]): string | null {
+  const cron = lines.flatMap((line) => {
+    const command = ownCommand(user, line);
+    return command === null || replaces(user, line) ? [] : [commandName(command)];
+  });
+  const timers = listSchedules(null, runner).filter((job) => job.runsAs === user.name && OWN_JOB.test(`${job.name} ${job.command}`));
+  return cron[0] ?? timers[0]?.name ?? null;
 }
 
-const ownTimer = (user: AgentUser, runner: Runner): string | null =>
-  listSchedules(null, runner).find((job) => job.runsAs === user.name && OWN_JOB.test(`${job.name} ${job.command}`))?.name ?? null;
+const restored = (line: string): string => (line.startsWith(REPLACED) ? line.slice(REPLACED.length) : line);
+
+function marked(user: AgentUser, lines: string[], on: boolean, scheduled: boolean): string[] {
+  if (!on) return lines.map(restored);
+  return lines.map((l) => (scheduled && replaces(user, l) ? `${REPLACED}${l}` : l));
+}
 
 function placeLauncher(path: string, text: string): void {
   if (existsSync(path) && readFileSync(path, 'utf8') === text) return;
@@ -87,16 +102,15 @@ export function ensureMemoryJob(on: boolean, deps: MemoryJobDeps = {}): MemoryJo
     return memoryJobStatus();
   }
   const lines = readCrontab(user, runner);
-  const own = on ? ownTimer(user, runner) : null;
+  const own = on ? ownJob(user, runner, lines) : null;
   const scheduled = on && own === null;
   const launcher = launcherPath(user);
   if (scheduled) placeLauncher(launcher, launcherText(user, cli, port));
-  const replaced = scheduled ? lines.filter((l) => replaces(user, l)) : [];
-  const kept = lines.map((l) => (replaced.includes(l) ? `${REPLACED}${l}` : l));
+  const kept = marked(user, lines, on, scheduled);
   const next = withBlock(kept, BEGIN, END, scheduled ? [cronLine(user)] : [], 'end', (l) => l.includes(launcher));
   const changed = writeCrontab(user, runner, lines, next);
   last = { state: stateOf(scheduled, own), job: own };
-  if (changed) log.info({ ...last, replaced }, 'memory-routine: updated the memory job');
+  if (changed) log.info({ ...last, rewritten: kept.filter((l, i) => l !== lines[i]) }, 'memory-routine: updated the memory job');
   return memoryJobStatus();
 }
 
