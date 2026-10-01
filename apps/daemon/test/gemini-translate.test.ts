@@ -67,6 +67,29 @@ describe('a Messages request becomes a Code Assist request', () => {
     const capped = toGeminiRequest({ messages: [], max_tokens: 32000 }, 'gemini-2.5-pro', 'p', 'id');
     expect(capped.request.generationConfig).toEqual({ maxOutputTokens: 16384 });
   });
+
+  test('an image in a tool result follows its function response as inline data, unless Gemini cannot read its type', () => {
+    const png = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } };
+    const contents = contentsOf([
+      { role: 'assistant', content: ['a', 'b', 'c'].map((id) => ({ type: 'tool_use', id, name: 'Read', input: {} })) },
+      {
+        role: 'user',
+        content: [
+          { type: 'tool_result', tool_use_id: 'a', content: [{ type: 'text', text: 'a.png' }, png] },
+          { type: 'tool_result', tool_use_id: 'b', content: [png] },
+          { type: 'tool_result', tool_use_id: 'c', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/gif', data: 'GGGG' } }] },
+        ],
+      },
+    ]);
+    const inline = { inlineData: { mimeType: 'image/png', data: 'AAAA' } };
+    expect((contents[1] as { parts: unknown[] }).parts).toEqual([
+      { functionResponse: { id: 'a', name: 'Read', response: { result: 'a.png' } } },
+      inline,
+      { functionResponse: { id: 'b', name: 'Read', response: { result: 'Binary content provided (1 item(s)).' } } },
+      inline,
+      { functionResponse: { id: 'c', name: 'Read', response: { result: '[an image was attached here; this model cannot see it]' } } },
+    ]);
+  });
 });
 
 describe('a Code Assist stream becomes Anthropic frames', () => {

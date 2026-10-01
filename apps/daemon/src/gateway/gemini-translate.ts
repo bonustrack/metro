@@ -3,7 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ToolNames } from './codex-translate.js';
 import { CLIENT_NAME, requestId, SYSTEM_PREFIX } from './gemini-client.js';
 import { cappedEffort, effortToApply } from './effort.js';
-import { resultText } from './text.js';
+import { inlineImage, resultImages, resultText, type InlineImage } from './text.js';
 import { stringOf } from '@metro-labs/http/api-http';
 
 type Item = Record<string, unknown>;
@@ -63,11 +63,22 @@ export function systemText(system: unknown): string {
     .trim();
 }
 
+const imagePart = (image: InlineImage): Item => ({ inlineData: { mimeType: image.mediaType, data: image.data } });
+
+const GEMINI_IMAGES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
+const geminiSees = (mediaType: string): boolean => GEMINI_IMAGES.has(mediaType);
+
+function toolParts(block: Item, id: string, name: string): Item[] {
+  const images = resultImages(block, geminiSees);
+  const text = resultText(block, geminiSees);
+  const result = text === '' && images.length > 0 ? `Binary content provided (${String(images.length)} item(s)).` : text;
+  return [{ functionResponse: { id, name, response: { result } } }, ...images.map(imagePart)];
+}
+
 function userPart(block: Item): Item | null {
   if (block.type === 'text') return { text: stringOf(block.text) };
-  if (block.type === 'image' && isRecord(block.source) && block.source.type === 'base64')
-    return { inlineData: { mimeType: stringOf(block.source.media_type), data: stringOf(block.source.data) } };
-  return null;
+  const image = inlineImage(block);
+  return image === null ? null : imagePart(image);
 }
 
 function userParts(content: unknown, calls: Map<string, string>): Item[] {
@@ -77,7 +88,7 @@ function userParts(content: unknown, calls: Map<string, string>): Item[] {
   for (const block of content.filter(isRecord)) {
     if (block.type === 'tool_result') {
       const id = stringOf(block.tool_use_id);
-      out.push({ functionResponse: { id, name: calls.get(id) ?? 'tool', response: { result: resultText(block) } } });
+      out.push(...toolParts(block, id, calls.get(id) ?? 'tool'));
       continue;
     }
     const part = userPart(block);

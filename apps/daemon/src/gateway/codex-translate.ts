@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
-import { resultText } from './text.js';
+import { inlineImage, partText, resultImages, resultParts, resultText, TOOL_ERROR, type InlineImage } from './text.js';
 import { stringOf } from '@metro-labs/http/api-http';
 
 const SIGNATURE_PREFIX = 'metro-codex:';
@@ -82,11 +82,25 @@ export function decodeSignature(signature: unknown): Item | null {
   }
 }
 
+const imagePart = (image: InlineImage): Item => ({ type: 'input_image', image_url: `data:${image.mediaType};base64,${image.data}` });
+
 function userPart(block: Item): Item | null {
   if (block.type === 'text') return { type: 'input_text', text: stringOf(block.text) };
-  if (block.type === 'image' && isRecord(block.source) && block.source.type === 'base64')
-    return { type: 'input_image', image_url: `data:${stringOf(block.source.media_type)};base64,${stringOf(block.source.data)}` };
-  return null;
+  const image = inlineImage(block);
+  return image === null ? null : imagePart(image);
+}
+
+function outputPart(part: Item): Item | null {
+  const image = inlineImage(part);
+  if (image !== null) return imagePart(image);
+  const text = partText(part);
+  return text === '' ? null : { type: 'input_text', text };
+}
+
+function toolOutput(block: Item): string | Item[] {
+  if (resultImages(block).length === 0) return resultText(block);
+  const parts = resultParts(block).map(outputPart).filter((part): part is Item => part !== null);
+  return block.is_error === true ? [{ type: 'input_text', text: TOOL_ERROR }, ...parts] : parts;
 }
 
 function userItems(content: unknown): Item[] {
@@ -101,7 +115,7 @@ function userItems(content: unknown): Item[] {
   for (const block of content.filter(isRecord)) {
     if (block.type === 'tool_result') {
       flush();
-      out.push({ type: 'function_call_output', call_id: stringOf(block.tool_use_id), output: resultText(block) });
+      out.push({ type: 'function_call_output', call_id: stringOf(block.tool_use_id), output: toolOutput(block) });
       continue;
     }
     const part = userPart(block);

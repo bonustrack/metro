@@ -497,6 +497,24 @@ describe('the Codex route', () => {
     expect(String(headers['user-agent'])).toMatch(/^codex_cli_rs\//);
   });
 
+  test('an image Read returns reaches Codex inside its tool output', async () => {
+    use(cfg, 'codex');
+    const res = await post('/gateway/v1/messages', {
+      ...message('gpt-5.4', true),
+      messages: [
+        { role: 'assistant', content: [{ type: 'tool_use', id: 'call_read', name: 'Read', input: { file_path: '/shot.png' } }] },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call_read', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }] }] },
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('event: message_stop');
+    const sent = JSON.parse(codexBackend.seen[0]?.body ?? '{}') as { input: unknown[] };
+    expect(sent.input).toEqual([
+      { type: 'function_call', call_id: 'call_read', name: 'Read', arguments: '{"file_path":"/shot.png"}' },
+      { type: 'function_call_output', call_id: 'call_read', output: [{ type: 'input_image', image_url: 'data:image/png;base64,AAAA' }] },
+    ]);
+  });
+
   test('a 401 refreshes the ChatGPT tokens once, saves them, and retries', async () => {
     use(cfg, 'codex');
     conn(cfg, 'codex').codex = { ...tokens(), accessToken: 'expired' };

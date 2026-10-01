@@ -98,7 +98,7 @@ describe('tool names Codex would refuse', () => {
 });
 
 describe('what the translator smooths over', () => {
-  test('max effort becomes xhigh, an image in a tool result leaves a note, and a failed tool says so', () => {
+  test('max effort becomes xhigh, an image in a tool result reaches the model, and a failed tool says so', () => {
     expect(effortOf({ output_config: { effort: 'max' } })).toBe('xhigh');
     expect(effortOf({ output_config: { effort: 'xhigh' } })).toBe('xhigh');
     expect(effortOf({ output_config: { effort: 'silly' } })).toBe('medium');
@@ -107,13 +107,27 @@ describe('what the translator smooths over', () => {
         {
           role: 'user',
           content: [
-            { type: 'tool_result', tool_use_id: 'call_1', content: [{ type: 'text', text: 'saw' }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }] },
+            {
+              type: 'tool_result',
+              tool_use_id: 'call_1',
+              content: [{ type: 'text', text: 'saw' }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }, { type: 'text', text: '' }, { type: 'text', text: 'then' }],
+            },
             { type: 'tool_result', tool_use_id: 'call_2', is_error: true, content: 'no such file' },
+            { type: 'tool_result', tool_use_id: 'call_3', is_error: true, content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'BBBB' } }, { type: 'image', source: { type: 'url', url: 'https://x.test/b.png' } }] },
+            { type: 'tool_result', tool_use_id: 'call_4', content: [{ type: 'image', source: { type: 'url', url: 'https://x.test/a.png' } }] },
           ],
         },
       ],
     );
-    expect(items[0]).toMatchObject({ type: 'function_call_output', call_id: 'call_1', output: 'saw\n[an image was attached here; this model cannot see it]' });
-    expect(items[1]).toMatchObject({ type: 'function_call_output', call_id: 'call_2', output: '[tool error] no such file' });
+    const png = { type: 'input_image', image_url: 'data:image/png;base64,AAAA' };
+    const note = '[an image was attached here; this model cannot see it]';
+    expect(items[0]).toEqual({ type: 'function_call_output', call_id: 'call_1', output: [{ type: 'input_text', text: 'saw' }, png, { type: 'input_text', text: 'then' }] });
+    expect(items[1]).toEqual({ type: 'function_call_output', call_id: 'call_2', output: '[tool error] no such file' });
+    expect(items[2]).toEqual({
+      type: 'function_call_output',
+      call_id: 'call_3',
+      output: [{ type: 'input_text', text: '[tool error]' }, { type: 'input_image', image_url: 'data:image/jpeg;base64,BBBB' }, { type: 'input_text', text: note }],
+    });
+    expect(items[3]).toEqual({ type: 'function_call_output', call_id: 'call_4', output: note });
   });
 });
